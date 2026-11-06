@@ -1,0 +1,123 @@
+# Candidate product requirements
+
+Status: discovery draft, updated 2026-11-06. The confirmed choices below are owner decisions; remaining requirements are proposals to test with real agents. Background: [Jira capability research](JIRA_RESEARCH.md).
+
+## Confirmed owner decisions
+
+1. Build and verify MVP V1 before selecting a pilot project. Then pilot one project before any broader Jira replacement. No pilot project is selected yet; active projects stay on Jira during their current work.
+2. Codex and Orca workers must connect on day one. Claude must also be supported. Use the already installed agent clients; do not require this service to call model APIs or launch new model instances.
+3. Subagent steps do not need separate work items. A ticket must show what the lead agent plans to do, what is underway, what is complete, and what subagents contributed. A short attributed subagent log entry is sufficient when detailed session telemetry is unavailable.
+4. Review documents and Markdown artifacts live in local project-associated storage managed by the service. Git publication happens only when the actual project's workflow explicitly calls for it.
+5. Approval gates vary by project and its agent workflow. Some projects require explicit owner approval at defined points; others allow an agent to finish and report completion without an owner gate.
+6. Human and agents may enter or change planned dates. Effort values and velocity-based backlog forecasts are desirable planning additions; forecasts must be distinguished from entered dates.
+7. The V1 browser UI is available on the host machine only. Other-device or public access is outside the V1 boundary; this public repository should keep local-only networking as its default.
+
+## Product intent
+
+A locally run Docker service gives AI agents a stable MCP endpoint for planning and updating work, while a human sees the portfolio, dependencies, timing, agent activity, documents, and decisions that need review. Task state, agent execution state, review state, and delivery evidence must remain distinguishable.
+
+## Core objects to validate
+
+| Object | Purpose | Key relationships |
+| --- | --- | --- |
+| Project | Bounds a product or work area | Contains outcomes, work items, project-local artifacts, and an optional approval policy linked to its agent workflow documents. |
+| Work item | Durable idea, Epic, Story, Task, Bug, or Subtask | Optional parent; explicit typed links; owner, priority, status, dates, acceptance. |
+| Dependency | Directed `blocks` edge between work items | Independent of hierarchy, ordering, and `relates`. |
+| Ticket plan | A short, revisable list of steps for completing one work item | Each step has state, responsible agent if known, and last update; steps are not work items. |
+| Agent run | One actual execution/session, including an optional delegated subagent record | References work item, plan step when relevant, and optional parent run; actor, timestamps, state, output. |
+| Artifact | Locally stored document/file or a linked URL, commit, PR, test, build, deployment, screenshot, etc. | Project owner, version/source, and work item/run references. Local bytes stay in persistent storage. |
+| Review | An explicit owner decision on a versioned artifact or work item | Requested, approved, changes requested, deferred, or waived, with reviewer and rationale. |
+| Event | Immutable activity/provenance record | Actor, timestamp, object, action, prior/new values or evidence reference. |
+
+## Agent-facing candidate requirements
+
+Priority labels: **P0** is necessary for a useful first release; **P1** adds planning and oversight depth; **P2** is optional.
+
+| ID | Priority | Requirement and observable result |
+| --- | --- | --- |
+| A01 | P0 | A documented, stable MCP endpoint can be reached by installed Codex, Claude, and Codex/Claude launched as Orca workers, including two simultaneous clients, without a per-agent Jira login or interactive UI. Client setup survives container restart. |
+| A02 | P0 | Agents can list/search projects and work items with bounded, paginated results and request one full item with parent, blockers, status, acceptance, and artifact links. |
+| A03 | P0 | Agents can create/update work items with stable IDs, type, title, description, priority, owner, acceptance criteria, parent, and planned dates. The server validates references and required fields. |
+| A04 | P0 | Agents can add/remove typed links, including directional `blocks`; cycle creation is rejected and the response explains the cycle. |
+| A05 | P0 | Agents can query “ready to start,” “blocked and why,” “assigned to me,” and “waiting for review.” Ready work excludes unresolved blockers and any prerequisite owner decision that is still pending. |
+| A06 | P0 | A lead agent can register a run on a work item, report progress, and end with a result. A subagent contribution can be an attributed log entry; when the client exposes reliable run identity, it may also be linked as a child run. Missing heartbeat data is shown as unknown rather than silently completed. |
+| A07 | P0 | Concurrent updates use versions or equivalent conflict detection; retried create/event calls use idempotency keys. A conflict returns the current record and actionable error. |
+| A08 | P0 | Agents can add comments/progress notes and link artifacts with type, source, version/hash where available, and evidence state. |
+| A09 | P0 | Agents can request human review and read the decision when the project's workflow calls for it. An agent may report completion without an owner gate in a project configured for that path; only an attributed owner decision records human approval. |
+| A10 | P0 | MCP failures return structured, concise errors for validation, conflict, permission, unavailable dependency, and internal failure; health diagnostics never require computer use. |
+| A11 | P1 | Agents can ask for a dependency subgraph, critical blockers, and the downstream impact of a proposed delay. Results state whether dates are explicit or estimated. |
+| A12 | P1 | Bulk read and bounded bulk mutation let a coordinator work on several items efficiently; writes remain individually attributable and reversible where possible. |
+| A13 | P1 | Agents can subscribe/poll for changes since a cursor so they do not repeatedly reread the whole board. |
+| A14 | P2 | The service can link source control and CI evidence automatically, provided a trustworthy integration is configured. |
+| A15 | P0 | An agent can atomically claim or release lead coordination of a work item. A second lead claim reports the current claimant and lease state; delegated work under the lead is allowed. |
+| A16 | P0 | The lead agent can publish and revise a ticket plan: planned steps, current step, completed steps, blocked/skipped steps, and brief progress notes. Revisions retain history so the owner can see scope changes. |
+| A17 | P0 | An agent can record a subagent's name or handle, assigned step, outcome, and evidence as a short ticket log entry without creating another work item. The entry states whether the outcome was directly observed or relayed by the lead. |
+| A18 | P1 | Agents can set an effort value for a work item using the project's chosen unit (for example points), and the service retains estimate changes for burn-down and forecast calculations. |
+
+## Human-facing candidate requirements
+
+| ID | Priority | Requirement and observable result |
+| --- | --- | --- |
+| H01 | P0 | A local browser UI shows all projects and a focused work list/board with status, priority, owner, blockers, and last activity; search/filter reaches a work item quickly. |
+| H02 | P0 | An attention view shows items awaiting decision, blocked work, stale agent runs, failed runs, missing evidence, and due/forecast risks, with links to the exact item. |
+| H03 | P0 | A work item page shows outcome, acceptance, decisions, directed blockers, agent runs, current evidence, and full activity history. Each statement identifies its source and time. |
+| H04 | P0 | When review is requested, the owner can open the submitted local document/artifact version, comment, approve, request changes, defer, or waive with rationale. A later revision makes the earlier approval visibly version-specific. |
+| H05 | P0 | The UI shows the lead run and reported subagent work on the ticket, including current task, last update, state, and output link when available. It distinguishes live client telemetry from agent-reported progress and marks stale/unknown state explicitly. |
+| H06 | P0 | Human approval, agent-reported completion, automated check, CI result, merge, deployment, and production observation display as distinct evidence. A project with no owner gate may reach Done from agent completion; a project with a required owner gate cannot. A screenshot or CI result never impersonates human approval. |
+| H07 | P0 | A dependency graph highlights the blocking chain, cycles (including imported bad data), and what becomes ready when a blocker clears. |
+| H08 | P0 | A timeline shows human- or agent-entered planned dates and actual dates alongside blockers. It labels who set each date and when. Computed forecasts appear separately when available. |
+| H09 | P1 | A portfolio view summarizes progress, throughput, aging, review queue, and changed scope over a selected period. It can answer “what are agents doing now?” and “what needs me next?” |
+| H10 | P0 | Project-associated Markdown and other review documents are stored locally, previewed, versioned, and downloaded through the UI. External links can be recorded as references, but the service does not push documents to Git unless the project's explicit workflow does so. |
+| H11 | P1 | The owner can edit priority, dates, blockers, acceptance, and review decisions in the UI; such changes appear in history and agent queries immediately. |
+| H12 | P2 | Optional sprints, release grouping, and customizable dashboards support broader planning only if useful after the initial workflow is proven. |
+| H13 | P0 | The ticket page puts the agent's plan, in-progress steps, completed steps, and subagent contributions in one progress view, with timestamps and links to supporting evidence. The owner can see what remains without reading a raw transcript. |
+| H14 | P1 | A burn-down view shows remaining effort over time for a project or selected agent. A backlog forecast uses observed completed effort over a stated window and displays its assumptions, sample size, and uncertainty; it does not overwrite planned dates. |
+
+## Local operation and data requirements
+
+| ID | Priority | Requirement and observable result |
+| --- | --- | --- |
+| O01 | P0 | `docker compose up` starts the service with persistent local storage mounted inside the container; container replacement retains work, run history, and documents. Health and readiness endpoints identify database/storage failure. |
+| O02 | P0 | The V1 browser UI and host MCP endpoint bind to loopback by default. Authorized host-based Orca workers can connect; any other container-client network path must be configured explicitly. MCP requests authenticate and browser origins are restricted. No secret is written into task content or logs. |
+| O03 | P0 | The server records every mutation with actor, time, old/new version, and correlation/idempotency ID; it supports a recoverable backup and restore that includes project documents. |
+| O04 | P0 | The same work state is exposed through MCP and the human UI. No hidden second task store is introduced for agents. |
+| O05 | P1 | A dry-run Jira import reports mapped, skipped, and lossy fields (including links, comments, attachments, users, history); the owner reviews the report before import. Original Jira keys remain searchable references. |
+| O06 | P1 | A complete machine-readable export makes departure from this service possible without screen scraping. |
+| O07 | P0 | Before a live pilot, setup includes a compatibility matrix and an end-to-end smoke test for installed Codex, installed Claude, and each intended Orca worker surface. Verify against disposable V1 sample work that a delegated agent can read and update the same ticket. |
+| O08 | P0 | The service is a task/data server; it does not require OpenAI or Anthropic model API credentials. If an agent surface cannot attach directly to HTTP MCP, a local client-side bridge may be used and tested for that surface. |
+| O09 | P0 | MVP V1 can be exercised with a disposable sample project and representative tickets, agent plans, blockers, and review artifacts. No Jira import or live-project cutover is required to build or verify V1. |
+| O10 | P0 | Deleting a project through the service removes its work records and project-associated local documents together after an explicit owner action. Backups have a separately documented retention and purge policy; deleting a container alone does not imply deleting its data. |
+| O11 | P0 | Each project can select an approval policy consistent with its agent workflow documents: no owner gate or one or more named owner gates. The service applies the selected policy to Done transitions while preserving the distinction between agent assertions and owner decisions. |
+
+## Initial workflow hypothesis
+
+`Inbox → Ready → In progress → Review → Done`, with `Blocked` as a derived condition and `Canceled` as an explicit terminal outcome. Review is used when the project's workflow requires or requests it; a no-approval project can move from In progress to Done after agent-reported completion. An item in Review can return to In progress after changes are requested. Run state (`working`, `needs input`, `finished`, `failed`, `stale`) is separate from work item status. The statuses are still a proposal; the project-dependent approval choice is confirmed.
+
+## MVP V1 boundary proposed for discussion
+
+Build P0 work records, ticket plans, directional blockers, agent progress and subagent logs, project-configured approval, local review documents, an attention-focused host-only UI with a dependency graph and entered-date timeline, persistent Docker storage, and verified Codex/Claude/Orca MCP connectivity. Exercise V1 with disposable sample work and real local clients. Effort-based burn-down and velocity forecasts are P1; bulk automation, Scrum metrics, and full Jira scheme/plugin parity can wait until their need is demonstrated.
+
+## Storage proposal to validate in design
+
+For one local application host, use one service container with a SQLite database for structured work records and a project-scoped document directory, both inside a Docker named volume. The database and files are accessed only through the application. This avoids a MongoDB or separate database container for V1 while allowing project-level document deletion, backup, and restore. This is an implementation recommendation, not an owner-selected database contract. Docker volumes persist independently of container replacement. [Docker storage](https://docs.docker.com/engine/storage), [SQLite fit](https://www.sqlite.org/whentouse.html)
+
+## Pilot after V1
+
+Select a real project when V1 is usable and the owner has a suitable work stream. Decide then whether to start empty or import Jira records, and review any migration report before changing the project's source of truth. Active Jira work is not a prerequisite or a cutover target for V1.
+
+## Deferred choices
+
+Pilot project choice and Jira import strategy are deferred until V1 is ready for real work. Design should still settle the storage layout, supported document preview formats, the exact project gate configuration shape, and the minimum history needed before a velocity forecast is shown. These are implementation choices guided by the owner decisions above, not blockers to selecting a pilot now.
+
+## Validation scenarios for the next pass
+
+- Two agents try to claim/update one Story simultaneously; only one takes ownership, and the other receives current state and a clear conflict.
+- A parent agent delegates two child runs. One succeeds, one stops heartbeating. The reviewer sees both outcomes and the parent remains unresolved.
+- A lead agent posts a three-step ticket plan, starts the second step, reports a subagent's completed contribution in a short log, then changes the final step. The owner sees planned, current, completed, and changed work without extra tickets.
+- Story B is blocked by Story A in another project. A moves to Done; B becomes ready and the graph/timeline update without treating mere parentage as a blocker.
+- An agent uploads a document for review, then revises it after requested changes. Approval of the old version does not approve the new one.
+- A PR merges and CI passes, but the required owner walkthrough is still pending. The work item remains in Review and the dashboard shows the pending gate.
+- In a project configured without owner approval, an agent completes the declared acceptance and reports Done. The UI shows agent completion accurately without inventing an owner approval.
+- An agent updates a planned date and estimates a ticket at five points. The timeline labels the entered date; the burn-down uses the effort value only after enough completed work exists to show a meaningful rate.
+- A project with local Markdown reviews is deleted through the UI. Its work records and files are removed together, while retained backups follow the documented backup policy.
+- Docker restarts during an active run; task data persists and the run is shown as interrupted/stale rather than falsely finished.
