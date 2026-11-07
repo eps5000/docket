@@ -1,6 +1,6 @@
 # UI/UX design — MVP V1 human interface
 
-Status: design proposal, revision 6, 2026-11-06. Inputs: [requirements draft](REQUIREMENTS_DRAFT.md), [Jira research](JIRA_RESEARCH.md).
+Status: design proposal, revision 7, 2026-11-06. Inputs: [requirements draft](REQUIREMENTS_DRAFT.md), [Jira research](JIRA_RESEARCH.md).
 
 Clickable prototype: [`design/prototype.html`](../design/prototype.html). It is one file with no build step and no network requests, and all data in it is disposable sample work (O09). Open it directly in a browser.
 
@@ -54,9 +54,11 @@ Labels cut across epics (large initiatives).   Blocks links are the only thing t
    **The outcome follows from your choices:**
    - **Every item approved or deferred:** the ticket closes. The button says *Close ticket (1 deferred)* when anything was deferred, and the closed ticket shows "review deferred, not verified".
    - **Any item needs changes:** the ticket returns to In progress and you get a round 2 packet. Approved items stay approved, and deferred items stay deferred.
-4. **Out-of-date packets are detected without a Git integration.** Each packet records the commit it was **built from**. Agents already report progress over MCP, and those reports include the current commit. If a later report on the ticket names a different commit, the tracker marks the packet out of date by itself: Needs you flags it, and the packet shows a warning with *Ask for a fresh packet*. The agent doesn't have to remember to mark it. A Git or CI integration (A14) could supply the same signal later, but it isn't required.
-5. **Earlier approvals carry forward.** They stay approved across rounds. If the code changes after an approval, the item shows a quiet "code changed since" note but isn't forced back into review. This can be tightened later if it becomes a problem.
-6. **One rule the tracker always enforces:** a ticket can't close while any of its human review items is undecided. Everything else (whether a ticket needs human review, what goes in the packet, whether to skip a planning doc) belongs to the agent constitution and workflow in each project's repo.
+4. **Out-of-date packets are detected without a Git integration.** Each packet records the commit it was **built from**. Agents already report progress over MCP, and each commit is reported **for a specific ticket**. If a later commit is reported for the same ticket (or, for an epic-level packet, for any ticket in that epic), the tracker marks the packet out of date by itself: Needs you flags it, and the packet shows a warning with *Ask for a fresh packet*. The agent doesn't have to remember to mark it. A Git or CI integration (A14) could supply the same signal later, but it isn't required.
+5. **Review where the gate matters: on the ticket or on the epic.** If an epic ships as one PR, the agent leaves human review empty on its children and declares it once on the epic. The epic gets the packet when its work is ready to merge (see DOC-10). Agents shouldn't add human review to child tickets unless that gate really matters on its own.
+6. **Deferred, not verified stays visible.** Needs you lists every deferred item with its follow-up: a test ticket and its status, or "no follow-up ticket" with a *Create test ticket* button. Agents query the same list (`review:deferred`) during cleanup, then finish the check or propose another plan. Work has a matching *Deferred review* filter.
+7. **Earlier approvals carry forward.** They stay approved across rounds. If the code changes after an approval, the item shows a quiet "code changed since" note but isn't forced back into review. This can be tightened later if it becomes a problem.
+8. **One rule the tracker always enforces:** a ticket can't close while any of its human review items is undecided. Everything else (whether a ticket needs human review, what goes in the packet, whether to skip a planning doc) belongs to the agent constitution and workflow in each project's repo.
 
 ## Design principles
 
@@ -95,7 +97,8 @@ Header: breadcrumb · search/jump (Ctrl K or /; items, labels, pages) · theme
 ### Needs you (home)
 - **Ready for you:** handoff packets to verify (round number, how many items, about how long) and agent questions, answered inline.
 - **Problems:** stale or failed runs, dependency cycles, and date conflicts. Sorted by how much work each holds up.
-- **Coming up for you:** declared human reviews on tickets not yet in Review, with where each ticket is now ("in progress · 1/4 work items done", "ready · blocked by DOC-4").
+- **Coming up for you:** declared human reviews (including epic-level ones) on work not yet in Review, with where each ticket is now ("in progress · 1/4 work items done", "ready · blocked by DOC-4").
+- **Deferred, not verified:** every deferred check, with its test ticket or a *Create test ticket* button.
 - **Your Planning queue:** everything in Planning, with *Move to Ready* on each.
 - **Agents right now**, and **Since you looked**.
 
@@ -210,6 +213,8 @@ Base type is 13px; secondary text is at least 11.5px. Small controls are at leas
 | --- | --- |
 | Packet ready; approve and close; dependent work unblocks | Needs you → RCP-12 → mark both items *Looks good* → *Approve and close*. RCP-22 becomes startable. |
 | Defer a check | RCP-12 packet → *Looks good* + *Defer* (test ticket) → *Close ticket (1 deferred)*. A "Verify: …" ticket appears in Inbox, carrying the review item. |
+| Deferred list and cleanup | Needs you → *Deferred, not verified* (RCP-11 has test ticket RCP-29; DOC-2 has none → *Create test ticket*) |
+| Epic-level review (one PR) | DOC-10 API reference: human review on the epic, none on its child DOC-4 |
 | Out-of-date packet | Needs you → RCP-19 (claude reported a newer commit after writing the packet) → *Ask for a fresh packet* |
 | Send back with findings | RCP-12 packet → *Needs changes* + note → *New bug ticket*. RCP-28 is created and RCP-12 returns to In progress. Undo is available. |
 | Earlier round, read-only | RCP-12 packet → Round 1 (sent back, with your notes and the bug it created, RCP-17) |
@@ -225,9 +230,10 @@ Base type is 13px; secondary text is at least 11.5px. Small controls are at leas
 
 **Testing:**
 - `design/prototype.html?selftest` renders every page in every scope, plus every item, tab, label, packet round, dialog and filter. It reports `SELFTEST OK` in headless Edge.
-- A 44-step scripted click-through of the scenarios above also passed.
+- A 51-step scripted click-through of the scenarios above also passed.
 
 ## Revision history
+- **Revision 7:** commits are reported per ticket; epic-level human review for single-PR epics; a *Deferred, not verified* list on Needs you and a matching Work filter, shared with agents for cleanup.
 - **Revision 6:** *Defer* verdict with follow-up choice; packets record their commit and are flagged out of date automatically; approvals record their commit and carry forward; agents may create labels.
 - **Revision 5:** simplified to Epic → item → checklist. Removed Feature, Design, custom types, the Structure view, per-project ready gates and planning-doc rules. Added labels with briefs for initiatives, the three-part checklist, human review items, handoff packets with rounds, and findings turned into checklist items or bugs. Needs you is rebuilt around Ready for you, Coming up and Problems.
 - **Revision 4:** item types and structure (since removed).
@@ -236,5 +242,4 @@ Base type is 13px; secondary text is at least 11.5px. Small controls are at leas
 - **Revision 1:** first draft.
 
 ## Open questions
-1. **What makes a commit "related" to a packet?** The prototype compares the ticket's latest reported commit with the packet's. If agents share a branch across tickets, a commit made for a different ticket would also mark the packet out of date. Is that acceptable as a cautious default, or should agents report which ticket each commit is for?
-2. **Deferred items over time.** Should Needs you show a short "deferred, not verified" list per project, so deferred checks without a follow-up ticket don't get forgotten?
+None outstanding for the UI. The remaining behaviour (how reliably agents report commits, when to use epic-level review, how deferred checks get cleaned up) belongs to each repo's agent workflow; the tracker gives it the data and the queries.
