@@ -4,10 +4,12 @@ Status: ready to build, 2026-11-07. This is the implementation contract for MVP 
 
 **Read in this order:**
 1. This file: architecture, data model, rules, MCP tools, UI API, milestones and decisions.
-2. [UI_SPEC.md](UI_SPEC.md): screens, components, tokens, states and accessibility.
-3. [design/prototype.html](../design/prototype.html): the visual and behavioural reference. Open `?selftest` to render every view.
-4. [design/sample-data.json](../design/sample-data.json): the seed data, exported from the prototype.
-5. Background only, not instructions: [REQUIREMENTS_DRAFT.md](REQUIREMENTS_DRAFT.md) (requirement IDs such as A05 and H04 cited below), [UI_DESIGN.md](UI_DESIGN.md) (design rationale and revision history) and [JIRA_RESEARCH.md](JIRA_RESEARCH.md).
+2. [MCP_SPEC.md](MCP_SPEC.md): the full agent-facing contract. It holds the server instructions, every tool's final description text and schemas, errors, worked flows, contract tests and client setup. Agents are the primary users, so this is as important as the UI.
+3. [UI_SPEC.md](UI_SPEC.md): screens, components, tokens, states and accessibility.
+4. [design/prototype.html](../design/prototype.html): the visual and behavioural reference. Open `?selftest` to render every view.
+5. [design/sample-data.json](../design/sample-data.json): the seed data, exported from the prototype.
+6. [templates/AGENTS-tasklite.md](templates/AGENTS-tasklite.md): the block each project adds to its `AGENTS.md` or `CLAUDE.md`. Ship it in the repo; the README tells owners to use it.
+7. Background only, not instructions: [REQUIREMENTS_DRAFT.md](REQUIREMENTS_DRAFT.md) (requirement IDs such as A05 and H04 cited below), [UI_DESIGN.md](UI_DESIGN.md) (design rationale and revision history) and [JIRA_RESEARCH.md](JIRA_RESEARCH.md).
 
 **Where the docs disagree:** this file and UI_SPEC.md win over the requirements draft and UI_DESIGN.md. Where the prototype and UI_SPEC.md disagree, UI_SPEC.md wins. Every place this spec deliberately departs from the draft is listed in [Decisions](#14-decisions-log).
 
@@ -184,6 +186,7 @@ Workflow (owner decision 8): `inbox → planning → ready → progress → revi
 | planning → ready | owner, agent | Agents may move to Ready when the project's workflow says so. The tracker doesn't judge readiness (decision 11). |
 | ready → planning | owner, agent | — |
 | ready → progress | agent via `claim_lead`, or `set_status` | Not blocked. |
+| progress → progress (resume) | agent via `claim_lead` | No active lead claim. This is how sent-back work and failed runs are picked up again (the `resumable` filter). |
 | progress → ready | owner (*Return to Ready*, *Release lead claim*), agent, sweeper on lease expiry | Ends the lead claim. |
 | progress → review | agent via `submit_packet` | At least one human review item exists. |
 | review → progress | owner decision with any "changes"; owner *Ask for a fresh packet*; agent | — |
@@ -205,7 +208,8 @@ Workflow (owner decision 8): `inbox → planning → ready → progress → revi
 
 ### 5.3 Lead claims
 A15.
-- `claim_lead` is atomic, a conditional update on "no active lead run".
+- `claim_lead` is atomic, a conditional update on "no active lead run". It works on Ready items that aren't blocked (moving them to `progress`) and on `progress` items with no lead (resuming them).
+- A failed lead run (`finish_run` with `failed`) or a send-back from the owner leaves the item in `progress` with no lead. It shows under Problems (failed) or as `resumable`.
 - If someone else holds the claim, it returns `conflict` with the current claimant, lease expiry and last signal, and records the rejected claim as an event. The Activity view shows those rejections.
 - A claim creates an open lead run with `lease_expires_at = now + LEASE`. Any signal (§5.4) extends the lease.
 - **When the lease expires,** the sweeper ends the run as `interrupted` ("lease expired"), releases the claim, and moves the item from `progress` back to `ready`. The checklist, logs and partial work stay on the ticket, and an event records why.
@@ -231,16 +235,17 @@ Display labels and their one-line meanings are in UI_SPEC.md §5 (run state). Su
 
 ### 5.5 Checklist
 H13, A16, A17.
-- **Work steps** are the agent's plan. `set_plan` replaces the whole list as a new plan version with a reason. `update_step` changes one step's state. Revisions keep `was_text` and `change_reason`, which the UI shows as strikethrough and "Changed: …". The owner can add a step (`added_by=owner`) and remove their own undone steps.
+- **Work steps** are the agent's plan. `set_plan` replaces the whole list as a new plan version with a reason. `update_step` changes one step's state. Revisions keep `was_text` and `change_reason`, which the UI shows as strikethrough and "Changed: …". The owner can add a step (`added_by=owner`) and remove their own undone steps. An agent's `set_plan` always keeps owner-added steps, though the agent may change their state. The same applies to owner-added agent checks under `set_checks`.
 - **Agent checks** have state and evidence. The owner can add one, and remove their own while it's still todo.
 - **Human review items:**
-  - Agents and the owner can add, edit and remove them while they're `declared`.
+  - Agents and the owner can add them. While an item is `declared`, its author can edit or remove it. The owner can also change agent-added items, but agents can't change owner-added ones (`forbidden`).
   - Items in the current open packet (`ready`) are locked.
   - Items added while a packet is open stay `declared` and go into the next round.
 
 ### 5.6 Packets and decisions
 Decision 13, H04.
 - **`submit_packet`:**
+  - is refused when the item is blocked, when a packet is already open, when there are no declared items (close with `set_status` instead), or when an agent check is `fail` and no gap in the packet mentions it;
   - creates a round with all `declared` items (or a given subset);
   - sets them to `ready`;
   - stores `built_from_commit`, `how`, `checked` (each with provenance), `gaps` and attachments;
@@ -261,7 +266,7 @@ Decision 13, H04.
 - **Deferred, not verified:** a deferred item whose follow-up isn't done, or that has no follow-up. The list is visible to the owner (Needs you, Work filter) and to agents (`deferred_reviews`). A deferred item clears when the owner or an agent re-declares it and it later gets approved, or when its follow-up ticket reaches done with its own review approved.
 
 ### 5.7 Questions and owner notes
-- `ask_owner` creates an open question and sets the run to `needs_input`.
+- `ask_owner` creates an open question and sets the run to `needs_input`. An item has at most one open question at a time.
 - The owner answers in Needs you or on the ticket.
 - The next `get_item` (or `get_changes` event) delivers the answer and sets `read_by_agent_at`. Until then the UI says "Waiting for <agent> to read it". Reading it puts the run back to `open`.
 - Owner notes are delivered the same way and listed under `unread_owner_notes` in `get_item`.
@@ -322,6 +327,8 @@ O03.
 
 ## 6. MCP tool contract
 
+**Overview only.** [MCP_SPEC.md](MCP_SPEC.md) is authoritative for the server instructions, every tool's description text, input and output schemas, error messages and worked flows. It defines 32 tools, including `unlink_items`, `update_check` and `update_human_review`, which are paired with their siblings below.
+
 Tools are snake_case, with input and output schemas defined in `shared/` with zod, and every result returns `structuredContent`. Lists are paginated with `cursor` and `limit` (default 25, max 50) (A02).
 
 - **Mutating tools:**
@@ -334,7 +341,7 @@ Tools are snake_case, with input and output schemas defined in `shared/` with zo
 |---|---|---|---|
 | `whoami` | Connection check | → `{client, session_id, server_version, limits, time}` | A01, A10 |
 | `list_projects` | | → `[{key, name, counts}]` | A02 |
-| `search_items` | Bounded search | `project?, text?, status?[], type?[], label?, epic?, filter?: ready_to_start\|blocked\|waiting_for_review\|mine\|deferred_review, include_archived?=true, cursor?, limit?` → items with `id, title, type, status, priority, blocked_by[], lead, run_state, version` | A02, A05 |
+| `search_items` | Bounded search | `project?, text?, status?[], type?[], label?, epic?, filter?: ready_to_start\|resumable\|blocked\|waiting_for_review\|mine\|deferred_review, include_archived?=true, cursor?, limit?` → items with `id, title, type, status, priority, blocked_by[], lead, run_state, version` | A02, A05 |
 | `get_item` | Full item | `id` → fields, acceptance, labels, links (blocks/blocked_by/relates, each with status), checklist (work with plan version, agent checks, human review with states), lead and recent runs, open question and answer, `unread_owner_notes` (marked read), documents (latest versions), packets (summary), commits, artifacts, 20 most recent events | A02, H13 |
 | `create_item` | | `project, type, title, description?, outcome?, acceptance?[], priority?=2, epic?, labels?[], status?: inbox\|planning (default inbox), planned_start?, planned_end?, effort?` → item | A03 |
 | `update_item` | Edit fields | `id, expected_version, title?, description?, outcome?, acceptance?[], priority?, epic?, labels?[], planned_start?, planned_end?, effort?` → item. Dates record `dates_set_by` = the caller. | A03, A18 |
@@ -574,7 +581,7 @@ Work in order. Each milestone ends with its own tests green and a short demo not
 |---|---|---|
 | M0 | Workspace scaffold, lint, typecheck, Vitest, Dockerfile, compose, `/healthz` and `/readyz`, CI workflow | `docker compose up` serves "Task Lite is running"; CI is green |
 | M1 | Schema and migrations, domain services for §5, event log, idempotency, undo, seed loader | Unit tests for every §5 rule pass; the seed loads deterministically |
-| M2 | MCP server: auth, Host/Origin guards, identity, every §6 tool, structured errors, sweeper, restart handling | Integration tests pass; two simultaneous SDK clients work |
+| M2 | MCP server per [MCP_SPEC.md](MCP_SPEC.md): auth, Host/Origin guards, identity, server instructions, all 32 tools with the exact description text, structured errors, sweeper, restart handling | The MCP_SPEC §10 contract tests pass (including the description snapshot); two simultaneous SDK clients work |
 | M3 | Owner session and CSRF, UI API (§7), SSE stream | API contract tests pass; the unlock flow works |
 | M4 | Web shell, tokens, Needs you, Work board and list, ticket and epic pages (four tabs, checklist editing), open-item tabs, palette, quick capture | The e2e groups for Needs you, Tickets and epics, and Shell pass |
 | M5 | Packet screen and decisions, deferrals, questions and notes, archive, undo toasts | The e2e groups for Packets and Work (archive) pass |
@@ -592,7 +599,7 @@ These can't be settled on paper. Each one has a default already, so none of them
 |---|---|---|---|
 | V1 | Do Codex and Claude Code keep their MCP session open, and do they answer server `ping`? This decides whether *live* is reachable or every run shows as *reported*. | The §5.4 rules. If pings aren't answered, *live* relies on requests alone, and the UI is still truthful. | M2, M8 |
 | V2 | Does an Orca worker running Claude inherit the user's MCP configuration? (The Codex one was verified in discovery.) | Show "Not verified" in Settings until the smoke test passes. | M8 |
-| V3 | Exact client config syntax: the Codex `bearer_token_env_var` key, and the Claude `mcp add --transport http … --header` form. | Use the prototype's snippets, check them against each client's current docs, and fix the Settings snippets to match. | M8 |
+| V3 | Client config. Checked against the docs on 2026-11-07 (MCP_SPEC §11): Codex `bearer_token_env_var` and the Claude `mcp add --transport http --header` form are confirmed. Still open: whether Claude expands `${TASKLITE_TOKEN}` in user-scope config (it does in a project's `.mcp.json`). | Use the user-scope `mcp add` form, which stores the expanded token. | M8 |
 | V4 | Field IDs for start date and story points on the owner's Jira site. | Detect them by field name, and let the dry-run report show which field was used. | M7 |
 | V5 | SQLite WAL performance on a Docker Desktop named volume on Windows. | Named volume (not a bind mount). If writes are slow, measure before changing anything. | M1 |
 
@@ -605,7 +612,8 @@ These must be byte-for-byte the same on both sides, so put them in `shared/`:
 - run-state names and one-line meanings;
 - provenance kinds and labels;
 - item types;
-- filters and their agent-query strings: `status:planning`, `status:ready -is:blocked`, `is:blocked`, `needs:human`, `has:human-review`, `review:deferred`, `run:live`, `is:archived`. Each saved filter's tooltip shows its query, and `search_items` accepts the same filters.
+- filters and their agent-query strings: `status:planning`, `status:ready -is:blocked`, `is:blocked`, `needs:human`, `has:human-review`, `review:deferred`, `run:live`, `is:archived`, and the agent-only `status:progress -has:lead` (`resumable`). Each saved filter's tooltip shows its query, and `search_items` accepts the same filters;
+- the MCP description strings and result-summary templates (`shared/mcp-copy.ts`, MCP_SPEC §9).
 
 ---
 
