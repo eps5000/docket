@@ -314,7 +314,7 @@
 
 /* ---------- reviews ---------- */
 .tl .rv{display:grid;grid-template-columns:230px minmax(0,1fr) 300px;gap:14px;align-items:start}
-@media (max-width:1180px){.tl .rv{grid-template-columns:200px minmax(0,1fr)}.tl .rv>.stack{grid-column:1/-1}}
+@media (max-width:1180px){.tl .rv{grid-template-columns:220px minmax(0,1fr);grid-template-rows:auto 1fr}.tl .rv>.rvq{grid-column:1;grid-row:1}.tl .rv>.packet{grid-column:2;grid-row:1 / span 2}.tl .rv>.stack{grid-column:1;grid-row:2}}
 .tl .rvq button{display:grid;gap:3px;width:100%;text-align:left;border:0;border-top:1px solid var(--line);background:none;padding:10px 12px}
 .tl .rvq button[aria-current=true]{background:var(--brand-soft)}
 .tl .doc{padding:20px 26px;font-size:13.5px;line-height:1.65}
@@ -1110,8 +1110,7 @@ function checklistCard(i, d){
     : (!packetReady(i) && open) ? `The agent writes a handoff packet when the work is built. This ticket can't close until every item is decided.` : '';
   const addRow = (key, act, ph, label) => open ? `<div class="addrow"><label class="sr" for="${key}">${label}</label><input class="input" id="${key}" data-t="${key}" value="${esc(S.text[key] || '')}" placeholder="${ph}" autocomplete="off"><button class="btn sm" data-a="${act}" data-v="${i.id}">Add</button></div>` : '';
   const apass = d.checks.filter(c => c[3]==='pass').length;
-  return `<div class="src">One-line items on this ${ep ? 'epic' : 'ticket'}: the agent's plan, what it verifies itself, and what you verify. Anything bigger becomes its own ticket.</div>
-    ${sec('work', 'Work', `${wdone}/${d.work.length} done · the agent's plan`, `<div class="clcard">${workRows || `<div class="muted">${ep ? 'No epic-level steps yet.' : (i.status === 'planning' || i.status === 'inbox') ? 'The agent writes its work steps when it claims the ticket.' : 'No work steps yet.'}</div>`}
+  return `${sec('work', 'Work', `${wdone}/${d.work.length} done · the agent's plan`, `<div class="clcard">${workRows || `<div class="muted">${ep ? 'No epic-level steps yet.' : (i.status === 'planning' || i.status === 'inbox') ? 'The agent writes its work steps when it claims the ticket.' : 'No work steps yet.'}</div>`}
       ${addRow('addw-' + i.id, 'addwork', ep ? 'Add a step for the whole epic, e.g. Update the release notes' : 'Add a step for the agent, e.g. Handle an empty week plan', 'New work step')}</div>`,
       d.history ? '<button class="btn ghost sm" data-a="planhistory">Checklist history</button>' : '')}
     ${sec('agentrev', 'Agent review', `${apass}/${d.checks.length} passed · what the agent verifies itself`, `<div class="clcard">${checkRows || `<div class="muted">${ep ? 'No epic-level checks yet.' : 'No agent checks listed yet.'}</div>`}
@@ -1469,6 +1468,7 @@ function render(){
     : S.view === 'label' ? `<a href="#" data-a="nav" data-v="work">Work</a> / <b>#${esc(S.label)}</b>`
     : S.view === 'review' ? `<a href="#" data-a="nav" data-v="attention">Needs you</a> / <b>Human review · ${esc(S.pk || '')}</b>`
     : globalView ? `<b>${TITLES[S.view]}</b> <span class="scopebar">Service-wide</span>` : `<span>${S.scope === 'all' ? 'All projects' : P[S.scope].short}</span> / <b>${TITLES[S.view]}</b>`;
+  if (S.theme === 'system') $('#app').removeAttribute('data-theme'); else $('#app').setAttribute('data-theme', S.theme);
   const dark = S.theme==='dark' || (S.theme==='system' && matchMedia('(prefers-color-scheme: dark)').matches);
   $('#themebtn').innerHTML = dark ? I.sun : I.moon;
   $('#themebtn').setAttribute('aria-label', `Theme: ${S.theme}. Switch theme`);

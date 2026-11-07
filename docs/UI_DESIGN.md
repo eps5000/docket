@@ -1,6 +1,6 @@
 # UI/UX design — MVP V1 human interface
 
-Status: design proposal, revision 21, 2026-11-06. Inputs: [requirements draft](REQUIREMENTS_DRAFT.md), [Jira research](JIRA_RESEARCH.md).
+Status: design proposal, revision 22, 2026-11-06. Inputs: [requirements draft](REQUIREMENTS_DRAFT.md), [Jira research](JIRA_RESEARCH.md).
 
 Clickable prototype: [`design/prototype.html`](../design/prototype.html). It is one file with no build step and no network requests, and all data in it is disposable sample work (O09). Open it directly in a browser.
 
@@ -164,12 +164,12 @@ Each tab is a view that answers one question. Epics and tickets use the same fou
 
 ### Open-item tabs
 - Every ticket or epic you open becomes a tab under the header. Click to switch; × to close. Closing the active tab moves to its neighbour, or back to the page you came from.
-- Each tab remembers its own sub-tab (e.g. Details vs Map, Documents vs Activity).
+- Each tab remembers its own view (Details, Checklist, Dependencies or Map, Activity).
 - Tabs are a fixed 200px with type icon, ID and title, and the strip scrolls sideways. Up to 8 tabs; the oldest inactive tab closes first.
 - In the real app every item also has its own URL, so Ctrl/middle-click should open it in a browser tab too.
 
 **Getting to an epic:**
-- **Work has an Epics row** at the top: one compact card per epic, with done count, mini progress bar, status and "N for you". Clicking it opens the epic's Map tab.
+- **Work has an Epics row** at the top: one compact card per epic, with done count, mini progress bar, status and "N for you". Clicking it opens the epic on Details, or on the tab you last used for it.
 - The epic name is a link wherever it appears as text: the ticket header ("in ◆ Pantry"), the ticket breadcrumb, list rows, and the label page.
 - Board cards keep the epic as plain text, because a card is already one link.
 
@@ -194,7 +194,6 @@ The dependency view is a **progress picture**, not a standalone graph page. It a
   - a short "Drag to pan" hint that appears only when the map overflows.
 - **Key:** one line under the map: "Arrow = blocks · dashed green = cleared · hover to trace", plus the review person icons.
 - **Zoom:** − / 100% / + / **Fit**. Steps are 50%, 67%, 80%, 100% and 125%. It defaults to 100% (spacious); Fit shrinks the map to show everything, down to 40% at most.
-- On an epic, *Map | List* switches to the plain status-grouped list. The progress header stays.
 
 **Why the old page went:** a global, hand-placed graph of every dependency was too big at ten items and unreadable at seventy. Cycles and date conflicts still surface in Problems on Needs you, and their *Fix* button opens the ticket.
 
@@ -319,6 +318,11 @@ Base type is 13px; secondary text is at least 11.5px. Small controls are at leas
 - A 123-check scripted click-through of the scenarios above also passed.
 
 ## Revision history
+- **Revision 22 (final check):**
+  - On windows narrower than 1180px, the packet's decision panel sits under the queue instead of below the whole packet.
+  - The theme is applied from state on every render.
+  - The Checklist intro sentence is gone, because the section headers say it.
+  - Stale doc lines are fixed: open-item tab memory, where the Epics row opens, the epic *Map | List* toggle that was never built, and Done crowding.
 - **Revision 21:** archive for Done.
   - Done items wait in the Done column, with no 7-day cutoff, until you archive them, one at a time or all at once. Undo works for both.
   - Archived items leave the board, the list, Timeline, the Epics row and epic ticket lists, which show "+ N archived".
@@ -364,7 +368,7 @@ Base type is 13px; secondary text is at least 11.5px. Small controls are at leas
 | --- | --- | --- |
 | Editing dates, blockers and acceptance from the UI (H11) | You can ask an agent, or leave a note; priority and status moves are already direct | If notes prove slower than direct edits |
 | Service-down / disconnected state | The health card covers the healthy case; a full-width "service unreachable" banner is easy to add | When the real UI talks to the live service |
-| Very large boards (70+ tickets, as in a big UI overhaul) | Label pages, epic filter and saved filters keep it workable | Consider epic swimlanes and collapsing Done if boards get crowded |
+| Very large boards (70+ tickets, as in a big UI overhaul) | Label pages, epic filter and saved filters keep it workable | Consider epic swimlanes if boards get crowded (Done is already kept short by Archive) |
 | Burn-down and velocity forecast (H14, P1) | The forecast lane already shows "insufficient history" honestly | Once 8+ items with effort have completed |
 | Jira import dry run (O05) and backup/restore UI (O03) | Pilot comes after V1 | Before the first real project moves over |
 
