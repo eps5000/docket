@@ -1,6 +1,6 @@
 # UI/UX design — MVP V1 human interface
 
-Status: design proposal, revision 10, 2026-11-06. Inputs: [requirements draft](REQUIREMENTS_DRAFT.md), [Jira research](JIRA_RESEARCH.md).
+Status: design proposal, revision 11, 2026-11-06. Inputs: [requirements draft](REQUIREMENTS_DRAFT.md), [Jira research](JIRA_RESEARCH.md).
 
 Clickable prototype: [`design/prototype.html`](../design/prototype.html). It is one file with no build step and no network requests, and all data in it is disposable sample work (O09). Open it directly in a browser.
 
@@ -81,11 +81,10 @@ Sidebar                                   Ticket page
 ┌ Project ▾ [All | Recipe App | Docs]     ├─ Header: ID · type · epic · labels · status · priority · Move to Planning/Ready
 │  ── scoped to the chosen project ──     ├─ Banner when you must act: packet ready / agent question
 ├─ Needs you     badge = for you now      ├─ Outcome + acceptance
-├─ Work          Board | List             ├─ Tabs: Work and checks (Work · Agent checks) · Documents · Activity
+├─ Work          Board | List | Map       ├─ Tabs: Work and checks (Work · Agent checks) · Documents · Activity
 ├─ Human review  badge = packets ready    └─ Rail: HUMAN REVIEW (always first) · Lead & runs · Dependencies · Dates
-├─ Dependencies
-├─ Timeline                               Epic page: same rail, Human review first
-├─ Agents                                 Label page: brief, progress by epic, "Move N to Ready"
+├─ Timeline                               Epic page: PROGRESS MAP first, same rail (Human review first)
+├─ Agents                                 Label page: brief, progress map across epics, "Move N to Ready"
 │  ── service-wide ──
 ├─ Projects
 └─ Connections
@@ -122,7 +121,7 @@ Designed to fit on one laptop screen without scrolling. In the prototype it fits
 - **Activity tab:** history, plus a *note for the agent* box. That's how you steer work without a review round; the agent sees the note on its next query.
 - **Rail:**
   - **Lead & runs:** the lease, any rejected claims, stale-claim release, and *Return to Ready* after a failed run.
-  - **Dependencies.**
+  - **Dependencies:** a 1-hop view: *Waits on* → this ticket → *Then unblocks*, as small status-coloured boxes, plus *See it on the epic map*. If the ticket is in a dependency cycle, the card says so and offers *Remove link*.
   - **Dates** with who set them.
 
 ### Human review
@@ -136,13 +135,25 @@ Designed to fit on one laptop screen without scrolling. In the prototype it fits
 ### Quick capture
 *+ New* in the header opens a small dialog: title (required), type, project, optional epic, and notes. The item lands in **Inbox** and opens, ready to be shaped in Planning. It's deliberately minimal: agents fill in the rest.
 
-### Labels and epics
-- **Label page:** brief, progress grouped by epic, *Move N to Ready* for everything with that label still in Planning, and a link to the filtered board.
-- **Epic page:** brief, documents, and items grouped by status with progress, with the same Human review card first in the right-hand column. A Planning epic is described as "still a brief".
+### Progress map (epic pages, label pages, Work → Map)
+The dependency view is a **progress picture**, not a standalone graph page. It always draws one epic, one label, or the current Work filter, so it stays small.
+- **Header:** "1 / 12 done", a bar split by status, counts per status, "N ready but blocked", "N ready to start", and "working on wave X of Y".
+- **Columns are waves:**
+  - wave 1 is work that nothing blocks;
+  - wave 2 can start once wave 1 is done; and so on.
+  - Blockers from outside the epic sit in a dashed column on the left, labelled with their project (or "other epic").
+  - Items in a dependency cycle get their own column.
+- **Each box is coloured by status.** Done is filled green with a ✓; the left edge shows the status colour. Red marks only *Ready* items that are blocked. Planning items show a neutral "after RCP-12".
+- **Arrows** mean "blocks". Solid arrows still block; dashed green ones are cleared. Hovering a box highlights its links.
+- On an epic, *Map | List* switches to the plain status-grouped list. The progress header stays.
 
-### Dependencies, Timeline, Agents, Connections, Projects
-Unchanged from revision 3 apart from simplifications:
-- **Dependencies:** graph with blocking chain, what finishing an item would free, cycle fix, delay what-if, and items from other projects shown dashed.
+**Why the old page went:** a global, hand-placed graph of every dependency was too big at ten items and unreadable at seventy. Cycles and date conflicts still surface in Problems on Needs you, and their *Fix* button opens the ticket.
+
+### Labels and epics
+- **Label page:** brief, a progress map across epics, a by-epic list, *Move N to Ready* for everything with that label still in Planning, and a link to the filtered board.
+- **Epic page:** the progress map first, then brief and documents, with the same Human review card first in the right-hand column. A Planning epic is described as "still a brief".
+
+### Timeline, Agents, Connections, Projects
 - **Timeline:** entered dates vs actual run time vs forecast.
 - **Agents:** run table with "how we know".
 - **Connections:** client compatibility matrix, setup snippets, service health.
@@ -245,14 +256,17 @@ Base type is 13px; secondary text is at least 11.5px. Small controls are at leas
 | Epic as a brief | RCP-2 Pantry (in Planning, with brief and PRD) |
 | Agent question | Needs you → DOC-4 → Answer inline |
 | Stale run and competing claim | RCP-15 → *Release lead claim…* → run becomes *interrupted* (Undo available) |
-| Cycle in imported data | Dependencies → DOC-7 → remove a link |
+| Cycle in imported data | Needs you → Problems → DOC-7 *Fix* → *Remove link* on the ticket |
+| How far along is the feature? | Open RCP-1 Meal planning MVP: 1 / 12 done, three waves, DOC-4 blocking from Docs Site |
+| One ticket's dependencies | RCP-21: waits on RCP-15 and RCP-14 (other epic) → RCP-21 |
 | Project scope | Sidebar *Project* menu; counts per project; items from other projects flagged |
 
 **Testing:**
 - `design/prototype.html?selftest` renders every page in every scope, plus every item, tab, label, packet round, dialog and filter. It reports `SELFTEST OK` in headless Edge.
-- A 62-step scripted click-through of the scenarios above also passed.
+- A 70-step scripted click-through of the scenarios above also passed.
 
 ## Revision history
+- **Revision 11:** the standalone Dependencies page is replaced by a progress map on epic and label pages and in Work → Map, plus a 1-hop dependency view on each ticket. The delay what-if is removed.
 - **Revision 10 (polish pass):** your past decisions are coloured by outcome (a "needed changes" no longer shows green); document and attachment viewer; Planning tickets open on Documents; *+ New* quick capture to Inbox; note for the agent on every ticket; type icon before the title in dense lists; Human review chips sit under the item text in the narrow column; shorter page subtitles; Coming up capped in the review queue; secondary styling for project switch buttons.
 - **Revision 9:** item types are colour-coded with solid squares and icons (Epic purple, Story green, Task blue, Bug red), with a board legend, timeline icons and graph stripes.
 - **Revision 8:** Human review is one card in a fixed place (top of the right-hand column) on every work item, epics included. Needs you is a one-screen dashboard: an agent status strip, For you now with Problems, and four compact cards capped at three rows.
