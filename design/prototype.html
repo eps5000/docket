@@ -353,6 +353,27 @@
 .tl .hv{display:grid;gap:10px}
 .tl .hv .ver{border:1px solid var(--line);border-radius:9px;padding:10px 12px}
 .tl .hv .add{color:var(--ok)} .tl .hv .rm{color:var(--bad);text-decoration:line-through}
+/* ---------- open-item tabs ---------- */
+.tl .tabstrip{display:flex;gap:4px;align-items:flex-end;padding:6px 18px 0;background:var(--panel-2);border-bottom:1px solid var(--line);overflow-x:auto;overflow-y:hidden;min-height:40px;min-width:0;scrollbar-width:thin;contain:inline-size}
+.tl .otab{flex:0 0 200px;width:200px;min-width:0}
+.tl .otab .og{flex:1}
+.tl .tabstrip:empty{display:none}
+.tl .otab{display:inline-flex;align-items:center;gap:2px;max-width:230px;border:1px solid var(--line);border-bottom:0;border-radius:8px 8px 0 0;background:var(--panel-2);margin-bottom:-1px}
+.tl .otab[aria-selected=true]{background:var(--bg);border-color:var(--line-2);box-shadow:inset 0 2px 0 var(--brand)}
+.tl .otab .og{display:inline-flex;align-items:center;gap:6px;border:0;background:none;padding:6px 4px 6px 10px;min-width:0;font-size:12.5px;color:var(--ink-2)}
+.tl .otab[aria-selected=true] .og{color:var(--ink);font-weight:600}
+.tl .otab .og .tt2{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tl .otab .ox{border:0;background:none;color:var(--ink-3);width:24px;height:24px;border-radius:6px;display:grid;place-items:center;margin-right:3px}
+.tl .otab .ox:hover{background:var(--line);color:var(--ink)}
+.tl .tabhint{font-size:11.5px;color:var(--ink-3);margin-left:auto;padding:0 2px 8px;white-space:nowrap}
+/* ---------- editable human review ---------- */
+.tl .hrby{font-size:11.5px;color:var(--ink-3)}
+.tl .hrtools{display:inline-flex;gap:2px;margin-left:4px}
+.tl .hrtools button{border:0;background:none;color:var(--brand);font-size:12px;padding:0 4px;min-height:22px}
+.tl .hrtools button.rm{color:var(--bad)}
+.tl .hradd{display:grid;gap:6px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line-2)}
+.tl .hradd textarea,.tl .hredit textarea{min-height:52px}
+
 /* ---------- epics row on Work ---------- */
 .tl .epicrow{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;margin-bottom:12px}
 .tl .epiccard{display:grid;gap:6px;text-align:left;border:1px solid var(--line);border-left:4px solid var(--t-epic);background:var(--panel);border-radius:9px;padding:9px 11px}
@@ -478,6 +499,7 @@
         <button class="search" data-a="palette" aria-label="Search or jump to (Ctrl+K)"><span aria-hidden="true">⌕</span><span class="grow">Search or jump to…</span><kbd>Ctrl K</kbd></button>
         <button class="iconbtn" data-a="theme" id="themebtn"></button>
       </header>
+      <div class="tabstrip" id="tabstrip" role="tablist" aria-label="Open items"></div>
       <div class="view" id="view" tabindex="-1"></div>
     </main>
   </div>
@@ -703,7 +725,7 @@ const S = {
   view:'attention', ticket:'RCP-14', tab:null, scope:'all', scopeOpen:false,
   workMode:'board', filter:'all', epicF:'all', labelF:'all', showBlocked:false,
   pk:'RCP-12', pkRound:null, verdicts:{}, newF:{type:'Story', proj:'RCP', epic:''},
-  label:'ui-refresh', epicTab:'map', mapZoom:1, mapZ:1,
+  label:'ui-refresh', epicTab:'details', mapZoom:1, mapZ:1, openTabs:[], tabMem:{}, lastPage:'attention', hrEdit:null,
   fcPreview:false, theme:'system', snippet:'codex',
   replyOpen:null, text:{}, modal:null, extraActivity:{},
 };
@@ -924,7 +946,7 @@ V.work = () => {
     return `<div class="col"><div class="colh"><span>${STATUS[c]}${c==='done' ? ' <span class="muted" style="font-weight:400">· 7 days</span>' : ''}</span><span>${cs.length}</span></div>${note ? `<div class="src" style="padding:0 4px 6px">${note}</div>` : ''}${cs.map(card).join('')}</div>`;
   };
   const table = `<div class="card" style="overflow:auto"><table><thead><tr><th scope="col">ID</th><th scope="col">Title</th><th scope="col">Status</th><th scope="col">Priority</th><th scope="col">Lead · run</th><th scope="col">Human review</th><th scope="col">Last activity</th></tr></thead><tbody>
-    ${list.map(i => `<tr class="clickrow" data-a="open" data-v="${i.id}"><td>${link(i.id)}</td><td><div class="row wrap" style="gap:6px">${typeIcon(i)}<span>${esc(i.title)}</span>${labelsOf(i)}</div><div class="ptag">${i.epic ? `<a href="#" class="epiclink" data-a="epicmap" data-v="${i.epic}" style="font-weight:500"><span class="ed">◆</span> ${esc(byId[i.epic].title)}</a>` : 'no epic'}</div></td><td><div class="row wrap">${statusChip(i)}${blockedChip(i)}</div></td><td>${prio(i.prio)}</td>
+    ${list.map(i => `<tr class="clickrow" data-a="open" data-v="${i.id}"><td>${link(i.id)}</td><td><div class="row wrap" style="gap:6px">${typeIcon(i)}<span>${esc(i.title)}</span>${labelsOf(i)}</div><div class="ptag">${i.epic ? `<a href="#" class="epiclink" data-a="open" data-v="${i.epic}" style="font-weight:500"><span class="ed">◆</span> ${esc(byId[i.epic].title)}</a>` : 'no epic'}</div></td><td><div class="row wrap">${statusChip(i)}${blockedChip(i)}</div></td><td>${prio(i.prio)}</td>
       <td>${i.lead ? `<div>${esc(i.lead)}</div>${run(i.run, i.age)}` : '<span class="muted">Unclaimed</span>'}</td><td>${hrOf(i).length ? `${hrChip(i) || `<span class="src">${hrOf(i).every(h => h.state==='approved') ? 'approved' : hrOf(i).length + ' item' + (hrOf(i).length===1?'':'s')}</span>`}` : '<span class="src">none</span>'}</td><td class="muted">${i.last} ago</td></tr>`).join('') || '<tr><td colspan="7" class="muted">No items match.</td></tr>'}
   </tbody></table></div>`;
   const epics = items.filter(i => isEpic(i) && inScope(i)), labs = Object.keys(LABELS).filter(l => S.scope === 'all' || LABELS[l].proj === S.scope);
@@ -939,9 +961,9 @@ V.work = () => {
       <span role="group" aria-label="Saved filters" class="row wrap" style="gap:6px">${Object.entries(FILTERS).map(([k,f]) => `<button class="fchip" data-a="filter" data-v="${k}" aria-pressed="${S.filter===k}">${f[0]} <b>${items.filter(i => base(i) && f[1](i)).length}</b></button>`).join('')}</span>
       ${q ? `<span class="src" style="margin-left:auto" title="The same query agents send over MCP">Agent query: <span class="mono">${esc(q)}</span></span>` : ''}
     </div>
-    ${epics.length ? `<div class="sectionhead" style="padding:0 0 6px"><h3>Epics · ${epics.length}</h3><span class="src">Open an epic to see its progress map</span></div>
+    ${epics.length ? `<div class="sectionhead" style="padding:0 0 6px"><h3>Epics · ${epics.length}</h3><span class="src">Open an epic for its details, progress map and activity</span></div>
       <div class="epicrow">${epics.map(e => { const k = childrenOf(e.id), dn = k.filter(x => x.status === 'done').length, act = k.filter(x => x.status === 'progress' || x.status === 'review').length, fy = k.filter(forYou).length + (forYou(e) ? 1 : 0);
-        return `<button class="epiccard" data-a="epicmap" data-v="${e.id}" aria-current="${S.epicF === e.id}">
+        return `<button class="epiccard" data-a="open" data-v="${e.id}" aria-current="${S.epicF === e.id}">
           <span class="row" style="gap:6px;min-width:0">${typeIcon(e)}<span class="et">${esc(e.title)}</span><span class="mono muted" style="margin-left:auto">${e.id}</span></span>
           <span class="pbar" style="height:7px" role="img" aria-label="${dn} of ${k.length} done"><i style="width:${k.length ? dn/k.length*100 : 0}%;background:var(--ok)"></i><i style="width:${k.length ? act/k.length*100 : 0}%;background:var(--violet)"></i></span>
           <span class="src">${dn}/${k.length} done · ${STATUS[e.status]}${fy ? ` · <b style="color:var(--warn)">${fy} for you</b>` : ''}</span></button>`; }).join('')}</div>` : ''}
@@ -954,7 +976,12 @@ function detailFor(i){
   return Object.assign({outcome:'', acceptance:[], work:[], checks:[], docs:[], runs: i.lead ? [{r:i.run, who:i.lead, what:RUNS[i.run] ? RUNS[i.run].d : '', lead:true}] : [],
     activity: i.imported ? [['Nov 1','Imported from Jira (dry-run report reviewed)']] : i.fromReview ? [['Nov 5', `Created from your human review of ${i.fromReview}`]] : [['—','Created by owner']]}, DETAIL[i.id] || {});
 }
-const hrRow = (i, h) => `<div class="ck"><span class="sicon" style="color:var(--warn)" aria-hidden="true">${small(I.person)}</span><div><div style="font-weight:600">${esc(h.t)}</div>${h.last && h.last.deferred ? `<div class="src">You deferred this in round ${h.last.round}${h.last.note ? `: “${esc(h.last.note)}”` : ''} → ${h.last.ref ? `test ticket ${link(h.last.ref)}` : 'agent follows the project workflow'}</div>`
+const hrEditable = (i, h) => isOpen(i) && h.state === 'declared';
+const hrRow = (i, h, n) => S.hrEdit === `${i.id}|${n}`
+  ? `<div class="ck hredit"><span class="sicon" style="color:var(--warn)" aria-hidden="true">${small(I.person)}</span><div><label class="sr" for="hre-${n}">Edit human review item</label><textarea id="hre-${n}" data-t="hredit-${i.id}-${n}">${esc(S.text[`hredit-${i.id}-${n}`] ?? h.t)}</textarea>
+      <div class="row" style="margin-top:6px"><button class="btn primary sm" data-a="hrsave" data-v="${i.id}|${n}">Save</button><button class="btn sm" data-a="hrcancel">Cancel</button></div></div><div></div></div>`
+  : `<div class="ck"><span class="sicon" style="color:var(--warn)" aria-hidden="true">${small(I.person)}</span><div><div style="font-weight:600">${esc(h.t)}</div>
+    <div class="hrby">${h.by === 'you' ? 'added by you' : `added by ${esc(h.by || (i.lead ? i.lead.split(' ')[0] : 'an agent'))}`}${hrEditable(i, h) ? `<span class="hrtools"><button data-a="hredit" data-v="${i.id}|${n}" aria-label="Edit this item">Edit</button><button class="rm" data-a="hrdel" data-v="${i.id}|${n}" aria-label="Remove this item">Remove</button></span>` : h.state === 'ready' ? ' · locked: in the current packet' : ''}</div>${h.last && h.last.deferred ? `<div class="src">You deferred this in round ${h.last.round}${h.last.note ? `: “${esc(h.last.note)}”` : ''} → ${h.last.ref ? `test ticket ${link(h.last.ref)}` : 'agent follows the project workflow'}</div>`
     : h.last ? `<div class="src">You sent this back in round ${h.last.round}: “${esc(h.last.note)}”${h.last.ref ? ` → ${link(h.last.ref)}` : ' → checklist item'}</div>` : ''}${h.state === 'approved' && h.at ? `<div class="src">Approved on <span class="mono">${esc(h.at)}</span>${i.head && i.head !== h.at ? ' · code changed since' : ''}</div>` : ''}</div><div><span class="chip ${HR[h.state][0]}">${HR[h.state][1]}</span></div></div>`;
 const hrCard = i => { const hrs = hrOf(i), ep = !isEpic(i) && i.epic && byId[i.epic] && hrOf(byId[i.epic]).length ? byId[i.epic] : null;
   const note = !hrs.length ? (isEpic(i) ? 'None on the epic. Reviews, if any, live on its child tickets.'
@@ -962,7 +989,10 @@ const hrCard = i => { const hrs = hrOf(i), ep = !isEpic(i) && i.epic && byId[i.e
     : isEpic(i) ? `Epic-level review: verified once when the epic's work is ready to merge. Commits reported for any ticket in this epic mark its packet out of date.`
     : (!packetReady(i) && isOpen(i)) ? `The agent writes a handoff packet when the work is built. This ticket can't close until every item is decided.` : '';
   return `<div class="card pad hrcard"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Human review · ${hrs.length}</h3>${packetReady(i) ? `<button class="btn primary sm" data-a="packet" data-v="${i.id}">${small(I.packet)} Open packet</button>` : ''}</div>
-    ${hrs.map(h => hrRow(i, h)).join('')}${note ? `<div class="src" style="margin-top:${hrs.length ? 8 : 6}px">${note}</div>` : ''}</div>`; };
+    ${hrs.map((h, n) => hrRow(i, h, n)).join('')}${note ? `<div class="src" style="margin-top:${hrs.length ? 8 : 6}px">${note}</div>` : ''}
+    ${isOpen(i) ? `<div class="hradd"><label class="f" for="hrnew-${i.id}" style="margin:0">Add something you'll need to verify yourself</label>
+      <textarea id="hrnew-${i.id}" data-t="hrnew-${i.id}" placeholder="${isEpic(i) ? 'e.g. Walk through the whole feature before the PR merges' : 'e.g. Try it on your phone and check it feels right'}">${esc(S.text['hrnew-'+i.id] || '')}</textarea>
+      <div class="row wrap"><button class="btn sm" data-a="hradd" data-v="${i.id}">Add review item</button><span class="src">${packetReady(i) ? 'Not in the current packet; the agent includes it next round.' : 'The agent sees it and plans a handoff packet for it.'}</span></div></div>` : ''}</div>`; };
 const docRow = (x, id) => x[0].startsWith('handoff')
   ? `<button class="docrow" data-a="packet" data-v="${id}">${small(I.packet)}<span class="grow">${esc(x[0])} <span class="src">${esc(x[1])}</span></span><span class="src">${esc(x[2])} · ${esc(x[3])}</span></button>`
   : `<button class="docrow" data-a="doc" data-v="${esc(x[0])}|${esc(x[1])}|${esc(x[2])}|${esc(x[3])}">${small(I.doc)}<span class="grow">${esc(x[0])} <span class="src">${esc(x[1])}</span></span><span class="src">${esc(x[2])} · ${esc(x[3])}</span></button>`;
@@ -1061,7 +1091,7 @@ V.ticket = () => {
   return `
   ${!inScope(i) ? `<div class="callout row wrap" style="margin-bottom:12px"><span class="grow">${i.id} belongs to <b>${P[i.proj].short}</b>, outside the project you're viewing.</span><button class="btn sm" data-a="scope" data-v="${i.proj}">Switch to ${P[i.proj].short}</button></div>` : ''}
   <div class="tk-head"><div class="grow">
-    <div class="row wrap"><span class="mono muted">${i.id}</span>${typeBadge(i)}${i.epic ? `<span class="muted">in</span> <a href="#" class="epiclink" data-a="epicmap" data-v="${i.epic}" title="Open the epic map"><span class="ed">◆</span> ${esc(byId[i.epic].title)}</a> <span class="mono muted">${i.epic}</span>` : '<span class="src">no epic</span>'}${labelsOf(i)}${i.imported ? '<span class="chip c-gray">Imported from Jira</span>' : ''}</div>
+    <div class="row wrap"><span class="mono muted">${i.id}</span>${typeBadge(i)}${i.epic ? `<span class="muted">in</span> <a href="#" class="epiclink" data-a="open" data-v="${i.epic}" title="Open the epic map"><span class="ed">◆</span> ${esc(byId[i.epic].title)}</a> <span class="mono muted">${i.epic}</span>` : '<span class="src">no epic</span>'}${labelsOf(i)}${i.imported ? '<span class="chip c-gray">Imported from Jira</span>' : ''}</div>
     <h1 style="margin-top:4px">${esc(i.title)}</h1>
     <div class="row wrap" style="margin-top:6px">${statusChip(i)}${blockedChip(i)}${i.status==='done' ? (i.closedBy==='owner' ? prov(hrOf(i).some(h => h.state === 'deferred') ? 'ownerdef' : 'owner', hrOf(i).some(h => h.state === 'deferred') ? `Closed · ${hrOf(i).filter(h => h.state === 'deferred').length} review deferred, not verified` : 'Closed after your human review') : prov('agent','Closed by agent: checks passed, no human review')) : ''}
       <label class="row" style="gap:4px"><span class="src">Priority</span><select data-a="prio" aria-label="Priority">${[1,2,3].map(n => `<option value="${n}" ${i.prio===n?'selected':''}>P${n}</option>`).join('')}</select></label>
@@ -1113,9 +1143,9 @@ V.ticket = () => {
 function epicView(i, d){
   const kids = childrenOf(i.id), done = kids.filter(k => k.status==='done').length;
   const byStatus = Object.keys(STATUS).map(s => [s, kids.filter(k => k.status===s)]).filter(([,l]) => l.length);
-  const tab = S.epicTab || 'map', activity = [...(S.extraActivity[i.id] || []), ...d.activity];
+  const tab = S.epicTab || 'details', activity = [...(S.extraActivity[i.id] || []), ...d.activity];
   const hrs = hrOf(i), hrNow = packetReady(i);
-  const tabs = [['map','Map'], ['details', 'Details'], ['activity', 'Activity']];
+  const tabs = [['details', 'Details'], ['map','Map'], ['activity', 'Activity']];
   const strip = hrs.length ? `<div class="epicstrip ${hrNow ? '' : 'later'}"><span class="hrkey"><span class="hrmark ${hrNow ? 'now' : 'later'}">${I.person}</span></span>
       <div class="grow"><b>Epic-level human review${hrNow ? ': packet ready' : ''}</b> · ${hrs.map(h => esc(h.t)).join(' · ')} <span class="src">${hrNow ? '' : 'Reviewed once, when the epic is ready to merge.'}</span></div>
       ${hrNow ? `<button class="btn primary sm" data-a="packet" data-v="${i.id}">Open packet</button>` : `<span class="chip c-gray">Coming up</span>`}</div>` : '';
@@ -1135,7 +1165,8 @@ function epicView(i, d){
       <h1 style="margin-top:4px">${esc(i.title)}</h1>
       <div class="row wrap" style="margin-top:6px">${statusChip(i)}<span class="src">${P[i.proj].name} · ${kids.length} item${kids.length===1?'':'s'} · ${done} done</span>
         ${i.status==='planning' ? `<button class="btn sm primary" data-a="promote" data-v="${i.id}">${I.promote} Move to Ready</button><span class="src">This epic is still a brief. Move it once you've broken it down.</span>` : ''}</div></div></div>
-    <div class="tabs" role="tablist" aria-label="Epic views" style="margin-bottom:14px">${tabs.map(([k, l]) => `<button role="tab" id="etab-${k}" aria-controls="epanel" data-a="epictab" data-v="${k}" aria-selected="${tab===k}" tabindex="${tab===k ? 0 : -1}">${l}</button>`).join('')}</div>
+    <div class="row" style="align-items:flex-end;border-bottom:1px solid var(--line);margin-bottom:14px"><div class="tabs" role="tablist" aria-label="Epic views" style="margin-bottom:-1px;border-bottom:0">${tabs.map(([k, l]) => `<button role="tab" id="etab-${k}" aria-controls="epanel" data-a="epictab" data-v="${k}" aria-selected="${tab===k}" tabindex="${tab===k ? 0 : -1}">${l}</button>`).join('')}</div>
+      <button class="btn sm" data-a="newin" data-v="${i.id}" style="margin:0 0 6px auto">+ New item in this epic</button></div>
     <div role="tabpanel" id="epanel" aria-labelledby="etab-${tab}">${body}</div>`;
 }
 
@@ -1150,7 +1181,7 @@ V.label = () => {
       <div class="card pad"><h3>Brief</h3><div>${L.brief ? esc(L.brief) : '<span class="muted">No brief. Add one if this label is an initiative with shared decisions.</span>'}</div>${L.by ? `<div class="src" style="margin-top:6px">written by ${esc(L.by)}</div>` : ''}</div>
       <div class="card pad"><h3>Progress across epics</h3>${progressMap(its, {extTitle:'Without this label', empty:'Nothing has this label.'})}</div>
       <div class="card pad"><div class="row" style="justify-content:space-between"><h3 style="margin:0">By epic</h3><span class="src">${its.filter(isBlocked).length} blocked · ${plan.length} in planning · ${its.filter(forYou).length} for you</span></div>
-        ${Object.entries(groups).map(([k, l]) => `<div class="src" style="margin-top:12px;font-weight:650">${k === 'none' ? 'No epic' : `<a href="#" class="epiclink" data-a="epicmap" data-v="${k}"><span class="ed">◆</span> ${esc(byId[k].title)}</a>`} · ${l.filter(x => x.status==='done').length}/${l.length}</div>
+        ${Object.entries(groups).map(([k, l]) => `<div class="src" style="margin-top:12px;font-weight:650">${k === 'none' ? 'No epic' : `<a href="#" class="epiclink" data-a="open" data-v="${k}"><span class="ed">◆</span> ${esc(byId[k].title)}</a>`} · ${l.filter(x => x.status==='done').length}/${l.length}</div>
           ${l.map(x => `<div class="lrow">${typeIcon(x)}${link(x.id)}<span class="grow" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.title)}</span>${statusChip(x)}${hrChip(x)}</div>`).join('')}`).join('') || '<div class="muted">Nothing has this label.</div>'}</div>
     </div>
     <div class="stack">
@@ -1343,7 +1374,7 @@ function modalHtml(){
   }
   if (m.type === 'new'){
     const f = S.newF, eps = items.filter(x => isEpic(x) && x.proj === f.proj);
-    return wrap('New item in Inbox', `<label class="f" for="new-title" style="margin-top:0">Title <b style="color:var(--bad)">(required)</b></label><input class="input" id="new-title" data-t="new-title" value="${esc(S.text['new-title'] || '')}" placeholder="e.g. Let me star favourite recipes" autocomplete="off">
+    return wrap(f.fromEpic ? `New item in ◆ ${esc(byId[f.fromEpic].title)}` : 'New item in Inbox', `<label class="f" for="new-title" style="margin-top:0">Title <b style="color:var(--bad)">(required)</b></label><input class="input" id="new-title" data-t="new-title" value="${esc(S.text['new-title'] || '')}" placeholder="e.g. Let me star favourite recipes" autocomplete="off">
       <div class="row wrap" style="gap:10px;margin-top:10px">
         <label><span class="f" style="margin-top:0">Type</span><select data-a="newf" data-v="type">${Object.keys(TYPES).map(t => `<option ${f.type===t?'selected':''}>${t}</option>`).join('')}</select></label>
         <label><span class="f" style="margin-top:0">Project</span><select data-a="newf" data-v="proj">${Object.values(P).map(p => `<option value="${p.key}" ${f.proj===p.key?'selected':''}>${p.short}</option>`).join('')}</select></label>
@@ -1389,6 +1420,7 @@ function render(){
   const caret = ae && typeof ae.selectionStart === 'number' ? ae.selectionStart : null;
   renderNav();
   $('#view').innerHTML = V[S.view]();
+  renderTabs();
   const i = byId[S.ticket];
   const globalView = S.view === 'connections' || S.view === 'projects';
   $('#crumbs').innerHTML = S.view === 'ticket' ? `<span>${P[i.proj].short}</span> / ${i.epic && byId[i.epic] ? `<a href="#" data-a="open" data-v="${i.epic}">◆ ${esc(byId[i.epic].title)}</a>` : '<a href="#" data-a="nav" data-v="work">Work</a>'} / <span class="mono">${i.id}</span> <b>${esc(i.title)}</b>`
@@ -1410,8 +1442,17 @@ function render(){
     if (el){ el.focus({preventScroll:true}); if (caret != null && el.setSelectionRange) try { el.setSelectionRange(caret, caret); } catch(_){} }
   }
 }
-function go(view, opts={}){ Object.assign(S, opts); S.view = view; render(); $('#view').focus({preventScroll:true}); }
-function openTicket(id){ S.ticket = id; S.tab = null; go('ticket'); }
+function rememberTab(){ if (S.view === 'ticket' && byId[S.ticket]) S.tabMem[S.ticket] = {tab:S.tab, epicTab:S.epicTab}; }
+function go(view, opts={}){ rememberTab(); Object.assign(S, opts); S.view = view; if (view !== 'ticket') S.lastPage = view; render(); $('#view').focus({preventScroll:true}); }
+function openTicket(id, epicTab){ rememberTab(); const m = S.tabMem[id] || {}; S.ticket = id; S.tab = m.tab || null; S.epicTab = epicTab || m.epicTab || 'details';
+  if (!S.openTabs.includes(id)){ S.openTabs.push(id); while (S.openTabs.length > 8){ const k = S.openTabs.findIndex(x => x !== id); S.openTabs.splice(k, 1); } }
+  S.view = 'ticket'; render(); $('#view').focus({preventScroll:true}); }
+function renderTabs(){
+  S.openTabs = S.openTabs.filter(id => byId[id]);
+  if (S.view === 'ticket' && byId[S.ticket] && !S.openTabs.includes(S.ticket)) S.openTabs.push(S.ticket);
+  $('#tabstrip').innerHTML = S.openTabs.length ? S.openTabs.map(id => { const i = byId[id], on = S.view === 'ticket' && S.ticket === id;
+    return `<div class="otab" role="presentation" aria-selected="${on}"><button class="og" role="tab" aria-selected="${on}" data-a="tabgo" data-v="${id}" title="${esc(i.title)}">${typeIcon(i)}<span class="mono">${id}</span><span class="tt2">${esc(i.title)}</span></button><button class="ox" data-a="tabclose" data-v="${id}" aria-label="Close ${id}">${small(I.x)}</button></div>`; }).join('')
+    + (S.openTabs.length <= 3 ? `<span class="tabhint">${S.openTabs.length} open · tabs remember where you were</span>` : '') : ''; }
 
 /* =====================================================================
    Actions
@@ -1420,12 +1461,23 @@ const ACT = {
   nav: v => go(v),
   open: v => openTicket(v),
   label: v => go('label', {label:v}),
+  newin: v => { const e = byId[v]; S.newF = {type:'Story', proj:e.proj, epic:v, fromEpic:v}; S.text['new-title'] = ''; S.text['new-notes'] = ''; S.modal = {type:'new'}; render(); },
+  hradd: v => { const t = (S.text['hrnew-'+v] || '').trim(); if (!t){ toast('Write what you need to verify.'); const el = document.getElementById('hrnew-'+v); if (el) el.focus(); return; }
+    const before = snap(), i = byId[v]; (i.hr = i.hr || []).push({t, state:'declared', by:'you'}); S.text['hrnew-'+v] = ''; logActivity(v, `You added a human review item: “${t}”`);
+    undoable(before, packetReady(i) ? 'Review item added. It will be in the next round, after this packet.' : 'Review item added. The agent sees it on its next query.'); },
+  hredit: v => { S.hrEdit = v; const [id, n] = v.split('|'); S.text[`hredit-${id}-${n}`] = byId[id].hr[+n].t; render(); setTimeout(() => { const t = document.getElementById('hre-' + n); if (t) t.focus(); }, 0); },
+  hrcancel: () => { S.hrEdit = null; render(); },
+  hrsave: v => { const [id, n] = v.split('|'), t = (S.text[`hredit-${id}-${n}`] || '').trim(); if (!t){ toast('An item needs some text. Use Remove to delete it.'); return; }
+    const before = snap(), h = byId[id].hr[+n], old = h.t; h.t = t; S.hrEdit = null; logActivity(id, `You edited a human review item: “${old}” → “${t}”`); undoable(before, 'Review item updated.'); },
+  hrdel: v => { const [id, n] = v.split('|'), before = snap(), h = byId[id].hr[+n]; byId[id].hr.splice(+n, 1); logActivity(id, `You removed a human review item: “${h.t}”`); undoable(before, 'Review item removed.'); },
   newitem: () => { S.newF = {type:'Story', proj: S.scope === 'all' ? 'RCP' : S.scope, epic:''}; S.text['new-title'] = ''; S.text['new-notes'] = ''; S.modal = {type:'new'}; render(); },
   createitem: () => { const t = (S.text['new-title'] || '').trim(); if (!t){ toast('Give it a title.'); const el = $('#new-title'); if (el) el.focus(); return; }
     const before = snap(), f = S.newF, nid = nextId(f.proj);
     items.push({id:nid, type:f.type, title:t, status:'inbox', prio:3, proj:f.proj, epic:f.epic || undefined, last:'now', hr:[]}); reindex();
     DETAIL[nid] = {outcome:(S.text['new-notes'] || '').trim(), activity:[['now','You created this in Inbox']]};
-    S.modal = null; S.ticket = nid; S.tab = null; S.view = 'ticket'; undoable(before, `${nid} added to Inbox.`); },
+    S.modal = null;
+    if (f.fromEpic){ logActivity(f.fromEpic, `You added ${nid} to this epic`); undoable(before, `${nid} added to ${byId[f.fromEpic].title} (Inbox).`); return; }
+    openTicket(nid); toast(`${nid} added to Inbox.`, () => { restore(before); render(); }); },
   doc: v => { const [name, ver, by, when] = v.split('|'); S.modal = {type:'doc', name, ver, by, when}; render(); },
   dldoc: () => { const m = S.modal, t = docText(m.name) || `${m.name}: binary attachment`; const b = new Blob([t], {type:'text/plain'}); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = m.name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); },
   addnote: v => { const t = (S.text['agentnote-'+v] || '').trim(); if (!t){ toast('Write a note first.'); return; } const before = snap(); logActivity(v, `You noted for the agent: “${t}”`); S.text['agentnote-'+v] = ''; undoable(before, 'Note added. The agent sees it on its next query.'); },
@@ -1496,6 +1548,12 @@ const ACT = {
     });
     const anyCh = r.decided.verdicts.some(x => x.k === 'changes'), nDef = r.decided.verdicts.filter(x => x.k === 'defer').length;
     delete S.verdicts[id];
+    const newer = hrOf(i).filter(h => h.state === 'declared').length;
+    if (!anyCh && newer){
+      i.status = 'progress'; i.round = r.n + 1; i.run = 'reported'; i.age = 'now';
+      logActivity(id, `You approved packet round ${r.n}; ${newer} newer review item${newer === 1 ? '' : 's'} still to come`);
+      undoable(before, `Round ${r.n} approved. ${newer} newer review item${newer === 1 ? ' is' : 's are'} still to come, so ${id} stays open.`); return;
+    }
     if (!anyCh){
       i.status = 'done'; i.closedBy = 'owner'; i.run = 'finished';
       logActivity(id, `You closed the ticket after packet round ${r.n}${nDef ? ` (${nDef} item${nDef===1?'':'s'} deferred, not verified)` : ''}`);
@@ -1508,7 +1566,11 @@ const ACT = {
   },
   gfix: v => openTicket(v),
   epictab: v => { S.epicTab = v; render(); },
-  epicmap: v => { S.epicTab = 'map'; openTicket(v); },
+  epicmap: v => openTicket(v, 'map'),
+  tabgo: v => openTicket(v),
+  tabclose: v => { const n = S.openTabs.indexOf(v), active = S.view === 'ticket' && S.ticket === v; S.openTabs.splice(n, 1); delete S.tabMem[v];
+    if (!active) { render(); return; }
+    const next = S.openTabs[Math.min(n, S.openTabs.length - 1)]; if (next) openTicket(next); else go(S.lastPage || 'attention'); },
   mapzoom: v => { const cur = S.mapZ || 1;
     if (v === 'fit') S.mapZoom = S.mapZoom === 'fit' ? 1 : 'fit';
     else if (v === 'reset') S.mapZoom = 1;
@@ -1619,6 +1681,9 @@ if (/selftest/.test(location.search)){
   ['map','details','activity'].forEach(m => ['RCP-1','RCP-2','DOC-10'].forEach(id => tryR('epic/'+m+'/'+id, () => { S.view = 'ticket'; S.ticket = id; S.epicTab = m; })));
   ['palette','plan','release','delete'].forEach(m => tryR('modal/'+m, () => { S.view = 'ticket'; S.ticket = 'RCP-14'; S.modal = m==='delete' ? {type:m, key:'RCP'} : {type:m, id:'RCP-15', q:'rcp'}; }));
   tryR('modal/new', () => { S.modal = {type:'new'}; });
+  tryR('modal/newin', () => { S.newF = {type:'Story', proj:'RCP', epic:'RCP-1', fromEpic:'RCP-1'}; S.modal = {type:'new'}; });
+  tryR('hredit', () => { S.modal = null; S.view = 'ticket'; S.ticket = 'RCP-14'; S.hrEdit = 'RCP-14|0'; }); S.hrEdit = null;
+  tryR('tabs', () => { S.openTabs = ['RCP-1','RCP-14','DOC-4']; S.view = 'ticket'; S.ticket = 'RCP-14'; }); S.openTabs = [];
   ['meal-templates-prd.md','meal-templates-ux.md','meal-templates-tdd.md','pantry-brief.md','drag-phone.mp4','axe-report.json','notes.md'].forEach(n => tryR('doc/'+n, () => { S.modal = {type:'doc', name:n, ver:'v1', by:'claude', when:'now'}; }));
   tryR('fc', () => { S.modal = null; S.view = 'timeline'; S.fcPreview = true; });
   Object.keys(FILTERS).forEach(f => ['board','list'].forEach(m => tryR('filter/'+f+'/'+m, () => { S.view = 'work'; S.filter = f; S.workMode = m; })));

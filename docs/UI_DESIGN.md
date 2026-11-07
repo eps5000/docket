@@ -1,6 +1,6 @@
 # UI/UX design — MVP V1 human interface
 
-Status: design proposal, revision 14, 2026-11-06. Inputs: [requirements draft](REQUIREMENTS_DRAFT.md), [Jira research](JIRA_RESEARCH.md).
+Status: design proposal, revision 15, 2026-11-06. Inputs: [requirements draft](REQUIREMENTS_DRAFT.md), [Jira research](JIRA_RESEARCH.md).
 
 Clickable prototype: [`design/prototype.html`](../design/prototype.html). It is one file with no build step and no network requests, and all data in it is disposable sample work (O09). Open it directly in a browser.
 
@@ -36,6 +36,8 @@ Labels cut across epics (large initiatives).   Blocks links are the only thing t
 | **Human review** | Verification *after* implementation, described below. |
 
 ### Human review and handoff packets
+**You can add, edit and remove human review items yourself,** on any ticket or epic. The Human review card has an "Add something you'll need to verify yourself" box, and each item shows who added it ("added by you" / "added by claude"). Items not yet handed off can be edited or removed. Items in the current packet are locked, because the packet was written against them. An item added while a packet is waiting goes into the next round, and the ticket stays open until it's decided.
+
 
 1. **Declare.** The agent adds human review items to the ticket, usually during Planning, so you can see them coming. Each is a sentence: *"On your phone, drag recipes between days. Does it feel right?"* If a ticket has none, the agent may close it once its own checks pass.
 2. **Hand off.** When the work is built and the agent's checks pass, the ticket moves to **Review** with a **handoff packet**: one versioned document per ticket per round. It has a fixed shape:
@@ -83,12 +85,13 @@ Sidebar                                   Ticket page
 ├─ Needs you     badge = for you now      ├─ Outcome + acceptance
 ├─ Work          Board | List | Map       ├─ Tabs: Work and checks (Work · Agent checks) · Documents · Activity
 ├─ Human review  badge = packets ready    └─ Rail: HUMAN REVIEW (always first) · Lead & runs · Dependencies · Dates
-├─ Timeline                               Epic page: tabs MAP (default, full width) · Details · Activity
+├─ Timeline                               Epic page: tabs DETAILS (default) · Map (full width) · Activity
 ├─ Agents                                 Label page: brief, progress map across epics, "Move N to Ready"
 │  ── service-wide ──
 ├─ Projects
 └─ Connections
 Header: breadcrumb · + New (quick capture to Inbox) · search/jump (Ctrl K or /; items, labels, pages) · theme
+Under the header: open-item tabs (each ticket or epic you open; × to close; each remembers its own sub-tab)
 ```
 
 ## Screens
@@ -136,9 +139,16 @@ Designed to fit on one laptop screen without scrolling. In the prototype it fits
 *+ New* in the header opens a small dialog: title (required), type, project, optional epic, and notes. The item lands in **Inbox** and opens, ready to be shaped in Planning. It's deliberately minimal: agents fill in the rest.
 
 ### Epic page: three tabs for three jobs
-- **Map** (default): what you open an epic for. Full width, no side column. It shows the progress header and the progress map. If the epic itself carries the human review (a one-PR epic), a thin strip above the map says so, with *Open packet* when it's ready.
-- **Details:** brief and documents, plus the items listed by status. The Human review card sits at the top of the right-hand column, the same place as on tickets.
+- **Details** (default): brief and documents, plus the items listed by status. The Human review card sits at the top of the right-hand column, the same place as on tickets.
+- **Map:** progress and wiring. Full width, no side column. It shows the progress header and the progress map. If the epic itself carries the human review (a one-PR epic), a thin strip above the map says so, with *Open packet* when it's ready.
 - **Activity:** agent updates for the epic, plus a *note for the agents* box.
+- **+ New item in this epic** sits beside the tabs. It opens the New dialog with the epic and project filled in; the item lands in Inbox and you stay on the epic.
+
+### Open-item tabs
+- Every ticket or epic you open becomes a tab under the header. Click to switch; × to close. Closing the active tab moves to its neighbour, or back to the page you came from.
+- Each tab remembers its own sub-tab (e.g. Details vs Map, Documents vs Activity).
+- Tabs are a fixed 200px with type icon, ID and title, and the strip scrolls sideways. Up to 8 tabs; the oldest inactive tab closes first.
+- In the real app every item also has its own URL, so Ctrl/middle-click should open it in a browser tab too.
 
 **Getting to an epic:**
 - **Work has an Epics row** at the top: one compact card per epic, with done count, mini progress bar, status and "N for you". Clicking it opens the epic's Map tab.
@@ -283,9 +293,10 @@ Base type is 13px; secondary text is at least 11.5px. Small controls are at leas
 
 **Testing:**
 - `design/prototype.html?selftest` renders every page in every scope, plus every item, tab, label, packet round, dialog and filter. It reports `SELFTEST OK` in headless Edge.
-- An 85-step scripted click-through of the scenarios above also passed.
+- A 99-step scripted click-through of the scenarios above also passed.
 
 ## Revision history
+- **Revision 15:** epics open on Details (then Map, Activity); *+ New item in this epic*; you can add, edit and remove human review items yourself, with who-added-it shown and packet items locked; an all-approve round no longer closes a ticket that has newer undecided items; open-item tabs under the header that remember each item's sub-tab.
 - **Revision 14:** epics get a front door. An Epics row on Work opens each epic's Map tab, and epic names are links in ticket headers, list rows and label pages. Previously the epic page was only reachable through a ticket's "See it on the epic map" link.
 - **Revision 13:** epic pages use Map (default, full width) · Details · Activity tabs; human review shows on map cards (filled = ready for you, outlined = later); epic-level review is a strip above the map; ticket breadcrumbs link back to the epic and its last tab.
 - **Revision 12:** the progress map sits on a pannable canvas with fixed, generous spacing, overflow cues (edge fades, *More* pills, hint line, grab cursor), drag/scroll/keyboard panning, and zoom with Fit.
