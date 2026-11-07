@@ -1,6 +1,6 @@
 # UI/UX design — MVP V1 human interface
 
-Status: design proposal, revision 17, 2026-11-06. Inputs: [requirements draft](REQUIREMENTS_DRAFT.md), [Jira research](JIRA_RESEARCH.md).
+Status: design proposal, revision 18, 2026-11-06. Inputs: [requirements draft](REQUIREMENTS_DRAFT.md), [Jira research](JIRA_RESEARCH.md).
 
 Clickable prototype: [`design/prototype.html`](../design/prototype.html). It is one file with no build step and no network requests, and all data in it is disposable sample work (O09). Open it directly in a browser.
 
@@ -36,7 +36,7 @@ Labels cut across epics (large initiatives).   Blocks links are the only thing t
 | **Human review** | Verification *after* implementation, described below. |
 
 ### The checklist (tickets and epics)
-Every ticket and epic has a **Checklist** card in the main body, always visible, with three sections:
+Every ticket and epic has a **Checklist** tab with three collapsible sections:
 - **Work:** the agent's step-by-step plan (one-liners; subagent notes attach here).
 - **Agent review:** what the agent verifies itself, each with its evidence and state.
 - **Human review:** what you verify yourself.
@@ -44,7 +44,7 @@ Every ticket and epic has a **Checklist** card in the main body, always visible,
 Each section has its own **Add** box (Enter adds). Items you add show "added by you" and can be removed until they're done. On an epic, the checklist holds epic-level steps and checks and is separate from **Tickets in this epic**: a checklist item is a sentence on this page, while a ticket has its own lead, blockers and review.
 
 ### Human review and handoff packets
-**You can add, edit and remove human review items yourself,** on any ticket or epic. The Human review card has an "Add something you'll need to verify yourself" box, and each item shows who added it ("added by you" / "added by claude"). Items not yet handed off can be edited or removed. Items in the current packet are locked, because the packet was written against them. An item added while a packet is waiting goes into the next round, and the ticket stays open until it's decided.
+**You can add, edit and remove human review items yourself,** on any ticket or epic. The Human review section has an "Add something you'll need to verify yourself" box, and each item shows who added it ("added by you" / "added by claude"). Items not yet handed off can be edited or removed. Items in the current packet are locked, because the packet was written against them. An item added while a packet is waiting goes into the next round, and the ticket stays open until it's decided.
 
 
 1. **Declare.** The agent adds human review items to the ticket, usually during Planning, so you can see them coming. Each is a sentence: *"On your phone, drag recipes between days. Does it feel right?"* If a ticket has none, the agent may close it once its own checks pass.
@@ -90,10 +90,10 @@ Each section has its own **Add** box (Enter adds). Items you add show "added by 
 Sidebar                                   Ticket page
 ┌ Project ▾ [All | Recipe App | Docs]     ├─ Header: ID · type · epic · labels · status · priority · Move to Planning/Ready
 │  ── scoped to the chosen project ──     ├─ Banner when you must act: packet ready / agent question
-├─ Needs you     badge = for you now      ├─ Outcome + acceptance · CHECKLIST (Work · Agent review · Human review)
-├─ Work          Board | List | Map       ├─ Tabs: Documents · Activity
-├─ Human review  badge = packets ready    └─ Rail: Lead & runs · Dependencies · Dates
-├─ Timeline                               Epic page: tabs DETAILS (default) · Map (full width) · Activity
+├─ Needs you     badge = for you now      └─ Tabs, one per job (one column of collapsible sections each):
+├─ Work          Board | List | Map          DETAILS: Outcome · Documents · Dates   CHECKLIST: Work · Agent review · Human review
+├─ Human review  badge = packets ready       DEPENDENCIES: 1-hop view              ACTIVITY: Lead & runs · History + note
+├─ Timeline                               Epic page: DETAILS (brief, docs, tickets) · CHECKLIST · MAP · ACTIVITY
 ├─ Agents                                 Label page: brief, progress map across epics, "Move N to Ready"
 │  ── service-wide ──
 ├─ Projects
@@ -123,20 +123,25 @@ Designed to fit on one laptop screen without scrolling. In the prototype it fits
 - **Cards:** type, epic, labels, run state, plus chips for *Packet ready*, *Human review later*, *Question for you*, *Blocked*, and *Date risk*.
 - **Filters:** epic, label, and saved filters (In planning, Ready to start, Blocked, For you, Human review later, Live run). Each shows the matching agent query.
 
-### Ticket
-**One long column of collapsible sections**, in this order:
-- **Outcome:** the goal and acceptance criteria.
-- **Checklist:** three parts, each with its own Add box.
-  - **Work:** items with state, who and when. Subagent contributions are nested under the item they belong to. Revised items show the old text, and items added from your review say so. A history view shows every revision.
+### Tickets and epics: one tab per job
+Each tab is a view that answers one question. Epics and tickets use the same four slots, so you always know where to look.
+
+| Tab | The question | Ticket | Epic |
+|---|---|---|---|
+| **Details** (default) | What is this? | Outcome and acceptance, Documents, Dates & effort | Brief and documents, Tickets in this epic (grouped by status) |
+| **Checklist** | What has to happen, and what's verified? | Work, Agent review, Human review | Same three, at epic level |
+| **Dependencies** / **Map** | Where does it sit? | 1-hop view: *Waits on* → this → *Then unblocks*, cycle fix, *See it on the epic map* | Progress map on the pannable canvas, plus the epic-level review strip |
+| **Activity** | What did the agents do? | Lead & runs (lease, rejected claims, release, *Return to Ready*), then History with the *note for the agent* box | History with the *note for the agents* box |
+
+- **Tab labels carry state**, so you don't have to open a tab to see it: *Checklist 1/4*, *Dependencies 4*, *Map 1/12*. A dot flags something that needs a look: amber for a packet that's ready (Checklist) or a stale, failed or conflicted run (Activity), and red for a dependency cycle (Dependencies).
+- **Inside a tab, content is one column of collapsible sections.** Each header shows a one-line summary (for example, "Work · 1/4 done · the agent's plan"). Collapse state is remembered per section type, so if you close Work on one ticket, it stays closed on the next.
+- **Checklist tab:**
+  - **Work:** items with state, who and when. Subagent contributions are nested under the item they belong to. Revised items show the old text, and items added from your review say so. *Checklist history* shows every revision.
   - **Agent review:** each check with its state (passed, failed, not run) and evidence.
   - **Human review:** what you'll verify yourself, with state, any notes from earlier rounds, and *Open packet* when one is ready. You can add, edit or remove items, but items in the current packet are locked. A child ticket without its own review says "reviewed with its epic" and links there.
-- **Documents:** planning docs (PRD, UX, TDD) and handoff packets. Documents open in a viewer with version, author and Download; packets open the review screen.
-- **Dependencies:** a 1-hop view (*Waits on* → this ticket → *Then unblocks*) as small status-coloured boxes, plus *See it on the epic map*. If the ticket is in a dependency cycle, the section says so and offers *Remove link*.
-- **Lead & runs:** the lease, any rejected claims, stale-claim release, and *Return to Ready* after a failed run.
-- **Dates & effort**, with who set them.
-- **Activity:** history, plus a *note for the agent* box. That's how you steer work without a review round; the agent sees the note on its next query.
-
-**Collapsing.** Every section header shows a one-line summary, such as "Work 1/4 · Agent review 1/3 · Human review 1" or "waits on 1 · unblocks 3", so a collapsed section still tells you its state. Collapse state is remembered per section type, not per ticket: if you close Checklist, it stays closed on the next ticket you open. Activity starts collapsed and everything else starts open.
+- **Above the tabs, on every tab:** the header (status, priority, *Move to Ready*), plus banners for things that need you now: *Handoff packet ready* and agent questions.
+- **Entry points land on the right view.** *Inspect* on a stalled or failed run opens Activity; *Fix* on a cycle opens Dependencies; *See it on the epic map* opens the epic's Map. Otherwise an item opens on Details, or on whichever tab you last had open for it.
+- **+ New item in this epic** sits at the right of an epic's tab row. It opens the New dialog with the epic and project filled in; the item lands in Inbox and you stay on the epic.
 
 ### Human review
 - **Queue:** Ready for you, Decided, and Coming up.
@@ -148,12 +153,6 @@ Designed to fit on one laptop screen without scrolling. In the prototype it fits
 
 ### Quick capture
 *+ New* in the header opens a small dialog: title (required), type, project, optional epic, and notes. The item lands in **Inbox** and opens, ready to be shaped in Planning. It's deliberately minimal: agents fill in the rest.
-
-### Epic page: three tabs for three jobs
-- **Details** (default): one column of the same collapsible sections: **Brief and documents**, the epic's **Checklist**, then **Tickets in this epic**, grouped by status. Its summary reads, for example, "1/12 done · 2 ready but blocked · 2 for you". There is no separate review card.
-- **Map:** progress and wiring. Full width, no side column. It shows the progress header and the progress map. If the epic itself carries the human review (a one-PR epic), a thin strip above the map says so, with *Open packet* when it's ready.
-- **Activity:** agent updates for the epic, plus a *note for the agents* box.
-- **+ New item in this epic** sits beside the tabs. It opens the New dialog with the epic and project filled in; the item lands in Inbox and you stay on the epic.
 
 ### Open-item tabs
 - Every ticket or epic you open becomes a tab under the header. Click to switch; × to close. Closing the active tab moves to its neighbour, or back to the page you came from.
@@ -192,7 +191,7 @@ The dependency view is a **progress picture**, not a standalone graph page. It a
 
 ### Labels and epics
 - **Label page:** brief, a progress map across epics, a by-epic list, *Move N to Ready* for everything with that label still in Planning, and a link to the filtered board.
-- **Epic page:** Details, Map and Activity tabs (see *Epic page* above). A Planning epic is described as "still a brief".
+- **Epic page:** Details, Checklist, Map and Activity tabs (see *Tickets and epics* above). A Planning epic is described as "still a brief".
 
 ### Timeline, Agents, Connections, Projects
 - **Timeline:** entered dates vs actual run time vs forecast.
@@ -304,9 +303,10 @@ Base type is 13px; secondary text is at least 11.5px. Small controls are at leas
 
 **Testing:**
 - `design/prototype.html?selftest` renders every page in every scope, plus every item, tab, label, packet round, dialog and filter. It reports `SELFTEST OK` in headless Edge.
-- A 104-check scripted click-through of the scenarios above also passed.
+- A 110-check scripted click-through of the scenarios above also passed.
 
 ## Revision history
+- **Revision 18:** tickets and epics share four tabs, one per job: Details, Checklist, Dependencies (Map on epics) and Activity. The Checklist tab splits into collapsible Work, Agent review and Human review sections. Lead & runs moved to Activity. Tab labels show counts, plus an attention dot for a ready packet, run trouble or a cycle. *Inspect* and *Fix* in Problems open the matching tab.
 - **Revision 17:** ticket pages and epic Details are a single long column, with no side rail and no Documents/Activity tabs. Every section is collapsible and shows a one-line summary in its header. Collapse state is remembered per section type, and Activity starts collapsed.
 - **Revision 16:** a Checklist card in the main body of every ticket and epic, with Work, Agent review and Human review sections and an Add box for each. The right-hand Human review card is gone. Epic "Items" is renamed "Tickets in this epic". Ticket tabs are now Documents · Activity.
 - **Revision 15:** epics open on Details (then Map, Activity); *+ New item in this epic*; you can add, edit and remove human review items yourself, with who-added-it shown and packet items locked; an all-approve round no longer closes a ticket that has newer undecided items; open-item tabs under the header that remember each item's sub-tab.

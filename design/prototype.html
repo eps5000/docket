@@ -240,6 +240,8 @@
 .tl .tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin-bottom:12px}
 .tl .tabs button{border:0;background:none;padding:7px 10px;color:var(--ink-3);border-bottom:2px solid transparent;margin-bottom:-1px;min-height:32px}
 .tl .tabs button[aria-selected=true]{color:var(--ink);border-color:var(--brand);font-weight:650}
+.tl .tabdot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--warn);margin-left:5px;vertical-align:middle}
+.tl .tabdot.bad{background:var(--bad)}
 .tl .step{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:10px;padding:9px 0;border-top:1px solid var(--line);align-items:start}
 .tl .step:first-child{border-top:0}
 .tl .sicon{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:10px;font-weight:800;margin-top:1px;flex:none}
@@ -731,8 +733,8 @@ const nextId = key => key + '-' + (Math.max(...items.filter(i => i.proj === key)
 function problems(){
   const q = [], cyc = cycleSet();
   for (const i of items.filter(inScope)){
-    if (i.run === 'stale') q.push({id:i.id, icon:'stale', why:`Lead run silent for ${i.age}; the lease expires in 13 min. Treated as unknown, not finished. Another agent's claim was rejected at 10:58.`, action:'Inspect', a:'open', v:i.id});
-    if (i.run === 'failed') q.push({id:i.id, icon:'failed', why:'Run failed: outbound network is blocked in this worker sandbox. Nothing retries automatically.', action:'Inspect', a:'open', v:i.id});
+    if (i.run === 'stale') q.push({id:i.id, icon:'stale', why:`Lead run silent for ${i.age}; the lease expires in 13 min. Treated as unknown, not finished. Another agent's claim was rejected at 10:58.`, action:'Inspect', a:'inspect', v:i.id});
+    if (i.run === 'failed') q.push({id:i.id, icon:'failed', why:'Run failed: outbound network is blocked in this worker sandbox. Nothing retries automatically.', action:'Inspect', a:'inspect', v:i.id});
     const dr = dateRisks(i);
     if (dr.length) q.push({id:i.id, icon:'date', why:`Planned start ${fmt(D(i.start))} is before its blocker ${dr[0]} is planned to finish (${fmt(D(byId[dr[0]].end))}).`, action:'Timeline', a:'nav', v:'timeline'});
   }
@@ -749,7 +751,7 @@ const S = {
   view:'attention', ticket:'RCP-14', tab:null, scope:'all', scopeOpen:false,
   workMode:'board', filter:'all', epicF:'all', labelF:'all', showBlocked:false,
   pk:'RCP-12', pkRound:null, verdicts:{}, newF:{type:'Story', proj:'RCP', epic:''},
-  label:'ui-refresh', epicTab:'details', collapsed:{activity:true}, mapZoom:1, mapZ:1, openTabs:[], tabMem:{}, lastPage:'attention', hrEdit:null,
+  label:'ui-refresh', epicTab:'details', collapsed:{}, mapZoom:1, mapZ:1, openTabs:[], tabMem:{}, lastPage:'attention', hrEdit:null,
   fcPreview:false, theme:'system', snippet:'codex',
   replyOpen:null, text:{}, modal:null, extraActivity:{},
 };
@@ -1111,28 +1113,35 @@ function checklistCard(i, d){
     : ep ? `Epic-level review: verified once when the epic's work is ready to merge.`
     : (!packetReady(i) && open) ? `The agent writes a handoff packet when the work is built. This ticket can't close until every item is decided.` : '';
   const addRow = (key, act, ph, label) => open ? `<div class="addrow"><label class="sr" for="${key}">${label}</label><input class="input" id="${key}" data-t="${key}" value="${esc(S.text[key] || '')}" placeholder="${ph}" autocomplete="off"><button class="btn sm" data-a="${act}" data-v="${i.id}">Add</button></div>` : '';
-  const summary = `Work ${wdone}/${d.work.length} · Agent review ${d.checks.filter(c => c[3]==='pass').length}/${d.checks.length} · Human review ${hrs.length}${packetReady(i) ? ' · packet ready' : ''}`;
-  return sec('checklist', 'Checklist', summary, `<div class="clcard"><div class="src">One-line steps on this ${ep ? 'epic' : 'ticket'}. Anything bigger becomes its own ticket.</div>
-    <div class="ckgroup"><h3 style="margin:0">Work · ${wdone}/${d.work.length}</h3>${d.history ? '<button class="btn ghost sm" data-a="planhistory">Checklist history</button>' : '<span class="src">The agent’s plan</span>'}</div>
-    ${workRows || `<div class="muted">${ep ? 'No epic-level steps yet.' : (i.status === 'planning' || i.status === 'inbox') ? 'The agent writes its work steps when it claims the ticket.' : 'No work steps yet.'}</div>`}
-    ${addRow('addw-' + i.id, 'addwork', ep ? 'Add a step for the whole epic, e.g. Update the release notes' : 'Add a step for the agent, e.g. Handle an empty week plan', 'New work step')}
-    <div class="ckgroup"><h3 style="margin:0">Agent review · ${d.checks.filter(c => c[3]==='pass').length}/${d.checks.length}</h3><span class="src">What the agent verifies itself</span></div>
-    ${checkRows || `<div class="muted">${ep ? 'No epic-level checks yet.' : 'No agent checks listed yet.'}</div>`}
-    ${addRow('adda-' + i.id, 'addcheck', 'Add something the agent should verify, e.g. Run the full test suite on a clean checkout', 'New agent review item')}
-    <div class="ckgroup"><h3 style="margin:0">Human review · ${hrs.length}</h3>${packetReady(i) ? `<button class="btn primary sm" data-a="packet" data-v="${i.id}">${small(I.packet)} Open packet</button>` : '<span class="src">What you verify yourself</span>'}</div>
-    ${hrs.map((h, n) => hrRow(i, h, n)).join('')}${hrNote ? `<div class="src" style="margin-top:${hrs.length ? 8 : 4}px">${hrNote}</div>` : ''}
-    ${addRow('hrnew-' + i.id, 'hradd', ep ? 'Add something you’ll verify, e.g. Walk through the whole feature before the PR merges' : 'Add something you’ll verify, e.g. Try it on your phone', 'New human review item')}
-    ${open && packetReady(i) ? '<div class="src" style="margin-top:4px">New items aren’t in the current packet; the agent includes them next round.</div>' : ''}
-  </div>`);
+  const apass = d.checks.filter(c => c[3]==='pass').length;
+  return `<div class="src">One-line items on this ${ep ? 'epic' : 'ticket'}: the agent's plan, what it verifies itself, and what you verify. Anything bigger becomes its own ticket.</div>
+    ${sec('work', 'Work', `${wdone}/${d.work.length} done · the agent's plan`, `<div class="clcard">${workRows || `<div class="muted">${ep ? 'No epic-level steps yet.' : (i.status === 'planning' || i.status === 'inbox') ? 'The agent writes its work steps when it claims the ticket.' : 'No work steps yet.'}</div>`}
+      ${addRow('addw-' + i.id, 'addwork', ep ? 'Add a step for the whole epic, e.g. Update the release notes' : 'Add a step for the agent, e.g. Handle an empty week plan', 'New work step')}</div>`,
+      d.history ? '<button class="btn ghost sm" data-a="planhistory">Checklist history</button>' : '')}
+    ${sec('agentrev', 'Agent review', `${apass}/${d.checks.length} passed · what the agent verifies itself`, `<div class="clcard">${checkRows || `<div class="muted">${ep ? 'No epic-level checks yet.' : 'No agent checks listed yet.'}</div>`}
+      ${addRow('adda-' + i.id, 'addcheck', 'Add something the agent should verify, e.g. Run the full test suite on a clean checkout', 'New agent review item')}</div>`)}
+    ${sec('humanrev', 'Human review', `${hrs.length ? `${hrs.length} item${hrs.length === 1 ? '' : 's'}` : 'none'}${packetReady(i) ? ' · packet ready' : ''} · what you verify yourself`, `<div class="clcard">${hrs.map((h, n) => hrRow(i, h, n)).join('')}${hrNote ? `<div class="src" style="margin-top:${hrs.length ? 8 : 4}px">${hrNote}</div>` : ''}
+      ${addRow('hrnew-' + i.id, 'hradd', ep ? 'Add something you’ll verify, e.g. Walk through the whole feature before the PR merges' : 'Add something you’ll verify, e.g. Try it on your phone', 'New human review item')}
+      ${open && packetReady(i) ? '<div class="src" style="margin-top:4px">New items aren’t in the current packet; the agent includes them next round.</div>' : ''}</div>`,
+      packetReady(i) ? `<button class="btn primary sm" data-a="packet" data-v="${i.id}">${small(I.packet)} Open packet</button>` : '')}`;
 }
+const dot = (cls, why) => `<span class="tabdot ${cls}" title="${why}" aria-hidden="true"></span><span class="sr"> (${why})</span>`;
+function viewTabs(i, tabs, cur){
+  return `<div class="row" style="align-items:flex-end;border-bottom:1px solid var(--line);margin-bottom:14px"><div class="tabs" role="tablist" aria-label="${isEpic(i) ? 'Epic' : 'Ticket'} views" style="margin-bottom:-1px;border-bottom:0">${tabs.map(([k, l, hint]) => `<button role="tab" id="etab-${k}" aria-controls="epanel" data-a="epictab" data-v="${k}" aria-selected="${cur===k}" tabindex="${cur===k ? 0 : -1}" title="${hint}">${l}</button>`).join('')}</div>
+      ${isEpic(i) ? `<button class="btn sm" data-a="newin" data-v="${i.id}" style="margin:0 0 6px auto">+ New item in this epic</button>` : ''}</div>`;
+}
+const notePanel = (i, who) => `<div class="row" style="align-items:flex-start;gap:8px;margin-bottom:10px"><label class="sr" for="note-agent">Note for the ${who}</label><textarea id="note-agent" data-t="agentnote-${i.id}" style="min-height:44px" placeholder="Leave a note for the ${who} working on this. ${who === 'agent' ? 'It sees it on its' : 'They see it on their'} next query.">${esc(S.text['agentnote-'+i.id] || '')}</textarea><button class="btn sm" data-a="addnote" data-v="${i.id}">Add note</button></div>`;
+function clTab(i, d){ const w = d.work.filter(x => x.s === 'done').length, n = d.work.length + d.checks.length + hrOf(i).length;
+  return ['checklist', `Checklist${(isEpic(i) ? n : d.work.length) ? ` <span class="muted">${isEpic(i) ? n : `${w}/${d.work.length}`}</span>` : ''}${packetReady(i) ? dot('', 'packet ready') : ''}`, 'Work steps, agent review and human review']; }
 V.ticket = () => {
   const i = byId[S.ticket], d = detailFor(i), p = P[i.proj];
   if (isEpic(i)) return epicView(i, d);
   const activity = [...(S.extraActivity[i.id] || []), ...d.activity];
   const hrs = hrOf(i), wdone = d.work.filter(w => w.s === 'done').length;
   const docs = d.docs.map(x => docRow(x, i.id)).join('');
-  const tabs = [['docs', `Documents <span class="muted">${d.docs.length}</span>`], ['activity','Activity']];
-  const tab = S.tab === 'activity' ? 'activity' : 'docs';
+  const tab = ({map:'deps'})[S.epicTab] || (['details','checklist','deps','activity'].includes(S.epicTab) ? S.epicTab : 'details');
+  const depN = (i.blockedBy || []).length + dependents(i.id).length;
+  const runTrouble = i.lead && i.run === 'stale' ? 'stale run' : i.lead && i.run === 'failed' ? 'run failed' : d.conflict && i.lead ? 'claim conflict' : '';
   return `
   ${!inScope(i) ? `<div class="callout row wrap" style="margin-bottom:12px"><span class="grow">${i.id} belongs to <b>${P[i.proj].short}</b>, outside the project you're viewing.</span><button class="btn sm" data-a="scope" data-v="${i.proj}">Switch to ${P[i.proj].short}</button></div>` : ''}
   <div class="tk-head"><div class="grow">
@@ -1149,12 +1158,12 @@ V.ticket = () => {
       <div class="row wrap" style="margin-top:6px"><button class="btn primary sm" data-a="sendanswer" data-v="${i.id}">Send answer</button><span class="src">The run stays paused until ${esc(i.question.by)} reads it.</span></div></div></div>` : ''}
   ${i.question && i.question.answer ? `<div class="callout ok" style="margin-bottom:12px">You answered: “${esc(i.question.answer)}”. Waiting for ${esc(i.question.by)} to read it.</div>` : ''}
   ${i.fromReview ? `<div class="callout" style="margin-bottom:12px">Created from your human review of ${link(i.fromReview.split(' ')[0])} (${esc(i.fromReview.split('· ')[1] || '')}).</div>` : ''}
-  <div class="stack1">
-    ${sec('outcome', 'Outcome', d.acceptance && d.acceptance.length ? `${d.acceptance.length} acceptance criteria` : '', `<div>${d.outcome ? esc(d.outcome) : '<span class="muted">No outcome written yet.</span>'}</div>
-      ${d.acceptance && d.acceptance.length ? `<h3 style="margin-top:14px">Acceptance</h3>${d.acceptance.map(t => `<div class="lrow"><span class="muted">–</span><span>${esc(t)}</span></div>`).join('')}` : ''}`)}
-    ${checklistCard(i, d)}
-    ${sec('docs', 'Documents', `${d.docs.length}`, docs || '<div class="muted">No documents yet. Planning docs (PRD, UX, TDD) and handoff packets appear here.</div>')}
-    ${sec('deps', 'Dependencies', `waits on ${(i.blockedBy || []).length} · unblocks ${dependents(i.id).length}`, `
+  ${viewTabs(i, [['details', 'Details', 'What this is: outcome, documents, dates'], clTab(i, d),
+      ['deps', `Dependencies${depN ? ` <span class="muted">${depN}</span>` : ''}${cycleSet().has(i.id) ? dot('bad', 'in a dependency cycle') : ''}`, 'Where it sits: what it waits on and what it unblocks'],
+      ['activity', `Activity${runTrouble ? dot('', runTrouble) : ''}`, 'What the agents did: lead, runs and history']], tab)}
+  <div role="tabpanel" id="epanel" aria-labelledby="etab-${tab}"><div class="stack1">
+  ${tab === 'checklist' ? checklistCard(i, d)
+    : tab === 'deps' ? `<div class="card pad"><h3>Waits on ${(i.blockedBy || []).length} · unblocks ${dependents(i.id).length}</h3>
       ${(() => { const bl = (i.blockedBy || []).map(b => byId[b]).filter(Boolean), dp = dependents(i.id), cyc = cycleSet();
         return `${cyc.has(i.id) ? `<div class="callout bad" style="margin-bottom:8px">In a dependency cycle (${[...cyc].sort().join(' ⇄ ')}). Neither can start until one link is removed.<div class="row wrap" style="margin-top:6px">${(i.blockedBy || []).filter(b => cyc.has(b)).map(b => `<button class="btn sm" data-a="rmlink" data-v="${b}>${i.id}">Remove “${b} blocks ${i.id}”</button>`).join('')}</div></div>` : ''}
         ${!bl.length && !dp.length ? '<div class="muted">No blocking links.</div>' : `<div class="hop">
@@ -1162,49 +1171,51 @@ V.ticket = () => {
           ${pnode(i, {cur:true})}
           ${dp.length ? `<div class="arrow">↓</div><div class="src">Then unblocks</div>${dp.map(x => pnode(x, {ext: x.epic !== i.epic, home:i.proj})).join('')}` : ''}</div>`}
         ${(i.relates || []).length ? `<div class="src" style="margin-top:8px">Relates to (doesn't block): ${i.relates.map(link).join(', ')}</div>` : ''}
-        ${i.epic ? `<button class="btn ghost sm" data-a="epicmap" data-v="${i.epic}" style="padding-left:0;margin-top:6px">See it on the epic map →</button>` : ''}`; })()}`)}
-    ${sec('runs', 'Lead and runs', i.lead ? `${esc(i.lead)}${i.run ? ' · ' + RUNS[i.run].l : ''}` : 'unclaimed', `
+        ${i.epic ? `<button class="btn ghost sm" data-a="epicmap" data-v="${i.epic}" style="padding-left:0;margin-top:6px">See it on the epic map →</button>` : ''}`; })()}</div>`
+    : tab === 'activity' ? `${sec('runs', 'Lead and runs', i.lead ? `${esc(i.lead)}${i.run ? ' · ' + RUNS[i.run].l : ''}` : 'unclaimed', `
       ${d.runs.map(r => `<div class="lrow" style="align-items:flex-start;padding:6px 0"><div class="grow"><div class="row wrap"><b>${esc(r.who)}</b>${r.lead ? '<span class="chip c-gray">lead</span>' : ''}${run(r.r)}</div><div class="src">${esc(r.what)}</div></div></div>`).join('') || '<div class="muted">Unclaimed. The next agent that asks for ready work can claim it.</div>'}
       ${d.conflict && i.lead ? `<div class="callout warn" style="margin-top:6px">${esc(d.conflict)}</div>` : ''}
       ${d.error && i.lead ? `<div class="err">${esc(d.error)}</div>` : ''}
       ${i.run==='stale' && i.lead ? `<div class="row wrap" style="margin-top:8px"><button class="btn sm" data-a="release" data-v="${i.id}">Release lead claim…</button></div><div class="src" style="margin-top:4px">Or wait: the lease expires on its own at 11:13.</div>` : ''}
       ${i.run==='failed' && i.lead ? `<div class="row wrap" style="margin-top:8px"><button class="btn sm" data-a="toready" data-v="${i.id}">Return to Ready</button></div><div class="src" style="margin-top:4px">This service never launches agents. A connected agent picks it up next.</div>` : ''}`)}
+    ${sec('history', 'History', `${activity.length} update${activity.length === 1 ? '' : 's'}`, `${notePanel(i, 'agent')}
+      ${activity.map(a => `<div class="act"><span class="src mono">${a[0]}</span><span>${esc(a[1])}</span></div>`).join('')}`)}`
+    : `${sec('outcome', 'Outcome', d.acceptance && d.acceptance.length ? `${d.acceptance.length} acceptance criteria` : '', `<div>${d.outcome ? esc(d.outcome) : '<span class="muted">No outcome written yet.</span>'}</div>
+      ${d.acceptance && d.acceptance.length ? `<h3 style="margin-top:14px">Acceptance</h3>${d.acceptance.map(t => `<div class="lrow"><span class="muted">–</span><span>${esc(t)}</span></div>`).join('')}` : ''}`)}
+    ${sec('docs', 'Documents', `${d.docs.length}`, docs || '<div class="muted">No documents yet. Planning docs (PRD, UX, TDD) and handoff packets appear here.</div>')}
     ${sec('dates', 'Dates and effort', i.start ? `${fmt(D(i.start))} → ${fmt(D(i.end))}` : 'not set', `<dl class="kv">
       ${i.start ? `<dt>Planned</dt><dd>${fmt(D(i.start))} → ${fmt(D(i.end))}<div class="src">set by ${esc(i.setBy)}</div></dd>` : '<dt>Planned</dt><dd class="muted">Not set</dd>'}
       ${i.actual ? `<dt>Actual</dt><dd>${fmt(D(i.actual[0]))} → ${i.actual[1] ? fmt(D(i.actual[1])) : 'ongoing'}<div class="src">from run history</div></dd>` : ''}
       <dt>Effort</dt><dd>${i.pts ? `${i.pts} pts` : '<span class="muted">Not estimated</span>'}</dd>
-    </dl>${dateRisks(i).map(b => `<div class="callout bad" style="margin-top:8px">Starts ${fmt(D(i.start))}, but ${b} is planned to finish ${fmt(D(byId[b].end))}.</div>`).join('')}`)}
-    ${sec('activity', 'Activity', `${activity.length} update${activity.length === 1 ? '' : 's'}`, `<div class="row" style="align-items:flex-start;gap:8px;margin-bottom:10px"><label class="sr" for="note-agent">Note for the agent</label><textarea id="note-agent" data-t="agentnote-${i.id}" style="min-height:44px" placeholder="Leave a note for the agent working on this. It sees it on its next query.">${esc(S.text['agentnote-'+i.id] || '')}</textarea><button class="btn sm" data-a="addnote" data-v="${i.id}">Add note</button></div>
-      ${activity.map(a => `<div class="act"><span class="src mono">${a[0]}</span><span>${esc(a[1])}</span></div>`).join('')}`)}
-  </div>`;
+    </dl>${dateRisks(i).map(b => `<div class="callout bad" style="margin-top:8px">Starts ${fmt(D(i.start))}, but ${b} is planned to finish ${fmt(D(byId[b].end))}.</div>`).join('')}`)}`}
+  </div></div>`;
 };
 function epicView(i, d){
   const kids = childrenOf(i.id), done = kids.filter(k => k.status==='done').length;
   const byStatus = Object.keys(STATUS).map(s => [s, kids.filter(k => k.status===s)]).filter(([,l]) => l.length);
-  const tab = S.epicTab || 'details', activity = [...(S.extraActivity[i.id] || []), ...d.activity];
+  const tab = ({deps:'map'})[S.epicTab] || S.epicTab || 'details', activity = [...(S.extraActivity[i.id] || []), ...d.activity];
   const hrs = hrOf(i), hrNow = packetReady(i);
-  const tabs = [['details', 'Details'], ['map','Map'], ['activity', 'Activity']];
+  const tabs = [['details', 'Details', 'What this is: brief, documents and its tickets'], clTab(i, d), ['map', `Map <span class="muted">${done}/${kids.length}</span>`, 'Where it is: progress and dependencies across its tickets'], ['activity', 'Activity', 'What the agents did in this epic']];
   const strip = hrs.length ? `<div class="epicstrip ${hrNow ? '' : 'later'}"><span class="hrkey"><span class="hrmark ${hrNow ? 'now' : 'later'}">${I.person}</span></span>
       <div class="grow"><b>Epic-level human review${hrNow ? ': packet ready' : ''}</b> · ${hrs.map(h => esc(h.t)).join(' · ')} <span class="src">${hrNow ? '' : 'Reviewed once, when the epic is ready to merge.'}</span></div>
       ${hrNow ? `<button class="btn primary sm" data-a="packet" data-v="${i.id}">Open packet</button>` : `<span class="chip c-gray">Coming up</span>`}</div>` : '';
   const body = tab === 'map'
     ? `${strip}<div class="card pad">${progressMap(kids, {empty:'No items yet. When planned, the agent breaks this epic into stories, tasks and bugs.'})}</div>`
+    : tab === 'checklist' ? `<div class="stack1">${checklistCard(i, d)}</div>`
     : tab === 'details'
     ? `<div class="stack1">
         ${sec('brief', 'Brief and documents', d.docs.length ? `${d.docs.length} document${d.docs.length === 1 ? '' : 's'}` : '', `<div>${esc(d.outcome) || '<span class="muted">No brief yet.</span>'}</div>
           ${d.docs.length ? `<h3 style="margin-top:14px">Documents</h3>${d.docs.map(x => docRow(x, i.id)).join('')}` : ''}`)}
-        ${checklistCard(i, d)}
         ${sec('tickets', 'Tickets in this epic', `${done}/${kids.length} done · ${kids.filter(k => isBlocked(k) && k.status === 'ready').length} ready but blocked · ${kids.filter(forYou).length} for you`, `${byStatus.map(([s, l]) => `<div class="src" style="margin-top:8px">${STATUS[s]} · ${l.length}</div>${l.map(k => `<div class="lrow">${typeIcon(k)}${link(k.id)}<span class="grow" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(k.title)}</span>${hrChip(k)}${blockedChip(k)}</div>`).join('')}`).join('') || '<div class="muted">No items yet.</div>'}`)}
       </div>`
-    : `<div class="card pad" style="max-width:860px"><div class="row" style="align-items:flex-start;gap:8px;margin-bottom:10px"><label class="sr" for="note-agent">Note for the agents</label><textarea id="note-agent" data-t="agentnote-${i.id}" style="min-height:44px" placeholder="Leave a note for the agents working in this epic. They see it on their next query.">${esc(S.text['agentnote-'+i.id] || '')}</textarea><button class="btn sm" data-a="addnote" data-v="${i.id}">Add note</button></div>
+    : `<div class="card pad">${notePanel(i, 'agents')}
         ${activity.map(a => `<div class="act"><span class="src mono">${a[0]}</span><span>${esc(a[1])}</span></div>`).join('') || '<div class="muted">No activity yet.</div>'}</div>`;
   return `<div class="tk-head"><div class="grow">
       <div class="row wrap"><span class="mono muted">${i.id}</span>${typeBadge(i)}${labelsOf(i)}</div>
       <h1 style="margin-top:4px">${esc(i.title)}</h1>
       <div class="row wrap" style="margin-top:6px">${statusChip(i)}<span class="src">${P[i.proj].name} · ${kids.length} item${kids.length===1?'':'s'} · ${done} done</span>
         ${i.status==='planning' ? `<button class="btn sm primary" data-a="promote" data-v="${i.id}">${I.promote} Move to Ready</button><span class="src">This epic is still a brief. Move it once you've broken it down.</span>` : ''}</div></div></div>
-    <div class="row" style="align-items:flex-end;border-bottom:1px solid var(--line);margin-bottom:14px"><div class="tabs" role="tablist" aria-label="Epic views" style="margin-bottom:-1px;border-bottom:0">${tabs.map(([k, l]) => `<button role="tab" id="etab-${k}" aria-controls="epanel" data-a="epictab" data-v="${k}" aria-selected="${tab===k}" tabindex="${tab===k ? 0 : -1}">${l}</button>`).join('')}</div>
-      <button class="btn sm" data-a="newin" data-v="${i.id}" style="margin:0 0 6px auto">+ New item in this epic</button></div>
+    ${viewTabs(i, tabs, tab)}
     <div role="tabpanel" id="epanel" aria-labelledby="etab-${tab}">${body}</div>`;
 }
 
@@ -1610,7 +1621,8 @@ const ACT = {
     logActivity(id, `You sent round ${r.n} back: ${made.join(', ')}`);
     undoable(before, `Sent back to ${i.lead || 'the agent'}: ${made.join(', ')}. You'll get round ${r.n + 1}.`);
   },
-  gfix: v => openTicket(v),
+  gfix: v => openTicket(v, 'deps'),
+  inspect: v => openTicket(v, 'activity'),
   epictab: v => { S.epicTab = v; render(); },
   sectog: v => { S.collapsed[v] = !S.collapsed[v]; render(); },
   epicmap: v => openTicket(v, 'map'),
@@ -1722,7 +1734,7 @@ if (/selftest/.test(location.search)){
   const tryR = (label, f) => { try { f(); render(); } catch(err){ errs.push(label + ': ' + err.message); } };
   ['all','RCP','DOC'].forEach(sc => Object.keys(TITLES).forEach(v => tryR(sc+'/'+v, () => { S.scope = sc; S.view = v; })));
   S.scope = 'all';
-  items.forEach(i => ['docs','activity'].forEach(t => tryR(i.id+'/'+t, () => { S.view = 'ticket'; S.ticket = i.id; S.tab = t; })));
+  items.forEach(i => ['details','checklist','deps','map','activity'].forEach(t => tryR(i.id+'/'+t, () => { S.view = 'ticket'; S.ticket = i.id; S.epicTab = t; })));
   Object.keys(LABELS).forEach(l => tryR('label/'+l, () => { S.view = 'label'; S.label = l; }));
   Object.keys(PACKETS).forEach(id => PACKETS[id].rounds.forEach(r => tryR('packet/'+id+'/'+r.n, () => { S.view = 'review'; S.pk = id; S.pkRound = r.n; })));
   ['board','list','map'].forEach(m => ['all','RCP','DOC'].forEach(sc => tryR('work/'+m+'/'+sc, () => { S.modal = null; S.view = 'work'; S.workMode = m; S.scope = sc; }))); S.scope = 'all';
