@@ -476,6 +476,7 @@
 /* ---------- Needs you dashboard ---------- */
 .tl .pulse{display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:7px 12px;border:1px solid var(--line);background:var(--panel);border-radius:10px;margin-bottom:12px;font-size:12.5px}
 .tl .dash-top{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:12px;margin-bottom:12px;align-items:start}
+.tl .dash-row.three{grid-template-columns:repeat(3,minmax(0,1fr))}
 .tl .dash-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;align-items:start}
 @media (max-width:1180px){.tl .dash-top{grid-template-columns:1fr}.tl .dash-row{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .tl .mrow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:9px;align-items:center;padding:8px 14px;border-top:1px solid var(--line)}
@@ -832,9 +833,7 @@ const projTag = id => S.scope !== 'all' && byId[id] && byId[id].proj !== S.scope
 const HR = {declared:['c-gray','Coming up'], ready:['c-warn','Ready for you'], approved:['c-ok','Approved'], changes:['c-warn','Changes requested'], deferred:['c-info','Deferred · not verified']};
 const hrChip = i => packetReady(i) ? `<span class="chip c-warn">${small(I.packet)} Packet ready</span>` : hrComing(i) ? `<span class="chip c-gray" title="You'll get a handoff packet when this reaches Review">${small(I.person)} Human review later</span>` : (!isOpen(i) && hrOf(i).some(h => h.state === 'deferred')) ? `<span class="chip c-info">${small(I.pause)} Review deferred</span>` : '';
 const qChip = i => questionOpen(i) ? `<span class="chip c-warn">${small(I.question)} Question for you</span>` : '';
-const scopePill = () => S.scope === 'all'
-  ? `<span class="scopebar" style="vertical-align:middle;margin-left:6px">${small(I.folder)} All projects</span>`
-  : `<span class="scopebar" style="vertical-align:middle;margin-left:6px"><span class="sw" style="background:${P[S.scope].color}"></span>${P[S.scope].short}</span>`;
+const scopePill = () => '';
 
 let toastTimer;
 function toast(msg, undo){
@@ -853,7 +852,7 @@ function renderNav(){
   const fy = forYouIn(S.scope).length;
   const pk = items.filter(i => inScope(i) && packetReady(i)).length;
   const runs = items.filter(i => inScope(i) && ['live','needs','stale','failed','reported'].includes(i.run)).length;
-  const btn = (v, icon, label, badge) => `<button class="navbtn" data-a="nav" data-v="${v}" aria-current="${S.view===v || (v==='work' && (S.view==='ticket' || S.view==='label')) ? 'page' : 'false'}" title="${label}">${I[icon]}<span class="nl">${label}</span>${badge || ''}</button>`;
+  const btn = (v, icon, label, badge) => `<button class="navbtn" data-a="nav" data-v="${v}" aria-current="${S.view===v || (v==='work' && ['ticket','label','timeline'].includes(S.view)) || (v==='settings' && ['projects','connections'].includes(S.view)) ? 'page' : 'false'}" title="${label}">${I[icon]}<span class="nl">${label}</span>${badge || ''}</button>`;
   const cur = S.scope === 'all' ? null : P[S.scope];
   const opt = (key, name, color) => { const n = forYouIn(key).length; return `<button role="menuitemradio" aria-checked="${S.scope===key}" data-a="scope" data-v="${key}">${color ? `<span class="sw" style="background:${color};width:12px;height:12px"></span>` : small(I.folder)}<span class="grow">${name}</span>${n ? `<span class="badge" aria-label="${n} for you">${n}</span>` : ''}</button>`; };
   $('#nav').innerHTML = `
@@ -862,20 +861,16 @@ function renderNav(){
       <button class="scopebtn" data-a="scopemenu" aria-haspopup="menu" aria-expanded="${S.scopeOpen}" title="Project: ${cur ? cur.short : 'All projects'}">
         ${cur ? `<span class="sw" style="background:${cur.color};width:12px;height:12px"></span>` : small(I.folder)}
         <span class="grow txt"><span class="lbl2">Project</span><span class="nm">${cur ? cur.short : 'All projects'}</span></span><span class="chev">${small(I.chev)}</span></button>
-      ${S.scopeOpen ? `<div class="scopemenu" role="menu" aria-label="Choose project">${opt('all','All projects',null)}${Object.values(P).map(p => opt(p.key, p.short, p.color)).join('')}<div class="hint">Every page above the line shows only the chosen project. Projects and Connections are always service-wide.</div></div>` : ''}
+      ${S.scopeOpen ? `<div class="scopemenu" role="menu" aria-label="Choose project">${opt('all','All projects',null)}${Object.values(P).map(p => opt(p.key, p.short, p.color)).join('')}<div class="hint">Scopes every page except Settings.</div></div>` : ''}
     </div>
     ${btn('attention','attention','Needs you', fy ? `<span class="badge" aria-label="${fy} for you">${fy}</span>` : '')}
     ${btn('work','work','Work')}
-    ${btn('review','reviews','Human review', pk ? `<span class="badge" aria-label="${pk} packets ready">${pk}</span>` : '')}
-    ${btn('timeline','timeline','Timeline')}
+    ${btn('review','reviews','Human review', pk ? `<span class="badge n" aria-label="${pk} packets ready">${pk}</span>` : '')}
     ${btn('agents','agents','Agents', runs ? `<span class="badge n" aria-label="${runs} active runs">${runs}</span>` : '')}
     <div class="navsec">Service-wide</div>
-    ${btn('projects','folder','Projects')}
-    ${btn('connections','plug','Connections')}
-    <button class="health" data-a="nav" data-v="connections" aria-label="Service healthy. Open connections">
-      <div class="row"><i class="ri" style="background:var(--ok);color:var(--on-fill)" aria-hidden="true">✓</i><span class="hx">Service healthy</span></div>
-      <div class="hx mono" style="font-size:11.5px">127.0.0.1:7420/mcp</div>
-      <div class="hx">3 clients connected</div>
+    ${btn('settings','plug','Settings')}
+    <button class="health" data-a="nav" data-v="settings" aria-label="Service healthy, 3 clients connected. Open settings">
+      <div class="row"><i class="ri" style="background:var(--ok);color:var(--on-fill)" aria-hidden="true">✓</i><span class="hx">Healthy · 3 clients</span></div>
     </button>`;
 }
 
@@ -922,17 +917,15 @@ V.attention = () => {
   const RS = ['live','reported','needs','stale','failed'];
   return `
   <h1>Needs you${scopePill()}</h1>
-  <div class="sub">${nNow ? `<b style="color:var(--warn)">${nNow} for you now</b> · ` : 'Nothing waiting on you · '}${probs.length} problem${probs.length===1?'':'s'} · ${coming.length} review${coming.length===1?'':'s'} coming up · ${deferred.length} deferred · ${planningQ.length} in Planning</div>
   <div class="pulse"><b>Agents</b>${RS.map(k => [k, runsIn.filter(i => i.run === k).length]).filter(x => x[1]).map(([k, n]) => `<span class="row" style="gap:4px">${run(k)}<span class="muted">× ${n}</span></span>`).join('') || '<span class="muted">No active runs</span>'}<a href="#" data-a="nav" data-v="agents" style="margin-left:auto">All runs →</a></div>
   <div class="dash-top">
-    <div class="card"><div class="sectionhead"><h3>For you now · ${nNow}</h3><span class="src">Verify and decide, or answer</span></div>
+    <div class="card"><div class="sectionhead"><h3>For you now · ${nNow}</h3></div>
       ${[...ready.map(pkRow), ...qs.map(qRow)].join('') || '<div class="pad muted" style="padding-top:2px">Nothing to verify. Agents will hand off when work is built.</div>'}</div>
     ${card('Problems', probs.length, probs.slice(0, 5).map(pRow).join(''), 'No stale or failed runs, cycles or date conflicts.', probs.length > 5 ? `<span>${probs.length - 5} more</span>` : '')}
   </div>
-  <div class="dash-row">
-    ${card('Coming up for you', coming.length, comingRows, 'No human reviews declared on open work.', `<span>Packets arrive at Review</span>${viewAll(coming.length, 'nav', 'review')}`)}
-    ${card('Deferred, not verified', deferred.length, defRows, 'Nothing deferred.', `<span title="Agents query review:deferred during cleanup">Agents see this too</span>${viewAll(deferred.length, 'workfilter', 'deferred')}`)}
-    ${card('Your Planning queue', planningQ.length, planRows, 'Nothing in Planning.', `<span>Or ask an agent</span>${viewAll(planningQ.length, 'workfilter', 'planning')}`)}
+  <div class="dash-row three">
+    ${card('Deferred, not verified', deferred.length, defRows, 'Nothing deferred.', `<span></span>${viewAll(deferred.length, 'workfilter', 'deferred')}`)}
+    ${card('Your Planning queue', planningQ.length, planRows, 'Nothing in Planning.', `<span></span>${viewAll(planningQ.length, 'workfilter', 'planning')}`)}
     ${card('Since you looked', changes.length, chgRows, 'No changes since 08:30.', `<span>Since 08:30</span>${changes.length > MAX ? `<a href="#" data-a="sinceall">${S.sinceAll ? 'Show fewer' : `View all ${changes.length} →`}</a>` : ''}`)}
   </div>`;
 };
@@ -953,11 +946,11 @@ V.work = () => {
   const base = i => !isEpic(i) && inScope(i) && (S.epicF === 'all' || (S.epicF === 'none' ? !i.epic : i.epic === S.epicF)) && (S.labelF === 'all' || (i.labels || []).includes(S.labelF));
   const list = items.filter(i => base(i) && FILTERS[S.filter][1](i));
   const card = i => `<a href="#" class="tcard ${isBlocked(i) ? 'isblocked' : forYou(i) ? 'owed' : ''}" data-a="open" data-v="${i.id}">
-      <div class="row" style="justify-content:space-between"><span class="row"><span class="mono muted">${i.id}</span>${typeBadge(i)}</span>${prio(i.prio)}</div>
+      <div class="row" style="justify-content:space-between"><span class="row"><span class="mono muted">${i.id}</span>${typeIcon(i)}</span>${prio(i.prio)}</div>
       <div class="t">${esc(i.title)}</div>
       ${i.epic || (i.labels || []).length ? `<div class="meta">${epicTag(i)}${(i.labels || []).map(l => `<span class="label">${esc(l)}</span>`).join('')}</div>` : ''}
       ${isBlocked(i) || forYou(i) || hrComing(i) || dateRisks(i).length ? `<div class="meta">${blockedChip(i)}${hrChip(i)}${qChip(i)}${dateRisks(i).length ? '<span class="chip c-bad">Date risk</span>' : ''}</div>` : ''}
-      <div class="meta">${i.lead ? `${run(i.run, i.age)}<span>· ${esc(i.lead)}</span>` : '<span>Unclaimed</span>'}<span style="margin-left:auto" title="Last activity">${i.last}</span></div>
+      <div class="meta">${i.lead ? `${run(i.run, i.age)}<span>· ${esc(i.lead)}</span>` : ''}<span style="margin-left:auto" title="Last activity">${i.last}</span></div>
     </a>`;
   const colHtml = c => {
     const cs = list.filter(i => i.status === c);
@@ -968,7 +961,7 @@ V.work = () => {
         ${wait.length ? `<div class="subh"><span>Waiting on blockers · ${wait.length}</span><button class="btn ghost sm" data-a="toggleblocked" aria-expanded="${S.showBlocked}">${S.showBlocked ? 'Hide' : 'Show'}</button></div>
           ${S.showBlocked ? wait.map(card).join('') : `<div class="mini">${wait.map(i => `<a href="#" data-a="open" data-v="${i.id}" class="chip c-bad mono" title="${esc(i.title)}">${i.id}</a>`).join('')}</div>`}` : ''}</div>`;
     }
-    const note = c === 'planning' ? 'Yours: move to Ready when satisfied.' : c === 'review' ? 'Waiting on your human review.' : '';
+    const note = c === 'planning' ? 'Yours' : c === 'review' ? 'Your human review' : '';
     return `<div class="col"><div class="colh"><span>${STATUS[c]}${c==='done' ? ' <span class="muted" style="font-weight:400">· 7 days</span>' : ''}</span><span>${cs.length}</span></div>${note ? `<div class="src" style="padding:0 4px 6px">${note}</div>` : ''}${cs.map(card).join('')}</div>`;
   };
   const table = `<div class="card" style="overflow:auto"><table><thead><tr><th scope="col">ID</th><th scope="col">Title</th><th scope="col">Status</th><th scope="col">Priority</th><th scope="col">Lead · run</th><th scope="col">Human review</th><th scope="col">Last activity</th></tr></thead><tbody>
@@ -978,23 +971,22 @@ V.work = () => {
   const epics = items.filter(i => isEpic(i) && inScope(i)), labs = Object.keys(LABELS).filter(l => S.scope === 'all' || LABELS[l].proj === S.scope);
   const q = [FILTERS[S.filter][2], S.epicF !== 'all' ? 'epic:' + S.epicF : '', S.labelF !== 'all' ? 'label:' + S.labelF : '', S.scope !== 'all' ? 'project:' + S.scope : ''].filter(Boolean).join(' ');
   return `<div class="row" style="justify-content:space-between;margin-bottom:2px"><h1>Work${scopePill()}</h1>
-      <div class="seg" role="group" aria-label="Layout"><button data-a="mode" data-v="board" aria-pressed="${S.workMode==='board'}">Board</button><button data-a="mode" data-v="list" aria-pressed="${S.workMode==='list'}">List</button><button data-a="mode" data-v="map" aria-pressed="${S.workMode==='map'}">Map</button></div></div>
-    <div class="row wrap sub" style="justify-content:space-between"><span>Inbox → <b>Planning</b> (yours) → Ready → In progress → <b>Review</b> (your human review, if any) → Done. Agents only claim from Ready.</span>
-      <span class="row" style="gap:12px" aria-label="Item types">${Object.keys(TYPES).map(t => typeBadge({type:t})).join('')}</span></div>
+      <div class="seg" role="group" aria-label="Layout"><button data-a="mode" data-v="board" aria-pressed="${S.workMode==='board'}">Board</button><button data-a="mode" data-v="list" aria-pressed="${S.workMode==='list'}">List</button><button data-a="mode" data-v="map" aria-pressed="${S.workMode==='map'}">Map</button><button data-a="mode" data-v="timeline" aria-pressed="${S.workMode==='timeline'}">Timeline</button></div></div>
+    ${S.workMode === 'timeline' ? timelineBody() : `
     <div class="filters">
       <label class="sr" for="epicsel">Epic</label><select id="epicsel" data-a="epicf"><option value="all">All epics</option>${epics.map(e => `<option value="${e.id}" ${S.epicF===e.id?'selected':''}>${esc(e.title)}</option>`).join('')}<option value="none" ${S.epicF==='none'?'selected':''}>No epic</option></select>
       <label class="sr" for="labelsel">Label</label><select id="labelsel" data-a="labelf"><option value="all">All labels</option>${labs.map(l => `<option value="${l}" ${S.labelF===l?'selected':''}># ${l}</option>`).join('')}</select>
-      <span role="group" aria-label="Saved filters" class="row wrap" style="gap:6px">${Object.entries(FILTERS).map(([k,f]) => `<button class="fchip" data-a="filter" data-v="${k}" aria-pressed="${S.filter===k}">${f[0]} <b>${items.filter(i => base(i) && f[1](i)).length}</b></button>`).join('')}</span>
+      <span role="group" aria-label="Saved filters" class="row wrap" style="gap:6px">${Object.entries(FILTERS).filter(([k]) => !['planning','startable'].includes(k) || S.filter === k).map(([k,f]) => `<button class="fchip" data-a="filter" data-v="${k}" aria-pressed="${S.filter===k}">${f[0]} <b>${items.filter(i => base(i) && f[1](i)).length}</b></button>`).join('')}</span>
       ${q ? `<span class="src" style="margin-left:auto" title="The same query agents send over MCP">Agent query: <span class="mono">${esc(q)}</span></span>` : ''}
     </div>
-    ${epics.length ? `<div class="sectionhead" style="padding:0 0 6px"><h3>Epics · ${epics.length}</h3><span class="src">Open an epic for its details, progress map and activity</span></div>
+    ${epics.length ? `<div class="sectionhead" style="padding:0 0 6px"><h3>Epics · ${epics.length}</h3><span class="row" style="gap:12px" aria-label="Item types">${Object.keys(TYPES).map(t => typeBadge({type:t})).join('')}</span></div>
       <div class="epicrow">${epics.map(e => { const k = childrenOf(e.id), dn = k.filter(x => x.status === 'done').length, act = k.filter(x => x.status === 'progress' || x.status === 'review').length, fy = k.filter(forYou).length + (forYou(e) ? 1 : 0);
         return `<button class="epiccard" data-a="open" data-v="${e.id}" aria-current="${S.epicF === e.id}">
           <span class="row" style="gap:6px;min-width:0">${typeIcon(e)}<span class="et">${esc(e.title)}</span><span class="mono muted" style="margin-left:auto">${e.id}</span></span>
           <span class="pbar" style="height:7px" role="img" aria-label="${dn} of ${k.length} done"><i style="width:${k.length ? dn/k.length*100 : 0}%;background:var(--ok)"></i><i style="width:${k.length ? act/k.length*100 : 0}%;background:var(--violet)"></i></span>
           <span class="src">${dn}/${k.length} done · ${STATUS[e.status]}${fy ? ` · <b style="color:var(--warn)">${fy} for you</b>` : ''}</span></button>`; }).join('')}</div>` : ''}
     ${S.labelF !== 'all' ? `<div class="callout" style="margin-bottom:10px">Filtered by <b>#${esc(S.labelF)}</b>. <a href="#" data-a="label" data-v="${esc(S.labelF)}">Open the label page</a> for its brief, progress by epic, and bulk actions.</div>` : ''}
-    ${S.workMode==='board' ? `<div class="board">${cols.map(colHtml).join('')}</div>` : S.workMode==='map' ? `<div class="card pad">${S.epicF === 'all' && S.labelF === 'all' ? '<div class="callout" style="margin-bottom:10px">Tip: pick an epic or label above. A whole project on one map gets busy.</div>' : ''}${progressMap(list, {extTitle:'Outside this view'})}</div>` : table}`;
+    ${S.workMode==='board' ? `<div class="board">${cols.map(colHtml).join('')}</div>` : S.workMode==='map' ? `<div class="card pad">${S.epicF === 'all' && S.labelF === 'all' ? '<div class="callout" style="margin-bottom:10px">Tip: pick an epic or label above. A whole project on one map gets busy.</div>' : ''}${progressMap(list, {extTitle:'Outside this view'})}</div>` : table}`}`;
 };
 
 /* ---------- Ticket ---------- */
@@ -1063,11 +1055,11 @@ function progressMap(list, opts={}){
     ext.length ? col(opts.extTitle || 'Outside this epic', 'blocks work here', ext.map(e => pnode(e, {ext:true, home: list[0] && list[0].proj})).join('')) : '',
     ...waves.map((w, k) => col(`Wave ${k + 1}`, k === 0 ? 'nothing blocks these' : `after wave ${k}`, w.map(i => pnode(i)).join(''))),
     inCyc.length ? col('Cycle', 'fix a link to place these', inCyc.map(i => pnode(i)).join('')) : ''].join('');
-  return `${head}${n ? `<div class="pmapbox"><div class="ptools"><span class="src phint">Bigger than the view: drag the background, scroll, or use the arrow keys to move around.</span>
+  return `${head}${n ? `<div class="pmapbox"><div class="ptools"><span class="src phint">Drag to pan</span>
       <div class="seg" role="group" aria-label="Zoom"><button data-a="mapzoom" data-v="out" aria-label="Zoom out">−</button><button data-a="mapzoom" data-v="reset" aria-label="Reset zoom to 100%">${Math.round((S.mapZ || 1) * 100)}%</button><button data-a="mapzoom" data-v="in" aria-label="Zoom in">+</button><button data-a="mapzoom" data-v="fit" aria-pressed="${S.mapZoom === 'fit'}">Fit</button></div></div>
     <div class="pframe"><div class="pcanvas" tabindex="0" role="region" aria-label="Progress map. Scroll, use the arrow keys, or drag to move around."><div class="psizer"><div class="pmap" id="${id}" data-edges='${JSON.stringify(edges)}'>${cols}</div></div></div>
       <button class="pmore l" data-a="mappan" data-v="l" aria-label="Scroll the map left">← More</button><button class="pmore r" data-a="mappan" data-v="r" aria-label="Scroll the map right">More →</button><button class="pmore b" data-a="mappan" data-v="d" aria-label="Scroll the map down">More ↓</button></div></div>
-    <div class="src" style="margin-top:8px">Arrows mean “blocks”: a wave can start once the waves before it are done. Hover an item to trace its links. Solid arrows still block; dashed green ones are cleared. <b>Fit</b> shows the whole map.
+    <div class="src" style="margin-top:8px">Arrow = blocks · dashed green = cleared · hover to trace
       <span class="hrkey" style="margin-left:6px"><span class="hrmark now">${I.person}</span>packet ready for you</span> · <span class="hrkey"><span class="hrmark later">${I.person}</span>your review later</span></div>` : `<div class="muted">${opts.empty || 'Nothing here yet.'}</div>`}`;
 }
 const ZOOMS = [0.5, 0.67, 0.8, 1, 1.25];
@@ -1224,21 +1216,15 @@ V.label = () => {
   const L = LABELS[S.label] || {brief:''}, its = items.filter(i => !isEpic(i) && (i.labels || []).includes(S.label));
   const done = its.filter(i => i.status==='done').length, plan = its.filter(i => i.status==='planning');
   const groups = {}; its.forEach(i => { const k = i.epic || 'none'; (groups[k] = groups[k] || []).push(i); });
-  return `<div class="row" style="justify-content:space-between"><h1><span class="muted">#</span>${esc(S.label)}</h1><span class="src">Label · ${L.proj ? P[L.proj].short : ''}</span></div>
-    <div class="sub">A label groups work across epics. Agents query <span class="mono">label:${esc(S.label)}</span>.</div>
-    <div class="grid2"><div class="stack">
+  return `<div class="row wrap" style="justify-content:space-between;margin-bottom:12px"><h1><span class="muted">#</span>${esc(S.label)} <span class="src" style="font-weight:400">${L.proj ? P[L.proj].short : ''} · ${done}/${its.length} done</span></h1>
+      <span class="row"><button class="btn sm" data-a="labelboard" data-v="${esc(S.label)}">Show on the board</button>${plan.length ? `<button class="btn primary sm" data-a="bulkready" data-v="${esc(S.label)}">${I.promote} Move ${plan.length} to Ready</button>` : ''}</span></div>
+    <div class="stack1">
       <div class="card pad"><h3>Brief</h3><div>${L.brief ? esc(L.brief) : '<span class="muted">No brief. Add one if this label is an initiative with shared decisions.</span>'}</div>${L.by ? `<div class="src" style="margin-top:6px">written by ${esc(L.by)}</div>` : ''}</div>
       <div class="card pad"><h3>Progress across epics</h3>${progressMap(its, {extTitle:'Without this label', empty:'Nothing has this label.'})}</div>
       <div class="card pad"><div class="row" style="justify-content:space-between"><h3 style="margin:0">By epic</h3><span class="src">${its.filter(isBlocked).length} blocked · ${plan.length} in planning · ${its.filter(forYou).length} for you</span></div>
         ${Object.entries(groups).map(([k, l]) => `<div class="src" style="margin-top:12px;font-weight:650">${k === 'none' ? 'No epic' : `<a href="#" class="epiclink" data-a="open" data-v="${k}"><span class="ed">◆</span> ${esc(byId[k].title)}</a>`} · ${l.filter(x => x.status==='done').length}/${l.length}</div>
           ${l.map(x => `<div class="lrow">${typeIcon(x)}${link(x.id)}<span class="grow" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.title)}</span>${statusChip(x)}${hrChip(x)}</div>`).join('')}`).join('') || '<div class="muted">Nothing has this label.</div>'}</div>
-    </div>
-    <div class="stack">
-      <div class="card pad"><h3>Start this work</h3><div class="src" style="margin-bottom:8px">${plan.length} item${plan.length===1?'':'s'} with this label ${plan.length===1?'is':'are'} in Planning.</div>
-        <button class="btn primary" data-a="bulkready" data-v="${esc(S.label)}" ${plan.length ? '' : 'disabled'}>${I.promote} Move ${plan.length} to Ready</button>
-        <div class="src" style="margin-top:8px">Or tell an agent: “Everything labelled ${esc(S.label)} is good to go.” It runs the same query.</div></div>
-      <div class="card pad"><h3>Open on the board</h3><button class="btn sm" data-a="labelboard" data-v="${esc(S.label)}">Filter Work by #${esc(S.label)}</button></div>
-    </div></div>`;
+    </div>`;
 };
 
 /* ---------- Human review (handoff packets) ---------- */
@@ -1267,13 +1253,13 @@ V.review = () => {
   const allSet = live && hrOf(i).filter(h => h.state==='ready').every((h, n) => v[n] && v[n].k);
   const anyCh = live && Object.values(v).some(x => x && x.k === 'changes');
   const nDef = live ? Object.values(v).filter(x => x && x.k === 'defer').length : 0;
-  return `<h1>Human review${scopePill()}</h1><div class="sub">Verify each packet, then approve, send back, or defer. Decisions apply to that exact packet; CI and merges never count.</div>
+  return `<h1>Human review</h1>
   <div class="rv">
     <div class="card rvq">${ready.length ? `<div class="sectionhead"><h3>Ready for you · ${ready.length}</h3></div>${ready.map(qbtn).join('')}` : ''}
       ${decided.length ? `<div class="sectionhead"><h3>Decided</h3></div>${decided.map(qbtn).join('')}` : ''}
-      ${coming.length ? `<div class="sectionhead"><h3>Coming up · ${coming.length}</h3></div>${coming.slice(0, 4).map(x => `<button data-a="open" data-v="${x.id}"><span class="row"><span class="mono">${x.id}</span><span class="chip c-gray">${STATUS[x.status]}</span></span><span style="font-weight:600">${esc(x.title)}</span><span class="src">${isEpic(x) ? 'epic-level · ' : ''}no packet yet</span></button>`).join('')}${coming.length > 4 ? `<div class="pad src">+${coming.length - 4} more. <a href="#" data-a="nav" data-v="attention">See Needs you</a></div>` : ''}` : ''}</div>
+      ${coming.length ? `<div class="sectionhead"><h3>Coming up · ${coming.length}</h3></div>${coming.map(x => `<button data-a="open" data-v="${x.id}"><span class="row"><span class="mono">${x.id}</span><span class="chip c-gray">${STATUS[x.status]}</span></span><span style="font-weight:600">${esc(x.title)}</span><span class="src">${isEpic(x) ? 'epic-level · ' : ''}no packet yet</span></button>`).join('')}` : ''}</div>
     <div class="card packet" style="min-width:0">
-      <div class="vers"><b style="margin-right:4px">Handoff packet · ${link(i.id)}</b>
+      <div class="vers"><b style="margin-right:4px">${link(i.id)} ${esc(i.title)}</b>
         ${pk.rounds.map(x => `<button class="vbtn" data-a="pkround" data-v="${x.n}" aria-pressed="${x===r}">Round ${x.n} ${x.decided ? `<span class="chip ${x.decided.verdicts.every(y => y.k==='approve') ? 'c-ok' : 'c-warn'}" style="padding:0 5px">${x.decided.verdicts.every(y => y.k==='approve') ? 'approved' : 'sent back'}</span>` : x===latest && packetReady(i) ? '<span class="dot needs" style="width:8px;height:8px;border-radius:50%;background:var(--warn);display:inline-block"></span>' : ''}</button>`).join('')}
         <span class="src" style="margin-left:auto">${esc(r.by)} · ${esc(r.when)} · <span class="mono">${esc(r.sha)}</span>${r.commit ? ` · built from <span class="mono">${esc(r.commit)}</span>` : ''} · about ${esc(r.est)}</span></div>
       ${r !== latest ? `<div class="callout warn" style="margin:10px 14px 0">Earlier round. Its decisions are shown below and don't carry over.</div>` : ''}
@@ -1292,13 +1278,13 @@ V.review = () => {
           <button class="btn primary" style="margin-top:10px;width:100%;justify-content:center" data-a="submitpacket" ${allSet ? '' : 'disabled'}>${!allSet ? 'Decide every item first' : anyCh ? `Send back to ${esc(i.lead || 'the agent')}` : nDef ? `Close ticket (${nDef} deferred)` : 'Approve and close ticket'}</button>
           <div class="callout" style="margin-top:10px">${anyCh ? `Each finding becomes a checklist item or a bug. The ticket goes back to In progress and you'll get a round ${r.n + 1} packet.${nDef ? ' Deferred items stay deferred.' : ''}` : nDef ? `Closes ${i.id}. ${nDef} item${nDef===1?' is':'s are'} recorded as deferred, not verified; nothing is marked approved that you didn't check.` : `Approving records your decision on <span class="mono">${esc(r.sha)}</span> and closes ${i.id}${dependents(i.id).length ? `, which unblocks ${dependents(i.id).map(x => x.id).join(', ')}` : ''}.`}</div></div>`
         : `<div class="card pad"><h3>Round ${r.n}</h3><div class="src">${r.decided ? `Decided ${esc(r.decided.when)}` : 'Not decided'}</div></div>`}
-      <div class="card pad"><h3>Ticket</h3><div class="row wrap">${link(i.id)}${statusChip(i)}</div><div style="margin-top:4px">${esc(i.title)}</div><div class="src" style="margin-top:4px">${epicTag(i)}</div></div>
     </div>
   </div>`;
 };
 
 /* ---------- Timeline ---------- */
-V.timeline = () => {
+V.timeline = () => { S.workMode = 'timeline'; return V.work(); };
+function timelineBody(){
   const start = D('2026-11-02'), days = 35;
   const pct = d => ((d - start) / 864e5 / days * 100);
   const rows = items.filter(i => i.start && !isEpic(i) && inScope(i)).sort((a,b) => D(a.start) - D(b.start));
@@ -1315,18 +1301,16 @@ V.timeline = () => {
     return `<div class="tl-row"><div class="lbl">${typeIcon(i)}${link(i.id)}<span class="t" title="${esc(i.title)}">${esc(i.title)}</span></div>
       <div class="track">
         <div class="today" style="left:${nowX}%"></div>${deps}
-        <div class="bar planned ${risks.length ? 'risk' : ''} ${done ? 'done' : ''}" style="left:${s}%;width:${e-s}%">${risks.length ? '⚠ blocker ends later' : overdue ? 'overdue' : done ? '✓ done' : isBlocked(i) ? '⊘ blocked' : ''}</div>
+        <div class="bar planned ${risks.length ? 'risk' : ''} ${done ? 'done' : ''}" style="left:${s}%;width:${e-s}%" title="Planned ${fmt(D(i.start))} → ${fmt(D(i.end))} · set by ${esc(i.setBy)}">${risks.length ? '⚠ blocker ends later' : overdue ? 'overdue' : done ? '✓ done' : isBlocked(i) ? '⊘ blocked' : ''}</div>
         ${i.actual ? `<div class="bar actual" style="left:${pct(D(i.actual[0]))}%;width:${(i.actual[1] ? Math.min(endX(i.actual[1]), nowX) : nowX) - pct(D(i.actual[0]))}%" title="Actual run time"></div>` : ''}
-        <div class="setby" style="left:calc(${s}% + 1px)">set by ${esc(i.setBy)}${after.length ? ` · after ${after.join(', ')}` : ''}</div>
+        ${after.length ? `<div class="setby" style="left:calc(${s}% + 1px)">after ${after.join(', ')}</div>` : ''}
       </div></div>`;
   };
   const fcStart = pct(D('2026-11-24')), fcEnd = endX('2026-12-03');
   const fc = S.fcPreview && fcProj === 'RCP'
     ? `<div class="bar forecast" style="left:${fcStart}%;width:${fcEnd-fcStart}%">P50 Nov 24 – P85 Dec 3</div><div class="setby" style="left:calc(${fcStart}% + 1px)">preview · 6.2 pts/wk over the last 4 weeks · n=11 · 80% range</div><button class="btn ghost sm" data-a="fc" style="position:absolute;left:8px;top:10px">Hide preview</button>`
     : `<div style="position:absolute;left:10px;top:12px;display:flex;gap:8px;align-items:center;font-size:12.5px;color:var(--ink-2)">No forecast yet: needs 8 completed items with effort (have ${have}). ${fcProj === 'RCP' ? '<button class="btn ghost sm" data-a="fc">Preview what it will look like</button>' : ''}</div>`;
-  return `<div class="row" style="justify-content:space-between"><h1>Timeline${scopePill()}</h1><span class="src">Nov 2 – Dec 6 · by week</span></div>
-    <div class="sub">Entered dates (with who set them), actual run time, and when blockers finish. Forecasts never overwrite entered dates.</div>
-    <div class="card" style="overflow:auto"><div style="min-width:860px">
+  return `<div class="card" style="overflow:auto;margin-top:10px"><div style="min-width:860px">
       <div class="weeks"><div></div><div style="display:grid;grid-template-columns:repeat(5,1fr)">${['Nov 2','Nov 9','Nov 16','Nov 23','Nov 30'].map(w => `<div class="w"><span>${w}</span></div>`).join('')}</div></div>
       ${rows.map(row).join('')}
       <div class="tl-row" style="background:var(--panel-2)"><div class="lbl"><b>Forecast · ${P[fcProj].short} backlog</b></div><div class="track">${fc}</div></div>
@@ -1334,7 +1318,7 @@ V.timeline = () => {
     <div class="row wrap" style="margin-top:10px;justify-content:space-between">
       <div class="legend"><span><span class="bar planned" style="position:static;width:26px;height:12px"></span>Entered plan</span><span><span class="bar actual" style="position:static;width:26px"></span>Actual</span><span><span class="bar forecast" style="position:static;width:26px;height:12px"></span>Forecast (computed)</span><span><span style="display:inline-block;width:0;height:14px;border-left:2px dashed var(--ink-3)"></span>Blocker's planned end</span><span><span style="display:inline-block;width:0;height:14px;border-left:2px solid var(--bad)"></span>Now</span></div>
       <div class="src" style="flex-basis:100%">Not on the timeline (no dates): ${undated.map(i => link(i.id)).join(', ') || 'none'}</div></div>`;
-};
+}
 
 /* ---------- Agents ---------- */
 V.agents = () => {
@@ -1348,11 +1332,10 @@ V.agents = () => {
     ['failed','claude','RCP-18','Outbound network blocked','25m','tel','Released'],
     ['finished','codex','RCP-12','Lead · handoff packet round 2 submitted','18m','tel','Released']];
   const srcCell = s => s==='said' ? prov('agent','Agent-reported · no heartbeat') : s==='tel' ? '<span class="src">Client heartbeat</span>' : s==='observed' ? prov('observed') : s==='relayed' ? prov('relayed') : '<span class="chip c-gray">Unknown: no heartbeat</span>';
-  return `<h1>Agents${scopePill()}</h1><div class="sub">Every run and subagent contribution. “How we know” separates telemetry from what agents told us.</div>
+  return `<h1>Agents</h1>
     <div class="card" style="overflow:auto"><table><thead><tr><th scope="col">State</th><th scope="col">Agent</th><th scope="col">Item</th><th scope="col">Doing / did</th><th scope="col">Last signal</th><th scope="col">Lease</th><th scope="col">How we know</th></tr></thead><tbody>
     ${rows.filter(r => inScope(byId[r[2]])).map(r => `<tr class="clickrow" data-a="open" data-v="${r[2]}"><td>${r[0] ? run(r[0]) : '<span class="src">log entry</span>'}</td><td><b>${r[1]}</b></td><td>${link(r[2])}</td><td>${esc(r[3])}</td><td class="muted">${r[4]} ago</td><td class="src">${r[6]}</td><td>${srcCell(r[5])}</td></tr>`).join('')}
-    </tbody></table></div>
-    <div class="card pad" style="margin-top:12px"><h3>Run states</h3><div class="legend">${Object.keys(RUNS).map(k => `<span>${run(k)}<span class="src">${RUNS[k].d}</span></span>`).join('')}</div></div>`;
+    </tbody></table></div>`;
 };
 
 /* ---------- Connections ---------- */
@@ -1366,7 +1349,7 @@ V.connections = () => {
   const st = s => s==='pass' ? '<span class="chip c-ok">✓ Verified</span>' : s==='todo' ? '<span class="chip c-warn">Not verified</span>' : '<span class="chip c-gray">Not configured</span>';
   const snip = {codex:`# ~/.codex/config.toml\n[mcp_servers.tasklite]\nurl = "http://127.0.0.1:7420/mcp"\nbearer_token_env_var = "TASKLITE_TOKEN"`,
                 claude:`claude mcp add --transport http --scope user tasklite \\\n  http://127.0.0.1:7420/mcp \\\n  --header "Authorization: Bearer $TASKLITE_TOKEN"`};
-  return `<h1>Connections</h1><div class="sub">How agents reach this service, and whether each client has been verified end to end. No model API keys are needed.</div>
+  return `<h2 style="margin:22px 0 10px">Connections</h2>
   <div class="grid2"><div class="stack">
     <div class="card" style="overflow:auto"><div class="sectionhead"><h3>Client compatibility</h3><span class="src">O07 smoke test: claim, plan, log, read back</span></div>
       <table><thead><tr><th scope="col">Client</th><th scope="col">Transport</th><th scope="col">Last seen</th><th scope="col">Status</th><th scope="col">Notes</th></tr></thead><tbody>
@@ -1388,7 +1371,9 @@ V.connections = () => {
 };
 
 /* ---------- Projects ---------- */
-V.projects = () => `<h1>Projects</h1><div class="sub">Pick a project to scope the pages above the line. Planning and review rules live in each repo's agent workflow.</div>
+V.settings = () => `<h1>Settings</h1>${projectsBody()}${V.connections()}`;
+V.projects = V.settings;
+const projectsBody = () => `<h2 style="margin:4px 0 10px">Projects</h2>
   <div class="card">${Object.values(P).map(p => { const its = items.filter(i => i.proj===p.key && !isEpic(i)), c = s => its.filter(i => i.status===s).length, n = its.length, fy = forYouIn(p.key).length;
     const labs = Object.keys(LABELS).filter(l => LABELS[l].proj === p.key); return `
     <div class="proj-card"><div class="row"><span class="sw" style="background:${p.color};width:11px;height:11px"></span><div><a href="#" data-a="scope" data-v="${p.key}" style="color:var(--ink)"><b>${p.name}</b></a> ${S.scope===p.key ? '<span class="chip c-info">Current</span>' : ''}
@@ -1396,7 +1381,7 @@ V.projects = () => `<h1>Projects</h1><div class="sub">Pick a project to scope th
     <div class="row wrap" style="gap:4px">${labs.map(labelLink).join('') || '<span class="src">No labels</span>'}</div>
     <div><div class="bar-mini" role="img" aria-label="${c('done')} done, ${c('review')} in review, ${c('progress')} in progress, ${c('ready')} ready, ${c('planning')} planning">${[['done','var(--ok)'],['review','var(--warn)'],['progress','var(--violet)'],['ready','var(--info)'],['planning','var(--teal)']].map(([s,col]) => `<i style="width:${n ? c(s)/n*100 : 0}%;background:${col}"></i>`).join('')}</div><div class="src" style="margin-top:3px">${c('done')} done · ${c('progress')} active · ${c('review')} review · ${c('planning')} planning</div></div>
     <div class="row"><button class="btn sm" data-a="scope" data-v="${p.key}">${S.scope===p.key ? 'Viewing' : 'Switch to'}</button><button class="btn sm" data-a="delproj" data-v="${p.key}" style="color:var(--bad)">Delete…</button></div></div>`; }).join('')}</div>
-  <div class="src" style="margin-top:10px">One rule the tracker always applies: a ticket can't close while any of its human review items is undecided. Deleting a project removes its work records and local documents together; backups follow their own 14-day retention.</div>`;
+`;
 
 /* =====================================================================
    Modals
@@ -1408,7 +1393,7 @@ function modalHtml(){
     <div class="body">${body}</div>${foot ? `<footer>${foot}</footer>` : ''}</div></div>`;
   if (m.type === 'palette'){
     const q = (m.q || '').trim().toLowerCase();
-    const views = [['attention','Needs you'],['work','Work'],['review','Human review'],['timeline','Timeline'],['agents','Agents'],['connections','Connections'],['projects','Projects']];
+    const views = [['attention','Needs you'],['work','Work'],['timeline','Timeline (Work)'],['review','Human review'],['agents','Agents'],['settings','Settings: projects and connections']];
     const its = items.filter(i => !q || i.id.toLowerCase().includes(q) || i.title.toLowerCase().includes(q)).slice(0, 8);
     const labs = Object.keys(LABELS).filter(l => q && l.includes(q.replace('#','')));
     const vs = views.filter(v => !q || v[1].toLowerCase().includes(q));
@@ -1461,7 +1446,7 @@ function modalHtml(){
 /* =====================================================================
    Render loop (keeps keyboard focus on the same control across renders)
    ===================================================================== */
-const TITLES = {attention:'Needs you', work:'Work', review:'Human review', timeline:'Timeline', agents:'Agents', connections:'Connections', projects:'Projects'};
+const TITLES = {attention:'Needs you', work:'Work', review:'Human review', agents:'Agents', settings:'Settings', timeline:'Work', connections:'Settings', projects:'Settings'};
 const fkey = el => (el && el.dataset) ? (el.dataset.a ? `${el.dataset.a}|${el.dataset.v || ''}` : el.dataset.t ? `t|${el.dataset.t}` : el.id ? `#${el.id}` : null) : null;
 function render(){
   if (S.view === 'ticket' && !byId[S.ticket]) S.view = 'attention';
@@ -1471,7 +1456,7 @@ function render(){
   $('#view').innerHTML = V[S.view]();
   renderTabs();
   const i = byId[S.ticket];
-  const globalView = S.view === 'connections' || S.view === 'projects';
+  const globalView = ['settings','connections','projects'].includes(S.view);
   $('#crumbs').innerHTML = S.view === 'ticket' ? `<span>${P[i.proj].short}</span> / ${i.epic && byId[i.epic] ? `<a href="#" data-a="open" data-v="${i.epic}">◆ ${esc(byId[i.epic].title)}</a>` : '<a href="#" data-a="nav" data-v="work">Work</a>'} / <span class="mono">${i.id}</span> <b>${esc(i.title)}</b>`
     : S.view === 'label' ? `<a href="#" data-a="nav" data-v="work">Work</a> / <b>#${esc(S.label)}</b>`
     : globalView ? `<b>${TITLES[S.view]}</b> <span class="scopebar">Service-wide</span>` : `<span>${S.scope === 'all' ? 'All projects' : P[S.scope].short}</span> / <b>${TITLES[S.view]}</b>`;
@@ -1492,7 +1477,7 @@ function render(){
   }
 }
 function rememberTab(){ if (S.view === 'ticket' && byId[S.ticket]) S.tabMem[S.ticket] = {tab:S.tab, epicTab:S.epicTab}; }
-function go(view, opts={}){ rememberTab(); Object.assign(S, opts); S.view = view; if (view !== 'ticket') S.lastPage = view; render(); $('#view').focus({preventScroll:true}); }
+function go(view, opts={}){ if (view === 'timeline'){ view = 'work'; opts = Object.assign({workMode:'timeline'}, opts); } if (view === 'projects' || view === 'connections') view = 'settings'; rememberTab(); Object.assign(S, opts); S.view = view; if (view !== 'ticket') S.lastPage = view; render(); $('#view').focus({preventScroll:true}); }
 function openTicket(id, epicTab){ rememberTab(); const m = S.tabMem[id] || {}; S.ticket = id; S.tab = m.tab || null; S.epicTab = epicTab || m.epicTab || 'details';
   if (!S.openTabs.includes(id)){ S.openTabs.push(id); while (S.openTabs.length > 8){ const k = S.openTabs.findIndex(x => x !== id); S.openTabs.splice(k, 1); } }
   S.view = 'ticket'; render(); $('#view').focus({preventScroll:true}); }
@@ -1500,8 +1485,7 @@ function renderTabs(){
   S.openTabs = S.openTabs.filter(id => byId[id]);
   if (S.view === 'ticket' && byId[S.ticket] && !S.openTabs.includes(S.ticket)) S.openTabs.push(S.ticket);
   $('#tabstrip').innerHTML = S.openTabs.length ? S.openTabs.map(id => { const i = byId[id], on = S.view === 'ticket' && S.ticket === id;
-    return `<div class="otab" role="presentation" aria-selected="${on}"><button class="og" role="tab" aria-selected="${on}" data-a="tabgo" data-v="${id}" title="${esc(i.title)}">${typeIcon(i)}<span class="mono">${id}</span><span class="tt2">${esc(i.title)}</span></button><button class="ox" data-a="tabclose" data-v="${id}" aria-label="Close ${id}">${small(I.x)}</button></div>`; }).join('')
-    + (S.openTabs.length <= 3 ? `<span class="tabhint">${S.openTabs.length} open · tabs remember where you were</span>` : '') : ''; }
+    return `<div class="otab" role="presentation" aria-selected="${on}"><button class="og" role="tab" aria-selected="${on}" data-a="tabgo" data-v="${id}" title="${esc(i.title)}">${typeIcon(i)}<span class="mono">${id}</span><span class="tt2">${esc(i.title)}</span></button><button class="ox" data-a="tabclose" data-v="${id}" aria-label="Close ${id}">${small(I.x)}</button></div>`; }).join('') : ''; }
 
 /* =====================================================================
    Actions
@@ -1541,7 +1525,7 @@ const ACT = {
   workfilter: v => go('work', {filter:v, epicF:'all', labelF:'all', workMode:'board', showBlocked:false}),
   sinceall: () => { S.sinceAll = !S.sinceAll; render(); },
   labelboard: v => go('work', {labelF:v, epicF:'all', filter:'all'}),
-  scope: v => { S.scope = v; S.scopeOpen = false; S.epicF = 'all'; S.labelF = 'all'; if (S.view === 'projects') go('attention'); else render(); toast(v === 'all' ? 'Showing all projects.' : `Showing only ${P[v].short}.`); },
+  scope: v => { S.scope = v; S.scopeOpen = false; S.epicF = 'all'; S.labelF = 'all'; if (['projects','settings'].includes(S.view)) go('attention'); else render(); toast(v === 'all' ? 'Showing all projects.' : `Showing only ${P[v].short}.`); },
   scopemenu: () => { S.scopeOpen = !S.scopeOpen; render(); if (S.scopeOpen) setTimeout(() => { const b = document.querySelector('.scopemenu [aria-checked=true]'); if (b) b.focus(); }, 0); },
   reply: v => { S.replyOpen = S.replyOpen === v ? null : v; render(); setTimeout(() => { const t = $('#ans-'+v); if (t) t.focus(); }, 0); },
   sendanswer: v => {

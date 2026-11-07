@@ -1,6 +1,6 @@
 # UI/UX design — MVP V1 human interface
 
-Status: design proposal, revision 18, 2026-11-06. Inputs: [requirements draft](REQUIREMENTS_DRAFT.md), [Jira research](JIRA_RESEARCH.md).
+Status: design proposal, revision 19, 2026-11-06. Inputs: [requirements draft](REQUIREMENTS_DRAFT.md), [Jira research](JIRA_RESEARCH.md).
 
 Clickable prototype: [`design/prototype.html`](../design/prototype.html). It is one file with no build step and no network requests, and all data in it is disposable sample work (O09). Open it directly in a browser.
 
@@ -90,14 +90,13 @@ Each section has its own **Add** box (Enter adds). Items you add show "added by 
 Sidebar                                   Ticket page
 ┌ Project ▾ [All | Recipe App | Docs]     ├─ Header: ID · type · epic · labels · status · priority · Move to Planning/Ready
 │  ── scoped to the chosen project ──     ├─ Banner when you must act: packet ready / agent question
-├─ Needs you     badge = for you now      └─ Tabs, one per job (one column of collapsible sections each):
-├─ Work          Board | List | Map          DETAILS: Outcome · Documents · Dates   CHECKLIST: Work · Agent review · Human review
-├─ Human review  badge = packets ready       DEPENDENCIES: 1-hop view              ACTIVITY: Lead & runs · History + note
-├─ Timeline                               Epic page: DETAILS (brief, docs, tickets) · CHECKLIST · MAP · ACTIVITY
-├─ Agents                                 Label page: brief, progress map across epics, "Move N to Ready"
-│  ── service-wide ──
-├─ Projects
-└─ Connections
+├─ Needs you     red badge = for you now  └─ Tabs, one per job (one column of collapsible sections each):
+├─ Work          Board|List|Map|Timeline     DETAILS: Outcome · Documents · Dates   CHECKLIST: Work · Agent review · Human review
+├─ Human review  gray count of packets       DEPENDENCIES: 1-hop view              ACTIVITY: Lead & runs · History + note
+├─ Agents        gray count of runs       Epic page: DETAILS (brief, docs, tickets) · CHECKLIST · MAP · ACTIVITY
+│  ── service-wide ──                     Label page: header actions (Show on the board, Move N to Ready); brief, map, by-epic list
+└─ Settings      Projects + Connections
+   "Healthy · 3 clients" line at the bottom
 Header: breadcrumb · + New (quick capture to Inbox) · search/jump (Ctrl K or /; items, labels, pages) · theme
 Under the header: open-item tabs (each ticket or epic you open; × to close; each remembers its own sub-tab)
 ```
@@ -106,22 +105,22 @@ Under the header: open-item tabs (each ticket or epic you open; × to close; eac
 
 ### Needs you (home): one-screen dashboard
 Designed to fit on one laptop screen without scrolling. In the prototype it fits at 1440×900, and comes within about 20px at 1366×768.
-- **Summary line:** for you now · problems · reviews coming up · deferred · in Planning.
 - **Agent strip:** one line of run-state counts (live, reported, needs input, stale, failed) with a link to all runs. This replaces the earlier "Agents right now" card.
 - **Top band:**
   - **For you now** (wide): packets to verify and agent questions. Answering a question happens inline.
   - **Problems:** stale or failed runs, cycles and date conflicts, at most five, each with its action.
-- **One row of four compact cards**, each showing its top three items with *View all N →*:
-  - **Coming up for you**, including epic-level reviews
+- **One row of three compact cards**, each showing its top three items with *View all N →*:
   - **Deferred, not verified**, with *Create test ticket* where there's no follow-up
   - **Your Planning queue**, with *Move to Ready*
   - **Since you looked**
 - **Every row is one or two lines.** Long text is truncated, with the full text on hover.
+- **What's deliberately not here:** reviews that are coming up but have no packet yet. They aren't asking anything of you today, so they live in the Human review queue.
 
 ### Work
 - **Board columns:** Inbox · Planning (yours) · Ready (Startable / Waiting on blockers) · In progress · Review (your human review) · Done.
-- **Cards:** type, epic, labels, run state, plus chips for *Packet ready*, *Human review later*, *Question for you*, *Blocked*, and *Date risk*.
-- **Filters:** epic, label, and saved filters (In planning, Ready to start, Blocked, For you, Human review later, Live run). Each shows the matching agent query.
+- **Layouts:** Board, List, Map and **Timeline** (entered dates vs actual run time vs forecast; who set a date shows on hover, and only blocker dates are written under a bar).
+- **Cards:** type icon (the type legend sits once above the board), epic, labels, run state if claimed, plus chips for *Packet ready*, *Human review later*, *Question for you*, *Blocked*, and *Date risk*. Unclaimed cards say nothing rather than "Unclaimed".
+- **Filters:** epic, label, and saved filters (Blocked, For you, Human review later, Deferred review, Live run). *In planning* and *Ready to start* are left off the board because their columns already show them; links such as *View all* in the Planning queue still apply them. Each filter shows the matching agent query.
 
 ### Tickets and epics: one tab per job
 Each tab is a view that answers one question. Epics and tickets use the same four slots, so you always know where to look.
@@ -144,7 +143,8 @@ Each tab is a view that answers one question. Epics and tickets use the same fou
 - **+ New item in this epic** sits at the right of an epic's tab row. It opens the New dialog with the epic and project filled in; the item lands in Inbox and you stay on the epic.
 
 ### Human review
-- **Queue:** Ready for you, Decided, and Coming up.
+- **Queue:** Ready for you, Decided, and the full Coming up list (its only home).
+- **No subtitle and no Ticket side card.** The packet header names the ticket and links to it.
 - **Packet:**
   - A round selector. Earlier rounds are read-only and show your past decisions.
   - The commit the packet was built from, and an out-of-date warning if the code has moved on.
@@ -183,21 +183,26 @@ The dependency view is a **progress picture**, not a standalone graph page. It a
   - drag the background, scroll, or use the arrow keys;
   - fades on any edge with more beyond it, plus clickable *More →* / *← More* / *More ↓* pills;
   - the grab cursor;
-  - a hint line ("Bigger than the view: drag the background, scroll, or use the arrow keys") that appears only when the map overflows.
+  - a short "Drag to pan" hint that appears only when the map overflows.
+- **Key:** one line under the map: "Arrow = blocks · dashed green = cleared · hover to trace", plus the review person icons.
 - **Zoom:** − / 100% / + / **Fit**. Steps are 50%, 67%, 80%, 100% and 125%. It defaults to 100% (spacious); Fit shrinks the map to show everything, down to 40% at most.
 - On an epic, *Map | List* switches to the plain status-grouped list. The progress header stays.
 
 **Why the old page went:** a global, hand-placed graph of every dependency was too big at ten items and unreadable at seventy. Cycles and date conflicts still surface in Problems on Needs you, and their *Fix* button opens the ticket.
 
 ### Labels and epics
-- **Label page:** brief, a progress map across epics, a by-epic list, *Move N to Ready* for everything with that label still in Planning, and a link to the filtered board.
+- **Label page:** one column. The header carries the done count and two actions: *Show on the board* and *Move N to Ready* (the latter only while something is in Planning). Below that come the brief, a progress map across epics, and a by-epic list.
 - **Epic page:** Details, Checklist, Map and Activity tabs (see *Tickets and epics* above). A Planning epic is described as "still a brief".
 
-### Timeline, Agents, Connections, Projects
-- **Timeline:** entered dates vs actual run time vs forecast.
-- **Agents:** run table with "how we know".
-- **Connections:** client compatibility matrix, setup snippets, service health.
-- **Projects:** switch scope, labels, progress, and typed-confirmation delete. The per-project policy, ready-gate and item-type settings are gone.
+### Agents and Settings
+- **Agents:** run table with "how we know". The run-state glossary card is gone, because every state already has an icon and a label.
+- **Settings** (service-wide) is one page:
+  - **Projects:** switch scope, labels, progress, and typed-confirmation delete.
+  - **Connections:** client compatibility matrix, setup snippets, endpoint and service health.
+
+### Page chrome
+- **Scope shows in two places, not three:** the sidebar switcher and the breadcrumb. Page titles no longer repeat it.
+- **No explanatory subtitles under page titles.** Rules like "CI and merges never count" are enforced and shown where they apply, such as the submit footnote on a packet.
 
 ## Visual language
 
@@ -289,7 +294,7 @@ Base type is 13px; secondary text is at least 11.5px. Small controls are at leas
 | Out-of-date packet | Needs you → RCP-19 (claude reported a newer commit after writing the packet) → *Ask for a fresh packet* |
 | Send back with findings | RCP-12 packet → *Needs changes* + note → *New bug ticket*. RCP-28 is created and RCP-12 returns to In progress. Undo is available. |
 | Earlier round, read-only | RCP-12 packet → Round 1 (sent back, with your notes and the bug it created, RCP-17) |
-| Reviews coming up | Needs you → *Coming up for you* (RCP-14, RCP-16, RCP-22, RCP-23, RCP-25, DOC-9) |
+| Reviews coming up | Human review → *Coming up* (RCP-14, RCP-16, RCP-22, RCP-23, RCP-25, DOC-9) |
 | No human review | RCP-15 → Checklist → "No human review declared" |
 | Planning is yours | Needs you → *Your Planning queue* → *Move to Ready* |
 | Large initiative across epics | Click `#ui-refresh` on RCP-23 → progress by epic → *Move 2 to Ready* |
@@ -303,9 +308,21 @@ Base type is 13px; secondary text is at least 11.5px. Small controls are at leas
 
 **Testing:**
 - `design/prototype.html?selftest` renders every page in every scope, plus every item, tab, label, packet round, dialog and filter. It reports `SELFTEST OK` in headless Edge.
-- A 110-check scripted click-through of the scenarios above also passed.
+- A 113-check scripted click-through of the scenarios above also passed.
 
 ## Revision history
+- **Revision 19 (simplicity pass):**
+  - The sidebar goes from 7 items to 5: Timeline became a Work layout, and Projects and Connections merged into Settings. The health box is one line.
+  - Only Needs you keeps a red badge.
+  - Needs you lost its summary line and the Coming up card, which now lives only on Human review.
+  - Page subtitles and the repeated scope pill are gone.
+  - On Work: no workflow sentence, no type word or "Unclaimed" on cards, and no filters that duplicate a column.
+  - The packet page lost its Ticket card.
+  - Agents lost its glossary card.
+  - The label page is one column, with actions in the header.
+  - Map keys are one line.
+  - Timeline bars no longer repeat "set by".
+  - The open-item tab hint is gone.
 - **Revision 18:** tickets and epics share four tabs, one per job: Details, Checklist, Dependencies (Map on epics) and Activity. The Checklist tab splits into collapsible Work, Agent review and Human review sections. Lead & runs moved to Activity. Tab labels show counts, plus an attention dot for a ready packet, run trouble or a cycle. *Inspect* and *Fix* in Problems open the matching tab.
 - **Revision 17:** ticket pages and epic Details are a single long column, with no side rail and no Documents/Activity tabs. Every section is collapsible and shows a one-line summary in its header. Collapse state is remembered per section type, and Activity starts collapsed.
 - **Revision 16:** a Checklist card in the main body of every ticket and epic, with Work, Agent review and Human review sections and an Add box for each. The right-hand Human review card is gone. Epic "Items" is renamed "Tickets in this epic". Ticket tabs are now Documents · Activity.
