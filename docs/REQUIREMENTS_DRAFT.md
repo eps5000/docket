@@ -14,6 +14,8 @@ Status: discovery draft, updated 2026-11-06. The confirmed choices below are own
 8. The workflow includes a **Planning** status between Inbox and Ready. While an item is in Planning, its planning artifacts (for example UI/UX design, PRD, TDD) are produced and reviewed. An item moves to Ready only when it is actually ready for an agent to start building. (Added 2026-11-06.)
 9. Ceremony should fit the risk. Each project defines which planning artifacts are required before Ready, and small changes may skip UX/TDD; high-stakes production projects may require all of them. Each project also defines who may move an item to Ready: the owner, or an agent once the project's readiness gate is met. (Added 2026-11-06.)
 10. The browser UI starts at an all-projects view on each visit, so the owner is never unknowingly scoped to a single project. (Added 2026-11-06.)
+11. Per-item planning exceptions and readiness rules are decided by each project's agent constitution and workflow. The tracker stores and shows the project's configuration and records deviations; it does not enforce them. (Added 2026-11-06.)
+12. Item types include Epic as a parent container, Feature, Story, Task, Bug, and Design. A Feature may stand alone without an Epic. Projects can define custom item types. (Added 2026-11-06.)
 
 ## Product intent
 
@@ -24,7 +26,7 @@ A locally run Docker service gives AI agents a stable MCP endpoint for planning 
 | Object | Purpose | Key relationships |
 | --- | --- | --- |
 | Project | Bounds a product or work area | Contains outcomes, work items, project-local artifacts, and an optional approval policy linked to its agent workflow documents. |
-| Work item | Durable idea, Epic, Story, Task, Bug, or Subtask | Optional parent; explicit typed links; owner, priority, status, dates, acceptance. |
+| Work item | Durable idea, Epic, Feature, Story, Task, Bug, Design, or a project-defined custom type | Optional parent (container types only); labels; explicit typed links; owner, priority, status, dates, acceptance. |
 | Dependency | Directed `blocks` edge between work items | Independent of hierarchy, ordering, and `relates`. |
 | Ticket plan | A short, revisable list of steps for completing one work item | Each step has state, responsible agent if known, and last update; steps are not work items. |
 | Agent run | One actual execution/session, including an optional delegated subagent record | References work item, plan step when relevant, and optional parent run; actor, timestamps, state, output. |

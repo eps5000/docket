@@ -115,6 +115,19 @@
 .tl .gnode.ext rect.b{fill:var(--panel-2);stroke-dasharray:4 3}
 @media (max-width:1180px){.tl .scopebtn .txt,.tl .scopebtn .chev{display:none}.tl .scopebtn{justify-content:center;padding:6px}}
 
+/* ---------- structure tree & labels ---------- */
+.tl .tree{list-style:none;margin:0;padding:0}
+.tl .tree .tree{padding-left:22px;border-left:1px dashed var(--line-2);margin-left:13px}
+.tl .trow{display:grid;grid-template-columns:minmax(0,1fr) 150px 110px;gap:10px;align-items:center;padding:6px 10px;border-radius:7px}
+.tl .trow:hover{background:var(--panel-2)}
+.tl .trow.cont{font-weight:650}
+.tl .tgroup{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);font-weight:650;padding:12px 10px 4px}
+.tl .label{display:inline-flex;align-items:center;font-size:11.5px;border:1px solid var(--ctl);border-radius:4px;padding:0 5px;color:var(--ink-2);line-height:17px}
+.tl .label::before{content:"#";color:var(--ink-3);margin-right:1px}
+.tl .ptag{font-size:12px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.tl .typetbl td,.tl .typetbl th{padding:6px 8px}
+.tl .ti{display:inline-grid;place-items:center;width:16px;font-size:11px}
+
 /* ---------- chips, status, priority ---------- */
 .tl .chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:1px 8px;border-radius:999px;border:1px solid transparent;white-space:nowrap;font-weight:550;line-height:18px}
 .tl .st-inbox{background:var(--gray-soft);color:var(--ink-2)}
@@ -210,6 +223,7 @@
 .tl a.tcard.isblocked{border-left:3px solid var(--bad)}
 .tl a.tcard.owed{border-left:3px solid var(--warn)}
 .tl .tcard .t{font-weight:600;line-height:1.3}
+.tl .tcard .mono,.tl .type{white-space:nowrap}
 .tl .tcard .prov,.tl .tcard .chip{white-space:normal;line-height:16px;padding-top:1px;padding-bottom:1px}
 .tl .tcard .meta{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--ink-3);flex-wrap:wrap}
 .tl .mini{display:flex;flex-wrap:wrap;gap:4px;padding:0 4px 6px}
@@ -318,7 +332,7 @@
 
 /* ---------- connections / projects ---------- */
 .tl pre.code{font:12px/1.5 var(--mono);background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin:8px 0 0;overflow:auto;white-space:pre}
-.tl .proj-card{display:grid;grid-template-columns:minmax(0,1fr) 240px 170px auto;gap:12px;align-items:center;padding:12px 14px;border-top:1px solid var(--line)}
+.tl .proj-card{display:grid;grid-template-columns:minmax(0,1fr) 230px 150px auto;gap:12px;align-items:center;padding:12px 14px;border-top:1px solid var(--line)}
 .tl .proj-card:first-of-type{border-top:0}
 .tl .bar-mini{height:7px;border-radius:4px;background:var(--panel-2);display:flex;overflow:hidden;border:1px solid var(--line)}
 .tl .bar-mini i{display:block;height:100%}
@@ -328,7 +342,7 @@
 .tl .toast.on{opacity:1;transform:none;pointer-events:auto}
 .tl .toast button{background:none;border:1px solid color-mix(in srgb,var(--panel) 50%,transparent);color:var(--panel);border-radius:6px;padding:2px 8px;font-weight:650}
 .tl .ov{position:absolute;inset:0;background:rgba(10,12,16,.38);display:flex;align-items:flex-start;justify-content:center;padding-top:80px;z-index:20;border-radius:12px}
-.tl .dlg{background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);width:min(560px,92%);max-height:640px;overflow:auto}
+.tl .dlg{background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);width:min(640px,94%);max-height:640px;overflow:auto}
 .tl .dlg header{border-radius:12px 12px 0 0;justify-content:space-between}
 .tl .dlg .body{padding:14px 16px}
 .tl .dlg footer{display:flex;gap:8px;justify-content:flex-end;padding:12px 16px;border-top:1px solid var(--line)}
@@ -368,28 +382,45 @@ const NOW = new Date('2026-11-06T11:00:00');
 const D = s => new Date(s + 'T00:00:00');
 const fmt = d => d.toLocaleDateString('en-US', {month:'short', day:'numeric'});
 
+/* Item types. Built-ins are available in every project; projects can add custom types.
+   container = can be a parent. The tracker records planning-doc defaults per type but does not
+   enforce them: the repo's agent constitution / workflow decides. */
+const TYPES = {
+  Epic:   {icon:'◆', container:true,  desc:'Large outcome. Groups features and items.'},
+  Feature:{icon:'▣', container:true,  desc:'A product capability. Can sit under an epic or stand alone.'},
+  Story:  {icon:'●', container:false, desc:'User-facing change.'},
+  Task:   {icon:'■', container:false, desc:'Technical or chore work.'},
+  Bug:    {icon:'✕', container:false, desc:'Defect fix.'},
+  Design: {icon:'✎', container:false, desc:'Design deliverable (flows, mockups, specs) reviewed as an artifact.'},
+};
 const P = {
-  RCP:{key:'RCP', name:'Sample · Recipe App', short:'Recipe App', color:'#3b5bdb', policy:'gated', gates:['Design review','Release walkthrough'], readyRules:{Epic:['PRD','UX','TDD'], Story:['PRD','UX','TDD'], Task:['PRD','TDD'], Bug:[]}, readyGate:'owner', docs:7},
-  DOC:{key:'DOC', name:'Sample · Docs Site',  short:'Docs Site',  color:'#d9480f', policy:'none',  gates:[], readyRules:{Epic:['PRD'], Story:['PRD'], Task:['PRD'], Bug:[]}, readyGate:'agent', docs:3},
+  RCP:{key:'RCP', name:'Sample · Recipe App', short:'Recipe App', color:'#3b5bdb', policy:'gated', gates:['Design review','Release walkthrough'], readyRules:{Epic:['PRD'], Feature:['PRD','UX','TDD'], Story:['PRD','UX','TDD'], Task:['PRD','TDD'], Bug:[], Design:['PRD'], Spike:[]}, readyGate:'owner', docs:7,
+       customTypes:{Spike:{icon:'⚡', container:false, desc:'Time-boxed investigation; output is a findings note.'}}},
+  DOC:{key:'DOC', name:'Sample · Docs Site',  short:'Docs Site',  color:'#d9480f', policy:'none',  gates:[], readyRules:{Epic:[], Feature:['PRD'], Story:['PRD'], Task:['PRD'], Bug:[], Design:[]}, readyGate:'agent', docs:3, customTypes:{}},
 };
 
 const items = [
   {id:'RCP-1', type:'Epic', title:'Meal planning MVP', status:'progress', prio:2, proj:'RCP', last:'40s'},
+  {id:'RCP-30',type:'Feature',title:'Shopping list', status:'progress', prio:1, proj:'RCP', parent:'RCP-1', last:'40s'},
+  {id:'RCP-32',type:'Feature',title:'Weekly planner', status:'progress', prio:1, proj:'RCP', parent:'RCP-1', last:'18m'},
+  {id:'RCP-31',type:'Feature',title:'Pantry', status:'progress', prio:2, proj:'RCP', last:'2m', labels:['mobile']},
+  {id:'RCP-25',type:'Design', title:'Pantry screens and empty states', status:'ready', prio:2, proj:'RCP', parent:'RCP-31', last:'5h', labels:['mobile']},
+  {id:'DOC-10',type:'Feature',title:'API reference', status:'progress', prio:2, proj:'DOC', last:'9m'},
   {id:'RCP-11',type:'Task', title:'Auth scaffold', status:'done', prio:2, proj:'RCP', parent:'RCP-1', lead:'codex', run:'finished', age:'2d', last:'2d', start:'2026-11-02', end:'2026-11-03', setBy:'owner · Nov 1', actual:['2026-11-02','2026-11-03'], closedBy:'owner'},
-  {id:'RCP-12',type:'Story',title:'Weekly planner drag-and-drop', status:'review', prio:1, proj:'RCP', parent:'RCP-1', lead:'codex', run:'finished', age:'18m', last:'18m', gate:'Release walkthrough', start:'2026-11-02', end:'2026-11-07', setBy:'owner · Nov 2', actual:['2026-11-02','2026-11-06'], pts:3},
-  {id:'RCP-14',type:'Story',title:'Generate shopping list from week plan', status:'progress', prio:1, proj:'RCP', parent:'RCP-1', lead:'claude · orca-w3', run:'live', age:'40s', last:'40s', start:'2026-11-04', end:'2026-11-11', setBy:'claude · Nov 5', actual:['2026-11-04',null], pts:5},
-  {id:'RCP-15',type:'Task', title:'Pantry inventory schema', status:'progress', prio:2, proj:'RCP', parent:'RCP-1', lead:'codex · orca-w1', run:'stale', age:'47m', last:'2m', start:'2026-11-03', end:'2026-11-08', setBy:'codex · Nov 3', actual:['2026-11-03',null], pts:2},
-  {id:'RCP-16',type:'Story',title:'Nutrition summary card', status:'ready', prio:2, proj:'RCP', parent:'RCP-1', last:'1d', blockedBy:['DOC-4'], start:'2026-11-09', end:'2026-11-14', setBy:'owner · Nov 3'},
-  {id:'RCP-17',type:'Bug',  title:'Planner loses selected week on reload', status:'ready', prio:1, proj:'RCP', last:'3h', relates:['RCP-12'], start:'2026-11-09', end:'2026-11-10', setBy:'owner · Nov 6'},
+  {id:'RCP-12',type:'Story',title:'Weekly planner drag-and-drop', status:'review', prio:1, proj:'RCP', parent:'RCP-32', lead:'codex', run:'finished', age:'18m', last:'18m', gate:'Release walkthrough', start:'2026-11-02', end:'2026-11-07', setBy:'owner · Nov 2', actual:['2026-11-02','2026-11-06'], pts:3},
+  {id:'RCP-14',type:'Story',title:'Generate shopping list from week plan', status:'progress', prio:1, proj:'RCP', labels:['mobile'], parent:'RCP-30', lead:'claude · orca-w3', run:'live', age:'40s', last:'40s', start:'2026-11-04', end:'2026-11-11', setBy:'claude · Nov 5', actual:['2026-11-04',null], pts:5},
+  {id:'RCP-15',type:'Task', title:'Pantry inventory schema', status:'progress', prio:2, proj:'RCP', parent:'RCP-31', lead:'codex · orca-w1', run:'stale', age:'47m', last:'2m', start:'2026-11-03', end:'2026-11-08', setBy:'codex · Nov 3', actual:['2026-11-03',null], pts:2},
+  {id:'RCP-16',type:'Story',title:'Nutrition summary card', status:'ready', prio:2, proj:'RCP', last:'1d', blockedBy:['DOC-4'], start:'2026-11-09', end:'2026-11-14', setBy:'owner · Nov 3'},
+  {id:'RCP-17',type:'Bug',  title:'Planner loses selected week on reload', status:'ready', prio:1, proj:'RCP', labels:['regression'], parent:'RCP-32', last:'3h', relates:['RCP-12'], start:'2026-11-09', end:'2026-11-10', setBy:'owner · Nov 6'},
   {id:'RCP-18',type:'Task', title:'Import recipes from URL', status:'progress', prio:3, proj:'RCP', lead:'claude', run:'failed', age:'25m', last:'25m', start:'2026-11-05', end:'2026-11-07', setBy:'claude · Nov 5', actual:['2026-11-05',null]},
   {id:'RCP-19',type:'Task', title:'Recipe data model spec', status:'review', prio:2, proj:'RCP', parent:'RCP-1', lead:'claude', run:'finished', age:'2h', last:'2h', review:'recipe-data-model.md', start:'2026-11-04', end:'2026-11-06', setBy:'owner · Nov 3', actual:['2026-11-04','2026-11-06']},
-  {id:'RCP-20',type:'Story',title:'Offline mode spike', status:'inbox', prio:3, proj:'RCP', last:'4d'},
-  {id:'RCP-23',type:'Story',title:'Meal plan templates', status:'planning', prio:2, proj:'RCP', parent:'RCP-1', lead:'claude', run:'reported', age:'6m', last:'6m', review:'meal-templates-ux.md', planning:{PRD:'approved', UX:'review', TDD:'drafting'}},
-  {id:'RCP-24',type:'Story',title:'Grocery delivery handoff', status:'planning', prio:3, proj:'RCP', last:'1d', planning:{PRD:'drafting', UX:'none', TDD:'none'}},
-  {id:'RCP-21',type:'Story',title:'Pantry-aware recipe suggestions', status:'ready', prio:2, proj:'RCP', parent:'RCP-1', last:'1d', blockedBy:['RCP-15','RCP-14'], start:'2026-11-12', end:'2026-11-20', setBy:'claude · Nov 5'},
-  {id:'RCP-22',type:'Story',title:'Share weekly plan link', status:'ready', prio:3, proj:'RCP', parent:'RCP-1', last:'2d', blockedBy:['RCP-12'], start:'2026-11-16', end:'2026-11-19', setBy:'owner · Nov 3'},
+  {id:'RCP-20',type:'Spike',title:'Offline mode spike', status:'inbox', prio:3, proj:'RCP', last:'4d'},
+  {id:'RCP-23',type:'Story',title:'Meal plan templates', status:'planning', prio:2, proj:'RCP', parent:'RCP-32', lead:'claude', run:'reported', age:'6m', last:'6m', review:'meal-templates-ux.md', planning:{PRD:'approved', UX:'review', TDD:'drafting'}},
+  {id:'RCP-24',type:'Story',title:'Grocery delivery handoff', status:'planning', prio:3, proj:'RCP', parent:'RCP-30', last:'1d', planning:{PRD:'drafting', UX:'none', TDD:'none'}},
+  {id:'RCP-21',type:'Story',title:'Pantry-aware recipe suggestions', status:'ready', prio:2, proj:'RCP', parent:'RCP-31', last:'1d', blockedBy:['RCP-15','RCP-14'], start:'2026-11-12', end:'2026-11-20', setBy:'claude · Nov 5'},
+  {id:'RCP-22',type:'Story',title:'Share weekly plan link', status:'ready', prio:3, proj:'RCP', parent:'RCP-32', last:'2d', blockedBy:['RCP-12'], start:'2026-11-16', end:'2026-11-19', setBy:'owner · Nov 3'},
   {id:'DOC-2', type:'Task', title:'Docs site skeleton', status:'done', prio:3, proj:'DOC', lead:'codex', run:'finished', age:'3d', last:'3d', closedBy:'agent', start:'2026-11-02', end:'2026-11-03', setBy:'codex · Nov 2', actual:['2026-11-02','2026-11-03']},
-  {id:'DOC-4', type:'Story',title:'API reference: nutrition endpoint', status:'progress', prio:2, proj:'DOC', lead:'codex', run:'needs', age:'9m', last:'9m', start:'2026-11-05', end:'2026-11-10', setBy:'owner · Nov 4', actual:['2026-11-05',null],
+  {id:'DOC-4', type:'Story',title:'API reference: nutrition endpoint', status:'progress', prio:2, proj:'DOC', parent:'DOC-10', lead:'codex', run:'needs', age:'9m', last:'9m', start:'2026-11-05', end:'2026-11-10', setBy:'owner · Nov 4', actual:['2026-11-05',null],
      question:{by:'codex', at:'10:51', text:'Should nutrition values be documented per serving or per 100 g? The API returns both; the card in RCP-16 only needs one.'}},
   {id:'DOC-5', type:'Task', title:'Search index for docs', status:'ready', prio:3, proj:'DOC', last:'2d'},
   {id:'DOC-9', type:'Task', title:'Contributor guide', status:'planning', prio:3, proj:'DOC', lead:'codex', run:'finished', age:'1h', last:'1h', planning:{PRD:'approved'}},
@@ -522,8 +553,18 @@ const CHANGES = [ // since the owner last looked (08:30)
    ===================================================================== */
 const isOpen = i => i.status !== 'done' && i.status !== 'canceled';
 const inScope = i => S.scope === 'all' || i.proj === S.scope;
+const typesFor = key => ({...TYPES, ...(P[key].customTypes || {})});
+const typeOf = i => typesFor(i.proj)[i.type] || {icon:'•', container:false};
+const isContainer = i => !!typeOf(i).container;
+const childrenOf = id => items.filter(x => x.parent === id);
+const leafDesc = id => childrenOf(id).flatMap(c => isContainer(c) ? leafDesc(c.id) : [c]);
+const ancestors = i => { const a = []; let c = i; while (c.parent && byId[c.parent]){ c = byId[c.parent]; a.push(c); } return a; };
+const typeBadge = i => `<span class="type" title="${esc(typeOf(i).desc || i.type)}"><span class="ti" aria-hidden="true">${typeOf(i).icon}</span>${i.type}</span>`;
+const labelsOf = i => (i.labels || []).map(l => `<span class="label">${esc(l)}</span>`).join('');
+const parentTag = i => { const pa = i.parent && byId[i.parent]; return pa ? `<span class="ptag" title="Parent: ${pa.type} ${esc(pa.title)}">${typeOf(pa).icon} ${esc(pa.title)}</span>` : ''; };
 const reqDocs = i => (P[i.proj].readyRules[i.type] || []);
 const rulesText = p => Object.entries(p.readyRules).filter(([t]) => t !== 'Epic').map(([t, d]) => `${t}: ${d.length ? d.join(', ') : 'none'}`).join(' · ');
+const rollup = id => { const l = leafDesc(id); return {n:l.length, done:l.filter(x => x.status==='done').length, blocked:l.filter(isBlocked).length, active:l.filter(x => x.status==='progress').length}; };
 const missingDocs = i => i.status === 'planning' ? reqDocs(i).filter(d => (i.planning || {})[d] !== 'approved') : [];
 const unresolved = i => (i.blockedBy || []).filter(b => byId[b].status !== 'done');
 const isBlocked = i => isOpen(i) && unresolved(i).length > 0;
@@ -574,7 +615,7 @@ const S = {
   view:'attention', ticket:'RCP-14', tab:null, kpi:'all', scope:'all', scopeOpen:false,
   workMode:'board', filter:'all', showBlocked:false,
   review:'RCP-12', ver:null, decision:null, diff:true, checks:{},
-  graphSel:'RCP-21', gRel:true, gHier:false, slip:3,
+  graphSel:'RCP-21', gRel:true, slip:3, typeF:'all', newType:{name:'', icon:'', container:false, docs:{}},
   fcPreview:false, theme:'system', snippet:'codex',
   decided:{}, ackEvidence:{}, replyOpen:null, text:{}, modal:null, extraActivity:{},
 };
@@ -757,13 +798,14 @@ const FILTERS = {
 };
 V.work = () => {
   const cols = ['inbox','planning','ready','progress','review','done'];
-  const inProj = i => i.type !== 'Epic' && inScope(i);
+  const inProj = i => !isContainer(i) && inScope(i) && (S.typeF === 'all' || i.type === S.typeF);
   const list = items.filter(i => inProj(i) && FILTERS[S.filter][1](i));
   const card = i => {
     const o = owes(i), dr = dateRisks(i);
     return `<a href="#" class="tcard ${isBlocked(i) ? 'isblocked' : o ? 'owed' : ''}" data-a="open" data-v="${i.id}">
-      <div class="row" style="justify-content:space-between"><span class="row"><span class="mono muted">${i.id}</span><span class="type">${i.type}</span></span>${prio(i.prio)}</div>
+      <div class="row" style="justify-content:space-between"><span class="row"><span class="mono muted">${i.id}</span>${typeBadge(i)}</span>${prio(i.prio)}</div>
       <div class="t">${esc(i.title)}</div>
+      ${parentTag(i) || (i.labels || []).length ? `<div class="meta">${parentTag(i)}${labelsOf(i)}</div>` : ''}
       ${pdocs(i)}
       ${isBlocked(i) || o || dr.length ? `<div class="meta">${blockedChip(i)}${owedChip(i)}${dr.length ? '<span class="chip c-bad">Date risk</span>' : ''}</div>` : ''}
       <div class="meta">${i.lead ? `${run(i.run, i.age)}<span>· ${esc(i.lead)}</span>` : '<span>Unclaimed</span>'}<span style="margin-left:auto" title="Last activity">${i.last}</span></div>
@@ -782,17 +824,30 @@ V.work = () => {
     return `<div class="col"><div class="colh"><span>${STATUS[c]}${c==='done' ? ' <span class="muted" style="font-weight:400">· 7 days</span>' : ''}</span><span>${cs.length}</span></div>${c==='planning' ? '<div class="src" style="padding:0 4px 6px">Planning docs in progress. Not claimable yet.</div>' : ''}${cs.map(card).join('')}</div>`;
   };
   const table = `<div class="card" style="overflow:auto"><table><thead><tr><th scope="col">ID</th><th scope="col">Title</th><th scope="col">Status</th><th scope="col">Priority</th><th scope="col">Lead · run</th><th scope="col">Blocked by</th><th scope="col">Last activity</th></tr></thead><tbody>
-    ${list.map(i => `<tr class="clickrow" data-a="open" data-v="${i.id}"><td>${link(i.id)}</td><td>${esc(i.title)} <span class="type">${i.type}</span></td><td><div class="row wrap">${statusChip(i)}${owedChip(i)}</div></td><td>${prio(i.prio)}</td>
+    ${list.map(i => `<tr class="clickrow" data-a="open" data-v="${i.id}"><td>${link(i.id)}</td><td>${esc(i.title)} ${typeBadge(i)} ${labelsOf(i)}<div class="ptag">${ancestors(i).reverse().map(a => esc(a.title)).join(' › ')}</div></td><td><div class="row wrap">${statusChip(i)}${owedChip(i)}</div></td><td>${prio(i.prio)}</td>
       <td>${i.lead ? `<div>${esc(i.lead)}</div>${run(i.run, i.age)}` : '<span class="muted">Unclaimed</span>'}</td><td>${unresolved(i).map(b => link(b)).join(', ') || '<span class="muted">—</span>'}</td><td class="muted">${i.last} ago</td></tr>`).join('') || '<tr><td colspan="7" class="muted">No items match.</td></tr>'}
   </tbody></table></div>`;
+  const trow = (i, depth) => { const c = isContainer(i), r = c ? rollup(i.id) : null;
+    return `<li><div class="trow ${c ? 'cont' : ''}" aria-level="${depth}"><div class="row" style="min-width:0">${typeBadge(i)}${link(i.id)}<a href="#" data-a="open" data-v="${i.id}" style="color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(i.title)}</a>${labelsOf(i)}</div>
+      ${c ? `<div><div class="bar-mini" role="img" aria-label="${r.done} of ${r.n} done"><i style="width:${r.n ? r.done/r.n*100 : 0}%;background:var(--ok)"></i><i style="width:${r.n ? r.active/r.n*100 : 0}%;background:var(--violet)"></i></div></div><div class="src">${r.done}/${r.n} done${r.blocked ? ` · <span style="color:var(--bad)">${r.blocked} blocked</span>` : ''}</div>`
+          : `<div class="row">${statusChip(i)}</div><div>${i.lead ? run(i.run, i.age) : '<span class="src">unclaimed</span>'}</div>`}</div>
+      ${childrenOf(i.id).filter(inScope).length ? `<ul class="tree">${childrenOf(i.id).filter(inScope).sort((a,b) => isContainer(b) - isContainer(a)).map(x => trow(x, depth+1)).join('')}</ul>` : ''}</li>`; };
+  const roots = items.filter(i => inScope(i) && !i.parent);
+  const tree = `<div class="card pad">
+      ${roots.filter(i => i.type==='Epic').length ? `<div class="tgroup">Epics</div><ul class="tree">${roots.filter(i => i.type==='Epic').map(i => trow(i,1)).join('')}</ul>` : ''}
+      ${roots.filter(i => isContainer(i) && i.type!=='Epic').length ? `<div class="tgroup">Features not in an epic</div><ul class="tree">${roots.filter(i => isContainer(i) && i.type!=='Epic').map(i => trow(i,1)).join('')}</ul>` : ''}
+      ${roots.filter(i => !isContainer(i)).length ? `<div class="tgroup">No parent</div><ul class="tree">${roots.filter(i => !isContainer(i)).map(i => trow(i,1)).join('')}</ul>` : ''}
+      <div class="src" style="margin-top:10px">Parent = what an item belongs to (one at most). Labels group loosely across the tree. Neither one blocks; only <b>blocks</b> links do.</div></div>`;
+  const tset = typesFor(S.scope === 'all' ? 'RCP' : S.scope);
   return `<div class="row" style="justify-content:space-between;margin-bottom:2px"><h1>Work${scopePill()}</h1>
-      <div class="seg" role="group" aria-label="Layout"><button data-a="mode" data-v="board" aria-pressed="${S.workMode==='board'}">Board</button><button data-a="mode" data-v="list" aria-pressed="${S.workMode==='list'}">List</button></div></div>
+      <div class="seg" role="group" aria-label="Layout"><button data-a="mode" data-v="board" aria-pressed="${S.workMode==='board'}">Board</button><button data-a="mode" data-v="list" aria-pressed="${S.workMode==='list'}">List</button><button data-a="mode" data-v="tree" aria-pressed="${S.workMode==='tree'}">Structure</button></div></div>
     <div class="sub">Inbox → <b>Planning</b> → Ready → In progress → Review → Done. Agents can only claim work from Ready. “Blocked” comes from unresolved <b>blocks</b> links only.</div>
     <div class="filters">
+      <label class="sr" for="typesel">Item type</label><select id="typesel" data-a="typef"><option value="all">All types</option>${Object.entries(tset).filter(([,t]) => !t.container).map(([k,t]) => `<option value="${k}" ${S.typeF===k?'selected':''}>${t.icon} ${k}</option>`).join('')}</select>
       <span role="group" aria-label="Saved filters" class="row wrap" style="gap:6px">${Object.entries(FILTERS).map(([k,f]) => `<button class="fchip" data-a="filter" data-v="${k}" aria-pressed="${S.filter===k}">${f[0]} <b>${items.filter(i => inProj(i) && f[1](i)).length}</b></button>`).join('')}</span>
-      ${FILTERS[S.filter][2] ? `<span class="src" style="margin-left:auto" title="The same query agents send over MCP">Agent query: <span class="mono">${FILTERS[S.filter][2]}${S.scope!=='all' ? ' project:'+S.scope : ''}</span></span>` : ''}
+      ${FILTERS[S.filter][2] ? `<span class="src" style="margin-left:auto" title="The same query agents send over MCP">Agent query: <span class="mono">${FILTERS[S.filter][2]}${S.typeF!=='all' ? ' type:'+S.typeF : ''}${S.scope!=='all' ? ' project:'+S.scope : ''}</span></span>` : ''}
     </div>
-    ${S.workMode==='board' ? `<div class="board">${cols.map(colHtml).join('')}</div>` : table}`;
+    ${S.workMode==='board' ? `<div class="board">${cols.map(colHtml).join('')}</div>` : S.workMode==='tree' ? tree : table}`;
 };
 
 /* ---------- Ticket ---------- */
@@ -823,13 +878,13 @@ V.ticket = () => {
   const closedNote = i.status==='done' ? (i.closedBy==='owner' ? prov('owner','Closed after owner approval') : prov('agent','Closed by agent completion')) : '';
   const tabs = [['progress', `Progress${d.steps.length ? ` <span class="muted">${done}/${d.steps.length}</span>` : ''}`], ['evidence', `Evidence <span class="muted">${d.evidence.length}</span>`], ['activity','Activity']];
   const planningCard = () => { const req = reqDocs(i), miss = missingDocs(i);
-    return `<div class="card pad" style="border-color:var(--teal)"><div class="row wrap" style="justify-content:space-between"><h3 style="margin:0">Definition of ready · ${P[i.proj].short}</h3><span class="src">${i.type} in this project needs ${req.length ? req.join(', ') : 'no planning docs'} · ${P[i.proj].readyGate === 'agent' ? 'agent may move to Ready' : 'owner moves to Ready'}</span></div>
+    return `<div class="card pad" style="border-color:var(--teal)"><div class="row wrap" style="justify-content:space-between"><h3 style="margin:0">Definition of ready · ${P[i.proj].short}</h3><span class="src">Project default for ${i.type}: ${req.length ? req.join(', ') : 'no planning docs'} · ${P[i.proj].readyGate === 'agent' ? 'agent may move to Ready' : 'owner moves to Ready'}</span></div>
       ${req.map(d => { const st = (i.planning || {})[d] || 'none'; return `<div class="lrow"><span class="pdoc pd-${st}" style="min-width:58px">${PD[st][0]} ${d}</span><span class="grow">${PD[st][1]}</span>${st==='review' && owes(i)==='review' ? `<button class="btn sm" data-a="review" data-v="${i.id}">Open review</button>` : ''}</div>`; }).join('')}
-      <div class="row wrap" style="margin-top:8px"><button class="btn sm ${miss.length ? '' : 'primary'}" data-a="promote" data-v="${i.id}" ${miss.length ? 'disabled' : ''}>${I.promote} Move to Ready</button><span class="src grow">${miss.length ? `Waiting on ${miss.join(', ')}. Agents can write planning docs now, but can't claim the build until it's Ready.` : P[i.proj].readyGate === 'agent' ? 'Every required doc is approved. This project lets the lead agent move it to Ready; you can also do it now.' : 'Every required doc is approved. This project needs you to move it to Ready.'}</span></div></div>`; };
+      <div class="row wrap" style="margin-top:8px"><button class="btn sm ${miss.length ? '' : 'primary'}" data-a="promote" data-v="${i.id}">${I.promote} Move to Ready</button><span class="src grow">${miss.length ? `Missing ${miss.join(', ')}. The tracker records this but doesn't block it: your repo's agent workflow decides whether that's acceptable. Moving anyway is logged.` : P[i.proj].readyGate === 'agent' ? 'Every required doc is approved. This project lets the lead agent move it to Ready; you can also do it now.' : 'Every required doc is approved. This project needs you to move it to Ready.'}</span></div></div>`; };
   return `
   ${!inScope(i) ? `<div class="callout row wrap" style="margin-bottom:12px"><span class="grow">${i.id} belongs to <b>${P[i.proj].short}</b>, outside the project you're viewing.</span><button class="btn sm" data-a="scope" data-v="${i.proj}">Switch to ${P[i.proj].short}</button></div>` : ''}
   <div class="tk-head"><div class="grow">
-    <div class="row wrap"><span class="mono muted">${i.id}</span><span class="type">${i.type}</span>${i.parent ? `<span class="muted">in</span> ${link(i.parent)} <span class="muted">${esc(byId[i.parent].title)}</span>` : ''}${i.imported ? '<span class="chip c-gray">Imported from Jira</span>' : ''}</div>
+    <div class="row wrap"><span class="mono muted">${i.id}</span>${typeBadge(i)}${ancestors(i).length ? `<span class="muted">in</span> ${ancestors(i).map(a => `${link(a.id)} <span class="muted">${typeOf(a).icon} ${esc(a.title)}</span>`).join(' <span class="muted">›</span> ')}` : (isContainer(i) ? (i.type === 'Epic' ? '' : '<span class="src">not in an epic</span>') : '<span class="src">no parent</span>')}${labelsOf(i)}${i.imported ? '<span class="chip c-gray">Imported from Jira</span>' : ''}</div>
     <h1 style="margin-top:4px">${esc(i.title)}</h1>
     <div class="row wrap" style="margin-top:6px">${statusChip(i)}${blockedChip(i)}${closedNote}
       <label class="row" style="gap:4px"><span class="src">Priority</span><select data-a="prio" aria-label="Priority">${[1,2,3].map(n => `<option value="${n}" ${i.prio===n?'selected':''}>P${n}</option>`).join('')}</select></label>
@@ -843,12 +898,15 @@ V.ticket = () => {
   ${i.question && i.question.answer ? `<div class="callout ok" style="margin-bottom:12px">You answered: “${esc(i.question.answer)}”. Waiting for ${esc(i.question.by)} to read it.</div>` : ''}
   <div class="grid2"><div class="stack">
     ${i.status === 'planning' ? planningCard() : ''}
+    ${isContainer(i) ? (() => { const r = rollup(i.id), kids = childrenOf(i.id); return `<div class="card pad"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Contains · ${kids.length} direct, ${r.n} work items in total</h3><span class="src">${r.done}/${r.n} done${r.blocked ? ` · ${r.blocked} blocked` : ''}</span></div>
+      <div class="bar-mini" style="margin:8px 0" role="img" aria-label="${r.done} of ${r.n} done"><i style="width:${r.n ? r.done/r.n*100 : 0}%;background:var(--ok)"></i><i style="width:${r.n ? r.active/r.n*100 : 0}%;background:var(--violet)"></i></div>
+      ${kids.map(k => `<div class="lrow">${typeBadge(k)}${link(k.id)}${projTag(k.id)}<span class="grow" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(k.title)}</span>${isContainer(k) ? `<span class="src">${rollup(k.id).done}/${rollup(k.id).n} done</span>` : statusChip(k)}</div>`).join('') || '<div class="muted">Empty. Set this as the parent of items to group them here.</div>'}</div>`; })() : ''}
     <div class="card pad"><h3>Outcome</h3><div>${d.outcome ? esc(d.outcome) : '<span class="muted">No outcome written yet.</span>'}</div>
       ${d.acceptance.length ? `<h3 style="margin-top:14px">Acceptance</h3>${d.acceptance.map(([t,e]) => `<div class="lrow"><span class="sicon ${e ? 's-done' : 's-planned'}" aria-hidden="true">${e ? '✓' : ''}</span><span class="grow">${esc(t)}</span>${e ? `<span class="src">${esc(e)}</span>` : '<span class="chip c-info">No evidence</span>'}</div>`).join('')}` : ''}</div>
     <div class="card pad">
       <div class="tabs" role="tablist" aria-label="Item detail">${tabs.map(([k,l]) => `<button role="tab" id="tab-${k}" aria-controls="panel" data-a="tab" data-v="${k}" aria-selected="${tab===k}" tabindex="${tab===k ? 0 : -1}">${l}</button>`).join('')}</div>
       <div role="tabpanel" id="panel" aria-labelledby="tab-${tab}">
-      ${tab==='progress' ? (d.steps.length ? `<div class="row" style="justify-content:space-between;margin-bottom:6px"><span class="src">Ticket plan v${d.planVer} · published by the lead · steps are not work items</span>${d.history ? '<button class="btn ghost sm" data-a="planhistory">Plan history</button>' : ''}</div>${steps}` : '<div class="muted">No plan yet. The lead agent publishes one when it claims the item.</div>')
+      ${tab==='progress' ? (d.steps.length ? `<div class="row" style="justify-content:space-between;margin-bottom:6px"><span class="src">Ticket plan v${d.planVer} · published by the lead · steps are not work items</span>${d.history ? '<button class="btn ghost sm" data-a="planhistory">Plan history</button>' : ''}</div>${steps}` : (isContainer(i) ? '<div class="muted">Containers have no ticket plan. Progress rolls up from the items inside.</div>' : '<div class="muted">No plan yet. The lead agent publishes one when it claims the item.</div>'))
        : tab==='evidence' ? `<div class="src" style="margin-bottom:6px">Each row says who or what produced it. Only ${prov('owner')} counts as human approval.</div>${evid || '<div class="muted">No evidence linked.</div>'}
           ${i.closedBy==='agent' && !S.ackEvidence[i.id] ? `<div class="row wrap" style="margin-top:10px"><button class="btn sm" data-a="ack" data-v="${i.id}">Accept without evidence</button><button class="btn sm" data-a="reopen" data-v="${i.id}">Reopen</button></div>` : ''}`
        : activity.map(a => `<div class="act"><span class="src mono">${a[0]}</span><span>${esc(a[1])}</span></div>`).join('')}
@@ -857,7 +915,7 @@ V.ticket = () => {
   </div>
   <div class="stack">
     <div class="card pad"><h3>Lead and runs</h3>
-      ${d.runs.map(r => `<div class="lrow" style="align-items:flex-start;padding:6px 0"><div class="grow"><div class="row wrap"><b>${esc(r.who)}</b>${r.lead ? '<span class="chip c-gray">lead</span>' : ''}${run(r.r)}</div><div class="src">${esc(r.what)}</div></div></div>`).join('') || '<div class="muted">Unclaimed. The next agent that asks for ready work can claim it.</div>'}
+      ${d.runs.map(r => `<div class="lrow" style="align-items:flex-start;padding:6px 0"><div class="grow"><div class="row wrap"><b>${esc(r.who)}</b>${r.lead ? '<span class="chip c-gray">lead</span>' : ''}${run(r.r)}</div><div class="src">${esc(r.what)}</div></div></div>`).join('') || (isContainer(i) ? '<div class="muted">Containers are not claimed. Agents claim the work items inside.</div>' : '<div class="muted">Unclaimed. The next agent that asks for ready work can claim it.</div>')}
       ${d.conflict && i.lead ? `<div class="callout warn" style="margin-top:6px">${esc(d.conflict)}</div>` : ''}
       ${d.error && i.lead ? `<div class="err">${esc(d.error)}</div>` : ''}
       ${i.run==='stale' && i.lead ? `<div class="row wrap" style="margin-top:8px"><button class="btn sm" data-a="release" data-v="${i.id}">Release lead claim…</button></div><div class="src" style="margin-top:4px">Or wait: the lease expires on its own at 11:13.</div>` : ''}
@@ -962,13 +1020,12 @@ V.graph = () => {
       ${deps.map(x => x.start ? (D(x.start) <= newEnd ? `<div class="lrow">${link(x.id)}<span class="chip c-bad">conflict</span><span class="src">starts ${fmt(D(x.start))}</span></div>` : `<div class="lrow">${link(x.id)}<span class="chip c-ok">ok</span><span class="src">starts ${fmt(D(x.start))}</span></div>`) : `<div class="lrow">${link(x.id)}<span class="chip c-gray">unknown</span><span class="src">no dates</span></div>`).join('') || '<div class="src">Nothing downstream.</div>'}`;
   } else impact = `<div class="src">${sel} has no planned end, so the impact is unknown.</div>`;
   return `<div class="row" style="justify-content:space-between"><h1>Dependencies${scopePill()}</h1>
-      <div class="row"><button class="fchip" data-a="grel" aria-pressed="${S.gRel}">Show “relates”</button><button class="fchip" data-a="ghier" aria-pressed="${S.gHier}">Show parent epic</button></div></div>
+      <div class="row"><button class="fchip" data-a="grel" aria-pressed="${S.gRel}">Show “relates”</button></div></div>
     <div class="sub">Arrows mean “blocks”. Select an item to see what it waits on (red) and what finishing it would free (green). Items from other projects that block or depend on this one appear dashed.</div>
     <div class="grid2"><div class="card" style="overflow:auto">
       <svg viewBox="0 0 760 500" width="100%" style="min-width:620px;display:block" role="group" aria-label="Dependency graph">
         <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" fill="var(--ink-3)"/></marker>
         <marker id="ahr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" fill="var(--bad)"/></marker></defs>
-        ${S.gHier && S.scope !== 'DOC' ? `<rect x="14" y="160" width="450" height="330" rx="12" fill="none" stroke="var(--ctl)" stroke-dasharray="2 4"/><text x="26" y="154" font-size="11.5" fill="var(--ink-3)">RCP-1 Meal planning MVP · parent grouping, never blocks</text>` : ''}
         ${[...cyc].some(id => shown.has(id)) ? `<rect x="510" y="40" width="220" height="300" rx="12" fill="var(--bad-soft)" opacity=".55"/><text x="522" y="62" font-size="12" fill="var(--bad)" font-weight="700">Cycle in imported data</text>`
                    : `<text x="522" y="62" font-size="12" fill="var(--ok)" font-weight="700">✓ No cycles</text>`}
         ${edges.map(([a,b]) => { const hot = chain.has(a) && (chain.has(b) || b===sel), c = cyc.has(a) && cyc.has(b); return `<path class="edge ${hot?'hot':''} ${c?'cyc':''}" d="${path(a,b)}" marker-end="url(#${hot||c?'ahr':'ah'})"/>`; }).join('')}
@@ -998,8 +1055,8 @@ V.graph = () => {
 V.timeline = () => {
   const start = D('2026-11-02'), days = 35;
   const pct = d => ((d - start) / 864e5 / days * 100);
-  const rows = items.filter(i => i.start && i.type !== 'Epic' && inScope(i)).sort((a,b) => D(a.start) - D(b.start));
-  const undated = items.filter(i => !i.start && i.type !== 'Epic' && isOpen(i) && inScope(i));
+  const rows = items.filter(i => i.start && !isContainer(i) && inScope(i)).sort((a,b) => D(a.start) - D(b.start));
+  const undated = items.filter(i => !i.start && !isContainer(i) && isOpen(i) && inScope(i));
   const fcProj = S.scope === 'all' ? 'RCP' : S.scope, have = fcProj === 'RCP' ? 2 : 0;
   const endX = s => pct(new Date(D(s).getTime() + 864e5)); // bars include their end day
   const nowX = pct(NOW);
@@ -1087,13 +1144,13 @@ V.connections = () => {
 
 /* ---------- Projects (O10, O11) ---------- */
 V.projects = () => `<h1>Projects</h1><div class="sub">Choose a project to scope Needs you, Work, Reviews, Dependencies, Timeline and Agents to it. You can also switch from the <b>Project</b> menu at the top of the sidebar. Each project sets its own definition of ready (which planning docs each item type needs, so ceremony fits the risk), who may move items to Ready, and its approval policy.</div>
-  <div class="card">${Object.values(P).map(p => { const its = items.filter(i => i.proj===p.key && i.type!=='Epic'), c = s => its.filter(i => i.status===s).length, n = its.length; return `
-    <div class="proj-card"><div class="row"><span class="sw" style="background:${p.color};width:11px;height:11px"></span><div><a href="#" data-a="scope" data-v="${p.key}" style="color:var(--ink)"><b>${p.name}</b></a> ${S.scope===p.key ? '<span class="chip c-info">Current</span>' : ''}<div class="src"><span class="mono">${p.key}</span> · ${n} items · ${p.docs} documents · ${decisionsIn(p.key).length} decision${decisionsIn(p.key).length===1?'':'s'} owed</div><div class="src">Planning docs before Ready: ${rulesText(p)}</div></div></div>
+  <div class="card">${Object.values(P).map(p => { const its = items.filter(i => i.proj===p.key && !isContainer(i)), c = s => its.filter(i => i.status===s).length, n = its.length; return `
+    <div class="proj-card"><div class="row"><span class="sw" style="background:${p.color};width:11px;height:11px"></span><div><a href="#" data-a="scope" data-v="${p.key}" style="color:var(--ink)"><b>${p.name}</b></a> ${S.scope===p.key ? '<span class="chip c-info">Current</span>' : ''}<div class="src"><span class="mono">${p.key}</span> · ${n} items · ${p.docs} documents · ${decisionsIn(p.key).length} decision${decisionsIn(p.key).length===1?'':'s'} owed</div><div class="src">Types: ${Object.entries(typesFor(p.key)).map(([k,t]) => `${t.icon} ${k}`).join(' · ')}</div></div></div>
     <div><label class="sr" for="pol-${p.key}">Approval policy for ${p.name}</label><select id="pol-${p.key}" data-a="policy" data-v="${p.key}"><option value="none" ${p.policy==='none'?'selected':''}>No owner gate</option><option value="gated" ${p.policy==='gated'?'selected':''}>Owner gates before Done</option></select>
       <div class="src" style="margin-top:3px">${p.policy==='gated' ? p.gates.join(' → ') : 'Agent completion closes items'}</div>
       <label class="sr" for="rg-${p.key}">Who moves items to Ready in ${p.name}</label><select id="rg-${p.key}" data-a="readygate" data-v="${p.key}" style="margin-top:6px"><option value="owner" ${p.readyGate==='owner'?'selected':''}>Owner moves to Ready</option><option value="agent" ${p.readyGate==='agent'?'selected':''}>Agent may move to Ready</option></select></div>
     <div><div class="bar-mini" role="img" aria-label="${c('done')} done, ${c('review')} in review, ${c('progress')} in progress, ${c('ready')} ready">${[['done','var(--ok)'],['review','var(--warn)'],['progress','var(--violet)'],['ready','var(--info)'],['planning','var(--teal)']].map(([s,col]) => `<i style="width:${n ? c(s)/n*100 : 0}%;background:${col}"></i>`).join('')}</div><div class="src" style="margin-top:3px">${c('done')} done · ${c('progress')} active · ${c('review')} review · ${c('planning')} planning</div></div>
-    <div class="row"><button class="btn sm ${S.scope===p.key ? '' : 'primary'}" data-a="scope" data-v="${p.key}">${S.scope===p.key ? 'Viewing' : 'Switch to'}</button><button class="btn sm" data-a="delproj" data-v="${p.key}" style="color:var(--bad)">Delete…</button></div></div>`; }).join('')}</div>
+    <div class="row"><button class="btn sm ${S.scope===p.key ? '' : 'primary'}" data-a="scope" data-v="${p.key}">${S.scope===p.key ? 'Viewing' : 'Switch to'}</button><button class="btn sm" data-a="types" data-v="${p.key}">Item types…</button><button class="btn sm" data-a="delproj" data-v="${p.key}" style="color:var(--bad)">Delete…</button></div></div>`; }).join('')}</div>
   <div class="src" style="margin-top:10px">Deleting a project removes its work records and local documents together. Backups follow their own retention policy (14 days).</div>`;
 
 /* =====================================================================
@@ -1128,6 +1185,22 @@ function modalHtml(){
       <div class="src">If codex comes back, it gets a conflict response with the current state.</div>`,
       `<button class="btn" data-a="close">Cancel</button><button class="btn danger" data-a="confirmrelease" data-v="${m.id}">Release claim</button>`);
   }
+  if (m.type === 'types'){
+    const pr = P[m.key], ts = typesFor(m.key), nt = S.newType;
+    const DOCS3 = ['PRD','UX','TDD'];
+    return wrap(`Item types · ${esc(pr.short)}`, `<p class="src" style="margin-top:0">Containers can be parents (Epic → Feature → work item). Planning-doc defaults are shown on Planning items and returned to agents over MCP. They're <b>defaults, not rules</b>: your repo's agent workflow decides when to skip them.</p>
+      <table class="typetbl"><thead><tr><th scope="col">Type</th><th scope="col">Kind</th><th scope="col">Planning docs (default)</th><th scope="col">Source</th></tr></thead><tbody>
+      ${Object.entries(ts).map(([k,t]) => `<tr><td><span class="ti">${t.icon}</span> <b>${k}</b><div class="src">${esc(t.desc || '')}</div></td><td class="src">${t.container ? 'Container' : 'Work item'}</td>
+        <td>${DOCS3.map(d => `<label class="row" style="display:inline-flex;gap:3px;margin-right:6px;font-size:12px"><input type="checkbox" data-a="ruledoc" data-v="${m.key}|${k}|${d}" ${(pr.readyRules[k] || []).includes(d) ? 'checked' : ''}>${d}</label>`).join('')}</td>
+        <td class="src">${TYPES[k] ? 'Built-in' : 'Custom'}</td></tr>`).join('')}</tbody></table>
+      <h3 style="margin-top:14px">Add a custom type</h3>
+      <div class="row wrap" style="align-items:flex-end">
+        <label style="flex:1;min-width:140px"><span class="f" style="margin-top:0">Name</span><input class="input" id="nt-name" data-t="nt-name" value="${esc(S.text['nt-name'] || '')}" placeholder="e.g. Research, Chore, Experiment"></label>
+        <label style="width:70px"><span class="f" style="margin-top:0">Icon</span><input class="input" id="nt-icon" data-t="nt-icon" maxlength="2" value="${esc(S.text['nt-icon'] || '')}" placeholder="◇"></label>
+        <label class="row" style="gap:4px;padding-bottom:6px"><input type="checkbox" data-a="ntcont" ${nt.container ? 'checked' : ''}> Can contain items</label>
+        <button class="btn primary" data-a="addtype" data-v="${m.key}">Add type</button></div>`,
+      '<button class="btn" data-a="close">Done</button>');
+  }
   if (m.type === 'delete'){
     const p = P[m.key], n = items.filter(i => i.proj===m.key).length, ok = (m.typed || '') === m.key;
     return wrap(`Delete ${esc(p.name)}?`, `<p style="margin-top:0">This permanently removes <b>${n} work items</b>, their plans, runs and history, and <b>${p.docs} local documents</b>. Agents will get “not found” for these IDs.</p>
@@ -1158,8 +1231,9 @@ function render(){
   $('#themebtn').title = `Theme: ${S.theme}`;
   $('#modal').innerHTML = modalHtml();
   if (S.modal){
-    const f = S.modal.type==='palette' ? $('#palq') : S.modal.type==='delete' ? $('#deltype') : $('.dlg footer .btn');
-    if (f){ f.focus(); if (typeof f.value === 'string' && f.setSelectionRange) f.setSelectionRange(f.value.length, f.value.length); }
+    const keep = S.modal.type==='types' && document.activeElement && document.activeElement.closest && document.activeElement.closest('.dlg') ? null : 1;
+    const f = S.modal.type==='palette' ? $('#palq') : S.modal.type==='delete' ? $('#deltype') : S.modal.type==='types' ? ((k && [...document.querySelectorAll('.dlg [data-a],.dlg [data-t]')].find(e => fkey(e) === k)) || $('.dlg [data-a=close]')) : $('.dlg footer .btn');
+    if (f){ f.focus(); if (f.type !== 'checkbox' && typeof f.value === 'string' && f.setSelectionRange) try { f.setSelectionRange(f.value.length, f.value.length); } catch(_){} }
     return;
   }
   if (k){
@@ -1184,7 +1258,7 @@ const ACT = {
   projwork: v => { S.scope = v; go('work', {filter:'all'}); },
   scope: v => { S.scope = v; S.scopeOpen = false; S.kpi = 'all'; if (S.view === 'projects') go('attention'); else render(); toast(v === 'all' ? 'Showing all projects.' : `Showing only ${P[v].short}.`); },
   scopemenu: () => { S.scopeOpen = !S.scopeOpen; render(); if (S.scopeOpen) setTimeout(() => { const b = document.querySelector('.scopemenu [aria-checked=true]'); if (b) b.focus(); }, 0); },
-  promote: v => { const i = byId[v]; if (missingDocs(i).length) return; i.status = 'ready'; logActivity(v, 'Owner moved the item from Planning to Ready');
+  promote: v => { const i = byId[v], miss = missingDocs(i); i.status = 'ready'; logActivity(v, miss.length ? `Owner moved the item to Ready without ${miss.join(', ')}` : 'Owner moved the item from Planning to Ready');
     undoable(v, `${v} moved to Ready. Agents can claim it now.`, () => { i.status = 'planning'; }); },
   toplanning: v => { const i = byId[v]; i.status = 'planning'; i.planning = i.planning || {}; logActivity(v, 'Owner moved the item from Inbox to Planning');
     undoable(v, `${v} moved to Planning.`, () => { i.status = 'inbox'; }); },
@@ -1249,13 +1323,21 @@ const ACT = {
   gfocus: v => { if (!GN[v]){ toast(`${v} has no blocking links to show.`); return; } go('graph', {graphSel:v}); },
   gfix: v => go('graph', {graphSel:v}),
   grel: () => { S.gRel = !S.gRel; if (!S.gRel && S.graphSel === 'RCP-17') S.graphSel = 'RCP-21'; render(); },
-  ghier: () => { S.gHier = !S.gHier; render(); },
   slip: v => { S.slip = +v; render(); },
   rmlink: v => { const [b, a] = v.split('>'); const i = byId[a], prev = [...i.blockedBy]; i.blockedBy = i.blockedBy.filter(x => x !== b); logActivity(a, `Owner removed link “${b} blocks ${a}”`);
     undoable(a, `Removed “${b} blocks ${a}”. Cycle resolved.`, () => { i.blockedBy = prev; }); },
   fc: () => { S.fcPreview = !S.fcPreview; render(); },
   snippet: v => { S.snippet = v; render(); },
   copy: () => { const t = $('#snip').textContent; const p = navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject(); p.then(() => toast('Copied to clipboard.'), () => toast('Copy is blocked here. Select the text instead.')); },
+  types: v => { S.modal = {type:'types', key:v}; render(); },
+  ntcont: () => { S.newType.container = !S.newType.container; render(); },
+  ruledoc: v => { const [k, t, d] = v.split('|'), r = P[k].readyRules[t] = P[k].readyRules[t] || []; const n = r.indexOf(d); if (n >= 0) r.splice(n, 1); else r.push(d); render(); },
+  addtype: v => { const name = (S.text['nt-name'] || '').trim().replace(/\s+/g, ' '), icon = (S.text['nt-icon'] || '').trim() || '◇';
+    if (!name){ toast('Give the type a name.'); return; }
+    if (typesFor(v)[name]){ toast(`${name} already exists in ${P[v].short}.`); return; }
+    P[v].customTypes[name] = {icon, container:S.newType.container, desc:'Custom type'}; P[v].readyRules[name] = [];
+    S.text['nt-name'] = ''; S.text['nt-icon'] = ''; S.newType = {name:'', icon:'', container:false, docs:{}}; render();
+    toast(`Added ${icon} ${name} to ${P[v].short}. Agents see it in the type list over MCP.`, () => { delete P[v].customTypes[name]; delete P[v].readyRules[name]; render(); }); },
   delproj: v => { S.modal = {type:'delete', key:v, typed:''}; render(); },
   confirmdel: () => { const k = S.modal.key; S.modal = null; render(); toast(`Prototype only: this would delete ${P[k].name} and its documents.`); },
   theme: () => { S.theme = {system:'light', light:'dark', dark:'system'}[S.theme]; const a = $('#app'); if (S.theme==='system') a.removeAttribute('data-theme'); else a.setAttribute('data-theme', S.theme); render(); toast(`Theme: ${S.theme}`); },
@@ -1285,6 +1367,7 @@ document.addEventListener('click', e => {
 document.addEventListener('change', e => {
   const el = e.target;
   if (el.dataset.a === 'prio'){ const i = byId[S.ticket], old = i.prio; i.prio = +el.value; logActivity(i.id, `Owner changed priority P${old} → P${i.prio}`); undoable(i.id, `Priority set to P${i.prio}. Agents see it on their next query.`, () => { i.prio = old; }); }
+  if (el.dataset.a === 'typef'){ S.typeF = el.value; render(); }
   if (el.dataset.a === 'readygate'){ const p = P[el.dataset.v], old = p.readyGate; p.readyGate = el.value; render(); toast(`${p.short}: ${p.readyGate === 'agent' ? 'the lead agent may move items to Ready once planning docs are approved' : 'only you move items to Ready'}.`, () => { p.readyGate = old; render(); }); }
   if (el.dataset.a === 'policy'){ const p = P[el.dataset.v], old = p.policy, oldG = [...p.gates]; p.policy = el.value; if (p.policy==='gated' && !p.gates.length) p.gates = ['Release walkthrough'];
     render(); toast(`${p.name}: ${p.policy==='gated' ? 'owner gate required before Done' : 'agent completion now closes items'}.`, () => { p.policy = old; p.gates = oldG; render(); }); }
@@ -1338,6 +1421,9 @@ if (/selftest/.test(location.search)){
   Object.keys(GN).forEach(id => tryR('graph/'+id, () => { S.view = 'graph'; S.graphSel = id; }));
   Object.keys(REVIEWS).forEach(id => tryR('review/'+id, () => { S.view = 'reviews'; S.review = id; S.ver = 1; }));
   ['palette','plan','release','delete'].forEach(m => tryR('modal/'+m, () => { S.view = 'ticket'; S.ticket = 'RCP-14'; S.modal = m==='delete' ? {type:m, key:'RCP'} : {type:m, id:'RCP-15', q:'rcp'}; }));
+  ['board','list','tree'].forEach(m => ['all','RCP','DOC'].forEach(sc => tryR('work/'+m+'/'+sc, () => { S.modal = null; S.view = 'work'; S.workMode = m; S.scope = sc; })));
+  tryR('types', () => { S.view = 'projects'; S.scope = 'all'; S.modal = {type:'types', key:'RCP'}; });
+  ['RCP-1','RCP-30','RCP-31','DOC-10','RCP-25','RCP-20'].forEach(id => tryR('ticket/'+id, () => { S.modal = null; S.view = 'ticket'; S.ticket = id; S.tab = null; }));
   tryR('fc', () => { S.modal = null; S.view = 'timeline'; S.fcPreview = true; });
   ['work'].forEach(v => Object.keys(FILTERS).forEach(f => tryR('filter/'+f, () => { S.view = v; S.filter = f; S.workMode = 'list'; })));
   S.modal = null; S.view = 'attention'; S.filter = 'all'; S.scope = 'all'; S.workMode = 'board'; S.fcPreview = false; render();

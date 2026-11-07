@@ -1,6 +1,6 @@
 # UI/UX design — MVP V1 human interface
 
-Status: design proposal, revision 3, 2026-11-06. Inputs: [requirements draft](REQUIREMENTS_DRAFT.md), [Jira research](JIRA_RESEARCH.md).
+Status: design proposal, revision 4, 2026-11-06. Inputs: [requirements draft](REQUIREMENTS_DRAFT.md), [Jira research](JIRA_RESEARCH.md).
 
 Clickable prototype: [`design/prototype.html`](../design/prototype.html). It is a single file with no build step and no network requests, and all data is disposable sample work (O09). Open it directly in a browser.
 
@@ -59,6 +59,46 @@ In revision 2, the work pages silently showed every project, and the Projects pa
 - **Search covers all projects** and shows each result's project.
 - **Every visit starts at All projects** (owner decision), so you never come back to a page that is silently scoped to one project.
 
+## Item types and structure
+
+**Three separate relationships**, so none of them is overloaded:
+
+| Relationship | Rule | Used for |
+| --- | --- | --- |
+| **Parent** | At most one. Only *container* types can be parents. | What an item belongs to. Progress rolls up through it. |
+| **Labels** | Any number, free-form (`#mobile`, `#regression`) | Loose grouping across the tree |
+| **Blocks** | Directed dependency (unchanged) | The only thing that makes work wait |
+
+**Built-in types**, available in every project:
+
+| Type | Kind | Meaning |
+| --- | --- | --- |
+| ◆ Epic | Container | Large outcome. Groups features and items. |
+| ▣ Feature | Container | A product capability. Can sit **under an epic or stand alone**. |
+| ● Story | Work item | User-facing change |
+| ■ Task | Work item | Technical or chore work |
+| ✕ Bug | Work item | Defect fix |
+| ✎ Design | Work item | A design deliverable (flows, mockups, specs), reviewed as an artifact |
+
+**Custom types** are added per project from *Projects → Item types…*. Each has a name, an icon, a "can contain items" flag, and default planning docs. The sample Recipe App has a custom ⚡ *Spike*. Agents read the type list over MCP, so a new type works for them immediately.
+
+**Typical shapes**, all valid:
+- Epic → Feature → Story: Meal planning MVP → Weekly planner → RCP-12
+- Feature with no epic → items: Pantry → RCP-15, RCP-21, RCP-25 (Design). This covers "in a feature, but not part of an epic".
+- Epic → item directly: RCP-19 sits under the epic, outside any feature.
+- No parent at all: RCP-16, RCP-18, RCP-20
+
+**Where it shows:**
+- *Work → Structure* view: Epics; then Features not in an epic; then No parent. Containers show done/total and blocked counts.
+- Cards: a type badge plus a parent line (▣ Pantry).
+- Tickets: the full ancestry (Shopping list › Meal planning MVP).
+- Container pages: their children, with a rollup.
+- A type filter on Work.
+
+Containers don't appear on the board or timeline and aren't claimed by agents. Their progress comes from the items inside.
+
+**The tracker records rules; it doesn't enforce them.** Planning-doc defaults per type, the Ready gate and per-item exceptions are decided by the agent constitution and workflow in each project's repo. The tracker stores the project's configuration, shows it, and returns it to agents over MCP. When something deviates, it is logged rather than blocked. For example, *Move to Ready* with missing docs works, and the activity log records "moved to Ready without TDD".
+
 ## Screens
 
 ### 1. Needs you (home) — H02, H09
@@ -77,6 +117,7 @@ In revision 2, the work pages silently showed every project, and the Projects pa
   - "Since you looked at 08:30": changes since the owner last visited, each linked to its item.
 
 ### 2. Work — H01, A05
+- **Layouts:** Board · List · **Structure** (the epic/feature tree with rollups). A **type filter** sits next to the saved filters, and custom types appear in it automatically.
 - **Board columns:** Inbox · **Planning** · Ready (*Startable* + collapsible *Waiting on blockers*, shown as ID chips) · In progress · Review · Done (last 7 days).
 - **Planning cards** show the project's required planning docs as small chips: ✓ approved, ◐ in review, ✎ drafting, – not started. Example: "✓ PRD ◐ UX ✎ TDD".
 - **Card contents:**
@@ -97,8 +138,8 @@ In revision 2, the work pages silently showed every project, and the Projects pa
   Otherwise the approval policy is a quiet chip in the header.
 - **Definition of ready card** (Planning items only):
   - Lists each planning doc the project requires, with its state. A doc in review links to its review.
-  - **Move to Ready** stays disabled until every required doc is approved. The card names what's missing ("Waiting on UX, TDD").
-  - The required docs come from the project's rule for this item type. The card says which rule applies ("Story in this project needs PRD, UX, TDD").
+  - **Move to Ready** is always available. If docs are missing, the card names them ("Missing UX, TDD") and says the repo's agent workflow decides whether that's acceptable. Moving anyway is recorded in the activity log.
+  - The listed docs are the project's *default* for this item type. The card says which rule applies ("Story in this project needs PRD, UX, TDD").
   - When everything is approved: in an *owner moves to Ready* project, the item appears in Needs you as a *Move to Ready* decision. In an *agent may move to Ready* project, the lead agent can move it, and the card shows "Agent may move to Ready". You can still move it yourself.
 - **Inbox items** get a *Move to Planning* button.
 - **Default tab:** Review and Done items open on **Evidence**. Everything else opens on **Progress**.
@@ -163,7 +204,8 @@ Shows every run and subagent log entry, with columns for state, item, what it is
 
 ### 9. Projects — O10, O11 (service-wide)
 - **Switch to** sets the project scope and opens that project's Needs you. The current project is marked *Current*. Each row also shows decisions owed.
-- **Definition of ready** per project and item type: which planning docs must be approved before an item can move to Ready. *Ceremony fits the risk.* In the sample, Recipe App (a money-making, ships-to-prod project) needs PRD, UX and TDD for Stories, PRD and TDD for Tasks, and nothing for Bugs. Docs Site (a side project) needs only a PRD for Stories and Tasks, and nothing for Bugs.
+- **Item types…** opens the project's type list: built-in and custom types, whether each is a container, and its default planning docs (editable checkboxes). You can add a custom type there.
+- **Definition of ready** per project and item type (set in *Item types…*): which planning docs must be approved before an item can move to Ready. *Ceremony fits the risk.* In the sample, Recipe App (a money-making, ships-to-prod project) needs PRD, UX and TDD for Stories, PRD and TDD for Tasks, and nothing for Bugs. Docs Site (a side project) needs only a PRD for Stories and Tasks, and nothing for Bugs.
 - **Who moves items to Ready** per project: *Owner moves to Ready*, or *Agent may move to Ready* once the required docs are approved. Like the approval policy, this setting should match the project's agent workflow documents.
 - **Approval policy** per project, changeable inline with Undo.
 - **Status bar** per project, with an accessible text label.
@@ -265,9 +307,16 @@ Every text pair below was measured. All text is at least 4.5:1 and all control b
 | Planning gate | RCP-23 → approve the UX doc in Reviews; Move to Ready stays disabled until the TDD is approved |
 | Planning complete, agent may move it | Docs Site → DOC-9: not an owner decision; the card explains the lead agent may move it, and you can still click *Move to Ready* |
 | Ceremony fits the risk | Projects: compare per-type rules (Recipe App Story: PRD, UX, TDD; Docs Site Bug: none) and switch who moves items to Ready |
-| Starting planning | RCP-20 (Inbox) → *Move to Planning* |
+| Starting planning | RCP-20 (Inbox, custom *Spike* type) → *Move to Planning* |
+| Feature outside an epic | Work → Structure → *Features not in an epic* → Pantry |
+| Custom item type | Projects → Recipe App → *Item types…* → add one; it appears in the Work type filter |
 
-The prototype has a self-check: open it with `?selftest` and it renders every view in each project scope, plus every item, tab, dialog and filter, then reports any errors in the page title. In revision 3, that check passed in headless Edge. A 28-step scripted click-through of the flows above also passed.
+The prototype has a self-check: open it with `?selftest` and it renders every view in each project scope, plus every item, tab, dialog and filter, then reports any errors in the page title. In revision 3, that check passed in headless Edge. A 39-step scripted click-through of the flows above also passed.
+
+## Changes in revision 4 (owner feedback)
+1. **Types:** a type registry with built-in Epic, Feature, Story, Task, Bug and Design, plus custom types per project (e.g. Spike), managed in *Projects → Item types…*.
+2. **Structure:** parent (containers only), labels and blocks are kept separate. Features can stand alone or sit under an epic. Added a *Structure* view, ancestry on tickets, child lists with rollups on container pages, and a type filter.
+3. **Rules are recorded, not enforced:** *Move to Ready* no longer blocks on missing docs. It warns, and logs the deviation.
 
 ## Changes in revision 3 (owner feedback)
 1. **Project scope:**
@@ -315,10 +364,11 @@ The prototype has a self-check: open it with `?selftest` and it renders every vi
 4. **Document previews:** which formats does V1 preview besides Markdown (images, PDF, HTML)?
 5. **Forecast threshold:** the prototype uses 8 completed items with effort values. Confirm the number and the window.
 6. **Releasing a claim:** should the owner be able to release a *live* agent's claim, or only a stale one? The prototype offers it only for stale claims.
-7. **Per-item exceptions:** should an item be able to skip a doc its type normally requires (e.g. a one-line Story), with a recorded reason? Or is the per-type rule enough?
-8. **Rule shape:** are item types (Story, Task, Bug) the right key for planning rules? Or should projects use an explicit size or risk field?
+7. **Features as tags:** the prototype makes a Feature a *parent* (one per item). If an item ever needs to belong to two features at once, that would call for labels or a many-to-many link instead. Is one feature per item enough?
 
 ### Decided (owner, 2026-11-06)
 - **Moving to Ready** doesn't have to be done by the owner. Each project defines that gate; an agent may move an item when the project allows it.
 - **Planning docs** are set per project and can differ by item type. Small changes can skip UX and TDD. High-stakes projects can require all of them. The principle: ceremony fits the risk.
+- **Per-item exceptions and planning rules** are decided by each project's agent constitution and workflow, not enforced by the tracker. The tracker records and displays them.
+- **Item types:** Epic (container), Feature, Story, Task, Bug, Design, plus custom types per project.
 - **Project scope** always starts at *All projects* when the UI loads, so returning to the app never leaves you in an unexpected project.
