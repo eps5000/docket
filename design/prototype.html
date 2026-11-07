@@ -18,6 +18,7 @@
   --ok:#237032; --ok-soft:#e6f4ea; --warn:#9a4705; --warn-soft:#fdf1e2;
   --bad:#c22b2b; --bad-soft:#fdecec; --info:#1864ab; --info-soft:#e7f1fb;
   --violet:#6741d9; --violet-soft:#f0ebff; --gray-soft:#eef0f3; --teal:#0b7285; --teal-soft:#e3f6f8;
+  --t-epic:#7b2fa3; --t-story:#2b7a3b; --t-task:#1c64b9; --t-bug:#c92a2a; --t-fg:#fff;
   --shadow:0 12px 40px rgba(20,25,35,.18);
   --mono:ui-monospace,"Cascadia Code","JetBrains Mono",Consolas,monospace;
   --sans:Inter,"Segoe UI",system-ui,-apple-system,sans-serif;
@@ -27,7 +28,7 @@
   --bg:#0f1115;--panel:#161920;--panel-2:#1c2029;--line:#2a303b;--line-2:#363d4a;--ctl:#6f788a;
   --ink:#e6e9ef;--ink-2:#b8c0cc;--ink-3:#99a2b4;--on-fill:#0f1115;
   --brand:#8ea2ff;--brand-soft:#1d2440;--ok:#5bd06f;--ok-soft:#14281a;--warn:#f0a020;--warn-soft:#2d2210;
-  --bad:#ff7b7b;--bad-soft:#351818;--info:#5cb3f8;--info-soft:#132536;--violet:#a990ff;--violet-soft:#241c3e;--gray-soft:#23272f;--teal:#3bc9db;--teal-soft:#10292d;
+  --bad:#ff7b7b;--bad-soft:#351818;--info:#5cb3f8;--info-soft:#132536;--violet:#a990ff;--violet-soft:#241c3e;--gray-soft:#23272f;--teal:#3bc9db;--teal-soft:#10292d;--t-epic:#d197f0;--t-story:#6fd384;--t-task:#74b8f7;--t-bug:#ff8a8a;--t-fg:#0f1115;
   --shadow:0 12px 40px rgba(0,0,0,.5); color-scheme:dark;
 }
 @media (prefers-color-scheme:dark){
@@ -35,7 +36,7 @@
     --bg:#0f1115;--panel:#161920;--panel-2:#1c2029;--line:#2a303b;--line-2:#363d4a;--ctl:#6f788a;
     --ink:#e6e9ef;--ink-2:#b8c0cc;--ink-3:#99a2b4;--on-fill:#0f1115;
     --brand:#8ea2ff;--brand-soft:#1d2440;--ok:#5bd06f;--ok-soft:#14281a;--warn:#f0a020;--warn-soft:#2d2210;
-    --bad:#ff7b7b;--bad-soft:#351818;--info:#5cb3f8;--info-soft:#132536;--violet:#a990ff;--violet-soft:#241c3e;--gray-soft:#23272f;--teal:#3bc9db;--teal-soft:#10292d;
+    --bad:#ff7b7b;--bad-soft:#351818;--info:#5cb3f8;--info-soft:#132536;--violet:#a990ff;--violet-soft:#241c3e;--gray-soft:#23272f;--teal:#3bc9db;--teal-soft:#10292d;--t-epic:#d197f0;--t-story:#6fd384;--t-task:#74b8f7;--t-bug:#ff8a8a;--t-fg:#0f1115;
     --shadow:0 12px 40px rgba(0,0,0,.5); color-scheme:dark;
   }
 }
@@ -114,7 +115,6 @@
 .tl .label{display:inline-flex;align-items:center;font-size:11.5px;border:1px solid var(--ctl);border-radius:4px;padding:0 5px;color:var(--ink-2);line-height:17px}
 .tl .label::before{content:"#";color:var(--ink-3);margin-right:1px}
 .tl .ptag{font-size:12px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
-.tl .ti{display:inline-grid;place-items:center;width:16px;font-size:11px}
 
 /* ---------- chips, status, priority ---------- */
 .tl .chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:1px 8px;border-radius:999px;border:1px solid transparent;white-space:nowrap;font-weight:550;line-height:18px}
@@ -130,7 +130,11 @@
 .tl .c-info{background:var(--info-soft);color:var(--info)}
 .tl .c-gray{background:var(--gray-soft);color:var(--ink-2)}
 .tl .c-ok{background:var(--ok-soft);color:var(--ok)}
-.tl .type{font-family:var(--mono);font-size:11px;color:var(--ink-3);border:1px solid var(--line-2);border-radius:4px;padding:0 4px}
+.tl .type{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:var(--ink-2);white-space:nowrap}
+.tl .tsq{width:16px;height:16px;border-radius:4px;display:inline-grid;place-items:center;color:var(--t-fg);flex:none}
+.tl .tsq svg{width:11px;height:11px}
+.tl .t-epic .tsq{background:var(--t-epic)} .tl .t-story .tsq{background:var(--t-story)} .tl .t-task .tsq{background:var(--t-task)} .tl .t-bug .tsq{background:var(--t-bug)}
+.tl .type.iconly{gap:0}
 .tl .prio{display:inline-flex;align-items:center;gap:3px;font:600 11.5px var(--mono);color:var(--ink-2)}
 .tl .prio svg{width:12px;height:12px}
 
@@ -411,6 +415,11 @@ const P = {
   DOC:{key:'DOC', name:'Sample · Docs Site',  short:'Docs Site',  color:'#d9480f', docs:3},
 };
 const TYPES = {Epic:'◆', Story:'●', Task:'■', Bug:'✕'};
+const TICON = {
+  Epic:'<svg viewBox="0 0 12 12" fill="currentColor" aria-hidden="true"><path d="M7 .8 2.2 7h3.1l-.6 4.2L9.8 5H6.6z"/></svg>',
+  Story:'<svg viewBox="0 0 12 12" fill="currentColor" aria-hidden="true"><path d="M3 1h6v10L6 8.6 3 11z"/></svg>',
+  Task:'<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.3 6.3 4.8 8.8 9.7 3.5"/></svg>',
+  Bug:'<svg viewBox="0 0 12 12" fill="currentColor" aria-hidden="true"><ellipse cx="6" cy="7" rx="3" ry="3.6"/><circle cx="6" cy="2.8" r="1.6"/><path d="M1 5h2M9 5h2M1 8.5h2M9 8.5h2" stroke="currentColor" stroke-width="1.2"/></svg>'};
 const LABELS = {
   'ui-refresh':{proj:'RCP', brief:'Visual refresh across the planner, shopping list and pantry. Uses design tokens v2 (8px grid, new colour roles). Every screen keeps keyboard support and 4.5:1 contrast. Ship screen by screen, not as one big release.', by:'owner · Nov 2'},
   'mobile':{proj:'RCP', brief:''},
@@ -675,10 +684,11 @@ const run = (r, age) => r ? `<span class="run run-${r}" title="${RUNS[r].d}"><i 
 const prio = p => `<span class="prio" title="Priority ${p}"><svg viewBox="0 0 12 12" aria-hidden="true">${[0,1,2].map(k => `<rect x="${k*4}" y="${8-k*3}" width="3" height="${4+k*3}" rx=".6" fill="${k < 4-p ? 'currentColor' : 'var(--line-2)'}"/>`).join('')}</svg>P${p}</span>`;
 const statusChip = i => `<span class="chip st-${i.status}">${STATUS[i.status]}</span>`;
 const blockedChip = i => isBlocked(i) ? `<span class="chip c-bad">⊘ Blocked by ${unresolved(i).join(', ')}</span>` : '';
-const typeBadge = i => `<span class="type"><span class="ti" aria-hidden="true">${TYPES[i.type] || '•'}</span>${i.type}</span>`;
+const typeBadge = i => `<span class="type t-${i.type.toLowerCase()}"><span class="tsq">${TICON[i.type] || ''}</span>${i.type}</span>`;
+const typeIcon = i => `<span class="type iconly t-${i.type.toLowerCase()}" title="${i.type}"><span class="tsq">${TICON[i.type] || ''}</span><span class="sr">${i.type}</span></span>`;
 const labelLink = l => `<a href="#" class="label" data-a="label" data-v="${esc(l)}">${esc(l)}</a>`;
 const labelsOf = i => (i.labels || []).map(labelLink).join('');
-const epicTag = i => i.epic && byId[i.epic] ? `<span class="ptag" title="Epic">◆ ${esc(byId[i.epic].title)}</span>` : '';
+const epicTag = i => i.epic && byId[i.epic] ? `<span class="ptag" title="Epic"><span style="color:var(--t-epic)">◆</span> ${esc(byId[i.epic].title)}</span>` : '';
 const PV = {owner:['pv-owner','person','Your decision'], agent:['pv-agent','bot','Agent-reported'], observed:['pv-observed','eye','Observed child run'],
   relayed:['pv-relayed','relay','Relayed by lead'], ci:['pv-auto','gear','CI'], git:['pv-git','git','Git · not approval']};
 const prov = (k, label) => { const m = PV[k]; return `<span class="prov ${m[0]}" title="${m[2]}">${I[m[1]]}${label ? `<span class="sr">${m[2]}: </span>` : ''}${esc(label || m[2])}</span>`; };
@@ -835,9 +845,10 @@ V.work = () => {
   const q = [FILTERS[S.filter][2], S.epicF !== 'all' ? 'epic:' + S.epicF : '', S.labelF !== 'all' ? 'label:' + S.labelF : '', S.scope !== 'all' ? 'project:' + S.scope : ''].filter(Boolean).join(' ');
   return `<div class="row" style="justify-content:space-between;margin-bottom:2px"><h1>Work${scopePill()}</h1>
       <div class="seg" role="group" aria-label="Layout"><button data-a="mode" data-v="board" aria-pressed="${S.workMode==='board'}">Board</button><button data-a="mode" data-v="list" aria-pressed="${S.workMode==='list'}">List</button></div></div>
-    <div class="sub">Inbox → <b>Planning</b> (yours) → Ready → In progress → <b>Review</b> (your human review, if any) → Done. Agents only claim from Ready.</div>
+    <div class="row wrap sub" style="justify-content:space-between"><span>Inbox → <b>Planning</b> (yours) → Ready → In progress → <b>Review</b> (your human review, if any) → Done. Agents only claim from Ready.</span>
+      <span class="row" style="gap:12px" aria-label="Item types">${Object.keys(TYPES).map(t => typeBadge({type:t})).join('')}</span></div>
     <div class="filters">
-      <label class="sr" for="epicsel">Epic</label><select id="epicsel" data-a="epicf"><option value="all">All epics</option>${epics.map(e => `<option value="${e.id}" ${S.epicF===e.id?'selected':''}>◆ ${esc(e.title)}</option>`).join('')}<option value="none" ${S.epicF==='none'?'selected':''}>No epic</option></select>
+      <label class="sr" for="epicsel">Epic</label><select id="epicsel" data-a="epicf"><option value="all">All epics</option>${epics.map(e => `<option value="${e.id}" ${S.epicF===e.id?'selected':''}>${esc(e.title)}</option>`).join('')}<option value="none" ${S.epicF==='none'?'selected':''}>No epic</option></select>
       <label class="sr" for="labelsel">Label</label><select id="labelsel" data-a="labelf"><option value="all">All labels</option>${labs.map(l => `<option value="${l}" ${S.labelF===l?'selected':''}># ${l}</option>`).join('')}</select>
       <span role="group" aria-label="Saved filters" class="row wrap" style="gap:6px">${Object.entries(FILTERS).map(([k,f]) => `<button class="fchip" data-a="filter" data-v="${k}" aria-pressed="${S.filter===k}">${f[0]} <b>${items.filter(i => base(i) && f[1](i)).length}</b></button>`).join('')}</span>
       ${q ? `<span class="src" style="margin-left:auto" title="The same query agents send over MCP">Agent query: <span class="mono">${esc(q)}</span></span>` : ''}
@@ -1050,10 +1061,10 @@ V.graph = () => {
     const [x,y] = GN[id], i = byId[id];
     const cls = [id===sel?'sel':'', chain.has(id)?'chain':'', frees.includes(id)?'unblock':'', i.status==='done'?'done':'', cyc.has(id)?'cyc':'', !inScope(i) ? 'ext' : ''].join(' ');
     const rs = i.run ? RUNS[i.run].l : '';
-    return `<g class="gnode ${cls}" data-a="gsel" data-v="${id}" tabindex="0" role="button" aria-pressed="${id===sel}" aria-label="${id}, ${esc(i.title)}, ${STATUS[i.status]}${isBlocked(i)?', blocked':''}${rs?', run '+rs:''}">
-      <rect class="b" x="${x}" y="${y}" width="${NW}" height="${NH}" rx="8"/>
-      <text x="${x+10}" y="${y+18}" font-size="11" fill="var(--ink-3)" font-family="var(--mono)">${id} · ${!inScope(i) ? P[i.proj].short + ' ↗' : STATUS[i.status] + (rs ? ' · '+rs : '')}</text>
-      <text x="${x+10}" y="${y+35}" font-size="12.5" font-weight="600" fill="var(--ink)">${esc(i.title.length>25 ? i.title.slice(0,24)+'…' : i.title)}</text></g>`;
+    return `<g class="gnode ${cls}" data-a="gsel" data-v="${id}" tabindex="0" role="button" aria-pressed="${id===sel}" aria-label="${id}, ${i.type}, ${esc(i.title)}, ${STATUS[i.status]}${isBlocked(i)?', blocked':''}${rs?', run '+rs:''}">
+      <rect class="b" x="${x}" y="${y}" width="${NW}" height="${NH}" rx="8"/><rect x="${x+1}" y="${y+8}" width="4" height="${NH-16}" rx="2" fill="var(--t-${i.type.toLowerCase()})"/>
+      <text x="${x+12}" y="${y+18}" font-size="11" fill="var(--ink-3)" font-family="var(--mono)">${id} · ${!inScope(i) ? P[i.proj].short + ' ↗' : STATUS[i.status] + (rs ? ' · '+rs : '')}</text>
+      <text x="${x+12}" y="${y+35}" font-size="12.5" font-weight="600" fill="var(--ink)">${esc(i.title.length>25 ? i.title.slice(0,24)+'…' : i.title)}</text></g>`;
   };
   let impact;
   if (si.end){
@@ -1110,7 +1121,7 @@ V.timeline = () => {
     const deps = unresolved(i).filter(b => byId[b].end).map(b => `<div class="dep ${risks.includes(b)?'risk':''}" style="left:${endX(byId[b].end)}%" title="${b} planned to finish ${fmt(D(byId[b].end))}"></div>`).join('');
     const after = unresolved(i).filter(b => byId[b].end).map(b => `${risks.includes(b) ? '<b style="color:var(--bad)">' : ''}${b} ends ${fmt(D(byId[b].end))}${risks.includes(b) ? '</b>' : ''}`);
     const overdue = !done && D(i.end) < D(NOW.toISOString().slice(0,10));
-    return `<div class="tl-row"><div class="lbl">${link(i.id)}<span class="t" title="${esc(i.title)}">${esc(i.title)}</span></div>
+    return `<div class="tl-row"><div class="lbl">${typeIcon(i)}${link(i.id)}<span class="t" title="${esc(i.title)}">${esc(i.title)}</span></div>
       <div class="track">
         <div class="today" style="left:${nowX}%"></div>${deps}
         <div class="bar planned ${risks.length ? 'risk' : ''} ${done ? 'done' : ''}" style="left:${s}%;width:${e-s}%">${risks.length ? '⚠ blocker ends later' : overdue ? 'overdue' : done ? '✓ done' : isBlocked(i) ? '⊘ blocked' : ''}</div>

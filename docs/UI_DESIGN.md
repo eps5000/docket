@@ -1,6 +1,6 @@
 # UI/UX design — MVP V1 human interface
 
-Status: design proposal, revision 8, 2026-11-06. Inputs: [requirements draft](REQUIREMENTS_DRAFT.md), [Jira research](JIRA_RESEARCH.md).
+Status: design proposal, revision 9, 2026-11-06. Inputs: [requirements draft](REQUIREMENTS_DRAFT.md), [Jira research](JIRA_RESEARCH.md).
 
 Clickable prototype: [`design/prototype.html`](../design/prototype.html). It is one file with no build step and no network requests, and all data in it is disposable sample work (O09). Open it directly in a browser.
 
@@ -70,7 +70,7 @@ Labels cut across epics (large initiatives).   Blocks links are the only thing t
 | 4 | **Blocked is derived.** | Only unresolved `blocks` links make work wait. Epics and labels never do. |
 | 5 | **Decisions bind to versions.** | Your decision applies to one packet round. A new round never inherits an earlier approval. |
 | 6 | **Entered ≠ forecast.** | Dates show who set them. A forecast is drawn only when there is enough history. |
-| 7 | **Colour means state, never priority.** | Priority is shown with neutral signal bars. |
+| 7 | **Colour means state or type, never priority.** | State uses rounded text chips. Item type uses a small solid square with an icon. Priority uses neutral signal bars. The two colour uses never share a shape, so they can't be confused. |
 | 8 | **Scope is always visible.** | One project switcher at the top of the sidebar scopes every work page. Every visit starts at *All projects*. |
 | 9 | **Reversible or confirmed.** | Owner actions show an Undo toast. Destructive actions explain their scope and require confirmation. |
 
@@ -145,6 +145,16 @@ Unchanged from revision 3 apart from simplifications:
 - **Projects:** switch scope, labels, progress, and typed-confirmation delete. The per-project policy, ready-gate and item-type settings are gone.
 
 ## Visual language
+
+### Item types (solid square + icon + name)
+| Type | Light | Dark | Icon |
+| --- | --- | --- | --- |
+| Epic | #7b2fa3 | #d197f0 | lightning bolt |
+| Story | #2b7a3b | #6fd384 | bookmark |
+| Task | #1c64b9 | #74b8f7 | check mark |
+| Bug | #c92a2a | #ff8a8a | bug |
+
+These follow the familiar Jira convention for quick recognition. The icon on its square is at least 5.3:1, and the square against the page at least 4.8:1, in both themes. The type square appears on cards, list rows, ticket, epic and label pages, timeline rows, and a board legend. Graph nodes get a thin stripe in the type colour.
 
 ### Work status
 | Status | Colour |
@@ -239,6 +249,7 @@ Base type is 13px; secondary text is at least 11.5px. Small controls are at leas
 - A 54-step scripted click-through of the scenarios above also passed.
 
 ## Revision history
+- **Revision 9:** item types are colour-coded with solid squares and icons (Epic purple, Story green, Task blue, Bug red), with a board legend, timeline icons and graph stripes.
 - **Revision 8:** Human review is one card in a fixed place (top of the right-hand column) on every work item, epics included. Needs you is a one-screen dashboard: an agent status strip, For you now with Problems, and four compact cards capped at three rows.
 - **Revision 7:** commits are reported per ticket; epic-level human review for single-PR epics; a *Deferred, not verified* list on Needs you and a matching Work filter, shared with agents for cleanup.
 - **Revision 6:** *Defer* verdict with follow-up choice; packets record their commit and are flagged out of date automatically; approvals record their commit and carry forward; agents may create labels.
