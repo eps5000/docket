@@ -1,6 +1,6 @@
 # UI/UX design — MVP V1 human interface
 
-Status: design proposal, revision 16, 2026-11-06. Inputs: [requirements draft](REQUIREMENTS_DRAFT.md), [Jira research](JIRA_RESEARCH.md).
+Status: design proposal, revision 17, 2026-11-06. Inputs: [requirements draft](REQUIREMENTS_DRAFT.md), [Jira research](JIRA_RESEARCH.md).
 
 Clickable prototype: [`design/prototype.html`](../design/prototype.html). It is one file with no build step and no network requests, and all data in it is disposable sample work (O09). Open it directly in a browser.
 
@@ -124,16 +124,19 @@ Designed to fit on one laptop screen without scrolling. In the prototype it fits
 - **Filters:** epic, label, and saved filters (In planning, Ready to start, Blocked, For you, Human review later, Live run). Each shows the matching agent query.
 
 ### Ticket
-- **Human review is always the first card in the right-hand column**, on stories, tasks, bugs and epics alike, so it's in the same place whatever you open. It shows each item with its state and any notes from earlier rounds, plus *Open packet* when one is ready. A child ticket without its own review says "reviewed with its epic" and links there.
-- **Work and checks tab:**
-  - **Work:** items with state, who and when. Subagent contributions are nested under the item they belong to. Revised items show the old text. Items added from your review say so. A history view shows every revision.
-  - **Agent checks:** each check with its state (passed, failed, not run) and evidence.
-- **Documents tab:** planning docs (PRD, UX, TDD) and handoff packets. Documents open in a viewer with version, author and Download; packets open the review screen. **Planning and Inbox tickets open on this tab**, because reading the docs is what Planning is.
-- **Activity tab:** history, plus a *note for the agent* box. That's how you steer work without a review round; the agent sees the note on its next query.
-- **Rail:**
-  - **Lead & runs:** the lease, any rejected claims, stale-claim release, and *Return to Ready* after a failed run.
-  - **Dependencies:** a 1-hop view: *Waits on* → this ticket → *Then unblocks*, as small status-coloured boxes, plus *See it on the epic map*. If the ticket is in a dependency cycle, the card says so and offers *Remove link*.
-  - **Dates** with who set them.
+**One long column of collapsible sections**, in this order:
+- **Outcome:** the goal and acceptance criteria.
+- **Checklist:** three parts, each with its own Add box.
+  - **Work:** items with state, who and when. Subagent contributions are nested under the item they belong to. Revised items show the old text, and items added from your review say so. A history view shows every revision.
+  - **Agent review:** each check with its state (passed, failed, not run) and evidence.
+  - **Human review:** what you'll verify yourself, with state, any notes from earlier rounds, and *Open packet* when one is ready. You can add, edit or remove items, but items in the current packet are locked. A child ticket without its own review says "reviewed with its epic" and links there.
+- **Documents:** planning docs (PRD, UX, TDD) and handoff packets. Documents open in a viewer with version, author and Download; packets open the review screen.
+- **Dependencies:** a 1-hop view (*Waits on* → this ticket → *Then unblocks*) as small status-coloured boxes, plus *See it on the epic map*. If the ticket is in a dependency cycle, the section says so and offers *Remove link*.
+- **Lead & runs:** the lease, any rejected claims, stale-claim release, and *Return to Ready* after a failed run.
+- **Dates & effort**, with who set them.
+- **Activity:** history, plus a *note for the agent* box. That's how you steer work without a review round; the agent sees the note on its next query.
+
+**Collapsing.** Every section header shows a one-line summary, such as "Work 1/4 · Agent review 1/3 · Human review 1" or "waits on 1 · unblocks 3", so a collapsed section still tells you its state. Collapse state is remembered per section type, not per ticket: if you close Checklist, it stays closed on the next ticket you open. Activity starts collapsed and everything else starts open.
 
 ### Human review
 - **Queue:** Ready for you, Decided, and Coming up.
@@ -147,7 +150,7 @@ Designed to fit on one laptop screen without scrolling. In the prototype it fits
 *+ New* in the header opens a small dialog: title (required), type, project, optional epic, and notes. The item lands in **Inbox** and opens, ready to be shaped in Planning. It's deliberately minimal: agents fill in the rest.
 
 ### Epic page: three tabs for three jobs
-- **Details** (default): brief and documents plus the epic's Checklist on the left; **Tickets in this epic**, grouped by status, on the right. There is no separate review card.
+- **Details** (default): one column of the same collapsible sections: **Brief and documents**, the epic's **Checklist**, then **Tickets in this epic**, grouped by status. Its summary reads, for example, "1/12 done · 2 ready but blocked · 2 for you". There is no separate review card.
 - **Map:** progress and wiring. Full width, no side column. It shows the progress header and the progress map. If the epic itself carries the human review (a one-PR epic), a thin strip above the map says so, with *Open packet* when it's ready.
 - **Activity:** agent updates for the epic, plus a *note for the agents* box.
 - **+ New item in this epic** sits beside the tabs. It opens the New dialog with the epic and project filled in; the item lands in Inbox and you stay on the epic.
@@ -189,7 +192,7 @@ The dependency view is a **progress picture**, not a standalone graph page. It a
 
 ### Labels and epics
 - **Label page:** brief, a progress map across epics, a by-epic list, *Move N to Ready* for everything with that label still in Planning, and a link to the filtered board.
-- **Epic page:** the progress map first, then brief and documents, with the same Human review card first in the right-hand column. A Planning epic is described as "still a brief".
+- **Epic page:** Details, Map and Activity tabs (see *Epic page* above). A Planning epic is described as "still a brief".
 
 ### Timeline, Agents, Connections, Projects
 - **Timeline:** entered dates vs actual run time vs forecast.
@@ -301,9 +304,10 @@ Base type is 13px; secondary text is at least 11.5px. Small controls are at leas
 
 **Testing:**
 - `design/prototype.html?selftest` renders every page in every scope, plus every item, tab, label, packet round, dialog and filter. It reports `SELFTEST OK` in headless Edge.
-- A 103-step scripted click-through of the scenarios above also passed.
+- A 104-check scripted click-through of the scenarios above also passed.
 
 ## Revision history
+- **Revision 17:** ticket pages and epic Details are a single long column, with no side rail and no Documents/Activity tabs. Every section is collapsible and shows a one-line summary in its header. Collapse state is remembered per section type, and Activity starts collapsed.
 - **Revision 16:** a Checklist card in the main body of every ticket and epic, with Work, Agent review and Human review sections and an Add box for each. The right-hand Human review card is gone. Epic "Items" is renamed "Tickets in this epic". Ticket tabs are now Documents · Activity.
 - **Revision 15:** epics open on Details (then Map, Activity); *+ New item in this epic*; you can add, edit and remove human review items yourself, with who-added-it shown and packet items locked; an all-approve round no longer closes a ticket that has newer undecided items; open-item tabs under the header that remember each item's sub-tab.
 - **Revision 14:** epics get a front door. An Epics row on Work opens each epic's Map tab, and epic names are links in ticket headers, list rows and label pages. Previously the epic page was only reachable through a ticket's "See it on the epic map" link.
