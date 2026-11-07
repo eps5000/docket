@@ -222,6 +222,10 @@
 .tl a.tcard.isblocked{border-left:3px solid var(--bad)}
 .tl a.tcard.owed{border-left:3px solid var(--warn)}
 .tl .tcard .t{font-weight:600;line-height:1.3}
+.tl .tcw{position:relative}
+.tl .tcw .archbtn{position:absolute;right:8px;bottom:8px;padding:2px 8px;min-height:24px;font-size:12px}
+.tl .tcw .tcard{padding-bottom:36px}
+.tl .tcard.archived{opacity:.7}
 .tl .tcard .mono,.tl .type{white-space:nowrap}
 .tl .tcard .prov,.tl .tcard .chip{white-space:normal;line-height:16px;padding-top:1px;padding-bottom:1px}
 .tl .tcard .meta{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--ink-3);flex-wrap:wrap}
@@ -938,12 +942,15 @@ const FILTERS = {
   hrlater:['Human review later', hrComing, 'has:human-review'],
   deferred:['Deferred review', i => hrOf(i).some(h => h.state === 'deferred'), 'review:deferred'],
   live:['Live run', i => i.run==='live', 'run:live'],
+  archived:['Archived', i => !!i.arch, 'is:archived'],
 };
 V.work = () => {
   const cols = ['inbox','planning','ready','progress','review','done'];
-  const base = i => !isEpic(i) && inScope(i) && (S.epicF === 'all' || (S.epicF === 'none' ? !i.epic : i.epic === S.epicF)) && (S.labelF === 'all' || (i.labels || []).includes(S.labelF));
+  const base0 = i => !isEpic(i) && inScope(i) && (S.epicF === 'all' || (S.epicF === 'none' ? !i.epic : i.epic === S.epicF)) && (S.labelF === 'all' || (i.labels || []).includes(S.labelF));
+  const base = i => base0(i) && (S.filter === 'archived' ? !!i.arch : !i.arch);
   const list = items.filter(i => base(i) && FILTERS[S.filter][1](i));
-  const card = i => `<a href="#" class="tcard ${isBlocked(i) ? 'isblocked' : forYou(i) ? 'owed' : ''}" data-a="${packetReady(i) ? 'packet' : 'open'}" data-v="${i.id}"${packetReady(i) ? ' title="Open the handoff packet"' : ''}>
+  const card = i => i.status === 'done' ? `<div class="tcw">${card0(i)}${i.arch ? `<button class="btn sm archbtn" data-a="unarchive" data-v="${i.id}">Unarchive</button>` : `<button class="btn sm archbtn" data-a="archive" data-v="${i.id}" title="Hide it from your views. It stays in the tracker and in search.">Archive</button>`}</div>` : card0(i);
+  const card0 = i => `<a href="#" class="tcard ${i.arch ? 'archived' : ''} ${isBlocked(i) ? 'isblocked' : forYou(i) ? 'owed' : ''}" data-a="${packetReady(i) ? 'packet' : 'open'}" data-v="${i.id}"${packetReady(i) ? ' title="Open the handoff packet"' : ''}>
       <div class="row" style="justify-content:space-between"><span class="row"><span class="mono muted">${i.id}</span>${typeIcon(i)}</span>${prio(i.prio)}</div>
       <div class="t">${esc(i.title)}</div>
       ${i.epic || (i.labels || []).length ? `<div class="meta">${epicTag(i)}${(i.labels || []).map(l => `<span class="label">${esc(l)}</span>`).join('')}</div>` : ''}
@@ -959,14 +966,14 @@ V.work = () => {
         ${wait.length ? `<div class="subh"><span>Waiting on blockers · ${wait.length}</span><button class="btn ghost sm" data-a="toggleblocked" aria-expanded="${S.showBlocked}">${S.showBlocked ? 'Hide' : 'Show'}</button></div>
           ${S.showBlocked ? wait.map(card).join('') : `<div class="mini">${wait.map(i => `<a href="#" data-a="open" data-v="${i.id}" class="chip c-bad mono" title="${esc(i.title)}">${i.id}</a>`).join('')}</div>`}` : ''}</div>`;
     }
-    const note = c === 'planning' ? 'Yours' : c === 'review' ? 'Your human review' : '';
-    return `<div class="col"><div class="colh"><span>${STATUS[c]}${c==='done' ? ' <span class="muted" style="font-weight:400">· 7 days</span>' : ''}</span><span>${cs.length}</span></div>${note ? `<div class="src" style="padding:0 4px 6px">${note}</div>` : ''}${cs.map(card).join('')}</div>`;
+    const note = c === 'planning' ? 'Yours' : c === 'review' ? 'Your human review' : c === 'done' && cs.length && S.filter !== 'archived' ? `<span class="row" style="justify-content:flex-end"><button class="btn ghost sm" data-a="archiveall" data-v="${cs.filter(i => !i.arch).map(i => i.id).join(',')}">Archive all</button></span>` : '';
+    return `<div class="col"><div class="colh"><span>${STATUS[c]}</span><span>${cs.length}</span></div>${note ? `<div class="src" style="padding:0 4px 6px">${note}</div>` : ''}${cs.map(card).join('')}</div>`;
   };
   const table = `<div class="card" style="overflow:auto"><table><thead><tr><th scope="col">ID</th><th scope="col">Title</th><th scope="col">Status</th><th scope="col">Priority</th><th scope="col">Lead · run</th><th scope="col">Human review</th><th scope="col">Last activity</th></tr></thead><tbody>
     ${list.map(i => `<tr class="clickrow" data-a="open" data-v="${i.id}"><td>${link(i.id)}</td><td><div class="row wrap" style="gap:6px">${typeIcon(i)}<span>${esc(i.title)}</span>${labelsOf(i)}</div><div class="ptag">${i.epic ? `<a href="#" class="epiclink" data-a="open" data-v="${i.epic}" style="font-weight:500"><span class="ed">◆</span> ${esc(byId[i.epic].title)}</a>` : 'no epic'}</div></td><td><div class="row wrap">${statusChip(i)}${blockedChip(i)}</div></td><td>${prio(i.prio)}</td>
       <td>${i.lead ? `<div>${esc(i.lead)}</div>${run(i.run, i.age)}` : '<span class="muted">Unclaimed</span>'}</td><td>${hrOf(i).length ? `${hrChip(i) || `<span class="src">${hrOf(i).every(h => h.state==='approved') ? 'approved' : hrOf(i).length + ' item' + (hrOf(i).length===1?'':'s')}</span>`}` : '<span class="src">none</span>'}</td><td class="muted">${i.last} ago</td></tr>`).join('') || '<tr><td colspan="7" class="muted">No items match.</td></tr>'}
   </tbody></table></div>`;
-  const epics = items.filter(i => isEpic(i) && inScope(i)), labs = Object.keys(LABELS).filter(l => S.scope === 'all' || LABELS[l].proj === S.scope);
+  const epics = items.filter(i => isEpic(i) && inScope(i) && !i.arch), labs = Object.keys(LABELS).filter(l => S.scope === 'all' || LABELS[l].proj === S.scope);
   const q = [FILTERS[S.filter][2], S.epicF !== 'all' ? 'epic:' + S.epicF : '', S.labelF !== 'all' ? 'label:' + S.labelF : '', S.scope !== 'all' ? 'project:' + S.scope : ''].filter(Boolean).join(' ');
   return `<div class="row" style="justify-content:space-between;margin-bottom:2px"><h1>Work${scopePill()}</h1>
       <div class="seg" role="group" aria-label="Layout"><button data-a="mode" data-v="board" aria-pressed="${S.workMode==='board'}">Board</button><button data-a="mode" data-v="list" aria-pressed="${S.workMode==='list'}">List</button><button data-a="mode" data-v="map" aria-pressed="${S.workMode==='map'}">Map</button><button data-a="mode" data-v="timeline" aria-pressed="${S.workMode==='timeline'}">Timeline</button></div></div>
@@ -974,7 +981,7 @@ V.work = () => {
     <div class="filters">
       <label class="sr" for="epicsel">Epic</label><select id="epicsel" data-a="epicf"><option value="all">All epics</option>${epics.map(e => `<option value="${e.id}" ${S.epicF===e.id?'selected':''}>${esc(e.title)}</option>`).join('')}<option value="none" ${S.epicF==='none'?'selected':''}>No epic</option></select>
       <label class="sr" for="labelsel">Label</label><select id="labelsel" data-a="labelf"><option value="all">All labels</option>${labs.map(l => `<option value="${l}" ${S.labelF===l?'selected':''}># ${l}</option>`).join('')}</select>
-      <span role="group" aria-label="Saved filters" class="row wrap" style="gap:6px">${Object.entries(FILTERS).filter(([k]) => !['planning','startable'].includes(k) || S.filter === k).map(([k,f]) => `<button class="fchip" data-a="filter" data-v="${k}" aria-pressed="${S.filter===k}"${f[2] ? ` title="Agent query: ${f[2]}"` : ''}>${f[0]} <b>${items.filter(i => base(i) && f[1](i)).length}</b></button>`).join('')}</span>
+      <span role="group" aria-label="Saved filters" class="row wrap" style="gap:6px">${Object.entries(FILTERS).filter(([k]) => (!['planning','startable'].includes(k) && (k !== 'archived' || items.some(i => i.arch && base0(i)))) || S.filter === k).map(([k,f]) => `<button class="fchip" data-a="filter" data-v="${k}" aria-pressed="${S.filter===k}"${f[2] ? ` title="Agent query: ${f[2]}"` : ''}>${f[0]} <b>${items.filter(i => base0(i) && (k === 'archived' ? !!i.arch : !i.arch && f[1](i))).length}</b></button>`).join('')}</span>
     </div>
     ${epics.length ? `<div class="sectionhead" style="padding:0 0 6px"><h3>Epics · ${epics.length}</h3><span class="row" style="gap:12px" aria-label="Item types">${Object.keys(TYPES).map(t => typeBadge({type:t})).join('')}</span></div>
       <div class="epicrow">${epics.map(e => { const k = childrenOf(e.id), dn = k.filter(x => x.status === 'done').length, act = k.filter(x => x.status === 'progress' || x.status === 'review').length, fy = k.filter(forYou).length + (forYou(e) ? 1 : 0);
@@ -1138,6 +1145,7 @@ V.ticket = () => {
     <h1 style="margin-top:4px">${esc(i.title)}</h1>
     <div class="row wrap" style="margin-top:6px">${statusChip(i)}${blockedChip(i)}${i.status==='done' ? (i.closedBy==='owner' ? prov(hrOf(i).some(h => h.state === 'deferred') ? 'ownerdef' : 'owner', hrOf(i).some(h => h.state === 'deferred') ? `Closed · ${hrOf(i).filter(h => h.state === 'deferred').length} review deferred, not verified` : 'Closed after your human review') : prov('agent','Closed by agent: checks passed, no human review')) : ''}
       <label class="row" style="gap:4px"><span class="src">Priority</span><select data-a="prio" aria-label="Priority">${[1,2,3].map(n => `<option value="${n}" ${i.prio===n?'selected':''}>P${n}</option>`).join('')}</select></label>
+      ${i.status==='done' ? (i.arch ? `<span class="chip c-gray">Archived</span><button class="btn sm" data-a="unarchive" data-v="${i.id}">Unarchive</button>` : `<button class="btn sm" data-a="archive" data-v="${i.id}" title="Hide it from your views. It stays in the tracker and in search.">Archive</button>`) : ''}
       ${i.status==='inbox' ? `<button class="btn sm" data-a="toplanning" data-v="${i.id}">Move to Planning</button>` : ''}
       ${i.status==='planning' ? `<button class="btn sm primary" data-a="promote" data-v="${i.id}">${I.promote} Move to Ready</button><span class="src">Planning is yours. Move it when you're satisfied, or ask an agent to.</span>` : ''}</div></div>
   </div>
@@ -1181,7 +1189,8 @@ V.ticket = () => {
 };
 function epicView(i, d){
   const kids = childrenOf(i.id), done = kids.filter(k => k.status==='done').length;
-  const byStatus = Object.keys(STATUS).map(s => [s, kids.filter(k => k.status===s)]).filter(([,l]) => l.length);
+  const archN = kids.filter(k => k.arch).length;
+  const byStatus = Object.keys(STATUS).map(s => [s, kids.filter(k => k.status===s && (S.showArch || !k.arch))]).filter(([,l]) => l.length);
   const tab = ({deps:'map'})[S.epicTab] || S.epicTab || 'details', activity = [...(S.extraActivity[i.id] || []), ...d.activity];
   const hrs = hrOf(i), hrNow = packetReady(i);
   const tabs = [['details', 'Details', 'What this is: brief, documents and its tickets'], clTab(i, d), ['map', `Map <span class="muted">${done}/${kids.length}</span>`, 'Where it is: progress and dependencies across its tickets'], ['activity', 'Activity', 'What the agents did in this epic']];
@@ -1195,7 +1204,8 @@ function epicView(i, d){
     ? `<div class="stack1">
         ${sec('brief', 'Brief and documents', d.docs.length ? `${d.docs.length} document${d.docs.length === 1 ? '' : 's'}` : '', `<div>${esc(d.outcome) || '<span class="muted">No brief yet.</span>'}</div>
           ${d.docs.length ? `<h3 style="margin-top:14px">Documents</h3>${d.docs.map(x => docRow(x, i.id)).join('')}` : ''}`)}
-        ${sec('tickets', 'Tickets in this epic', `${done}/${kids.length} done · ${kids.filter(k => isBlocked(k) && k.status === 'ready').length} ready but blocked · ${kids.filter(forYou).length} for you`, `${byStatus.map(([s, l]) => `<div class="src" style="margin-top:8px">${STATUS[s]} · ${l.length}</div>${l.map(k => `<div class="lrow">${typeIcon(k)}${link(k.id)}<span class="grow" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(k.title)}</span>${hrChip(k)}${blockedChip(k)}</div>`).join('')}`).join('') || '<div class="muted">No items yet.</div>'}`)}
+        ${sec('tickets', 'Tickets in this epic', `${done}/${kids.length} done · ${kids.filter(k => isBlocked(k) && k.status === 'ready').length} ready but blocked · ${kids.filter(forYou).length} for you`, `${byStatus.map(([s, l]) => `<div class="src" style="margin-top:8px">${STATUS[s]} · ${l.length}</div>${l.map(k => `<div class="lrow">${typeIcon(k)}${link(k.id)}<span class="grow" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(k.title)}</span>${hrChip(k)}${blockedChip(k)}${k.arch ? '<span class="chip c-gray">Archived</span>' : ''}</div>`).join('')}`).join('') || '<div class="muted">No items yet.</div>'}
+          ${archN ? `<div class="src" style="margin-top:8px">${S.showArch ? '' : `+ ${archN} archived · `}<a href="#" data-a="togglearch">${S.showArch ? 'Hide archived' : 'Show'}</a></div>` : ''}`)}
       </div>`
     : `<div class="card pad">${notePanel(i, 'agents')}
         ${activity.map(a => `<div class="act"><span class="src mono">${a[0]}</span><span>${esc(a[1])}</span></div>`).join('') || '<div class="muted">No activity yet.</div>'}</div>`;
@@ -1203,6 +1213,7 @@ function epicView(i, d){
       <div class="row wrap"><span class="mono muted">${i.id}</span>${typeBadge(i)}${labelsOf(i)}</div>
       <h1 style="margin-top:4px">${esc(i.title)}</h1>
       <div class="row wrap" style="margin-top:6px">${statusChip(i)}<span class="src">${P[i.proj].name} · ${kids.length} item${kids.length===1?'':'s'} · ${done} done</span>
+        ${i.status==='done' ? (i.arch ? `<span class="chip c-gray">Archived</span><button class="btn sm" data-a="unarchive" data-v="${i.id}">Unarchive</button>` : `<button class="btn sm" data-a="archive" data-v="${i.id}">Archive</button>`) : ''}
         ${i.status==='planning' ? `<button class="btn sm primary" data-a="promote" data-v="${i.id}">${I.promote} Move to Ready</button><span class="src">This epic is still a brief. Move it once you've broken it down.</span>` : ''}</div></div></div>
     ${viewTabs(i, tabs, tab)}
     <div role="tabpanel" id="epanel" aria-labelledby="etab-${tab}">${body}</div>`;
@@ -1284,7 +1295,7 @@ V.timeline = () => { S.workMode = 'timeline'; return V.work(); };
 function timelineBody(){
   const start = D('2026-11-02'), days = 35;
   const pct = d => ((d - start) / 864e5 / days * 100);
-  const rows = items.filter(i => i.start && !isEpic(i) && inScope(i)).sort((a,b) => D(a.start) - D(b.start));
+  const rows = items.filter(i => i.start && !isEpic(i) && inScope(i) && !i.arch).sort((a,b) => D(a.start) - D(b.start));
   const undated = items.filter(i => !i.start && !isEpic(i) && isOpen(i) && inScope(i));
   const fcProj = S.scope === 'all' ? 'RCP' : S.scope, have = fcProj === 'RCP' ? 2 : 0;
   const endX = s => pct(new Date(D(s).getTime() + 864e5));
@@ -1606,6 +1617,10 @@ const ACT = {
   gfix: v => openTicket(v, 'deps'),
   inspect: v => openTicket(v, 'activity'),
   epictab: v => { S.epicTab = v; render(); },
+  archive: v => { const before = snap(); byId[v].arch = true; undoable(before, `${v} archived. It's still in the tracker; find it with search or the Archived filter.`); },
+  unarchive: v => { const before = snap(); byId[v].arch = false; undoable(before, `${v} is back in your views.`); },
+  archiveall: v => { const ids = v.split(',').filter(Boolean); if (!ids.length) return; const before = snap(); ids.forEach(id => { byId[id].arch = true; }); undoable(before, `Archived ${ids.length} done item${ids.length === 1 ? '' : 's'}.`); },
+  togglearch: () => { S.showArch = !S.showArch; render(); },
   sectog: v => { S.collapsed[v] = !S.collapsed[v]; render(); },
   epicmap: v => openTicket(v, 'map'),
   tabgo: v => openTicket(v),

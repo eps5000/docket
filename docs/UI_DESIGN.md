@@ -1,6 +1,6 @@
 # UI/UX design — MVP V1 human interface
 
-Status: design proposal, revision 20, 2026-11-06. Inputs: [requirements draft](REQUIREMENTS_DRAFT.md), [Jira research](JIRA_RESEARCH.md).
+Status: design proposal, revision 21, 2026-11-06. Inputs: [requirements draft](REQUIREMENTS_DRAFT.md), [Jira research](JIRA_RESEARCH.md).
 
 Clickable prototype: [`design/prototype.html`](../design/prototype.html). It is one file with no build step and no network requests, and all data in it is disposable sample work (O09). Open it directly in a browser.
 
@@ -118,6 +118,12 @@ Designed to fit on one laptop screen without scrolling. In the prototype it fits
 ### Work
 - **Board columns:** Inbox · Planning (yours) · Ready (Startable / Waiting on blockers) · In progress · Review (your human review) · Done. A Review card with a packet ready opens the packet directly.
 - **Epics row** at the top (kept on purpose): one compact card per epic with progress and "N for you".
+- **Done waits for you, then you archive it.** There's no 7-day cutoff: a finished item stays in the Done column until you've seen it.
+  - Each Done card has **Archive**, and the column has **Archive all**. Both show an Undo toast.
+  - Archiving only hides the item from your views. It stays in the tracker, in agents' queries, and in search, and it opens normally with *Unarchive* in its header.
+  - Archived items leave the board, the list, Timeline and the Epics row (for a done epic). An epic's *Tickets in this epic* folds them into "+ N archived · Show".
+  - An **Archived** filter chip appears once anything is archived.
+  - **Progress maps keep archived items,** because done work is part of the dependency picture and the "N / M done" count.
 - **Layouts:** Board, List, Map and **Timeline** (entered dates vs actual run time vs forecast; who set a date shows on hover, and only blocker dates are written under a bar).
 - **Cards:** type icon (the type legend sits once above the board), epic, labels, run state if claimed, plus chips for *Packet ready*, *Human review later*, *Question for you*, *Blocked*, and *Date risk*. Unclaimed cards say nothing rather than "Unclaimed".
 - **Filters:** epic, label, and saved filters (Blocked, For you, Human review later, Deferred review, Live run). *In planning* and *Ready to start* are left off the board because their columns already show them; links such as *View all* in the Planning queue still apply them. Hovering a filter shows the matching agent query.
@@ -310,9 +316,13 @@ Base type is 13px; secondary text is at least 11.5px. Small controls are at leas
 
 **Testing:**
 - `design/prototype.html?selftest` renders every page in every scope, plus every item, tab, label, packet round, dialog and filter. It reports `SELFTEST OK` in headless Edge.
-- A 115-check scripted click-through of the scenarios above also passed.
+- A 123-check scripted click-through of the scenarios above also passed.
 
 ## Revision history
+- **Revision 21:** archive for Done.
+  - Done items wait in the Done column, with no 7-day cutoff, until you archive them, one at a time or all at once. Undo works for both.
+  - Archived items leave the board, the list, Timeline, the Epics row and epic ticket lists, which show "+ N archived".
+  - They stay in the tracker, in search, under an *Archived* filter and on progress maps.
 - **Revision 20:**
   - Human review leaves the sidebar, which is now Needs you, Work, Agents and Settings. The packet screen opens from Needs you, ticket banners and Review cards, and its queue lists only packets ready for you. Upcoming reviews are the *Human review later* filter on Work.
   - "Since you looked" is removed from Needs you.
