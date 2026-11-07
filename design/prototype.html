@@ -353,6 +353,15 @@
 .tl .hv{display:grid;gap:10px}
 .tl .hv .ver{border:1px solid var(--line);border-radius:9px;padding:10px 12px}
 .tl .hv .add{color:var(--ok)} .tl .hv .rm{color:var(--bad);text-decoration:line-through}
+/* ---------- epics row on Work ---------- */
+.tl .epicrow{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;margin-bottom:12px}
+.tl .epiccard{display:grid;gap:6px;text-align:left;border:1px solid var(--line);border-left:4px solid var(--t-epic);background:var(--panel);border-radius:9px;padding:9px 11px}
+.tl .epiccard:hover{border-color:var(--brand);border-left-color:var(--t-epic)}
+.tl .epiccard[aria-current=true]{box-shadow:0 0 0 2px var(--brand)}
+.tl .epiccard .et{font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tl a.epiclink{color:var(--ink);font-weight:600}
+.tl a.epiclink .ed{color:var(--t-epic)}
+
 /* ---------- progress map ---------- */
 .tl .ptools{display:flex;align-items:center;gap:10px;justify-content:flex-end;margin-bottom:8px}
 .tl .ptools .phint{display:none;margin-right:auto}
@@ -915,7 +924,7 @@ V.work = () => {
     return `<div class="col"><div class="colh"><span>${STATUS[c]}${c==='done' ? ' <span class="muted" style="font-weight:400">· 7 days</span>' : ''}</span><span>${cs.length}</span></div>${note ? `<div class="src" style="padding:0 4px 6px">${note}</div>` : ''}${cs.map(card).join('')}</div>`;
   };
   const table = `<div class="card" style="overflow:auto"><table><thead><tr><th scope="col">ID</th><th scope="col">Title</th><th scope="col">Status</th><th scope="col">Priority</th><th scope="col">Lead · run</th><th scope="col">Human review</th><th scope="col">Last activity</th></tr></thead><tbody>
-    ${list.map(i => `<tr class="clickrow" data-a="open" data-v="${i.id}"><td>${link(i.id)}</td><td><div class="row wrap" style="gap:6px">${typeIcon(i)}<span>${esc(i.title)}</span>${labelsOf(i)}</div><div class="ptag">${i.epic ? '◆ ' + esc(byId[i.epic].title) : 'no epic'}</div></td><td><div class="row wrap">${statusChip(i)}${blockedChip(i)}</div></td><td>${prio(i.prio)}</td>
+    ${list.map(i => `<tr class="clickrow" data-a="open" data-v="${i.id}"><td>${link(i.id)}</td><td><div class="row wrap" style="gap:6px">${typeIcon(i)}<span>${esc(i.title)}</span>${labelsOf(i)}</div><div class="ptag">${i.epic ? `<a href="#" class="epiclink" data-a="epicmap" data-v="${i.epic}" style="font-weight:500"><span class="ed">◆</span> ${esc(byId[i.epic].title)}</a>` : 'no epic'}</div></td><td><div class="row wrap">${statusChip(i)}${blockedChip(i)}</div></td><td>${prio(i.prio)}</td>
       <td>${i.lead ? `<div>${esc(i.lead)}</div>${run(i.run, i.age)}` : '<span class="muted">Unclaimed</span>'}</td><td>${hrOf(i).length ? `${hrChip(i) || `<span class="src">${hrOf(i).every(h => h.state==='approved') ? 'approved' : hrOf(i).length + ' item' + (hrOf(i).length===1?'':'s')}</span>`}` : '<span class="src">none</span>'}</td><td class="muted">${i.last} ago</td></tr>`).join('') || '<tr><td colspan="7" class="muted">No items match.</td></tr>'}
   </tbody></table></div>`;
   const epics = items.filter(i => isEpic(i) && inScope(i)), labs = Object.keys(LABELS).filter(l => S.scope === 'all' || LABELS[l].proj === S.scope);
@@ -930,6 +939,12 @@ V.work = () => {
       <span role="group" aria-label="Saved filters" class="row wrap" style="gap:6px">${Object.entries(FILTERS).map(([k,f]) => `<button class="fchip" data-a="filter" data-v="${k}" aria-pressed="${S.filter===k}">${f[0]} <b>${items.filter(i => base(i) && f[1](i)).length}</b></button>`).join('')}</span>
       ${q ? `<span class="src" style="margin-left:auto" title="The same query agents send over MCP">Agent query: <span class="mono">${esc(q)}</span></span>` : ''}
     </div>
+    ${epics.length ? `<div class="sectionhead" style="padding:0 0 6px"><h3>Epics · ${epics.length}</h3><span class="src">Open an epic to see its progress map</span></div>
+      <div class="epicrow">${epics.map(e => { const k = childrenOf(e.id), dn = k.filter(x => x.status === 'done').length, act = k.filter(x => x.status === 'progress' || x.status === 'review').length, fy = k.filter(forYou).length + (forYou(e) ? 1 : 0);
+        return `<button class="epiccard" data-a="epicmap" data-v="${e.id}" aria-current="${S.epicF === e.id}">
+          <span class="row" style="gap:6px;min-width:0">${typeIcon(e)}<span class="et">${esc(e.title)}</span><span class="mono muted" style="margin-left:auto">${e.id}</span></span>
+          <span class="pbar" style="height:7px" role="img" aria-label="${dn} of ${k.length} done"><i style="width:${k.length ? dn/k.length*100 : 0}%;background:var(--ok)"></i><i style="width:${k.length ? act/k.length*100 : 0}%;background:var(--violet)"></i></span>
+          <span class="src">${dn}/${k.length} done · ${STATUS[e.status]}${fy ? ` · <b style="color:var(--warn)">${fy} for you</b>` : ''}</span></button>`; }).join('')}</div>` : ''}
     ${S.labelF !== 'all' ? `<div class="callout" style="margin-bottom:10px">Filtered by <b>#${esc(S.labelF)}</b>. <a href="#" data-a="label" data-v="${esc(S.labelF)}">Open the label page</a> for its brief, progress by epic, and bulk actions.</div>` : ''}
     ${S.workMode==='board' ? `<div class="board">${cols.map(colHtml).join('')}</div>` : S.workMode==='map' ? `<div class="card pad">${S.epicF === 'all' && S.labelF === 'all' ? '<div class="callout" style="margin-bottom:10px">Tip: pick an epic or label above. A whole project on one map gets busy.</div>' : ''}${progressMap(list, {extTitle:'Outside this view'})}</div>` : table}`;
 };
@@ -1046,7 +1061,7 @@ V.ticket = () => {
   return `
   ${!inScope(i) ? `<div class="callout row wrap" style="margin-bottom:12px"><span class="grow">${i.id} belongs to <b>${P[i.proj].short}</b>, outside the project you're viewing.</span><button class="btn sm" data-a="scope" data-v="${i.proj}">Switch to ${P[i.proj].short}</button></div>` : ''}
   <div class="tk-head"><div class="grow">
-    <div class="row wrap"><span class="mono muted">${i.id}</span>${typeBadge(i)}${i.epic ? `<span class="muted">in</span> ${link(i.epic)} <span class="muted">◆ ${esc(byId[i.epic].title)}</span>` : '<span class="src">no epic</span>'}${labelsOf(i)}${i.imported ? '<span class="chip c-gray">Imported from Jira</span>' : ''}</div>
+    <div class="row wrap"><span class="mono muted">${i.id}</span>${typeBadge(i)}${i.epic ? `<span class="muted">in</span> <a href="#" class="epiclink" data-a="epicmap" data-v="${i.epic}" title="Open the epic map"><span class="ed">◆</span> ${esc(byId[i.epic].title)}</a> <span class="mono muted">${i.epic}</span>` : '<span class="src">no epic</span>'}${labelsOf(i)}${i.imported ? '<span class="chip c-gray">Imported from Jira</span>' : ''}</div>
     <h1 style="margin-top:4px">${esc(i.title)}</h1>
     <div class="row wrap" style="margin-top:6px">${statusChip(i)}${blockedChip(i)}${i.status==='done' ? (i.closedBy==='owner' ? prov(hrOf(i).some(h => h.state === 'deferred') ? 'ownerdef' : 'owner', hrOf(i).some(h => h.state === 'deferred') ? `Closed · ${hrOf(i).filter(h => h.state === 'deferred').length} review deferred, not verified` : 'Closed after your human review') : prov('agent','Closed by agent: checks passed, no human review')) : ''}
       <label class="row" style="gap:4px"><span class="src">Priority</span><select data-a="prio" aria-label="Priority">${[1,2,3].map(n => `<option value="${n}" ${i.prio===n?'selected':''}>P${n}</option>`).join('')}</select></label>
@@ -1135,7 +1150,7 @@ V.label = () => {
       <div class="card pad"><h3>Brief</h3><div>${L.brief ? esc(L.brief) : '<span class="muted">No brief. Add one if this label is an initiative with shared decisions.</span>'}</div>${L.by ? `<div class="src" style="margin-top:6px">written by ${esc(L.by)}</div>` : ''}</div>
       <div class="card pad"><h3>Progress across epics</h3>${progressMap(its, {extTitle:'Without this label', empty:'Nothing has this label.'})}</div>
       <div class="card pad"><div class="row" style="justify-content:space-between"><h3 style="margin:0">By epic</h3><span class="src">${its.filter(isBlocked).length} blocked · ${plan.length} in planning · ${its.filter(forYou).length} for you</span></div>
-        ${Object.entries(groups).map(([k, l]) => `<div class="src" style="margin-top:12px;font-weight:650">${k === 'none' ? 'No epic' : `◆ ${esc(byId[k].title)}`} · ${l.filter(x => x.status==='done').length}/${l.length}</div>
+        ${Object.entries(groups).map(([k, l]) => `<div class="src" style="margin-top:12px;font-weight:650">${k === 'none' ? 'No epic' : `<a href="#" class="epiclink" data-a="epicmap" data-v="${k}"><span class="ed">◆</span> ${esc(byId[k].title)}</a>`} · ${l.filter(x => x.status==='done').length}/${l.length}</div>
           ${l.map(x => `<div class="lrow">${typeIcon(x)}${link(x.id)}<span class="grow" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.title)}</span>${statusChip(x)}${hrChip(x)}</div>`).join('')}`).join('') || '<div class="muted">Nothing has this label.</div>'}</div>
     </div>
     <div class="stack">
@@ -1531,6 +1546,7 @@ document.addEventListener('click', e => {
   if (el.tagName === 'SELECT' || (el.tagName === 'INPUT' && el.type !== 'checkbox')) return;
   if (el.dataset.a === 'closeov' && e.target !== el) return;
   if (el.tagName === 'A') e.preventDefault();
+  if (el.tagName === 'TR' && e.target.closest('a')) return;
   const fn = ACT[el.dataset.a]; if (fn) fn(el.dataset.v);
 });
 document.addEventListener('change', e => {

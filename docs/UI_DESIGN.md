@@ -1,6 +1,6 @@
 # UI/UX design — MVP V1 human interface
 
-Status: design proposal, revision 13, 2026-11-06. Inputs: [requirements draft](REQUIREMENTS_DRAFT.md), [Jira research](JIRA_RESEARCH.md).
+Status: design proposal, revision 14, 2026-11-06. Inputs: [requirements draft](REQUIREMENTS_DRAFT.md), [Jira research](JIRA_RESEARCH.md).
 
 Clickable prototype: [`design/prototype.html`](../design/prototype.html). It is one file with no build step and no network requests, and all data in it is disposable sample work (O09). Open it directly in a browser.
 
@@ -140,6 +140,11 @@ Designed to fit on one laptop screen without scrolling. In the prototype it fits
 - **Details:** brief and documents, plus the items listed by status. The Human review card sits at the top of the right-hand column, the same place as on tickets.
 - **Activity:** agent updates for the epic, plus a *note for the agents* box.
 
+**Getting to an epic:**
+- **Work has an Epics row** at the top: one compact card per epic, with done count, mini progress bar, status and "N for you". Clicking it opens the epic's Map tab.
+- The epic name is a link wherever it appears as text: the ticket header ("in ◆ Pantry"), the ticket breadcrumb, list rows, and the label page.
+- Board cards keep the epic as plain text, because a card is already one link.
+
 The epic remembers which tab you were on. A ticket's breadcrumb reads *Project / ◆ Epic / ID*, and the epic link takes you back to the tab you left. On a ticket, *See it on the epic map* always opens the Map tab. (In the real app, browser Back should do the same.)
 
 ### Progress map (epic pages, label pages, Work → Map)
@@ -278,9 +283,10 @@ Base type is 13px; secondary text is at least 11.5px. Small controls are at leas
 
 **Testing:**
 - `design/prototype.html?selftest` renders every page in every scope, plus every item, tab, label, packet round, dialog and filter. It reports `SELFTEST OK` in headless Edge.
-- An 81-step scripted click-through of the scenarios above also passed.
+- An 85-step scripted click-through of the scenarios above also passed.
 
 ## Revision history
+- **Revision 14:** epics get a front door. An Epics row on Work opens each epic's Map tab, and epic names are links in ticket headers, list rows and label pages. Previously the epic page was only reachable through a ticket's "See it on the epic map" link.
 - **Revision 13:** epic pages use Map (default, full width) · Details · Activity tabs; human review shows on map cards (filled = ready for you, outlined = later); epic-level review is a strip above the map; ticket breadcrumbs link back to the epic and its last tab.
 - **Revision 12:** the progress map sits on a pannable canvas with fixed, generous spacing, overflow cues (edge fades, *More* pills, hint line, grab cursor), drag/scroll/keyboard panning, and zoom with Fit.
 - **Revision 11:** the standalone Dependencies page is replaced by a progress map on epic and label pages and in Work → Map, plus a 1-hop dependency view on each ticket. The delay what-if is removed.
