@@ -11,11 +11,12 @@ Status: discovery draft, updated 2026-11-06. The confirmed choices below are own
 5. Approval gates vary by project and its agent workflow. Some projects require explicit owner approval at defined points; others allow an agent to finish and report completion without an owner gate.
 6. Human and agents may enter or change planned dates. Effort values and velocity-based backlog forecasts are desirable planning additions; forecasts must be distinguished from entered dates.
 7. The V1 browser UI is available on the host machine only. Other-device or public access is outside the V1 boundary; this public repository should keep local-only networking as its default.
-8. The workflow includes a **Planning** status between Inbox and Ready. While an item is in Planning, its planning artifacts (for example UI/UX design, PRD, TDD) are produced and reviewed. An item moves to Ready only when it is actually ready for an agent to start building. (Added 2026-11-06.)
-9. Ceremony should fit the risk. Each project defines which planning artifacts are required before Ready, and small changes may skip UX/TDD; high-stakes production projects may require all of them. Each project also defines who may move an item to Ready: the owner, or an agent once the project's readiness gate is met. (Added 2026-11-06.)
+8. The workflow includes a **Planning** status between Inbox and Ready. Planning is the owner's stage: planning artifacts (for example UI/UX design, PRD, TDD) are produced there, and the owner moves an item to Ready, or tells an agent to, when it is actually ready to build. (Added 2026-11-06.)
+9. Ceremony should fit the risk. Which planning artifacts a ticket needs is settled during Planning and by each project's agent workflow; small changes may skip UX/TDD, and high-stakes production work may require all of them. (Added 2026-11-06; revised the same day.)
 10. The browser UI starts at an all-projects view on each visit, so the owner is never unknowingly scoped to a single project. (Added 2026-11-06.)
 11. Per-item planning exceptions and readiness rules are decided by each project's agent constitution and workflow. The tracker stores and shows the project's configuration and records deviations; it does not enforce them. (Added 2026-11-06.)
-12. Item types include Epic as a parent container, Feature, Story, Task, Bug, and Design. A Feature may stand alone without an Epic. Projects can define custom item types. (Added 2026-11-06.)
+12. V1 item types are Epic (the only container), Story, Task, and Bug. An Epic still in Planning acts as the brief for work not yet broken down. Large initiatives that span several epics use a label with an optional brief rather than a level above Epic. Small steps are checklist items on the ticket; subtasks are not in V1. (Added 2026-11-06; revised the same day.)
+13. Human review is verification after implementation, not part of Planning. Agents declare human review items on a ticket, usually during Planning. When the work is built and the agent's own checks pass, the agent supplies a handoff packet telling the owner how to verify. The owner approves (the ticket closes) or requests changes (each finding becomes a checklist item or a new bug ticket, and the agent prepares another round). A ticket cannot close while any human review item is undecided; with no human review items, the agent may close it once its checks pass. (Added 2026-11-06.)
 
 ## Product intent
 
@@ -26,12 +27,12 @@ A locally run Docker service gives AI agents a stable MCP endpoint for planning 
 | Object | Purpose | Key relationships |
 | --- | --- | --- |
 | Project | Bounds a product or work area | Contains outcomes, work items, project-local artifacts, and an optional approval policy linked to its agent workflow documents. |
-| Work item | Durable idea, Epic, Feature, Story, Task, Bug, Design, or a project-defined custom type | Optional parent (container types only); labels; explicit typed links; owner, priority, status, dates, acceptance. |
+| Work item | Epic, Story, Task, or Bug | Optional epic; labels; explicit typed links; priority, status, dates, acceptance; lead claim by an agent rather than an assignee. |
 | Dependency | Directed `blocks` edge between work items | Independent of hierarchy, ordering, and `relates`. |
-| Ticket plan | A short, revisable list of steps for completing one work item | Each step has state, responsible agent if known, and last update; steps are not work items. |
+| Checklist | Three short lists on one work item: Work (the agent's plan), Agent checks (its own verification), Human review (what the owner must verify) | Items are one or two sentences with state and history; they are not work items. A Work item that outgrows the checklist becomes its own Story or Task. |
 | Agent run | One actual execution/session, including an optional delegated subagent record | References work item, plan step when relevant, and optional parent run; actor, timestamps, state, output. |
 | Artifact | Locally stored document/file or a linked URL, commit, PR, test, build, deployment, screenshot, etc. | Project owner, version/source, and work item/run references. Local bytes stay in persistent storage. |
-| Review | An explicit owner decision on a versioned artifact or work item | Requested, approved, changes requested, deferred, or waived, with reviewer and rationale. |
+| Human review and handoff packet | An agent-written packet per review round, and an attributed owner decision per human review item | Approved or changes requested, with notes; findings become checklist items or bug tickets; decisions bind to that packet version. |
 | Event | Immutable activity/provenance record | Actor, timestamp, object, action, prior/new values or evidence reference. |
 
 ## Agent-facing candidate requirements

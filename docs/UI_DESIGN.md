@@ -1,225 +1,132 @@
 # UI/UX design — MVP V1 human interface
 
-Status: design proposal, revision 4, 2026-11-06. Inputs: [requirements draft](REQUIREMENTS_DRAFT.md), [Jira research](JIRA_RESEARCH.md).
+Status: design proposal, revision 5, 2026-11-06. Inputs: [requirements draft](REQUIREMENTS_DRAFT.md), [Jira research](JIRA_RESEARCH.md).
 
-Clickable prototype: [`design/prototype.html`](../design/prototype.html). It is a single file with no build step and no network requests, and all data is disposable sample work (O09). Open it directly in a browser.
+Clickable prototype: [`design/prototype.html`](../design/prototype.html). It is one file with no build step and no network requests, and all data in it is disposable sample work (O09). Open it directly in a browser.
 
-## Who the UI is for
+## What the UI is for
 
-One owner supervises several AI agents, and the agents do most of the writing through MCP. So the browser UI is mainly for **oversight and decisions**, not data entry. It answers two questions (H09):
+The product is agent-first: agents do the planning, building and bookkeeping over MCP. The browser UI exists so the owner can answer four questions quickly:
 
-1. **What needs me next?**
-2. **What are the agents doing right now, and can I believe it?**
+1. **What have the agents done?**
+2. **What are they doing right now, and can I believe it?**
+3. **What's next?**
+4. **Is anything waiting on me, or coming my way?**
 
-The second question shapes the visual language. Trust in the product comes from never letting an agent's claim look like a fact, or a merge look like an approval.
+Anything that doesn't serve one of those questions stays out of the UI. Revision 4 broke that rule (custom item types, a Structure view, Feature and Design types), and revision 5 removes it all.
+
+## Model
+
+```
+Epic ──► Story / Task / Bug ──► checklist
+                                 ├─ Work          the agent's plan (subagent notes attach here)
+                                 ├─ Agent checks  what the agent verifies itself, with evidence
+                                 └─ Human review  what you must verify before Done (empty = nothing for you)
+Labels cut across epics (large initiatives).   Blocks links are the only thing that makes work wait.
+```
+
+| Concept | Rule |
+| --- | --- |
+| **Types** | Epic, Story, Task, Bug. Epic is the only container. |
+| **Epic** | Groups the work for one feature. While in Planning, the epic *is* the brief: it holds the PRD, UX and other docs for work not yet broken down. |
+| **Large initiatives** | A **label** with an optional brief, e.g. `#ui-refresh` across several epics. The label page shows progress grouped by epic and can move everything with that label from Planning to Ready in one step. Agents query `label:ui-refresh` the same way. |
+| **Checklist instead of subtasks** | If a step fits in a sentence or two, it's a checklist item. If it needs its own lead, blockers or review, it becomes its own Story or Task under the same epic. |
+| **No assignee field** | Agents *claim* tickets (the lead claim, with a lease). You don't get assigned tickets; you get **human review items** and **questions**. |
+| **Planning is yours** | Planning docs attach to the ticket or epic. You move an item to Ready when you're satisfied, or tell an agent to. The tracker doesn't enforce a definition of ready; the repo's agent workflow does. |
+| **Human review** | Verification *after* implementation, described below. |
+
+### Human review and handoff packets
+
+1. **Declare.** The agent adds human review items to the ticket, usually during Planning, so you can see them coming. Each is a sentence: *"On your phone, drag recipes between days. Does it feel right?"* If a ticket has none, the agent may close it once its own checks pass.
+2. **Hand off.** When the work is built and the agent's checks pass, the ticket moves to **Review** with a **handoff packet**: one versioned document per ticket per round. It has a fixed shape:
+   - what you're verifying
+   - how to verify it (steps, URL or build, roughly how long)
+   - what the agent already checked, with provenance badges
+   - known gaps
+   - attachments (recordings, screenshots, docs)
+3. **Decide.** You mark each item *Looks good* or *Needs changes*, with a required note for changes.
+   - **All good:** the ticket closes, recorded as your decision on that packet version.
+   - **Anything needs changes:** each finding becomes either a checklist item on the ticket or a new Bug (linked back to the ticket). The ticket returns to In progress, and you get a round 2 packet.
+4. **One rule the tracker always enforces:** a ticket can't close while any of its human review items is undecided. Everything else (whether a ticket needs human review, what goes in the packet, whether to skip a planning doc) belongs to the agent constitution and workflow in each project's repo.
 
 ## Design principles
 
 | # | Principle | How it shows up |
 | --- | --- | --- |
-| 1 | **Decisions first.** | The home screen is a queue. Decisions agents are blocked on appear first, highlighted, with the primary action. The sidebar badge counts *only* decisions owed. |
-| 2 | **Never blur provenance.** | Each source has its own border style and icon. Only the solid green person badge means a human decided (H06, A17). |
-| 3 | **Unknown is not done.** | Run state is shown as icon shape *plus* a text label: live, reported, stale, needs input, failed, finished, interrupted. Stale never turns into a check mark (H05, A06). |
-| 4 | **Blocked is derived, not a column.** | It is computed from unresolved `blocks` links only. The Ready column splits into *Startable* and *Waiting on blockers*. |
-| 5 | **Decisions bind to versions.** | Every decision names the version and hash it applies to. A new revision shows "Pending" again (H04). |
-| 6 | **Entered ≠ forecast.** | Planned dates are labelled "set by X". When there isn't enough history, the forecast lane shows *no bar*, just what's missing (H08, H14). |
-| 7 | **Colour means state, never priority.** | Priority uses neutral signal bars. Red, amber, green and violet are reserved for blocked/failed, owner-needed/review, done/approved, and agent work. |
-| 8 | **Every owner action is reversible or confirmed.** | Small edits show an *Undo* toast. Destructive actions explain their scope and need confirmation. |
-| 9 | **Project scope is always visible.** | One project switcher controls every work page. Each page title carries a scope pill ("Recipe App" or "All projects"), and service-wide pages are labelled as such. |
-| 10 | **Agents build only what's been planned.** | Work passes through Planning (PRD, UX, TDD) before Ready. Agents can write planning docs, but can only claim the build once the item is Ready. |
+| 1 | **"For you" first.** | Needs you leads with packets to verify and questions to answer. Its badge counts only those. |
+| 2 | **Never blur provenance.** | Badges distinguish *your decision*, *agent-reported*, *observed child run*, *relayed by lead*, *CI* and *git*. CI and merges never count as approval. |
+| 3 | **Unknown is not done.** | Run state is shown as icon plus label (live, reported, stale, needs input, failed, finished, interrupted). Stale never becomes a check mark. |
+| 4 | **Blocked is derived.** | Only unresolved `blocks` links make work wait. Epics and labels never do. |
+| 5 | **Decisions bind to versions.** | Your decision applies to one packet round. A new round never inherits an earlier approval. |
+| 6 | **Entered ≠ forecast.** | Dates show who set them. A forecast is drawn only when there is enough history. |
+| 7 | **Colour means state, never priority.** | Priority is shown with neutral signal bars. |
+| 8 | **Scope is always visible.** | One project switcher at the top of the sidebar scopes every work page. Every visit starts at *All projects*. |
+| 9 | **Reversible or confirmed.** | Owner actions show an Undo toast. Destructive actions explain their scope and require confirmation. |
 
 ## Information architecture
 
 ```
-Sidebar (collapses to an icon rail below 1180px)      Work item page
-┌ Project ▾  [All projects | Recipe App | Docs Site]  ├─ Header: ID · type · parent · status · blocked · priority (editable) · policy chip
-│  ── scoped to the chosen project ──                 ├─ Banner (only when the owner must act): gate / review / question
-├─ Needs you      badge = decisions owed              ├─ Definition of ready card (Planning items only)
-├─ Work           Board | List, saved filters         ├─ Outcome + acceptance (evidence per criterion)
-├─ Reviews        badge = pending reviews             ├─ Tabs: Progress · Evidence · Activity — default depends on status
-├─ Dependencies   other-project links shown dashed    └─ Rail: Lead & runs · Dependencies · Dates & effort
-├─ Timeline
-├─ Agents         badge = active runs
+Sidebar                                   Ticket page
+┌ Project ▾ [All | Recipe App | Docs]     ├─ Header: ID · type · epic · labels · status · priority · Move to Planning/Ready
+│  ── scoped to the chosen project ──     ├─ Banner when you must act: packet ready / agent question
+├─ Needs you     badge = for you now      ├─ Outcome + acceptance
+├─ Work          Board | List             ├─ Tabs: Checklist (Work · Agent checks · Human review) · Documents · Activity
+├─ Human review  badge = packets ready    └─ Rail: Lead & runs · Dependencies · Dates & effort
+├─ Dependencies
+├─ Timeline                               Epic page: brief, documents, items by status with progress
+├─ Agents                                 Label page: brief, progress by epic, "Move N to Ready"
 │  ── service-wide ──
-├─ Projects       pick a scope; per-project settings and delete
-└─ Connections    clients, setup, service health
-Header: scope / page breadcrumb · search/jump (Ctrl K or /, searches all projects) · theme toggle
+├─ Projects
+└─ Connections
+Header: breadcrumb · search/jump (Ctrl K or /; items, labels, pages) · theme
 ```
-
-## Project scope
-
-In revision 2, the work pages silently showed every project, and the Projects page jumped to a filtered board. That was confusing: it wasn't clear what the pages above were showing, and choosing a project changed only one page. Revision 3 makes scope a single, explicit setting:
-
-- **One switcher** sits at the top of the sidebar: *All projects* or one project. It changes **every** work page (Needs you, Work, Reviews, Dependencies, Timeline, Agents) together. It stays selected as you move between pages.
-- **The switcher menu shows decisions owed per project.** While viewing one project, you can still see that another project needs you.
-- **Scope is visible everywhere:** in the breadcrumb ("Recipe App / Work"), as a pill next to each page title, and as a colour swatch in the collapsed rail.
-- **Projects and Connections are service-wide** and labelled that way. On the Projects page, *Switch to* sets the scope and opens that project's Needs you. Per-project settings (approval policy, definition of ready, delete) also live there.
-- **Links across projects stay visible.** When you're scoped to Recipe App, Docs Site items that block your work still appear: as dashed "Docs Site ↗" nodes on the graph, as blocker markers on the timeline, and with a project tag in dependency lists.
-- **Opening an item from another project** (from a link or search) shows a notice ("DOC-4 belongs to Docs Site…") with a *Switch to Docs Site* button. Your scope never changes silently.
-- **Search covers all projects** and shows each result's project.
-- **Every visit starts at All projects** (owner decision), so you never come back to a page that is silently scoped to one project.
-
-## Item types and structure
-
-**Three separate relationships**, so none of them is overloaded:
-
-| Relationship | Rule | Used for |
-| --- | --- | --- |
-| **Parent** | At most one. Only *container* types can be parents. | What an item belongs to. Progress rolls up through it. |
-| **Labels** | Any number, free-form (`#mobile`, `#regression`) | Loose grouping across the tree |
-| **Blocks** | Directed dependency (unchanged) | The only thing that makes work wait |
-
-**Built-in types**, available in every project:
-
-| Type | Kind | Meaning |
-| --- | --- | --- |
-| ◆ Epic | Container | Large outcome. Groups features and items. |
-| ▣ Feature | Container | A product capability. Can sit **under an epic or stand alone**. |
-| ● Story | Work item | User-facing change |
-| ■ Task | Work item | Technical or chore work |
-| ✕ Bug | Work item | Defect fix |
-| ✎ Design | Work item | A design deliverable (flows, mockups, specs), reviewed as an artifact |
-
-**Custom types** are added per project from *Projects → Item types…*. Each has a name, an icon, a "can contain items" flag, and default planning docs. The sample Recipe App has a custom ⚡ *Spike*. Agents read the type list over MCP, so a new type works for them immediately.
-
-**Typical shapes**, all valid:
-- Epic → Feature → Story: Meal planning MVP → Weekly planner → RCP-12
-- Feature with no epic → items: Pantry → RCP-15, RCP-21, RCP-25 (Design). This covers "in a feature, but not part of an epic".
-- Epic → item directly: RCP-19 sits under the epic, outside any feature.
-- No parent at all: RCP-16, RCP-18, RCP-20
-
-**Where it shows:**
-- *Work → Structure* view: Epics; then Features not in an epic; then No parent. Containers show done/total and blocked counts.
-- Cards: a type badge plus a parent line (▣ Pantry).
-- Tickets: the full ancestry (Shopping list › Meal planning MVP).
-- Container pages: their children, with a rollup.
-- A type filter on Work.
-
-Containers don't appear on the board or timeline and aren't claimed by agents. Their progress comes from the items inside.
-
-**The tracker records rules; it doesn't enforce them.** Planning-doc defaults per type, the Ready gate and per-item exceptions are decided by the agent constitution and workflow in each project's repo. The tracker stores the project's configuration, shows it, and returns it to agents over MCP. When something deviates, it is logged rather than blocked. For example, *Move to Ready* with missing docs works, and the activity log records "moved to Ready without TDD".
 
 ## Screens
 
-### 1. Needs you (home) — H02, H09
-- **Summary line:** "3 decisions owed: agents are waiting on these. 5 other items to look at."
-- **Filter chips** with counts: All, Decisions, Stale runs, Failed runs, Blocked, Date risk, Missing evidence.
-- **Each queue row** shows:
-  - an icon for the kind of problem,
-  - the item title as a link, the ID, and the run state,
-  - one sentence explaining *why* it is here,
-  - which items it is holding up,
-  - one action button.
-- **Ordering:** decisions first, then failed and stale runs, then blockers and date risk, then evidence gaps. Within each group, the row holding up the most items comes first.
-- **Answering an agent question:** the reply box opens inline in the row. The owner never has to leave the queue.
-- **Right rail:**
-  - "Agents right now": each active run and its state.
-  - "Since you looked at 08:30": changes since the owner last visited, each linked to its item.
+### Needs you (home)
+- **Ready for you:** handoff packets to verify (round number, how many items, about how long) and agent questions, answered inline.
+- **Problems:** stale or failed runs, dependency cycles, and date conflicts. Sorted by how much work each holds up.
+- **Coming up for you:** declared human reviews on tickets not yet in Review, with where each ticket is now ("in progress · 1/4 work items done", "ready · blocked by DOC-4").
+- **Your Planning queue:** everything in Planning, with *Move to Ready* on each.
+- **Agents right now**, and **Since you looked**.
 
-### 2. Work — H01, A05
-- **Layouts:** Board · List · **Structure** (the epic/feature tree with rollups). A **type filter** sits next to the saved filters, and custom types appear in it automatically.
-- **Board columns:** Inbox · **Planning** · Ready (*Startable* + collapsible *Waiting on blockers*, shown as ID chips) · In progress · Review · Done (last 7 days).
-- **Planning cards** show the project's required planning docs as small chips: ✓ approved, ◐ in review, ✎ drafting, – not started. Example: "✓ PRD ◐ UX ✎ TDD".
-- **Card contents:**
-  - ID, type, and priority bars
-  - title
-  - state chips: *Blocked by X*, *Gate: …*, *Review owed*, *Question for you*, *Date risk*
-  - run state with label, lead agent, and last activity
-- **Card left border:** red if blocked, amber if the owner owes a decision.
-- **Saved filters** have counts and match the agent queries one-to-one. The equivalent query string is shown, including the project when scoped ("Agent query: `status:ready -is:blocked project:RCP`"). *In planning* is one of the filters.
-- **List view:** the same data as a table, with real links.
+### Work
+- **Board columns:** Inbox · Planning (yours) · Ready (Startable / Waiting on blockers) · In progress · Review (your human review) · Done.
+- **Cards:** type, epic, labels, run state, plus chips for *Packet ready*, *Human review later*, *Question for you*, *Blocked*, and *Date risk*.
+- **Filters:** epic, label, and saved filters (In planning, Ready to start, Blocked, For you, Human review later, Live run). Each shows the matching agent query.
 
-### 3. Work item — H03, H05, H06, H11, H13, A15, A16, A17
-- **Banners** appear only when the owner must act:
-  - *Done is locked*: a gate is pending.
-  - *Review owed*.
-  - *Agent question*: includes an answer box.
+### Ticket
+- **Checklist tab:**
+  - **Work:** items with state, who and when. Subagent contributions are nested under the item they belong to. Revised items show the old text. Items added from your review say so. A history view shows every revision.
+  - **Agent checks:** each check with its state (passed, failed, not run) and evidence.
+  - **Human review:** each item with its state (Coming up, Ready for you, Approved). If you sent an item back, it shows your note and where it went. If there are no items, the tab says the agent can close the ticket on its own.
+- **Documents tab:** planning docs (PRD, UX, TDD) and handoff packets.
+- **Rail:**
+  - **Lead & runs:** the lease, any rejected claims, stale-claim release, and *Return to Ready* after a failed run.
+  - **Dependencies.**
+  - **Dates** with who set them.
 
-  Otherwise the approval policy is a quiet chip in the header.
-- **Definition of ready card** (Planning items only):
-  - Lists each planning doc the project requires, with its state. A doc in review links to its review.
-  - **Move to Ready** is always available. If docs are missing, the card names them ("Missing UX, TDD") and says the repo's agent workflow decides whether that's acceptable. Moving anyway is recorded in the activity log.
-  - The listed docs are the project's *default* for this item type. The card says which rule applies ("Story in this project needs PRD, UX, TDD").
-  - When everything is approved: in an *owner moves to Ready* project, the item appears in Needs you as a *Move to Ready* decision. In an *agent may move to Ready* project, the lead agent can move it, and the card shows "Agent may move to Ready". You can still move it yourself.
-- **Inbox items** get a *Move to Planning* button.
-- **Default tab:** Review and Done items open on **Evidence**. Everything else opens on **Progress**.
-- **Progress tab:**
-  - Numbered plan steps with states: done, current, planned, blocked, skipped.
-  - Subagent contributions are nested under their step, each with an *Observed child run* or *Relayed by lead* badge.
-  - Revised steps show the old text struck through, plus the reason.
-  - **Plan history** opens a dialog listing every version as a diff (v1 → v2 → v3).
-- **Evidence tab:** each row has a provenance badge. If an agent closed an item in a project with no owner gate, the owner can *Accept without evidence* or *Reopen*.
-- **Lead & runs rail:**
-  - Lead run, lease, and heartbeat, plus any child runs and log-only subagents.
-  - A rejected second claim on the item is shown as a notice (A15).
-  - **Stale run:** *Release lead claim…* opens a confirmation. The run is marked *interrupted*, its work is kept, and the item returns to Ready.
-  - **Failed run:** the error excerpt is shown, plus *Return to Ready*. The text makes clear that the service never launches agents (O08).
-- **Priority is editable in place** (H11). The change is logged to activity, with an Undo toast and the note "agents see it on their next query".
-- **Dates show who set them.** Date conflicts with blockers appear as red callouts.
+### Human review
+- **Queue:** Ready for you, Decided, and Coming up.
+- **Packet:** a round selector (earlier rounds are read-only and show your past decisions), then each item with *Looks good* or *Needs changes*. Changes need a note and a choice: *checklist item* or *new bug ticket*.
+- **The submit button names the outcome:** *Approve and close ticket* or *Send back to codex*. A footnote says exactly what will happen.
 
-### 4. Reviews — H04, H10, A09
-- **Queue:** grouped into *Waiting* and *Decided today*. Decision chips use the same vocabulary everywhere: Pending · Approved · Changes requested · Deferred · Waived.
-- **Document pane:**
-  - The version selector shows each version's decision state.
-  - Author, time, and hash are shown.
-  - **Show/Hide changes since v1:** inline ins/del marks, or a clean reading view.
-  - **Download .md**.
-  - A warning appears when viewing an older version.
-- **Owner gates** (e.g. "Release walkthrough") use the same screen. The submitted evidence is shown as badges, and the owner's walkthrough checklist is saved with the decision.
-- **Decision panel:**
-  - The four outcomes are a radio group. A reason is required for everything except Approve.
-  - The submit button names the decision ("Record: Approve").
-  - A footnote states exactly which version the decision applies to and what happens next.
-  - An Undo button appears after recording.
+### Labels and epics
+- **Label page:** brief, progress grouped by epic, *Move N to Ready* for everything with that label still in Planning, and a link to the filtered board.
+- **Epic page:** brief, documents, and items grouped by status with progress. A Planning epic is described as "still a brief".
 
-### 5. Dependencies — H07, A04, A11
-- **The graph** shows `blocks` links, with toggles to add `relates` and to show the parent epic grouping (labelled "never blocks").
-- **Selecting a node** shows:
-  - what it waits on, including indirect blockers (red),
-  - what finishing it would free (green dashed),
-  - what it is also needed for (still blocked by others).
-
-  Nodes are keyboard-focusable buttons.
-- **Cycles** are detected automatically. A fix button ("Remove ‘DOC-8 blocks DOC-7’") is offered, with Undo.
-- **Delay impact:** pick a slip of 1, 3 or 5 days. Each downstream item shows *conflict*, *ok* or *unknown (no dates)*. Only entered dates are used.
-
-### 6. Timeline — H08, H14
-- Bars for entered dates, coloured by state:
-  - blue: planned
-  - red: date conflict, labelled "blocker ends later"
-  - green: done
-- A thin violet bar under each plan bar shows actual run time, ending at "now".
-- A dashed marker shows where each unresolved blocker is planned to finish. The caption below the bar spells it out, e.g. "set by owner · Nov 3 · after **DOC-4 ends Nov 10**".
-- **Forecast lane:** while there isn't enough history, it shows *no bar*, only the text "needs 8 completed items with effort (have 2)". A *Preview* toggle shows what a real forecast will look like: P50/P85 range, rate, window, and sample size.
-- Items without dates are listed under the chart rather than silently left out.
-
-### 7. Agents — H05
-Shows every run and subagent log entry, with columns for state, item, what it is doing or did, last signal, and lease. A **How we know** column says whether the information is client heartbeat, observed child run, relayed by lead, or unknown. A legend explains every run state.
-
-### 8. Connections — O01, O02, O07, O08 (new)
-- **Client compatibility matrix** (the O07 smoke test): host Codex, host Claude, Orca + Codex, Orca + Claude (*not verified*), and agents in other containers (*off by default*).
-- **Setup snippets** for Codex and Claude Code, with a Copy button. They are labelled as samples to check against each client's docs. The token is supplied through an environment variable, never written into tickets.
-- **Endpoint:** loopback bind, bearer auth, allowed origins.
-- **Service health:** database, document storage, volume, last backup and its retention, last restart, and what happened to active runs at restart.
-
-### 9. Projects — O10, O11 (service-wide)
-- **Switch to** sets the project scope and opens that project's Needs you. The current project is marked *Current*. Each row also shows decisions owed.
-- **Item types…** opens the project's type list: built-in and custom types, whether each is a container, and its default planning docs (editable checkboxes). You can add a custom type there.
-- **Definition of ready** per project and item type (set in *Item types…*): which planning docs must be approved before an item can move to Ready. *Ceremony fits the risk.* In the sample, Recipe App (a money-making, ships-to-prod project) needs PRD, UX and TDD for Stories, PRD and TDD for Tasks, and nothing for Bugs. Docs Site (a side project) needs only a PRD for Stories and Tasks, and nothing for Bugs.
-- **Who moves items to Ready** per project: *Owner moves to Ready*, or *Agent may move to Ready* once the required docs are approved. Like the approval policy, this setting should match the project's agent workflow documents.
-- **Approval policy** per project, changeable inline with Undo.
-- **Status bar** per project, with an accessible text label.
-- **Delete** opens a dialog that states its scope (items, documents, what agents will see, and backup retention). The owner must type the project key to confirm.
-
-### Global
-- **Search and jump** (`Ctrl K` or `/`): one palette for work items and views, with arrow-key navigation.
-- **Theme:** follows the system setting, with a manual light/dark override.
-- **Toasts** confirm owner mutations and offer Undo for 6 seconds.
+### Dependencies, Timeline, Agents, Connections, Projects
+Unchanged from revision 3 apart from simplifications:
+- **Dependencies:** graph with blocking chain, what finishing an item would free, cycle fix, delay what-if, and items from other projects shown dashed.
+- **Timeline:** entered dates vs actual run time vs forecast.
+- **Agents:** run table with "how we know".
+- **Connections:** client compatibility matrix, setup snippets, service health.
+- **Projects:** switch scope, labels, progress, and typed-confirmation delete. The per-project policy, ready-gate and item-type settings are gone.
 
 ## Visual language
 
-### Work status chips
-| Status | Treatment |
+### Work status
+| Status | Colour |
 | --- | --- |
 | Inbox | gray |
 | Planning | teal |
@@ -227,148 +134,92 @@ Shows every run and subagent log entry, with columns for state, item, what it is
 | In progress | violet |
 | Review | amber |
 | Done | green |
-| Canceled | gray, struck through |
-| **Blocked** (derived) | red chip, "⊘ Blocked by X", shown *next to* the status chip |
+| **Blocked** (derived) | red chip shown *next to* the status |
 
-### Run state — icon shape + text label, separate from status
-| Icon | Label | Meaning |
-| --- | --- | --- |
-| ● solid green, pulsing | live | Client heartbeat received |
-| ○ violet ring | reported | Agent says it's working; no heartbeat |
-| ◌ dashed gray ring | stale | No heartbeat; state unknown |
-| amber disc with "?" | needs input | Waiting on the owner |
-| red disc with "×" | failed | Run ended with an error |
-| gray disc with "✓" | finished | Run ended normally |
-| gray ring with "–" | interrupted | Lease released or service restarted |
+### Run state (icon shape + text label)
+| Label | Icon |
+| --- | --- |
+| live | solid green, pulsing |
+| reported | violet ring |
+| stale | dashed ring |
+| needs input | amber with "?" |
+| failed | red with "×" |
+| finished | gray with "✓" |
+| interrupted | ring with "–" |
 
-The pulse turns off under `prefers-reduced-motion`.
+The pulse is disabled under `prefers-reduced-motion`.
 
-### Provenance badges — each kind has its own border style and icon
-| Badge | Style | Meaning |
-| --- | --- | --- |
-| Owner decision | **solid green fill, person icon** | The only style that means human approval |
-| Observed child run | solid violet outline + tint, eye icon | Seen directly by the service |
-| Agent-reported | dashed violet outline, bot icon | The agent's own assertion |
-| Relayed by lead | dotted gray outline, relay icon | Second-hand, from the lead agent |
-| CI / Automated check | blue tint, gear icon | Test or build systems |
-| Git · not approval | neutral gray, branch icon | A merge is never an approval |
-| Owner gate pending | amber outline, clock icon | Waiting on the owner |
+### Provenance badges
+| Badge | Style |
+| --- | --- |
+| Your decision | **solid green fill, person icon**. The only badge that means human approval. |
+| Observed child run | solid violet outline |
+| Agent-reported | dashed violet outline |
+| Relayed by lead | dotted gray outline |
+| CI | blue tint |
+| Git | neutral; never approval |
 
-### Priority
-Priority is shown as three neutral signal bars plus "P1"/"P2"/"P3" in mono text, and is never coloured. This keeps red and amber free to mean *something is wrong* or *you need to act*.
+### Human review states
+| State | Chip |
+| --- | --- |
+| Coming up | gray |
+| Ready for you | amber |
+| Approved | green |
 
 ### Tokens
-Every text pair below was measured. All text is at least 4.5:1 and all control borders at least 3:1 (WCAG 1.4.3 and 1.4.11).
+All text is at least 4.5:1 and control borders at least 3:1, in light and dark mode.
 
 | Token | Light | Dark | Use |
 | --- | --- | --- | --- |
-| `--ink` / `--ink-2` / `--ink-3` | #16191f / #444c59 / **#5f6878** (5.6:1) | #e6e9ef / #b8c0cc / #99a2b4 (6.9:1) | Text levels. `ink-3` is the smallest allowed for secondary text. |
-| `--ctl` | #8a929f (3.1:1) | #6f788a (4.0:1) | Borders on inputs, buttons, chips |
-| `--line` | #e3e6eb | #2a303b | Decorative card and divider lines only |
-| `--ok` | **#237032** | #5bd06f | Done, owner approval |
-| `--warn` | **#9a4705** | #f0a020 | Owner action needed, review |
+| `--ink-3` | #5f6878 (5.6:1) | #99a2b4 | Secondary text |
+| `--ctl` | #8a929f (3.1:1) | #6f788a | Control borders |
+| `--ok` | #237032 | #5bd06f | Done, your approval |
+| `--warn` | #9a4705 | #f0a020 | For you, review |
 | `--bad` | #c22b2b | #ff7b7b | Blocked, failed, conflict |
-| `--info` | **#1864ab** | #5cb3f8 | Ready, informational |
-| `--violet` | #6741d9 | #a990ff | Agent work, in progress |
-| `--teal` | #0b7285 (5.0:1 on tint) | #3bc9db | Planning |
-| `--on-fill` | #fff | **#0f1115** | Text on solid fills. Dark mode uses dark text, which fixed the 2:1 failures in revision 1. |
+| `--info` | #1864ab | #5cb3f8 | Ready |
+| `--violet` | #6741d9 | #a990ff | Agent work |
+| `--teal` | #0b7285 | #3bc9db | Planning |
+| `--on-fill` | #fff | #0f1115 | Text on solid fills |
 
-- **Type:** Inter or the system UI font, 13px base. Secondary text is at least 11.5px. IDs, hashes and endpoints use a mono font at 12px.
-- **Hit targets:** at least 28px tall for small buttons and chips, 32px for nav and tabs.
-- **Radius:** 8–12px.
+Base type is 13px; secondary text is at least 11.5px. Small controls are at least 28px tall.
 
-## Accessibility (built in the prototype, not just intended)
-- **Semantic, focusable controls:**
-  - Cards and IDs are real `<a>` links.
-  - Actions are `<button>`s.
-  - Graph nodes are `role="button"`, focusable, and respond to Enter or Space.
-  - Table headers use `scope`.
-- **Tabs** follow the ARIA tabs pattern: `tablist`, `tab`, and `tabpanel`, with roving tabindex and ←/→/Home/End keys.
-- **Decision choices** are a `radiogroup`.
-- **Dialogs** have `role="dialog"` and `aria-modal`. They trap focus and close on Esc. Destructive dialogs focus **Cancel** first.
-- **Focus is kept across re-renders,** so keyboard users don't lose their place after an action.
-- **Run states and provenance carry text,** not just colour or shape. Badges include screen-reader prefixes such as "Agent-reported:". Status bars have `aria-label`.
-- **Toasts** use `role="status"` with `aria-live="polite"`.
-- **Reduced motion** is respected.
+## Accessibility
+- **Semantic controls:** cards and IDs are links; actions are buttons. Graph nodes are focusable buttons.
+- **Keyboard patterns:**
+  - Tabs follow the ARIA tabs pattern.
+  - Verdicts and decisions are radio groups.
+  - Dialogs trap focus, close on Esc, and focus *Cancel* first when the action is destructive.
+- **Focus is kept across re-renders.** Toasts announce politely.
+- **Run states, review states and provenance always carry text**, never colour alone.
 
 ## Validation scenarios in the prototype
-| Scenario from the requirements | Where to try it |
+| Scenario | Where |
 | --- | --- |
-| PR merged and CI passed, but the owner walkthrough is pending | Needs you → RCP-12 → Review. Approving moves RCP-12 to Done, and RCP-22 becomes startable on the board. |
-| Plan revised mid-flight, with a subagent contribution | RCP-14 → Progress → Plan history |
-| Revised document after requested changes | Reviews → RCP-19, v1 vs v2, Show/Hide changes |
-| Cross-project blocker with a date conflict | RCP-16: Needs you, Timeline (red), Dependencies |
-| Stale run shown as unknown; competing claim rejected | RCP-15 → Release lead claim… → run becomes *interrupted* (Undo available) |
-| Agent waiting on an owner answer | Needs you → DOC-4 → Answer (inline) |
-| Cycle in imported data | Dependencies → DOC-7 → Remove link |
-| Project without an owner gate; agent closed without evidence | DOC-2 → Evidence → Accept or Reopen |
-| Client compatibility (O07) | Connections |
-| Switching project scope | Sidebar *Project* menu → Recipe App: badges, board, graph and timeline all narrow; DOC-4 stays visible as an external blocker |
-| Planning gate | RCP-23 → approve the UX doc in Reviews; Move to Ready stays disabled until the TDD is approved |
-| Planning complete, agent may move it | Docs Site → DOC-9: not an owner decision; the card explains the lead agent may move it, and you can still click *Move to Ready* |
-| Ceremony fits the risk | Projects: compare per-type rules (Recipe App Story: PRD, UX, TDD; Docs Site Bug: none) and switch who moves items to Ready |
-| Starting planning | RCP-20 (Inbox, custom *Spike* type) → *Move to Planning* |
-| Feature outside an epic | Work → Structure → *Features not in an epic* → Pantry |
-| Custom item type | Projects → Recipe App → *Item types…* → add one; it appears in the Work type filter |
+| Packet ready; approve and close; dependent work unblocks | Needs you → RCP-12 → mark both items *Looks good* → *Approve and close*. RCP-22 becomes startable. |
+| Send back with findings | RCP-12 packet → *Needs changes* + note → *New bug ticket*. RCP-28 is created and RCP-12 returns to In progress. Undo is available. |
+| Earlier round, read-only | RCP-12 packet → Round 1 (sent back, with your notes and the bug it created, RCP-17) |
+| Reviews coming up | Needs you → *Coming up for you* (RCP-14, RCP-16, RCP-22, RCP-23, RCP-25, DOC-9) |
+| No human review | RCP-15 → Checklist → "No human review declared" |
+| Planning is yours | Needs you → *Your Planning queue* → *Move to Ready* |
+| Large initiative across epics | Click `#ui-refresh` on RCP-23 → progress by epic → *Move 2 to Ready* |
+| Epic as a brief | RCP-2 Pantry (in Planning, with brief and PRD) |
+| Agent question | Needs you → DOC-4 → Answer inline |
+| Stale run and competing claim | RCP-15 → *Release lead claim…* → run becomes *interrupted* (Undo available) |
+| Cycle in imported data | Dependencies → DOC-7 → remove a link |
+| Project scope | Sidebar *Project* menu; counts per project; items from other projects flagged |
 
-The prototype has a self-check: open it with `?selftest` and it renders every view in each project scope, plus every item, tab, dialog and filter, then reports any errors in the page title. In revision 3, that check passed in headless Edge. A 39-step scripted click-through of the flows above also passed.
+**Testing:**
+- `design/prototype.html?selftest` renders every page in every scope, plus every item, tab, label, packet round, dialog and filter. It reports `SELFTEST OK` in headless Edge.
+- A 32-step scripted click-through of the scenarios above also passed.
 
-## Changes in revision 4 (owner feedback)
-1. **Types:** a type registry with built-in Epic, Feature, Story, Task, Bug and Design, plus custom types per project (e.g. Spike), managed in *Projects → Item types…*.
-2. **Structure:** parent (containers only), labels and blocks are kept separate. Features can stand alone or sit under an epic. Added a *Structure* view, ancestry on tickets, child lists with rollups on container pages, and a type filter.
-3. **Rules are recorded, not enforced:** *Move to Ready* no longer blocks on missing docs. It warns, and logs the deviation.
+## Revision history
+- **Revision 5:** simplified to Epic → item → checklist. Removed Feature, Design, custom types, the Structure view, per-project ready gates and planning-doc rules. Added labels with briefs for initiatives, the three-part checklist, human review items, handoff packets with rounds, and findings turned into checklist items or bugs. Needs you is rebuilt around Ready for you, Coming up and Problems.
+- **Revision 4:** item types and structure (since removed).
+- **Revision 3:** project scope switcher and the Planning status.
+- **Revision 2:** accessibility and contrast fixes, provenance badges, Connections, search, and Undo.
+- **Revision 1:** first draft.
 
-## Changes in revision 3 (owner feedback)
-1. **Project scope:**
-   - One sidebar switcher scopes every work page. Projects and Connections are labelled service-wide.
-   - Scope appears in the breadcrumb and as a pill on each page title.
-   - The switcher shows decisions owed per project.
-   - Items from other projects are flagged, with a notice and a *Switch to* button.
-   - The Projects page now switches scope instead of opening a filtered board.
-2. **Planning status:**
-   - The flow is now Inbox → Planning → Ready → In progress → Review → Done.
-   - Each project defines which planning docs each item type needs before Ready (ceremony fits the risk), and whether the owner or the lead agent moves items to Ready.
-   - Planning docs go through the normal review screen.
-   - Moving to Ready is offered only when the required docs are complete. It is an owner decision only in projects that require one.
-
-## Changes in revision 2 (from the design critique)
-1. **Accessibility:**
-   - Cards and rows are now real links. Tabs, dialogs and the radiogroup have proper ARIA. Focus is preserved across re-renders.
-   - All text colour pairs pass AA; the owner badge went from 4.37:1 to 6.1:1. Dark-mode fills use dark text.
-   - Control borders now meet 3:1.
-2. **Provenance:** "Observed child run" is now solid and distinct from "Agent-reported" (dashed).
-3. **Colour:** priority uses neutral bars. Run states always carry a text label.
-4. **Forecast:** no bar is drawn when data is insufficient. A preview toggle shows the future state instead.
-5. **Counts:** one counting rule. The sidebar shows decisions owed, the chips show queue counts, and the Reviews badge shows pending reviews.
-6. **Ready column:** split into Startable and Waiting on blockers.
-7. **New flows:**
-   - inline answer to agent questions
-   - plan history dialog
-   - stale-claim release with an *interrupted* run state
-   - claim-conflict notice
-   - failed-run "Return to Ready"
-   - cycle fix with Undo
-   - delay-impact what-if
-   - evidence acknowledgement
-   - inline priority and policy edits with Undo
-   - typed-confirmation delete
-8. **New screens and features:** Connections (client matrix, setup, health), command palette, theme toggle, "Since you looked".
-9. **Timeline:** blocker-end markers, date-conflict highlighting, actual bars stop at "now", and undated items are listed.
-10. **Responsive:** the sidebar collapses to an icon rail, the Reviews layout reflows, and the board scrolls horizontally.
-11. **Removed** every control that did nothing in revision 1.
-
-## Open design questions
-1. **Agent questions:** should a question pause the agent's lease (as the prototype assumes)? Or should the agent keep the lease and poll?
-2. **Gate shape:** are gates per project only (as the prototype assumes), or can an item type or a single item add its own gate?
-3. **Last visit:** how is "since you looked" tracked — the last time this browser loaded the page, or an explicit "mark all seen"?
-4. **Document previews:** which formats does V1 preview besides Markdown (images, PDF, HTML)?
-5. **Forecast threshold:** the prototype uses 8 completed items with effort values. Confirm the number and the window.
-6. **Releasing a claim:** should the owner be able to release a *live* agent's claim, or only a stale one? The prototype offers it only for stale claims.
-7. **Features as tags:** the prototype makes a Feature a *parent* (one per item). If an item ever needs to belong to two features at once, that would call for labels or a many-to-many link instead. Is one feature per item enough?
-
-### Decided (owner, 2026-11-06)
-- **Moving to Ready** doesn't have to be done by the owner. Each project defines that gate; an agent may move an item when the project allows it.
-- **Planning docs** are set per project and can differ by item type. Small changes can skip UX and TDD. High-stakes projects can require all of them. The principle: ceremony fits the risk.
-- **Per-item exceptions and planning rules** are decided by each project's agent constitution and workflow, not enforced by the tracker. The tracker records and displays them.
-- **Item types:** Epic (container), Feature, Story, Task, Bug, Design, plus custom types per project.
-- **Project scope** always starts at *All projects* when the UI loads, so returning to the app never leaves you in an unexpected project.
+## Open questions
+1. **Packet freshness.** If the agent changes code after submitting a packet (for example a fix to a different finding), should the tracker mark the packet stale automatically? Or is that the agent's job to resubmit?
+2. **Label governance.** Who may create labels: anyone (agents included), or only you, with agents limited to existing labels? The prototype shows managed labels with briefs but no creation screen.
+3. **Partial approval.** Once you've approved some items in a round and sent others back, should the approved items stay approved in the next round (as prototyped), or be re-verified?

@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Task Lite — UI prototype (rev 2)</title>
+<title>Task Lite — UI prototype (rev 5)</title>
 <!--
-  Clickable UI/UX prototype for the local agent work tracker (MVP V1), revision 2.
+  Clickable UI/UX prototype for the local agent work tracker (MVP V1), revision 5.
   Self-contained: no network requests, no build step. All data is disposable sample work (O09).
   Design rationale and requirement mapping: docs/UI_DESIGN.md
 -->
@@ -106,26 +106,13 @@
 .tl .scopemenu button:hover,.tl .scopemenu button[aria-checked=true]{background:var(--brand-soft)}
 .tl .scopemenu .hint{font-size:12px;color:var(--ink-3);padding:6px 9px 2px;border-top:1px solid var(--line);margin-top:4px}
 .tl .scopebar{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-2);background:var(--panel-2);border:1px solid var(--line);border-radius:999px;padding:1px 9px}
-.tl .pdocs{display:flex;gap:4px;flex-wrap:wrap}
-.tl .pdoc{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:600;border-radius:5px;padding:0 6px;line-height:18px;border:1px solid transparent}
-.tl .pd-approved{background:var(--ok-soft);color:var(--ok)}
-.tl .pd-review{background:var(--warn-soft);color:var(--warn);border-color:color-mix(in srgb,var(--warn) 40%,transparent)}
-.tl .pd-drafting{border:1.5px dashed var(--violet);color:var(--violet)}
-.tl .pd-none{border:1px dashed var(--ctl);color:var(--ink-3)}
 .tl .gnode.ext rect.b{fill:var(--panel-2);stroke-dasharray:4 3}
 @media (max-width:1180px){.tl .scopebtn .txt,.tl .scopebtn .chev{display:none}.tl .scopebtn{justify-content:center;padding:6px}}
 
 /* ---------- structure tree & labels ---------- */
-.tl .tree{list-style:none;margin:0;padding:0}
-.tl .tree .tree{padding-left:22px;border-left:1px dashed var(--line-2);margin-left:13px}
-.tl .trow{display:grid;grid-template-columns:minmax(0,1fr) 150px 110px;gap:10px;align-items:center;padding:6px 10px;border-radius:7px}
-.tl .trow:hover{background:var(--panel-2)}
-.tl .trow.cont{font-weight:650}
-.tl .tgroup{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);font-weight:650;padding:12px 10px 4px}
 .tl .label{display:inline-flex;align-items:center;font-size:11.5px;border:1px solid var(--ctl);border-radius:4px;padding:0 5px;color:var(--ink-2);line-height:17px}
 .tl .label::before{content:"#";color:var(--ink-3);margin-right:1px}
 .tl .ptag{font-size:12px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
-.tl .typetbl td,.tl .typetbl th{padding:6px 8px}
 .tl .ti{display:inline-grid;place-items:center;width:16px;font-size:11px}
 
 /* ---------- chips, status, priority ---------- */
@@ -354,6 +341,22 @@
 .tl .hv{display:grid;gap:10px}
 .tl .hv .ver{border:1px solid var(--line);border-radius:9px;padding:10px 12px}
 .tl .hv .add{color:var(--ok)} .tl .hv .rm{color:var(--bad);text-decoration:line-through}
+/* ---------- checklist & handoff packet ---------- */
+.tl .ck{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:10px;padding:8px 0;border-top:1px solid var(--line);align-items:start}
+.tl .ckgroup{display:flex;justify-content:space-between;align-items:center;margin:16px 0 4px;padding-bottom:4px;border-bottom:1px solid var(--line)}
+.tl .ckgroup:first-child{margin-top:0}
+.tl .ckgroup + .ck{border-top:0}
+.tl .packet section{padding:14px 0 4px;border-top:1px solid var(--line)}
+.tl .packet section:first-child{border-top:0}
+.tl .packet h2{font-size:14px;margin:0 0 8px}
+.tl .hritem{border:1px solid var(--line);border-radius:9px;padding:10px 12px;margin-top:8px}
+.tl .verdict{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.tl .verdict .ap[aria-pressed=true]{background:var(--ok-soft);border-color:var(--ok);color:var(--ok)}
+.tl .verdict .ch[aria-pressed=true]{background:var(--warn-soft);border-color:var(--warn);color:var(--warn)}
+.tl .attach{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:5px 9px;margin:0 6px 6px 0;font-size:12.5px}
+.tl a.label{text-decoration:none}
+.tl .agent-row .mono,.tl .lrow .mono{white-space:nowrap}
+.tl a.label:hover{border-color:var(--brand);color:var(--brand)}
 </style>
 </head>
 <body style="margin:0;padding:16px;background:var(--background,#e9ecf1)">
@@ -377,196 +380,165 @@
 (() => {
 /* =====================================================================
    Sample data — disposable (O09). "Now" is fixed so the story is stable.
+   Model: Epic → Story/Task/Bug → checklist (Work · Agent checks · Human review).
+   Labels group across epics (e.g. a large initiative). Human review happens
+   after implementation, through a handoff packet written by the agent.
    ===================================================================== */
 const NOW = new Date('2026-11-06T11:00:00');
 const D = s => new Date(s + 'T00:00:00');
 const fmt = d => d.toLocaleDateString('en-US', {month:'short', day:'numeric'});
 
-/* Item types. Built-ins are available in every project; projects can add custom types.
-   container = can be a parent. The tracker records planning-doc defaults per type but does not
-   enforce them: the repo's agent constitution / workflow decides. */
-const TYPES = {
-  Epic:   {icon:'◆', container:true,  desc:'Large outcome. Groups features and items.'},
-  Feature:{icon:'▣', container:true,  desc:'A product capability. Can sit under an epic or stand alone.'},
-  Story:  {icon:'●', container:false, desc:'User-facing change.'},
-  Task:   {icon:'■', container:false, desc:'Technical or chore work.'},
-  Bug:    {icon:'✕', container:false, desc:'Defect fix.'},
-  Design: {icon:'✎', container:false, desc:'Design deliverable (flows, mockups, specs) reviewed as an artifact.'},
-};
 const P = {
-  RCP:{key:'RCP', name:'Sample · Recipe App', short:'Recipe App', color:'#3b5bdb', policy:'gated', gates:['Design review','Release walkthrough'], readyRules:{Epic:['PRD'], Feature:['PRD','UX','TDD'], Story:['PRD','UX','TDD'], Task:['PRD','TDD'], Bug:[], Design:['PRD'], Spike:[]}, readyGate:'owner', docs:7,
-       customTypes:{Spike:{icon:'⚡', container:false, desc:'Time-boxed investigation; output is a findings note.'}}},
-  DOC:{key:'DOC', name:'Sample · Docs Site',  short:'Docs Site',  color:'#d9480f', policy:'none',  gates:[], readyRules:{Epic:[], Feature:['PRD'], Story:['PRD'], Task:['PRD'], Bug:[], Design:[]}, readyGate:'agent', docs:3, customTypes:{}},
+  RCP:{key:'RCP', name:'Sample · Recipe App', short:'Recipe App', color:'#3b5bdb', docs:9},
+  DOC:{key:'DOC', name:'Sample · Docs Site',  short:'Docs Site',  color:'#d9480f', docs:3},
+};
+const TYPES = {Epic:'◆', Story:'●', Task:'■', Bug:'✕'};
+const LABELS = {
+  'ui-refresh':{proj:'RCP', brief:'Visual refresh across the planner, shopping list and pantry. Uses design tokens v2 (8px grid, new colour roles). Every screen keeps keyboard support and 4.5:1 contrast. Ship screen by screen, not as one big release.', by:'owner · Nov 2'},
+  'mobile':{proj:'RCP', brief:''},
+  'regression':{proj:'RCP', brief:'Something that used to work broke. Fix before new work in the same area.', by:'owner · Nov 1'},
+  'api-docs':{proj:'DOC', brief:''},
 };
 
 const items = [
-  {id:'RCP-1', type:'Epic', title:'Meal planning MVP', status:'progress', prio:2, proj:'RCP', last:'40s'},
-  {id:'RCP-30',type:'Feature',title:'Shopping list', status:'progress', prio:1, proj:'RCP', parent:'RCP-1', last:'40s'},
-  {id:'RCP-32',type:'Feature',title:'Weekly planner', status:'progress', prio:1, proj:'RCP', parent:'RCP-1', last:'18m'},
-  {id:'RCP-31',type:'Feature',title:'Pantry', status:'progress', prio:2, proj:'RCP', last:'2m', labels:['mobile']},
-  {id:'RCP-25',type:'Design', title:'Pantry screens and empty states', status:'ready', prio:2, proj:'RCP', parent:'RCP-31', last:'5h', labels:['mobile']},
-  {id:'DOC-10',type:'Feature',title:'API reference', status:'progress', prio:2, proj:'DOC', last:'9m'},
-  {id:'RCP-11',type:'Task', title:'Auth scaffold', status:'done', prio:2, proj:'RCP', parent:'RCP-1', lead:'codex', run:'finished', age:'2d', last:'2d', start:'2026-11-02', end:'2026-11-03', setBy:'owner · Nov 1', actual:['2026-11-02','2026-11-03'], closedBy:'owner'},
-  {id:'RCP-12',type:'Story',title:'Weekly planner drag-and-drop', status:'review', prio:1, proj:'RCP', parent:'RCP-32', lead:'codex', run:'finished', age:'18m', last:'18m', gate:'Release walkthrough', start:'2026-11-02', end:'2026-11-07', setBy:'owner · Nov 2', actual:['2026-11-02','2026-11-06'], pts:3},
-  {id:'RCP-14',type:'Story',title:'Generate shopping list from week plan', status:'progress', prio:1, proj:'RCP', labels:['mobile'], parent:'RCP-30', lead:'claude · orca-w3', run:'live', age:'40s', last:'40s', start:'2026-11-04', end:'2026-11-11', setBy:'claude · Nov 5', actual:['2026-11-04',null], pts:5},
-  {id:'RCP-15',type:'Task', title:'Pantry inventory schema', status:'progress', prio:2, proj:'RCP', parent:'RCP-31', lead:'codex · orca-w1', run:'stale', age:'47m', last:'2m', start:'2026-11-03', end:'2026-11-08', setBy:'codex · Nov 3', actual:['2026-11-03',null], pts:2},
-  {id:'RCP-16',type:'Story',title:'Nutrition summary card', status:'ready', prio:2, proj:'RCP', last:'1d', blockedBy:['DOC-4'], start:'2026-11-09', end:'2026-11-14', setBy:'owner · Nov 3'},
-  {id:'RCP-17',type:'Bug',  title:'Planner loses selected week on reload', status:'ready', prio:1, proj:'RCP', labels:['regression'], parent:'RCP-32', last:'3h', relates:['RCP-12'], start:'2026-11-09', end:'2026-11-10', setBy:'owner · Nov 6'},
-  {id:'RCP-18',type:'Task', title:'Import recipes from URL', status:'progress', prio:3, proj:'RCP', lead:'claude', run:'failed', age:'25m', last:'25m', start:'2026-11-05', end:'2026-11-07', setBy:'claude · Nov 5', actual:['2026-11-05',null]},
-  {id:'RCP-19',type:'Task', title:'Recipe data model spec', status:'review', prio:2, proj:'RCP', parent:'RCP-1', lead:'claude', run:'finished', age:'2h', last:'2h', review:'recipe-data-model.md', start:'2026-11-04', end:'2026-11-06', setBy:'owner · Nov 3', actual:['2026-11-04','2026-11-06']},
-  {id:'RCP-20',type:'Spike',title:'Offline mode spike', status:'inbox', prio:3, proj:'RCP', last:'4d'},
-  {id:'RCP-23',type:'Story',title:'Meal plan templates', status:'planning', prio:2, proj:'RCP', parent:'RCP-32', lead:'claude', run:'reported', age:'6m', last:'6m', review:'meal-templates-ux.md', planning:{PRD:'approved', UX:'review', TDD:'drafting'}},
-  {id:'RCP-24',type:'Story',title:'Grocery delivery handoff', status:'planning', prio:3, proj:'RCP', parent:'RCP-30', last:'1d', planning:{PRD:'drafting', UX:'none', TDD:'none'}},
-  {id:'RCP-21',type:'Story',title:'Pantry-aware recipe suggestions', status:'ready', prio:2, proj:'RCP', parent:'RCP-31', last:'1d', blockedBy:['RCP-15','RCP-14'], start:'2026-11-12', end:'2026-11-20', setBy:'claude · Nov 5'},
-  {id:'RCP-22',type:'Story',title:'Share weekly plan link', status:'ready', prio:3, proj:'RCP', parent:'RCP-32', last:'2d', blockedBy:['RCP-12'], start:'2026-11-16', end:'2026-11-19', setBy:'owner · Nov 3'},
-  {id:'DOC-2', type:'Task', title:'Docs site skeleton', status:'done', prio:3, proj:'DOC', lead:'codex', run:'finished', age:'3d', last:'3d', closedBy:'agent', start:'2026-11-02', end:'2026-11-03', setBy:'codex · Nov 2', actual:['2026-11-02','2026-11-03']},
-  {id:'DOC-4', type:'Story',title:'API reference: nutrition endpoint', status:'progress', prio:2, proj:'DOC', parent:'DOC-10', lead:'codex', run:'needs', age:'9m', last:'9m', start:'2026-11-05', end:'2026-11-10', setBy:'owner · Nov 4', actual:['2026-11-05',null],
-     question:{by:'codex', at:'10:51', text:'Should nutrition values be documented per serving or per 100 g? The API returns both; the card in RCP-16 only needs one.'}},
-  {id:'DOC-5', type:'Task', title:'Search index for docs', status:'ready', prio:3, proj:'DOC', last:'2d'},
-  {id:'DOC-9', type:'Task', title:'Contributor guide', status:'planning', prio:3, proj:'DOC', lead:'codex', run:'finished', age:'1h', last:'1h', planning:{PRD:'approved'}},
-  {id:'DOC-7', type:'Task', title:'Imported: versioning guide', status:'ready', prio:3, proj:'DOC', last:'5d', blockedBy:['DOC-8'], imported:true},
-  {id:'DOC-8', type:'Task', title:'Imported: changelog format', status:'ready', prio:3, proj:'DOC', last:'5d', blockedBy:['DOC-7'], imported:true},
+  {id:'RCP-1', type:'Epic', title:'Meal planning MVP', status:'progress', prio:1, proj:'RCP', last:'40s'},
+  {id:'RCP-2', type:'Epic', title:'Pantry', status:'planning', prio:2, proj:'RCP', last:'2m', labels:['mobile']},
+  {id:'DOC-10',type:'Epic', title:'API reference', status:'progress', prio:2, proj:'DOC', last:'9m', labels:['api-docs']},
+  {id:'RCP-11',type:'Task', title:'Auth scaffold', status:'done', prio:2, proj:'RCP', epic:'RCP-1', lead:'codex', run:'finished', age:'2d', last:'2d', start:'2026-11-02', end:'2026-11-03', setBy:'owner · Nov 1', actual:['2026-11-02','2026-11-03'], closedBy:'agent', hr:[]},
+  {id:'RCP-12',type:'Story',title:'Weekly planner drag-and-drop', status:'review', prio:1, proj:'RCP', epic:'RCP-1', labels:['ui-refresh'], lead:'codex', run:'finished', age:'18m', last:'18m', start:'2026-11-02', end:'2026-11-07', setBy:'owner · Nov 2', actual:['2026-11-02','2026-11-06'], pts:3, round:2,
+     hr:[{t:'On your phone, drag recipes between days and meal slots. Does it feel right?', state:'ready'},{t:'Move a recipe using only the keyboard (Space, arrows, Enter).', state:'ready'}]},
+  {id:'RCP-14',type:'Story',title:'Generate shopping list from week plan', status:'progress', prio:1, proj:'RCP', epic:'RCP-1', labels:['mobile'], lead:'claude · orca-w3', run:'live', age:'40s', last:'40s', start:'2026-11-04', end:'2026-11-11', setBy:'claude · Nov 5', actual:['2026-11-04',null], pts:5,
+     hr:[{t:"Export one week's list and check it reads well in your notes app.", state:'declared'}]},
+  {id:'RCP-15',type:'Task', title:'Pantry inventory schema', status:'progress', prio:2, proj:'RCP', epic:'RCP-2', lead:'codex · orca-w1', run:'stale', age:'47m', last:'2m', start:'2026-11-03', end:'2026-11-08', setBy:'codex · Nov 3', actual:['2026-11-03',null], pts:2, hr:[]},
+  {id:'RCP-16',type:'Story',title:'Nutrition summary card', status:'ready', prio:2, proj:'RCP', epic:'RCP-1', last:'1d', blockedBy:['DOC-4'], start:'2026-11-09', end:'2026-11-14', setBy:'owner · Nov 3', hr:[{t:'Check the totals against one recipe you know.', state:'declared'}]},
+  {id:'RCP-17',type:'Bug',  title:'Planner jumps back to the current week after reload', status:'ready', prio:1, proj:'RCP', epic:'RCP-1', labels:['regression'], last:'16h', relates:['RCP-12'], fromReview:'RCP-12 · round 1', start:'2026-11-09', end:'2026-11-10', setBy:'owner · Nov 6', hr:[]},
+  {id:'RCP-18',type:'Task', title:'Import recipes from URL', status:'progress', prio:3, proj:'RCP', epic:'RCP-1', lead:'claude', run:'failed', age:'25m', last:'25m', start:'2026-11-05', end:'2026-11-07', setBy:'claude · Nov 5', actual:['2026-11-05',null], hr:[]},
+  {id:'RCP-19',type:'Task', title:'Recipe data model spec', status:'review', prio:2, proj:'RCP', epic:'RCP-1', lead:'claude', run:'finished', age:'2h', last:'2h', start:'2026-11-04', end:'2026-11-06', setBy:'owner · Nov 3', actual:['2026-11-04','2026-11-06'], round:1,
+     hr:[{t:'Read the spec. Is pantry stock clearly separate from recipe quantities?', state:'ready'}]},
+  {id:'RCP-20',type:'Task', title:'Offline mode spike', status:'inbox', prio:3, proj:'RCP', last:'4d', hr:[]},
+  {id:'RCP-21',type:'Story',title:'Pantry-aware recipe suggestions', status:'ready', prio:2, proj:'RCP', epic:'RCP-2', last:'1d', blockedBy:['RCP-15','RCP-14'], start:'2026-11-12', end:'2026-11-20', setBy:'claude · Nov 5', hr:[]},
+  {id:'RCP-22',type:'Story',title:'Share weekly plan link', status:'ready', prio:3, proj:'RCP', epic:'RCP-1', last:'2d', blockedBy:['RCP-12'], start:'2026-11-16', end:'2026-11-19', setBy:'owner · Nov 3', hr:[{t:'Open a shared link on a second device.', state:'declared'}]},
+  {id:'RCP-23',type:'Story',title:'Meal plan templates', status:'planning', prio:2, proj:'RCP', epic:'RCP-1', labels:['ui-refresh'], lead:'claude', run:'reported', age:'6m', last:'6m',
+     hr:[{t:'Apply a template to a week that already has meals. Is "Merge or Replace" clear?', state:'declared'}]},
+  {id:'RCP-24',type:'Story',title:'Grocery delivery handoff', status:'planning', prio:3, proj:'RCP', epic:'RCP-1', last:'1d', hr:[]},
+  {id:'RCP-25',type:'Task', title:'Pantry screens and empty states', status:'ready', prio:2, proj:'RCP', epic:'RCP-2', labels:['ui-refresh','mobile'], last:'5h', hr:[{t:'Compare the pantry screens with the UX doc on your phone.', state:'declared'}]},
+  {id:'RCP-27',type:'Task', title:'Refresh shopping list styles', status:'planning', prio:3, proj:'RCP', epic:'RCP-1', labels:['ui-refresh'], last:'1d', hr:[]},
+  {id:'DOC-2', type:'Task', title:'Docs site skeleton', status:'done', prio:3, proj:'DOC', lead:'codex', run:'finished', age:'3d', last:'3d', closedBy:'agent', start:'2026-11-02', end:'2026-11-03', setBy:'codex · Nov 2', actual:['2026-11-02','2026-11-03'], hr:[]},
+  {id:'DOC-4', type:'Story',title:'API reference: nutrition endpoint', status:'progress', prio:2, proj:'DOC', epic:'DOC-10', labels:['api-docs'], lead:'codex', run:'needs', age:'9m', last:'9m', start:'2026-11-05', end:'2026-11-10', setBy:'owner · Nov 4', actual:['2026-11-05',null],
+     question:{by:'codex', at:'10:51', text:'Should nutrition values be documented per serving or per 100 g? The API returns both; the card in RCP-16 only needs one.'}, hr:[]},
+  {id:'DOC-5', type:'Task', title:'Search index for docs', status:'ready', prio:3, proj:'DOC', last:'2d', hr:[]},
+  {id:'DOC-7', type:'Task', title:'Imported: versioning guide', status:'ready', prio:3, proj:'DOC', last:'5d', blockedBy:['DOC-8'], imported:true, hr:[]},
+  {id:'DOC-8', type:'Task', title:'Imported: changelog format', status:'ready', prio:3, proj:'DOC', last:'5d', blockedBy:['DOC-7'], imported:true, hr:[]},
+  {id:'DOC-9', type:'Task', title:'Contributor guide', status:'planning', prio:3, proj:'DOC', last:'1h', hr:[{t:'Follow the guide on a clean checkout and time it.', state:'declared'}]},
 ];
-const byId = Object.fromEntries(items.map(i => [i.id, i]));
+let byId = {};
+const reindex = () => { byId = Object.fromEntries(items.map(i => [i.id, i])); };
+reindex();
 
-/* Rich per-item content. Items without an entry get a generated page. */
+/* Ticket detail. work = the agent's plan as a checklist; checks = agent's own verification. */
 const DETAIL = {
+ 'RCP-1':{outcome:'A household can plan a week of meals and get one shopping list from it.', docs:[['meal-planning-brief.md','v3','owner','Nov 1']], activity:[['Nov 1','Owner created the epic and attached the brief']]},
+ 'RCP-2':{outcome:'Track what is already at home so plans and lists account for it. Still being shaped: this epic holds the brief until it is broken down.', docs:[['pantry-brief.md','v3','owner','Nov 4'],['pantry-prd.md','v1','claude','Nov 5']], activity:[['Nov 5','claude attached pantry-prd.md v1'],['Nov 4','Owner updated the brief to v3']]},
+ 'DOC-10':{outcome:'Every public endpoint has a reference page with an example.', docs:[], activity:[]},
  'RCP-14':{
   outcome:'When a week plan is saved, the user can produce one merged shopping list grouped by aisle and export it.',
-  acceptance:[['Quantities for the same ingredient merge across recipes, with unit conversion','units tests · r-77'],['List is grouped by aisle and sorted','aisle-grouping.png'],['Export as a Markdown checklist',null]],
+  acceptance:['Quantities for the same ingredient merge across recipes, with unit conversion','List is grouped by aisle and sorted','Export as a Markdown checklist'],
   planVer:3,
-  steps:[
-    {s:'done', t:'Define aggregation rules', who:'claude · lead', when:'09:10'},
-    {s:'current', t:'Implement unit merging (g/kg, ml/l, cups)', who:'claude · lead', when:'10:52', contrib:[
-      ['observed','units-worker','codex child run r-77 under r-71','Added conversion table and 31 tests · finished 10:40'],
+  work:[
+    {s:'done', t:'Define aggregation rules', who:'claude', when:'09:10'},
+    {s:'current', t:'Implement unit merging (g/kg, ml/l, cups)', who:'claude', when:'10:52', contrib:[
+      ['observed','units-worker','codex child run r-77','Added conversion table and 31 tests · finished 10:40'],
       ['relayed','explorer','subagent · no run identity','Mapped 214 ingredient units in sample recipes · reported by lead 10:12']]},
-    {s:'planned', t:'Export as Markdown checklist', was:'Export to Reminders app', why:'Reminders API not reachable from the container', who:'claude · lead', when:'changed 10:05'},
-    {s:'planned', t:'Write acceptance tests for aisle grouping'}],
+    {s:'todo', t:'Export as a Markdown checklist', was:'Export to Reminders app', why:'Reminders API not reachable from the container', who:'claude', when:'changed 10:05'},
+    {s:'todo', t:'Group by aisle and sort'}],
+  checks:[['31 unit-conversion tests pass','observed','child run r-77 test output','pass'],['Aisle grouping snapshot tests','agent','not run yet','todo'],['Export opens cleanly in a Markdown viewer','agent','not run yet','todo']],
   history:[
     {v:1, at:'09:02', by:'claude', note:'Initial plan on claim', ops:[['=','1. Define aggregation rules'],['=','2. Implement unit merging'],['=','3. Export to Reminders app']]},
-    {v:2, at:'09:40', by:'claude', note:'Added a test step after an owner comment', ops:[['+','4. Write acceptance tests for aisle grouping']]},
-    {v:3, at:'10:05', by:'claude', note:'Reminders API not reachable from the container', ops:[['-','3. Export to Reminders app'],['+','3. Export as Markdown checklist']]}],
-  evidence:[['aggregation-rules.md v1','agent','Local artifact · written by claude','09:10'],['Unit tests: 31 passed','observed','Child run r-77 · test output attached','10:40'],['Branch rcp-14-shopping-list','git','2 commits ahead of main · not merged','10:51']],
-  runs:[{r:'live', who:'claude · orca-w3', what:'Lead run r-71 · lease until 12:02 · heartbeat 40s ago', lead:true},
-        {r:'finished', who:'units-worker', what:'Child run r-77 under r-71 · finished 10:40'},
-        {r:null, who:'explorer', what:'No run identity — log entry relayed by the lead'}],
-  activity:[['10:52','claude reported progress on step 2'],['10:40','Child run r-77 (units-worker) finished'],['10:05','claude revised plan v2 → v3: step 3 changed'],['09:40','claude revised plan v1 → v2: added step 4'],['09:10','claude completed step 1'],['09:02','claude claimed lead (60 min lease)'],['Nov 5','claude set planned end to Nov 11']]},
+    {v:2, at:'09:40', by:'claude', note:'Added a grouping item after an owner comment', ops:[['+','4. Group by aisle and sort']]},
+    {v:3, at:'10:05', by:'claude', note:'Reminders API not reachable from the container', ops:[['-','3. Export to Reminders app'],['+','3. Export as a Markdown checklist']]}],
+  docs:[['aggregation-rules.md','v1','claude','09:10']],
+  runs:[{r:'live', who:'claude · orca-w3', what:'Lead run r-71 · lease until 12:02 · heartbeat 40s ago', lead:true},{r:'finished', who:'units-worker', what:'Child run r-77 under r-71 · finished 10:40'},{r:null, who:'explorer', what:'No run identity: log entry relayed by the lead'}],
+  activity:[['10:52','claude reported progress on work item 2'],['10:40','Child run r-77 (units-worker) finished'],['10:05','claude revised the checklist v2 → v3'],['09:02','claude claimed lead (60 min lease)']]},
  'RCP-12':{
   outcome:'Users can drag recipes between days in the weekly planner, and the change persists.',
-  acceptance:[['Drag between days and meal slots','CI #91'],['Keyboard alternative for every move','CI #91'],['Plan persists across reload','CI #91']],
-  planVer:2,
-  steps:[{s:'done',t:'Planner grid component',who:'codex · lead',when:'Nov 4'},{s:'done',t:'Pointer and keyboard drag',who:'codex · lead',when:'Nov 5'},{s:'done',t:'Persist to local store',who:'codex · lead',when:'10:30'}],
-  evidence:[['Agent reported acceptance complete','agent','codex · run r-64','10:42'],['CI build #91 · 214 tests passed','ci','Automated','10:38'],['PR #48 merged to main','git','Merge is not approval','10:41'],['Release walkthrough','pending','Required by project policy','—']],
-  runs:[{r:'finished', who:'codex', what:'Lead run r-64 · finished 10:42 · lease released', lead:true}],
-  activity:[['10:42','codex requested owner gate: Release walkthrough'],['10:41','PR #48 merged (git)'],['10:38','CI build #91 passed'],['Nov 5','codex completed step 2']]},
+  acceptance:['Drag between days and meal slots','Keyboard alternative for every move','Plan persists across reload'],
+  work:[{s:'done',t:'Planner grid component',who:'codex',when:'Nov 4'},{s:'done',t:'Pointer and keyboard drag',who:'codex',when:'Nov 5'},{s:'done',t:'Persist to local store',who:'codex',when:'Nov 5'},
+        {s:'done',t:'Make drop targets at least 44px tall on touch',who:'codex',when:'10:20',from:'your review, round 1'}],
+  checks:[['214 unit and integration tests pass','ci','CI build #91','pass'],['Drop targets are 48px on touch','agent','measured in devtools · screenshot in packet','pass'],['Keyboard moves are announced to screen readers','observed','axe check in child run r-65','pass']],
+  docs:[['handoff packet · round 1','pkt-7a1c','codex','Nov 5'],['handoff packet · round 2','pkt-9c0e','codex','10:42']],
+  runs:[{r:'finished', who:'codex', what:'Lead run r-64 · finished 10:42 · waiting on your review', lead:true}],
+  activity:[['10:42','codex submitted handoff packet round 2'],['10:38','CI build #91 passed'],['Nov 5','Owner requested changes in round 1: 1 checklist item, 1 bug (RCP-17)'],['Nov 5','codex submitted handoff packet round 1']]},
  'RCP-15':{
   outcome:'Pantry stock lives in its own table so recipe quantities never change on-hand amounts.',
-  acceptance:[['PantryStock table with on_hand, unit, updated_at',null],['Migration is reversible',null]],
-  planVer:1,
-  steps:[{s:'done',t:'Draft schema from the approved spec',who:'codex · lead',when:'Nov 5'},{s:'current',t:'Write the migration',who:'codex · lead',when:'10:13 (last report)'},{s:'planned',t:'Reversibility test'}],
-  evidence:[],
+  acceptance:['PantryStock table with on_hand, unit, updated_at','Migration is reversible'],
+  work:[{s:'done',t:'Draft schema from the approved spec',who:'codex',when:'Nov 5'},{s:'current',t:'Write the migration',who:'codex',when:'10:13 (last report)'},{s:'todo',t:'Reversibility test'}],
+  checks:[['Migration up/down on a copy of the sample data','agent','not run yet','todo']],
   runs:[{r:'stale', who:'codex · orca-w1', what:'Lead run r-58 · last heartbeat 10:13 · lease expires 11:13', lead:true}],
   conflict:'claude · orca-w2 tried to claim lead at 10:58. Rejected: codex · orca-w1 still holds the lease.',
-  activity:[['10:58','Lead claim by claude · orca-w2 rejected (lease held by codex · orca-w1)'],['10:13','Last heartbeat from run r-58'],['10:13','codex reported: “migrating pantry table”'],['Nov 5','codex completed step 1']]},
+  activity:[['10:58','Lead claim by claude · orca-w2 rejected (lease held by codex · orca-w1)'],['10:13','Last heartbeat from run r-58'],['Nov 5','codex completed work item 1']]},
  'RCP-18':{
   outcome:'Paste a recipe URL and get a structured recipe draft to review.',
-  acceptance:[['Parses schema.org Recipe markup',null],['Falls back to a manual form on failure',null]],
-  planVer:1,
-  steps:[{s:'done',t:'Parser for schema.org Recipe',who:'claude · lead',when:'Nov 5'},{s:'blocked',t:'Fetch page from URL',who:'claude · lead',when:'10:35'},{s:'planned',t:'Manual fallback form'}],
-  evidence:[['Parser unit tests: 12 passed','agent','Reported by claude · no CI run','Nov 5']],
+  work:[{s:'done',t:'Parser for schema.org Recipe',who:'claude',when:'Nov 5'},{s:'blocked',t:'Fetch page from URL',who:'claude',when:'10:35'},{s:'todo',t:'Manual fallback form'}],
+  checks:[['12 parser unit tests pass','agent','reported by claude · no CI run','pass']],
   runs:[{r:'failed', who:'claude', what:'Lead run r-69 · failed 10:35 · lease released', lead:true}],
   error:'FetchError: connect EACCES 203.0.113.10:443\nOutbound network is disabled for this worker sandbox.',
-  activity:[['10:35','Run r-69 failed: outbound network blocked'],['10:20','claude started step 2'],['Nov 5','claude completed step 1']]},
+  activity:[['10:35','Run r-69 failed: outbound network blocked'],['Nov 5','claude completed work item 1']]},
  'RCP-19':{
-  outcome:'An approved data model spec that the pantry and shopping list work can build on.',
-  acceptance:[['Separates recipe quantity from pantry stock','recipe-data-model.md v2'],['Lists canonical units','recipe-data-model.md v2']],
-  planVer:1,
-  steps:[{s:'done',t:'Draft v1',who:'claude · lead',when:'Nov 4'},{s:'done',t:'Revise after owner feedback',who:'claude · lead',when:'09:00'}],
-  evidence:[['recipe-data-model.md v1','owner','Changes requested by owner · Nov 4','Nov 4'],['recipe-data-model.md v2','pending','Document review requested','09:00']],
-  runs:[{r:'finished', who:'claude', what:'Lead run r-66 · finished 09:01', lead:true}],
-  activity:[['09:00','claude submitted v2 for review'],['Nov 4','Owner requested changes on v1'],['Nov 4','claude submitted v1 for review']]},
- 'DOC-4':{
-  outcome:'Developers can find the nutrition endpoint, its fields, and an example in the docs.',
-  acceptance:[['Endpoint, params, and response documented',null],['Example request and response','example.http']],
-  planVer:1,
-  steps:[{s:'done',t:'Outline reference page',who:'codex · lead',when:'Nov 5'},{s:'current',t:'Document response fields',who:'codex · lead',when:'10:51'},{s:'planned',t:'Add worked example'}],
-  evidence:[['example.http','agent','Local artifact · codex','Nov 5']],
-  runs:[{r:'needs', who:'codex', what:'Lead run r-70 · waiting on owner since 10:51 · lease paused', lead:true}],
-  activity:[['10:51','codex asked the owner a question'],['Nov 5','codex completed step 1']]},
+  outcome:'A data model spec the pantry and shopping list work can build on.',
+  work:[{s:'done',t:'Draft v1',who:'claude',when:'Nov 4'},{s:'done',t:'Revise: separate pantry stock from recipe quantity',who:'claude',when:'09:00',from:'your comment on v1'}],
+  checks:[['Schema type-checks against current models','agent','local type check','pass'],['Every field maps to the PRD','agent','traceability table in the doc','pass']],
+  docs:[['recipe-data-model.md','v2','claude','09:00'],['recipe-data-model.md','v1','claude','Nov 4'],['handoff packet · round 1','pkt-3f9a','claude','09:00']],
+  runs:[{r:'finished', who:'claude', what:'Lead run r-66 · finished 09:01 · waiting on your review', lead:true}],
+  activity:[['09:00','claude submitted the handoff packet']]},
  'RCP-23':{
   outcome:'Users can save a week plan as a template and reuse it in one step.',
-  acceptance:[['Save the current week as a named template',null],['Apply a template to any week, merging with existing meals',null]],
-  planVer:1,
-  steps:[{s:'done',t:'PRD: problem, scope, success measures',who:'claude · lead',when:'Nov 5'},{s:'done',t:'UX: template picker and apply flow',who:'claude · lead',when:'10:20'},{s:'current',t:'TDD: storage and merge rules',who:'claude · lead',when:'10:54'}],
-  evidence:[['meal-templates-prd.md v2','owner','Approved by owner · Nov 5','Nov 5'],['meal-templates-ux.md v1','pending','Planning doc review requested','10:20'],['meal-templates-tdd.md (draft)','agent','Local artifact · claude is writing it','10:54']],
-  runs:[{r:'reported', who:'claude', what:'Planning run r-73 · writing the TDD · last report 6 min ago, no heartbeat', lead:true}],
-  activity:[['10:54','claude reported: drafting TDD storage section'],['10:20','claude requested review: meal-templates-ux.md v1'],['Nov 5','Owner approved meal-templates-prd.md v2'],['Nov 4','Owner moved RCP-23 from Inbox to Planning']]},
- 'RCP-24':{
-  outcome:'Send the merged shopping list to a delivery service.',
-  acceptance:[], planVer:0, steps:[],
-  evidence:[], runs:[],
-  activity:[['Nov 5','Owner moved RCP-24 from Inbox to Planning'],['Nov 5','PRD outline started; no agent assigned yet']]},
- 'DOC-9':{
-  outcome:'New contributors can set up the docs site and submit a change in under 15 minutes.',
-  acceptance:[['Setup steps tested on a clean machine',null],['PR checklist included',null]],
-  planVer:1,
-  steps:[{s:'done',t:'PRD: audience, scope, success measure',who:'codex · lead',when:'09:55'}],
-  evidence:[['contributor-guide-prd.md v1','owner','Approved by owner · 09:58','09:58']],
-  runs:[{r:'finished', who:'codex', what:'Planning run r-72 · finished 09:56', lead:true}],
-  activity:[['09:58','Owner approved contributor-guide-prd.md v1'],['09:56','codex finished the PRD'],['Nov 5','Owner moved DOC-9 from Inbox to Planning']]},
- 'DOC-2':{
-  outcome:'A docs site skeleton with navigation and build.',
-  acceptance:[['Site builds locally','build log'],['Navigation matches the outline',null]],
-  planVer:1,
-  steps:[{s:'done',t:'Scaffold site',who:'codex · lead',when:'Nov 2'},{s:'done',t:'Navigation',who:'codex · lead',when:'Nov 3'}],
-  evidence:[['Agent reported acceptance complete','agent','codex · run r-41','Nov 3'],['Build log: success','agent','Reported by codex · no CI configured','Nov 3']],
-  runs:[{r:'finished', who:'codex', what:'Lead run r-41 · finished Nov 3', lead:true}],
-  activity:[['Nov 3','codex closed the item (project has no owner gate)'],['Nov 3','codex completed step 2']]},
+  acceptance:['Save the current week as a named template','Apply a template to any week, merging with existing meals'],
+  docs:[['meal-templates-prd.md','v2','claude','Nov 5'],['meal-templates-ux.md','v1','claude','10:20'],['meal-templates-tdd.md','draft','claude','10:54']],
+  runs:[{r:'reported', who:'claude', what:'Planning run r-73 · drafting the TDD · last report 6 min ago, no heartbeat', lead:true}],
+  activity:[['10:54','claude reported: drafting the TDD storage section'],['10:20','claude attached meal-templates-ux.md v1'],['Nov 4','Owner moved RCP-23 to Planning']]},
+ 'DOC-4':{
+  outcome:'Developers can find the nutrition endpoint, its fields, and an example in the docs.',
+  work:[{s:'done',t:'Outline reference page',who:'codex',when:'Nov 5'},{s:'current',t:'Document response fields',who:'codex',when:'10:51'},{s:'todo',t:'Add worked example'}],
+  checks:[['Example request runs against the local API','agent','not run yet','todo']],
+  runs:[{r:'needs', who:'codex', what:'Lead run r-70 · waiting on you since 10:51 · lease paused', lead:true}],
+  activity:[['10:51','codex asked you a question']]},
+ 'RCP-11':{outcome:'Sign-in works locally.', work:[{s:'done',t:'Session handling',who:'codex',when:'Nov 3'}], checks:[['48 auth tests pass','ci','CI build #77','pass']], runs:[{r:'finished',who:'codex',what:'Lead run r-40 · finished Nov 3',lead:true}], activity:[['Nov 3','codex closed the item: checks passed, no human review declared']]},
+ 'DOC-2':{outcome:'A docs site skeleton with navigation and build.', work:[{s:'done',t:'Scaffold site',who:'codex',when:'Nov 2'},{s:'done',t:'Navigation',who:'codex',when:'Nov 3'}], checks:[['Site builds locally','agent','build log attached','pass']], runs:[{r:'finished',who:'codex',what:'Lead run r-41 · finished Nov 3',lead:true}], activity:[['Nov 3','codex closed the item: checks passed, no human review declared']]},
 };
 
-const REVIEWS = {
-  'RCP-12':{title:'Release walkthrough', kind:'Owner gate', versions:[{v:1, sha:'PR #48 @ 9c0e7f2', by:'codex', when:'Nov 6 10:42'}]},
-  'RCP-23':{title:'meal-templates-ux.md', kind:'Planning · UX', planDoc:'UX', versions:[{v:1, sha:'c4d02aa', by:'claude', when:'Nov 6 10:20'}]},
-  'RCP-19':{title:'recipe-data-model.md', kind:'Document review', versions:[
-    {v:1, sha:'a71c2e0', by:'claude', when:'Nov 4 16:20', decision:{k:'changes', by:'Owner', when:'Nov 4 18:02', why:'Separate pantry quantity from recipe quantity.'}},
-    {v:2, sha:'3f9a51b', by:'claude', when:'Nov 6 09:00'}]},
+/* Handoff packets: one per ticket per review round, written by the agent. */
+const PACKETS = {
+ 'RCP-12':{rounds:[
+   {n:1, by:'codex', when:'Nov 5 16:10', sha:'pkt-7a1c', est:'10 min', items:['On your phone, drag recipes between days and meal slots. Does it feel right?','Move a recipe using only the keyboard (Space, arrows, Enter).'],
+    decided:{when:'Nov 5 18:30', verdicts:[{k:'changes', note:'Drop targets are too small on my phone; I kept missing the slot.', into:'checklist'},{k:'changes', note:'Keyboard works, but after a reload the planner jumps back to the current week.', into:'bug', ref:'RCP-17'}]}},
+   {n:2, by:'codex', when:'Nov 6 10:42', sha:'pkt-9c0e', est:'10 min',
+    how:['Open the preview build at http://127.0.0.1:5173 (branch rcp-12-planner, PR #48).','On your phone, open the LAN address printed in the build log.','Drag three recipes between different days and meal slots.','With a keyboard: Tab to a recipe, press Space, use the arrow keys, press Enter to drop.'],
+    checked:[['214 unit and integration tests pass','ci','CI build #91'],['Drop targets are 48px tall on touch (round 1 fix)','agent','measured in devtools; screenshot attached'],['Keyboard moves are announced to screen readers','observed','axe check in child run r-65']],
+    gaps:['The reload bug from round 1 is tracked in RCP-17 and is not fixed here.','Not tested on Android.'],
+    attach:[['drag-phone.mp4','Screen recording · 24 s'],['drop-targets.png','Screenshot'],['axe-report.json','Accessibility check output']]}]},
+ 'RCP-19':{rounds:[
+   {n:1, by:'claude', when:'Nov 6 09:00', sha:'pkt-3f9a', est:'5 min',
+    how:['Open recipe-data-model.md v2 (attached).','Read the Pantry and Units sections. Changes since v1 are highlighted.'],
+    checked:[['Schema type-checks against current models','agent','local type check'],['Every field maps to the PRD','agent','traceability table in the doc']],
+    gaps:['Units cover g, ml and piece only. Cups and spoons are converted on import (RCP-14).'],
+    attach:[['recipe-data-model.md v2','Document · 2 pages'],['recipe-data-model.md v1','Previous version']]}]},
 };
-const DOCS = {
- 1:`# Recipe data model\n\nEach Recipe has ingredients with a quantity and unit.\n\n## Ingredient\nFields: name, quantity, unit, aisle.\n\n## Pantry\nPantry items reuse Ingredient.\n`,
- 2:`# Recipe data model\n\nEach Recipe has ingredients with a quantity and unit.\n\n## Ingredient\nFields: name, quantity, unit, aisle.\n\n## Pantry\nPantry items are a separate PantryStock record with on_hand, unit, and updated_at, so recipe quantities never change stock.\n\n## Units\nCanonical units: g, ml, piece. Conversions live in units.json (see RCP-14).\n`};
-const docHtml = v => v === 1
- ? `<h1>Recipe data model</h1><p>Each <code>Recipe</code> has ingredients with a <code>quantity</code> and <code>unit</code>.</p><h2>Ingredient</h2><p>Fields: <code>name</code>, <code>quantity</code>, <code>unit</code>, <code>aisle</code>.</p><h2>Pantry</h2><p>Pantry items reuse <code>Ingredient</code>.</p>`
- : `<h1>Recipe data model</h1><p>Each <code>Recipe</code> has ingredients with a <code>quantity</code> and <code>unit</code>.</p><h2>Ingredient</h2><p>Fields: <code>name</code>, <code>quantity</code>, <code>unit</code>, <code>aisle</code>.</p><h2>Pantry</h2><p><del>Pantry items reuse <code>Ingredient</code>.</del> <ins>Pantry items are a separate <code>PantryStock</code> record with <code>on_hand</code>, <code>unit</code>, and <code>updated_at</code>, so recipe quantities never change stock.</ins></p><h2><ins>Units</ins></h2><p><ins>Canonical units: g, ml, piece. Conversions live in <code>units.json</code> (see RCP-14).</ins></p>`;
 
-const CHANGES = [ // since the owner last looked (08:30)
-  ['10:54','RCP-23','Planning: UX doc ready for review; TDD in progress'],
-  ['10:52','RCP-14','Step 2 in progress; units-worker child run finished with 31 tests'],
-  ['10:42','RCP-12','PR #48 merged, CI #91 passed, owner gate requested'],
+const CHANGES = [
+  ['10:54','RCP-23','claude is drafting the TDD while the story is in Planning'],
+  ['10:52','RCP-14','Work item 2 in progress; units-worker finished with 31 tests'],
+  ['10:42','RCP-12','Round 2 handoff packet is ready for you'],
   ['10:35','RCP-18','Run failed: outbound network blocked'],
-  ['10:05','RCP-14','Plan revised v2 → v3 (step 3 changed)'],
-  ['09:58','DOC-9','PRD approved; planning complete, codex may move it to Ready'],
-  ['09:00','RCP-19','v2 of recipe-data-model.md submitted'],
+  ['09:00','RCP-19','Handoff packet ready: data model spec v2'],
 ];
 
 /* =====================================================================
-   Derived state — the same rules the MCP queries would use (A05)
+   Derived state — the same rules the MCP queries would use
    ===================================================================== */
+const isEpic = i => i.type === 'Epic';
 const isOpen = i => i.status !== 'done' && i.status !== 'canceled';
 const inScope = i => S.scope === 'all' || i.proj === S.scope;
-const typesFor = key => ({...TYPES, ...(P[key].customTypes || {})});
-const typeOf = i => typesFor(i.proj)[i.type] || {icon:'•', container:false};
-const isContainer = i => !!typeOf(i).container;
-const childrenOf = id => items.filter(x => x.parent === id);
-const leafDesc = id => childrenOf(id).flatMap(c => isContainer(c) ? leafDesc(c.id) : [c]);
-const ancestors = i => { const a = []; let c = i; while (c.parent && byId[c.parent]){ c = byId[c.parent]; a.push(c); } return a; };
-const typeBadge = i => `<span class="type" title="${esc(typeOf(i).desc || i.type)}"><span class="ti" aria-hidden="true">${typeOf(i).icon}</span>${i.type}</span>`;
-const labelsOf = i => (i.labels || []).map(l => `<span class="label">${esc(l)}</span>`).join('');
-const parentTag = i => { const pa = i.parent && byId[i.parent]; return pa ? `<span class="ptag" title="Parent: ${pa.type} ${esc(pa.title)}">${typeOf(pa).icon} ${esc(pa.title)}</span>` : ''; };
-const reqDocs = i => (P[i.proj].readyRules[i.type] || []);
-const rulesText = p => Object.entries(p.readyRules).filter(([t]) => t !== 'Epic').map(([t, d]) => `${t}: ${d.length ? d.join(', ') : 'none'}`).join(' · ');
-const rollup = id => { const l = leafDesc(id); return {n:l.length, done:l.filter(x => x.status==='done').length, blocked:l.filter(isBlocked).length, active:l.filter(x => x.status==='progress').length}; };
-const missingDocs = i => i.status === 'planning' ? reqDocs(i).filter(d => (i.planning || {})[d] !== 'approved') : [];
-const unresolved = i => (i.blockedBy || []).filter(b => byId[b].status !== 'done');
+const unresolved = i => (i.blockedBy || []).filter(b => byId[b] && byId[b].status !== 'done');
 const isBlocked = i => isOpen(i) && unresolved(i).length > 0;
 const dependents = id => items.filter(i => (i.blockedBy || []).includes(id));
 const holdsUp = id => dependents(id).filter(isOpen).map(i => i.id);
@@ -575,50 +547,53 @@ function cycleSet(){
   const s = new Set();
   for (const i of items){
     const seen = new Set(), st = [...(i.blockedBy || [])];
-    while (st.length){ const x = st.pop(); if (x === i.id){ s.add(i.id); break; } if (seen.has(x)) continue; seen.add(x); st.push(...(byId[x].blockedBy || [])); }
+    while (st.length){ const x = st.pop(); if (x === i.id){ s.add(i.id); break; } if (seen.has(x) || !byId[x]) continue; seen.add(x); st.push(...(byId[x].blockedBy || [])); }
   }
   return s;
 }
 const dateRisks = i => (i.start && isOpen(i)) ? unresolved(i).filter(b => byId[b].end && D(byId[b].end) >= D(i.start)) : [];
-const owes = i => (i.gate && !S.decided[i.id]) ? 'gate' : (i.review && !S.decided[i.id]) ? 'review' : (i.question && !i.question.answer) ? 'question'
-  : (i.status === 'planning' && !missingDocs(i).length && P[i.proj].readyGate === 'owner') ? 'promote' : null;
-const decisionsIn = key => items.filter(i => (key === 'all' || i.proj === key) && owes(i));
-const decisions = () => decisionsIn(S.scope);
+const hrOf = i => i.hr || [];
+const packetReady = i => i.status === 'review' && hrOf(i).some(h => h.state === 'ready');
+const hrComing = i => isOpen(i) && !packetReady(i) && hrOf(i).some(h => h.state === 'declared');
+const questionOpen = i => !!(i.question && !i.question.answer);
+const forYou = i => packetReady(i) || questionOpen(i);
+const forYouIn = key => items.filter(i => (key === 'all' || i.proj === key) && forYou(i));
+const childrenOf = id => items.filter(x => x.epic === id);
+const curPacket = id => PACKETS[id] && PACKETS[id].rounds[PACKETS[id].rounds.length - 1];
+const workOf = id => (DETAIL[id] && DETAIL[id].work) || [];
+const nextId = key => key + '-' + (Math.max(...items.filter(i => i.proj === key).map(i => +i.id.split('-')[1])) + 1);
 
-function queue(){
+function problems(){
   const q = [], cyc = cycleSet();
-  for (const i of items){
-    const o = owes(i);
-    if (o === 'gate') q.push({id:i.id, tags:['decision'], icon:'gate', rank:0, why:`Owner gate “${i.gate}” is pending. The PR is merged and CI passed, but Done stays locked until you walk through it.`, action:'Review', a:'review', v:i.id});
-    if (o === 'review' && REVIEWS[i.id].planDoc) q.push({id:i.id, tags:['decision'], icon:'doc', rank:0, why:`Planning doc review: ${i.review}. The item can't move to Ready until its ${reqDocs(i).join(', ')} are approved.`, action:'Review', a:'review', v:i.id});
-    else if (o === 'review') q.push({id:i.id, tags:['decision'], icon:'doc', rank:0, why:`Document review: ${i.review} v2 is ready. You requested changes on v1.`, action:'Review', a:'review', v:i.id});
-    if (o === 'promote') q.push({id:i.id, tags:['decision'], icon:'promote', rank:0, why:`Planning is complete (${reqDocs(i).join(', ')} approved). Move it to Ready so agents can claim it.`, action:'Move to Ready', a:'promote', v:i.id});
-    if (o === 'question') q.push({id:i.id, tags:['decision'], icon:'question', rank:0, why:`${i.question.by} is waiting on you: “${i.question.text}”`, action:'Answer', a:'reply', v:i.id, reply:true});
-    if (i.run === 'stale') q.push({id:i.id, tags:['stale'], icon:'stale', rank:1, why:`Lead run silent for ${i.age}; the lease expires in 13 min. Treated as unknown, not finished. Another agent's claim was rejected at 10:58.`, action:'Inspect', a:'open', v:i.id});
-    if (i.run === 'failed') q.push({id:i.id, tags:['failed'], icon:'failed', rank:1, why:'Run failed: outbound network is blocked in this worker sandbox. Nothing retries automatically.', action:'Inspect', a:'open', v:i.id});
+  for (const i of items.filter(inScope)){
+    if (i.run === 'stale') q.push({id:i.id, icon:'stale', why:`Lead run silent for ${i.age}; the lease expires in 13 min. Treated as unknown, not finished. Another agent's claim was rejected at 10:58.`, action:'Inspect', a:'open', v:i.id});
+    if (i.run === 'failed') q.push({id:i.id, icon:'failed', why:'Run failed: outbound network is blocked in this worker sandbox. Nothing retries automatically.', action:'Inspect', a:'open', v:i.id});
     const dr = dateRisks(i);
-    if (dr.length) q.push({id:i.id, tags:['blocked','date'], icon:'date', rank:2, why:`Planned start ${fmt(D(i.start))} is before its blocker ${dr[0]} is planned to finish (${fmt(D(byId[dr[0]].end))}).`, action:'Timeline', a:'nav', v:'timeline'});
-    if (i.closedBy === 'agent' && !S.ackEvidence[i.id]) q.push({id:i.id, tags:['evidence'], icon:'evidence', rank:3, why:'Closed by agent completion (this project has no owner gate). Acceptance #2 has no linked evidence.', action:'Open', a:'open', v:i.id});
+    if (dr.length) q.push({id:i.id, icon:'date', why:`Planned start ${fmt(D(i.start))} is before its blocker ${dr[0]} is planned to finish (${fmt(D(byId[dr[0]].end))}).`, action:'Timeline', a:'nav', v:'timeline'});
   }
-  if (cyc.size){
-    const ids = [...cyc].sort();
-    q.push({id:ids[0], tags:['blocked'], icon:'cycle', rank:2, why:`Dependency cycle in imported data: ${ids.join(' ⇄ ')}. Neither can start until one link is removed.`, action:'Fix in graph', a:'gfix', v:ids[0]});
-  }
+  const cids = [...cyc].filter(id => inScope(byId[id])).sort();
+  if (cids.length) q.push({id:cids[0], icon:'cycle', why:`Dependency cycle in imported data: ${cids.join(' ⇄ ')}. Neither can start until one link is removed.`, action:'Fix in graph', a:'gfix', v:cids[0]});
   q.forEach(r => r.holds = holdsUp(r.id));
-  return q.filter(r => inScope(byId[r.id])).sort((a,b) => a.rank - b.rank || b.holds.length - a.holds.length);
+  return q.sort((a,b) => b.holds.length - a.holds.length);
 }
 
 /* =====================================================================
-   UI state
+   UI state + undo snapshots
    ===================================================================== */
 const S = {
-  view:'attention', ticket:'RCP-14', tab:null, kpi:'all', scope:'all', scopeOpen:false,
-  workMode:'board', filter:'all', showBlocked:false,
-  review:'RCP-12', ver:null, decision:null, diff:true, checks:{},
-  graphSel:'RCP-21', gRel:true, slip:3, typeF:'all', newType:{name:'', icon:'', container:false, docs:{}},
+  view:'attention', ticket:'RCP-14', tab:'checklist', scope:'all', scopeOpen:false,
+  workMode:'board', filter:'all', epicF:'all', labelF:'all', showBlocked:false,
+  pk:'RCP-12', pkRound:null, verdicts:{},
+  label:'ui-refresh', graphSel:'RCP-21', gRel:true, slip:3,
   fcPreview:false, theme:'system', snippet:'codex',
-  decided:{}, ackEvidence:{}, replyOpen:null, text:{}, modal:null, extraActivity:{},
+  replyOpen:null, text:{}, modal:null, extraActivity:{},
 };
+const snap = () => JSON.stringify({items, DETAIL, PACKETS, extra:S.extraActivity});
+const restore = js => { const o = JSON.parse(js);
+  items.splice(0, items.length, ...o.items); reindex();
+  Object.keys(DETAIL).forEach(k => delete DETAIL[k]); Object.assign(DETAIL, o.DETAIL);
+  Object.keys(PACKETS).forEach(k => delete PACKETS[k]); Object.assign(PACKETS, o.PACKETS);
+  S.extraActivity = o.extra; };
 
 /* =====================================================================
    Small render helpers
@@ -629,7 +604,7 @@ const SV = p => `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stro
 const I = {
   attention:SV('<path d="M3 11V7a5 5 0 0 1 10 0v4l1 2H2z"/><path d="M6.5 14.5a1.5 1.5 0 0 0 3 0"/>'),
   work:SV('<rect x="2" y="2.5" width="3.5" height="11" rx="1"/><rect x="6.5" y="2.5" width="3.5" height="7" rx="1"/><rect x="11" y="2.5" width="3" height="9" rx="1"/>'),
-  reviews:SV('<rect x="2.5" y="2" width="11" height="12" rx="2"/><path d="M5.5 8l2 2 3.5-4"/>'),
+  reviews:SV('<circle cx="8" cy="5" r="2.6"/><path d="M3 14c.4-2.8 2.4-4.3 5-4.3s4.6 1.5 5 4.3"/><path d="M10.5 3.2l1.2 1.2 2.3-2.4"/>'),
   graph:SV('<circle cx="3.5" cy="4" r="1.8"/><circle cx="3.5" cy="12" r="1.8"/><circle cx="12.5" cy="8" r="1.8"/><path d="M5.3 4.6l5.4 2.6M5.3 11.4l5.4-2.6"/>'),
   timeline:SV('<path d="M2 3h6M5 8h8M3 13h7"/><path d="M2 1v14" stroke-width="1"/>'),
   agents:SV('<rect x="3" y="5" width="10" height="8" rx="2"/><path d="M8 2v3M6 9h.01M10 9h.01"/>'),
@@ -642,35 +617,32 @@ const I = {
   git:SV('<circle cx="4" cy="4" r="1.8"/><circle cx="4" cy="12" r="1.8"/><circle cx="12" cy="8" r="1.8"/><path d="M4 6v4M5.6 4.6C9 5 10 6 10.3 7"/>'),
   relay:SV('<path d="M2 8h9M8 5l3 3-3 3M14 3v10"/>'),
   clock:SV('<circle cx="8" cy="8" r="6"/><path d="M8 4.5V8l2.5 1.5"/>'),
-  gate:SV('<path d="M8 1.5l5.5 2v4c0 3.5-2.5 6-5.5 7-3-1-5.5-3.5-5.5-7v-4z"/><path d="M8 6v3M8 11h.01"/>'),
+  packet:SV('<path d="M2.5 4.5l5.5-3 5.5 3v7l-5.5 3-5.5-3z"/><path d="M2.5 4.5L8 7.5l5.5-3M8 7.5v7"/>'),
   doc:SV('<path d="M4 1.5h5l3.5 3.5v9.5h-8.5z"/><path d="M9 1.5V5h3.5M6 9h4M6 11.5h4"/>'),
   question:SV('<circle cx="8" cy="8" r="6.5"/><path d="M6.2 6.2a1.9 1.9 0 1 1 2.6 1.8c-.5.2-.8.6-.8 1.1v.4M8 11.6h.01"/>'),
   stale:SV('<circle cx="8" cy="8" r="6.5" stroke-dasharray="2.5 2"/><path d="M8 5v3.5"/>'),
   failed:SV('<circle cx="8" cy="8" r="6.5"/><path d="M5.8 5.8l4.4 4.4M10.2 5.8l-4.4 4.4"/>'),
   date:SV('<rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M2 6.5h12M5 1.5v3M11 1.5v3M8 8.5v2.5M8 12.6h.01"/>'),
   cycle:SV('<path d="M13 5.5A5.5 5.5 0 0 0 3 6M3 10.5A5.5 5.5 0 0 0 13 10"/><path d="M13 2v3.5H9.5M3 14v-3.5h3.5"/>'),
-  evidence:SV('<rect x="2.5" y="2.5" width="11" height="11" rx="2" stroke-dasharray="2.5 2"/><path d="M8 5.5v3M8 10.5h.01"/>'),
   check:SV('<path d="M3 8.5l3 3 7-7"/>'),
   x:SV('<path d="M4 4l8 8M12 4l-8 8"/>'),
-  pause:SV('<path d="M5.5 3.5v9M10.5 3.5v9"/>'),
-  skip:SV('<path d="M3 8h10M9.5 4.5 13 8l-3.5 3.5"/>'),
-  sun:SV('<circle cx="8" cy="8" r="3"/><path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3 3l1 1M12 12l1 1M3 13l1-1M12 4l1-1"/>'),
-  moon:SV('<path d="M13.5 10A6 6 0 0 1 6 2.5a6 6 0 1 0 7.5 7.5z"/>'),
   promote:SV('<path d="M8 13V3M4 7l4-4 4 4"/>'),
   chev:SV('<path d="M4 6l4 4 4-4"/>'),
+  tag:SV('<path d="M2 2.5h5.5l6.5 6.5-5 5-6.5-6.5z"/><circle cx="5" cy="5.5" r="1"/>'),
+  clip:SV('<path d="M13 7.5l-5.3 5.3a3.3 3.3 0 0 1-4.7-4.7L8.6 2.5a2.2 2.2 0 0 1 3.1 3.1L6.2 11a1.1 1.1 0 0 1-1.6-1.6l5-5"/>'),
+  sun:SV('<circle cx="8" cy="8" r="3"/><path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3 3l1 1M12 12l1 1M3 13l1-1M12 4l1-1"/>'),
+  moon:SV('<path d="M13.5 10A6 6 0 0 1 6 2.5a6 6 0 1 0 7.5 7.5z"/>'),
   copy:SV('<rect x="5" y="5" width="8.5" height="9" rx="1.5"/><path d="M3 11V3.5A1.5 1.5 0 0 1 4.5 2H10"/>'),
 };
 const small = svg => svg.replace('<svg', '<svg width="12" height="12"');
-const KINDICON = {gate:['var(--warn-soft)','var(--warn)'], doc:['var(--warn-soft)','var(--warn)'], question:['var(--warn-soft)','var(--warn)'],
-  stale:['var(--gray-soft)','var(--ink-2)'], failed:['var(--bad-soft)','var(--bad)'], date:['var(--bad-soft)','var(--bad)'],
-  cycle:['var(--bad-soft)','var(--bad)'], evidence:['var(--info-soft)','var(--info)'], promote:['var(--teal-soft)','var(--teal)']};
-
+const KINDICON = {packet:['var(--warn-soft)','var(--warn)'], question:['var(--warn-soft)','var(--warn)'], stale:['var(--gray-soft)','var(--ink-2)'],
+  failed:['var(--bad-soft)','var(--bad)'], date:['var(--bad-soft)','var(--bad)'], cycle:['var(--bad-soft)','var(--bad)']};
 const STATUS = {inbox:'Inbox', planning:'Planning', ready:'Ready', progress:'In progress', review:'Review', done:'Done', canceled:'Canceled'};
 const RUNS = {
   live:{l:'live', d:'Working: client heartbeat received', g:''},
   reported:{l:'reported', d:'Agent says it is working; no heartbeat', g:''},
   stale:{l:'stale', d:'No heartbeat; state unknown, not assumed finished', g:''},
-  needs:{l:'needs input', d:'Waiting on the owner', g:'?'},
+  needs:{l:'needs input', d:'Waiting on you', g:'?'},
   failed:{l:'failed', d:'Run ended with an error', g:'×'},
   finished:{l:'finished', d:'Run ended normally', g:'✓'},
   interrupted:{l:'interrupted', d:'Run stopped without finishing (lease released or service restart)', g:'–'},
@@ -679,17 +651,21 @@ const run = (r, age) => r ? `<span class="run run-${r}" title="${RUNS[r].d}"><i 
 const prio = p => `<span class="prio" title="Priority ${p}"><svg viewBox="0 0 12 12" aria-hidden="true">${[0,1,2].map(k => `<rect x="${k*4}" y="${8-k*3}" width="3" height="${4+k*3}" rx=".6" fill="${k < 4-p ? 'currentColor' : 'var(--line-2)'}"/>`).join('')}</svg>P${p}</span>`;
 const statusChip = i => `<span class="chip st-${i.status}">${STATUS[i.status]}</span>`;
 const blockedChip = i => isBlocked(i) ? `<span class="chip c-bad">⊘ Blocked by ${unresolved(i).join(', ')}</span>` : '';
-const PV = {owner:['pv-owner','person','Owner decision'], agent:['pv-agent','bot','Agent-reported'], observed:['pv-observed','eye','Observed child run'],
-  relayed:['pv-relayed','relay','Relayed by lead'], ci:['pv-auto','gear','CI'], auto:['pv-auto','gear','Automated check'],
-  git:['pv-git','git','Git · not approval'], pending:['pv-pending','clock','Owner gate pending']};
+const typeBadge = i => `<span class="type"><span class="ti" aria-hidden="true">${TYPES[i.type] || '•'}</span>${i.type}</span>`;
+const labelLink = l => `<a href="#" class="label" data-a="label" data-v="${esc(l)}">${esc(l)}</a>`;
+const labelsOf = i => (i.labels || []).map(labelLink).join('');
+const epicTag = i => i.epic && byId[i.epic] ? `<span class="ptag" title="Epic">◆ ${esc(byId[i.epic].title)}</span>` : '';
+const PV = {owner:['pv-owner','person','Your decision'], agent:['pv-agent','bot','Agent-reported'], observed:['pv-observed','eye','Observed child run'],
+  relayed:['pv-relayed','relay','Relayed by lead'], ci:['pv-auto','gear','CI'], git:['pv-git','git','Git · not approval']};
 const prov = (k, label) => { const m = PV[k]; return `<span class="prov ${m[0]}" title="${m[2]}">${I[m[1]]}${label ? `<span class="sr">${m[2]}: </span>` : ''}${esc(label || m[2])}</span>`; };
 const link = id => `<a href="#" data-a="open" data-v="${id}" class="mono">${id}</a>`;
-const owedChip = i => { const o = owes(i); return o === 'gate' ? prov('pending', `Gate: ${i.gate}`) : o === 'review' ? `<span class="chip c-warn">${small(I.doc)} Review owed</span>` : o === 'question' ? `<span class="chip c-warn">${small(I.question)} Question for you</span>` : o === 'promote' ? `<span class="chip c-warn">${small(I.promote)} Ready to move</span>` : (i.status === 'planning' && !missingDocs(i).length) ? `<span class="chip c-info">${small(I.promote)} Agent may move to Ready</span>` : ''; };
-const PD = {approved:['✓','approved'], review:['◐','in review'], drafting:['✎','drafting'], none:['–','not started']};
-const pdocs = i => i.status === 'planning' ? `<div class="pdocs">${reqDocs(i).map(d => { const st = (i.planning || {})[d] || 'none'; return `<span class="pdoc pd-${st}" title="${d}: ${PD[st][1]}">${PD[st][0]} ${d}<span class="sr"> ${PD[st][1]}</span></span>`; }).join('')}</div>` : '';
-const projTag = id => S.scope !== 'all' && byId[id].proj !== S.scope ? ` <span class="src">(${P[byId[id].proj].short})</span>` : '';
-const DEC = {approve:['Approve','check','c-ok','Approved'], changes:['Request changes','x','c-warn','Changes requested'], defer:['Defer','pause','c-gray','Deferred'], waive:['Waive','skip','c-gray','Waived']};
-const decChip = k => k ? `<span class="chip ${DEC[k][2]}">${DEC[k][3]}</span>` : `<span class="chip c-warn">Pending</span>`;
+const projTag = id => S.scope !== 'all' && byId[id] && byId[id].proj !== S.scope ? ` <span class="src">(${P[byId[id].proj].short})</span>` : '';
+const HR = {declared:['c-gray','Coming up'], ready:['c-warn','Ready for you'], approved:['c-ok','Approved'], changes:['c-warn','Changes requested']};
+const hrChip = i => packetReady(i) ? `<span class="chip c-warn">${small(I.packet)} Packet ready</span>` : hrComing(i) ? `<span class="chip c-gray" title="You'll get a handoff packet when this reaches Review">${small(I.person)} Human review later</span>` : '';
+const qChip = i => questionOpen(i) ? `<span class="chip c-warn">${small(I.question)} Question for you</span>` : '';
+const scopePill = () => S.scope === 'all'
+  ? `<span class="scopebar" style="vertical-align:middle;margin-left:6px">${small(I.folder)} All projects</span>`
+  : `<span class="scopebar" style="vertical-align:middle;margin-left:6px"><span class="sw" style="background:${P[S.scope].color}"></span>${P[S.scope].short}</span>`;
 
 let toastTimer;
 function toast(msg, undo){
@@ -699,28 +675,29 @@ function toast(msg, undo){
   clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('on'), undo ? 6000 : 3200);
 }
 function logActivity(id, text){ (S.extraActivity[id] = S.extraActivity[id] || []).unshift(['now', text]); }
+function undoable(before, msg){ render(); toast(msg, () => { restore(before); render(); }); }
 
 /* =====================================================================
    Navigation
    ===================================================================== */
 function renderNav(){
-  const dec = decisions().length;
-  const pendingReviews = Object.keys(REVIEWS).filter(k => !S.decided[k] && inScope(byId[k])).length;
+  const fy = forYouIn(S.scope).length;
+  const pk = items.filter(i => inScope(i) && packetReady(i)).length;
   const runs = items.filter(i => inScope(i) && ['live','needs','stale','failed','reported'].includes(i.run)).length;
-  const btn = (v, icon, label, badge) => `<button class="navbtn" data-a="nav" data-v="${v}" aria-current="${S.view===v || (v==='work' && S.view==='ticket') ? 'page' : 'false'}" title="${label}">${I[icon]}<span class="nl">${label}</span>${badge || ''}</button>`;
+  const btn = (v, icon, label, badge) => `<button class="navbtn" data-a="nav" data-v="${v}" aria-current="${S.view===v || (v==='work' && (S.view==='ticket' || S.view==='label')) ? 'page' : 'false'}" title="${label}">${I[icon]}<span class="nl">${label}</span>${badge || ''}</button>`;
   const cur = S.scope === 'all' ? null : P[S.scope];
-  const opt = (key, name, color) => { const n = decisionsIn(key).length; return `<button role="menuitemradio" aria-checked="${S.scope===key}" data-a="scope" data-v="${key}">${color ? `<span class="sw" style="background:${color};width:12px;height:12px"></span>` : small(I.folder)}<span class="grow">${name}</span>${n ? `<span class="badge" aria-label="${n} decisions owed">${n}</span>` : ''}</button>`; };
+  const opt = (key, name, color) => { const n = forYouIn(key).length; return `<button role="menuitemradio" aria-checked="${S.scope===key}" data-a="scope" data-v="${key}">${color ? `<span class="sw" style="background:${color};width:12px;height:12px"></span>` : small(I.folder)}<span class="grow">${name}</span>${n ? `<span class="badge" aria-label="${n} for you">${n}</span>` : ''}</button>`; };
   $('#nav').innerHTML = `
     <div class="logo"><i>TL</i><span>Task Lite</span></div>
     <div class="scopewrap">
       <button class="scopebtn" data-a="scopemenu" aria-haspopup="menu" aria-expanded="${S.scopeOpen}" title="Project: ${cur ? cur.short : 'All projects'}">
         ${cur ? `<span class="sw" style="background:${cur.color};width:12px;height:12px"></span>` : small(I.folder)}
         <span class="grow txt"><span class="lbl2">Project</span><span class="nm">${cur ? cur.short : 'All projects'}</span></span><span class="chev">${small(I.chev)}</span></button>
-      ${S.scopeOpen ? `<div class="scopemenu" role="menu" aria-label="Choose project">${opt('all','All projects',null)}${Object.values(P).map(p => opt(p.key, p.short, p.color)).join('')}<div class="hint">Every page in this sidebar shows only the chosen project. Projects and Connections are always service-wide.</div></div>` : ''}
+      ${S.scopeOpen ? `<div class="scopemenu" role="menu" aria-label="Choose project">${opt('all','All projects',null)}${Object.values(P).map(p => opt(p.key, p.short, p.color)).join('')}<div class="hint">Every page above the line shows only the chosen project. Projects and Connections are always service-wide.</div></div>` : ''}
     </div>
-    ${btn('attention','attention','Needs you', dec ? `<span class="badge" aria-label="${dec} decisions owed">${dec}</span>` : '')}
+    ${btn('attention','attention','Needs you', fy ? `<span class="badge" aria-label="${fy} for you">${fy}</span>` : '')}
     ${btn('work','work','Work')}
-    ${btn('reviews','reviews','Reviews', pendingReviews ? `<span class="badge" aria-label="${pendingReviews} pending">${pendingReviews}</span>` : '')}
+    ${btn('review','reviews','Human review', pk ? `<span class="badge" aria-label="${pk} packets ready">${pk}</span>` : '')}
     ${btn('graph','graph','Dependencies')}
     ${btn('timeline','timeline','Timeline')}
     ${btn('agents','agents','Agents', runs ? `<span class="badge n" aria-label="${runs} active runs">${runs}</span>` : '')}
@@ -733,9 +710,6 @@ function renderNav(){
       <div class="hx">3 clients connected</div>
     </button>`;
 }
-const scopePill = () => S.scope === 'all'
-  ? `<span class="scopebar" style="vertical-align:middle;margin-left:6px">${small(I.folder)} All projects</span>`
-  : `<span class="scopebar" style="vertical-align:middle;margin-left:6px"><span class="sw" style="background:${P[S.scope].color}"></span>${P[S.scope].short}</span>`;
 
 /* =====================================================================
    Views
@@ -744,44 +718,48 @@ const V = {};
 
 /* ---------- Needs you ---------- */
 V.attention = () => {
-  const q = queue();
-  const tagDefs = [['all','All'],['decision','Decisions'],['stale','Stale runs'],['failed','Failed runs'],['blocked','Blocked'],['date','Date risk'],['evidence','Missing evidence']];
-  const count = t => t === 'all' ? q.length : q.filter(r => r.tags.includes(t)).length;
-  const list = q.filter(r => S.kpi === 'all' || r.tags.includes(S.kpi));
-  const dec = decisions().length;
-  const agents = items.filter(i => inScope(i) && ['live','needs','stale','failed','reported'].includes(i.run));
-  const row = r => {
-    const i = byId[r.id], k = KINDICON[r.icon], open = S.replyOpen === r.id;
-    return `<div class="att ${r.tags.includes('decision') ? 'decision' : ''}" data-a="open" data-v="${r.id}">
-      <div class="ico" style="background:${k[0]};color:${k[1]}">${I[r.icon]}</div>
-      <div style="min-width:0">
-        <div class="row wrap"><a href="#" data-a="open" data-v="${r.id}" class="t" style="color:var(--ink)">${esc(i.title)}</a><span class="mono muted">${r.id}</span>${i.lead ? run(i.run, i.age) : ''}</div>
-        <div class="why">${esc(r.why)}</div>
-        ${r.holds.length ? `<div class="src" style="margin-top:3px">Holds up ${r.holds.map(h => link(h)).join(', ')}</div>` : ''}
-        ${r.reply && open ? `<div class="reply" data-stop>
-            <label class="f" for="ans-${r.id}" style="margin:4px 0 0">Your answer to ${esc(i.question.by)}</label>
-            <textarea id="ans-${r.id}" data-t="ans-${r.id}" placeholder="e.g. Per serving; link to the 100 g values in a footnote.">${esc(S.text['ans-'+r.id] || '')}</textarea>
-            <div class="row wrap"><button class="btn primary sm" data-a="sendanswer" data-v="${r.id}">Send answer</button><button class="btn sm" data-a="reply" data-v="${r.id}">Cancel</button><span class="src">Posted to the ticket; ${esc(i.question.by)} reads it on its next query.</span></div>
-          </div>` : ''}
-      </div>
-      ${r.reply && open ? '<span></span>' : `<button class="btn sm${r.tags.includes('decision') ? ' primary' : ''}" data-a="${r.a}" data-v="${r.v}">${r.action}</button>`}
-    </div>`;
-  };
+  const sc = items.filter(inScope);
+  const ready = sc.filter(packetReady), qs = sc.filter(questionOpen), probs = problems();
+  const coming = sc.filter(i => !isEpic(i) && hrComing(i));
+  const planningQ = sc.filter(i => i.status === 'planning');
+  const agents = sc.filter(i => ['live','needs','stale','failed','reported'].includes(i.run));
+  const row = (i, icon, why, btnHtml, extra='') => { const k = KINDICON[icon];
+    return `<div class="att ${icon==='packet' || icon==='question' ? 'decision' : ''}" data-a="open" data-v="${i.id}">
+      <div class="ico" style="background:${k[0]};color:${k[1]}">${I[icon]}</div>
+      <div style="min-width:0"><div class="row wrap"><a href="#" data-a="open" data-v="${i.id}" class="t" style="color:var(--ink)">${esc(i.title)}</a><span class="mono muted">${i.id}</span>${i.lead ? run(i.run, i.age) : ''}</div>
+        <div class="why">${why}</div>${extra}</div>${btnHtml}</div>`; };
+  const pkRow = i => { const c = curPacket(i.id), n = hrOf(i).filter(h => h.state === 'ready').length;
+    return row(i, 'packet', `Round ${c ? c.n : 1} handoff packet · ${n} thing${n===1?'':'s'} to verify · about ${c ? c.est : '?'}${c && c.n > 1 ? ' · round 1 changes were made' : ''}`, `<button class="btn sm primary" data-a="packet" data-v="${i.id}">Open packet</button>`); };
+  const qRow = i => { const open = S.replyOpen === i.id;
+    return row(i, 'question', `${esc(i.question.by)} is waiting on you: “${esc(i.question.text)}”`,
+      open ? '<span></span>' : `<button class="btn sm primary" data-a="reply" data-v="${i.id}">Answer</button>`,
+      open ? `<div class="reply" data-stop><label class="f" for="ans-${i.id}" style="margin:4px 0 0">Your answer to ${esc(i.question.by)}</label>
+        <textarea id="ans-${i.id}" data-t="ans-${i.id}" placeholder="e.g. Per serving; put the 100 g values in a footnote.">${esc(S.text['ans-'+i.id] || '')}</textarea>
+        <div class="row wrap"><button class="btn primary sm" data-a="sendanswer" data-v="${i.id}">Send answer</button><button class="btn sm" data-a="reply" data-v="${i.id}">Cancel</button><span class="src">${esc(i.question.by)} reads it on its next query.</span></div></div>` : ''); };
+  const prRow = r => row(byId[r.id], r.icon, esc(r.why), `<button class="btn sm" data-a="${r.a}" data-v="${r.v}">${r.action}</button>`, r.holds.length ? `<div class="src" style="margin-top:3px">Holds up ${r.holds.map(link).join(', ')}</div>` : '');
+  const where = i => i.status === 'progress' ? `in progress${workOf(i.id).length ? ` · ${workOf(i.id).filter(w => w.s==='done').length}/${workOf(i.id).length} work items done` : ''}` : i.status === 'ready' ? (isBlocked(i) ? `ready · blocked by ${unresolved(i).join(', ')}` : 'ready, not started') : STATUS[i.status].toLowerCase();
+  const nNow = ready.length + qs.length;
   return `
   <h1>Needs you${scopePill()}</h1>
-  <div class="sub">${dec ? `<b style="color:var(--warn)">${dec} decision${dec>1?'s':''} owed</b>: agents are waiting on these.` : 'No decisions owed.'} ${q.length - dec} other item${q.length-dec===1?'':'s'} to look at. Sorted by what unblocks the most work.</div>
-  <div class="filters" role="group" aria-label="Filter queue">${tagDefs.map(([t,l]) => `<button class="fchip" data-a="kpi" data-v="${t}" aria-pressed="${S.kpi===t}">${l} <b>${count(t)}</b></button>`).join('')}</div>
+  <div class="sub">${nNow ? `<b style="color:var(--warn)">${nNow} for you now</b>: ${ready.length} handoff packet${ready.length===1?'':'s'} to verify, ${qs.length} question${qs.length===1?'':'s'}.` : 'Nothing is waiting on you right now.'} ${coming.length} review${coming.length===1?'':'s'} coming up. ${probs.length} problem${probs.length===1?'':'s'}.</div>
   <div class="grid2">
-    <div class="card">${list.map(row).join('') || '<div class="pad muted">Nothing here. Agents are unblocked.</div>'}</div>
     <div class="stack">
-      <div class="card">
-        <div class="sectionhead"><h3>Agents right now</h3><a href="#" data-a="nav" data-v="agents" style="font-size:12px">All runs</a></div>
-        ${agents.map(i => `<div class="agent-row"><div style="min-width:0"><b>${esc(i.lead)}</b><div class="src" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${link(i.id)} ${esc(i.title)}</div></div>${run(i.run, i.age)}</div>`).join('') || '<div class="pad muted">No active runs.</div>'}
-      </div>
-      <div class="card">
-        <div class="sectionhead"><h3>Since you looked at 08:30</h3></div>
-        ${CHANGES.filter(c => inScope(byId[c[1]])).map(c => `<div class="chg"><span class="mono muted">${c[0]}</span><span>${link(c[1])} ${esc(c[2])}</span></div>`).join('')}
-      </div>
+      <div class="card"><div class="sectionhead"><h3>Ready for you · ${ready.length + qs.length}</h3><span class="src">Verify and decide, or answer</span></div>
+        ${[...ready.map(pkRow), ...qs.map(qRow)].join('') || '<div class="pad muted">Nothing to verify. Agents will hand off when work is built.</div>'}</div>
+      <div class="card"><div class="sectionhead"><h3>Problems · ${probs.length}</h3><span class="src">Sorted by how much they hold up</span></div>
+        ${probs.map(prRow).join('') || '<div class="pad muted">No stale or failed runs, cycles or date conflicts.</div>'}</div>
+    </div>
+    <div class="stack">
+      <div class="card"><div class="sectionhead"><h3>Coming up for you · ${coming.length}</h3></div>
+        ${coming.map(i => `<div class="agent-row"><div style="min-width:0"><div class="row">${link(i.id)}<span style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(i.title)}</span></div><div class="src">${esc(hrOf(i).filter(h => h.state==='declared')[0].t)}</div><div class="src">Now: ${where(i)}</div></div></div>`).join('') || '<div class="pad muted">No human reviews declared on open work.</div>'}
+        <div class="pad src" style="border-top:1px solid var(--line)">Agents declare these up front. You get a handoff packet when the work reaches Review.</div></div>
+      <div class="card"><div class="sectionhead"><h3>Your Planning queue · ${planningQ.length}</h3></div>
+        ${planningQ.map(i => `<div class="agent-row"><div style="min-width:0"><div class="row">${link(i.id)}${typeBadge(i)}</div><div class="src" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(i.title)}</div></div><button class="btn sm" data-a="promote" data-v="${i.id}">Move to Ready</button></div>`).join('') || '<div class="pad muted">Nothing in Planning.</div>'}
+        <div class="pad src" style="border-top:1px solid var(--line)">Move items when you're satisfied, or ask an agent to.</div></div>
+      <div class="card"><div class="sectionhead"><h3>Agents right now</h3><a href="#" data-a="nav" data-v="agents" style="font-size:12px">All runs</a></div>
+        ${agents.map(i => `<div class="agent-row"><div style="min-width:0"><b>${esc(i.lead)}</b><div class="src" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${link(i.id)} ${esc(i.title)}</div></div>${run(i.run, i.age)}</div>`).join('') || '<div class="pad muted">No active runs.</div>'}</div>
+      <div class="card"><div class="sectionhead"><h3>Since you looked at 08:30</h3></div>
+        ${CHANGES.filter(c => byId[c[1]] && inScope(byId[c[1]])).map(c => `<div class="chg"><span class="mono muted">${c[0]}</span><span>${link(c[1])} ${esc(c[2])}</span></div>`).join('')}</div>
     </div>
   </div>`;
 };
@@ -792,25 +770,21 @@ const FILTERS = {
   planning:['In planning', i => i.status==='planning', 'status:planning'],
   startable:['Ready to start', i => i.status==='ready' && !isBlocked(i), 'status:ready -is:blocked'],
   blocked:['Blocked', isBlocked, 'is:blocked'],
-  review:['Needs owner', i => !!owes(i), 'needs:owner'],
+  foryou:['For you', forYou, 'needs:human'],
+  hrlater:['Human review later', hrComing, 'has:human-review'],
   live:['Live run', i => i.run==='live', 'run:live'],
-  unclaimed:['Unclaimed', i => isOpen(i) && !i.lead, 'is:open lead:none'],
 };
 V.work = () => {
   const cols = ['inbox','planning','ready','progress','review','done'];
-  const inProj = i => !isContainer(i) && inScope(i) && (S.typeF === 'all' || i.type === S.typeF);
-  const list = items.filter(i => inProj(i) && FILTERS[S.filter][1](i));
-  const card = i => {
-    const o = owes(i), dr = dateRisks(i);
-    return `<a href="#" class="tcard ${isBlocked(i) ? 'isblocked' : o ? 'owed' : ''}" data-a="open" data-v="${i.id}">
+  const base = i => !isEpic(i) && inScope(i) && (S.epicF === 'all' || (S.epicF === 'none' ? !i.epic : i.epic === S.epicF)) && (S.labelF === 'all' || (i.labels || []).includes(S.labelF));
+  const list = items.filter(i => base(i) && FILTERS[S.filter][1](i));
+  const card = i => `<a href="#" class="tcard ${isBlocked(i) ? 'isblocked' : forYou(i) ? 'owed' : ''}" data-a="open" data-v="${i.id}">
       <div class="row" style="justify-content:space-between"><span class="row"><span class="mono muted">${i.id}</span>${typeBadge(i)}</span>${prio(i.prio)}</div>
       <div class="t">${esc(i.title)}</div>
-      ${parentTag(i) || (i.labels || []).length ? `<div class="meta">${parentTag(i)}${labelsOf(i)}</div>` : ''}
-      ${pdocs(i)}
-      ${isBlocked(i) || o || dr.length ? `<div class="meta">${blockedChip(i)}${owedChip(i)}${dr.length ? '<span class="chip c-bad">Date risk</span>' : ''}</div>` : ''}
+      ${i.epic || (i.labels || []).length ? `<div class="meta">${epicTag(i)}${(i.labels || []).map(l => `<span class="label">${esc(l)}</span>`).join('')}</div>` : ''}
+      ${isBlocked(i) || forYou(i) || hrComing(i) || dateRisks(i).length ? `<div class="meta">${blockedChip(i)}${hrChip(i)}${qChip(i)}${dateRisks(i).length ? '<span class="chip c-bad">Date risk</span>' : ''}</div>` : ''}
       <div class="meta">${i.lead ? `${run(i.run, i.age)}<span>· ${esc(i.lead)}</span>` : '<span>Unclaimed</span>'}<span style="margin-left:auto" title="Last activity">${i.last}</span></div>
     </a>`;
-  };
   const colHtml = c => {
     const cs = list.filter(i => i.status === c);
     if (c === 'ready'){
@@ -818,104 +792,92 @@ V.work = () => {
       return `<div class="col"><div class="colh"><span>Ready</span><span>${cs.length}</span></div>
         <div class="src" style="padding:0 4px 6px">Startable · ${go.length}</div>${go.map(card).join('') || '<div class="src" style="padding:0 4px 8px">Nothing startable</div>'}
         ${wait.length ? `<div class="subh"><span>Waiting on blockers · ${wait.length}</span><button class="btn ghost sm" data-a="toggleblocked" aria-expanded="${S.showBlocked}">${S.showBlocked ? 'Hide' : 'Show'}</button></div>
-          ${S.showBlocked ? wait.map(card).join('') : `<div class="mini">${wait.map(i => `<a href="#" data-a="open" data-v="${i.id}" class="chip c-bad mono" title="${esc(i.title)}">${i.id}</a>`).join('')}</div>`}` : ''}
-      </div>`;
+          ${S.showBlocked ? wait.map(card).join('') : `<div class="mini">${wait.map(i => `<a href="#" data-a="open" data-v="${i.id}" class="chip c-bad mono" title="${esc(i.title)}">${i.id}</a>`).join('')}</div>`}` : ''}</div>`;
     }
-    return `<div class="col"><div class="colh"><span>${STATUS[c]}${c==='done' ? ' <span class="muted" style="font-weight:400">· 7 days</span>' : ''}</span><span>${cs.length}</span></div>${c==='planning' ? '<div class="src" style="padding:0 4px 6px">Planning docs in progress. Not claimable yet.</div>' : ''}${cs.map(card).join('')}</div>`;
+    const note = c === 'planning' ? 'Yours: move to Ready when satisfied.' : c === 'review' ? 'Waiting on your human review.' : '';
+    return `<div class="col"><div class="colh"><span>${STATUS[c]}${c==='done' ? ' <span class="muted" style="font-weight:400">· 7 days</span>' : ''}</span><span>${cs.length}</span></div>${note ? `<div class="src" style="padding:0 4px 6px">${note}</div>` : ''}${cs.map(card).join('')}</div>`;
   };
-  const table = `<div class="card" style="overflow:auto"><table><thead><tr><th scope="col">ID</th><th scope="col">Title</th><th scope="col">Status</th><th scope="col">Priority</th><th scope="col">Lead · run</th><th scope="col">Blocked by</th><th scope="col">Last activity</th></tr></thead><tbody>
-    ${list.map(i => `<tr class="clickrow" data-a="open" data-v="${i.id}"><td>${link(i.id)}</td><td>${esc(i.title)} ${typeBadge(i)} ${labelsOf(i)}<div class="ptag">${ancestors(i).reverse().map(a => esc(a.title)).join(' › ')}</div></td><td><div class="row wrap">${statusChip(i)}${owedChip(i)}</div></td><td>${prio(i.prio)}</td>
-      <td>${i.lead ? `<div>${esc(i.lead)}</div>${run(i.run, i.age)}` : '<span class="muted">Unclaimed</span>'}</td><td>${unresolved(i).map(b => link(b)).join(', ') || '<span class="muted">—</span>'}</td><td class="muted">${i.last} ago</td></tr>`).join('') || '<tr><td colspan="7" class="muted">No items match.</td></tr>'}
+  const table = `<div class="card" style="overflow:auto"><table><thead><tr><th scope="col">ID</th><th scope="col">Title</th><th scope="col">Status</th><th scope="col">Priority</th><th scope="col">Lead · run</th><th scope="col">Human review</th><th scope="col">Last activity</th></tr></thead><tbody>
+    ${list.map(i => `<tr class="clickrow" data-a="open" data-v="${i.id}"><td>${link(i.id)}</td><td>${esc(i.title)} ${typeBadge(i)} ${labelsOf(i)}<div class="ptag">${i.epic ? '◆ ' + esc(byId[i.epic].title) : 'no epic'}</div></td><td><div class="row wrap">${statusChip(i)}${blockedChip(i)}</div></td><td>${prio(i.prio)}</td>
+      <td>${i.lead ? `<div>${esc(i.lead)}</div>${run(i.run, i.age)}` : '<span class="muted">Unclaimed</span>'}</td><td>${hrOf(i).length ? `${hrChip(i) || `<span class="src">${hrOf(i).every(h => h.state==='approved') ? 'approved' : hrOf(i).length + ' item' + (hrOf(i).length===1?'':'s')}</span>`}` : '<span class="src">none</span>'}</td><td class="muted">${i.last} ago</td></tr>`).join('') || '<tr><td colspan="7" class="muted">No items match.</td></tr>'}
   </tbody></table></div>`;
-  const trow = (i, depth) => { const c = isContainer(i), r = c ? rollup(i.id) : null;
-    return `<li><div class="trow ${c ? 'cont' : ''}" aria-level="${depth}"><div class="row" style="min-width:0">${typeBadge(i)}${link(i.id)}<a href="#" data-a="open" data-v="${i.id}" style="color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(i.title)}</a>${labelsOf(i)}</div>
-      ${c ? `<div><div class="bar-mini" role="img" aria-label="${r.done} of ${r.n} done"><i style="width:${r.n ? r.done/r.n*100 : 0}%;background:var(--ok)"></i><i style="width:${r.n ? r.active/r.n*100 : 0}%;background:var(--violet)"></i></div></div><div class="src">${r.done}/${r.n} done${r.blocked ? ` · <span style="color:var(--bad)">${r.blocked} blocked</span>` : ''}</div>`
-          : `<div class="row">${statusChip(i)}</div><div>${i.lead ? run(i.run, i.age) : '<span class="src">unclaimed</span>'}</div>`}</div>
-      ${childrenOf(i.id).filter(inScope).length ? `<ul class="tree">${childrenOf(i.id).filter(inScope).sort((a,b) => isContainer(b) - isContainer(a)).map(x => trow(x, depth+1)).join('')}</ul>` : ''}</li>`; };
-  const roots = items.filter(i => inScope(i) && !i.parent);
-  const tree = `<div class="card pad">
-      ${roots.filter(i => i.type==='Epic').length ? `<div class="tgroup">Epics</div><ul class="tree">${roots.filter(i => i.type==='Epic').map(i => trow(i,1)).join('')}</ul>` : ''}
-      ${roots.filter(i => isContainer(i) && i.type!=='Epic').length ? `<div class="tgroup">Features not in an epic</div><ul class="tree">${roots.filter(i => isContainer(i) && i.type!=='Epic').map(i => trow(i,1)).join('')}</ul>` : ''}
-      ${roots.filter(i => !isContainer(i)).length ? `<div class="tgroup">No parent</div><ul class="tree">${roots.filter(i => !isContainer(i)).map(i => trow(i,1)).join('')}</ul>` : ''}
-      <div class="src" style="margin-top:10px">Parent = what an item belongs to (one at most). Labels group loosely across the tree. Neither one blocks; only <b>blocks</b> links do.</div></div>`;
-  const tset = typesFor(S.scope === 'all' ? 'RCP' : S.scope);
+  const epics = items.filter(i => isEpic(i) && inScope(i)), labs = Object.keys(LABELS).filter(l => S.scope === 'all' || LABELS[l].proj === S.scope);
+  const q = [FILTERS[S.filter][2], S.epicF !== 'all' ? 'epic:' + S.epicF : '', S.labelF !== 'all' ? 'label:' + S.labelF : '', S.scope !== 'all' ? 'project:' + S.scope : ''].filter(Boolean).join(' ');
   return `<div class="row" style="justify-content:space-between;margin-bottom:2px"><h1>Work${scopePill()}</h1>
-      <div class="seg" role="group" aria-label="Layout"><button data-a="mode" data-v="board" aria-pressed="${S.workMode==='board'}">Board</button><button data-a="mode" data-v="list" aria-pressed="${S.workMode==='list'}">List</button><button data-a="mode" data-v="tree" aria-pressed="${S.workMode==='tree'}">Structure</button></div></div>
-    <div class="sub">Inbox → <b>Planning</b> → Ready → In progress → Review → Done. Agents can only claim work from Ready. “Blocked” comes from unresolved <b>blocks</b> links only.</div>
+      <div class="seg" role="group" aria-label="Layout"><button data-a="mode" data-v="board" aria-pressed="${S.workMode==='board'}">Board</button><button data-a="mode" data-v="list" aria-pressed="${S.workMode==='list'}">List</button></div></div>
+    <div class="sub">Inbox → <b>Planning</b> (yours) → Ready → In progress → <b>Review</b> (your human review, if any) → Done. Agents only claim from Ready.</div>
     <div class="filters">
-      <label class="sr" for="typesel">Item type</label><select id="typesel" data-a="typef"><option value="all">All types</option>${Object.entries(tset).filter(([,t]) => !t.container).map(([k,t]) => `<option value="${k}" ${S.typeF===k?'selected':''}>${t.icon} ${k}</option>`).join('')}</select>
-      <span role="group" aria-label="Saved filters" class="row wrap" style="gap:6px">${Object.entries(FILTERS).map(([k,f]) => `<button class="fchip" data-a="filter" data-v="${k}" aria-pressed="${S.filter===k}">${f[0]} <b>${items.filter(i => inProj(i) && f[1](i)).length}</b></button>`).join('')}</span>
-      ${FILTERS[S.filter][2] ? `<span class="src" style="margin-left:auto" title="The same query agents send over MCP">Agent query: <span class="mono">${FILTERS[S.filter][2]}${S.typeF!=='all' ? ' type:'+S.typeF : ''}${S.scope!=='all' ? ' project:'+S.scope : ''}</span></span>` : ''}
+      <label class="sr" for="epicsel">Epic</label><select id="epicsel" data-a="epicf"><option value="all">All epics</option>${epics.map(e => `<option value="${e.id}" ${S.epicF===e.id?'selected':''}>◆ ${esc(e.title)}</option>`).join('')}<option value="none" ${S.epicF==='none'?'selected':''}>No epic</option></select>
+      <label class="sr" for="labelsel">Label</label><select id="labelsel" data-a="labelf"><option value="all">All labels</option>${labs.map(l => `<option value="${l}" ${S.labelF===l?'selected':''}># ${l}</option>`).join('')}</select>
+      <span role="group" aria-label="Saved filters" class="row wrap" style="gap:6px">${Object.entries(FILTERS).map(([k,f]) => `<button class="fchip" data-a="filter" data-v="${k}" aria-pressed="${S.filter===k}">${f[0]} <b>${items.filter(i => base(i) && f[1](i)).length}</b></button>`).join('')}</span>
+      ${q ? `<span class="src" style="margin-left:auto" title="The same query agents send over MCP">Agent query: <span class="mono">${esc(q)}</span></span>` : ''}
     </div>
-    ${S.workMode==='board' ? `<div class="board">${cols.map(colHtml).join('')}</div>` : S.workMode==='tree' ? tree : table}`;
+    ${S.labelF !== 'all' ? `<div class="callout" style="margin-bottom:10px">Filtered by <b>#${esc(S.labelF)}</b>. <a href="#" data-a="label" data-v="${esc(S.labelF)}">Open the label page</a> for its brief, progress by epic, and bulk actions.</div>` : ''}
+    ${S.workMode==='board' ? `<div class="board">${cols.map(colHtml).join('')}</div>` : table}`;
 };
 
 /* ---------- Ticket ---------- */
 function detailFor(i){
-  if (DETAIL[i.id]) return DETAIL[i.id];
-  return {outcome:'', acceptance:[], planVer:0, steps:[], evidence:[], runs: i.lead ? [{r:i.run, who:i.lead, what:RUNS[i.run] ? RUNS[i.run].d : '', lead:true}] : [],
-          activity: i.imported ? [['Nov 1','Imported from Jira (dry-run report reviewed)']] : [['—','Created by owner']]};
+  return Object.assign({outcome:'', acceptance:[], work:[], checks:[], docs:[], runs: i.lead ? [{r:i.run, who:i.lead, what:RUNS[i.run] ? RUNS[i.run].d : '', lead:true}] : [],
+    activity: i.imported ? [['Nov 1','Imported from Jira (dry-run report reviewed)']] : i.fromReview ? [['Nov 5', `Created from your human review of ${i.fromReview}`]] : [['—','Created by owner']]}, DETAIL[i.id] || {});
 }
-const defaultTab = i => (i.status === 'review' || i.status === 'done') ? 'evidence' : 'progress';
+const CK = {done:['s-done','✓'], current:['s-current',''], todo:['s-planned',''], blocked:['s-blocked','!']};
+const CHK = {pass:['s-done','✓','passed'], fail:['s-blocked','×','failed'], todo:['s-planned','','not run yet']};
 V.ticket = () => {
   const i = byId[S.ticket], d = detailFor(i), p = P[i.proj];
-  const tab = S.tab || defaultTab(i);
-  const o = owes(i);
+  if (isEpic(i)) return epicView(i, d);
   const activity = [...(S.extraActivity[i.id] || []), ...d.activity];
-  const steps = d.steps.map((s, n) => `
-    <div class="step"><span class="sicon s-${s.s}" aria-hidden="true">${s.s==='done' ? '✓' : s.s==='blocked' ? '!' : ''}</span>
-      <div><div class="title">${n+1}. ${esc(s.t)} ${s.was ? `<s>${esc(s.was)}</s>` : ''}<span class="sr"> (${s.s})</span></div>
-        ${s.why ? `<div class="changed">Changed in plan v${d.planVer}: ${esc(s.why)}</div>` : ''}
-        ${s.s==='blocked' ? '<div class="changed" style="color:var(--bad)">Stopped here: see the failed run</div>' : ''}
-        ${(s.contrib || []).map(c => `<div class="contrib"><div class="row wrap">${prov(c[0])}<b>${esc(c[1])}</b><span class="src">${esc(c[2])}</span></div><div>${esc(c[3])}</div></div>`).join('')}
-      </div>
-      <div class="src" style="text-align:right">${s.who ? esc(s.who) : 'unassigned'}<br>${s.when || ''}</div></div>`).join('');
-  const done = d.steps.filter(s => s.s==='done').length;
-  const evid = d.evidence.map(([t,k,src,when]) => `<div class="ev"><span style="font-weight:600">${esc(t)}</span>${prov(k)}<div class="d">${esc(src)} · ${when}</div></div>`).join('');
-  const policyChip = p.policy === 'gated'
-    ? `<span class="chip c-gray" title="Project approval policy">${small(I.gate)} Owner gates: ${p.gates.join(' → ')}</span>`
-    : `<span class="chip c-gray" title="Project approval policy">No owner gate · agent completion closes</span>`;
-  const closedNote = i.status==='done' ? (i.closedBy==='owner' ? prov('owner','Closed after owner approval') : prov('agent','Closed by agent completion')) : '';
-  const tabs = [['progress', `Progress${d.steps.length ? ` <span class="muted">${done}/${d.steps.length}</span>` : ''}`], ['evidence', `Evidence <span class="muted">${d.evidence.length}</span>`], ['activity','Activity']];
-  const planningCard = () => { const req = reqDocs(i), miss = missingDocs(i);
-    return `<div class="card pad" style="border-color:var(--teal)"><div class="row wrap" style="justify-content:space-between"><h3 style="margin:0">Definition of ready · ${P[i.proj].short}</h3><span class="src">Project default for ${i.type}: ${req.length ? req.join(', ') : 'no planning docs'} · ${P[i.proj].readyGate === 'agent' ? 'agent may move to Ready' : 'owner moves to Ready'}</span></div>
-      ${req.map(d => { const st = (i.planning || {})[d] || 'none'; return `<div class="lrow"><span class="pdoc pd-${st}" style="min-width:58px">${PD[st][0]} ${d}</span><span class="grow">${PD[st][1]}</span>${st==='review' && owes(i)==='review' ? `<button class="btn sm" data-a="review" data-v="${i.id}">Open review</button>` : ''}</div>`; }).join('')}
-      <div class="row wrap" style="margin-top:8px"><button class="btn sm ${miss.length ? '' : 'primary'}" data-a="promote" data-v="${i.id}">${I.promote} Move to Ready</button><span class="src grow">${miss.length ? `Missing ${miss.join(', ')}. The tracker records this but doesn't block it: your repo's agent workflow decides whether that's acceptable. Moving anyway is logged.` : P[i.proj].readyGate === 'agent' ? 'Every required doc is approved. This project lets the lead agent move it to Ready; you can also do it now.' : 'Every required doc is approved. This project needs you to move it to Ready.'}</span></div></div>`; };
+  const hrs = hrOf(i), wdone = d.work.filter(w => w.s === 'done').length;
+  const workRows = d.work.map((w, n) => `<div class="ck"><span class="sicon ${CK[w.s][0]}" aria-hidden="true">${CK[w.s][1]}</span>
+      <div><div class="title" style="font-weight:600">${esc(w.t)} ${w.was ? `<s class="muted" style="font-weight:400">${esc(w.was)}</s>` : ''}<span class="sr"> (${w.s})</span></div>
+        ${w.why ? `<div class="changed">Changed: ${esc(w.why)}</div>` : ''}
+        ${w.from ? `<div class="src">${small(I.person)} Added from ${esc(w.from)}</div>` : ''}
+        ${w.s==='blocked' ? '<div class="changed" style="color:var(--bad)">Stopped here: see the failed run</div>' : ''}
+        ${(w.contrib || []).map(c => `<div class="contrib"><div class="row wrap">${prov(c[0])}<b>${esc(c[1])}</b><span class="src">${esc(c[2])}</span></div><div>${esc(c[3])}</div></div>`).join('')}</div>
+      <div class="src" style="text-align:right">${w.who ? esc(w.who) : 'not started'}<br>${w.when || ''}</div></div>`).join('');
+  const checkRows = d.checks.map(c => `<div class="ck"><span class="sicon ${CHK[c[3]][0]}" aria-hidden="true">${CHK[c[3]][1]}</span><div><div style="font-weight:600">${esc(c[0])}<span class="sr"> (${CHK[c[3]][2]})</span></div><div class="src">${esc(c[2])}</div></div><div>${c[3]==='todo' ? '<span class="src">not run yet</span>' : prov(c[1])}</div></div>`).join('');
+  const hrRows = hrs.map(h => `<div class="ck"><span class="sicon" style="color:var(--warn)" aria-hidden="true">${small(I.person)}</span><div><div style="font-weight:600">${esc(h.t)}</div>${h.last ? `<div class="src">You sent this back in round ${h.last.round}: “${esc(h.last.note)}”${h.last.ref ? ` → ${link(h.last.ref)}` : ' → checklist item'}</div>` : ''}</div><div><span class="chip ${HR[h.state][0]}">${HR[h.state][1]}</span></div></div>`).join('');
+  const cl = `
+    <div class="ckgroup"><h3 style="margin:0">Work · ${wdone}/${d.work.length}</h3>${d.history ? '<button class="btn ghost sm" data-a="planhistory">Checklist history</button>' : ''}</div>
+    ${workRows || `<div class="muted">${i.status === 'planning' || i.status === 'inbox' ? 'The agent writes its work checklist when it claims the item.' : 'No work items yet.'}</div>`}
+    <div class="ckgroup"><h3 style="margin:0">Agent checks · ${d.checks.filter(c => c[3]==='pass').length}/${d.checks.length}</h3><span class="src">What the agent verifies itself</span></div>
+    ${checkRows || '<div class="muted">No checks listed yet.</div>'}
+    <div class="ckgroup"><h3 style="margin:0">Human review · ${hrs.length}</h3>${packetReady(i) ? `<button class="btn primary sm" data-a="packet" data-v="${i.id}">${small(I.packet)} Open packet</button>` : ''}</div>
+    ${hrRows || `<div class="callout" style="background:var(--gray-soft);color:var(--ink-2)">No human review declared. When its checks pass, the agent can close this without you.</div>`}
+    ${hrs.length && !packetReady(i) && isOpen(i) ? `<div class="src" style="margin-top:6px">The agent writes a handoff packet when the work is built. This ticket can't close until every item here is approved.</div>` : ''}`;
+  const docs = d.docs.map(x => `<div class="lrow">${small(x[0].startsWith('handoff') ? I.packet : I.doc)}<span class="grow">${esc(x[0])} <span class="src">${esc(x[1])}</span></span><span class="src">${esc(x[2])} · ${esc(x[3])}</span></div>`).join('');
+  const tabs = [['checklist','Checklist'], ['docs', `Documents <span class="muted">${d.docs.length}</span>`], ['activity','Activity']];
+  const tab = S.tab || 'checklist';
   return `
   ${!inScope(i) ? `<div class="callout row wrap" style="margin-bottom:12px"><span class="grow">${i.id} belongs to <b>${P[i.proj].short}</b>, outside the project you're viewing.</span><button class="btn sm" data-a="scope" data-v="${i.proj}">Switch to ${P[i.proj].short}</button></div>` : ''}
   <div class="tk-head"><div class="grow">
-    <div class="row wrap"><span class="mono muted">${i.id}</span>${typeBadge(i)}${ancestors(i).length ? `<span class="muted">in</span> ${ancestors(i).map(a => `${link(a.id)} <span class="muted">${typeOf(a).icon} ${esc(a.title)}</span>`).join(' <span class="muted">›</span> ')}` : (isContainer(i) ? (i.type === 'Epic' ? '' : '<span class="src">not in an epic</span>') : '<span class="src">no parent</span>')}${labelsOf(i)}${i.imported ? '<span class="chip c-gray">Imported from Jira</span>' : ''}</div>
+    <div class="row wrap"><span class="mono muted">${i.id}</span>${typeBadge(i)}${i.epic ? `<span class="muted">in</span> ${link(i.epic)} <span class="muted">◆ ${esc(byId[i.epic].title)}</span>` : '<span class="src">no epic</span>'}${labelsOf(i)}${i.imported ? '<span class="chip c-gray">Imported from Jira</span>' : ''}</div>
     <h1 style="margin-top:4px">${esc(i.title)}</h1>
-    <div class="row wrap" style="margin-top:6px">${statusChip(i)}${blockedChip(i)}${closedNote}
+    <div class="row wrap" style="margin-top:6px">${statusChip(i)}${blockedChip(i)}${i.status==='done' ? (i.closedBy==='owner' ? prov('owner','Closed after your human review') : prov('agent','Closed by agent: checks passed, no human review')) : ''}
       <label class="row" style="gap:4px"><span class="src">Priority</span><select data-a="prio" aria-label="Priority">${[1,2,3].map(n => `<option value="${n}" ${i.prio===n?'selected':''}>P${n}</option>`).join('')}</select></label>
-      <span class="src">${p.name}</span> ${policyChip}${i.status==='inbox' ? `<button class="btn sm" data-a="toplanning" data-v="${i.id}">Move to Planning</button>` : ''}</div></div>
+      <span class="src">${p.name}</span>
+      ${i.status==='inbox' ? `<button class="btn sm" data-a="toplanning" data-v="${i.id}">Move to Planning</button>` : ''}
+      ${i.status==='planning' ? `<button class="btn sm primary" data-a="promote" data-v="${i.id}">${I.promote} Move to Ready</button><span class="src">Planning is yours. Move it when you're satisfied, or ask an agent to.</span>` : ''}</div></div>
   </div>
-  ${o === 'gate' ? `<div class="banner">${I.gate}<div class="grow"><b>Done is locked.</b> Required owner gate “${esc(i.gate)}” is pending. Agent completion, CI and the merge are recorded below but can't stand in for it.</div><button class="btn primary" data-a="review" data-v="${i.id}">Review now</button></div>` : ''}
-  ${o === 'review' ? `<div class="banner">${I.doc}<div class="grow"><b>Review owed:</b> ${esc(i.review)} v${REVIEWS[i.id].versions.slice(-1)[0].v} is waiting for your decision.</div><button class="btn primary" data-a="review" data-v="${i.id}">Open review</button></div>` : ''}
-  ${o === 'question' ? `<div class="banner q">${I.question}<div class="grow"><b>${esc(i.question.by)} asked at ${i.question.at}:</b> “${esc(i.question.text)}”
+  ${packetReady(i) ? `<div class="banner">${I.packet}<div class="grow"><b>Handoff packet ready (round ${curPacket(i.id) ? curPacket(i.id).n : 1}).</b> ${(n => `${n} thing${n===1?'':'s'}`)(hrs.filter(h => h.state==='ready').length)} to verify, about ${curPacket(i.id) ? curPacket(i.id).est : '?'}. The ticket can't close until you approve.</div><button class="btn primary" data-a="packet" data-v="${i.id}">Open packet</button></div>` : ''}
+  ${questionOpen(i) ? `<div class="banner q">${I.question}<div class="grow"><b>${esc(i.question.by)} asked at ${i.question.at}:</b> “${esc(i.question.text)}”
       <label class="f" for="tans">Your answer</label><textarea id="tans" data-t="ans-${i.id}">${esc(S.text['ans-'+i.id] || '')}</textarea>
       <div class="row wrap" style="margin-top:6px"><button class="btn primary sm" data-a="sendanswer" data-v="${i.id}">Send answer</button><span class="src">The run stays paused until ${esc(i.question.by)} reads it.</span></div></div></div>` : ''}
   ${i.question && i.question.answer ? `<div class="callout ok" style="margin-bottom:12px">You answered: “${esc(i.question.answer)}”. Waiting for ${esc(i.question.by)} to read it.</div>` : ''}
+  ${i.fromReview ? `<div class="callout" style="margin-bottom:12px">Created from your human review of ${link(i.fromReview.split(' ')[0])} (${esc(i.fromReview.split('· ')[1] || '')}).</div>` : ''}
   <div class="grid2"><div class="stack">
-    ${i.status === 'planning' ? planningCard() : ''}
-    ${isContainer(i) ? (() => { const r = rollup(i.id), kids = childrenOf(i.id); return `<div class="card pad"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Contains · ${kids.length} direct, ${r.n} work items in total</h3><span class="src">${r.done}/${r.n} done${r.blocked ? ` · ${r.blocked} blocked` : ''}</span></div>
-      <div class="bar-mini" style="margin:8px 0" role="img" aria-label="${r.done} of ${r.n} done"><i style="width:${r.n ? r.done/r.n*100 : 0}%;background:var(--ok)"></i><i style="width:${r.n ? r.active/r.n*100 : 0}%;background:var(--violet)"></i></div>
-      ${kids.map(k => `<div class="lrow">${typeBadge(k)}${link(k.id)}${projTag(k.id)}<span class="grow" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(k.title)}</span>${isContainer(k) ? `<span class="src">${rollup(k.id).done}/${rollup(k.id).n} done</span>` : statusChip(k)}</div>`).join('') || '<div class="muted">Empty. Set this as the parent of items to group them here.</div>'}</div>`; })() : ''}
     <div class="card pad"><h3>Outcome</h3><div>${d.outcome ? esc(d.outcome) : '<span class="muted">No outcome written yet.</span>'}</div>
-      ${d.acceptance.length ? `<h3 style="margin-top:14px">Acceptance</h3>${d.acceptance.map(([t,e]) => `<div class="lrow"><span class="sicon ${e ? 's-done' : 's-planned'}" aria-hidden="true">${e ? '✓' : ''}</span><span class="grow">${esc(t)}</span>${e ? `<span class="src">${esc(e)}</span>` : '<span class="chip c-info">No evidence</span>'}</div>`).join('')}` : ''}</div>
+      ${d.acceptance && d.acceptance.length ? `<h3 style="margin-top:14px">Acceptance</h3>${d.acceptance.map(t => `<div class="lrow"><span class="muted">–</span><span>${esc(t)}</span></div>`).join('')}` : ''}</div>
     <div class="card pad">
       <div class="tabs" role="tablist" aria-label="Item detail">${tabs.map(([k,l]) => `<button role="tab" id="tab-${k}" aria-controls="panel" data-a="tab" data-v="${k}" aria-selected="${tab===k}" tabindex="${tab===k ? 0 : -1}">${l}</button>`).join('')}</div>
       <div role="tabpanel" id="panel" aria-labelledby="tab-${tab}">
-      ${tab==='progress' ? (d.steps.length ? `<div class="row" style="justify-content:space-between;margin-bottom:6px"><span class="src">Ticket plan v${d.planVer} · published by the lead · steps are not work items</span>${d.history ? '<button class="btn ghost sm" data-a="planhistory">Plan history</button>' : ''}</div>${steps}` : (isContainer(i) ? '<div class="muted">Containers have no ticket plan. Progress rolls up from the items inside.</div>' : '<div class="muted">No plan yet. The lead agent publishes one when it claims the item.</div>'))
-       : tab==='evidence' ? `<div class="src" style="margin-bottom:6px">Each row says who or what produced it. Only ${prov('owner')} counts as human approval.</div>${evid || '<div class="muted">No evidence linked.</div>'}
-          ${i.closedBy==='agent' && !S.ackEvidence[i.id] ? `<div class="row wrap" style="margin-top:10px"><button class="btn sm" data-a="ack" data-v="${i.id}">Accept without evidence</button><button class="btn sm" data-a="reopen" data-v="${i.id}">Reopen</button></div>` : ''}`
-       : activity.map(a => `<div class="act"><span class="src mono">${a[0]}</span><span>${esc(a[1])}</span></div>`).join('')}
+        ${tab==='checklist' ? cl : tab==='docs' ? (docs || '<div class="muted">No documents yet. Planning docs (PRD, UX, TDD) and handoff packets appear here.</div>') : activity.map(a => `<div class="act"><span class="src mono">${a[0]}</span><span>${esc(a[1])}</span></div>`).join('')}
       </div>
     </div>
   </div>
   <div class="stack">
     <div class="card pad"><h3>Lead and runs</h3>
-      ${d.runs.map(r => `<div class="lrow" style="align-items:flex-start;padding:6px 0"><div class="grow"><div class="row wrap"><b>${esc(r.who)}</b>${r.lead ? '<span class="chip c-gray">lead</span>' : ''}${run(r.r)}</div><div class="src">${esc(r.what)}</div></div></div>`).join('') || (isContainer(i) ? '<div class="muted">Containers are not claimed. Agents claim the work items inside.</div>' : '<div class="muted">Unclaimed. The next agent that asks for ready work can claim it.</div>')}
+      ${d.runs.map(r => `<div class="lrow" style="align-items:flex-start;padding:6px 0"><div class="grow"><div class="row wrap"><b>${esc(r.who)}</b>${r.lead ? '<span class="chip c-gray">lead</span>' : ''}${run(r.r)}</div><div class="src">${esc(r.what)}</div></div></div>`).join('') || '<div class="muted">Unclaimed. The next agent that asks for ready work can claim it.</div>'}
       ${d.conflict && i.lead ? `<div class="callout warn" style="margin-top:6px">${esc(d.conflict)}</div>` : ''}
       ${d.error && i.lead ? `<div class="err">${esc(d.error)}</div>` : ''}
       ${i.run==='stale' && i.lead ? `<div class="row wrap" style="margin-top:8px"><button class="btn sm" data-a="release" data-v="${i.id}">Release lead claim…</button></div><div class="src" style="margin-top:4px">Or wait: the lease expires on its own at 11:13.</div>` : ''}
@@ -929,58 +891,95 @@ V.ticket = () => {
     <div class="card pad"><h3>Dates and effort</h3><dl class="kv">
       ${i.start ? `<dt>Planned</dt><dd>${fmt(D(i.start))} → ${fmt(D(i.end))}<div class="src">set by ${esc(i.setBy)}</div></dd>` : '<dt>Planned</dt><dd class="muted">Not set</dd>'}
       ${i.actual ? `<dt>Actual</dt><dd>${fmt(D(i.actual[0]))} → ${i.actual[1] ? fmt(D(i.actual[1])) : 'ongoing'}<div class="src">from run history</div></dd>` : ''}
-      <dt>Effort</dt><dd>${i.pts ? `${i.pts} pts<div class="src">set by ${esc((i.lead || 'owner').split(' ')[0])}</div>` : '<span class="muted">Not estimated</span>'}</dd>
+      <dt>Effort</dt><dd>${i.pts ? `${i.pts} pts` : '<span class="muted">Not estimated</span>'}</dd>
     </dl>${dateRisks(i).map(b => `<div class="callout bad" style="margin-top:8px">Starts ${fmt(D(i.start))}, but ${b} is planned to finish ${fmt(D(byId[b].end))}.</div>`).join('')}</div>
   </div></div>`;
 };
+function epicView(i, d){
+  const kids = childrenOf(i.id), done = kids.filter(k => k.status==='done').length, active = kids.filter(k => k.status==='progress').length;
+  const byStatus = Object.keys(STATUS).map(s => [s, kids.filter(k => k.status===s)]).filter(([,l]) => l.length);
+  return `<div class="tk-head"><div class="grow">
+      <div class="row wrap"><span class="mono muted">${i.id}</span>${typeBadge(i)}${labelsOf(i)}</div>
+      <h1 style="margin-top:4px">${esc(i.title)}</h1>
+      <div class="row wrap" style="margin-top:6px">${statusChip(i)}<span class="src">${P[i.proj].name} · ${kids.length} items · ${done} done</span>
+        ${i.status==='planning' ? `<button class="btn sm primary" data-a="promote" data-v="${i.id}">${I.promote} Move to Ready</button><span class="src">This epic is still a brief. Move it once you've broken it down.</span>` : ''}</div></div></div>
+    <div class="grid2"><div class="stack">
+      <div class="card pad"><h3>Brief</h3><div>${esc(d.outcome) || '<span class="muted">No brief yet.</span>'}</div>
+        ${d.docs.length ? `<h3 style="margin-top:14px">Documents</h3>${d.docs.map(x => `<div class="lrow">${small(I.doc)}<span class="grow">${esc(x[0])} <span class="src">${esc(x[1])}</span></span><span class="src">${esc(x[2])} · ${esc(x[3])}</span></div>`).join('')}` : ''}</div>
+      <div class="card pad"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Items · ${done}/${kids.length} done</h3><span class="src">${kids.filter(isBlocked).length} blocked · ${kids.filter(forYou).length} for you</span></div>
+        <div class="bar-mini" style="margin:8px 0" role="img" aria-label="${done} of ${kids.length} done"><i style="width:${kids.length ? done/kids.length*100 : 0}%;background:var(--ok)"></i><i style="width:${kids.length ? active/kids.length*100 : 0}%;background:var(--violet)"></i></div>
+        ${byStatus.map(([s, l]) => `<div class="src" style="margin-top:8px">${STATUS[s]} · ${l.length}</div>${l.map(k => `<div class="lrow">${typeBadge(k)}${link(k.id)}<span class="grow" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(k.title)}</span>${hrChip(k)}${blockedChip(k)}</div>`).join('')}`).join('') || '<div class="muted">No items yet. When planned, the agent breaks this epic into stories, tasks and bugs.</div>'}</div>
+    </div>
+    <div class="stack"><div class="card pad"><h3>Activity</h3>${[...(S.extraActivity[i.id] || []), ...d.activity].map(a => `<div class="act"><span class="src mono">${a[0]}</span><span>${esc(a[1])}</span></div>`).join('') || '<div class="muted">No activity.</div>'}</div></div></div>`;
+}
 
-/* ---------- Reviews ---------- */
-const WALK = ['Drag a recipe between days and meal slots','Move a recipe with the keyboard (Space, arrows, Enter)','Reload keeps the plan (RCP-17 is related, not blocking)'];
-V.reviews = () => {
-  const inS = Object.keys(REVIEWS).filter(k => inScope(byId[k]));
-  if (!inS.length) return `<h1>Reviews${scopePill()}</h1><div class="sub">Nothing to review in this project.</div>`;
-  if (!inS.includes(S.review)){ S.review = inS.find(k => !S.decided[k]) || inS[0]; S.ver = null; }
-  const r = REVIEWS[S.review], vs = r.versions, latest = vs[vs.length-1];
-  const cur = vs.find(x => x.v === S.ver) || latest, isLatest = cur === latest;
-  const decided = S.decided[S.review];
-  const it = byId[S.review];
-  const pend = inS.filter(k => !S.decided[k]), done = inS.filter(k => S.decided[k]);
-  const qbtn = id => `<button data-a="review" data-v="${id}" aria-current="${S.review===id}"><span class="row"><span class="mono">${id}</span>${S.decided[id] ? decChip(S.decided[id]) : `<span class="chip c-warn">${REVIEWS[id].kind}</span>`}</span><span style="font-weight:600">${esc(REVIEWS[id].title)}</span><span class="src">${esc(byId[id].title)}</span></button>`;
-  const content = S.review === 'RCP-23' ? `<div class="doc"><h1>Meal plan templates · UX</h1><p>Planning doc for RCP-23. The PRD (v2) is approved; this covers the screens and flows.</p>
-       <h2>Save as template</h2><p>From any week, <code>⋯ → Save as template</code> opens a name field, prefilled with “Week of Nov 9”. Saving shows a toast with Undo.</p>
-       <h2>Apply a template</h2><p>The template picker lists templates with a 7-day thumbnail. Applying to a week that already has meals asks: <b>Merge</b> (default) or <b>Replace</b>.</p>
-       <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin:10px 0">${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d => `<div style="border:1px dashed var(--ctl);border-radius:6px;padding:6px;font-size:11px;color:var(--ink-3);min-height:54px">${d}</div>`).join('')}</div>
-       <h2>Open questions</h2><p>Should templates be shared across households? Proposed: no for V1.</p></div>`
-    : S.review === 'RCP-19'
-    ? `<div class="doc ${S.diff && cur.v>1 ? '' : 'plain'}">${cur.v>1 ? `<div class="row" style="justify-content:space-between;margin-bottom:10px"><span class="src">${S.diff ? 'Showing changes since v1' : 'Clean view'}</span><button class="btn sm" data-a="diff" aria-pressed="${S.diff}">${S.diff ? 'Hide changes' : 'Show changes since v1'}</button></div>` : ''}${docHtml(cur.v)}</div>`
-    : `<div class="doc"><h1>Release walkthrough · RCP-12</h1><p>Walk through the weekly planner on the merged build and confirm each acceptance criterion yourself.</p>
-       <h2>Submitted evidence</h2><div class="row wrap">${prov('agent','codex: acceptance complete')}${prov('ci','CI #91 · 214 passed')}${prov('git','PR #48 merged')}</div>
-       <h2>Your walkthrough</h2>${WALK.map((c,n) => `<label class="check"><input type="checkbox" data-a="check" data-v="${n}" ${S.checks[n] ? 'checked' : ''}><span>${esc(c)}</span></label>`).join('')}
-       <div class="src" style="margin-top:6px">${Object.values(S.checks).filter(Boolean).length} of ${WALK.length} checked. Your checklist is saved with the decision.</div></div>`;
-  return `<h1>Reviews${scopePill()}</h1><div class="sub">Each decision applies to one exact version. A new revision never inherits an earlier approval.</div>
-  <div class="rv">
-    <div class="card rvq">${pend.length ? `<div class="sectionhead"><h3>Waiting · ${pend.length}</h3></div>${pend.map(qbtn).join('')}` : ''}${done.length ? `<div class="sectionhead"><h3>Decided today</h3></div>${done.map(qbtn).join('')}` : ''}</div>
-    <div class="card" style="min-width:0">
-      <div class="vers"><b style="margin-right:4px">${esc(r.title)}</b>
-        ${vs.map(x => `<button class="vbtn" data-a="ver" data-v="${x.v}" aria-pressed="${x===cur}">v${x.v} ${x.decision ? decChip(x.decision.k) : x===latest ? decChip(decided) : ''}</button>`).join('')}
-        <span class="src" style="margin-left:auto">${cur.by} · ${cur.when} · <span class="mono">${cur.sha}</span></span>
-        ${S.review==='RCP-19' ? `<button class="btn sm" data-a="download" data-v="${cur.v}">Download .md</button>` : ''}</div>
-      ${!isLatest ? `<div class="callout warn" style="margin:10px 14px 0">You're viewing an older version. Its decision is shown on the right and doesn't carry over to v${latest.v}.</div>` : ''}
-      ${content}
+/* ---------- Label page (large initiatives span epics) ---------- */
+V.label = () => {
+  const L = LABELS[S.label] || {brief:''}, its = items.filter(i => !isEpic(i) && (i.labels || []).includes(S.label));
+  const done = its.filter(i => i.status==='done').length, plan = its.filter(i => i.status==='planning');
+  const groups = {}; its.forEach(i => { const k = i.epic || 'none'; (groups[k] = groups[k] || []).push(i); });
+  return `<div class="row" style="justify-content:space-between"><h1><span class="muted">#</span>${esc(S.label)}</h1><span class="src">Label · ${L.proj ? P[L.proj].short : ''}</span></div>
+    <div class="sub">Labels group work across epics, which is how large initiatives work here. Agents query the same thing: <span class="mono">label:${esc(S.label)}</span>.</div>
+    <div class="grid2"><div class="stack">
+      <div class="card pad"><h3>Brief</h3><div>${L.brief ? esc(L.brief) : '<span class="muted">No brief. Add one if this label is an initiative with shared decisions.</span>'}</div>${L.by ? `<div class="src" style="margin-top:6px">written by ${esc(L.by)}</div>` : ''}</div>
+      <div class="card pad"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Progress · ${done}/${its.length} done</h3><span class="src">${its.filter(isBlocked).length} blocked · ${plan.length} in planning · ${its.filter(forYou).length} for you</span></div>
+        ${Object.entries(groups).map(([k, l]) => `<div class="src" style="margin-top:12px;font-weight:650">${k === 'none' ? 'No epic' : `◆ ${esc(byId[k].title)}`} · ${l.filter(x => x.status==='done').length}/${l.length}</div>
+          ${l.map(x => `<div class="lrow">${typeBadge(x)}${link(x.id)}<span class="grow" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.title)}</span>${statusChip(x)}${hrChip(x)}</div>`).join('')}`).join('') || '<div class="muted">Nothing has this label.</div>'}</div>
     </div>
     <div class="stack">
-      ${cur.decision ? `<div class="card pad"><h3>Decision on v${cur.v}</h3>${prov('owner','Changes requested')}<div class="src" style="margin-top:4px">${cur.decision.by} · ${cur.decision.when}</div><div style="margin-top:6px">“${esc(cur.decision.why)}”</div></div>` : ''}
-      ${isLatest ? (decided ? `<div class="card pad"><h3>Your decision · v${cur.v}</h3>${prov('owner', DEC[decided][3])}
-          ${S.text['rat-'+S.review] ? `<div style="margin-top:6px">“${esc(S.text['rat-'+S.review])}”</div>` : ''}
-          <div class="src" style="margin-top:6px">Recorded just now. Applies to <span class="mono">${cur.sha}</span>. Agents see it on their next query.</div>
-          <button class="btn sm" style="margin-top:8px" data-a="undodec">Undo</button></div>`
-        : `<div class="card pad"><h3>Decide on v${cur.v}</h3>
-          <div class="dec" role="radiogroup" aria-label="Decision">${Object.entries(DEC).map(([k,[l,ic]]) => `<button role="radio" aria-checked="${S.decision===k}" data-a="dec" data-v="${k}" style="${k==='approve'?'color:var(--ok)':k==='changes'?'color:var(--warn)':''}">${I[ic]}${l}</button>`).join('')}</div>
-          <label class="f" for="rat">Reason ${S.decision && S.decision!=='approve' ? '<b style="color:var(--bad)">(required)</b>' : '(optional for Approve)'}</label>
-          <textarea id="rat" data-t="rat-${S.review}" placeholder="What should the agent know?">${esc(S.text['rat-'+S.review] || '')}</textarea>
-          <button class="btn primary" style="margin-top:8px;width:100%;justify-content:center" data-a="submitdec" ${S.decision ? '' : 'disabled'}>${S.decision ? `Record: ${DEC[S.decision][0]}` : 'Choose a decision'}</button>
-          <div class="callout" style="margin-top:10px">Applies to v${cur.v} · <span class="mono">${cur.sha}</span>. ${S.review==='RCP-12' ? 'Approving moves RCP-12 to Done and makes RCP-22 startable.' : S.review==='RCP-23' ? 'Approving marks UX approved. RCP-23 still needs its TDD before it can move to Ready.' : 'If claude submits v3, it needs a new decision.'}</div></div>`) : ''}
-      <div class="card pad"><h3>Item</h3><div class="row wrap">${link(it.id)}${statusChip(it)}</div><div style="margin-top:4px">${esc(it.title)}</div></div>
+      <div class="card pad"><h3>Start this work</h3><div class="src" style="margin-bottom:8px">${plan.length} item${plan.length===1?'':'s'} with this label ${plan.length===1?'is':'are'} in Planning.</div>
+        <button class="btn primary" data-a="bulkready" data-v="${esc(S.label)}" ${plan.length ? '' : 'disabled'}>${I.promote} Move ${plan.length} to Ready</button>
+        <div class="src" style="margin-top:8px">Or tell an agent: “Everything labelled ${esc(S.label)} is good to go.” It runs the same query.</div></div>
+      <div class="card pad"><h3>Open on the board</h3><button class="btn sm" data-a="labelboard" data-v="${esc(S.label)}">Filter Work by #${esc(S.label)}</button></div>
+    </div></div>`;
+};
+
+/* ---------- Human review (handoff packets) ---------- */
+V.review = () => {
+  const sc = items.filter(inScope), ready = sc.filter(packetReady), coming = sc.filter(i => !isEpic(i) && hrComing(i));
+  const decided = sc.filter(i => PACKETS[i.id] && !packetReady(i) && PACKETS[i.id].rounds.some(r => r.decided));
+  if (!ready.length && !decided.length) return `<h1>Human review${scopePill()}</h1><div class="sub">Nothing to verify in this project right now.</div>`;
+  if (!PACKETS[S.pk] || !inScope(byId[S.pk])) S.pk = (ready[0] || decided[0]).id;
+  const i = byId[S.pk], pk = PACKETS[i.id], latest = pk.rounds[pk.rounds.length - 1];
+  const r = pk.rounds.find(x => x.n === S.pkRound) || latest, live = r === latest && packetReady(i);
+  const v = S.verdicts[i.id] || {};
+  const qbtn = x => `<button data-a="packet" data-v="${x.id}" aria-current="${S.pk===x.id}"><span class="row"><span class="mono">${x.id}</span>${packetReady(x) ? `<span class="chip c-warn">Round ${curPacket(x.id).n}</span>` : `<span class="chip ${x.status==='done' ? 'c-ok' : 'c-gray'}">${x.status==='done' ? 'Approved' : 'Sent back'}</span>`}</span><span style="font-weight:600">${esc(x.title)}</span><span class="src">${packetReady(x) ? `about ${curPacket(x.id).est}` : ''}</span></button>`;
+  const itemsHtml = (live ? hrOf(i).filter(h => h.state === 'ready').map(h => h.t) : r.items || hrOf(i).map(h => h.t)).map((t, n) => {
+    const past = r.decided && r.decided.verdicts[n], cur = live ? (v[n] || {}) : past || {};
+    return `<div class="hritem"><div style="font-weight:600">${n+1}. ${esc(t)}</div>
+      ${live ? `<div class="verdict" role="radiogroup" aria-label="Decision for item ${n+1}">
+          <button class="btn sm ap" role="radio" aria-checked="${cur.k==='approve'}" aria-pressed="${cur.k==='approve'}" data-a="verdict" data-v="${n}|approve">${I.check} Looks good</button>
+          <button class="btn sm ch" role="radio" aria-checked="${cur.k==='changes'}" aria-pressed="${cur.k==='changes'}" data-a="verdict" data-v="${n}|changes">${I.x} Needs changes</button></div>
+        ${cur.k === 'changes' ? `<label class="f" for="note-${n}">What needs to change <b style="color:var(--bad)">(required)</b></label><textarea id="note-${n}" data-t="note-${i.id}-${n}" placeholder="What you saw, and what you expected">${esc(S.text['note-'+i.id+'-'+n] || '')}</textarea>
+          <div class="row wrap" style="margin-top:6px"><span class="src">Send it back as</span><div class="seg" role="group" aria-label="Turn finding into"><button data-a="into" data-v="${n}|checklist" aria-pressed="${(cur.into || 'checklist')==='checklist'}">Checklist item on this ticket</button><button data-a="into" data-v="${n}|bug" aria-pressed="${cur.into==='bug'}">New bug ticket</button></div></div>` : ''}`
+      : past ? `<div class="row wrap" style="margin-top:6px">${prov('owner', past.k==='approve' ? 'Looked good' : 'Needed changes')}${past.note ? `<span>“${esc(past.note)}”</span>` : ''}${past.k==='changes' ? `<span class="src">→ ${past.into==='bug' ? `bug ${past.ref ? link(past.ref) : ''}` : 'checklist item'}</span>` : ''}</div>` : ''}</div>`; }).join('');
+  const allSet = live && hrOf(i).filter(h => h.state==='ready').every((h, n) => v[n] && v[n].k);
+  const anyCh = live && Object.values(v).some(x => x && x.k === 'changes');
+  return `<h1>Human review${scopePill()}</h1><div class="sub">The agent writes a handoff packet when work is built. Verify, then approve or send it back. Your decision applies to this exact packet; CI and merges never count as approval.</div>
+  <div class="rv">
+    <div class="card rvq">${ready.length ? `<div class="sectionhead"><h3>Ready for you · ${ready.length}</h3></div>${ready.map(qbtn).join('')}` : ''}
+      ${decided.length ? `<div class="sectionhead"><h3>Decided</h3></div>${decided.map(qbtn).join('')}` : ''}
+      ${coming.length ? `<div class="sectionhead"><h3>Coming up · ${coming.length}</h3></div>${coming.map(x => `<button data-a="open" data-v="${x.id}"><span class="row"><span class="mono">${x.id}</span><span class="chip c-gray">${STATUS[x.status]}</span></span><span style="font-weight:600">${esc(x.title)}</span><span class="src">no packet yet</span></button>`).join('')}` : ''}</div>
+    <div class="card packet" style="min-width:0">
+      <div class="vers"><b style="margin-right:4px">Handoff packet · ${link(i.id)}</b>
+        ${pk.rounds.map(x => `<button class="vbtn" data-a="pkround" data-v="${x.n}" aria-pressed="${x===r}">Round ${x.n} ${x.decided ? `<span class="chip ${x.decided.verdicts.every(y => y.k==='approve') ? 'c-ok' : 'c-warn'}" style="padding:0 5px">${x.decided.verdicts.every(y => y.k==='approve') ? 'approved' : 'sent back'}</span>` : x===latest && packetReady(i) ? '<span class="dot needs" style="width:8px;height:8px;border-radius:50%;background:var(--warn);display:inline-block"></span>' : ''}</button>`).join('')}
+        <span class="src" style="margin-left:auto">${esc(r.by)} · ${esc(r.when)} · <span class="mono">${esc(r.sha)}</span> · about ${esc(r.est)}</span></div>
+      ${r !== latest ? `<div class="callout warn" style="margin:10px 14px 0">Earlier round. Its decisions are shown below and don't carry over.</div>` : ''}
+      <div class="doc" style="padding:6px 22px 18px">
+        <section><h2>What you're verifying</h2>${itemsHtml}</section>
+        ${r.how ? `<section><h2>How to verify</h2><ol style="margin:0;padding-left:20px">${r.how.map(h => `<li style="margin:3px 0">${esc(h)}</li>`).join('')}</ol></section>` : ''}
+        ${r.checked ? `<section><h2>Already checked by the agent</h2>${r.checked.map(c => `<div class="lrow">${prov(c[1])}<span class="grow">${esc(c[0])}</span><span class="src">${esc(c[2])}</span></div>`).join('')}</section>` : ''}
+        ${r.gaps ? `<section><h2>Known gaps</h2><ul style="margin:0;padding-left:20px">${r.gaps.map(g => `<li>${esc(g)}</li>`).join('')}</ul></section>` : ''}
+        ${r.attach ? `<section><h2>Attachments</h2><div>${r.attach.map(a => `<span class="attach">${small(I.clip)}<b>${esc(a[0])}</b><span class="src">${esc(a[1])}</span></span>`).join('')}</div></section>` : ''}
+      </div>
+    </div>
+    <div class="stack">
+      ${live ? `<div class="card pad"><h3>Your decision · round ${r.n}</h3>
+          <div class="src">${Object.values(v).filter(x => x && x.k).length} of ${hrOf(i).filter(h => h.state==='ready').length} items decided</div>
+          <button class="btn primary" style="margin-top:10px;width:100%;justify-content:center" data-a="submitpacket" ${allSet ? '' : 'disabled'}>${!allSet ? 'Decide every item first' : anyCh ? `Send back to ${esc(i.lead || 'the agent')}` : 'Approve and close ticket'}</button>
+          <div class="callout" style="margin-top:10px">${anyCh ? `Each finding becomes a checklist item or a bug. The ticket goes back to In progress and you'll get a round ${r.n + 1} packet.` : `Approving records your decision on <span class="mono">${esc(r.sha)}</span> and closes ${i.id}${dependents(i.id).length ? `, which unblocks ${dependents(i.id).map(x => x.id).join(', ')}` : ''}.`}</div></div>`
+        : `<div class="card pad"><h3>Round ${r.n}</h3><div class="src">${r.decided ? `Decided ${esc(r.decided.when)}` : 'Not decided'}</div></div>`}
+      <div class="card pad"><h3>Ticket</h3><div class="row wrap">${link(i.id)}${statusChip(i)}</div><div style="margin-top:4px">${esc(i.title)}</div><div class="src" style="margin-top:4px">${epicTag(i)}</div></div>
     </div>
   </div>`;
 };
@@ -1055,16 +1054,15 @@ V.graph = () => {
 V.timeline = () => {
   const start = D('2026-11-02'), days = 35;
   const pct = d => ((d - start) / 864e5 / days * 100);
-  const rows = items.filter(i => i.start && !isContainer(i) && inScope(i)).sort((a,b) => D(a.start) - D(b.start));
-  const undated = items.filter(i => !i.start && !isContainer(i) && isOpen(i) && inScope(i));
+  const rows = items.filter(i => i.start && !isEpic(i) && inScope(i)).sort((a,b) => D(a.start) - D(b.start));
+  const undated = items.filter(i => !i.start && !isEpic(i) && isOpen(i) && inScope(i));
   const fcProj = S.scope === 'all' ? 'RCP' : S.scope, have = fcProj === 'RCP' ? 2 : 0;
-  const endX = s => pct(new Date(D(s).getTime() + 864e5)); // bars include their end day
+  const endX = s => pct(new Date(D(s).getTime() + 864e5));
   const nowX = pct(NOW);
   const row = i => {
     const risks = dateRisks(i), done = i.status === 'done';
     const s = pct(D(i.start)), e = endX(i.end);
-    const deps = unresolved(i).filter(b => byId[b].end).map(b => { const x = endX(byId[b].end), r = risks.includes(b);
-      return `<div class="dep ${r?'risk':''}" style="left:${x}%" title="${b} planned to finish ${fmt(D(byId[b].end))}"></div>`; }).join('');
+    const deps = unresolved(i).filter(b => byId[b].end).map(b => `<div class="dep ${risks.includes(b)?'risk':''}" style="left:${endX(byId[b].end)}%" title="${b} planned to finish ${fmt(D(byId[b].end))}"></div>`).join('');
     const after = unresolved(i).filter(b => byId[b].end).map(b => `${risks.includes(b) ? '<b style="color:var(--bad)">' : ''}${b} ends ${fmt(D(byId[b].end))}${risks.includes(b) ? '</b>' : ''}`);
     const overdue = !done && D(i.end) < D(NOW.toISOString().slice(0,10));
     return `<div class="tl-row"><div class="lbl">${link(i.id)}<span class="t" title="${esc(i.title)}">${esc(i.title)}</span></div>
@@ -1094,23 +1092,23 @@ V.timeline = () => {
 /* ---------- Agents ---------- */
 V.agents = () => {
   const rows = [
-    ['live','claude · orca-w3','RCP-14','Lead · step 2 of 4: unit merging','40s','tel','Until 12:02'],
-    ['reported','claude','RCP-23','Planning · writing the TDD','6m','said','Until 11:40'],
+    ['live','claude · orca-w3','RCP-14','Lead · work item 2 of 4: unit merging','40s','tel','Until 12:02'],
+    ['reported','claude','RCP-23','Planning · drafting the TDD','6m','said','Until 11:40'],
     ['finished','units-worker','RCP-14','Child run r-77 · conversion table and tests','20m','observed','—'],
     [null,'explorer','RCP-14','Subagent log · mapped ingredient units','48m','relayed','—'],
     ['needs','codex','DOC-4','Waiting on your answer','9m','tel','Paused'],
     ['stale','codex · orca-w1','RCP-15','Last said: “migrating pantry table”','47m','none','Expires 11:13'],
     ['failed','claude','RCP-18','Outbound network blocked','25m','tel','Released'],
-    ['finished','codex','RCP-12','Lead · finished, gate requested','18m','tel','Released']];
+    ['finished','codex','RCP-12','Lead · handoff packet round 2 submitted','18m','tel','Released']];
   const srcCell = s => s==='said' ? prov('agent','Agent-reported · no heartbeat') : s==='tel' ? '<span class="src">Client heartbeat</span>' : s==='observed' ? prov('observed') : s==='relayed' ? prov('relayed') : '<span class="chip c-gray">Unknown: no heartbeat</span>';
-  return `<h1>Agents${scopePill()}</h1><div class="sub">Every run and subagent contribution across projects. “How we know” separates telemetry from what agents told us.</div>
+  return `<h1>Agents${scopePill()}</h1><div class="sub">Every run and subagent contribution. “How we know” separates telemetry from what agents told us.</div>
     <div class="card" style="overflow:auto"><table><thead><tr><th scope="col">State</th><th scope="col">Agent</th><th scope="col">Item</th><th scope="col">Doing / did</th><th scope="col">Last signal</th><th scope="col">Lease</th><th scope="col">How we know</th></tr></thead><tbody>
     ${rows.filter(r => inScope(byId[r[2]])).map(r => `<tr class="clickrow" data-a="open" data-v="${r[2]}"><td>${r[0] ? run(r[0]) : '<span class="src">log entry</span>'}</td><td><b>${r[1]}</b></td><td>${link(r[2])}</td><td>${esc(r[3])}</td><td class="muted">${r[4]} ago</td><td class="src">${r[6]}</td><td>${srcCell(r[5])}</td></tr>`).join('')}
     </tbody></table></div>
     <div class="card pad" style="margin-top:12px"><h3>Run states</h3><div class="legend">${Object.keys(RUNS).map(k => `<span>${run(k)}<span class="src">${RUNS[k].d}</span></span>`).join('')}</div></div>`;
 };
 
-/* ---------- Connections (O01, O02, O07, O08) ---------- */
+/* ---------- Connections ---------- */
 V.connections = () => {
   const m = [
     ['Codex CLI (host)','Streamable HTTP','2m ago','pass','Smoke test passed Nov 6 08:15'],
@@ -1135,23 +1133,23 @@ V.connections = () => {
     <div class="card pad"><h3>Endpoint</h3><dl class="kv"><dt>MCP</dt><dd class="mono">http://127.0.0.1:7420/mcp</dd><dt>Web UI</dt><dd class="mono">http://127.0.0.1:7420/</dd><dt>Bind</dt><dd>Loopback only</dd><dt>Auth</dt><dd>Bearer token</dd><dt>Origins</dt><dd class="mono">127.0.0.1:7420</dd></dl></div>
     <div class="card pad"><h3>Service health</h3><dl class="kv">
       <dt>Database</dt><dd><span class="chip c-ok">✓ ready</span> SQLite · 3.1 MB</dd>
-      <dt>Documents</dt><dd><span class="chip c-ok">✓ ready</span> 6 files · 1.2 MB</dd>
+      <dt>Documents</dt><dd><span class="chip c-ok">✓ ready</span> 12 files · 4.8 MB</dd>
       <dt>Volume</dt><dd class="mono" style="font-size:11.5px">tasklite-data</dd>
       <dt>Last backup</dt><dd>Nov 6 03:00 · kept 14 days</dd>
       <dt>Restarted</dt><dd>Nov 6 08:12<div class="src">0 runs were active. Any active run would show as interrupted, not finished.</div></dd></dl></div>
   </div></div>`;
 };
 
-/* ---------- Projects (O10, O11) ---------- */
-V.projects = () => `<h1>Projects</h1><div class="sub">Choose a project to scope Needs you, Work, Reviews, Dependencies, Timeline and Agents to it. You can also switch from the <b>Project</b> menu at the top of the sidebar. Each project sets its own definition of ready (which planning docs each item type needs, so ceremony fits the risk), who may move items to Ready, and its approval policy.</div>
-  <div class="card">${Object.values(P).map(p => { const its = items.filter(i => i.proj===p.key && !isContainer(i)), c = s => its.filter(i => i.status===s).length, n = its.length; return `
-    <div class="proj-card"><div class="row"><span class="sw" style="background:${p.color};width:11px;height:11px"></span><div><a href="#" data-a="scope" data-v="${p.key}" style="color:var(--ink)"><b>${p.name}</b></a> ${S.scope===p.key ? '<span class="chip c-info">Current</span>' : ''}<div class="src"><span class="mono">${p.key}</span> · ${n} items · ${p.docs} documents · ${decisionsIn(p.key).length} decision${decisionsIn(p.key).length===1?'':'s'} owed</div><div class="src">Types: ${Object.entries(typesFor(p.key)).map(([k,t]) => `${t.icon} ${k}`).join(' · ')}</div></div></div>
-    <div><label class="sr" for="pol-${p.key}">Approval policy for ${p.name}</label><select id="pol-${p.key}" data-a="policy" data-v="${p.key}"><option value="none" ${p.policy==='none'?'selected':''}>No owner gate</option><option value="gated" ${p.policy==='gated'?'selected':''}>Owner gates before Done</option></select>
-      <div class="src" style="margin-top:3px">${p.policy==='gated' ? p.gates.join(' → ') : 'Agent completion closes items'}</div>
-      <label class="sr" for="rg-${p.key}">Who moves items to Ready in ${p.name}</label><select id="rg-${p.key}" data-a="readygate" data-v="${p.key}" style="margin-top:6px"><option value="owner" ${p.readyGate==='owner'?'selected':''}>Owner moves to Ready</option><option value="agent" ${p.readyGate==='agent'?'selected':''}>Agent may move to Ready</option></select></div>
-    <div><div class="bar-mini" role="img" aria-label="${c('done')} done, ${c('review')} in review, ${c('progress')} in progress, ${c('ready')} ready">${[['done','var(--ok)'],['review','var(--warn)'],['progress','var(--violet)'],['ready','var(--info)'],['planning','var(--teal)']].map(([s,col]) => `<i style="width:${n ? c(s)/n*100 : 0}%;background:${col}"></i>`).join('')}</div><div class="src" style="margin-top:3px">${c('done')} done · ${c('progress')} active · ${c('review')} review · ${c('planning')} planning</div></div>
-    <div class="row"><button class="btn sm ${S.scope===p.key ? '' : 'primary'}" data-a="scope" data-v="${p.key}">${S.scope===p.key ? 'Viewing' : 'Switch to'}</button><button class="btn sm" data-a="types" data-v="${p.key}">Item types…</button><button class="btn sm" data-a="delproj" data-v="${p.key}" style="color:var(--bad)">Delete…</button></div></div>`; }).join('')}</div>
-  <div class="src" style="margin-top:10px">Deleting a project removes its work records and local documents together. Backups follow their own retention policy (14 days).</div>`;
+/* ---------- Projects ---------- */
+V.projects = () => `<h1>Projects</h1><div class="sub">Choose a project to scope every page above the line. Rules about planning and human review live in each repo's agent workflow; the tracker records what agents declare and shows it to you.</div>
+  <div class="card">${Object.values(P).map(p => { const its = items.filter(i => i.proj===p.key && !isEpic(i)), c = s => its.filter(i => i.status===s).length, n = its.length, fy = forYouIn(p.key).length;
+    const labs = Object.keys(LABELS).filter(l => LABELS[l].proj === p.key); return `
+    <div class="proj-card"><div class="row"><span class="sw" style="background:${p.color};width:11px;height:11px"></span><div><a href="#" data-a="scope" data-v="${p.key}" style="color:var(--ink)"><b>${p.name}</b></a> ${S.scope===p.key ? '<span class="chip c-info">Current</span>' : ''}
+      <div class="src"><span class="mono">${p.key}</span> · ${items.filter(i => i.proj===p.key && isEpic(i)).length} epics · ${n} items · ${p.docs} documents · ${fy} for you</div></div></div>
+    <div class="row wrap" style="gap:4px">${labs.map(labelLink).join('') || '<span class="src">No labels</span>'}</div>
+    <div><div class="bar-mini" role="img" aria-label="${c('done')} done, ${c('review')} in review, ${c('progress')} in progress, ${c('ready')} ready, ${c('planning')} planning">${[['done','var(--ok)'],['review','var(--warn)'],['progress','var(--violet)'],['ready','var(--info)'],['planning','var(--teal)']].map(([s,col]) => `<i style="width:${n ? c(s)/n*100 : 0}%;background:${col}"></i>`).join('')}</div><div class="src" style="margin-top:3px">${c('done')} done · ${c('progress')} active · ${c('review')} review · ${c('planning')} planning</div></div>
+    <div class="row"><button class="btn sm ${S.scope===p.key ? '' : 'primary'}" data-a="scope" data-v="${p.key}">${S.scope===p.key ? 'Viewing' : 'Switch to'}</button><button class="btn sm" data-a="delproj" data-v="${p.key}" style="color:var(--bad)">Delete…</button></div></div>`; }).join('')}</div>
+  <div class="src" style="margin-top:10px">One rule the tracker always applies: a ticket can't close while any of its human review items is undecided. Deleting a project removes its work records and local documents together; backups follow their own 14-day retention.</div>`;
 
 /* =====================================================================
    Modals
@@ -1163,47 +1161,33 @@ function modalHtml(){
     <div class="body">${body}</div>${foot ? `<footer>${foot}</footer>` : ''}</div></div>`;
   if (m.type === 'palette'){
     const q = (m.q || '').trim().toLowerCase();
-    const views = [['attention','Needs you'],['work','Work'],['reviews','Reviews'],['graph','Dependencies'],['timeline','Timeline'],['agents','Agents'],['connections','Connections'],['projects','Projects']];
+    const views = [['attention','Needs you'],['work','Work'],['review','Human review'],['graph','Dependencies'],['timeline','Timeline'],['agents','Agents'],['connections','Connections'],['projects','Projects']];
     const its = items.filter(i => !q || i.id.toLowerCase().includes(q) || i.title.toLowerCase().includes(q)).slice(0, 8);
+    const labs = Object.keys(LABELS).filter(l => q && l.includes(q.replace('#','')));
     const vs = views.filter(v => !q || v[1].toLowerCase().includes(q));
     let n = 0; const hi = () => (n++ === (m.hi || 0)) ? ' hi' : '';
     const res = `${its.length ? `<div class="grp">Work items</div>${its.map(i => `<button class="pi${hi()}" data-a="palopen" data-v="${i.id}"><span class="mono muted" style="width:56px">${i.id}</span><span class="grow">${esc(i.title)}</span><span class="src">${P[i.proj].short}</span>${statusChip(i)}</button>`).join('')}` : ''}
+      ${labs.length ? `<div class="grp">Labels</div>${labs.map(l => `<button class="pi${hi()}" data-a="pallabel" data-v="${l}"><span class="grow"># ${l}</span><span class="src">${P[LABELS[l].proj].short}</span></button>`).join('')}` : ''}
       ${vs.length ? `<div class="grp">Go to</div>${vs.map(v => `<button class="pi${hi()}" data-a="palnav" data-v="${v[0]}"><span class="grow">${v[1]}</span></button>`).join('')}` : ''}`;
     return `<div class="ov" data-a="closeov"><div class="dlg pal" role="dialog" aria-modal="true" aria-label="Search or jump to">
-      <input id="palq" placeholder="Search items, IDs, or views…" value="${esc(m.q || '')}" aria-label="Search" autocomplete="off">
+      <input id="palq" placeholder="Search items, IDs, labels or views…" value="${esc(m.q || '')}" aria-label="Search" autocomplete="off">
       <div class="res">${res.trim() || '<div class="pad muted">No matches in the sample data.</div>'}</div>
       <div class="pad src" style="border-top:1px solid var(--line)">↑↓ to move · Enter to open · Esc to close</div></div></div>`;
   }
   if (m.type === 'plan'){
     const d = DETAIL[S.ticket];
-    return wrap(`Plan history · ${S.ticket}`, `<div class="hv">${[...d.history].reverse().map(h => `<div class="ver"><div class="row" style="justify-content:space-between"><b>v${h.v}</b><span class="src">${h.by} · ${h.at}</span></div><div class="src" style="margin:2px 0 6px">${esc(h.note)}</div>${h.ops.map(o => `<div class="${o[0]==='+'?'add':o[0]==='-'?'rm':''}">${o[0]==='=' ? '' : o[0]+' '}${esc(o[1])}</div>`).join('')}</div>`).join('')}</div>
+    return wrap(`Checklist history · ${S.ticket}`, `<div class="hv">${[...d.history].reverse().map(h => `<div class="ver"><div class="row" style="justify-content:space-between"><b>v${h.v}</b><span class="src">${h.by} · ${h.at}</span></div><div class="src" style="margin:2px 0 6px">${esc(h.note)}</div>${h.ops.map(o => `<div class="${o[0]==='+'?'add':o[0]==='-'?'rm':''}">${o[0]==='=' ? '' : o[0]+' '}${esc(o[1])}</div>`).join('')}</div>`).join('')}</div>
       <div class="src" style="margin-top:10px">Earlier versions are kept so you can see how scope changed without reading a transcript.</div>`, '<button class="btn" data-a="close">Close</button>');
   }
   if (m.type === 'release'){
     return wrap(`Release lead claim on ${m.id}?`, `<p style="margin-top:0">codex · orca-w1 has been silent for 47 minutes. Releasing will:</p>
-      <ul style="margin:0 0 8px;padding-left:18px"><li>mark run r-58 as <b>interrupted</b>, not finished</li><li>keep its plan, log and partial work on the ticket</li><li>move ${m.id} back to Ready so another agent can claim it</li></ul>
+      <ul style="margin:0 0 8px;padding-left:18px"><li>mark run r-58 as <b>interrupted</b>, not finished</li><li>keep its checklist, log and partial work on the ticket</li><li>move ${m.id} back to Ready so another agent can claim it</li></ul>
       <div class="src">If codex comes back, it gets a conflict response with the current state.</div>`,
       `<button class="btn" data-a="close">Cancel</button><button class="btn danger" data-a="confirmrelease" data-v="${m.id}">Release claim</button>`);
   }
-  if (m.type === 'types'){
-    const pr = P[m.key], ts = typesFor(m.key), nt = S.newType;
-    const DOCS3 = ['PRD','UX','TDD'];
-    return wrap(`Item types · ${esc(pr.short)}`, `<p class="src" style="margin-top:0">Containers can be parents (Epic → Feature → work item). Planning-doc defaults are shown on Planning items and returned to agents over MCP. They're <b>defaults, not rules</b>: your repo's agent workflow decides when to skip them.</p>
-      <table class="typetbl"><thead><tr><th scope="col">Type</th><th scope="col">Kind</th><th scope="col">Planning docs (default)</th><th scope="col">Source</th></tr></thead><tbody>
-      ${Object.entries(ts).map(([k,t]) => `<tr><td><span class="ti">${t.icon}</span> <b>${k}</b><div class="src">${esc(t.desc || '')}</div></td><td class="src">${t.container ? 'Container' : 'Work item'}</td>
-        <td>${DOCS3.map(d => `<label class="row" style="display:inline-flex;gap:3px;margin-right:6px;font-size:12px"><input type="checkbox" data-a="ruledoc" data-v="${m.key}|${k}|${d}" ${(pr.readyRules[k] || []).includes(d) ? 'checked' : ''}>${d}</label>`).join('')}</td>
-        <td class="src">${TYPES[k] ? 'Built-in' : 'Custom'}</td></tr>`).join('')}</tbody></table>
-      <h3 style="margin-top:14px">Add a custom type</h3>
-      <div class="row wrap" style="align-items:flex-end">
-        <label style="flex:1;min-width:140px"><span class="f" style="margin-top:0">Name</span><input class="input" id="nt-name" data-t="nt-name" value="${esc(S.text['nt-name'] || '')}" placeholder="e.g. Research, Chore, Experiment"></label>
-        <label style="width:70px"><span class="f" style="margin-top:0">Icon</span><input class="input" id="nt-icon" data-t="nt-icon" maxlength="2" value="${esc(S.text['nt-icon'] || '')}" placeholder="◇"></label>
-        <label class="row" style="gap:4px;padding-bottom:6px"><input type="checkbox" data-a="ntcont" ${nt.container ? 'checked' : ''}> Can contain items</label>
-        <button class="btn primary" data-a="addtype" data-v="${m.key}">Add type</button></div>`,
-      '<button class="btn" data-a="close">Done</button>');
-  }
   if (m.type === 'delete'){
     const p = P[m.key], n = items.filter(i => i.proj===m.key).length, ok = (m.typed || '') === m.key;
-    return wrap(`Delete ${esc(p.name)}?`, `<p style="margin-top:0">This permanently removes <b>${n} work items</b>, their plans, runs and history, and <b>${p.docs} local documents</b>. Agents will get “not found” for these IDs.</p>
+    return wrap(`Delete ${esc(p.name)}?`, `<p style="margin-top:0">This permanently removes <b>${n} work items</b>, their checklists, runs and history, and <b>${p.docs} local documents</b> including handoff packets. Agents will get “not found” for these IDs.</p>
       <div class="callout warn">Backups keep a copy until their 14-day retention ends. Removing the Docker container alone doesn't delete data.</div>
       <label class="f" for="deltype">Type <b class="mono">${m.key}</b> to confirm</label><input class="input" id="deltype" value="${esc(m.typed || '')}" autocomplete="off">`,
       `<button class="btn" data-a="close">Cancel</button><button class="btn danger" data-a="confirmdel" ${ok ? '' : 'disabled'}>Delete project</button>`);
@@ -1214,7 +1198,7 @@ function modalHtml(){
 /* =====================================================================
    Render loop (keeps keyboard focus on the same control across renders)
    ===================================================================== */
-const TITLES = {attention:'Needs you', work:'Work', reviews:'Reviews', graph:'Dependencies', timeline:'Timeline', agents:'Agents', connections:'Connections', projects:'Projects'};
+const TITLES = {attention:'Needs you', work:'Work', review:'Human review', graph:'Dependencies', timeline:'Timeline', agents:'Agents', connections:'Connections', projects:'Projects'};
 const fkey = el => (el && el.dataset) ? (el.dataset.a ? `${el.dataset.a}|${el.dataset.v || ''}` : el.dataset.t ? `t|${el.dataset.t}` : el.id ? `#${el.id}` : null) : null;
 function render(){
   const ae = document.activeElement, k = fkey(ae);
@@ -1224,6 +1208,7 @@ function render(){
   const i = byId[S.ticket];
   const globalView = S.view === 'connections' || S.view === 'projects';
   $('#crumbs').innerHTML = S.view === 'ticket' ? `<span>${P[i.proj].short}</span> / <a href="#" data-a="nav" data-v="work">Work</a> / <span class="mono">${i.id}</span> <b>${esc(i.title)}</b>`
+    : S.view === 'label' ? `<a href="#" data-a="nav" data-v="work">Work</a> / <b>#${esc(S.label)}</b>`
     : globalView ? `<b>${TITLES[S.view]}</b> <span class="scopebar">Service-wide</span>` : `<span>${S.scope === 'all' ? 'All projects' : P[S.scope].short}</span> / <b>${TITLES[S.view]}</b>`;
   const dark = S.theme==='dark' || (S.theme==='system' && matchMedia('(prefers-color-scheme: dark)').matches);
   $('#themebtn').innerHTML = dark ? I.sun : I.moon;
@@ -1231,8 +1216,7 @@ function render(){
   $('#themebtn').title = `Theme: ${S.theme}`;
   $('#modal').innerHTML = modalHtml();
   if (S.modal){
-    const keep = S.modal.type==='types' && document.activeElement && document.activeElement.closest && document.activeElement.closest('.dlg') ? null : 1;
-    const f = S.modal.type==='palette' ? $('#palq') : S.modal.type==='delete' ? $('#deltype') : S.modal.type==='types' ? ((k && [...document.querySelectorAll('.dlg [data-a],.dlg [data-t]')].find(e => fkey(e) === k)) || $('.dlg [data-a=close]')) : $('.dlg footer .btn');
+    const f = S.modal.type==='palette' ? $('#palq') : S.modal.type==='delete' ? $('#deltype') : $('.dlg footer .btn');
     if (f){ f.focus(); if (f.type !== 'checkbox' && typeof f.value === 'string' && f.setSelectionRange) try { f.setSelectionRange(f.value.length, f.value.length); } catch(_){} }
     return;
   }
@@ -1241,13 +1225,8 @@ function render(){
     if (el){ el.focus({preventScroll:true}); if (caret != null && el.setSelectionRange) try { el.setSelectionRange(caret, caret); } catch(_){} }
   }
 }
-function go(view, opts={}){
-  Object.assign(S, opts); S.view = view; render();
-  $('#view').focus({preventScroll:true});
-}
+function go(view, opts={}){ Object.assign(S, opts); S.view = view; render(); $('#view').focus({preventScroll:true}); }
 function openTicket(id){ S.ticket = id; S.tab = null; go('ticket'); }
-function openReview(id){ S.review = id; S.ver = null; S.decision = null; go('reviews'); }
-function undoable(id, msg, undo){ render(); toast(msg, () => { undo(); S.extraActivity[id]?.shift(); render(); }); }
 
 /* =====================================================================
    Actions
@@ -1255,21 +1234,22 @@ function undoable(id, msg, undo){ render(); toast(msg, () => { undo(); S.extraAc
 const ACT = {
   nav: v => go(v),
   open: v => openTicket(v),
-  projwork: v => { S.scope = v; go('work', {filter:'all'}); },
-  scope: v => { S.scope = v; S.scopeOpen = false; S.kpi = 'all'; if (S.view === 'projects') go('attention'); else render(); toast(v === 'all' ? 'Showing all projects.' : `Showing only ${P[v].short}.`); },
+  label: v => go('label', {label:v}),
+  labelboard: v => go('work', {labelF:v, epicF:'all', filter:'all'}),
+  scope: v => { S.scope = v; S.scopeOpen = false; S.epicF = 'all'; S.labelF = 'all'; if (S.view === 'projects') go('attention'); else render(); toast(v === 'all' ? 'Showing all projects.' : `Showing only ${P[v].short}.`); },
   scopemenu: () => { S.scopeOpen = !S.scopeOpen; render(); if (S.scopeOpen) setTimeout(() => { const b = document.querySelector('.scopemenu [aria-checked=true]'); if (b) b.focus(); }, 0); },
-  promote: v => { const i = byId[v], miss = missingDocs(i); i.status = 'ready'; logActivity(v, miss.length ? `Owner moved the item to Ready without ${miss.join(', ')}` : 'Owner moved the item from Planning to Ready');
-    undoable(v, `${v} moved to Ready. Agents can claim it now.`, () => { i.status = 'planning'; }); },
-  toplanning: v => { const i = byId[v]; i.status = 'planning'; i.planning = i.planning || {}; logActivity(v, 'Owner moved the item from Inbox to Planning');
-    undoable(v, `${v} moved to Planning.`, () => { i.status = 'inbox'; }); },
-  kpi: v => { S.kpi = v; render(); },
-  reply: v => { S.replyOpen = S.replyOpen === v ? null : v; render(); setTimeout(() => $('#ans-'+v)?.focus(), 0); },
+  reply: v => { S.replyOpen = S.replyOpen === v ? null : v; render(); setTimeout(() => { const t = $('#ans-'+v); if (t) t.focus(); }, 0); },
   sendanswer: v => {
     const t = (S.text['ans-'+v] || '').trim();
     if (!t){ toast('Write an answer first.'); return; }
-    const i = byId[v]; i.question.answer = t; S.replyOpen = null; logActivity(v, `Owner answered: “${t}”`);
-    undoable(v, `Answer posted to ${v}. ${i.question.by} reads it on its next query.`, () => { delete i.question.answer; });
+    const before = snap(), i = byId[v]; i.question.answer = t; S.replyOpen = null; logActivity(v, `You answered: “${t}”`);
+    undoable(before, `Answer posted to ${v}. ${i.question.by} reads it on its next query.`);
   },
+  promote: v => { const before = snap(), i = byId[v]; i.status = 'ready'; logActivity(v, 'You moved the item from Planning to Ready'); undoable(before, `${v} moved to Ready. Agents can claim it now.`); },
+  toplanning: v => { const before = snap(); byId[v].status = 'planning'; logActivity(v, 'You moved the item from Inbox to Planning'); undoable(before, `${v} moved to Planning.`); },
+  bulkready: v => { const before = snap(), its = items.filter(i => (i.labels || []).includes(v) && i.status === 'planning');
+    its.forEach(i => { i.status = 'ready'; logActivity(i.id, `You moved the item to Ready with everything labelled ${v}`); });
+    undoable(before, `${its.length} item${its.length===1?'':'s'} labelled ${v} moved to Ready.`); },
   mode: v => { S.workMode = v; render(); },
   filter: v => { S.filter = v; if (v==='blocked') S.showBlocked = true; render(); },
   toggleblocked: () => { S.showBlocked = !S.showBlocked; render(); },
@@ -1277,72 +1257,63 @@ const ACT = {
   planhistory: () => { S.modal = {type:'plan'}; render(); },
   release: v => { S.modal = {type:'release', id:v}; render(); },
   confirmrelease: v => {
-    const i = byId[v], prev = {lead:i.lead, run:i.run, status:i.status}, r0 = {...DETAIL[v].runs[0]};
+    const before = snap(), i = byId[v];
     i.lead = null; i.run = null; i.status = 'ready';
-    Object.assign(DETAIL[v].runs[0], {r:'interrupted', what:'Lead run r-58 · interrupted by owner at 11:00 · partial work kept', lead:false});
-    logActivity(v, 'Owner released the lead claim; run r-58 marked interrupted'); S.modal = null;
-    undoable(v, `${v} is back in Ready. Run r-58 marked interrupted.`, () => { Object.assign(i, prev); Object.assign(DETAIL[v].runs[0], r0); });
+    Object.assign(DETAIL[v].runs[0], {r:'interrupted', what:'Lead run r-58 · interrupted by you at 11:00 · partial work kept', lead:false});
+    logActivity(v, 'You released the lead claim; run r-58 marked interrupted'); S.modal = null;
+    undoable(before, `${v} is back in Ready. Run r-58 marked interrupted.`);
   },
-  toready: v => {
-    const i = byId[v], prev = {lead:i.lead, run:i.run, status:i.status};
-    i.lead = null; i.run = null; i.status = 'ready'; DETAIL[v].runs[0].lead = false;
-    logActivity(v, 'Owner returned the item to Ready after the failed run');
-    undoable(v, `${v} returned to Ready.`, () => { Object.assign(i, prev); DETAIL[v].runs[0].lead = true; });
-  },
-  ack: v => { S.ackEvidence[v] = true; logActivity(v, 'Owner accepted the agent completion without further evidence'); undoable(v, 'Accepted. Removed from Needs you.', () => { delete S.ackEvidence[v]; }); },
-  reopen: v => { const i = byId[v]; i.status = 'ready'; S.ackEvidence[v] = true; logActivity(v, 'Owner reopened the item: acceptance #2 needs evidence');
-    undoable(v, `${v} reopened and back in Ready.`, () => { i.status = 'done'; delete S.ackEvidence[v]; }); },
-  review: v => openReview(v),
-  ver: v => { S.ver = +v; render(); },
-  diff: () => { S.diff = !S.diff; render(); },
-  dec: v => { S.decision = v; render(); },
-  submitdec: () => {
-    const why = (S.text['rat-'+S.review] || '').trim();
-    if (S.decision !== 'approve' && !why){ toast('Add a reason so the agent knows what to do next.'); $('#rat')?.focus(); return; }
-    const id = S.review, k = S.decision, it = byId[id], pd = REVIEWS[id].planDoc;
-    S.undoDec = {status:it.status, closedBy:it.closedBy, doc: pd ? it.planning[pd] : null};
-    S.decided[id] = k; S.decision = null;
-    if (pd){
-      if (k === 'approve' || k === 'waive') it.planning[pd] = 'approved';
-      if (k === 'changes') it.planning[pd] = 'drafting';
-      logActivity(id, `Owner ${({approve:'approved', changes:'requested changes on', defer:'deferred', waive:'waived'})[k]} the ${pd} doc${why ? `: “${why}”` : ''}`);
-      undoable(id, `${DEC[k][3]} on ${id} ${pd}. Agents see it on their next query.`, () => ACT.restoreDec(id));
+  toready: v => { const before = snap(), i = byId[v]; i.lead = null; i.run = null; i.status = 'ready'; DETAIL[v].runs[0].lead = false;
+    logActivity(v, 'You returned the item to Ready after the failed run'); undoable(before, `${v} returned to Ready.`); },
+  packet: v => go('review', {pk:v, pkRound:null}),
+  pkround: v => { S.pkRound = +v; render(); },
+  verdict: v => { const [n, k] = v.split('|'), m = S.verdicts[S.pk] = S.verdicts[S.pk] || {}; m[n] = Object.assign(m[n] || {into:'checklist'}, {k}); render(); },
+  into: v => { const [n, k] = v.split('|'); S.verdicts[S.pk][n].into = k; render(); },
+  submitpacket: () => {
+    const id = S.pk, i = byId[id], v = S.verdicts[id] || {}, pending = hrOf(i).filter(h => h.state === 'ready');
+    if (pending.some((h, n) => !v[n] || !v[n].k)){ toast('Decide every item first.'); return; }
+    if (pending.some((h, n) => v[n].k === 'changes' && !(S.text[`note-${id}-${n}`] || '').trim())){ toast('Say what needs to change so the agent can fix it.'); const n = pending.findIndex((h, n) => v[n].k === 'changes' && !(S.text[`note-${id}-${n}`] || '').trim()); const t = $('#note-' + n); if (t) t.focus(); return; }
+    const before = snap(), r = curPacket(id);
+    r.items = pending.map(h => h.t);
+    r.decided = {when:'Nov 6 11:00', verdicts: pending.map((h, n) => ({k:v[n].k, note:(S.text[`note-${id}-${n}`] || '').trim(), into:v[n].into || 'checklist'}))};
+    const anyCh = r.decided.verdicts.some(x => x.k === 'changes');
+    if (!anyCh){
+      pending.forEach(h => h.state = 'approved');
+      i.status = 'done'; i.closedBy = 'owner'; i.run = 'finished';
+      logActivity(id, `You approved handoff packet round ${r.n}; ticket closed`);
+      delete S.verdicts[id];
+      undoable(before, `${id} approved and closed.${dependents(id).length ? ' ' + dependents(id).map(x => x.id).join(', ') + ' unblocked.' : ''}`);
       return;
     }
-    if (k === 'approve'){ it.status = 'done'; it.closedBy = 'owner'; logActivity(id, it.gate ? `Owner approved gate “${it.gate}”` : 'Owner approved v2'); }
-    if (k === 'changes'){ it.status = 'progress'; logActivity(id, `Owner requested changes: “${why}”`); }
-    if (k === 'defer') logActivity(id, `Owner deferred the decision: “${why}”`);
-    if (k === 'waive'){ it.status = 'done'; it.closedBy = 'owner'; logActivity(id, `Owner waived the review: “${why}”`); }
-    undoable(id, `${DEC[k][3]} on ${id}. Agents see it on their next query.`, () => ACT.restoreDec(id));
+    const made = [];
+    pending.forEach((h, n) => { const x = r.decided.verdicts[n];
+      if (x.k === 'approve'){ h.state = 'approved'; return; }
+      h.state = 'declared'; h.last = {round:r.n, note:x.note};
+      if (x.into === 'bug'){ const nid = nextId(i.proj);
+        items.push({id:nid, type:'Bug', title:x.note.length > 70 ? x.note.slice(0, 68) + '…' : x.note, status:'ready', prio:i.prio, proj:i.proj, epic:i.epic, labels:['regression'], relates:[id], fromReview:`${id} · round ${r.n}`, last:'now', hr:[]});
+        reindex(); x.ref = nid; h.last.ref = nid; made.push(nid);
+      } else { DETAIL[id] = DETAIL[id] || {}; (DETAIL[id].work = DETAIL[id].work || []).push({s:'todo', t:x.note, from:`your review, round ${r.n}`}); made.push('checklist item'); }
+    });
+    i.status = 'progress'; i.round = r.n + 1; i.run = 'reported'; i.age = 'now';
+    logActivity(id, `You sent round ${r.n} back: ${made.join(', ')}`);
+    delete S.verdicts[id];
+    undoable(before, `Sent back to ${i.lead || 'the agent'}: ${made.join(', ')}. You'll get round ${r.n + 1}.`);
   },
-  restoreDec: id => { const it = byId[id], u = S.undoDec || {}, pd = REVIEWS[id].planDoc; delete S.decided[id]; it.status = u.status || it.status; if (u.closedBy) it.closedBy = u.closedBy; else delete it.closedBy; if (pd) it.planning[pd] = u.doc || 'review'; },
-  undodec: () => { const id = S.review; ACT.restoreDec(id); S.extraActivity[id]?.shift(); render(); },
-  check: v => { S.checks[v] = !S.checks[v]; render(); },
-  download: v => { const b = new Blob([DOCS[v]], {type:'text/markdown'}); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = `recipe-data-model.v${v}.md`; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); },
   gsel: v => { S.graphSel = v; render(); },
   gfocus: v => { if (!GN[v]){ toast(`${v} has no blocking links to show.`); return; } go('graph', {graphSel:v}); },
   gfix: v => go('graph', {graphSel:v}),
   grel: () => { S.gRel = !S.gRel; if (!S.gRel && S.graphSel === 'RCP-17') S.graphSel = 'RCP-21'; render(); },
   slip: v => { S.slip = +v; render(); },
-  rmlink: v => { const [b, a] = v.split('>'); const i = byId[a], prev = [...i.blockedBy]; i.blockedBy = i.blockedBy.filter(x => x !== b); logActivity(a, `Owner removed link “${b} blocks ${a}”`);
-    undoable(a, `Removed “${b} blocks ${a}”. Cycle resolved.`, () => { i.blockedBy = prev; }); },
+  rmlink: v => { const [b, a] = v.split('>'), before = snap(), i = byId[a]; i.blockedBy = i.blockedBy.filter(x => x !== b); logActivity(a, `You removed link “${b} blocks ${a}”`); undoable(before, `Removed “${b} blocks ${a}”. Cycle resolved.`); },
   fc: () => { S.fcPreview = !S.fcPreview; render(); },
   snippet: v => { S.snippet = v; render(); },
   copy: () => { const t = $('#snip').textContent; const p = navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject(); p.then(() => toast('Copied to clipboard.'), () => toast('Copy is blocked here. Select the text instead.')); },
-  types: v => { S.modal = {type:'types', key:v}; render(); },
-  ntcont: () => { S.newType.container = !S.newType.container; render(); },
-  ruledoc: v => { const [k, t, d] = v.split('|'), r = P[k].readyRules[t] = P[k].readyRules[t] || []; const n = r.indexOf(d); if (n >= 0) r.splice(n, 1); else r.push(d); render(); },
-  addtype: v => { const name = (S.text['nt-name'] || '').trim().replace(/\s+/g, ' '), icon = (S.text['nt-icon'] || '').trim() || '◇';
-    if (!name){ toast('Give the type a name.'); return; }
-    if (typesFor(v)[name]){ toast(`${name} already exists in ${P[v].short}.`); return; }
-    P[v].customTypes[name] = {icon, container:S.newType.container, desc:'Custom type'}; P[v].readyRules[name] = [];
-    S.text['nt-name'] = ''; S.text['nt-icon'] = ''; S.newType = {name:'', icon:'', container:false, docs:{}}; render();
-    toast(`Added ${icon} ${name} to ${P[v].short}. Agents see it in the type list over MCP.`, () => { delete P[v].customTypes[name]; delete P[v].readyRules[name]; render(); }); },
   delproj: v => { S.modal = {type:'delete', key:v, typed:''}; render(); },
   confirmdel: () => { const k = S.modal.key; S.modal = null; render(); toast(`Prototype only: this would delete ${P[k].name} and its documents.`); },
   theme: () => { S.theme = {system:'light', light:'dark', dark:'system'}[S.theme]; const a = $('#app'); if (S.theme==='system') a.removeAttribute('data-theme'); else a.setAttribute('data-theme', S.theme); render(); toast(`Theme: ${S.theme}`); },
   palette: () => { S.modal = {type:'palette', q:'', hi:0}; render(); },
   palopen: v => { S.modal = null; openTicket(v); },
+  pallabel: v => { S.modal = null; go('label', {label:v}); },
   palnav: v => { S.modal = null; go(v); },
   close: () => { S.modal = null; render(); },
   closeov: () => { S.modal = null; render(); },
@@ -1355,22 +1326,20 @@ const ACT = {
 document.addEventListener('click', e => {
   const app = document.getElementById('app');
   if (!app.contains(e.target)) return;
-  if (e.target.closest('[data-stop]') && !e.target.closest('button')) return;
   if (S.scopeOpen && !e.target.closest('.scopewrap')){ S.scopeOpen = false; render(); }
+  if (e.target.closest('[data-stop]') && !e.target.closest('button')) return;
   const el = e.target.closest('[data-a]');
   if (!el) return;
   if (el.tagName === 'SELECT' || (el.tagName === 'INPUT' && el.type !== 'checkbox')) return;
-  if (el.dataset.a === 'closeov' && e.target !== el) return; // clicks inside a dialog don't close it
+  if (el.dataset.a === 'closeov' && e.target !== el) return;
   if (el.tagName === 'A') e.preventDefault();
   const fn = ACT[el.dataset.a]; if (fn) fn(el.dataset.v);
 });
 document.addEventListener('change', e => {
   const el = e.target;
-  if (el.dataset.a === 'prio'){ const i = byId[S.ticket], old = i.prio; i.prio = +el.value; logActivity(i.id, `Owner changed priority P${old} → P${i.prio}`); undoable(i.id, `Priority set to P${i.prio}. Agents see it on their next query.`, () => { i.prio = old; }); }
-  if (el.dataset.a === 'typef'){ S.typeF = el.value; render(); }
-  if (el.dataset.a === 'readygate'){ const p = P[el.dataset.v], old = p.readyGate; p.readyGate = el.value; render(); toast(`${p.short}: ${p.readyGate === 'agent' ? 'the lead agent may move items to Ready once planning docs are approved' : 'only you move items to Ready'}.`, () => { p.readyGate = old; render(); }); }
-  if (el.dataset.a === 'policy'){ const p = P[el.dataset.v], old = p.policy, oldG = [...p.gates]; p.policy = el.value; if (p.policy==='gated' && !p.gates.length) p.gates = ['Release walkthrough'];
-    render(); toast(`${p.name}: ${p.policy==='gated' ? 'owner gate required before Done' : 'agent completion now closes items'}.`, () => { p.policy = old; p.gates = oldG; render(); }); }
+  if (el.dataset.a === 'prio'){ const before = snap(), i = byId[S.ticket], old = i.prio; i.prio = +el.value; logActivity(i.id, `You changed priority P${old} → P${i.prio}`); undoable(before, `Priority set to P${i.prio}. Agents see it on their next query.`); }
+  if (el.dataset.a === 'epicf'){ S.epicF = el.value; render(); }
+  if (el.dataset.a === 'labelf'){ S.labelF = el.value; render(); }
 });
 document.addEventListener('input', e => {
   const el = e.target;
@@ -1393,7 +1362,7 @@ document.addEventListener('keydown', e => {
     if (e.key === 'Enter'){ btns[S.modal.hi || 0].click(); return; }
     S.modal.hi = ((S.modal.hi || 0) + (e.key === 'ArrowDown' ? 1 : -1) + btns.length) % btns.length; render(); return;
   }
-  if (S.modal && e.key === 'Tab'){ // focus trap
+  if (S.modal && e.key === 'Tab'){
     const f = [...document.querySelectorAll('.dlg button:not([disabled]),.dlg input,.dlg textarea')]; if (!f.length) return;
     const first = f[0], last = f[f.length-1];
     if (e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
@@ -1411,22 +1380,21 @@ document.addEventListener('keydown', e => {
 const mq = matchMedia('(prefers-color-scheme: dark)');
 if (mq.addEventListener) mq.addEventListener('change', () => { if (S.theme === 'system') render(); });
 
-/* Test hook: ?selftest renders every view and item and reports errors in the page title. */
+/* Test hook: ?selftest renders every view and item in each scope and reports errors in the page title. */
 if (/selftest/.test(location.search)){
   const errs = [];
   const tryR = (label, f) => { try { f(); render(); } catch(err){ errs.push(label + ': ' + err.message); } };
   ['all','RCP','DOC'].forEach(sc => Object.keys(TITLES).forEach(v => tryR(sc+'/'+v, () => { S.scope = sc; S.view = v; })));
-  tryR('scopemenu', () => { S.scope = 'all'; S.scopeOpen = true; }); S.scopeOpen = false;
-  items.forEach(i => ['progress','evidence','activity'].forEach(t => tryR(i.id+'/'+t, () => { S.view = 'ticket'; S.ticket = i.id; S.tab = t; })));
+  S.scope = 'all';
+  items.forEach(i => ['checklist','docs','activity'].forEach(t => tryR(i.id+'/'+t, () => { S.view = 'ticket'; S.ticket = i.id; S.tab = t; })));
+  Object.keys(LABELS).forEach(l => tryR('label/'+l, () => { S.view = 'label'; S.label = l; }));
+  Object.keys(PACKETS).forEach(id => PACKETS[id].rounds.forEach(r => tryR('packet/'+id+'/'+r.n, () => { S.view = 'review'; S.pk = id; S.pkRound = r.n; })));
   Object.keys(GN).forEach(id => tryR('graph/'+id, () => { S.view = 'graph'; S.graphSel = id; }));
-  Object.keys(REVIEWS).forEach(id => tryR('review/'+id, () => { S.view = 'reviews'; S.review = id; S.ver = 1; }));
   ['palette','plan','release','delete'].forEach(m => tryR('modal/'+m, () => { S.view = 'ticket'; S.ticket = 'RCP-14'; S.modal = m==='delete' ? {type:m, key:'RCP'} : {type:m, id:'RCP-15', q:'rcp'}; }));
-  ['board','list','tree'].forEach(m => ['all','RCP','DOC'].forEach(sc => tryR('work/'+m+'/'+sc, () => { S.modal = null; S.view = 'work'; S.workMode = m; S.scope = sc; })));
-  tryR('types', () => { S.view = 'projects'; S.scope = 'all'; S.modal = {type:'types', key:'RCP'}; });
-  ['RCP-1','RCP-30','RCP-31','DOC-10','RCP-25','RCP-20'].forEach(id => tryR('ticket/'+id, () => { S.modal = null; S.view = 'ticket'; S.ticket = id; S.tab = null; }));
   tryR('fc', () => { S.modal = null; S.view = 'timeline'; S.fcPreview = true; });
-  ['work'].forEach(v => Object.keys(FILTERS).forEach(f => tryR('filter/'+f, () => { S.view = v; S.filter = f; S.workMode = 'list'; })));
-  S.modal = null; S.view = 'attention'; S.filter = 'all'; S.scope = 'all'; S.workMode = 'board'; S.fcPreview = false; render();
+  Object.keys(FILTERS).forEach(f => ['board','list'].forEach(m => tryR('filter/'+f+'/'+m, () => { S.view = 'work'; S.filter = f; S.workMode = m; })));
+  tryR('scopemenu', () => { S.scopeOpen = true; }); S.scopeOpen = false;
+  S.modal = null; S.view = 'attention'; S.filter = 'all'; S.workMode = 'board'; S.fcPreview = false; S.scope = 'all'; S.pkRound = null; render();
   document.title = errs.length ? 'SELFTEST FAIL ' + errs.join(' | ') : 'SELFTEST OK';
 } else render();
 })();
