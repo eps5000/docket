@@ -1,6 +1,6 @@
 # UI/UX design — MVP V1 human interface
 
-Status: design proposal, revision 11, 2026-11-06. Inputs: [requirements draft](REQUIREMENTS_DRAFT.md), [Jira research](JIRA_RESEARCH.md).
+Status: design proposal, revision 12, 2026-11-06. Inputs: [requirements draft](REQUIREMENTS_DRAFT.md), [Jira research](JIRA_RESEARCH.md).
 
 Clickable prototype: [`design/prototype.html`](../design/prototype.html). It is one file with no build step and no network requests, and all data in it is disposable sample work (O09). Open it directly in a browser.
 
@@ -145,6 +145,13 @@ The dependency view is a **progress picture**, not a standalone graph page. It a
   - Items in a dependency cycle get their own column.
 - **Each box is coloured by status.** Done is filled green with a ✓; the left edge shows the status colour. Red marks only *Ready* items that are blocked. Planning items show a neutral "after RCP-12".
 - **Arrows** mean "blocks". Solid arrows still block; dashed green ones are cleared. Hovering a box highlights its links.
+- **It sits on a canvas with fixed spacing**, so it never gets packed: 210px columns with a 92px gap for the arrows, and 16px between items. The canvas is at most 540px tall, with a dotted background so it reads as a surface you can move around.
+- **Panning is obvious when it's needed:**
+  - drag the background, scroll, or use the arrow keys;
+  - fades on any edge with more beyond it, plus clickable *More →* / *← More* / *More ↓* pills;
+  - the grab cursor;
+  - a hint line ("Bigger than the view: drag the background, scroll, or use the arrow keys") that appears only when the map overflows.
+- **Zoom:** − / 100% / + / **Fit**. Steps are 50%, 67%, 80%, 100% and 125%. It defaults to 100% (spacious); Fit shrinks the map to show everything, down to 40% at most.
 - On an epic, *Map | List* switches to the plain status-grouped list. The progress header stays.
 
 **Why the old page went:** a global, hand-placed graph of every dependency was too big at ten items and unreadable at seventy. Cycles and date conflicts still surface in Problems on Needs you, and their *Fix* button opens the ticket.
@@ -263,9 +270,10 @@ Base type is 13px; secondary text is at least 11.5px. Small controls are at leas
 
 **Testing:**
 - `design/prototype.html?selftest` renders every page in every scope, plus every item, tab, label, packet round, dialog and filter. It reports `SELFTEST OK` in headless Edge.
-- A 70-step scripted click-through of the scenarios above also passed.
+- A 77-step scripted click-through of the scenarios above also passed.
 
 ## Revision history
+- **Revision 12:** the progress map sits on a pannable canvas with fixed, generous spacing, overflow cues (edge fades, *More* pills, hint line, grab cursor), drag/scroll/keyboard panning, and zoom with Fit.
 - **Revision 11:** the standalone Dependencies page is replaced by a progress map on epic and label pages and in Work → Map, plus a 1-hop dependency view on each ticket. The delay what-if is removed.
 - **Revision 10 (polish pass):** your past decisions are coloured by outcome (a "needed changes" no longer shows green); document and attachment viewer; Planning tickets open on Documents; *+ New* quick capture to Inbox; note for the agent on every ticket; type icon before the title in dense lists; Human review chips sit under the item text in the narrow column; shorter page subtitles; Coming up capped in the review queue; secondary styling for project switch buttons.
 - **Revision 9:** item types are colour-coded with solid squares and icons (Epic purple, Story green, Task blue, Bug red), with a board legend, timeline icons and graph stripes.

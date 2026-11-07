@@ -54,7 +54,9 @@
 .tl .row{display:flex;align-items:center;gap:8px}
 .tl .wrap{flex-wrap:wrap}
 .tl .grow{flex:1;min-width:0}
-.tl .stack{display:grid;gap:12px}
+.tl .stack{display:grid;gap:12px;min-width:0}
+.tl .stack>*{min-width:0}
+.tl .pmapbox,.tl .pframe{min-width:0;max-width:100%}
 .tl .grid2{display:grid;grid-template-columns:minmax(0,1fr) 310px;gap:16px;align-items:start}
 .tl h1{font-size:19px;margin:0 0 2px;font-weight:650;letter-spacing:-.01em}
 .tl h2{font-size:14px;margin:0;font-weight:650}
@@ -352,9 +354,27 @@
 .tl .hv .ver{border:1px solid var(--line);border-radius:9px;padding:10px 12px}
 .tl .hv .add{color:var(--ok)} .tl .hv .rm{color:var(--bad);text-decoration:line-through}
 /* ---------- progress map ---------- */
-.tl .pmap-wrap{position:relative;overflow-x:auto;padding-bottom:4px}
-.tl .pmap{position:relative;display:grid;grid-auto-flow:column;grid-auto-columns:minmax(150px,1fr);gap:26px;min-width:min-content;padding:2px}
-.tl .pcol{display:flex;flex-direction:column;gap:8px;position:relative;z-index:1}
+.tl .ptools{display:flex;align-items:center;gap:10px;justify-content:flex-end;margin-bottom:8px}
+.tl .ptools .phint{display:none;margin-right:auto}
+.tl .pmapbox.pannable .ptools .phint{display:inline}
+.tl .ptools .seg button{min-width:34px}
+.tl .pframe{position:relative}
+.tl .pcanvas{position:relative;overflow:auto;max-height:540px;border:1px solid var(--line);border-radius:10px;padding:18px 22px;cursor:grab;
+  background-color:var(--panel-2);background-image:radial-gradient(var(--line-2) 1px,transparent 1.2px);background-size:18px 18px}
+.tl .pcanvas.dragging{cursor:grabbing;user-select:none}
+.tl .pcanvas:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.tl .psizer{position:relative}
+.tl .pmap{position:absolute;left:0;top:0;transform-origin:0 0;display:grid;grid-auto-flow:column;grid-auto-columns:210px;column-gap:92px;align-items:start}
+.tl .pcol{display:flex;flex-direction:column;gap:16px;position:relative;z-index:1}
+.tl .pframe::before,.tl .pframe::after{content:"";position:absolute;top:1px;bottom:1px;width:44px;pointer-events:none;opacity:0;transition:opacity .15s;z-index:3}
+.tl .pframe::before{left:1px;border-radius:10px 0 0 10px;background:linear-gradient(90deg,var(--panel-2) 15%,transparent)}
+.tl .pframe::after{right:1px;border-radius:0 10px 10px 0;background:linear-gradient(270deg,var(--panel-2) 15%,transparent)}
+.tl .pframe.more-l::before,.tl .pframe.more-r::after{opacity:1}
+.tl .pmore{position:absolute;top:12px;z-index:4;display:none;border:1px solid var(--ctl);background:var(--panel);border-radius:999px;padding:4px 10px;font-size:12px;font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,.12)}
+.tl .pmore.r{right:10px} .tl .pmore.l{left:10px}
+.tl .pframe.more-r .pmore.r,.tl .pframe.more-l .pmore.l{display:block}
+.tl .pmore.b{top:auto;bottom:8px;left:50%;transform:translateX(-50%)}
+.tl .pframe.more-b .pmore.b{display:block}
 .tl .pcolh{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);font-weight:650;line-height:1.3;min-height:28px}
 .tl .pcolh span{display:block;text-transform:none;letter-spacing:0;font-weight:500}
 .tl a.pnode{display:block;position:relative;border:1px solid var(--line);border-left:4px solid var(--sc,var(--ctl));background:var(--panel);border-radius:8px;padding:6px 8px 6px 9px;color:var(--ink);text-decoration:none;font-size:12.5px;width:100%}
@@ -663,7 +683,7 @@ const S = {
   view:'attention', ticket:'RCP-14', tab:null, scope:'all', scopeOpen:false,
   workMode:'board', filter:'all', epicF:'all', labelF:'all', showBlocked:false,
   pk:'RCP-12', pkRound:null, verdicts:{}, newF:{type:'Story', proj:'RCP', epic:''},
-  label:'ui-refresh', epicMode:'map',
+  label:'ui-refresh', epicMode:'map', mapZoom:1, mapZ:1,
   fcPreview:false, theme:'system', snippet:'codex',
   replyOpen:null, text:{}, modal:null, extraActivity:{},
 };
@@ -961,17 +981,30 @@ function progressMap(list, opts={}){
     ext.length ? col(opts.extTitle || 'Outside this epic', 'blocks work here', ext.map(e => pnode(e, {ext:true, home: list[0] && list[0].proj})).join('')) : '',
     ...waves.map((w, k) => col(`Wave ${k + 1}`, k === 0 ? 'nothing blocks these' : `after wave ${k}`, w.map(i => pnode(i)).join(''))),
     inCyc.length ? col('Cycle', 'fix a link to place these', inCyc.map(i => pnode(i)).join('')) : ''].join('');
-  return `${head}${n ? `<div class="pmap-wrap"><div class="pmap" id="${id}" data-edges='${JSON.stringify(edges)}'>${cols}</div></div>
-    <div class="src" style="margin-top:8px">Arrows mean “blocks”: a wave can start once the waves before it are done. Hover an item to trace its links. Solid arrows still block; dashed green ones are cleared.</div>` : `<div class="muted">${opts.empty || 'Nothing here yet.'}</div>`}`;
+  return `${head}${n ? `<div class="pmapbox"><div class="ptools"><span class="src phint">Bigger than the view: drag the background, scroll, or use the arrow keys to move around.</span>
+      <div class="seg" role="group" aria-label="Zoom"><button data-a="mapzoom" data-v="out" aria-label="Zoom out">−</button><button data-a="mapzoom" data-v="reset" aria-label="Reset zoom to 100%">${Math.round((S.mapZ || 1) * 100)}%</button><button data-a="mapzoom" data-v="in" aria-label="Zoom in">+</button><button data-a="mapzoom" data-v="fit" aria-pressed="${S.mapZoom === 'fit'}">Fit</button></div></div>
+    <div class="pframe"><div class="pcanvas" tabindex="0" role="region" aria-label="Progress map. Scroll, use the arrow keys, or drag to move around."><div class="psizer"><div class="pmap" id="${id}" data-edges='${JSON.stringify(edges)}'>${cols}</div></div></div>
+      <button class="pmore l" data-a="mappan" data-v="l" aria-label="Scroll the map left">← More</button><button class="pmore r" data-a="mappan" data-v="r" aria-label="Scroll the map right">More →</button><button class="pmore b" data-a="mappan" data-v="d" aria-label="Scroll the map down">More ↓</button></div></div>
+    <div class="src" style="margin-top:8px">Arrows mean “blocks”: a wave can start once the waves before it are done. Hover an item to trace its links. Solid arrows still block; dashed green ones are cleared. <b>Fit</b> shows the whole map.</div>` : `<div class="muted">${opts.empty || 'Nothing here yet.'}</div>`}`;
 }
+const ZOOMS = [0.5, 0.67, 0.8, 1, 1.25];
+function mapCues(c){ const f = c.parentElement, box = f.closest('.pmapbox');
+  f.classList.toggle('more-l', c.scrollLeft > 2); f.classList.toggle('more-r', c.scrollLeft + c.clientWidth < c.scrollWidth - 2);
+  f.classList.toggle('more-b', c.scrollTop + c.clientHeight < c.scrollHeight - 2);
+  if (box) box.classList.toggle('pannable', c.scrollWidth > c.clientWidth + 2 || c.scrollHeight > c.clientHeight + 2); }
 function drawMaps(){
   document.querySelectorAll('#app .pmap').forEach(m => {
     const old = m.querySelector('svg.pedges'); if (old) old.remove();
-    const edges = JSON.parse(m.dataset.edges || '[]'), box = m.getBoundingClientRect();
-    const pos = id => { const el = m.querySelector(`[data-pid="${id}"]`); if (!el) return null; const r = el.getBoundingClientRect(); return {l:r.left - box.left, r:r.right - box.left, y:r.top - box.top + r.height/2}; };
+    const canvas = m.closest('.pcanvas'), sizer = m.parentElement, W = m.offsetWidth, H = m.offsetHeight;
+    const z = S.mapZoom === 'fit' ? Math.max(0.4, Math.min(1, (canvas.clientWidth - 46) / W, (540 - 38) / H)) : (S.mapZoom || 1);
+    S.mapZ = z; m.style.transform = `scale(${z})`; sizer.style.width = Math.ceil(W * z) + 'px'; sizer.style.height = Math.ceil(H * z) + 'px';
+    const lab = m.closest('.pmapbox').querySelector('[data-a=mapzoom][data-v=reset]'); if (lab) lab.textContent = Math.round(z * 100) + '%';
+    const edges = JSON.parse(m.dataset.edges || '[]');
+    const pos = id => { const el = m.querySelector(`[data-pid="${id}"]`); if (!el) return null; const c = el.parentElement, x = c.offsetLeft + el.offsetLeft, y = c.offsetTop + el.offsetTop; return {l:x, r:x + el.offsetWidth, y:y + el.offsetHeight / 2}; };
     const paths = edges.map(([a, b, ok]) => { const A = pos(a), B = pos(b); if (!A || !B || A.r > B.l) return '';
-      const mx = (A.r + B.l) / 2; return `<path class="pe${ok ? ' ok' : ''}" data-from="${a}" data-to="${b}" d="M${A.r},${A.y} C${mx},${A.y} ${mx},${B.y} ${B.l - 2},${B.y}" marker-end="url(#pa-${m.id})"/>`; }).join('');
-    m.insertAdjacentHTML('afterbegin', `<svg class="pedges" width="${m.scrollWidth}" height="${m.scrollHeight}" aria-hidden="true"><defs><marker id="pa-${m.id}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0L10,5L0,10z" fill="var(--ink-3)"/></marker></defs>${paths}</svg>`);
+      const mx = (A.r + B.l) / 2; return `<path class="pe${ok ? ' ok' : ''}" data-from="${a}" data-to="${b}" d="M${A.r},${A.y} C${mx},${A.y} ${mx},${B.y} ${B.l - 3},${B.y}" marker-end="url(#pa-${m.id})"/>`; }).join('');
+    m.insertAdjacentHTML('afterbegin', `<svg class="pedges" width="${W}" height="${H}" aria-hidden="true"><defs><marker id="pa-${m.id}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0L10,5L0,10z" fill="var(--ink-3)"/></marker></defs>${paths}</svg>`);
+    mapCues(canvas);
   });
 }
 const CK = {done:['s-done','✓'], current:['s-current',''], todo:['s-planned',''], blocked:['s-blocked','!']};
@@ -1061,7 +1094,7 @@ function epicView(i, d){
     <div class="grid2"><div class="stack">
       <div class="card pad"><div class="row" style="justify-content:space-between;margin-bottom:8px"><h3 style="margin:0">Progress</h3>
         <div class="seg" role="group" aria-label="Items layout"><button data-a="epicmode" data-v="map" aria-pressed="${S.epicMode !== 'list'}">Map</button><button data-a="epicmode" data-v="list" aria-pressed="${S.epicMode === 'list'}">List</button></div></div>
-        ${S.epicMode === 'list' ? `${progressMap(kids, {empty:'No items yet.'}).split('<div class="pmap-wrap">')[0]}${byStatus.map(([s, l]) => `<div class="src" style="margin-top:8px">${STATUS[s]} · ${l.length}</div>${l.map(k => `<div class="lrow">${typeIcon(k)}${link(k.id)}<span class="grow" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(k.title)}</span>${hrChip(k)}${blockedChip(k)}</div>`).join('')}`).join('')}`
+        ${S.epicMode === 'list' ? `${progressMap(kids, {empty:'No items yet.'}).split('<div class="pmapbox">')[0]}${byStatus.map(([s, l]) => `<div class="src" style="margin-top:8px">${STATUS[s]} · ${l.length}</div>${l.map(k => `<div class="lrow">${typeIcon(k)}${link(k.id)}<span class="grow" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(k.title)}</span>${hrChip(k)}${blockedChip(k)}</div>`).join('')}`).join('')}`
           : progressMap(kids, {empty:'No items yet. When planned, the agent breaks this epic into stories, tasks and bugs.'})}</div>
       <div class="card pad"><h3>Brief</h3><div>${esc(d.outcome) || '<span class="muted">No brief yet.</span>'}</div>
         ${d.docs.length ? `<h3 style="margin-top:14px">Documents</h3>${d.docs.map(x => docRow(x, i.id)).join('')}` : ''}</div>
@@ -1440,6 +1473,14 @@ const ACT = {
   },
   gfix: v => openTicket(v),
   epicmode: v => { S.epicMode = v; render(); },
+  mapzoom: v => { const cur = S.mapZ || 1;
+    if (v === 'fit') S.mapZoom = S.mapZoom === 'fit' ? 1 : 'fit';
+    else if (v === 'reset') S.mapZoom = 1;
+    else { const k = ZOOMS.findIndex(z => z >= cur - 0.001); S.mapZoom = v === 'in' ? ZOOMS[Math.min(ZOOMS.length - 1, (ZOOMS[k] > cur + 0.001 ? k : k + 1))] : ZOOMS[Math.max(0, k - 1)]; }
+    render(); },
+  mappan: v => { const c = document.querySelector('#app .pframe .pcanvas'); const f = document.activeElement && document.activeElement.closest && document.activeElement.closest('.pframe');
+    const cv = (f && f.querySelector('.pcanvas')) || c; if (!cv) return;
+    cv.scrollBy({left: v === 'r' ? 320 : v === 'l' ? -320 : 0, top: v === 'd' ? 240 : 0, behavior:'smooth'}); },
   rmlink: v => { const [b, a] = v.split('>'), before = snap(), i = byId[a]; i.blockedBy = i.blockedBy.filter(x => x !== b); logActivity(a, `You removed link “${b} blocks ${a}”`); undoable(before, `Removed “${b} blocks ${a}”. Cycle resolved.`); },
   fc: () => { S.fcPreview = !S.fcPreview; render(); },
   snippet: v => { S.snippet = v; render(); },
@@ -1514,6 +1555,12 @@ document.addEventListener('keydown', e => {
     e.preventDefault(); S.tab = tabs[next].dataset.v; render(); const nt = document.getElementById('tab-'+S.tab); if (nt) nt.focus();
   }
 });
+let drag = null;
+document.addEventListener('pointerdown', e => { const c = e.target.closest && e.target.closest('.pcanvas'); if (!c || e.target.closest('.pnode') || e.button !== 0) return;
+  drag = {c, x:e.clientX, y:e.clientY, l:c.scrollLeft, t:c.scrollTop}; c.classList.add('dragging'); });
+document.addEventListener('pointermove', e => { if (!drag) return; drag.c.scrollLeft = drag.l - (e.clientX - drag.x); drag.c.scrollTop = drag.t - (e.clientY - drag.y); });
+document.addEventListener('pointerup', () => { if (drag){ drag.c.classList.remove('dragging'); drag = null; } });
+document.addEventListener('scroll', e => { if (e.target && e.target.classList && e.target.classList.contains('pcanvas')) mapCues(e.target); }, true);
 let rsz; window.addEventListener('resize', () => { clearTimeout(rsz); rsz = setTimeout(drawMaps, 80); });
 document.addEventListener('mouseover', e => { const n = e.target.closest && e.target.closest('.pmap .pnode'); document.querySelectorAll('#app .pmap .hl').forEach(x => x.classList.remove('hl')); if (!n) return;
   const id = n.dataset.pid, m = n.closest('.pmap'); n.classList.add('hl');
