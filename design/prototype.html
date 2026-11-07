@@ -476,7 +476,7 @@
 /* ---------- Needs you dashboard ---------- */
 .tl .pulse{display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:7px 12px;border:1px solid var(--line);background:var(--panel);border-radius:10px;margin-bottom:12px;font-size:12.5px}
 .tl .dash-top{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:12px;margin-bottom:12px;align-items:start}
-.tl .dash-row.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+.tl .dash-row.two{grid-template-columns:repeat(2,minmax(0,1fr))}
 .tl .dash-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;align-items:start}
 @media (max-width:1180px){.tl .dash-top{grid-template-columns:1fr}.tl .dash-row{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .tl .mrow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:9px;align-items:center;padding:8px 14px;border-top:1px solid var(--line)}
@@ -852,7 +852,7 @@ function renderNav(){
   const fy = forYouIn(S.scope).length;
   const pk = items.filter(i => inScope(i) && packetReady(i)).length;
   const runs = items.filter(i => inScope(i) && ['live','needs','stale','failed','reported'].includes(i.run)).length;
-  const btn = (v, icon, label, badge) => `<button class="navbtn" data-a="nav" data-v="${v}" aria-current="${S.view===v || (v==='work' && ['ticket','label','timeline'].includes(S.view)) || (v==='settings' && ['projects','connections'].includes(S.view)) ? 'page' : 'false'}" title="${label}">${I[icon]}<span class="nl">${label}</span>${badge || ''}</button>`;
+  const btn = (v, icon, label, badge) => `<button class="navbtn" data-a="nav" data-v="${v}" aria-current="${S.view===v || (v==='attention' && S.view==='review') || (v==='work' && ['ticket','label','timeline'].includes(S.view)) || (v==='settings' && ['projects','connections'].includes(S.view)) ? 'page' : 'false'}" title="${label}">${I[icon]}<span class="nl">${label}</span>${badge || ''}</button>`;
   const cur = S.scope === 'all' ? null : P[S.scope];
   const opt = (key, name, color) => { const n = forYouIn(key).length; return `<button role="menuitemradio" aria-checked="${S.scope===key}" data-a="scope" data-v="${key}">${color ? `<span class="sw" style="background:${color};width:12px;height:12px"></span>` : small(I.folder)}<span class="grow">${name}</span>${n ? `<span class="badge" aria-label="${n} for you">${n}</span>` : ''}</button>`; };
   $('#nav').innerHTML = `
@@ -865,7 +865,6 @@ function renderNav(){
     </div>
     ${btn('attention','attention','Needs you', fy ? `<span class="badge" aria-label="${fy} for you">${fy}</span>` : '')}
     ${btn('work','work','Work')}
-    ${btn('review','reviews','Human review', pk ? `<span class="badge n" aria-label="${pk} packets ready">${pk}</span>` : '')}
     ${btn('agents','agents','Agents', runs ? `<span class="badge n" aria-label="${runs} active runs">${runs}</span>` : '')}
     <div class="navsec">Service-wide</div>
     ${btn('settings','plug','Settings')}
@@ -923,10 +922,9 @@ V.attention = () => {
       ${[...ready.map(pkRow), ...qs.map(qRow)].join('') || '<div class="pad muted" style="padding-top:2px">Nothing to verify. Agents will hand off when work is built.</div>'}</div>
     ${card('Problems', probs.length, probs.slice(0, 5).map(pRow).join(''), 'No stale or failed runs, cycles or date conflicts.', probs.length > 5 ? `<span>${probs.length - 5} more</span>` : '')}
   </div>
-  <div class="dash-row three">
+  <div class="dash-row two">
     ${card('Deferred, not verified', deferred.length, defRows, 'Nothing deferred.', `<span></span>${viewAll(deferred.length, 'workfilter', 'deferred')}`)}
     ${card('Your Planning queue', planningQ.length, planRows, 'Nothing in Planning.', `<span></span>${viewAll(planningQ.length, 'workfilter', 'planning')}`)}
-    ${card('Since you looked', changes.length, chgRows, 'No changes since 08:30.', `<span>Since 08:30</span>${changes.length > MAX ? `<a href="#" data-a="sinceall">${S.sinceAll ? 'Show fewer' : `View all ${changes.length} →`}</a>` : ''}`)}
   </div>`;
 };
 
@@ -945,7 +943,7 @@ V.work = () => {
   const cols = ['inbox','planning','ready','progress','review','done'];
   const base = i => !isEpic(i) && inScope(i) && (S.epicF === 'all' || (S.epicF === 'none' ? !i.epic : i.epic === S.epicF)) && (S.labelF === 'all' || (i.labels || []).includes(S.labelF));
   const list = items.filter(i => base(i) && FILTERS[S.filter][1](i));
-  const card = i => `<a href="#" class="tcard ${isBlocked(i) ? 'isblocked' : forYou(i) ? 'owed' : ''}" data-a="open" data-v="${i.id}">
+  const card = i => `<a href="#" class="tcard ${isBlocked(i) ? 'isblocked' : forYou(i) ? 'owed' : ''}" data-a="${packetReady(i) ? 'packet' : 'open'}" data-v="${i.id}"${packetReady(i) ? ' title="Open the handoff packet"' : ''}>
       <div class="row" style="justify-content:space-between"><span class="row"><span class="mono muted">${i.id}</span>${typeIcon(i)}</span>${prio(i.prio)}</div>
       <div class="t">${esc(i.title)}</div>
       ${i.epic || (i.labels || []).length ? `<div class="meta">${epicTag(i)}${(i.labels || []).map(l => `<span class="label">${esc(l)}</span>`).join('')}</div>` : ''}
@@ -976,8 +974,7 @@ V.work = () => {
     <div class="filters">
       <label class="sr" for="epicsel">Epic</label><select id="epicsel" data-a="epicf"><option value="all">All epics</option>${epics.map(e => `<option value="${e.id}" ${S.epicF===e.id?'selected':''}>${esc(e.title)}</option>`).join('')}<option value="none" ${S.epicF==='none'?'selected':''}>No epic</option></select>
       <label class="sr" for="labelsel">Label</label><select id="labelsel" data-a="labelf"><option value="all">All labels</option>${labs.map(l => `<option value="${l}" ${S.labelF===l?'selected':''}># ${l}</option>`).join('')}</select>
-      <span role="group" aria-label="Saved filters" class="row wrap" style="gap:6px">${Object.entries(FILTERS).filter(([k]) => !['planning','startable'].includes(k) || S.filter === k).map(([k,f]) => `<button class="fchip" data-a="filter" data-v="${k}" aria-pressed="${S.filter===k}">${f[0]} <b>${items.filter(i => base(i) && f[1](i)).length}</b></button>`).join('')}</span>
-      ${q ? `<span class="src" style="margin-left:auto" title="The same query agents send over MCP">Agent query: <span class="mono">${esc(q)}</span></span>` : ''}
+      <span role="group" aria-label="Saved filters" class="row wrap" style="gap:6px">${Object.entries(FILTERS).filter(([k]) => !['planning','startable'].includes(k) || S.filter === k).map(([k,f]) => `<button class="fchip" data-a="filter" data-v="${k}" aria-pressed="${S.filter===k}"${f[2] ? ` title="Agent query: ${f[2]}"` : ''}>${f[0]} <b>${items.filter(i => base(i) && f[1](i)).length}</b></button>`).join('')}</span>
     </div>
     ${epics.length ? `<div class="sectionhead" style="padding:0 0 6px"><h3>Epics · ${epics.length}</h3><span class="row" style="gap:12px" aria-label="Item types">${Object.keys(TYPES).map(t => typeBadge({type:t})).join('')}</span></div>
       <div class="epicrow">${epics.map(e => { const k = childrenOf(e.id), dn = k.filter(x => x.status === 'done').length, act = k.filter(x => x.status === 'progress' || x.status === 'review').length, fy = k.filter(forYou).length + (forYou(e) ? 1 : 0);
@@ -1231,7 +1228,7 @@ V.label = () => {
 V.review = () => {
   const sc = items.filter(inScope), ready = sc.filter(packetReady), coming = sc.filter(hrComing);
   const decided = sc.filter(i => PACKETS[i.id] && !packetReady(i) && PACKETS[i.id].rounds.some(r => r.decided));
-  if (!ready.length && !decided.length) return `<h1>Human review${scopePill()}</h1><div class="sub">Nothing to verify in this project right now.</div>`;
+  if (!ready.length && !decided.length) return `<h1>Human review</h1><div class="sub">Nothing to verify right now. <a href="#" data-a="nav" data-v="attention">Back to Needs you</a></div>`;
   if (!PACKETS[S.pk] || !inScope(byId[S.pk])) S.pk = (ready[0] || decided[0]).id;
   const i = byId[S.pk], pk = PACKETS[i.id], latest = pk.rounds[pk.rounds.length - 1];
   const r = pk.rounds.find(x => x.n === S.pkRound) || latest, live = r === latest && packetReady(i);
@@ -1256,8 +1253,8 @@ V.review = () => {
   return `<h1>Human review</h1>
   <div class="rv">
     <div class="card rvq">${ready.length ? `<div class="sectionhead"><h3>Ready for you · ${ready.length}</h3></div>${ready.map(qbtn).join('')}` : ''}
-      ${decided.length ? `<div class="sectionhead"><h3>Decided</h3></div>${decided.map(qbtn).join('')}` : ''}
-      ${coming.length ? `<div class="sectionhead"><h3>Coming up · ${coming.length}</h3></div>${coming.map(x => `<button data-a="open" data-v="${x.id}"><span class="row"><span class="mono">${x.id}</span><span class="chip c-gray">${STATUS[x.status]}</span></span><span style="font-weight:600">${esc(x.title)}</span><span class="src">${isEpic(x) ? 'epic-level · ' : ''}no packet yet</span></button>`).join('')}` : ''}</div>
+      ${!packetReady(i) ? `<div class="sectionhead"><h3>Viewing</h3></div>${qbtn(i)}` : ''}
+      ${!ready.length ? '<div class="pad src">Nothing else is waiting on you.</div>' : ''}</div>
     <div class="card packet" style="min-width:0">
       <div class="vers"><b style="margin-right:4px">${link(i.id)} ${esc(i.title)}</b>
         ${pk.rounds.map(x => `<button class="vbtn" data-a="pkround" data-v="${x.n}" aria-pressed="${x===r}">Round ${x.n} ${x.decided ? `<span class="chip ${x.decided.verdicts.every(y => y.k==='approve') ? 'c-ok' : 'c-warn'}" style="padding:0 5px">${x.decided.verdicts.every(y => y.k==='approve') ? 'approved' : 'sent back'}</span>` : x===latest && packetReady(i) ? '<span class="dot needs" style="width:8px;height:8px;border-radius:50%;background:var(--warn);display:inline-block"></span>' : ''}</button>`).join('')}
@@ -1393,7 +1390,7 @@ function modalHtml(){
     <div class="body">${body}</div>${foot ? `<footer>${foot}</footer>` : ''}</div></div>`;
   if (m.type === 'palette'){
     const q = (m.q || '').trim().toLowerCase();
-    const views = [['attention','Needs you'],['work','Work'],['timeline','Timeline (Work)'],['review','Human review'],['agents','Agents'],['settings','Settings: projects and connections']];
+    const views = [['attention','Needs you'],['work','Work'],['timeline','Timeline (Work)'],['agents','Agents'],['settings','Settings: projects and connections']];
     const its = items.filter(i => !q || i.id.toLowerCase().includes(q) || i.title.toLowerCase().includes(q)).slice(0, 8);
     const labs = Object.keys(LABELS).filter(l => q && l.includes(q.replace('#','')));
     const vs = views.filter(v => !q || v[1].toLowerCase().includes(q));
@@ -1459,6 +1456,7 @@ function render(){
   const globalView = ['settings','connections','projects'].includes(S.view);
   $('#crumbs').innerHTML = S.view === 'ticket' ? `<span>${P[i.proj].short}</span> / ${i.epic && byId[i.epic] ? `<a href="#" data-a="open" data-v="${i.epic}">◆ ${esc(byId[i.epic].title)}</a>` : '<a href="#" data-a="nav" data-v="work">Work</a>'} / <span class="mono">${i.id}</span> <b>${esc(i.title)}</b>`
     : S.view === 'label' ? `<a href="#" data-a="nav" data-v="work">Work</a> / <b>#${esc(S.label)}</b>`
+    : S.view === 'review' ? `<a href="#" data-a="nav" data-v="attention">Needs you</a> / <b>Human review · ${esc(S.pk || '')}</b>`
     : globalView ? `<b>${TITLES[S.view]}</b> <span class="scopebar">Service-wide</span>` : `<span>${S.scope === 'all' ? 'All projects' : P[S.scope].short}</span> / <b>${TITLES[S.view]}</b>`;
   const dark = S.theme==='dark' || (S.theme==='system' && matchMedia('(prefers-color-scheme: dark)').matches);
   $('#themebtn').innerHTML = dark ? I.sun : I.moon;

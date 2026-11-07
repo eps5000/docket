@@ -1,6 +1,6 @@
 # UI/UX design — MVP V1 human interface
 
-Status: design proposal, revision 19, 2026-11-06. Inputs: [requirements draft](REQUIREMENTS_DRAFT.md), [Jira research](JIRA_RESEARCH.md).
+Status: design proposal, revision 20, 2026-11-06. Inputs: [requirements draft](REQUIREMENTS_DRAFT.md), [Jira research](JIRA_RESEARCH.md).
 
 Clickable prototype: [`design/prototype.html`](../design/prototype.html). It is one file with no build step and no network requests, and all data in it is disposable sample work (O09). Open it directly in a browser.
 
@@ -92,7 +92,7 @@ Sidebar                                   Ticket page
 │  ── scoped to the chosen project ──     ├─ Banner when you must act: packet ready / agent question
 ├─ Needs you     red badge = for you now  └─ Tabs, one per job (one column of collapsible sections each):
 ├─ Work          Board|List|Map|Timeline     DETAILS: Outcome · Documents · Dates   CHECKLIST: Work · Agent review · Human review
-├─ Human review  gray count of packets       DEPENDENCIES: 1-hop view              ACTIVITY: Lead & runs · History + note
+│   └ (packet screen opens from here)        DEPENDENCIES: 1-hop view              ACTIVITY: Lead & runs · History + note
 ├─ Agents        gray count of runs       Epic page: DETAILS (brief, docs, tickets) · CHECKLIST · MAP · ACTIVITY
 │  ── service-wide ──                     Label page: header actions (Show on the board, Move N to Ready); brief, map, by-epic list
 └─ Settings      Projects + Connections
@@ -109,18 +109,18 @@ Designed to fit on one laptop screen without scrolling. In the prototype it fits
 - **Top band:**
   - **For you now** (wide): packets to verify and agent questions. Answering a question happens inline.
   - **Problems:** stale or failed runs, cycles and date conflicts, at most five, each with its action.
-- **One row of three compact cards**, each showing its top three items with *View all N →*:
+- **One row of two compact cards**, each showing its top three items with *View all N →*:
   - **Deferred, not verified**, with *Create test ticket* where there's no follow-up
   - **Your Planning queue**, with *Move to Ready*
-  - **Since you looked**
 - **Every row is one or two lines.** Long text is truncated, with the full text on hover.
-- **What's deliberately not here:** reviews that are coming up but have no packet yet. They aren't asking anything of you today, so they live in the Human review queue.
+- **What's deliberately not here:** reviews that are coming up but have no packet yet. They aren't asking anything of you today; the *Human review later* filter on Work lists them. "Since you looked" is gone too: what agents did lives in Agents and each item's Activity tab.
 
 ### Work
-- **Board columns:** Inbox · Planning (yours) · Ready (Startable / Waiting on blockers) · In progress · Review (your human review) · Done.
+- **Board columns:** Inbox · Planning (yours) · Ready (Startable / Waiting on blockers) · In progress · Review (your human review) · Done. A Review card with a packet ready opens the packet directly.
+- **Epics row** at the top (kept on purpose): one compact card per epic with progress and "N for you".
 - **Layouts:** Board, List, Map and **Timeline** (entered dates vs actual run time vs forecast; who set a date shows on hover, and only blocker dates are written under a bar).
 - **Cards:** type icon (the type legend sits once above the board), epic, labels, run state if claimed, plus chips for *Packet ready*, *Human review later*, *Question for you*, *Blocked*, and *Date risk*. Unclaimed cards say nothing rather than "Unclaimed".
-- **Filters:** epic, label, and saved filters (Blocked, For you, Human review later, Deferred review, Live run). *In planning* and *Ready to start* are left off the board because their columns already show them; links such as *View all* in the Planning queue still apply them. Each filter shows the matching agent query.
+- **Filters:** epic, label, and saved filters (Blocked, For you, Human review later, Deferred review, Live run). *In planning* and *Ready to start* are left off the board because their columns already show them; links such as *View all* in the Planning queue still apply them. Hovering a filter shows the matching agent query.
 
 ### Tickets and epics: one tab per job
 Each tab is a view that answers one question. Epics and tickets use the same four slots, so you always know where to look.
@@ -142,8 +142,10 @@ Each tab is a view that answers one question. Epics and tickets use the same fou
 - **Entry points land on the right view.** *Inspect* on a stalled or failed run opens Activity; *Fix* on a cycle opens Dependencies; *See it on the epic map* opens the epic's Map. Otherwise an item opens on Details, or on whichever tab you last had open for it.
 - **+ New item in this epic** sits at the right of an epic's tab row. It opens the New dialog with the epic and project filled in; the item lands in Inbox and you stay on the epic.
 
-### Human review
-- **Queue:** Ready for you, Decided, and the full Coming up list (its only home).
+### Human review (packet screen)
+- **Not a sidebar page.** It's the screen where you read a handoff packet and decide each item. It opens from *Open packet* on Needs you, the packet banner on a ticket, a Review card on Work, or a handoff packet in a ticket's Documents. The breadcrumb reads *Needs you / Human review · RCP-12*, and Needs you stays highlighted in the sidebar.
+- **Why:** a ready packet already showed in Needs you and in the Review column, so a third list was redundant.
+- **Queue:** only *Ready for you*, so you can step from one packet to the next. When you're viewing a decided packet (from the ticket's Documents), it shows under *Viewing*.
 - **No subtitle and no Ticket side card.** The packet header names the ticket and links to it.
 - **Packet:**
   - A round selector. Earlier rounds are read-only and show your past decisions.
@@ -294,7 +296,7 @@ Base type is 13px; secondary text is at least 11.5px. Small controls are at leas
 | Out-of-date packet | Needs you → RCP-19 (claude reported a newer commit after writing the packet) → *Ask for a fresh packet* |
 | Send back with findings | RCP-12 packet → *Needs changes* + note → *New bug ticket*. RCP-28 is created and RCP-12 returns to In progress. Undo is available. |
 | Earlier round, read-only | RCP-12 packet → Round 1 (sent back, with your notes and the bug it created, RCP-17) |
-| Reviews coming up | Human review → *Coming up* (RCP-14, RCP-16, RCP-22, RCP-23, RCP-25, DOC-9) |
+| Reviews coming up | Work → *Human review later* filter (RCP-14, RCP-16, RCP-22, RCP-23, RCP-25, DOC-9) |
 | No human review | RCP-15 → Checklist → "No human review declared" |
 | Planning is yours | Needs you → *Your Planning queue* → *Move to Ready* |
 | Large initiative across epics | Click `#ui-refresh` on RCP-23 → progress by epic → *Move 2 to Ready* |
@@ -308,9 +310,14 @@ Base type is 13px; secondary text is at least 11.5px. Small controls are at leas
 
 **Testing:**
 - `design/prototype.html?selftest` renders every page in every scope, plus every item, tab, label, packet round, dialog and filter. It reports `SELFTEST OK` in headless Edge.
-- A 113-check scripted click-through of the scenarios above also passed.
+- A 115-check scripted click-through of the scenarios above also passed.
 
 ## Revision history
+- **Revision 20:**
+  - Human review leaves the sidebar, which is now Needs you, Work, Agents and Settings. The packet screen opens from Needs you, ticket banners and Review cards, and its queue lists only packets ready for you. Upcoming reviews are the *Human review later* filter on Work.
+  - "Since you looked" is removed from Needs you.
+  - The agent query moves to a tooltip on each filter.
+  - The Epics row on Work stays.
 - **Revision 19 (simplicity pass):**
   - The sidebar goes from 7 items to 5: Timeline became a Work layout, and Projects and Connections merged into Settings. The health box is one line.
   - Only Needs you keeps a red badge.
