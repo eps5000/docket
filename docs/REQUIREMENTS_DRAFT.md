@@ -1,6 +1,6 @@
 # Candidate product requirements
 
-Status: discovery draft, updated 2026-11-06. The confirmed choices below are owner decisions; remaining requirements are proposals to test with real agents. Background: [Jira capability research](JIRA_RESEARCH.md).
+Status: discovery draft, updated 2026-11-07. **Superseded for building by [BUILD_SPEC.md](BUILD_SPEC.md) and [UI_SPEC.md](UI_SPEC.md);** this file remains the record of requirements and owner decisions. The confirmed choices below are owner decisions; remaining requirements are proposals to test with real agents. Background: [Jira capability research](JIRA_RESEARCH.md).
 
 ## Confirmed owner decisions
 
@@ -17,6 +17,11 @@ Status: discovery draft, updated 2026-11-06. The confirmed choices below are own
 11. Per-item planning exceptions and readiness rules are decided by each project's agent constitution and workflow. The tracker stores and shows the project's configuration and records deviations; it does not enforce them. (Added 2026-11-06.)
 12. V1 item types are Epic (the only container), Story, Task, and Bug. An Epic still in Planning acts as the brief for work not yet broken down. Large initiatives that span several epics use a label with an optional brief rather than a level above Epic. Small steps are checklist items on the ticket; subtasks are not in V1. (Added 2026-11-06; revised the same day.)
 13. Human review is verification after implementation, not part of Planning. Agents declare human review items on a ticket, usually during Planning. When the work is built and the agent's own checks pass, the agent supplies a handoff packet telling the owner how to verify. The owner approves (the ticket closes) or requests changes (each finding becomes a checklist item or a new bug ticket, and the agent prepares another round). A ticket cannot close while any human review item is undecided; with no human review items, the agent may close it once its checks pass. The owner may also **defer** an item: this clears the gate but records the item as deferred, not verified, optionally creating a follow-up test ticket. Packets record the commit they were built from and are marked out of date automatically when an agent later reports a different commit for the ticket. Approvals carry forward across rounds. Agents may create labels. Commits are reported for a specific ticket, so only commits for that ticket (or, for an epic-level packet, any ticket in the epic) mark a packet out of date. When an epic ships as one PR, human review may be declared once on the epic instead of on each child. Deferred, not-verified items stay visible to the owner and to agents (for cleanup) until resolved. (Added 2026-11-06.)
+
+14. The V1 stack is TypeScript end to end: Node 22, the official MCP TypeScript SDK, Hono, SQLite via better-sqlite3 + Drizzle, and React + Vite for the UI. (Added 2026-11-07.)
+15. O11's project-level approval policies are superseded by decision 13. Gates are per-ticket human review items, declared according to each project's agent workflow; the tracker enforces only that a ticket can't close while a review item is undecided. H06 reads "a ticket with human review items" where it says "a project with a required owner gate". (Added 2026-11-07.)
+16. One agent bearer token serves all clients. The calling client is identified from the MCP handshake (`clientInfo`), plus an optional agent label such as `orca-w3`. A separate owner key, held only by the browser, protects owner actions. (Added 2026-11-07.)
+17. V1 also includes four P1 items: the Timeline layout, Label pages, burn-down and forecast (H14, A18), and the Jira import dry run and import (O05). (Added 2026-11-07.)
 
 ## Product intent
 
@@ -93,7 +98,7 @@ Priority labels: **P0** is necessary for a useful first release; **P1** adds pla
 | O08 | P0 | The service is a task/data server; it does not require OpenAI or Anthropic model API credentials. If an agent surface cannot attach directly to HTTP MCP, a local client-side bridge may be used and tested for that surface. |
 | O09 | P0 | MVP V1 can be exercised with a disposable sample project and representative tickets, agent plans, blockers, and review artifacts. No Jira import or live-project cutover is required to build or verify V1. |
 | O10 | P0 | Deleting a project through the service removes its work records and project-associated local documents together after an explicit owner action. Backups have a separately documented retention and purge policy; deleting a container alone does not imply deleting its data. |
-| O11 | P0 | Each project can select an approval policy consistent with its agent workflow documents: no owner gate or one or more named owner gates. The service applies the selected policy to Done transitions while preserving the distinction between agent assertions and owner decisions. |
+| O11 | ~~P0~~ superseded (decision 15) | Each project can select an approval policy consistent with its agent workflow documents: no owner gate or one or more named owner gates. The service applies the selected policy to Done transitions while preserving the distinction between agent assertions and owner decisions. |
 
 ## Initial workflow hypothesis
 
