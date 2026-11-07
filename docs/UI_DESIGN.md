@@ -1,6 +1,6 @@
 # UI/UX design — MVP V1 human interface
 
-Status: design proposal, revision 15, 2026-11-06. Inputs: [requirements draft](REQUIREMENTS_DRAFT.md), [Jira research](JIRA_RESEARCH.md).
+Status: design proposal, revision 16, 2026-11-06. Inputs: [requirements draft](REQUIREMENTS_DRAFT.md), [Jira research](JIRA_RESEARCH.md).
 
 Clickable prototype: [`design/prototype.html`](../design/prototype.html). It is one file with no build step and no network requests, and all data in it is disposable sample work (O09). Open it directly in a browser.
 
@@ -34,6 +34,14 @@ Labels cut across epics (large initiatives).   Blocks links are the only thing t
 | **No assignee field** | Agents *claim* tickets (the lead claim, with a lease). You don't get assigned tickets; you get **human review items** and **questions**. |
 | **Planning is yours** | Planning docs attach to the ticket or epic. You move an item to Ready when you're satisfied, or tell an agent to. The tracker doesn't enforce a definition of ready; the repo's agent workflow does. |
 | **Human review** | Verification *after* implementation, described below. |
+
+### The checklist (tickets and epics)
+Every ticket and epic has a **Checklist** card in the main body, always visible, with three sections:
+- **Work:** the agent's step-by-step plan (one-liners; subagent notes attach here).
+- **Agent review:** what the agent verifies itself, each with its evidence and state.
+- **Human review:** what you verify yourself.
+
+Each section has its own **Add** box (Enter adds). Items you add show "added by you" and can be removed until they're done. On an epic, the checklist holds epic-level steps and checks and is separate from **Tickets in this epic**: a checklist item is a sentence on this page, while a ticket has its own lead, blockers and review.
 
 ### Human review and handoff packets
 **You can add, edit and remove human review items yourself,** on any ticket or epic. The Human review card has an "Add something you'll need to verify yourself" box, and each item shows who added it ("added by you" / "added by claude"). Items not yet handed off can be edited or removed. Items in the current packet are locked, because the packet was written against them. An item added while a packet is waiting goes into the next round, and the ticket stays open until it's decided.
@@ -82,9 +90,9 @@ Labels cut across epics (large initiatives).   Blocks links are the only thing t
 Sidebar                                   Ticket page
 ┌ Project ▾ [All | Recipe App | Docs]     ├─ Header: ID · type · epic · labels · status · priority · Move to Planning/Ready
 │  ── scoped to the chosen project ──     ├─ Banner when you must act: packet ready / agent question
-├─ Needs you     badge = for you now      ├─ Outcome + acceptance
-├─ Work          Board | List | Map       ├─ Tabs: Work and checks (Work · Agent checks) · Documents · Activity
-├─ Human review  badge = packets ready    └─ Rail: HUMAN REVIEW (always first) · Lead & runs · Dependencies · Dates
+├─ Needs you     badge = for you now      ├─ Outcome + acceptance · CHECKLIST (Work · Agent review · Human review)
+├─ Work          Board | List | Map       ├─ Tabs: Documents · Activity
+├─ Human review  badge = packets ready    └─ Rail: Lead & runs · Dependencies · Dates
 ├─ Timeline                               Epic page: tabs DETAILS (default) · Map (full width) · Activity
 ├─ Agents                                 Label page: brief, progress map across epics, "Move N to Ready"
 │  ── service-wide ──
@@ -139,7 +147,7 @@ Designed to fit on one laptop screen without scrolling. In the prototype it fits
 *+ New* in the header opens a small dialog: title (required), type, project, optional epic, and notes. The item lands in **Inbox** and opens, ready to be shaped in Planning. It's deliberately minimal: agents fill in the rest.
 
 ### Epic page: three tabs for three jobs
-- **Details** (default): brief and documents, plus the items listed by status. The Human review card sits at the top of the right-hand column, the same place as on tickets.
+- **Details** (default): brief and documents plus the epic's Checklist on the left; **Tickets in this epic**, grouped by status, on the right. There is no separate review card.
 - **Map:** progress and wiring. Full width, no side column. It shows the progress header and the progress map. If the epic itself carries the human review (a one-PR epic), a thin strip above the map says so, with *Open packet* when it's ready.
 - **Activity:** agent updates for the epic, plus a *note for the agents* box.
 - **+ New item in this epic** sits beside the tabs. It opens the New dialog with the epic and project filled in; the item lands in Inbox and you stay on the epic.
@@ -293,9 +301,10 @@ Base type is 13px; secondary text is at least 11.5px. Small controls are at leas
 
 **Testing:**
 - `design/prototype.html?selftest` renders every page in every scope, plus every item, tab, label, packet round, dialog and filter. It reports `SELFTEST OK` in headless Edge.
-- A 99-step scripted click-through of the scenarios above also passed.
+- A 103-step scripted click-through of the scenarios above also passed.
 
 ## Revision history
+- **Revision 16:** a Checklist card in the main body of every ticket and epic, with Work, Agent review and Human review sections and an Add box for each. The right-hand Human review card is gone. Epic "Items" is renamed "Tickets in this epic". Ticket tabs are now Documents · Activity.
 - **Revision 15:** epics open on Details (then Map, Activity); *+ New item in this epic*; you can add, edit and remove human review items yourself, with who-added-it shown and packet items locked; an all-approve round no longer closes a ticket that has newer undecided items; open-item tabs under the header that remember each item's sub-tab.
 - **Revision 14:** epics get a front door. An Epics row on Work opens each epic's Map tab, and epic names are links in ticket headers, list rows and label pages. Previously the epic page was only reachable through a ticket's "See it on the epic map" link.
 - **Revision 13:** epic pages use Map (default, full width) · Details · Activity tabs; human review shows on map cards (filled = ready for you, outlined = later); epic-level review is a strip above the map; ticket breadcrumbs link back to the epic and its last tab.
