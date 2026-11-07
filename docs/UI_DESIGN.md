@@ -1,6 +1,6 @@
 # UI/UX design — MVP V1 human interface
 
-Status: design proposal, revision 12, 2026-11-06. Inputs: [requirements draft](REQUIREMENTS_DRAFT.md), [Jira research](JIRA_RESEARCH.md).
+Status: design proposal, revision 13, 2026-11-06. Inputs: [requirements draft](REQUIREMENTS_DRAFT.md), [Jira research](JIRA_RESEARCH.md).
 
 Clickable prototype: [`design/prototype.html`](../design/prototype.html). It is one file with no build step and no network requests, and all data in it is disposable sample work (O09). Open it directly in a browser.
 
@@ -83,7 +83,7 @@ Sidebar                                   Ticket page
 ├─ Needs you     badge = for you now      ├─ Outcome + acceptance
 ├─ Work          Board | List | Map       ├─ Tabs: Work and checks (Work · Agent checks) · Documents · Activity
 ├─ Human review  badge = packets ready    └─ Rail: HUMAN REVIEW (always first) · Lead & runs · Dependencies · Dates
-├─ Timeline                               Epic page: PROGRESS MAP first, same rail (Human review first)
+├─ Timeline                               Epic page: tabs MAP (default, full width) · Details · Activity
 ├─ Agents                                 Label page: brief, progress map across epics, "Move N to Ready"
 │  ── service-wide ──
 ├─ Projects
@@ -135,6 +135,13 @@ Designed to fit on one laptop screen without scrolling. In the prototype it fits
 ### Quick capture
 *+ New* in the header opens a small dialog: title (required), type, project, optional epic, and notes. The item lands in **Inbox** and opens, ready to be shaped in Planning. It's deliberately minimal: agents fill in the rest.
 
+### Epic page: three tabs for three jobs
+- **Map** (default): what you open an epic for. Full width, no side column. It shows the progress header and the progress map. If the epic itself carries the human review (a one-PR epic), a thin strip above the map says so, with *Open packet* when it's ready.
+- **Details:** brief and documents, plus the items listed by status. The Human review card sits at the top of the right-hand column, the same place as on tickets.
+- **Activity:** agent updates for the epic, plus a *note for the agents* box.
+
+The epic remembers which tab you were on. A ticket's breadcrumb reads *Project / ◆ Epic / ID*, and the epic link takes you back to the tab you left. On a ticket, *See it on the epic map* always opens the Map tab. (In the real app, browser Back should do the same.)
+
 ### Progress map (epic pages, label pages, Work → Map)
 The dependency view is a **progress picture**, not a standalone graph page. It always draws one epic, one label, or the current Work filter, so it stays small.
 - **Header:** "1 / 12 done", a bar split by status, counts per status, "N ready but blocked", "N ready to start", and "working on wave X of Y".
@@ -143,9 +150,10 @@ The dependency view is a **progress picture**, not a standalone graph page. It a
   - wave 2 can start once wave 1 is done; and so on.
   - Blockers from outside the epic sit in a dashed column on the left, labelled with their project (or "other epic").
   - Items in a dependency cycle get their own column.
+- **Human review on the cards:** a **filled amber person** means a handoff packet is ready for you now; an **outlined** person means a human review is coming later; no person means no human review. A key under the map explains it. This replaces any separate review widget on the map.
 - **Each box is coloured by status.** Done is filled green with a ✓; the left edge shows the status colour. Red marks only *Ready* items that are blocked. Planning items show a neutral "after RCP-12".
 - **Arrows** mean "blocks". Solid arrows still block; dashed green ones are cleared. Hovering a box highlights its links.
-- **It sits on a canvas with fixed spacing**, so it never gets packed: 210px columns with a 92px gap for the arrows, and 16px between items. The canvas is at most 540px tall, with a dotted background so it reads as a surface you can move around.
+- **It sits on a canvas with fixed spacing**, so it never gets packed: 200px columns with a 76px gap for the arrows (a four-wave epic fits the full-width Map tab at 1440px without panning), and 16px between items. The canvas is at most 540px tall, with a dotted background so it reads as a surface you can move around.
 - **Panning is obvious when it's needed:**
   - drag the background, scroll, or use the arrow keys;
   - fades on any edge with more beyond it, plus clickable *More →* / *← More* / *More ↓* pills;
@@ -270,9 +278,10 @@ Base type is 13px; secondary text is at least 11.5px. Small controls are at leas
 
 **Testing:**
 - `design/prototype.html?selftest` renders every page in every scope, plus every item, tab, label, packet round, dialog and filter. It reports `SELFTEST OK` in headless Edge.
-- A 77-step scripted click-through of the scenarios above also passed.
+- An 81-step scripted click-through of the scenarios above also passed.
 
 ## Revision history
+- **Revision 13:** epic pages use Map (default, full width) · Details · Activity tabs; human review shows on map cards (filled = ready for you, outlined = later); epic-level review is a strip above the map; ticket breadcrumbs link back to the epic and its last tab.
 - **Revision 12:** the progress map sits on a pannable canvas with fixed, generous spacing, overflow cues (edge fades, *More* pills, hint line, grab cursor), drag/scroll/keyboard panning, and zoom with Fit.
 - **Revision 11:** the standalone Dependencies page is replaced by a progress map on epic and label pages and in Work → Map, plus a 1-hop dependency view on each ticket. The delay what-if is removed.
 - **Revision 10 (polish pass):** your past decisions are coloured by outcome (a "needed changes" no longer shows green); document and attachment viewer; Planning tickets open on Documents; *+ New* quick capture to Inbox; note for the agent on every ticket; type icon before the title in dense lists; Human review chips sit under the item text in the narrow column; shorter page subtitles; Coming up capped in the review queue; secondary styling for project switch buttons.
