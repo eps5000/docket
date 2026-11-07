@@ -1,6 +1,6 @@
 # UI/UX design — MVP V1 human interface
 
-Status: design proposal, revision 7, 2026-11-06. Inputs: [requirements draft](REQUIREMENTS_DRAFT.md), [Jira research](JIRA_RESEARCH.md).
+Status: design proposal, revision 8, 2026-11-06. Inputs: [requirements draft](REQUIREMENTS_DRAFT.md), [Jira research](JIRA_RESEARCH.md).
 
 Clickable prototype: [`design/prototype.html`](../design/prototype.html). It is one file with no build step and no network requests, and all data in it is disposable sample work (O09). Open it directly in a browser.
 
@@ -81,10 +81,10 @@ Sidebar                                   Ticket page
 ┌ Project ▾ [All | Recipe App | Docs]     ├─ Header: ID · type · epic · labels · status · priority · Move to Planning/Ready
 │  ── scoped to the chosen project ──     ├─ Banner when you must act: packet ready / agent question
 ├─ Needs you     badge = for you now      ├─ Outcome + acceptance
-├─ Work          Board | List             ├─ Tabs: Checklist (Work · Agent checks · Human review) · Documents · Activity
-├─ Human review  badge = packets ready    └─ Rail: Lead & runs · Dependencies · Dates & effort
+├─ Work          Board | List             ├─ Tabs: Work and checks (Work · Agent checks) · Documents · Activity
+├─ Human review  badge = packets ready    └─ Rail: HUMAN REVIEW (always first) · Lead & runs · Dependencies · Dates
 ├─ Dependencies
-├─ Timeline                               Epic page: brief, documents, items by status with progress
+├─ Timeline                               Epic page: same rail, Human review first
 ├─ Agents                                 Label page: brief, progress by epic, "Move N to Ready"
 │  ── service-wide ──
 ├─ Projects
@@ -94,13 +94,19 @@ Header: breadcrumb · search/jump (Ctrl K or /; items, labels, pages) · theme
 
 ## Screens
 
-### Needs you (home)
-- **Ready for you:** handoff packets to verify (round number, how many items, about how long) and agent questions, answered inline.
-- **Problems:** stale or failed runs, dependency cycles, and date conflicts. Sorted by how much work each holds up.
-- **Coming up for you:** declared human reviews (including epic-level ones) on work not yet in Review, with where each ticket is now ("in progress · 1/4 work items done", "ready · blocked by DOC-4").
-- **Deferred, not verified:** every deferred check, with its test ticket or a *Create test ticket* button.
-- **Your Planning queue:** everything in Planning, with *Move to Ready* on each.
-- **Agents right now**, and **Since you looked**.
+### Needs you (home): one-screen dashboard
+Designed to fit on one laptop screen without scrolling. In the prototype it fits at 1440×900, and comes within about 20px at 1366×768.
+- **Summary line:** for you now · problems · reviews coming up · deferred · in Planning.
+- **Agent strip:** one line of run-state counts (live, reported, needs input, stale, failed) with a link to all runs. This replaces the earlier "Agents right now" card.
+- **Top band:**
+  - **For you now** (wide): packets to verify and agent questions. Answering a question happens inline.
+  - **Problems:** stale or failed runs, cycles and date conflicts, at most five, each with its action.
+- **One row of four compact cards**, each showing its top three items with *View all N →*:
+  - **Coming up for you**, including epic-level reviews
+  - **Deferred, not verified**, with *Create test ticket* where there's no follow-up
+  - **Your Planning queue**, with *Move to Ready*
+  - **Since you looked**
+- **Every row is one or two lines.** Long text is truncated, with the full text on hover.
 
 ### Work
 - **Board columns:** Inbox · Planning (yours) · Ready (Startable / Waiting on blockers) · In progress · Review (your human review) · Done.
@@ -108,10 +114,10 @@ Header: breadcrumb · search/jump (Ctrl K or /; items, labels, pages) · theme
 - **Filters:** epic, label, and saved filters (In planning, Ready to start, Blocked, For you, Human review later, Live run). Each shows the matching agent query.
 
 ### Ticket
-- **Checklist tab:**
+- **Human review is always the first card in the right-hand column**, on stories, tasks, bugs and epics alike, so it's in the same place whatever you open. It shows each item with its state and any notes from earlier rounds, plus *Open packet* when one is ready. A child ticket without its own review says "reviewed with its epic" and links there.
+- **Work and checks tab:**
   - **Work:** items with state, who and when. Subagent contributions are nested under the item they belong to. Revised items show the old text. Items added from your review say so. A history view shows every revision.
   - **Agent checks:** each check with its state (passed, failed, not run) and evidence.
-  - **Human review:** each item with its state (Coming up, Ready for you, Approved). If you sent an item back, it shows your note and where it went. If there are no items, the tab says the agent can close the ticket on its own.
 - **Documents tab:** planning docs (PRD, UX, TDD) and handoff packets.
 - **Rail:**
   - **Lead & runs:** the lease, any rejected claims, stale-claim release, and *Return to Ready* after a failed run.
@@ -128,7 +134,7 @@ Header: breadcrumb · search/jump (Ctrl K or /; items, labels, pages) · theme
 
 ### Labels and epics
 - **Label page:** brief, progress grouped by epic, *Move N to Ready* for everything with that label still in Planning, and a link to the filtered board.
-- **Epic page:** brief, documents, and items grouped by status with progress. A Planning epic is described as "still a brief".
+- **Epic page:** brief, documents, and items grouped by status with progress, with the same Human review card first in the right-hand column. A Planning epic is described as "still a brief".
 
 ### Dependencies, Timeline, Agents, Connections, Projects
 Unchanged from revision 3 apart from simplifications:
@@ -230,9 +236,10 @@ Base type is 13px; secondary text is at least 11.5px. Small controls are at leas
 
 **Testing:**
 - `design/prototype.html?selftest` renders every page in every scope, plus every item, tab, label, packet round, dialog and filter. It reports `SELFTEST OK` in headless Edge.
-- A 51-step scripted click-through of the scenarios above also passed.
+- A 54-step scripted click-through of the scenarios above also passed.
 
 ## Revision history
+- **Revision 8:** Human review is one card in a fixed place (top of the right-hand column) on every work item, epics included. Needs you is a one-screen dashboard: an agent status strip, For you now with Problems, and four compact cards capped at three rows.
 - **Revision 7:** commits are reported per ticket; epic-level human review for single-PR epics; a *Deferred, not verified* list on Needs you and a matching Work filter, shared with agents for cleanup.
 - **Revision 6:** *Defer* verdict with follow-up choice; packets record their commit and are flagged out of date automatically; approvals record their commit and carry forward; agents may create labels.
 - **Revision 5:** simplified to Epic → item → checklist. Removed Feature, Design, custom types, the Structure view, per-project ready gates and planning-doc rules. Added labels with briefs for initiatives, the three-part checklist, human review items, handoff packets with rounds, and findings turned into checklist items or bugs. Needs you is rebuilt around Ready for you, Coming up and Problems.

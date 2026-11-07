@@ -47,6 +47,7 @@
 .tl :focus-visible{outline:2px solid var(--brand);outline-offset:2px;border-radius:4px}
 .tl .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .tl .mono{font-family:var(--mono);font-size:12px}
+.tl a.mono,.tl span.mono{white-space:nowrap}
 .tl .muted{color:var(--ink-3)}
 .tl .src{font-size:12px;color:var(--ink-3)}
 .tl .row{display:flex;align-items:center;gap:8px}
@@ -342,6 +343,21 @@
 .tl .hv{display:grid;gap:10px}
 .tl .hv .ver{border:1px solid var(--line);border-radius:9px;padding:10px 12px}
 .tl .hv .add{color:var(--ok)} .tl .hv .rm{color:var(--bad);text-decoration:line-through}
+/* ---------- Needs you dashboard ---------- */
+.tl .pulse{display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:7px 12px;border:1px solid var(--line);background:var(--panel);border-radius:10px;margin-bottom:12px;font-size:12.5px}
+.tl .dash-top{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:12px;margin-bottom:12px;align-items:start}
+.tl .dash-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;align-items:start}
+@media (max-width:1180px){.tl .dash-top{grid-template-columns:1fr}.tl .dash-row{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.tl .mrow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:9px;align-items:center;padding:8px 14px;border-top:1px solid var(--line)}
+.tl .mrow.noico{grid-template-columns:minmax(0,1fr) auto}
+.tl .one{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tl .tt{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.tl .ico.sm{width:24px;height:24px;border-radius:7px}
+.tl .ico.sm svg{width:13px;height:13px}
+.tl .att.compact{padding:10px 14px;align-items:center}
+.tl .att.compact .why{margin-top:1px}
+.tl .cardfoot{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 14px;border-top:1px solid var(--line);font-size:12px;color:var(--ink-3)}
+
 /* ---------- checklist & handoff packet ---------- */
 .tl .ck{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:10px;padding:8px 0;border-top:1px solid var(--line);align-items:start}
 .tl .ckgroup{display:flex;justify-content:space-between;align-items:center;margin:16px 0 4px;padding-bottom:4px;border-bottom:1px solid var(--line)}
@@ -726,55 +742,54 @@ const V = {};
 
 /* ---------- Needs you ---------- */
 V.attention = () => {
-  const sc = items.filter(inScope);
+  const sc = items.filter(inScope), MAX = 3;
   const ready = sc.filter(packetReady), qs = sc.filter(questionOpen), probs = problems();
-  const coming = sc.filter(hrComing);
-  const deferred = deferredList();
-  const planningQ = sc.filter(i => i.status === 'planning');
-  const agents = sc.filter(i => ['live','needs','stale','failed','reported'].includes(i.run));
-  const row = (i, icon, why, btnHtml, extra='') => { const k = KINDICON[icon];
-    return `<div class="att ${icon==='packet' || icon==='question' ? 'decision' : ''}" data-a="open" data-v="${i.id}">
-      <div class="ico" style="background:${k[0]};color:${k[1]}">${I[icon]}</div>
-      <div style="min-width:0"><div class="row wrap"><a href="#" data-a="open" data-v="${i.id}" class="t" style="color:var(--ink)">${esc(i.title)}</a><span class="mono muted">${i.id}</span>${i.lead ? run(i.run, i.age) : ''}</div>
-        <div class="why">${why}</div>${extra}</div>${btnHtml}</div>`; };
+  const coming = sc.filter(hrComing), deferred = deferredList(), planningQ = sc.filter(i => i.status === 'planning');
+  const changes = CHANGES.filter(c => byId[c[1]] && inScope(byId[c[1]]));
+  const runsIn = sc.filter(i => i.run && i.run !== 'finished');
+  const strip = h => String(h).replace(/<[^>]+>/g, '');
+  const where = i => isEpic(i) ? `${childrenOf(i.id).filter(k => k.status==='done').length}/${childrenOf(i.id).length} child items done`
+    : i.status === 'progress' ? `in progress${workOf(i.id).length ? ` · ${workOf(i.id).filter(w => w.s==='done').length}/${workOf(i.id).length} done` : ''}`
+    : i.status === 'ready' ? (isBlocked(i) ? `blocked by ${unresolved(i).join(', ')}` : 'ready, not started') : STATUS[i.status].toLowerCase();
+  const fyRow = (i, icon, line, btn, extra='') => { const k = KINDICON[icon];
+    return `<div class="att decision compact" data-a="open" data-v="${i.id}"><div class="ico" style="background:${k[0]};color:${k[1]}">${I[icon]}</div>
+      <div style="min-width:0"><div class="row" style="min-width:0"><a href="#" data-a="open" data-v="${i.id}" class="tt" style="color:var(--ink)">${esc(i.title)}</a><span class="mono muted">${i.id}</span></div>
+        <div class="why one" title="${esc(strip(line))}">${line}</div>${extra}</div>${btn}</div>`; };
   const pkRow = i => { const c = curPacket(i.id), n = hrOf(i).filter(h => h.state === 'ready').length;
-    return row(i, 'packet', `Round ${c ? c.n : 1} handoff packet · ${n} thing${n===1?'':'s'} to verify · about ${c ? c.est : '?'}${c && c.n > 1 ? ' · round 1 changes were made' : ''}${pkStale(i) ? ' · <b style="color:var(--bad)">out of date: code changed after it was written</b>' : ''}`, `<button class="btn sm primary" data-a="packet" data-v="${i.id}">Open packet</button>`); };
+    return fyRow(i, 'packet', `Round ${c ? c.n : 1} packet · ${n} to verify · about ${c ? c.est : '?'}${pkStale(i) ? ' · <b style="color:var(--bad)">out of date: code changed after it was written</b>' : ''}`, `<button class="btn sm primary" data-a="packet" data-v="${i.id}">Open packet</button>`); };
   const qRow = i => { const open = S.replyOpen === i.id;
-    return row(i, 'question', `${esc(i.question.by)} is waiting on you: “${esc(i.question.text)}”`,
+    return fyRow(i, 'question', `${esc(i.question.by)} asks: “${esc(i.question.text)}”`,
       open ? '<span></span>' : `<button class="btn sm primary" data-a="reply" data-v="${i.id}">Answer</button>`,
-      open ? `<div class="reply" data-stop><label class="f" for="ans-${i.id}" style="margin:4px 0 0">Your answer to ${esc(i.question.by)}</label>
+      open ? `<div class="reply" data-stop><div class="src" style="white-space:normal">“${esc(i.question.text)}”</div><label class="sr" for="ans-${i.id}">Your answer to ${esc(i.question.by)}</label>
         <textarea id="ans-${i.id}" data-t="ans-${i.id}" placeholder="e.g. Per serving; put the 100 g values in a footnote.">${esc(S.text['ans-'+i.id] || '')}</textarea>
         <div class="row wrap"><button class="btn primary sm" data-a="sendanswer" data-v="${i.id}">Send answer</button><button class="btn sm" data-a="reply" data-v="${i.id}">Cancel</button><span class="src">${esc(i.question.by)} reads it on its next query.</span></div></div>` : ''); };
-  const prRow = r => row(byId[r.id], r.icon, esc(r.why), `<button class="btn sm" data-a="${r.a}" data-v="${r.v}">${r.action}</button>`, r.holds.length ? `<div class="src" style="margin-top:3px">Holds up ${r.holds.map(link).join(', ')}</div>` : '');
-  const where = i => i.status === 'progress' ? `in progress${workOf(i.id).length ? ` · ${workOf(i.id).filter(w => w.s==='done').length}/${workOf(i.id).length} work items done` : ''}` : i.status === 'ready' ? (isBlocked(i) ? `ready · blocked by ${unresolved(i).join(', ')}` : 'ready, not started') : STATUS[i.status].toLowerCase();
+  const pRow = r => { const i = byId[r.id], k = KINDICON[r.icon];
+    return `<div class="mrow"><div class="ico sm" style="background:${k[0]};color:${k[1]}">${I[r.icon]}</div><div style="min-width:0"><div class="row" style="min-width:0">${link(i.id)}<span class="tt">${esc(i.title)}</span></div><div class="src one" title="${esc(r.why)}">${esc(r.why)}</div></div><button class="btn sm" data-a="${r.a}" data-v="${r.v}">${r.action}</button></div>`; };
+  const card = (title, n, rows, empty, foot) => `<div class="card"><div class="sectionhead"><h3>${title} · ${n}</h3></div>${rows || `<div class="pad muted" style="padding-top:2px">${empty}</div>`}${foot ? `<div class="cardfoot">${foot}</div>` : ''}</div>`;
+  const viewAll = (n, a, v) => n > MAX ? `<a href="#" data-a="${a}" data-v="${v}">View all ${n} →</a>` : '';
+  const comingRows = coming.slice(0, MAX).map(i => { const t = hrOf(i).filter(h => h.state==='declared')[0].t;
+    return `<div class="mrow noico"><div style="min-width:0"><div class="row" style="min-width:0">${link(i.id)}<span class="tt">${esc(i.title)}</span></div><div class="src one" title="${esc(t)}">${isEpic(i) ? 'Epic-level review · ' : ''}${esc(t)}</div><div class="src one">Now: ${where(i)}</div></div></div>`; }).join('');
+  const defRows = deferred.slice(0, MAX).map(x => `<div class="mrow noico"><div style="min-width:0"><div class="row" style="min-width:0">${link(x.i.id)}<span class="tt">${esc(x.i.title)}</span></div><div class="src one" title="${esc(x.h.t)}">${esc(x.h.t)}</div>
+      <div class="src one">${x.h.last && x.h.last.ref ? `Test ticket ${link(x.h.last.ref)} · ${STATUS[byId[x.h.last.ref].status].toLowerCase()}` : 'No follow-up ticket'}</div></div>
+      ${x.h.last && x.h.last.ref ? '<span></span>' : `<button class="btn sm" data-a="mkfollow" data-v="${x.i.id}|${x.n}">Create test ticket</button>`}</div>`).join('');
+  const planRows = planningQ.slice(0, MAX).map(i => `<div class="mrow noico"><div style="min-width:0"><div class="row" style="min-width:0">${link(i.id)}<span class="tt">${esc(i.title)}</span></div><div class="src one">${i.type}${i.epic ? ` · ◆ ${esc(byId[i.epic].title)}` : ''}</div></div><button class="btn sm" data-a="promote" data-v="${i.id}">Move to Ready</button></div>`).join('');
+  const chgRows = (S.sinceAll ? changes : changes.slice(0, MAX)).map(c => `<div class="mrow noico"><div style="min-width:0"><div class="row" style="min-width:0"><span class="mono muted">${c[0]}</span>${link(c[1])}</div><div class="src one" title="${esc(c[2])}">${esc(c[2])}</div></div></div>`).join('');
   const nNow = ready.length + qs.length;
+  const RS = ['live','reported','needs','stale','failed'];
   return `
   <h1>Needs you${scopePill()}</h1>
-  <div class="sub">${nNow ? `<b style="color:var(--warn)">${nNow} for you now</b>: ${ready.length} handoff packet${ready.length===1?'':'s'} to verify, ${qs.length} question${qs.length===1?'':'s'}.` : 'Nothing is waiting on you right now.'} ${coming.length} review${coming.length===1?'':'s'} coming up. ${deferred.length} deferred. ${probs.length} problem${probs.length===1?'':'s'}.</div>
-  <div class="grid2">
-    <div class="stack">
-      <div class="card"><div class="sectionhead"><h3>Ready for you · ${ready.length + qs.length}</h3><span class="src">Verify and decide, or answer</span></div>
-        ${[...ready.map(pkRow), ...qs.map(qRow)].join('') || '<div class="pad muted">Nothing to verify. Agents will hand off when work is built.</div>'}</div>
-      <div class="card"><div class="sectionhead"><h3>Problems · ${probs.length}</h3><span class="src">Sorted by how much they hold up</span></div>
-        ${probs.map(prRow).join('') || '<div class="pad muted">No stale or failed runs, cycles or date conflicts.</div>'}</div>
-    </div>
-    <div class="stack">
-      <div class="card"><div class="sectionhead"><h3>Coming up for you · ${coming.length}</h3></div>
-        ${coming.map(i => `<div class="agent-row"><div style="min-width:0"><div class="row">${link(i.id)}<span style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(i.title)}</span></div><div class="src">${isEpic(i) ? '<b>Epic-level review</b> · ' : ''}${esc(hrOf(i).filter(h => h.state==='declared')[0].t)}</div><div class="src">Now: ${isEpic(i) ? `${childrenOf(i.id).filter(k => k.status==='done').length}/${childrenOf(i.id).length} child items done` : where(i)}</div></div></div>`).join('') || '<div class="pad muted">No human reviews declared on open work.</div>'}
-        <div class="pad src" style="border-top:1px solid var(--line)">Agents declare these up front. You get a handoff packet when the work reaches Review.</div></div>
-      <div class="card"><div class="sectionhead"><h3>Deferred, not verified · ${deferred.length}</h3></div>
-        ${deferred.map(x => `<div class="agent-row"><div style="min-width:0"><div class="row">${link(x.i.id)}<span style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(x.i.title)}</span></div><div class="src">${esc(x.h.t)}</div>
-          <div class="src">${x.h.last && x.h.last.ref ? `Test ticket ${link(x.h.last.ref)} · ${statusChip(byId[x.h.last.ref])}` : 'No follow-up ticket'}${x.h.at ? ` · deferred ${esc(x.h.at)}` : ''}</div></div>
-          ${x.h.last && x.h.last.ref ? '' : `<button class="btn sm" data-a="mkfollow" data-v="${x.i.id}|${x.n}">Create test ticket</button>`}</div>`).join('') || '<div class="pad muted">Nothing deferred.</div>'}
-        <div class="pad src" style="border-top:1px solid var(--line)">Agents see this list too (<span class="mono">review:deferred</span>) and pick it up during cleanup: finish the check, or propose another plan.</div></div>
-      <div class="card"><div class="sectionhead"><h3>Your Planning queue · ${planningQ.length}</h3></div>
-        ${planningQ.map(i => `<div class="agent-row"><div style="min-width:0"><div class="row">${link(i.id)}${typeBadge(i)}</div><div class="src" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(i.title)}</div></div><button class="btn sm" data-a="promote" data-v="${i.id}">Move to Ready</button></div>`).join('') || '<div class="pad muted">Nothing in Planning.</div>'}
-        <div class="pad src" style="border-top:1px solid var(--line)">Move items when you're satisfied, or ask an agent to.</div></div>
-      <div class="card"><div class="sectionhead"><h3>Agents right now</h3><a href="#" data-a="nav" data-v="agents" style="font-size:12px">All runs</a></div>
-        ${agents.map(i => `<div class="agent-row"><div style="min-width:0"><b>${esc(i.lead)}</b><div class="src" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${link(i.id)} ${esc(i.title)}</div></div>${run(i.run, i.age)}</div>`).join('') || '<div class="pad muted">No active runs.</div>'}</div>
-      <div class="card"><div class="sectionhead"><h3>Since you looked at 08:30</h3></div>
-        ${CHANGES.filter(c => byId[c[1]] && inScope(byId[c[1]])).map(c => `<div class="chg"><span class="mono muted">${c[0]}</span><span>${link(c[1])} ${esc(c[2])}</span></div>`).join('')}</div>
-    </div>
+  <div class="sub">${nNow ? `<b style="color:var(--warn)">${nNow} for you now</b> · ` : 'Nothing waiting on you · '}${probs.length} problem${probs.length===1?'':'s'} · ${coming.length} review${coming.length===1?'':'s'} coming up · ${deferred.length} deferred · ${planningQ.length} in Planning</div>
+  <div class="pulse"><b>Agents</b>${RS.map(k => [k, runsIn.filter(i => i.run === k).length]).filter(x => x[1]).map(([k, n]) => `<span class="row" style="gap:4px">${run(k)}<span class="muted">× ${n}</span></span>`).join('') || '<span class="muted">No active runs</span>'}<a href="#" data-a="nav" data-v="agents" style="margin-left:auto">All runs →</a></div>
+  <div class="dash-top">
+    <div class="card"><div class="sectionhead"><h3>For you now · ${nNow}</h3><span class="src">Verify and decide, or answer</span></div>
+      ${[...ready.map(pkRow), ...qs.map(qRow)].join('') || '<div class="pad muted" style="padding-top:2px">Nothing to verify. Agents will hand off when work is built.</div>'}</div>
+    ${card('Problems', probs.length, probs.slice(0, 5).map(pRow).join(''), 'No stale or failed runs, cycles or date conflicts.', probs.length > 5 ? `<span>${probs.length - 5} more</span>` : '')}
+  </div>
+  <div class="dash-row">
+    ${card('Coming up for you', coming.length, comingRows, 'No human reviews declared on open work.', `<span>Packets arrive at Review</span>${viewAll(coming.length, 'nav', 'review')}`)}
+    ${card('Deferred, not verified', deferred.length, defRows, 'Nothing deferred.', `<span title="Agents query review:deferred during cleanup">Agents see this too</span>${viewAll(deferred.length, 'workfilter', 'deferred')}`)}
+    ${card('Your Planning queue', planningQ.length, planRows, 'Nothing in Planning.', `<span>Or ask an agent</span>${viewAll(planningQ.length, 'workfilter', 'planning')}`)}
+    ${card('Since you looked', changes.length, chgRows, 'No changes since 08:30.', `<span>Since 08:30</span>${changes.length > MAX ? `<a href="#" data-a="sinceall">${S.sinceAll ? 'Show fewer' : `View all ${changes.length} →`}</a>` : ''}`)}
   </div>`;
 };
 
@@ -836,6 +851,15 @@ function detailFor(i){
   return Object.assign({outcome:'', acceptance:[], work:[], checks:[], docs:[], runs: i.lead ? [{r:i.run, who:i.lead, what:RUNS[i.run] ? RUNS[i.run].d : '', lead:true}] : [],
     activity: i.imported ? [['Nov 1','Imported from Jira (dry-run report reviewed)']] : i.fromReview ? [['Nov 5', `Created from your human review of ${i.fromReview}`]] : [['—','Created by owner']]}, DETAIL[i.id] || {});
 }
+const hrRow = (i, h) => `<div class="ck"><span class="sicon" style="color:var(--warn)" aria-hidden="true">${small(I.person)}</span><div><div style="font-weight:600">${esc(h.t)}</div>${h.last && h.last.deferred ? `<div class="src">You deferred this in round ${h.last.round}${h.last.note ? `: “${esc(h.last.note)}”` : ''} → ${h.last.ref ? `test ticket ${link(h.last.ref)}` : 'agent follows the project workflow'}</div>`
+    : h.last ? `<div class="src">You sent this back in round ${h.last.round}: “${esc(h.last.note)}”${h.last.ref ? ` → ${link(h.last.ref)}` : ' → checklist item'}</div>` : ''}${h.state === 'approved' && h.at ? `<div class="src">Approved on <span class="mono">${esc(h.at)}</span>${i.head && i.head !== h.at ? ' · code changed since' : ''}</div>` : ''}</div><div><span class="chip ${HR[h.state][0]}">${HR[h.state][1]}</span></div></div>`;
+const hrCard = i => { const hrs = hrOf(i), ep = !isEpic(i) && i.epic && byId[i.epic] && hrOf(byId[i.epic]).length ? byId[i.epic] : null;
+  const note = !hrs.length ? (isEpic(i) ? 'None on the epic. Reviews, if any, live on its child tickets.'
+      : ep ? `None on this ticket. It is reviewed with its epic: ${link(ep.id)} ${esc(ep.title)}.` : 'No human review declared. When its checks pass, the agent can close this without you.')
+    : isEpic(i) ? `Epic-level review: verified once when the epic's work is ready to merge. Commits reported for any ticket in this epic mark its packet out of date.`
+    : (!packetReady(i) && isOpen(i)) ? `The agent writes a handoff packet when the work is built. This ticket can't close until every item is decided.` : '';
+  return `<div class="card pad hrcard"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Human review · ${hrs.length}</h3>${packetReady(i) ? `<button class="btn primary sm" data-a="packet" data-v="${i.id}">${small(I.packet)} Open packet</button>` : ''}</div>
+    ${hrs.map(h => hrRow(i, h)).join('')}${note ? `<div class="src" style="margin-top:${hrs.length ? 8 : 6}px">${note}</div>` : ''}</div>`; };
 const CK = {done:['s-done','✓'], current:['s-current',''], todo:['s-planned',''], blocked:['s-blocked','!']};
 const CHK = {pass:['s-done','✓','passed'], fail:['s-blocked','×','failed'], todo:['s-planned','','not run yet']};
 V.ticket = () => {
@@ -851,18 +875,14 @@ V.ticket = () => {
         ${(w.contrib || []).map(c => `<div class="contrib"><div class="row wrap">${prov(c[0])}<b>${esc(c[1])}</b><span class="src">${esc(c[2])}</span></div><div>${esc(c[3])}</div></div>`).join('')}</div>
       <div class="src" style="text-align:right">${w.who ? esc(w.who) : 'not started'}<br>${w.when || ''}</div></div>`).join('');
   const checkRows = d.checks.map(c => `<div class="ck"><span class="sicon ${CHK[c[3]][0]}" aria-hidden="true">${CHK[c[3]][1]}</span><div><div style="font-weight:600">${esc(c[0])}<span class="sr"> (${CHK[c[3]][2]})</span></div><div class="src">${esc(c[2])}</div></div><div>${c[3]==='todo' ? '<span class="src">not run yet</span>' : prov(c[1])}</div></div>`).join('');
-  const hrRows = hrs.map(h => `<div class="ck"><span class="sicon" style="color:var(--warn)" aria-hidden="true">${small(I.person)}</span><div><div style="font-weight:600">${esc(h.t)}</div>${h.last && h.last.deferred ? `<div class="src">You deferred this in round ${h.last.round}${h.last.note ? `: “${esc(h.last.note)}”` : ''} → ${h.last.ref ? `test ticket ${link(h.last.ref)}` : 'agent follows the project workflow'}</div>`
-      : h.last ? `<div class="src">You sent this back in round ${h.last.round}: “${esc(h.last.note)}”${h.last.ref ? ` → ${link(h.last.ref)}` : ' → checklist item'}</div>` : ''}${h.state === 'approved' && h.at ? `<div class="src">Approved on <span class="mono">${esc(h.at)}</span>${i.head && i.head !== h.at ? ' · code changed since' : ''}</div>` : ''}</div><div><span class="chip ${HR[h.state][0]}">${HR[h.state][1]}</span></div></div>`).join('');
   const cl = `
     <div class="ckgroup"><h3 style="margin:0">Work · ${wdone}/${d.work.length}</h3>${d.history ? '<button class="btn ghost sm" data-a="planhistory">Checklist history</button>' : ''}</div>
     ${workRows || `<div class="muted">${i.status === 'planning' || i.status === 'inbox' ? 'The agent writes its work checklist when it claims the item.' : 'No work items yet.'}</div>`}
     <div class="ckgroup"><h3 style="margin:0">Agent checks · ${d.checks.filter(c => c[3]==='pass').length}/${d.checks.length}</h3><span class="src">What the agent verifies itself</span></div>
     ${checkRows || '<div class="muted">No checks listed yet.</div>'}
-    <div class="ckgroup"><h3 style="margin:0">Human review · ${hrs.length}</h3>${packetReady(i) ? `<button class="btn primary sm" data-a="packet" data-v="${i.id}">${small(I.packet)} Open packet</button>` : ''}</div>
-    ${hrRows || `<div class="callout" style="background:var(--gray-soft);color:var(--ink-2)">No human review declared. When its checks pass, the agent can close this without you.</div>`}
-    ${hrs.length && !packetReady(i) && isOpen(i) ? `<div class="src" style="margin-top:6px">The agent writes a handoff packet when the work is built. This ticket can't close until every item here is approved.</div>` : ''}`;
+`;
   const docs = d.docs.map(x => `<div class="lrow">${small(x[0].startsWith('handoff') ? I.packet : I.doc)}<span class="grow">${esc(x[0])} <span class="src">${esc(x[1])}</span></span><span class="src">${esc(x[2])} · ${esc(x[3])}</span></div>`).join('');
-  const tabs = [['checklist','Checklist'], ['docs', `Documents <span class="muted">${d.docs.length}</span>`], ['activity','Activity']];
+  const tabs = [['checklist','Work and checks'], ['docs', `Documents <span class="muted">${d.docs.length}</span>`], ['activity','Activity']];
   const tab = S.tab || 'checklist';
   return `
   ${!inScope(i) ? `<div class="callout row wrap" style="margin-bottom:12px"><span class="grow">${i.id} belongs to <b>${P[i.proj].short}</b>, outside the project you're viewing.</span><button class="btn sm" data-a="scope" data-v="${i.proj}">Switch to ${P[i.proj].short}</button></div>` : ''}
@@ -892,6 +912,7 @@ V.ticket = () => {
     </div>
   </div>
   <div class="stack">
+    ${hrCard(i)}
     <div class="card pad"><h3>Lead and runs</h3>
       ${d.runs.map(r => `<div class="lrow" style="align-items:flex-start;padding:6px 0"><div class="grow"><div class="row wrap"><b>${esc(r.who)}</b>${r.lead ? '<span class="chip c-gray">lead</span>' : ''}${run(r.r)}</div><div class="src">${esc(r.what)}</div></div></div>`).join('') || '<div class="muted">Unclaimed. The next agent that asks for ready work can claim it.</div>'}
       ${d.conflict && i.lead ? `<div class="callout warn" style="margin-top:6px">${esc(d.conflict)}</div>` : ''}
@@ -927,10 +948,7 @@ function epicView(i, d){
         ${byStatus.map(([s, l]) => `<div class="src" style="margin-top:8px">${STATUS[s]} · ${l.length}</div>${l.map(k => `<div class="lrow">${typeBadge(k)}${link(k.id)}<span class="grow" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(k.title)}</span>${hrChip(k)}${blockedChip(k)}</div>`).join('')}`).join('') || '<div class="muted">No items yet. When planned, the agent breaks this epic into stories, tasks and bugs.</div>'}</div>
     </div>
     <div class="stack">
-      <div class="card pad"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Human review · ${hrOf(i).length}</h3>${packetReady(i) ? `<button class="btn primary sm" data-a="packet" data-v="${i.id}">Open packet</button>` : ''}</div>
-        ${hrOf(i).map(h => `<div class="ck"><span class="sicon" style="color:var(--warn)" aria-hidden="true">${small(I.person)}</span><div style="font-weight:600">${esc(h.t)}</div><div><span class="chip ${HR[h.state][0]}">${HR[h.state][1]}</span></div></div>`).join('')
-          || '<div class="muted" style="margin-top:6px">None on the epic. Reviews, if any, live on the child tickets.</div>'}
-        ${hrOf(i).length ? `<div class="src" style="margin-top:6px">Epic-level review: verified once when the epic's work is ready to merge. Commits reported for any ticket in this epic mark its packet out of date.</div>` : ''}</div>
+      ${hrCard(i)}
       <div class="card pad"><h3>Activity</h3>${[...(S.extraActivity[i.id] || []), ...d.activity].map(a => `<div class="act"><span class="src mono">${a[0]}</span><span>${esc(a[1])}</span></div>`).join('') || '<div class="muted">No activity.</div>'}</div></div></div>`;
 }
 
@@ -1263,6 +1281,8 @@ const ACT = {
   nav: v => go(v),
   open: v => openTicket(v),
   label: v => go('label', {label:v}),
+  workfilter: v => go('work', {filter:v, epicF:'all', labelF:'all', workMode:'board', showBlocked:false}),
+  sinceall: () => { S.sinceAll = !S.sinceAll; render(); },
   labelboard: v => go('work', {labelF:v, epicF:'all', filter:'all'}),
   scope: v => { S.scope = v; S.scopeOpen = false; S.epicF = 'all'; S.labelF = 'all'; if (S.view === 'projects') go('attention'); else render(); toast(v === 'all' ? 'Showing all projects.' : `Showing only ${P[v].short}.`); },
   scopemenu: () => { S.scopeOpen = !S.scopeOpen; render(); if (S.scopeOpen) setTimeout(() => { const b = document.querySelector('.scopemenu [aria-checked=true]'); if (b) b.focus(); }, 0); },
