@@ -11,6 +11,9 @@ Status: discovery draft, updated 2026-11-06. The confirmed choices below are own
 5. Approval gates vary by project and its agent workflow. Some projects require explicit owner approval at defined points; others allow an agent to finish and report completion without an owner gate.
 6. Human and agents may enter or change planned dates. Effort values and velocity-based backlog forecasts are desirable planning additions; forecasts must be distinguished from entered dates.
 7. The V1 browser UI is available on the host machine only. Other-device or public access is outside the V1 boundary; this public repository should keep local-only networking as its default.
+8. The workflow includes a **Planning** status between Inbox and Ready. While an item is in Planning, its planning artifacts (for example UI/UX design, PRD, TDD) are produced and reviewed. An item moves to Ready only when it is actually ready for an agent to start building. (Added 2026-11-06.)
+9. Ceremony should fit the risk. Each project defines which planning artifacts are required before Ready, and small changes may skip UX/TDD; high-stakes production projects may require all of them. Each project also defines who may move an item to Ready: the owner, or an agent once the project's readiness gate is met. (Added 2026-11-06.)
+10. The browser UI starts at an all-projects view on each visit, so the owner is never unknowingly scoped to a single project. (Added 2026-11-06.)
 
 ## Product intent
 
@@ -91,7 +94,7 @@ Priority labels: **P0** is necessary for a useful first release; **P1** adds pla
 
 ## Initial workflow hypothesis
 
-`Inbox → Ready → In progress → Review → Done`, with `Blocked` as a derived condition and `Canceled` as an explicit terminal outcome. Review is used when the project's workflow requires or requests it; a no-approval project can move from In progress to Done after agent-reported completion. An item in Review can return to In progress after changes are requested. Run state (`working`, `needs input`, `finished`, `failed`, `stale`) is separate from work item status. The statuses are still a proposal; the project-dependent approval choice is confirmed.
+`Inbox → Planning → Ready → In progress → Review → Done`, with `Blocked` as a derived condition and `Canceled` as an explicit terminal outcome. Agents may produce planning artifacts for an item in Planning, but "ready to start" queries (A05) return only Ready items. The proposed design lets each project define which planning artifacts must be approved before Ready; see [UI design](UI_DESIGN.md). Review is used when the project's workflow requires or requests it; a no-approval project can move from In progress to Done after agent-reported completion. An item in Review can return to In progress after changes are requested. Run state (`working`, `needs input`, `finished`, `failed`, `stale`) is separate from work item status. The Planning status and the project-dependent approval choice are confirmed; the other statuses are still a proposal.
 
 ## MVP V1 boundary proposed for discussion
 

@@ -1,0 +1,1349 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Task Lite — UI prototype (rev 2)</title>
+<!--
+  Clickable UI/UX prototype for the local agent work tracker (MVP V1), revision 2.
+  Self-contained: no network requests, no build step. All data is disposable sample work (O09).
+  Design rationale and requirement mapping: docs/UI_DESIGN.md
+-->
+<style>
+/* ---------- tokens (contrast-checked: text >= 4.5:1, control borders >= 3:1) ---------- */
+.tl{
+  --bg:#f6f7f9; --panel:#fff; --panel-2:#f1f3f6; --line:#e3e6eb; --line-2:#d3d8df; --ctl:#8a929f;
+  --ink:#16191f; --ink-2:#444c59; --ink-3:#5f6878; --on-fill:#fff;
+  --brand:#3b5bdb; --brand-soft:#e8edff;
+  --ok:#237032; --ok-soft:#e6f4ea; --warn:#9a4705; --warn-soft:#fdf1e2;
+  --bad:#c22b2b; --bad-soft:#fdecec; --info:#1864ab; --info-soft:#e7f1fb;
+  --violet:#6741d9; --violet-soft:#f0ebff; --gray-soft:#eef0f3; --teal:#0b7285; --teal-soft:#e3f6f8;
+  --shadow:0 12px 40px rgba(20,25,35,.18);
+  --mono:ui-monospace,"Cascadia Code","JetBrains Mono",Consolas,monospace;
+  --sans:Inter,"Segoe UI",system-ui,-apple-system,sans-serif;
+  font:13px/1.45 var(--sans); color:var(--ink); background:var(--bg); color-scheme:light;
+}
+.tl[data-theme=dark]{
+  --bg:#0f1115;--panel:#161920;--panel-2:#1c2029;--line:#2a303b;--line-2:#363d4a;--ctl:#6f788a;
+  --ink:#e6e9ef;--ink-2:#b8c0cc;--ink-3:#99a2b4;--on-fill:#0f1115;
+  --brand:#8ea2ff;--brand-soft:#1d2440;--ok:#5bd06f;--ok-soft:#14281a;--warn:#f0a020;--warn-soft:#2d2210;
+  --bad:#ff7b7b;--bad-soft:#351818;--info:#5cb3f8;--info-soft:#132536;--violet:#a990ff;--violet-soft:#241c3e;--gray-soft:#23272f;--teal:#3bc9db;--teal-soft:#10292d;
+  --shadow:0 12px 40px rgba(0,0,0,.5); color-scheme:dark;
+}
+@media (prefers-color-scheme:dark){
+  .tl:not([data-theme=light]){
+    --bg:#0f1115;--panel:#161920;--panel-2:#1c2029;--line:#2a303b;--line-2:#363d4a;--ctl:#6f788a;
+    --ink:#e6e9ef;--ink-2:#b8c0cc;--ink-3:#99a2b4;--on-fill:#0f1115;
+    --brand:#8ea2ff;--brand-soft:#1d2440;--ok:#5bd06f;--ok-soft:#14281a;--warn:#f0a020;--warn-soft:#2d2210;
+    --bad:#ff7b7b;--bad-soft:#351818;--info:#5cb3f8;--info-soft:#132536;--violet:#a990ff;--violet-soft:#241c3e;--gray-soft:#23272f;--teal:#3bc9db;--teal-soft:#10292d;
+    --shadow:0 12px 40px rgba(0,0,0,.5); color-scheme:dark;
+  }
+}
+.tl *{box-sizing:border-box}
+.tl button,.tl select,.tl input,.tl textarea{font:inherit;color:inherit}
+.tl button{cursor:pointer}
+.tl a{color:var(--brand);text-decoration:none;cursor:pointer}
+.tl a:hover{text-decoration:underline}
+.tl :focus-visible{outline:2px solid var(--brand);outline-offset:2px;border-radius:4px}
+.tl .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.tl .mono{font-family:var(--mono);font-size:12px}
+.tl .muted{color:var(--ink-3)}
+.tl .src{font-size:12px;color:var(--ink-3)}
+.tl .row{display:flex;align-items:center;gap:8px}
+.tl .wrap{flex-wrap:wrap}
+.tl .grow{flex:1;min-width:0}
+.tl .stack{display:grid;gap:12px}
+.tl .grid2{display:grid;grid-template-columns:minmax(0,1fr) 310px;gap:16px;align-items:start}
+.tl h1{font-size:19px;margin:0 0 2px;font-weight:650;letter-spacing:-.01em}
+.tl h2{font-size:14px;margin:0;font-weight:650}
+.tl h3{font-size:11.5px;margin:0 0 8px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);font-weight:650}
+.tl .sub{color:var(--ink-3);margin:2px 0 14px}
+.tl .card{background:var(--panel);border:1px solid var(--line);border-radius:10px}
+.tl .pad{padding:12px 14px}
+
+/* ---------- shell ---------- */
+.tl .shell{display:grid;grid-template-columns:220px minmax(0,1fr);min-height:820px;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.tl nav{background:var(--panel);border-right:1px solid var(--line);padding:14px 10px;display:flex;flex-direction:column;gap:2px}
+.tl .logo{display:flex;align-items:center;gap:8px;font-weight:700;padding:2px 8px 14px}
+.tl .logo i{width:24px;height:24px;border-radius:7px;background:var(--brand);display:grid;place-items:center;color:var(--on-fill);font-style:normal;font-size:11px;flex:none}
+.tl .navbtn{display:flex;align-items:center;gap:10px;min-height:32px;padding:5px 9px;border-radius:7px;border:0;background:none;text-align:left;color:var(--ink-2);width:100%}
+.tl .navbtn svg{width:16px;height:16px;flex:none}
+.tl .navbtn:hover{background:var(--panel-2)}
+.tl .navbtn[aria-current=page]{background:var(--brand-soft);color:var(--brand);font-weight:600}
+.tl .badge{margin-left:auto;font-size:11px;background:var(--bad);color:var(--on-fill);border-radius:9px;padding:0 6px;font-weight:700;min-width:18px;text-align:center}
+.tl .badge.n{background:var(--gray-soft);color:var(--ink-2)}
+.tl .navsec{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);padding:14px 9px 4px;font-weight:650}
+.tl .sw{width:9px;height:9px;border-radius:3px;flex:none;display:inline-block}
+.tl .health{margin-top:auto;border:1px solid var(--line);border-radius:9px;padding:9px 10px;font-size:12px;color:var(--ink-2);display:grid;gap:4px;text-align:left;background:none;width:100%}
+.tl .health:hover{background:var(--panel-2)}
+.tl main{display:flex;flex-direction:column;min-width:0}
+.tl header{display:flex;align-items:center;gap:10px;padding:9px 18px;border-bottom:1px solid var(--line);background:var(--panel)}
+.tl .crumbs{color:var(--ink-3);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tl .crumbs b{color:var(--ink);font-weight:600}
+.tl .search{margin-left:auto;display:flex;align-items:center;gap:8px;border:1px solid var(--ctl);background:var(--panel-2);border-radius:8px;padding:5px 10px;width:300px;color:var(--ink-3);text-align:left}
+.tl kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--ctl);border-radius:4px;padding:0 4px;color:var(--ink-3);background:var(--panel)}
+.tl .iconbtn{border:1px solid var(--ctl);background:var(--panel);border-radius:8px;width:32px;height:32px;display:grid;place-items:center;flex:none}
+.tl .iconbtn svg{width:16px;height:16px}
+.tl .view{padding:18px 20px 28px;flex:1;min-width:0;outline:none}
+@media (max-width:1180px){
+  .tl .shell{grid-template-columns:60px minmax(0,1fr)}
+  .tl nav .nl,.tl nav .navsec,.tl nav .projlink,.tl .logo span,.tl .health .hx{display:none}
+  .tl .navbtn{justify-content:center;position:relative}
+  .tl .navbtn .badge{position:absolute;top:0;right:2px;margin:0}
+  .tl .health{place-items:center}
+  .tl .grid2{grid-template-columns:minmax(0,1fr) 270px}
+  .tl .search{width:220px}
+}
+
+/* ---------- project scope switcher ---------- */
+.tl .scopewrap{position:relative;margin:0 0 10px}
+.tl .scopebtn{display:flex;align-items:center;gap:8px;width:100%;border:1px solid var(--ctl);background:var(--panel);border-radius:8px;padding:6px 9px;text-align:left;min-height:36px}
+.tl .scopebtn:hover{background:var(--panel-2)}
+.tl .scopebtn .lbl2{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);font-weight:650;display:block;line-height:1.1}
+.tl .scopebtn .nm{font-weight:650;display:block;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tl .scopemenu{position:absolute;left:0;top:calc(100% + 4px);width:260px;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:6px;z-index:15}
+.tl .scopemenu button{display:flex;align-items:center;gap:9px;width:100%;border:0;background:none;border-radius:7px;padding:7px 9px;text-align:left;min-height:34px}
+.tl .scopemenu button:hover,.tl .scopemenu button[aria-checked=true]{background:var(--brand-soft)}
+.tl .scopemenu .hint{font-size:12px;color:var(--ink-3);padding:6px 9px 2px;border-top:1px solid var(--line);margin-top:4px}
+.tl .scopebar{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-2);background:var(--panel-2);border:1px solid var(--line);border-radius:999px;padding:1px 9px}
+.tl .pdocs{display:flex;gap:4px;flex-wrap:wrap}
+.tl .pdoc{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:600;border-radius:5px;padding:0 6px;line-height:18px;border:1px solid transparent}
+.tl .pd-approved{background:var(--ok-soft);color:var(--ok)}
+.tl .pd-review{background:var(--warn-soft);color:var(--warn);border-color:color-mix(in srgb,var(--warn) 40%,transparent)}
+.tl .pd-drafting{border:1.5px dashed var(--violet);color:var(--violet)}
+.tl .pd-none{border:1px dashed var(--ctl);color:var(--ink-3)}
+.tl .gnode.ext rect.b{fill:var(--panel-2);stroke-dasharray:4 3}
+@media (max-width:1180px){.tl .scopebtn .txt,.tl .scopebtn .chev{display:none}.tl .scopebtn{justify-content:center;padding:6px}}
+
+/* ---------- chips, status, priority ---------- */
+.tl .chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:1px 8px;border-radius:999px;border:1px solid transparent;white-space:nowrap;font-weight:550;line-height:18px}
+.tl .st-inbox{background:var(--gray-soft);color:var(--ink-2)}
+.tl .st-planning{background:var(--teal-soft);color:var(--teal)}
+.tl .st-ready{background:var(--info-soft);color:var(--info)}
+.tl .st-progress{background:var(--violet-soft);color:var(--violet)}
+.tl .st-review{background:var(--warn-soft);color:var(--warn)}
+.tl .st-done{background:var(--ok-soft);color:var(--ok)}
+.tl .st-canceled{background:var(--gray-soft);color:var(--ink-3);text-decoration:line-through}
+.tl .c-bad{background:var(--bad-soft);color:var(--bad);border-color:color-mix(in srgb,var(--bad) 35%,transparent)}
+.tl .c-warn{background:var(--warn-soft);color:var(--warn);border-color:color-mix(in srgb,var(--warn) 40%,transparent)}
+.tl .c-info{background:var(--info-soft);color:var(--info)}
+.tl .c-gray{background:var(--gray-soft);color:var(--ink-2)}
+.tl .c-ok{background:var(--ok-soft);color:var(--ok)}
+.tl .type{font-family:var(--mono);font-size:11px;color:var(--ink-3);border:1px solid var(--line-2);border-radius:4px;padding:0 4px}
+.tl .prio{display:inline-flex;align-items:center;gap:3px;font:600 11.5px var(--mono);color:var(--ink-2)}
+.tl .prio svg{width:12px;height:12px}
+
+/* ---------- run state: icon shape + text, never colour alone ---------- */
+.tl .run{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--ink-2);white-space:nowrap}
+.tl .ri{width:12px;height:12px;border-radius:50%;display:inline-grid;place-items:center;font:800 9px/1 var(--sans);font-style:normal;flex:none}
+.tl .ri-live{background:var(--ok);box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 25%,transparent);animation:tlpulse 2s infinite}
+.tl .ri-reported{border:2px solid var(--violet)}
+.tl .ri-stale{border:1.5px dashed var(--ink-3)}
+.tl .ri-needs{background:var(--warn);color:var(--on-fill)}
+.tl .ri-failed{background:var(--bad);color:var(--on-fill)}
+.tl .ri-finished{background:var(--gray-soft);color:var(--ink-2);border:1px solid var(--ctl)}
+.tl .ri-interrupted{border:1.5px solid var(--ink-3);color:var(--ink-3)}
+.tl .run-failed>span{color:var(--bad);font-weight:600}
+.tl .run-needs>span{color:var(--warn);font-weight:600}
+.tl .run-stale>span{color:var(--ink-3);font-style:italic}
+@keyframes tlpulse{50%{box-shadow:0 0 0 5px color-mix(in srgb,var(--ok) 0%,transparent)}}
+@media (prefers-reduced-motion:reduce){.tl .ri-live{animation:none}.tl *{transition:none!important}}
+
+/* ---------- provenance badges: each kind has its own border style + icon ---------- */
+.tl .prov{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;border-radius:6px;padding:1px 7px;font-weight:600;white-space:nowrap;line-height:17px}
+.tl .prov svg{width:12px;height:12px;flex:none}
+.tl .pv-owner{background:var(--ok);color:var(--on-fill)}
+.tl .pv-agent{border:1.5px dashed var(--violet);color:var(--violet)}
+.tl .pv-observed{border:1.5px solid var(--violet);color:var(--violet);background:var(--violet-soft)}
+.tl .pv-relayed{border:1.5px dotted var(--ink-3);color:var(--ink-2)}
+.tl .pv-auto{background:var(--info-soft);color:var(--info)}
+.tl .pv-git{background:var(--gray-soft);color:var(--ink-2)}
+.tl .pv-pending{border:1.5px solid var(--warn);color:var(--warn);background:var(--warn-soft)}
+
+/* ---------- buttons & form controls ---------- */
+.tl .btn{border:1px solid var(--ctl);background:var(--panel);border-radius:8px;min-height:30px;padding:4px 12px;font-weight:550;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.tl .btn svg{width:14px;height:14px}
+.tl .btn:hover{background:var(--panel-2)}
+.tl .btn.primary{background:var(--brand);border-color:var(--brand);color:var(--on-fill)}
+.tl .btn.danger{background:var(--bad);border-color:var(--bad);color:var(--on-fill)}
+.tl .btn.sm{min-height:28px;padding:2px 10px;font-size:12.5px}
+.tl .btn:disabled{opacity:.55;cursor:not-allowed}
+.tl .btn.ghost{border-color:transparent;background:none;color:var(--brand)}
+.tl .seg{display:inline-flex;border:1px solid var(--ctl);border-radius:8px;overflow:hidden}
+.tl .seg button{border:0;background:var(--panel);min-height:28px;padding:3px 11px;border-right:1px solid var(--ctl)}
+.tl .seg button:last-child{border-right:0}
+.tl .seg button[aria-pressed=true]{background:var(--brand-soft);color:var(--brand);font-weight:650}
+.tl .fchip{border:1px solid var(--ctl);border-radius:999px;min-height:28px;padding:2px 11px;background:var(--panel);font-size:12.5px;display:inline-flex;align-items:center;gap:6px}
+.tl .fchip b{font-weight:700}
+.tl .fchip[aria-pressed=true]{background:var(--ink);color:var(--panel);border-color:var(--ink)}
+.tl textarea,.tl .input,.tl select{width:100%;border:1px solid var(--ctl);border-radius:8px;padding:7px 9px;background:var(--panel);color:var(--ink)}
+.tl textarea{min-height:72px;resize:vertical}
+.tl select{width:auto;padding:3px 8px;min-height:28px}
+.tl label.f{display:block;font-size:12px;color:var(--ink-3);margin:10px 0 4px}
+
+/* ---------- needs you ---------- */
+.tl .filters{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.tl .att{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:12px;align-items:start;padding:12px 14px;border-top:1px solid var(--line);cursor:pointer}
+.tl .att:first-child{border-top:0}
+.tl .att:hover{background:var(--panel-2)}
+.tl .att.decision{background:color-mix(in srgb,var(--warn-soft) 55%,transparent)}
+.tl .att.decision:hover{background:var(--warn-soft)}
+.tl .att .why{color:var(--ink-2);margin-top:2px}
+.tl .att .t{font-weight:600}
+.tl .ico{width:28px;height:28px;border-radius:8px;display:grid;place-items:center}
+.tl .ico svg{width:15px;height:15px}
+.tl .reply{margin-top:8px;display:grid;gap:6px;cursor:default}
+.tl .agent-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 8px;padding:9px 14px;border-top:1px solid var(--line)}
+.tl .agent-row:first-of-type{border-top:0}
+.tl .chg{display:grid;grid-template-columns:44px minmax(0,1fr);gap:8px;padding:6px 14px;font-size:12.5px;border-top:1px solid var(--line)}
+.tl .chg:first-of-type{border-top:0}
+.tl .sectionhead{display:flex;align-items:center;justify-content:space-between;padding:11px 14px 7px}
+.tl .sectionhead h3{margin:0}
+
+/* ---------- work ---------- */
+.tl .board{display:grid;grid-template-columns:repeat(6,minmax(176px,1fr));gap:10px;overflow-x:auto;padding-bottom:6px}
+.tl .col{background:var(--panel-2);border-radius:10px;padding:8px;min-height:440px}
+.tl .colh{display:flex;justify-content:space-between;align-items:center;padding:2px 4px 8px;font-weight:650;font-size:12.5px;color:var(--ink-2)}
+.tl .subh{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--ink-2);padding:8px 4px 6px;border-top:1px dashed var(--ctl);margin-top:4px}
+.tl a.tcard{display:grid;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:9px 10px;margin-bottom:8px;color:var(--ink);text-decoration:none}
+.tl a.tcard:hover{border-color:var(--brand);text-decoration:none}
+.tl a.tcard.isblocked{border-left:3px solid var(--bad)}
+.tl a.tcard.owed{border-left:3px solid var(--warn)}
+.tl .tcard .t{font-weight:600;line-height:1.3}
+.tl .tcard .prov,.tl .tcard .chip{white-space:normal;line-height:16px;padding-top:1px;padding-bottom:1px}
+.tl .tcard .meta{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--ink-3);flex-wrap:wrap}
+.tl .mini{display:flex;flex-wrap:wrap;gap:4px;padding:0 4px 6px}
+.tl table{width:100%;border-collapse:collapse}
+.tl th{font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);text-align:left;font-weight:650;padding:8px 10px;border-bottom:1px solid var(--line)}
+.tl td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+.tl tbody tr:hover{background:var(--panel-2)}
+.tl tr.clickrow{cursor:pointer}
+
+/* ---------- ticket ---------- */
+.tl .tk-head{display:flex;gap:12px;align-items:flex-start;margin-bottom:12px}
+.tl .banner{border:1px solid var(--warn);background:var(--warn-soft);border-radius:10px;padding:10px 12px;display:flex;gap:10px;align-items:center;margin-bottom:12px}
+.tl .banner>svg{width:18px;height:18px;flex:none;color:var(--warn)}
+.tl .banner.q{align-items:flex-start}
+.tl .tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin-bottom:12px}
+.tl .tabs button{border:0;background:none;padding:7px 10px;color:var(--ink-3);border-bottom:2px solid transparent;margin-bottom:-1px;min-height:32px}
+.tl .tabs button[aria-selected=true]{color:var(--ink);border-color:var(--brand);font-weight:650}
+.tl .step{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:10px;padding:9px 0;border-top:1px solid var(--line);align-items:start}
+.tl .step:first-child{border-top:0}
+.tl .sicon{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:10px;font-weight:800;margin-top:1px;flex:none}
+.tl .s-done{background:var(--ok);color:var(--on-fill)}
+.tl .s-current{border:2px solid var(--violet)}
+.tl .s-current::after{content:"";width:6px;height:6px;border-radius:50%;background:var(--violet)}
+.tl .s-planned{border:1.5px dashed var(--ctl)}
+.tl .s-blocked{background:var(--bad);color:var(--on-fill)}
+.tl .s-skipped{background:var(--gray-soft);color:var(--ink-3);border:1px solid var(--ctl)}
+.tl .step .title{font-weight:600}
+.tl .step s{color:var(--ink-3);font-weight:400}
+.tl .contrib{margin-top:6px;border-left:2px solid var(--line-2);padding:4px 0 4px 10px;font-size:12.5px;color:var(--ink-2);display:grid;gap:3px}
+.tl .changed{font-size:12px;color:var(--warn);margin-top:3px}
+.tl .ev{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 10px;padding:9px 0;border-top:1px solid var(--line);align-items:center}
+.tl .ev:first-child{border-top:0}
+.tl .ev .d{font-size:12px;color:var(--ink-3);grid-column:1/-1}
+.tl .kv{display:grid;grid-template-columns:96px 1fr;gap:7px 8px;font-size:12.5px;margin:0}
+.tl .kv dt{color:var(--ink-3)} .tl .kv dd{margin:0}
+.tl .lrow{display:flex;align-items:center;gap:7px;padding:4px 0;min-height:28px}
+.tl .act{display:grid;grid-template-columns:70px 1fr;gap:8px;padding:6px 0;font-size:12.5px;border-top:1px dashed var(--line)}
+.tl .act:first-child{border-top:0}
+.tl .err{font:12px var(--mono);background:var(--bad-soft);color:var(--bad);padding:8px 10px;border-radius:7px;white-space:pre-wrap;margin:6px 0}
+.tl .callout{font-size:12.5px;border-radius:8px;padding:8px 10px;background:var(--info-soft);color:var(--info)}
+.tl .callout.warn{background:var(--warn-soft);color:var(--warn)}
+.tl .callout.bad{background:var(--bad-soft);color:var(--bad)}
+.tl .callout.ok{background:var(--ok-soft);color:var(--ok)}
+
+/* ---------- graph ---------- */
+.tl svg text{font-family:var(--sans)}
+.tl .gnode{cursor:pointer;outline:none}
+.tl .gnode rect.b{fill:var(--panel);stroke:var(--ctl);stroke-width:1.2}
+.tl .gnode:focus-visible rect.b{stroke:var(--brand);stroke-width:3}
+.tl .gnode.sel rect.b{stroke:var(--brand);stroke-width:2.5}
+.tl .gnode.chain rect.b{stroke:var(--bad);stroke-width:2}
+.tl .gnode.unblock rect.b{stroke:var(--ok);stroke-width:2;stroke-dasharray:5 3}
+.tl .gnode.done rect.b{fill:var(--ok-soft)}
+.tl .gnode.cyc rect.b{fill:var(--bad-soft);stroke:var(--bad)}
+.tl .edge{stroke:var(--ink-3);stroke-width:1.4;fill:none}
+.tl .edge.hot{stroke:var(--bad);stroke-width:2.6}
+.tl .edge.rel{stroke-dasharray:3 4;stroke:var(--ctl)}
+.tl .edge.cyc{stroke:var(--bad);stroke-dasharray:6 3}
+.tl .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--ink-2);align-items:center}
+.tl .legend span{display:inline-flex;gap:6px;align-items:center}
+
+/* ---------- timeline ---------- */
+.tl .tl-row{display:grid;grid-template-columns:240px 1fr;border-top:1px solid var(--line);align-items:stretch}
+.tl .tl-row .lbl{padding:6px 10px;display:flex;gap:6px;align-items:center;min-width:0}
+.tl .tl-row .lbl a{white-space:nowrap}
+.tl .tl-row .lbl .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tl .track{position:relative;height:52px;border-left:1px solid var(--line)}
+.tl .bar{position:absolute;top:7px;height:16px;border-radius:4px;font-size:11px;padding:0 6px;white-space:nowrap;display:flex;align-items:center;gap:4px;z-index:2}
+.tl .bar.planned{background:color-mix(in srgb,var(--brand) 18%,var(--panel));border:1.5px solid var(--brand);color:var(--brand);font-weight:600}
+.tl .bar.planned.risk{border-color:var(--bad);color:var(--bad);background:var(--bad-soft)}
+.tl .bar.planned.done{border-color:var(--ok);color:var(--ok);background:var(--ok-soft)}
+.tl .bar.actual{top:25px;height:5px;background:var(--violet);padding:0;border-radius:3px}
+.tl .bar.forecast{background:repeating-linear-gradient(45deg,transparent 0 4px,color-mix(in srgb,var(--ink-3) 35%,transparent) 4px 6px);border:1.5px dashed var(--ink-3);color:var(--ink);font-weight:600}
+.tl .setby{position:absolute;top:32px;font-size:11.5px;color:var(--ink-3);white-space:nowrap;background:var(--panel);padding:0 3px;z-index:3;border-radius:3px}
+.tl .today{position:absolute;top:0;bottom:0;width:0;border-left:2px solid var(--bad);z-index:1}
+.tl .dep{position:absolute;top:0;bottom:0;width:0;border-left:2px dashed var(--ink-3);z-index:1}
+.tl .dep.risk{border-color:var(--bad)}
+.tl .dep span{position:absolute;left:4px;top:34px;font-size:11px;white-space:nowrap;color:var(--ink-3);background:var(--panel);padding:0 2px;z-index:3}
+.tl .dep.risk span{color:var(--bad);font-weight:650}
+.tl .weeks{display:grid;grid-template-columns:240px 1fr}
+.tl .weeks .w{position:relative;height:28px;border-left:1px solid var(--line)}
+.tl .weeks .w span{position:absolute;font-size:12px;color:var(--ink-3);top:6px;left:6px}
+
+/* ---------- reviews ---------- */
+.tl .rv{display:grid;grid-template-columns:230px minmax(0,1fr) 300px;gap:14px;align-items:start}
+@media (max-width:1180px){.tl .rv{grid-template-columns:200px minmax(0,1fr)}.tl .rv>.stack{grid-column:1/-1}}
+.tl .rvq button{display:grid;gap:3px;width:100%;text-align:left;border:0;border-top:1px solid var(--line);background:none;padding:10px 12px}
+.tl .rvq button[aria-current=true]{background:var(--brand-soft)}
+.tl .doc{padding:20px 26px;font-size:13.5px;line-height:1.65}
+.tl .doc h1{font-size:20px;margin-bottom:8px}
+.tl .doc h2{font-size:15px;margin:16px 0 6px}
+.tl .doc code{font-family:var(--mono);font-size:12px;background:var(--panel-2);padding:1px 4px;border-radius:4px}
+.tl .doc ins{background:var(--ok-soft);text-decoration:none;border-bottom:1.5px solid var(--ok)}
+.tl .doc del{background:var(--bad-soft);color:var(--ink-2)}
+.tl .doc.plain ins{background:none;border:0}
+.tl .doc.plain del{display:none}
+.tl .vers{display:flex;gap:6px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.tl .vbtn{border:1px solid var(--ctl);background:var(--panel);border-radius:7px;min-height:28px;padding:2px 9px;font-size:12.5px;display:inline-flex;gap:6px;align-items:center}
+.tl .vbtn[aria-pressed=true]{border-color:var(--brand);background:var(--brand-soft);color:var(--brand);font-weight:650}
+.tl .dec{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.tl .dec button{border:1px solid var(--ctl);background:var(--panel);border-radius:8px;min-height:34px;padding:5px;font-weight:600;white-space:nowrap;font-size:12.5px;display:flex;gap:6px;align-items:center;justify-content:center}
+.tl .dec button svg{width:14px;height:14px}
+.tl .dec button[aria-checked=true]{outline:2px solid var(--brand);outline-offset:1px;background:var(--brand-soft)}
+.tl .check{display:flex;gap:8px;align-items:flex-start;padding:4px 0}
+.tl .check input{width:16px;height:16px;margin-top:2px;accent-color:var(--ok)}
+
+/* ---------- connections / projects ---------- */
+.tl pre.code{font:12px/1.5 var(--mono);background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin:8px 0 0;overflow:auto;white-space:pre}
+.tl .proj-card{display:grid;grid-template-columns:minmax(0,1fr) 240px 170px auto;gap:12px;align-items:center;padding:12px 14px;border-top:1px solid var(--line)}
+.tl .proj-card:first-of-type{border-top:0}
+.tl .bar-mini{height:7px;border-radius:4px;background:var(--panel-2);display:flex;overflow:hidden;border:1px solid var(--line)}
+.tl .bar-mini i{display:block;height:100%}
+
+/* ---------- overlays ---------- */
+.tl .toast{position:absolute;right:24px;bottom:24px;background:var(--ink);color:var(--panel);padding:9px 12px 9px 14px;border-radius:9px;font-size:12.5px;opacity:0;transform:translateY(8px);transition:.2s;pointer-events:none;display:flex;gap:12px;align-items:center;z-index:30;max-width:460px}
+.tl .toast.on{opacity:1;transform:none;pointer-events:auto}
+.tl .toast button{background:none;border:1px solid color-mix(in srgb,var(--panel) 50%,transparent);color:var(--panel);border-radius:6px;padding:2px 8px;font-weight:650}
+.tl .ov{position:absolute;inset:0;background:rgba(10,12,16,.38);display:flex;align-items:flex-start;justify-content:center;padding-top:80px;z-index:20;border-radius:12px}
+.tl .dlg{background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);width:min(560px,92%);max-height:640px;overflow:auto}
+.tl .dlg header{border-radius:12px 12px 0 0;justify-content:space-between}
+.tl .dlg .body{padding:14px 16px}
+.tl .dlg footer{display:flex;gap:8px;justify-content:flex-end;padding:12px 16px;border-top:1px solid var(--line)}
+.tl .pal input{border:0;border-bottom:1px solid var(--line);border-radius:12px 12px 0 0;padding:14px 16px;font-size:15px;outline:none;width:100%;background:var(--panel);color:var(--ink)}
+.tl .pal .res{max-height:380px;overflow:auto;padding:6px}
+.tl .pal .res button{display:flex;gap:10px;align-items:center;width:100%;text-align:left;border:0;background:none;padding:7px 10px;border-radius:7px}
+.tl .pal .res button:hover,.tl .pal .res button.hi{background:var(--brand-soft)}
+.tl .pal .grp{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);padding:8px 10px 4px;font-weight:650}
+.tl .hv{display:grid;gap:10px}
+.tl .hv .ver{border:1px solid var(--line);border-radius:9px;padding:10px 12px}
+.tl .hv .add{color:var(--ok)} .tl .hv .rm{color:var(--bad);text-decoration:line-through}
+</style>
+</head>
+<body style="margin:0;padding:16px;background:var(--background,#e9ecf1)">
+<div class="tl" id="app" style="position:relative">
+  <div class="shell">
+    <nav aria-label="Primary" id="nav"></nav>
+    <main>
+      <header>
+        <div class="crumbs" id="crumbs"></div>
+        <button class="search" data-a="palette" aria-label="Search or jump to (Ctrl+K)"><span aria-hidden="true">⌕</span><span class="grow">Search or jump to…</span><kbd>Ctrl K</kbd></button>
+        <button class="iconbtn" data-a="theme" id="themebtn"></button>
+      </header>
+      <div class="view" id="view" tabindex="-1"></div>
+    </main>
+  </div>
+  <div id="modal"></div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</div>
+
+<script>
+(() => {
+/* =====================================================================
+   Sample data — disposable (O09). "Now" is fixed so the story is stable.
+   ===================================================================== */
+const NOW = new Date('2026-11-06T11:00:00');
+const D = s => new Date(s + 'T00:00:00');
+const fmt = d => d.toLocaleDateString('en-US', {month:'short', day:'numeric'});
+
+const P = {
+  RCP:{key:'RCP', name:'Sample · Recipe App', short:'Recipe App', color:'#3b5bdb', policy:'gated', gates:['Design review','Release walkthrough'], readyRules:{Epic:['PRD','UX','TDD'], Story:['PRD','UX','TDD'], Task:['PRD','TDD'], Bug:[]}, readyGate:'owner', docs:7},
+  DOC:{key:'DOC', name:'Sample · Docs Site',  short:'Docs Site',  color:'#d9480f', policy:'none',  gates:[], readyRules:{Epic:['PRD'], Story:['PRD'], Task:['PRD'], Bug:[]}, readyGate:'agent', docs:3},
+};
+
+const items = [
+  {id:'RCP-1', type:'Epic', title:'Meal planning MVP', status:'progress', prio:2, proj:'RCP', last:'40s'},
+  {id:'RCP-11',type:'Task', title:'Auth scaffold', status:'done', prio:2, proj:'RCP', parent:'RCP-1', lead:'codex', run:'finished', age:'2d', last:'2d', start:'2026-11-02', end:'2026-11-03', setBy:'owner · Nov 1', actual:['2026-11-02','2026-11-03'], closedBy:'owner'},
+  {id:'RCP-12',type:'Story',title:'Weekly planner drag-and-drop', status:'review', prio:1, proj:'RCP', parent:'RCP-1', lead:'codex', run:'finished', age:'18m', last:'18m', gate:'Release walkthrough', start:'2026-11-02', end:'2026-11-07', setBy:'owner · Nov 2', actual:['2026-11-02','2026-11-06'], pts:3},
+  {id:'RCP-14',type:'Story',title:'Generate shopping list from week plan', status:'progress', prio:1, proj:'RCP', parent:'RCP-1', lead:'claude · orca-w3', run:'live', age:'40s', last:'40s', start:'2026-11-04', end:'2026-11-11', setBy:'claude · Nov 5', actual:['2026-11-04',null], pts:5},
+  {id:'RCP-15',type:'Task', title:'Pantry inventory schema', status:'progress', prio:2, proj:'RCP', parent:'RCP-1', lead:'codex · orca-w1', run:'stale', age:'47m', last:'2m', start:'2026-11-03', end:'2026-11-08', setBy:'codex · Nov 3', actual:['2026-11-03',null], pts:2},
+  {id:'RCP-16',type:'Story',title:'Nutrition summary card', status:'ready', prio:2, proj:'RCP', parent:'RCP-1', last:'1d', blockedBy:['DOC-4'], start:'2026-11-09', end:'2026-11-14', setBy:'owner · Nov 3'},
+  {id:'RCP-17',type:'Bug',  title:'Planner loses selected week on reload', status:'ready', prio:1, proj:'RCP', last:'3h', relates:['RCP-12'], start:'2026-11-09', end:'2026-11-10', setBy:'owner · Nov 6'},
+  {id:'RCP-18',type:'Task', title:'Import recipes from URL', status:'progress', prio:3, proj:'RCP', lead:'claude', run:'failed', age:'25m', last:'25m', start:'2026-11-05', end:'2026-11-07', setBy:'claude · Nov 5', actual:['2026-11-05',null]},
+  {id:'RCP-19',type:'Task', title:'Recipe data model spec', status:'review', prio:2, proj:'RCP', parent:'RCP-1', lead:'claude', run:'finished', age:'2h', last:'2h', review:'recipe-data-model.md', start:'2026-11-04', end:'2026-11-06', setBy:'owner · Nov 3', actual:['2026-11-04','2026-11-06']},
+  {id:'RCP-20',type:'Story',title:'Offline mode spike', status:'inbox', prio:3, proj:'RCP', last:'4d'},
+  {id:'RCP-23',type:'Story',title:'Meal plan templates', status:'planning', prio:2, proj:'RCP', parent:'RCP-1', lead:'claude', run:'reported', age:'6m', last:'6m', review:'meal-templates-ux.md', planning:{PRD:'approved', UX:'review', TDD:'drafting'}},
+  {id:'RCP-24',type:'Story',title:'Grocery delivery handoff', status:'planning', prio:3, proj:'RCP', last:'1d', planning:{PRD:'drafting', UX:'none', TDD:'none'}},
+  {id:'RCP-21',type:'Story',title:'Pantry-aware recipe suggestions', status:'ready', prio:2, proj:'RCP', parent:'RCP-1', last:'1d', blockedBy:['RCP-15','RCP-14'], start:'2026-11-12', end:'2026-11-20', setBy:'claude · Nov 5'},
+  {id:'RCP-22',type:'Story',title:'Share weekly plan link', status:'ready', prio:3, proj:'RCP', parent:'RCP-1', last:'2d', blockedBy:['RCP-12'], start:'2026-11-16', end:'2026-11-19', setBy:'owner · Nov 3'},
+  {id:'DOC-2', type:'Task', title:'Docs site skeleton', status:'done', prio:3, proj:'DOC', lead:'codex', run:'finished', age:'3d', last:'3d', closedBy:'agent', start:'2026-11-02', end:'2026-11-03', setBy:'codex · Nov 2', actual:['2026-11-02','2026-11-03']},
+  {id:'DOC-4', type:'Story',title:'API reference: nutrition endpoint', status:'progress', prio:2, proj:'DOC', lead:'codex', run:'needs', age:'9m', last:'9m', start:'2026-11-05', end:'2026-11-10', setBy:'owner · Nov 4', actual:['2026-11-05',null],
+     question:{by:'codex', at:'10:51', text:'Should nutrition values be documented per serving or per 100 g? The API returns both; the card in RCP-16 only needs one.'}},
+  {id:'DOC-5', type:'Task', title:'Search index for docs', status:'ready', prio:3, proj:'DOC', last:'2d'},
+  {id:'DOC-9', type:'Task', title:'Contributor guide', status:'planning', prio:3, proj:'DOC', lead:'codex', run:'finished', age:'1h', last:'1h', planning:{PRD:'approved'}},
+  {id:'DOC-7', type:'Task', title:'Imported: versioning guide', status:'ready', prio:3, proj:'DOC', last:'5d', blockedBy:['DOC-8'], imported:true},
+  {id:'DOC-8', type:'Task', title:'Imported: changelog format', status:'ready', prio:3, proj:'DOC', last:'5d', blockedBy:['DOC-7'], imported:true},
+];
+const byId = Object.fromEntries(items.map(i => [i.id, i]));
+
+/* Rich per-item content. Items without an entry get a generated page. */
+const DETAIL = {
+ 'RCP-14':{
+  outcome:'When a week plan is saved, the user can produce one merged shopping list grouped by aisle and export it.',
+  acceptance:[['Quantities for the same ingredient merge across recipes, with unit conversion','units tests · r-77'],['List is grouped by aisle and sorted','aisle-grouping.png'],['Export as a Markdown checklist',null]],
+  planVer:3,
+  steps:[
+    {s:'done', t:'Define aggregation rules', who:'claude · lead', when:'09:10'},
+    {s:'current', t:'Implement unit merging (g/kg, ml/l, cups)', who:'claude · lead', when:'10:52', contrib:[
+      ['observed','units-worker','codex child run r-77 under r-71','Added conversion table and 31 tests · finished 10:40'],
+      ['relayed','explorer','subagent · no run identity','Mapped 214 ingredient units in sample recipes · reported by lead 10:12']]},
+    {s:'planned', t:'Export as Markdown checklist', was:'Export to Reminders app', why:'Reminders API not reachable from the container', who:'claude · lead', when:'changed 10:05'},
+    {s:'planned', t:'Write acceptance tests for aisle grouping'}],
+  history:[
+    {v:1, at:'09:02', by:'claude', note:'Initial plan on claim', ops:[['=','1. Define aggregation rules'],['=','2. Implement unit merging'],['=','3. Export to Reminders app']]},
+    {v:2, at:'09:40', by:'claude', note:'Added a test step after an owner comment', ops:[['+','4. Write acceptance tests for aisle grouping']]},
+    {v:3, at:'10:05', by:'claude', note:'Reminders API not reachable from the container', ops:[['-','3. Export to Reminders app'],['+','3. Export as Markdown checklist']]}],
+  evidence:[['aggregation-rules.md v1','agent','Local artifact · written by claude','09:10'],['Unit tests: 31 passed','observed','Child run r-77 · test output attached','10:40'],['Branch rcp-14-shopping-list','git','2 commits ahead of main · not merged','10:51']],
+  runs:[{r:'live', who:'claude · orca-w3', what:'Lead run r-71 · lease until 12:02 · heartbeat 40s ago', lead:true},
+        {r:'finished', who:'units-worker', what:'Child run r-77 under r-71 · finished 10:40'},
+        {r:null, who:'explorer', what:'No run identity — log entry relayed by the lead'}],
+  activity:[['10:52','claude reported progress on step 2'],['10:40','Child run r-77 (units-worker) finished'],['10:05','claude revised plan v2 → v3: step 3 changed'],['09:40','claude revised plan v1 → v2: added step 4'],['09:10','claude completed step 1'],['09:02','claude claimed lead (60 min lease)'],['Nov 5','claude set planned end to Nov 11']]},
+ 'RCP-12':{
+  outcome:'Users can drag recipes between days in the weekly planner, and the change persists.',
+  acceptance:[['Drag between days and meal slots','CI #91'],['Keyboard alternative for every move','CI #91'],['Plan persists across reload','CI #91']],
+  planVer:2,
+  steps:[{s:'done',t:'Planner grid component',who:'codex · lead',when:'Nov 4'},{s:'done',t:'Pointer and keyboard drag',who:'codex · lead',when:'Nov 5'},{s:'done',t:'Persist to local store',who:'codex · lead',when:'10:30'}],
+  evidence:[['Agent reported acceptance complete','agent','codex · run r-64','10:42'],['CI build #91 · 214 tests passed','ci','Automated','10:38'],['PR #48 merged to main','git','Merge is not approval','10:41'],['Release walkthrough','pending','Required by project policy','—']],
+  runs:[{r:'finished', who:'codex', what:'Lead run r-64 · finished 10:42 · lease released', lead:true}],
+  activity:[['10:42','codex requested owner gate: Release walkthrough'],['10:41','PR #48 merged (git)'],['10:38','CI build #91 passed'],['Nov 5','codex completed step 2']]},
+ 'RCP-15':{
+  outcome:'Pantry stock lives in its own table so recipe quantities never change on-hand amounts.',
+  acceptance:[['PantryStock table with on_hand, unit, updated_at',null],['Migration is reversible',null]],
+  planVer:1,
+  steps:[{s:'done',t:'Draft schema from the approved spec',who:'codex · lead',when:'Nov 5'},{s:'current',t:'Write the migration',who:'codex · lead',when:'10:13 (last report)'},{s:'planned',t:'Reversibility test'}],
+  evidence:[],
+  runs:[{r:'stale', who:'codex · orca-w1', what:'Lead run r-58 · last heartbeat 10:13 · lease expires 11:13', lead:true}],
+  conflict:'claude · orca-w2 tried to claim lead at 10:58. Rejected: codex · orca-w1 still holds the lease.',
+  activity:[['10:58','Lead claim by claude · orca-w2 rejected (lease held by codex · orca-w1)'],['10:13','Last heartbeat from run r-58'],['10:13','codex reported: “migrating pantry table”'],['Nov 5','codex completed step 1']]},
+ 'RCP-18':{
+  outcome:'Paste a recipe URL and get a structured recipe draft to review.',
+  acceptance:[['Parses schema.org Recipe markup',null],['Falls back to a manual form on failure',null]],
+  planVer:1,
+  steps:[{s:'done',t:'Parser for schema.org Recipe',who:'claude · lead',when:'Nov 5'},{s:'blocked',t:'Fetch page from URL',who:'claude · lead',when:'10:35'},{s:'planned',t:'Manual fallback form'}],
+  evidence:[['Parser unit tests: 12 passed','agent','Reported by claude · no CI run','Nov 5']],
+  runs:[{r:'failed', who:'claude', what:'Lead run r-69 · failed 10:35 · lease released', lead:true}],
+  error:'FetchError: connect EACCES 203.0.113.10:443\nOutbound network is disabled for this worker sandbox.',
+  activity:[['10:35','Run r-69 failed: outbound network blocked'],['10:20','claude started step 2'],['Nov 5','claude completed step 1']]},
+ 'RCP-19':{
+  outcome:'An approved data model spec that the pantry and shopping list work can build on.',
+  acceptance:[['Separates recipe quantity from pantry stock','recipe-data-model.md v2'],['Lists canonical units','recipe-data-model.md v2']],
+  planVer:1,
+  steps:[{s:'done',t:'Draft v1',who:'claude · lead',when:'Nov 4'},{s:'done',t:'Revise after owner feedback',who:'claude · lead',when:'09:00'}],
+  evidence:[['recipe-data-model.md v1','owner','Changes requested by owner · Nov 4','Nov 4'],['recipe-data-model.md v2','pending','Document review requested','09:00']],
+  runs:[{r:'finished', who:'claude', what:'Lead run r-66 · finished 09:01', lead:true}],
+  activity:[['09:00','claude submitted v2 for review'],['Nov 4','Owner requested changes on v1'],['Nov 4','claude submitted v1 for review']]},
+ 'DOC-4':{
+  outcome:'Developers can find the nutrition endpoint, its fields, and an example in the docs.',
+  acceptance:[['Endpoint, params, and response documented',null],['Example request and response','example.http']],
+  planVer:1,
+  steps:[{s:'done',t:'Outline reference page',who:'codex · lead',when:'Nov 5'},{s:'current',t:'Document response fields',who:'codex · lead',when:'10:51'},{s:'planned',t:'Add worked example'}],
+  evidence:[['example.http','agent','Local artifact · codex','Nov 5']],
+  runs:[{r:'needs', who:'codex', what:'Lead run r-70 · waiting on owner since 10:51 · lease paused', lead:true}],
+  activity:[['10:51','codex asked the owner a question'],['Nov 5','codex completed step 1']]},
+ 'RCP-23':{
+  outcome:'Users can save a week plan as a template and reuse it in one step.',
+  acceptance:[['Save the current week as a named template',null],['Apply a template to any week, merging with existing meals',null]],
+  planVer:1,
+  steps:[{s:'done',t:'PRD: problem, scope, success measures',who:'claude · lead',when:'Nov 5'},{s:'done',t:'UX: template picker and apply flow',who:'claude · lead',when:'10:20'},{s:'current',t:'TDD: storage and merge rules',who:'claude · lead',when:'10:54'}],
+  evidence:[['meal-templates-prd.md v2','owner','Approved by owner · Nov 5','Nov 5'],['meal-templates-ux.md v1','pending','Planning doc review requested','10:20'],['meal-templates-tdd.md (draft)','agent','Local artifact · claude is writing it','10:54']],
+  runs:[{r:'reported', who:'claude', what:'Planning run r-73 · writing the TDD · last report 6 min ago, no heartbeat', lead:true}],
+  activity:[['10:54','claude reported: drafting TDD storage section'],['10:20','claude requested review: meal-templates-ux.md v1'],['Nov 5','Owner approved meal-templates-prd.md v2'],['Nov 4','Owner moved RCP-23 from Inbox to Planning']]},
+ 'RCP-24':{
+  outcome:'Send the merged shopping list to a delivery service.',
+  acceptance:[], planVer:0, steps:[],
+  evidence:[], runs:[],
+  activity:[['Nov 5','Owner moved RCP-24 from Inbox to Planning'],['Nov 5','PRD outline started; no agent assigned yet']]},
+ 'DOC-9':{
+  outcome:'New contributors can set up the docs site and submit a change in under 15 minutes.',
+  acceptance:[['Setup steps tested on a clean machine',null],['PR checklist included',null]],
+  planVer:1,
+  steps:[{s:'done',t:'PRD: audience, scope, success measure',who:'codex · lead',when:'09:55'}],
+  evidence:[['contributor-guide-prd.md v1','owner','Approved by owner · 09:58','09:58']],
+  runs:[{r:'finished', who:'codex', what:'Planning run r-72 · finished 09:56', lead:true}],
+  activity:[['09:58','Owner approved contributor-guide-prd.md v1'],['09:56','codex finished the PRD'],['Nov 5','Owner moved DOC-9 from Inbox to Planning']]},
+ 'DOC-2':{
+  outcome:'A docs site skeleton with navigation and build.',
+  acceptance:[['Site builds locally','build log'],['Navigation matches the outline',null]],
+  planVer:1,
+  steps:[{s:'done',t:'Scaffold site',who:'codex · lead',when:'Nov 2'},{s:'done',t:'Navigation',who:'codex · lead',when:'Nov 3'}],
+  evidence:[['Agent reported acceptance complete','agent','codex · run r-41','Nov 3'],['Build log: success','agent','Reported by codex · no CI configured','Nov 3']],
+  runs:[{r:'finished', who:'codex', what:'Lead run r-41 · finished Nov 3', lead:true}],
+  activity:[['Nov 3','codex closed the item (project has no owner gate)'],['Nov 3','codex completed step 2']]},
+};
+
+const REVIEWS = {
+  'RCP-12':{title:'Release walkthrough', kind:'Owner gate', versions:[{v:1, sha:'PR #48 @ 9c0e7f2', by:'codex', when:'Nov 6 10:42'}]},
+  'RCP-23':{title:'meal-templates-ux.md', kind:'Planning · UX', planDoc:'UX', versions:[{v:1, sha:'c4d02aa', by:'claude', when:'Nov 6 10:20'}]},
+  'RCP-19':{title:'recipe-data-model.md', kind:'Document review', versions:[
+    {v:1, sha:'a71c2e0', by:'claude', when:'Nov 4 16:20', decision:{k:'changes', by:'Owner', when:'Nov 4 18:02', why:'Separate pantry quantity from recipe quantity.'}},
+    {v:2, sha:'3f9a51b', by:'claude', when:'Nov 6 09:00'}]},
+};
+const DOCS = {
+ 1:`# Recipe data model\n\nEach Recipe has ingredients with a quantity and unit.\n\n## Ingredient\nFields: name, quantity, unit, aisle.\n\n## Pantry\nPantry items reuse Ingredient.\n`,
+ 2:`# Recipe data model\n\nEach Recipe has ingredients with a quantity and unit.\n\n## Ingredient\nFields: name, quantity, unit, aisle.\n\n## Pantry\nPantry items are a separate PantryStock record with on_hand, unit, and updated_at, so recipe quantities never change stock.\n\n## Units\nCanonical units: g, ml, piece. Conversions live in units.json (see RCP-14).\n`};
+const docHtml = v => v === 1
+ ? `<h1>Recipe data model</h1><p>Each <code>Recipe</code> has ingredients with a <code>quantity</code> and <code>unit</code>.</p><h2>Ingredient</h2><p>Fields: <code>name</code>, <code>quantity</code>, <code>unit</code>, <code>aisle</code>.</p><h2>Pantry</h2><p>Pantry items reuse <code>Ingredient</code>.</p>`
+ : `<h1>Recipe data model</h1><p>Each <code>Recipe</code> has ingredients with a <code>quantity</code> and <code>unit</code>.</p><h2>Ingredient</h2><p>Fields: <code>name</code>, <code>quantity</code>, <code>unit</code>, <code>aisle</code>.</p><h2>Pantry</h2><p><del>Pantry items reuse <code>Ingredient</code>.</del> <ins>Pantry items are a separate <code>PantryStock</code> record with <code>on_hand</code>, <code>unit</code>, and <code>updated_at</code>, so recipe quantities never change stock.</ins></p><h2><ins>Units</ins></h2><p><ins>Canonical units: g, ml, piece. Conversions live in <code>units.json</code> (see RCP-14).</ins></p>`;
+
+const CHANGES = [ // since the owner last looked (08:30)
+  ['10:54','RCP-23','Planning: UX doc ready for review; TDD in progress'],
+  ['10:52','RCP-14','Step 2 in progress; units-worker child run finished with 31 tests'],
+  ['10:42','RCP-12','PR #48 merged, CI #91 passed, owner gate requested'],
+  ['10:35','RCP-18','Run failed: outbound network blocked'],
+  ['10:05','RCP-14','Plan revised v2 → v3 (step 3 changed)'],
+  ['09:58','DOC-9','PRD approved; planning complete, codex may move it to Ready'],
+  ['09:00','RCP-19','v2 of recipe-data-model.md submitted'],
+];
+
+/* =====================================================================
+   Derived state — the same rules the MCP queries would use (A05)
+   ===================================================================== */
+const isOpen = i => i.status !== 'done' && i.status !== 'canceled';
+const inScope = i => S.scope === 'all' || i.proj === S.scope;
+const reqDocs = i => (P[i.proj].readyRules[i.type] || []);
+const rulesText = p => Object.entries(p.readyRules).filter(([t]) => t !== 'Epic').map(([t, d]) => `${t}: ${d.length ? d.join(', ') : 'none'}`).join(' · ');
+const missingDocs = i => i.status === 'planning' ? reqDocs(i).filter(d => (i.planning || {})[d] !== 'approved') : [];
+const unresolved = i => (i.blockedBy || []).filter(b => byId[b].status !== 'done');
+const isBlocked = i => isOpen(i) && unresolved(i).length > 0;
+const dependents = id => items.filter(i => (i.blockedBy || []).includes(id));
+const holdsUp = id => dependents(id).filter(isOpen).map(i => i.id);
+const freedBy = id => dependents(id).filter(i => isOpen(i) && unresolved(i).every(b => b === id)).map(i => i.id);
+function cycleSet(){
+  const s = new Set();
+  for (const i of items){
+    const seen = new Set(), st = [...(i.blockedBy || [])];
+    while (st.length){ const x = st.pop(); if (x === i.id){ s.add(i.id); break; } if (seen.has(x)) continue; seen.add(x); st.push(...(byId[x].blockedBy || [])); }
+  }
+  return s;
+}
+const dateRisks = i => (i.start && isOpen(i)) ? unresolved(i).filter(b => byId[b].end && D(byId[b].end) >= D(i.start)) : [];
+const owes = i => (i.gate && !S.decided[i.id]) ? 'gate' : (i.review && !S.decided[i.id]) ? 'review' : (i.question && !i.question.answer) ? 'question'
+  : (i.status === 'planning' && !missingDocs(i).length && P[i.proj].readyGate === 'owner') ? 'promote' : null;
+const decisionsIn = key => items.filter(i => (key === 'all' || i.proj === key) && owes(i));
+const decisions = () => decisionsIn(S.scope);
+
+function queue(){
+  const q = [], cyc = cycleSet();
+  for (const i of items){
+    const o = owes(i);
+    if (o === 'gate') q.push({id:i.id, tags:['decision'], icon:'gate', rank:0, why:`Owner gate “${i.gate}” is pending. The PR is merged and CI passed, but Done stays locked until you walk through it.`, action:'Review', a:'review', v:i.id});
+    if (o === 'review' && REVIEWS[i.id].planDoc) q.push({id:i.id, tags:['decision'], icon:'doc', rank:0, why:`Planning doc review: ${i.review}. The item can't move to Ready until its ${reqDocs(i).join(', ')} are approved.`, action:'Review', a:'review', v:i.id});
+    else if (o === 'review') q.push({id:i.id, tags:['decision'], icon:'doc', rank:0, why:`Document review: ${i.review} v2 is ready. You requested changes on v1.`, action:'Review', a:'review', v:i.id});
+    if (o === 'promote') q.push({id:i.id, tags:['decision'], icon:'promote', rank:0, why:`Planning is complete (${reqDocs(i).join(', ')} approved). Move it to Ready so agents can claim it.`, action:'Move to Ready', a:'promote', v:i.id});
+    if (o === 'question') q.push({id:i.id, tags:['decision'], icon:'question', rank:0, why:`${i.question.by} is waiting on you: “${i.question.text}”`, action:'Answer', a:'reply', v:i.id, reply:true});
+    if (i.run === 'stale') q.push({id:i.id, tags:['stale'], icon:'stale', rank:1, why:`Lead run silent for ${i.age}; the lease expires in 13 min. Treated as unknown, not finished. Another agent's claim was rejected at 10:58.`, action:'Inspect', a:'open', v:i.id});
+    if (i.run === 'failed') q.push({id:i.id, tags:['failed'], icon:'failed', rank:1, why:'Run failed: outbound network is blocked in this worker sandbox. Nothing retries automatically.', action:'Inspect', a:'open', v:i.id});
+    const dr = dateRisks(i);
+    if (dr.length) q.push({id:i.id, tags:['blocked','date'], icon:'date', rank:2, why:`Planned start ${fmt(D(i.start))} is before its blocker ${dr[0]} is planned to finish (${fmt(D(byId[dr[0]].end))}).`, action:'Timeline', a:'nav', v:'timeline'});
+    if (i.closedBy === 'agent' && !S.ackEvidence[i.id]) q.push({id:i.id, tags:['evidence'], icon:'evidence', rank:3, why:'Closed by agent completion (this project has no owner gate). Acceptance #2 has no linked evidence.', action:'Open', a:'open', v:i.id});
+  }
+  if (cyc.size){
+    const ids = [...cyc].sort();
+    q.push({id:ids[0], tags:['blocked'], icon:'cycle', rank:2, why:`Dependency cycle in imported data: ${ids.join(' ⇄ ')}. Neither can start until one link is removed.`, action:'Fix in graph', a:'gfix', v:ids[0]});
+  }
+  q.forEach(r => r.holds = holdsUp(r.id));
+  return q.filter(r => inScope(byId[r.id])).sort((a,b) => a.rank - b.rank || b.holds.length - a.holds.length);
+}
+
+/* =====================================================================
+   UI state
+   ===================================================================== */
+const S = {
+  view:'attention', ticket:'RCP-14', tab:null, kpi:'all', scope:'all', scopeOpen:false,
+  workMode:'board', filter:'all', showBlocked:false,
+  review:'RCP-12', ver:null, decision:null, diff:true, checks:{},
+  graphSel:'RCP-21', gRel:true, gHier:false, slip:3,
+  fcPreview:false, theme:'system', snippet:'codex',
+  decided:{}, ackEvidence:{}, replyOpen:null, text:{}, modal:null, extraActivity:{},
+};
+
+/* =====================================================================
+   Small render helpers
+   ===================================================================== */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const SV = p => `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+const I = {
+  attention:SV('<path d="M3 11V7a5 5 0 0 1 10 0v4l1 2H2z"/><path d="M6.5 14.5a1.5 1.5 0 0 0 3 0"/>'),
+  work:SV('<rect x="2" y="2.5" width="3.5" height="11" rx="1"/><rect x="6.5" y="2.5" width="3.5" height="7" rx="1"/><rect x="11" y="2.5" width="3" height="9" rx="1"/>'),
+  reviews:SV('<rect x="2.5" y="2" width="11" height="12" rx="2"/><path d="M5.5 8l2 2 3.5-4"/>'),
+  graph:SV('<circle cx="3.5" cy="4" r="1.8"/><circle cx="3.5" cy="12" r="1.8"/><circle cx="12.5" cy="8" r="1.8"/><path d="M5.3 4.6l5.4 2.6M5.3 11.4l5.4-2.6"/>'),
+  timeline:SV('<path d="M2 3h6M5 8h8M3 13h7"/><path d="M2 1v14" stroke-width="1"/>'),
+  agents:SV('<rect x="3" y="5" width="10" height="8" rx="2"/><path d="M8 2v3M6 9h.01M10 9h.01"/>'),
+  plug:SV('<path d="M6 2v3M10 2v3M4 5h8v3a4 4 0 0 1-8 0zM8 12v2"/>'),
+  folder:SV('<path d="M2 4.5A1.5 1.5 0 0 1 3.5 3H6l1.5 1.5h5A1.5 1.5 0 0 1 14 6v5.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5z"/>'),
+  person:'<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="8" cy="5" r="3"/><path d="M2 15c0-3.3 2.7-5 6-5s6 1.7 6 5z"/></svg>',
+  bot:SV('<rect x="3" y="5" width="10" height="8" rx="2"/><path d="M8 2v3M6 9h.01M10 9h.01"/>'),
+  eye:SV('<path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/>'),
+  gear:SV('<circle cx="8" cy="8" r="2.5"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/>'),
+  git:SV('<circle cx="4" cy="4" r="1.8"/><circle cx="4" cy="12" r="1.8"/><circle cx="12" cy="8" r="1.8"/><path d="M4 6v4M5.6 4.6C9 5 10 6 10.3 7"/>'),
+  relay:SV('<path d="M2 8h9M8 5l3 3-3 3M14 3v10"/>'),
+  clock:SV('<circle cx="8" cy="8" r="6"/><path d="M8 4.5V8l2.5 1.5"/>'),
+  gate:SV('<path d="M8 1.5l5.5 2v4c0 3.5-2.5 6-5.5 7-3-1-5.5-3.5-5.5-7v-4z"/><path d="M8 6v3M8 11h.01"/>'),
+  doc:SV('<path d="M4 1.5h5l3.5 3.5v9.5h-8.5z"/><path d="M9 1.5V5h3.5M6 9h4M6 11.5h4"/>'),
+  question:SV('<circle cx="8" cy="8" r="6.5"/><path d="M6.2 6.2a1.9 1.9 0 1 1 2.6 1.8c-.5.2-.8.6-.8 1.1v.4M8 11.6h.01"/>'),
+  stale:SV('<circle cx="8" cy="8" r="6.5" stroke-dasharray="2.5 2"/><path d="M8 5v3.5"/>'),
+  failed:SV('<circle cx="8" cy="8" r="6.5"/><path d="M5.8 5.8l4.4 4.4M10.2 5.8l-4.4 4.4"/>'),
+  date:SV('<rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M2 6.5h12M5 1.5v3M11 1.5v3M8 8.5v2.5M8 12.6h.01"/>'),
+  cycle:SV('<path d="M13 5.5A5.5 5.5 0 0 0 3 6M3 10.5A5.5 5.5 0 0 0 13 10"/><path d="M13 2v3.5H9.5M3 14v-3.5h3.5"/>'),
+  evidence:SV('<rect x="2.5" y="2.5" width="11" height="11" rx="2" stroke-dasharray="2.5 2"/><path d="M8 5.5v3M8 10.5h.01"/>'),
+  check:SV('<path d="M3 8.5l3 3 7-7"/>'),
+  x:SV('<path d="M4 4l8 8M12 4l-8 8"/>'),
+  pause:SV('<path d="M5.5 3.5v9M10.5 3.5v9"/>'),
+  skip:SV('<path d="M3 8h10M9.5 4.5 13 8l-3.5 3.5"/>'),
+  sun:SV('<circle cx="8" cy="8" r="3"/><path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3 3l1 1M12 12l1 1M3 13l1-1M12 4l1-1"/>'),
+  moon:SV('<path d="M13.5 10A6 6 0 0 1 6 2.5a6 6 0 1 0 7.5 7.5z"/>'),
+  promote:SV('<path d="M8 13V3M4 7l4-4 4 4"/>'),
+  chev:SV('<path d="M4 6l4 4 4-4"/>'),
+  copy:SV('<rect x="5" y="5" width="8.5" height="9" rx="1.5"/><path d="M3 11V3.5A1.5 1.5 0 0 1 4.5 2H10"/>'),
+};
+const small = svg => svg.replace('<svg', '<svg width="12" height="12"');
+const KINDICON = {gate:['var(--warn-soft)','var(--warn)'], doc:['var(--warn-soft)','var(--warn)'], question:['var(--warn-soft)','var(--warn)'],
+  stale:['var(--gray-soft)','var(--ink-2)'], failed:['var(--bad-soft)','var(--bad)'], date:['var(--bad-soft)','var(--bad)'],
+  cycle:['var(--bad-soft)','var(--bad)'], evidence:['var(--info-soft)','var(--info)'], promote:['var(--teal-soft)','var(--teal)']};
+
+const STATUS = {inbox:'Inbox', planning:'Planning', ready:'Ready', progress:'In progress', review:'Review', done:'Done', canceled:'Canceled'};
+const RUNS = {
+  live:{l:'live', d:'Working: client heartbeat received', g:''},
+  reported:{l:'reported', d:'Agent says it is working; no heartbeat', g:''},
+  stale:{l:'stale', d:'No heartbeat; state unknown, not assumed finished', g:''},
+  needs:{l:'needs input', d:'Waiting on the owner', g:'?'},
+  failed:{l:'failed', d:'Run ended with an error', g:'×'},
+  finished:{l:'finished', d:'Run ended normally', g:'✓'},
+  interrupted:{l:'interrupted', d:'Run stopped without finishing (lease released or service restart)', g:'–'},
+};
+const run = (r, age) => r ? `<span class="run run-${r}" title="${RUNS[r].d}"><i class="ri ri-${r}" aria-hidden="true">${RUNS[r].g}</i><span>${RUNS[r].l}${age ? ` · ${age}` : ''}</span></span>` : '';
+const prio = p => `<span class="prio" title="Priority ${p}"><svg viewBox="0 0 12 12" aria-hidden="true">${[0,1,2].map(k => `<rect x="${k*4}" y="${8-k*3}" width="3" height="${4+k*3}" rx=".6" fill="${k < 4-p ? 'currentColor' : 'var(--line-2)'}"/>`).join('')}</svg>P${p}</span>`;
+const statusChip = i => `<span class="chip st-${i.status}">${STATUS[i.status]}</span>`;
+const blockedChip = i => isBlocked(i) ? `<span class="chip c-bad">⊘ Blocked by ${unresolved(i).join(', ')}</span>` : '';
+const PV = {owner:['pv-owner','person','Owner decision'], agent:['pv-agent','bot','Agent-reported'], observed:['pv-observed','eye','Observed child run'],
+  relayed:['pv-relayed','relay','Relayed by lead'], ci:['pv-auto','gear','CI'], auto:['pv-auto','gear','Automated check'],
+  git:['pv-git','git','Git · not approval'], pending:['pv-pending','clock','Owner gate pending']};
+const prov = (k, label) => { const m = PV[k]; return `<span class="prov ${m[0]}" title="${m[2]}">${I[m[1]]}${label ? `<span class="sr">${m[2]}: </span>` : ''}${esc(label || m[2])}</span>`; };
+const link = id => `<a href="#" data-a="open" data-v="${id}" class="mono">${id}</a>`;
+const owedChip = i => { const o = owes(i); return o === 'gate' ? prov('pending', `Gate: ${i.gate}`) : o === 'review' ? `<span class="chip c-warn">${small(I.doc)} Review owed</span>` : o === 'question' ? `<span class="chip c-warn">${small(I.question)} Question for you</span>` : o === 'promote' ? `<span class="chip c-warn">${small(I.promote)} Ready to move</span>` : (i.status === 'planning' && !missingDocs(i).length) ? `<span class="chip c-info">${small(I.promote)} Agent may move to Ready</span>` : ''; };
+const PD = {approved:['✓','approved'], review:['◐','in review'], drafting:['✎','drafting'], none:['–','not started']};
+const pdocs = i => i.status === 'planning' ? `<div class="pdocs">${reqDocs(i).map(d => { const st = (i.planning || {})[d] || 'none'; return `<span class="pdoc pd-${st}" title="${d}: ${PD[st][1]}">${PD[st][0]} ${d}<span class="sr"> ${PD[st][1]}</span></span>`; }).join('')}</div>` : '';
+const projTag = id => S.scope !== 'all' && byId[id].proj !== S.scope ? ` <span class="src">(${P[byId[id].proj].short})</span>` : '';
+const DEC = {approve:['Approve','check','c-ok','Approved'], changes:['Request changes','x','c-warn','Changes requested'], defer:['Defer','pause','c-gray','Deferred'], waive:['Waive','skip','c-gray','Waived']};
+const decChip = k => k ? `<span class="chip ${DEC[k][2]}">${DEC[k][3]}</span>` : `<span class="chip c-warn">Pending</span>`;
+
+let toastTimer;
+function toast(msg, undo){
+  const t = $('#toast');
+  t.innerHTML = `<span>${esc(msg)}</span>${undo ? '<button data-a="toastundo">Undo</button>' : ''}`;
+  t._undo = undo; t.classList.add('on');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('on'), undo ? 6000 : 3200);
+}
+function logActivity(id, text){ (S.extraActivity[id] = S.extraActivity[id] || []).unshift(['now', text]); }
+
+/* =====================================================================
+   Navigation
+   ===================================================================== */
+function renderNav(){
+  const dec = decisions().length;
+  const pendingReviews = Object.keys(REVIEWS).filter(k => !S.decided[k] && inScope(byId[k])).length;
+  const runs = items.filter(i => inScope(i) && ['live','needs','stale','failed','reported'].includes(i.run)).length;
+  const btn = (v, icon, label, badge) => `<button class="navbtn" data-a="nav" data-v="${v}" aria-current="${S.view===v || (v==='work' && S.view==='ticket') ? 'page' : 'false'}" title="${label}">${I[icon]}<span class="nl">${label}</span>${badge || ''}</button>`;
+  const cur = S.scope === 'all' ? null : P[S.scope];
+  const opt = (key, name, color) => { const n = decisionsIn(key).length; return `<button role="menuitemradio" aria-checked="${S.scope===key}" data-a="scope" data-v="${key}">${color ? `<span class="sw" style="background:${color};width:12px;height:12px"></span>` : small(I.folder)}<span class="grow">${name}</span>${n ? `<span class="badge" aria-label="${n} decisions owed">${n}</span>` : ''}</button>`; };
+  $('#nav').innerHTML = `
+    <div class="logo"><i>TL</i><span>Task Lite</span></div>
+    <div class="scopewrap">
+      <button class="scopebtn" data-a="scopemenu" aria-haspopup="menu" aria-expanded="${S.scopeOpen}" title="Project: ${cur ? cur.short : 'All projects'}">
+        ${cur ? `<span class="sw" style="background:${cur.color};width:12px;height:12px"></span>` : small(I.folder)}
+        <span class="grow txt"><span class="lbl2">Project</span><span class="nm">${cur ? cur.short : 'All projects'}</span></span><span class="chev">${small(I.chev)}</span></button>
+      ${S.scopeOpen ? `<div class="scopemenu" role="menu" aria-label="Choose project">${opt('all','All projects',null)}${Object.values(P).map(p => opt(p.key, p.short, p.color)).join('')}<div class="hint">Every page in this sidebar shows only the chosen project. Projects and Connections are always service-wide.</div></div>` : ''}
+    </div>
+    ${btn('attention','attention','Needs you', dec ? `<span class="badge" aria-label="${dec} decisions owed">${dec}</span>` : '')}
+    ${btn('work','work','Work')}
+    ${btn('reviews','reviews','Reviews', pendingReviews ? `<span class="badge" aria-label="${pendingReviews} pending">${pendingReviews}</span>` : '')}
+    ${btn('graph','graph','Dependencies')}
+    ${btn('timeline','timeline','Timeline')}
+    ${btn('agents','agents','Agents', runs ? `<span class="badge n" aria-label="${runs} active runs">${runs}</span>` : '')}
+    <div class="navsec">Service-wide</div>
+    ${btn('projects','folder','Projects')}
+    ${btn('connections','plug','Connections')}
+    <button class="health" data-a="nav" data-v="connections" aria-label="Service healthy. Open connections">
+      <div class="row"><i class="ri" style="background:var(--ok);color:var(--on-fill)" aria-hidden="true">✓</i><span class="hx">Service healthy</span></div>
+      <div class="hx mono" style="font-size:11.5px">127.0.0.1:7420/mcp</div>
+      <div class="hx">3 clients connected</div>
+    </button>`;
+}
+const scopePill = () => S.scope === 'all'
+  ? `<span class="scopebar" style="vertical-align:middle;margin-left:6px">${small(I.folder)} All projects</span>`
+  : `<span class="scopebar" style="vertical-align:middle;margin-left:6px"><span class="sw" style="background:${P[S.scope].color}"></span>${P[S.scope].short}</span>`;
+
+/* =====================================================================
+   Views
+   ===================================================================== */
+const V = {};
+
+/* ---------- Needs you ---------- */
+V.attention = () => {
+  const q = queue();
+  const tagDefs = [['all','All'],['decision','Decisions'],['stale','Stale runs'],['failed','Failed runs'],['blocked','Blocked'],['date','Date risk'],['evidence','Missing evidence']];
+  const count = t => t === 'all' ? q.length : q.filter(r => r.tags.includes(t)).length;
+  const list = q.filter(r => S.kpi === 'all' || r.tags.includes(S.kpi));
+  const dec = decisions().length;
+  const agents = items.filter(i => inScope(i) && ['live','needs','stale','failed','reported'].includes(i.run));
+  const row = r => {
+    const i = byId[r.id], k = KINDICON[r.icon], open = S.replyOpen === r.id;
+    return `<div class="att ${r.tags.includes('decision') ? 'decision' : ''}" data-a="open" data-v="${r.id}">
+      <div class="ico" style="background:${k[0]};color:${k[1]}">${I[r.icon]}</div>
+      <div style="min-width:0">
+        <div class="row wrap"><a href="#" data-a="open" data-v="${r.id}" class="t" style="color:var(--ink)">${esc(i.title)}</a><span class="mono muted">${r.id}</span>${i.lead ? run(i.run, i.age) : ''}</div>
+        <div class="why">${esc(r.why)}</div>
+        ${r.holds.length ? `<div class="src" style="margin-top:3px">Holds up ${r.holds.map(h => link(h)).join(', ')}</div>` : ''}
+        ${r.reply && open ? `<div class="reply" data-stop>
+            <label class="f" for="ans-${r.id}" style="margin:4px 0 0">Your answer to ${esc(i.question.by)}</label>
+            <textarea id="ans-${r.id}" data-t="ans-${r.id}" placeholder="e.g. Per serving; link to the 100 g values in a footnote.">${esc(S.text['ans-'+r.id] || '')}</textarea>
+            <div class="row wrap"><button class="btn primary sm" data-a="sendanswer" data-v="${r.id}">Send answer</button><button class="btn sm" data-a="reply" data-v="${r.id}">Cancel</button><span class="src">Posted to the ticket; ${esc(i.question.by)} reads it on its next query.</span></div>
+          </div>` : ''}
+      </div>
+      ${r.reply && open ? '<span></span>' : `<button class="btn sm${r.tags.includes('decision') ? ' primary' : ''}" data-a="${r.a}" data-v="${r.v}">${r.action}</button>`}
+    </div>`;
+  };
+  return `
+  <h1>Needs you${scopePill()}</h1>
+  <div class="sub">${dec ? `<b style="color:var(--warn)">${dec} decision${dec>1?'s':''} owed</b>: agents are waiting on these.` : 'No decisions owed.'} ${q.length - dec} other item${q.length-dec===1?'':'s'} to look at. Sorted by what unblocks the most work.</div>
+  <div class="filters" role="group" aria-label="Filter queue">${tagDefs.map(([t,l]) => `<button class="fchip" data-a="kpi" data-v="${t}" aria-pressed="${S.kpi===t}">${l} <b>${count(t)}</b></button>`).join('')}</div>
+  <div class="grid2">
+    <div class="card">${list.map(row).join('') || '<div class="pad muted">Nothing here. Agents are unblocked.</div>'}</div>
+    <div class="stack">
+      <div class="card">
+        <div class="sectionhead"><h3>Agents right now</h3><a href="#" data-a="nav" data-v="agents" style="font-size:12px">All runs</a></div>
+        ${agents.map(i => `<div class="agent-row"><div style="min-width:0"><b>${esc(i.lead)}</b><div class="src" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${link(i.id)} ${esc(i.title)}</div></div>${run(i.run, i.age)}</div>`).join('') || '<div class="pad muted">No active runs.</div>'}
+      </div>
+      <div class="card">
+        <div class="sectionhead"><h3>Since you looked at 08:30</h3></div>
+        ${CHANGES.filter(c => inScope(byId[c[1]])).map(c => `<div class="chg"><span class="mono muted">${c[0]}</span><span>${link(c[1])} ${esc(c[2])}</span></div>`).join('')}
+      </div>
+    </div>
+  </div>`;
+};
+
+/* ---------- Work ---------- */
+const FILTERS = {
+  all:['All', () => true, ''],
+  planning:['In planning', i => i.status==='planning', 'status:planning'],
+  startable:['Ready to start', i => i.status==='ready' && !isBlocked(i), 'status:ready -is:blocked'],
+  blocked:['Blocked', isBlocked, 'is:blocked'],
+  review:['Needs owner', i => !!owes(i), 'needs:owner'],
+  live:['Live run', i => i.run==='live', 'run:live'],
+  unclaimed:['Unclaimed', i => isOpen(i) && !i.lead, 'is:open lead:none'],
+};
+V.work = () => {
+  const cols = ['inbox','planning','ready','progress','review','done'];
+  const inProj = i => i.type !== 'Epic' && inScope(i);
+  const list = items.filter(i => inProj(i) && FILTERS[S.filter][1](i));
+  const card = i => {
+    const o = owes(i), dr = dateRisks(i);
+    return `<a href="#" class="tcard ${isBlocked(i) ? 'isblocked' : o ? 'owed' : ''}" data-a="open" data-v="${i.id}">
+      <div class="row" style="justify-content:space-between"><span class="row"><span class="mono muted">${i.id}</span><span class="type">${i.type}</span></span>${prio(i.prio)}</div>
+      <div class="t">${esc(i.title)}</div>
+      ${pdocs(i)}
+      ${isBlocked(i) || o || dr.length ? `<div class="meta">${blockedChip(i)}${owedChip(i)}${dr.length ? '<span class="chip c-bad">Date risk</span>' : ''}</div>` : ''}
+      <div class="meta">${i.lead ? `${run(i.run, i.age)}<span>· ${esc(i.lead)}</span>` : '<span>Unclaimed</span>'}<span style="margin-left:auto" title="Last activity">${i.last}</span></div>
+    </a>`;
+  };
+  const colHtml = c => {
+    const cs = list.filter(i => i.status === c);
+    if (c === 'ready'){
+      const go = cs.filter(i => !isBlocked(i)), wait = cs.filter(isBlocked);
+      return `<div class="col"><div class="colh"><span>Ready</span><span>${cs.length}</span></div>
+        <div class="src" style="padding:0 4px 6px">Startable · ${go.length}</div>${go.map(card).join('') || '<div class="src" style="padding:0 4px 8px">Nothing startable</div>'}
+        ${wait.length ? `<div class="subh"><span>Waiting on blockers · ${wait.length}</span><button class="btn ghost sm" data-a="toggleblocked" aria-expanded="${S.showBlocked}">${S.showBlocked ? 'Hide' : 'Show'}</button></div>
+          ${S.showBlocked ? wait.map(card).join('') : `<div class="mini">${wait.map(i => `<a href="#" data-a="open" data-v="${i.id}" class="chip c-bad mono" title="${esc(i.title)}">${i.id}</a>`).join('')}</div>`}` : ''}
+      </div>`;
+    }
+    return `<div class="col"><div class="colh"><span>${STATUS[c]}${c==='done' ? ' <span class="muted" style="font-weight:400">· 7 days</span>' : ''}</span><span>${cs.length}</span></div>${c==='planning' ? '<div class="src" style="padding:0 4px 6px">Planning docs in progress. Not claimable yet.</div>' : ''}${cs.map(card).join('')}</div>`;
+  };
+  const table = `<div class="card" style="overflow:auto"><table><thead><tr><th scope="col">ID</th><th scope="col">Title</th><th scope="col">Status</th><th scope="col">Priority</th><th scope="col">Lead · run</th><th scope="col">Blocked by</th><th scope="col">Last activity</th></tr></thead><tbody>
+    ${list.map(i => `<tr class="clickrow" data-a="open" data-v="${i.id}"><td>${link(i.id)}</td><td>${esc(i.title)} <span class="type">${i.type}</span></td><td><div class="row wrap">${statusChip(i)}${owedChip(i)}</div></td><td>${prio(i.prio)}</td>
+      <td>${i.lead ? `<div>${esc(i.lead)}</div>${run(i.run, i.age)}` : '<span class="muted">Unclaimed</span>'}</td><td>${unresolved(i).map(b => link(b)).join(', ') || '<span class="muted">—</span>'}</td><td class="muted">${i.last} ago</td></tr>`).join('') || '<tr><td colspan="7" class="muted">No items match.</td></tr>'}
+  </tbody></table></div>`;
+  return `<div class="row" style="justify-content:space-between;margin-bottom:2px"><h1>Work${scopePill()}</h1>
+      <div class="seg" role="group" aria-label="Layout"><button data-a="mode" data-v="board" aria-pressed="${S.workMode==='board'}">Board</button><button data-a="mode" data-v="list" aria-pressed="${S.workMode==='list'}">List</button></div></div>
+    <div class="sub">Inbox → <b>Planning</b> → Ready → In progress → Review → Done. Agents can only claim work from Ready. “Blocked” comes from unresolved <b>blocks</b> links only.</div>
+    <div class="filters">
+      <span role="group" aria-label="Saved filters" class="row wrap" style="gap:6px">${Object.entries(FILTERS).map(([k,f]) => `<button class="fchip" data-a="filter" data-v="${k}" aria-pressed="${S.filter===k}">${f[0]} <b>${items.filter(i => inProj(i) && f[1](i)).length}</b></button>`).join('')}</span>
+      ${FILTERS[S.filter][2] ? `<span class="src" style="margin-left:auto" title="The same query agents send over MCP">Agent query: <span class="mono">${FILTERS[S.filter][2]}${S.scope!=='all' ? ' project:'+S.scope : ''}</span></span>` : ''}
+    </div>
+    ${S.workMode==='board' ? `<div class="board">${cols.map(colHtml).join('')}</div>` : table}`;
+};
+
+/* ---------- Ticket ---------- */
+function detailFor(i){
+  if (DETAIL[i.id]) return DETAIL[i.id];
+  return {outcome:'', acceptance:[], planVer:0, steps:[], evidence:[], runs: i.lead ? [{r:i.run, who:i.lead, what:RUNS[i.run] ? RUNS[i.run].d : '', lead:true}] : [],
+          activity: i.imported ? [['Nov 1','Imported from Jira (dry-run report reviewed)']] : [['—','Created by owner']]};
+}
+const defaultTab = i => (i.status === 'review' || i.status === 'done') ? 'evidence' : 'progress';
+V.ticket = () => {
+  const i = byId[S.ticket], d = detailFor(i), p = P[i.proj];
+  const tab = S.tab || defaultTab(i);
+  const o = owes(i);
+  const activity = [...(S.extraActivity[i.id] || []), ...d.activity];
+  const steps = d.steps.map((s, n) => `
+    <div class="step"><span class="sicon s-${s.s}" aria-hidden="true">${s.s==='done' ? '✓' : s.s==='blocked' ? '!' : ''}</span>
+      <div><div class="title">${n+1}. ${esc(s.t)} ${s.was ? `<s>${esc(s.was)}</s>` : ''}<span class="sr"> (${s.s})</span></div>
+        ${s.why ? `<div class="changed">Changed in plan v${d.planVer}: ${esc(s.why)}</div>` : ''}
+        ${s.s==='blocked' ? '<div class="changed" style="color:var(--bad)">Stopped here: see the failed run</div>' : ''}
+        ${(s.contrib || []).map(c => `<div class="contrib"><div class="row wrap">${prov(c[0])}<b>${esc(c[1])}</b><span class="src">${esc(c[2])}</span></div><div>${esc(c[3])}</div></div>`).join('')}
+      </div>
+      <div class="src" style="text-align:right">${s.who ? esc(s.who) : 'unassigned'}<br>${s.when || ''}</div></div>`).join('');
+  const done = d.steps.filter(s => s.s==='done').length;
+  const evid = d.evidence.map(([t,k,src,when]) => `<div class="ev"><span style="font-weight:600">${esc(t)}</span>${prov(k)}<div class="d">${esc(src)} · ${when}</div></div>`).join('');
+  const policyChip = p.policy === 'gated'
+    ? `<span class="chip c-gray" title="Project approval policy">${small(I.gate)} Owner gates: ${p.gates.join(' → ')}</span>`
+    : `<span class="chip c-gray" title="Project approval policy">No owner gate · agent completion closes</span>`;
+  const closedNote = i.status==='done' ? (i.closedBy==='owner' ? prov('owner','Closed after owner approval') : prov('agent','Closed by agent completion')) : '';
+  const tabs = [['progress', `Progress${d.steps.length ? ` <span class="muted">${done}/${d.steps.length}</span>` : ''}`], ['evidence', `Evidence <span class="muted">${d.evidence.length}</span>`], ['activity','Activity']];
+  const planningCard = () => { const req = reqDocs(i), miss = missingDocs(i);
+    return `<div class="card pad" style="border-color:var(--teal)"><div class="row wrap" style="justify-content:space-between"><h3 style="margin:0">Definition of ready · ${P[i.proj].short}</h3><span class="src">${i.type} in this project needs ${req.length ? req.join(', ') : 'no planning docs'} · ${P[i.proj].readyGate === 'agent' ? 'agent may move to Ready' : 'owner moves to Ready'}</span></div>
+      ${req.map(d => { const st = (i.planning || {})[d] || 'none'; return `<div class="lrow"><span class="pdoc pd-${st}" style="min-width:58px">${PD[st][0]} ${d}</span><span class="grow">${PD[st][1]}</span>${st==='review' && owes(i)==='review' ? `<button class="btn sm" data-a="review" data-v="${i.id}">Open review</button>` : ''}</div>`; }).join('')}
+      <div class="row wrap" style="margin-top:8px"><button class="btn sm ${miss.length ? '' : 'primary'}" data-a="promote" data-v="${i.id}" ${miss.length ? 'disabled' : ''}>${I.promote} Move to Ready</button><span class="src grow">${miss.length ? `Waiting on ${miss.join(', ')}. Agents can write planning docs now, but can't claim the build until it's Ready.` : P[i.proj].readyGate === 'agent' ? 'Every required doc is approved. This project lets the lead agent move it to Ready; you can also do it now.' : 'Every required doc is approved. This project needs you to move it to Ready.'}</span></div></div>`; };
+  return `
+  ${!inScope(i) ? `<div class="callout row wrap" style="margin-bottom:12px"><span class="grow">${i.id} belongs to <b>${P[i.proj].short}</b>, outside the project you're viewing.</span><button class="btn sm" data-a="scope" data-v="${i.proj}">Switch to ${P[i.proj].short}</button></div>` : ''}
+  <div class="tk-head"><div class="grow">
+    <div class="row wrap"><span class="mono muted">${i.id}</span><span class="type">${i.type}</span>${i.parent ? `<span class="muted">in</span> ${link(i.parent)} <span class="muted">${esc(byId[i.parent].title)}</span>` : ''}${i.imported ? '<span class="chip c-gray">Imported from Jira</span>' : ''}</div>
+    <h1 style="margin-top:4px">${esc(i.title)}</h1>
+    <div class="row wrap" style="margin-top:6px">${statusChip(i)}${blockedChip(i)}${closedNote}
+      <label class="row" style="gap:4px"><span class="src">Priority</span><select data-a="prio" aria-label="Priority">${[1,2,3].map(n => `<option value="${n}" ${i.prio===n?'selected':''}>P${n}</option>`).join('')}</select></label>
+      <span class="src">${p.name}</span> ${policyChip}${i.status==='inbox' ? `<button class="btn sm" data-a="toplanning" data-v="${i.id}">Move to Planning</button>` : ''}</div></div>
+  </div>
+  ${o === 'gate' ? `<div class="banner">${I.gate}<div class="grow"><b>Done is locked.</b> Required owner gate “${esc(i.gate)}” is pending. Agent completion, CI and the merge are recorded below but can't stand in for it.</div><button class="btn primary" data-a="review" data-v="${i.id}">Review now</button></div>` : ''}
+  ${o === 'review' ? `<div class="banner">${I.doc}<div class="grow"><b>Review owed:</b> ${esc(i.review)} v${REVIEWS[i.id].versions.slice(-1)[0].v} is waiting for your decision.</div><button class="btn primary" data-a="review" data-v="${i.id}">Open review</button></div>` : ''}
+  ${o === 'question' ? `<div class="banner q">${I.question}<div class="grow"><b>${esc(i.question.by)} asked at ${i.question.at}:</b> “${esc(i.question.text)}”
+      <label class="f" for="tans">Your answer</label><textarea id="tans" data-t="ans-${i.id}">${esc(S.text['ans-'+i.id] || '')}</textarea>
+      <div class="row wrap" style="margin-top:6px"><button class="btn primary sm" data-a="sendanswer" data-v="${i.id}">Send answer</button><span class="src">The run stays paused until ${esc(i.question.by)} reads it.</span></div></div></div>` : ''}
+  ${i.question && i.question.answer ? `<div class="callout ok" style="margin-bottom:12px">You answered: “${esc(i.question.answer)}”. Waiting for ${esc(i.question.by)} to read it.</div>` : ''}
+  <div class="grid2"><div class="stack">
+    ${i.status === 'planning' ? planningCard() : ''}
+    <div class="card pad"><h3>Outcome</h3><div>${d.outcome ? esc(d.outcome) : '<span class="muted">No outcome written yet.</span>'}</div>
+      ${d.acceptance.length ? `<h3 style="margin-top:14px">Acceptance</h3>${d.acceptance.map(([t,e]) => `<div class="lrow"><span class="sicon ${e ? 's-done' : 's-planned'}" aria-hidden="true">${e ? '✓' : ''}</span><span class="grow">${esc(t)}</span>${e ? `<span class="src">${esc(e)}</span>` : '<span class="chip c-info">No evidence</span>'}</div>`).join('')}` : ''}</div>
+    <div class="card pad">
+      <div class="tabs" role="tablist" aria-label="Item detail">${tabs.map(([k,l]) => `<button role="tab" id="tab-${k}" aria-controls="panel" data-a="tab" data-v="${k}" aria-selected="${tab===k}" tabindex="${tab===k ? 0 : -1}">${l}</button>`).join('')}</div>
+      <div role="tabpanel" id="panel" aria-labelledby="tab-${tab}">
+      ${tab==='progress' ? (d.steps.length ? `<div class="row" style="justify-content:space-between;margin-bottom:6px"><span class="src">Ticket plan v${d.planVer} · published by the lead · steps are not work items</span>${d.history ? '<button class="btn ghost sm" data-a="planhistory">Plan history</button>' : ''}</div>${steps}` : '<div class="muted">No plan yet. The lead agent publishes one when it claims the item.</div>')
+       : tab==='evidence' ? `<div class="src" style="margin-bottom:6px">Each row says who or what produced it. Only ${prov('owner')} counts as human approval.</div>${evid || '<div class="muted">No evidence linked.</div>'}
+          ${i.closedBy==='agent' && !S.ackEvidence[i.id] ? `<div class="row wrap" style="margin-top:10px"><button class="btn sm" data-a="ack" data-v="${i.id}">Accept without evidence</button><button class="btn sm" data-a="reopen" data-v="${i.id}">Reopen</button></div>` : ''}`
+       : activity.map(a => `<div class="act"><span class="src mono">${a[0]}</span><span>${esc(a[1])}</span></div>`).join('')}
+      </div>
+    </div>
+  </div>
+  <div class="stack">
+    <div class="card pad"><h3>Lead and runs</h3>
+      ${d.runs.map(r => `<div class="lrow" style="align-items:flex-start;padding:6px 0"><div class="grow"><div class="row wrap"><b>${esc(r.who)}</b>${r.lead ? '<span class="chip c-gray">lead</span>' : ''}${run(r.r)}</div><div class="src">${esc(r.what)}</div></div></div>`).join('') || '<div class="muted">Unclaimed. The next agent that asks for ready work can claim it.</div>'}
+      ${d.conflict && i.lead ? `<div class="callout warn" style="margin-top:6px">${esc(d.conflict)}</div>` : ''}
+      ${d.error && i.lead ? `<div class="err">${esc(d.error)}</div>` : ''}
+      ${i.run==='stale' && i.lead ? `<div class="row wrap" style="margin-top:8px"><button class="btn sm" data-a="release" data-v="${i.id}">Release lead claim…</button></div><div class="src" style="margin-top:4px">Or wait: the lease expires on its own at 11:13.</div>` : ''}
+      ${i.run==='failed' && i.lead ? `<div class="row wrap" style="margin-top:8px"><button class="btn sm" data-a="toready" data-v="${i.id}">Return to Ready</button></div><div class="src" style="margin-top:4px">This service never launches agents. A connected agent picks it up next.</div>` : ''}
+    </div>
+    <div class="card pad"><h3>Dependencies</h3>
+      <div class="src">Blocked by</div>${(i.blockedBy || []).map(b => `<div class="lrow">${link(b)}${projTag(b)} ${statusChip(byId[b])}</div>`).join('') || '<div class="lrow muted">Nothing</div>'}
+      <div class="src" style="margin-top:6px">Blocks</div>${dependents(i.id).map(x => `<div class="lrow">${link(x.id)}${projTag(x.id)}<span class="src" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.title)}</span></div>`).join('') || '<div class="lrow muted">Nothing</div>'}
+      ${(i.relates || []).length ? `<div class="src" style="margin-top:6px">Relates to (doesn't block)</div>${i.relates.map(x => `<div class="lrow">${link(x)}</div>`).join('')}` : ''}
+      <button class="btn ghost sm" data-a="gfocus" data-v="${i.id}" style="padding-left:0">Show in graph →</button></div>
+    <div class="card pad"><h3>Dates and effort</h3><dl class="kv">
+      ${i.start ? `<dt>Planned</dt><dd>${fmt(D(i.start))} → ${fmt(D(i.end))}<div class="src">set by ${esc(i.setBy)}</div></dd>` : '<dt>Planned</dt><dd class="muted">Not set</dd>'}
+      ${i.actual ? `<dt>Actual</dt><dd>${fmt(D(i.actual[0]))} → ${i.actual[1] ? fmt(D(i.actual[1])) : 'ongoing'}<div class="src">from run history</div></dd>` : ''}
+      <dt>Effort</dt><dd>${i.pts ? `${i.pts} pts<div class="src">set by ${esc((i.lead || 'owner').split(' ')[0])}</div>` : '<span class="muted">Not estimated</span>'}</dd>
+    </dl>${dateRisks(i).map(b => `<div class="callout bad" style="margin-top:8px">Starts ${fmt(D(i.start))}, but ${b} is planned to finish ${fmt(D(byId[b].end))}.</div>`).join('')}</div>
+  </div></div>`;
+};
+
+/* ---------- Reviews ---------- */
+const WALK = ['Drag a recipe between days and meal slots','Move a recipe with the keyboard (Space, arrows, Enter)','Reload keeps the plan (RCP-17 is related, not blocking)'];
+V.reviews = () => {
+  const inS = Object.keys(REVIEWS).filter(k => inScope(byId[k]));
+  if (!inS.length) return `<h1>Reviews${scopePill()}</h1><div class="sub">Nothing to review in this project.</div>`;
+  if (!inS.includes(S.review)){ S.review = inS.find(k => !S.decided[k]) || inS[0]; S.ver = null; }
+  const r = REVIEWS[S.review], vs = r.versions, latest = vs[vs.length-1];
+  const cur = vs.find(x => x.v === S.ver) || latest, isLatest = cur === latest;
+  const decided = S.decided[S.review];
+  const it = byId[S.review];
+  const pend = inS.filter(k => !S.decided[k]), done = inS.filter(k => S.decided[k]);
+  const qbtn = id => `<button data-a="review" data-v="${id}" aria-current="${S.review===id}"><span class="row"><span class="mono">${id}</span>${S.decided[id] ? decChip(S.decided[id]) : `<span class="chip c-warn">${REVIEWS[id].kind}</span>`}</span><span style="font-weight:600">${esc(REVIEWS[id].title)}</span><span class="src">${esc(byId[id].title)}</span></button>`;
+  const content = S.review === 'RCP-23' ? `<div class="doc"><h1>Meal plan templates · UX</h1><p>Planning doc for RCP-23. The PRD (v2) is approved; this covers the screens and flows.</p>
+       <h2>Save as template</h2><p>From any week, <code>⋯ → Save as template</code> opens a name field, prefilled with “Week of Nov 9”. Saving shows a toast with Undo.</p>
+       <h2>Apply a template</h2><p>The template picker lists templates with a 7-day thumbnail. Applying to a week that already has meals asks: <b>Merge</b> (default) or <b>Replace</b>.</p>
+       <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin:10px 0">${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d => `<div style="border:1px dashed var(--ctl);border-radius:6px;padding:6px;font-size:11px;color:var(--ink-3);min-height:54px">${d}</div>`).join('')}</div>
+       <h2>Open questions</h2><p>Should templates be shared across households? Proposed: no for V1.</p></div>`
+    : S.review === 'RCP-19'
+    ? `<div class="doc ${S.diff && cur.v>1 ? '' : 'plain'}">${cur.v>1 ? `<div class="row" style="justify-content:space-between;margin-bottom:10px"><span class="src">${S.diff ? 'Showing changes since v1' : 'Clean view'}</span><button class="btn sm" data-a="diff" aria-pressed="${S.diff}">${S.diff ? 'Hide changes' : 'Show changes since v1'}</button></div>` : ''}${docHtml(cur.v)}</div>`
+    : `<div class="doc"><h1>Release walkthrough · RCP-12</h1><p>Walk through the weekly planner on the merged build and confirm each acceptance criterion yourself.</p>
+       <h2>Submitted evidence</h2><div class="row wrap">${prov('agent','codex: acceptance complete')}${prov('ci','CI #91 · 214 passed')}${prov('git','PR #48 merged')}</div>
+       <h2>Your walkthrough</h2>${WALK.map((c,n) => `<label class="check"><input type="checkbox" data-a="check" data-v="${n}" ${S.checks[n] ? 'checked' : ''}><span>${esc(c)}</span></label>`).join('')}
+       <div class="src" style="margin-top:6px">${Object.values(S.checks).filter(Boolean).length} of ${WALK.length} checked. Your checklist is saved with the decision.</div></div>`;
+  return `<h1>Reviews${scopePill()}</h1><div class="sub">Each decision applies to one exact version. A new revision never inherits an earlier approval.</div>
+  <div class="rv">
+    <div class="card rvq">${pend.length ? `<div class="sectionhead"><h3>Waiting · ${pend.length}</h3></div>${pend.map(qbtn).join('')}` : ''}${done.length ? `<div class="sectionhead"><h3>Decided today</h3></div>${done.map(qbtn).join('')}` : ''}</div>
+    <div class="card" style="min-width:0">
+      <div class="vers"><b style="margin-right:4px">${esc(r.title)}</b>
+        ${vs.map(x => `<button class="vbtn" data-a="ver" data-v="${x.v}" aria-pressed="${x===cur}">v${x.v} ${x.decision ? decChip(x.decision.k) : x===latest ? decChip(decided) : ''}</button>`).join('')}
+        <span class="src" style="margin-left:auto">${cur.by} · ${cur.when} · <span class="mono">${cur.sha}</span></span>
+        ${S.review==='RCP-19' ? `<button class="btn sm" data-a="download" data-v="${cur.v}">Download .md</button>` : ''}</div>
+      ${!isLatest ? `<div class="callout warn" style="margin:10px 14px 0">You're viewing an older version. Its decision is shown on the right and doesn't carry over to v${latest.v}.</div>` : ''}
+      ${content}
+    </div>
+    <div class="stack">
+      ${cur.decision ? `<div class="card pad"><h3>Decision on v${cur.v}</h3>${prov('owner','Changes requested')}<div class="src" style="margin-top:4px">${cur.decision.by} · ${cur.decision.when}</div><div style="margin-top:6px">“${esc(cur.decision.why)}”</div></div>` : ''}
+      ${isLatest ? (decided ? `<div class="card pad"><h3>Your decision · v${cur.v}</h3>${prov('owner', DEC[decided][3])}
+          ${S.text['rat-'+S.review] ? `<div style="margin-top:6px">“${esc(S.text['rat-'+S.review])}”</div>` : ''}
+          <div class="src" style="margin-top:6px">Recorded just now. Applies to <span class="mono">${cur.sha}</span>. Agents see it on their next query.</div>
+          <button class="btn sm" style="margin-top:8px" data-a="undodec">Undo</button></div>`
+        : `<div class="card pad"><h3>Decide on v${cur.v}</h3>
+          <div class="dec" role="radiogroup" aria-label="Decision">${Object.entries(DEC).map(([k,[l,ic]]) => `<button role="radio" aria-checked="${S.decision===k}" data-a="dec" data-v="${k}" style="${k==='approve'?'color:var(--ok)':k==='changes'?'color:var(--warn)':''}">${I[ic]}${l}</button>`).join('')}</div>
+          <label class="f" for="rat">Reason ${S.decision && S.decision!=='approve' ? '<b style="color:var(--bad)">(required)</b>' : '(optional for Approve)'}</label>
+          <textarea id="rat" data-t="rat-${S.review}" placeholder="What should the agent know?">${esc(S.text['rat-'+S.review] || '')}</textarea>
+          <button class="btn primary" style="margin-top:8px;width:100%;justify-content:center" data-a="submitdec" ${S.decision ? '' : 'disabled'}>${S.decision ? `Record: ${DEC[S.decision][0]}` : 'Choose a decision'}</button>
+          <div class="callout" style="margin-top:10px">Applies to v${cur.v} · <span class="mono">${cur.sha}</span>. ${S.review==='RCP-12' ? 'Approving moves RCP-12 to Done and makes RCP-22 startable.' : S.review==='RCP-23' ? 'Approving marks UX approved. RCP-23 still needs its TDD before it can move to Ready.' : 'If claude submits v3, it needs a new decision.'}</div></div>`) : ''}
+      <div class="card pad"><h3>Item</h3><div class="row wrap">${link(it.id)}${statusChip(it)}</div><div style="margin-top:4px">${esc(it.title)}</div></div>
+    </div>
+  </div>`;
+};
+
+/* ---------- Dependencies ---------- */
+const GN = {'DOC-4':[30,70],'RCP-16':[260,70],'RCP-15':[30,180],'RCP-14':[30,260],'RCP-21':[260,220],'RCP-12':[30,350],'RCP-22':[260,350],'RCP-17':[260,430],'DOC-7':[530,110],'DOC-8':[530,260]};
+const NW = 180, NH = 48;
+V.graph = () => {
+  const vis = Object.keys(GN).filter(id => inScope(byId[id]));
+  const ext = Object.keys(GN).filter(id => !inScope(byId[id]) && items.some(x => inScope(x) && GN[x.id] && ((x.blockedBy || []).includes(id) || (byId[id].blockedBy || []).includes(x.id))));
+  const shown = new Set([...vis, ...ext]);
+  if (!vis.includes(S.graphSel)) S.graphSel = vis.includes('RCP-21') ? 'RCP-21' : vis[0];
+  const sel = S.graphSel, cyc = cycleSet(), si = byId[sel];
+  const edges = []; items.forEach(i => (i.blockedBy || []).forEach(b => { if (shown.has(b) && shown.has(i.id)) edges.push([b, i.id]); }));
+  const chain = new Set(); (function walk(id){ unresolved(byId[id]).forEach(b => { if (!chain.has(b)){ chain.add(b); walk(b); } }); })(sel);
+  const frees = freedBy(sel), still = holdsUp(sel).filter(x => !frees.includes(x));
+  const path = (a, b) => {
+    const [x1,y1] = GN[a], [x2,y2] = GN[b];
+    if (x1 === x2){ const dx = a < b ? -40 : 40, down = y2 > y1; return `M${x1+NW/2+dx},${y1+(down?NH:0)} C${x1+NW/2+dx*2.4},${(y1+y2)/2+NH/2} ${x2+NW/2+dx*2.4},${(y1+y2)/2+NH/2} ${x2+NW/2+dx},${y2+(down?0:NH)}`; }
+    return `M${x1+NW},${y1+NH/2} C${x1+NW+40},${y1+NH/2} ${x2-40},${y2+NH/2} ${x2},${y2+NH/2}`;
+  };
+  const node = id => {
+    const [x,y] = GN[id], i = byId[id];
+    const cls = [id===sel?'sel':'', chain.has(id)?'chain':'', frees.includes(id)?'unblock':'', i.status==='done'?'done':'', cyc.has(id)?'cyc':'', !inScope(i) ? 'ext' : ''].join(' ');
+    const rs = i.run ? RUNS[i.run].l : '';
+    return `<g class="gnode ${cls}" data-a="gsel" data-v="${id}" tabindex="0" role="button" aria-pressed="${id===sel}" aria-label="${id}, ${esc(i.title)}, ${STATUS[i.status]}${isBlocked(i)?', blocked':''}${rs?', run '+rs:''}">
+      <rect class="b" x="${x}" y="${y}" width="${NW}" height="${NH}" rx="8"/>
+      <text x="${x+10}" y="${y+18}" font-size="11" fill="var(--ink-3)" font-family="var(--mono)">${id} · ${!inScope(i) ? P[i.proj].short + ' ↗' : STATUS[i.status] + (rs ? ' · '+rs : '')}</text>
+      <text x="${x+10}" y="${y+35}" font-size="12.5" font-weight="600" fill="var(--ink)">${esc(i.title.length>25 ? i.title.slice(0,24)+'…' : i.title)}</text></g>`;
+  };
+  let impact;
+  if (si.end){
+    const newEnd = new Date(D(si.end).getTime() + S.slip*864e5);
+    const deps = dependents(sel).filter(isOpen);
+    impact = `<div class="row wrap" style="margin:6px 0"><span class="src">If ${sel} slips</span><span class="seg" role="group" aria-label="Slip days">${[1,3,5].map(n => `<button data-a="slip" data-v="${n}" aria-pressed="${S.slip===n}">${n}d</button>`).join('')}</span></div>
+      <div class="src">New planned end: <b style="color:var(--ink)">${fmt(newEnd)}</b></div>
+      ${deps.map(x => x.start ? (D(x.start) <= newEnd ? `<div class="lrow">${link(x.id)}<span class="chip c-bad">conflict</span><span class="src">starts ${fmt(D(x.start))}</span></div>` : `<div class="lrow">${link(x.id)}<span class="chip c-ok">ok</span><span class="src">starts ${fmt(D(x.start))}</span></div>`) : `<div class="lrow">${link(x.id)}<span class="chip c-gray">unknown</span><span class="src">no dates</span></div>`).join('') || '<div class="src">Nothing downstream.</div>'}`;
+  } else impact = `<div class="src">${sel} has no planned end, so the impact is unknown.</div>`;
+  return `<div class="row" style="justify-content:space-between"><h1>Dependencies${scopePill()}</h1>
+      <div class="row"><button class="fchip" data-a="grel" aria-pressed="${S.gRel}">Show “relates”</button><button class="fchip" data-a="ghier" aria-pressed="${S.gHier}">Show parent epic</button></div></div>
+    <div class="sub">Arrows mean “blocks”. Select an item to see what it waits on (red) and what finishing it would free (green). Items from other projects that block or depend on this one appear dashed.</div>
+    <div class="grid2"><div class="card" style="overflow:auto">
+      <svg viewBox="0 0 760 500" width="100%" style="min-width:620px;display:block" role="group" aria-label="Dependency graph">
+        <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" fill="var(--ink-3)"/></marker>
+        <marker id="ahr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" fill="var(--bad)"/></marker></defs>
+        ${S.gHier && S.scope !== 'DOC' ? `<rect x="14" y="160" width="450" height="330" rx="12" fill="none" stroke="var(--ctl)" stroke-dasharray="2 4"/><text x="26" y="154" font-size="11.5" fill="var(--ink-3)">RCP-1 Meal planning MVP · parent grouping, never blocks</text>` : ''}
+        ${[...cyc].some(id => shown.has(id)) ? `<rect x="510" y="40" width="220" height="300" rx="12" fill="var(--bad-soft)" opacity=".55"/><text x="522" y="62" font-size="12" fill="var(--bad)" font-weight="700">Cycle in imported data</text>`
+                   : `<text x="522" y="62" font-size="12" fill="var(--ok)" font-weight="700">✓ No cycles</text>`}
+        ${edges.map(([a,b]) => { const hot = chain.has(a) && (chain.has(b) || b===sel), c = cyc.has(a) && cyc.has(b); return `<path class="edge ${hot?'hot':''} ${c?'cyc':''}" d="${path(a,b)}" marker-end="url(#${hot||c?'ahr':'ah'})"/>`; }).join('')}
+        ${S.gRel && shown.has('RCP-12') && shown.has('RCP-17') ? `<path class="edge rel" d="M${GN['RCP-12'][0]+90},${GN['RCP-12'][1]+NH} C${GN['RCP-12'][0]+90},${GN['RCP-17'][1]+NH/2} ${GN['RCP-17'][0]-60},${GN['RCP-17'][1]+NH/2} ${GN['RCP-17'][0]},${GN['RCP-17'][1]+NH/2}"/><text x="${GN['RCP-12'][0]+20}" y="${GN['RCP-17'][1]+NH/2+20}" font-size="11.5" fill="var(--ink-3)">relates · doesn't block</text>` : ''}
+        ${Object.keys(GN).filter(id => shown.has(id) && (S.gRel || id !== 'RCP-17')).map(node).join('')}
+      </svg>
+      <div class="legend pad" style="border-top:1px solid var(--line)">
+        <span><svg width="26" height="8" aria-hidden="true"><path d="M0,4H26" stroke="var(--bad)" stroke-width="2.6"/></svg>Waits on (blocking chain)</span>
+        <span><svg width="18" height="12" aria-hidden="true"><rect x="1" y="1" width="16" height="10" rx="3" fill="none" stroke="var(--ok)" stroke-dasharray="4 2" stroke-width="2"/></svg>Freed when selected is done</span>
+        <span><svg width="26" height="8" aria-hidden="true"><path d="M0,4H26" stroke="var(--bad)" stroke-dasharray="6 3"/></svg>Cycle</span>
+        <span><svg width="26" height="8" aria-hidden="true"><path d="M0,4H26" stroke="var(--ctl)" stroke-dasharray="3 4"/></svg>Relates</span>
+        <span><svg width="18" height="12" aria-hidden="true"><rect x="1" y="1" width="16" height="10" rx="3" fill="var(--panel-2)" stroke="var(--ctl)" stroke-dasharray="3 2"/></svg>Other project</span></div>
+    </div>
+    <div class="stack">
+      <div class="card pad"><h3>Selected</h3><div class="row wrap">${link(sel)} ${statusChip(si)} ${run(si.run, si.age)}</div><div style="font-weight:650;margin:4px 0 10px">${esc(si.title)}</div>
+        ${cyc.has(sel) ? `<div class="callout bad" style="margin-bottom:10px">In a cycle: ${[...cyc].sort().join(' → ')} → ${[...cyc].sort()[0]}. Neither can become ready. Remove one link to fix it.
+          <div class="row wrap" style="margin-top:6px">${(si.blockedBy||[]).filter(b => cyc.has(b)).map(b => `<button class="btn sm" data-a="rmlink" data-v="${b}>${sel}">Remove “${b} blocks ${sel}”</button>`).join('')}</div></div>` : ''}
+        <div class="src">Waits on (including indirect)</div>${[...chain].map(b => `<div class="lrow">${link(b)}${projTag(b)}${statusChip(byId[b])}${run(byId[b].run, byId[b].age)}</div>`).join('') || '<div class="lrow muted">Nothing. It can start now.</div>'}
+        <div class="src" style="margin-top:8px">Done would free</div>${frees.map(b => `<div class="lrow">${link(b)}<span style="font-size:12.5px">${esc(byId[b].title)}</span></div>`).join('') || '<div class="lrow muted">Nothing on its own</div>'}
+        ${still.length ? `<div class="src" style="margin-top:8px">Also needed by (still blocked by others)</div>${still.map(b => `<div class="lrow">${link(b)}<span class="src">also waits on ${unresolved(byId[b]).filter(x => x!==sel).join(', ')}</span></div>`).join('')}` : ''}
+        <button class="btn sm" data-a="open" data-v="${sel}" style="margin-top:10px">Open item</button></div>
+      <div class="card pad"><h3>Delay impact</h3>${impact}<div class="src" style="margin-top:6px">Uses entered dates only. Items without dates show as unknown.</div></div>
+    </div></div>`;
+};
+
+/* ---------- Timeline ---------- */
+V.timeline = () => {
+  const start = D('2026-11-02'), days = 35;
+  const pct = d => ((d - start) / 864e5 / days * 100);
+  const rows = items.filter(i => i.start && i.type !== 'Epic' && inScope(i)).sort((a,b) => D(a.start) - D(b.start));
+  const undated = items.filter(i => !i.start && i.type !== 'Epic' && isOpen(i) && inScope(i));
+  const fcProj = S.scope === 'all' ? 'RCP' : S.scope, have = fcProj === 'RCP' ? 2 : 0;
+  const endX = s => pct(new Date(D(s).getTime() + 864e5)); // bars include their end day
+  const nowX = pct(NOW);
+  const row = i => {
+    const risks = dateRisks(i), done = i.status === 'done';
+    const s = pct(D(i.start)), e = endX(i.end);
+    const deps = unresolved(i).filter(b => byId[b].end).map(b => { const x = endX(byId[b].end), r = risks.includes(b);
+      return `<div class="dep ${r?'risk':''}" style="left:${x}%" title="${b} planned to finish ${fmt(D(byId[b].end))}"></div>`; }).join('');
+    const after = unresolved(i).filter(b => byId[b].end).map(b => `${risks.includes(b) ? '<b style="color:var(--bad)">' : ''}${b} ends ${fmt(D(byId[b].end))}${risks.includes(b) ? '</b>' : ''}`);
+    const overdue = !done && D(i.end) < D(NOW.toISOString().slice(0,10));
+    return `<div class="tl-row"><div class="lbl">${link(i.id)}<span class="t" title="${esc(i.title)}">${esc(i.title)}</span></div>
+      <div class="track">
+        <div class="today" style="left:${nowX}%"></div>${deps}
+        <div class="bar planned ${risks.length ? 'risk' : ''} ${done ? 'done' : ''}" style="left:${s}%;width:${e-s}%">${risks.length ? '⚠ blocker ends later' : overdue ? 'overdue' : done ? '✓ done' : isBlocked(i) ? '⊘ blocked' : ''}</div>
+        ${i.actual ? `<div class="bar actual" style="left:${pct(D(i.actual[0]))}%;width:${(i.actual[1] ? Math.min(endX(i.actual[1]), nowX) : nowX) - pct(D(i.actual[0]))}%" title="Actual run time"></div>` : ''}
+        <div class="setby" style="left:calc(${s}% + 1px)">set by ${esc(i.setBy)}${after.length ? ` · after ${after.join(', ')}` : ''}</div>
+      </div></div>`;
+  };
+  const fcStart = pct(D('2026-11-24')), fcEnd = endX('2026-12-03');
+  const fc = S.fcPreview && fcProj === 'RCP'
+    ? `<div class="bar forecast" style="left:${fcStart}%;width:${fcEnd-fcStart}%">P50 Nov 24 – P85 Dec 3</div><div class="setby" style="left:calc(${fcStart}% + 1px)">preview · 6.2 pts/wk over the last 4 weeks · n=11 · 80% range</div><button class="btn ghost sm" data-a="fc" style="position:absolute;left:8px;top:10px">Hide preview</button>`
+    : `<div style="position:absolute;left:10px;top:12px;display:flex;gap:8px;align-items:center;font-size:12.5px;color:var(--ink-2)">No forecast yet: needs 8 completed items with effort (have ${have}). ${fcProj === 'RCP' ? '<button class="btn ghost sm" data-a="fc">Preview what it will look like</button>' : ''}</div>`;
+  return `<div class="row" style="justify-content:space-between"><h1>Timeline${scopePill()}</h1><span class="src">Nov 2 – Dec 6 · by week</span></div>
+    <div class="sub">Bars are <b>entered</b> dates, each labeled with who set them. The thin purple bar is actual run time. Dashed markers show when a blocker is planned to finish. Forecasts get their own lane and never overwrite entered dates.</div>
+    <div class="card" style="overflow:auto"><div style="min-width:860px">
+      <div class="weeks"><div></div><div style="display:grid;grid-template-columns:repeat(5,1fr)">${['Nov 2','Nov 9','Nov 16','Nov 23','Nov 30'].map(w => `<div class="w"><span>${w}</span></div>`).join('')}</div></div>
+      ${rows.map(row).join('')}
+      <div class="tl-row" style="background:var(--panel-2)"><div class="lbl"><b>Forecast · ${P[fcProj].short} backlog</b></div><div class="track">${fc}</div></div>
+    </div></div>
+    <div class="row wrap" style="margin-top:10px;justify-content:space-between">
+      <div class="legend"><span><span class="bar planned" style="position:static;width:26px;height:12px"></span>Entered plan</span><span><span class="bar actual" style="position:static;width:26px"></span>Actual</span><span><span class="bar forecast" style="position:static;width:26px;height:12px"></span>Forecast (computed)</span><span><span style="display:inline-block;width:0;height:14px;border-left:2px dashed var(--ink-3)"></span>Blocker's planned end</span><span><span style="display:inline-block;width:0;height:14px;border-left:2px solid var(--bad)"></span>Now</span></div>
+      <div class="src">Not on the timeline (no dates): ${undated.map(i => link(i.id)).join(', ') || 'none'}</div></div>`;
+};
+
+/* ---------- Agents ---------- */
+V.agents = () => {
+  const rows = [
+    ['live','claude · orca-w3','RCP-14','Lead · step 2 of 4: unit merging','40s','tel','Until 12:02'],
+    ['reported','claude','RCP-23','Planning · writing the TDD','6m','said','Until 11:40'],
+    ['finished','units-worker','RCP-14','Child run r-77 · conversion table and tests','20m','observed','—'],
+    [null,'explorer','RCP-14','Subagent log · mapped ingredient units','48m','relayed','—'],
+    ['needs','codex','DOC-4','Waiting on your answer','9m','tel','Paused'],
+    ['stale','codex · orca-w1','RCP-15','Last said: “migrating pantry table”','47m','none','Expires 11:13'],
+    ['failed','claude','RCP-18','Outbound network blocked','25m','tel','Released'],
+    ['finished','codex','RCP-12','Lead · finished, gate requested','18m','tel','Released']];
+  const srcCell = s => s==='said' ? prov('agent','Agent-reported · no heartbeat') : s==='tel' ? '<span class="src">Client heartbeat</span>' : s==='observed' ? prov('observed') : s==='relayed' ? prov('relayed') : '<span class="chip c-gray">Unknown: no heartbeat</span>';
+  return `<h1>Agents${scopePill()}</h1><div class="sub">Every run and subagent contribution across projects. “How we know” separates telemetry from what agents told us.</div>
+    <div class="card" style="overflow:auto"><table><thead><tr><th scope="col">State</th><th scope="col">Agent</th><th scope="col">Item</th><th scope="col">Doing / did</th><th scope="col">Last signal</th><th scope="col">Lease</th><th scope="col">How we know</th></tr></thead><tbody>
+    ${rows.filter(r => inScope(byId[r[2]])).map(r => `<tr class="clickrow" data-a="open" data-v="${r[2]}"><td>${r[0] ? run(r[0]) : '<span class="src">log entry</span>'}</td><td><b>${r[1]}</b></td><td>${link(r[2])}</td><td>${esc(r[3])}</td><td class="muted">${r[4]} ago</td><td class="src">${r[6]}</td><td>${srcCell(r[5])}</td></tr>`).join('')}
+    </tbody></table></div>
+    <div class="card pad" style="margin-top:12px"><h3>Run states</h3><div class="legend">${Object.keys(RUNS).map(k => `<span>${run(k)}<span class="src">${RUNS[k].d}</span></span>`).join('')}</div></div>`;
+};
+
+/* ---------- Connections (O01, O02, O07, O08) ---------- */
+V.connections = () => {
+  const m = [
+    ['Codex CLI (host)','Streamable HTTP','2m ago','pass','Smoke test passed Nov 6 08:15'],
+    ['Claude Code (host)','Streamable HTTP','40s ago','pass','Smoke test passed Nov 6 08:16'],
+    ['Orca worker · Codex','Streamable HTTP (user config)','47m ago','pass','Passed Nov 6 08:20 · delegated agent updated the same ticket'],
+    ['Orca worker · Claude','Not verified','never','todo','Check that this surface inherits the user MCP config'],
+    ['Agent in another container','Docker network','—','off','Off by default. Needs an explicit network path (O02)']];
+  const st = s => s==='pass' ? '<span class="chip c-ok">✓ Verified</span>' : s==='todo' ? '<span class="chip c-warn">Not verified</span>' : '<span class="chip c-gray">Not configured</span>';
+  const snip = {codex:`# ~/.codex/config.toml\n[mcp_servers.tasklite]\nurl = "http://127.0.0.1:7420/mcp"\nbearer_token_env_var = "TASKLITE_TOKEN"`,
+                claude:`claude mcp add --transport http --scope user tasklite \\\n  http://127.0.0.1:7420/mcp \\\n  --header "Authorization: Bearer $TASKLITE_TOKEN"`};
+  return `<h1>Connections</h1><div class="sub">How agents reach this service, and whether each client has been verified end to end. No model API keys are needed.</div>
+  <div class="grid2"><div class="stack">
+    <div class="card" style="overflow:auto"><div class="sectionhead"><h3>Client compatibility</h3><span class="src">O07 smoke test: claim, plan, log, read back</span></div>
+      <table><thead><tr><th scope="col">Client</th><th scope="col">Transport</th><th scope="col">Last seen</th><th scope="col">Status</th><th scope="col">Notes</th></tr></thead><tbody>
+      ${m.map(r => `<tr><td><b>${r[0]}</b></td><td class="src">${r[1]}</td><td class="src">${r[2]}</td><td>${st(r[3])}</td><td class="src">${r[4]}</td></tr>`).join('')}</tbody></table></div>
+    <div class="card pad"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Client setup</h3>
+        <div class="seg" role="group" aria-label="Client">${['codex','claude'].map(k => `<button data-a="snippet" data-v="${k}" aria-pressed="${S.snippet===k}">${k==='codex'?'Codex':'Claude Code'}</button>`).join('')}</div></div>
+      <pre class="code" id="snip">${esc(snip[S.snippet])}</pre>
+      <div class="row" style="margin-top:8px;align-items:flex-start"><button class="btn sm" data-a="copy">${I.copy}Copy</button><span class="src">Sample config. Check it against each client's docs during the O07 smoke test. The token comes from an environment variable and never appears in tickets or logs.</span></div></div>
+  </div>
+  <div class="stack">
+    <div class="card pad"><h3>Endpoint</h3><dl class="kv"><dt>MCP</dt><dd class="mono">http://127.0.0.1:7420/mcp</dd><dt>Web UI</dt><dd class="mono">http://127.0.0.1:7420/</dd><dt>Bind</dt><dd>Loopback only</dd><dt>Auth</dt><dd>Bearer token</dd><dt>Origins</dt><dd class="mono">127.0.0.1:7420</dd></dl></div>
+    <div class="card pad"><h3>Service health</h3><dl class="kv">
+      <dt>Database</dt><dd><span class="chip c-ok">✓ ready</span> SQLite · 3.1 MB</dd>
+      <dt>Documents</dt><dd><span class="chip c-ok">✓ ready</span> 6 files · 1.2 MB</dd>
+      <dt>Volume</dt><dd class="mono" style="font-size:11.5px">tasklite-data</dd>
+      <dt>Last backup</dt><dd>Nov 6 03:00 · kept 14 days</dd>
+      <dt>Restarted</dt><dd>Nov 6 08:12<div class="src">0 runs were active. Any active run would show as interrupted, not finished.</div></dd></dl></div>
+  </div></div>`;
+};
+
+/* ---------- Projects (O10, O11) ---------- */
+V.projects = () => `<h1>Projects</h1><div class="sub">Choose a project to scope Needs you, Work, Reviews, Dependencies, Timeline and Agents to it. You can also switch from the <b>Project</b> menu at the top of the sidebar. Each project sets its own definition of ready (which planning docs each item type needs, so ceremony fits the risk), who may move items to Ready, and its approval policy.</div>
+  <div class="card">${Object.values(P).map(p => { const its = items.filter(i => i.proj===p.key && i.type!=='Epic'), c = s => its.filter(i => i.status===s).length, n = its.length; return `
+    <div class="proj-card"><div class="row"><span class="sw" style="background:${p.color};width:11px;height:11px"></span><div><a href="#" data-a="scope" data-v="${p.key}" style="color:var(--ink)"><b>${p.name}</b></a> ${S.scope===p.key ? '<span class="chip c-info">Current</span>' : ''}<div class="src"><span class="mono">${p.key}</span> · ${n} items · ${p.docs} documents · ${decisionsIn(p.key).length} decision${decisionsIn(p.key).length===1?'':'s'} owed</div><div class="src">Planning docs before Ready: ${rulesText(p)}</div></div></div>
+    <div><label class="sr" for="pol-${p.key}">Approval policy for ${p.name}</label><select id="pol-${p.key}" data-a="policy" data-v="${p.key}"><option value="none" ${p.policy==='none'?'selected':''}>No owner gate</option><option value="gated" ${p.policy==='gated'?'selected':''}>Owner gates before Done</option></select>
+      <div class="src" style="margin-top:3px">${p.policy==='gated' ? p.gates.join(' → ') : 'Agent completion closes items'}</div>
+      <label class="sr" for="rg-${p.key}">Who moves items to Ready in ${p.name}</label><select id="rg-${p.key}" data-a="readygate" data-v="${p.key}" style="margin-top:6px"><option value="owner" ${p.readyGate==='owner'?'selected':''}>Owner moves to Ready</option><option value="agent" ${p.readyGate==='agent'?'selected':''}>Agent may move to Ready</option></select></div>
+    <div><div class="bar-mini" role="img" aria-label="${c('done')} done, ${c('review')} in review, ${c('progress')} in progress, ${c('ready')} ready">${[['done','var(--ok)'],['review','var(--warn)'],['progress','var(--violet)'],['ready','var(--info)'],['planning','var(--teal)']].map(([s,col]) => `<i style="width:${n ? c(s)/n*100 : 0}%;background:${col}"></i>`).join('')}</div><div class="src" style="margin-top:3px">${c('done')} done · ${c('progress')} active · ${c('review')} review · ${c('planning')} planning</div></div>
+    <div class="row"><button class="btn sm ${S.scope===p.key ? '' : 'primary'}" data-a="scope" data-v="${p.key}">${S.scope===p.key ? 'Viewing' : 'Switch to'}</button><button class="btn sm" data-a="delproj" data-v="${p.key}" style="color:var(--bad)">Delete…</button></div></div>`; }).join('')}</div>
+  <div class="src" style="margin-top:10px">Deleting a project removes its work records and local documents together. Backups follow their own retention policy (14 days).</div>`;
+
+/* =====================================================================
+   Modals
+   ===================================================================== */
+function modalHtml(){
+  const m = S.modal; if (!m) return '';
+  const wrap = (title, body, foot) => `<div class="ov" data-a="closeov"><div class="dlg" role="dialog" aria-modal="true" aria-labelledby="dlgt">
+    <header><h2 id="dlgt">${title}</h2><button class="iconbtn" data-a="close" aria-label="Close">${I.x}</button></header>
+    <div class="body">${body}</div>${foot ? `<footer>${foot}</footer>` : ''}</div></div>`;
+  if (m.type === 'palette'){
+    const q = (m.q || '').trim().toLowerCase();
+    const views = [['attention','Needs you'],['work','Work'],['reviews','Reviews'],['graph','Dependencies'],['timeline','Timeline'],['agents','Agents'],['connections','Connections'],['projects','Projects']];
+    const its = items.filter(i => !q || i.id.toLowerCase().includes(q) || i.title.toLowerCase().includes(q)).slice(0, 8);
+    const vs = views.filter(v => !q || v[1].toLowerCase().includes(q));
+    let n = 0; const hi = () => (n++ === (m.hi || 0)) ? ' hi' : '';
+    const res = `${its.length ? `<div class="grp">Work items</div>${its.map(i => `<button class="pi${hi()}" data-a="palopen" data-v="${i.id}"><span class="mono muted" style="width:56px">${i.id}</span><span class="grow">${esc(i.title)}</span><span class="src">${P[i.proj].short}</span>${statusChip(i)}</button>`).join('')}` : ''}
+      ${vs.length ? `<div class="grp">Go to</div>${vs.map(v => `<button class="pi${hi()}" data-a="palnav" data-v="${v[0]}"><span class="grow">${v[1]}</span></button>`).join('')}` : ''}`;
+    return `<div class="ov" data-a="closeov"><div class="dlg pal" role="dialog" aria-modal="true" aria-label="Search or jump to">
+      <input id="palq" placeholder="Search items, IDs, or views…" value="${esc(m.q || '')}" aria-label="Search" autocomplete="off">
+      <div class="res">${res.trim() || '<div class="pad muted">No matches in the sample data.</div>'}</div>
+      <div class="pad src" style="border-top:1px solid var(--line)">↑↓ to move · Enter to open · Esc to close</div></div></div>`;
+  }
+  if (m.type === 'plan'){
+    const d = DETAIL[S.ticket];
+    return wrap(`Plan history · ${S.ticket}`, `<div class="hv">${[...d.history].reverse().map(h => `<div class="ver"><div class="row" style="justify-content:space-between"><b>v${h.v}</b><span class="src">${h.by} · ${h.at}</span></div><div class="src" style="margin:2px 0 6px">${esc(h.note)}</div>${h.ops.map(o => `<div class="${o[0]==='+'?'add':o[0]==='-'?'rm':''}">${o[0]==='=' ? '' : o[0]+' '}${esc(o[1])}</div>`).join('')}</div>`).join('')}</div>
+      <div class="src" style="margin-top:10px">Earlier versions are kept so you can see how scope changed without reading a transcript.</div>`, '<button class="btn" data-a="close">Close</button>');
+  }
+  if (m.type === 'release'){
+    return wrap(`Release lead claim on ${m.id}?`, `<p style="margin-top:0">codex · orca-w1 has been silent for 47 minutes. Releasing will:</p>
+      <ul style="margin:0 0 8px;padding-left:18px"><li>mark run r-58 as <b>interrupted</b>, not finished</li><li>keep its plan, log and partial work on the ticket</li><li>move ${m.id} back to Ready so another agent can claim it</li></ul>
+      <div class="src">If codex comes back, it gets a conflict response with the current state.</div>`,
+      `<button class="btn" data-a="close">Cancel</button><button class="btn danger" data-a="confirmrelease" data-v="${m.id}">Release claim</button>`);
+  }
+  if (m.type === 'delete'){
+    const p = P[m.key], n = items.filter(i => i.proj===m.key).length, ok = (m.typed || '') === m.key;
+    return wrap(`Delete ${esc(p.name)}?`, `<p style="margin-top:0">This permanently removes <b>${n} work items</b>, their plans, runs and history, and <b>${p.docs} local documents</b>. Agents will get “not found” for these IDs.</p>
+      <div class="callout warn">Backups keep a copy until their 14-day retention ends. Removing the Docker container alone doesn't delete data.</div>
+      <label class="f" for="deltype">Type <b class="mono">${m.key}</b> to confirm</label><input class="input" id="deltype" value="${esc(m.typed || '')}" autocomplete="off">`,
+      `<button class="btn" data-a="close">Cancel</button><button class="btn danger" data-a="confirmdel" ${ok ? '' : 'disabled'}>Delete project</button>`);
+  }
+  return '';
+}
+
+/* =====================================================================
+   Render loop (keeps keyboard focus on the same control across renders)
+   ===================================================================== */
+const TITLES = {attention:'Needs you', work:'Work', reviews:'Reviews', graph:'Dependencies', timeline:'Timeline', agents:'Agents', connections:'Connections', projects:'Projects'};
+const fkey = el => (el && el.dataset) ? (el.dataset.a ? `${el.dataset.a}|${el.dataset.v || ''}` : el.dataset.t ? `t|${el.dataset.t}` : el.id ? `#${el.id}` : null) : null;
+function render(){
+  const ae = document.activeElement, k = fkey(ae);
+  const caret = ae && typeof ae.selectionStart === 'number' ? ae.selectionStart : null;
+  renderNav();
+  $('#view').innerHTML = V[S.view]();
+  const i = byId[S.ticket];
+  const globalView = S.view === 'connections' || S.view === 'projects';
+  $('#crumbs').innerHTML = S.view === 'ticket' ? `<span>${P[i.proj].short}</span> / <a href="#" data-a="nav" data-v="work">Work</a> / <span class="mono">${i.id}</span> <b>${esc(i.title)}</b>`
+    : globalView ? `<b>${TITLES[S.view]}</b> <span class="scopebar">Service-wide</span>` : `<span>${S.scope === 'all' ? 'All projects' : P[S.scope].short}</span> / <b>${TITLES[S.view]}</b>`;
+  const dark = S.theme==='dark' || (S.theme==='system' && matchMedia('(prefers-color-scheme: dark)').matches);
+  $('#themebtn').innerHTML = dark ? I.sun : I.moon;
+  $('#themebtn').setAttribute('aria-label', `Theme: ${S.theme}. Switch theme`);
+  $('#themebtn').title = `Theme: ${S.theme}`;
+  $('#modal').innerHTML = modalHtml();
+  if (S.modal){
+    const f = S.modal.type==='palette' ? $('#palq') : S.modal.type==='delete' ? $('#deltype') : $('.dlg footer .btn');
+    if (f){ f.focus(); if (typeof f.value === 'string' && f.setSelectionRange) f.setSelectionRange(f.value.length, f.value.length); }
+    return;
+  }
+  if (k){
+    const el = [...document.querySelectorAll('#app [data-a],#app [data-t],#app [id]')].find(e => fkey(e) === k);
+    if (el){ el.focus({preventScroll:true}); if (caret != null && el.setSelectionRange) try { el.setSelectionRange(caret, caret); } catch(_){} }
+  }
+}
+function go(view, opts={}){
+  Object.assign(S, opts); S.view = view; render();
+  $('#view').focus({preventScroll:true});
+}
+function openTicket(id){ S.ticket = id; S.tab = null; go('ticket'); }
+function openReview(id){ S.review = id; S.ver = null; S.decision = null; go('reviews'); }
+function undoable(id, msg, undo){ render(); toast(msg, () => { undo(); S.extraActivity[id]?.shift(); render(); }); }
+
+/* =====================================================================
+   Actions
+   ===================================================================== */
+const ACT = {
+  nav: v => go(v),
+  open: v => openTicket(v),
+  projwork: v => { S.scope = v; go('work', {filter:'all'}); },
+  scope: v => { S.scope = v; S.scopeOpen = false; S.kpi = 'all'; if (S.view === 'projects') go('attention'); else render(); toast(v === 'all' ? 'Showing all projects.' : `Showing only ${P[v].short}.`); },
+  scopemenu: () => { S.scopeOpen = !S.scopeOpen; render(); if (S.scopeOpen) setTimeout(() => { const b = document.querySelector('.scopemenu [aria-checked=true]'); if (b) b.focus(); }, 0); },
+  promote: v => { const i = byId[v]; if (missingDocs(i).length) return; i.status = 'ready'; logActivity(v, 'Owner moved the item from Planning to Ready');
+    undoable(v, `${v} moved to Ready. Agents can claim it now.`, () => { i.status = 'planning'; }); },
+  toplanning: v => { const i = byId[v]; i.status = 'planning'; i.planning = i.planning || {}; logActivity(v, 'Owner moved the item from Inbox to Planning');
+    undoable(v, `${v} moved to Planning.`, () => { i.status = 'inbox'; }); },
+  kpi: v => { S.kpi = v; render(); },
+  reply: v => { S.replyOpen = S.replyOpen === v ? null : v; render(); setTimeout(() => $('#ans-'+v)?.focus(), 0); },
+  sendanswer: v => {
+    const t = (S.text['ans-'+v] || '').trim();
+    if (!t){ toast('Write an answer first.'); return; }
+    const i = byId[v]; i.question.answer = t; S.replyOpen = null; logActivity(v, `Owner answered: “${t}”`);
+    undoable(v, `Answer posted to ${v}. ${i.question.by} reads it on its next query.`, () => { delete i.question.answer; });
+  },
+  mode: v => { S.workMode = v; render(); },
+  filter: v => { S.filter = v; if (v==='blocked') S.showBlocked = true; render(); },
+  toggleblocked: () => { S.showBlocked = !S.showBlocked; render(); },
+  tab: v => { S.tab = v; render(); },
+  planhistory: () => { S.modal = {type:'plan'}; render(); },
+  release: v => { S.modal = {type:'release', id:v}; render(); },
+  confirmrelease: v => {
+    const i = byId[v], prev = {lead:i.lead, run:i.run, status:i.status}, r0 = {...DETAIL[v].runs[0]};
+    i.lead = null; i.run = null; i.status = 'ready';
+    Object.assign(DETAIL[v].runs[0], {r:'interrupted', what:'Lead run r-58 · interrupted by owner at 11:00 · partial work kept', lead:false});
+    logActivity(v, 'Owner released the lead claim; run r-58 marked interrupted'); S.modal = null;
+    undoable(v, `${v} is back in Ready. Run r-58 marked interrupted.`, () => { Object.assign(i, prev); Object.assign(DETAIL[v].runs[0], r0); });
+  },
+  toready: v => {
+    const i = byId[v], prev = {lead:i.lead, run:i.run, status:i.status};
+    i.lead = null; i.run = null; i.status = 'ready'; DETAIL[v].runs[0].lead = false;
+    logActivity(v, 'Owner returned the item to Ready after the failed run');
+    undoable(v, `${v} returned to Ready.`, () => { Object.assign(i, prev); DETAIL[v].runs[0].lead = true; });
+  },
+  ack: v => { S.ackEvidence[v] = true; logActivity(v, 'Owner accepted the agent completion without further evidence'); undoable(v, 'Accepted. Removed from Needs you.', () => { delete S.ackEvidence[v]; }); },
+  reopen: v => { const i = byId[v]; i.status = 'ready'; S.ackEvidence[v] = true; logActivity(v, 'Owner reopened the item: acceptance #2 needs evidence');
+    undoable(v, `${v} reopened and back in Ready.`, () => { i.status = 'done'; delete S.ackEvidence[v]; }); },
+  review: v => openReview(v),
+  ver: v => { S.ver = +v; render(); },
+  diff: () => { S.diff = !S.diff; render(); },
+  dec: v => { S.decision = v; render(); },
+  submitdec: () => {
+    const why = (S.text['rat-'+S.review] || '').trim();
+    if (S.decision !== 'approve' && !why){ toast('Add a reason so the agent knows what to do next.'); $('#rat')?.focus(); return; }
+    const id = S.review, k = S.decision, it = byId[id], pd = REVIEWS[id].planDoc;
+    S.undoDec = {status:it.status, closedBy:it.closedBy, doc: pd ? it.planning[pd] : null};
+    S.decided[id] = k; S.decision = null;
+    if (pd){
+      if (k === 'approve' || k === 'waive') it.planning[pd] = 'approved';
+      if (k === 'changes') it.planning[pd] = 'drafting';
+      logActivity(id, `Owner ${({approve:'approved', changes:'requested changes on', defer:'deferred', waive:'waived'})[k]} the ${pd} doc${why ? `: “${why}”` : ''}`);
+      undoable(id, `${DEC[k][3]} on ${id} ${pd}. Agents see it on their next query.`, () => ACT.restoreDec(id));
+      return;
+    }
+    if (k === 'approve'){ it.status = 'done'; it.closedBy = 'owner'; logActivity(id, it.gate ? `Owner approved gate “${it.gate}”` : 'Owner approved v2'); }
+    if (k === 'changes'){ it.status = 'progress'; logActivity(id, `Owner requested changes: “${why}”`); }
+    if (k === 'defer') logActivity(id, `Owner deferred the decision: “${why}”`);
+    if (k === 'waive'){ it.status = 'done'; it.closedBy = 'owner'; logActivity(id, `Owner waived the review: “${why}”`); }
+    undoable(id, `${DEC[k][3]} on ${id}. Agents see it on their next query.`, () => ACT.restoreDec(id));
+  },
+  restoreDec: id => { const it = byId[id], u = S.undoDec || {}, pd = REVIEWS[id].planDoc; delete S.decided[id]; it.status = u.status || it.status; if (u.closedBy) it.closedBy = u.closedBy; else delete it.closedBy; if (pd) it.planning[pd] = u.doc || 'review'; },
+  undodec: () => { const id = S.review; ACT.restoreDec(id); S.extraActivity[id]?.shift(); render(); },
+  check: v => { S.checks[v] = !S.checks[v]; render(); },
+  download: v => { const b = new Blob([DOCS[v]], {type:'text/markdown'}); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = `recipe-data-model.v${v}.md`; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); },
+  gsel: v => { S.graphSel = v; render(); },
+  gfocus: v => { if (!GN[v]){ toast(`${v} has no blocking links to show.`); return; } go('graph', {graphSel:v}); },
+  gfix: v => go('graph', {graphSel:v}),
+  grel: () => { S.gRel = !S.gRel; if (!S.gRel && S.graphSel === 'RCP-17') S.graphSel = 'RCP-21'; render(); },
+  ghier: () => { S.gHier = !S.gHier; render(); },
+  slip: v => { S.slip = +v; render(); },
+  rmlink: v => { const [b, a] = v.split('>'); const i = byId[a], prev = [...i.blockedBy]; i.blockedBy = i.blockedBy.filter(x => x !== b); logActivity(a, `Owner removed link “${b} blocks ${a}”`);
+    undoable(a, `Removed “${b} blocks ${a}”. Cycle resolved.`, () => { i.blockedBy = prev; }); },
+  fc: () => { S.fcPreview = !S.fcPreview; render(); },
+  snippet: v => { S.snippet = v; render(); },
+  copy: () => { const t = $('#snip').textContent; const p = navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject(); p.then(() => toast('Copied to clipboard.'), () => toast('Copy is blocked here. Select the text instead.')); },
+  delproj: v => { S.modal = {type:'delete', key:v, typed:''}; render(); },
+  confirmdel: () => { const k = S.modal.key; S.modal = null; render(); toast(`Prototype only: this would delete ${P[k].name} and its documents.`); },
+  theme: () => { S.theme = {system:'light', light:'dark', dark:'system'}[S.theme]; const a = $('#app'); if (S.theme==='system') a.removeAttribute('data-theme'); else a.setAttribute('data-theme', S.theme); render(); toast(`Theme: ${S.theme}`); },
+  palette: () => { S.modal = {type:'palette', q:'', hi:0}; render(); },
+  palopen: v => { S.modal = null; openTicket(v); },
+  palnav: v => { S.modal = null; go(v); },
+  close: () => { S.modal = null; render(); },
+  closeov: () => { S.modal = null; render(); },
+  toastundo: () => { const t = $('#toast'), u = t._undo; t.classList.remove('on'); if (u){ u(); toast('Undone.'); } },
+};
+
+/* =====================================================================
+   Events
+   ===================================================================== */
+document.addEventListener('click', e => {
+  const app = document.getElementById('app');
+  if (!app.contains(e.target)) return;
+  if (e.target.closest('[data-stop]') && !e.target.closest('button')) return;
+  if (S.scopeOpen && !e.target.closest('.scopewrap')){ S.scopeOpen = false; render(); }
+  const el = e.target.closest('[data-a]');
+  if (!el) return;
+  if (el.tagName === 'SELECT' || (el.tagName === 'INPUT' && el.type !== 'checkbox')) return;
+  if (el.dataset.a === 'closeov' && e.target !== el) return; // clicks inside a dialog don't close it
+  if (el.tagName === 'A') e.preventDefault();
+  const fn = ACT[el.dataset.a]; if (fn) fn(el.dataset.v);
+});
+document.addEventListener('change', e => {
+  const el = e.target;
+  if (el.dataset.a === 'prio'){ const i = byId[S.ticket], old = i.prio; i.prio = +el.value; logActivity(i.id, `Owner changed priority P${old} → P${i.prio}`); undoable(i.id, `Priority set to P${i.prio}. Agents see it on their next query.`, () => { i.prio = old; }); }
+  if (el.dataset.a === 'readygate'){ const p = P[el.dataset.v], old = p.readyGate; p.readyGate = el.value; render(); toast(`${p.short}: ${p.readyGate === 'agent' ? 'the lead agent may move items to Ready once planning docs are approved' : 'only you move items to Ready'}.`, () => { p.readyGate = old; render(); }); }
+  if (el.dataset.a === 'policy'){ const p = P[el.dataset.v], old = p.policy, oldG = [...p.gates]; p.policy = el.value; if (p.policy==='gated' && !p.gates.length) p.gates = ['Release walkthrough'];
+    render(); toast(`${p.name}: ${p.policy==='gated' ? 'owner gate required before Done' : 'agent completion now closes items'}.`, () => { p.policy = old; p.gates = oldG; render(); }); }
+});
+document.addEventListener('input', e => {
+  const el = e.target;
+  if (el.dataset.t) S.text[el.dataset.t] = el.value;
+  if (el.id === 'palq'){ S.modal.q = el.value; S.modal.hi = 0; render(); }
+  if (el.id === 'deltype'){ S.modal.typed = el.value; render(); }
+});
+document.addEventListener('keydown', e => {
+  const tag = document.activeElement && document.activeElement.tagName, typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+  if ((e.key === 'k' && (e.ctrlKey || e.metaKey)) || (e.key === '/' && !typing)){ e.preventDefault(); ACT.palette(); return; }
+  if (e.key === 'Escape' && S.modal){ e.preventDefault(); ACT.close(); return; }
+  if (S.scopeOpen && e.key === 'Escape'){ S.scopeOpen = false; render(); const b = document.querySelector('.scopebtn'); if (b) b.focus(); return; }
+  if (S.scopeOpen && (e.key === 'ArrowDown' || e.key === 'ArrowUp')){
+    const opts = [...document.querySelectorAll('.scopemenu button')], n = opts.indexOf(document.activeElement);
+    e.preventDefault(); opts[(n + (e.key === 'ArrowDown' ? 1 : -1) + opts.length) % opts.length].focus(); return;
+  }
+  if (S.modal && S.modal.type === 'palette' && ['ArrowDown','ArrowUp','Enter'].includes(e.key)){
+    const btns = [...document.querySelectorAll('.pal .pi')]; if (!btns.length) return;
+    e.preventDefault();
+    if (e.key === 'Enter'){ btns[S.modal.hi || 0].click(); return; }
+    S.modal.hi = ((S.modal.hi || 0) + (e.key === 'ArrowDown' ? 1 : -1) + btns.length) % btns.length; render(); return;
+  }
+  if (S.modal && e.key === 'Tab'){ // focus trap
+    const f = [...document.querySelectorAll('.dlg button:not([disabled]),.dlg input,.dlg textarea')]; if (!f.length) return;
+    const first = f[0], last = f[f.length-1];
+    if (e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
+    return;
+  }
+  const t = e.target;
+  if ((e.key === 'Enter' || e.key === ' ') && t.matches && t.matches('[role=button]:not(button)')){ e.preventDefault(); t.dispatchEvent(new MouseEvent('click', {bubbles:true})); }
+  if (t.getAttribute && t.getAttribute('role') === 'tab' && ['ArrowLeft','ArrowRight','Home','End'].includes(e.key)){
+    const tabs = [...t.parentElement.querySelectorAll('[role=tab]')], n = tabs.indexOf(t);
+    const next = e.key==='Home' ? 0 : e.key==='End' ? tabs.length-1 : (n + (e.key==='ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+    e.preventDefault(); S.tab = tabs[next].dataset.v; render(); const nt = document.getElementById('tab-'+S.tab); if (nt) nt.focus();
+  }
+});
+const mq = matchMedia('(prefers-color-scheme: dark)');
+if (mq.addEventListener) mq.addEventListener('change', () => { if (S.theme === 'system') render(); });
+
+/* Test hook: ?selftest renders every view and item and reports errors in the page title. */
+if (/selftest/.test(location.search)){
+  const errs = [];
+  const tryR = (label, f) => { try { f(); render(); } catch(err){ errs.push(label + ': ' + err.message); } };
+  ['all','RCP','DOC'].forEach(sc => Object.keys(TITLES).forEach(v => tryR(sc+'/'+v, () => { S.scope = sc; S.view = v; })));
+  tryR('scopemenu', () => { S.scope = 'all'; S.scopeOpen = true; }); S.scopeOpen = false;
+  items.forEach(i => ['progress','evidence','activity'].forEach(t => tryR(i.id+'/'+t, () => { S.view = 'ticket'; S.ticket = i.id; S.tab = t; })));
+  Object.keys(GN).forEach(id => tryR('graph/'+id, () => { S.view = 'graph'; S.graphSel = id; }));
+  Object.keys(REVIEWS).forEach(id => tryR('review/'+id, () => { S.view = 'reviews'; S.review = id; S.ver = 1; }));
+  ['palette','plan','release','delete'].forEach(m => tryR('modal/'+m, () => { S.view = 'ticket'; S.ticket = 'RCP-14'; S.modal = m==='delete' ? {type:m, key:'RCP'} : {type:m, id:'RCP-15', q:'rcp'}; }));
+  tryR('fc', () => { S.modal = null; S.view = 'timeline'; S.fcPreview = true; });
+  ['work'].forEach(v => Object.keys(FILTERS).forEach(f => tryR('filter/'+f, () => { S.view = v; S.filter = f; S.workMode = 'list'; })));
+  S.modal = null; S.view = 'attention'; S.filter = 'all'; S.scope = 'all'; S.workMode = 'board'; S.fcPreview = false; render();
+  document.title = errs.length ? 'SELFTEST FAIL ' + errs.join(' | ') : 'SELFTEST OK';
+} else render();
+})();
+</script>
+</body>
+</html>
