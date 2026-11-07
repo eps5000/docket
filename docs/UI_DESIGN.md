@@ -1,6 +1,6 @@
 # UI/UX design — MVP V1 human interface
 
-Status: design proposal, revision 9, 2026-11-06. Inputs: [requirements draft](REQUIREMENTS_DRAFT.md), [Jira research](JIRA_RESEARCH.md).
+Status: design proposal, revision 10, 2026-11-06. Inputs: [requirements draft](REQUIREMENTS_DRAFT.md), [Jira research](JIRA_RESEARCH.md).
 
 Clickable prototype: [`design/prototype.html`](../design/prototype.html). It is one file with no build step and no network requests, and all data in it is disposable sample work (O09). Open it directly in a browser.
 
@@ -89,7 +89,7 @@ Sidebar                                   Ticket page
 │  ── service-wide ──
 ├─ Projects
 └─ Connections
-Header: breadcrumb · search/jump (Ctrl K or /; items, labels, pages) · theme
+Header: breadcrumb · + New (quick capture to Inbox) · search/jump (Ctrl K or /; items, labels, pages) · theme
 ```
 
 ## Screens
@@ -118,7 +118,8 @@ Designed to fit on one laptop screen without scrolling. In the prototype it fits
 - **Work and checks tab:**
   - **Work:** items with state, who and when. Subagent contributions are nested under the item they belong to. Revised items show the old text. Items added from your review say so. A history view shows every revision.
   - **Agent checks:** each check with its state (passed, failed, not run) and evidence.
-- **Documents tab:** planning docs (PRD, UX, TDD) and handoff packets.
+- **Documents tab:** planning docs (PRD, UX, TDD) and handoff packets. Documents open in a viewer with version, author and Download; packets open the review screen. **Planning and Inbox tickets open on this tab**, because reading the docs is what Planning is.
+- **Activity tab:** history, plus a *note for the agent* box. That's how you steer work without a review round; the agent sees the note on its next query.
 - **Rail:**
   - **Lead & runs:** the lease, any rejected claims, stale-claim release, and *Return to Ready* after a failed run.
   - **Dependencies.**
@@ -131,6 +132,9 @@ Designed to fit on one laptop screen without scrolling. In the prototype it fits
   - The commit the packet was built from, and an out-of-date warning if the code has moved on.
   - Each item with *Looks good*, *Needs changes* or *Defer*. Changes need a note and a choice: *checklist item* or *new bug ticket*. Defer takes an optional note and a follow-up choice.
 - **The submit button names the outcome:** *Approve and close ticket*, *Close ticket (1 deferred)*, or *Send back to codex*. A footnote says exactly what will happen.
+
+### Quick capture
+*+ New* in the header opens a small dialog: title (required), type, project, optional epic, and notes. The item lands in **Inbox** and opens, ready to be shaped in Planning. It's deliberately minimal: agents fill in the rest.
 
 ### Labels and epics
 - **Label page:** brief, progress grouped by epic, *Move N to Ready* for everything with that label still in Planning, and a link to the filtered board.
@@ -183,7 +187,7 @@ The pulse is disabled under `prefers-reduced-motion`.
 ### Provenance badges
 | Badge | Style |
 | --- | --- |
-| Your decision | **solid green fill, person icon**. The only badge that means human approval. |
+| Your decision | **solid fill with person icon**, coloured by the decision: green = looked good / approved (the only badge that means human approval), amber = needed changes, blue = deferred, not verified |
 | Observed child run | solid violet outline |
 | Agent-reported | dashed violet outline |
 | Relayed by lead | dotted gray outline |
@@ -246,9 +250,10 @@ Base type is 13px; secondary text is at least 11.5px. Small controls are at leas
 
 **Testing:**
 - `design/prototype.html?selftest` renders every page in every scope, plus every item, tab, label, packet round, dialog and filter. It reports `SELFTEST OK` in headless Edge.
-- A 54-step scripted click-through of the scenarios above also passed.
+- A 62-step scripted click-through of the scenarios above also passed.
 
 ## Revision history
+- **Revision 10 (polish pass):** your past decisions are coloured by outcome (a "needed changes" no longer shows green); document and attachment viewer; Planning tickets open on Documents; *+ New* quick capture to Inbox; note for the agent on every ticket; type icon before the title in dense lists; Human review chips sit under the item text in the narrow column; shorter page subtitles; Coming up capped in the review queue; secondary styling for project switch buttons.
 - **Revision 9:** item types are colour-coded with solid squares and icons (Epic purple, Story green, Task blue, Bug red), with a board legend, timeline icons and graph stripes.
 - **Revision 8:** Human review is one card in a fixed place (top of the right-hand column) on every work item, epics included. Needs you is a one-screen dashboard: an agent status strip, For you now with Problems, and four compact cards capped at three rows.
 - **Revision 7:** commits are reported per ticket; epic-level human review for single-PR epics; a *Deferred, not verified* list on Needs you and a matching Work filter, shared with agents for cleanup.
@@ -258,6 +263,15 @@ Base type is 13px; secondary text is at least 11.5px. Small controls are at leas
 - **Revision 3:** project scope switcher and the Planning status.
 - **Revision 2:** accessibility and contrast fixes, provenance badges, Connections, search, and Undo.
 - **Revision 1:** first draft.
+
+## Known gaps (deliberately not designed yet)
+| Gap | Why it can wait | When it matters |
+| --- | --- | --- |
+| Editing dates, blockers and acceptance from the UI (H11) | You can ask an agent, or leave a note; priority and status moves are already direct | If notes prove slower than direct edits |
+| Service-down / disconnected state | The health card covers the healthy case; a full-width "service unreachable" banner is easy to add | When the real UI talks to the live service |
+| Very large boards (70+ tickets, as in a big UI overhaul) | Label pages, epic filter and saved filters keep it workable | Consider epic swimlanes and collapsing Done if boards get crowded |
+| Burn-down and velocity forecast (H14, P1) | The forecast lane already shows "insufficient history" honestly | Once 8+ items with effort have completed |
+| Jira import dry run (O05) and backup/restore UI (O03) | Pilot comes after V1 | Before the first real project moves over |
 
 ## Open questions
 None outstanding for the UI. The remaining behaviour (how reliably agents report commits, when to use epic-level review, how deferred checks get cleaned up) belongs to each repo's agent workflow; the tracker gives it the data and the queries.
