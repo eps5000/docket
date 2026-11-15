@@ -130,12 +130,12 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 
 ## Phase 3b: Contracts, the UI API and domain signatures · M3 (contract half)
 
-- [ ] T044 [P] Define request and response zod schemas for **every** route in BUILD_SPEC §7, including the clarification routes (`PATCH /api/items/:id` text fields, `POST /api/items/:id/cancel`, `GET /api/diagnostics/calls`, `PATCH /api/projects/:key`), in `shared/src/api/*.ts`, grouped as contracts/ui-api.md groups them
-- [ ] T045 Register **every** API route with session, CSRF and schema validation, and placeholder handlers returning `501 {code:"unavailable"}`, one file per group in `server/src/api/routes/{read,review,deps,decisions,steer,planning,timeline,import,settings,diagnostics}.ts`
-- [ ] T046 [P] API contract test: every BUILD_SPEC §7 route exists, rejects missing session (401) and missing CSRF on mutations (403), and validates its body (400 → `validation`), in `server/tests/integration/routes.test.ts`
-- [ ] T047 Declare the domain service signatures in `server/src/domain/contracts.ts`: items, runs, checklist, evidence, search and views, human review, packets and review decisions, links and subgraph, decisions and context, messages, documents, archive and cancel, projects, backup, forecast, and Jira import. Each method takes a `WriteContext` or `ReadContext` and returns typed results or a `ToolError`. Add stub implementations that throw not-implemented.
-- [ ] T048 Wire the MCP stubs and API placeholders to call through `contracts.ts`, so a slice only implements the service and removes the stub
-- [ ] T049 [P] Generate the typed web API client from `shared/src/api` (fetch, CSRF header, `mutation_id` capture for undo, `409` conflict shape), the TanStack Query key factory, and the event → query-key invalidation map from contracts/events.md, in `web/src/lib/api.ts`
+- [X] T044 [P] Define request and response zod schemas for **every** route in BUILD_SPEC §7, including the clarification routes (`PATCH /api/items/:id` text fields, `POST /api/items/:id/cancel`, `GET /api/diagnostics/calls`, `PATCH /api/projects/:key`), in `shared/src/api/*.ts`, grouped as contracts/ui-api.md groups them
+- [X] T045 Register **every** API route with session, CSRF and schema validation, and placeholder handlers returning `501 {code:"unavailable"}`, one file per group in `server/src/api/routes/{read,review,deps,decisions,steer,planning,timeline,import,settings,diagnostics}.ts`
+- [X] T046 [P] API contract test: every BUILD_SPEC §7 route exists, rejects missing session (401) and missing CSRF on mutations (403), and validates its body (400 → `validation`), in `server/tests/integration/routes.test.ts`
+- [X] T047 Declare the domain service signatures in `server/src/domain/contracts.ts`: items, runs, checklist, evidence, search and views, human review, packets and review decisions, links and subgraph, decisions and context, messages, documents, archive and cancel, projects, backup, forecast, and Jira import. Each method takes a `WriteContext` or `ReadContext` and returns typed results or a `ToolError`. Add stub implementations that throw not-implemented.
+- [X] T048 Wire the MCP stubs and API placeholders to call through `contracts.ts`, so a slice only implements the service and removes the stub
+- [X] T049 [P] Generate the typed web API client from `shared/src/api` (fetch, CSRF header, `mutation_id` capture for undo, `409` conflict shape), the TanStack Query key factory, and the event → query-key invalidation map from contracts/events.md, in `web/src/lib/api.ts`
 
 **Checkpoint**: typecheck passes across all packages. Every route answers 501 behind its guards. Adapters call only `contracts.ts`.
 

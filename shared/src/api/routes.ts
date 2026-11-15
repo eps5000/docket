@@ -65,13 +65,16 @@ export type RouteBody<K extends RouteId> = ApiRoutes[K]['body'] extends z.ZodTyp
   ? z.output<Schema<ApiRoutes[K]['body']>>
   : never;
 
-/** The JSON result of a route; `Response` for file, JSONL and stream routes. */
+/**
+ * The JSON result of a route. `never` for file, JSONL and stream routes,
+ * whose handlers and callers deal in a raw HTTP response instead.
+ */
 export type RouteResult<K extends RouteId> = ApiRoutes[K]['response'] extends {
   kind: 'json';
   schema: infer S;
 }
   ? z.output<Schema<S>>
-  : Response;
+  : never;
 
 /** Route IDs whose response is JSON. */
 export type JsonRouteId = {
