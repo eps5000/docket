@@ -710,6 +710,7 @@ In V1 the merge is agent-reported, and the UI says so. A GitHub integration woul
 | Releases a stale claim | `claim.released`; the old run is `interrupted`; the item is back to `ready`; calls with the old `run_id` get `conflict` |
 | Moves to Ready, or back to Planning | `item.status_changed` |
 | Archives | `item.archived` (agent queries still include archived items) |
+| Edits the title, description, outcome or acceptance criteria | `item.updated` with `actor: owner`; the item's `version` changes, so an agent update based on an older version gets `conflict`. Re-read and keep the owner's text. |
 | Records, confirms or withdraws a decision | `decision.published` (`authority: owner`), `decision.confirmed` or `decision.withdrawn`; `get_context` reflects it immediately |
 | Changes a project's "blockers clear when" rule | `project.updated`; items may become blocked or unblocked, so recheck with `search_items` |
 

@@ -75,6 +75,7 @@ Agents do almost all the writing. The owner verifies, decides, nudges and archiv
 | Project scope | `sessionStorage` (resets on every new visit) | Owner decision 10: never unknowingly scoped |
 | Open-item tabs + each tab's view | `sessionStorage` | Like browser tabs |
 | Theme | `localStorage` | Preference |
+| Desktop notifications on/off, and which events were already notified | `localStorage` | Opt-in per browser; no repeat notifications across tabs |
 | Collapsed sections (per section *type*, e.g. "work") | `localStorage` | Close Work once, and it stays closed on the next ticket |
 | Everything else (filters, layout) | URL query | Shareable, Back works |
 
@@ -308,7 +309,7 @@ A `ProgressMap` of the filtered set, titled "Outside this view". When no epic or
 
 **Header:**
 - **First line:** ID, type badge, "in ◆ Epic" link + epic ID, labels, and an "Imported from Jira" chip when imported.
-- **h1:** the title.
+- **h1:** the title. Editable inline: an *Edit* pencil button appears on hover or focus (see "Inline editing" below).
 - **Second line:**
   - status chip and blocked chip;
   - closed provenance on done items: "Closed after your human review", "Closed · n review deferred, not verified", or "Closed by agent: checks passed, no human review";
@@ -318,6 +319,24 @@ A `ProgressMap` of the filtered set, titled "Outside this view". When no epic or
     - Planning: *Move to Ready* (primary) with "Planning is yours. Move it when you're satisfied, or ask an agent to.";
     - Done: *Archive*, or "Archived" chip + *Unarchive*.
 - **Epic header:** status chip; "Project · N items · n done"; on a Planning epic, *Move to Ready* with "This epic is still a brief."
+
+**Inline editing** (spec clarification 2026-11-14). The owner edits the **title, description, outcome and acceptance criteria**. Planned dates, effort and blocker links stay agent-edited in V1.
+- **Entry:**
+  - title: the pencil next to the h1;
+  - outcome and description: *Edit* in the Outcome section header (Details tab);
+  - acceptance criteria: *Edit* in the same section, which turns the list into one input per line, with *+ Add criterion* and a remove (×) on each.
+- **Editing:**
+  - the title is a single-line input;
+  - description and outcome are Markdown textareas that auto-grow, with a *Preview* toggle;
+  - *Save* is primary and *Cancel* is a ghost button;
+  - `Ctrl+Enter` saves and `Esc` cancels (and asks to confirm if anything changed).
+- **Save:**
+  - sends `expected_version`;
+  - on success, a toast "Saved. Agents see it on their next read." with Undo;
+  - the Activity tab shows "You edited the outcome".
+- **Conflict** (an agent changed the field since you started): the editor stays open with an inline `--warn` callout, "codex changed this at 10:52. Their version is shown above; your text is kept below to copy back." The two texts appear stacked, with *Use mine anyway* (re-sends against the new version) and *Keep theirs*.
+- **Limits:** title 200 characters, outcome and description 20,000, each criterion 500. A counter appears once 80% of the limit is used.
+- **Accessibility:** the edit button's label is "Edit title" (etc.), and focus moves into the field on open and back to the button on close.
 
 **Banners above the tabs** (visible on every tab):
 - **Packet ready:** amber banner, "Handoff packet ready (round n). k things to verify, about 10 min. The ticket can't close until you approve.", with *Open packet*.
@@ -516,7 +535,26 @@ h1 "Settings".
   - **Client compatibility table** (Client, Transport, Last seen, Status chip Verified / Not verified / Not configured, Notes), with "Smoke test: claim, plan, log, read back" in the header;
   - **Client setup card:** Codex | Claude Code segmented control, a code block, and *Copy*. The token placeholder is `$TASKLITE_TOKEN`; show the token itself only behind *Reveal token*, which needs a click and auto-hides after 30 s;
   - **Endpoint card:** MCP URL, Web UI URL, Bind "Loopback only", Auth "Bearer token", Origins;
-  - **Service health card:** Database and Documents with ready chips and sizes, Volume, Last backup ("Nov 6 03:00 · kept 14 days"), Restarted (with "0 runs were active…"), and *Lock this browser* / *Rotate owner key*.
+  - **Service health card:** Database and Documents with ready chips and sizes, Volume, Last backup ("Nov 6 03:00 · kept 14 days"), Restarted (with "0 runs were active…"), *Download diagnostic log* (the last 7 days of agent calls, without contents), and *Lock this browser* / *Rotate owner key*.
+  - **This browser card:** "Desktop notifications" with a switch, a status line ("On", "Off", "Blocked by the browser. Allow notifications for 127.0.0.1:7420 in your browser settings.") and *Send a test notification*. Theme is also set here.
+
+### 6.7a Desktop notifications
+Spec clarification, 2026-11-14 (FR-068).
+- **Opt-in:**
+  - the first time the owner opens Needs you after unlocking, a one-line callout above the Agents strip says "Get a desktop notification when something needs you." with *Turn on* (requests browser permission) and *Not now* (hides it; Settings keeps the switch);
+  - the callout never shows again once either is chosen.
+- **What notifies:** only new *for-you* events, arriving over the live stream:
+  - **packet ready:** title "Handoff ready: RCP-12 Weekly planner drag-and-drop", body "2 things to verify · about 10 min";
+  - **question asked:** title "codex asks on DOC-4", body the question, truncated to 120 characters.
+
+  Nothing else notifies: no problems, decisions or agent activity.
+- **Click:** focuses the Task Lite tab, or opens one, and goes to the packet or the item's question.
+- **No duplicates:**
+  - each event notifies once per browser: event IDs are recorded in `localStorage`, and one tab per browser claims the job;
+  - events that were already for-you when the page loaded never notify;
+  - a burst notifies per item, not per event.
+- **Tab title:** always `(N) Task Lite`, where N is the for-you count, or `Task Lite` when it's zero. This works even with notifications off.
+- **Privacy:** notifications are generated in the browser from the live stream. Nothing is sent to any outside service.
 
 ### 6.8 Unlock (`/unlock`)
 A centred card on the page background:
