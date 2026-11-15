@@ -16,9 +16,10 @@
 .idea
 docs
 specs
-# design/ is reference material today. The seed loader (B2, T031) reads
-# design/sample-data.json and will need it in the context.
+# design/ is reference material, except the sample data the seed loader
+# reads (T031, TASKLITE_SEED=sample and `tasklite seed sample`).
 design
+!design/sample-data.json
 docker/.env
 .env
 .env.*
