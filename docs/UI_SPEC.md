@@ -156,6 +156,7 @@ Copy the prototype's `.tl` token block. Light and dark values below; the prototy
 | `Dialog` | default, destructive | `title, children, footer` | Max width 640px, overlay rgba(10,12,16,.38), 80px from the top. Traps focus, closes on Esc. Destructive dialogs focus Cancel first. |
 | `CommandPalette` | — | | Groups: Work items, Labels, Go to. Arrow keys move, Enter opens, Esc closes. Archived items show an "Archived" tag. |
 | `EmptyState` | — | `text` | One muted line inside the card. No illustrations. |
+| `DecisionRow` | owner, agent; active, superseded, withdrawn | `record, canAct` | §6.3.5. The authority badge must **not** look like review approval: no solid fill. |
 
 ---
 
@@ -182,7 +183,15 @@ Copy the prototype's `.tl` token block. Light and dark values below; the prototy
 | Done | green |
 | Canceled | gray, with strikethrough title |
 
-Blocked is derived and shows as a separate red chip, "⊘ Blocked by RCP-12, …", next to the status.
+Blocked is derived and shows as a separate red chip, "⊘ Blocked by RCP-12, …", next to the status. When a blocker is done but its link needs more, the chip says what it's waiting for: "⊘ Blocked by RCP-12 (needs merge)" or "(needs your verification)".
+
+**Decision authority** (decision records, §6.3.5). This is deliberately distinct from review provenance, whose solid fill means only human review approval:
+
+| Badge | Style |
+|---|---|
+| Owner | outline in `--ink-2` with a person icon, the text "Owner" |
+| Agent · claude | dashed violet outline (the same family as Agent-reported) |
+| Superseded / Withdrawn | gray chip; the title is struck through |
 
 **Run state** (labels and meanings come from `shared/`; the meaning goes in `title`):
 
@@ -250,6 +259,7 @@ Fits one 1440×900 screen without scrolling at sample volume. Contents, top to b
      | Cycle | *Fix* → item, Dependencies tab |
      | Date risk | *Timeline* → Work, Timeline layout |
      | Canceled blocker | *Fix* → item, Dependencies tab |
+     | A blocker that must be verified closed with a deferred check ("RCP-22 needs RCP-12 verified, but 1 check was deferred") | *Open* → the blocked item, Dependencies tab |
 
      Empty: "No stale or failed runs, cycles or date conflicts."
 4. **Lower row** (two cards, each showing the top 3 with *View all N →*):
@@ -319,7 +329,7 @@ A `ProgressMap` of the filtered set, titled "Outside this view". When no epic or
 
 | Tab | Ticket | Epic | Label extras |
 |---|---|---|---|
-| **Details** (default) | Outcome (summary "n acceptance criteria"); Documents (summary count); Dates and effort (summary "Nov 4 → Nov 11" or "not set") | Brief and documents; Tickets in this epic (summary "n/N done · n ready but blocked · n for you"), grouped by status. Archived tickets fold into "+ N archived · Show". | — |
+| **Details** (default) | Outcome (summary "n acceptance criteria"); Decisions (summary "n in scope · n by agents"; hidden when there are none); Documents (summary count); Dates and effort (summary "Nov 4 → Nov 11" or "not set") | Brief and documents; Decisions (this epic's own, plus a link "n project decisions"); Tickets in this epic (summary "n/N done · n ready but blocked · n for you"), grouped by status. Archived tickets fold into "+ N archived · Show". | — |
 | **Checklist** | Work (summary "n/N done · the agent's plan"; *Checklist history* in the header when there are revisions); Agent review ("n/N passed · what the agent verifies itself"); Human review ("n items · packet ready · what you verify yourself"; *Open packet* in the header when ready) | Same three sections, at epic level | Count: work done/total on tickets; total item count on epics; amber dot when a packet is ready |
 | **Dependencies** (ticket) | A plain card. h3 "Waits on n · unblocks n"; the 1-hop view (§6.3.3); a cycle callout with a *Remove "A blocks B"* button per cycle link; "Relates to (doesn't block): …"; *See it on the epic map →* | — | Count = links; red dot when in a cycle |
 | **Map** (epic) | — | Epic-level review strip (when the epic has human review), then a `ProgressMap` of its children | Count "done/total" |
@@ -375,7 +385,7 @@ A vertical stack:
 4. ↓;
 5. "Then unblocks" plus a node per dependent.
 
-Nodes are the map cards from §6.3.4. Empty: "No blocking links."
+Nodes are the map cards from §6.3.4. A done blocker that still blocks shows "done · waiting for merge" or "done · waiting for your verification", with the link's rule in `title` ("This link needs RCP-12's PR merged (reported by the agent)"). Empty: "No blocking links."
 
 #### 6.3.4 Progress map
 Used on the epic Map tab, label pages and Work → Map.
@@ -411,6 +421,32 @@ Used on the epic Map tab, label pages and Work → Map.
   - "Drag to pan" hint text only when overflowing;
   - zoom controls − / percentage / + / **Fit**: steps 50, 67, 80, 100, 125%, default 100%; Fit scales to show everything, down to 40% at the smallest.
 - **Key** (one line under the map): "Arrow = blocks · dashed green = cleared · hover to trace", plus the two person icons with "packet ready for you" and "your review later".
+
+#### 6.3.5 Decisions
+Decision records (BUILD_SPEC §5.14) appear where they apply:
+- **ticket Details:** everything in scope (project, epic, labels, this item);
+- **epic Details:** the epic's own records;
+- **label page:** the label's own records;
+- **Settings → project:** project-wide records.
+
+**Each section:**
+- **Header:** "Decisions", with the summary "n in scope · n by agents". *+ Record a decision* sits in the section header.
+- **`DecisionRow`:**
+  - the title in bold;
+  - the decision text (2 lines, then *More*), and the rationale under *Why* (collapsed);
+  - a scope chip ("Project", "◆ Epic name", "#label", "This item"; shown on ticket Details, where records are inherited);
+  - the authority badge (§5);
+  - the author and date ("claude · Nov 6").
+- **Actions:**
+  - on an agent record: *Confirm* (makes it an owner decision) and *Withdraw…*;
+  - on an owner record: *Withdraw…*;
+  - *Supersede* opens the record form prefilled, and saving marks the old one superseded.
+  - *Withdraw…* asks for an optional reason inline (no dialog) and shows an Undo toast.
+- **Order:** owner records first, then newest. *Show withdrawn and superseded* reveals the inactive records, greyed.
+- **Record form** (inline, under the header): Title (required, ≤ 120), Decision (required, Markdown, ≤ 4,000), Why (optional), Scope (preset to where you are; on a ticket you can pick This item, the epic, or the project). *Save* and *Cancel*. Records you create are owner decisions.
+- **Empty** (ticket): the section is hidden. Elsewhere: "No decisions recorded. Agents record conventions and choices here; yours are authoritative."
+
+Agent decisions never appear in Needs you. They show here, and in the item's Activity ("claude recorded a decision: …").
 
 ### 6.4 Human review packet (`/review/:id`)
 Not in the sidebar. It opens from *Open packet* (Needs you, the ticket banner, the Checklist), Review cards, and handoff packets in a ticket's Documents. While it's open, Needs you is the active nav item.
@@ -449,7 +485,8 @@ Not in the sidebar. It opens from *Open packet* (Needs you, the ticket banner, t
 - **Below, one column:**
   - Brief card (or "No brief. Add one if this label is an initiative with shared decisions."), with "written by owner · Nov 2";
   - Progress across epics: a `ProgressMap` with "Without this label";
-  - By epic: a group per epic (or "No epic") with done counts, and rows of type + ID + title + status + human review chip.
+  - By epic: a group per epic (or "No epic") with done counts, and rows of type + ID + title + status + human review chip;
+  - Decisions: the label's records (§6.3.5).
 
 ### 6.6 Agents (`/agents`)
 h1 "Agents". A table with these columns:
@@ -470,6 +507,8 @@ h1 "Settings".
   - colour swatch, name (+ "Current" chip), "KEY · n epics · n items · n documents · n for you";
   - label tags;
   - a mini status bar with "n done · n active · n review · n planning";
+  - "Blockers clear when": a select with **Done** (default), **PR merged** and **Verified by you**. Its `title` reads: "When a blocking item counts as finished for its dependents. Agents can override it per link. PR merged is reported by the agent." Changing it shows the toast "Blocker rule for Recipe App set to PR merged. 2 items are blocked again." with Undo;
+  - "n decisions", a link that opens a dialog with the project-wide Decisions section (§6.3.5);
   - *Switch to*, and *Delete…* (danger text);
   - *Import from Jira…* at the bottom (§9.2).
 - **Delete dialog:** titled "Delete Sample · Recipe App?". Body: "This permanently removes **N work items**, their checklists, runs and history, and **N local documents** including handoff packets. Agents will get “not found” for these IDs." Then a warning callout: "Backups keep a copy until their 14-day retention ends. Removing the Docker container alone doesn't delete data." Then an input "Type RCP to confirm" and *Cancel* (focused) / *Delete project* (enabled only when the input matches).
@@ -629,6 +668,8 @@ Target: WCAG 2.1 AA, in both themes.
   | Use | Not |
   |---|---|
   | ticket or item | issue |
+  | decision (a decision record) | ADR, memory |
+  | your review (verdicts on a packet) | decision, in review contexts |
   | human review | owner gate |
   | handoff packet | review doc |
   | lead claim | assignment |

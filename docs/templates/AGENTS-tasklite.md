@@ -13,8 +13,8 @@ This project's work lives in Task Lite (MCP server `tasklite`), project key **{{
 
 **Starting a session**
 - Call `whoami`. Then `search_items` with project `{{KEY}}`: first filter `resumable` (work sent back to you), then `ready_to_start`. Take the highest-priority item.
-- `get_item` before you start. Read the owner's notes, answers and review decisions it returns.
 - Claim it with `claim_lead` (agent_label: your worker name, if you have one), and pass the returned `run_id` on every call while you work.
+- Call `get_context` next. It gathers the outcome, the decisions you must follow, the epic and label briefs, blockers and planning docs. Then `get_item` delivers the owner's notes, answers and review decisions.
 
 **Planning** (Planning is the owner's stage)
 - Planning documents expected here, by risk:
@@ -24,6 +24,7 @@ This project's work lives in Task Lite (MCP server `tasklite`), project key **{{
   - {{OPTION A: Only the owner moves items to Ready. When planning is done, add_note "Ready for your review in Planning" and stop.}}
   - {{OPTION B: You may move an item to Ready once its planning documents exist and it has no open questions.}}
 - Break an epic into Stories, Tasks and Bugs only when a piece needs its own blocker, review or owner. Smaller steps go in the checklist (`set_plan`).
+- Blockers in this project count as finished when: {{done | PR merged | verified by the owner}} (the project default in Task Lite). Where one dependency needs more, for example a schema that must be merged before others build on it, set `satisfied_when` on that link.
 
 **Doing the work**
 - Publish your plan with `set_plan` and keep it current with `update_step`. If the plan changes, revise it with a reason; don't silently drop steps.
@@ -31,6 +32,8 @@ This project's work lives in Task Lite (MCP server `tasklite`), project key **{{
 - Subagents: use `start_run` if they connect to Task Lite themselves; otherwise `log_subagent` (provenance `relayed` unless you saw their output directly).
 - Report every commit with `report_commit` on the item it belongs to. Branch naming: {{e.g. <item-id>-short-name}}.
 - Need a product decision? `ask_owner` with your recommendation, then stop work that depends on it.
+- Made a choice other agents must follow (a convention, an interface rule, a design choice)? Record it with `publish_decision`, scoped as narrowly as it applies. Owner decisions are authoritative: follow them, and use `ask_owner` to challenge one. Record here: {{e.g. API shapes, naming conventions, library choices; not routine implementation details}}.
+- Change only what changed: `set_plan`, `set_checks` and `update_item` patch, so send just the steps or fields you're changing.
 
 **Human review** (what the owner verifies by hand)
 - Declare it with `declare_human_review` during Planning for: {{e.g. anything a user sees or touches; data migrations; anything security-related}}.

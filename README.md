@@ -18,3 +18,4 @@ Connect your agents ([MCP spec §11](docs/MCP_SPEC.md#11-client-setup)), then pa
 - [Requirements and owner decisions](docs/REQUIREMENTS_DRAFT.md)
 - [UI design record](docs/UI_DESIGN.md): why the UI is the way it is, and its revision history
 - [Jira capability research](docs/JIRA_RESEARCH.md)
+- [Roadmap and references](docs/ROADMAP.md): the before-pilot checklist, what is deliberately not in V1 and why, and the TERSL/Tourbillon notes

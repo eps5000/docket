@@ -22,6 +22,9 @@ Status: discovery draft, updated 2026-11-07. **Superseded for building by [BUILD
 15. O11's project-level approval policies are superseded by decision 13. Gates are per-ticket human review items, declared according to each project's agent workflow; the tracker enforces only that a ticket can't close while a review item is undecided. H06 reads "a ticket with human review items" where it says "a project with a required owner gate". (Added 2026-11-07.)
 16. One agent bearer token serves all clients. The calling client is identified from the MCP handshake (`clientInfo`), plus an optional agent label such as `orca-w3`. A separate owner key, held only by the browser, protects owner actions. (Added 2026-11-07.)
 17. V1 also includes four P1 items: the Timeline layout, Label pages, burn-down and forecast (H14, A18), and the Jira import dry run and import (O05). (Added 2026-11-07.)
+18. Task Lite is the coordinator, not the dispatcher. It is the authoritative record of what work exists, what is eligible to start, who holds it, and the rules (blocking, leases, review gates), and it enforces them. Orca, or the owner, decides when to start agents (decision 2 reaffirmed after the 2026-11-14 "development control plane" review). Revisit after the pilot. (Added 2026-11-14.)
+19. V1 adds four coordination features from that review: a context bundle for agents (`get_context`), decision records that every agent reads (owner records are authoritative), lean agent responses (summary views, field selection, compact text, token budgets), and stricter dependency rules (a blocker can be required to be merged or verified, not just done). (Added 2026-11-14.)
+20. TERSL / Tourbillon is a reference to learn from, not a dependency. No TERSL format or TERSL/DB in V1; the learnings applied, and an optional post-V1 experiment, are in [ROADMAP.md](ROADMAP.md). (Added 2026-11-14.)
 
 ## Product intent
 

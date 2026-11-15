@@ -9,7 +9,8 @@ Status: ready to build, 2026-11-07. This is the implementation contract for MVP 
 4. [design/prototype.html](../design/prototype.html): the visual and behavioural reference. Open `?selftest` to render every view.
 5. [design/sample-data.json](../design/sample-data.json): the seed data, exported from the prototype.
 6. [templates/AGENTS-tasklite.md](templates/AGENTS-tasklite.md): the block each project adds to its `AGENTS.md` or `CLAUDE.md`. Ship it in the repo; the README tells owners to use it.
-7. Background only, not instructions: [REQUIREMENTS_DRAFT.md](REQUIREMENTS_DRAFT.md) (requirement IDs such as A05 and H04 cited below), [UI_DESIGN.md](UI_DESIGN.md) (design rationale and revision history) and [JIRA_RESEARCH.md](JIRA_RESEARCH.md).
+7. [ROADMAP.md](ROADMAP.md): what is deliberately *not* in V1 (dispatching, GitHub-observed merges, contracts, a knowledge layer), the pre-pilot checklist, and the TERSL reference notes. Don't build anything from it.
+8. Background only, not instructions: [REQUIREMENTS_DRAFT.md](REQUIREMENTS_DRAFT.md) (requirement IDs such as A05 and H04 cited below), [UI_DESIGN.md](UI_DESIGN.md) (design rationale and revision history) and [JIRA_RESEARCH.md](JIRA_RESEARCH.md).
 
 **Where the docs disagree:** this file and UI_SPEC.md win over the requirements draft and UI_DESIGN.md. Where the prototype and UI_SPEC.md disagree, UI_SPEC.md wins. Every place this spec deliberately departs from the draft is listed in [Decisions](#14-decisions-log).
 
@@ -23,10 +24,16 @@ Task Lite is a local Docker service. It runs one container on the owner's machin
 - a **JSON API** (`/api`) for the web UI;
 - the **web UI** (`/`). It exists so the owner can see what agents did, what they're doing, and what needs the owner.
 
-The service never calls a model API and never launches an agent (O08). It is a task and data server.
+The service never calls a model API and never launches an agent (O08). It is the **coordinator**, not the dispatcher (owner decision 18): it holds the authoritative record of what work exists, what is eligible to start, who holds it, and the rules (blocking, leases, review gates), and it enforces them on every call. Orca, or the owner, decides when to start an agent; the agent then asks Task Lite what to do.
 
 ### In scope for V1
 All P0 requirements, plus four P1 items the owner pulled in: the Timeline layout, Label pages, burn-down and forecast (H14, A18), and the Jira import dry run and import (O05). The UI covers every screen in the prototype plus two screens that weren't prototyped: burn-down/forecast and Jira import. Those two are specified in UI_SPEC.md §9.
+
+V1 also includes four coordination features from the 2026-11-14 review (owner decision 19):
+- a **context bundle** for agents (`get_context`, §5.15);
+- **decision records** that all agents can read (§5.14);
+- **lean agent responses**: summary views, field selection and compact text results (MCP_SPEC §3);
+- **stricter dependency rules**: a blocker can be required to be merged or verified, not just done (§5.2).
 
 ### Out of scope for V1
 - Machine-readable full export (O06; a `tasklite export` CLI is a stretch goal, see M7).
@@ -37,6 +44,9 @@ All P0 requirements, plus four P1 items the owner pulled in: the Timeline layout
 - Editing dates, blockers and acceptance from the UI (H11; agents do it, or the owner leaves a note).
 - A UI to cancel an item (agents can cancel).
 - Access from other devices.
+- Dispatching or launching agents (owner decision 18).
+- Observing merges and CI directly. A blocker's "merged" state is agent-reported in V1; see ROADMAP.md.
+- Versioned interface contracts with invalidation, and a general knowledge base beyond decision records (ROADMAP.md).
 
 ---
 
@@ -136,12 +146,12 @@ SQLite tables. Every row has `id`, `created_at` and `updated_at`; all timestamps
 
 | Table | Key columns | Notes |
 |---|---|---|
-| `projects` | `key` (2–5 uppercase letters, unique), `name`, `short_name`, `color`, `next_seq`, `deleted_at` | Item IDs are `<KEY>-<n>`. `next_seq` increments inside the creating transaction. |
+| `projects` | `key` (2–5 uppercase letters, unique), `name`, `short_name`, `color`, `next_seq`, `default_satisfied_when` (done\|merged\|verified, default done), `deleted_at` | Item IDs are `<KEY>-<n>`. `next_seq` increments inside the creating transaction. |
 | `items` | `id` (`RCP-14`), `project_key`, `type` (Epic\|Story\|Task\|Bug), `title`, `description_md`, `outcome_md`, `status`, `priority` (1–3), `epic_id` (nullable; must be an Epic in the same project), `planned_start`, `planned_end`, `dates_set_by`, `dates_set_at`, `effort` (number, nullable), `effort_unit` ('pts'), `closed_by` (owner\|agent\|imported), `closed_at`, `archived_at`, `jira_key`, `imported` (bool), `from_review` (JSON: `{item_id, round, hr_item_id}`), `version` | `status`: inbox, planning, ready, progress, review, done, canceled. |
 | `acceptance_criteria` | `item_id`, `position`, `text` | Ordered list. |
 | `labels` | `project_key`, `name`, `brief_md`, `brief_by`, `brief_at` | Unique per project. |
 | `item_labels` | `item_id`, `label_id` | |
-| `links` | `from_id`, `to_id`, `type` (blocks\|relates), `created_by` | For `blocks`, `from` blocks `to`. Creating a link that closes a cycle is rejected (A04). |
+| `links` | `from_id`, `to_id`, `type` (blocks\|relates), `satisfied_when` (null = the blocked item's project default; done\|merged\|verified), `created_by` | For `blocks`, `from` blocks `to`. Creating a link that closes a cycle is rejected (A04). |
 | `plan_versions` | `item_id`, `version_no`, `reason`, `created_by` | The Work checklist history (A16). Each `set_plan` writes a version. |
 | `work_steps` | `item_id`, `plan_version_no`, `position`, `text`, `state` (todo\|current\|done\|blocked\|skipped), `was_text`, `change_reason`, `from_review` (JSON), `added_by`, `state_by`, `state_at` | The current plan is the latest `plan_version_no`. |
 | `subagent_logs` | `item_id`, `work_step_id`, `name`, `outcome`, `evidence`, `provenance` (observed\|relayed), `child_run_id`, `reported_by_run_id` | A17. |
@@ -150,7 +160,7 @@ SQLite tables. Every row has `id`, `created_at` and `updated_at`; all timestamps
 | `packets` | `item_id`, `round`, `content_hash` (displayed as `pkt-xxxx`), `built_from_commit`, `estimate`, `how` (JSON), `checked` (JSON), `gaps` (JSON), `created_by`, `state` (open\|decided\|withdrawn) | One row per round. |
 | `packet_items` | `packet_id`, `hr_item_id`, `text_snapshot` | Freezes the item text as it was in this round. |
 | `packet_attachments` | `packet_id`, `document_version_id`, `caption` | |
-| `decisions` | `packet_id`, `hr_item_id`, `kind` (approve\|changes\|defer), `note`, `into` (checklist\|bug), `follow` (ticket\|none), `result_ref`, `decided_at` | Always owner. |
+| `review_decisions` | `packet_id`, `hr_item_id`, `kind` (approve\|changes\|defer), `note`, `into` (checklist\|bug), `follow` (ticket\|none), `result_ref`, `decided_at` | Always owner. |
 | `runs` | `item_id`, `parent_run_id`, `client`, `label`, `session_id`, `is_lead`, `state` (open\|needs_input\|finished\|failed\|interrupted), `last_signal_at`, `last_signal_kind` (session\|report\|relayed), `lease_expires_at`, `summary`, `error`, `current_step_id` | The displayed run state is derived (§5.4). |
 | `questions` | `item_id`, `run_id`, `text`, `asked_by`, `answer`, `answered_at`, `read_by_agent_at` | |
 | `owner_notes` | `item_id`, `text`, `read_by_agent_at` | |
@@ -160,6 +170,7 @@ SQLite tables. Every row has `id`, `created_at` and `updated_at`; all timestamps
 | `document_versions` | `document_id`, `version_no`, `mime`, `size`, `sha256`, `path`, `created_by` | Immutable. |
 | `events` | `seq` (autoincrement, the change cursor), `at`, `actor_kind` (owner\|agent\|system), `client`, `label`, `run_id`, `project_key`, `item_id`, `type`, `summary`, `data` (JSON), `inverse` (JSON, nullable), `mutation_id`, `idempotency_key` | Append-only (O03). `summary` is the one-line text shown in Activity. |
 | `idempotency` | `key`, `client`, `request_hash`, `response`, `expires_at` | Retained 24 h. |
+| `decision_records` | `id` (`dec_…`), `project_key`, `scope_kind` (project\|epic\|label\|item), `scope_id`, `title`, `decision_md`, `rationale_md`, `authority` (owner\|agent), `author` (actor), `status` (active\|superseded\|withdrawn), `supersedes_id`, `confirmed_at`, `version` | §5.14. Separate from review decisions. |
 | `owner_sessions` | `id`, `created_at`, `last_seen_at`, `user_agent` | |
 | `settings` | `key`, `value` | |
 | `search_fts` | FTS5 over item `id`, `title`, `description_md`, `outcome_md`, labels, `jira_key` | Kept in sync by triggers. |
@@ -199,7 +210,19 @@ Workflow (owner decision 8): `inbox → planning → ready → progress → revi
 - An invalid transition returns `validation` with the allowed transitions (A10).
 
 ### 5.2 Links, blocked, ready, cycles
-- A `blocks` predecessor is **unresolved** unless its status is done. A canceled blocker stays unresolved, and Problems shows "Blocked by canceled X" with *Remove link*. The tracker never silently unblocks.
+- **When a blocker counts as cleared** depends on the link's effective `satisfied_when` (the link's own value, else the blocked item's project default, else `done`):
+
+  | `satisfied_when` | Cleared when the blocker is… |
+  |---|---|
+  | `done` | in status done |
+  | `merged` | done, **and** has a `pr` artifact with state `merged`. This is agent-reported in V1, and the UI says "reported merged". A GitHub integration would make it observed (ROADMAP.md). |
+  | `verified` | done, **and** every human review item on it is approved (none deferred) |
+
+  - Until then the predecessor is **unresolved**.
+  - `link_items` with `verified` on a blocker that has no human review items returns `validation`: "Declare human review on X, or use done."
+  - **A verified blocker that closes with deferred items stays unresolved.** Problems shows "RCP-22 needs RCP-12 verified, but 1 check was deferred" with *Open* (Dependencies tab).
+  - Changing a project's default or a link's value re-evaluates blocked state immediately and records an event.
+- **A canceled blocker stays unresolved,** and Problems shows "Blocked by canceled X" with *Remove link*. The tracker never silently unblocks.
 - **Blocked:** open and has an unresolved predecessor. Blocking crosses projects. Parent epics and `relates` links never block.
 - **Ready to start** (A05): status `ready`, not blocked, and no active lead claim.
 - **Cycles:**
@@ -323,11 +346,37 @@ O03.
   - `tasklite restore <file>`: refuses while the server is running. Run it with `docker compose run --rm tasklite tasklite restore …` after stopping the service. It verifies the archive before replacing anything.
 - Settings shows the last backup time and how long backups are kept.
 
+### 5.14 Decision records
+Shared knowledge that agents must respect: "Nutrition is per serving", "Use the v2 design tokens". A record is short (title ≤ 120 characters, decision ≤ 4,000) and has a scope: project, epic, label or item. Agents see everything in scope for an item: its project, its epic, its labels, and the item itself.
+
+- **Authority:** `owner` or `agent`.
+  - Agents publish with `authority=agent`.
+  - The owner publishes with `authority=owner`, or **confirms** an agent record, which sets `authority=owner` and `confirmed_at`.
+  - **Owner records are authoritative.** Agents can't supersede or withdraw them (`forbidden`). To challenge one, an agent uses `ask_owner`.
+- **Superseding:**
+  - an agent may publish a record that supersedes an *agent* record;
+  - the owner may supersede anything;
+  - the old record becomes `superseded`, and both remain readable.
+- **Withdrawing:** an agent may withdraw its own agent records, and the owner any record. Withdrawn records drop out of context bundles but stay in history.
+- Every change is an event (`decision.published`, `.confirmed`, `.superseded`, `.withdrawn`) on the scope item, or on the project for project-scope records.
+- **Not a Needs-you item.** The owner sees records where they apply (UI_SPEC §6.3) and confirms or withdraws them there.
+
+### 5.15 Context bundle
+`get_context` assembles what an agent needs to *work on* an item in one bounded, read-only response, so agents stop stitching it together over several calls. Contents, in priority order:
+1. the item's essentials: title, status, outcome, acceptance, open question and answer, and a **count** of unread owner notes (`get_item` delivers them and marks them read; `get_context` never does);
+2. active decision records in scope, owner records first;
+3. the epic's outcome/brief, and the briefs of the item's labels;
+4. blockers and dependents: ID, title, status, cleared or not, and the first line of each one's outcome;
+5. for Markdown planning documents on the item and its epic, the newest version of each. Text is included until the budget runs out; after that, only names and versions;
+6. the latest review round's decisions and notes, if any.
+
+**Budgets** (approximate tokens, counted as characters ÷ 4): `small` 1,000, `medium` 3,000 (the default), `large` 8,000. Sections are filled in the order above. Truncation is marked inline ("…truncated; read pantry-prd.md v3 with get_item"), never silently.
+
 ---
 
 ## 6. MCP tool contract
 
-**Overview only.** [MCP_SPEC.md](MCP_SPEC.md) is authoritative for the server instructions, every tool's description text, input and output schemas, error messages and worked flows. It defines 32 tools, including `unlink_items`, `update_check` and `update_human_review`, which are paired with their siblings below.
+**Overview only.** [MCP_SPEC.md](MCP_SPEC.md) is authoritative for the server instructions, every tool's description text, input and output schemas, error messages and worked flows. It defines 36 tools, including `unlink_items`, `update_check` and `update_human_review`, which are paired with their siblings below.
 
 Tools are snake_case, with input and output schemas defined in `shared/` with zod, and every result returns `structuredContent`. Lists are paginated with `cursor` and `limit` (default 25, max 50) (A02).
 
@@ -335,6 +384,7 @@ Tools are snake_case, with input and output schemas defined in `shared/` with zo
   - take an optional `expected_version`; a mismatch returns `conflict` with the current record (A07);
   - take an optional `idempotency_key`; a replay with the same key and arguments returns the original result, while a replay with different arguments returns `validation`.
 - **Every call carrying `run_id` is a signal** (§5.4).
+- **Lean responses** (MCP_SPEC §3): `get_item` takes `view: summary|standard|full`, and read tools take `fields` to return only what's asked. The text block of every result is a complete compact rendering of the result (MCP_SPEC §3.1), not JSON, while `structuredContent` carries the JSON. Contract tests enforce token budgets.
 - **Errors** return `isError: true` and `structuredContent: {code, message, details?, current?}`, where `code` is one of `validation`, `conflict`, `not_found`, `forbidden`, `unavailable`, `internal` (A10). The message is one sentence that says what to do next.
 
 | Tool | Purpose | Key inputs → output | Req |
@@ -342,11 +392,11 @@ Tools are snake_case, with input and output schemas defined in `shared/` with zo
 | `whoami` | Connection check | → `{client, session_id, server_version, limits, time}` | A01, A10 |
 | `list_projects` | | → `[{key, name, counts}]` | A02 |
 | `search_items` | Bounded search | `project?, text?, status?[], type?[], label?, epic?, filter?: ready_to_start\|resumable\|blocked\|waiting_for_review\|mine\|deferred_review, include_archived?=true, cursor?, limit?` → items with `id, title, type, status, priority, blocked_by[], lead, run_state, version` | A02, A05 |
-| `get_item` | Full item | `id` → fields, acceptance, labels, links (blocks/blocked_by/relates, each with status), checklist (work with plan version, agent checks, human review with states), lead and recent runs, open question and answer, `unread_owner_notes` (marked read), documents (latest versions), packets (summary), commits, artifacts, 20 most recent events | A02, H13 |
+| `get_item` | Full item | `id, view?, fields?` → fields, acceptance, labels, links (blocks/blocked_by/relates, each with status), checklist (work with plan version, agent checks, human review with states), lead and recent runs, open question and answer, `unread_owner_notes` (marked read), documents (latest versions), packets (summary), commits, artifacts, 20 most recent events | A02, H13 |
 | `create_item` | | `project, type, title, description?, outcome?, acceptance?[], priority?=2, epic?, labels?[], status?: inbox\|planning (default inbox), planned_start?, planned_end?, effort?` → item | A03 |
 | `update_item` | Edit fields | `id, expected_version, title?, description?, outcome?, acceptance?[], priority?, epic?, labels?[], planned_start?, planned_end?, effort?` → item. Dates record `dates_set_by` = the caller. | A03, A18 |
 | `set_status` | Transition | `id, status, reason?` → item, or `validation` listing the allowed transitions | §5.1 |
-| `link_items` / `unlink_items` | | `from, to, type: blocks\|relates` → link; a cycle returns `validation` with the path | A04 |
+| `link_items` / `unlink_items` | | `from, to, type: blocks\|relates, satisfied_when?: done\|merged\|verified` → link (calling it again on an existing link updates `satisfied_when`); a cycle returns `validation` with the path | A04, §5.2 |
 | `upsert_label` | Agents may create labels | `project, name, brief?` → label | decision 13 |
 | `claim_lead` / `release_lead` | | `id, agent_label?` → `{run_id, lease_expires_at}`, or `conflict` with the claimant / `id, run_id, reason?` | A15 |
 | `start_run` | Child run under a lead | `id, parent_run_id, agent_label?` → `{run_id}` | A06 |
@@ -366,13 +416,18 @@ Tools are snake_case, with input and output schemas defined in `shared/` with zo
 | `get_changes` | Poll | `cursor?, project?, limit?` → `{events[], next_cursor}` | A13 |
 | `dependency_subgraph` | | `id, depth?=2 (1–5), direction?: up\|down\|both` → nodes with status and dates (each date labelled `entered` or `none`) and edges, plus the downstream items whose dates are at risk | A11 |
 | `deferred_reviews` | Cleanup list | `project?` → deferred items with follow-up status | decision 13 |
+| `get_context` | Working context in one call | `id, budget?: small\|medium\|large` → bundle (§5.15) | decision 19 |
+| `publish_decision` | Record a decision | `project, scope: {kind, id?}, title, decision, rationale?, supersedes?` → record (`authority=agent`) | decision 19 |
+| `list_decisions` | Read decisions | `project, scope?, include_inactive?=false` → records | decision 19 |
+| `withdraw_decision` | Withdraw an agent decision | `decision_id, reason` → record | decision 19 |
 
 **Tool descriptions** (the text agents read) must state the workflow in one or two sentences each:
 - claim from Ready;
 - publish the plan as checklist Work steps, not as new tickets;
 - declare human review during Planning when the owner must verify something;
 - report commits for the ticket they belong to;
-- submit a packet when the work is built and the agent's own checks pass.
+- submit a packet when the work is built and the agent's own checks pass;
+- start each item with `get_context`, and respect owner decisions.
 
 These descriptions are the agents' only manual, so write and review them as product copy.
 
@@ -404,7 +459,8 @@ Every route requires the owner session (§3). JSON bodies are validated with the
 | `POST /api/deferred/:hrId/follow-up` | *Create test ticket* |
 | `GET /api/labels/:project/:name` · `POST /api/labels/:project/:name/move-to-ready` | Label page |
 | `GET /api/agents?scope` | Agents table |
-| `GET /api/settings` · `DELETE /api/projects/:key` `{confirm_key}` | Settings |
+| `GET /api/settings` · `PATCH /api/projects/:key` `{default_satisfied_when}` · `DELETE /api/projects/:key` `{confirm_key}` | Settings |
+| `GET /api/decisions?project&scope_kind&scope_id&include_inactive` · `POST /api/decisions` · `POST /api/decisions/:id/confirm` · `POST /api/decisions/:id/withdraw` `{reason}` | Decisions sections (ticket, epic, label, Settings → project) |
 | `GET /api/search?q` | Command palette (items, labels, views) |
 | `GET /api/documents/:versionId/content` | Document viewer, attachments |
 | `POST /api/import/jira/dry-run` · `GET /api/import/jira/:id` · `POST /api/import/jira/:id/commit` · `DELETE /api/import/jira/:id` | Jira import (§9) |
@@ -439,8 +495,13 @@ Every route requires the owner session (§3). JSON bodies are validated with the
   - `docs` → `documents`: `[name, version, by, when]`. Generate the bytes: a short Markdown stub for `.md`, a placeholder for binaries;
   - `activity` → events as `[time, summary]`;
   - `runs`, `conflict`, `error` → runs and events.
-- **`packets{}`** → `packets` and `decisions`: `rounds[].decided.verdicts[]` uses `k` for kind.
+- **`packets{}`** → `packets` and `review_decisions`: `rounds[].decided.verdicts[]` uses `k` for kind.
 - **`changes[]`:** historical events. "Since you looked" was removed from the UI, so use them only as Activity rows.
+- **Decision records:** not in `sample-data.json`. The loader adds these three, so the decision UI, `get_context` examples and token budgets have data:
+  - `dec_1`: epic RCP-1, owner, "Units are metric internally; convert on display";
+  - `dec_2`: project DOC, agent (codex), "API reference pages show one request and one response example per endpoint";
+  - `dec_3`: label `ui-refresh`, agent (claude), "Use design tokens v2 spacing (8 px grid)", active.
+- **Blocker rules:** every project defaults to `done`. Set the `RCP-19 → RCP-16` link to `merged`, so the stricter-dependency examples have data.
 
 The seed exists so the acceptance tests (§10) run against a known state. Keep the loader deterministic.
 
@@ -501,7 +562,10 @@ Every rule in §5 has tests:
 - undo windows and conflicts;
 - archive guards;
 - burn-down replay and forecast thresholds;
-- Jira mapping of every row in §9.
+- Jira mapping of every row in §9;
+- `satisfied_when` (done, merged and verified; project default vs link override; verified with deferred items; re-evaluation on change);
+- decision records (scope inheritance, authority rules, supersede and withdraw);
+- context bundle ordering and budgets.
 
 ### Integration
 - Drive `/mcp` with the official MCP client SDK.
@@ -550,6 +614,14 @@ Port the prototype's scenario checks; the list below matches what the prototype 
   - the filters are Blocked, For you, Human review later, Deferred review, Live run, and Archived (shown once anything is archived); the agent query shows as a tooltip;
   - a Review card with a packet ready opens the packet;
   - Done cards have Archive and the column has *Archive all*; archived items leave every view, open from search with *Unarchive*, and fold into "+ N archived" on an epic; undo restores them.
+- **Decisions:**
+  - a ticket's Details lists the decisions in scope;
+  - an agent record can be confirmed and becomes "Owner";
+  - withdrawing hides it from Details but keeps it in Activity;
+  - recording a decision on an epic shows it on its child tickets.
+- **Stricter dependencies:**
+  - setting a project to "PR merged" turns a done-but-unmerged blocker back into a blocking one, with the chip "Blocked by RCP-12 (needs merge)";
+  - reporting the merge clears it.
 - **Labels:** the label page groups items across epics; *Move N to Ready* works and then disappears; *Show on the board* filters Work.
 - **Shell:**
   - the sidebar is Needs you, Work, Agents and Settings;
@@ -580,12 +652,12 @@ Work in order. Each milestone ends with its own tests green and a short demo not
 | # | Deliverable | Done when |
 |---|---|---|
 | M0 | Workspace scaffold, lint, typecheck, Vitest, Dockerfile, compose, `/healthz` and `/readyz`, CI workflow | `docker compose up` serves "Task Lite is running"; CI is green |
-| M1 | Schema and migrations, domain services for §5, event log, idempotency, undo, seed loader | Unit tests for every §5 rule pass; the seed loads deterministically |
-| M2 | MCP server per [MCP_SPEC.md](MCP_SPEC.md): auth, Host/Origin guards, identity, server instructions, all 32 tools with the exact description text, structured errors, sweeper, restart handling | The MCP_SPEC §10 contract tests pass (including the description snapshot); two simultaneous SDK clients work |
+| M1 | Schema and migrations, domain services for §5 (including `satisfied_when`, decision records and the context bundle), event log, idempotency, undo, seed loader | Unit tests for every §5 rule pass; the seed loads deterministically |
+| M2 | MCP server per [MCP_SPEC.md](MCP_SPEC.md): auth, Host/Origin guards, identity, server instructions, all 36 tools with the exact description text, compact text rendering, structured errors, sweeper, restart handling | The MCP_SPEC §10 contract tests pass, including the description snapshot and token budgets; two simultaneous SDK clients work |
 | M3 | Owner session and CSRF, UI API (§7), SSE stream | API contract tests pass; the unlock flow works |
-| M4 | Web shell, tokens, Needs you, Work board and list, ticket and epic pages (four tabs, checklist editing), open-item tabs, palette, quick capture | The e2e groups for Needs you, Tickets and epics, and Shell pass |
+| M4 | Web shell, tokens, Needs you, Work board and list, ticket and epic pages (four tabs, checklist editing, Decisions sections), open-item tabs, palette, quick capture | The e2e groups for Needs you, Tickets and epics, and Shell pass |
 | M5 | Packet screen and decisions, deferrals, questions and notes, archive, undo toasts | The e2e groups for Packets and Work (archive) pass |
-| M6 | Progress map (epic, label, Work → Map), Timeline, Label pages, Agents, Settings, document viewer | The e2e groups for Map, Labels and cross-cutting pass |
+| M6 | Progress map (epic, label, Work → Map), Timeline, Label pages (with Decisions), Agents, Settings (including blocker rules and project decisions), document viewer | The e2e groups for Map, Labels and cross-cutting pass |
 | M7 | Burn-down and forecast, Jira import (dry run and import), backup/restore CLI, delete project. Stretch: `tasklite export` | Unit tests for forecast and mapping pass; a dry run against a test Jira project produces a report |
 | M8 | O07 smoke with real clients, an accessibility pass, dark mode and 1024 px checks, a README quick start | The smoke matrix is filled in; axe is clean; the README walks through from an empty machine to a connected agent in under 10 minutes |
 
@@ -601,6 +673,7 @@ These can't be settled on paper. Each one has a default already, so none of them
 | V2 | Does an Orca worker running Claude inherit the user's MCP configuration? (The Codex one was verified in discovery.) | Show "Not verified" in Settings until the smoke test passes. | M8 |
 | V3 | Client config. Checked against the docs on 2026-11-07 (MCP_SPEC §11): Codex `bearer_token_env_var` and the Claude `mcp add --transport http --header` form are confirmed. Still open: whether Claude expands `${TASKLITE_TOKEN}` in user-scope config (it does in a project's `.mcp.json`). | Use the user-scope `mcp add` form, which stores the expanded token. | M8 |
 | V4 | Field IDs for start date and story points on the owner's Jira site. | Detect them by field name, and let the dry-run report show which field was used. | M7 |
+| V6 | Which part of a tool result each client gives the model: the text block, `structuredContent`, or both. This decides where the token savings land. | The text block is a complete compact rendering, so a text-only client loses nothing. If a client forwards both, measure, and consider an option to send a short text block. | M2, M8 |
 | V5 | SQLite WAL performance on a Docker Desktop named volume on Windows. | Named volume (not a bind mount). If writes are slow, measure before changing anything. | M1 |
 
 ---
@@ -613,7 +686,9 @@ These must be byte-for-byte the same on both sides, so put them in `shared/`:
 - provenance kinds and labels;
 - item types;
 - filters and their agent-query strings: `status:planning`, `status:ready -is:blocked`, `is:blocked`, `needs:human`, `has:human-review`, `review:deferred`, `run:live`, `is:archived`, and the agent-only `status:progress -has:lead` (`resumable`). Each saved filter's tooltip shows its query, and `search_items` accepts the same filters;
-- the MCP description strings and result-summary templates (`shared/mcp-copy.ts`, MCP_SPEC §9).
+- the MCP description strings and result-summary templates (`shared/mcp-copy.ts`, MCP_SPEC §9);
+- the compact text renderers (MCP_SPEC §3.1). The UI uses none of them, but they live in `shared/` so tests can render seed data;
+- `satisfied_when` labels (Done / PR merged / Verified by you) and decision authority labels (Owner / Agent).
 
 ---
 
@@ -627,6 +702,13 @@ Owner decisions are marked **(owner)**. Every other entry is a technical choice 
 | 15 **(owner)** | Requirement O11 (project-level approval policies) is **superseded** by decision 13. Gates are per-ticket human review items declared according to the project's workflow, and the tracker enforces only "can't close while a review item is undecided". H06's "project with a required owner gate" becomes "ticket with human review items". | §5.1, §5.6 |
 | 16 **(owner)** | One agent bearer token. Identity comes from the MCP `clientInfo`, plus an optional `agent_label`. | §3 |
 | 17 **(owner)** | V1 also includes the Timeline layout, Label pages, burn-down and forecast, and the Jira import (dry run and import). | §1, §5.9, §9 |
+| 18 **(owner)** | Task Lite coordinates; it doesn't dispatch. Orca, or the owner, starts agents (decision 2 reaffirmed after the 2026-11-14 "control plane" review). Revisit after the pilot (ROADMAP.md). | §1 |
+| 19 **(owner)** | V1 adds four coordination features: the context bundle, decision records, lean responses, and stricter dependency rules. | §1, §5.2, §5.14, §5.15, MCP_SPEC §3 |
+| 20 **(owner)** | TERSL / Tourbillon is a reference to learn from, not a dependency: no TERSL format or TERSL/DB in V1. The learnings applied are in ROADMAP.md. | ROADMAP.md |
+| T16 | Blocker satisfaction is `done`, `merged` (agent-reported) or `verified` (all human review approved), as a project default with a per-link override. | §5.2 |
+| T17 | Decision records: owner records are authoritative and can't be changed by agents; agents can supersede or withdraw only agent records; nothing goes to Needs you. | §5.14 |
+| T18 | Tool results: the text block is a complete compact rendering, and `structuredContent` is JSON. | MCP_SPEC §3.1 |
+| T19 | Context bundle budgets of 1k, 3k and 8k tokens, with visible truncation. | §5.15 |
 | T1 | One port (7420) for MCP, API and UI, published only on 127.0.0.1, with Host and Origin allowlists. | §2, §3 |
 | T2 | A separate owner key and browser session, so agents can't record human approval through the API. | §3 |
 | T3 | Displayed run state is derived from session signals (requests and pings) using `LIVE_WINDOW` 2 m, `STALE_AFTER` 30 m and `LEASE` 60 m. Restart interrupts open runs. | §5.3, §5.4 |
