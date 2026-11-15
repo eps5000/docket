@@ -52,7 +52,7 @@ One PR per milestone, through the Mergify queue (constitution, Development Workf
 - [ ] T006 Write a multi-stage `docker/Dockerfile` (`node:22-bookworm-slim`, non-root user `tasklite`, uid 10001) and `docker/compose.yaml`: publish `127.0.0.1:7420:7420`, named volume `tasklite-data:/data`, `restart: unless-stopped`, healthcheck on `/healthz`. Add `docker/.env.example` with every variable in BUILD_SPEC §2 Configuration.
 - [ ] T007 Create the server entry point `server/src/index.ts` serving `/healthz`, `/readyz` (database and docs dir writable, migrations current) and the web build, with SPA fallback
 - [ ] T008 Create `.github/workflows/ci.yml` on `ubuntu-latest`: pnpm cache → lint → typecheck → Vitest → `docker build`. Name the job so the Mergify queue can require it.
-- [ ] T009 [P] Set up Playwright in `web/playwright.config.ts`, with `@axe-core/playwright` and a fixture that starts the seeded container (wired into CI in T133)
+- [ ] T009 [P] Set up Playwright in `web/playwright.config.ts`, with `@axe-core/playwright` and a fixture that starts the seeded container (wired into CI in T135)
 
 **Checkpoint**: `docker compose up` serves "Task Lite is running", and CI is green.
 
@@ -259,19 +259,21 @@ One PR per milestone, through the Mergify queue (constitution, Development Workf
 
 ### Tests for US7
 
-- [ ] T099 [P] [US7] Unit tests for the archive guards (done only), archived items excluded from owner views but included in agent queries, and owner text edits (limits, secret check, version conflict, undo) in `server/tests/unit/planning.test.ts`
-- [ ] T100 [P] [US7] E2E: quick capture (title required, lands in Inbox; from an epic you stay on the epic), label page Move N to Ready with undo, Archive and Archive all with undo, the Archived filter, the "+ N archived" fold, the document viewer, inline edit with the conflict callout; in `web/e2e/us7-planning.spec.ts`
+- [ ] T099 [P] [US7] Unit tests for owner cancel (any open item, optional reason; an epic with open children is refused naming them; an active lead run ends `interrupted` and its claim is released; an open packet is withdrawn; undo restores the status but not the run; FR-064b), the archive guards (done only), archived items excluded from owner views but included in agent queries, and owner text edits (limits, secret check, version conflict, undo) in `server/tests/unit/planning.test.ts`
+- [ ] T100 [P] [US7] E2E: Cancel item… from the overflow menu (inline confirm focusing *Keep item*, the lead warning, the open-children list on an epic, a toast with Undo, the item leaves the board but is found by search), quick capture (title required, lands in Inbox; from an epic you stay on the epic), label page Move N to Ready with undo, Archive and Archive all with undo, the Archived filter, the "+ N archived" fold, the document viewer, inline edit with the conflict callout; in `web/e2e/us7-planning.spec.ts`
 
 ### Implementation for US7
 
 - [ ] T101 [US7] Implement the documents service (put a version, immutable, sha256, 25 MB through MCP, the `/agent-upload` multipart endpoint up to 500 MB, preview MIME handling, `Content-Disposition` and `nosniff`) in `server/src/domain/documents.ts` and `server/src/api/routes/upload.ts`
-- [ ] T102 [US7] Register the MCP tools `put_document` and `upsert_label` in `server/src/mcp/tools/planning.ts`
-- [ ] T103 [US7] Add the routes `POST /api/items`, `PATCH /api/items/:id` (priority, status, and title, `description_md`, `outcome_md`, `acceptance[]` with `expected_version`), archive/unarchive/`archive {ids}`, labels and move-to-ready, and document content, in `server/src/api/routes/planning.ts`
-- [ ] T104 [US7] Build quick capture and the + New item in this epic dialog per UI_SPEC §6.9 in `web/src/components/QuickCapture.tsx`
-- [ ] T105 [US7] Build inline editing (title, description, outcome, acceptance; Preview; `Ctrl+Enter`/`Esc`; conflict callout; counters) per UI_SPEC §6.3 "Inline editing" in `web/src/routes/items/details/InlineEdit.tsx`
-- [ ] T106 [US7] Build the Done column Archive and Archive all actions, the Archived filter, and the epic fold-up, in `web/src/routes/work/` and `web/src/routes/items/details/Tickets.tsx`
-- [ ] T107 [P] [US7] Build the Label page per UI_SPEC §6.5 in `web/src/routes/labels.tsx`
-- [ ] T108 [P] [US7] Build the document viewer and Checklist history dialogs per UI_SPEC §6.9 in `web/src/components/DocumentViewer.tsx` and `PlanHistory.tsx`
+- [ ] T102 [US7] Implement owner cancel in `server/src/domain/items.ts`, with the route `POST /api/items/:id/cancel {expected_version, reason?}` returning a `mutation_id`, in `server/src/api/routes/planning.ts` (BUILD_SPEC §5.1, owner decision 23)
+- [ ] T103 [US7] Build the item header's "⋯" overflow with *Cancel item…* (inline confirm, lead warning, the epic's open-children list, a struck-through Canceled state) per UI_SPEC §6.3 in `web/src/routes/items/header/CancelItem.tsx`
+- [ ] T104 [US7] Register the MCP tools `put_document` and `upsert_label` in `server/src/mcp/tools/planning.ts`
+- [ ] T105 [US7] Add the routes `POST /api/items`, `PATCH /api/items/:id` (priority, status, and title, `description_md`, `outcome_md`, `acceptance[]` with `expected_version`), archive/unarchive/`archive {ids}`, labels and move-to-ready, and document content, in `server/src/api/routes/planning.ts`
+- [ ] T106 [US7] Build quick capture and the + New item in this epic dialog per UI_SPEC §6.9 in `web/src/components/QuickCapture.tsx`
+- [ ] T107 [US7] Build inline editing (title, description, outcome, acceptance; Preview; `Ctrl+Enter`/`Esc`; conflict callout; counters) per UI_SPEC §6.3 "Inline editing" in `web/src/routes/items/details/InlineEdit.tsx`
+- [ ] T108 [US7] Build the Done column Archive and Archive all actions, the Archived filter, and the epic fold-up, in `web/src/routes/work/` and `web/src/routes/items/details/Tickets.tsx`
+- [ ] T109 [P] [US7] Build the Label page per UI_SPEC §6.5 in `web/src/routes/labels.tsx`
+- [ ] T110 [P] [US7] Build the document viewer and Checklist history dialogs per UI_SPEC §6.9 in `web/src/components/DocumentViewer.tsx` and `PlanHistory.tsx`
 
 ---
 
@@ -283,18 +285,18 @@ One PR per milestone, through the Mergify queue (constitution, Development Workf
 
 ### Tests for US10
 
-- [ ] T109 [P] [US10] Integration tests for unlock and lock, CSRF required on mutations, key rotation ending sessions, and agents' token rejected on `/api`, in `server/tests/integration/us10-session.test.ts`
-- [ ] T110 [P] [US10] Integration tests in `server/tests/integration/us10-ops.test.ts`: a backup restored into a temporary data directory is identical, with an item, event and document checksum comparison; a project delete removes its rows and docs directory, and the tombstone is retried at startup; the diagnostic log contains no arguments, and no log contains an `Authorization` value; a deleted project's item IDs return `not_found` to agents; and replacing the container (`docker compose down && up` in the CI Docker job) keeps every item, event and document (SC-008)
-- [ ] T111 [P] [US10] E2E: unlock screen, Settings (projects, connections, snippets showing `$TASKLITE_TOKEN`, Reveal token auto-hiding after 30 s, the delete dialog with typed key and focus on Cancel, *Download diagnostic log*), in `web/e2e/us10-settings.spec.ts`
+- [ ] T111 [P] [US10] Integration tests for unlock and lock, CSRF required on mutations, key rotation ending sessions, and agents' token rejected on `/api`, in `server/tests/integration/us10-session.test.ts`
+- [ ] T112 [P] [US10] Integration tests in `server/tests/integration/us10-ops.test.ts`: with the extra backup location set, the archive appears in both places and the extra copy restores after the data dir is removed, while an unwritable extra dir still lets the default backup succeed and raises a Problem; a backup restored into a temporary data directory is identical, with an item, event and document checksum comparison; a project delete removes its rows and docs directory, and the tombstone is retried at startup; the diagnostic log contains no arguments, and no log contains an `Authorization` value; a deleted project's item IDs return `not_found` to agents; and replacing the container (`docker compose down && up` in the CI Docker job) keeps every item, event and document (SC-008)
+- [ ] T113 [P] [US10] E2E: unlock screen, Settings (projects, connections, snippets showing `$TASKLITE_TOKEN`, Reveal token auto-hiding after 30 s, the delete dialog with typed key and focus on Cancel, *Download diagnostic log*), in `web/e2e/us10-settings.spec.ts`
 
 ### Implementation for US10
 
-- [ ] T112 [US10] Implement owner sessions (`/api/session/unlock` and `/lock`, HttpOnly SameSite=Strict cookie, 30-day sliding expiry, rotate key) in `server/src/api/session.ts`
-- [ ] T113 [US10] Implement the nightly backup (`VACUUM INTO` plus a docs tar.gz, retention `BACKUP_KEEP`) and the CLI commands `backup now`, `restore <file>` (refuses while running; verifies first), `owner-key` and `agent-token`, in `server/src/jobs/backup.ts` and `server/src/cli/index.ts`
-- [ ] T114 [US10] Implement project delete (transaction plus tombstone, docs removal after commit, retry at startup) in `server/src/domain/projects.ts`
-- [ ] T115 [US10] Implement the call log (`/data/logs/calls-YYYYMMDD.jsonl`, rotated daily, kept 7 days) and `GET /api/diagnostics/calls` in `server/src/jobs/logs.ts` and `server/src/api/routes/diagnostics.ts`
-- [ ] T116 [US10] Build the Unlock route and Settings (Projects, Connections with the compatibility matrix and snippets, Endpoint, Service health, This browser) per UI_SPEC §6.7–6.8 in `web/src/routes/settings/` and `web/src/routes/unlock.tsx`
-- [ ] T117 [US10] Write the README quick start (clean machine to connected agent in ≤ 10 minutes) and `docker/smoke/` (a script and checklist per client surface, O07) in `README.md` and `docker/smoke/`
+- [ ] T114 [US10] Implement owner sessions (`/api/session/unlock` and `/lock`, HttpOnly SameSite=Strict cookie, 30-day sliding expiry, rotate key) in `server/src/api/session.ts`
+- [ ] T115 [US10] Implement the nightly backup (`VACUUM INTO` plus a docs tar.gz, retention `BACKUP_KEEP`; the opt-in copy to `TASKLITE_BACKUP_EXTRA_DIR` with the same retention, where a failed extra copy never fails the default backup and raises the Problem "Extra backup copy failed: <reason>"; owner decision 24) and the CLI commands `backup now`, `restore <file>` (refuses while running; verifies first), `owner-key` and `agent-token`, in `server/src/jobs/backup.ts` and `server/src/cli/index.ts`
+- [ ] T116 [US10] Implement project delete (transaction plus tombstone, docs removal after commit, retry at startup) in `server/src/domain/projects.ts`
+- [ ] T117 [US10] Implement the call log (`/data/logs/calls-YYYYMMDD.jsonl`, rotated daily, kept 7 days) and `GET /api/diagnostics/calls` in `server/src/jobs/logs.ts` and `server/src/api/routes/diagnostics.ts`
+- [ ] T118 [US10] Build the Unlock route and Settings (Projects, Connections with the compatibility matrix and snippets, Endpoint, Service health, This browser) per UI_SPEC §6.7–6.8 in `web/src/routes/settings/` and `web/src/routes/unlock.tsx`
+- [ ] T119 [US10] Write the README quick start (clean machine to connected agent in ≤ 10 minutes, plus the optional extra-backup bind mount) and `docker/smoke/` (a script and checklist per client surface, O07) in `README.md` and `docker/smoke/`
 
 ---
 
@@ -306,13 +308,13 @@ One PR per milestone, through the Mergify queue (constitution, Development Workf
 
 ### Tests for US8
 
-- [ ] T118 [P] [US8] Unit tests in `server/tests/unit/forecast.test.ts`: date risk; burn-down replay from events, with scope additions and the unestimated count; forecast thresholds (≥ 8 estimated items done in the last 4 weeks, across ≥ 2 weeks); Monte Carlo P50/P85 deterministic with a seeded RNG; planned dates unchanged
-- [ ] T119 [P] [US8] E2E: Timeline (planned and actual bars, set-by only on hover, blocker ticks, risk text, undated list, forecast lane), the burn-down card with *Show as table*, in `web/e2e/us8-timeline.spec.ts`
+- [ ] T120 [P] [US8] Unit tests in `server/tests/unit/forecast.test.ts`: date risk; burn-down replay from events, with scope additions and the unestimated count; forecast thresholds (≥ 8 estimated items done in the last 4 weeks, across ≥ 2 weeks); Monte Carlo P50/P85 deterministic with a seeded RNG; planned dates unchanged
+- [ ] T121 [P] [US8] E2E: Timeline (planned and actual bars, set-by only on hover, blocker ticks, risk text, undated list, forecast lane), the burn-down card with *Show as table*, in `web/e2e/us8-timeline.spec.ts`
 
 ### Implementation for US8
 
-- [ ] T120 [US8] Implement the timeline query, burn-down and forecast in `server/src/domain/forecast.ts`, with `GET /api/work?layout=timeline` and `GET /api/burndown`
-- [ ] T121 [US8] Build the Timeline layout and the burn-down card per UI_SPEC §6.2.4 and §9.1 in `web/src/routes/work/TimelineLayout.tsx` and `BurndownCard.tsx`
+- [ ] T122 [US8] Implement the timeline query, burn-down and forecast in `server/src/domain/forecast.ts`, with `GET /api/work?layout=timeline` and `GET /api/burndown`
+- [ ] T123 [US8] Build the Timeline layout and the burn-down card per UI_SPEC §6.2.4 and §9.1 in `web/src/routes/work/TimelineLayout.tsx` and `BurndownCard.tsx`
 
 ---
 
@@ -324,27 +326,27 @@ One PR per milestone, through the Mergify queue (constitution, Development Workf
 
 ### Tests for US9
 
-- [ ] T122 [P] [US9] Unit tests for every mapping row in BUILD_SPEC §9 (types, status categories, priorities, links, ADF to Markdown losses, sub-tasks as work steps, field detection), using recorded Jira responses in `server/tests/fixtures/jira/`, in `server/tests/unit/jira-map.test.ts`
-- [ ] T123 [P] [US9] Integration test: the dry run writes nothing; the commit is atomic; the token appears nowhere in the database, logs, report or events (grep the data dir); a recorded 500-issue fixture dry-runs in under 2 minutes and accounts for 100% of issues (SC-011); in `server/tests/integration/us9-jira.test.ts`
+- [ ] T124 [P] [US9] Unit tests for every mapping row in BUILD_SPEC §9 (types, status categories, priorities, links, ADF to Markdown losses, sub-tasks as work steps, field detection), using recorded Jira responses in `server/tests/fixtures/jira/`, in `server/tests/unit/jira-map.test.ts`
+- [ ] T125 [P] [US9] Integration test: the dry run writes nothing; the commit is atomic; the token appears nowhere in the database, logs, report or events (grep the data dir); a recorded 500-issue fixture dry-runs in under 2 minutes and accounts for 100% of issues (SC-011); in `server/tests/integration/us9-jira.test.ts`
 
 ### Implementation for US9
 
-- [ ] T124 [US9] Implement the Jira client (REST v3 search and pagination, links, comments, attachment metadata and download, honouring `Retry-After`; the token held in memory, expiring after 1 h or on cancel) in `server/src/import/jira/client.ts`
-- [ ] T125 [US9] Implement the mapper and report builder in `server/src/import/jira/mapper.ts` and `report.ts`
-- [ ] T126 [US9] Implement the commit (one transaction, `jira_key`, `imported`, post-commit attachment download, the report stored as an `import_report` document) and the routes, in `server/src/import/jira/commit.ts` and `server/src/api/routes/import.ts`
-- [ ] T127 [US9] Build the three-step Import dialog per UI_SPEC §9.2 in `web/src/routes/settings/JiraImport.tsx`
+- [ ] T126 [US9] Implement the Jira client (REST v3 search and pagination, links, comments, attachment metadata and download, honouring `Retry-After`; the token held in memory, expiring after 1 h or on cancel) in `server/src/import/jira/client.ts`
+- [ ] T127 [US9] Implement the mapper and report builder in `server/src/import/jira/mapper.ts` and `report.ts`
+- [ ] T128 [US9] Implement the commit (one transaction, `jira_key`, `imported`, post-commit attachment download, the report stored as an `import_report` document) and the routes, in `server/src/import/jira/commit.ts` and `server/src/api/routes/import.ts`
+- [ ] T129 [US9] Build the three-step Import dialog per UI_SPEC §9.2 in `web/src/routes/settings/JiraImport.tsx`
 
 ---
 
 ## Phase 13: Polish and cross-cutting · M8
 
-- [ ] T128 [P] Accessibility: run the axe suite on every route in both themes; keyboard paths (skip link, tabs pattern, map canvas arrows, dialogs); NVDA spot check of the packet flow. In `web/e2e/a11y.spec.ts`.
-- [ ] T129 [P] Performance check at scale (generate 20 projects, 5,000 items and 100,000 events): owner views under 1 s, agent calls p95 under 500 ms (SC-013), in `server/tests/perf/scale.test.ts` (run on demand, not in every CI run)
-- [ ] T130 [P] Write the reduced-motion and 1024×900 layout checks (the packet decision panel under the queue) in `web/e2e/layout.spec.ts`
-- [ ] T131 Run the real-client smoke test (installed Codex, installed Claude Code, an Orca worker running Codex, an Orca worker running Claude), fill in the Settings compatibility matrix, and resolve the BUILD_SPEC §12 verifications V1–V3 and V6 (record findings in BUILD_SPEC §12)
-- [ ] T132 Stretch: add `tasklite export` (full JSON plus documents) in `server/src/cli/export.ts`. It is required before the pilot (ROADMAP §1).
-- [ ] T133 Wire the Playwright end-to-end tests into `.github/workflows/ci.yml` (from M4), uploading the report and traces as artifacts on failure
-- [ ] T134 Run the quickstart.md validation end to end, and run `/speckit-analyze` until there are no CRITICAL findings
+- [ ] T130 [P] Accessibility: run the axe suite on every route in both themes; keyboard paths (skip link, tabs pattern, map canvas arrows, dialogs); NVDA spot check of the packet flow. In `web/e2e/a11y.spec.ts`.
+- [ ] T131 [P] Performance check at scale (generate 20 projects, 5,000 items and 100,000 events): owner views under 1 s, agent calls p95 under 500 ms (SC-013), in `server/tests/perf/scale.test.ts` (run on demand, not in every CI run)
+- [ ] T132 [P] Write the reduced-motion and 1024×900 layout checks (the packet decision panel under the queue) in `web/e2e/layout.spec.ts`
+- [ ] T133 Run the real-client smoke test (installed Codex, installed Claude Code, an Orca worker running Codex, an Orca worker running Claude), fill in the Settings compatibility matrix, and resolve the BUILD_SPEC §12 verifications V1–V3 and V6 (record findings in BUILD_SPEC §12)
+- [ ] T134 Stretch: add `tasklite export` (full JSON plus documents) in `server/src/cli/export.ts`. It is required before the pilot (ROADMAP §1).
+- [ ] T135 Wire the Playwright end-to-end tests into `.github/workflows/ci.yml` (from M4), uploading the report and traces as artifacts on failure
+- [ ] T136 Run the quickstart.md validation end to end, and run `/speckit-analyze` until there are no CRITICAL findings
 
 ---
 
@@ -359,7 +361,7 @@ One PR per milestone, through the Mergify queue (constitution, Development Workf
 - **US5 (7)** depends on US1 (items, epics, labels). Its UI depends on US2.
 - **US6 (8)** depends on US1 and US2.
 - **US7 (9)** depends on US2. Inline editing reuses the US1 item service.
-- **US10 (10)** can start after Foundational. Its owner session (T112) replaces the stub in T027 and should land before US2's UI is used outside tests.
+- **US10 (10)** can start after Foundational. Its owner session (T114) replaces the stub in T027 and should land before US2's UI is used outside tests.
 - **US8 (11)** depends on US1 and US4 (blocker dates).
 - **US9 (12)** depends on US1, US4 and US7 (documents).
 - **Polish (13)** comes after the stories being shipped.

@@ -18,6 +18,9 @@ One owner runs Task Lite on their own computer. AI agents (installed coding agen
 
 - Q: How should the owner find out that something needs them when the Task Lite tab isn't in front of them? → A: Opt-in desktop (browser) notifications for new "for you" items only (handoff ready, question asked), plus the for-you count in the browser tab title. No email or phone; nothing leaves the machine.
 - Q: Should the owner be able to edit an item's text in the UI (title, description, outcome, acceptance criteria), especially while shaping it in Planning? → A: Yes. Inline editing of those four fields on the Details view, with conflict detection and Undo. Planned dates, effort and blocker links stay agent-edited in V1.
+- Q: Where should nightly backups be stored? → A: Inside the service's data volume by default. The owner can opt in to also writing each backup to a folder on the host machine, for an extra copy that survives losing the volume.
+- Q: Should the browser UI require an owner key to unlock, so a local agent can't record a human approval through the UI's API? → A: Yes. The owner pastes the key once per browser, and the session lasts 30 days from last use. The owner can lock the browser or rotate the key (which ends every session) in Settings.
+- Q: Should the owner be able to cancel an item themselves in the UI? → A: Yes, any open item, with an optional reason and Undo. Canceled items leave the owner's views like archived ones, and anything they block stays blocked until the link is removed.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -153,6 +156,7 @@ The owner captures ideas quickly, shapes work in Planning (their stage, where ag
 4. **Given** done items, **When** the owner archives one or all, **Then** they disappear from the owner's views but remain in search, in agents' queries and on progress maps. They can be restored, and the action can be undone.
 5. **Given** a planning document added by an agent, **When** the owner opens it, **Then** it renders in a viewer with its version, author and a download option, and earlier versions are kept.
 6. **Given** an item in Planning, **When** the owner edits its title, outcome or acceptance criteria inline, **Then** the change is saved with Undo available, recorded as the owner's, and returned to agents in the item's context. If an agent changed the same field first, the owner's edit is refused, and the latest text is shown for the owner to reapply.
+7. **Given** an Inbox item the owner no longer wants, **When** they choose Cancel item and confirm, **Then** it becomes Canceled with their optional reason, leaves their views, can be undone for a short time, and still turns up in search.
 
 ---
 
@@ -202,7 +206,8 @@ The owner starts Task Lite with one command, connects their agents by following 
 2. **Given** a browser without an owner session, **When** it opens the UI, **Then** it must unlock with the owner key. Without that session, agents' credentials cannot perform owner actions.
 3. **Given** a request from another machine, or a request whose Host or Origin isn't allowed, **When** it arrives, **Then** it is refused.
 4. **Given** text that looks like a secret, **When** anyone tries to save it, **Then** it is refused and not stored or logged.
-5. **Given** the owner deletes a project after typing its key, **When** confirmed, **Then** its items and documents are removed together, and backups age out on their stated retention.
+5. **Given** the owner has enabled the extra host-folder backup location, **When** the nightly backup runs, **Then** the same backup appears in both places. Settings shows the last successful time for each, and the host copy can be restored after the service's data volume is removed.
+6. **Given** the owner deletes a project after typing its key, **When** confirmed, **Then** its items and documents are removed together, and backups age out on their stated retention.
 
 ### Edge Cases
 
@@ -216,9 +221,11 @@ The owner starts Task Lite with one command, connects their agents by following 
 - **A very long title, or a large document:** titles are truncated with the full text on hover. Documents above the size limit are refused with the limit stated. Unknown file types are download-only.
 - **The connection to the service drops in the UI:** a banner says it's reconnecting. After a minute it says changes won't be saved, and actions are disabled.
 - **An agent sends text over a field's limit:** refused, with the limit.
+- **The extra backup folder is missing, full or not writable:** the default backup still succeeds, and the owner sees a problem ("Extra backup copy failed: <reason>") until a later copy succeeds.
 - **Notifications are off or blocked by the browser:** nothing is lost. The tab title count and Needs you still show everything. A burst of handoffs produces one notification per item, not repeats.
 - **Context exceeds the budget:** lower-priority sections are cut, with an inline marker. The essentials and decisions are never cut first.
-- **The owner archives an item that isn't done:** refused.
+- **The owner archives an item that isn't done:** refused. Cancel exists for that.
+- **The owner cancels an item an agent is working on:** the agent's run is interrupted and its claim released, and the agent's next call is refused with the item's canceled state. Items it blocked show "Blocked by canceled X" until the link is removed.
 - **A run belonging to a client that never answers liveness checks:** it shows as reported rather than live, never as live by assumption.
 - **A deleted project's IDs:** agents get "not found".
 
@@ -297,8 +304,14 @@ The owner starts Task Lite with one command, connects their agents by following 
 - **FR-061**: Only items that need the owner (handoffs ready and open questions) MAY drive the red attention count. Problems MUST list stale and failed runs, cycles, date risks, canceled blockers, and verified blockers with deferred checks, each with one action that opens the right place.
 - **FR-062**: Every owner change MUST be undoable for a short period, or confirmed when destructive, with focus on Cancel.
 - **FR-063**: The UI MUST update live as agents change data, keep the owner's focus, and warn clearly when the service is unreachable.
-- **FR-064**: The owner MUST be able to quick-capture items, move items between Inbox, Planning and Ready, change priority, add checklist steps, checks and review items, answer questions, leave notes, release stale claims, return failed work to Ready, archive and unarchive done items, record and confirm decisions, set each project's blocker rule, and edit an item's title, description, outcome and acceptance criteria inline.
+- **FR-064**: The owner MUST be able to quick-capture items, move items between Inbox, Planning and Ready, change priority, add checklist steps, checks and review items, answer questions, leave notes, release stale claims, return failed work to Ready, archive and unarchive done items, record and confirm decisions, set each project's blocker rule, edit an item's title, description, outcome and acceptance criteria inline, and cancel any open item.
 - **FR-064a**: Owner edits to an item's text MUST use the same conflict detection as agent writes: an edit based on a stale version is refused with the latest text shown. Edits MUST be undoable, recorded with the owner as the actor, and visible to agents on their next read.
+- **FR-064b**: The owner MUST be able to cancel any open item with an optional reason. Cancel MUST be undoable, and it is recorded as the owner's.
+  - **An item with an active lead:** its run ends as interrupted, and the agent's next call gets the current state.
+  - **An item with an open packet:** the packet is withdrawn.
+  - **An epic with open children:** canceling is refused, naming those children.
+  - Canceled items leave the owner's default views, but stay searchable.
+  - Undo restores the item's previous status. It doesn't restore an interrupted run.
 - **FR-065**: Each item MUST open on the view the owner last used for it. Opened items MUST appear as tabs (at most 8) that remember their view. Scope MUST reset to All projects on each new visit.
 - **FR-066**: Every state, provenance and attention signal MUST carry text, not just colour. The UI MUST meet WCAG 2.1 AA in light and dark themes, at window widths down to 1024 px.
 - **FR-067**: Search MUST find items (including archived and imported ones, by Jira key), labels and views.
@@ -324,9 +337,10 @@ The owner starts Task Lite with one command, connects their agents by following 
 **Operation and safety**
 
 - **FR-100**: The service MUST start with one command, and MUST be reachable only from the local machine by default. Requests with a disallowed Host or Origin MUST be refused.
-- **FR-101**: Owner actions MUST require an owner session established with an owner key that agents never receive. The owner MUST be able to lock a browser and rotate the key.
+- **FR-101**: Owner actions MUST require an owner session established with an owner key that agents never receive. The session lasts 30 days from last use in that browser. The owner MUST be able to lock a browser (ending its session) and rotate the key (ending every session). An agent's credential MUST NOT be accepted for any owner action.
 - **FR-102**: Data and documents MUST survive container replacement. Health and readiness checks MUST identify storage problems.
-- **FR-103**: Nightly backups MUST include records and documents, MUST be kept for a stated period, and MUST be restorable with a documented command.
+- **FR-103**: Nightly backups MUST include records and documents, MUST be kept for a stated period, and MUST be restorable with a documented command. By default, backups are stored with the service's data.
+- **FR-103a**: The owner MUST be able to opt in to an extra backup location: a folder on the host machine. When it's enabled, each nightly backup is also written there, with the same retention. Settings MUST show each backup location with its last successful backup time. A failed copy to the extra location MUST appear as a problem, and MUST NOT affect the default backup.
 - **FR-104**: Deleting a project MUST require typing its key, and MUST remove its records and documents together.
 - **FR-105**: Text that looks like a secret MUST be refused on write and never stored or logged. Credentials MUST never appear in logs.
 - **FR-106**: The service MUST NOT launch agents or call model APIs.
@@ -380,7 +394,6 @@ The owner starts Task Lite with one command, connects their agents by following 
 - Event and document retention is unlimited, until the owner archives (which hides) or deletes (which removes) a project.
 - Out of scope for V1:
   - editing planned dates, effort and blocker links in the UI (agents edit them; the owner edits the text fields, see Clarifications);
-  - a cancel action in the UI;
   - a restore UI;
   - bulk agent tools;
   - sprints;

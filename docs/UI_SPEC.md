@@ -317,7 +317,9 @@ A `ProgressMap` of the filtered set, titled "Outside this view". When no epic or
   - contextual actions:
     - Inbox: *Move to Planning*;
     - Planning: *Move to Ready* (primary) with "Planning is yours. Move it when you're satisfied, or ask an agent to.";
-    - Done: *Archive*, or "Archived" chip + *Unarchive*.
+    - Done: *Archive*, or "Archived" chip + *Unarchive*;
+    - any open status: *Cancel item…* in a "⋯" overflow menu at the end of the actions row. It opens an inline confirm, "Cancel RCP-31? Optional reason", with *Keep item* (focused) and *Cancel item*. Afterwards there's a toast with Undo. For an epic with open children, the confirm instead lists them and offers no Cancel button. For an item an agent leads, the confirm adds: "codex is working on this; its run will be interrupted."
+    - Canceled items show the status chip "Canceled" and a struck-through title, and they leave the board, list and timeline (they're still in search).
 - **Epic header:** status chip; "Project · N items · n done"; on a Planning epic, *Move to Ready* with "This epic is still a brief."
 
 **Inline editing** (spec clarification 2026-11-14). The owner edits the **title, description, outcome and acceptance criteria**. Planned dates, effort and blocker links stay agent-edited in V1.
@@ -535,7 +537,7 @@ h1 "Settings".
   - **Client compatibility table** (Client, Transport, Last seen, Status chip Verified / Not verified / Not configured, Notes), with "Smoke test: claim, plan, log, read back" in the header;
   - **Client setup card:** Codex | Claude Code segmented control, a code block, and *Copy*. The token placeholder is `$TASKLITE_TOKEN`; show the token itself only behind *Reveal token*, which needs a click and auto-hides after 30 s;
   - **Endpoint card:** MCP URL, Web UI URL, Bind "Loopback only", Auth "Bearer token", Origins;
-  - **Service health card:** Database and Documents with ready chips and sizes, Volume, Last backup ("Nov 6 03:00 · kept 14 days"), Restarted (with "0 runs were active…"), *Download diagnostic log* (the last 7 days of agent calls, without contents), and *Lock this browser* / *Rotate owner key*.
+  - **Service health card:** Database and Documents with ready chips and sizes, Volume, Backups: one row per location, "In the data volume · Nov 6 03:00 · kept 14 days", and, if configured, "Extra copy: /backups-extra · Nov 6 03:01". When the extra location isn't configured, a muted line explains how to add it ("Mount a host folder and set TASKLITE_BACKUP_EXTRA_DIR; see the README"), Restarted (with "0 runs were active…"), *Download diagnostic log* (the last 7 days of agent calls, without contents), and *Lock this browser* / *Rotate owner key*.
   - **This browser card:** "Desktop notifications" with a switch, a status line ("On", "Off", "Blocked by the browser. Allow notifications for 127.0.0.1:7420 in your browser settings.") and *Send a test notification*. Theme is also set here.
 
 ### 6.7a Desktop notifications

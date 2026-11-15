@@ -42,10 +42,10 @@ CI runs the same on GitHub Actions (`.github/workflows/ci.yml`).
 | **US4** dependencies | Settings → Recipe App → "Blockers clear when: PR merged" | Items behind done-but-unmerged blockers show "(needs merge)". `link_artifact {kind:"pr", state:"merged"}` clears it. Linking a cycle is refused with its path. |
 | **US5** context and decisions | Agent: `get_context RCP-14`; `publish_decision` on epic RCP-1; owner *Confirm* in RCP-14 → Details → Decisions | The bundle stays within budget and includes `dec_1`. The new record shows "Agent", then "Owner" after confirming. An agent `withdraw_decision` on it gets `forbidden`. |
 | **US6** steering | Answer DOC-4's question; leave a note on RCP-14; release RCP-15's stale claim | "Waiting for codex to read it" until `get_item`. The note is delivered once. The release dialog focuses Cancel, and RCP-15 goes back to Ready. |
-| **US7** planning | + New "Low-stock alerts" in the Pantry epic; edit its outcome inline; move it to Ready; archive a Done card | Inline save shows Undo, and agents see the new text in `get_context`. The archived item leaves the board but is found by search. |
+| **US7** planning | + New "Low-stock alerts" in the Pantry epic; edit its outcome inline; move it to Ready; archive a Done card; cancel a junk Inbox item with ⋯ → Cancel item… | Inline save shows Undo, and agents see the new text in `get_context`. The archived item leaves the board but is found by search. The canceled item shows as Canceled in search, and Undo brings it back. |
 | **US8** dates | Work → Timeline | Planned and actual bars, the date risk on RCP-16, and "No forecast yet: needs 8 completed items with effort (have 2)". |
 | **US9** Jira | Settings → Import from Jira… against a test project | The dry-run report writes nothing. Import creates the items. The token isn't found anywhere (`grep -r` on `/data` and the logs). |
-| **US10** operate | `docker compose down && up`; `tasklite backup now`; restore into a scratch volume; delete a test project | Nothing is lost. The restore is identical. The deleted project's records and documents are gone, and the others are untouched. |
+| **US10** operate | `docker compose down && up`; `tasklite backup now` (optionally with the extra backup folder mounted); restore into a scratch volume; delete a test project | Nothing is lost. The restore is identical. The deleted project's records and documents are gone, and the others are untouched. |
 
 ## 5. Done for V1
 - Every user story row above passes.

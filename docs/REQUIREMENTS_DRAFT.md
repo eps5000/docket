@@ -27,6 +27,9 @@ Status: discovery draft, updated 2026-11-07. **Superseded as the requirements of
 20. TERSL / Tourbillon is a reference to learn from, not a dependency. No TERSL format or TERSL/DB in V1; the learnings applied, and an optional post-V1 experiment, are in [ROADMAP.md](ROADMAP.md). (Added 2026-11-14.)
 21. Opt-in desktop notifications in the browser for new "for you" events only (handoff ready, question asked), plus the for-you count in the tab title. Nothing leaves the machine. (Added 2026-11-14, spec clarification.)
 22. The owner can edit an item's title, description, outcome and acceptance criteria inline in the UI. Planned dates, effort and blocker links stay agent-edited in V1. (Added 2026-11-14, spec clarification.)
+23. The owner can cancel any open item from the UI, with an optional reason and Undo. (Added 2026-11-14, spec clarification.)
+24. Nightly backups stay in the service's data volume by default; the owner can opt in to an extra copy in a folder on the host machine. (Added 2026-11-14, spec clarification.)
+25. The browser UI requires the owner key to unlock, once per browser, with a 30-day session from last use; the owner can lock a browser or rotate the key. (Confirmed 2026-11-14, spec clarification.)
 
 ## Product intent
 
