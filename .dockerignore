@@ -1,0 +1,24 @@
+# Keep the build context to what the image build needs: root workspace files
+# and the shared/, server/ and web/ packages.
+**/node_modules
+**/dist
+**/coverage
+**/*.tsbuildinfo
+**/playwright-report
+**/test-results
+**/blob-report
+**/*.log
+.git
+.github
+.claude
+.specify
+.vscode
+.idea
+docs
+specs
+# design/ is reference material today. The seed loader (B2, T031) reads
+# design/sample-data.json and will need it in the context.
+design
+docker/.env
+.env
+.env.*
