@@ -105,24 +105,24 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 
 **Purpose**: make the whole agent contract real before any behaviour exists. Every tool is listed with its exact description and schemas, so agents and tests see the final interface.
 
-- [ ] T032 [P] Define the MCP shared types from MCP_SPEC §4 (`ItemSummary`, `Item`, `LinkRef`, `WorkStep`, `Check`, `HumanReviewItem`, `Run`, `Question`, `DecisionRecord`, `ContextBundle`, `EventRow`, `ToolError`) as zod schemas in `shared/src/mcp/types.ts`
-- [ ] T033 [P] Define the input and output zod schemas for the orientation and finding tools (`whoami`, `list_projects`, `search_items`, `get_item`, `get_context`, `dependency_subgraph`, `deferred_reviews`, `get_changes`; MCP_SPEC §5.1–5.2) in `shared/src/mcp/read.ts`
-- [ ] T034 [P] Define the input and output schemas for creating and editing (`create_item`, `update_item`, `set_status`, `link_items`, `unlink_items`, `upsert_label`; MCP_SPEC §5.3) in `shared/src/mcp/items.ts`
-- [ ] T035 [P] Define the input and output schemas for claims and runs (`claim_lead`, `release_lead`, `start_run`, `heartbeat`, `finish_run`; MCP_SPEC §5.4) in `shared/src/mcp/runs.ts`
-- [ ] T036 [P] Define the input and output schemas for the checklist (`set_plan` with `mode`/`remove`/`after`, `update_step`, `log_subagent`, `set_checks`, `update_check`, `declare_human_review`, `update_human_review`; MCP_SPEC §5.5) in `shared/src/mcp/checklist.ts`
-- [ ] T037 [P] Define the input and output schemas for evidence, review and decisions (`add_note`, `put_document`, `link_artifact`, `report_commit`, `submit_packet`, `get_review`, `ask_owner`, `publish_decision`, `list_decisions`, `withdraw_decision`; MCP_SPEC §5.6–5.8) in `shared/src/mcp/review.ts`
-- [ ] T038 Write `shared/src/mcp-copy.ts`: the server instructions (verbatim MCP_SPEC §2), all 36 tool descriptions (verbatim MCP_SPEC §5), and one result-summary template per tool
-- [ ] T039 Implement every compact renderer (item in each view, list rows, checklist markers, runs, context bundle, change feed, review rounds, decisions, mutation one-liners, errors, `!` warnings) per MCP_SPEC §3.1 in `shared/src/compact.ts`. Write snapshot tests against fixture objects built from the seed shapes in `shared/tests/compact.test.ts`. The MCP_SPEC §3.1 RCP-14 example must render identically.
-- [ ] T040 Implement the tool-registration helper in `server/src/mcp/register.ts`:
+- [X] T032 [P] Define the MCP shared types from MCP_SPEC §4 (`ItemSummary`, `Item`, `LinkRef`, `WorkStep`, `Check`, `HumanReviewItem`, `Run`, `Question`, `DecisionRecord`, `ContextBundle`, `EventRow`, `ToolError`) as zod schemas in `shared/src/mcp/types.ts`
+- [X] T033 [P] Define the input and output zod schemas for the orientation and finding tools (`whoami`, `list_projects`, `search_items`, `get_item`, `get_context`, `dependency_subgraph`, `deferred_reviews`, `get_changes`; MCP_SPEC §5.1–5.2) in `shared/src/mcp/read.ts`
+- [X] T034 [P] Define the input and output schemas for creating and editing (`create_item`, `update_item`, `set_status`, `link_items`, `unlink_items`, `upsert_label`; MCP_SPEC §5.3) in `shared/src/mcp/items.ts`
+- [X] T035 [P] Define the input and output schemas for claims and runs (`claim_lead`, `release_lead`, `start_run`, `heartbeat`, `finish_run`; MCP_SPEC §5.4) in `shared/src/mcp/runs.ts`
+- [X] T036 [P] Define the input and output schemas for the checklist (`set_plan` with `mode`/`remove`/`after`, `update_step`, `log_subagent`, `set_checks`, `update_check`, `declare_human_review`, `update_human_review`; MCP_SPEC §5.5) in `shared/src/mcp/checklist.ts`
+- [X] T037 [P] Define the input and output schemas for evidence, review and decisions (`add_note`, `put_document`, `link_artifact`, `report_commit`, `submit_packet`, `get_review`, `ask_owner`, `publish_decision`, `list_decisions`, `withdraw_decision`; MCP_SPEC §5.6–5.8) in `shared/src/mcp/review.ts`
+- [X] T038 Write `shared/src/mcp-copy.ts`: the server instructions (verbatim MCP_SPEC §2), all 36 tool descriptions (verbatim MCP_SPEC §5), and one result-summary template per tool
+- [X] T039 Implement every compact renderer (item in each view, list rows, checklist markers, runs, context bundle, change feed, review rounds, decisions, mutation one-liners, errors, `!` warnings) per MCP_SPEC §3.1 in `shared/src/compact.ts`. Write snapshot tests against fixture objects built from the seed shapes in `shared/tests/compact.test.ts`. The MCP_SPEC §3.1 RCP-14 example must render identically.
+- [X] T040 Implement the tool-registration helper in `server/src/mcp/register.ts`:
   - zod → JSON Schema for `inputSchema` and `outputSchema`;
   - annotations per MCP_SPEC §3;
   - `structuredContent` plus the compact text block;
   - structured errors as `isError`;
   - idempotency-key and `run_id` signal hooks;
   - a call-log line per call.
-- [ ] T041 Register **all 36 tools** with stub handlers that return `unavailable` ("Not implemented yet: <tool>"), one file per group (`server/src/mcp/tools/{read,items,runs,checklist,evidence,review,decisions}.ts`). Slices replace the stubs in place.
-- [ ] T042 [P] Contract snapshot test: `initialize` returns the instructions verbatim, and `tools/list` matches MCP_SPEC exactly (names, descriptions, schemas, annotations), in `server/tests/contract/snapshot.test.ts`. It goes green in this phase and guards every later PR.
-- [ ] T043 [P] Build the contract test harness in `server/tests/contract/harness.ts`: an in-process server with a fresh seeded database per test, two MCP SDK clients with different `clientInfo`, a helper that measures the text block in tokens (characters ÷ 4), and assertion helpers for each `ToolError` code
+- [X] T041 Register **all 36 tools** with stub handlers that return `unavailable` ("Not implemented yet: <tool>"), one file per group (`server/src/mcp/tools/{read,items,runs,checklist,evidence,review,decisions}.ts`). Slices replace the stubs in place.
+- [X] T042 [P] Contract snapshot test: `initialize` returns the instructions verbatim, and `tools/list` matches MCP_SPEC exactly (names, descriptions, schemas, annotations), in `server/tests/contract/snapshot.test.ts`. It goes green in this phase and guards every later PR.
+- [X] T043 [P] Build the contract test harness in `server/tests/contract/harness.ts`: an in-process server with a fresh seeded database per test, two MCP SDK clients with different `clientInfo`, a helper that measures the text block in tokens (characters ÷ 4), and assertion helpers for each `ToolError` code
 
 **Checkpoint**: the snapshot test is green, every tool is listed with its final description, and every stub answers `unavailable`.
 
