@@ -3,7 +3,7 @@
  * official MCP client SDK against the in-process server:
  * - `initialize` returns the §2 instructions verbatim and advertises only
  *   `tools` (`listChanged: false`);
- * - `tools/list` has exactly the 36 §5 tools, in order, each with its §5
+ * - `tools/list` has exactly the 38 §5 tools, in order, each with its §5
  *   description verbatim, its fields, defaults and limits, and the §3
  *   annotations.
  *
@@ -60,8 +60,8 @@ describe('initialize', () => {
 });
 
 describe('tools/list: names and descriptions (§5)', () => {
-  it('lists exactly 36 tools, in MCP_SPEC §5 order', () => {
-    expect(tools).toHaveLength(36);
+  it('lists exactly 38 tools, in MCP_SPEC §5 order', () => {
+    expect(tools).toHaveLength(38);
     expect(tools.map((t) => t.name)).toEqual(specDescriptions().map(([name]) => name));
   });
 
@@ -73,7 +73,11 @@ describe('tools/list: names and descriptions (§5)', () => {
   );
 });
 
-/** The §3 annotation table: read tools, `get_item`, the retry-safe four, nothing destructive. */
+/**
+ * The §3 annotation table: the 10 read tools, `get_item`, the retry-safe
+ * four, nothing destructive. `park_run` is a write and not retry-safe;
+ * `recovery_report` is read-only (B5).
+ */
 const READ_TOOLS = [
   'whoami',
   'list_projects',
@@ -84,6 +88,7 @@ const READ_TOOLS = [
   'get_changes',
   'get_review',
   'list_decisions',
+  'recovery_report',
 ];
 const IDEMPOTENT = ['heartbeat', 'report_commit', 'update_step', 'update_check'];
 
@@ -98,6 +103,12 @@ describe('tools/list: annotations (§3)', () => {
 
   it('get_item is not read-only: it marks owner notes and answers as delivered', () => {
     expect(byName('get_item').annotations?.readOnlyHint).toBe(false);
+  });
+
+  it('the §3 counts hold: 10 read tools, 27 mutating', () => {
+    expect(SPEC).toContain('`true` for the 10 read tools');
+    expect(SPEC).toContain('accepted only by the 27 mutating tools');
+    expect(READ_TOOLS).toHaveLength(10);
   });
 });
 
@@ -171,11 +182,21 @@ const INPUTS: Record<string, [string[], string[]]> = {
   link_items: [['from', 'to', 'type'], ['satisfied_when']],
   unlink_items: [[], ['link_id', 'from', 'to', 'type']],
   upsert_label: [['project', 'name'], ['brief_md']],
-  claim_lead: [['id'], ['agent_label']],
+  claim_lead: [
+    ['id'],
+    ['agent_label', 'workspace', 'orchestrator', 'brief', 'brief_document_version_id', 'external'],
+  ],
   release_lead: [['id', 'run_id', 'reason'], []],
-  start_run: [['id', 'parent_run_id'], ['agent_label']],
-  heartbeat: [['run_id'], ['current_step_id', 'note']],
+  start_run: [
+    ['id', 'parent_run_id'],
+    ['agent_label', 'workspace', 'orchestrator', 'brief', 'brief_document_version_id', 'external'],
+  ],
+  heartbeat: [
+    ['run_id'],
+    ['current_step_id', 'note', 'workspace', 'resources_started', 'resources_released', 'external'],
+  ],
   finish_run: [['run_id', 'result', 'summary'], ['error']],
+  park_run: [['run_id', 'reason'], ['waiting_on']],
   set_plan: [['id'], ['reason', 'mode', 'steps', 'remove']],
   update_step: [['id', 'step_id', 'state'], ['note']],
   log_subagent: [
@@ -203,7 +224,7 @@ const INPUTS: Record<string, [string[], string[]]> = {
   ],
   report_commit: [
     ['id', 'sha'],
-    ['branch', 'message', 'pr_url'],
+    ['branch', 'message', 'pr_url', 'pushed'],
   ],
   submit_packet: [
     ['id', 'built_from_commit', 'estimate', 'how', 'checked'],
@@ -217,6 +238,7 @@ const INPUTS: Record<string, [string[], string[]]> = {
   ],
   list_decisions: [['project'], ['scope', 'in_scope_of', 'include_inactive', 'cursor', 'limit']],
   withdraw_decision: [['decision_id', 'reason'], []],
+  recovery_report: [[], ['project', 'since', 'include_briefs', 'cursor', 'limit']],
 };
 
 /** Result fields per tool, from the §5 Output lines (all required). */
@@ -247,8 +269,9 @@ const OUTPUTS: Record<string, string[]> = {
   claim_lead: ['run_id', 'item', 'lease_expires_at'],
   release_lead: ['item'],
   start_run: ['run_id'],
-  heartbeat: ['run_state', 'lease_expires_at'],
+  heartbeat: ['run_state', 'lease_expires_at', 'resources'],
   finish_run: ['run_state'],
+  park_run: ['run_state', 'resume_ready'],
   set_plan: ['plan_version', 'work'],
   update_step: ['step'],
   log_subagent: ['logged'],
@@ -266,6 +289,14 @@ const OUTPUTS: Record<string, string[]> = {
   publish_decision: ['decision'],
   list_decisions: ['items', 'next_cursor'],
   withdraw_decision: ['decision'],
+  recovery_report: [
+    'interrupted',
+    'stale',
+    'parked',
+    'workspaces',
+    'orphaned_resources',
+    'next_cursor',
+  ],
 };
 
 const MUTATING = specDescriptions()
@@ -304,7 +335,7 @@ describe('tools/list: input schemas (§3, §5)', () => {
   });
 
   it('every mutating tool accepts idempotency_key (≤ 100) and run_id; reads accept run_id only', () => {
-    expect(MUTATING).toHaveLength(26);
+    expect(MUTATING).toHaveLength(27);
     for (const t of tools) {
       const props = input(t.name).properties!;
       expect(props.run_id, t.name).toBeDefined();
@@ -329,6 +360,9 @@ describe('tools/list: input schemas (§3, §5)', () => {
       ['set_checks', 'mode', 'patch'],
       ['list_decisions', 'include_inactive', false],
       ['list_decisions', 'limit', 25],
+      ['report_commit', 'pushed', false],
+      ['recovery_report', 'include_briefs', false],
+      ['recovery_report', 'limit', 25],
     ];
     for (const [tool, field, value] of defaults) {
       expect(input(tool).properties![field]!.default, `${tool}.${field}`).toEqual(value);
@@ -347,6 +381,50 @@ describe('tools/list: input schemas (§3, §5)', () => {
     expect(input('search_items').properties!.type!.items!.enum).toEqual(table('type'));
     expect(input('update_check').properties!.provenance!.enum).toEqual(table('provenance'));
     expect(input('create_item').properties!.priority!.enum).toEqual([1, 2, 3]);
+  });
+
+  it('recovery limits follow MCP_SPEC §5.4 (brief ≤ 20,000; ≤ 10 resources per call; label ≤ 120)', () => {
+    const props = (tool: string) => input(tool).properties!;
+    const spec = (tool: string) => specToolPart(tool, 'Input');
+    expect(spec('claim_lead')).toContain('`brief?` (text, ≤ 20,000)');
+    expect(props('claim_lead').brief!.maxLength).toBe(20_000);
+    expect(props('start_run').brief!.maxLength).toBe(20_000);
+    expect(spec('heartbeat')).toContain('label (≤ 120)');
+    expect(spec('heartbeat')).toContain('(≤ 10 per call)');
+    const started = props('heartbeat').resources_started as JsonObject & { maxItems?: number };
+    expect(started.maxItems).toBe(10);
+    expect(started.items!.properties!.label!.maxLength).toBe(120);
+    expect(started.items!.properties!.kind!.enum).toEqual([
+      'process',
+      'dev_server',
+      'session',
+      'container',
+      'temp_dir',
+      'port',
+      'other',
+    ]);
+    expect(spec('park_run')).toContain('`reason` (≤ 500)');
+    expect(props('park_run').reason!.maxLength).toBe(500);
+    for (const tool of ['claim_lead', 'start_run', 'heartbeat']) {
+      expect(props(tool).external!.type, tool).toBe('object');
+      for (const nested of ['workspace', 'orchestrator'] as const) {
+        const obj = props(tool)[nested];
+        if (obj) expect(obj.additionalProperties, `${tool}.${nested}`).toBe(false);
+      }
+    }
+  });
+
+  it('the run_state and recovery enums match the §3 table', () => {
+    const table = (name: string) => {
+      const row = new RegExp(`^ *\\| \`${name}\` [^|]*\\| (.*) \\|$`, 'm').exec(SPEC)![1]!;
+      return [...row.matchAll(/`([^`]+)`/g)].map((m) => m[1]);
+    };
+    const run = result('recovery_report').properties!.interrupted!.items!.properties!;
+    expect(run.run!.properties!.run_state!.enum).toEqual(table('run_state'));
+    expect(run.end_reason!.enum).toEqual(table('end_reason'));
+    expect(
+      result('recovery_report').properties!.workspaces!.items!.properties!.state!.enum,
+    ).toEqual(table('workspace_state'));
   });
 
   it('text limits match the §3 table', () => {

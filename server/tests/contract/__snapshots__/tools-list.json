@@ -461,6 +461,7 @@
                               "live",
                               "reported",
                               "stale",
+                              "parked",
                               "needs_input",
                               "failed",
                               "finished",
@@ -653,6 +654,7 @@
               "runs",
               "decisions",
               "open_question",
+              "resume",
               "unread_owner_notes",
               "documents",
               "packets",
@@ -780,6 +782,7 @@
                             "live",
                             "reported",
                             "stale",
+                            "parked",
                             "needs_input",
                             "failed",
                             "finished",
@@ -1428,6 +1431,7 @@
                           "live",
                           "reported",
                           "stale",
+                          "parked",
                           "needs_input",
                           "failed",
                           "finished",
@@ -1463,6 +1467,295 @@
                           "string",
                           "null"
                         ]
+                      },
+                      "end_reason": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "finished",
+                              "failed",
+                              "released",
+                              "lease_expired",
+                              "owner_released",
+                              "service_restart",
+                              "canceled"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "parked": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "reason": {
+                                "type": "string"
+                              },
+                              "waiting_on": {
+                                "type": "object",
+                                "properties": {
+                                  "items": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "orchestrator": {
+                                    "type": "boolean"
+                                  },
+                                  "person": {
+                                    "type": "boolean"
+                                  },
+                                  "until": {
+                                    "type": "string"
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              "since": {
+                                "type": "string"
+                              },
+                              "resume_ready": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "reason",
+                              "waiting_on",
+                              "since",
+                              "resume_ready"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "workspace": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "host": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "repo": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "path": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "branch": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "base_ref": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "base_sha": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "head_sha": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "pushed_sha": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "dirty": {
+                                "type": [
+                                  "boolean",
+                                  "null"
+                                ]
+                              },
+                              "state": {
+                                "type": "string",
+                                "enum": [
+                                  "in_use",
+                                  "parked",
+                                  "at_risk",
+                                  "safe_to_prune",
+                                  "unknown"
+                                ]
+                              },
+                              "updated_at": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "host",
+                              "repo",
+                              "path",
+                              "branch",
+                              "base_ref",
+                              "base_sha",
+                              "head_sha",
+                              "pushed_sha",
+                              "dirty",
+                              "state",
+                              "updated_at"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "orchestrator": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "dispatch_id": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "task_id": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "run_id": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "dispatch_id",
+                              "task_id",
+                              "run_id"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "brief_document_version_id": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "resources": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "process",
+                                "dev_server",
+                                "session",
+                                "container",
+                                "temp_dir",
+                                "port",
+                                "other"
+                              ]
+                            },
+                            "label": {
+                              "type": "string"
+                            },
+                            "locator": {
+                              "type": "object",
+                              "properties": {
+                                "pid": {
+                                  "type": "integer"
+                                },
+                                "port": {
+                                  "type": "integer"
+                                },
+                                "session_id": {
+                                  "type": "string"
+                                },
+                                "container": {
+                                  "type": "string"
+                                },
+                                "path": {
+                                  "type": "string"
+                                },
+                                "host": {
+                                  "type": "string"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            "started_at": {
+                              "type": "string"
+                            },
+                            "released_at": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "release_note": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "kind",
+                            "label",
+                            "locator",
+                            "started_at",
+                            "released_at",
+                            "release_note"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "external": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {}
                       }
                     },
                     "required": [
@@ -1477,7 +1770,13 @@
                       "lease_expires_at",
                       "current_step_id",
                       "summary",
-                      "error"
+                      "error",
+                      "end_reason",
+                      "parked",
+                      "workspace",
+                      "orchestrator",
+                      "brief_document_version_id",
+                      "resources"
                     ],
                     "additionalProperties": false
                   }
@@ -1550,6 +1849,153 @@
                     }
                   ]
                 },
+                "resume": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "workspace": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "host": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "repo": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "path": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "branch": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "base_ref": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "base_sha": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "head_sha": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "pushed_sha": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "dirty": {
+                                  "type": [
+                                    "boolean",
+                                    "null"
+                                  ]
+                                },
+                                "state": {
+                                  "type": "string",
+                                  "enum": [
+                                    "in_use",
+                                    "parked",
+                                    "at_risk",
+                                    "safe_to_prune",
+                                    "unknown"
+                                  ]
+                                },
+                                "updated_at": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "host",
+                                "repo",
+                                "path",
+                                "branch",
+                                "base_ref",
+                                "base_sha",
+                                "head_sha",
+                                "pushed_sha",
+                                "dirty",
+                                "state",
+                                "updated_at"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "last_pushed_sha": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "brief_document_version_id": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "last_end_reason": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "finished",
+                                "failed",
+                                "released",
+                                "lease_expired",
+                                "owner_released",
+                                "service_restart",
+                                "canceled"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "unreleased_resources": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "workspace",
+                        "last_pushed_sha",
+                        "brief_document_version_id",
+                        "last_end_reason",
+                        "unreleased_resources"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
                 "unread_owner_notes": {
                   "type": "array",
                   "items": {
@@ -1590,6 +2036,7 @@
                           "planning",
                           "packet_attachment",
                           "import_report",
+                          "brief",
                           "other"
                         ]
                       },
@@ -1805,6 +2252,11 @@
                           "claim.released",
                           "run.started",
                           "run.ended",
+                          "run.parked",
+                          "run.resumed",
+                          "run.unpushed_handled",
+                          "resource.declared",
+                          "resource.released",
                           "packet.submitted",
                           "packet.stale",
                           "packet.withdrawn",
@@ -2878,6 +3330,11 @@
               "claim.released",
               "run.started",
               "run.ended",
+              "run.parked",
+              "run.resumed",
+              "run.unpushed_handled",
+              "resource.declared",
+              "resource.released",
               "packet.submitted",
               "packet.stale",
               "packet.withdrawn",
@@ -2962,6 +3419,11 @@
                       "claim.released",
                       "run.started",
                       "run.ended",
+                      "run.parked",
+                      "run.resumed",
+                      "run.unpushed_handled",
+                      "resource.declared",
+                      "resource.released",
                       "packet.submitted",
                       "packet.stale",
                       "packet.withdrawn",
@@ -3254,6 +3716,7 @@
                             "live",
                             "reported",
                             "stale",
+                            "parked",
                             "needs_input",
                             "failed",
                             "finished",
@@ -3643,6 +4106,7 @@
                             "live",
                             "reported",
                             "stale",
+                            "parked",
                             "needs_input",
                             "failed",
                             "finished",
@@ -3949,6 +4413,7 @@
                             "live",
                             "reported",
                             "stale",
+                            "parked",
                             "needs_input",
                             "failed",
                             "finished",
@@ -4472,7 +4937,7 @@
   },
   {
     "name": "claim_lead",
-    "description": "Claim an item as its lead before you work on it. Works on Ready items (moves them to In progress) and on In progress items with no lead (resuming sent-back work). Returns your run_id: pass it on every later call. If someone else holds the claim you get a conflict with who holds it and until when; do not work on the item.",
+    "description": "Claim an item as its lead before you work on it. Works on Ready items (moves them to In progress) and on In progress items with no lead (resuming sent-back or interrupted work). Pass workspace (where the work lives) and, if a coordinator briefed you, the brief, so the work can be restarted after a crash. Returns your run_id: pass it on every later call. If someone else holds the claim you get a conflict with who holds it and until when; do not work on the item.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -4484,6 +4949,89 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 40
+        },
+        "workspace": {
+          "type": "object",
+          "properties": {
+            "host": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "repo": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000
+            },
+            "path": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1000
+            },
+            "branch": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "base_ref": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "base_sha": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{7,40}$"
+            }
+          },
+          "additionalProperties": false
+        },
+        "orchestrator": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "dispatch_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "task_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "run_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "additionalProperties": false
+        },
+        "brief": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000
+        },
+        "brief_document_version_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "external": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "additionalProperties": {}
         },
         "run_id": {
           "type": "string",
@@ -4604,6 +5152,7 @@
                             "live",
                             "reported",
                             "stale",
+                            "parked",
                             "needs_input",
                             "failed",
                             "finished",
@@ -4900,6 +5449,7 @@
                             "live",
                             "reported",
                             "stale",
+                            "parked",
                             "needs_input",
                             "failed",
                             "finished",
@@ -5060,7 +5610,7 @@
   },
   {
     "name": "start_run",
-    "description": "Start a child run under your lead run when you delegate to a subagent that has its own Task Lite connection. The subagent passes the child run_id on its calls. For subagents without their own connection, use log_subagent instead.",
+    "description": "Start a child run under your lead run when you delegate to a subagent that has its own Task Lite connection. Pass its workspace and brief as for claim_lead. The subagent passes the child run_id on its calls. For subagents without their own connection, use log_subagent instead.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -5077,6 +5627,89 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 40
+        },
+        "workspace": {
+          "type": "object",
+          "properties": {
+            "host": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "repo": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000
+            },
+            "path": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1000
+            },
+            "branch": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "base_ref": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "base_sha": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{7,40}$"
+            }
+          },
+          "additionalProperties": false
+        },
+        "orchestrator": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "dispatch_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "task_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "run_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "additionalProperties": false
+        },
+        "brief": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000
+        },
+        "brief_document_version_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "external": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "additionalProperties": {}
         },
         "run_id": {
           "type": "string",
@@ -5161,7 +5794,7 @@
   },
   {
     "name": "heartbeat",
-    "description": "Tell Task Lite you are still working when you have nothing else to record. Any call with run_id does the same, so you rarely need this. Optionally set your current step.",
+    "description": "Tell Task Lite you are still working, and update what it knows about your run: your current step, your workspace (head and pushed commits, uncommitted changes), and long-lived resources you started or released. Any call with run_id keeps you live, so use this when you have nothing else to record or something changed.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -5179,6 +5812,134 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 4000
+        },
+        "workspace": {
+          "type": "object",
+          "properties": {
+            "head_sha": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{7,40}$"
+            },
+            "pushed_sha": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{7,40}$"
+            },
+            "dirty": {
+              "type": "boolean"
+            },
+            "path": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1000
+            },
+            "branch": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "additionalProperties": false
+        },
+        "resources_started": {
+          "minItems": 1,
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "process",
+                  "dev_server",
+                  "session",
+                  "container",
+                  "temp_dir",
+                  "port",
+                  "other"
+                ]
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "locator": {
+                "type": "object",
+                "properties": {
+                  "pid": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "port": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 65535
+                  },
+                  "session_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "container": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "path": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  },
+                  "host": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "kind",
+              "label",
+              "locator"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "resources_released": {
+          "minItems": 1,
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "resource_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              "note": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              }
+            },
+            "required": [
+              "resource_id"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "external": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "additionalProperties": {}
         },
         "idempotency_key": {
           "type": "string",
@@ -5203,6 +5964,7 @@
                 "live",
                 "reported",
                 "stale",
+                "parked",
                 "needs_input",
                 "failed",
                 "finished",
@@ -5214,6 +5976,25 @@
                 "string",
                 "null"
               ]
+            },
+            "resources": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "label": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "label"
+                ],
+                "additionalProperties": false
+              }
             },
             "replayed": {
               "type": "boolean"
@@ -5227,6 +6008,7 @@
           },
           "required": [
             "lease_expires_at",
+            "resources",
             "run_state"
           ],
           "additionalProperties": false
@@ -5324,6 +6106,7 @@
                 "live",
                 "reported",
                 "stale",
+                "parked",
                 "needs_input",
                 "failed",
                 "finished",
@@ -5341,6 +6124,129 @@
             }
           },
           "required": [
+            "run_state"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string",
+              "enum": [
+                "validation",
+                "conflict",
+                "not_found",
+                "forbidden",
+                "unavailable",
+                "internal"
+              ]
+            },
+            "message": {
+              "type": "string"
+            },
+            "details": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {}
+            },
+            "current": {}
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false
+    }
+  },
+  {
+    "name": "park_run",
+    "description": "Park your run when you must wait: on another item, on the coordinator to send you more work, or on a person. A parked run keeps its claim and its workspace stays marked in use, so it is never mistaken for finished or stale. Say what you are waiting on; Task Lite flags it as ready to resume when that clears. Any later call with your run_id resumes it.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "run_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "waiting_on": {
+          "type": "object",
+          "properties": {
+            "items": {
+              "minItems": 1,
+              "maxItems": 20,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[A-Z]{2,5}-[1-9][0-9]*$"
+              }
+            },
+            "orchestrator": {
+              "type": "boolean"
+            },
+            "person": {
+              "type": "boolean"
+            },
+            "until": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+            }
+          },
+          "additionalProperties": false
+        },
+        "idempotency_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        }
+      },
+      "required": [
+        "reason",
+        "run_id"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "run_state": {
+              "type": "string",
+              "const": "parked"
+            },
+            "resume_ready": {
+              "type": "boolean"
+            },
+            "replayed": {
+              "type": "boolean"
+            },
+            "warnings": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "resume_ready",
             "run_state"
           ],
           "additionalProperties": false
@@ -6909,6 +7815,11 @@
                     "claim.released",
                     "run.started",
                     "run.ended",
+                    "run.parked",
+                    "run.resumed",
+                    "run.unpushed_handled",
+                    "resource.declared",
+                    "resource.released",
                     "packet.submitted",
                     "packet.stale",
                     "packet.withdrawn",
@@ -7282,7 +8193,7 @@
   },
   {
     "name": "report_commit",
-    "description": "Report a commit for the item it belongs to. Report every commit you make for an item, including fixes after a review. If a handoff packet was built from an older commit, it is marked out of date for the owner automatically.",
+    "description": "Report a commit for the item it belongs to. Report every commit you make for an item, including fixes after a review, and set pushed true once it is on the remote: an unpushed commit can be lost in a crash. If a handoff packet was built from an older commit, it is marked out of date for the owner automatically.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -7308,6 +8219,10 @@
           "type": "string",
           "maxLength": 2000,
           "format": "uri"
+        },
+        "pushed": {
+          "default": false,
+          "type": "boolean"
         },
         "run_id": {
           "type": "string",
@@ -7647,6 +8562,7 @@
                             "live",
                             "reported",
                             "stale",
+                            "parked",
                             "needs_input",
                             "failed",
                             "finished",
@@ -8782,6 +9698,2118 @@
     },
     "annotations": {
       "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false
+    }
+  },
+  {
+    "name": "recovery_report",
+    "description": "After a crash or restart, or before pruning worktrees, get the restart list: runs that were interrupted, went stale or are parked, each with its brief, workspace, last pushed commit, checklist progress and any open question; every workspace with whether it is in use, at risk or safe to prune; and resources left running. Re-dispatch from this instead of guessing, and never prune a workspace marked in use or at risk.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "project": {
+          "type": "string",
+          "pattern": "^[A-Z]{2,5}$"
+        },
+        "since": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+        },
+        "include_briefs": {
+          "default": false,
+          "type": "boolean"
+        },
+        "cursor": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 400
+        },
+        "limit": {
+          "default": 25,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50
+        },
+        "run_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        }
+      },
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "interrupted": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "item": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "project": {
+                        "type": "string"
+                      },
+                      "type": {
+                        "type": "string",
+                        "enum": [
+                          "Epic",
+                          "Story",
+                          "Task",
+                          "Bug"
+                        ]
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "inbox",
+                          "planning",
+                          "ready",
+                          "progress",
+                          "review",
+                          "done",
+                          "canceled"
+                        ]
+                      },
+                      "priority": {
+                        "type": "number",
+                        "enum": [
+                          1,
+                          2,
+                          3
+                        ]
+                      },
+                      "epic": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "epic_title": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "labels": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "blocked": {
+                        "type": "boolean"
+                      },
+                      "blocked_by": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "unblocks": {
+                        "type": "integer"
+                      },
+                      "lead": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "client": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "run_id": {
+                                "type": "string"
+                              },
+                              "run_state": {
+                                "type": "string",
+                                "enum": [
+                                  "live",
+                                  "reported",
+                                  "stale",
+                                  "parked",
+                                  "needs_input",
+                                  "failed",
+                                  "finished",
+                                  "interrupted"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "client",
+                              "label",
+                              "run_id",
+                              "run_state"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "human_review": {
+                        "type": "object",
+                        "properties": {
+                          "declared": {
+                            "type": "integer"
+                          },
+                          "ready": {
+                            "type": "integer"
+                          },
+                          "approved": {
+                            "type": "integer"
+                          },
+                          "deferred": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "declared",
+                          "ready",
+                          "approved",
+                          "deferred"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "planned_start": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "planned_end": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "effort": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "archived": {
+                        "type": "boolean"
+                      },
+                      "jira_key": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "version": {
+                        "type": "integer"
+                      },
+                      "updated_at": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "project",
+                      "type",
+                      "title",
+                      "status",
+                      "priority",
+                      "epic",
+                      "epic_title",
+                      "labels",
+                      "blocked",
+                      "blocked_by",
+                      "unblocks",
+                      "lead",
+                      "human_review",
+                      "planned_start",
+                      "planned_end",
+                      "effort",
+                      "archived",
+                      "jira_key",
+                      "version",
+                      "updated_at"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "run": {
+                    "type": "object",
+                    "properties": {
+                      "run_id": {
+                        "type": "string"
+                      },
+                      "parent_run_id": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "client": {
+                        "type": "string"
+                      },
+                      "label": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "is_lead": {
+                        "type": "boolean"
+                      },
+                      "run_state": {
+                        "type": "string",
+                        "enum": [
+                          "live",
+                          "reported",
+                          "stale",
+                          "parked",
+                          "needs_input",
+                          "failed",
+                          "finished",
+                          "interrupted"
+                        ]
+                      },
+                      "started_at": {
+                        "type": "string"
+                      },
+                      "last_signal_at": {
+                        "type": "string"
+                      },
+                      "lease_expires_at": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "current_step_id": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "summary": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "error": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "end_reason": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "finished",
+                              "failed",
+                              "released",
+                              "lease_expired",
+                              "owner_released",
+                              "service_restart",
+                              "canceled"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "parked": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "reason": {
+                                "type": "string"
+                              },
+                              "waiting_on": {
+                                "type": "object",
+                                "properties": {
+                                  "items": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "orchestrator": {
+                                    "type": "boolean"
+                                  },
+                                  "person": {
+                                    "type": "boolean"
+                                  },
+                                  "until": {
+                                    "type": "string"
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              "since": {
+                                "type": "string"
+                              },
+                              "resume_ready": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "reason",
+                              "waiting_on",
+                              "since",
+                              "resume_ready"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "workspace": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "host": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "repo": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "path": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "branch": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "base_ref": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "base_sha": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "head_sha": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "pushed_sha": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "dirty": {
+                                "type": [
+                                  "boolean",
+                                  "null"
+                                ]
+                              },
+                              "state": {
+                                "type": "string",
+                                "enum": [
+                                  "in_use",
+                                  "parked",
+                                  "at_risk",
+                                  "safe_to_prune",
+                                  "unknown"
+                                ]
+                              },
+                              "updated_at": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "host",
+                              "repo",
+                              "path",
+                              "branch",
+                              "base_ref",
+                              "base_sha",
+                              "head_sha",
+                              "pushed_sha",
+                              "dirty",
+                              "state",
+                              "updated_at"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "orchestrator": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "dispatch_id": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "task_id": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "run_id": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "dispatch_id",
+                              "task_id",
+                              "run_id"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "brief_document_version_id": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "resources": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "process",
+                                "dev_server",
+                                "session",
+                                "container",
+                                "temp_dir",
+                                "port",
+                                "other"
+                              ]
+                            },
+                            "label": {
+                              "type": "string"
+                            },
+                            "locator": {
+                              "type": "object",
+                              "properties": {
+                                "pid": {
+                                  "type": "integer"
+                                },
+                                "port": {
+                                  "type": "integer"
+                                },
+                                "session_id": {
+                                  "type": "string"
+                                },
+                                "container": {
+                                  "type": "string"
+                                },
+                                "path": {
+                                  "type": "string"
+                                },
+                                "host": {
+                                  "type": "string"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            "started_at": {
+                              "type": "string"
+                            },
+                            "released_at": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "release_note": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "kind",
+                            "label",
+                            "locator",
+                            "started_at",
+                            "released_at",
+                            "release_note"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "external": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {}
+                      }
+                    },
+                    "required": [
+                      "run_id",
+                      "parent_run_id",
+                      "client",
+                      "label",
+                      "is_lead",
+                      "run_state",
+                      "started_at",
+                      "last_signal_at",
+                      "lease_expires_at",
+                      "current_step_id",
+                      "summary",
+                      "error",
+                      "end_reason",
+                      "parked",
+                      "workspace",
+                      "orchestrator",
+                      "brief_document_version_id",
+                      "resources"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "end_reason": {
+                    "type": "string",
+                    "enum": [
+                      "finished",
+                      "failed",
+                      "released",
+                      "lease_expired",
+                      "owner_released",
+                      "service_restart",
+                      "canceled"
+                    ]
+                  },
+                  "checklist": {
+                    "type": "object",
+                    "properties": {
+                      "done": {
+                        "type": "integer"
+                      },
+                      "total": {
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "done",
+                      "total"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "open_question": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "text": {
+                            "type": "string"
+                          },
+                          "asked_at": {
+                            "type": "string"
+                          },
+                          "answer": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "answered_at": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "text",
+                          "asked_at",
+                          "answer",
+                          "answered_at"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "brief": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "item",
+                  "run",
+                  "end_reason",
+                  "checklist",
+                  "open_question"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "stale": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "item": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "project": {
+                        "type": "string"
+                      },
+                      "type": {
+                        "type": "string",
+                        "enum": [
+                          "Epic",
+                          "Story",
+                          "Task",
+                          "Bug"
+                        ]
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "inbox",
+                          "planning",
+                          "ready",
+                          "progress",
+                          "review",
+                          "done",
+                          "canceled"
+                        ]
+                      },
+                      "priority": {
+                        "type": "number",
+                        "enum": [
+                          1,
+                          2,
+                          3
+                        ]
+                      },
+                      "epic": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "epic_title": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "labels": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "blocked": {
+                        "type": "boolean"
+                      },
+                      "blocked_by": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "unblocks": {
+                        "type": "integer"
+                      },
+                      "lead": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "client": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "run_id": {
+                                "type": "string"
+                              },
+                              "run_state": {
+                                "type": "string",
+                                "enum": [
+                                  "live",
+                                  "reported",
+                                  "stale",
+                                  "parked",
+                                  "needs_input",
+                                  "failed",
+                                  "finished",
+                                  "interrupted"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "client",
+                              "label",
+                              "run_id",
+                              "run_state"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "human_review": {
+                        "type": "object",
+                        "properties": {
+                          "declared": {
+                            "type": "integer"
+                          },
+                          "ready": {
+                            "type": "integer"
+                          },
+                          "approved": {
+                            "type": "integer"
+                          },
+                          "deferred": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "declared",
+                          "ready",
+                          "approved",
+                          "deferred"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "planned_start": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "planned_end": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "effort": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "archived": {
+                        "type": "boolean"
+                      },
+                      "jira_key": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "version": {
+                        "type": "integer"
+                      },
+                      "updated_at": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "project",
+                      "type",
+                      "title",
+                      "status",
+                      "priority",
+                      "epic",
+                      "epic_title",
+                      "labels",
+                      "blocked",
+                      "blocked_by",
+                      "unblocks",
+                      "lead",
+                      "human_review",
+                      "planned_start",
+                      "planned_end",
+                      "effort",
+                      "archived",
+                      "jira_key",
+                      "version",
+                      "updated_at"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "run": {
+                    "type": "object",
+                    "properties": {
+                      "run_id": {
+                        "type": "string"
+                      },
+                      "parent_run_id": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "client": {
+                        "type": "string"
+                      },
+                      "label": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "is_lead": {
+                        "type": "boolean"
+                      },
+                      "run_state": {
+                        "type": "string",
+                        "enum": [
+                          "live",
+                          "reported",
+                          "stale",
+                          "parked",
+                          "needs_input",
+                          "failed",
+                          "finished",
+                          "interrupted"
+                        ]
+                      },
+                      "started_at": {
+                        "type": "string"
+                      },
+                      "last_signal_at": {
+                        "type": "string"
+                      },
+                      "lease_expires_at": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "current_step_id": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "summary": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "error": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "end_reason": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "finished",
+                              "failed",
+                              "released",
+                              "lease_expired",
+                              "owner_released",
+                              "service_restart",
+                              "canceled"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "parked": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "reason": {
+                                "type": "string"
+                              },
+                              "waiting_on": {
+                                "type": "object",
+                                "properties": {
+                                  "items": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "orchestrator": {
+                                    "type": "boolean"
+                                  },
+                                  "person": {
+                                    "type": "boolean"
+                                  },
+                                  "until": {
+                                    "type": "string"
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              "since": {
+                                "type": "string"
+                              },
+                              "resume_ready": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "reason",
+                              "waiting_on",
+                              "since",
+                              "resume_ready"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "workspace": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "host": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "repo": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "path": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "branch": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "base_ref": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "base_sha": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "head_sha": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "pushed_sha": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "dirty": {
+                                "type": [
+                                  "boolean",
+                                  "null"
+                                ]
+                              },
+                              "state": {
+                                "type": "string",
+                                "enum": [
+                                  "in_use",
+                                  "parked",
+                                  "at_risk",
+                                  "safe_to_prune",
+                                  "unknown"
+                                ]
+                              },
+                              "updated_at": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "host",
+                              "repo",
+                              "path",
+                              "branch",
+                              "base_ref",
+                              "base_sha",
+                              "head_sha",
+                              "pushed_sha",
+                              "dirty",
+                              "state",
+                              "updated_at"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "orchestrator": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "dispatch_id": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "task_id": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "run_id": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "dispatch_id",
+                              "task_id",
+                              "run_id"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "brief_document_version_id": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "resources": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "process",
+                                "dev_server",
+                                "session",
+                                "container",
+                                "temp_dir",
+                                "port",
+                                "other"
+                              ]
+                            },
+                            "label": {
+                              "type": "string"
+                            },
+                            "locator": {
+                              "type": "object",
+                              "properties": {
+                                "pid": {
+                                  "type": "integer"
+                                },
+                                "port": {
+                                  "type": "integer"
+                                },
+                                "session_id": {
+                                  "type": "string"
+                                },
+                                "container": {
+                                  "type": "string"
+                                },
+                                "path": {
+                                  "type": "string"
+                                },
+                                "host": {
+                                  "type": "string"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            "started_at": {
+                              "type": "string"
+                            },
+                            "released_at": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "release_note": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "kind",
+                            "label",
+                            "locator",
+                            "started_at",
+                            "released_at",
+                            "release_note"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "external": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {}
+                      }
+                    },
+                    "required": [
+                      "run_id",
+                      "parent_run_id",
+                      "client",
+                      "label",
+                      "is_lead",
+                      "run_state",
+                      "started_at",
+                      "last_signal_at",
+                      "lease_expires_at",
+                      "current_step_id",
+                      "summary",
+                      "error",
+                      "end_reason",
+                      "parked",
+                      "workspace",
+                      "orchestrator",
+                      "brief_document_version_id",
+                      "resources"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "item",
+                  "run"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "parked": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "item": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "project": {
+                        "type": "string"
+                      },
+                      "type": {
+                        "type": "string",
+                        "enum": [
+                          "Epic",
+                          "Story",
+                          "Task",
+                          "Bug"
+                        ]
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "inbox",
+                          "planning",
+                          "ready",
+                          "progress",
+                          "review",
+                          "done",
+                          "canceled"
+                        ]
+                      },
+                      "priority": {
+                        "type": "number",
+                        "enum": [
+                          1,
+                          2,
+                          3
+                        ]
+                      },
+                      "epic": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "epic_title": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "labels": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "blocked": {
+                        "type": "boolean"
+                      },
+                      "blocked_by": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "unblocks": {
+                        "type": "integer"
+                      },
+                      "lead": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "client": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "run_id": {
+                                "type": "string"
+                              },
+                              "run_state": {
+                                "type": "string",
+                                "enum": [
+                                  "live",
+                                  "reported",
+                                  "stale",
+                                  "parked",
+                                  "needs_input",
+                                  "failed",
+                                  "finished",
+                                  "interrupted"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "client",
+                              "label",
+                              "run_id",
+                              "run_state"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "human_review": {
+                        "type": "object",
+                        "properties": {
+                          "declared": {
+                            "type": "integer"
+                          },
+                          "ready": {
+                            "type": "integer"
+                          },
+                          "approved": {
+                            "type": "integer"
+                          },
+                          "deferred": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "declared",
+                          "ready",
+                          "approved",
+                          "deferred"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "planned_start": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "planned_end": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "effort": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "archived": {
+                        "type": "boolean"
+                      },
+                      "jira_key": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "version": {
+                        "type": "integer"
+                      },
+                      "updated_at": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "project",
+                      "type",
+                      "title",
+                      "status",
+                      "priority",
+                      "epic",
+                      "epic_title",
+                      "labels",
+                      "blocked",
+                      "blocked_by",
+                      "unblocks",
+                      "lead",
+                      "human_review",
+                      "planned_start",
+                      "planned_end",
+                      "effort",
+                      "archived",
+                      "jira_key",
+                      "version",
+                      "updated_at"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "run": {
+                    "type": "object",
+                    "properties": {
+                      "run_id": {
+                        "type": "string"
+                      },
+                      "parent_run_id": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "client": {
+                        "type": "string"
+                      },
+                      "label": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "is_lead": {
+                        "type": "boolean"
+                      },
+                      "run_state": {
+                        "type": "string",
+                        "enum": [
+                          "live",
+                          "reported",
+                          "stale",
+                          "parked",
+                          "needs_input",
+                          "failed",
+                          "finished",
+                          "interrupted"
+                        ]
+                      },
+                      "started_at": {
+                        "type": "string"
+                      },
+                      "last_signal_at": {
+                        "type": "string"
+                      },
+                      "lease_expires_at": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "current_step_id": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "summary": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "error": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "end_reason": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "finished",
+                              "failed",
+                              "released",
+                              "lease_expired",
+                              "owner_released",
+                              "service_restart",
+                              "canceled"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "parked": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "reason": {
+                                "type": "string"
+                              },
+                              "waiting_on": {
+                                "type": "object",
+                                "properties": {
+                                  "items": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "orchestrator": {
+                                    "type": "boolean"
+                                  },
+                                  "person": {
+                                    "type": "boolean"
+                                  },
+                                  "until": {
+                                    "type": "string"
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              "since": {
+                                "type": "string"
+                              },
+                              "resume_ready": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "reason",
+                              "waiting_on",
+                              "since",
+                              "resume_ready"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "workspace": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "host": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "repo": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "path": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "branch": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "base_ref": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "base_sha": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "head_sha": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "pushed_sha": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "dirty": {
+                                "type": [
+                                  "boolean",
+                                  "null"
+                                ]
+                              },
+                              "state": {
+                                "type": "string",
+                                "enum": [
+                                  "in_use",
+                                  "parked",
+                                  "at_risk",
+                                  "safe_to_prune",
+                                  "unknown"
+                                ]
+                              },
+                              "updated_at": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "host",
+                              "repo",
+                              "path",
+                              "branch",
+                              "base_ref",
+                              "base_sha",
+                              "head_sha",
+                              "pushed_sha",
+                              "dirty",
+                              "state",
+                              "updated_at"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "orchestrator": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "dispatch_id": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "task_id": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "run_id": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "dispatch_id",
+                              "task_id",
+                              "run_id"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "brief_document_version_id": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "resources": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "process",
+                                "dev_server",
+                                "session",
+                                "container",
+                                "temp_dir",
+                                "port",
+                                "other"
+                              ]
+                            },
+                            "label": {
+                              "type": "string"
+                            },
+                            "locator": {
+                              "type": "object",
+                              "properties": {
+                                "pid": {
+                                  "type": "integer"
+                                },
+                                "port": {
+                                  "type": "integer"
+                                },
+                                "session_id": {
+                                  "type": "string"
+                                },
+                                "container": {
+                                  "type": "string"
+                                },
+                                "path": {
+                                  "type": "string"
+                                },
+                                "host": {
+                                  "type": "string"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            "started_at": {
+                              "type": "string"
+                            },
+                            "released_at": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "release_note": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "kind",
+                            "label",
+                            "locator",
+                            "started_at",
+                            "released_at",
+                            "release_note"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "external": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {}
+                      }
+                    },
+                    "required": [
+                      "run_id",
+                      "parent_run_id",
+                      "client",
+                      "label",
+                      "is_lead",
+                      "run_state",
+                      "started_at",
+                      "last_signal_at",
+                      "lease_expires_at",
+                      "current_step_id",
+                      "summary",
+                      "error",
+                      "end_reason",
+                      "parked",
+                      "workspace",
+                      "orchestrator",
+                      "brief_document_version_id",
+                      "resources"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "resume_ready": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "item",
+                  "run",
+                  "resume_ready"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "workspaces": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "branch": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "item_id": {
+                    "type": "string"
+                  },
+                  "run_id": {
+                    "type": "string"
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "in_use",
+                      "parked",
+                      "at_risk",
+                      "safe_to_prune",
+                      "unknown"
+                    ]
+                  },
+                  "head_sha": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "pushed_sha": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "dirty": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "unreleased_resources": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "path",
+                  "branch",
+                  "item_id",
+                  "run_id",
+                  "state",
+                  "head_sha",
+                  "pushed_sha",
+                  "dirty",
+                  "unreleased_resources"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "orphaned_resources": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "resource": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "process",
+                          "dev_server",
+                          "session",
+                          "container",
+                          "temp_dir",
+                          "port",
+                          "other"
+                        ]
+                      },
+                      "label": {
+                        "type": "string"
+                      },
+                      "locator": {
+                        "type": "object",
+                        "properties": {
+                          "pid": {
+                            "type": "integer"
+                          },
+                          "port": {
+                            "type": "integer"
+                          },
+                          "session_id": {
+                            "type": "string"
+                          },
+                          "container": {
+                            "type": "string"
+                          },
+                          "path": {
+                            "type": "string"
+                          },
+                          "host": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "started_at": {
+                        "type": "string"
+                      },
+                      "released_at": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "release_note": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "kind",
+                      "label",
+                      "locator",
+                      "started_at",
+                      "released_at",
+                      "release_note"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "item_id": {
+                    "type": "string"
+                  },
+                  "run_id": {
+                    "type": "string"
+                  },
+                  "run_ended_at": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "resource",
+                  "item_id",
+                  "run_id",
+                  "run_ended_at"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "next_cursor": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "interrupted",
+            "next_cursor",
+            "orphaned_resources",
+            "parked",
+            "stale",
+            "workspaces"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string",
+              "enum": [
+                "validation",
+                "conflict",
+                "not_found",
+                "forbidden",
+                "unavailable",
+                "internal"
+              ]
+            },
+            "message": {
+              "type": "string"
+            },
+            "details": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {}
+            },
+            "current": {}
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": false
     }
