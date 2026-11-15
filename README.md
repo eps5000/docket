@@ -15,7 +15,7 @@ It isn't an agent runner. Orca, or the owner, starts agents (owner decision 18),
 Task Lite uses [Spec Kit](https://github.com/github/spec-kit) for spec-driven development. Agents get its skills (`/speckit-implement`, `/speckit-analyze` and the rest) from `.claude/skills/`.
 - [Constitution](.specify/memory/constitution.md): the non-negotiable principles every PR is checked against.
 - [Requirements of record](specs/001-task-lite-v1/spec.md): user stories, acceptance scenarios, functional requirements and success criteria.
-- [Tasks](specs/001-task-lite-v1/tasks.md): 136 dependency-ordered tasks by user story, mapped to milestones M0–M8. Start at T001.
+- [Tasks](specs/001-task-lite-v1/tasks.md): 137 dependency-ordered tasks by user story, mapped to milestones M0–M8. Start at T001.
 - [Plan](specs/001-task-lite-v1/plan.md) · [research](specs/001-task-lite-v1/research.md) · [data model](specs/001-task-lite-v1/data-model.md) · [contracts](specs/001-task-lite-v1/contracts/) · [quickstart](specs/001-task-lite-v1/quickstart.md)
 
 The detailed design those point to:
