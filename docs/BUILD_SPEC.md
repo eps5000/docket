@@ -9,6 +9,7 @@ Status: ready to build, 2026-11-07. This is the implementation contract for MVP 
 4. [design/prototype.html](../design/prototype.html): the visual and behavioural reference. Open `?selftest` to render every view.
 5. [design/sample-data.json](../design/sample-data.json): the seed data, exported from the prototype.
 6. [templates/AGENTS-tasklite.md](templates/AGENTS-tasklite.md): the block each project adds to its `AGENTS.md` or `CLAUDE.md`. Ship it in the repo; the README tells owners to use it.
+   - [../skills/](../skills/README.md): the agent skills (owner decision 27). Ship them in the repo; CI lint-checks them against the tool contract.
 7. [ROADMAP.md](ROADMAP.md): what is deliberately *not* in V1 (dispatching, GitHub-observed merges, contracts, a knowledge layer), the pre-pilot checklist, and the TERSL reference notes. Don't build anything from it.
 8. Background only, not instructions: [REQUIREMENTS_DRAFT.md](REQUIREMENTS_DRAFT.md) (requirement IDs such as A05 and H04 cited below), [UI_DESIGN.md](UI_DESIGN.md) (design rationale and revision history) and [JIRA_RESEARCH.md](JIRA_RESEARCH.md).
 
@@ -412,7 +413,7 @@ Owner decision 26, after an Orca crash pruned worktrees that held in-flight work
 - **End reasons.**
   - Every run that ends records an `end_reason`: `finished` and `failed` (`finish_run`), `released` (`release_lead`), `lease_expired` (sweeper), `owner_released` (*Release lead claim*), `service_restart` (boot sweep) or `canceled` (owner cancel).
   - **"Unpushed work may be lost"** shows under Problems when a run ends other than `finished`/`failed` while `dirty` is true or `head_sha` ≠ `pushed_sha`. It clears when a later run reports a pushed commit, or the owner marks it *Handled*.
-- **`recovery_report`** (MCP_SPEC §5.9) is read-only and assembles the restart list. The coordinator recovery runbook is in [templates/COORDINATOR-recovery.md](templates/COORDINATOR-recovery.md).
+- **`recovery_report`** (MCP_SPEC §5.9) is read-only and assembles the restart list. The coordinator's recovery procedure is in the [`tasklite-coordinator` skill](../skills/tasklite-coordinator/SKILL.md).
 - **Limits.** Task Lite never checks folders, stops processes or prevents pruning: it has no host access, by design. The coordinator does those things using this record.
 
 ---
@@ -729,6 +730,7 @@ These can't be settled on paper. Each one has a default already, so none of them
 | V4 | Field IDs for start date and story points on the owner's Jira site. | Detect them by field name, and let the dry-run report show which field was used. | M7 |
 | V6 | Which part of a tool result each client gives the model: the text block, `structuredContent`, or both. This decides where the token savings land. | The text block is a complete compact rendering, so a text-only client loses nothing. If a client forwards both, measure, and consider an option to send a short text block. | M2, M8 |
 | V5 | SQLite WAL performance on a Docker Desktop named volume on Windows. | Named volume (not a bind mount). If writes are slow, measure before changing anything. | M1 |
+| V7 | Where each client loads skills from (Claude Code `~/.claude/skills/`; Codex `~/.codex/skills/` and its project path), and whether an Orca worker sees user-wide skills. | Document the paths that work in `skills/README.md`; fall back to pasting the skill into the worker's brief. | M8 |
 
 ---
 
@@ -769,6 +771,7 @@ Owner decisions are marked **(owner)**. Every other entry is a technical choice 
 | 22 **(owner)** | The owner edits an item's title, description, outcome and acceptance criteria inline. Dates, effort and blocker links stay agent-edited in V1. | §7, UI_SPEC §6.3 |
 | T21 | Diagnostic call log: JSONL, one line per MCP call without arguments, rotated daily, kept 7 days, downloadable from Settings. | §2 volume layout, §7 |
 | 26 **(owner)** | Recovery support: runs record their workspace, orchestrator IDs, brief and declared resources; runs can park; `recovery_report` gives the restart list; Problems flag orphaned resources and unpushed work. Prompted by an Orca crash that pruned worktrees holding in-flight work. Task Lite records; the coordinator acts. | §5.16, MCP_SPEC §3 and §5.9 |
+| 27 **(owner)** | Ship five agent skills as plain files in `skills/`: `tasklite-worker` and `tasklite-coordinator` (core), `tasklite-planner`, `tasklite-review-packet` and `tasklite-lead-subagents` (optional). They teach workflow, never restate schemas, and are lint-checked against the tool contract in CI. Owners may edit them. Serving them as MCP prompts is on the roadmap. | `skills/README.md`, ROADMAP §2 |
 | T22 | Parked runs keep their claim indefinitely and are only flagged after `PARK_MAX` (24 h); they are never auto-released. | §5.16 |
 | T23 | Workspace state is derived per worktree path from reported data (`dirty`, `head_sha`, `pushed_sha`, resources), never by inspecting the host. | §5.16 |
 | T24 | API errors use the envelope `{error:{code,message,details?}}`; queries are strict; `shared/src/api` holds the authoritative request and response shapes (from B4). | §7 |
