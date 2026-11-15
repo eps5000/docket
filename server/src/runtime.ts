@@ -4,12 +4,15 @@
  * the MCP hub and the call log. `index.ts` and the tests both build one.
  */
 import { EventEmitter } from 'node:events';
+import { SERVER_INSTRUCTIONS } from '@tasklite/shared';
 import { OwnerSessions } from './api/session.js';
 import { SecretStore, loadConfig, type Config } from './config.js';
 import { migrateDb, openDb, type Db } from './db/client.js';
 import { WritePath } from './domain/write.js';
 import { CallLog } from './jobs/logs.js';
+import { registerTools, type ToolHandlers } from './mcp/register.js';
 import { McpHub } from './mcp/server.js';
+import { TOOL_HANDLERS } from './mcp/tools/index.js';
 import { APP_VERSION } from './version.js';
 
 export interface RuntimeOptions {
@@ -19,6 +22,8 @@ export interface RuntimeOptions {
   clock?: () => Date;
   streamKeepAliveMs?: number;
   log?: (line: string) => void;
+  /** Replace tool handlers (tests only); the rest keep their real handlers. */
+  toolHandlers?: Partial<ToolHandlers>;
 }
 
 export interface Runtime {
@@ -55,14 +60,21 @@ export function createRuntime(opts: RuntimeOptions = {}): Runtime {
   });
 
   let closed = false;
-  return {
+  const handlers = { ...TOOL_HANDLERS, ...opts.toolHandlers } as ToolHandlers;
+  const runtime: Runtime = {
     config,
     secrets,
     db,
     bus,
     write,
     sessions: new OwnerSessions({ db, secrets, clock }),
-    mcp: new McpHub({ version: APP_VERSION, clock }),
+    mcp: new McpHub({
+      version: APP_VERSION,
+      clock,
+      instructions: SERVER_INSTRUCTIONS,
+      // Each new MCP session's server gets all 36 tools (MCP_SPEC §5).
+      configure: (server, session) => registerTools(server, { runtime, session, handlers }),
+    }),
     callLog: new CallLog({ dir: config.paths.logs, clock }),
     clock,
     streamKeepAliveMs: opts.streamKeepAliveMs,
@@ -75,4 +87,5 @@ export function createRuntime(opts: RuntimeOptions = {}): Runtime {
       db.sqlite.close();
     },
   };
+  return runtime;
 }
