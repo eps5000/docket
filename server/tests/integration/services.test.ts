@@ -55,7 +55,7 @@ describe('the service stubs', () => {
     Object.keys(impl as object).map((method) => [service, method] as const),
   );
 
-  it('cover every service T047 lists, plus diagnostics and undo', () => {
+  it('cover every service T047 lists, plus diagnostics, recovery (T055) and undo', () => {
     expect(Object.keys(services).sort()).toEqual(
       [
         'archive',
@@ -74,6 +74,7 @@ describe('the service stubs', () => {
         'messages',
         'packets',
         'projects',
+        'recovery',
         'reviewDecisions',
         'runs',
         'search',

@@ -47,6 +47,7 @@ import {
   type Forecast,
   type HumanReviewItem,
   type ItemDetailResponse,
+  type ItemResume,
   type ItemSummary,
   type ItemText,
   type ItemView,
@@ -55,6 +56,7 @@ import {
   type NeedsYouResponse,
   type Project,
   type Question,
+  type Resource,
   type ReviewResponse,
   type RouteBody,
   type RouteParams,
@@ -67,6 +69,8 @@ import {
   type ToolName,
   type ToolOutput,
   type WorkResponse,
+  type WorkspaceState,
+  type WorkspacesResponse,
   type WorkStep,
 } from '@tasklite/shared';
 import type { Config, SecretStore } from '../config.js';
@@ -232,10 +236,36 @@ export interface RunsService {
     w: WriteContext,
     input: { id: string } & RouteBody<'items.returnToReady'>,
   ): ItemSummary;
+  /**
+   * Claim and start record the recovery fields (§5.16): workspace,
+   * orchestrator, `external`, and the brief, stored as an immutable `brief`
+   * document version (`brief-<run_id>.md`) unless a `brief_document_version_id`
+   * is given.
+   */
   startRun(w: WriteContext, input: In<'start_run'>): Out<'start_run'>;
-  /** Not an event: renews the lease and records the signal. */
+  /**
+   * Not an event: renews the lease, records the signal, and applies the
+   * workspace patch, `note`, `current_step_id` and `external`. Returns the
+   * run's `resources`. Declaring or releasing resources is an event, so the
+   * adapter does that first, through `updateResources`.
+   */
   heartbeat(r: ReceiptContext, input: In<'heartbeat'>): Out<'heartbeat'>;
+  /**
+   * A heartbeat's `resources_started` (new `rsc_…` IDs; event
+   * `resource.declared`) and `resources_released` (event `resource.released`).
+   * A later run of the same item may release an earlier run's resources.
+   */
+  updateResources(w: WriteContext, input: ResourceChanges): { resources: ResourceRef[] };
+  /** Ends the run with `end_reason` `finished` or `failed`; warns on unreleased resources and unpushed commits. */
   finish(w: WriteContext, input: In<'finish_run'>): Out<'finish_run'>;
+  /** `park_run` (§5.16): state `parked`, lease suspended, claim kept; event `run.parked`. */
+  park(w: WriteContext, input: In<'park_run'>): Out<'park_run'>;
+  /**
+   * Any later call with a parked run's `run_id` resumes it (state `open`,
+   * lease renewed; event `run.resumed`). US11 calls it from the MCP signal
+   * hook for parked runs.
+   */
+  resume(w: WriteContext, input: { run_id: string }): { resumed: boolean };
   /** Every call carrying `run_id` (the MCP signal hook): renew the lease, record the signal. */
   recordSignal(r: ReceiptContext, signal: RunSignalInput): void;
   /** The sweeper: expired leases → run `interrupted`, item back to Ready. */
@@ -244,6 +274,45 @@ export interface RunsService {
   interruptOpenRuns(w: WriteContext, input: { reason: string }): { interrupted: string[] };
   /** Sessions of open runs, for the 60 s ping. */
   openRunSessions(r: ReadContext): { run_id: string; session_id: string }[];
+}
+
+/** A heartbeat's resource changes (MCP_SPEC §5.4). */
+export interface ResourceChanges {
+  run_id: string;
+  resources_started?: In<'heartbeat'>['resources_started'];
+  resources_released?: In<'heartbeat'>['resources_released'];
+}
+
+/** A resource as a heartbeat returns it. */
+export interface ResourceRef {
+  id: string;
+  label: string;
+}
+
+/**
+ * Recovery (owner decision 26; BUILD_SPEC §5.16; MCP_SPEC §5.9): workspace
+ * state, `Item.resume`, the restart list, and the owner's two Problems
+ * actions. Task Lite only records: nothing here touches the host.
+ */
+export interface RecoveryService {
+  /** `recovery_report`: read-only. */
+  report(r: ReadContext, input: In<'recovery_report'>): Out<'recovery_report'>;
+  /** Derived state per worktree path, from reported data only (decision T23). */
+  workspaceStates(r: ReadContext, input: { paths: string[] }): Record<string, WorkspaceState>;
+  /** `Item.resume` for `get_item`: null unless the item is resumable or its last run was interrupted. */
+  itemResume(r: ReadContext, input: { item_id: string }): ItemResume | null;
+  /** `GET /api/workspaces`: Agents → Workspaces. */
+  workspaces(r: ReadContext, input: RouteQuery<'workspaces.list'>): WorkspacesResponse;
+  /** *Mark released* on an orphaned resource (owner; event `resource.released`). */
+  ownerReleaseResource(
+    w: WriteContext,
+    input: RouteParams<'resources.release'> & RouteBody<'resources.release'>,
+  ): Resource;
+  /** *Handled* on "Unpushed work may be lost" (owner; sets `unpushed_handled_at`; event `run.unpushed_handled`). */
+  markUnpushedHandled(
+    w: WriteContext,
+    input: RouteParams<'runs.unpushedHandled'>,
+  ): { run_id: string; unpushed_handled_at: string };
 }
 
 /** Work steps, subagent logs and agent checks (§5.5). */
@@ -480,6 +549,7 @@ export interface Services {
   forecast: ForecastService;
   jiraImport: JiraImportService;
   diagnostics: DiagnosticsService;
+  recovery: RecoveryService;
   undo: UndoService;
 }
 

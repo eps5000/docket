@@ -1,6 +1,6 @@
 /**
- * Every UI API route (BUILD_SPEC §7, the 2026-11-14 clarification routes, and
- * `/agent-upload` from §5.10), keyed by a stable route ID. The server, the
+ * Every UI API route (BUILD_SPEC §7, the 2026-11-14 clarification routes,
+ * the recovery routes from owner decision 26, and `/agent-upload` from §5.10), keyed by a stable route ID. The server, the
  * route contract test and the web client all read this one table.
  *
  * Shared contract file (tasks.md, Slice rules).
@@ -12,6 +12,7 @@ import { diagnosticsRoutes, undoRoutes, uploadRoutes } from './diagnostics.js';
 import { importRoutes } from './import.js';
 import { planningRoutes } from './planning.js';
 import { readRoutes } from './read.js';
+import { recoveryRoutes } from './recovery.js';
 import { reviewRoutes } from './review.js';
 import type { ApiGroup, ApiRouteDef } from './route.js';
 import { sessionRoutes } from './session.js';
@@ -31,6 +32,7 @@ export const API_ROUTES = {
   ...importRoutes,
   ...settingsRoutes,
   ...diagnosticsRoutes,
+  ...recoveryRoutes,
   ...undoRoutes,
   ...uploadRoutes,
 } as const;

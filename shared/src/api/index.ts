@@ -13,4 +13,5 @@ export * from './timeline.js';
 export * from './import.js';
 export * from './settings.js';
 export * from './diagnostics.js';
+export * from './recovery.js';
 export * from './routes.js';

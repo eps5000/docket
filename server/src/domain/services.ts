@@ -19,6 +19,7 @@ import { createLinksService } from './links.js';
 import { createMessagesService } from './messages.js';
 import { createPacketsService } from './packets.js';
 import { createProjectsService } from './projects.js';
+import { createRecoveryService } from './recovery.js';
 import { createReviewDecisionsService } from './review-decisions.js';
 import { createRunsService } from './runs.js';
 import { createSearchService } from './search.js';
@@ -57,6 +58,7 @@ export function createServices(
     forecast: createForecastService(full),
     jiraImport: createJiraImportService(full),
     diagnostics: createDiagnosticsService(full),
+    recovery: createRecoveryService(full),
     undo: createUndoService(full),
   };
   for (const [name, methods] of Object.entries(overrides)) {

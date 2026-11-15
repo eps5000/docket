@@ -28,6 +28,7 @@ import { diagnosticsRoutes } from './routes/diagnostics.js';
 import { importRoutes } from './routes/import.js';
 import { planningRoutes } from './routes/planning.js';
 import { readRoutes } from './routes/read.js';
+import { recoveryRoutes } from './routes/recovery.js';
 import { reviewRoutes } from './routes/review.js';
 import { settingsRoutes } from './routes/settings.js';
 import { steerRoutes } from './routes/steer.js';
@@ -104,6 +105,7 @@ export function createApiApp(deps: ApiDeps): Hono<ApiEnv> {
   importRoutes(api, routeDeps);
   settingsRoutes(api, routeDeps);
   diagnosticsRoutes(api, routeDeps);
+  recoveryRoutes(api, routeDeps);
 
   return api;
 }

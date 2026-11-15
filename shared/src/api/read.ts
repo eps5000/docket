@@ -94,6 +94,11 @@ export const PROBLEM_KINDS = [
   'canceled_blocker',
   'deferred_verified_blocker',
   'extra_backup_failed',
+  // Recovery (owner decision 26; BUILD_SPEC §5.16; UI_SPEC §6.1)
+  'orphaned_resources',
+  'unpushed_work',
+  'parked_too_long',
+  'resume_unattended',
 ] as const;
 
 export const problemSchema = z.object({
@@ -107,6 +112,10 @@ export const problemSchema = z.object({
   related: z.array(z.string()),
   /** The link to remove, for a canceled blocker. */
   link_id: z.string().nullable(),
+  /** The run a recovery problem is about (*Handled* on unpushed work sends it). */
+  run_id: z.string().nullable(),
+  /** Orphaned resources: what *Mark released* sends, one call each. */
+  resource_ids: z.array(z.string()),
 });
 export type Problem = z.infer<typeof problemSchema>;
 
