@@ -14,7 +14,7 @@
  *
  * Shared contract file (tasks.md, Slice rules).
  */
-import { EFFORT_UNIT, type CheckState, type WorkStepState } from './enums.js';
+import { EFFORT_UNIT, OPEN_RUN_STATES, type CheckState, type WorkStepState } from './enums.js';
 import type { ToolErrorShape } from './errors.js';
 import { fillSummary, TOOL_SUMMARIES } from './mcp-copy.js';
 import { LIMITS } from './mcp/limits.js';
@@ -25,12 +25,17 @@ import type {
   DecisionRecord,
   EventRow,
   HumanReviewItem,
+  ItemResume,
   ItemSummaryView,
   ItemView,
   LinkRef,
+  Resource,
   Run,
+  WaitingOn,
   WorkStep,
+  Workspace,
 } from './mcp/types.js';
+import type { RecoveryWorkspace } from './mcp/recovery.js';
 
 export interface RenderOptions {
   /** "Now", for HH:MMZ vs MM-DD. Defaults to the current time. */
@@ -133,11 +138,120 @@ function leadLine(item: AnyItem, now: Date): string | null {
   if (!item.lead) return null;
   const lead = item.lead;
   const run = item.runs?.find((r) => r.run_id === lead.run_id);
-  return `${I1}${join([
+  const line = `${I1}${join([
     `lead ${leadName(lead)} ${lead.run_state}`,
     `run ${lead.run_id}`,
-    run?.lease_expires_at ? `lease until ${formatTime(run.lease_expires_at, now)}` : null,
+    run?.lease_expires_at && lead.run_state !== 'parked'
+      ? `lease until ${formatTime(run.lease_expires_at, now)}`
+      : null,
   ])}`;
+  return run ? [line, ...runRecoveryLines(run, now, `${I1}  `)].join('\n') : line;
+}
+
+// ---- Recovery: parking, workspaces, briefs, resources (MCP_SPEC §3, §5.4, §5.9) ----
+
+/** `waiting on RCP-12, the coordinator, a person, until 11:00Z`, or null when nothing is named. */
+export function waitingOnText(w: WaitingOn, now: Date): string | null {
+  const parts = [
+    ...(w.items ?? []),
+    w.orchestrator ? 'the coordinator' : null,
+    w.person ? 'a person' : null,
+    w.until ? `until ${formatTime(w.until, now)}` : null,
+  ].filter((p): p is string => !!p);
+  return parts.length > 0 ? `waiting on ${parts.join(', ')}` : null;
+}
+
+/** `@ 4be1c09 (pushed)`, `@ 77aa001, pushed 6f00e12`, or `@ 77aa001, not pushed` (§7.13). */
+function shaFacts(head: string | null, pushed: string | null): string | null {
+  if (head && pushed && head === pushed) return `@ ${shortSha(head)} (pushed)`;
+  if (head) return `@ ${shortSha(head)}, ${pushed ? `pushed ${shortSha(pushed)}` : 'not pushed'}`;
+  return pushed ? `pushed ${shortSha(pushed)}` : null;
+}
+
+/** The workspace line: `ws <path> on <branch> @ <sha> (pushed) · dirty · at_risk`. */
+export function workspaceText(
+  ws: Workspace | RecoveryWorkspace,
+  opts: { state?: boolean } = {},
+): string {
+  const where = ws.path ? `ws ${ws.path}` : 'ws (no path)';
+  return join([
+    [where, ws.branch ? `on ${ws.branch}` : null, shaFacts(ws.head_sha, ws.pushed_sha)]
+      .filter(Boolean)
+      .join(' '),
+    ws.dirty === true ? 'dirty' : ws.dirty === false ? 'clean' : null,
+    opts.state === false ? null : ws.state,
+  ]);
+}
+
+/** One resource: `rsc_1 dev server :5173 · port 5173 · running` or `released 03:20`. */
+export function resourceText(r: Resource, now: Date): string {
+  const l = r.locator;
+  const where = [
+    l.port !== undefined ? `port ${l.port}` : null,
+    l.pid !== undefined ? `pid ${l.pid}` : null,
+    l.session_id ? `session ${l.session_id}` : null,
+    l.container ? `container ${l.container}` : null,
+    l.path ? `path ${l.path}` : null,
+    l.host ? `host ${l.host}` : null,
+  ];
+  return join([
+    `${r.id} ${truncate(r.label, 120)}`,
+    r.kind,
+    ...where,
+    r.released_at
+      ? `released ${formatTime(r.released_at, now)}${r.release_note ? ` "${truncate(r.release_note)}"` : ''}`
+      : 'running',
+  ]);
+}
+
+/** The recovery facts under a run: parked, end reason, workspace, orchestrator, brief, resources. */
+function runRecoveryLines(run: Run, now: Date, indent: string): string[] {
+  const out: string[] = [];
+  if (run.parked) {
+    out.push(
+      `${indent}${join([
+        'parked',
+        waitingOnText(run.parked.waiting_on, now),
+        `since ${formatTime(run.parked.since, now)}`,
+        run.parked.resume_ready ? 'ready to resume' : null,
+        `reason: ${truncate(run.parked.reason)}`,
+      ])}`,
+    );
+  }
+  if (run.end_reason && run.end_reason !== run.run_state)
+    out.push(`${indent}ended: ${run.end_reason}`);
+  if (run.workspace) out.push(`${indent}${workspaceText(run.workspace)}`);
+  const refs = join([
+    run.orchestrator
+      ? `orchestrator ${[run.orchestrator.name, run.orchestrator.dispatch_id, run.orchestrator.task_id, run.orchestrator.run_id].filter(Boolean).join(' ')}`
+      : null,
+    run.brief_document_version_id ? `brief ${run.brief_document_version_id}` : null,
+  ]);
+  if (refs) out.push(`${indent}${refs}`);
+  if (run.resources.length > 0) {
+    out.push(
+      `${indent}resources:`,
+      ...run.resources.map((r) => `${indent}- ${resourceText(r, now)}`),
+    );
+  }
+  if (run.external !== undefined && Object.keys(run.external).length > 0) {
+    out.push(`${indent}external: ${JSON.stringify(run.external)}`);
+  }
+  return out;
+}
+
+/** `Item.resume`: where to pick the work up. */
+function resumeLine(resume: ItemResume): string {
+  return `${I1}${join([
+    'resume:',
+    resume.workspace ? workspaceText(resume.workspace) : 'no workspace recorded',
+    resume.last_pushed_sha ? `last pushed ${shortSha(resume.last_pushed_sha)}` : null,
+    resume.last_end_reason ? `last run ${resume.last_end_reason}` : null,
+    resume.brief_document_version_id ? `brief ${resume.brief_document_version_id}` : null,
+    resume.unreleased_resources > 0
+      ? `${resume.unreleased_resources} unreleased resource${resume.unreleased_resources === 1 ? '' : 's'}`
+      : null,
+  ]).replace('resume: · ', 'resume: ')}`;
 }
 
 const blockerRef = (l: LinkRef) =>
@@ -200,19 +314,20 @@ function humanReviewLine(hr: HumanReviewItem, now: Date): string {
 }
 
 function runLine(run: Run, now: Date): string {
-  return join([
+  const head = join([
     `${I1}- ${run.run_id} ${leadName(run)} ${run.run_state}`,
     run.is_lead ? 'lead' : null,
     run.parent_run_id ? `child of ${run.parent_run_id}` : null,
-    run.lease_expires_at && !['finished', 'failed', 'interrupted'].includes(run.run_state)
+    run.lease_expires_at && !['finished', 'failed', 'interrupted', 'parked'].includes(run.run_state)
       ? `lease until ${formatTime(run.lease_expires_at, now)}`
       : null,
     run.summary ? truncate(run.summary) : null,
     run.error ? `error: ${truncate(run.error)}` : null,
   ]);
+  return [head, ...runRecoveryLines(run, now, `${I1}    `)].join('\n');
 }
 
-const OPEN_RUN_STATES = new Set(['live', 'reported', 'stale', 'needs_input']);
+const isOpenRun = (state: string) => (OPEN_RUN_STATES as readonly string[]).includes(state);
 
 function questionLines(item: AnyItem, now: Date): string[] {
   const out: string[] = [];
@@ -320,6 +435,7 @@ export function renderItem(
   }
 
   lines.push(...questionLines(item, now));
+  if (item.resume) lines.push(resumeLine(item.resume));
 
   if (item.documents && item.documents.length > 0) {
     lines.push(
@@ -330,7 +446,7 @@ export function renderItem(
   if (item.runs) {
     const leadId = item.lead?.run_id;
     const others = item.runs.filter(
-      (r) => r.run_id !== leadId && (view === 'full' || OPEN_RUN_STATES.has(r.run_state)),
+      (r) => r.run_id !== leadId && (view === 'full' || isOpenRun(r.run_state)),
     );
     if (others.length > 0) lines.push(`${I1}runs:`, ...others.map((r) => runLine(r, now)));
   }
@@ -633,8 +749,20 @@ const RENDERERS: { [N in ToolName]: Renderer<N> } = {
       run_id: str(a.run_id),
       run_state: r.run_state,
       lease: r.lease_expires_at ? formatTime(r.lease_expires_at, now) : 'none',
+      resources:
+        r.resources.length > 0
+          ? `${SEP}resources: ${r.resources.map((x) => `${x.id} ${truncate(x.label, 120)}`).join(', ')}`
+          : '',
     }),
   finish_run: (r, a) => s('finish_run', { run_id: str(a.run_id), run_state: r.run_state }),
+  park_run: (r, a, now) => {
+    const waiting = a.waiting_on ? waitingOnText(a.waiting_on as WaitingOn, now) : null;
+    return s('park_run', {
+      run_id: str(a.run_id),
+      waiting: waiting ? `${SEP}${waiting}` : '',
+      ready: r.resume_ready ? 'ready to resume' : 'resume_ready false',
+    });
+  },
   set_plan: (r, a) =>
     s('set_plan', {
       id: str(a.id),
@@ -671,6 +799,7 @@ const RENDERERS: { [N in ToolName]: Renderer<N> } = {
     s('report_commit', {
       sha: shortSha(str(a.sha) ?? ''),
       id: str(a.id),
+      pushed: a.pushed === true ? `${SEP}pushed` : '',
       stale:
         r.stale_packets.length > 0
           ? `${SEP}out of date: ${r.stale_packets.map((p) => `${p.item_id} round ${p.round}`).join(', ')}`
@@ -726,6 +855,118 @@ const RENDERERS: { [N in ToolName]: Renderer<N> } = {
     ].join('\n'),
   withdraw_decision: (r) =>
     s('withdraw_decision', { decision_id: r.decision.id, title: title80(r.decision.title) }),
+  recovery_report: (r, _a, now) => {
+    const lines = [
+      s('recovery_report', {
+        interrupted: r.interrupted.length,
+        stale: r.stale.length,
+        parked: r.parked.length,
+        workspaces: r.workspaces.length,
+        orphaned: r.orphaned_resources.length,
+        more: more(r.next_cursor),
+      }),
+    ];
+    const wsOf = (run: Run) =>
+      run.workspace ? workspaceText(run.workspace, { state: false }) : 'no workspace recorded';
+    const runRef = (run: Run) =>
+      join([
+        `run ${run.run_id} ${leadName(run)}`,
+        run.orchestrator
+          ? `orchestrator ${[run.orchestrator.name, run.orchestrator.dispatch_id, run.orchestrator.task_id].filter(Boolean).join(' ')}`
+          : null,
+      ]);
+    if (r.interrupted.length > 0) {
+      lines.push('interrupted:');
+      for (const e of r.interrupted) {
+        lines.push(
+          `${I1}${join([
+            `${e.item.id} ${truncate(e.item.title, 80)}`,
+            `interrupted (${e.end_reason})`,
+            `${e.checklist.done}/${e.checklist.total} done`,
+            wsOf(e.run),
+            e.run.brief_document_version_id
+              ? `brief ${e.run.brief_document_version_id}`
+              : 'no brief',
+          ])}`,
+          `${I1}  ${runRef(e.run)}`,
+        );
+        if (e.run.resources.some((x) => !x.released_at)) {
+          lines.push(
+            `${I1}  resources: ${e.run.resources
+              .filter((x) => !x.released_at)
+              .map((x) => resourceText(x, now))
+              .join('; ')}`,
+          );
+        }
+        if (e.run.external !== undefined && Object.keys(e.run.external).length > 0) {
+          lines.push(`${I1}  external: ${JSON.stringify(e.run.external)}`);
+        }
+        if (e.open_question) {
+          lines.push(`${I1}  question: ${e.open_question.id} ${truncate(e.open_question.text)}`);
+        }
+        if (e.brief !== undefined) lines.push(...block('brief', e.brief, `${I1}  `));
+      }
+    }
+    if (r.stale.length > 0) {
+      lines.push('stale:');
+      for (const e of r.stale) {
+        lines.push(
+          `${I1}${join([
+            `${e.item.id} ${truncate(e.item.title, 80)}`,
+            'stale',
+            `last signal ${formatTime(e.run.last_signal_at, now)}`,
+            wsOf(e.run),
+          ])}`,
+          `${I1}  ${runRef(e.run)}`,
+        );
+      }
+    }
+    if (r.parked.length > 0) {
+      lines.push('parked:');
+      for (const e of r.parked) {
+        const p = e.run.parked;
+        lines.push(
+          `${I1}${join([
+            `${e.item.id} ${truncate(e.item.title, 80)}`,
+            p ? waitingOnText(p.waiting_on, now) : null,
+            `resume_ready ${e.resume_ready}`,
+            p ? `since ${formatTime(p.since, now)}` : null,
+            wsOf(e.run),
+          ])}`,
+          `${I1}  ${runRef(e.run)}${p ? `${SEP}reason: ${truncate(p.reason)}` : ''}`,
+        );
+      }
+    }
+    if (r.workspaces.length > 0) {
+      lines.push('workspaces:');
+      for (const w of r.workspaces) {
+        lines.push(
+          `${I1}${join([
+            w.state,
+            workspaceText(w, { state: false }),
+            w.item_id,
+            `run ${w.run_id}`,
+            w.unreleased_resources > 0
+              ? `${w.unreleased_resources} unreleased resource${w.unreleased_resources === 1 ? '' : 's'}`
+              : null,
+          ])}`,
+        );
+      }
+    }
+    if (r.orphaned_resources.length > 0) {
+      lines.push('orphaned_resources:');
+      for (const o of r.orphaned_resources) {
+        lines.push(
+          `${I1}${join([
+            resourceText(o.resource, now),
+            o.item_id,
+            `run ${o.run_id} ended ${formatTime(o.run_ended_at, now)}`,
+          ])}`,
+        );
+      }
+    }
+    return lines.join('\n');
+  },
 };
 
 /** The compact text block for a tool's successful result. */

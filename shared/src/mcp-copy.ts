@@ -23,6 +23,9 @@ export const SERVER_INSTRUCTIONS = [
   '- Report each commit for the item it belongs to (report_commit). When the work is built and your checks pass, hand off with submit_packet. If there is no human review, close it with set_status "done".',
   '- If you need a decision from the owner, ask_owner and stop; the answer arrives in get_item.',
   '- Pass run_id on every call while you are working; it keeps your claim alive and shows you as live. Call finish_run when you stop.',
+  '- Say where your work lives: pass workspace (worktree path, branch, base) to claim_lead, push work in progress at every checklist step, and report_commit with pushed true.',
+  '- If you must wait (on another item, the coordinator or a person), call park_run with what you are waiting on. Never just go quiet: a silent run looks stale and loses its claim; a parked run keeps it.',
+  '- Declare long-lived things you start (dev servers, sessions, containers) with heartbeat resources_started, and release them before finish_run. Coordinators: after a crash or restart, start with recovery_report, and never prune a workspace it lists as in use or at risk.',
   "- After any pause, call get_item: it delivers the owner's notes, answers and review decisions, each once.",
   '- Send only what changes. update_item, set_plan and set_checks patch: whatever you leave out stays as it is. Use get_item view "summary" when you only need status.',
   '',
@@ -59,15 +62,17 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   upsert_label:
     'Create a label or update its brief. Use a label for an initiative that spans several epics; the brief holds the shared decisions.',
   claim_lead:
-    'Claim an item as its lead before you work on it. Works on Ready items (moves them to In progress) and on In progress items with no lead (resuming sent-back work). Returns your run_id: pass it on every later call. If someone else holds the claim you get a conflict with who holds it and until when; do not work on the item.',
+    'Claim an item as its lead before you work on it. Works on Ready items (moves them to In progress) and on In progress items with no lead (resuming sent-back or interrupted work). Pass workspace (where the work lives) and, if a coordinator briefed you, the brief, so the work can be restarted after a crash. Returns your run_id: pass it on every later call. If someone else holds the claim you get a conflict with who holds it and until when; do not work on the item.',
   release_lead:
     'Give up the lead claim without finishing, for example when you are stopping before the work is done. The item returns to Ready so another agent can pick it up; your plan and notes stay.',
   start_run:
-    'Start a child run under your lead run when you delegate to a subagent that has its own Task Lite connection. The subagent passes the child run_id on its calls. For subagents without their own connection, use log_subagent instead.',
+    'Start a child run under your lead run when you delegate to a subagent that has its own Task Lite connection. Pass its workspace and brief as for claim_lead. The subagent passes the child run_id on its calls. For subagents without their own connection, use log_subagent instead.',
   heartbeat:
-    'Tell Task Lite you are still working when you have nothing else to record. Any call with run_id does the same, so you rarely need this. Optionally set your current step.',
+    'Tell Task Lite you are still working, and update what it knows about your run: your current step, your workspace (head and pushed commits, uncommitted changes), and long-lived resources you started or released. Any call with run_id keeps you live, so use this when you have nothing else to record or something changed.',
   finish_run:
     "End your run. result 'finished' when you stopped normally, 'failed' with an error when something broke. Finishing a lead run releases the claim but does not change the item's status: hand off with submit_packet or close with set_status first.",
+  park_run:
+    'Park your run when you must wait: on another item, on the coordinator to send you more work, or on a person. A parked run keeps its claim and its workspace stays marked in use, so it is never mistaken for finished or stale. Say what you are waiting on; Task Lite flags it as ready to resume when that clears. Any later call with your run_id resumes it.',
   set_plan:
     "Publish or revise your plan as one-line work steps. By default this patches: steps with an id are updated (changing text records the old text and your reason), steps without an id are added, and nothing is removed unless you list it in remove. Use mode 'replace' to restate the whole plan. Owner-added steps are always kept. Every revision is kept as history.",
   update_step:
@@ -88,7 +93,7 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   link_artifact:
     'Link external evidence: a PR, CI run, deployment, test report or URL. A link is evidence, never approval.',
   report_commit:
-    'Report a commit for the item it belongs to. Report every commit you make for an item, including fixes after a review. If a handoff packet was built from an older commit, it is marked out of date for the owner automatically.',
+    'Report a commit for the item it belongs to. Report every commit you make for an item, including fixes after a review, and set pushed true once it is on the remote: an unpushed commit can be lost in a crash. If a handoff packet was built from an older commit, it is marked out of date for the owner automatically.',
   submit_packet:
     'Hand finished work to the owner for human review. Call it when the work is built, your checks pass and everything is committed and reported. The packet must let the owner verify without asking you anything: what to check, exact steps (URLs, builds, commands), what you already verified and how, known gaps, and attachments. The item moves to Review; read the decision later with get_review or get_item.',
   get_review:
@@ -101,6 +106,8 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
     'List decision records for a project, optionally narrowed to one scope. Active records only unless include_inactive. get_context already includes the active decisions that apply to an item.',
   withdraw_decision:
     "Withdraw a decision you or another agent recorded when it no longer applies. Owner decisions can't be withdrawn by agents.",
+  recovery_report:
+    'After a crash or restart, or before pruning worktrees, get the restart list: runs that were interrupted, went stale or are parked, each with its brief, workspace, last pushed commit, checklist progress and any open question; every workspace with whether it is in use, at risk or safe to prune; and resources left running. Re-dispatch from this instead of guessing, and never prune a workspace marked in use or at risk.',
 };
 
 /**
@@ -127,8 +134,9 @@ export const TOOL_SUMMARIES: Record<ToolName, string> = {
   claim_lead: 'Claimed {id} · run {run_id} · lease until {lease} · v{version}',
   release_lead: 'Released {id} · {status} · v{version}',
   start_run: 'Started child run {run_id} on {id}',
-  heartbeat: 'Run {run_id} {run_state} · lease until {lease}',
+  heartbeat: 'Run {run_id} {run_state} · lease until {lease}{resources}',
   finish_run: 'Run {run_id} {run_state}',
+  park_run: 'Parked run {run_id}{waiting} · {ready}',
   set_plan: 'Plan v{plan_version} on {id} · {done}/{total} done',
   update_step: 'Step {step_id} {state} on {id}',
   log_subagent: 'Logged {provenance} {name} on {target}',
@@ -139,13 +147,15 @@ export const TOOL_SUMMARIES: Record<ToolName, string> = {
   add_note: 'Noted on {id} · {at}',
   put_document: 'Stored {name} v{version_no} · {document_version_id} · {size} bytes',
   link_artifact: 'Linked {kind} {label} on {id}',
-  report_commit: 'Recorded {sha} on {id}{stale}',
+  report_commit: 'Recorded {sha} on {id}{pushed}{stale}',
   submit_packet: 'Submitted {display_id} round {round} for {id} · {status} · v{version}',
   get_review: '{id} review rounds: {count}',
   ask_owner: 'Asked the owner on {id} · {question_id} · your run needs input',
   publish_decision: 'Published {decision_id} {title} · {authority}',
   list_decisions: 'Decisions: {count}{more}',
   withdraw_decision: 'Withdrew {decision_id} {title}',
+  recovery_report:
+    'Recovery: {interrupted} interrupted · {stale} stale · {parked} parked · {workspaces} workspaces · {orphaned} orphaned resources{more}',
 };
 
 /** Fill a summary template. A missing (or non-scalar) value renders as `?`, so a gap is visible in tests. */

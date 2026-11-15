@@ -13,7 +13,17 @@ import {
   truncate,
 } from '../src/compact.js';
 import { TOOLS, type ToolName } from '../src/mcp/tools.js';
-import { DEC_1, NOW, RCP14, RCP14_CONTEXT, RCP14_SUMMARY, RCP17_SUMMARY } from './fixtures.js';
+import {
+  DEC_1,
+  NOW,
+  RCP14,
+  RCP14_CONTEXT,
+  RCP14_SUMMARY,
+  RCP17_SUMMARY,
+  RECOVERY_REPORT,
+  RUN_AT_RISK,
+  RUN_PARKED,
+} from './fixtures.js';
 import { specBlock, specInline } from './spec.js';
 
 const opts = { now: NOW };
@@ -461,10 +471,21 @@ const SAMPLES: Record<ToolName, { result: unknown; args?: Record<string, unknown
     args: { id: 'RCP-14', parent_run_id: 'run_01JA…' },
   },
   heartbeat: {
-    result: { run_state: 'live', lease_expires_at: '2026-11-06T12:05:00.000Z' },
+    result: {
+      run_state: 'live',
+      lease_expires_at: '2026-11-06T12:05:00.000Z',
+      resources: [{ id: 'rsc_1', label: 'dev server :5173' }],
+    },
     args: { run_id: 'run_01JA…' },
   },
-  finish_run: { result: { run_state: 'finished' }, args: { run_id: 'run_01JA…' } },
+  finish_run: {
+    result: { run_state: 'finished', warnings: ['1 resource still declared: dev server :5173'] },
+    args: { run_id: 'run_01JA…' },
+  },
+  park_run: {
+    result: { run_state: 'parked', resume_ready: false },
+    args: { run_id: 'run_A', reason: 'Waiting for RCP-12', waiting_on: { items: ['RCP-12'] } },
+  },
   set_plan: { result: { plan_version: 4, work: RCP14.checklist.work }, args: { id: 'RCP-14' } },
   update_step: {
     result: { step: { ...RCP14.checklist.work[1]!, state: 'done' } },
@@ -518,7 +539,7 @@ const SAMPLES: Record<ToolName, { result: unknown; args?: Record<string, unknown
       recorded: true,
       stale_packets: [{ item_id: 'RCP-19', packet_id: 'pkt_1', round: 1 }],
     },
-    args: { id: 'RCP-19', sha: 'c71e002' },
+    args: { id: 'RCP-19', sha: 'c71e002', pushed: true },
   },
   submit_packet: {
     result: {
@@ -566,6 +587,7 @@ const SAMPLES: Record<ToolName, { result: unknown; args?: Record<string, unknown
   withdraw_decision: {
     result: { decision: { ...DEC_1, id: 'dec_9', authority: 'agent', status: 'withdrawn' } },
   },
+  recovery_report: { result: RECOVERY_REPORT, args: { include_briefs: true } },
 };
 
 describe('every tool has a renderer', () => {
@@ -588,5 +610,177 @@ describe('every tool has a renderer', () => {
       const text = renderResult(tool.name, sample.result, { args: sample.args, ...opts });
       expect(Math.ceil(text.length / 4), `${tool.name}: ${text}`).toBeLessThanOrEqual(60);
     }
+  });
+});
+
+describe('recovery (MCP_SPEC §3 "Workspaces, briefs and resources", §5.4, §5.9)', () => {
+  const report = () =>
+    renderResult('recovery_report', RECOVERY_REPORT, { args: { include_briefs: true }, ...opts });
+
+  it('renders an interrupted entry exactly like the MCP_SPEC §5.9 example', () => {
+    const expected = specInline('An interrupted entry reads like');
+    expect(report().split('\n')).toContain(`  ${expected}`);
+  });
+
+  it('renders one block per non-empty section, in §5.9 order', () => {
+    const lines = report().split('\n');
+    expect(lines.filter((l) => /^[a-z_]+:$/.test(l))).toEqual([
+      'interrupted:',
+      'parked:',
+      'workspaces:',
+      'orphaned_resources:',
+    ]);
+    expect(lines[0]).toBe(
+      'Recovery: 2 interrupted · 0 stale · 1 parked · 2 workspaces · 1 orphaned resources',
+    );
+  });
+
+  it('shows what a coordinator needs to restart an at-risk run: unpushed, dirty, resources, brief', () => {
+    const text = report();
+    expect(text).toContain(
+      '  RCP-21 Unit conversion table · interrupted (lease_expired) · 1/3 done · ws C:/work/rcp-21 on rcp-21-units @ 77aa001, pushed 6f00e12 · dirty · brief dv_brief21',
+    );
+    expect(text).toContain('    run run_21 claude·orca-w4 · orchestrator orca ctx_91ab task_7');
+    expect(text).toContain(
+      '    resources: rsc_1 dev server :5173 · dev_server · port 5173 · pid 4242 · running',
+    );
+    expect(text).toContain('    external: {"orca":{"worktree_id":"wt_21"}}');
+    expect(text).toContain('    question: q_7 Round 1/3 cup to 80 ml or 79 ml?');
+    expect(text).toContain(
+      '    brief: Implement the unit conversion table.\n      Resume from the checklist; claim_lead first.',
+    );
+  });
+
+  it('lists parked runs with what they wait on, workspaces with their state, and orphaned resources', () => {
+    const text = report();
+    expect(text).toContain(
+      '  RCP-23 Meal plan templates · waiting on RCP-12 · resume_ready true · since 10:40Z · ws C:/work/rcp-23 on rcp-23-templates @ c1d2e3f (pushed) · clean',
+    );
+    expect(text).toContain(
+      '  at_risk · ws C:/work/rcp-21 on rcp-21-units @ 77aa001, pushed 6f00e12 · dirty · RCP-21 · run run_21 · 1 unreleased resource',
+    );
+    expect(text).toContain(
+      '  safe_to_prune · ws C:/work/rcp-30 on rcp-30-share @ aa11bb2 (pushed) · clean · RCP-30 · run run_30',
+    );
+    expect(text).toContain(
+      '  rsc_1 dev server :5173 · dev_server · port 5173 · pid 4242 · running · RCP-21 · run run_21 ended 03:12Z',
+    );
+  });
+
+  it('omits the brief text unless it was included', () => {
+    const without = { ...RECOVERY_REPORT.interrupted[1]! };
+    delete without.brief;
+    const text = renderResult(
+      'recovery_report',
+      { ...RECOVERY_REPORT, interrupted: [without] },
+      opts,
+    );
+    expect(text).not.toContain('brief: Implement');
+    expect(text).toContain('brief dv_brief21');
+  });
+
+  it('a parked lead run shows parked instead of a lease, with the workspace and the brief', () => {
+    const item = {
+      ...RCP14,
+      lead: { client: 'claude', label: 'orca-w2', run_id: 'run_A', run_state: 'parked' as const },
+      runs: [RUN_PARKED],
+    };
+    const lines = renderItem(item, { view: 'standard', ...opts }).split('\n');
+    const at = lines.indexOf('  lead claude·orca-w2 parked · run run_A');
+    expect(at).toBeGreaterThan(0);
+    expect(lines.slice(at + 1, at + 4)).toEqual([
+      '    parked · waiting on RCP-12 · since 10:40Z · ready to resume · reason: Waiting for RCP-12 (planner) to merge before wiring templates in',
+      '    ws C:/work/rcp-23 on rcp-23-templates @ c1d2e3f (pushed) · clean · parked',
+      '    orchestrator orca ctx_6f2d · brief dv_brief23',
+    ]);
+  });
+
+  it('an ended run in view full shows its end reason, workspace and resources', () => {
+    const text = renderItem(
+      { ...RCP14, runs: [...RCP14.runs, RUN_AT_RISK] },
+      { view: 'full', ...opts },
+    );
+    expect(text).toContain(
+      [
+        '  - run_21 claude·orca-w4 interrupted · lead',
+        '      ended: lease_expired',
+        '      ws C:/work/rcp-21 on rcp-21-units @ 77aa001, pushed 6f00e12 · dirty · at_risk',
+        '      orchestrator orca ctx_91ab task_7 · brief dv_brief21',
+        '      resources:',
+        '      - rsc_1 dev server :5173 · dev_server · port 5173 · pid 4242 · running',
+        '      external: {"orca":{"worktree_id":"wt_21"}}',
+      ].join('\n'),
+    );
+  });
+
+  it('Item.resume says where to pick the work up', () => {
+    const text = renderItem(
+      {
+        ...RCP14,
+        resume: {
+          workspace: RUN_AT_RISK.workspace,
+          last_pushed_sha: '6f00e12',
+          brief_document_version_id: 'dv_brief21',
+          last_end_reason: 'lease_expired',
+          unreleased_resources: 1,
+        },
+      },
+      opts,
+    );
+    expect(text).toContain(
+      '  resume: ws C:/work/rcp-21 on rcp-21-units @ 77aa001, pushed 6f00e12 · dirty · at_risk · last pushed 6f00e12 · last run lease_expired · brief dv_brief21 · 1 unreleased resource',
+    );
+  });
+
+  it('park_run, heartbeat resources and report_commit pushed are one line each', () => {
+    expect(
+      renderResult(
+        'park_run',
+        { run_state: 'parked', resume_ready: true },
+        {
+          args: {
+            run_id: 'run_A',
+            waiting_on: { orchestrator: true, until: '2026-11-06T12:00:00Z' },
+          },
+          ...opts,
+        },
+      ),
+    ).toBe('Parked run run_A · waiting on the coordinator, until 12:00Z · ready to resume');
+    expect(
+      renderResult(
+        'park_run',
+        { run_state: 'parked', resume_ready: false },
+        { args: { run_id: 'run_A' }, ...opts },
+      ),
+    ).toBe('Parked run run_A · resume_ready false');
+    expect(
+      renderResult(
+        'report_commit',
+        { recorded: true, stale_packets: [] },
+        { args: { id: 'RCP-23', sha: 'c1d2e3f0', pushed: true }, ...opts },
+      ),
+    ).toBe('Recorded c1d2e3f on RCP-23 · pushed');
+    expect(
+      renderResult(
+        'heartbeat',
+        { run_state: 'live', lease_expires_at: null, resources: [] },
+        { args: { run_id: 'run_A' }, ...opts },
+      ),
+    ).toBe('Run run_A live · lease until none');
+  });
+
+  it('finish_run warnings render as ! lines', () => {
+    expect(
+      renderResult(
+        'finish_run',
+        {
+          run_state: 'finished',
+          warnings: ['1 resource still declared: dev server :5173', '2 commits not pushed'],
+        },
+        { args: { run_id: 'run_A' }, ...opts },
+      ),
+    ).toBe(
+      'Run run_A finished\n! 1 resource still declared: dev server :5173\n! 2 commits not pushed',
+    );
   });
 });
