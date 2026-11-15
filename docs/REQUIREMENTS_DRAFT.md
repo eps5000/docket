@@ -1,6 +1,6 @@
 # Candidate product requirements
 
-Status: discovery draft, updated 2026-11-06. The confirmed choices below are owner decisions; remaining requirements are proposals to test with real agents. Background: [Jira capability research](JIRA_RESEARCH.md).
+Status: discovery draft, updated 2026-11-07. **Superseded for building by [BUILD_SPEC.md](BUILD_SPEC.md) and [UI_SPEC.md](UI_SPEC.md);** this file remains the record of requirements and owner decisions. The confirmed choices below are owner decisions; remaining requirements are proposals to test with real agents. Background: [Jira capability research](JIRA_RESEARCH.md).
 
 ## Confirmed owner decisions
 
@@ -11,22 +11,36 @@ Status: discovery draft, updated 2026-11-06. The confirmed choices below are own
 5. Approval gates vary by project and its agent workflow. Some projects require explicit owner approval at defined points; others allow an agent to finish and report completion without an owner gate.
 6. Human and agents may enter or change planned dates. Effort values and velocity-based backlog forecasts are desirable planning additions; forecasts must be distinguished from entered dates.
 7. The V1 browser UI is available on the host machine only. Other-device or public access is outside the V1 boundary; this public repository should keep local-only networking as its default.
+8. The workflow includes a **Planning** status between Inbox and Ready. Planning is the owner's stage: planning artifacts (for example UI/UX design, PRD, TDD) are produced there, and the owner moves an item to Ready, or tells an agent to, when it is actually ready to build. (Added 2026-11-06.)
+9. Ceremony should fit the risk. Which planning artifacts a ticket needs is settled during Planning and by each project's agent workflow; small changes may skip UX/TDD, and high-stakes production work may require all of them. (Added 2026-11-06; revised the same day.)
+10. The browser UI starts at an all-projects view on each visit, so the owner is never unknowingly scoped to a single project. (Added 2026-11-06.)
+11. Per-item planning exceptions and readiness rules are decided by each project's agent constitution and workflow. The tracker stores and shows the project's configuration and records deviations; it does not enforce them. (Added 2026-11-06.)
+12. V1 item types are Epic (the only container), Story, Task, and Bug. An Epic still in Planning acts as the brief for work not yet broken down. Large initiatives that span several epics use a label with an optional brief rather than a level above Epic. Small steps are checklist items on the ticket; subtasks are not in V1. (Added 2026-11-06; revised the same day.)
+13. Human review is verification after implementation, not part of Planning. Agents declare human review items on a ticket, usually during Planning. When the work is built and the agent's own checks pass, the agent supplies a handoff packet telling the owner how to verify. The owner approves (the ticket closes) or requests changes (each finding becomes a checklist item or a new bug ticket, and the agent prepares another round). A ticket cannot close while any human review item is undecided; with no human review items, the agent may close it once its checks pass. The owner may also **defer** an item: this clears the gate but records the item as deferred, not verified, optionally creating a follow-up test ticket. Packets record the commit they were built from and are marked out of date automatically when an agent later reports a different commit for the ticket. Approvals carry forward across rounds. Agents may create labels. Commits are reported for a specific ticket, so only commits for that ticket (or, for an epic-level packet, any ticket in the epic) mark a packet out of date. When an epic ships as one PR, human review may be declared once on the epic instead of on each child. Deferred, not-verified items stay visible to the owner and to agents (for cleanup) until resolved. (Added 2026-11-06.)
+
+14. The V1 stack is TypeScript end to end: Node 22, the official MCP TypeScript SDK, Hono, SQLite via better-sqlite3 + Drizzle, and React + Vite for the UI. (Added 2026-11-07.)
+15. O11's project-level approval policies are superseded by decision 13. Gates are per-ticket human review items, declared according to each project's agent workflow; the tracker enforces only that a ticket can't close while a review item is undecided. H06 reads "a ticket with human review items" where it says "a project with a required owner gate". (Added 2026-11-07.)
+16. One agent bearer token serves all clients. The calling client is identified from the MCP handshake (`clientInfo`), plus an optional agent label such as `orca-w3`. A separate owner key, held only by the browser, protects owner actions. (Added 2026-11-07.)
+17. V1 also includes four P1 items: the Timeline layout, Label pages, burn-down and forecast (H14, A18), and the Jira import dry run and import (O05). (Added 2026-11-07.)
+18. Task Lite is the coordinator, not the dispatcher. It is the authoritative record of what work exists, what is eligible to start, who holds it, and the rules (blocking, leases, review gates), and it enforces them. Orca, or the owner, decides when to start agents (decision 2 reaffirmed after the 2026-11-14 "development control plane" review). Revisit after the pilot. (Added 2026-11-14.)
+19. V1 adds four coordination features from that review: a context bundle for agents (`get_context`), decision records that every agent reads (owner records are authoritative), lean agent responses (summary views, field selection, compact text, token budgets), and stricter dependency rules (a blocker can be required to be merged or verified, not just done). (Added 2026-11-14.)
+20. TERSL / Tourbillon is a reference to learn from, not a dependency. No TERSL format or TERSL/DB in V1; the learnings applied, and an optional post-V1 experiment, are in [ROADMAP.md](ROADMAP.md). (Added 2026-11-14.)
 
 ## Product intent
 
-A locally run Docker service gives AI agents a stable MCP endpoint for planning and updating work, while a human sees the portfolio, dependencies, timing, agent activity, documents, and decisions that need review. Task state, agent execution state, review state, and delivery evidence must remain distinguishable.
+A locally run Docker service coordinates AI agents' work: it gives them a stable MCP endpoint and is the enforced source of truth for work, dependencies, claims, decisions and review gates (owner decisions 18–19). A human supervises through a UI that shows the portfolio, dependencies, timing, agent activity, documents, and decisions that need review. Task state, agent execution state, review state, and delivery evidence must remain distinguishable.
 
 ## Core objects to validate
 
 | Object | Purpose | Key relationships |
 | --- | --- | --- |
 | Project | Bounds a product or work area | Contains outcomes, work items, project-local artifacts, and an optional approval policy linked to its agent workflow documents. |
-| Work item | Durable idea, Epic, Story, Task, Bug, or Subtask | Optional parent; explicit typed links; owner, priority, status, dates, acceptance. |
+| Work item | Epic, Story, Task, or Bug | Optional epic; labels; explicit typed links; priority, status, dates, acceptance; lead claim by an agent rather than an assignee. |
 | Dependency | Directed `blocks` edge between work items | Independent of hierarchy, ordering, and `relates`. |
-| Ticket plan | A short, revisable list of steps for completing one work item | Each step has state, responsible agent if known, and last update; steps are not work items. |
+| Checklist | Three short lists on one work item: Work (the agent's plan), Agent checks (its own verification), Human review (what the owner must verify) | Items are one or two sentences with state and history; they are not work items. A Work item that outgrows the checklist becomes its own Story or Task. |
 | Agent run | One actual execution/session, including an optional delegated subagent record | References work item, plan step when relevant, and optional parent run; actor, timestamps, state, output. |
 | Artifact | Locally stored document/file or a linked URL, commit, PR, test, build, deployment, screenshot, etc. | Project owner, version/source, and work item/run references. Local bytes stay in persistent storage. |
-| Review | An explicit owner decision on a versioned artifact or work item | Requested, approved, changes requested, deferred, or waived, with reviewer and rationale. |
+| Human review and handoff packet | An agent-written packet per review round, and an attributed owner decision per human review item | Approved or changes requested, with notes; findings become checklist items or bug tickets; decisions bind to that packet version. |
 | Event | Immutable activity/provenance record | Actor, timestamp, object, action, prior/new values or evidence reference. |
 
 ## Agent-facing candidate requirements
@@ -87,11 +101,11 @@ Priority labels: **P0** is necessary for a useful first release; **P1** adds pla
 | O08 | P0 | The service is a task/data server; it does not require OpenAI or Anthropic model API credentials. If an agent surface cannot attach directly to HTTP MCP, a local client-side bridge may be used and tested for that surface. |
 | O09 | P0 | MVP V1 can be exercised with a disposable sample project and representative tickets, agent plans, blockers, and review artifacts. No Jira import or live-project cutover is required to build or verify V1. |
 | O10 | P0 | Deleting a project through the service removes its work records and project-associated local documents together after an explicit owner action. Backups have a separately documented retention and purge policy; deleting a container alone does not imply deleting its data. |
-| O11 | P0 | Each project can select an approval policy consistent with its agent workflow documents: no owner gate or one or more named owner gates. The service applies the selected policy to Done transitions while preserving the distinction between agent assertions and owner decisions. |
+| O11 | ~~P0~~ superseded (decision 15) | Each project can select an approval policy consistent with its agent workflow documents: no owner gate or one or more named owner gates. The service applies the selected policy to Done transitions while preserving the distinction between agent assertions and owner decisions. |
 
 ## Initial workflow hypothesis
 
-`Inbox → Ready → In progress → Review → Done`, with `Blocked` as a derived condition and `Canceled` as an explicit terminal outcome. Review is used when the project's workflow requires or requests it; a no-approval project can move from In progress to Done after agent-reported completion. An item in Review can return to In progress after changes are requested. Run state (`working`, `needs input`, `finished`, `failed`, `stale`) is separate from work item status. The statuses are still a proposal; the project-dependent approval choice is confirmed.
+`Inbox → Planning → Ready → In progress → Review → Done`, with `Blocked` as a derived condition and `Canceled` as an explicit terminal outcome. Agents may produce planning artifacts for an item in Planning, but "ready to start" queries (A05) return only Ready items. The proposed design lets each project define which planning artifacts must be approved before Ready; see [UI design](UI_DESIGN.md). Review is used when the project's workflow requires or requests it; a no-approval project can move from In progress to Done after agent-reported completion. An item in Review can return to In progress after changes are requested. Run state (`working`, `needs input`, `finished`, `failed`, `stale`) is separate from work item status. The Planning status and the project-dependent approval choice are confirmed; the other statuses are still a proposal.
 
 ## MVP V1 boundary proposed for discussion
 

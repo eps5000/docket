@@ -1,0 +1,1754 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Task Lite — UI prototype (rev 5)</title>
+<!--
+  Clickable UI/UX prototype for the local agent work tracker (MVP V1), revision 5.
+  Self-contained: no network requests, no build step. All data is disposable sample work (O09).
+  Design rationale and requirement mapping: docs/UI_DESIGN.md
+-->
+<style>
+/* ---------- tokens (contrast-checked: text >= 4.5:1, control borders >= 3:1) ---------- */
+.tl{
+  --bg:#f6f7f9; --panel:#fff; --panel-2:#f1f3f6; --line:#e3e6eb; --line-2:#d3d8df; --ctl:#8a929f;
+  --ink:#16191f; --ink-2:#444c59; --ink-3:#5f6878; --on-fill:#fff;
+  --brand:#3b5bdb; --brand-soft:#e8edff;
+  --ok:#237032; --ok-soft:#e6f4ea; --warn:#9a4705; --warn-soft:#fdf1e2;
+  --bad:#c22b2b; --bad-soft:#fdecec; --info:#1864ab; --info-soft:#e7f1fb;
+  --violet:#6741d9; --violet-soft:#f0ebff; --gray-soft:#eef0f3; --teal:#0b7285; --teal-soft:#e3f6f8;
+  --t-epic:#7b2fa3; --t-story:#2b7a3b; --t-task:#1c64b9; --t-bug:#c92a2a; --t-fg:#fff;
+  --shadow:0 12px 40px rgba(20,25,35,.18);
+  --mono:ui-monospace,"Cascadia Code","JetBrains Mono",Consolas,monospace;
+  --sans:Inter,"Segoe UI",system-ui,-apple-system,sans-serif;
+  font:13px/1.45 var(--sans); color:var(--ink); background:var(--bg); color-scheme:light;
+}
+.tl[data-theme=dark]{
+  --bg:#0f1115;--panel:#161920;--panel-2:#1c2029;--line:#2a303b;--line-2:#363d4a;--ctl:#6f788a;
+  --ink:#e6e9ef;--ink-2:#b8c0cc;--ink-3:#99a2b4;--on-fill:#0f1115;
+  --brand:#8ea2ff;--brand-soft:#1d2440;--ok:#5bd06f;--ok-soft:#14281a;--warn:#f0a020;--warn-soft:#2d2210;
+  --bad:#ff7b7b;--bad-soft:#351818;--info:#5cb3f8;--info-soft:#132536;--violet:#a990ff;--violet-soft:#241c3e;--gray-soft:#23272f;--teal:#3bc9db;--teal-soft:#10292d;--t-epic:#d197f0;--t-story:#6fd384;--t-task:#74b8f7;--t-bug:#ff8a8a;--t-fg:#0f1115;
+  --shadow:0 12px 40px rgba(0,0,0,.5); color-scheme:dark;
+}
+@media (prefers-color-scheme:dark){
+  .tl:not([data-theme=light]){
+    --bg:#0f1115;--panel:#161920;--panel-2:#1c2029;--line:#2a303b;--line-2:#363d4a;--ctl:#6f788a;
+    --ink:#e6e9ef;--ink-2:#b8c0cc;--ink-3:#99a2b4;--on-fill:#0f1115;
+    --brand:#8ea2ff;--brand-soft:#1d2440;--ok:#5bd06f;--ok-soft:#14281a;--warn:#f0a020;--warn-soft:#2d2210;
+    --bad:#ff7b7b;--bad-soft:#351818;--info:#5cb3f8;--info-soft:#132536;--violet:#a990ff;--violet-soft:#241c3e;--gray-soft:#23272f;--teal:#3bc9db;--teal-soft:#10292d;--t-epic:#d197f0;--t-story:#6fd384;--t-task:#74b8f7;--t-bug:#ff8a8a;--t-fg:#0f1115;
+    --shadow:0 12px 40px rgba(0,0,0,.5); color-scheme:dark;
+  }
+}
+.tl *{box-sizing:border-box}
+.tl button,.tl select,.tl input,.tl textarea{font:inherit;color:inherit}
+.tl button{cursor:pointer}
+.tl a{color:var(--brand);text-decoration:none;cursor:pointer}
+.tl a:hover{text-decoration:underline}
+.tl :focus-visible{outline:2px solid var(--brand);outline-offset:2px;border-radius:4px}
+.tl .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.tl .mono{font-family:var(--mono);font-size:12px}
+.tl a.mono,.tl span.mono{white-space:nowrap}
+.tl .muted{color:var(--ink-3)}
+.tl .src{font-size:12px;color:var(--ink-3)}
+.tl .row{display:flex;align-items:center;gap:8px}
+.tl .wrap{flex-wrap:wrap}
+.tl .grow{flex:1;min-width:0}
+.tl .stack{display:grid;gap:12px;min-width:0}
+.tl .stack>*{min-width:0}
+.tl .pmapbox,.tl .pframe{min-width:0;max-width:100%}
+.tl .grid2{display:grid;grid-template-columns:minmax(0,1fr) 310px;gap:16px;align-items:start}
+.tl h1{font-size:19px;margin:0 0 2px;font-weight:650;letter-spacing:-.01em}
+.tl h2{font-size:14px;margin:0;font-weight:650}
+.tl h3{font-size:11.5px;margin:0 0 8px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);font-weight:650}
+.tl .sub{color:var(--ink-3);margin:2px 0 14px}
+.tl .card{background:var(--panel);border:1px solid var(--line);border-radius:10px}
+.tl .pad{padding:12px 14px}
+
+/* ---------- shell ---------- */
+.tl .shell{display:grid;grid-template-columns:220px minmax(0,1fr);min-height:820px;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.tl nav{background:var(--panel);border-right:1px solid var(--line);padding:14px 10px;display:flex;flex-direction:column;gap:2px}
+.tl .logo{display:flex;align-items:center;gap:8px;font-weight:700;padding:2px 8px 14px}
+.tl .logo i{width:24px;height:24px;border-radius:7px;background:var(--brand);display:grid;place-items:center;color:var(--on-fill);font-style:normal;font-size:11px;flex:none}
+.tl .navbtn{display:flex;align-items:center;gap:10px;min-height:32px;padding:5px 9px;border-radius:7px;border:0;background:none;text-align:left;color:var(--ink-2);width:100%}
+.tl .navbtn svg{width:16px;height:16px;flex:none}
+.tl .navbtn:hover{background:var(--panel-2)}
+.tl .navbtn[aria-current=page]{background:var(--brand-soft);color:var(--brand);font-weight:600}
+.tl .badge{margin-left:auto;font-size:11px;background:var(--bad);color:var(--on-fill);border-radius:9px;padding:0 6px;font-weight:700;min-width:18px;text-align:center}
+.tl .badge.n{background:var(--gray-soft);color:var(--ink-2)}
+.tl .navsec{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);padding:14px 9px 4px;font-weight:650}
+.tl .sw{width:9px;height:9px;border-radius:3px;flex:none;display:inline-block}
+.tl .health{margin-top:auto;border:1px solid var(--line);border-radius:9px;padding:9px 10px;font-size:12px;color:var(--ink-2);display:grid;gap:4px;text-align:left;background:none;width:100%}
+.tl .health:hover{background:var(--panel-2)}
+.tl main{display:flex;flex-direction:column;min-width:0}
+.tl header{display:flex;align-items:center;gap:10px;padding:9px 18px;border-bottom:1px solid var(--line);background:var(--panel)}
+.tl .crumbs{color:var(--ink-3);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tl .crumbs b{color:var(--ink);font-weight:600}
+.tl header .btn.primary{margin-left:auto}
+.tl .search{display:flex;align-items:center;gap:8px;border:1px solid var(--ctl);background:var(--panel-2);border-radius:8px;padding:5px 10px;width:300px;color:var(--ink-3);text-align:left}
+.tl kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--ctl);border-radius:4px;padding:0 4px;color:var(--ink-3);background:var(--panel)}
+.tl .iconbtn{border:1px solid var(--ctl);background:var(--panel);border-radius:8px;width:32px;height:32px;display:grid;place-items:center;flex:none}
+.tl .iconbtn svg{width:16px;height:16px}
+.tl .view{padding:18px 20px 28px;flex:1;min-width:0;outline:none}
+@media (max-width:1180px){
+  .tl .shell{grid-template-columns:60px minmax(0,1fr)}
+  .tl nav .nl,.tl nav .navsec,.tl nav .projlink,.tl .logo span,.tl .health .hx{display:none}
+  .tl .navbtn{justify-content:center;position:relative}
+  .tl .navbtn .badge{position:absolute;top:0;right:2px;margin:0}
+  .tl .health{place-items:center}
+  .tl .grid2{grid-template-columns:minmax(0,1fr) 270px}
+  .tl .search{width:220px}
+}
+
+/* ---------- project scope switcher ---------- */
+.tl .scopewrap{position:relative;margin:0 0 10px}
+.tl .scopebtn{display:flex;align-items:center;gap:8px;width:100%;border:1px solid var(--ctl);background:var(--panel);border-radius:8px;padding:6px 9px;text-align:left;min-height:36px}
+.tl .scopebtn:hover{background:var(--panel-2)}
+.tl .scopebtn .lbl2{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);font-weight:650;display:block;line-height:1.1}
+.tl .scopebtn .nm{font-weight:650;display:block;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tl .scopemenu{position:absolute;left:0;top:calc(100% + 4px);width:260px;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:6px;z-index:15}
+.tl .scopemenu button{display:flex;align-items:center;gap:9px;width:100%;border:0;background:none;border-radius:7px;padding:7px 9px;text-align:left;min-height:34px}
+.tl .scopemenu button:hover,.tl .scopemenu button[aria-checked=true]{background:var(--brand-soft)}
+.tl .scopemenu .hint{font-size:12px;color:var(--ink-3);padding:6px 9px 2px;border-top:1px solid var(--line);margin-top:4px}
+.tl .scopebar{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-2);background:var(--panel-2);border:1px solid var(--line);border-radius:999px;padding:1px 9px}
+.tl .gnode.ext rect.b{fill:var(--panel-2);stroke-dasharray:4 3}
+@media (max-width:1180px){.tl .scopebtn .txt,.tl .scopebtn .chev{display:none}.tl .scopebtn{justify-content:center;padding:6px}}
+
+/* ---------- structure tree & labels ---------- */
+.tl .label{display:inline-flex;align-items:center;font-size:11.5px;border:1px solid var(--ctl);border-radius:4px;padding:0 5px;color:var(--ink-2);line-height:17px}
+.tl .label::before{content:"#";color:var(--ink-3);margin-right:1px}
+.tl .ptag{font-size:12px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+
+/* ---------- chips, status, priority ---------- */
+.tl .chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:1px 8px;border-radius:999px;border:1px solid transparent;white-space:nowrap;font-weight:550;line-height:18px}
+.tl .st-inbox{background:var(--gray-soft);color:var(--ink-2)}
+.tl .st-planning{background:var(--teal-soft);color:var(--teal)}
+.tl .st-ready{background:var(--info-soft);color:var(--info)}
+.tl .st-progress{background:var(--violet-soft);color:var(--violet)}
+.tl .st-review{background:var(--warn-soft);color:var(--warn)}
+.tl .st-done{background:var(--ok-soft);color:var(--ok)}
+.tl .st-canceled{background:var(--gray-soft);color:var(--ink-3);text-decoration:line-through}
+.tl .c-bad{background:var(--bad-soft);color:var(--bad);border-color:color-mix(in srgb,var(--bad) 35%,transparent)}
+.tl .c-warn{background:var(--warn-soft);color:var(--warn);border-color:color-mix(in srgb,var(--warn) 40%,transparent)}
+.tl .c-info{background:var(--info-soft);color:var(--info)}
+.tl .c-gray{background:var(--gray-soft);color:var(--ink-2)}
+.tl .c-ok{background:var(--ok-soft);color:var(--ok)}
+.tl .type{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:var(--ink-2);white-space:nowrap}
+.tl .tsq{width:16px;height:16px;border-radius:4px;display:inline-grid;place-items:center;color:var(--t-fg);flex:none}
+.tl .tsq svg{width:11px;height:11px}
+.tl .t-epic .tsq{background:var(--t-epic)} .tl .t-story .tsq{background:var(--t-story)} .tl .t-task .tsq{background:var(--t-task)} .tl .t-bug .tsq{background:var(--t-bug)}
+.tl .type.iconly{gap:0}
+.tl .prio{display:inline-flex;align-items:center;gap:3px;font:600 11.5px var(--mono);color:var(--ink-2)}
+.tl .prio svg{width:12px;height:12px}
+
+/* ---------- run state: icon shape + text, never colour alone ---------- */
+.tl .run{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--ink-2);white-space:nowrap}
+.tl .ri{width:12px;height:12px;border-radius:50%;display:inline-grid;place-items:center;font:800 9px/1 var(--sans);font-style:normal;flex:none}
+.tl .ri-live{background:var(--ok);box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 25%,transparent);animation:tlpulse 2s infinite}
+.tl .ri-reported{border:2px solid var(--violet)}
+.tl .ri-stale{border:1.5px dashed var(--ink-3)}
+.tl .ri-needs{background:var(--warn);color:var(--on-fill)}
+.tl .ri-failed{background:var(--bad);color:var(--on-fill)}
+.tl .ri-finished{background:var(--gray-soft);color:var(--ink-2);border:1px solid var(--ctl)}
+.tl .ri-interrupted{border:1.5px solid var(--ink-3);color:var(--ink-3)}
+.tl .run-failed>span{color:var(--bad);font-weight:600}
+.tl .run-needs>span{color:var(--warn);font-weight:600}
+.tl .run-stale>span{color:var(--ink-3);font-style:italic}
+@keyframes tlpulse{50%{box-shadow:0 0 0 5px color-mix(in srgb,var(--ok) 0%,transparent)}}
+@media (prefers-reduced-motion:reduce){.tl .ri-live{animation:none}.tl *{transition:none!important}}
+
+/* ---------- provenance badges: each kind has its own border style + icon ---------- */
+.tl .prov{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;border-radius:6px;padding:1px 7px;font-weight:600;white-space:nowrap;line-height:17px}
+.tl .prov svg{width:12px;height:12px;flex:none}
+.tl .pv-owner{background:var(--ok);color:var(--on-fill)}
+.tl .pv-owner.pv-owner-ch{background:var(--warn)}
+.tl .pv-owner.pv-owner-def{background:var(--info)}
+.tl .pv-agent{border:1.5px dashed var(--violet);color:var(--violet)}
+.tl .pv-observed{border:1.5px solid var(--violet);color:var(--violet);background:var(--violet-soft)}
+.tl .pv-relayed{border:1.5px dotted var(--ink-3);color:var(--ink-2)}
+.tl .pv-auto{background:var(--info-soft);color:var(--info)}
+.tl .pv-git{background:var(--gray-soft);color:var(--ink-2)}
+.tl .pv-pending{border:1.5px solid var(--warn);color:var(--warn);background:var(--warn-soft)}
+
+/* ---------- buttons & form controls ---------- */
+.tl .btn{border:1px solid var(--ctl);background:var(--panel);border-radius:8px;min-height:30px;padding:4px 12px;font-weight:550;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.tl .btn svg{width:14px;height:14px}
+.tl .btn:hover{background:var(--panel-2)}
+.tl .btn.primary{background:var(--brand);border-color:var(--brand);color:var(--on-fill)}
+.tl .btn.danger{background:var(--bad);border-color:var(--bad);color:var(--on-fill)}
+.tl .btn.sm{min-height:28px;padding:2px 10px;font-size:12.5px}
+.tl .btn:disabled{opacity:.55;cursor:not-allowed}
+.tl .btn.ghost{border-color:transparent;background:none;color:var(--brand)}
+.tl .seg{display:inline-flex;border:1px solid var(--ctl);border-radius:8px;overflow:hidden}
+.tl .seg button{border:0;background:var(--panel);min-height:28px;padding:3px 11px;border-right:1px solid var(--ctl)}
+.tl .seg button:last-child{border-right:0}
+.tl .seg button[aria-pressed=true]{background:var(--brand-soft);color:var(--brand);font-weight:650}
+.tl .fchip{border:1px solid var(--ctl);border-radius:999px;min-height:28px;padding:2px 11px;background:var(--panel);font-size:12.5px;display:inline-flex;align-items:center;gap:6px}
+.tl .fchip b{font-weight:700}
+.tl .fchip[aria-pressed=true]{background:var(--ink);color:var(--panel);border-color:var(--ink)}
+.tl textarea,.tl .input,.tl select{width:100%;border:1px solid var(--ctl);border-radius:8px;padding:7px 9px;background:var(--panel);color:var(--ink)}
+.tl textarea{min-height:72px;resize:vertical}
+.tl select{width:auto;padding:3px 8px;min-height:28px}
+.tl span.f{display:block;font-size:12px;color:var(--ink-3);margin:0 0 4px}
+.tl label.f{display:block;font-size:12px;color:var(--ink-3);margin:10px 0 4px}
+
+/* ---------- needs you ---------- */
+.tl .filters{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.tl .att{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:12px;align-items:start;padding:12px 14px;border-top:1px solid var(--line);cursor:pointer}
+.tl .att:first-child{border-top:0}
+.tl .att:hover{background:var(--panel-2)}
+.tl .att.decision{background:color-mix(in srgb,var(--warn-soft) 55%,transparent)}
+.tl .att.decision:hover{background:var(--warn-soft)}
+.tl .att .why{color:var(--ink-2);margin-top:2px}
+.tl .att .t{font-weight:600}
+.tl .ico{width:28px;height:28px;border-radius:8px;display:grid;place-items:center}
+.tl .ico svg{width:15px;height:15px}
+.tl .reply{margin-top:8px;display:grid;gap:6px;cursor:default}
+.tl .agent-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 8px;padding:9px 14px;border-top:1px solid var(--line)}
+.tl .agent-row:first-of-type{border-top:0}
+.tl .agent-row>.btn{align-self:start}
+.tl .chg{display:grid;grid-template-columns:44px minmax(0,1fr);gap:8px;padding:6px 14px;font-size:12.5px;border-top:1px solid var(--line)}
+.tl .chg:first-of-type{border-top:0}
+.tl .sectionhead{display:flex;align-items:center;justify-content:space-between;padding:11px 14px 7px}
+.tl .sectionhead h3{margin:0}
+
+/* ---------- work ---------- */
+.tl .board{display:grid;grid-template-columns:repeat(6,minmax(176px,1fr));gap:10px;overflow-x:auto;padding-bottom:6px}
+.tl .col{background:var(--panel-2);border-radius:10px;padding:8px;min-height:440px}
+.tl .colh{display:flex;justify-content:space-between;align-items:center;padding:2px 4px 8px;font-weight:650;font-size:12.5px;color:var(--ink-2)}
+.tl .subh{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--ink-2);padding:8px 4px 6px;border-top:1px dashed var(--ctl);margin-top:4px}
+.tl a.tcard{display:grid;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:9px 10px;margin-bottom:8px;color:var(--ink);text-decoration:none}
+.tl a.tcard:hover{border-color:var(--brand);text-decoration:none}
+.tl a.tcard.isblocked{border-left:3px solid var(--bad)}
+.tl a.tcard.owed{border-left:3px solid var(--warn)}
+.tl .tcard .t{font-weight:600;line-height:1.3}
+.tl .tcw{position:relative}
+.tl .tcw .archbtn{position:absolute;right:8px;bottom:8px;padding:2px 8px;min-height:24px;font-size:12px}
+.tl .tcw .tcard{padding-bottom:36px}
+.tl .tcard.archived{opacity:.7}
+.tl .tcard .mono,.tl .type{white-space:nowrap}
+.tl .tcard .prov,.tl .tcard .chip{white-space:normal;line-height:16px;padding-top:1px;padding-bottom:1px}
+.tl .tcard .meta{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--ink-3);flex-wrap:wrap}
+.tl .mini{display:flex;flex-wrap:wrap;gap:4px;padding:0 4px 6px}
+.tl table{width:100%;border-collapse:collapse}
+.tl th{font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);text-align:left;font-weight:650;padding:8px 10px;border-bottom:1px solid var(--line)}
+.tl td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+.tl tbody tr:hover{background:var(--panel-2)}
+.tl tr.clickrow{cursor:pointer}
+
+/* ---------- ticket ---------- */
+.tl .tk-head{display:flex;gap:12px;align-items:flex-start;margin-bottom:12px}
+.tl .banner{border:1px solid var(--warn);background:var(--warn-soft);border-radius:10px;padding:10px 12px;display:flex;gap:10px;align-items:center;margin-bottom:12px}
+.tl .banner>svg{width:18px;height:18px;flex:none;color:var(--warn)}
+.tl .banner.q{align-items:flex-start}
+.tl .tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin-bottom:12px}
+.tl .tabs button{border:0;background:none;padding:7px 10px;color:var(--ink-3);border-bottom:2px solid transparent;margin-bottom:-1px;min-height:32px}
+.tl .tabs button[aria-selected=true]{color:var(--ink);border-color:var(--brand);font-weight:650}
+.tl .tabdot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--warn);margin-left:5px;vertical-align:middle}
+.tl .tabdot.bad{background:var(--bad)}
+.tl .step{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:10px;padding:9px 0;border-top:1px solid var(--line);align-items:start}
+.tl .step:first-child{border-top:0}
+.tl .sicon{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:10px;font-weight:800;margin-top:1px;flex:none}
+.tl .s-done{background:var(--ok);color:var(--on-fill)}
+.tl .s-current{border:2px solid var(--violet)}
+.tl .s-current::after{content:"";width:6px;height:6px;border-radius:50%;background:var(--violet)}
+.tl .s-planned{border:1.5px dashed var(--ctl)}
+.tl .s-blocked{background:var(--bad);color:var(--on-fill)}
+.tl .s-skipped{background:var(--gray-soft);color:var(--ink-3);border:1px solid var(--ctl)}
+.tl .step .title{font-weight:600}
+.tl .step s{color:var(--ink-3);font-weight:400}
+.tl .contrib{margin-top:6px;border-left:2px solid var(--line-2);padding:4px 0 4px 10px;font-size:12.5px;color:var(--ink-2);display:grid;gap:3px}
+.tl .changed{font-size:12px;color:var(--warn);margin-top:3px}
+.tl .ev{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 10px;padding:9px 0;border-top:1px solid var(--line);align-items:center}
+.tl .ev:first-child{border-top:0}
+.tl .ev .d{font-size:12px;color:var(--ink-3);grid-column:1/-1}
+.tl .kv{display:grid;grid-template-columns:96px 1fr;gap:7px 8px;font-size:12.5px;margin:0}
+.tl .kv dt{color:var(--ink-3)} .tl .kv dd{margin:0}
+.tl .lrow{display:flex;align-items:center;gap:7px;padding:4px 0;min-height:28px}
+.tl .act{display:grid;grid-template-columns:70px 1fr;gap:8px;padding:6px 0;font-size:12.5px;border-top:1px dashed var(--line)}
+.tl .act:first-child{border-top:0}
+.tl .err{font:12px var(--mono);background:var(--bad-soft);color:var(--bad);padding:8px 10px;border-radius:7px;white-space:pre-wrap;margin:6px 0}
+.tl .callout{font-size:12.5px;border-radius:8px;padding:8px 10px;background:var(--info-soft);color:var(--info)}
+.tl .callout.warn{background:var(--warn-soft);color:var(--warn)}
+.tl .callout.bad{background:var(--bad-soft);color:var(--bad)}
+.tl .callout.ok{background:var(--ok-soft);color:var(--ok)}
+
+/* ---------- graph ---------- */
+.tl svg text{font-family:var(--sans)}
+.tl .gnode{cursor:pointer;outline:none}
+.tl .gnode rect.b{fill:var(--panel);stroke:var(--ctl);stroke-width:1.2}
+.tl .gnode:focus-visible rect.b{stroke:var(--brand);stroke-width:3}
+.tl .gnode.sel rect.b{stroke:var(--brand);stroke-width:2.5}
+.tl .gnode.chain rect.b{stroke:var(--bad);stroke-width:2}
+.tl .gnode.unblock rect.b{stroke:var(--ok);stroke-width:2;stroke-dasharray:5 3}
+.tl .gnode.done rect.b{fill:var(--ok-soft)}
+.tl .gnode.cyc rect.b{fill:var(--bad-soft);stroke:var(--bad)}
+.tl .edge{stroke:var(--ink-3);stroke-width:1.4;fill:none}
+.tl .edge.hot{stroke:var(--bad);stroke-width:2.6}
+.tl .edge.rel{stroke-dasharray:3 4;stroke:var(--ctl)}
+.tl .edge.cyc{stroke:var(--bad);stroke-dasharray:6 3}
+.tl .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--ink-2);align-items:center}
+.tl .legend span{display:inline-flex;gap:6px;align-items:center}
+
+/* ---------- timeline ---------- */
+.tl .tl-row{display:grid;grid-template-columns:240px 1fr;border-top:1px solid var(--line);align-items:stretch}
+.tl .tl-row .lbl{padding:6px 10px;display:flex;gap:6px;align-items:center;min-width:0}
+.tl .tl-row .lbl a{white-space:nowrap}
+.tl .tl-row .lbl .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tl .track{position:relative;height:52px;border-left:1px solid var(--line)}
+.tl .bar{position:absolute;top:7px;height:16px;border-radius:4px;font-size:11px;padding:0 6px;white-space:nowrap;display:flex;align-items:center;gap:4px;z-index:2}
+.tl .bar.planned{background:color-mix(in srgb,var(--brand) 18%,var(--panel));border:1.5px solid var(--brand);color:var(--brand);font-weight:600}
+.tl .bar.planned.risk{border-color:var(--bad);color:var(--bad);background:var(--bad-soft)}
+.tl .bar.planned.done{border-color:var(--ok);color:var(--ok);background:var(--ok-soft)}
+.tl .bar.actual{top:25px;height:5px;background:var(--violet);padding:0;border-radius:3px}
+.tl .bar.forecast{background:repeating-linear-gradient(45deg,transparent 0 4px,color-mix(in srgb,var(--ink-3) 35%,transparent) 4px 6px);border:1.5px dashed var(--ink-3);color:var(--ink);font-weight:600}
+.tl .setby{position:absolute;top:32px;font-size:11.5px;color:var(--ink-3);white-space:nowrap;background:var(--panel);padding:0 3px;z-index:3;border-radius:3px}
+.tl .today{position:absolute;top:0;bottom:0;width:0;border-left:2px solid var(--bad);z-index:1}
+.tl .dep{position:absolute;top:0;bottom:0;width:0;border-left:2px dashed var(--ink-3);z-index:1}
+.tl .dep.risk{border-color:var(--bad)}
+.tl .dep span{position:absolute;left:4px;top:34px;font-size:11px;white-space:nowrap;color:var(--ink-3);background:var(--panel);padding:0 2px;z-index:3}
+.tl .dep.risk span{color:var(--bad);font-weight:650}
+.tl .weeks{display:grid;grid-template-columns:240px 1fr}
+.tl .weeks .w{position:relative;height:28px;border-left:1px solid var(--line)}
+.tl .weeks .w span{position:absolute;font-size:12px;color:var(--ink-3);top:6px;left:6px}
+
+/* ---------- reviews ---------- */
+.tl .rv{display:grid;grid-template-columns:230px minmax(0,1fr) 300px;gap:14px;align-items:start}
+@media (max-width:1180px){.tl .rv{grid-template-columns:220px minmax(0,1fr);grid-template-rows:auto 1fr}.tl .rv>.rvq{grid-column:1;grid-row:1}.tl .rv>.packet{grid-column:2;grid-row:1 / span 2}.tl .rv>.stack{grid-column:1;grid-row:2}}
+.tl .rvq button{display:grid;gap:3px;width:100%;text-align:left;border:0;border-top:1px solid var(--line);background:none;padding:10px 12px}
+.tl .rvq button[aria-current=true]{background:var(--brand-soft)}
+.tl .doc{padding:20px 26px;font-size:13.5px;line-height:1.65}
+.tl .doc h1{font-size:20px;margin-bottom:8px}
+.tl .doc h2{font-size:15px;margin:16px 0 6px}
+.tl .doc code{font-family:var(--mono);font-size:12px;background:var(--panel-2);padding:1px 4px;border-radius:4px}
+.tl .doc ins{background:var(--ok-soft);text-decoration:none;border-bottom:1.5px solid var(--ok)}
+.tl .doc del{background:var(--bad-soft);color:var(--ink-2)}
+.tl .doc.plain ins{background:none;border:0}
+.tl .doc.plain del{display:none}
+.tl .vers{display:flex;gap:6px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.tl .vbtn{border:1px solid var(--ctl);background:var(--panel);border-radius:7px;min-height:28px;padding:2px 9px;font-size:12.5px;display:inline-flex;gap:6px;align-items:center}
+.tl .vbtn[aria-pressed=true]{border-color:var(--brand);background:var(--brand-soft);color:var(--brand);font-weight:650}
+.tl .dec{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.tl .dec button{border:1px solid var(--ctl);background:var(--panel);border-radius:8px;min-height:34px;padding:5px;font-weight:600;white-space:nowrap;font-size:12.5px;display:flex;gap:6px;align-items:center;justify-content:center}
+.tl .dec button svg{width:14px;height:14px}
+.tl .dec button[aria-checked=true]{outline:2px solid var(--brand);outline-offset:1px;background:var(--brand-soft)}
+.tl .check{display:flex;gap:8px;align-items:flex-start;padding:4px 0}
+.tl .check input{width:16px;height:16px;margin-top:2px;accent-color:var(--ok)}
+
+/* ---------- connections / projects ---------- */
+.tl pre.code{font:12px/1.5 var(--mono);background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin:8px 0 0;overflow:auto;white-space:pre}
+.tl .proj-card{display:grid;grid-template-columns:minmax(0,1fr) 230px 150px auto;gap:12px;align-items:center;padding:12px 14px;border-top:1px solid var(--line)}
+.tl .proj-card:first-of-type{border-top:0}
+.tl .bar-mini{height:7px;border-radius:4px;background:var(--panel-2);display:flex;overflow:hidden;border:1px solid var(--line)}
+.tl .bar-mini i{display:block;height:100%}
+
+/* ---------- overlays ---------- */
+.tl .toast{position:absolute;right:24px;bottom:24px;background:var(--ink);color:var(--panel);padding:9px 12px 9px 14px;border-radius:9px;font-size:12.5px;opacity:0;transform:translateY(8px);transition:.2s;pointer-events:none;display:flex;gap:12px;align-items:center;z-index:30;max-width:460px}
+.tl .toast.on{opacity:1;transform:none;pointer-events:auto}
+.tl .toast button{background:none;border:1px solid color-mix(in srgb,var(--panel) 50%,transparent);color:var(--panel);border-radius:6px;padding:2px 8px;font-weight:650}
+.tl .ov{position:absolute;inset:0;background:rgba(10,12,16,.38);display:flex;align-items:flex-start;justify-content:center;padding-top:80px;z-index:20;border-radius:12px}
+.tl .dlg{background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);width:min(640px,94%);max-height:640px;overflow:auto}
+.tl .dlg header{border-radius:12px 12px 0 0;justify-content:space-between}
+.tl .dlg .body{padding:14px 16px}
+.tl .dlg footer{display:flex;gap:8px;justify-content:flex-end;padding:12px 16px;border-top:1px solid var(--line)}
+.tl .pal input{border:0;border-bottom:1px solid var(--line);border-radius:12px 12px 0 0;padding:14px 16px;font-size:15px;outline:none;width:100%;background:var(--panel);color:var(--ink)}
+.tl .pal .res{max-height:380px;overflow:auto;padding:6px}
+.tl .pal .res button{display:flex;gap:10px;align-items:center;width:100%;text-align:left;border:0;background:none;padding:7px 10px;border-radius:7px}
+.tl .pal .res button:hover,.tl .pal .res button.hi{background:var(--brand-soft)}
+.tl .pal .grp{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);padding:8px 10px 4px;font-weight:650}
+.tl .hv{display:grid;gap:10px}
+.tl .hv .ver{border:1px solid var(--line);border-radius:9px;padding:10px 12px}
+.tl .hv .add{color:var(--ok)} .tl .hv .rm{color:var(--bad);text-decoration:line-through}
+/* ---------- open-item tabs ---------- */
+.tl .tabstrip{display:flex;gap:4px;align-items:flex-end;padding:6px 18px 0;background:var(--panel-2);border-bottom:1px solid var(--line);overflow-x:auto;overflow-y:hidden;min-height:40px;min-width:0;scrollbar-width:thin;contain:inline-size}
+.tl .otab{flex:0 0 200px;width:200px;min-width:0}
+.tl .otab .og{flex:1}
+.tl .tabstrip:empty{display:none}
+.tl .otab{display:inline-flex;align-items:center;gap:2px;max-width:230px;border:1px solid var(--line);border-bottom:0;border-radius:8px 8px 0 0;background:var(--panel-2);margin-bottom:-1px}
+.tl .otab[aria-selected=true]{background:var(--bg);border-color:var(--line-2);box-shadow:inset 0 2px 0 var(--brand)}
+.tl .otab .og{display:inline-flex;align-items:center;gap:6px;border:0;background:none;padding:6px 4px 6px 10px;min-width:0;font-size:12.5px;color:var(--ink-2)}
+.tl .otab[aria-selected=true] .og{color:var(--ink);font-weight:600}
+.tl .otab .og .tt2{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tl .otab .ox{border:0;background:none;color:var(--ink-3);width:24px;height:24px;border-radius:6px;display:grid;place-items:center;margin-right:3px}
+.tl .otab .ox:hover{background:var(--line);color:var(--ink)}
+.tl .tabhint{font-size:11.5px;color:var(--ink-3);margin-left:auto;padding:0 2px 8px;white-space:nowrap}
+/* ---------- single-column detail pages with collapsible sections ---------- */
+.tl .stack1{display:grid;gap:12px;min-width:0}
+.tl .stack1>*{min-width:0}
+.tl .sec{padding:0}
+.tl .sechead{display:flex;align-items:center;gap:8px;padding:8px 14px 8px 8px}
+.tl .sectog{display:flex;align-items:center;gap:8px;border:0;background:none;padding:4px 6px;border-radius:7px;flex:1;min-width:0;text-align:left}
+.tl .sectog:hover{background:var(--panel-2)}
+.tl .sectog h3,.tl .sectog h2{margin:0}
+.tl .sectog .src{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.tl .sectog .chev{display:inline-grid;transition:transform .12s;color:var(--ink-3)}
+.tl .sec.collapsed .sectog .chev{transform:rotate(-90deg)}
+.tl .secbody{padding:0 14px 14px 36px}
+.tl .sec.collapsed{background:var(--panel-2)}
+
+/* ---------- checklist card ---------- */
+.tl .clcard h2{font-size:15px}
+.tl .clcard .ckgroup{margin-top:18px}
+.tl .clcard .ckgroup:first-of-type{margin-top:10px}
+.tl .addrow{display:flex;gap:8px;align-items:center;margin-top:8px}
+.tl .addrow .input{padding:5px 9px;min-height:30px}
+.tl .clrm{border:0;background:none;color:var(--bad);font-size:12px;padding:0 4px;min-height:22px}
+.tl .grid2e{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:1180px){.tl .grid2e{grid-template-columns:minmax(0,1fr)}}
+
+/* ---------- editable human review ---------- */
+.tl .hrby{font-size:11.5px;color:var(--ink-3)}
+.tl .hrtools{display:inline-flex;gap:2px;margin-left:4px}
+.tl .hrtools button{border:0;background:none;color:var(--brand);font-size:12px;padding:0 4px;min-height:22px}
+.tl .hrtools button.rm{color:var(--bad)}
+.tl .hradd{display:grid;gap:6px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line-2)}
+.tl .hradd textarea,.tl .hredit textarea{min-height:52px}
+
+/* ---------- epics row on Work ---------- */
+.tl .epicrow{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;margin-bottom:12px}
+.tl .epiccard{display:grid;gap:6px;text-align:left;border:1px solid var(--line);border-left:4px solid var(--t-epic);background:var(--panel);border-radius:9px;padding:9px 11px}
+.tl .epiccard:hover{border-color:var(--brand);border-left-color:var(--t-epic)}
+.tl .epiccard[aria-current=true]{box-shadow:0 0 0 2px var(--brand)}
+.tl .epiccard .et{font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tl a.epiclink{color:var(--ink);font-weight:600}
+.tl a.epiclink .ed{color:var(--t-epic)}
+
+/* ---------- progress map ---------- */
+.tl .ptools{display:flex;align-items:center;gap:10px;justify-content:flex-end;margin-bottom:8px}
+.tl .ptools .phint{display:none;margin-right:auto}
+.tl .pmapbox.pannable .ptools .phint{display:inline}
+.tl .ptools .seg button{min-width:34px}
+.tl .pframe{position:relative}
+.tl .pcanvas{position:relative;overflow:auto;max-height:540px;border:1px solid var(--line);border-radius:10px;padding:18px 22px;cursor:grab;
+  background-color:var(--panel-2);background-image:radial-gradient(var(--line-2) 1px,transparent 1.2px);background-size:18px 18px}
+.tl .pcanvas.dragging{cursor:grabbing;user-select:none}
+.tl .pcanvas:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.tl .psizer{position:relative}
+.tl .pmap{position:absolute;left:0;top:0;transform-origin:0 0;display:grid;grid-auto-flow:column;grid-auto-columns:200px;column-gap:76px;align-items:start}
+.tl .pcol{display:flex;flex-direction:column;gap:16px;position:relative;z-index:1}
+.tl .pframe::before,.tl .pframe::after{content:"";position:absolute;top:1px;bottom:1px;width:44px;pointer-events:none;opacity:0;transition:opacity .15s;z-index:3}
+.tl .pframe::before{left:1px;border-radius:10px 0 0 10px;background:linear-gradient(90deg,var(--panel-2) 15%,transparent)}
+.tl .pframe::after{right:1px;border-radius:0 10px 10px 0;background:linear-gradient(270deg,var(--panel-2) 15%,transparent)}
+.tl .pframe.more-l::before,.tl .pframe.more-r::after{opacity:1}
+.tl .pmore{position:absolute;top:12px;z-index:4;display:none;border:1px solid var(--ctl);background:var(--panel);border-radius:999px;padding:4px 10px;font-size:12px;font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,.12)}
+.tl .pmore.r{right:10px} .tl .pmore.l{left:10px}
+.tl .pframe.more-r .pmore.r,.tl .pframe.more-l .pmore.l{display:block}
+.tl .pmore.b{top:auto;bottom:8px;left:50%;transform:translateX(-50%)}
+.tl .pframe.more-b .pmore.b{display:block}
+.tl .pcolh{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);font-weight:650;line-height:1.3;min-height:28px}
+.tl .pcolh span{display:block;text-transform:none;letter-spacing:0;font-weight:500}
+.tl a.pnode{display:block;position:relative;border:1px solid var(--line);border-left:4px solid var(--sc,var(--ctl));background:var(--panel);border-radius:8px;padding:6px 8px 6px 9px;color:var(--ink);text-decoration:none;font-size:12.5px;width:100%}
+.tl a.pnode:hover{text-decoration:none;border-color:var(--brand);border-left-color:var(--sc,var(--ctl))}
+.tl .pnode .pt{font-weight:600;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin:2px 0}
+.tl .pnode .ps{font-size:11.5px;color:var(--ink-2);display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.tl .pnode.ps-done{--sc:var(--ok);background:var(--ok-soft)}
+.tl .pnode.ps-review{--sc:var(--warn)}
+.tl .pnode.ps-progress{--sc:var(--violet)}
+.tl .pnode.ps-ready{--sc:var(--info)}
+.tl .pnode.ps-planning{--sc:var(--teal)}
+.tl .pnode.ps-inbox{--sc:var(--ctl)}
+.tl .pnode.blk{box-shadow:inset 0 0 0 1px var(--bad)}
+.tl .pnode.ext{border-style:dashed;background:var(--panel-2)}
+.tl .pnode.cur{outline:2px solid var(--brand);outline-offset:1px}
+.tl .pnode.hl{outline:2px solid var(--brand);outline-offset:1px}
+.tl .pnode .done-mark{position:absolute;top:5px;right:6px;color:var(--ok);font-weight:800}
+.tl .pnode .hrmark{position:absolute;top:5px;right:6px;width:18px;height:18px;border-radius:50%;display:grid;place-items:center}
+.tl .pnode .hrmark svg{width:11px;height:11px}
+.tl .pnode .hrmark.now{background:var(--warn);color:var(--on-fill)}
+.tl .pnode .hrmark.later{border:1.5px solid var(--warn);color:var(--warn);background:var(--panel)}
+.tl .hrkey{display:inline-flex;gap:5px;align-items:center}
+.tl .hrkey .hrmark{position:static;width:16px;height:16px;border-radius:50%;display:inline-grid;place-items:center}
+.tl .hrkey .hrmark svg{width:10px;height:10px}
+.tl .hrkey .hrmark.now{background:var(--warn);color:var(--on-fill)}
+.tl .hrkey .hrmark.later{border:1.5px solid var(--warn);color:var(--warn)}
+.tl .epicstrip{display:flex;gap:10px;align-items:center;border:1px solid var(--warn);background:var(--warn-soft);border-radius:10px;padding:8px 12px;margin-bottom:12px}
+.tl .epicstrip.later{border-style:dashed;background:var(--panel)}
+.tl svg.pedges{position:absolute;left:0;top:0;pointer-events:none;z-index:0;overflow:visible}
+.tl .pe{fill:none;stroke:var(--ink-3);stroke-width:1.5;opacity:.7}
+.tl .pe.ok{stroke:var(--ok);opacity:.45;stroke-dasharray:4 3}
+.tl .pe.hl{stroke:var(--brand);stroke-width:2.5;opacity:1}
+.tl .phead{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 16px;align-items:center;margin-bottom:12px}
+.tl .phead .big{font-size:26px;font-weight:700;letter-spacing:-.02em;line-height:1}
+.tl .pbar{height:10px;border-radius:5px;display:flex;overflow:hidden;background:var(--panel-2);border:1px solid var(--line)}
+.tl .pbar i{display:block;height:100%}
+.tl .plegend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--ink-2);grid-column:2}
+.tl .plegend span{display:inline-flex;gap:5px;align-items:center}
+.tl .plegend b{width:9px;height:9px;border-radius:2px;display:inline-block}
+.tl .hop{display:grid;gap:6px}
+.tl .hop .arrow{text-align:center;color:var(--ink-3);font-size:12px;line-height:1}
+
+/* ---------- Needs you dashboard ---------- */
+.tl .pulse{display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:7px 12px;border:1px solid var(--line);background:var(--panel);border-radius:10px;margin-bottom:12px;font-size:12.5px}
+.tl .dash-top{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:12px;margin-bottom:12px;align-items:start}
+.tl .dash-row.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+.tl .dash-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;align-items:start}
+@media (max-width:1180px){.tl .dash-top{grid-template-columns:1fr}.tl .dash-row{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.tl .mrow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:9px;align-items:center;padding:8px 14px;border-top:1px solid var(--line)}
+.tl .mrow.noico{grid-template-columns:minmax(0,1fr) auto}
+.tl .one{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tl .tt{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.tl .ico.sm{width:24px;height:24px;border-radius:7px}
+.tl .ico.sm svg{width:13px;height:13px}
+.tl .att.compact{padding:10px 14px;align-items:center}
+.tl .att.compact .why{margin-top:1px}
+.tl .cardfoot{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 14px;border-top:1px solid var(--line);font-size:12px;color:var(--ink-3)}
+
+/* ---------- checklist & handoff packet ---------- */
+.tl .ck{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:10px;padding:8px 0;border-top:1px solid var(--line);align-items:start}
+.tl .ckgroup{display:flex;justify-content:space-between;align-items:center;margin:16px 0 4px;padding-bottom:4px;border-bottom:1px solid var(--line)}
+.tl .ckgroup:first-child{margin-top:0}
+.tl .ckgroup + .ck{border-top:0}
+.tl .packet section{padding:14px 0 4px;border-top:1px solid var(--line)}
+.tl .packet section:first-child{border-top:0}
+.tl .packet h2{font-size:14px;margin:0 0 8px}
+.tl .hrcard .ck{grid-template-columns:22px minmax(0,1fr)}
+.tl .hrcard .ck > div:last-child{grid-column:2;justify-self:start;margin-top:-2px}
+.tl .hritem{border:1px solid var(--line);border-radius:9px;padding:10px 12px;margin-top:8px}
+.tl .verdict{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.tl .verdict .ap[aria-pressed=true]{background:var(--ok-soft);border-color:var(--ok);color:var(--ok)}
+.tl .verdict .ch[aria-pressed=true]{background:var(--warn-soft);border-color:var(--warn);color:var(--warn)}
+.tl .verdict .df[aria-pressed=true]{background:var(--info-soft);border-color:var(--info);color:var(--info)}
+.tl .attach{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--ctl);background:var(--panel);border-radius:8px;padding:5px 9px;margin:0 6px 6px 0;font-size:12.5px}
+.tl .attach:hover,.tl .docrow:hover{border-color:var(--brand);background:var(--panel-2)}
+.tl .docrow{display:flex;align-items:center;gap:8px;width:100%;text-align:left;border:1px solid transparent;background:none;border-radius:7px;padding:6px 8px;margin:0 -8px}
+.tl .docview{border:1px solid var(--line);border-radius:9px;padding:14px 18px;background:var(--panel);line-height:1.6}
+.tl .docview h1{font-size:18px;margin:0 0 6px}.tl .docview h2{font-size:14px;margin:14px 0 4px}
+.tl .media{display:grid;place-items:center;height:180px;border:1px dashed var(--ctl);border-radius:9px;color:var(--ink-3);background:var(--panel-2)}
+.tl a.label{text-decoration:none}
+.tl .agent-row .mono,.tl .lrow .mono{white-space:nowrap}
+.tl a.label:hover{border-color:var(--brand);color:var(--brand)}
+</style>
+</head>
+<body style="margin:0;padding:16px;background:var(--background,#e9ecf1)">
+<div class="tl" id="app" style="position:relative">
+  <div class="shell">
+    <nav aria-label="Primary" id="nav"></nav>
+    <main>
+      <header>
+        <div class="crumbs" id="crumbs"></div>
+        <button class="btn primary sm" data-a="newitem" title="Capture a new item in Inbox">+ New</button>
+        <button class="search" data-a="palette" aria-label="Search or jump to (Ctrl+K)"><span aria-hidden="true">⌕</span><span class="grow">Search or jump to…</span><kbd>Ctrl K</kbd></button>
+        <button class="iconbtn" data-a="theme" id="themebtn"></button>
+      </header>
+      <div class="tabstrip" id="tabstrip" role="tablist" aria-label="Open items"></div>
+      <div class="view" id="view" tabindex="-1"></div>
+    </main>
+  </div>
+  <div id="modal"></div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</div>
+
+<script>
+(() => {
+/* =====================================================================
+   Sample data — disposable (O09). "Now" is fixed so the story is stable.
+   Model: Epic → Story/Task/Bug → checklist (Work · Agent checks · Human review).
+   Labels group across epics (e.g. a large initiative). Human review happens
+   after implementation, through a handoff packet written by the agent.
+   ===================================================================== */
+const NOW = new Date('2026-11-06T11:00:00');
+const D = s => new Date(s + 'T00:00:00');
+const fmt = d => d.toLocaleDateString('en-US', {month:'short', day:'numeric'});
+
+const P = {
+  RCP:{key:'RCP', name:'Sample · Recipe App', short:'Recipe App', color:'#3b5bdb', docs:9},
+  DOC:{key:'DOC', name:'Sample · Docs Site',  short:'Docs Site',  color:'#d9480f', docs:3},
+};
+const TYPES = {Epic:'◆', Story:'●', Task:'■', Bug:'✕'};
+const TICON = {
+  Epic:'<svg viewBox="0 0 12 12" fill="currentColor" aria-hidden="true"><path d="M7 .8 2.2 7h3.1l-.6 4.2L9.8 5H6.6z"/></svg>',
+  Story:'<svg viewBox="0 0 12 12" fill="currentColor" aria-hidden="true"><path d="M3 1h6v10L6 8.6 3 11z"/></svg>',
+  Task:'<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.3 6.3 4.8 8.8 9.7 3.5"/></svg>',
+  Bug:'<svg viewBox="0 0 12 12" fill="currentColor" aria-hidden="true"><ellipse cx="6" cy="7" rx="3" ry="3.6"/><circle cx="6" cy="2.8" r="1.6"/><path d="M1 5h2M9 5h2M1 8.5h2M9 8.5h2" stroke="currentColor" stroke-width="1.2"/></svg>'};
+const LABELS = {
+  'ui-refresh':{proj:'RCP', brief:'Visual refresh across the planner, shopping list and pantry. Uses design tokens v2 (8px grid, new colour roles). Every screen keeps keyboard support and 4.5:1 contrast. Ship screen by screen, not as one big release.', by:'owner · Nov 2'},
+  'mobile':{proj:'RCP', brief:''},
+  'regression':{proj:'RCP', brief:'Something that used to work broke. Fix before new work in the same area.', by:'owner · Nov 1'},
+  'api-docs':{proj:'DOC', brief:''},
+};
+
+const items = [
+  {id:'RCP-1', type:'Epic', title:'Meal planning MVP', status:'progress', prio:1, proj:'RCP', last:'40s'},
+  {id:'RCP-2', type:'Epic', title:'Pantry', status:'planning', prio:2, proj:'RCP', last:'2m', labels:['mobile']},
+  {id:'DOC-10',type:'Epic', title:'API reference', status:'progress', prio:2, proj:'DOC', last:'9m', labels:['api-docs'],
+     hr:[{t:'Read the whole API reference as a new developer would, before the PR merges.', state:'declared', epicLevel:true}]},
+  {id:'RCP-11',type:'Task', title:'Auth scaffold', status:'done', prio:2, proj:'RCP', epic:'RCP-1', lead:'codex', run:'finished', age:'2d', last:'2d', start:'2026-11-02', end:'2026-11-03', setBy:'owner · Nov 1', actual:['2026-11-02','2026-11-03'], closedBy:'owner', hr:[{t:'Sign in from a second browser and confirm the session is separate.', state:'deferred', at:'Nov 3', last:{round:1, note:'Only one browser profile handy.', deferred:true, ref:'RCP-29'}}]},
+  {id:'RCP-12',type:'Story',title:'Weekly planner drag-and-drop', status:'review', prio:1, proj:'RCP', blockedBy:['RCP-11'], epic:'RCP-1', labels:['ui-refresh'], lead:'codex', run:'finished', age:'18m', last:'18m', start:'2026-11-02', end:'2026-11-07', setBy:'owner · Nov 2', actual:['2026-11-02','2026-11-06'], pts:3, round:2, head:'9c0e7f2',
+     hr:[{t:'On your phone, drag recipes between days and meal slots. Does it feel right?', state:'ready'},{t:'Move a recipe using only the keyboard (Space, arrows, Enter).', state:'ready'}]},
+  {id:'RCP-14',type:'Story',title:'Generate shopping list from week plan', status:'progress', prio:1, proj:'RCP', blockedBy:['RCP-11'], epic:'RCP-1', labels:['mobile'], lead:'claude · orca-w3', run:'live', age:'40s', last:'40s', start:'2026-11-04', end:'2026-11-11', setBy:'claude · Nov 5', actual:['2026-11-04',null], pts:5,
+     hr:[{t:"Export one week's list and check it reads well in your notes app.", state:'declared'}]},
+  {id:'RCP-15',type:'Task', title:'Pantry inventory schema', status:'progress', prio:2, proj:'RCP', epic:'RCP-2', lead:'codex · orca-w1', run:'stale', age:'47m', last:'2m', start:'2026-11-03', end:'2026-11-08', setBy:'codex · Nov 3', actual:['2026-11-03',null], pts:2, hr:[]},
+  {id:'RCP-16',type:'Story',title:'Nutrition summary card', status:'ready', prio:2, proj:'RCP', blockedBy:['DOC-4','RCP-19'], epic:'RCP-1', last:'1d', start:'2026-11-09', end:'2026-11-14', setBy:'owner · Nov 3', hr:[{t:'Check the totals against one recipe you know.', state:'declared'}]},
+  {id:'RCP-17',type:'Bug',  title:'Planner jumps back to the current week after reload', status:'ready', prio:1, proj:'RCP', epic:'RCP-1', labels:['regression'], last:'16h', relates:['RCP-12'], fromReview:'RCP-12 · round 1', start:'2026-11-09', end:'2026-11-10', setBy:'owner · Nov 6', hr:[]},
+  {id:'RCP-18',type:'Task', title:'Import recipes from URL', status:'progress', prio:3, proj:'RCP', epic:'RCP-1', lead:'claude', run:'failed', age:'25m', last:'25m', start:'2026-11-05', end:'2026-11-07', setBy:'claude · Nov 5', actual:['2026-11-05',null], hr:[]},
+  {id:'RCP-19',type:'Task', title:'Recipe data model spec', status:'review', prio:2, proj:'RCP', epic:'RCP-1', lead:'claude', run:'finished', age:'2h', last:'2h', start:'2026-11-04', end:'2026-11-06', setBy:'owner · Nov 3', actual:['2026-11-04','2026-11-06'], round:1, head:'c77a9f1', headNote:'reported commit c77a9f1 for RCP-19 at 10:15: “Fix typo in the Units table”',
+     hr:[{t:'Read the spec. Is pantry stock clearly separate from recipe quantities?', state:'ready'}]},
+  {id:'RCP-20',type:'Task', title:'Offline mode spike', status:'inbox', prio:3, proj:'RCP', last:'4d', hr:[]},
+  {id:'RCP-21',type:'Story',title:'Pantry-aware recipe suggestions', status:'ready', prio:2, proj:'RCP', epic:'RCP-2', last:'1d', blockedBy:['RCP-15','RCP-14'], start:'2026-11-12', end:'2026-11-20', setBy:'claude · Nov 5', hr:[]},
+  {id:'RCP-22',type:'Story',title:'Share weekly plan link', status:'ready', prio:3, proj:'RCP', blockedBy:['RCP-12'], epic:'RCP-1', last:'2d', start:'2026-11-16', end:'2026-11-19', setBy:'owner · Nov 3', hr:[{t:'Open a shared link on a second device.', state:'declared'}]},
+  {id:'RCP-23',type:'Story',title:'Meal plan templates', status:'planning', prio:2, proj:'RCP', blockedBy:['RCP-12'], epic:'RCP-1', labels:['ui-refresh'], lead:'claude', run:'reported', age:'6m', last:'6m',
+     hr:[{t:'Apply a template to a week that already has meals. Is "Merge or Replace" clear?', state:'declared'}]},
+  {id:'RCP-24',type:'Story',title:'Grocery delivery handoff', status:'planning', prio:3, proj:'RCP', blockedBy:['RCP-14'], epic:'RCP-1', last:'1d', hr:[]},
+  {id:'RCP-25',type:'Task', title:'Pantry screens and empty states', status:'ready', prio:2, proj:'RCP', epic:'RCP-2', labels:['ui-refresh','mobile'], last:'5h', hr:[{t:'Compare the pantry screens with the UX doc on your phone.', state:'declared'}]},
+  {id:'RCP-29',type:'Task', title:'Verify: sign in from a second browser', status:'inbox', prio:2, proj:'RCP', epic:'RCP-1', last:'3d', relates:['RCP-11'], fromReview:'RCP-11 · round 1', hr:[{t:'Sign in from a second browser and confirm the session is separate.', state:'declared'}]},
+  {id:'RCP-27',type:'Task', title:'Refresh shopping list styles', status:'planning', prio:3, proj:'RCP', blockedBy:['RCP-14'], epic:'RCP-1', labels:['ui-refresh'], last:'1d', hr:[]},
+  {id:'DOC-2', type:'Task', title:'Docs site skeleton', status:'done', prio:3, proj:'DOC', lead:'codex', run:'finished', age:'3d', last:'3d', closedBy:'owner', start:'2026-11-02', end:'2026-11-03', setBy:'codex · Nov 2', actual:['2026-11-02','2026-11-03'],
+     hr:[{t:'Open the docs site on a phone and check the navigation.', state:'deferred', at:'Nov 3', last:{round:1, note:'No phone handy; check with the mobile pass.', deferred:true}}]},
+  {id:'DOC-4', type:'Story',title:'API reference: nutrition endpoint', status:'progress', prio:2, proj:'DOC', epic:'DOC-10', labels:['api-docs'], lead:'codex', run:'needs', age:'9m', last:'9m', start:'2026-11-05', end:'2026-11-10', setBy:'owner · Nov 4', actual:['2026-11-05',null],
+     question:{by:'codex', at:'10:51', text:'Should nutrition values be documented per serving or per 100 g? The API returns both; the card in RCP-16 only needs one.'}, hr:[]},
+  {id:'DOC-5', type:'Task', title:'Search index for docs', status:'ready', prio:3, proj:'DOC', last:'2d', hr:[]},
+  {id:'DOC-7', type:'Task', title:'Imported: versioning guide', status:'ready', prio:3, proj:'DOC', last:'5d', blockedBy:['DOC-8'], imported:true, hr:[]},
+  {id:'DOC-8', type:'Task', title:'Imported: changelog format', status:'ready', prio:3, proj:'DOC', last:'5d', blockedBy:['DOC-7'], imported:true, hr:[]},
+  {id:'DOC-9', type:'Task', title:'Contributor guide', status:'planning', prio:3, proj:'DOC', last:'1h', hr:[{t:'Follow the guide on a clean checkout and time it.', state:'declared'}]},
+];
+let byId = {};
+const reindex = () => { byId = Object.fromEntries(items.map(i => [i.id, i])); };
+reindex();
+
+/* Ticket detail. work = the agent's plan as a checklist; checks = agent's own verification. */
+const DETAIL = {
+ 'RCP-1':{outcome:'A household can plan a week of meals and get one shopping list from it.', docs:[['meal-planning-brief.md','v3','owner','Nov 1']], activity:[['Nov 1','Owner created the epic and attached the brief']]},
+ 'RCP-2':{outcome:'Track what is already at home so plans and lists account for it. Still being shaped: this epic holds the brief until it is broken down.', docs:[['pantry-brief.md','v3','owner','Nov 4'],['pantry-prd.md','v1','claude','Nov 5']], activity:[['Nov 5','claude attached pantry-prd.md v1'],['Nov 4','Owner updated the brief to v3']]},
+ 'DOC-10':{outcome:'Every public endpoint has a reference page with an example. Shipped as one PR, so human review happens once, here on the epic, not on each child.', docs:[['api-reference-outline.md','v2','codex','Nov 4']], activity:[['Nov 4','codex declared one epic-level human review; child tickets carry none']]},
+ 'RCP-14':{
+  outcome:'When a week plan is saved, the user can produce one merged shopping list grouped by aisle and export it.',
+  acceptance:['Quantities for the same ingredient merge across recipes, with unit conversion','List is grouped by aisle and sorted','Export as a Markdown checklist'],
+  planVer:3,
+  work:[
+    {s:'done', t:'Define aggregation rules', who:'claude', when:'09:10'},
+    {s:'current', t:'Implement unit merging (g/kg, ml/l, cups)', who:'claude', when:'10:52', contrib:[
+      ['observed','units-worker','codex child run r-77','Added conversion table and 31 tests · finished 10:40'],
+      ['relayed','explorer','subagent · no run identity','Mapped 214 ingredient units in sample recipes · reported by lead 10:12']]},
+    {s:'todo', t:'Export as a Markdown checklist', was:'Export to Reminders app', why:'Reminders API not reachable from the container', who:'claude', when:'changed 10:05'},
+    {s:'todo', t:'Group by aisle and sort'}],
+  checks:[['31 unit-conversion tests pass','observed','child run r-77 test output','pass'],['Aisle grouping snapshot tests','agent','not run yet','todo'],['Export opens cleanly in a Markdown viewer','agent','not run yet','todo']],
+  history:[
+    {v:1, at:'09:02', by:'claude', note:'Initial plan on claim', ops:[['=','1. Define aggregation rules'],['=','2. Implement unit merging'],['=','3. Export to Reminders app']]},
+    {v:2, at:'09:40', by:'claude', note:'Added a grouping item after an owner comment', ops:[['+','4. Group by aisle and sort']]},
+    {v:3, at:'10:05', by:'claude', note:'Reminders API not reachable from the container', ops:[['-','3. Export to Reminders app'],['+','3. Export as a Markdown checklist']]}],
+  docs:[['aggregation-rules.md','v1','claude','09:10']],
+  runs:[{r:'live', who:'claude · orca-w3', what:'Lead run r-71 · lease until 12:02 · heartbeat 40s ago', lead:true},{r:'finished', who:'units-worker', what:'Child run r-77 under r-71 · finished 10:40'},{r:null, who:'explorer', what:'No run identity: log entry relayed by the lead'}],
+  activity:[['10:52','claude reported progress on work item 2'],['10:40','Child run r-77 (units-worker) finished'],['10:05','claude revised the checklist v2 → v3'],['09:02','claude claimed lead (60 min lease)']]},
+ 'RCP-12':{
+  outcome:'Users can drag recipes between days in the weekly planner, and the change persists.',
+  acceptance:['Drag between days and meal slots','Keyboard alternative for every move','Plan persists across reload'],
+  work:[{s:'done',t:'Planner grid component',who:'codex',when:'Nov 4'},{s:'done',t:'Pointer and keyboard drag',who:'codex',when:'Nov 5'},{s:'done',t:'Persist to local store',who:'codex',when:'Nov 5'},
+        {s:'done',t:'Make drop targets at least 44px tall on touch',who:'codex',when:'10:20',from:'your review, round 1'}],
+  checks:[['214 unit and integration tests pass','ci','CI build #91','pass'],['Drop targets are 48px on touch','agent','measured in devtools · screenshot in packet','pass'],['Keyboard moves are announced to screen readers','observed','axe check in child run r-65','pass']],
+  docs:[['handoff packet · round 1','pkt-7a1c','codex','Nov 5'],['handoff packet · round 2','pkt-9c0e','codex','10:42']],
+  runs:[{r:'finished', who:'codex', what:'Lead run r-64 · finished 10:42 · waiting on your review', lead:true}],
+  activity:[['10:42','codex submitted handoff packet round 2'],['10:38','CI build #91 passed'],['Nov 5','Owner requested changes in round 1: 1 checklist item, 1 bug (RCP-17)'],['Nov 5','codex submitted handoff packet round 1']]},
+ 'RCP-15':{
+  outcome:'Pantry stock lives in its own table so recipe quantities never change on-hand amounts.',
+  acceptance:['PantryStock table with on_hand, unit, updated_at','Migration is reversible'],
+  work:[{s:'done',t:'Draft schema from the approved spec',who:'codex',when:'Nov 5'},{s:'current',t:'Write the migration',who:'codex',when:'10:13 (last report)'},{s:'todo',t:'Reversibility test'}],
+  checks:[['Migration up/down on a copy of the sample data','agent','not run yet','todo']],
+  runs:[{r:'stale', who:'codex · orca-w1', what:'Lead run r-58 · last heartbeat 10:13 · lease expires 11:13', lead:true}],
+  conflict:'claude · orca-w2 tried to claim lead at 10:58. Rejected: codex · orca-w1 still holds the lease.',
+  activity:[['10:58','Lead claim by claude · orca-w2 rejected (lease held by codex · orca-w1)'],['10:13','Last heartbeat from run r-58'],['Nov 5','codex completed work item 1']]},
+ 'RCP-18':{
+  outcome:'Paste a recipe URL and get a structured recipe draft to review.',
+  work:[{s:'done',t:'Parser for schema.org Recipe',who:'claude',when:'Nov 5'},{s:'blocked',t:'Fetch page from URL',who:'claude',when:'10:35'},{s:'todo',t:'Manual fallback form'}],
+  checks:[['12 parser unit tests pass','agent','reported by claude · no CI run','pass']],
+  runs:[{r:'failed', who:'claude', what:'Lead run r-69 · failed 10:35 · lease released', lead:true}],
+  error:'FetchError: connect EACCES 203.0.113.10:443\nOutbound network is disabled for this worker sandbox.',
+  activity:[['10:35','Run r-69 failed: outbound network blocked'],['Nov 5','claude completed work item 1']]},
+ 'RCP-19':{
+  outcome:'A data model spec the pantry and shopping list work can build on.',
+  work:[{s:'done',t:'Draft v1',who:'claude',when:'Nov 4'},{s:'done',t:'Revise: separate pantry stock from recipe quantity',who:'claude',when:'09:00',from:'your comment on v1'}],
+  checks:[['Schema type-checks against current models','agent','local type check','pass'],['Every field maps to the PRD','agent','traceability table in the doc','pass']],
+  docs:[['recipe-data-model.md','v2','claude','09:00'],['recipe-data-model.md','v1','claude','Nov 4'],['handoff packet · round 1','pkt-3f9a','claude','09:00']],
+  runs:[{r:'finished', who:'claude', what:'Lead run r-66 · finished 09:01 · waiting on your review', lead:true}],
+  activity:[['10:15','claude reported commit c77a9f1 for RCP-19: “Fix typo in the Units table”'],['09:00','claude submitted the handoff packet (built from b41d2e0)']]},
+ 'RCP-23':{
+  outcome:'Users can save a week plan as a template and reuse it in one step.',
+  acceptance:['Save the current week as a named template','Apply a template to any week, merging with existing meals'],
+  docs:[['meal-templates-prd.md','v2','claude','Nov 5'],['meal-templates-ux.md','v1','claude','10:20'],['meal-templates-tdd.md','draft','claude','10:54']],
+  runs:[{r:'reported', who:'claude', what:'Planning run r-73 · drafting the TDD · last report 6 min ago, no heartbeat', lead:true}],
+  activity:[['10:54','claude reported: drafting the TDD storage section'],['10:20','claude attached meal-templates-ux.md v1'],['Nov 4','Owner moved RCP-23 to Planning']]},
+ 'DOC-4':{
+  outcome:'Developers can find the nutrition endpoint, its fields, and an example in the docs.',
+  work:[{s:'done',t:'Outline reference page',who:'codex',when:'Nov 5'},{s:'current',t:'Document response fields',who:'codex',when:'10:51'},{s:'todo',t:'Add worked example'}],
+  checks:[['Example request runs against the local API','agent','not run yet','todo']],
+  runs:[{r:'needs', who:'codex', what:'Lead run r-70 · waiting on you since 10:51 · lease paused', lead:true}],
+  activity:[['10:51','codex asked you a question']]},
+ 'RCP-11':{outcome:'Sign-in works locally.', work:[{s:'done',t:'Session handling',who:'codex',when:'Nov 3'}], checks:[['48 auth tests pass','ci','CI build #77','pass']], runs:[{r:'finished',who:'codex',what:'Lead run r-40 · finished Nov 3',lead:true}], activity:[['Nov 3','You closed the ticket: 1 review deferred, not verified (test ticket RCP-29)']]},
+ 'DOC-2':{outcome:'A docs site skeleton with navigation and build.', work:[{s:'done',t:'Scaffold site',who:'codex',when:'Nov 2'},{s:'done',t:'Navigation',who:'codex',when:'Nov 3'}], checks:[['Site builds locally','agent','build log attached','pass']], runs:[{r:'finished',who:'codex',what:'Lead run r-41 · finished Nov 3',lead:true}], activity:[['Nov 3','You closed the ticket: 1 review deferred, not verified (left to the project workflow)']]},
+};
+
+/* Handoff packets: one per ticket per review round, written by the agent. */
+const PACKETS = {
+ 'RCP-12':{rounds:[
+   {n:1, by:'codex', when:'Nov 5 16:10', sha:'pkt-7a1c', est:'10 min', items:['On your phone, drag recipes between days and meal slots. Does it feel right?','Move a recipe using only the keyboard (Space, arrows, Enter).'],
+    decided:{when:'Nov 5 18:30', verdicts:[{k:'changes', note:'Drop targets are too small on my phone; I kept missing the slot.', into:'checklist'},{k:'changes', note:'Keyboard works, but after a reload the planner jumps back to the current week.', into:'bug', ref:'RCP-17'}]}},
+   {n:2, by:'codex', when:'Nov 6 10:42', sha:'pkt-9c0e', est:'10 min', commit:'9c0e7f2',
+    how:['Open the preview build at http://127.0.0.1:5173 (branch rcp-12-planner, PR #48).','On your phone, open the LAN address printed in the build log.','Drag three recipes between different days and meal slots.','With a keyboard: Tab to a recipe, press Space, use the arrow keys, press Enter to drop.'],
+    checked:[['214 unit and integration tests pass','ci','CI build #91'],['Drop targets are 48px tall on touch (round 1 fix)','agent','measured in devtools; screenshot attached'],['Keyboard moves are announced to screen readers','observed','axe check in child run r-65']],
+    gaps:['The reload bug from round 1 is tracked in RCP-17 and is not fixed here.','Not tested on Android.'],
+    attach:[['drag-phone.mp4','Screen recording · 24 s'],['drop-targets.png','Screenshot'],['axe-report.json','Accessibility check output']]}]},
+ 'RCP-19':{rounds:[
+   {n:1, by:'claude', when:'Nov 6 09:00', sha:'pkt-3f9a', est:'5 min', commit:'b41d2e0',
+    how:['Open recipe-data-model.md v2 (attached).','Read the Pantry and Units sections. Changes since v1 are highlighted.'],
+    checked:[['Schema type-checks against current models','agent','local type check'],['Every field maps to the PRD','agent','traceability table in the doc']],
+    gaps:['Units cover g, ml and piece only. Cups and spoons are converted on import (RCP-14).'],
+    attach:[['recipe-data-model.md v2','Document · 2 pages'],['recipe-data-model.md v1','Previous version']]}]},
+};
+
+const CHANGES = [
+  ['10:54','RCP-23','claude is drafting the TDD while the story is in Planning'],
+  ['10:52','RCP-14','Work item 2 in progress; units-worker finished with 31 tests'],
+  ['10:42','RCP-12','Round 2 handoff packet is ready for you'],
+  ['10:35','RCP-18','Run failed: outbound network blocked'],
+  ['09:00','RCP-19','Handoff packet ready: data model spec v2'],
+];
+
+/* =====================================================================
+   Derived state — the same rules the MCP queries would use
+   ===================================================================== */
+const isEpic = i => i.type === 'Epic';
+const isOpen = i => i.status !== 'done' && i.status !== 'canceled';
+const inScope = i => S.scope === 'all' || i.proj === S.scope;
+const unresolved = i => (i.blockedBy || []).filter(b => byId[b] && byId[b].status !== 'done');
+const isBlocked = i => isOpen(i) && unresolved(i).length > 0;
+const dependents = id => items.filter(i => (i.blockedBy || []).includes(id));
+const holdsUp = id => dependents(id).filter(isOpen).map(i => i.id);
+const freedBy = id => dependents(id).filter(i => isOpen(i) && unresolved(i).every(b => b === id)).map(i => i.id);
+function cycleSet(){
+  const s = new Set();
+  for (const i of items){
+    const seen = new Set(), st = [...(i.blockedBy || [])];
+    while (st.length){ const x = st.pop(); if (x === i.id){ s.add(i.id); break; } if (seen.has(x) || !byId[x]) continue; seen.add(x); st.push(...(byId[x].blockedBy || [])); }
+  }
+  return s;
+}
+const dateRisks = i => (i.start && isOpen(i)) ? unresolved(i).filter(b => byId[b].end && D(byId[b].end) >= D(i.start)) : [];
+const hrOf = i => i.hr || [];
+const packetReady = i => i.status === 'review' && hrOf(i).some(h => h.state === 'ready');
+const hrComing = i => isOpen(i) && !packetReady(i) && hrOf(i).some(h => h.state === 'declared');
+const questionOpen = i => !!(i.question && !i.question.answer);
+const pkStale = i => { const c = curPacket(i.id); return packetReady(i) && !!c && !!c.commit && !!i.head && i.head !== c.commit; };
+const deferredList = () => items.filter(inScope).flatMap(i => hrOf(i).map((h, n) => ({i, h, n}))).filter(x => x.h.state === 'deferred');
+const forYou = i => packetReady(i) || questionOpen(i);
+const forYouIn = key => items.filter(i => (key === 'all' || i.proj === key) && forYou(i));
+const childrenOf = id => items.filter(x => x.epic === id);
+const curPacket = id => PACKETS[id] && PACKETS[id].rounds[PACKETS[id].rounds.length - 1];
+const workOf = id => (DETAIL[id] && DETAIL[id].work) || [];
+const nextId = key => key + '-' + (Math.max(...items.filter(i => i.proj === key).map(i => +i.id.split('-')[1])) + 1);
+
+function problems(){
+  const q = [], cyc = cycleSet();
+  for (const i of items.filter(inScope)){
+    if (i.run === 'stale') q.push({id:i.id, icon:'stale', why:`Lead run silent for ${i.age}; the lease expires in 13 min. Treated as unknown, not finished. Another agent's claim was rejected at 10:58.`, action:'Inspect', a:'inspect', v:i.id});
+    if (i.run === 'failed') q.push({id:i.id, icon:'failed', why:'Run failed: outbound network is blocked in this worker sandbox. Nothing retries automatically.', action:'Inspect', a:'inspect', v:i.id});
+    const dr = dateRisks(i);
+    if (dr.length) q.push({id:i.id, icon:'date', why:`Planned start ${fmt(D(i.start))} is before its blocker ${dr[0]} is planned to finish (${fmt(D(byId[dr[0]].end))}).`, action:'Timeline', a:'nav', v:'timeline'});
+  }
+  const cids = [...cyc].filter(id => inScope(byId[id])).sort();
+  if (cids.length) q.push({id:cids[0], icon:'cycle', why:`Dependency cycle in imported data: ${cids.join(' ⇄ ')}. Neither can start until one link is removed.`, action:'Fix', a:'gfix', v:cids[0]});
+  q.forEach(r => r.holds = holdsUp(r.id));
+  return q.sort((a,b) => b.holds.length - a.holds.length);
+}
+
+/* =====================================================================
+   UI state + undo snapshots
+   ===================================================================== */
+const S = {
+  view:'attention', ticket:'RCP-14', tab:null, scope:'all', scopeOpen:false,
+  workMode:'board', filter:'all', epicF:'all', labelF:'all', showBlocked:false,
+  pk:'RCP-12', pkRound:null, verdicts:{}, newF:{type:'Story', proj:'RCP', epic:''},
+  label:'ui-refresh', epicTab:'details', collapsed:{}, mapZoom:1, mapZ:1, openTabs:[], tabMem:{}, lastPage:'attention', hrEdit:null,
+  fcPreview:false, theme:'system', snippet:'codex',
+  replyOpen:null, text:{}, modal:null, extraActivity:{},
+};
+const snap = () => JSON.stringify({items, DETAIL, PACKETS, extra:S.extraActivity});
+const restore = js => { const o = JSON.parse(js);
+  items.splice(0, items.length, ...o.items); reindex();
+  Object.keys(DETAIL).forEach(k => delete DETAIL[k]); Object.assign(DETAIL, o.DETAIL);
+  Object.keys(PACKETS).forEach(k => delete PACKETS[k]); Object.assign(PACKETS, o.PACKETS);
+  S.extraActivity = o.extra; };
+
+/* =====================================================================
+   Small render helpers
+   ===================================================================== */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const SV = p => `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+const I = {
+  attention:SV('<path d="M3 11V7a5 5 0 0 1 10 0v4l1 2H2z"/><path d="M6.5 14.5a1.5 1.5 0 0 0 3 0"/>'),
+  work:SV('<rect x="2" y="2.5" width="3.5" height="11" rx="1"/><rect x="6.5" y="2.5" width="3.5" height="7" rx="1"/><rect x="11" y="2.5" width="3" height="9" rx="1"/>'),
+  reviews:SV('<circle cx="8" cy="5" r="2.6"/><path d="M3 14c.4-2.8 2.4-4.3 5-4.3s4.6 1.5 5 4.3"/><path d="M10.5 3.2l1.2 1.2 2.3-2.4"/>'),
+  graph:SV('<circle cx="3.5" cy="4" r="1.8"/><circle cx="3.5" cy="12" r="1.8"/><circle cx="12.5" cy="8" r="1.8"/><path d="M5.3 4.6l5.4 2.6M5.3 11.4l5.4-2.6"/>'),
+  timeline:SV('<path d="M2 3h6M5 8h8M3 13h7"/><path d="M2 1v14" stroke-width="1"/>'),
+  agents:SV('<rect x="3" y="5" width="10" height="8" rx="2"/><path d="M8 2v3M6 9h.01M10 9h.01"/>'),
+  plug:SV('<path d="M6 2v3M10 2v3M4 5h8v3a4 4 0 0 1-8 0zM8 12v2"/>'),
+  folder:SV('<path d="M2 4.5A1.5 1.5 0 0 1 3.5 3H6l1.5 1.5h5A1.5 1.5 0 0 1 14 6v5.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5z"/>'),
+  person:'<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="8" cy="5" r="3"/><path d="M2 15c0-3.3 2.7-5 6-5s6 1.7 6 5z"/></svg>',
+  bot:SV('<rect x="3" y="5" width="10" height="8" rx="2"/><path d="M8 2v3M6 9h.01M10 9h.01"/>'),
+  eye:SV('<path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/>'),
+  gear:SV('<circle cx="8" cy="8" r="2.5"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/>'),
+  git:SV('<circle cx="4" cy="4" r="1.8"/><circle cx="4" cy="12" r="1.8"/><circle cx="12" cy="8" r="1.8"/><path d="M4 6v4M5.6 4.6C9 5 10 6 10.3 7"/>'),
+  relay:SV('<path d="M2 8h9M8 5l3 3-3 3M14 3v10"/>'),
+  clock:SV('<circle cx="8" cy="8" r="6"/><path d="M8 4.5V8l2.5 1.5"/>'),
+  packet:SV('<path d="M2.5 4.5l5.5-3 5.5 3v7l-5.5 3-5.5-3z"/><path d="M2.5 4.5L8 7.5l5.5-3M8 7.5v7"/>'),
+  doc:SV('<path d="M4 1.5h5l3.5 3.5v9.5h-8.5z"/><path d="M9 1.5V5h3.5M6 9h4M6 11.5h4"/>'),
+  question:SV('<circle cx="8" cy="8" r="6.5"/><path d="M6.2 6.2a1.9 1.9 0 1 1 2.6 1.8c-.5.2-.8.6-.8 1.1v.4M8 11.6h.01"/>'),
+  stale:SV('<circle cx="8" cy="8" r="6.5" stroke-dasharray="2.5 2"/><path d="M8 5v3.5"/>'),
+  failed:SV('<circle cx="8" cy="8" r="6.5"/><path d="M5.8 5.8l4.4 4.4M10.2 5.8l-4.4 4.4"/>'),
+  date:SV('<rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M2 6.5h12M5 1.5v3M11 1.5v3M8 8.5v2.5M8 12.6h.01"/>'),
+  cycle:SV('<path d="M13 5.5A5.5 5.5 0 0 0 3 6M3 10.5A5.5 5.5 0 0 0 13 10"/><path d="M13 2v3.5H9.5M3 14v-3.5h3.5"/>'),
+  check:SV('<path d="M3 8.5l3 3 7-7"/>'),
+  x:SV('<path d="M4 4l8 8M12 4l-8 8"/>'),
+  promote:SV('<path d="M8 13V3M4 7l4-4 4 4"/>'),
+  pause:SV('<path d="M5.5 3.5v9M10.5 3.5v9"/>'),
+  chev:SV('<path d="M4 6l4 4 4-4"/>'),
+  tag:SV('<path d="M2 2.5h5.5l6.5 6.5-5 5-6.5-6.5z"/><circle cx="5" cy="5.5" r="1"/>'),
+  clip:SV('<path d="M13 7.5l-5.3 5.3a3.3 3.3 0 0 1-4.7-4.7L8.6 2.5a2.2 2.2 0 0 1 3.1 3.1L6.2 11a1.1 1.1 0 0 1-1.6-1.6l5-5"/>'),
+  sun:SV('<circle cx="8" cy="8" r="3"/><path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3 3l1 1M12 12l1 1M3 13l1-1M12 4l1-1"/>'),
+  moon:SV('<path d="M13.5 10A6 6 0 0 1 6 2.5a6 6 0 1 0 7.5 7.5z"/>'),
+  copy:SV('<rect x="5" y="5" width="8.5" height="9" rx="1.5"/><path d="M3 11V3.5A1.5 1.5 0 0 1 4.5 2H10"/>'),
+};
+const small = svg => svg.replace('<svg', '<svg width="12" height="12"');
+const KINDICON = {packet:['var(--warn-soft)','var(--warn)'], question:['var(--warn-soft)','var(--warn)'], stale:['var(--gray-soft)','var(--ink-2)'],
+  failed:['var(--bad-soft)','var(--bad)'], date:['var(--bad-soft)','var(--bad)'], cycle:['var(--bad-soft)','var(--bad)']};
+const STATUS = {inbox:'Inbox', planning:'Planning', ready:'Ready', progress:'In progress', review:'Review', done:'Done', canceled:'Canceled'};
+const RUNS = {
+  live:{l:'live', d:'Working: client heartbeat received', g:''},
+  reported:{l:'reported', d:'Agent says it is working; no heartbeat', g:''},
+  stale:{l:'stale', d:'No heartbeat; state unknown, not assumed finished', g:''},
+  needs:{l:'needs input', d:'Waiting on you', g:'?'},
+  failed:{l:'failed', d:'Run ended with an error', g:'×'},
+  finished:{l:'finished', d:'Run ended normally', g:'✓'},
+  interrupted:{l:'interrupted', d:'Run stopped without finishing (lease released or service restart)', g:'–'},
+};
+const run = (r, age) => r ? `<span class="run run-${r}" title="${RUNS[r].d}"><i class="ri ri-${r}" aria-hidden="true">${RUNS[r].g}</i><span>${RUNS[r].l}${age ? ` · ${age}` : ''}</span></span>` : '';
+const prio = p => `<span class="prio" title="Priority ${p}"><svg viewBox="0 0 12 12" aria-hidden="true">${[0,1,2].map(k => `<rect x="${k*4}" y="${8-k*3}" width="3" height="${4+k*3}" rx=".6" fill="${k < 4-p ? 'currentColor' : 'var(--line-2)'}"/>`).join('')}</svg>P${p}</span>`;
+const statusChip = i => `<span class="chip st-${i.status}">${STATUS[i.status]}</span>`;
+const blockedChip = i => isBlocked(i) ? `<span class="chip c-bad">⊘ Blocked by ${unresolved(i).join(', ')}</span>` : '';
+const typeBadge = i => `<span class="type t-${i.type.toLowerCase()}"><span class="tsq">${TICON[i.type] || ''}</span>${i.type}</span>`;
+const typeIcon = i => `<span class="type iconly t-${i.type.toLowerCase()}" title="${i.type}"><span class="tsq">${TICON[i.type] || ''}</span><span class="sr">${i.type}</span></span>`;
+const labelLink = l => `<a href="#" class="label" data-a="label" data-v="${esc(l)}">${esc(l)}</a>`;
+const labelsOf = i => (i.labels || []).map(labelLink).join('');
+const epicTag = i => i.epic && byId[i.epic] ? `<span class="ptag" title="Epic"><span style="color:var(--t-epic)">◆</span> ${esc(byId[i.epic].title)}</span>` : '';
+const PV = {owner:['pv-owner','person','Your decision'], ownerch:['pv-owner pv-owner-ch','person','Your decision'], ownerdef:['pv-owner pv-owner-def','person','Your decision'], agent:['pv-agent','bot','Agent-reported'], observed:['pv-observed','eye','Observed child run'],
+  relayed:['pv-relayed','relay','Relayed by lead'], ci:['pv-auto','gear','CI'], git:['pv-git','git','Git · not approval']};
+const prov = (k, label) => { const m = PV[k]; return `<span class="prov ${m[0]}" title="${m[2]}">${I[m[1]]}${label ? `<span class="sr">${m[2]}: </span>` : ''}${esc(label || m[2])}</span>`; };
+const link = id => `<a href="#" data-a="open" data-v="${id}" class="mono">${id}</a>`;
+const projTag = id => S.scope !== 'all' && byId[id] && byId[id].proj !== S.scope ? ` <span class="src">(${P[byId[id].proj].short})</span>` : '';
+const HR = {declared:['c-gray','Coming up'], ready:['c-warn','Ready for you'], approved:['c-ok','Approved'], changes:['c-warn','Changes requested'], deferred:['c-info','Deferred · not verified']};
+const hrChip = i => packetReady(i) ? `<span class="chip c-warn">${small(I.packet)} Packet ready</span>` : hrComing(i) ? `<span class="chip c-gray" title="You'll get a handoff packet when this reaches Review">${small(I.person)} Human review later</span>` : (!isOpen(i) && hrOf(i).some(h => h.state === 'deferred')) ? `<span class="chip c-info">${small(I.pause)} Review deferred</span>` : '';
+const qChip = i => questionOpen(i) ? `<span class="chip c-warn">${small(I.question)} Question for you</span>` : '';
+const scopePill = () => '';
+
+let toastTimer;
+function toast(msg, undo){
+  const t = $('#toast');
+  t.innerHTML = `<span>${esc(msg)}</span>${undo ? '<button data-a="toastundo">Undo</button>' : ''}`;
+  t._undo = undo; t.classList.add('on');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('on'), undo ? 6000 : 3200);
+}
+function logActivity(id, text){ (S.extraActivity[id] = S.extraActivity[id] || []).unshift(['now', text]); }
+function undoable(before, msg){ render(); toast(msg, () => { restore(before); render(); }); }
+
+/* =====================================================================
+   Navigation
+   ===================================================================== */
+function renderNav(){
+  const fy = forYouIn(S.scope).length;
+  const pk = items.filter(i => inScope(i) && packetReady(i)).length;
+  const runs = items.filter(i => inScope(i) && ['live','needs','stale','failed','reported'].includes(i.run)).length;
+  const btn = (v, icon, label, badge) => `<button class="navbtn" data-a="nav" data-v="${v}" aria-current="${S.view===v || (v==='attention' && S.view==='review') || (v==='work' && ['ticket','label','timeline'].includes(S.view)) || (v==='settings' && ['projects','connections'].includes(S.view)) ? 'page' : 'false'}" title="${label}">${I[icon]}<span class="nl">${label}</span>${badge || ''}</button>`;
+  const cur = S.scope === 'all' ? null : P[S.scope];
+  const opt = (key, name, color) => { const n = forYouIn(key).length; return `<button role="menuitemradio" aria-checked="${S.scope===key}" data-a="scope" data-v="${key}">${color ? `<span class="sw" style="background:${color};width:12px;height:12px"></span>` : small(I.folder)}<span class="grow">${name}</span>${n ? `<span class="badge" aria-label="${n} for you">${n}</span>` : ''}</button>`; };
+  $('#nav').innerHTML = `
+    <div class="logo"><i>TL</i><span>Task Lite</span></div>
+    <div class="scopewrap">
+      <button class="scopebtn" data-a="scopemenu" aria-haspopup="menu" aria-expanded="${S.scopeOpen}" title="Project: ${cur ? cur.short : 'All projects'}">
+        ${cur ? `<span class="sw" style="background:${cur.color};width:12px;height:12px"></span>` : small(I.folder)}
+        <span class="grow txt"><span class="lbl2">Project</span><span class="nm">${cur ? cur.short : 'All projects'}</span></span><span class="chev">${small(I.chev)}</span></button>
+      ${S.scopeOpen ? `<div class="scopemenu" role="menu" aria-label="Choose project">${opt('all','All projects',null)}${Object.values(P).map(p => opt(p.key, p.short, p.color)).join('')}<div class="hint">Scopes every page except Settings.</div></div>` : ''}
+    </div>
+    ${btn('attention','attention','Needs you', fy ? `<span class="badge" aria-label="${fy} for you">${fy}</span>` : '')}
+    ${btn('work','work','Work')}
+    ${btn('agents','agents','Agents', runs ? `<span class="badge n" aria-label="${runs} active runs">${runs}</span>` : '')}
+    <div class="navsec">Service-wide</div>
+    ${btn('settings','plug','Settings')}
+    <button class="health" data-a="nav" data-v="settings" aria-label="Service healthy, 3 clients connected. Open settings">
+      <div class="row"><i class="ri" style="background:var(--ok);color:var(--on-fill)" aria-hidden="true">✓</i><span class="hx">Healthy · 3 clients</span></div>
+    </button>`;
+}
+
+/* =====================================================================
+   Views
+   ===================================================================== */
+const V = {};
+
+/* ---------- Needs you ---------- */
+V.attention = () => {
+  const sc = items.filter(inScope), MAX = 3;
+  const ready = sc.filter(packetReady), qs = sc.filter(questionOpen), probs = problems();
+  const coming = sc.filter(hrComing), deferred = deferredList(), planningQ = sc.filter(i => i.status === 'planning');
+  const changes = CHANGES.filter(c => byId[c[1]] && inScope(byId[c[1]]));
+  const runsIn = sc.filter(i => i.run && i.run !== 'finished');
+  const strip = h => String(h).replace(/<[^>]+>/g, '');
+  const where = i => isEpic(i) ? `${childrenOf(i.id).filter(k => k.status==='done').length}/${childrenOf(i.id).length} child items done`
+    : i.status === 'progress' ? `in progress${workOf(i.id).length ? ` · ${workOf(i.id).filter(w => w.s==='done').length}/${workOf(i.id).length} done` : ''}`
+    : i.status === 'ready' ? (isBlocked(i) ? `blocked by ${unresolved(i).join(', ')}` : 'ready, not started') : STATUS[i.status].toLowerCase();
+  const fyRow = (i, icon, line, btn, extra='') => { const k = KINDICON[icon];
+    return `<div class="att decision compact" data-a="open" data-v="${i.id}"><div class="ico" style="background:${k[0]};color:${k[1]}">${I[icon]}</div>
+      <div style="min-width:0"><div class="row" style="min-width:0"><a href="#" data-a="open" data-v="${i.id}" class="tt" style="color:var(--ink)">${esc(i.title)}</a><span class="mono muted">${i.id}</span></div>
+        <div class="why one" title="${esc(strip(line))}">${line}</div>${extra}</div>${btn}</div>`; };
+  const pkRow = i => { const c = curPacket(i.id), n = hrOf(i).filter(h => h.state === 'ready').length;
+    return fyRow(i, 'packet', `Round ${c ? c.n : 1} packet · ${n} to verify · about ${c ? c.est : '?'}${pkStale(i) ? ' · <b style="color:var(--bad)">out of date: code changed after it was written</b>' : ''}`, `<button class="btn sm primary" data-a="packet" data-v="${i.id}">Open packet</button>`); };
+  const qRow = i => { const open = S.replyOpen === i.id;
+    return fyRow(i, 'question', `${esc(i.question.by)} asks: “${esc(i.question.text)}”`,
+      open ? '<span></span>' : `<button class="btn sm primary" data-a="reply" data-v="${i.id}">Answer</button>`,
+      open ? `<div class="reply" data-stop><div class="src" style="white-space:normal">“${esc(i.question.text)}”</div><label class="sr" for="ans-${i.id}">Your answer to ${esc(i.question.by)}</label>
+        <textarea id="ans-${i.id}" data-t="ans-${i.id}" placeholder="e.g. Per serving; put the 100 g values in a footnote.">${esc(S.text['ans-'+i.id] || '')}</textarea>
+        <div class="row wrap"><button class="btn primary sm" data-a="sendanswer" data-v="${i.id}">Send answer</button><button class="btn sm" data-a="reply" data-v="${i.id}">Cancel</button><span class="src">${esc(i.question.by)} reads it on its next query.</span></div></div>` : ''); };
+  const pRow = r => { const i = byId[r.id], k = KINDICON[r.icon];
+    return `<div class="mrow"><div class="ico sm" style="background:${k[0]};color:${k[1]}">${I[r.icon]}</div><div style="min-width:0"><div class="row" style="min-width:0">${link(i.id)}<span class="tt">${esc(i.title)}</span></div><div class="src one" title="${esc(r.why)}">${esc(r.why)}</div></div><button class="btn sm" data-a="${r.a}" data-v="${r.v}">${r.action}</button></div>`; };
+  const card = (title, n, rows, empty, foot) => `<div class="card"><div class="sectionhead"><h3>${title} · ${n}</h3></div>${rows || `<div class="pad muted" style="padding-top:2px">${empty}</div>`}${foot ? `<div class="cardfoot">${foot}</div>` : ''}</div>`;
+  const viewAll = (n, a, v) => n > MAX ? `<a href="#" data-a="${a}" data-v="${v}">View all ${n} →</a>` : '';
+  const comingRows = coming.slice(0, MAX).map(i => { const t = hrOf(i).filter(h => h.state==='declared')[0].t;
+    return `<div class="mrow noico"><div style="min-width:0"><div class="row" style="min-width:0">${link(i.id)}<span class="tt">${esc(i.title)}</span></div><div class="src one" title="${esc(t)}">${isEpic(i) ? 'Epic-level review · ' : ''}${esc(t)}</div><div class="src one">Now: ${where(i)}</div></div></div>`; }).join('');
+  const defRows = deferred.slice(0, MAX).map(x => `<div class="mrow noico"><div style="min-width:0"><div class="row" style="min-width:0">${link(x.i.id)}<span class="tt">${esc(x.i.title)}</span></div><div class="src one" title="${esc(x.h.t)}">${esc(x.h.t)}</div>
+      <div class="src one">${x.h.last && x.h.last.ref ? `Test ticket ${link(x.h.last.ref)} · ${STATUS[byId[x.h.last.ref].status].toLowerCase()}` : 'No follow-up ticket'}</div></div>
+      ${x.h.last && x.h.last.ref ? '<span></span>' : `<button class="btn sm" data-a="mkfollow" data-v="${x.i.id}|${x.n}">Create test ticket</button>`}</div>`).join('');
+  const planRows = planningQ.slice(0, MAX).map(i => `<div class="mrow noico"><div style="min-width:0"><div class="row" style="min-width:0">${link(i.id)}<span class="tt">${esc(i.title)}</span></div><div class="src one">${i.type}${i.epic ? ` · ◆ ${esc(byId[i.epic].title)}` : ''}</div></div><button class="btn sm" data-a="promote" data-v="${i.id}">Move to Ready</button></div>`).join('');
+  const chgRows = (S.sinceAll ? changes : changes.slice(0, MAX)).map(c => `<div class="mrow noico"><div style="min-width:0"><div class="row" style="min-width:0"><span class="mono muted">${c[0]}</span>${link(c[1])}</div><div class="src one" title="${esc(c[2])}">${esc(c[2])}</div></div></div>`).join('');
+  const nNow = ready.length + qs.length;
+  const RS = ['live','reported','needs','stale','failed'];
+  return `
+  <h1>Needs you${scopePill()}</h1>
+  <div class="pulse"><b>Agents</b>${RS.map(k => [k, runsIn.filter(i => i.run === k).length]).filter(x => x[1]).map(([k, n]) => `<span class="row" style="gap:4px">${run(k)}<span class="muted">× ${n}</span></span>`).join('') || '<span class="muted">No active runs</span>'}<a href="#" data-a="nav" data-v="agents" style="margin-left:auto">All runs →</a></div>
+  <div class="dash-top">
+    <div class="card"><div class="sectionhead"><h3>For you now · ${nNow}</h3></div>
+      ${[...ready.map(pkRow), ...qs.map(qRow)].join('') || '<div class="pad muted" style="padding-top:2px">Nothing to verify. Agents will hand off when work is built.</div>'}</div>
+    ${card('Problems', probs.length, probs.slice(0, 5).map(pRow).join(''), 'No stale or failed runs, cycles or date conflicts.', probs.length > 5 ? `<span>${probs.length - 5} more</span>` : '')}
+  </div>
+  <div class="dash-row two">
+    ${card('Deferred, not verified', deferred.length, defRows, 'Nothing deferred.', `<span></span>${viewAll(deferred.length, 'workfilter', 'deferred')}`)}
+    ${card('Your Planning queue', planningQ.length, planRows, 'Nothing in Planning.', `<span></span>${viewAll(planningQ.length, 'workfilter', 'planning')}`)}
+  </div>`;
+};
+
+/* ---------- Work ---------- */
+const FILTERS = {
+  all:['All', () => true, ''],
+  planning:['In planning', i => i.status==='planning', 'status:planning'],
+  startable:['Ready to start', i => i.status==='ready' && !isBlocked(i), 'status:ready -is:blocked'],
+  blocked:['Blocked', isBlocked, 'is:blocked'],
+  foryou:['For you', forYou, 'needs:human'],
+  hrlater:['Human review later', hrComing, 'has:human-review'],
+  deferred:['Deferred review', i => hrOf(i).some(h => h.state === 'deferred'), 'review:deferred'],
+  live:['Live run', i => i.run==='live', 'run:live'],
+  archived:['Archived', i => !!i.arch, 'is:archived'],
+};
+V.work = () => {
+  const cols = ['inbox','planning','ready','progress','review','done'];
+  const base0 = i => !isEpic(i) && inScope(i) && (S.epicF === 'all' || (S.epicF === 'none' ? !i.epic : i.epic === S.epicF)) && (S.labelF === 'all' || (i.labels || []).includes(S.labelF));
+  const base = i => base0(i) && (S.filter === 'archived' ? !!i.arch : !i.arch);
+  const list = items.filter(i => base(i) && FILTERS[S.filter][1](i));
+  const card = i => i.status === 'done' ? `<div class="tcw">${card0(i)}${i.arch ? `<button class="btn sm archbtn" data-a="unarchive" data-v="${i.id}">Unarchive</button>` : `<button class="btn sm archbtn" data-a="archive" data-v="${i.id}" title="Hide it from your views. It stays in the tracker and in search.">Archive</button>`}</div>` : card0(i);
+  const card0 = i => `<a href="#" class="tcard ${i.arch ? 'archived' : ''} ${isBlocked(i) ? 'isblocked' : forYou(i) ? 'owed' : ''}" data-a="${packetReady(i) ? 'packet' : 'open'}" data-v="${i.id}"${packetReady(i) ? ' title="Open the handoff packet"' : ''}>
+      <div class="row" style="justify-content:space-between"><span class="row"><span class="mono muted">${i.id}</span>${typeIcon(i)}</span>${prio(i.prio)}</div>
+      <div class="t">${esc(i.title)}</div>
+      ${i.epic || (i.labels || []).length ? `<div class="meta">${epicTag(i)}${(i.labels || []).map(l => `<span class="label">${esc(l)}</span>`).join('')}</div>` : ''}
+      ${isBlocked(i) || forYou(i) || hrComing(i) || dateRisks(i).length ? `<div class="meta">${blockedChip(i)}${hrChip(i)}${qChip(i)}${dateRisks(i).length ? '<span class="chip c-bad">Date risk</span>' : ''}</div>` : ''}
+      <div class="meta">${i.lead ? `${run(i.run, i.age)}<span>· ${esc(i.lead)}</span>` : ''}<span style="margin-left:auto" title="Last activity">${i.last}</span></div>
+    </a>`;
+  const colHtml = c => {
+    const cs = list.filter(i => i.status === c);
+    if (c === 'ready'){
+      const go = cs.filter(i => !isBlocked(i)), wait = cs.filter(isBlocked);
+      return `<div class="col"><div class="colh"><span>Ready</span><span>${cs.length}</span></div>
+        <div class="src" style="padding:0 4px 6px">Startable · ${go.length}</div>${go.map(card).join('') || '<div class="src" style="padding:0 4px 8px">Nothing startable</div>'}
+        ${wait.length ? `<div class="subh"><span>Waiting on blockers · ${wait.length}</span><button class="btn ghost sm" data-a="toggleblocked" aria-expanded="${S.showBlocked}">${S.showBlocked ? 'Hide' : 'Show'}</button></div>
+          ${S.showBlocked ? wait.map(card).join('') : `<div class="mini">${wait.map(i => `<a href="#" data-a="open" data-v="${i.id}" class="chip c-bad mono" title="${esc(i.title)}">${i.id}</a>`).join('')}</div>`}` : ''}</div>`;
+    }
+    const note = c === 'planning' ? 'Yours' : c === 'review' ? 'Your human review' : c === 'done' && cs.length && S.filter !== 'archived' ? `<span class="row" style="justify-content:flex-end"><button class="btn ghost sm" data-a="archiveall" data-v="${cs.filter(i => !i.arch).map(i => i.id).join(',')}">Archive all</button></span>` : '';
+    return `<div class="col"><div class="colh"><span>${STATUS[c]}</span><span>${cs.length}</span></div>${note ? `<div class="src" style="padding:0 4px 6px">${note}</div>` : ''}${cs.map(card).join('')}</div>`;
+  };
+  const table = `<div class="card" style="overflow:auto"><table><thead><tr><th scope="col">ID</th><th scope="col">Title</th><th scope="col">Status</th><th scope="col">Priority</th><th scope="col">Lead · run</th><th scope="col">Human review</th><th scope="col">Last activity</th></tr></thead><tbody>
+    ${list.map(i => `<tr class="clickrow" data-a="open" data-v="${i.id}"><td>${link(i.id)}</td><td><div class="row wrap" style="gap:6px">${typeIcon(i)}<span>${esc(i.title)}</span>${labelsOf(i)}</div><div class="ptag">${i.epic ? `<a href="#" class="epiclink" data-a="open" data-v="${i.epic}" style="font-weight:500"><span class="ed">◆</span> ${esc(byId[i.epic].title)}</a>` : 'no epic'}</div></td><td><div class="row wrap">${statusChip(i)}${blockedChip(i)}</div></td><td>${prio(i.prio)}</td>
+      <td>${i.lead ? `<div>${esc(i.lead)}</div>${run(i.run, i.age)}` : '<span class="muted">Unclaimed</span>'}</td><td>${hrOf(i).length ? `${hrChip(i) || `<span class="src">${hrOf(i).every(h => h.state==='approved') ? 'approved' : hrOf(i).length + ' item' + (hrOf(i).length===1?'':'s')}</span>`}` : '<span class="src">none</span>'}</td><td class="muted">${i.last} ago</td></tr>`).join('') || '<tr><td colspan="7" class="muted">No items match.</td></tr>'}
+  </tbody></table></div>`;
+  const epics = items.filter(i => isEpic(i) && inScope(i) && !i.arch), labs = Object.keys(LABELS).filter(l => S.scope === 'all' || LABELS[l].proj === S.scope);
+  const q = [FILTERS[S.filter][2], S.epicF !== 'all' ? 'epic:' + S.epicF : '', S.labelF !== 'all' ? 'label:' + S.labelF : '', S.scope !== 'all' ? 'project:' + S.scope : ''].filter(Boolean).join(' ');
+  return `<div class="row" style="justify-content:space-between;margin-bottom:2px"><h1>Work${scopePill()}</h1>
+      <div class="seg" role="group" aria-label="Layout"><button data-a="mode" data-v="board" aria-pressed="${S.workMode==='board'}">Board</button><button data-a="mode" data-v="list" aria-pressed="${S.workMode==='list'}">List</button><button data-a="mode" data-v="map" aria-pressed="${S.workMode==='map'}">Map</button><button data-a="mode" data-v="timeline" aria-pressed="${S.workMode==='timeline'}">Timeline</button></div></div>
+    ${S.workMode === 'timeline' ? timelineBody() : `
+    <div class="filters">
+      <label class="sr" for="epicsel">Epic</label><select id="epicsel" data-a="epicf"><option value="all">All epics</option>${epics.map(e => `<option value="${e.id}" ${S.epicF===e.id?'selected':''}>${esc(e.title)}</option>`).join('')}<option value="none" ${S.epicF==='none'?'selected':''}>No epic</option></select>
+      <label class="sr" for="labelsel">Label</label><select id="labelsel" data-a="labelf"><option value="all">All labels</option>${labs.map(l => `<option value="${l}" ${S.labelF===l?'selected':''}># ${l}</option>`).join('')}</select>
+      <span role="group" aria-label="Saved filters" class="row wrap" style="gap:6px">${Object.entries(FILTERS).filter(([k]) => (!['planning','startable'].includes(k) && (k !== 'archived' || items.some(i => i.arch && base0(i)))) || S.filter === k).map(([k,f]) => `<button class="fchip" data-a="filter" data-v="${k}" aria-pressed="${S.filter===k}"${f[2] ? ` title="Agent query: ${f[2]}"` : ''}>${f[0]} <b>${items.filter(i => base0(i) && (k === 'archived' ? !!i.arch : !i.arch && f[1](i))).length}</b></button>`).join('')}</span>
+    </div>
+    ${epics.length ? `<div class="sectionhead" style="padding:0 0 6px"><h3>Epics · ${epics.length}</h3><span class="row" style="gap:12px" aria-label="Item types">${Object.keys(TYPES).map(t => typeBadge({type:t})).join('')}</span></div>
+      <div class="epicrow">${epics.map(e => { const k = childrenOf(e.id), dn = k.filter(x => x.status === 'done').length, act = k.filter(x => x.status === 'progress' || x.status === 'review').length, fy = k.filter(forYou).length + (forYou(e) ? 1 : 0);
+        return `<button class="epiccard" data-a="open" data-v="${e.id}" aria-current="${S.epicF === e.id}">
+          <span class="row" style="gap:6px;min-width:0">${typeIcon(e)}<span class="et">${esc(e.title)}</span><span class="mono muted" style="margin-left:auto">${e.id}</span></span>
+          <span class="pbar" style="height:7px" role="img" aria-label="${dn} of ${k.length} done"><i style="width:${k.length ? dn/k.length*100 : 0}%;background:var(--ok)"></i><i style="width:${k.length ? act/k.length*100 : 0}%;background:var(--violet)"></i></span>
+          <span class="src">${dn}/${k.length} done · ${STATUS[e.status]}${fy ? ` · <b style="color:var(--warn)">${fy} for you</b>` : ''}</span></button>`; }).join('')}</div>` : ''}
+    ${S.labelF !== 'all' ? `<div class="callout" style="margin-bottom:10px">Filtered by <b>#${esc(S.labelF)}</b>. <a href="#" data-a="label" data-v="${esc(S.labelF)}">Open the label page</a> for its brief, progress by epic, and bulk actions.</div>` : ''}
+    ${S.workMode==='board' ? `<div class="board">${cols.map(colHtml).join('')}</div>` : S.workMode==='map' ? `<div class="card pad">${S.epicF === 'all' && S.labelF === 'all' ? '<div class="callout" style="margin-bottom:10px">Tip: pick an epic or label above. A whole project on one map gets busy.</div>' : ''}${progressMap(list, {extTitle:'Outside this view'})}</div>` : table}`}`;
+};
+
+/* ---------- Ticket ---------- */
+function detailFor(i){
+  return Object.assign({outcome:'', acceptance:[], work:[], checks:[], docs:[], runs: i.lead ? [{r:i.run, who:i.lead, what:RUNS[i.run] ? RUNS[i.run].d : '', lead:true}] : [],
+    activity: i.imported ? [['Nov 1','Imported from Jira (dry-run report reviewed)']] : i.fromReview ? [['Nov 5', `Created from your human review of ${i.fromReview}`]] : [['—','Created by owner']]}, DETAIL[i.id] || {});
+}
+const hrEditable = (i, h) => isOpen(i) && h.state === 'declared';
+const hrRow = (i, h, n) => S.hrEdit === `${i.id}|${n}`
+  ? `<div class="ck hredit"><span class="sicon" style="color:var(--warn)" aria-hidden="true">${small(I.person)}</span><div><label class="sr" for="hre-${n}">Edit human review item</label><textarea id="hre-${n}" data-t="hredit-${i.id}-${n}">${esc(S.text[`hredit-${i.id}-${n}`] ?? h.t)}</textarea>
+      <div class="row" style="margin-top:6px"><button class="btn primary sm" data-a="hrsave" data-v="${i.id}|${n}">Save</button><button class="btn sm" data-a="hrcancel">Cancel</button></div></div><div></div></div>`
+  : `<div class="ck"><span class="sicon" style="color:var(--warn)" aria-hidden="true">${small(I.person)}</span><div><div style="font-weight:600">${esc(h.t)}</div>
+    <div class="hrby">${h.by === 'you' ? 'added by you' : `added by ${esc(h.by || (i.lead ? i.lead.split(' ')[0] : 'an agent'))}`}${hrEditable(i, h) ? `<span class="hrtools"><button data-a="hredit" data-v="${i.id}|${n}" aria-label="Edit this item">Edit</button><button class="rm" data-a="hrdel" data-v="${i.id}|${n}" aria-label="Remove this item">Remove</button></span>` : h.state === 'ready' ? ' · locked: in the current packet' : ''}</div>${h.last && h.last.deferred ? `<div class="src">You deferred this in round ${h.last.round}${h.last.note ? `: “${esc(h.last.note)}”` : ''} → ${h.last.ref ? `test ticket ${link(h.last.ref)}` : 'agent follows the project workflow'}</div>`
+    : h.last ? `<div class="src">You sent this back in round ${h.last.round}: “${esc(h.last.note)}”${h.last.ref ? ` → ${link(h.last.ref)}` : ' → checklist item'}</div>` : ''}${h.state === 'approved' && h.at ? `<div class="src">Approved on <span class="mono">${esc(h.at)}</span>${i.head && i.head !== h.at ? ' · code changed since' : ''}</div>` : ''}</div><div><span class="chip ${HR[h.state][0]}">${HR[h.state][1]}</span></div></div>`;
+const hrCard = i => { const hrs = hrOf(i), ep = !isEpic(i) && i.epic && byId[i.epic] && hrOf(byId[i.epic]).length ? byId[i.epic] : null;
+  const note = !hrs.length ? (isEpic(i) ? 'None on the epic. Reviews, if any, live on its child tickets.'
+      : ep ? `None on this ticket. It is reviewed with its epic: ${link(ep.id)} ${esc(ep.title)}.` : 'No human review declared. When its checks pass, the agent can close this without you.')
+    : isEpic(i) ? `Epic-level review: verified once when the epic's work is ready to merge. Commits reported for any ticket in this epic mark its packet out of date.`
+    : (!packetReady(i) && isOpen(i)) ? `The agent writes a handoff packet when the work is built. This ticket can't close until every item is decided.` : '';
+  return `<div class="card pad hrcard"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Human review · ${hrs.length}</h3>${packetReady(i) ? `<button class="btn primary sm" data-a="packet" data-v="${i.id}">${small(I.packet)} Open packet</button>` : ''}</div>
+    ${hrs.map((h, n) => hrRow(i, h, n)).join('')}${note ? `<div class="src" style="margin-top:${hrs.length ? 8 : 6}px">${note}</div>` : ''}
+    ${isOpen(i) ? `<div class="hradd"><label class="f" for="hrnew-${i.id}" style="margin:0">Add something you'll need to verify yourself</label>
+      <textarea id="hrnew-${i.id}" data-t="hrnew-${i.id}" placeholder="${isEpic(i) ? 'e.g. Walk through the whole feature before the PR merges' : 'e.g. Try it on your phone and check it feels right'}">${esc(S.text['hrnew-'+i.id] || '')}</textarea>
+      <div class="row wrap"><button class="btn sm" data-a="hradd" data-v="${i.id}">Add review item</button><span class="src">${packetReady(i) ? 'Not in the current packet; the agent includes it next round.' : 'The agent sees it and plans a handoff packet for it.'}</span></div></div>` : ''}</div>`; };
+const docRow = (x, id) => x[0].startsWith('handoff')
+  ? `<button class="docrow" data-a="packet" data-v="${id}">${small(I.packet)}<span class="grow">${esc(x[0])} <span class="src">${esc(x[1])}</span></span><span class="src">${esc(x[2])} · ${esc(x[3])}</span></button>`
+  : `<button class="docrow" data-a="doc" data-v="${esc(x[0])}|${esc(x[1])}|${esc(x[2])}|${esc(x[3])}">${small(I.doc)}<span class="grow">${esc(x[0])} <span class="src">${esc(x[1])}</span></span><span class="src">${esc(x[2])} · ${esc(x[3])}</span></button>`;
+const docText = name => { const n = name.toLowerCase(), base = name.replace(/\.(md|png|mp4|json)$/, '').replace(/-/g, ' ');
+  if (/\.(png|mp4)$/.test(n)) return null;
+  if (n.includes('prd')) return `# ${base}\n\n## Problem\nWhat the user struggles with today, in one paragraph.\n\n## Goals\n- The outcome this ticket delivers\n- How we'll know it worked\n\n## Out of scope\n- What we're deliberately not doing yet`;
+  if (n.includes('ux')) return `# ${base}\n\n## Flow\n1. Entry point\n2. Main interaction\n3. Confirmation and undo\n\n## States\nEmpty, loading, error and success screens.\n\n## Open questions\n- Anything the owner should decide during Planning`;
+  if (n.includes('tdd')) return `# ${base}\n\n## Approach\nData model, storage and the main code path.\n\n## Risks\n- What could break, and how we'll test it\n\n## Test plan\nThe agent checks this ticket will run.`;
+  if (n.includes('brief')) return `# ${base}\n\n## Why\nThe problem and who has it.\n\n## What\nThe shape of the solution, before it's broken into tickets.\n\n## Notes\nLinks, decisions and constraints collected so far.`;
+  if (n.endsWith('.json')) return `{\n  "violations": 0,\n  "checked": "planner drag-and-drop",\n  "tool": "axe"\n}`;
+  return `# ${base}\n\nSample document content.`; };
+const mdHtml = t => t.startsWith('{') ? `<pre class="code" style="margin:0">${esc(t)}</pre>` : t.split('\n').map(l => l.startsWith('# ') ? `<h1>${esc(l.slice(2))}</h1>` : l.startsWith('## ') ? `<h2>${esc(l.slice(3))}</h2>` : l.startsWith('- ') ? `<div>• ${esc(l.slice(2))}</div>` : l.trim() ? `<div>${esc(l)}</div>` : '').join('');
+const PORDER = {done:0, review:1, progress:2, ready:3, planning:4, inbox:5, canceled:6};
+const PCOL = [['done','var(--ok)'],['review','var(--warn)'],['progress','var(--violet)'],['ready','var(--info)'],['planning','var(--teal)'],['inbox','var(--ctl)']];
+let mapSeq = 0;
+const pnode = (i, opts={}) => { const ext = opts.ext, blk = isBlocked(i) && i.status === 'ready', waits = isBlocked(i) && !blk;
+  return `<a href="#" class="pnode ps-${i.status}${blk ? ' blk' : ''}${ext ? ' ext' : ''}${opts.cur ? ' cur' : ''}" data-a="open" data-v="${i.id}" data-pid="${i.id}" aria-label="${i.id}, ${i.type}, ${esc(i.title)}, ${STATUS[i.status]}${blk ? ', blocked' : ''}">
+    ${i.status === 'done' ? '<span class="done-mark" aria-hidden="true">✓</span>' : packetReady(i) ? `<span class="hrmark now" title="Handoff packet ready for you">${I.person}<span class="sr">Human review: packet ready for you</span></span>` : hrComing(i) ? `<span class="hrmark later" title="Needs your human review later">${I.person}<span class="sr">Human review later</span></span>` : ''}
+    <div class="row" style="gap:5px">${typeIcon(i)}<span class="mono muted">${i.id}</span>${ext ? `<span class="src">${opts.home && i.proj !== opts.home ? P[i.proj].short : 'other epic'} ↗</span>` : ''}</div>
+    <div class="pt" style="padding-right:16px">${esc(i.title)}</div>
+    <div class="ps">${STATUS[i.status]}${i.run && i.run !== 'finished' ? run(i.run) : ''}${packetReady(i) ? `<span style="color:var(--warn);font-weight:600">· packet ready</span>` : ''}${blk && !ext ? `<span style="color:var(--bad);font-weight:600">· blocked</span>` : ''}${waits && !ext ? `<span class="muted">· after ${unresolved(i).join(', ')}</span>` : ''}</div></a>`; };
+function progressMap(list, opts={}){
+  const set = new Set(list.map(i => i.id)), cyc = cycleSet(), depth = {};
+  const dep = (id, seen) => { if (depth[id] != null) return depth[id]; if (seen.has(id)) return 0; seen.add(id);
+    const bs = (byId[id].blockedBy || []).filter(b => set.has(b) && !cyc.has(b));
+    return depth[id] = bs.length ? 1 + Math.max(...bs.map(b => dep(b, seen))) : 0; };
+  const main = list.filter(i => !cyc.has(i.id)), inCyc = list.filter(i => cyc.has(i.id));
+  main.forEach(i => dep(i.id, new Set()));
+  const waves = []; main.forEach(i => (waves[depth[i.id]] = waves[depth[i.id]] || []).push(i));
+  waves.forEach(w => w.sort((a, b) => PORDER[a.status] - PORDER[b.status]));
+  const ext = [...new Set(list.flatMap(i => (i.blockedBy || []).filter(b => !set.has(b) && byId[b])))].map(b => byId[b]);
+  const edges = []; list.forEach(i => (i.blockedBy || []).forEach(b => { if (byId[b] && (set.has(b) || ext.includes(byId[b])) && !(cyc.has(b) && cyc.has(i.id))) edges.push([b, i.id, byId[b].status === 'done' ? 1 : 0]); }));
+  const n = list.length, c = s => list.filter(i => i.status === s).length, done = c('done');
+  const nextWave = waves.findIndex(w => w.some(i => i.status !== 'done'));
+  const startable = list.filter(i => i.status === 'ready' && !isBlocked(i)).length;
+  const head = opts.noHead ? '' : `<div class="phead"><div class="big">${done}<span class="muted" style="font-size:15px;font-weight:600"> / ${n} done</span></div>
+      <div class="pbar" role="img" aria-label="${PCOL.map(([s]) => `${c(s)} ${STATUS[s].toLowerCase()}`).join(', ')}">${PCOL.map(([s, col]) => `<i style="width:${n ? c(s)/n*100 : 0}%;background:${col}"></i>`).join('')}</div>
+      <div></div><div class="plegend">${PCOL.filter(([s]) => c(s)).map(([s, col]) => `<span><b style="background:${col}"></b>${c(s)} ${STATUS[s].toLowerCase()}</span>`).join('')}${list.filter(i => isBlocked(i) && i.status === 'ready').length ? `<span style="color:var(--bad)">${list.filter(i => isBlocked(i) && i.status === 'ready').length} ready but blocked</span>` : ''}<span class="muted">${startable} ready to start${nextWave >= 0 && waves.length > 1 ? ` · working on wave ${nextWave + 1} of ${waves.length}` : ''}</span></div></div>`;
+  const id = 'pm' + (++mapSeq);
+  const col = (title, sub, nodes) => `<div class="pcol"><div class="pcolh">${title}<span>${sub}</span></div>${nodes}</div>`;
+  const cols = [
+    ext.length ? col(opts.extTitle || 'Outside this epic', 'blocks work here', ext.map(e => pnode(e, {ext:true, home: list[0] && list[0].proj})).join('')) : '',
+    ...waves.map((w, k) => col(`Wave ${k + 1}`, k === 0 ? 'nothing blocks these' : `after wave ${k}`, w.map(i => pnode(i)).join(''))),
+    inCyc.length ? col('Cycle', 'fix a link to place these', inCyc.map(i => pnode(i)).join('')) : ''].join('');
+  return `${head}${n ? `<div class="pmapbox"><div class="ptools"><span class="src phint">Drag to pan</span>
+      <div class="seg" role="group" aria-label="Zoom"><button data-a="mapzoom" data-v="out" aria-label="Zoom out">−</button><button data-a="mapzoom" data-v="reset" aria-label="Reset zoom to 100%">${Math.round((S.mapZ || 1) * 100)}%</button><button data-a="mapzoom" data-v="in" aria-label="Zoom in">+</button><button data-a="mapzoom" data-v="fit" aria-pressed="${S.mapZoom === 'fit'}">Fit</button></div></div>
+    <div class="pframe"><div class="pcanvas" tabindex="0" role="region" aria-label="Progress map. Scroll, use the arrow keys, or drag to move around."><div class="psizer"><div class="pmap" id="${id}" data-edges='${JSON.stringify(edges)}'>${cols}</div></div></div>
+      <button class="pmore l" data-a="mappan" data-v="l" aria-label="Scroll the map left">← More</button><button class="pmore r" data-a="mappan" data-v="r" aria-label="Scroll the map right">More →</button><button class="pmore b" data-a="mappan" data-v="d" aria-label="Scroll the map down">More ↓</button></div></div>
+    <div class="src" style="margin-top:8px">Arrow = blocks · dashed green = cleared · hover to trace
+      <span class="hrkey" style="margin-left:6px"><span class="hrmark now">${I.person}</span>packet ready for you</span> · <span class="hrkey"><span class="hrmark later">${I.person}</span>your review later</span></div>` : `<div class="muted">${opts.empty || 'Nothing here yet.'}</div>`}`;
+}
+const ZOOMS = [0.5, 0.67, 0.8, 1, 1.25];
+function mapCues(c){ const f = c.parentElement, box = f.closest('.pmapbox');
+  f.classList.toggle('more-l', c.scrollLeft > 2); f.classList.toggle('more-r', c.scrollLeft + c.clientWidth < c.scrollWidth - 2);
+  f.classList.toggle('more-b', c.scrollTop + c.clientHeight < c.scrollHeight - 2);
+  if (box) box.classList.toggle('pannable', c.scrollWidth > c.clientWidth + 2 || c.scrollHeight > c.clientHeight + 2); }
+function drawMaps(){
+  document.querySelectorAll('#app .pmap').forEach(m => {
+    const old = m.querySelector('svg.pedges'); if (old) old.remove();
+    const canvas = m.closest('.pcanvas'), sizer = m.parentElement, W = m.offsetWidth, H = m.offsetHeight;
+    const z = S.mapZoom === 'fit' ? Math.max(0.4, Math.min(1, (canvas.clientWidth - 46) / W, (540 - 38) / H)) : (S.mapZoom || 1);
+    S.mapZ = z; m.style.transform = `scale(${z})`; sizer.style.width = Math.ceil(W * z) + 'px'; sizer.style.height = Math.ceil(H * z) + 'px';
+    const lab = m.closest('.pmapbox').querySelector('[data-a=mapzoom][data-v=reset]'); if (lab) lab.textContent = Math.round(z * 100) + '%';
+    const edges = JSON.parse(m.dataset.edges || '[]');
+    const pos = id => { const el = m.querySelector(`[data-pid="${id}"]`); if (!el) return null; const c = el.parentElement, x = c.offsetLeft + el.offsetLeft, y = c.offsetTop + el.offsetTop; return {l:x, r:x + el.offsetWidth, y:y + el.offsetHeight / 2}; };
+    const paths = edges.map(([a, b, ok]) => { const A = pos(a), B = pos(b); if (!A || !B || A.r > B.l) return '';
+      const mx = (A.r + B.l) / 2; return `<path class="pe${ok ? ' ok' : ''}" data-from="${a}" data-to="${b}" d="M${A.r},${A.y} C${mx},${A.y} ${mx},${B.y} ${B.l - 3},${B.y}" marker-end="url(#pa-${m.id})"/>`; }).join('');
+    m.insertAdjacentHTML('afterbegin', `<svg class="pedges" width="${W}" height="${H}" aria-hidden="true"><defs><marker id="pa-${m.id}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0L10,5L0,10z" fill="var(--ink-3)"/></marker></defs>${paths}</svg>`);
+    mapCues(canvas);
+  });
+}
+const sec = (key, title, summary, body, extraHead='') => { const c = !!S.collapsed[key];
+  return `<section class="card sec${c ? ' collapsed' : ''}" data-sec="${key}"><div class="sechead"><button class="sectog" data-a="sectog" data-v="${key}" aria-expanded="${!c}"><span class="chev" aria-hidden="true">${small(I.chev)}</span><h3>${title}</h3>${summary ? `<span class="src">· ${summary}</span>` : ''}</button>${extraHead}</div>${c ? '' : `<div class="secbody">${body}</div>`}</section>`; };
+const CK = {done:['s-done','✓'], current:['s-current',''], todo:['s-planned',''], blocked:['s-blocked','!']};
+const CHK = {pass:['s-done','✓','passed'], fail:['s-blocked','×','failed'], todo:['s-planned','','not run yet']};
+function checklistCard(i, d){
+  const ep = isEpic(i), hrs = hrOf(i), open = isOpen(i), wdone = d.work.filter(w => w.s === 'done').length;
+  const byLine = by => by === 'you' ? '<span class="hrby">added by you</span>' : '';
+  const workRows = d.work.map((w, n) => `<div class="ck"><span class="sicon ${CK[w.s][0]}" aria-hidden="true">${CK[w.s][1]}</span>
+      <div><div class="title" style="font-weight:600">${esc(w.t)} ${w.was ? `<s class="muted" style="font-weight:400">${esc(w.was)}</s>` : ''}<span class="sr"> (${w.s})</span></div>
+        ${w.why ? `<div class="changed">Changed: ${esc(w.why)}</div>` : ''}
+        ${w.from ? `<div class="src">${small(I.person)} Added from ${esc(w.from)}</div>` : ''}
+        ${w.s==='blocked' ? '<div class="changed" style="color:var(--bad)">Stopped here: see the failed run</div>' : ''}
+        ${(w.contrib || []).map(c => `<div class="contrib"><div class="row wrap">${prov(c[0])}<b>${esc(c[1])}</b><span class="src">${esc(c[2])}</span></div><div>${esc(c[3])}</div></div>`).join('')}
+        ${w.by === 'you' ? `<div>${byLine('you')}${w.s !== 'done' && open ? `<button class="clrm" data-a="rmwork" data-v="${i.id}|${n}">Remove</button>` : ''}</div>` : ''}</div>
+      <div class="src" style="text-align:right">${w.who ? esc(w.who) : 'not started'}<br>${w.when || ''}</div></div>`).join('');
+  const checkRows = d.checks.map((c, n) => `<div class="ck"><span class="sicon ${CHK[c[3]][0]}" aria-hidden="true">${CHK[c[3]][1]}</span><div><div style="font-weight:600">${esc(c[0])}<span class="sr"> (${CHK[c[3]][2]})</span></div><div class="src">${esc(c[2])}</div>
+      ${c[4] === 'you' ? `<div>${byLine('you')}${c[3] === 'todo' && open ? `<button class="clrm" data-a="rmcheck" data-v="${i.id}|${n}">Remove</button>` : ''}</div>` : ''}</div><div>${c[3]==='todo' ? '<span class="src">not run yet</span>' : prov(c[1])}</div></div>`).join('');
+  const epRev = !ep && i.epic && byId[i.epic] && hrOf(byId[i.epic]).length ? byId[i.epic] : null;
+  const hrNote = !hrs.length ? (ep ? 'None on the epic itself. Reviews, if any, live on its tickets.'
+      : epRev ? `None on this ticket. It is reviewed with its epic: ${link(epRev.id)} ${esc(epRev.title)}.` : 'No human review declared. When its checks pass, the agent can close this without you.')
+    : ep ? `Epic-level review: verified once when the epic's work is ready to merge.`
+    : (!packetReady(i) && open) ? `The agent writes a handoff packet when the work is built. This ticket can't close until every item is decided.` : '';
+  const addRow = (key, act, ph, label) => open ? `<div class="addrow"><label class="sr" for="${key}">${label}</label><input class="input" id="${key}" data-t="${key}" value="${esc(S.text[key] || '')}" placeholder="${ph}" autocomplete="off"><button class="btn sm" data-a="${act}" data-v="${i.id}">Add</button></div>` : '';
+  const apass = d.checks.filter(c => c[3]==='pass').length;
+  return `${sec('work', 'Work', `${wdone}/${d.work.length} done · the agent's plan`, `<div class="clcard">${workRows || `<div class="muted">${ep ? 'No epic-level steps yet.' : (i.status === 'planning' || i.status === 'inbox') ? 'The agent writes its work steps when it claims the ticket.' : 'No work steps yet.'}</div>`}
+      ${addRow('addw-' + i.id, 'addwork', ep ? 'Add a step for the whole epic, e.g. Update the release notes' : 'Add a step for the agent, e.g. Handle an empty week plan', 'New work step')}</div>`,
+      d.history ? '<button class="btn ghost sm" data-a="planhistory">Checklist history</button>' : '')}
+    ${sec('agentrev', 'Agent review', `${apass}/${d.checks.length} passed · what the agent verifies itself`, `<div class="clcard">${checkRows || `<div class="muted">${ep ? 'No epic-level checks yet.' : 'No agent checks listed yet.'}</div>`}
+      ${addRow('adda-' + i.id, 'addcheck', 'Add something the agent should verify, e.g. Run the full test suite on a clean checkout', 'New agent review item')}</div>`)}
+    ${sec('humanrev', 'Human review', `${hrs.length ? `${hrs.length} item${hrs.length === 1 ? '' : 's'}` : 'none'}${packetReady(i) ? ' · packet ready' : ''} · what you verify yourself`, `<div class="clcard">${hrs.map((h, n) => hrRow(i, h, n)).join('')}${hrNote ? `<div class="src" style="margin-top:${hrs.length ? 8 : 4}px">${hrNote}</div>` : ''}
+      ${addRow('hrnew-' + i.id, 'hradd', ep ? 'Add something you’ll verify, e.g. Walk through the whole feature before the PR merges' : 'Add something you’ll verify, e.g. Try it on your phone', 'New human review item')}
+      ${open && packetReady(i) ? '<div class="src" style="margin-top:4px">New items aren’t in the current packet; the agent includes them next round.</div>' : ''}</div>`,
+      packetReady(i) ? `<button class="btn primary sm" data-a="packet" data-v="${i.id}">${small(I.packet)} Open packet</button>` : '')}`;
+}
+const dot = (cls, why) => `<span class="tabdot ${cls}" title="${why}" aria-hidden="true"></span><span class="sr"> (${why})</span>`;
+function viewTabs(i, tabs, cur){
+  return `<div class="row" style="align-items:flex-end;border-bottom:1px solid var(--line);margin-bottom:14px"><div class="tabs" role="tablist" aria-label="${isEpic(i) ? 'Epic' : 'Ticket'} views" style="margin-bottom:-1px;border-bottom:0">${tabs.map(([k, l, hint]) => `<button role="tab" id="etab-${k}" aria-controls="epanel" data-a="epictab" data-v="${k}" aria-selected="${cur===k}" tabindex="${cur===k ? 0 : -1}" title="${hint}">${l}</button>`).join('')}</div>
+      ${isEpic(i) ? `<button class="btn sm" data-a="newin" data-v="${i.id}" style="margin:0 0 6px auto">+ New item in this epic</button>` : ''}</div>`;
+}
+const notePanel = (i, who) => `<div class="row" style="align-items:flex-start;gap:8px;margin-bottom:10px"><label class="sr" for="note-agent">Note for the ${who}</label><textarea id="note-agent" data-t="agentnote-${i.id}" style="min-height:44px" placeholder="Leave a note for the ${who} working on this. ${who === 'agent' ? 'It sees it on its' : 'They see it on their'} next query.">${esc(S.text['agentnote-'+i.id] || '')}</textarea><button class="btn sm" data-a="addnote" data-v="${i.id}">Add note</button></div>`;
+function clTab(i, d){ const w = d.work.filter(x => x.s === 'done').length, n = d.work.length + d.checks.length + hrOf(i).length;
+  return ['checklist', `Checklist${(isEpic(i) ? n : d.work.length) ? ` <span class="muted">${isEpic(i) ? n : `${w}/${d.work.length}`}</span>` : ''}${packetReady(i) ? dot('', 'packet ready') : ''}`, 'Work steps, agent review and human review']; }
+V.ticket = () => {
+  const i = byId[S.ticket], d = detailFor(i), p = P[i.proj];
+  if (isEpic(i)) return epicView(i, d);
+  const activity = [...(S.extraActivity[i.id] || []), ...d.activity];
+  const hrs = hrOf(i), wdone = d.work.filter(w => w.s === 'done').length;
+  const docs = d.docs.map(x => docRow(x, i.id)).join('');
+  const tab = ({map:'deps'})[S.epicTab] || (['details','checklist','deps','activity'].includes(S.epicTab) ? S.epicTab : 'details');
+  const depN = (i.blockedBy || []).length + dependents(i.id).length;
+  const runTrouble = i.lead && i.run === 'stale' ? 'stale run' : i.lead && i.run === 'failed' ? 'run failed' : d.conflict && i.lead ? 'claim conflict' : '';
+  return `
+  ${!inScope(i) ? `<div class="callout row wrap" style="margin-bottom:12px"><span class="grow">${i.id} belongs to <b>${P[i.proj].short}</b>, outside the project you're viewing.</span><button class="btn sm" data-a="scope" data-v="${i.proj}">Switch to ${P[i.proj].short}</button></div>` : ''}
+  <div class="tk-head"><div class="grow">
+    <div class="row wrap"><span class="mono muted">${i.id}</span>${typeBadge(i)}${i.epic ? `<span class="muted">in</span> <a href="#" class="epiclink" data-a="open" data-v="${i.epic}" title="Open the epic map"><span class="ed">◆</span> ${esc(byId[i.epic].title)}</a> <span class="mono muted">${i.epic}</span>` : '<span class="src">no epic</span>'}${labelsOf(i)}${i.imported ? '<span class="chip c-gray">Imported from Jira</span>' : ''}</div>
+    <h1 style="margin-top:4px">${esc(i.title)}</h1>
+    <div class="row wrap" style="margin-top:6px">${statusChip(i)}${blockedChip(i)}${i.status==='done' ? (i.closedBy==='owner' ? prov(hrOf(i).some(h => h.state === 'deferred') ? 'ownerdef' : 'owner', hrOf(i).some(h => h.state === 'deferred') ? `Closed · ${hrOf(i).filter(h => h.state === 'deferred').length} review deferred, not verified` : 'Closed after your human review') : prov('agent','Closed by agent: checks passed, no human review')) : ''}
+      <label class="row" style="gap:4px"><span class="src">Priority</span><select data-a="prio" aria-label="Priority">${[1,2,3].map(n => `<option value="${n}" ${i.prio===n?'selected':''}>P${n}</option>`).join('')}</select></label>
+      ${i.status==='done' ? (i.arch ? `<span class="chip c-gray">Archived</span><button class="btn sm" data-a="unarchive" data-v="${i.id}">Unarchive</button>` : `<button class="btn sm" data-a="archive" data-v="${i.id}" title="Hide it from your views. It stays in the tracker and in search.">Archive</button>`) : ''}
+      ${i.status==='inbox' ? `<button class="btn sm" data-a="toplanning" data-v="${i.id}">Move to Planning</button>` : ''}
+      ${i.status==='planning' ? `<button class="btn sm primary" data-a="promote" data-v="${i.id}">${I.promote} Move to Ready</button><span class="src">Planning is yours. Move it when you're satisfied, or ask an agent to.</span>` : ''}</div></div>
+  </div>
+  ${packetReady(i) ? `<div class="banner">${I.packet}<div class="grow"><b>Handoff packet ready (round ${curPacket(i.id) ? curPacket(i.id).n : 1}).</b> ${(n => `${n} thing${n===1?'':'s'}`)(hrs.filter(h => h.state==='ready').length)} to verify, about ${curPacket(i.id) ? curPacket(i.id).est : '?'}. The ticket can't close until you approve.</div><button class="btn primary" data-a="packet" data-v="${i.id}">Open packet</button></div>` : ''}
+  ${questionOpen(i) ? `<div class="banner q">${I.question}<div class="grow"><b>${esc(i.question.by)} asked at ${i.question.at}:</b> “${esc(i.question.text)}”
+      <label class="f" for="tans">Your answer</label><textarea id="tans" data-t="ans-${i.id}">${esc(S.text['ans-'+i.id] || '')}</textarea>
+      <div class="row wrap" style="margin-top:6px"><button class="btn primary sm" data-a="sendanswer" data-v="${i.id}">Send answer</button><span class="src">The run stays paused until ${esc(i.question.by)} reads it.</span></div></div></div>` : ''}
+  ${i.question && i.question.answer ? `<div class="callout ok" style="margin-bottom:12px">You answered: “${esc(i.question.answer)}”. Waiting for ${esc(i.question.by)} to read it.</div>` : ''}
+  ${i.fromReview ? `<div class="callout" style="margin-bottom:12px">Created from your human review of ${link(i.fromReview.split(' ')[0])} (${esc(i.fromReview.split('· ')[1] || '')}).</div>` : ''}
+  ${viewTabs(i, [['details', 'Details', 'What this is: outcome, documents, dates'], clTab(i, d),
+      ['deps', `Dependencies${depN ? ` <span class="muted">${depN}</span>` : ''}${cycleSet().has(i.id) ? dot('bad', 'in a dependency cycle') : ''}`, 'Where it sits: what it waits on and what it unblocks'],
+      ['activity', `Activity${runTrouble ? dot('', runTrouble) : ''}`, 'What the agents did: lead, runs and history']], tab)}
+  <div role="tabpanel" id="epanel" aria-labelledby="etab-${tab}"><div class="stack1">
+  ${tab === 'checklist' ? checklistCard(i, d)
+    : tab === 'deps' ? `<div class="card pad"><h3>Waits on ${(i.blockedBy || []).length} · unblocks ${dependents(i.id).length}</h3>
+      ${(() => { const bl = (i.blockedBy || []).map(b => byId[b]).filter(Boolean), dp = dependents(i.id), cyc = cycleSet();
+        return `${cyc.has(i.id) ? `<div class="callout bad" style="margin-bottom:8px">In a dependency cycle (${[...cyc].sort().join(' ⇄ ')}). Neither can start until one link is removed.<div class="row wrap" style="margin-top:6px">${(i.blockedBy || []).filter(b => cyc.has(b)).map(b => `<button class="btn sm" data-a="rmlink" data-v="${b}>${i.id}">Remove “${b} blocks ${i.id}”</button>`).join('')}</div></div>` : ''}
+        ${!bl.length && !dp.length ? '<div class="muted">No blocking links.</div>' : `<div class="hop">
+          ${bl.length ? `<div class="src">Waits on</div>${bl.map(b => pnode(b, {ext: b.epic !== i.epic, home:i.proj})).join('')}<div class="arrow">↓</div>` : ''}
+          ${pnode(i, {cur:true})}
+          ${dp.length ? `<div class="arrow">↓</div><div class="src">Then unblocks</div>${dp.map(x => pnode(x, {ext: x.epic !== i.epic, home:i.proj})).join('')}` : ''}</div>`}
+        ${(i.relates || []).length ? `<div class="src" style="margin-top:8px">Relates to (doesn't block): ${i.relates.map(link).join(', ')}</div>` : ''}
+        ${i.epic ? `<button class="btn ghost sm" data-a="epicmap" data-v="${i.epic}" style="padding-left:0;margin-top:6px">See it on the epic map →</button>` : ''}`; })()}</div>`
+    : tab === 'activity' ? `${sec('runs', 'Lead and runs', i.lead ? `${esc(i.lead)}${i.run ? ' · ' + RUNS[i.run].l : ''}` : 'unclaimed', `
+      ${d.runs.map(r => `<div class="lrow" style="align-items:flex-start;padding:6px 0"><div class="grow"><div class="row wrap"><b>${esc(r.who)}</b>${r.lead ? '<span class="chip c-gray">lead</span>' : ''}${run(r.r)}</div><div class="src">${esc(r.what)}</div></div></div>`).join('') || '<div class="muted">Unclaimed. The next agent that asks for ready work can claim it.</div>'}
+      ${d.conflict && i.lead ? `<div class="callout warn" style="margin-top:6px">${esc(d.conflict)}</div>` : ''}
+      ${d.error && i.lead ? `<div class="err">${esc(d.error)}</div>` : ''}
+      ${i.run==='stale' && i.lead ? `<div class="row wrap" style="margin-top:8px"><button class="btn sm" data-a="release" data-v="${i.id}">Release lead claim…</button></div><div class="src" style="margin-top:4px">Or wait: the lease expires on its own at 11:13.</div>` : ''}
+      ${i.run==='failed' && i.lead ? `<div class="row wrap" style="margin-top:8px"><button class="btn sm" data-a="toready" data-v="${i.id}">Return to Ready</button></div><div class="src" style="margin-top:4px">This service never launches agents. A connected agent picks it up next.</div>` : ''}`)}
+    ${sec('history', 'History', `${activity.length} update${activity.length === 1 ? '' : 's'}`, `${notePanel(i, 'agent')}
+      ${activity.map(a => `<div class="act"><span class="src mono">${a[0]}</span><span>${esc(a[1])}</span></div>`).join('')}`)}`
+    : `${sec('outcome', 'Outcome', d.acceptance && d.acceptance.length ? `${d.acceptance.length} acceptance criteria` : '', `<div>${d.outcome ? esc(d.outcome) : '<span class="muted">No outcome written yet.</span>'}</div>
+      ${d.acceptance && d.acceptance.length ? `<h3 style="margin-top:14px">Acceptance</h3>${d.acceptance.map(t => `<div class="lrow"><span class="muted">–</span><span>${esc(t)}</span></div>`).join('')}` : ''}`)}
+    ${sec('docs', 'Documents', `${d.docs.length}`, docs || '<div class="muted">No documents yet. Planning docs (PRD, UX, TDD) and handoff packets appear here.</div>')}
+    ${sec('dates', 'Dates and effort', i.start ? `${fmt(D(i.start))} → ${fmt(D(i.end))}` : 'not set', `<dl class="kv">
+      ${i.start ? `<dt>Planned</dt><dd>${fmt(D(i.start))} → ${fmt(D(i.end))}<div class="src">set by ${esc(i.setBy)}</div></dd>` : '<dt>Planned</dt><dd class="muted">Not set</dd>'}
+      ${i.actual ? `<dt>Actual</dt><dd>${fmt(D(i.actual[0]))} → ${i.actual[1] ? fmt(D(i.actual[1])) : 'ongoing'}<div class="src">from run history</div></dd>` : ''}
+      <dt>Effort</dt><dd>${i.pts ? `${i.pts} pts` : '<span class="muted">Not estimated</span>'}</dd>
+    </dl>${dateRisks(i).map(b => `<div class="callout bad" style="margin-top:8px">Starts ${fmt(D(i.start))}, but ${b} is planned to finish ${fmt(D(byId[b].end))}.</div>`).join('')}`)}`}
+  </div></div>`;
+};
+function epicView(i, d){
+  const kids = childrenOf(i.id), done = kids.filter(k => k.status==='done').length;
+  const archN = kids.filter(k => k.arch).length;
+  const byStatus = Object.keys(STATUS).map(s => [s, kids.filter(k => k.status===s && (S.showArch || !k.arch))]).filter(([,l]) => l.length);
+  const tab = ({deps:'map'})[S.epicTab] || S.epicTab || 'details', activity = [...(S.extraActivity[i.id] || []), ...d.activity];
+  const hrs = hrOf(i), hrNow = packetReady(i);
+  const tabs = [['details', 'Details', 'What this is: brief, documents and its tickets'], clTab(i, d), ['map', `Map <span class="muted">${done}/${kids.length}</span>`, 'Where it is: progress and dependencies across its tickets'], ['activity', 'Activity', 'What the agents did in this epic']];
+  const strip = hrs.length ? `<div class="epicstrip ${hrNow ? '' : 'later'}"><span class="hrkey"><span class="hrmark ${hrNow ? 'now' : 'later'}">${I.person}</span></span>
+      <div class="grow"><b>Epic-level human review${hrNow ? ': packet ready' : ''}</b> · ${hrs.map(h => esc(h.t)).join(' · ')} <span class="src">${hrNow ? '' : 'Reviewed once, when the epic is ready to merge.'}</span></div>
+      ${hrNow ? `<button class="btn primary sm" data-a="packet" data-v="${i.id}">Open packet</button>` : `<span class="chip c-gray">Coming up</span>`}</div>` : '';
+  const body = tab === 'map'
+    ? `${strip}<div class="card pad">${progressMap(kids, {empty:'No items yet. When planned, the agent breaks this epic into stories, tasks and bugs.'})}</div>`
+    : tab === 'checklist' ? `<div class="stack1">${checklistCard(i, d)}</div>`
+    : tab === 'details'
+    ? `<div class="stack1">
+        ${sec('brief', 'Brief and documents', d.docs.length ? `${d.docs.length} document${d.docs.length === 1 ? '' : 's'}` : '', `<div>${esc(d.outcome) || '<span class="muted">No brief yet.</span>'}</div>
+          ${d.docs.length ? `<h3 style="margin-top:14px">Documents</h3>${d.docs.map(x => docRow(x, i.id)).join('')}` : ''}`)}
+        ${sec('tickets', 'Tickets in this epic', `${done}/${kids.length} done · ${kids.filter(k => isBlocked(k) && k.status === 'ready').length} ready but blocked · ${kids.filter(forYou).length} for you`, `${byStatus.map(([s, l]) => `<div class="src" style="margin-top:8px">${STATUS[s]} · ${l.length}</div>${l.map(k => `<div class="lrow">${typeIcon(k)}${link(k.id)}<span class="grow" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(k.title)}</span>${hrChip(k)}${blockedChip(k)}${k.arch ? '<span class="chip c-gray">Archived</span>' : ''}</div>`).join('')}`).join('') || '<div class="muted">No items yet.</div>'}
+          ${archN ? `<div class="src" style="margin-top:8px">${S.showArch ? '' : `+ ${archN} archived · `}<a href="#" data-a="togglearch">${S.showArch ? 'Hide archived' : 'Show'}</a></div>` : ''}`)}
+      </div>`
+    : `<div class="card pad">${notePanel(i, 'agents')}
+        ${activity.map(a => `<div class="act"><span class="src mono">${a[0]}</span><span>${esc(a[1])}</span></div>`).join('') || '<div class="muted">No activity yet.</div>'}</div>`;
+  return `<div class="tk-head"><div class="grow">
+      <div class="row wrap"><span class="mono muted">${i.id}</span>${typeBadge(i)}${labelsOf(i)}</div>
+      <h1 style="margin-top:4px">${esc(i.title)}</h1>
+      <div class="row wrap" style="margin-top:6px">${statusChip(i)}<span class="src">${P[i.proj].name} · ${kids.length} item${kids.length===1?'':'s'} · ${done} done</span>
+        ${i.status==='done' ? (i.arch ? `<span class="chip c-gray">Archived</span><button class="btn sm" data-a="unarchive" data-v="${i.id}">Unarchive</button>` : `<button class="btn sm" data-a="archive" data-v="${i.id}">Archive</button>`) : ''}
+        ${i.status==='planning' ? `<button class="btn sm primary" data-a="promote" data-v="${i.id}">${I.promote} Move to Ready</button><span class="src">This epic is still a brief. Move it once you've broken it down.</span>` : ''}</div></div></div>
+    ${viewTabs(i, tabs, tab)}
+    <div role="tabpanel" id="epanel" aria-labelledby="etab-${tab}">${body}</div>`;
+}
+
+/* ---------- Label page (large initiatives span epics) ---------- */
+V.label = () => {
+  const L = LABELS[S.label] || {brief:''}, its = items.filter(i => !isEpic(i) && (i.labels || []).includes(S.label));
+  const done = its.filter(i => i.status==='done').length, plan = its.filter(i => i.status==='planning');
+  const groups = {}; its.forEach(i => { const k = i.epic || 'none'; (groups[k] = groups[k] || []).push(i); });
+  return `<div class="row wrap" style="justify-content:space-between;margin-bottom:12px"><h1><span class="muted">#</span>${esc(S.label)} <span class="src" style="font-weight:400">${L.proj ? P[L.proj].short : ''} · ${done}/${its.length} done</span></h1>
+      <span class="row"><button class="btn sm" data-a="labelboard" data-v="${esc(S.label)}">Show on the board</button>${plan.length ? `<button class="btn primary sm" data-a="bulkready" data-v="${esc(S.label)}">${I.promote} Move ${plan.length} to Ready</button>` : ''}</span></div>
+    <div class="stack1">
+      <div class="card pad"><h3>Brief</h3><div>${L.brief ? esc(L.brief) : '<span class="muted">No brief. Add one if this label is an initiative with shared decisions.</span>'}</div>${L.by ? `<div class="src" style="margin-top:6px">written by ${esc(L.by)}</div>` : ''}</div>
+      <div class="card pad"><h3>Progress across epics</h3>${progressMap(its, {extTitle:'Without this label', empty:'Nothing has this label.'})}</div>
+      <div class="card pad"><div class="row" style="justify-content:space-between"><h3 style="margin:0">By epic</h3><span class="src">${its.filter(isBlocked).length} blocked · ${plan.length} in planning · ${its.filter(forYou).length} for you</span></div>
+        ${Object.entries(groups).map(([k, l]) => `<div class="src" style="margin-top:12px;font-weight:650">${k === 'none' ? 'No epic' : `<a href="#" class="epiclink" data-a="open" data-v="${k}"><span class="ed">◆</span> ${esc(byId[k].title)}</a>`} · ${l.filter(x => x.status==='done').length}/${l.length}</div>
+          ${l.map(x => `<div class="lrow">${typeIcon(x)}${link(x.id)}<span class="grow" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.title)}</span>${statusChip(x)}${hrChip(x)}</div>`).join('')}`).join('') || '<div class="muted">Nothing has this label.</div>'}</div>
+    </div>`;
+};
+
+/* ---------- Human review (handoff packets) ---------- */
+V.review = () => {
+  const sc = items.filter(inScope), ready = sc.filter(packetReady), coming = sc.filter(hrComing);
+  const decided = sc.filter(i => PACKETS[i.id] && !packetReady(i) && PACKETS[i.id].rounds.some(r => r.decided));
+  if (!ready.length && !decided.length) return `<h1>Human review</h1><div class="sub">Nothing to verify right now. <a href="#" data-a="nav" data-v="attention">Back to Needs you</a></div>`;
+  if (!PACKETS[S.pk] || !inScope(byId[S.pk])) S.pk = (ready[0] || decided[0]).id;
+  const i = byId[S.pk], pk = PACKETS[i.id], latest = pk.rounds[pk.rounds.length - 1];
+  const r = pk.rounds.find(x => x.n === S.pkRound) || latest, live = r === latest && packetReady(i);
+  const v = S.verdicts[i.id] || {};
+  const qbtn = x => `<button data-a="packet" data-v="${x.id}" aria-current="${S.pk===x.id}"><span class="row"><span class="mono">${x.id}</span>${packetReady(x) ? `<span class="chip c-warn">Round ${curPacket(x.id).n}</span>` : `<span class="chip ${x.status==='done' ? 'c-ok' : 'c-gray'}">${x.status==='done' ? 'Approved' : 'Sent back'}</span>`}</span><span style="font-weight:600">${esc(x.title)}</span><span class="src">${packetReady(x) ? `about ${curPacket(x.id).est}` : ''}${pkStale(x) ? ' · <b style="color:var(--bad)">out of date</b>' : ''}</span></button>`;
+  const itemsHtml = (live ? hrOf(i).filter(h => h.state === 'ready').map(h => h.t) : r.items || hrOf(i).map(h => h.t)).map((t, n) => {
+    const past = r.decided && r.decided.verdicts[n], cur = live ? (v[n] || {}) : past || {};
+    return `<div class="hritem"><div style="font-weight:600">${n+1}. ${esc(t)}</div>
+      ${live ? `<div class="verdict" role="radiogroup" aria-label="Decision for item ${n+1}">
+          <button class="btn sm ap" role="radio" aria-checked="${cur.k==='approve'}" aria-pressed="${cur.k==='approve'}" data-a="verdict" data-v="${n}|approve">${I.check} Looks good</button>
+          <button class="btn sm ch" role="radio" aria-checked="${cur.k==='changes'}" aria-pressed="${cur.k==='changes'}" data-a="verdict" data-v="${n}|changes">${I.x} Needs changes</button>
+          <button class="btn sm df" role="radio" aria-checked="${cur.k==='defer'}" aria-pressed="${cur.k==='defer'}" data-a="verdict" data-v="${n}|defer">${I.pause} Defer</button></div>
+        ${cur.k === 'changes' ? `<label class="f" for="note-${n}">What needs to change <b style="color:var(--bad)">(required)</b></label><textarea id="note-${n}" data-t="note-${i.id}-${n}" placeholder="What you saw, and what you expected">${esc(S.text['note-'+i.id+'-'+n] || '')}</textarea>
+          <div class="row wrap" style="margin-top:6px"><span class="src">Send it back as</span><div class="seg" role="group" aria-label="Turn finding into"><button data-a="into" data-v="${n}|checklist" aria-pressed="${(cur.into || 'checklist')==='checklist'}">Checklist item on this ticket</button><button data-a="into" data-v="${n}|bug" aria-pressed="${cur.into==='bug'}">New bug ticket</button></div></div>` : ''}
+        ${cur.k === 'defer' ? `<label class="f" for="note-${n}">Why defer, and what's still needed (optional)</label><textarea id="note-${n}" data-t="note-${i.id}-${n}" placeholder="e.g. Needs a real Android device; test with the next mobile pass">${esc(S.text['note-'+i.id+'-'+n] || '')}</textarea>
+          <div class="row wrap" style="margin-top:6px"><span class="src">Follow-up</span><div class="seg" role="group" aria-label="Follow-up for the deferred item"><button data-a="follow" data-v="${n}|ticket" aria-pressed="${(cur.follow || 'ticket')==='ticket'}">Create a test ticket in Inbox</button><button data-a="follow" data-v="${n}|none" aria-pressed="${cur.follow==='none'}">No ticket: agent follows the project workflow</button></div></div>
+          <div class="src" style="margin-top:4px">Deferring clears the gate so work can continue. The item is recorded as <b>not verified</b>, never as approved.</div>` : ''}`
+      : past ? `<div class="row wrap" style="margin-top:6px">${prov(({approve:'owner', changes:'ownerch', defer:'ownerdef'})[past.k], ({approve:'Looked good', changes:'Needed changes', defer:'Deferred · not verified'})[past.k])}${past.note ? `<span>“${esc(past.note)}”</span>` : ''}${past.k==='changes' ? `<span class="src">→ ${past.into==='bug' ? `bug ${past.ref ? link(past.ref) : ''}` : 'checklist item'}</span>` : ''}${past.k==='defer' ? `<span class="src">→ ${past.ref ? `test ticket ${link(past.ref)}` : 'agent follows the project workflow'}</span>` : ''}</div>` : ''}</div>`; }).join('');
+  const allSet = live && hrOf(i).filter(h => h.state==='ready').every((h, n) => v[n] && v[n].k);
+  const anyCh = live && Object.values(v).some(x => x && x.k === 'changes');
+  const nDef = live ? Object.values(v).filter(x => x && x.k === 'defer').length : 0;
+  return `<h1>Human review</h1>
+  <div class="rv">
+    <div class="card rvq">${ready.length ? `<div class="sectionhead"><h3>Ready for you · ${ready.length}</h3></div>${ready.map(qbtn).join('')}` : ''}
+      ${!packetReady(i) ? `<div class="sectionhead"><h3>Viewing</h3></div>${qbtn(i)}` : ''}
+      ${!ready.length ? '<div class="pad src">Nothing else is waiting on you.</div>' : ''}</div>
+    <div class="card packet" style="min-width:0">
+      <div class="vers"><b style="margin-right:4px">${link(i.id)} ${esc(i.title)}</b>
+        ${pk.rounds.map(x => `<button class="vbtn" data-a="pkround" data-v="${x.n}" aria-pressed="${x===r}">Round ${x.n} ${x.decided ? `<span class="chip ${x.decided.verdicts.every(y => y.k==='approve') ? 'c-ok' : 'c-warn'}" style="padding:0 5px">${x.decided.verdicts.every(y => y.k==='approve') ? 'approved' : 'sent back'}</span>` : x===latest && packetReady(i) ? '<span class="dot needs" style="width:8px;height:8px;border-radius:50%;background:var(--warn);display:inline-block"></span>' : ''}</button>`).join('')}
+        <span class="src" style="margin-left:auto">${esc(r.by)} · ${esc(r.when)} · <span class="mono">${esc(r.sha)}</span>${r.commit ? ` · built from <span class="mono">${esc(r.commit)}</span>` : ''} · about ${esc(r.est)}</span></div>
+      ${r !== latest ? `<div class="callout warn" style="margin:10px 14px 0">Earlier round. Its decisions are shown below and don't carry over.</div>` : ''}
+      ${live && pkStale(i) ? `<div class="callout bad row wrap" style="margin:10px 14px 0"><span class="grow"><b>Out of date.</b> This packet was built from <span class="mono">${esc(r.commit)}</span>, but ${esc(i.lead || 'an agent')} ${esc(i.headNote || 'reported a newer commit for this ' + (isEpic(i) ? 'epic' : 'ticket'))}. What you verify may not match the code.</span><button class="btn sm" data-a="refresh" data-v="${i.id}">Ask for a fresh packet</button></div>` : ''}
+      <div class="doc" style="padding:6px 22px 18px">
+        <section><h2>What you're verifying</h2>${itemsHtml}</section>
+        ${r.how ? `<section><h2>How to verify</h2><ol style="margin:0;padding-left:20px">${r.how.map(h => `<li style="margin:3px 0">${esc(h)}</li>`).join('')}</ol></section>` : ''}
+        ${r.checked ? `<section><h2>Already checked by the agent</h2>${r.checked.map(c => `<div class="lrow">${prov(c[1])}<span class="grow">${esc(c[0])}</span><span class="src">${esc(c[2])}</span></div>`).join('')}</section>` : ''}
+        ${r.gaps ? `<section><h2>Known gaps</h2><ul style="margin:0;padding-left:20px">${r.gaps.map(g => `<li>${esc(g)}</li>`).join('')}</ul></section>` : ''}
+        ${r.attach ? `<section><h2>Attachments</h2><div>${r.attach.map(a => `<button class="attach" data-a="doc" data-v="${esc(a[0])}|${esc(a[1])}|${esc(r.by)}|${esc(r.when)}">${small(I.clip)}<b>${esc(a[0])}</b><span class="src">${esc(a[1])}</span></button>`).join('')}</div></section>` : ''}
+      </div>
+    </div>
+    <div class="stack">
+      ${live ? `<div class="card pad"><h3>Your decision · round ${r.n}</h3>
+          <div class="src">${Object.values(v).filter(x => x && x.k).length} of ${hrOf(i).filter(h => h.state==='ready').length} items decided</div>
+          <button class="btn primary" style="margin-top:10px;width:100%;justify-content:center" data-a="submitpacket" ${allSet ? '' : 'disabled'}>${!allSet ? 'Decide every item first' : anyCh ? `Send back to ${esc(i.lead || 'the agent')}` : nDef ? `Close ticket (${nDef} deferred)` : 'Approve and close ticket'}</button>
+          <div class="callout" style="margin-top:10px">${anyCh ? `Each finding becomes a checklist item or a bug. The ticket goes back to In progress and you'll get a round ${r.n + 1} packet.${nDef ? ' Deferred items stay deferred.' : ''}` : nDef ? `Closes ${i.id}. ${nDef} item${nDef===1?' is':'s are'} recorded as deferred, not verified; nothing is marked approved that you didn't check.` : `Approving records your decision on <span class="mono">${esc(r.sha)}</span> and closes ${i.id}${dependents(i.id).length ? `, which unblocks ${dependents(i.id).map(x => x.id).join(', ')}` : ''}.`}</div></div>`
+        : `<div class="card pad"><h3>Round ${r.n}</h3><div class="src">${r.decided ? `Decided ${esc(r.decided.when)}` : 'Not decided'}</div></div>`}
+    </div>
+  </div>`;
+};
+
+/* ---------- Timeline ---------- */
+V.timeline = () => { S.workMode = 'timeline'; return V.work(); };
+function timelineBody(){
+  const start = D('2026-11-02'), days = 35;
+  const pct = d => ((d - start) / 864e5 / days * 100);
+  const rows = items.filter(i => i.start && !isEpic(i) && inScope(i) && !i.arch).sort((a,b) => D(a.start) - D(b.start));
+  const undated = items.filter(i => !i.start && !isEpic(i) && isOpen(i) && inScope(i));
+  const fcProj = S.scope === 'all' ? 'RCP' : S.scope, have = fcProj === 'RCP' ? 2 : 0;
+  const endX = s => pct(new Date(D(s).getTime() + 864e5));
+  const nowX = pct(NOW);
+  const row = i => {
+    const risks = dateRisks(i), done = i.status === 'done';
+    const s = pct(D(i.start)), e = endX(i.end);
+    const deps = unresolved(i).filter(b => byId[b].end).map(b => `<div class="dep ${risks.includes(b)?'risk':''}" style="left:${endX(byId[b].end)}%" title="${b} planned to finish ${fmt(D(byId[b].end))}"></div>`).join('');
+    const after = unresolved(i).filter(b => byId[b].end).map(b => `${risks.includes(b) ? '<b style="color:var(--bad)">' : ''}${b} ends ${fmt(D(byId[b].end))}${risks.includes(b) ? '</b>' : ''}`);
+    const overdue = !done && D(i.end) < D(NOW.toISOString().slice(0,10));
+    return `<div class="tl-row"><div class="lbl">${typeIcon(i)}${link(i.id)}<span class="t" title="${esc(i.title)}">${esc(i.title)}</span></div>
+      <div class="track">
+        <div class="today" style="left:${nowX}%"></div>${deps}
+        <div class="bar planned ${risks.length ? 'risk' : ''} ${done ? 'done' : ''}" style="left:${s}%;width:${e-s}%" title="Planned ${fmt(D(i.start))} → ${fmt(D(i.end))} · set by ${esc(i.setBy)}">${risks.length ? '⚠ blocker ends later' : overdue ? 'overdue' : done ? '✓ done' : isBlocked(i) ? '⊘ blocked' : ''}</div>
+        ${i.actual ? `<div class="bar actual" style="left:${pct(D(i.actual[0]))}%;width:${(i.actual[1] ? Math.min(endX(i.actual[1]), nowX) : nowX) - pct(D(i.actual[0]))}%" title="Actual run time"></div>` : ''}
+        ${after.length ? `<div class="setby" style="left:calc(${s}% + 1px)">after ${after.join(', ')}</div>` : ''}
+      </div></div>`;
+  };
+  const fcStart = pct(D('2026-11-24')), fcEnd = endX('2026-12-03');
+  const fc = S.fcPreview && fcProj === 'RCP'
+    ? `<div class="bar forecast" style="left:${fcStart}%;width:${fcEnd-fcStart}%">P50 Nov 24 – P85 Dec 3</div><div class="setby" style="left:calc(${fcStart}% + 1px)">preview · 6.2 pts/wk over the last 4 weeks · n=11 · 80% range</div><button class="btn ghost sm" data-a="fc" style="position:absolute;left:8px;top:10px">Hide preview</button>`
+    : `<div style="position:absolute;left:10px;top:12px;display:flex;gap:8px;align-items:center;font-size:12.5px;color:var(--ink-2)">No forecast yet: needs 8 completed items with effort (have ${have}). ${fcProj === 'RCP' ? '<button class="btn ghost sm" data-a="fc">Preview what it will look like</button>' : ''}</div>`;
+  return `<div class="card" style="overflow:auto;margin-top:10px"><div style="min-width:860px">
+      <div class="weeks"><div></div><div style="display:grid;grid-template-columns:repeat(5,1fr)">${['Nov 2','Nov 9','Nov 16','Nov 23','Nov 30'].map(w => `<div class="w"><span>${w}</span></div>`).join('')}</div></div>
+      ${rows.map(row).join('')}
+      <div class="tl-row" style="background:var(--panel-2)"><div class="lbl"><b>Forecast · ${P[fcProj].short} backlog</b></div><div class="track">${fc}</div></div>
+    </div></div>
+    <div class="row wrap" style="margin-top:10px;justify-content:space-between">
+      <div class="legend"><span><span class="bar planned" style="position:static;width:26px;height:12px"></span>Entered plan</span><span><span class="bar actual" style="position:static;width:26px"></span>Actual</span><span><span class="bar forecast" style="position:static;width:26px;height:12px"></span>Forecast (computed)</span><span><span style="display:inline-block;width:0;height:14px;border-left:2px dashed var(--ink-3)"></span>Blocker's planned end</span><span><span style="display:inline-block;width:0;height:14px;border-left:2px solid var(--bad)"></span>Now</span></div>
+      <div class="src" style="flex-basis:100%">Not on the timeline (no dates): ${undated.map(i => link(i.id)).join(', ') || 'none'}</div></div>`;
+}
+
+/* ---------- Agents ---------- */
+V.agents = () => {
+  const rows = [
+    ['live','claude · orca-w3','RCP-14','Lead · work item 2 of 4: unit merging','40s','tel','Until 12:02'],
+    ['reported','claude','RCP-23','Planning · drafting the TDD','6m','said','Until 11:40'],
+    ['finished','units-worker','RCP-14','Child run r-77 · conversion table and tests','20m','observed','—'],
+    [null,'explorer','RCP-14','Subagent log · mapped ingredient units','48m','relayed','—'],
+    ['needs','codex','DOC-4','Waiting on your answer','9m','tel','Paused'],
+    ['stale','codex · orca-w1','RCP-15','Last said: “migrating pantry table”','47m','none','Expires 11:13'],
+    ['failed','claude','RCP-18','Outbound network blocked','25m','tel','Released'],
+    ['finished','codex','RCP-12','Lead · handoff packet round 2 submitted','18m','tel','Released']];
+  const srcCell = s => s==='said' ? prov('agent','Agent-reported · no heartbeat') : s==='tel' ? '<span class="src">Client heartbeat</span>' : s==='observed' ? prov('observed') : s==='relayed' ? prov('relayed') : '<span class="chip c-gray">Unknown: no heartbeat</span>';
+  return `<h1>Agents</h1>
+    <div class="card" style="overflow:auto"><table><thead><tr><th scope="col">State</th><th scope="col">Agent</th><th scope="col">Item</th><th scope="col">Doing / did</th><th scope="col">Last signal</th><th scope="col">Lease</th><th scope="col">How we know</th></tr></thead><tbody>
+    ${rows.filter(r => inScope(byId[r[2]])).map(r => `<tr class="clickrow" data-a="open" data-v="${r[2]}"><td>${r[0] ? run(r[0]) : '<span class="src">log entry</span>'}</td><td><b>${r[1]}</b></td><td>${link(r[2])}</td><td>${esc(r[3])}</td><td class="muted">${r[4]} ago</td><td class="src">${r[6]}</td><td>${srcCell(r[5])}</td></tr>`).join('')}
+    </tbody></table></div>`;
+};
+
+/* ---------- Connections ---------- */
+V.connections = () => {
+  const m = [
+    ['Codex CLI (host)','Streamable HTTP','2m ago','pass','Smoke test passed Nov 6 08:15'],
+    ['Claude Code (host)','Streamable HTTP','40s ago','pass','Smoke test passed Nov 6 08:16'],
+    ['Orca worker · Codex','Streamable HTTP (user config)','47m ago','pass','Passed Nov 6 08:20 · delegated agent updated the same ticket'],
+    ['Orca worker · Claude','Not verified','never','todo','Check that this surface inherits the user MCP config'],
+    ['Agent in another container','Docker network','—','off','Off by default. Needs an explicit network path (O02)']];
+  const st = s => s==='pass' ? '<span class="chip c-ok">✓ Verified</span>' : s==='todo' ? '<span class="chip c-warn">Not verified</span>' : '<span class="chip c-gray">Not configured</span>';
+  const snip = {codex:`# ~/.codex/config.toml\n[mcp_servers.tasklite]\nurl = "http://127.0.0.1:7420/mcp"\nbearer_token_env_var = "TASKLITE_TOKEN"`,
+                claude:`claude mcp add --transport http --scope user tasklite \\\n  http://127.0.0.1:7420/mcp \\\n  --header "Authorization: Bearer $TASKLITE_TOKEN"`};
+  return `<h2 style="margin:22px 0 10px">Connections</h2>
+  <div class="grid2"><div class="stack">
+    <div class="card" style="overflow:auto"><div class="sectionhead"><h3>Client compatibility</h3><span class="src">O07 smoke test: claim, plan, log, read back</span></div>
+      <table><thead><tr><th scope="col">Client</th><th scope="col">Transport</th><th scope="col">Last seen</th><th scope="col">Status</th><th scope="col">Notes</th></tr></thead><tbody>
+      ${m.map(r => `<tr><td><b>${r[0]}</b></td><td class="src">${r[1]}</td><td class="src">${r[2]}</td><td>${st(r[3])}</td><td class="src">${r[4]}</td></tr>`).join('')}</tbody></table></div>
+    <div class="card pad"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Client setup</h3>
+        <div class="seg" role="group" aria-label="Client">${['codex','claude'].map(k => `<button data-a="snippet" data-v="${k}" aria-pressed="${S.snippet===k}">${k==='codex'?'Codex':'Claude Code'}</button>`).join('')}</div></div>
+      <pre class="code" id="snip">${esc(snip[S.snippet])}</pre>
+      <div class="row" style="margin-top:8px;align-items:flex-start"><button class="btn sm" data-a="copy">${I.copy}Copy</button><span class="src">Sample config. Check it against each client's docs during the O07 smoke test. The token comes from an environment variable and never appears in tickets or logs.</span></div></div>
+  </div>
+  <div class="stack">
+    <div class="card pad"><h3>Endpoint</h3><dl class="kv"><dt>MCP</dt><dd class="mono">http://127.0.0.1:7420/mcp</dd><dt>Web UI</dt><dd class="mono">http://127.0.0.1:7420/</dd><dt>Bind</dt><dd>Loopback only</dd><dt>Auth</dt><dd>Bearer token</dd><dt>Origins</dt><dd class="mono">127.0.0.1:7420</dd></dl></div>
+    <div class="card pad"><h3>Service health</h3><dl class="kv">
+      <dt>Database</dt><dd><span class="chip c-ok">✓ ready</span> SQLite · 3.1 MB</dd>
+      <dt>Documents</dt><dd><span class="chip c-ok">✓ ready</span> 12 files · 4.8 MB</dd>
+      <dt>Volume</dt><dd class="mono" style="font-size:11.5px">tasklite-data</dd>
+      <dt>Last backup</dt><dd>Nov 6 03:00 · kept 14 days</dd>
+      <dt>Restarted</dt><dd>Nov 6 08:12<div class="src">0 runs were active. Any active run would show as interrupted, not finished.</div></dd></dl></div>
+  </div></div>`;
+};
+
+/* ---------- Projects ---------- */
+V.settings = () => `<h1>Settings</h1>${projectsBody()}${V.connections()}`;
+V.projects = V.settings;
+const projectsBody = () => `<h2 style="margin:4px 0 10px">Projects</h2>
+  <div class="card">${Object.values(P).map(p => { const its = items.filter(i => i.proj===p.key && !isEpic(i)), c = s => its.filter(i => i.status===s).length, n = its.length, fy = forYouIn(p.key).length;
+    const labs = Object.keys(LABELS).filter(l => LABELS[l].proj === p.key); return `
+    <div class="proj-card"><div class="row"><span class="sw" style="background:${p.color};width:11px;height:11px"></span><div><a href="#" data-a="scope" data-v="${p.key}" style="color:var(--ink)"><b>${p.name}</b></a> ${S.scope===p.key ? '<span class="chip c-info">Current</span>' : ''}
+      <div class="src"><span class="mono">${p.key}</span> · ${items.filter(i => i.proj===p.key && isEpic(i)).length} epics · ${n} items · ${p.docs} documents · ${fy} for you</div></div></div>
+    <div class="row wrap" style="gap:4px">${labs.map(labelLink).join('') || '<span class="src">No labels</span>'}</div>
+    <div><div class="bar-mini" role="img" aria-label="${c('done')} done, ${c('review')} in review, ${c('progress')} in progress, ${c('ready')} ready, ${c('planning')} planning">${[['done','var(--ok)'],['review','var(--warn)'],['progress','var(--violet)'],['ready','var(--info)'],['planning','var(--teal)']].map(([s,col]) => `<i style="width:${n ? c(s)/n*100 : 0}%;background:${col}"></i>`).join('')}</div><div class="src" style="margin-top:3px">${c('done')} done · ${c('progress')} active · ${c('review')} review · ${c('planning')} planning</div></div>
+    <div class="row"><button class="btn sm" data-a="scope" data-v="${p.key}">${S.scope===p.key ? 'Viewing' : 'Switch to'}</button><button class="btn sm" data-a="delproj" data-v="${p.key}" style="color:var(--bad)">Delete…</button></div></div>`; }).join('')}</div>
+`;
+
+/* =====================================================================
+   Modals
+   ===================================================================== */
+function modalHtml(){
+  const m = S.modal; if (!m) return '';
+  const wrap = (title, body, foot) => `<div class="ov" data-a="closeov"><div class="dlg" role="dialog" aria-modal="true" aria-labelledby="dlgt">
+    <header><h2 id="dlgt">${title}</h2><button class="iconbtn" data-a="close" aria-label="Close">${I.x}</button></header>
+    <div class="body">${body}</div>${foot ? `<footer>${foot}</footer>` : ''}</div></div>`;
+  if (m.type === 'palette'){
+    const q = (m.q || '').trim().toLowerCase();
+    const views = [['attention','Needs you'],['work','Work'],['timeline','Timeline (Work)'],['agents','Agents'],['settings','Settings: projects and connections']];
+    const its = items.filter(i => !q || i.id.toLowerCase().includes(q) || i.title.toLowerCase().includes(q)).slice(0, 8);
+    const labs = Object.keys(LABELS).filter(l => q && l.includes(q.replace('#','')));
+    const vs = views.filter(v => !q || v[1].toLowerCase().includes(q));
+    let n = 0; const hi = () => (n++ === (m.hi || 0)) ? ' hi' : '';
+    const res = `${its.length ? `<div class="grp">Work items</div>${its.map(i => `<button class="pi${hi()}" data-a="palopen" data-v="${i.id}"><span class="mono muted" style="width:56px">${i.id}</span><span class="grow">${esc(i.title)}</span><span class="src">${P[i.proj].short}</span>${statusChip(i)}</button>`).join('')}` : ''}
+      ${labs.length ? `<div class="grp">Labels</div>${labs.map(l => `<button class="pi${hi()}" data-a="pallabel" data-v="${l}"><span class="grow"># ${l}</span><span class="src">${P[LABELS[l].proj].short}</span></button>`).join('')}` : ''}
+      ${vs.length ? `<div class="grp">Go to</div>${vs.map(v => `<button class="pi${hi()}" data-a="palnav" data-v="${v[0]}"><span class="grow">${v[1]}</span></button>`).join('')}` : ''}`;
+    return `<div class="ov" data-a="closeov"><div class="dlg pal" role="dialog" aria-modal="true" aria-label="Search or jump to">
+      <input id="palq" placeholder="Search items, IDs, labels or views…" value="${esc(m.q || '')}" aria-label="Search" autocomplete="off">
+      <div class="res">${res.trim() || '<div class="pad muted">No matches in the sample data.</div>'}</div>
+      <div class="pad src" style="border-top:1px solid var(--line)">↑↓ to move · Enter to open · Esc to close</div></div></div>`;
+  }
+  if (m.type === 'new'){
+    const f = S.newF, eps = items.filter(x => isEpic(x) && x.proj === f.proj);
+    return wrap(f.fromEpic ? `New item in ◆ ${esc(byId[f.fromEpic].title)}` : 'New item in Inbox', `<label class="f" for="new-title" style="margin-top:0">Title <b style="color:var(--bad)">(required)</b></label><input class="input" id="new-title" data-t="new-title" value="${esc(S.text['new-title'] || '')}" placeholder="e.g. Let me star favourite recipes" autocomplete="off">
+      <div class="row wrap" style="gap:10px;margin-top:10px">
+        <label><span class="f" style="margin-top:0">Type</span><select data-a="newf" data-v="type">${Object.keys(TYPES).map(t => `<option ${f.type===t?'selected':''}>${t}</option>`).join('')}</select></label>
+        <label><span class="f" style="margin-top:0">Project</span><select data-a="newf" data-v="proj">${Object.values(P).map(p => `<option value="${p.key}" ${f.proj===p.key?'selected':''}>${p.short}</option>`).join('')}</select></label>
+        <label><span class="f" style="margin-top:0">Epic (optional)</span><select data-a="newf" data-v="epic"><option value="">No epic</option>${eps.map(e => `<option value="${e.id}" ${f.epic===e.id?'selected':''}>${esc(e.title)}</option>`).join('')}</select></label></div>
+      <label class="f" for="new-notes">Notes (optional)</label><textarea id="new-notes" data-t="new-notes" placeholder="Anything you already know. You'll shape it properly in Planning.">${esc(S.text['new-notes'] || '')}</textarea>`,
+      '<button class="btn" data-a="close">Cancel</button><button class="btn primary" data-a="createitem">Add to Inbox</button>');
+  }
+  if (m.type === 'doc'){
+    const t = docText(m.name);
+    return wrap(esc(m.name), `<div class="src" style="margin-bottom:8px">${esc(m.ver)} · ${esc(m.by)} · ${esc(m.when)} · stored locally with the project</div>
+      ${t ? `<div class="docview">${mdHtml(t)}</div>` : `<div class="media">${small(I.clip)} ${esc(m.ver)}: preview appears here</div>`}`,
+      `<button class="btn" data-a="dldoc">Download</button><button class="btn" data-a="close">Close</button>`);
+  }
+  if (m.type === 'plan'){
+    const d = DETAIL[S.ticket];
+    return wrap(`Checklist history · ${S.ticket}`, `<div class="hv">${[...d.history].reverse().map(h => `<div class="ver"><div class="row" style="justify-content:space-between"><b>v${h.v}</b><span class="src">${h.by} · ${h.at}</span></div><div class="src" style="margin:2px 0 6px">${esc(h.note)}</div>${h.ops.map(o => `<div class="${o[0]==='+'?'add':o[0]==='-'?'rm':''}">${o[0]==='=' ? '' : o[0]+' '}${esc(o[1])}</div>`).join('')}</div>`).join('')}</div>
+      <div class="src" style="margin-top:10px">Earlier versions are kept so you can see how scope changed without reading a transcript.</div>`, '<button class="btn" data-a="close">Close</button>');
+  }
+  if (m.type === 'release'){
+    return wrap(`Release lead claim on ${m.id}?`, `<p style="margin-top:0">codex · orca-w1 has been silent for 47 minutes. Releasing will:</p>
+      <ul style="margin:0 0 8px;padding-left:18px"><li>mark run r-58 as <b>interrupted</b>, not finished</li><li>keep its checklist, log and partial work on the ticket</li><li>move ${m.id} back to Ready so another agent can claim it</li></ul>
+      <div class="src">If codex comes back, it gets a conflict response with the current state.</div>`,
+      `<button class="btn" data-a="close">Cancel</button><button class="btn danger" data-a="confirmrelease" data-v="${m.id}">Release claim</button>`);
+  }
+  if (m.type === 'delete'){
+    const p = P[m.key], n = items.filter(i => i.proj===m.key).length, ok = (m.typed || '') === m.key;
+    return wrap(`Delete ${esc(p.name)}?`, `<p style="margin-top:0">This permanently removes <b>${n} work items</b>, their checklists, runs and history, and <b>${p.docs} local documents</b> including handoff packets. Agents will get “not found” for these IDs.</p>
+      <div class="callout warn">Backups keep a copy until their 14-day retention ends. Removing the Docker container alone doesn't delete data.</div>
+      <label class="f" for="deltype">Type <b class="mono">${m.key}</b> to confirm</label><input class="input" id="deltype" value="${esc(m.typed || '')}" autocomplete="off">`,
+      `<button class="btn" data-a="close">Cancel</button><button class="btn danger" data-a="confirmdel" ${ok ? '' : 'disabled'}>Delete project</button>`);
+  }
+  return '';
+}
+
+/* =====================================================================
+   Render loop (keeps keyboard focus on the same control across renders)
+   ===================================================================== */
+const TITLES = {attention:'Needs you', work:'Work', review:'Human review', agents:'Agents', settings:'Settings', timeline:'Work', connections:'Settings', projects:'Settings'};
+const fkey = el => (el && el.dataset) ? (el.dataset.a ? `${el.dataset.a}|${el.dataset.v || ''}` : el.dataset.t ? `t|${el.dataset.t}` : el.id ? `#${el.id}` : null) : null;
+function render(){
+  if (S.view === 'ticket' && !byId[S.ticket]) S.view = 'attention';
+  const ae = document.activeElement, k = fkey(ae);
+  const caret = ae && typeof ae.selectionStart === 'number' ? ae.selectionStart : null;
+  renderNav();
+  $('#view').innerHTML = V[S.view]();
+  renderTabs();
+  const i = byId[S.ticket];
+  const globalView = ['settings','connections','projects'].includes(S.view);
+  $('#crumbs').innerHTML = S.view === 'ticket' ? `<span>${P[i.proj].short}</span> / ${i.epic && byId[i.epic] ? `<a href="#" data-a="open" data-v="${i.epic}">◆ ${esc(byId[i.epic].title)}</a>` : '<a href="#" data-a="nav" data-v="work">Work</a>'} / <span class="mono">${i.id}</span> <b>${esc(i.title)}</b>`
+    : S.view === 'label' ? `<a href="#" data-a="nav" data-v="work">Work</a> / <b>#${esc(S.label)}</b>`
+    : S.view === 'review' ? `<a href="#" data-a="nav" data-v="attention">Needs you</a> / <b>Human review · ${esc(S.pk || '')}</b>`
+    : globalView ? `<b>${TITLES[S.view]}</b> <span class="scopebar">Service-wide</span>` : `<span>${S.scope === 'all' ? 'All projects' : P[S.scope].short}</span> / <b>${TITLES[S.view]}</b>`;
+  if (S.theme === 'system') $('#app').removeAttribute('data-theme'); else $('#app').setAttribute('data-theme', S.theme);
+  const dark = S.theme==='dark' || (S.theme==='system' && matchMedia('(prefers-color-scheme: dark)').matches);
+  $('#themebtn').innerHTML = dark ? I.sun : I.moon;
+  $('#themebtn').setAttribute('aria-label', `Theme: ${S.theme}. Switch theme`);
+  $('#themebtn').title = `Theme: ${S.theme}`;
+  drawMaps();
+  $('#modal').innerHTML = modalHtml();
+  if (S.modal){
+    const f = S.modal.type==='palette' ? $('#palq') : S.modal.type==='delete' ? $('#deltype') : S.modal.type==='new' ? (document.activeElement && document.activeElement.closest && document.activeElement.closest('.dlg') ? null : $('#new-title')) : $('.dlg footer .btn');
+    if (f){ f.focus(); if (f.type !== 'checkbox' && typeof f.value === 'string' && f.setSelectionRange) try { f.setSelectionRange(f.value.length, f.value.length); } catch(_){} }
+    return;
+  }
+  if (k){
+    const el = [...document.querySelectorAll('#app [data-a],#app [data-t],#app [id]')].find(e => fkey(e) === k);
+    if (el){ el.focus({preventScroll:true}); if (caret != null && el.setSelectionRange) try { el.setSelectionRange(caret, caret); } catch(_){} }
+  }
+}
+function rememberTab(){ if (S.view === 'ticket' && byId[S.ticket]) S.tabMem[S.ticket] = {tab:S.tab, epicTab:S.epicTab}; }
+function go(view, opts={}){ if (view === 'timeline'){ view = 'work'; opts = Object.assign({workMode:'timeline'}, opts); } if (view === 'projects' || view === 'connections') view = 'settings'; rememberTab(); Object.assign(S, opts); S.view = view; if (view !== 'ticket') S.lastPage = view; render(); $('#view').focus({preventScroll:true}); }
+function openTicket(id, epicTab){ rememberTab(); const m = S.tabMem[id] || {}; S.ticket = id; S.tab = m.tab || null; S.epicTab = epicTab || m.epicTab || 'details';
+  if (!S.openTabs.includes(id)){ S.openTabs.push(id); while (S.openTabs.length > 8){ const k = S.openTabs.findIndex(x => x !== id); S.openTabs.splice(k, 1); } }
+  S.view = 'ticket'; render(); $('#view').focus({preventScroll:true}); }
+function renderTabs(){
+  S.openTabs = S.openTabs.filter(id => byId[id]);
+  if (S.view === 'ticket' && byId[S.ticket] && !S.openTabs.includes(S.ticket)) S.openTabs.push(S.ticket);
+  $('#tabstrip').innerHTML = S.openTabs.length ? S.openTabs.map(id => { const i = byId[id], on = S.view === 'ticket' && S.ticket === id;
+    return `<div class="otab" role="presentation" aria-selected="${on}"><button class="og" role="tab" aria-selected="${on}" data-a="tabgo" data-v="${id}" title="${esc(i.title)}">${typeIcon(i)}<span class="mono">${id}</span><span class="tt2">${esc(i.title)}</span></button><button class="ox" data-a="tabclose" data-v="${id}" aria-label="Close ${id}">${small(I.x)}</button></div>`; }).join('') : ''; }
+
+/* =====================================================================
+   Actions
+   ===================================================================== */
+const ACT = {
+  nav: v => go(v),
+  open: v => openTicket(v),
+  label: v => go('label', {label:v}),
+  newin: v => { const e = byId[v]; S.newF = {type:'Story', proj:e.proj, epic:v, fromEpic:v}; S.text['new-title'] = ''; S.text['new-notes'] = ''; S.modal = {type:'new'}; render(); },
+  addwork: v => { const t = (S.text['addw-'+v] || '').trim(); if (!t){ toast('Write the step first.'); return; }
+    const before = snap(); DETAIL[v] = DETAIL[v] || {}; (DETAIL[v].work = DETAIL[v].work || []).push({s:'todo', t, by:'you'}); S.text['addw-'+v] = ''; logActivity(v, `You added a work step: “${t}”`);
+    undoable(before, 'Work step added. The agent sees it on its next query.'); },
+  addcheck: v => { const t = (S.text['adda-'+v] || '').trim(); if (!t){ toast('Write what the agent should verify.'); return; }
+    const before = snap(); DETAIL[v] = DETAIL[v] || {}; (DETAIL[v].checks = DETAIL[v].checks || []).push([t, 'agent', 'Added by you; the agent runs it and attaches evidence', 'todo', 'you']); S.text['adda-'+v] = ''; logActivity(v, `You added an agent review item: “${t}”`);
+    undoable(before, 'Agent review item added. The agent runs it before handing off.'); },
+  rmwork: v => { const [id, n] = v.split('|'), before = snap(), w = DETAIL[id].work[+n]; DETAIL[id].work.splice(+n, 1); logActivity(id, `You removed a work step: “${w.t}”`); undoable(before, 'Work step removed.'); },
+  rmcheck: v => { const [id, n] = v.split('|'), before = snap(), c = DETAIL[id].checks[+n]; DETAIL[id].checks.splice(+n, 1); logActivity(id, `You removed an agent review item: “${c[0]}”`); undoable(before, 'Agent review item removed.'); },
+  hradd: v => { const t = (S.text['hrnew-'+v] || '').trim(); if (!t){ toast('Write what you need to verify.'); const el = document.getElementById('hrnew-'+v); if (el) el.focus(); return; }
+    const before = snap(), i = byId[v]; (i.hr = i.hr || []).push({t, state:'declared', by:'you'}); S.text['hrnew-'+v] = ''; logActivity(v, `You added a human review item: “${t}”`);
+    undoable(before, packetReady(i) ? 'Review item added. It will be in the next round, after this packet.' : 'Review item added. The agent sees it on its next query.'); },
+  hredit: v => { S.hrEdit = v; const [id, n] = v.split('|'); S.text[`hredit-${id}-${n}`] = byId[id].hr[+n].t; render(); setTimeout(() => { const t = document.getElementById('hre-' + n); if (t) t.focus(); }, 0); },
+  hrcancel: () => { S.hrEdit = null; render(); },
+  hrsave: v => { const [id, n] = v.split('|'), t = (S.text[`hredit-${id}-${n}`] || '').trim(); if (!t){ toast('An item needs some text. Use Remove to delete it.'); return; }
+    const before = snap(), h = byId[id].hr[+n], old = h.t; h.t = t; S.hrEdit = null; logActivity(id, `You edited a human review item: “${old}” → “${t}”`); undoable(before, 'Review item updated.'); },
+  hrdel: v => { const [id, n] = v.split('|'), before = snap(), h = byId[id].hr[+n]; byId[id].hr.splice(+n, 1); logActivity(id, `You removed a human review item: “${h.t}”`); undoable(before, 'Review item removed.'); },
+  newitem: () => { S.newF = {type:'Story', proj: S.scope === 'all' ? 'RCP' : S.scope, epic:''}; S.text['new-title'] = ''; S.text['new-notes'] = ''; S.modal = {type:'new'}; render(); },
+  createitem: () => { const t = (S.text['new-title'] || '').trim(); if (!t){ toast('Give it a title.'); const el = $('#new-title'); if (el) el.focus(); return; }
+    const before = snap(), f = S.newF, nid = nextId(f.proj);
+    items.push({id:nid, type:f.type, title:t, status:'inbox', prio:3, proj:f.proj, epic:f.epic || undefined, last:'now', hr:[]}); reindex();
+    DETAIL[nid] = {outcome:(S.text['new-notes'] || '').trim(), activity:[['now','You created this in Inbox']]};
+    S.modal = null;
+    if (f.fromEpic){ logActivity(f.fromEpic, `You added ${nid} to this epic`); undoable(before, `${nid} added to ${byId[f.fromEpic].title} (Inbox).`); return; }
+    openTicket(nid); toast(`${nid} added to Inbox.`, () => { restore(before); render(); }); },
+  doc: v => { const [name, ver, by, when] = v.split('|'); S.modal = {type:'doc', name, ver, by, when}; render(); },
+  dldoc: () => { const m = S.modal, t = docText(m.name) || `${m.name}: binary attachment`; const b = new Blob([t], {type:'text/plain'}); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = m.name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); },
+  addnote: v => { const t = (S.text['agentnote-'+v] || '').trim(); if (!t){ toast('Write a note first.'); return; } const before = snap(); logActivity(v, `You noted for the agent: “${t}”`); S.text['agentnote-'+v] = ''; undoable(before, 'Note added. The agent sees it on its next query.'); },
+  workfilter: v => go('work', {filter:v, epicF:'all', labelF:'all', workMode:'board', showBlocked:false}),
+  sinceall: () => { S.sinceAll = !S.sinceAll; render(); },
+  labelboard: v => go('work', {labelF:v, epicF:'all', filter:'all'}),
+  scope: v => { S.scope = v; S.scopeOpen = false; S.epicF = 'all'; S.labelF = 'all'; if (['projects','settings'].includes(S.view)) go('attention'); else render(); toast(v === 'all' ? 'Showing all projects.' : `Showing only ${P[v].short}.`); },
+  scopemenu: () => { S.scopeOpen = !S.scopeOpen; render(); if (S.scopeOpen) setTimeout(() => { const b = document.querySelector('.scopemenu [aria-checked=true]'); if (b) b.focus(); }, 0); },
+  reply: v => { S.replyOpen = S.replyOpen === v ? null : v; render(); setTimeout(() => { const t = $('#ans-'+v); if (t) t.focus(); }, 0); },
+  sendanswer: v => {
+    const t = (S.text['ans-'+v] || '').trim();
+    if (!t){ toast('Write an answer first.'); return; }
+    const before = snap(), i = byId[v]; i.question.answer = t; S.replyOpen = null; logActivity(v, `You answered: “${t}”`);
+    undoable(before, `Answer posted to ${v}. ${i.question.by} reads it on its next query.`);
+  },
+  promote: v => { const before = snap(), i = byId[v]; i.status = 'ready'; logActivity(v, 'You moved the item from Planning to Ready'); undoable(before, `${v} moved to Ready. Agents can claim it now.`); },
+  toplanning: v => { const before = snap(); byId[v].status = 'planning'; logActivity(v, 'You moved the item from Inbox to Planning'); undoable(before, `${v} moved to Planning.`); },
+  bulkready: v => { const before = snap(), its = items.filter(i => (i.labels || []).includes(v) && i.status === 'planning');
+    its.forEach(i => { i.status = 'ready'; logActivity(i.id, `You moved the item to Ready with everything labelled ${v}`); });
+    undoable(before, `${its.length} item${its.length===1?'':'s'} labelled ${v} moved to Ready.`); },
+  mode: v => { S.workMode = v; render(); },
+  filter: v => { S.filter = v; if (v==='blocked') S.showBlocked = true; render(); },
+  toggleblocked: () => { S.showBlocked = !S.showBlocked; render(); },
+  tab: v => { S.tab = v; render(); },
+  planhistory: () => { S.modal = {type:'plan'}; render(); },
+  release: v => { S.modal = {type:'release', id:v}; render(); },
+  confirmrelease: v => {
+    const before = snap(), i = byId[v];
+    i.lead = null; i.run = null; i.status = 'ready';
+    Object.assign(DETAIL[v].runs[0], {r:'interrupted', what:'Lead run r-58 · interrupted by you at 11:00 · partial work kept', lead:false});
+    logActivity(v, 'You released the lead claim; run r-58 marked interrupted'); S.modal = null;
+    undoable(before, `${v} is back in Ready. Run r-58 marked interrupted.`);
+  },
+  toready: v => { const before = snap(), i = byId[v]; i.lead = null; i.run = null; i.status = 'ready'; DETAIL[v].runs[0].lead = false;
+    logActivity(v, 'You returned the item to Ready after the failed run'); undoable(before, `${v} returned to Ready.`); },
+  packet: v => go('review', {pk:v, pkRound:null}),
+  pkround: v => { S.pkRound = +v; render(); },
+  verdict: v => { const [n, k] = v.split('|'), m = S.verdicts[S.pk] = S.verdicts[S.pk] || {}; m[n] = Object.assign(m[n] || {into:'checklist', follow:'ticket'}, {k}); render(); },
+  mkfollow: v => { const [id, n] = v.split('|'), i = byId[id], h = hrOf(i)[+n], before = snap(), nid = nextId(i.proj);
+    items.push({id:nid, type:'Task', title:'Verify: ' + (h.t.length > 60 ? h.t.slice(0, 58) + '…' : h.t), status:'inbox', prio:i.prio, proj:i.proj, epic:i.epic, relates:[id], fromReview:`${id} · deferred item`, last:'now', hr:[{t:h.t, state:'declared'}]});
+    reindex(); h.last = Object.assign(h.last || {round:1, deferred:true}, {ref:nid}); logActivity(id, `You created test ticket ${nid} for a deferred review item`);
+    undoable(before, `Created test ticket ${nid} in Inbox.`); },
+  follow: v => { const [n, k] = v.split('|'); S.verdicts[S.pk][n].follow = k; render(); },
+  refresh: v => { const before = snap(), i = byId[v]; hrOf(i).forEach(h => { if (h.state === 'ready') h.state = 'declared'; }); i.status = 'progress'; i.run = 'reported'; i.age = 'now';
+    logActivity(v, `You asked ${i.lead} for a fresh packet built from ${i.head}`); undoable(before, `Asked ${i.lead} for a fresh packet. ${v} is back in progress until it arrives.`); },
+  into: v => { const [n, k] = v.split('|'); S.verdicts[S.pk][n].into = k; render(); },
+  submitpacket: () => {
+    const id = S.pk, i = byId[id], v = S.verdicts[id] || {}, pending = hrOf(i).filter(h => h.state === 'ready');
+    if (pending.some((h, n) => !v[n] || !v[n].k)){ toast('Decide every item first.'); return; }
+    const missing = pending.findIndex((h, n) => v[n].k === 'changes' && !(S.text[`note-${id}-${n}`] || '').trim());
+    if (missing >= 0){ toast('Say what needs to change so the agent can fix it.'); const t = $('#note-' + missing); if (t) t.focus(); return; }
+    const before = snap(), r = curPacket(id), made = [];
+    r.items = pending.map(h => h.t);
+    r.decided = {when:'Nov 6 11:00', verdicts: pending.map((h, n) => ({k:v[n].k, note:(S.text[`note-${id}-${n}`] || '').trim(), into:v[n].into || 'checklist', follow:v[n].follow || 'ticket'}))};
+    pending.forEach((h, n) => { const x = r.decided.verdicts[n];
+      if (x.k === 'approve'){ h.state = 'approved'; h.at = r.commit || i.head || null; return; }
+      if (x.k === 'defer'){ h.state = 'deferred'; h.last = {round:r.n, note:x.note, deferred:true};
+        if (x.follow === 'ticket'){ const nid = nextId(i.proj);
+          items.push({id:nid, type:'Task', title:'Verify: ' + (h.t.length > 60 ? h.t.slice(0, 58) + '…' : h.t), status:'inbox', prio:i.prio, proj:i.proj, epic:i.epic, relates:[id], fromReview:`${id} · round ${r.n}`, last:'now', hr:[{t:h.t, state:'declared'}]});
+          reindex(); x.ref = nid; h.last.ref = nid; made.push(`test ticket ${nid}`);
+        } else made.push('deferred to the project workflow');
+        return; }
+      h.state = 'declared'; h.last = {round:r.n, note:x.note};
+      if (x.into === 'bug'){ const nid = nextId(i.proj);
+        items.push({id:nid, type:'Bug', title:x.note.length > 70 ? x.note.slice(0, 68) + '…' : x.note, status:'ready', prio:i.prio, proj:i.proj, epic:i.epic, labels:['regression'], relates:[id], fromReview:`${id} · round ${r.n}`, last:'now', hr:[]});
+        reindex(); x.ref = nid; h.last.ref = nid; made.push(nid);
+      } else { DETAIL[id] = DETAIL[id] || {}; (DETAIL[id].work = DETAIL[id].work || []).push({s:'todo', t:x.note, from:`your review, round ${r.n}`}); made.push('checklist item'); }
+    });
+    const anyCh = r.decided.verdicts.some(x => x.k === 'changes'), nDef = r.decided.verdicts.filter(x => x.k === 'defer').length;
+    delete S.verdicts[id];
+    const newer = hrOf(i).filter(h => h.state === 'declared').length;
+    if (!anyCh && newer){
+      i.status = 'progress'; i.round = r.n + 1; i.run = 'reported'; i.age = 'now';
+      logActivity(id, `You approved packet round ${r.n}; ${newer} newer review item${newer === 1 ? '' : 's'} still to come`);
+      undoable(before, `Round ${r.n} approved. ${newer} newer review item${newer === 1 ? ' is' : 's are'} still to come, so ${id} stays open.`); return;
+    }
+    if (!anyCh){
+      i.status = 'done'; i.closedBy = 'owner'; i.run = 'finished';
+      logActivity(id, `You closed the ticket after packet round ${r.n}${nDef ? ` (${nDef} item${nDef===1?'':'s'} deferred, not verified)` : ''}`);
+      undoable(before, `${id} closed${nDef ? ` with ${nDef} deferred (${made.join(', ')})` : ''}.${dependents(id).length ? ' ' + dependents(id).map(x => x.id).join(', ') + ' unblocked.' : ''}`);
+      return;
+    }
+    i.status = 'progress'; i.round = r.n + 1; i.run = 'reported'; i.age = 'now';
+    logActivity(id, `You sent round ${r.n} back: ${made.join(', ')}`);
+    undoable(before, `Sent back to ${i.lead || 'the agent'}: ${made.join(', ')}. You'll get round ${r.n + 1}.`);
+  },
+  gfix: v => openTicket(v, 'deps'),
+  inspect: v => openTicket(v, 'activity'),
+  epictab: v => { S.epicTab = v; render(); },
+  archive: v => { const before = snap(); byId[v].arch = true; undoable(before, `${v} archived. It's still in the tracker; find it with search or the Archived filter.`); },
+  unarchive: v => { const before = snap(); byId[v].arch = false; undoable(before, `${v} is back in your views.`); },
+  archiveall: v => { const ids = v.split(',').filter(Boolean); if (!ids.length) return; const before = snap(); ids.forEach(id => { byId[id].arch = true; }); undoable(before, `Archived ${ids.length} done item${ids.length === 1 ? '' : 's'}.`); },
+  togglearch: () => { S.showArch = !S.showArch; render(); },
+  sectog: v => { S.collapsed[v] = !S.collapsed[v]; render(); },
+  epicmap: v => openTicket(v, 'map'),
+  tabgo: v => openTicket(v),
+  tabclose: v => { const n = S.openTabs.indexOf(v), active = S.view === 'ticket' && S.ticket === v; S.openTabs.splice(n, 1); delete S.tabMem[v];
+    if (!active) { render(); return; }
+    const next = S.openTabs[Math.min(n, S.openTabs.length - 1)]; if (next) openTicket(next); else go(S.lastPage || 'attention'); },
+  mapzoom: v => { const cur = S.mapZ || 1;
+    if (v === 'fit') S.mapZoom = S.mapZoom === 'fit' ? 1 : 'fit';
+    else if (v === 'reset') S.mapZoom = 1;
+    else { const k = ZOOMS.findIndex(z => z >= cur - 0.001); S.mapZoom = v === 'in' ? ZOOMS[Math.min(ZOOMS.length - 1, (ZOOMS[k] > cur + 0.001 ? k : k + 1))] : ZOOMS[Math.max(0, k - 1)]; }
+    render(); },
+  mappan: v => { const c = document.querySelector('#app .pframe .pcanvas'); const f = document.activeElement && document.activeElement.closest && document.activeElement.closest('.pframe');
+    const cv = (f && f.querySelector('.pcanvas')) || c; if (!cv) return;
+    cv.scrollBy({left: v === 'r' ? 320 : v === 'l' ? -320 : 0, top: v === 'd' ? 240 : 0, behavior:'smooth'}); },
+  rmlink: v => { const [b, a] = v.split('>'), before = snap(), i = byId[a]; i.blockedBy = i.blockedBy.filter(x => x !== b); logActivity(a, `You removed link “${b} blocks ${a}”`); undoable(before, `Removed “${b} blocks ${a}”. Cycle resolved.`); },
+  fc: () => { S.fcPreview = !S.fcPreview; render(); },
+  snippet: v => { S.snippet = v; render(); },
+  copy: () => { const t = $('#snip').textContent; const p = navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject(); p.then(() => toast('Copied to clipboard.'), () => toast('Copy is blocked here. Select the text instead.')); },
+  delproj: v => { S.modal = {type:'delete', key:v, typed:''}; render(); },
+  confirmdel: () => { const k = S.modal.key; S.modal = null; render(); toast(`Prototype only: this would delete ${P[k].name} and its documents.`); },
+  theme: () => { S.theme = {system:'light', light:'dark', dark:'system'}[S.theme]; const a = $('#app'); if (S.theme==='system') a.removeAttribute('data-theme'); else a.setAttribute('data-theme', S.theme); render(); toast(`Theme: ${S.theme}`); },
+  palette: () => { S.modal = {type:'palette', q:'', hi:0}; render(); },
+  palopen: v => { S.modal = null; openTicket(v); },
+  pallabel: v => { S.modal = null; go('label', {label:v}); },
+  palnav: v => { S.modal = null; go(v); },
+  close: () => { S.modal = null; render(); },
+  closeov: () => { S.modal = null; render(); },
+  toastundo: () => { const t = $('#toast'), u = t._undo; t.classList.remove('on'); if (u){ u(); toast('Undone.'); } },
+};
+
+/* =====================================================================
+   Events
+   ===================================================================== */
+document.addEventListener('click', e => {
+  const app = document.getElementById('app');
+  if (!app.contains(e.target)) return;
+  if (S.scopeOpen && !e.target.closest('.scopewrap')){ S.scopeOpen = false; render(); }
+  if (e.target.closest('[data-stop]') && !e.target.closest('button')) return;
+  const el = e.target.closest('[data-a]');
+  if (!el) return;
+  if (el.tagName === 'SELECT' || (el.tagName === 'INPUT' && el.type !== 'checkbox')) return;
+  if (el.dataset.a === 'closeov' && e.target !== el) return;
+  if (el.tagName === 'A') e.preventDefault();
+  if (el.tagName === 'TR' && e.target.closest('a')) return;
+  const fn = ACT[el.dataset.a]; if (fn) fn(el.dataset.v);
+});
+document.addEventListener('change', e => {
+  const el = e.target;
+  if (el.dataset.a === 'prio'){ const before = snap(), i = byId[S.ticket], old = i.prio; i.prio = +el.value; logActivity(i.id, `You changed priority P${old} → P${i.prio}`); undoable(before, `Priority set to P${i.prio}. Agents see it on their next query.`); }
+  if (el.dataset.a === 'epicf'){ S.epicF = el.value; render(); }
+  if (el.dataset.a === 'newf'){ S.newF[el.dataset.v] = el.value; if (el.dataset.v === 'proj'){ S.newF.epic = ''; render(); } }
+  if (el.dataset.a === 'labelf'){ S.labelF = el.value; render(); }
+});
+document.addEventListener('input', e => {
+  const el = e.target;
+  if (el.dataset.t) S.text[el.dataset.t] = el.value;
+  if (el.id === 'palq'){ S.modal.q = el.value; S.modal.hi = 0; render(); }
+  if (el.id === 'deltype'){ S.modal.typed = el.value; render(); }
+});
+document.addEventListener('keydown', e => {
+  const tag = document.activeElement && document.activeElement.tagName, typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+  if ((e.key === 'k' && (e.ctrlKey || e.metaKey)) || (e.key === '/' && !typing)){ e.preventDefault(); ACT.palette(); return; }
+  if (e.key === 'Escape' && S.modal){ e.preventDefault(); ACT.close(); return; }
+  if (S.scopeOpen && e.key === 'Escape'){ S.scopeOpen = false; render(); const b = document.querySelector('.scopebtn'); if (b) b.focus(); return; }
+  if (S.scopeOpen && (e.key === 'ArrowDown' || e.key === 'ArrowUp')){
+    const opts = [...document.querySelectorAll('.scopemenu button')], n = opts.indexOf(document.activeElement);
+    e.preventDefault(); opts[(n + (e.key === 'ArrowDown' ? 1 : -1) + opts.length) % opts.length].focus(); return;
+  }
+  if (S.modal && S.modal.type === 'palette' && ['ArrowDown','ArrowUp','Enter'].includes(e.key)){
+    const btns = [...document.querySelectorAll('.pal .pi')]; if (!btns.length) return;
+    e.preventDefault();
+    if (e.key === 'Enter'){ btns[S.modal.hi || 0].click(); return; }
+    S.modal.hi = ((S.modal.hi || 0) + (e.key === 'ArrowDown' ? 1 : -1) + btns.length) % btns.length; render(); return;
+  }
+  if (S.modal && e.key === 'Tab'){
+    const f = [...document.querySelectorAll('.dlg button:not([disabled]),.dlg input,.dlg textarea')]; if (!f.length) return;
+    const first = f[0], last = f[f.length-1];
+    if (e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
+    return;
+  }
+  const t = e.target;
+  if (e.key === 'Enter' && t.matches && t.matches('.addrow .input')){ e.preventDefault(); const b = t.parentElement.querySelector('button'); if (b) b.click(); return; }
+  if ((e.key === 'Enter' || e.key === ' ') && t.matches && t.matches('[role=button]:not(button)')){ e.preventDefault(); t.dispatchEvent(new MouseEvent('click', {bubbles:true})); }
+  if (t.getAttribute && t.getAttribute('role') === 'tab' && ['ArrowLeft','ArrowRight','Home','End'].includes(e.key)){
+    const tabs = [...t.parentElement.querySelectorAll('[role=tab]')], n = tabs.indexOf(t);
+    const next = e.key==='Home' ? 0 : e.key==='End' ? tabs.length-1 : (n + (e.key==='ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+    e.preventDefault(); if (t.dataset.a === 'epictab'){ S.epicTab = tabs[next].dataset.v; render(); const ne = document.getElementById('etab-'+S.epicTab); if (ne) ne.focus(); return; }
+    S.tab = tabs[next].dataset.v; render(); const nt = document.getElementById('tab-'+S.tab); if (nt) nt.focus();
+  }
+});
+let drag = null;
+document.addEventListener('pointerdown', e => { const c = e.target.closest && e.target.closest('.pcanvas'); if (!c || e.target.closest('.pnode') || e.button !== 0) return;
+  drag = {c, x:e.clientX, y:e.clientY, l:c.scrollLeft, t:c.scrollTop}; c.classList.add('dragging'); });
+document.addEventListener('pointermove', e => { if (!drag) return; drag.c.scrollLeft = drag.l - (e.clientX - drag.x); drag.c.scrollTop = drag.t - (e.clientY - drag.y); });
+document.addEventListener('pointerup', () => { if (drag){ drag.c.classList.remove('dragging'); drag = null; } });
+document.addEventListener('scroll', e => { if (e.target && e.target.classList && e.target.classList.contains('pcanvas')) mapCues(e.target); }, true);
+let rsz; window.addEventListener('resize', () => { clearTimeout(rsz); rsz = setTimeout(drawMaps, 80); });
+document.addEventListener('mouseover', e => { const n = e.target.closest && e.target.closest('.pmap .pnode'); document.querySelectorAll('#app .pmap .hl').forEach(x => x.classList.remove('hl')); if (!n) return;
+  const id = n.dataset.pid, m = n.closest('.pmap'); n.classList.add('hl');
+  m.querySelectorAll(`.pe[data-from="${id}"],.pe[data-to="${id}"]`).forEach(pe => { pe.classList.add('hl'); const o = pe.dataset.from === id ? pe.dataset.to : pe.dataset.from; const on = m.querySelector(`[data-pid="${o}"]`); if (on) on.classList.add('hl'); }); });
+const mq = matchMedia('(prefers-color-scheme: dark)');
+if (mq.addEventListener) mq.addEventListener('change', () => { if (S.theme === 'system') render(); });
+
+/* Test hook: ?selftest renders every view and item in each scope and reports errors in the page title. */
+if (/selftest/.test(location.search)){
+  const errs = [];
+  const tryR = (label, f) => { try { f(); render(); } catch(err){ errs.push(label + ': ' + err.message); } };
+  ['all','RCP','DOC'].forEach(sc => Object.keys(TITLES).forEach(v => tryR(sc+'/'+v, () => { S.scope = sc; S.view = v; })));
+  S.scope = 'all';
+  items.forEach(i => ['details','checklist','deps','map','activity'].forEach(t => tryR(i.id+'/'+t, () => { S.view = 'ticket'; S.ticket = i.id; S.epicTab = t; })));
+  Object.keys(LABELS).forEach(l => tryR('label/'+l, () => { S.view = 'label'; S.label = l; }));
+  Object.keys(PACKETS).forEach(id => PACKETS[id].rounds.forEach(r => tryR('packet/'+id+'/'+r.n, () => { S.view = 'review'; S.pk = id; S.pkRound = r.n; })));
+  ['board','list','map'].forEach(m => ['all','RCP','DOC'].forEach(sc => tryR('work/'+m+'/'+sc, () => { S.modal = null; S.view = 'work'; S.workMode = m; S.scope = sc; }))); S.scope = 'all';
+  ['map','details','activity'].forEach(m => ['RCP-1','RCP-2','DOC-10'].forEach(id => tryR('epic/'+m+'/'+id, () => { S.view = 'ticket'; S.ticket = id; S.epicTab = m; })));
+  ['palette','plan','release','delete'].forEach(m => tryR('modal/'+m, () => { S.view = 'ticket'; S.ticket = 'RCP-14'; S.modal = m==='delete' ? {type:m, key:'RCP'} : {type:m, id:'RCP-15', q:'rcp'}; }));
+  tryR('modal/new', () => { S.modal = {type:'new'}; });
+  tryR('modal/newin', () => { S.newF = {type:'Story', proj:'RCP', epic:'RCP-1', fromEpic:'RCP-1'}; S.modal = {type:'new'}; });
+  tryR('hredit', () => { S.modal = null; S.view = 'ticket'; S.ticket = 'RCP-14'; S.hrEdit = 'RCP-14|0'; }); S.hrEdit = null;
+  tryR('tabs', () => { S.openTabs = ['RCP-1','RCP-14','DOC-4']; S.view = 'ticket'; S.ticket = 'RCP-14'; }); S.openTabs = [];
+  ['meal-templates-prd.md','meal-templates-ux.md','meal-templates-tdd.md','pantry-brief.md','drag-phone.mp4','axe-report.json','notes.md'].forEach(n => tryR('doc/'+n, () => { S.modal = {type:'doc', name:n, ver:'v1', by:'claude', when:'now'}; }));
+  tryR('fc', () => { S.modal = null; S.view = 'timeline'; S.fcPreview = true; });
+  Object.keys(FILTERS).forEach(f => ['board','list'].forEach(m => tryR('filter/'+f+'/'+m, () => { S.view = 'work'; S.filter = f; S.workMode = m; })));
+  tryR('scopemenu', () => { S.scopeOpen = true; }); S.scopeOpen = false;
+  S.modal = null; S.view = 'attention'; S.filter = 'all'; S.workMode = 'board'; S.fcPreview = false; S.scope = 'all'; S.pkRound = null; render();
+  document.title = errs.length ? 'SELFTEST FAIL ' + errs.join(' | ') : 'SELFTEST OK';
+} else render();
+})();
+</script>
+</body>
+</html>
