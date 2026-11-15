@@ -328,7 +328,9 @@ H10.
 
 ### 5.11 Events, undo, change feed
 - Every mutation appends events, including the old and new values that matter, in the same transaction (O03).
-- Owner API mutations return a `mutation_id`. `POST /api/mutations/:id/undo` is accepted within 60 s if no later event touched the same objects; otherwise it returns `conflict`. Undo applies the stored `inverse` and records an `undo` event.
+- Owner API mutations return a `mutation_id`. `POST /api/mutations/:id/undo` is accepted within 60 s if no later event touched the same objects; otherwise it returns `conflict`. Undo applies the stored `inverse` and records it as an ordinary event of the inverse's own type (for example `item.status_changed`). It has `data.undo_of = <mutation_id>` and the summary "Undid: <original summary>"; there is no separate `undo` event type (decided in B2).
+  - The original mutation is marked undone, so undoing it again returns `conflict` ("already undone").
+  - The undo gets its own `mutation_id` but cannot itself be undone (`validation`).
 - The UI shows Undo in a 6 s toast.
 - Agent mutations aren't undoable from the UI.
 - `get_changes(cursor)` and `/api/stream` both read from `events.seq`.
@@ -442,7 +444,7 @@ Every route requires the owner session (§3). JSON bodies are validated with the
 
 | Method & path | Used by |
 |---|---|
-| `POST /api/session/unlock` `{key}` · `POST /api/session/lock` | Unlock screen, Settings |
+| `POST /api/session/unlock` `{key}` · `POST /api/session/lock` · `POST /api/session/rotate-key` | Unlock screen, Settings. Rotate-key writes a new owner key (0600), ends every owner session including the caller's, clears the cookies, and returns `{rotated: true}`. It never returns the key; the owner reads it with `tasklite owner-key` (decided in B2). |
 | `GET /api/bootstrap` | Shell: projects, labels, sidebar counts, settings, health |
 | `GET /api/needs-you?scope` | Needs you: `for_you_now[]` (packets, questions), `problems[]`, `deferred[]`, `planning_queue[]`, `agent_counts{}` |
 | `GET /api/work?scope&epic&label&filter&layout` | Work board/list/map; Timeline adds dates and forecast |

@@ -22,6 +22,7 @@ These match the `EventType` union in [MCP_SPEC §4](../../../docs/MCP_SPEC.md):
 `{ cursor, at, actor, actor_kind: owner|agent|system, item_id, project, type, summary }`.
 - `summary` is the one line shown in Activity.
 - `data` (old and new values) is stored, but never sent to agents.
+- **Undo** has no event type of its own. It is recorded with the inverse's type, `data.undo_of = <mutation_id>`, and the summary "Undid: <original summary>", so agents see the resulting state change in the normal way.
 
 ## Live stream (`GET /api/stream`)
 - **Message format:** `event: change`, with `id: <seq>` and `data: {"seq":…, "type":…, "objects":[{"kind":"item","id":"RCP-12"}], "for_you": true|false}`.
