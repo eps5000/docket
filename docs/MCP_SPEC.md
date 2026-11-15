@@ -73,6 +73,11 @@ Errors are structured (code: validation | conflict | not_found | forbidden | una
   | `question` | 2,000 |
   | `description_md`, `outcome_md` | 20,000 |
   | `brief_md` | 10,000 |
+  | check `evidence` (`set_checks`, `update_check`, `submit_packet.checked[].evidence`), `how[]` steps, `gaps[]`, `checked[].text` | 500 |
+  | `estimate` | 40 |
+  | `link_artifact.url` | 2,000 |
+  | `branch` | 200 |
+  | artifact `state` | 40 |
 
   Over the limit returns `validation`.
 - **Enums** are lowercase snake_case strings:
@@ -97,9 +102,12 @@ Every mutating tool accepts `idempotency_key` (≤ 100 characters, unique per lo
 - **Use one** for anything you might retry after a timeout.
 
 ### Runs as signals
-Pass `run_id` on every call you make while working.
+Pass `run_id` on every call you make while working. **Every tool accepts an optional `run_id`**, reads included. `idempotency_key` is accepted only by the 26 mutating tools (B3 resolution 1).
 - **What it does:** renews your lead lease and keeps you *live*.
 - **Calls without it** are attributed to your client but don't touch any run.
+
+### Strict inputs
+Unknown input keys are rejected with `validation` (JSON Schema `additionalProperties: false`), so a typo such as `expected_verison` can't silently skip a check. The error names each unknown key and, when one is close, the valid field it probably meant, in both the message and `details.unknown` / `details.fields`. For example: `Unknown field "expected_verison"; did you mean "expected_version"?` (B3 resolution 4).
 
 ### Pagination
 List tools return `{ items|events: [...], next_cursor: string|null }`. Pass `cursor` to continue. `limit` defaults to 25, and the maximum is 50 (200 for `get_changes`).
@@ -111,8 +119,10 @@ These are MCP hints:
 |---|---|
 | Read tools, including `get_context` and `list_decisions` | `readOnlyHint: true` |
 | `get_item` | `readOnlyHint: false`, because it marks owner notes and answers as delivered |
-| Retry-safe mutating tools: `heartbeat`, `report_commit`, `update_step`, `update_check` | `idempotentHint: true` |
-| None | `destructiveHint` (agents can't delete) |
+| Retry-safe mutating tools: `heartbeat`, `report_commit`, `update_step`, `update_check` | `idempotentHint: true` (and `false` on every other tool) |
+| All tools | `destructiveHint: false`, set explicitly, because MCP defaults it to true for tools that aren't read-only and agents can't delete |
+
+`readOnlyHint` is set explicitly on every tool: `true` for the 9 read tools, `false` for `get_item` and all mutations. No tool sets `openWorldHint` (B3 resolution 6).
 
 ### Results
 Every tool returns two things:
@@ -121,7 +131,9 @@ Every tool returns two things:
 
 Which of the two each client actually gives the model is checked during the build (BUILD_SPEC §12, V6).
 
-Results may carry `warnings: string[]` (§3.4). These are rendered as `! …` lines at the end of the text.
+Results may carry `warnings: string[]` (§3.4). These are rendered as `! …` lines at the end of the text. Every mutating tool's output schema allows an optional `replayed: boolean` and `warnings: string[]` (B3 resolution 5).
+
+**Output schemas** are `{ type: "object", anyOf: [<success result>, ToolError] }`. The official SDK client validates any `structuredContent` against the tool's `outputSchema`, even when `isError` is set, so a success-only schema would make every §6 error throw on the client side (B3 resolution 8).
 
 ### 3.1 Compact text format
 The format is inspired by TERSL's identity-first, low-punctuation layout (ROADMAP.md), but it is our own and is output only; agents never write it.
@@ -173,6 +185,7 @@ RCP-14 Generate shopping list from week plan
   - `full`: everything, including 20 events, all commits and every field.
   - Only `standard` and `full` deliver (and mark read) owner notes and answers.
 - `get_item` and `search_items` take `fields: string[]`, which limits the output to those top-level fields. `id` and `version` are always included.
+- **Output shapes** (B3 resolution 3): in `get_item`, `item` has every `Item` field optional except `id` and `version`. The summary view adds `counts: { work_done, work_total, checks_pass, checks_total }`, `has_open_question` and `unread_owner_notes_count`. `search_items` rows are `ItemSummary` with `id` and `version` required.
 
 **Token budgets** are measured on the text block, as characters ÷ 4, against the seed data. Contract tests fail at more than 120% of these:
 
@@ -213,7 +226,8 @@ TypeScript notation. The zod source of truth lives in `shared/`.
 ```ts
 type ItemSummary = {
   id: string; project: string; type: 'Epic'|'Story'|'Task'|'Bug'; title: string;
-  status: Status; priority: 1|2|3; epic: string|null; labels: string[];
+  status: Status; priority: 1|2|3; epic: string|null; epic_title: string|null; labels: string[];
+  unblocks: number;                                  // items this would unblock when finished (B3 resolution 9)
   blocked: boolean; blocked_by: string[];            // unresolved blockers only
   lead: { client: string; label: string|null; run_id: string; run_state: RunState } | null;
   human_review: { declared: number; ready: number; approved: number; deferred: number };
@@ -237,6 +251,7 @@ type Item = ItemSummary & {
   commits: { sha: string; branch: string|null; at: string }[];     // newest first, max 20
   artifacts: { kind: string; label: string; url: string|null; state: string|null }[];
   dates_set_by: string|null; closed_by: 'owner'|'agent'|'imported'|null;
+  decisions: { id: string; title: string; authority: 'owner'|'agent' }[];   // active, in scope, owner first; titles only (B3 resolution 9)
   recent_events: EventRow[];                          // 20 newest
 };
 
@@ -270,7 +285,8 @@ type WorkStep = { id: string; text: string; state: 'todo'|'current'|'done'|'bloc
 type Check = { id: string; text: string; state: 'todo'|'pass'|'fail'|'skipped'; evidence: string|null;
   provenance: 'agent'|'observed'|'relayed'|'ci'; added_by: 'owner'|'agent' };
 type HumanReviewItem = { id: string; text: string; state: 'declared'|'ready'|'approved'|'deferred';
-  added_by: 'owner'|'agent'; locked: boolean; version: number;
+  added_by: 'owner'|'agent'; added_by_client: string|null;   // the agent client that declared it; null for the owner. Rendered "by <client>" or "by owner" (B3 resolution 9)
+  locked: boolean; version: number;
   last_decision: { kind: 'approve'|'changes'|'defer'; note: string|null; round: number; at: string; result_ref: string|null } | null;
   follow_up_item_id: string|null };
 type Run = { run_id: string; parent_run_id: string|null; client: string; label: string|null; is_lead: boolean;
@@ -322,7 +338,7 @@ The format for each tool below:
 
 #### `search_items`
 **Description:** "Find items. Filters: ready_to_start (Ready, unblocked, unclaimed: what you may start), resumable (In progress with no lead, usually sent back by the owner's review: resume it), blocked, waiting_for_review (handed off, waiting on the owner), mine (items you lead), deferred_review (owner deferred a check; cleanup). Combine with project, status, type, label, epic or text. Results are summaries; call get_item for details."
-- **Input:** `project?`, `text?` (matches ID, title, description, labels and Jira key), `filter?`, `status?: Status[]`, `type?: Type[]`, `label?`, `epic?`, `include_archived?: boolean = true`, `fields?: string[]`, `cursor?`, `limit?`.
+- **Input:** `project?`, `text?` (matches ID, title, description, labels and Jira key), `filter?`, `status?: Status[]`, `type?: Type[]`, `label?`, `epic?`, `include_archived?: boolean = true`, `fields?: string[]`, `agent_label?` (≤ 40, narrows `mine`; B3 resolution 2), `cursor?`, `limit?`.
 - **Output:** `{ items: ItemSummary[], next_cursor }`. See the sort-order note below.
 - **Errors:** `validation` (unknown filter or value).
 - **Note on sort order:** `ready_to_start` sorts by priority, then by the number of items it would unblock (most first), then by ID. Every other filter sorts by priority, then `updated_at` ascending.
@@ -546,7 +562,7 @@ The format for each tool below:
 
 #### `list_decisions`
 **Description:** "List decision records for a project, optionally narrowed to one scope. Active records only unless include_inactive. get_context already includes the active decisions that apply to an item."
-- **Input:** `project`, `scope?: { kind, id? }` (with `in_scope_of?: item_id` to get everything that applies to that item), `include_inactive?: boolean = false`, `cursor?`, `limit?`.
+- **Input:** `project`, `scope?: { kind, id? }`, `in_scope_of?: item_id` (a top-level field; everything that applies to that item), `include_inactive?: boolean = false`, `cursor?`, `limit?`.
 - **Output:** `{ items: DecisionRecord[], next_cursor }`, with owner records first, then newest.
 
 #### `withdraw_decision`
