@@ -51,15 +51,15 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 
 ## Phase 1: Setup (workspace, tooling, container, CI) · M0
 
-- [ ] T001 Create the pnpm workspace with `shared/`, `server/` and `web/`, root `package.json`, `pnpm-workspace.yaml`, `tsconfig.base.json` (strict) and `.nvmrc` (22), per the plan.md structure. Add `.dockerignore`.
-- [ ] T002 [P] Configure ESLint and Prettier, with lint and typecheck scripts at the root, in `eslint.config.js` and `.prettierrc`
-- [ ] T003 [P] Set up Vitest in `server/vitest.config.ts` and `shared/vitest.config.ts`
-- [ ] T004 [P] Set up Vite, React 19, React Router and TanStack Query in `web/`, with a placeholder route that renders "Task Lite is running"
-- [ ] T005 [P] Copy the prototype's `.tl` token block (light, dark, `prefers-color-scheme`) unchanged into `web/src/styles/tokens.css` (UI_SPEC §3)
-- [ ] T006 Write a multi-stage `docker/Dockerfile` (`node:22-bookworm-slim`, non-root user `tasklite`, uid 10001) and `docker/compose.yaml`: publish `127.0.0.1:7420:7420`, named volume `tasklite-data:/data`, a commented-out opt-in extra-backup bind mount, `restart: unless-stopped`, healthcheck on `/healthz`. Add `docker/.env.example` with every variable in BUILD_SPEC §2 Configuration.
-- [ ] T007 Create the server entry point `server/src/index.ts` serving `/healthz`, `/readyz` (database and docs dir writable, migrations current) and the web build, with SPA fallback
-- [ ] T008 Create `.github/workflows/ci.yml` on `ubuntu-latest`. One job runs pnpm cache → lint → typecheck → Vitest → `docker build`. A second job starts the image and runs Playwright end to end, uploading the report and traces on failure. Name the jobs so the Mergify queue can require them.
-- [ ] T009 [P] Set up Playwright in `web/playwright.config.ts`, with `@axe-core/playwright` and a fixture that starts the seeded container. Include one smoke spec ("Task Lite is running") in `web/e2e/smoke.spec.ts`.
+- [X] T001 Create the pnpm workspace with `shared/`, `server/` and `web/`, root `package.json`, `pnpm-workspace.yaml`, `tsconfig.base.json` (strict) and `.nvmrc` (22), per the plan.md structure. Add `.dockerignore`.
+- [X] T002 [P] Configure ESLint and Prettier, with lint and typecheck scripts at the root, in `eslint.config.js` and `.prettierrc`
+- [X] T003 [P] Set up Vitest in `server/vitest.config.ts` and `shared/vitest.config.ts`
+- [X] T004 [P] Set up Vite, React 19, React Router and TanStack Query in `web/`, with a placeholder route that renders "Task Lite is running"
+- [X] T005 [P] Copy the prototype's `.tl` token block (light, dark, `prefers-color-scheme`) unchanged into `web/src/styles/tokens.css` (UI_SPEC §3)
+- [X] T006 Write a multi-stage `docker/Dockerfile` (`node:22-bookworm-slim`, non-root user `tasklite`, uid 10001) and `docker/compose.yaml`: publish `127.0.0.1:7420:7420`, named volume `tasklite-data:/data`, a commented-out opt-in extra-backup bind mount, `restart: unless-stopped`, healthcheck on `/healthz`. Add `docker/.env.example` with every variable in BUILD_SPEC §2 Configuration.
+- [X] T007 Create the server entry point `server/src/index.ts` serving `/healthz`, `/readyz` (database and docs dir writable, migrations current) and the web build, with SPA fallback
+- [X] T008 Create `.github/workflows/ci.yml` on `ubuntu-latest`. One job runs pnpm cache → lint → typecheck → Vitest → `docker build`. A second job starts the image and runs Playwright end to end, uploading the report and traces on failure. Name the jobs so the Mergify queue can require them.
+- [X] T009 [P] Set up Playwright in `web/playwright.config.ts`, with `@axe-core/playwright` and a fixture that starts the seeded container. Include one smoke spec ("Task Lite is running") in `web/e2e/smoke.spec.ts`.
 
 **Checkpoint**: `docker compose up` serves "Task Lite is running", and both CI jobs are green.
 
