@@ -5,7 +5,7 @@ and mutations also need the `X-Tasklite-CSRF` header. This index groups the rout
 
 | Routes (BUILD_SPEC §7) | User story | Requirements |
 |---|---|---|
-| `POST /api/session/unlock`, `POST /api/session/lock`, `GET /healthz`, `GET /readyz` | US10 | FR-100 to FR-102 |
+| `POST /api/session/unlock`, `POST /api/session/lock`, `POST /api/session/rotate-key`, `GET /healthz`, `GET /readyz` | US10 | FR-100 to FR-102 |
 | `GET /api/bootstrap`, `GET /api/needs-you`, `GET /api/work`, `GET /api/items/:id`, `GET /api/agents`, `GET /api/search`, `GET /api/stream` | US2 | FR-060 to FR-063, FR-065 to FR-067 |
 | `GET/POST /api/review/:id…`, `POST /api/deferred/:hrId/follow-up` | US3 | FR-050 to FR-054 |
 | `DELETE /api/links/:linkId`, `PATCH /api/projects/:key {default_satisfied_when}` | US4 | FR-031 to FR-035 |
