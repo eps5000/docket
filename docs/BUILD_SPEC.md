@@ -654,7 +654,7 @@ Record the results in the Settings compatibility matrix. A surface that can't co
 
 ## 11. Milestones for the integration agent
 
-Work in order. Each milestone ends with its own tests green and a short demo note in the PR. Track the work however you like, but keep milestone boundaries as PR boundaries.
+The milestones below group *capabilities*. The **execution order** is the batch plan under "How to run the build" in [specs/001-task-lite-v1/tasks.md](../specs/001-task-lite-v1/tasks.md). It runs **contracts first** (constitution v1.1): setup, platform, then the whole MCP, API and UI contract surface as stubs and shells, then one user-story slice per batch. Each batch is one agent session, one branch and one PR, merged through the Mergify queue after the owner's review.
 
 | # | Deliverable | Done when |
 |---|---|---|

@@ -113,9 +113,21 @@ Rationale: the fastest way to never ship is to build the control plane before th
 
 ## Development Workflow and Quality Gates
 
-- **One PR per milestone** (BUILD_SPEC §11), or per Spec Kit phase in
-  `specs/001-task-lite-v1/tasks.md`. PRs merge through the Mergify merge queue, and only with CI
-  green.
+- **Contracts first.** Shared contracts are built and merged before any feature slice:
+  - MCP tool schemas, descriptions and renderers;
+  - API route schemas;
+  - the database schema;
+  - enums and events;
+  - domain service signatures;
+  - the typed client;
+  - the UI kit and screen shells.
+
+  A slice MUST NOT change a shared contract file (the list is under "Slice rules" in tasks.md).
+  A needed change ships first as its own small "contract:" PR that updates the governing document,
+  the shared code and the snapshot tests.
+- **One batch per agent session, branch and PR,** as listed under "How to run the build" in
+  `specs/001-task-lite-v1/tasks.md`. Never run `/speckit-implement` over the whole task list.
+  PRs merge through the Mergify merge queue, only with CI green and after the owner's review.
 - A PR that changes a rule, a tool contract or a screen MUST update the governing document
   (BUILD_SPEC, MCP_SPEC or UI_SPEC) in the same PR. A PR that changes a decision MUST add a row to
   BUILD_SPEC §14.
@@ -143,4 +155,4 @@ with a principle, the principle wins until the document is fixed or the constitu
   constitution conflicts as CRITICAL. Complexity that bends a principle MUST be justified in the
   plan's Complexity Tracking table.
 
-**Version**: 1.0.0 | **Ratified**: 2026-11-14 | **Last Amended**: 2026-11-14
+**Version**: 1.1.0 | **Ratified**: 2026-11-14 | **Last Amended**: 2026-11-15
