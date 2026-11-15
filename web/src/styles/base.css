@@ -1,0 +1,34 @@
+html,
+body {
+  margin: 0;
+}
+
+.tl {
+  min-height: 100vh;
+}
+
+.tl *,
+.tl *::before,
+.tl *::after {
+  box-sizing: border-box;
+}
+
+.tl :focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+/* Placeholder page (Setup). Replaced by the shell in Phase 3c. */
+.tl .placeholder {
+  display: grid;
+  place-content: center;
+  min-height: 100vh;
+  padding: 16px;
+}
+
+.tl .placeholder h1 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
