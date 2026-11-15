@@ -1,7 +1,7 @@
 # Contract index: MCP tools
 
 **Authoritative**: [MCP_SPEC.md](../../../docs/MCP_SPEC.md). That file holds the description text,
-schemas, errors and flows. This index maps the 36 tools to user stories and spec requirements, so
+schemas, errors and flows. This index maps the 38 tools to user stories and spec requirements, so
 the tasks can be grouped by story. Change a tool only in MCP_SPEC.md, together with
 `shared/mcp-copy.ts`.
 
@@ -23,6 +23,8 @@ the tasks can be grouped by story. Change a tool only in MCP_SPEC.md, together w
 | `add_note`, `put_document`, `link_artifact`, `report_commit` | §5.6 | US1, US3, US4 | FR-018, FR-052, FR-070 |
 | `submit_packet`, `get_review`, `ask_owner` | §5.7 | US3, US6 | FR-020 to FR-022 |
 | `publish_decision`, `list_decisions`, `withdraw_decision` | §5.8 | US5 | FR-041, FR-042 |
+| `park_run`; the recovery fields on `claim_lead`, `start_run`, `heartbeat` and `report_commit` | §3 (Workspaces, briefs and resources), §5.4, §5.6 | US11 | FR-110 to FR-114 |
+| `recovery_report` | §5.9 | US11 | FR-115 |
 
 **Cross-cutting**, from MCP_SPEC:
 - connection and auth (§1);

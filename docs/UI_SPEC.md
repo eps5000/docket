@@ -141,7 +141,7 @@ Copy the prototype's `.tl` token block. Light and dark values below; the prototy
 | `IconButton` | — | `aria-label` (required) | 32×32. |
 | `Chip` | status (7), blocked, human review (4), neutral, warn, ok, bad, info | `kind, children` | Rounded pill; always text, never colour alone. |
 | `TypeBadge` / `TypeIcon` | Epic, Story, Task, Bug | `type, iconOnly?` | 16px square in the type colour with a white glyph, plus the name. Icon-only on board cards and tabs, with an sr-only name. |
-| `RunState` | live, reported, stale, needs input, failed, finished, interrupted | `state, age?` | Icon shape + label + `title` holding the one-line meaning (§5). The live dot pulses, except under reduced motion. |
+| `RunState` | live, reported, stale, parked, needs input, failed, finished, interrupted | `state, age?` | Icon shape + label + `title` holding the one-line meaning (§5). The live dot pulses, except under reduced motion. |
 | `Provenance` | owner (approve), owner (changes), owner (defer), observed, agent, relayed, CI, git | `kind, label?` | §5. Only the owner variants are solid-filled. |
 | `Priority` | P1–P3 | `p` | Three signal bars plus a `title`. Never coloured. |
 | `Label` | — | `name` | Outline tag, links to the label page. |
@@ -201,6 +201,7 @@ Blocked is derived and shows as a separate red chip, "⊘ Blocked by RCP-12, …
 | live | solid green, pulsing | Working: the client session is responding |
 | reported | violet ring | The agent says it's working, with no recent session signal |
 | stale | dashed ring | No signal; state unknown, not assumed finished |
+| parked | ring with a pause bar, `--ink-3` | Waiting on purpose (on an item, the coordinator or a person). Keeps its claim; never mistaken for finished. Shown as "parked · waiting on RCP-12". |
 | needs input | amber "?" | Waiting on you |
 | failed | red "×" | Run ended with an error |
 | finished | gray "✓" | Run ended normally |
@@ -261,6 +262,11 @@ Fits one 1440×900 screen without scrolling at sample volume. Contents, top to b
      | Date risk | *Timeline* → Work, Timeline layout |
      | Canceled blocker | *Fix* → item, Dependencies tab |
      | A blocker that must be verified closed with a deferred check ("RCP-22 needs RCP-12 verified, but 1 check was deferred") | *Open* → the blocked item, Dependencies tab |
+     | Orphaned resources ("RCP-21's run ended 03:12 but left: dev server :5173") | *Mark released* (once you've stopped it) · *Open* → Activity |
+     | Unpushed work may be lost ("RCP-21 ended (lease expired) with 1 commit not pushed and uncommitted changes in C:/…/rcp-21") | *Handled* · *Open* → Activity |
+     | Parked for 24 h ("RCP-23 parked since Nov 14 · waiting on the coordinator") | *Open* → Activity (Release lead claim lives there) |
+     | Ready to resume, unattended ("RCP-23 can resume: RCP-12 is done · parked 2 h") | *Open* → Activity |
+     | Extra backup copy failed | *Open* → Settings |
 
      Empty: "No stale or failed runs, cycles or date conflicts."
 4. **Lower row** (two cards, each showing the top 3 with *View all N →*):
@@ -391,6 +397,19 @@ A `ProgressMap` of the filtered set, titled "Outside this view". When no epic or
 
 #### 6.3.2 Lead and runs
 - **Run rows:** agent name, a "lead" chip, run state with age, and "what" (current step or last report).
+- **Where the work lives** (owner decision 26), one compact block under each run row:
+  - `branch · worktree path` (path truncated in the middle, full path in `title`, *Copy*);
+  - `last commit 4be1c09 · pushed ✓`, or `2 commits not pushed !` in `--warn`, plus `uncommitted changes` when `dirty`;
+  - the orchestrator's IDs, muted (`orca · ctx_6f2d…`);
+  - the brief as a link that opens the document viewer;
+  - a resource list (`dev server :5173 · running` / `released 03:20`), with *Mark released* on unreleased ones once the run has ended;
+  - **parked runs** show "Parked · waiting on RCP-12 · since 10:40 · reason …" and, when resumable, a "Ready to resume" chip.
+- ***Copy resume note*** (on interrupted, stale and parked runs) copies a plain-text block for a coordinator:
+  ```text
+  Resume RCP-15: worktree <path> on <branch> @ <pushed_sha>
+  (<n> unpushed commits / uncommitted changes, or "clean"),
+  brief <document link>, checklist <done>/<total>, claim_lead first
+  ```
 - **Claim conflict:** a warning callout, "claude · orca-w2 tried to claim lead at 10:58. Rejected: codex · orca-w1 still holds the lease."
 - **Error output:** in monospace on `--bad-soft`.
 - **Stale lead:**
@@ -520,6 +539,12 @@ h1 "Agents". A table with these columns:
 - How we know: "Client heartbeat" when live, `Provenance` for agent-reported, observed or relayed, or the gray chip "Unknown: no heartbeat" when stale.
 
 Rows link to the item. Sort order: needs input, stale, failed, live, reported, then finished by recency. Empty: "No runs yet. Connect an agent from Settings."
+
+**Workspaces** (a second card on Agents; owner decision 26): every recorded worktree, so you and a coordinator can see what's safe to prune.
+- **Columns:** State chip (*In use*, *Parked*, *At risk* in `--warn`, *Safe to prune* in `--ok`, *Unknown*), Path (with *Copy*), Branch, Item, Last activity, Pushed (`✓`, or `n behind`), Resources (unreleased count).
+- **Sort order:** At risk, In use, Parked, Unknown, Safe to prune.
+- **A filter chip** "Hide safe to prune" is on by default.
+- **Empty:** "No workspaces recorded yet. Agents report theirs when they claim work."
 
 ### 6.7 Settings (`/settings`)
 h1 "Settings".

@@ -72,7 +72,7 @@ documents and adds the Spec Kit artifacts the tasks are generated from:
 - WCAG 2.1 AA in both themes, down to 1024 px wide;
 - secrets are never stored or logged.
 
-**Scale/Scope**: one owner, up to 10 agents at once. About 9 owner screens, plus 2 not prototyped (burn-down/forecast and Jira import), 36 MCP tools, about 45 API routes, and about 25 tables.
+**Scale/Scope**: one owner, up to 10 agents at once. About 9 owner screens, plus 2 not prototyped (burn-down/forecast and Jira import), 38 MCP tools, about 45 API routes, and about 25 tables.
 
 ## Constitution Check
 
@@ -105,7 +105,7 @@ specs/001-task-lite-v1/
 ├── data-model.md        # Phase 1: entities, fields, state machines, validation
 ├── quickstart.md        # Phase 1: run, connect, seed, validate each user story
 ├── contracts/
-│   ├── mcp-tools.md     # index of the 36 tools → MCP_SPEC sections, by user story
+│   ├── mcp-tools.md     # index of the 38 tools → MCP_SPEC sections, by user story
 │   ├── ui-api.md        # API routes → BUILD_SPEC §7, plus the clarification routes
 │   └── events.md        # event types, SSE payload, change cursor
 ├── checklists/

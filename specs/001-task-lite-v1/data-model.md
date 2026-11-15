@@ -32,6 +32,8 @@ MCP shapes in [MCP_SPEC §4](../../docs/MCP_SPEC.md). This file adds what tasks 
 | **DecisionRecord** | `scope_kind`/`scope_id`, `title`, `decision_md`, `rationale_md`, `authority`, `author`, `status`, `supersedes_id`, `confirmed_at`, `version` | in a project; scoped to a project, epic, label or item | title ≤ 120, decision ≤ 4,000; agents can't change owner records (FR-041–043) |
 | **Document / DocumentVersion** | `name`, `kind`; version `version_no`, `mime`, `size`, `sha256`, `path` | on an item or project | versions are immutable; 25 MB through MCP, 500 MB through HTTP (FR-070) |
 | **Commit / Artifact** | `sha`, `branch`, `pr_url` / `kind`, `label`, `url`, `state`, `provenance` | on an item | sha is 7–40 hex; a `pr` artifact with state `merged` satisfies `merged` (FR-031) |
+| **Workspace** *(columns on `runs`)* | `workspace` JSON (host, repo, path, branch, base_ref, base_sha, head_sha, pushed_sha, dirty), `orchestrator` JSON, `brief_document_version_id`, `end_reason`, `parked_reason`, `waiting_on`, `parked_at`, `external` | on a run; state derived per path | external ≤ 2 KB; brief ≤ 20,000 (FR-110 to FR-112, FR-114) |
+| **RunResource** | `id` `rsc_…`, `kind`, `label`, `locator` JSON, `started_at`, `released_at`, `released_by`, `release_note` | on a run | label ≤ 120; ≤ 10 per heartbeat (FR-113) |
 | **Event** | `seq` (the cursor), `actor_kind`, `client`, `label`, `run_id`, `type`, `summary`, `data`, `inverse`, `mutation_id`, `idempotency_key` | references a project and item | append-only (FR-006); the `inverse` is used by owner undo |
 | **Idempotency** | `key`, `client`, `request_hash`, `response`, `expires_at` | — | 24 h (FR-007) |
 | **OwnerSession** | `id`, `last_seen_at`, `user_agent` | — | 30-day sliding expiry; key rotation ends all sessions (FR-101) |
@@ -66,7 +68,9 @@ declared ──submit_packet──► ready ──approve──► approved   (c
 
 ### Run (FR-013 to FR-016; displayed state is derived, see BUILD_SPEC §5.4)
 - **Stored state:** `open` → `needs_input` (question asked) → `open` (answer read); then `finished`, `failed` or `interrupted`.
+- **Parked** (FR-112): `open` ──park_run──► `parked` ──any call with its `run_id`──► `open`. While parked the lease is suspended (never stale, claim kept). `resume_ready` is derived when every `waiting_on` item clears. Past `TASKLITE_PARK_MAX` (24 h) it's a Problem, not an expiry.
 - **Interrupted** comes from lease expiry, owner release, or a service restart.
+- **`end_reason`** is set on every terminal transition: `finished`, `failed`, `released`, `lease_expired`, `owner_released`, `service_restart`, `canceled` (FR-114).
 - **Displayed state:**
   - live: a session signal within 2 min;
   - reported: no session signal within 2 min, but some signal within 30 min;
@@ -94,5 +98,6 @@ canceled blocker → never cleared (problem: remove link)
 - date risk;
 - cycle membership (strongly connected components);
 - displayed run state;
+- workspace state per path (`in_use`, `parked`, `at_risk`, `safe_to_prune`, `unknown`), orphaned resources, unpushed-at-risk, `Item.resume` (FR-113 to FR-115);
 - packet stale;
 - for-you count (badge, tab title).
