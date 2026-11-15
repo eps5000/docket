@@ -10,7 +10,7 @@ Status: ready to build, 2026-11-07. This is the screen-by-screen contract for th
 
 ## 1. Overview
 
-**Who and why.** One owner, on one machine, checking on AI agents several times a day. The UI answers four questions, in this order:
+**Who and why.** One owner, on one machine, supervising AI agents several times a day. Agents coordinate through Task Lite; this UI is how the owner sees and steers that coordination. The UI answers four questions, in this order:
 1. What needs me?
 2. What are agents doing?
 3. Where is the work?

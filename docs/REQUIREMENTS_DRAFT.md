@@ -28,7 +28,7 @@ Status: discovery draft, updated 2026-11-07. **Superseded for building by [BUILD
 
 ## Product intent
 
-A locally run Docker service gives AI agents a stable MCP endpoint for planning and updating work, while a human sees the portfolio, dependencies, timing, agent activity, documents, and decisions that need review. Task state, agent execution state, review state, and delivery evidence must remain distinguishable.
+A locally run Docker service coordinates AI agents' work: it gives them a stable MCP endpoint and is the enforced source of truth for work, dependencies, claims, decisions and review gates (owner decisions 18–19). A human supervises through a UI that shows the portfolio, dependencies, timing, agent activity, documents, and decisions that need review. Task state, agent execution state, review state, and delivery evidence must remain distinguishable.
 
 ## Core objects to validate
 

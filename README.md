@@ -1,6 +1,13 @@
-# Task Lite: local agent work tracker
+# Task Lite: local agent coordination
 
-A Docker-hosted task tracker with a local MCP endpoint for AI agents and a web UI that shows the owner what agents did, what they're doing, and what needs the owner.
+Task Lite is the shared, enforced source of truth that AI agents work through: what work exists, what's eligible to start, who holds it, what it depends on, which decisions apply, and what the owner must verify. Agents use it over a local MCP endpoint; the server enforces the rules (claims and leases, dependencies, review gates), so agents don't have to remember them. A web UI lets the owner supervise: what agents did, what they're doing, and what needs the owner.
+
+**Why it exists:**
+- **Fewer tokens.** Each agent gets its context in one budgeted call, compact results and patch-style writes, instead of re-reading tickets and documents.
+- **Dependencies agents don't track by hand.** Ready work is computed by the server from the dependency graph and each project's blocker rule.
+- **Visibility.** Everything agents do goes through Task Lite, so the owner sees what actually happened.
+
+It isn't an agent runner. Orca, or the owner, starts agents (owner decision 18), and Task Lite tells them what to do and records what they did.
 
 **Current phase: ready to build V1.** No container or MCP server has been implemented yet. V1 is built and verified with disposable sample work; a real pilot project is chosen afterward.
 

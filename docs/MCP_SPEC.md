@@ -31,7 +31,7 @@ Client setup commands are in §11.
 The server returns this text as `instructions` in the `initialize` result. Clients show it to the model as standing guidance. Implement it verbatim, substituting nothing.
 
 ```
-Task Lite is the owner's work tracker. Use it to find work, record your plan and progress, and hand finished work to the owner for review. The owner reads it in a web UI; keep entries short and factual.
+Task Lite coordinates the owner's agent work. Use it to find work you may start, get its context, record your plan and progress, follow and record decisions, and hand finished work to the owner for review. It enforces claims, dependencies and review gates for you. The owner supervises in a web UI; keep entries short and factual.
 
 Workflow: Inbox → Planning → Ready → In progress → Review → Done.
 - Only start work that is Ready (search_items filter "ready_to_start") or was sent back to you (filter "resumable"). Claim it first with claim_lead; if someone else holds it, pick something else.

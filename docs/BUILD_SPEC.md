@@ -18,7 +18,7 @@ Status: ready to build, 2026-11-07. This is the implementation contract for MVP 
 
 ## 1. What V1 is
 
-Task Lite is a local Docker service. It runs one container on the owner's machine and serves three things on one port:
+Task Lite is a local **agent coordination service** with a human supervision UI. It's the shared, enforced source of truth that agents work through: work items and their dependencies, eligibility to start, lead claims and leases, plans and evidence, decision records, and the owner's review gates. It runs as one Docker container on the owner's machine and serves three things on one port:
 
 - an **MCP endpoint** (`/mcp`). Installed agent clients (Codex, Claude Code, and both launched as Orca workers) use it to plan, claim, update and hand off work;
 - a **JSON API** (`/api`) for the web UI;
