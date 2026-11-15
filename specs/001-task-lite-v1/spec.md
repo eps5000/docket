@@ -1,0 +1,403 @@
+# Feature Specification: Task Lite V1 (local agent coordination with owner supervision)
+
+**Feature Branch**: `eps5000/speckit-v1`
+
+**Created**: 2026-11-14
+
+**Status**: Clarified, planned and tasked. Ready to build (see [tasks.md](tasks.md)).
+
+**Input**: User description: "Flesh out the requirements and spec for Task Lite V1: a local agent coordination service that AI agents work through (find ready work, claim it, plan, record evidence, follow decisions, hand off for human review), with a supervision UI that shows the owner what agents did, what they're doing and what needs the owner. It should cut agents' token use, make dependency tracking automatic, and give the owner visibility." Sources: docs/REQUIREMENTS_DRAFT.md (owner decisions 1–20), docs/BUILD_SPEC.md, docs/MCP_SPEC.md, docs/UI_SPEC.md, design/prototype.html.
+
+## Overview
+
+One owner runs Task Lite on their own computer. AI agents (installed coding agents, and the same agents launched as workers by an orchestrator) connect to it to find work they may start, claim it, get the context they need, publish their plan, record what they did and verified, follow shared decisions, and hand finished work to the owner for verification. Task Lite enforces the rules (claims, dependencies, review gates), so agents don't have to remember them. The owner uses a browser UI to see what needs them, what agents are doing, where the work is, and what happened, and to decide, nudge and archive. Task Lite never starts agents itself.
+
+## Clarifications
+
+### Session 2026-11-14
+
+- Q: How should the owner find out that something needs them when the Task Lite tab isn't in front of them? → A: Opt-in desktop (browser) notifications for new "for you" items only (handoff ready, question asked), plus the for-you count in the browser tab title. No email or phone; nothing leaves the machine.
+- Q: Should the owner be able to edit an item's text in the UI (title, description, outcome, acceptance criteria), especially while shaping it in Planning? → A: Yes. Inline editing of those four fields on the Details view, with conflict detection and Undo. Planned dates, effort and blocker links stay agent-edited in V1.
+- Q: Where should nightly backups be stored? → A: Inside the service's data volume by default. The owner can opt in to also writing each backup to a folder on the host machine, for an extra copy that survives losing the volume.
+- Q: Should the browser UI require an owner key to unlock, so a local agent can't record a human approval through the UI's API? → A: Yes. The owner pastes the key once per browser, and the session lasts 30 days from last use. The owner can lock the browser or rotate the key (which ends every session) in Settings.
+- Q: Should the owner be able to cancel an item themselves in the UI? → A: Yes, any open item, with an optional reason and Undo. Canceled items leave the owner's views like archived ones, and anything they block stays blocked until the link is removed.
+
+## User Scenarios & Testing *(mandatory)*
+
+### User Story 1 - Agents find, claim and complete work through Task Lite (Priority: P1)
+
+An agent connects, asks for work it may start, claims one item, publishes a short plan, records progress, the checks it ran, and the commits it made, and closes the item. If it stops early, or goes silent, the item becomes available to another agent. Two agents never hold the same item.
+
+**Why this priority**: This is the coordination core. Without it there is nothing to supervise, and nothing that saves tokens or tracks dependencies.
+
+**Independent Test**: With seeded sample work and no UI, a scripted agent client can connect, list ready work, claim the top item, publish a three-step plan, mark steps done, record a passing check and a commit, and close the item. A second client trying to claim the same item is refused with the current holder's details.
+
+**Acceptance Scenarios**:
+
+1. **Given** a Ready, unblocked, unclaimed item, **When** an agent asks for work it may start, **Then** the item is listed, highest priority first, and items that would unblock the most other work come first among equals.
+2. **Given** that item, **When** the agent claims it, **Then** the agent becomes its lead, the item moves to In progress, and the agent receives a run identifier and a lease expiry.
+3. **Given** an item already led by another agent, **When** a second agent tries to claim it, **Then** the claim is refused with the current lead, their last signal and the lease expiry, and the rejected claim is visible to the owner.
+4. **Given** a lead agent, **When** it publishes a plan and later sends only one changed step, **Then** the other steps are unchanged, and the revision is kept as history with its reason.
+5. **Given** an item with no human review items and passing checks, **When** the agent closes it, **Then** it becomes Done, closed by the agent, and the agent's run ends as finished.
+6. **Given** a lead agent that sends no signal for the stale period, **When** the owner looks at the item, **Then** its run shows as stale (not finished). When the lease expires, the claim is released and the item returns to Ready with its plan intact.
+7. **Given** the service restarts while runs are open, **When** it comes back, **Then** every open run shows as interrupted and none as finished.
+8. **Given** an agent retries a write after a timeout with the same retry key, **When** the server receives it, **Then** the original result is returned and nothing is duplicated.
+
+---
+
+### User Story 2 - The owner sees what agents did, are doing, and what needs them (Priority: P1)
+
+The owner opens Task Lite and immediately sees what needs them: handoffs to verify, questions to answer, and problems (stale or failed runs, dependency cycles, date conflicts). They can see what agents are doing right now, see all work on a board, list, map or timeline, and open any item to see its details, plan and checks, dependencies, and full activity history, each with who said what and how it's known.
+
+**Why this priority**: Visibility is one of the three reasons Task Lite exists, and it's how the owner trusts the agents' work.
+
+**Independent Test**: With seeded sample work, the owner can answer "what needs me?", "what are agents doing?", "where is epic RCP-1?" and "what happened on RCP-14?" from the UI alone. Each answer matches the seeded state, and every agent-reported fact is labelled as such.
+
+**Acceptance Scenarios**:
+
+1. **Given** two handoffs ready and one open question, **When** the owner opens the home view, **Then** it shows "3 for you" with those three entries first, plus problems, deferred checks and the owner's planning queue, on one screen at a typical laptop size.
+2. **Given** agent runs in different states, **When** the owner looks, **Then** each run shows as live, reported, stale, needs input, failed, finished or interrupted, in words and not only colour, with how the state is known.
+3. **Given** any item, **When** the owner opens it, **Then** they see four views (Details, Checklist, Dependencies or Map, Activity), with counts and attention markers on the view tabs, and the item opens on the view they last used for it.
+4. **Given** a checklist that mixes owner-added steps, agent steps, subagent contributions, and checks from CI or from the agent, **When** the owner reads it, **Then** each entry shows its source distinctly, and nothing but an owner decision looks like human approval.
+5. **Given** work across two projects, **When** the owner starts a new visit, **Then** the scope is All projects. Switching to one project scopes every page except Settings.
+6. **Given** agents change data while the owner has a page open, **When** the change happens, **Then** the page updates without a reload and without moving the owner's keyboard focus.
+7. **Given** the owner has turned on desktop notifications and the UI is open in a background tab, **When** a handoff becomes ready or an agent asks a question, **Then** one notification appears naming the item and what's needed. Clicking it opens that item's packet or question, and the tab title shows the for-you count, for example "(3) Task Lite". Nothing else triggers a notification.
+
+---
+
+### User Story 3 - The owner verifies finished work before it closes (Priority: P1)
+
+When an agent finishes work that the owner must check by hand, it hands off a packet: what to verify, exact steps, what the agent already checked, known gaps, and attachments. The owner marks each item Looks good, Needs changes (with a note), or Defer, and the outcome follows: close, send back, or close with the item recorded as not verified. A ticket can't close while any human review item is undecided.
+
+**Why this priority**: Owner verification is the one gate Task Lite always enforces, and it's the main reason the owner opens the UI.
+
+**Independent Test**: With seeded packets, the owner can approve one packet (the ticket closes and unblocks its dependents), send one back with one finding as a checklist step and one as a new bug, and defer an item with a follow-up test ticket. The resulting states, links and labels match the rules.
+
+**Acceptance Scenarios**:
+
+1. **Given** an item with declared human review items, **When** the agent tries to close it without a handoff, **Then** it is refused, with the number of undecided items.
+2. **Given** a submitted packet, **When** the owner opens it, **Then** they see the latest round, the commit it was built from, each item with three choices, and a submit button that names the outcome ("Approve and close ticket", "Send back to codex", "Close ticket (1 deferred)"). The button stays disabled until every item is decided.
+3. **Given** Needs changes, **When** the owner submits without a note, **Then** it is refused. With a note, the finding becomes either a checklist step on the ticket or a new Bug in Ready linked to it. The ticket returns to In progress, and its review items come up again for the next round.
+4. **Given** Defer with a follow-up, **When** submitted, **Then** the ticket closes as "review deferred, not verified", a test ticket in Inbox carries the same check, and the item appears on the owner's deferred list and in agents' cleanup list until resolved.
+5. **Given** an open packet, **When** an agent reports a newer commit for that ticket (or for any ticket in an epic, if the packet is epic-level), **Then** the packet shows as out of date to the owner. The owner can ask for a fresh packet, which returns the ticket to In progress for the agent.
+6. **Given** approvals in round 1, **When** round 2 arrives, **Then** approved items stay approved.
+7. **Given** any owner decision, **When** made, **Then** it can be undone for a short period, and it is recorded with the owner as the actor.
+
+---
+
+### User Story 4 - Dependencies decide what's ready, automatically (Priority: P2)
+
+Agents and the owner link items so that one blocks another. Task Lite computes what is blocked and what is ready, across projects, and agents only ever see startable work. A project (or a single link) can require a blocker to be merged, or verified by the owner, rather than just done. Cycles are refused when created, and flagged when they arrive in imported data. The owner sees progress and the blocking chain on a map.
+
+**Why this priority**: Automatic dependency tracking is one of the three reasons for Task Lite. It builds on the core loop (US1).
+
+**Independent Test**: Link A → B → C. B and C are not startable until their blockers clear. Closing A makes B startable with no other action. Setting the project's rule to "PR merged" makes a done-but-unmerged blocker block again, and reporting the merge clears it. Linking C → A is refused with the cycle path.
+
+**Acceptance Scenarios**:
+
+1. **Given** B blocked by A, **When** A is not cleared, **Then** B never appears in "ready to start", and shows "Blocked by A" with A's status.
+2. **Given** a project rule of "PR merged", **When** a blocker is done but no merged PR is reported, **Then** its dependents stay blocked with "needs merge". When the agent reports the merge, they become startable, and the UI labels the merge as agent-reported.
+3. **Given** a link requiring owner verification, **When** the blocker closes with a deferred check, **Then** the dependent stays blocked, and the owner sees it as a problem with a way to open it.
+4. **Given** an attempt to create a link that would form a cycle, **When** it is made, **Then** it is refused, showing the cycle path.
+5. **Given** an epic, **When** the owner opens its map, **Then** items are arranged in waves (what nothing blocks, then what can start after), with blockers from outside the epic shown separately, done work marked, and links traced on hover.
+6. **Given** a blocker that is canceled, **When** its dependents are evaluated, **Then** they stay blocked and the owner sees "Blocked by canceled X" with a way to remove the link. Nothing unblocks silently.
+
+---
+
+### User Story 5 - Agents get the right context in one call, and follow shared decisions (Priority: P2)
+
+When an agent starts an item, it gets everything it needs in one bounded response: the outcome and acceptance criteria, the decisions it must follow, the epic and label briefs, its blockers, planning documents, and the last review's notes. Agents record decisions that other agents must follow. The owner can record, confirm or withdraw decisions, and the owner's decisions are authoritative.
+
+**Why this priority**: This is the biggest single saving in agent tokens and repeated work. It depends on items, epics and labels existing (US1 and US7).
+
+**Independent Test**: For a seeded item, one context request returns all six parts, within the budget, with any truncation marked. An agent-published decision appears in the context of every item in its scope. The owner confirms it, and it becomes authoritative. An agent's attempt to change an owner decision is refused.
+
+**Acceptance Scenarios**:
+
+1. **Given** an item in an epic with labels, decisions and planning documents, **When** an agent requests its context at the default size, **Then** it receives, in priority order: essentials, active decisions (owner's first), epic and label briefs, blockers with what each is waiting for, planning documents, and the last review. The response fits the default budget, with cuts marked.
+2. **Given** an agent publishes a decision scoped to an epic, **When** another agent requests context for any ticket in that epic, **Then** the decision is included.
+3. **Given** an owner decision, **When** an agent tries to supersede or withdraw it, **Then** it is refused, with a pointer to ask the owner.
+4. **Given** an agent decision, **When** the owner confirms it, **Then** it becomes an owner decision. When the owner withdraws a decision, it drops out of agents' context but remains in history.
+5. **Given** agent decisions, **When** they're published, **Then** they never appear in Needs you. The owner sees them in a Decisions section where they apply.
+
+---
+
+### User Story 6 - The owner steers without a review round (Priority: P2)
+
+The owner answers agents' questions, leaves notes for the agent working on an item, releases a stale claim, returns failed work to Ready, and adds checklist steps, checks or review items of their own. Agents receive answers and notes exactly once, on their next read.
+
+**Why this priority**: Steering keeps work moving between reviews. It depends on US1 and US2.
+
+**Independent Test**: The owner answers a seeded question, and the item shows "waiting for codex to read it" until the agent reads it once. The owner leaves a note, and the agent sees it once. The owner releases a stale claim through a confirmation whose focus starts on Cancel, the run becomes interrupted, and the item returns to Ready.
+
+**Acceptance Scenarios**:
+
+1. **Given** an agent asks the owner a question, **When** asked, **Then** the run shows as needs input, the question appears in Needs you, and the owner can answer inline.
+2. **Given** an answer or a note, **When** the agent next reads the item, **Then** it receives the answer or note exactly once, and the owner sees that it was read.
+3. **Given** a stale lead, **When** the owner releases the claim, **Then** a confirmation explains the effect (run interrupted, not finished; work kept; item back to Ready). After confirming, any later call from the old run is refused with the current state.
+4. **Given** an owner-added step, check or review item, **When** an agent revises the plan or checks, **Then** the owner's entries are kept, and agents cannot edit or remove the owner's review items.
+5. **Given** a failed run, **When** the owner chooses Return to Ready, **Then** the item is unclaimed and startable again.
+
+---
+
+### User Story 7 - The owner plans and keeps the workspace tidy (Priority: P2)
+
+The owner captures ideas quickly, shapes work in Planning (their stage, where agents may draft planning documents), moves items to Ready one at a time or in bulk by label, groups large initiatives with labels that have a brief, and archives done work so it stops cluttering their views.
+
+**Why this priority**: Planning feeds the agents' queue, and archiving keeps supervision lean. Both depend on US2.
+
+**Independent Test**: Quick capture creates an Inbox item and opens it. Moving to Planning, then to Ready, makes it startable. A label page moves every Planning item with that label to Ready. Archiving a done item removes it from the board, list, timeline and epic list, but it stays searchable and can be unarchived.
+
+**Acceptance Scenarios**:
+
+1. **Given** the owner presses New, **When** they enter a title and create, **Then** the item lands in Inbox and opens. Creating from an epic fills in the epic and keeps the owner on the epic.
+2. **Given** an item in Planning, **When** the owner moves it to Ready, **Then** agents can start it (if unblocked). Agents may also move items to Ready when the project's own workflow allows it.
+3. **Given** a label with Planning items, **When** the owner chooses "Move N to Ready" on its page, **Then** all of them move, and the action can be undone.
+4. **Given** done items, **When** the owner archives one or all, **Then** they disappear from the owner's views but remain in search, in agents' queries and on progress maps. They can be restored, and the action can be undone.
+5. **Given** a planning document added by an agent, **When** the owner opens it, **Then** it renders in a viewer with its version, author and a download option, and earlier versions are kept.
+6. **Given** an item in Planning, **When** the owner edits its title, outcome or acceptance criteria inline, **Then** the change is saved with Undo available, recorded as the owner's, and returned to agents in the item's context. If an agent changed the same field first, the owner's edit is refused, and the latest text is shown for the owner to reapply.
+7. **Given** an Inbox item the owner no longer wants, **When** they choose Cancel item and confirm, **Then** it becomes Canceled with their optional reason, leaves their views, can be undone for a short time, and still turns up in search.
+
+---
+
+### User Story 8 - The owner sees dates, effort and a forecast (Priority: P3)
+
+The owner sees planned dates (labelled with who set them), actual time worked, blockers that finish after a dependent's planned start, remaining effort over time, and, once there is enough history, a forecast range that never overwrites planned dates.
+
+**Why this priority**: Planning depth that is useful once real work flows. Not needed to coordinate.
+
+**Independent Test**: With seeded dates and effort, the timeline shows planned and actual bars, blocker ends, and a date-risk flag. The burn-down shows remaining effort with scope changes marked. The forecast says "not enough history yet" until the threshold is met, and then shows a P50 to P85 range with its assumptions.
+
+**Acceptance Scenarios**:
+
+1. **Given** an item whose blocker is planned to finish after the item's planned start, **When** shown, **Then** it is flagged as a date risk, on the timeline and in Problems.
+2. **Given** fewer than 8 estimated items completed in the last 4 weeks, **When** the owner views the forecast, **Then** it says "No forecast yet: needs 8 completed items with effort (have N)".
+3. **Given** enough history, **When** the owner views the forecast, **Then** it shows P50 and P85 dates, the rate, the sample size, and how many items are unestimated, and planned dates are unchanged.
+
+---
+
+### User Story 9 - The owner imports a Jira project after reviewing a dry run (Priority: P3)
+
+Before a pilot, the owner can point Task Lite at a Jira Cloud project, see a dry-run report of what would import, what would be skipped and what would lose detail, and then import. The Jira credential is used only for that import.
+
+**Why this priority**: It's needed for the pilot, not for coordination. It depends on US1 to US4.
+
+**Independent Test**: Against a small test Jira project, the dry run reports counts by type, lossy fields and cycles, and writes nothing. Import then creates items with their Jira keys searchable, and stores the report with the project.
+
+**Acceptance Scenarios**:
+
+1. **Given** valid Jira details, **When** the owner runs the dry run, **Then** a report lists issues, would-import, skipped and lossy counts per field, the lossy items with reasons, detected cycles, and the fields used for points and dates. No records are written.
+2. **Given** the owner confirms, **When** the import runs, **Then** all items are created together, attachments are downloaded with per-file failures reported, and imported items show "Imported from Jira".
+3. **Given** the import has finished or been cancelled, **When** anything is inspected, **Then** the Jira credential appears nowhere: not in records, logs or the report.
+
+---
+
+### User Story 10 - The owner runs Task Lite safely on their machine (Priority: P2)
+
+The owner starts Task Lite with one command, connects their agents by following short instructions, unlocks the UI in their browser with an owner key that agents never get, and trusts that data survives restarts and container replacement, that backups restore, and that deleting a project removes its records and documents together.
+
+**Why this priority**: It is a prerequisite for any real use, but it is operational rather than a user journey through the product, so it is P2 behind the P1 slices, which can be demonstrated on a developer machine.
+
+**Independent Test**: On a clean machine: start the service, connect two different agent clients, unlock the browser, create work, replace the container (the work is still there), restore last night's backup into a scratch instance (identical), and delete a project (its records and documents are gone, other projects untouched).
+
+**Acceptance Scenarios**:
+
+1. **Given** a clean machine with the container runtime, **When** the owner follows the README, **Then** the service is running and an agent is connected within 10 minutes.
+2. **Given** a browser without an owner session, **When** it opens the UI, **Then** it must unlock with the owner key. Without that session, agents' credentials cannot perform owner actions.
+3. **Given** a request from another machine, or a request whose Host or Origin isn't allowed, **When** it arrives, **Then** it is refused.
+4. **Given** text that looks like a secret, **When** anyone tries to save it, **Then** it is refused and not stored or logged.
+5. **Given** the owner has enabled the extra host-folder backup location, **When** the nightly backup runs, **Then** the same backup appears in both places. Settings shows the last successful time for each, and the host copy can be restored after the service's data volume is removed.
+6. **Given** the owner deletes a project after typing its key, **When** confirmed, **Then** its items and documents are removed together, and backups age out on their stated retention.
+
+### Edge Cases
+
+- **A lead's lease expires mid-work, and the agent calls again with its old run:** it is refused with the current state. The item has already returned to Ready, with its plan and logs kept.
+- **Two owner tabs, or the owner and an agent, change the same item at once:** the later write is refused as a conflict. The UI shows the latest state and says who changed it.
+- **A packet is open and the owner adds a new review item:** the new item waits for the next round, and the ticket stays open until it is decided.
+- **A blocker is in another project, or is archived:** blocking still applies. Archived doesn't mean cleared, and cleared depends on the link's rule.
+- **An epic-level review exists:** child tickets without their own review items say "reviewed with its epic". The epic can't close until its children are done or canceled.
+- **Imported data contains cycles, or links to items outside the import:** cycles are imported as they are and flagged under Problems. External links are listed in the dry-run report as skipped.
+- **A verified-rule blocker has no human review items:** creating such a link is refused, with advice to declare review or use "done".
+- **A very long title, or a large document:** titles are truncated with the full text on hover. Documents above the size limit are refused with the limit stated. Unknown file types are download-only.
+- **The connection to the service drops in the UI:** a banner says it's reconnecting. After a minute it says changes won't be saved, and actions are disabled.
+- **An agent sends text over a field's limit:** refused, with the limit.
+- **The extra backup folder is missing, full or not writable:** the default backup still succeeds, and the owner sees a problem ("Extra backup copy failed: <reason>") until a later copy succeeds.
+- **Notifications are off or blocked by the browser:** nothing is lost. The tab title count and Needs you still show everything. A burst of handoffs produces one notification per item, not repeats.
+- **Context exceeds the budget:** lower-priority sections are cut, with an inline marker. The essentials and decisions are never cut first.
+- **The owner archives an item that isn't done:** refused. Cancel exists for that.
+- **The owner cancels an item an agent is working on:** the agent's run is interrupted and its claim released, and the agent's next call is refused with the item's canceled state. Items it blocked show "Blocked by canceled X" until the link is removed.
+- **A run belonging to a client that never answers liveness checks:** it shows as reported rather than live, never as live by assumption.
+- **A deleted project's IDs:** agents get "not found".
+
+## Requirements *(mandatory)*
+
+### Functional Requirements
+
+**Work items and workflow**
+
+- **FR-001**: The system MUST support projects, each with a short key, and items of four types: Epic (the only container), Story, Task and Bug. Item IDs are the project key plus a number, unique and never reused.
+- **FR-002**: Items MUST have a title, description, outcome, acceptance criteria, priority (1–3), optional epic, labels, optional planned dates (recording who set them and when), and optional effort.
+- **FR-003**: The system MUST enforce the workflow Inbox → Planning → Ready → In progress → Review → Done, plus Canceled, allowing only the transitions defined in the build spec. Disallowed transitions are refused with the allowed alternatives.
+- **FR-004**: An item MUST NOT reach Done while any of its human review items is undecided. No other condition gates Done.
+- **FR-005**: An epic MUST NOT reach Done until all its children are Done or Canceled.
+- **FR-006**: Every change MUST be recorded as an immutable event with the actor (owner, a named agent with its client and label, or the system), the time, and what changed.
+- **FR-007**: Concurrent conflicting changes MUST be detected. The losing write is refused with the current record. Retried writes with the same retry key MUST NOT be applied twice.
+
+**Agent access and coordination**
+
+- **FR-010**: Installed agent clients MUST be able to connect over the Model Context Protocol on the local machine, with a shared agent credential. The connecting client is identified from its handshake, plus an optional worker label.
+- **FR-011**: Agents MUST be able to list work they may start: Ready, not blocked and unclaimed, sorted by priority, then by how much other work each item unblocks.
+- **FR-012**: Agents MUST be able to list resumable work: In progress with no lead (sent back by review, or after a failed run).
+- **FR-013**: Claiming the lead on an item MUST be atomic. Exactly one agent can hold it, and a refused claim returns the holder, the last signal and the lease expiry, and is visible to the owner.
+- **FR-014**: A lead claim MUST carry a lease that is renewed by any call from that run. When the lease expires, the claim is released, the run is interrupted, and the item returns to Ready with its work kept.
+- **FR-015**: Run state MUST be derived only from evidence:
+  - live: recent activity from the run's own connection;
+  - reported: activity, but not from its own connection;
+  - stale: no signal for the stale period;
+  - plus needs input, failed, finished and interrupted.
+
+  A run MUST never be shown as finished unless the agent finished it.
+- **FR-016**: On service start, every open run MUST become interrupted.
+- **FR-017**: Agents MUST be able to publish and revise a plan as one-line steps. A revision changes only what is sent, keeps history, and requires a reason. Owner-added steps are always kept.
+- **FR-018**: Agents MUST be able to record checks they ran (state, evidence and provenance), subagent contributions (observed or relayed), progress notes, commits, and links to external evidence. None of these is human approval.
+- **FR-019**: Agents MUST be able to declare, edit and remove their own human review items while those items are not in an open packet. They MUST NOT change items the owner added.
+- **FR-020**: Agents MUST be able to submit a handoff packet: items to verify, verification steps, what was already checked and how, known gaps, attachments, the commit it was built from, and an estimate. Submission is refused if the item is blocked, a packet is already open, there's nothing to verify, or an agent check is failing without a known gap explaining it.
+- **FR-021**: Agents MUST be able to read the owner's review decisions round by round, owner notes and answers. Notes and answers are delivered exactly once.
+- **FR-022**: Agents MUST be able to ask the owner one open question per item at a time. Asking marks their run as needing input.
+- **FR-023**: Agents MUST be able to poll for changes since a cursor, filtered by project, item and event type, in order and without gaps.
+- **FR-024**: Agents MUST be able to read the dependency neighbourhood of an item, to a chosen depth, with planned dates labelled as entered or absent, and the downstream items a given delay would put at risk.
+- **FR-025**: Every agent-facing result MUST be bounded (paged lists, a summary view, field selection), and MUST come with a complete compact text rendering. Writes MUST change only what is sent.
+- **FR-026**: Every agent-facing error MUST carry a code (validation, conflict, not found, forbidden, unavailable, internal) and a one-sentence next step.
+- **FR-027**: Agents MUST NOT be able to record review decisions, answer questions as the owner, write owner notes, archive, delete projects, or release another agent's claim.
+
+**Dependencies**
+
+- **FR-030**: Items MUST be linkable as "blocks" (which affects eligibility) or "relates" (informational only), across projects. Parent epics and "relates" links never block.
+- **FR-031**: Each project MUST have a rule for when a blocker counts as cleared: done (the default), PR merged (done, plus a merge reported by the agent), or verified (done, with every human review item approved and none deferred). Individual links MAY override it.
+- **FR-032**: Creating a link that would form a cycle MUST be refused, with the cycle path. Cycles already present (for example from an import) MUST be detected and shown as problems.
+- **FR-033**: A canceled blocker MUST stay uncleared until someone removes the link, and MUST be shown as a problem.
+- **FR-034**: A "verified" link to a blocker with no human review items MUST be refused. A verified blocker that closes with a deferred check MUST stay uncleared and be shown as a problem.
+- **FR-035**: Changing a project's rule or a link's rule MUST re-evaluate eligibility immediately, and be recorded.
+
+**Context and decisions**
+
+- **FR-040**: Agents MUST be able to request one bounded context bundle for an item, in this priority order: essentials (with a count of unread notes, without delivering them); active decisions in scope, owner's first; epic and label briefs; blockers with what each is waiting for, and dependents; planning documents; the last review. There are three size budgets, and truncation is always marked.
+- **FR-041**: Decisions MUST have a scope (project, epic, label or item), a title, the decision, an optional rationale, an authority (owner or agent), and a status (active, superseded or withdrawn). An item's context includes every active decision from its project, epic, labels and itself.
+- **FR-042**: Owner decisions MUST be authoritative. Agents can publish agent decisions, supersede or withdraw agent decisions, but not change owner decisions.
+- **FR-043**: The owner MUST be able to record decisions, confirm agent decisions (making them owner decisions) and withdraw any decision. Withdrawn and superseded decisions stay readable in history.
+
+**Human review**
+
+- **FR-050**: The owner MUST be able to decide each item in an open packet as approve, needs changes (note required; becomes a checklist step or a new Bug in Ready linked to the ticket), or defer (optional note; optional follow-up test ticket in Inbox carrying the same check).
+- **FR-051**: The outcome MUST follow from the decisions:
+  - any "needs changes": the ticket returns to In progress, and its review items come up again;
+  - otherwise: the ticket closes with the owner recorded as closer.
+
+  Approvals carry forward to later rounds.
+- **FR-052**: A packet MUST be marked out of date when a newer commit is reported for its ticket, or for any child of an epic with an epic-level packet. The owner MUST be able to ask for a fresh packet, which returns the ticket to In progress, withdraws the packet, and notifies the agent.
+- **FR-053**: Deferred checks MUST remain listed for the owner and for agents (for cleanup) until their follow-up is done and approved, or they are re-declared and approved.
+- **FR-054**: Earlier packet rounds MUST remain readable, with their decisions shown by outcome (approved, needed changes, deferred), each in a distinct style.
+
+**Owner UI**
+
+- **FR-060**: The UI MUST provide: Needs you (home), Work (board, list, map, timeline, with an Epics row), item pages (four views), the handoff packet screen, label pages, Agents, and Settings (projects, connections, service health).
+- **FR-061**: Only items that need the owner (handoffs ready and open questions) MAY drive the red attention count. Problems MUST list stale and failed runs, cycles, date risks, canceled blockers, and verified blockers with deferred checks, each with one action that opens the right place.
+- **FR-062**: Every owner change MUST be undoable for a short period, or confirmed when destructive, with focus on Cancel.
+- **FR-063**: The UI MUST update live as agents change data, keep the owner's focus, and warn clearly when the service is unreachable.
+- **FR-064**: The owner MUST be able to quick-capture items, move items between Inbox, Planning and Ready, change priority, add checklist steps, checks and review items, answer questions, leave notes, release stale claims, return failed work to Ready, archive and unarchive done items, record and confirm decisions, set each project's blocker rule, edit an item's title, description, outcome and acceptance criteria inline, and cancel any open item.
+- **FR-064a**: Owner edits to an item's text MUST use the same conflict detection as agent writes: an edit based on a stale version is refused with the latest text shown. Edits MUST be undoable, recorded with the owner as the actor, and visible to agents on their next read.
+- **FR-064b**: The owner MUST be able to cancel any open item with an optional reason. Cancel MUST be undoable, and it is recorded as the owner's.
+  - **An item with an active lead:** its run ends as interrupted, and the agent's next call gets the current state.
+  - **An item with an open packet:** the packet is withdrawn.
+  - **An epic with open children:** canceling is refused, naming those children.
+  - Canceled items leave the owner's default views, but stay searchable.
+  - Undo restores the item's previous status. It doesn't restore an interrupted run.
+- **FR-065**: Each item MUST open on the view the owner last used for it. Opened items MUST appear as tabs (at most 8) that remember their view. Scope MUST reset to All projects on each new visit.
+- **FR-066**: Every state, provenance and attention signal MUST carry text, not just colour. The UI MUST meet WCAG 2.1 AA in light and dark themes, at window widths down to 1024 px.
+- **FR-067**: Search MUST find items (including archived and imported ones, by Jira key), labels and views.
+- **FR-068**: The owner MUST be able to opt in to desktop notifications from the browser. Only new "for you" events notify: a handoff becoming ready, or a question being asked. There is at most one notification per event, and clicking it opens the item. The browser tab title MUST show the current for-you count. Nothing is sent off the machine. If the owner declines or revokes permission, the UI keeps working without notifications.
+
+**Documents**
+
+- **FR-070**: Agents and the owner MUST be able to store documents on items or projects. A document stored again under the same name becomes a new immutable version, and earlier versions are kept.
+- **FR-071**: The UI MUST preview Markdown (sanitised), plain text and structured text, images, video and PDF. It MUST offer download for every document, including unknown types.
+
+**Dates, effort, forecast**
+
+- **FR-080**: The timeline MUST show planned dates labelled with who set them, actual worked time, blocker end dates, date risks, and undated items.
+- **FR-081**: A burn-down MUST show remaining effort per day for the chosen scope, with scope additions marked and unestimated items counted separately.
+- **FR-082**: A forecast MUST appear only once at least 8 estimated items have completed in the last 4 weeks, in at least 2 different weeks. It MUST show P50 and P85 dates with its assumptions, and MUST never change planned dates.
+
+**Jira import**
+
+- **FR-090**: The owner MUST be able to run a dry run against a Jira Cloud project that writes nothing and reports mapped, skipped and lossy data per field, lossy items with reasons, cycles, and the fields used.
+- **FR-091**: After review, the import MUST create all records together, preserve Jira keys as searchable references, mark items as imported, and store the report with the project.
+- **FR-092**: The Jira credential MUST be held only for the import session and MUST never be stored, logged or included in the report.
+
+**Operation and safety**
+
+- **FR-100**: The service MUST start with one command, and MUST be reachable only from the local machine by default. Requests with a disallowed Host or Origin MUST be refused.
+- **FR-101**: Owner actions MUST require an owner session established with an owner key that agents never receive. The session lasts 30 days from last use in that browser. The owner MUST be able to lock a browser (ending its session) and rotate the key (ending every session). An agent's credential MUST NOT be accepted for any owner action.
+- **FR-102**: Data and documents MUST survive container replacement. Health and readiness checks MUST identify storage problems.
+- **FR-103**: Nightly backups MUST include records and documents, MUST be kept for a stated period, and MUST be restorable with a documented command. By default, backups are stored with the service's data.
+- **FR-103a**: The owner MUST be able to opt in to an extra backup location: a folder on the host machine. When it's enabled, each nightly backup is also written there, with the same retention. Settings MUST show each backup location with its last successful backup time. A failed copy to the extra location MUST appear as a problem, and MUST NOT affect the default backup.
+- **FR-104**: Deleting a project MUST require typing its key, and MUST remove its records and documents together.
+- **FR-105**: Text that looks like a secret MUST be refused on write and never stored or logged. Credentials MUST never appear in logs.
+- **FR-106**: The service MUST NOT launch agents or call model APIs.
+- **FR-107**: Settings MUST show the agent connection instructions for each supported client, and a compatibility matrix of verified clients.
+- **FR-108** *(default, not asked)*: The service MUST keep a diagnostic log of each agent call (tool, client and label, run, duration and outcome code), without call contents, so the owner can see why an agent struggled.
+
+### Key Entities
+
+- **Project**: a bounded area of work, with a key, a name, a blocker rule, and its labels, decisions and documents.
+- **Item**: an Epic, Story, Task or Bug, with its status, priority, outcome, acceptance criteria, dates, effort and archive state; it belongs to a project and optionally to an epic.
+- **Link**: a "blocks" link (optionally with its own blocker rule) or a "relates" link between two items.
+- **Label**: a named group within a project, with an optional brief, for initiatives that span epics.
+- **Checklist**: on each item, three lists: Work steps (the agent's plan, versioned), Agent checks (self-verification with evidence), and Human review items (what the owner verifies).
+- **Run**: one agent execution on an item (lead or child), with its client, label, signals, lease and outcome.
+- **Subagent log**: a short, attributed record of a subagent's contribution under a work step.
+- **Handoff packet and review decision**: one packet per review round, and the owner's decision per item in it.
+- **Question and owner note**: messages between agent and owner, each delivered once.
+- **Decision record**: a scoped, authoritative (owner) or advisory (agent) decision with its rationale and status.
+- **Document**: a named file on an item or project, with immutable versions.
+- **Commit and artifact**: reported delivery evidence (commits, PRs, CI runs, deployments, URLs).
+- **Event**: the immutable record of every change.
+
+## Success Criteria *(mandatory)*
+
+### Measurable Outcomes
+
+- **SC-001**: From connecting, an agent finds, claims and has full working context for the best available item in at most 4 calls, receiving no more than about 3,500 tokens of results in total on the sample data.
+- **SC-002**: Re-reading an item's status costs an agent no more than about 300 tokens, and a 25-item search no more than about 1,000. Regressions beyond 20% fail the build.
+- **SC-003**: Across 100 simultaneous attempts by two agents to claim the same item, exactly one succeeds every time, and no update is lost.
+- **SC-004**: When an item's last blocker clears, it appears in agents' ready list on the very next request, with no human or agent action.
+- **SC-005**: The owner can tell what needs them, and act on the first item, within 10 seconds of opening the UI, without scrolling, on a 1440×900 screen at sample-data volume.
+- **SC-006**: The owner can verify a two-item handoff and record a decision in no more than 4 clicks beyond the verification work itself.
+- **SC-007**: 100% of runs open at a restart show as interrupted afterwards, and 0% as finished.
+- **SC-008**: Replacing the container loses 0 items, events or documents, and a restored backup matches the original exactly.
+- **SC-009**: A new owner goes from a clean machine to a connected agent in 10 minutes or less by following the README.
+- **SC-010**: Every owner-facing screen passes automated accessibility checks with no serious or critical issues, in both themes.
+- **SC-011**: A Jira dry run of 500 issues completes in under 2 minutes and accounts for 100% of issues as imported, skipped or lossy.
+- **SC-012**: In the pilot, agents follow the workflow (claim before work, plan in the checklist, hand off through packets) without reminders in at least 90% of items, and the owner checks Task Lite instead of Jira for status.
+- **SC-013** *(default, not asked)*: At the stated scale, owner views appear in under 1 second, and 95% of agent requests complete in under half a second on the owner's machine.
+
+## Assumptions
+
+- One owner, one machine. V1 has no multi-user accounts, and no access from other devices.
+- Agents are installed clients (Codex, Claude Code) and the same clients launched as workers by an orchestrator (Orca). Each connects directly; a client-side bridge is needed only if a specific client can't.
+- The orchestrator, or the owner, starts agents. Task Lite only coordinates them (owner decision 18).
+- The agents' own workflow files (`AGENTS.md`, `CLAUDE.md`) carry project-specific rules: when to declare human review, whether agents may move work to Ready, which planning documents are expected. Task Lite stores and shows these choices but doesn't enforce them (owner decision 11).
+- "PR merged" is reported by agents in V1. Observing merges and CI directly is out of scope (ROADMAP.md).
+- V1 is built and verified with disposable sample data. A pilot project is chosen afterwards, following ROADMAP.md §1.
+- Effort is measured in points, and dates in the owner's local time zone.
+- **Scale (default, not asked):** up to 20 projects, 5,000 items, 100,000 events and 10 GB of documents on one machine, with up to 10 agents connected at once. Beyond that is out of scope for V1.
+- Event and document retention is unlimited, until the owner archives (which hides) or deletes (which removes) a project.
+- Out of scope for V1:
+  - editing planned dates, effort and blocker links in the UI (agents edit them; the owner edits the text fields, see Clarifications);
+  - a restore UI;
+  - bulk agent tools;
+  - sprints;
+  - GitHub or CI integrations;
+  - a dispatcher;
+  - versioned contracts;
+  - a knowledge layer beyond decision records.

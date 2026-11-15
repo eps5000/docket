@@ -12,6 +12,13 @@ It isn't an agent runner. Orca, or the owner, starts agents (owner decision 18),
 **Current phase: ready to build V1.** No container or MCP server has been implemented yet. V1 is built and verified with disposable sample work; a real pilot project is chosen afterward.
 
 ## Start here (builders)
+Task Lite uses [Spec Kit](https://github.com/github/spec-kit) for spec-driven development. Agents get its skills (`/speckit-implement`, `/speckit-analyze` and the rest) from `.claude/skills/`.
+- [Constitution](.specify/memory/constitution.md): the non-negotiable principles every PR is checked against.
+- [Requirements of record](specs/001-task-lite-v1/spec.md): user stories, acceptance scenarios, functional requirements and success criteria.
+- [Tasks](specs/001-task-lite-v1/tasks.md): 137 dependency-ordered tasks by user story, mapped to milestones M0–M8. Start at T001.
+- [Plan](specs/001-task-lite-v1/plan.md) · [research](specs/001-task-lite-v1/research.md) · [data model](specs/001-task-lite-v1/data-model.md) · [contracts](specs/001-task-lite-v1/contracts/) · [quickstart](specs/001-task-lite-v1/quickstart.md)
+
+The detailed design those point to:
 1. [Build spec](docs/BUILD_SPEC.md): architecture, data model, domain rules, MCP tools, UI API, seed data, tests, milestones and the decisions log.
 2. [MCP spec](docs/MCP_SPEC.md): the agent-facing contract (server instructions, every tool's description and schema, errors, worked flows, client setup). Agents are the primary users.
 3. [UI spec](docs/UI_SPEC.md): screens, components, design tokens, states, motion and accessibility.

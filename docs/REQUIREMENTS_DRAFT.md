@@ -1,6 +1,6 @@
 # Candidate product requirements
 
-Status: discovery draft, updated 2026-11-07. **Superseded for building by [BUILD_SPEC.md](BUILD_SPEC.md) and [UI_SPEC.md](UI_SPEC.md);** this file remains the record of requirements and owner decisions. The confirmed choices below are owner decisions; remaining requirements are proposals to test with real agents. Background: [Jira capability research](JIRA_RESEARCH.md).
+Status: discovery draft, updated 2026-11-07. **Superseded as the requirements of record by [specs/001-task-lite-v1/spec.md](../specs/001-task-lite-v1/spec.md), and for building by [BUILD_SPEC.md](BUILD_SPEC.md), [MCP_SPEC.md](MCP_SPEC.md) and [UI_SPEC.md](UI_SPEC.md);** this file remains the record of owner decisions and the original requirement IDs those documents cite. The confirmed choices below are owner decisions; remaining requirements are proposals to test with real agents. Background: [Jira capability research](JIRA_RESEARCH.md).
 
 ## Confirmed owner decisions
 
@@ -25,6 +25,11 @@ Status: discovery draft, updated 2026-11-07. **Superseded for building by [BUILD
 18. Task Lite is the coordinator, not the dispatcher. It is the authoritative record of what work exists, what is eligible to start, who holds it, and the rules (blocking, leases, review gates), and it enforces them. Orca, or the owner, decides when to start agents (decision 2 reaffirmed after the 2026-11-14 "development control plane" review). Revisit after the pilot. (Added 2026-11-14.)
 19. V1 adds four coordination features from that review: a context bundle for agents (`get_context`), decision records that every agent reads (owner records are authoritative), lean agent responses (summary views, field selection, compact text, token budgets), and stricter dependency rules (a blocker can be required to be merged or verified, not just done). (Added 2026-11-14.)
 20. TERSL / Tourbillon is a reference to learn from, not a dependency. No TERSL format or TERSL/DB in V1; the learnings applied, and an optional post-V1 experiment, are in [ROADMAP.md](ROADMAP.md). (Added 2026-11-14.)
+21. Opt-in desktop notifications in the browser for new "for you" events only (handoff ready, question asked), plus the for-you count in the tab title. Nothing leaves the machine. (Added 2026-11-14, spec clarification.)
+22. The owner can edit an item's title, description, outcome and acceptance criteria inline in the UI. Planned dates, effort and blocker links stay agent-edited in V1. (Added 2026-11-14, spec clarification.)
+23. The owner can cancel any open item from the UI, with an optional reason and Undo. (Added 2026-11-14, spec clarification.)
+24. Nightly backups stay in the service's data volume by default; the owner can opt in to an extra copy in a folder on the host machine. (Added 2026-11-14, spec clarification.)
+25. The browser UI requires the owner key to unlock, once per browser, with a 30-day session from last use; the owner can lock a browser or rotate the key. (Confirmed 2026-11-14, spec clarification.)
 
 ## Product intent
 

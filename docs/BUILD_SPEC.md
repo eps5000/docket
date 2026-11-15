@@ -41,8 +41,7 @@ V1 also includes four coordination features from the 2026-11-14 review (owner de
 - Git/CI integrations (A14).
 - Sprints and dashboards (H12).
 - A restore UI (restore is a CLI).
-- Editing dates, blockers and acceptance from the UI (H11; agents do it, or the owner leaves a note).
-- A UI to cancel an item (agents can cancel).
+- Editing planned dates, effort and blocker links from the UI (part of H11; agents do it, or the owner leaves a note). The owner *does* edit title, description, outcome and acceptance criteria inline (owner decision 22).
 - Access from other devices.
 - Dispatching or launching agents (owner decision 18).
 - Observing merges and CI directly. A blocker's "merged" state is agent-reported in V1; see ROADMAP.md.
@@ -106,11 +105,12 @@ Environment variables, with defaults:
 | `TASKLITE_STALE_AFTER` | `30m` | Open run with no signal for this long is *stale*. |
 | `TASKLITE_LEASE` | `60m` | Lead claim lease, renewed by any signal from the run. |
 | `TASKLITE_BACKUP_AT` | `03:00` | Local time for the nightly backup. |
-| `TASKLITE_BACKUP_KEEP` | `14` | Days of backups kept. |
+| `TASKLITE_BACKUP_KEEP` | `14` | Days of backups kept, in every location. |
+| `TASKLITE_BACKUP_EXTRA_DIR` | (unset) | Opt-in extra backup location: the path *inside the container* of a host folder bind-mounted by the owner (e.g. `/backups-extra`). When it's set and writable, each nightly backup is also copied there (owner decision 24). |
 | `TASKLITE_SEED` | (unset) | `sample` loads the sample data into an empty database. |
 | `TZ` | host TZ | Display time zone. Storage is always UTC. |
 
-`docker/compose.yaml` publishes `127.0.0.1:7420:7420` only (O02), mounts the named volume `tasklite-data:/data`, sets `restart: unless-stopped`, and has a healthcheck on `/healthz`.
+`docker/compose.yaml` publishes `127.0.0.1:7420:7420` only (O02), mounts the named volume `tasklite-data:/data` (plus a commented-out, opt-in bind mount for the extra backup folder, e.g. `~/TaskLiteBackups:/backups-extra`), sets `restart: unless-stopped`, and has a healthcheck on `/healthz`.
 
 ### Volume layout
 
@@ -118,6 +118,7 @@ Environment variables, with defaults:
 /data/tasklite.db (+ -wal, -shm)
 /data/docs/<PROJECT_KEY>/<document_id>/v<n>/<filename>
 /data/secrets/agent-token  /data/secrets/owner-key
+/data/logs/calls-YYYYMMDD.jsonl   (diagnostic call log, kept 7 days)
 /data/backups/tasklite-YYYYMMDD-HHMM.tar.gz
 ```
 
@@ -203,7 +204,7 @@ Workflow (owner decision 8): `inbox → planning → ready → progress → revi
 | progress → review | agent via `submit_packet` | At least one human review item exists. |
 | review → progress | owner decision with any "changes"; owner *Ask for a fresh packet*; agent | — |
 | progress or review → done | agent via `set_status`, or the owner's decision outcome | **No human review item may be `declared` or `ready`** (decision 13, the only gate the tracker enforces). Agent checks are recorded, not enforced. |
-| any open → canceled | agent (reason required) | — |
+| any open → canceled | agent (reason required), or owner (reason optional; owner decision 23) | An epic with open children is refused, naming them. An active lead run ends as `interrupted`, and its claim is released. An open packet is withdrawn. Owner cancel is undoable (it restores the status, not the run). |
 | done → progress | agent (reopen, reason required) | — |
 
 - Epics follow the same statuses. An epic can only become done when every child is done or canceled.
@@ -345,7 +346,8 @@ O03.
 - CLI:
   - `tasklite backup now`;
   - `tasklite restore <file>`: refuses while the server is running. Run it with `docker compose run --rm tasklite tasklite restore …` after stopping the service. It verifies the archive before replacing anything.
-- Settings shows the last backup time and how long backups are kept.
+- **Extra location** (owner decision 24): if `TASKLITE_BACKUP_EXTRA_DIR` is set, the finished archive is also copied there, with the same retention. A failed or missing extra copy never fails the default backup; it shows as a Problem, "Extra backup copy failed: <reason>", until a later copy succeeds. `tasklite restore` accepts an archive from either location.
+- Settings shows each location with its last successful backup time and how long backups are kept.
 
 ### 5.14 Decision records
 Shared knowledge that agents must respect: "Nutrition is per serving", "Use the v2 design tokens". A record is short (title ≤ 120 characters, decision ≤ 4,000) and has a scope: project, epic, label or item. Agents see everything in scope for an item: its project, its epic, its labels, and the item itself.
@@ -447,8 +449,10 @@ Every route requires the owner session (§3). JSON bodies are validated with the
 | `GET /api/burndown?scope&epic&label` | Timeline burn-down card |
 | `GET /api/items/:id` | Ticket or epic page (all four tabs; small enough to load at once) |
 | `POST /api/items` | Quick capture: `{title, type, project, epic?, notes?}` → item in Inbox |
-| `PATCH /api/items/:id` | `{expected_version, priority? , status?: planning\|ready}` |
+| `PATCH /api/items/:id` | `{expected_version, priority?, status?: planning\|ready, title?, description_md?, outcome_md?, acceptance?: string[]}`. Text edits use the same limits, secret checks and conflict handling as agents, are undoable, and are recorded with `actor_kind=owner` (decision 22). |
+| `GET /api/diagnostics/calls?days=7` | Settings → *Download diagnostic log*: JSONL of agent calls (time, tool, client, label, run, duration, result code), never arguments or results (FR-108) |
 | `POST /api/items/:id/archive` · `/unarchive` · `POST /api/archive` `{ids[]}` | Archive, Archive all |
+| `POST /api/items/:id/cancel` `{expected_version, reason?}` | *Cancel item…* (owner decision 23); returns a `mutation_id` for Undo |
 | `POST /api/items/:id/work` · `DELETE …/work/:stepId` | Owner work steps |
 | `POST /api/items/:id/checks` · `DELETE …/checks/:checkId` | Owner agent-review items |
 | `POST /api/items/:id/human-review` · `PATCH`/`DELETE …/human-review/:hrId` | Human review items |
@@ -466,7 +470,7 @@ Every route requires the owner session (§3). JSON bodies are validated with the
 | `GET /api/documents/:versionId/content` | Document viewer, attachments |
 | `POST /api/import/jira/dry-run` · `GET /api/import/jira/:id` · `POST /api/import/jira/:id/commit` · `DELETE /api/import/jira/:id` | Jira import (§9) |
 | `POST /api/mutations/:id/undo` | Undo toast |
-| `GET /api/stream` | SSE: `event: change`, `data: {seq, objects:[{kind, id}]}`. The client invalidates matching TanStack Query keys. Supports `Last-Event-ID`. Sends a heartbeat comment every 25 s. |
+| `GET /api/stream` | SSE: `event: change`, `id: <seq>`, `data: {seq, type, objects:[{kind, id}], for_you}`, where `for_you` is true only for `packet.submitted` and `question.asked` (used for desktop notifications; specs/001-task-lite-v1/contracts/events.md). The client invalidates matching TanStack Query keys. Supports `Last-Event-ID`. Sends a heartbeat comment every 25 s. |
 | `GET /healthz` (process up) · `GET /readyz` (database writable, docs dir writable, migrations current) | Compose healthcheck, sidebar health line |
 
 ---
@@ -633,7 +637,9 @@ Port the prototype's scenario checks; the list below matches what the prototype 
 - **Cross-cutting:**
   - axe finds no serious or critical violations on each screen, in both light and dark themes;
   - at 1024×900 the packet's decision panel sits under the queue;
-  - every visit starts at All projects (a new browser context sees scope All).
+  - every visit starts at All projects (a new browser context sees scope All);
+  - **notifications** (with the permission granted in the browser context): a new packet and a new question each produce exactly one notification, a click opens the right place, the tab title shows `(N) Task Lite`, and already-pending items don't notify on load;
+  - **inline editing:** edit and save an outcome, see it in `get_context`, and undo it; a conflicting agent edit shows the conflict callout.
 
 ### Smoke test with real clients (O07)
 `docker/smoke/` holds a script and a checklist. For each surface (installed Codex, installed Claude Code, an Orca worker running Codex, and an Orca worker running Claude):
@@ -655,9 +661,9 @@ Work in order. Each milestone ends with its own tests green and a short demo not
 | M0 | Workspace scaffold, lint, typecheck, Vitest, Dockerfile, compose, `/healthz` and `/readyz`, and the GitHub Actions CI workflow (§2 Stack) | `docker compose up` serves "Task Lite is running"; the CI check is green on the M0 PR, and Mergify waits for it |
 | M1 | Schema and migrations, domain services for §5 (including `satisfied_when`, decision records and the context bundle), event log, idempotency, undo, seed loader | Unit tests for every §5 rule pass; the seed loads deterministically |
 | M2 | MCP server per [MCP_SPEC.md](MCP_SPEC.md): auth, Host/Origin guards, identity, server instructions, all 36 tools with the exact description text, compact text rendering, structured errors, sweeper, restart handling | The MCP_SPEC §10 contract tests pass, including the description snapshot and token budgets; two simultaneous SDK clients work |
-| M3 | Owner session and CSRF, UI API (§7), SSE stream | API contract tests pass; the unlock flow works |
+| M3 | Owner session and CSRF, UI API (§7, including owner text edits and the diagnostic log), SSE stream | API contract tests pass; the unlock flow works |
 | M4 | Web shell, tokens, Needs you, Work board and list, ticket and epic pages (four tabs, checklist editing, Decisions sections), open-item tabs, palette, quick capture | The e2e groups for Needs you, Tickets and epics, and Shell pass |
-| M5 | Packet screen and decisions, deferrals, questions and notes, archive, undo toasts | The e2e groups for Packets and Work (archive) pass |
+| M5 | Packet screen and decisions, deferrals, questions and notes, archive, undo toasts, inline editing, desktop notifications and the tab-title count | The e2e groups for Packets and Work (archive) pass |
 | M6 | Progress map (epic, label, Work → Map), Timeline, Label pages (with Decisions), Agents, Settings (including blocker rules and project decisions), document viewer | The e2e groups for Map, Labels and cross-cutting pass |
 | M7 | Burn-down and forecast, Jira import (dry run and import), backup/restore CLI, delete project. Stretch: `tasklite export` | Unit tests for forecast and mapping pass; a dry run against a test Jira project produces a report |
 | M8 | O07 smoke with real clients, an accessibility pass, dark mode and 1024 px checks, a README quick start | The smoke matrix is filled in; axe is clean; the README walks through from an empty machine to a connected agent in under 10 minutes |
@@ -711,8 +717,13 @@ Owner decisions are marked **(owner)**. Every other entry is a technical choice 
 | T18 | Tool results: the text block is a complete compact rendering, and `structuredContent` is JSON. | MCP_SPEC §3.1 |
 | T19 | Context bundle budgets of 1k, 3k and 8k tokens, with visible truncation. | §5.15 |
 | T20 | CI runs on GitHub Actions hosted runners. The repo went public on 2026-11-14, so standard runners are free, and no Namespace runners are needed. | §2 |
+| 21 **(owner)** | Opt-in desktop notifications for new for-you events only (packet ready, question asked), plus the for-you count in the tab title. Browser-generated, nothing off-machine. | UI_SPEC §6.7a |
+| 22 **(owner)** | The owner edits an item's title, description, outcome and acceptance criteria inline. Dates, effort and blocker links stay agent-edited in V1. | §7, UI_SPEC §6.3 |
+| T21 | Diagnostic call log: JSONL, one line per MCP call without arguments, rotated daily, kept 7 days, downloadable from Settings. | §2 volume layout, §7 |
 | T1 | One port (7420) for MCP, API and UI, published only on 127.0.0.1, with Host and Origin allowlists. | §2, §3 |
-| T2 | A separate owner key and browser session, so agents can't record human approval through the API. | §3 |
+| 23 **(owner)** | The owner can cancel any open item from the UI, with an optional reason and Undo. | §5.1, UI_SPEC §6.3 |
+| 24 **(owner)** | Backups stay in the data volume by default; the owner can opt in to an extra copy in a host folder. | §5.13, §2 Configuration |
+| T2 | A separate owner key and browser session, so agents can't record human approval through the API. Confirmed by the owner in the 2026-11-14 clarification (30 days from last use). | §3 |
 | T3 | Displayed run state is derived from session signals (requests and pings) using `LIVE_WINDOW` 2 m, `STALE_AFTER` 30 m and `LEASE` 60 m. Restart interrupts open runs. | §5.3, §5.4 |
 | T4 | IDs are `<KEY>-<n>`, numbered per project. | §4 |
 | T5 | Optimistic concurrency with `version`; idempotency keys kept for 24 h. | §4, §6 |
