@@ -119,7 +119,7 @@ specs/001-task-lite-v1/
 shared/                  # zod schemas, enums, error codes, filters, mcp-copy.ts, compact.ts, secrets.ts
 server/
 ├── src/
-│   ├── domain/          # services + rules (items, links, claims/runs, checklist, review, decisions, context, archive, forecast)
+│   ├── domain/          # contracts.ts (service signatures, built first) + one file per service (filled by slices)
 │   ├── db/              # drizzle schema, migrations, FTS triggers, seed loader
 │   ├── mcp/             # MCP server, session/identity, tool adapters
 │   ├── api/             # Hono routes, owner session/CSRF, SSE stream, diagnostics
@@ -133,13 +133,15 @@ server/
 web/
 ├── src/
 │   ├── routes/          # needs-you, work, items, review, labels, agents, settings, unlock
-│   ├── components/      # Chip, RunState, Provenance, Section, ViewTabs, TicketCard, ProgressMap, …
+│   ├── components/      # kit/ (shared UI kit, built first) + slice-owned components (ProgressMap, …)
 │   ├── lib/             # api client, SSE, notifications, persistence, undo
 │   └── styles/tokens.css
 └── e2e/                 # Playwright specs per user story + axe
 docker/                  # Dockerfile, compose.yaml, .env.example, smoke/
 .github/workflows/ci.yml
 ```
+
+**Build order**: contracts first (constitution v1.1). `shared/src/{mcp,api}`, `mcp-copy.ts`, `compact.ts`, `server/src/domain/contracts.ts`, the route and tool stubs, `web/src/lib/api.ts`, `web/src/components/kit/` and the screen shells are built in tasks Phases 1–3. Slices only fill stubs.
 
 **Structure Decision**: a pnpm workspace with three packages (`shared`, `server`, `web`) built
 into one image. The web build is served by the server, so there's one process and one port.
