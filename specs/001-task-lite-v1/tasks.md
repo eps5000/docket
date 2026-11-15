@@ -68,34 +68,34 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 ## Phase 2: Platform foundation (runtime plumbing every slice relies on) · M1
 
 ### Tests first
-- [ ] T010 [P] Unit tests for event appending, `version` conflicts and idempotency replay (same key and arguments → `replayed: true`; same key, different arguments → `validation`) in `server/tests/unit/write-path.test.ts`
-- [ ] T011 [P] Unit tests for secret detection: Bearer values, PEM keys, and the `sk-`, `ghp_`, `github_pat_`, `xox` and `AKIA` prefixes, plus the service's own tokens. A rejected write is not stored and not logged (MCP_SPEC §3.4). In `shared/tests/secrets.test.ts`.
-- [ ] T012 [P] Integration tests for the Host allowlist (421), Origin allowlist (403) and missing or wrong bearer token on `/mcp` (401), in `server/tests/integration/guards.test.ts`
-- [ ] T013 [P] Integration tests for unlock and lock, CSRF required on mutations, key rotation ending sessions, and agents' token rejected on `/api`, in `server/tests/integration/session.test.ts`
-- [ ] T014 [P] Unit tests for undo: within 60 s it applies the `inverse`; after a later event on the same objects it returns `conflict`; it records an `undo` event. In `server/tests/unit/undo.test.ts`.
+- [X] T010 [P] Unit tests for event appending, `version` conflicts and idempotency replay (same key and arguments → `replayed: true`; same key, different arguments → `validation`) in `server/tests/unit/write-path.test.ts`
+- [X] T011 [P] Unit tests for secret detection: Bearer values, PEM keys, and the `sk-`, `ghp_`, `github_pat_`, `xox` and `AKIA` prefixes, plus the service's own tokens. A rejected write is not stored and not logged (MCP_SPEC §3.4). In `shared/tests/secrets.test.ts`.
+- [X] T012 [P] Integration tests for the Host allowlist (421), Origin allowlist (403) and missing or wrong bearer token on `/mcp` (401), in `server/tests/integration/guards.test.ts`
+- [X] T013 [P] Integration tests for unlock and lock, CSRF required on mutations, key rotation ending sessions, and agents' token rejected on `/api`, in `server/tests/integration/session.test.ts`
+- [X] T014 [P] Unit tests for undo: within 60 s it applies the `inverse`; after a later event on the same objects it returns `conflict`; it records an `undo` event. In `server/tests/unit/undo.test.ts`.
 
 ### Implementation
-- [ ] T015 [P] Define the shared enums, exactly as in BUILD_SPEC §13 and MCP_SPEC §3, in `shared/src/enums.ts`: status, type, priority, run state, provenance, `satisfied_when`, decision authority and status, every event type (contracts/events.md), and the filters with their agent-query strings (including `resumable`)
-- [ ] T016 [P] Define the error codes and `ToolError` in `shared/src/errors.ts`: `validation`, `conflict`, `not_found`, `forbidden`, `unavailable` and `internal`
-- [ ] T017 [P] Implement the secret detector in `shared/src/secrets.ts` (makes the secret tests pass)
-- [ ] T018 Write the Drizzle schema for **every** table in BUILD_SPEC §4 in `server/src/db/schema.ts`, including `review_decisions` and `decision_records`, `links.satisfied_when` and `projects.default_satisfied_when`. Quote the limits from data-model.md: title ≤ 200; Markdown fields ≤ 20,000; step, check and human review text ≤ 500; priority 1–3; effort ≥ 0; project key 2–5 uppercase letters; label name `a-z0-9-` ≤ 40; decision title ≤ 120 and decision ≤ 4,000.
-- [ ] T019 Generate the first migration and the FTS5 `search_fts` table with sync triggers in `server/src/db/migrations/`
-- [ ] T020 Open the database (WAL, `foreign_keys=ON`, `busy_timeout` 5 s) and a transaction helper using `BEGIN IMMEDIATE`, in `server/src/db/client.ts`
-- [ ] T021 Implement the write path in `server/src/domain/write.ts`: one transaction per mutation, version checks returning `conflict` with `current`, event append with actor, mutation ID and `inverse`, idempotency store (24 h), and secret check on every text field (makes the write-path tests pass)
-- [ ] T022 [P] Implement ID allocation (`<KEY>-<n>` through `projects.next_seq` inside the transaction) and ULID-prefixed IDs (`wst_`, `chk_`, `hr_`, `run_`, `q_`, `lnk_`, `doc_`, `dv_`, `pkt_`, `dec_`) in `server/src/domain/ids.ts`
-- [ ] T023 Implement the config loader (every BUILD_SPEC §2 variable with its default) and secret bootstrap (generate `/data/secrets/agent-token` and `owner-key`, mode 0600) in `server/src/config.ts`
-- [ ] T024 Implement the Host and Origin guards and bearer auth middleware in `server/src/api/guards.ts` (makes the guard tests pass)
-- [ ] T025 Create the API app in `server/src/api/app.ts`: Hono, zod validation, CSRF double-submit, error mapping to the shared error codes
-- [ ] T026 Implement owner sessions in `server/src/api/session.ts` (makes the session tests pass; constitution Principle VI):
+- [X] T015 [P] Define the shared enums, exactly as in BUILD_SPEC §13 and MCP_SPEC §3, in `shared/src/enums.ts`: status, type, priority, run state, provenance, `satisfied_when`, decision authority and status, every event type (contracts/events.md), and the filters with their agent-query strings (including `resumable`)
+- [X] T016 [P] Define the error codes and `ToolError` in `shared/src/errors.ts`: `validation`, `conflict`, `not_found`, `forbidden`, `unavailable` and `internal`
+- [X] T017 [P] Implement the secret detector in `shared/src/secrets.ts` (makes the secret tests pass)
+- [X] T018 Write the Drizzle schema for **every** table in BUILD_SPEC §4 in `server/src/db/schema.ts`, including `review_decisions` and `decision_records`, `links.satisfied_when` and `projects.default_satisfied_when`. Quote the limits from data-model.md: title ≤ 200; Markdown fields ≤ 20,000; step, check and human review text ≤ 500; priority 1–3; effort ≥ 0; project key 2–5 uppercase letters; label name `a-z0-9-` ≤ 40; decision title ≤ 120 and decision ≤ 4,000.
+- [X] T019 Generate the first migration and the FTS5 `search_fts` table with sync triggers in `server/src/db/migrations/`
+- [X] T020 Open the database (WAL, `foreign_keys=ON`, `busy_timeout` 5 s) and a transaction helper using `BEGIN IMMEDIATE`, in `server/src/db/client.ts`
+- [X] T021 Implement the write path in `server/src/domain/write.ts`: one transaction per mutation, version checks returning `conflict` with `current`, event append with actor, mutation ID and `inverse`, idempotency store (24 h), and secret check on every text field (makes the write-path tests pass)
+- [X] T022 [P] Implement ID allocation (`<KEY>-<n>` through `projects.next_seq` inside the transaction) and ULID-prefixed IDs (`wst_`, `chk_`, `hr_`, `run_`, `q_`, `lnk_`, `doc_`, `dv_`, `pkt_`, `dec_`) in `server/src/domain/ids.ts`
+- [X] T023 Implement the config loader (every BUILD_SPEC §2 variable with its default) and secret bootstrap (generate `/data/secrets/agent-token` and `owner-key`, mode 0600) in `server/src/config.ts`
+- [X] T024 Implement the Host and Origin guards and bearer auth middleware in `server/src/api/guards.ts` (makes the guard tests pass)
+- [X] T025 Create the API app in `server/src/api/app.ts`: Hono, zod validation, CSRF double-submit, error mapping to the shared error codes
+- [X] T026 Implement owner sessions in `server/src/api/session.ts` (makes the session tests pass; constitution Principle VI):
   - `/api/session/unlock` and `/lock`;
   - HttpOnly SameSite=Strict cookie with a 30-day sliding expiry;
   - key rotation;
   - every `/api` route requires a session from day one.
-- [ ] T027 Implement owner undo in `server/src/domain/undo.ts` and `POST /api/mutations/:id/undo` in `server/src/api/routes/undo.ts` (FR-062; makes the undo tests pass)
-- [ ] T028 Implement the SSE stream at `/api/stream` in `server/src/api/stream.ts`: `event: change`, `id: <seq>`, `data: {seq, type, objects, for_you}`, `Last-Event-ID` resume, a keep-alive comment every 25 s (contracts/events.md)
-- [ ] T029 Create the MCP server in `server/src/mcp/server.ts`: Streamable HTTP at `/mcp` with stateful sessions; identity from `clientInfo` normalised (contains codex → `codex`; contains claude → `claude`); the session ID recorded for run binding
-- [ ] T030 [P] Implement the diagnostic call-log writer (`/data/logs/calls-YYYYMMDD.jsonl`: time, tool, client, label, run, duration, result code, never arguments; rotated daily, kept 7 days) in `server/src/jobs/logs.ts`
-- [ ] T031 Implement the seed loader in `server/src/db/seed/loader.ts`. It maps `design/sample-data.json` per BUILD_SPEC §8: time shift, decision records `dec_1` to `dec_3`, and the `RCP-19 → RCP-16` link set to `merged`. Add the `tasklite seed sample` command and `TASKLITE_SEED=sample`. **Note from B1:** `.dockerignore` currently excludes `design/`. Re-include `design/sample-data.json` (for example with `!design/sample-data.json`) and copy it into the image, otherwise seeding fails inside the container.
+- [X] T027 Implement owner undo in `server/src/domain/undo.ts` and `POST /api/mutations/:id/undo` in `server/src/api/routes/undo.ts` (FR-062; makes the undo tests pass)
+- [X] T028 Implement the SSE stream at `/api/stream` in `server/src/api/stream.ts`: `event: change`, `id: <seq>`, `data: {seq, type, objects, for_you}`, `Last-Event-ID` resume, a keep-alive comment every 25 s (contracts/events.md)
+- [X] T029 Create the MCP server in `server/src/mcp/server.ts`: Streamable HTTP at `/mcp` with stateful sessions; identity from `clientInfo` normalised (contains codex → `codex`; contains claude → `claude`); the session ID recorded for run binding
+- [X] T030 [P] Implement the diagnostic call-log writer (`/data/logs/calls-YYYYMMDD.jsonl`: time, tool, client, label, run, duration, result code, never arguments; rotated daily, kept 7 days) in `server/src/jobs/logs.ts`
+- [X] T031 Implement the seed loader in `server/src/db/seed/loader.ts`. It maps `design/sample-data.json` per BUILD_SPEC §8: time shift, decision records `dec_1` to `dec_3`, and the `RCP-19 → RCP-16` link set to `merged`. Add the `tasklite seed sample` command and `TASKLITE_SEED=sample`. **Note from B1:** `.dockerignore` currently excludes `design/`. Re-include `design/sample-data.json` (for example with `!design/sample-data.json`) and copy it into the image, otherwise seeding fails inside the container.
 
 **Checkpoint**: the seed loads deterministically. `/mcp` and `/api` answer behind their guards. Undo and the live stream work. Every `/api` route requires an unlocked owner session.
 

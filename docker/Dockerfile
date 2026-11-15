@@ -43,6 +43,13 @@ RUN groupadd --system --gid 10001 tasklite \
 WORKDIR /app
 COPY --from=build --chown=root:root /out/server /app/server
 COPY --from=build --chown=root:root /src/web/dist /app/web/dist
+# The sample seed's data (BUILD_SPEC §8), read by TASKLITE_SEED=sample and
+# `tasklite seed sample`. The loader finds it at /app/design.
+COPY --chown=root:root design/sample-data.json /app/design/sample-data.json
+
+# `tasklite owner-key | agent-token | seed sample` (BUILD_SPEC §3, MCP_SPEC §11).
+RUN printf '#!/bin/sh\nexec node /app/server/dist/cli/index.js "$@"\n' > /usr/local/bin/tasklite \
+ && chmod 755 /usr/local/bin/tasklite
 
 USER tasklite
 # A new named volume copies this directory, so /data starts owned by tasklite.
