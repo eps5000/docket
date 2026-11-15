@@ -1,0 +1,17 @@
+# Design documents and Spec Kit artifacts are hand-formatted; never reflow them.
+docs/
+design/
+specs/
+.specify/
+.claude/
+README.md
+
+pnpm-lock.yaml
+**/dist/
+**/coverage/
+**/playwright-report/
+**/test-results/
+**/blob-report/
+
+# Copied verbatim from design/prototype.html (UI_SPEC §3); keep byte-identical.
+web/src/styles/tokens.css

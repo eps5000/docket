@@ -1,0 +1,95 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Job names `build` and `e2e` are the check names the Mergify queue requires.
+# Rename them only together with the Mergify configuration.
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: |
+          pnpm -r lint
+          pnpm format:check
+
+      - name: Typecheck
+        run: pnpm -r typecheck
+
+      - name: Vitest
+        run: pnpm -r test
+
+      - name: Docker build
+        run: docker build -f docker/Dockerfile -t tasklite:ci .
+
+  e2e:
+    name: e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm --filter @tasklite/web exec playwright install --with-deps chromium
+
+      - name: Build and start the container
+        env:
+          TASKLITE_SEED: sample
+        run: docker compose -f docker/compose.yaml up -d --build --wait --wait-timeout 120
+
+      - name: Playwright
+        env:
+          TASKLITE_E2E_NO_START: '1'
+        run: pnpm --filter @tasklite/web e2e
+
+      - name: Container logs
+        if: failure()
+        run: docker compose -f docker/compose.yaml logs --no-color
+
+      - name: Upload Playwright report and traces
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: playwright-report
+          path: |
+            web/playwright-report/
+            web/test-results/
+          retention-days: 14
+
+      - name: Stop the container
+        if: always()
+        run: docker compose -f docker/compose.yaml down --volumes

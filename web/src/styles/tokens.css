@@ -1,0 +1,32 @@
+/* Design tokens, copied unchanged from the .tl block in design/prototype.html (UI_SPEC §3).
+   Light, dark (data-theme) and prefers-color-scheme. Change the prototype first, then re-copy. */
+/* ---------- tokens (contrast-checked: text >= 4.5:1, control borders >= 3:1) ---------- */
+.tl{
+  --bg:#f6f7f9; --panel:#fff; --panel-2:#f1f3f6; --line:#e3e6eb; --line-2:#d3d8df; --ctl:#8a929f;
+  --ink:#16191f; --ink-2:#444c59; --ink-3:#5f6878; --on-fill:#fff;
+  --brand:#3b5bdb; --brand-soft:#e8edff;
+  --ok:#237032; --ok-soft:#e6f4ea; --warn:#9a4705; --warn-soft:#fdf1e2;
+  --bad:#c22b2b; --bad-soft:#fdecec; --info:#1864ab; --info-soft:#e7f1fb;
+  --violet:#6741d9; --violet-soft:#f0ebff; --gray-soft:#eef0f3; --teal:#0b7285; --teal-soft:#e3f6f8;
+  --t-epic:#7b2fa3; --t-story:#2b7a3b; --t-task:#1c64b9; --t-bug:#c92a2a; --t-fg:#fff;
+  --shadow:0 12px 40px rgba(20,25,35,.18);
+  --mono:ui-monospace,"Cascadia Code","JetBrains Mono",Consolas,monospace;
+  --sans:Inter,"Segoe UI",system-ui,-apple-system,sans-serif;
+  font:13px/1.45 var(--sans); color:var(--ink); background:var(--bg); color-scheme:light;
+}
+.tl[data-theme=dark]{
+  --bg:#0f1115;--panel:#161920;--panel-2:#1c2029;--line:#2a303b;--line-2:#363d4a;--ctl:#6f788a;
+  --ink:#e6e9ef;--ink-2:#b8c0cc;--ink-3:#99a2b4;--on-fill:#0f1115;
+  --brand:#8ea2ff;--brand-soft:#1d2440;--ok:#5bd06f;--ok-soft:#14281a;--warn:#f0a020;--warn-soft:#2d2210;
+  --bad:#ff7b7b;--bad-soft:#351818;--info:#5cb3f8;--info-soft:#132536;--violet:#a990ff;--violet-soft:#241c3e;--gray-soft:#23272f;--teal:#3bc9db;--teal-soft:#10292d;--t-epic:#d197f0;--t-story:#6fd384;--t-task:#74b8f7;--t-bug:#ff8a8a;--t-fg:#0f1115;
+  --shadow:0 12px 40px rgba(0,0,0,.5); color-scheme:dark;
+}
+@media (prefers-color-scheme:dark){
+  .tl:not([data-theme=light]){
+    --bg:#0f1115;--panel:#161920;--panel-2:#1c2029;--line:#2a303b;--line-2:#363d4a;--ctl:#6f788a;
+    --ink:#e6e9ef;--ink-2:#b8c0cc;--ink-3:#99a2b4;--on-fill:#0f1115;
+    --brand:#8ea2ff;--brand-soft:#1d2440;--ok:#5bd06f;--ok-soft:#14281a;--warn:#f0a020;--warn-soft:#2d2210;
+    --bad:#ff7b7b;--bad-soft:#351818;--info:#5cb3f8;--info-soft:#132536;--violet:#a990ff;--violet-soft:#241c3e;--gray-soft:#23272f;--teal:#3bc9db;--teal-soft:#10292d;--t-epic:#d197f0;--t-story:#6fd384;--t-task:#74b8f7;--t-bug:#ff8a8a;--t-fg:#0f1115;
+    --shadow:0 12px 40px rgba(0,0,0,.5); color-scheme:dark;
+  }
+}

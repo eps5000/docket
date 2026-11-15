@@ -1,0 +1,40 @@
+# Task Lite. Start:  docker compose -f docker/compose.yaml up -d --build
+name: tasklite
+
+services:
+  tasklite:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: tasklite:local
+    container_name: tasklite
+    # Optional overrides; copy .env.example to .env to use them.
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      TASKLITE_SEED: ${TASKLITE_SEED:-}
+    ports:
+      # Loopback only (O02). Never publish on 0.0.0.0.
+      - '127.0.0.1:7420:7420'
+    volumes:
+      - tasklite-data:/data
+      # Opt-in extra backup location (owner decision 24). Uncomment, then set
+      # TASKLITE_BACKUP_EXTRA_DIR=/backups-extra in .env.
+      # - ~/TaskLiteBackups:/backups-extra
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:'+(process.env.TASKLITE_PORT||7420)+'/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      start_interval: 2s
+      retries: 3
+
+volumes:
+  tasklite-data:
+    name: tasklite-data
