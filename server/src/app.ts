@@ -3,12 +3,14 @@ import { readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';
+import { createApiApp } from './api/app.js';
+import { allowedOriginsFor, bearerAuth, hostGuard, originGuard } from './api/guards.js';
+import { migrationStatus } from './db/client.js';
+import type { Runtime } from './runtime.js';
 
 export interface AppOptions {
   /** Directory holding the web build (index.html and assets/). */
   webRoot: string;
-  /** The data volume, `/data` in the container. */
-  dataDir: string;
 }
 
 /** Paths owned by the server. They never fall back to the SPA. */
@@ -24,7 +26,7 @@ function looksLikeFile(path: string): boolean {
   return last.includes('.');
 }
 
-/** Write and remove a probe file: proves the volume is writable, not just present. */
+/** Write and remove a probe file: proves the directory is writable, not just present. */
 async function checkWritable(dir: string): Promise<string> {
   const probe = join(dir, `.readyz-${randomUUID()}`);
   try {
@@ -36,20 +38,80 @@ async function checkWritable(dir: string): Promise<string> {
   }
 }
 
-export function createApp({ webRoot, dataDir }: AppOptions): Hono {
+/** Take the write lock and write a row, then roll back: proves the database accepts writes. */
+function checkDatabaseWritable(runtime: Runtime): string {
+  const { sqlite } = runtime.db;
+  try {
+    sqlite
+      .transaction(() => {
+        const now = new Date().toISOString();
+        sqlite
+          .prepare(
+            "INSERT INTO settings (key, value, created_at, updated_at) VALUES ('__readyz', 'null', ?, ?)",
+          )
+          .run(now, now);
+        throw new RollbackProbe();
+      })
+      .immediate();
+    return 'error';
+  } catch (err) {
+    if (err instanceof RollbackProbe) return 'ok';
+    return (err as { code?: string }).code ?? 'error';
+  }
+}
+
+class RollbackProbe extends Error {}
+
+export function createApp(runtime: Runtime, { webRoot }: AppOptions): Hono {
+  const { config } = runtime;
   const app = new Hono();
+
+  // DNS-rebinding and cross-origin guards on everything except the liveness
+  // probe, which the container healthcheck calls on its internal port.
+  app.use('*', hostGuard(config.allowedHosts, { exempt: (path) => path === '/healthz' }));
+  app.use('*', originGuard(allowedOriginsFor(config.allowedHosts)));
 
   // Liveness: the process is up and answering. Used by the compose healthcheck.
   app.get('/healthz', (c) => c.text('ok'));
 
-  // Readiness. Today the only dependency is a writable /data volume.
-  // There is no database yet: B2 (Phase 2) extends this to check that the
-  // database opens, the docs directory is writable and migrations are current.
+  // Readiness: the volume, the database and the docs directory are writable,
+  // and the database schema matches this build's migrations.
   app.get('/readyz', async (c) => {
-    const checks = { data_dir: await checkWritable(dataDir) };
+    let migrations = 'error';
+    try {
+      migrations = migrationStatus(runtime.db).current ? 'ok' : 'pending';
+    } catch {
+      // Reported as 'error'.
+    }
+    const checks = {
+      data_dir: await checkWritable(config.dataDir),
+      database: checkDatabaseWritable(runtime),
+      docs_dir: await checkWritable(config.paths.docs),
+      migrations,
+    };
     const ready = Object.values(checks).every((v) => v === 'ok');
     return c.json({ status: ready ? 'ready' : 'not_ready', checks }, ready ? 200 : 503);
   });
+
+  // Agents: MCP over Streamable HTTP, behind the bearer token.
+  app.use(
+    '/mcp',
+    bearerAuth(() => runtime.secrets.agentToken()),
+  );
+  app.all('/mcp', (c) => runtime.mcp.handle(c.req.raw));
+
+  // The owner: the UI API, behind the owner session.
+  app.route(
+    '/api',
+    createApiApp({
+      db: runtime.db,
+      write: runtime.write,
+      sessions: runtime.sessions,
+      bus: runtime.bus,
+      streamKeepAliveMs: runtime.streamKeepAliveMs,
+      log: runtime.log,
+    }),
+  );
 
   // The web build. Hashed assets are immutable; index.html is always revalidated.
   app.use(
