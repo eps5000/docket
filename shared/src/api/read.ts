@@ -1,0 +1,356 @@
+/**
+ * Reading routes: the shell, Needs you, Work, the item page, Agents, search
+ * and the live stream (BUILD_SPEC §7; contracts/ui-api.md US2).
+ * Shared contract file (tasks.md, Slice rules).
+ */
+import { z } from 'zod';
+import { FILTERS, PROVENANCES, SIGNAL_KINDS, SUBAGENT_PROVENANCES } from '../enums.js';
+import { itemId, longText } from '../mcp/common.js';
+import { labelNameSchema } from '../mcp/items.js';
+import { deferredReviewsOutput } from '../mcp/read.js';
+import {
+  decisionRecordSchema,
+  itemSchema,
+  itemSummarySchema,
+  itemTypeSchema,
+  runStateSchema,
+  statusSchema,
+} from '../mcp/types.js';
+import { input, jsonResponse, noInput, scopeSchema } from './common.js';
+import { json, route } from './route.js';
+import {
+  activityRowSchema,
+  epicCardSchema,
+  forecastSchema,
+  healthSchema,
+  labelSchema,
+  linkEdgeSchema,
+  projectSchema,
+  runStateCountsSchema,
+  workItemSchema,
+} from './types.js';
+
+// ---- GET /api/bootstrap ----
+
+export const bootstrapResponse = jsonResponse({
+  server_version: z.string(),
+  server_time: z.string(),
+  projects: z.array(projectSchema),
+  labels: z.array(labelSchema),
+  /** Sidebar counts. `for_you` also drives the tab title `(N) Task Lite` (UI_SPEC §6.7a). */
+  counts: z.object({
+    for_you: z.number().int(),
+    problems: z.number().int(),
+    planning: z.number().int(),
+    runs: runStateCountsSchema,
+  }),
+  /** Timing the UI needs to label run state and undo honestly (BUILD_SPEC §5.4, §5.11). */
+  settings: z.object({
+    live_window_s: z.number().int(),
+    stale_after_s: z.number().int(),
+    lease_s: z.number().int(),
+    undo_window_s: z.number().int(),
+  }),
+  health: healthSchema,
+});
+export type BootstrapResponse = z.infer<typeof bootstrapResponse>;
+
+// ---- GET /api/needs-you ----
+
+export const forYouRowSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('packet'),
+    item_id: z.string(),
+    title: z.string(),
+    project: z.string(),
+    packet_id: z.string(),
+    round: z.number().int(),
+    to_verify: z.number().int(),
+    estimate: z.string(),
+    stale: z.boolean(),
+    /** The commit it was built from, when stale ("code changed after it was written"). */
+    built_from_commit: z.string(),
+    submitted_at: z.string(),
+  }),
+  z.object({
+    kind: z.literal('question'),
+    item_id: z.string(),
+    title: z.string(),
+    project: z.string(),
+    question_id: z.string(),
+    /** `codex · orca-w3`. */
+    asked_by: z.string(),
+    text: z.string(),
+    asked_at: z.string(),
+  }),
+]);
+export type ForYouRow = z.infer<typeof forYouRowSchema>;
+
+export const PROBLEM_KINDS = [
+  'stale_run',
+  'failed_run',
+  'cycle',
+  'date_risk',
+  'canceled_blocker',
+  'deferred_verified_blocker',
+  'extra_backup_failed',
+] as const;
+
+export const problemSchema = z.object({
+  kind: z.enum(PROBLEM_KINDS),
+  /** The item the action opens; null for service problems (extra backup copy). */
+  item_id: z.string().nullable(),
+  title: z.string().nullable(),
+  /** One line, e.g. "RCP-22 needs RCP-12 verified, but 1 check was deferred". */
+  reason: z.string(),
+  /** Other items involved (the cycle path, the blocker). */
+  related: z.array(z.string()),
+  /** The link to remove, for a canceled blocker. */
+  link_id: z.string().nullable(),
+});
+export type Problem = z.infer<typeof problemSchema>;
+
+export const deferredRowSchema = deferredReviewsOutput.shape.items.element;
+export type DeferredRow = z.infer<typeof deferredRowSchema>;
+
+export const needsYouQuery = input({ scope: scopeSchema });
+export const needsYouResponse = jsonResponse({
+  for_you_now: z.array(forYouRowSchema),
+  problems: z.array(problemSchema),
+  deferred: z.array(deferredRowSchema),
+  planning_queue: z.array(itemSummarySchema),
+  agent_counts: runStateCountsSchema,
+});
+export type NeedsYouResponse = z.infer<typeof needsYouResponse>;
+
+// ---- GET /api/work ----
+
+/** Filters the Work screen accepts (chips and URL; BUILD_SPEC §13). */
+export const UI_FILTER_KEYS = FILTERS.filter((f) => f.ui).map((f) => f.key) as [
+  (typeof FILTERS)[number]['key'],
+  ...(typeof FILTERS)[number]['key'][],
+];
+export const uiFilterSchema = z.enum(UI_FILTER_KEYS);
+
+export const WORK_LAYOUTS = ['board', 'list', 'map', 'timeline'] as const;
+export const workLayoutSchema = z.enum(WORK_LAYOUTS);
+
+export const workQuery = input({
+  scope: scopeSchema,
+  epic: itemId.optional(),
+  label: labelNameSchema.optional(),
+  filter: uiFilterSchema.default('all'),
+  layout: workLayoutSchema.default('board'),
+});
+
+export const timelineRowSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  type: itemTypeSchema,
+  project: z.string(),
+  status: statusSchema,
+  blocked: z.boolean(),
+  planned_start: z.string().nullable(),
+  planned_end: z.string().nullable(),
+  dates_set_by: z.string().nullable(),
+  /** First `progress` → `done`, from history (BUILD_SPEC §5.9). */
+  actual_start: z.string().nullable(),
+  actual_end: z.string().nullable(),
+  overdue: z.boolean(),
+  blockers: z.array(
+    z.object({
+      id: z.string(),
+      planned_end: z.string().nullable(),
+      /** True when this blocker ends after the item is planned to start (date risk). */
+      risky: z.boolean(),
+    }),
+  ),
+});
+
+export const timelineSchema = z.object({
+  /** The first and last day shown. */
+  from: z.string(),
+  to: z.string(),
+  rows: z.array(timelineRowSchema),
+  /** "Not on the timeline (no dates)". */
+  undated: z.array(z.string()),
+  forecasts: z.array(z.object({ project: z.string(), forecast: forecastSchema })),
+});
+export type Timeline = z.infer<typeof timelineSchema>;
+
+export const workResponse = jsonResponse({
+  layout: workLayoutSchema,
+  items: z.array(workItemSchema),
+  /** Non-archived epics in scope (the Epics row; not shown on Timeline). */
+  epics: z.array(epicCardSchema),
+  /** Chip counts. */
+  filter_counts: z.partialRecord(uiFilterSchema, z.number().int()),
+  /** Links among `items`, for the map. */
+  links: z.array(linkEdgeSchema),
+  /** Present only for `layout=timeline`. */
+  timeline: timelineSchema.nullable(),
+});
+export type WorkResponse = z.infer<typeof workResponse>;
+
+// ---- GET /api/items/:id ----
+
+export const itemParams = input({ id: itemId });
+
+export const planVersionSchema = z.object({
+  version_no: z.number().int(),
+  reason: z.string().nullable(),
+  created_by: z.string(),
+  created_at: z.string(),
+  changes: z.array(
+    z.object({
+      step_id: z.string(),
+      text: z.string(),
+      change: z.enum(['added', 'removed', 'changed']),
+      was_text: z.string().nullable(),
+    }),
+  ),
+});
+export type PlanVersion = z.infer<typeof planVersionSchema>;
+
+export const itemDetailResponse = jsonResponse({
+  item: itemSchema,
+  /** For an epic: its children. Empty otherwise. */
+  children: z.array(itemSummarySchema),
+  /** Active and inactive records in scope, owner first (UI_SPEC §6.3.5). */
+  decisions: z.array(decisionRecordSchema),
+  /** The Checklist history dialog. */
+  plan_history: z.array(planVersionSchema),
+  /** The Activity tab, newest first. */
+  activity: z.array(activityRowSchema),
+  open_packet: z
+    .object({
+      packet_id: z.string(),
+      round: z.number().int(),
+      stale: z.boolean(),
+      to_verify: z.number().int(),
+    })
+    .nullable(),
+  /** "Waiting for <agent> to read it" (BUILD_SPEC §5.7). */
+  answer_unread: z.boolean(),
+  notes_unread: z.number().int(),
+  label_briefs: z.array(z.object({ name: z.string(), brief_md: z.string() })),
+  links: z.array(linkEdgeSchema),
+});
+export type ItemDetailResponse = z.infer<typeof itemDetailResponse>;
+
+// ---- GET /api/agents ----
+
+export const agentRowSchema = z.object({
+  row_kind: z.enum(['run', 'subagent_log']),
+  run_id: z.string().nullable(),
+  /** Null for subagent log rows ("log entry"). */
+  run_state: runStateSchema.nullable(),
+  client: z.string(),
+  label: z.string().nullable(),
+  item_id: z.string(),
+  item_title: z.string(),
+  project: z.string(),
+  /** Doing / did. */
+  doing: z.string().nullable(),
+  last_signal_at: z.string().nullable(),
+  last_signal_kind: z.enum(SIGNAL_KINDS).nullable(),
+  lease_expires_at: z.string().nullable(),
+  lease: z.enum(['held', 'expired', 'paused', 'released', 'none']),
+  /** How we know, for agent-reported, observed or relayed rows. */
+  provenance: z.enum([...PROVENANCES, ...SUBAGENT_PROVENANCES]).nullable(),
+  at: z.string(),
+});
+export type AgentRow = z.infer<typeof agentRowSchema>;
+
+export const agentsQuery = input({ scope: scopeSchema });
+export const agentsResponse = jsonResponse({ rows: z.array(agentRowSchema) });
+export type AgentsResponse = z.infer<typeof agentsResponse>;
+
+// ---- GET /api/search ----
+
+export const searchQuery = input({ q: longText(200) });
+export const searchResponse = jsonResponse({
+  items: z.array(
+    z.object({
+      id: z.string(),
+      title: z.string(),
+      type: itemTypeSchema,
+      status: statusSchema,
+      project: z.string(),
+      jira_key: z.string().nullable(),
+    }),
+  ),
+  labels: z.array(z.object({ project: z.string(), name: z.string() })),
+  views: z.array(z.object({ key: z.string(), label: z.string(), path: z.string() })),
+});
+export type SearchResponse = z.infer<typeof searchResponse>;
+
+// ---- Routes ----
+
+export const readRoutes = {
+  'bootstrap.get': route({
+    method: 'GET',
+    path: '/api/bootstrap',
+    group: 'read',
+    params: noInput,
+    query: noInput,
+    body: null,
+    response: json(bootstrapResponse),
+  }),
+  'needsYou.get': route({
+    method: 'GET',
+    path: '/api/needs-you',
+    group: 'read',
+    params: noInput,
+    query: needsYouQuery,
+    body: null,
+    response: json(needsYouResponse),
+  }),
+  /** Board, list and map; `layout=timeline` adds dates and forecasts (US8). */
+  'work.get': route({
+    method: 'GET',
+    path: '/api/work',
+    group: 'read',
+    params: noInput,
+    query: workQuery,
+    body: null,
+    response: json(workResponse),
+  }),
+  'items.get': route({
+    method: 'GET',
+    path: '/api/items/:id',
+    group: 'read',
+    params: itemParams,
+    query: noInput,
+    body: null,
+    response: json(itemDetailResponse),
+  }),
+  'agents.list': route({
+    method: 'GET',
+    path: '/api/agents',
+    group: 'read',
+    params: noInput,
+    query: agentsQuery,
+    body: null,
+    response: json(agentsResponse),
+  }),
+  'search.get': route({
+    method: 'GET',
+    path: '/api/search',
+    group: 'read',
+    params: noInput,
+    query: searchQuery,
+    body: null,
+    response: json(searchResponse),
+  }),
+  /** Implemented in B2 (contracts/events.md). */
+  'stream.get': route({
+    method: 'GET',
+    path: '/api/stream',
+    group: 'read',
+    params: noInput,
+    query: noInput,
+    body: null,
+    response: { kind: 'sse' },
+  }),
+} as const;
