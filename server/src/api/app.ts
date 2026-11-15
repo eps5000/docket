@@ -4,20 +4,34 @@
  * - Every route needs an unlocked owner session, except
  *   `POST /api/session/unlock` (constitution Principle VI).
  * - Mutations need the CSRF double-submit header.
- * - Bodies are validated with zod; errors map to the shared error codes,
+ * - Every route is registered from its shared definition (define.ts):
+ *   strict path, query and body validation, then the handler, which calls
+ *   only the domain services (domain/contracts.ts). Stubs answer 501.
+ * - Errors map to the shared error codes,
  *   as `{error: {code, message, details?, current?}}` with the matching
  *   HTTP status. Unexpected errors are logged by reference only, never with
  *   request content.
  */
 import type { EventEmitter } from 'node:events';
 import { Hono, type Context } from 'hono';
-import { HTTP_STATUS, ToolError, isToolError } from '@tasklite/shared';
+import { HTTP_STATUS, isToolError } from '@tasklite/shared';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
-import type { z } from 'zod';
 import type { Db } from '../db/client.js';
+import type { Services } from '../domain/contracts.js';
 import { newId } from '../domain/ids.js';
 import { mapDbError, type WritePath } from '../domain/write.js';
+import type { RouteDeps } from './define.js';
 import { errorBody } from './guards.js';
+import { decisionsRoutes } from './routes/decisions.js';
+import { depsRoutes } from './routes/deps.js';
+import { diagnosticsRoutes } from './routes/diagnostics.js';
+import { importRoutes } from './routes/import.js';
+import { planningRoutes } from './routes/planning.js';
+import { readRoutes } from './routes/read.js';
+import { reviewRoutes } from './routes/review.js';
+import { settingsRoutes } from './routes/settings.js';
+import { steerRoutes } from './routes/steer.js';
+import { timelineRoutes } from './routes/timeline.js';
 import { undoRoutes } from './routes/undo.js';
 import {
   requireCsrf,
@@ -32,34 +46,10 @@ export interface ApiDeps {
   db: Db;
   write: WritePath;
   sessions: OwnerSessions;
+  services: Services;
   bus: EventEmitter;
   streamKeepAliveMs?: number;
   log?: (line: string) => void;
-}
-
-/** Parse and validate a JSON body. Field errors name the field, never its value. */
-export async function parseBody<T>(c: Context, schema: z.ZodType<T>): Promise<T> {
-  let raw: unknown;
-  try {
-    raw = await c.req.json();
-  } catch {
-    throw new ToolError('validation', 'The request body must be JSON.');
-  }
-  const parsed = schema.safeParse(raw);
-  if (!parsed.success) {
-    const fields = parsed.error.issues.map((i) => ({
-      field: i.path.join('.') || '(body)',
-      problem: i.message,
-    }));
-    throw new ToolError(
-      'validation',
-      'Some fields are missing or invalid; correct them and retry.',
-      {
-        details: { fields },
-      },
-    );
-  }
-  return parsed.data;
 }
 
 export function errorResponse(c: Context, err: unknown, log: (line: string) => void): Response {
@@ -87,12 +77,33 @@ export function createApiApp(deps: ApiDeps): Hono<ApiEnv> {
     c.json(errorBody('not_found', `No API route ${c.req.method} ${c.req.path}.`), 404),
   );
 
+  // Guards first: every route needs the owner session (except unlock), mutations need CSRF.
   api.use('*', requireSession(deps.sessions));
   api.use('*', requireCsrf());
 
-  sessionRoutes(api, { sessions: deps.sessions, parseBody });
-  undoRoutes(api, { write: deps.write });
-  streamRoute(api, { db: deps.db, bus: deps.bus, keepAliveMs: deps.streamKeepAliveMs });
+  const routeDeps: RouteDeps = { services: deps.services, write: deps.write, log };
+
+  // B2's routes.
+  sessionRoutes(api, { ...routeDeps, sessions: deps.sessions });
+  undoRoutes(api, routeDeps);
+  streamRoute(api, {
+    ...routeDeps,
+    db: deps.db,
+    bus: deps.bus,
+    keepAliveMs: deps.streamKeepAliveMs,
+  });
+
+  // One file per group (contracts/ui-api.md); slices fill in the services behind them.
+  readRoutes(api, routeDeps);
+  reviewRoutes(api, routeDeps);
+  depsRoutes(api, routeDeps);
+  decisionsRoutes(api, routeDeps);
+  steerRoutes(api, routeDeps);
+  planningRoutes(api, routeDeps);
+  timelineRoutes(api, routeDeps);
+  importRoutes(api, routeDeps);
+  settingsRoutes(api, routeDeps);
+  diagnosticsRoutes(api, routeDeps);
 
   return api;
 }

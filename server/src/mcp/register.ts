@@ -8,7 +8,9 @@
  *   1. validate the arguments against the zod schema; a bad call gets a
  *      `validation` ToolError, even from a stub;
  *   2. the `run_id` signal hook: classify the signal (session or report);
- *   3. run the handler; mutating handlers write through `ctx.mutate`, which
+ *   3. run the handler, which calls the domain services (domain/contracts.ts);
+ *      a service that is still a stub answers `unavailable` "Not implemented
+ *      yet: <tool>". Mutating handlers write through `ctx.mutate`, which
  *      applies the call's idempotency key (replay → `replayed: true`; same
  *      key, different arguments → `validation`);
  *   4. check the result against the output schema (a mismatch is a bug:
@@ -43,6 +45,12 @@ import {
   type ToolName,
   type ToolOutput,
 } from '@tasklite/shared';
+import {
+  isNotImplemented,
+  readContext,
+  type ReadContext,
+  type Services,
+} from '../domain/contracts.js';
 import { newId } from '../domain/ids.js';
 import { mapDbError, type Actor, type WriteContext } from '../domain/write.js';
 import type { Runtime } from '../runtime.js';
@@ -68,6 +76,10 @@ export interface ToolContext {
   readonly actor: Actor;
   readonly signal: RunSignal | null;
   readonly now: Date;
+  /** The domain services (domain/contracts.ts): handlers call only these. */
+  readonly services: Services;
+  /** A read context for this call: the database, the caller and the time. */
+  readonly read: ReadContext;
   /**
    * Run `fn` as this call's mutation, through the one write path: secret
    * checks, one transaction, events, and the call's `idempotency_key`.
@@ -82,6 +94,18 @@ export type ToolHandler<N extends ToolName> = (
 ) => ToolOutput<N> | Promise<ToolOutput<N>>;
 
 export type ToolHandlers = { [N in ToolName]: ToolHandler<N> };
+
+/** A tool's arguments as a service takes them: the idempotency key belongs to the write path. */
+export function serviceArgs<T extends object>(args: T): Omit<T, 'idempotency_key'> {
+  return omit(args as T & { idempotency_key?: unknown }, 'idempotency_key');
+}
+
+/** `obj` without `keys`. */
+export function omit<T extends object, K extends keyof T>(obj: T, ...keys: K[]): Omit<T, K> {
+  const out = { ...obj };
+  for (const key of keys) delete out[key];
+  return out;
+}
 
 /** The message every stub returns until its slice implements it. */
 export const notImplementedMessage = (name: ToolName) => `Not implemented yet: ${name}`;
@@ -177,13 +201,25 @@ export async function callTool(
       run_id: runId,
     };
     let replayed = false;
+    const read = readContext(runtime.db, actor, now);
+    const signal = runId ? runSignal(runtime, runId, session) : null;
+    // Every call naming a known run is a signal (BUILD_SPEC §5.4); US1 renews the lease here.
+    if (signal?.known) {
+      runtime.services.runs.recordSignal(read, {
+        run_id: signal.run_id,
+        kind: signal.kind,
+        session_id: session?.session_id ?? null,
+      });
+    }
     const ctx: ToolContext = {
       tool,
       runtime,
       session,
       actor,
-      signal: runId ? runSignal(runtime, runId, session) : null,
+      signal,
       now,
+      services: runtime.services,
+      read,
       mutate: (fn) => {
         if (tool.kind !== 'mutating') throw new Error(`${tool.name} is not a mutating tool`);
         const { idempotency_key: key, ...hashed } = args;
@@ -216,7 +252,10 @@ export async function callTool(
     return toolResult(renderResult(tool.name, structured, { args, now }), structured);
   } catch (raw) {
     if (raw instanceof McpError) throw raw;
-    const mapped = mapDbError(raw);
+    // A service that is still a stub: "Not implemented yet: <tool>" (tasks.md T041, T048).
+    const mapped = isNotImplemented(raw)
+      ? new ToolError('unavailable', notImplementedMessage(tool.name))
+      : mapDbError(raw);
     const err = mapped instanceof ToolError ? mapped : internal(runtime, tool.name, mapped);
     code = err.code;
     return errorResult(err);

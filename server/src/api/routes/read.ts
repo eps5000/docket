@@ -1,0 +1,37 @@
+/**
+ * Reading routes (BUILD_SPEC §7; contracts/ui-api.md US2): the shell, Needs
+ * you, Work, the item page, Agents and search. `GET /api/stream` is B2's
+ * (api/stream.ts).
+ *
+ * Placeholders (tasks.md T045): each route is guarded and validated, and
+ * calls its service; stubs answer 501 until US2 (T073) implements them.
+ * `layout=timeline` takes its `timeline` section from the forecast service (US8).
+ */
+import type { Env, Hono } from 'hono';
+import { defineRoute, type RouteDeps } from '../define.js';
+
+export function readRoutes<E extends Env>(api: Hono<E>, deps: RouteDeps): void {
+  defineRoute(api, 'bootstrap.get', deps, ({ services, read }) => services.views.bootstrap(read));
+
+  defineRoute(api, 'needsYou.get', deps, ({ services, read, query }) =>
+    services.views.needsYou(read, query),
+  );
+
+  defineRoute(api, 'work.get', deps, ({ services, read, query }) => {
+    const work = services.views.work(read, query);
+    if (query.layout !== 'timeline') return work;
+    return { ...work, timeline: services.forecast.timeline(read, query) };
+  });
+
+  defineRoute(api, 'items.get', deps, ({ services, read, params }) =>
+    services.views.itemDetail(read, params),
+  );
+
+  defineRoute(api, 'agents.list', deps, ({ services, read, query }) =>
+    services.views.agents(read, query),
+  );
+
+  defineRoute(api, 'search.get', deps, ({ services, read, query }) =>
+    services.search.palette(read, query),
+  );
+}
