@@ -95,7 +95,7 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [ ] T028 Implement the SSE stream at `/api/stream` in `server/src/api/stream.ts`: `event: change`, `id: <seq>`, `data: {seq, type, objects, for_you}`, `Last-Event-ID` resume, a keep-alive comment every 25 s (contracts/events.md)
 - [ ] T029 Create the MCP server in `server/src/mcp/server.ts`: Streamable HTTP at `/mcp` with stateful sessions; identity from `clientInfo` normalised (contains codex → `codex`; contains claude → `claude`); the session ID recorded for run binding
 - [ ] T030 [P] Implement the diagnostic call-log writer (`/data/logs/calls-YYYYMMDD.jsonl`: time, tool, client, label, run, duration, result code, never arguments; rotated daily, kept 7 days) in `server/src/jobs/logs.ts`
-- [ ] T031 Implement the seed loader in `server/src/db/seed/loader.ts`. It maps `design/sample-data.json` per BUILD_SPEC §8: time shift, decision records `dec_1` to `dec_3`, and the `RCP-19 → RCP-16` link set to `merged`. Add the `tasklite seed sample` command and `TASKLITE_SEED=sample`.
+- [ ] T031 Implement the seed loader in `server/src/db/seed/loader.ts`. It maps `design/sample-data.json` per BUILD_SPEC §8: time shift, decision records `dec_1` to `dec_3`, and the `RCP-19 → RCP-16` link set to `merged`. Add the `tasklite seed sample` command and `TASKLITE_SEED=sample`. **Note from B1:** `.dockerignore` currently excludes `design/`. Re-include `design/sample-data.json` (for example with `!design/sample-data.json`) and copy it into the image, otherwise seeding fails inside the container.
 
 **Checkpoint**: the seed loads deterministically. `/mcp` and `/api` answer behind their guards. Undo and the live stream work. Every `/api` route requires an unlocked owner session.
 
