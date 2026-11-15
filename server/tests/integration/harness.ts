@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Hono } from 'hono';
 import { createApp } from '../../src/app.js';
+import type { ToolHandlers } from '../../src/mcp/register.js';
 import { createRuntime, type Runtime } from '../../src/runtime.js';
 import { TestClock, tempDir } from '../helpers.js';
 
@@ -18,7 +19,12 @@ export interface TestServer {
 }
 
 export function createTestServer(
-  opts: { env?: Record<string, string>; keepAliveMs?: number } = {},
+  opts: {
+    env?: Record<string, string>;
+    keepAliveMs?: number;
+    clock?: TestClock;
+    toolHandlers?: Partial<ToolHandlers>;
+  } = {},
 ): TestServer {
   const tmp = tempDir('tasklite-int-');
   const dataDir = join(tmp.dir, 'data');
@@ -26,12 +32,13 @@ export function createTestServer(
   mkdirSync(dataDir);
   mkdirSync(webRoot);
   writeFileSync(join(webRoot, 'index.html'), '<!doctype html><title>Task Lite</title>');
-  const clock = new TestClock();
+  const clock = opts.clock ?? new TestClock();
   const runtime = createRuntime({
     dataDir,
     env: opts.env ?? {},
     clock: clock.now,
     streamKeepAliveMs: opts.keepAliveMs,
+    toolHandlers: opts.toolHandlers,
   });
   const app = createApp(runtime, { webRoot });
   return {

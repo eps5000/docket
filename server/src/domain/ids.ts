@@ -36,6 +36,8 @@ export const ID_PREFIXES = {
   packet_item: 'pki',
   packet_attachment: 'pka',
   idempotency: 'idem',
+  /** Reference for an `internal` error, quoted in its message (MCP_SPEC §6). */
+  error_ref: 'e',
 } as const;
 export type IdKind = keyof typeof ID_PREFIXES;
 export type IdPrefix = (typeof ID_PREFIXES)[IdKind];

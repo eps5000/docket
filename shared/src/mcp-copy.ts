@@ -1,0 +1,157 @@
+/**
+ * Product copy for agents (constitution Principle IV; MCP_SPEC §2 and §5).
+ *
+ * The server instructions and every tool description are MCP_SPEC.md
+ * verbatim, character for character. They change only together with
+ * MCP_SPEC.md; the contract snapshot test reads the spec at test time and
+ * fails on any drift. Shared contract file (tasks.md, Slice rules).
+ */
+import type { ToolName } from './mcp/tools.js';
+
+/** MCP_SPEC §2: returned as `instructions` in the `initialize` result. */
+export const SERVER_INSTRUCTIONS = [
+  "Task Lite coordinates the owner's agent work. Use it to find work you may start, get its context, record your plan and progress, follow and record decisions, and hand finished work to the owner for review. It enforces claims, dependencies and review gates for you. The owner supervises in a web UI; keep entries short and factual.",
+  '',
+  'Workflow: Inbox → Planning → Ready → In progress → Review → Done.',
+  '- Only start work that is Ready (search_items filter "ready_to_start") or was sent back to you (filter "resumable"). Claim it first with claim_lead; if someone else holds it, pick something else.',
+  '- Then call get_context: one call that gathers the item, the decisions you must follow, the epic and label briefs, blockers and planning docs.',
+  '- Follow active decision records. Owner decisions are authoritative; to challenge one, use ask_owner. Record decisions other agents must follow with publish_decision.',
+  "- Planning belongs to the owner. You may draft planning documents (put_document) and move an item to Ready only when the project's workflow (AGENTS.md / CLAUDE.md) says you may.",
+  "- Your plan is the item's checklist, not new tickets: set_plan with one-line steps, update_step as you go. Split work into a new Story or Task only when a step needs its own blocker, owner or review.",
+  '- Record what you verify yourself with set_checks. Record subagent work with log_subagent; say whether you observed it or are relaying it.',
+  '- If the owner must verify something by hand, declare it with declare_human_review, ideally during Planning. The item cannot close while any human review item is undecided.',
+  '- Report each commit for the item it belongs to (report_commit). When the work is built and your checks pass, hand off with submit_packet. If there is no human review, close it with set_status "done".',
+  '- If you need a decision from the owner, ask_owner and stop; the answer arrives in get_item.',
+  '- Pass run_id on every call while you are working; it keeps your claim alive and shows you as live. Call finish_run when you stop.',
+  "- After any pause, call get_item: it delivers the owner's notes, answers and review decisions, each once.",
+  '- Send only what changes. update_item, set_plan and set_checks patch: whatever you leave out stays as it is. Use get_item view "summary" when you only need status.',
+  '',
+  'Errors are structured (code: validation | conflict | not_found | forbidden | unavailable | internal). On conflict, read the current state in the error and retry only if your change still makes sense.',
+].join('\n');
+
+/** MCP_SPEC §5: the exact `description` registered for each tool. */
+export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
+  whoami:
+    'Check your connection to Task Lite. Returns how the server identifies you, server limits and the server time. Call it once at the start of a session.',
+  list_projects:
+    'List projects with item counts. Use the project key when creating items or searching.',
+  search_items:
+    "Find items. Filters: ready_to_start (Ready, unblocked, unclaimed: what you may start), resumable (In progress with no lead, usually sent back by the owner's review: resume it), blocked, waiting_for_review (handed off, waiting on the owner), mine (items you lead), deferred_review (owner deferred a check; cleanup). Combine with project, status, type, label, epic or text. Results are summaries; call get_item for details.",
+  get_item:
+    "Get one item: description, acceptance criteria, blockers, checklist (your plan, your checks, human review), runs, the open question and its answer, the owner's unread notes, documents, packets and recent activity. Owner notes and answers are returned once and then marked as delivered, so read them now. Use view 'summary' when you only need status, and get_context when starting work.",
+  get_context:
+    "Get everything you need to work on an item in one call: its outcome and acceptance, the decisions you must follow (owner decisions first), the epic and label briefs, blockers and what they are waiting for, planning documents, and the last review's notes. Sized to a budget; anything cut is marked. Read-only: owner notes are counted here but delivered by get_item.",
+  dependency_subgraph:
+    "Show what blocks an item and what it blocks, with each item's status and planned dates. Set delay_days to see which downstream items a slip would push past their planned start.",
+  deferred_reviews:
+    'List human review checks the owner deferred (not verified), with any follow-up test ticket and its status. Use during cleanup: finish the check, or propose a plan in a note.',
+  get_changes:
+    'Poll for changes since a cursor instead of re-reading items. Start without a cursor to get the latest cursor, then pass next_cursor each time. Watch for review.decided, question.answered and owner_note.added on items you work on.',
+  create_item:
+    "Create an Epic, Story, Task or Bug. New items start in Inbox (or Planning if you are shaping it now). Put small steps in an item's checklist with set_plan rather than creating tickets for them.",
+  update_item:
+    "Edit an item's fields. Pass expected_version from your last read. Dates you set are labelled as set by you. To change status use set_status; to change the plan use set_plan.",
+  set_status:
+    'Move an item to another status. Allowed moves: inbox→planning; planning↔ready; ready→progress; progress→ready (gives up the work); progress or review→done (only when no human review item is undecided); any open status→canceled (reason required); done→progress (reopen, reason required). Use submit_packet, not set_status, to hand off for review.',
+  link_items:
+    "Link two items. type 'blocks' means from must be finished before to can start; 'relates' is informational. For blocks, satisfied_when sets what 'finished' means: done (default, or the project's default), merged (done and a PR reported merged with link_artifact), or verified (done and every human review item approved). Calling it again on an existing link updates satisfied_when. A link that would create a dependency cycle is rejected with the cycle path.",
+  unlink_items: 'Remove a link between two items.',
+  upsert_label:
+    'Create a label or update its brief. Use a label for an initiative that spans several epics; the brief holds the shared decisions.',
+  claim_lead:
+    'Claim an item as its lead before you work on it. Works on Ready items (moves them to In progress) and on In progress items with no lead (resuming sent-back work). Returns your run_id: pass it on every later call. If someone else holds the claim you get a conflict with who holds it and until when; do not work on the item.',
+  release_lead:
+    'Give up the lead claim without finishing, for example when you are stopping before the work is done. The item returns to Ready so another agent can pick it up; your plan and notes stay.',
+  start_run:
+    'Start a child run under your lead run when you delegate to a subagent that has its own Task Lite connection. The subagent passes the child run_id on its calls. For subagents without their own connection, use log_subagent instead.',
+  heartbeat:
+    'Tell Task Lite you are still working when you have nothing else to record. Any call with run_id does the same, so you rarely need this. Optionally set your current step.',
+  finish_run:
+    "End your run. result 'finished' when you stopped normally, 'failed' with an error when something broke. Finishing a lead run releases the claim but does not change the item's status: hand off with submit_packet or close with set_status first.",
+  set_plan:
+    "Publish or revise your plan as one-line work steps. By default this patches: steps with an id are updated (changing text records the old text and your reason), steps without an id are added, and nothing is removed unless you list it in remove. Use mode 'replace' to restate the whole plan. Owner-added steps are always kept. Every revision is kept as history.",
+  update_step:
+    "Update one work step's state as you go: current when you start it, done when finished, blocked or skipped with a note.",
+  log_subagent:
+    "Record what a subagent contributed, as a short line under the step it worked on. provenance 'observed' if you saw its run or output directly, 'relayed' if you are passing on its report. This never creates a ticket.",
+  set_checks:
+    'Publish what you will verify yourself (tests, measurements, reviews), with state and evidence. Patches like set_plan: listed checks are updated or added, and nothing is removed unless listed in remove. Owner-added checks are always kept.',
+  update_check: "Update one check's state and evidence, for example when tests pass.",
+  declare_human_review:
+    "Declare what the owner must verify by hand before this item can close, one plain instruction per item ('On your phone, drag a recipe between days. Does it feel right?'). Declare early, usually during Planning. For work shipped as one PR across an epic, declare it once on the epic instead of on each child. With no human review items, you may close the item yourself once your checks pass.",
+  update_human_review:
+    'Edit or remove a human review item you declared. Items in an open packet are locked, and items the owner added can only be changed by the owner.',
+  add_note:
+    "Add a short progress note or comment to the item's activity. Use it for decisions you made, surprises and anything the owner should know. Keep it to a sentence or two.",
+  put_document:
+    'Store a document on an item (or a project): planning docs (PRD, UX, TDD), packet attachments such as screenshots, or other files. Uploading the same name again creates a new version. Send Markdown or text as content_text; binary files as content_base64 (up to 25 MB; larger files: POST to /agent-upload and pass the returned document_version_id).',
+  link_artifact:
+    'Link external evidence: a PR, CI run, deployment, test report or URL. A link is evidence, never approval.',
+  report_commit:
+    'Report a commit for the item it belongs to. Report every commit you make for an item, including fixes after a review. If a handoff packet was built from an older commit, it is marked out of date for the owner automatically.',
+  submit_packet:
+    'Hand finished work to the owner for human review. Call it when the work is built, your checks pass and everything is committed and reported. The packet must let the owner verify without asking you anything: what to check, exact steps (URLs, builds, commands), what you already verified and how, known gaps, and attachments. The item moves to Review; read the decision later with get_review or get_item.',
+  get_review:
+    "Read the owner's review decisions for an item, round by round. 'changes' notes say what to fix; each became a checklist step or a new Bug (see result_ref). Approved items stay approved in later rounds. Deferred items are not verified; leave them alone unless you are doing cleanup.",
+  ask_owner:
+    'Ask the owner a question you cannot answer yourself, such as a product decision. Ask one clear question with the options you see. Your run shows as needs input; stop work that depends on the answer. The answer appears in get_item (open_question) and as a question.answered event.',
+  publish_decision:
+    'Record a decision that other agents must follow, such as a convention, a design choice or an interface rule, with a short rationale. Scope it as narrowly as it applies: an item, an epic, a label or the whole project. You can supersede an earlier agent decision; owner decisions can only be changed by the owner (use ask_owner to challenge one).',
+  list_decisions:
+    'List decision records for a project, optionally narrowed to one scope. Active records only unless include_inactive. get_context already includes the active decisions that apply to an item.',
+  withdraw_decision:
+    "Withdraw a decision you or another agent recorded when it no longer applies. Owner decisions can't be withdrawn by agents.",
+};
+
+/**
+ * One result-summary template per tool: the first line of its compact text
+ * (MCP_SPEC §3.1). `{name}` placeholders are filled by `fillSummary`. For a
+ * mutation this is the whole result: what changed and the new version.
+ */
+export const TOOL_SUMMARIES: Record<ToolName, string> = {
+  whoami:
+    'Connected as {client} · session {session_id} · Task Lite {server_version} · {server_time}',
+  list_projects: 'Projects: {count}',
+  search_items: 'Items: {count}{more}',
+  get_item: '{id} {title}',
+  get_context: 'Context for {id} {title} · budget {budget}',
+  dependency_subgraph: '{id} dependencies · {nodes} items · {edges} links',
+  deferred_reviews: 'Deferred human review checks: {count}{more}',
+  get_changes: 'Events: {count} · next_cursor {next_cursor}',
+  create_item: 'Created {id} {title} · {status} · v{version}',
+  update_item: 'Updated {id} · {changed} · v{version}',
+  set_status: 'Moved {id} to {status} · v{version}',
+  link_items: '{verb} {link_id} · {from} {type} {to}{rule}',
+  unlink_items: 'Removed link {link}',
+  upsert_label: 'Saved label {name} in {project}',
+  claim_lead: 'Claimed {id} · run {run_id} · lease until {lease} · v{version}',
+  release_lead: 'Released {id} · {status} · v{version}',
+  start_run: 'Started child run {run_id} on {id}',
+  heartbeat: 'Run {run_id} {run_state} · lease until {lease}',
+  finish_run: 'Run {run_id} {run_state}',
+  set_plan: 'Plan v{plan_version} on {id} · {done}/{total} done',
+  update_step: 'Step {step_id} {state} on {id}',
+  log_subagent: 'Logged {provenance} {name} on {target}',
+  set_checks: 'Checks on {id} · {pass}/{total} pass',
+  update_check: 'Check {check_id} {state} on {id}',
+  declare_human_review: 'Human review on {id} · {count} total',
+  update_human_review: 'Human review on {id} · {count} total',
+  add_note: 'Noted on {id} · {at}',
+  put_document: 'Stored {name} v{version_no} · {document_version_id} · {size} bytes',
+  link_artifact: 'Linked {kind} {label} on {id}',
+  report_commit: 'Recorded {sha} on {id}{stale}',
+  submit_packet: 'Submitted {display_id} round {round} for {id} · {status} · v{version}',
+  get_review: '{id} review rounds: {count}',
+  ask_owner: 'Asked the owner on {id} · {question_id} · your run needs input',
+  publish_decision: 'Published {decision_id} {title} · {authority}',
+  list_decisions: 'Decisions: {count}{more}',
+  withdraw_decision: 'Withdrew {decision_id} {title}',
+};
+
+/** Fill a summary template. A missing (or non-scalar) value renders as `?`, so a gap is visible in tests. */
+export function fillSummary(template: string, values: Record<string, unknown>): string {
+  return template.replace(/\{(\w+)\}/g, (_, key: string) => {
+    const value = values[key];
+    return typeof value === 'string' || typeof value === 'number' ? String(value) : '?';
+  });
+}

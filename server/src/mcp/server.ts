@@ -10,7 +10,9 @@
  *   ID and client are recorded here, so tools (B3) can bind runs to the
  *   session that started them (MCP_SPEC §9).
  *
- * Tools, their schemas and the server instructions arrive in B3 (Phase 3a).
+ * - Capabilities: `tools` with `listChanged: false`; no resources or prompts.
+ *   `initialize` returns the server instructions (MCP_SPEC §2). The tools
+ *   themselves are registered by `configure` (mcp/register.ts).
  */
 import { randomUUID } from 'node:crypto';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -46,7 +48,9 @@ interface Entry {
 export interface McpHubOptions {
   version: string;
   clock?: () => Date;
-  /** Called for each new server, before it connects; B3 registers tools here. */
+  /** Returned as `instructions` in the `initialize` result (MCP_SPEC §2). */
+  instructions?: string;
+  /** Called for each new server, before it connects; registers the tools. */
   configure?: (server: McpServer, session: () => McpSessionInfo | undefined) => void;
 }
 
@@ -97,7 +101,12 @@ export class McpHub {
       started_at: now,
       last_seen_at: now,
     };
-    const server = new McpServer({ name: SERVER_NAME, version: this.opts.version });
+    // Capabilities are declared by `configure` (registerTools): McpServer's own
+    // tool handling would force `listChanged: true`.
+    const server = new McpServer(
+      { name: SERVER_NAME, version: this.opts.version },
+      this.opts.instructions !== undefined ? { instructions: this.opts.instructions } : {},
+    );
     let entry: Entry | undefined;
     const transport = new WebStandardStreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),

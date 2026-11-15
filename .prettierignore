@@ -15,3 +15,6 @@ pnpm-lock.yaml
 
 # Copied verbatim from design/prototype.html (UI_SPEC §3); keep byte-identical.
 web/src/styles/tokens.css
+
+# Generated test snapshots; compared byte for byte.
+**/__snapshots__/
