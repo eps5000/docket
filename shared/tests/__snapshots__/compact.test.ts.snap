@@ -1,0 +1,157 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`every tool has a renderer > add_note 1`] = `"Noted on RCP-14 · 10:58Z"`;
+
+exports[`every tool has a renderer > ask_owner 1`] = `"Asked the owner on DOC-4 · q_2 · your run needs input"`;
+
+exports[`every tool has a renderer > claim_lead 1`] = `"Claimed RCP-14 · run run_01JA… · lease until 12:02Z · v8"`;
+
+exports[`every tool has a renderer > create_item 1`] = `"Created RCP-30 Pantry inventory schema · planning · v1"`;
+
+exports[`every tool has a renderer > declare_human_review 1`] = `"Human review on RCP-14 · 1 total"`;
+
+exports[`every tool has a renderer > deferred_reviews 1`] = `
+"Deferred human review checks: 1
+RCP-11 hr_x Sign in from a second browser · deferred 11-02 · note: No second device today · follow-up RCP-29 inbox"
+`;
+
+exports[`every tool has a renderer > dependency_subgraph 1`] = `
+"RCP-14 dependencies · 2 items · 1 links
+RCP-14 Generate shopping list from week plan · progress · 2026-11-03→2026-11-10 · effort 3 pts
+RCP-24 Share the shopping list · planning · blocked · 2026-11-08→…
+RCP-14 blocks RCP-24
+RCP-24 at risk: planned start 2026-11-08 is before RCP-14 ends 2026-11-10"
+`;
+
+exports[`every tool has a renderer > finish_run 1`] = `"Run run_01JA… finished"`;
+
+exports[`every tool has a renderer > get_changes 1`] = `
+"Events: 1 · next_cursor c_41
+c_41 10:42Z codex RCP-12 packet.submitted codex submitted handoff packet round 2"
+`;
+
+exports[`every tool has a renderer > get_context 1`] = `
+"Context for RCP-14 Generate shopping list from week plan · budget medium
+  story · P1 · progress · v7
+  outcome: When a week plan is saved, the user can produce one merged shopping list grouped by aisle and export it.
+  acceptance:
+  - Quantities for the same ingredient merge across recipes, with unit conversion
+  - List is grouped by aisle and sorted
+  - Export as a Markdown checklist
+  question: none · notes_unread: 1
+decisions:
+  - dec_1 Units are metric internally; convert on display (owner) · epic RCP-1
+      Store g and ml. Convert cups and spoons on import and display.
+      why: One canonical unit keeps merging simple.
+epic RCP-1 Meal planning MVP
+  outcome: A household can plan a week of meals and get one shopping list from it.
+labels:
+  - mobile: Phone-first: touch targets of at least 44 px.
+blocked_by: none
+blocks: RCP-24 planning, RCP-27 planning
+planning_docs:
+  - meal-planning-brief.md v3
+      # Brief
+      Plan a week, get one list.
+  - aggregation-rules.md v1
+      …truncated; read aggregation-rules.md v1 with get_item"
+`;
+
+exports[`every tool has a renderer > get_item 1`] = `
+"RCP-14 Generate shopping list from week plan
+  story · P1 · progress · epic RCP-1 Meal planning MVP · labels mobile · v7
+  lead claude·orca-w3 live · run run_01JA… · lease until 12:02Z
+  blocked_by: none · blocks: RCP-24 planning, RCP-27 planning
+  outcome: When a week plan is saved, the user can produce one merged shopping list grouped by aisle and export it.
+  acceptance:
+  - Quantities for the same ingredient merge across recipes, with unit conversion
+  - List is grouped by aisle and sorted
+  - Export as a Markdown checklist
+  work (plan v3 · 1/4 done):
+  - [x] wst_a Define aggregation rules
+  - [>] wst_b Implement unit merging (g/kg, ml/l, cups)
+      observed units-worker: Added conversion table and 31 tests
+      relayed explorer: Mapped 214 ingredient units in sample recipes
+  - [ ] wst_c Export as a Markdown checklist · was: Export to Reminders app · why: Reminders API not reachable from the container
+  - [ ] wst_d Group by aisle and sort
+  checks (1/3 pass):
+  - [pass] chk_a 31 unit-conversion tests pass · observed · child run r-77 test output
+  - [todo] chk_b Aisle grouping snapshot tests
+  - [todo] chk_c Export opens cleanly in a Markdown viewer
+  human_review:
+  - [declared] hr_a Export one week's list and check it reads well in your notes app. · by claude
+  decisions: dec_1 Units are metric internally; convert on display (owner)
+  question: none · notes_unread: none
+  docs: aggregation-rules.md v1"
+`;
+
+exports[`every tool has a renderer > get_review 1`] = `
+"RCP-12 review rounds: 1
+pkt_1 round 1 · decided · built 7d21aa3 · submitted 11-05 · decided 11-05
+  - hr_1 Drag recipes between days on your phone. · changes: Drop targets are too small on my phone · into checklist · → wst_e
+  - hr_2 Move a recipe using only the keyboard. · undecided"
+`;
+
+exports[`every tool has a renderer > heartbeat 1`] = `"Run run_01JA… live · lease until 12:05Z"`;
+
+exports[`every tool has a renderer > link_artifact 1`] = `"Linked pr PR #52 on RCP-19"`;
+
+exports[`every tool has a renderer > link_items 1`] = `"Updated lnk_e · RCP-19 blocks RCP-16 · clears when merged"`;
+
+exports[`every tool has a renderer > list_decisions 1`] = `
+"Decisions: 1
+dec_1 Units are metric internally; convert on display (owner) · epic RCP-1
+  Store g and ml. Convert cups and spoons on import and display."
+`;
+
+exports[`every tool has a renderer > list_projects 1`] = `
+"Projects: 1
+RCP Recipes · open 12 · ready_to_start 3 · in_progress 2 · review 1 · blocked 2"
+`;
+
+exports[`every tool has a renderer > log_subagent 1`] = `"Logged relayed explorer on wst_b"`;
+
+exports[`every tool has a renderer > publish_decision 1`] = `"Published dec_9 Units are metric internally; convert on display · agent"`;
+
+exports[`every tool has a renderer > put_document 1`] = `"Stored pantry-prd.md v2 · dv_b · 2048 bytes"`;
+
+exports[`every tool has a renderer > release_lead 1`] = `"Released RCP-14 · ready · v9"`;
+
+exports[`every tool has a renderer > report_commit 1`] = `"Recorded c71e002 on RCP-19 · out of date: RCP-19 round 1"`;
+
+exports[`every tool has a renderer > search_items 1`] = `
+"Items: 2 · next_cursor cur_2
+RCP-17 Planner jumps back to the current week after reload · bug · P1 · ready · unblocks 2 · v4
+RCP-14 Generate shopping list from week plan · story · P1 · progress · lead claude·orca-w3 live · unblocks 2 · v7"
+`;
+
+exports[`every tool has a renderer > set_checks 1`] = `"Checks on RCP-14 · 1/3 pass"`;
+
+exports[`every tool has a renderer > set_plan 1`] = `"Plan v4 on RCP-14 · 1/4 done"`;
+
+exports[`every tool has a renderer > set_status 1`] = `"Moved RCP-14 to done · v9"`;
+
+exports[`every tool has a renderer > start_run 1`] = `"Started child run run_child on RCP-14"`;
+
+exports[`every tool has a renderer > submit_packet 1`] = `"Submitted pkt-9c0e round 2 for RCP-12 · review · v12"`;
+
+exports[`every tool has a renderer > unlink_items 1`] = `"Removed link lnk_e"`;
+
+exports[`every tool has a renderer > update_check 1`] = `"Check chk_b pass on RCP-14"`;
+
+exports[`every tool has a renderer > update_human_review 1`] = `"Human review on RCP-14 · 0 total"`;
+
+exports[`every tool has a renderer > update_item 1`] = `"Updated RCP-14 · title, labels · v8"`;
+
+exports[`every tool has a renderer > update_step 1`] = `"Step wst_b done on RCP-14"`;
+
+exports[`every tool has a renderer > upsert_label 1`] = `"Saved label mobile in RCP"`;
+
+exports[`every tool has a renderer > whoami 1`] = `
+"Connected as claude · session 8d1f0c2e · Task Lite 0.1.0 · 11:00Z
+  limits: page_max 50 · changes_max 200 · document_mcp_bytes 26214400
+  text_limits: title 200 · step 500
+  live_window_s 90 · stale_after_s 600 · lease_s 3600"
+`;
+
+exports[`every tool has a renderer > withdraw_decision 1`] = `"Withdrew dec_9 Units are metric internally; convert on display"`;

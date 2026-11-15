@@ -10,3 +10,4 @@ export * from './errors.js';
 export * from './secrets.js';
 export * from './mcp/index.js';
 export * from './mcp-copy.js';
+export * from './compact.js';
