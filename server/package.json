@@ -16,10 +16,17 @@
   },
   "dependencies": {
     "@hono/node-server": "^2.1.8",
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "@tasklite/shared": "workspace:^",
-    "hono": "^4.13.18"
+    "better-sqlite3": "^12.11.1",
+    "drizzle-orm": "^0.45.4",
+    "hono": "^4.13.18",
+    "ulid": "^3.0.2",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "drizzle-kit": "^0.31.11",
     "vitest": "^5.1.0"
   }
 }
