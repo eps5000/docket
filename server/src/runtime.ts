@@ -1,13 +1,15 @@
 /**
  * The service's moving parts, wired once: configuration and secrets, the
  * database (migrated), the write path and its change bus, owner sessions,
- * the MCP hub and the call log. `index.ts` and the tests both build one.
+ * the domain services, the MCP hub and the call log. `index.ts` and the tests both build one.
  */
 import { EventEmitter } from 'node:events';
 import { SERVER_INSTRUCTIONS } from '@tasklite/shared';
 import { OwnerSessions } from './api/session.js';
 import { SecretStore, loadConfig, type Config } from './config.js';
 import { migrateDb, openDb, type Db } from './db/client.js';
+import type { Services } from './domain/contracts.js';
+import { createServices, type ServiceOverrides } from './domain/services.js';
 import { WritePath } from './domain/write.js';
 import { CallLog } from './jobs/logs.js';
 import { registerTools, type ToolHandlers } from './mcp/register.js';
@@ -24,6 +26,8 @@ export interface RuntimeOptions {
   log?: (line: string) => void;
   /** Replace tool handlers (tests only); the rest keep their real handlers. */
   toolHandlers?: Partial<ToolHandlers>;
+  /** Replace service methods (tests only); the rest keep their real implementations. */
+  services?: ServiceOverrides;
 }
 
 export interface Runtime {
@@ -34,6 +38,8 @@ export interface Runtime {
   bus: EventEmitter;
   write: WritePath;
   sessions: OwnerSessions;
+  /** The domain services (contracts.ts): both adapters call only these. */
+  services: Services;
   mcp: McpHub;
   callLog: CallLog;
   clock: () => Date;
@@ -59,6 +65,9 @@ export function createRuntime(opts: RuntimeOptions = {}): Runtime {
     onCommit: (seqs) => bus.emit('change', seqs),
   });
 
+  const callLog = new CallLog({ dir: config.paths.logs, clock });
+  const services = createServices({ config, secrets, callLog, clock, log }, opts.services);
+
   let closed = false;
   const handlers = { ...TOOL_HANDLERS, ...opts.toolHandlers } as ToolHandlers;
   const runtime: Runtime = {
@@ -68,6 +77,7 @@ export function createRuntime(opts: RuntimeOptions = {}): Runtime {
     bus,
     write,
     sessions: new OwnerSessions({ db, secrets, clock }),
+    services,
     mcp: new McpHub({
       version: APP_VERSION,
       clock,
@@ -75,7 +85,7 @@ export function createRuntime(opts: RuntimeOptions = {}): Runtime {
       // Each new MCP session's server gets all 36 tools (MCP_SPEC §5).
       configure: (server, session) => registerTools(server, { runtime, session, handlers }),
     }),
-    callLog: new CallLog({ dir: config.paths.logs, clock }),
+    callLog,
     clock,
     streamKeepAliveMs: opts.streamKeepAliveMs,
     log,

@@ -22,6 +22,7 @@ import {
 } from '@tasklite/shared';
 import { expect } from 'vitest';
 import { loadSampleSeed } from '../../src/db/seed/loader.js';
+import type { ServiceOverrides } from '../../src/domain/services.js';
 import type { ToolHandlers } from '../../src/mcp/register.js';
 import { TestClock } from '../helpers.js';
 import { ORIGIN, createTestServer, type TestServer } from '../integration/harness.js';
@@ -52,12 +53,15 @@ export interface ContractHarness {
 export interface HarnessOptions {
   seed?: boolean;
   toolHandlers?: Partial<ToolHandlers>;
+  /** Replace service methods (domain/contracts.ts), as a slice's implementation would. */
+  services?: ServiceOverrides;
 }
 
 export async function startHarness(opts: HarnessOptions = {}): Promise<ContractHarness> {
   const server = createTestServer({
     clock: new TestClock(new Date(CONTRACT_NOW)),
     toolHandlers: opts.toolHandlers,
+    services: opts.services,
   });
   if (opts.seed !== false) {
     loadSampleSeed(server.runtime.db, {

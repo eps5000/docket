@@ -16,11 +16,11 @@
  *   invalidates every outstanding signature.
  */
 import { createHash, createHmac, randomBytes } from 'node:crypto';
-import type { Context, Hono, MiddlewareHandler } from 'hono';
+import type { Context, Env, Hono, MiddlewareHandler } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
-import { z } from 'zod';
 import type { SecretStore } from '../config.js';
 import type { Db } from '../db/client.js';
+import { defineRoute, type RouteDeps } from './define.js';
 import { errorBody, safeEqual } from './guards.js';
 
 export const SESSION_COOKIE = 'tl_owner';
@@ -184,18 +184,12 @@ export function requireCsrf(): MiddlewareHandler<ApiEnv> {
 
 // ---- Routes ----
 
-export const unlockBody = z.object({ key: z.string().min(1).max(200) });
-
-export function sessionRoutes(
-  api: Hono<ApiEnv>,
-  deps: {
-    sessions: OwnerSessions;
-    parseBody: <T>(c: Context, schema: z.ZodType<T>) => Promise<T>;
-  },
+export function sessionRoutes<E extends Env>(
+  api: Hono<E>,
+  deps: RouteDeps & { sessions: OwnerSessions },
 ): void {
-  api.post('/session/unlock', async (c) => {
-    const { key } = await deps.parseBody(c, unlockBody);
-    if (!deps.sessions.checkKey(key)) {
+  defineRoute(api, 'session.unlock', deps, ({ c, body }) => {
+    if (!deps.sessions.checkKey(body.key)) {
       return c.json(
         errorBody(
           'forbidden',
@@ -206,18 +200,18 @@ export function sessionRoutes(
     }
     const session = deps.sessions.create(c.req.header('user-agent') ?? null);
     setSessionCookies(c, session);
-    return c.json({ unlocked: true });
+    return { unlocked: true as const };
   });
 
-  api.post('/session/lock', (c) => {
-    deps.sessions.end(c.get('session').id);
+  defineRoute(api, 'session.lock', deps, ({ c }) => {
+    deps.sessions.end((c as Context<ApiEnv>).get('session').id);
     clearSessionCookies(c);
-    return c.json({ locked: true });
+    return { locked: true as const };
   });
 
-  api.post('/session/rotate-key', (c) => {
+  defineRoute(api, 'session.rotateKey', deps, ({ c }) => {
     deps.sessions.rotateKey();
     clearSessionCookies(c);
-    return c.json({ rotated: true });
+    return { rotated: true as const };
   });
 }

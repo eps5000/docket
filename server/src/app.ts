@@ -3,8 +3,9 @@ import { readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';
-import { createApiApp } from './api/app.js';
+import { createApiApp, errorResponse } from './api/app.js';
 import { allowedOriginsFor, bearerAuth, hostGuard, originGuard } from './api/guards.js';
+import { uploadRoutes } from './api/routes/upload.js';
 import { migrationStatus } from './db/client.js';
 import type { Runtime } from './runtime.js';
 
@@ -14,7 +15,7 @@ export interface AppOptions {
 }
 
 /** Paths owned by the server. They never fall back to the SPA. */
-const SERVER_PREFIXES = ['/api', '/mcp', '/healthz', '/readyz'];
+const SERVER_PREFIXES = ['/api', '/mcp', '/agent-upload', '/healthz', '/readyz'];
 
 function isServerPath(path: string): boolean {
   return SERVER_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`));
@@ -100,6 +101,16 @@ export function createApp(runtime: Runtime, { webRoot }: AppOptions): Hono {
   );
   app.all('/mcp', (c) => runtime.mcp.handle(c.req.raw));
 
+  // Agents: bulk document upload (BUILD_SPEC §5.10), behind the same bearer token.
+  app.use(
+    '/agent-upload',
+    bearerAuth(() => runtime.secrets.agentToken()),
+  );
+  const uploadApp = new Hono();
+  uploadApp.onError((err, c) => errorResponse(c, err, runtime.log));
+  uploadRoutes(uploadApp, { services: runtime.services, write: runtime.write, log: runtime.log });
+  app.route('/', uploadApp);
+
   // The owner: the UI API, behind the owner session.
   app.route(
     '/api',
@@ -107,6 +118,7 @@ export function createApp(runtime: Runtime, { webRoot }: AppOptions): Hono {
       db: runtime.db,
       write: runtime.write,
       sessions: runtime.sessions,
+      services: runtime.services,
       bus: runtime.bus,
       streamKeepAliveMs: runtime.streamKeepAliveMs,
       log: runtime.log,

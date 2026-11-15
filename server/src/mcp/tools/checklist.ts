@@ -1,11 +1,13 @@
 /**
  * The checklist (MCP_SPEC §5.5): tool handlers.
  *
- * Stubs (tasks.md T041): each answers `unavailable` ("Not implemented yet: <tool>")
- * after its arguments pass validation. The slice that owns a tool replaces
- * its stub here, in place; registration, schemas and copy stay as they are.
+ * Wired to the domain services (tasks.md T048): each handler calls its
+ * service in domain/contracts.ts through `ctx.services`, and mutations go
+ * through `ctx.mutate`. While a service is a stub, the tool answers
+ * `unavailable` ("Not implemented yet: <tool>"). The slice that owns a tool
+ * implements the service; registration, schemas and copy stay as they are.
  */
-import { notImplemented, type ToolHandlers } from '../register.js';
+import { serviceArgs, type ToolHandlers } from '../register.js';
 
 export const checklistHandlers: Pick<
   ToolHandlers,
@@ -17,11 +19,19 @@ export const checklistHandlers: Pick<
   | 'declare_human_review'
   | 'update_human_review'
 > = {
-  set_plan: notImplemented('set_plan'),
-  update_step: notImplemented('update_step'),
-  log_subagent: notImplemented('log_subagent'),
-  set_checks: notImplemented('set_checks'),
-  update_check: notImplemented('update_check'),
-  declare_human_review: notImplemented('declare_human_review'),
-  update_human_review: notImplemented('update_human_review'),
+  set_plan: (args, ctx) => ctx.mutate((w) => ctx.services.checklist.setPlan(w, serviceArgs(args))),
+  update_step: (args, ctx) =>
+    ctx.mutate((w) => ctx.services.checklist.updateStep(w, serviceArgs(args))),
+  log_subagent: (args, ctx) =>
+    ctx.mutate((w) => ctx.services.checklist.logSubagent(w, serviceArgs(args))),
+  set_checks: (args, ctx) =>
+    ctx.mutate((w) => ctx.services.checklist.setChecks(w, serviceArgs(args))),
+  update_check: (args, ctx) =>
+    ctx.mutate((w) => ctx.services.checklist.updateCheck(w, serviceArgs(args))),
+  declare_human_review: (args, ctx) => ({
+    human_review: ctx.mutate((w) => ctx.services.humanReview.declare(w, serviceArgs(args))),
+  }),
+  update_human_review: (args, ctx) => ({
+    human_review: ctx.mutate((w) => ctx.services.humanReview.update(w, serviceArgs(args))),
+  }),
 };

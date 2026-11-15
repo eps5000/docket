@@ -11,12 +11,12 @@
  * catches writes made by another process (the CLI).
  */
 import type { EventEmitter } from 'node:events';
-import type { Hono } from 'hono';
+import type { Env, Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import { FOR_YOU_EVENT_TYPES } from '@tasklite/shared';
 import type { Db } from '../db/client.js';
 import type { ObjectRef } from '../domain/write.js';
-import type { ApiEnv } from './session.js';
+import { defineRoute, type RouteDeps } from './define.js';
 
 export const KEEP_ALIVE_MS = 25_000;
 const PAGE = 500;
@@ -49,9 +49,9 @@ export function toStreamMessage(row: EventRow): StreamMessage {
   };
 }
 
-export function streamRoute(
-  api: Hono<ApiEnv>,
-  deps: { db: Db; bus: EventEmitter; keepAliveMs?: number },
+export function streamRoute<E extends Env>(
+  api: Hono<E>,
+  deps: RouteDeps & { db: Db; bus: EventEmitter; keepAliveMs?: number },
 ): void {
   const keepAliveMs = deps.keepAliveMs ?? KEEP_ALIVE_MS;
   const after = deps.db.sqlite.prepare(
@@ -59,7 +59,7 @@ export function streamRoute(
   );
   const latest = deps.db.sqlite.prepare('SELECT coalesce(max(seq), 0) AS seq FROM events');
 
-  api.get('/stream', (c) => {
+  defineRoute(api, 'stream.get', deps, ({ c }) => {
     const lastEventId = c.req.header('last-event-id');
     const resumeFrom =
       lastEventId !== undefined && /^\d+$/.test(lastEventId.trim())

@@ -1,0 +1,394 @@
+/**
+ * The typed UI API client (tasks.md T049), derived from the shared route
+ * table (`@tasklite/shared` API_ROUTES), so a route's path, method, input and
+ * result types can't drift from the server:
+ *
+ * - `api['items.patch']({ params: { id }, body })` → the route's typed result;
+ * - mutations send `X-Tasklite-CSRF` from the `tl_csrf` cookie (BUILD_SPEC §3);
+ * - an owner mutation's `mutation_id` is handed to `onMutation`, for the
+ *   Undo toast (BUILD_SPEC §5.11);
+ * - errors throw `ApiError`; a stale write throws `ConflictError` with the
+ *   server's `current` record (409);
+ * - `queryKeys`: the TanStack Query key factory;
+ * - `INVALIDATION` and `keysForChange`: which queries a live-stream event
+ *   invalidates (contracts/events.md).
+ *
+ * Shared contract file (tasks.md, Slice rules).
+ */
+import {
+  API_ROUTES,
+  CSRF_COOKIE_NAME,
+  CSRF_HEADER_NAME,
+  isMutation,
+  needsCsrf,
+  type ApiRouteDef,
+  type ErrorCode,
+  type EventType,
+  type ObjectKind,
+  type RouteBodyInput,
+  type RouteId,
+  type RouteParamsInput,
+  type RouteQueryInput,
+  type RouteResult,
+} from '@tasklite/shared';
+
+// ---- CSRF ----
+
+/** The value of cookie `name` in a `document.cookie`-style string, or null. */
+export function readCookie(name: string, cookies: string): string | null {
+  for (const part of cookies.split(';')) {
+    const eq = part.indexOf('=');
+    if (eq < 0) continue;
+    if (part.slice(0, eq).trim() !== name) continue;
+    const raw = part.slice(eq + 1).trim();
+    try {
+      return decodeURIComponent(raw);
+    } catch {
+      return raw;
+    }
+  }
+  return null;
+}
+
+/** The CSRF token to echo on mutations: the `tl_csrf` cookie (double submit). */
+export function csrfToken(cookies: string = browserCookies()): string | null {
+  return readCookie(CSRF_COOKIE_NAME, cookies);
+}
+
+function browserCookies(): string {
+  return typeof document === 'undefined' ? '' : document.cookie;
+}
+
+// ---- Errors ----
+
+/** Any non-2xx answer: the shared error body `{error: {code, message, details?, current?}}`. */
+export class ApiError extends Error {
+  readonly status: number;
+  readonly code: ErrorCode;
+  readonly details?: Record<string, unknown>;
+  readonly route: RouteId;
+
+  constructor(
+    route: RouteId,
+    status: number,
+    body: { code: ErrorCode; message: string; details?: Record<string, unknown> },
+  ) {
+    super(body.message);
+    this.name = 'ApiError';
+    this.route = route;
+    this.status = status;
+    this.code = body.code;
+    if (body.details !== undefined) this.details = body.details;
+  }
+
+  /** True for a route a slice hasn't implemented yet (501). */
+  get notImplemented(): boolean {
+    return this.status === 501;
+  }
+}
+
+/**
+ * `409`: the record changed since it was read (or a claim is held, or an
+ * undo came too late). `current` is the server's record; the UI rolls back,
+ * shows it and toasts "Changed by codex just now. Showing the latest."
+ */
+export class ConflictError<T = unknown> extends ApiError {
+  readonly current: T;
+  constructor(
+    route: RouteId,
+    body: { code: 'conflict'; message: string; details?: Record<string, unknown>; current?: T },
+  ) {
+    super(route, 409, body);
+    this.name = 'ConflictError';
+    this.current = body.current as T;
+  }
+}
+
+export const isConflict = (err: unknown): err is ConflictError => err instanceof ConflictError;
+
+// ---- Requests ----
+
+/** An input with no fields (`z.strictObject({})` infers `Record<string, never>`). */
+type IsEmpty<T> = [keyof T] extends [never] ? true : string extends keyof T ? true : false;
+
+/** Whether a part of the input is absent, optional (no required fields) or required. */
+type Has<T> = [T] extends [never]
+  ? false
+  : IsEmpty<T> extends true
+    ? 'optional'
+    : Partial<T> extends T
+      ? 'optional'
+      : 'required';
+
+/** What a route call takes: `params`, `query` and `body`, each only when the route has one. */
+export type RouteInput<K extends RouteId> = (Has<RouteParamsInput<K>> extends 'required'
+  ? { params: RouteParamsInput<K> }
+  : { params?: undefined }) &
+  (Has<RouteQueryInput<K>> extends 'required'
+    ? { query: RouteQueryInput<K> }
+    : { query?: RouteQueryInput<K> }) &
+  (Has<RouteBodyInput<K>> extends 'required'
+    ? { body: RouteBodyInput<K> }
+    : Has<RouteBodyInput<K>> extends 'optional'
+      ? { body?: RouteBodyInput<K> }
+      : { body?: undefined });
+
+/** A recorded owner mutation, for the Undo toast. */
+export interface MutationRecord {
+  mutation_id: string;
+  route: RouteId;
+  undoable: boolean;
+}
+
+export interface ApiClientOptions {
+  /** Defaults to the global `fetch`. */
+  fetch?: typeof fetch;
+  /** Prefix for every path; '' in the browser (same origin). */
+  baseUrl?: string;
+  /** The cookie string to read `tl_csrf` from; defaults to `document.cookie`. */
+  cookies?: () => string;
+  /** Called with the `mutation_id` of every successful owner mutation. */
+  onMutation?: (m: MutationRecord) => void;
+}
+
+/** `/api/items/RCP-14?scope=all`: the path with its parameters filled in, plus the query string. */
+export function buildUrl(
+  route: Pick<ApiRouteDef, 'path'>,
+  params: Record<string, unknown> | undefined,
+  query: Record<string, unknown> | undefined,
+): string {
+  const path = route.path.replace(/:([A-Za-z_]+)/g, (_, name: string) => {
+    const value = params?.[name];
+    if (value === undefined || value === null) throw new Error(`Missing path parameter ${name}`);
+    return encodeURIComponent(String(value));
+  });
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(query ?? {})) {
+    if (value === undefined || value === null) continue;
+    search.set(key, String(value));
+  }
+  const qs = search.toString();
+  return qs ? `${path}?${qs}` : path;
+}
+
+/** What a call resolves to: the typed JSON result, or the raw `Response` for file, JSONL and stream routes. */
+export type ClientResult<K extends RouteId> = [RouteResult<K>] extends [never]
+  ? Response
+  : RouteResult<K>;
+
+export type ApiCall<K extends RouteId> = (input: RouteInput<K>) => Promise<ClientResult<K>>;
+
+export type ApiClient = { [K in RouteId]: ApiCall<K> } & {
+  request<K extends RouteId>(id: K, input: RouteInput<K>): Promise<ClientResult<K>>;
+};
+
+export function createApiClient(opts: ApiClientOptions = {}): ApiClient {
+  const baseUrl = opts.baseUrl ?? '';
+  const cookies = opts.cookies ?? browserCookies;
+
+  async function request<K extends RouteId>(id: K, input: RouteInput<K>): Promise<ClientResult<K>> {
+    const route = API_ROUTES[id] as ApiRouteDef;
+    const { params, query, body } = input as {
+      params?: Record<string, unknown>;
+      query?: Record<string, unknown>;
+      body?: Record<string, unknown>;
+    };
+    const headers: Record<string, string> = { accept: 'application/json' };
+    let payload: BodyInit | undefined;
+    if (isMutation(route)) {
+      if (route.bodyKind === 'multipart') {
+        const form = new FormData();
+        for (const [key, value] of Object.entries(body ?? {})) {
+          if (value === undefined) continue;
+          form.set(key, value instanceof Blob ? value : String(value));
+        }
+        payload = form;
+      } else {
+        headers['content-type'] = 'application/json';
+        payload = JSON.stringify(body ?? {});
+      }
+      if (needsCsrf(route)) {
+        const token = csrfToken(cookies());
+        // Without the cookie the server answers 403 (locked); there is nothing to send.
+        if (token) headers[CSRF_HEADER_NAME] = token;
+      }
+    }
+
+    const doFetch = opts.fetch ?? fetch;
+    const res = await doFetch(`${baseUrl}${buildUrl(route, params, query)}`, {
+      method: route.method,
+      headers,
+      body: payload,
+      credentials: 'same-origin',
+    });
+
+    if (!res.ok) throw await toError(id, res);
+    if (route.response.kind !== 'json') return res as ClientResult<K>;
+    const result = (await res.json()) as ClientResult<K>;
+    const mutationId = (result as { mutation_id?: unknown }).mutation_id;
+    if (isMutation(route) && typeof mutationId === 'string') {
+      opts.onMutation?.({ mutation_id: mutationId, route: id, undoable: route.undoable });
+    }
+    return result;
+  }
+
+  const calls = Object.fromEntries(
+    (Object.keys(API_ROUTES) as RouteId[]).map((id) => [
+      id,
+      (input: RouteInput<typeof id>) => request(id, input),
+    ]),
+  );
+  return { ...calls, request } as ApiClient;
+}
+
+async function toError(id: RouteId, res: Response): Promise<ApiError> {
+  let body: {
+    code: ErrorCode;
+    message: string;
+    details?: Record<string, unknown>;
+    current?: unknown;
+  };
+  try {
+    body = ((await res.json()) as { error: typeof body }).error;
+  } catch {
+    body = { code: res.status >= 500 ? 'internal' : 'validation', message: res.statusText };
+  }
+  if (res.status === 409 && body.code === 'conflict') {
+    return new ConflictError(id, { ...body, code: 'conflict' });
+  }
+  return new ApiError(id, res.status, body);
+}
+
+/** The app's client: same origin, cookies from the document. */
+export const api = createApiClient();
+
+// ---- Query keys ----
+
+/** Query key families; every key starts with `['tl', family]`. */
+export const QUERY_FAMILIES = [
+  'bootstrap',
+  'needsYou',
+  'work',
+  'burndown',
+  'item',
+  'review',
+  'agents',
+  'search',
+  'labels',
+  'decisions',
+  'settings',
+  'jiraImport',
+] as const;
+export type QueryFamily = (typeof QUERY_FAMILIES)[number];
+
+const ROOT = 'tl';
+
+/** The TanStack Query key factory: one key per screen query (UI_SPEC §6). */
+export const queryKeys = {
+  all: [ROOT] as const,
+  family: (family: QueryFamily) => [ROOT, family] as const,
+  bootstrap: () => [ROOT, 'bootstrap'] as const,
+  needsYou: (query: RouteQueryInput<'needsYou.get'> = {}) => [ROOT, 'needsYou', query] as const,
+  work: (query: RouteQueryInput<'work.get'> = {}) => [ROOT, 'work', query] as const,
+  burndown: (query: RouteQueryInput<'burndown.get'> = {}) => [ROOT, 'burndown', query] as const,
+  item: (id: string) => [ROOT, 'item', id] as const,
+  /** Without `round`: every round of the item's packets (a prefix key). */
+  review: (id: string, round?: number) =>
+    round === undefined ? ([ROOT, 'review', id] as const) : ([ROOT, 'review', id, round] as const),
+  agents: (query: RouteQueryInput<'agents.list'> = {}) => [ROOT, 'agents', query] as const,
+  search: (q: string) => [ROOT, 'search', q] as const,
+  label: (project: string, name: string) => [ROOT, 'labels', project, name] as const,
+  decisions: (query: RouteQueryInput<'decisions.list'>) => [ROOT, 'decisions', query] as const,
+  settings: () => [ROOT, 'settings'] as const,
+  jiraImport: (id: string) => [ROOT, 'jiraImport', id] as const,
+};
+
+export type QueryKey = readonly unknown[];
+
+// ---- Live stream → invalidation (contracts/events.md) ----
+
+/** One `event: change` message from `GET /api/stream`. */
+export interface StreamChange {
+  seq: number;
+  type: EventType;
+  objects: { kind: ObjectKind; id: string }[];
+  /** True only for `packet.submitted` and `question.asked` (decision 21). */
+  for_you: boolean;
+}
+
+const ITEM_VIEWS = ['item', 'work', 'needsYou', 'search', 'labels', 'burndown'] as const;
+const RUNS = ['item', 'work', 'agents', 'needsYou', 'bootstrap'] as const;
+const DECISIONS = ['decisions', 'item', 'labels', 'settings'] as const;
+
+/**
+ * Which query families each event type invalidates. `item` and `review`
+ * are narrowed to the event's item objects when it lists any.
+ */
+export const INVALIDATION: Record<EventType, readonly QueryFamily[]> = {
+  'item.created': [...ITEM_VIEWS, 'bootstrap', 'settings'],
+  'item.updated': [...ITEM_VIEWS, 'review'],
+  'item.status_changed': [...ITEM_VIEWS, 'review', 'agents', 'bootstrap', 'settings'],
+  'item.archived': ['item', 'work', 'labels', 'burndown', 'settings'],
+  'item.unarchived': ['item', 'work', 'labels', 'burndown', 'settings'],
+  'link.added': ['item', 'work', 'needsYou', 'bootstrap'],
+  'link.removed': ['item', 'work', 'needsYou', 'bootstrap'],
+  'link.updated': ['item', 'work', 'needsYou', 'bootstrap'],
+  'project.updated': ['bootstrap', 'settings', 'work', 'needsYou', 'item'],
+  'label.upserted': ['bootstrap', 'labels', 'settings', 'item'],
+  'plan.updated': ['item'],
+  'step.updated': ['item', 'agents'],
+  'subagent.logged': ['item', 'agents'],
+  'checks.updated': ['item'],
+  'check.updated': ['item'],
+  'human_review.declared': ['item', 'work', 'labels'],
+  'human_review.updated': ['item', 'work', 'labels'],
+  'human_review.removed': ['item', 'work', 'labels'],
+  'claim.granted': RUNS,
+  'claim.rejected': ['item'],
+  'claim.released': RUNS,
+  'run.started': RUNS,
+  'run.ended': RUNS,
+  'packet.submitted': ['item', 'review', 'work', 'needsYou', 'bootstrap'],
+  'packet.stale': ['item', 'review', 'needsYou'],
+  'packet.withdrawn': ['item', 'review', 'work', 'needsYou', 'bootstrap'],
+  'review.decided': ['item', 'review', 'work', 'needsYou', 'bootstrap', 'labels', 'burndown'],
+  'question.asked': ['item', 'needsYou', 'bootstrap', 'agents', 'work'],
+  'question.answered': ['item', 'needsYou', 'bootstrap', 'agents'],
+  'owner_note.added': ['item'],
+  'note.added': ['item'],
+  'document.added': ['item'],
+  'commit.reported': ['item', 'review', 'needsYou'],
+  // A merged PR can clear a `merged` blocker (BUILD_SPEC §5.2).
+  'artifact.linked': ['item', 'work', 'needsYou'],
+  'decision.published': DECISIONS,
+  'decision.confirmed': DECISIONS,
+  'decision.superseded': DECISIONS,
+  'decision.withdrawn': DECISIONS,
+};
+
+/** Families narrowed to the event's items when it names any. */
+const PER_ITEM: readonly QueryFamily[] = ['item', 'review'];
+
+/**
+ * The query keys to invalidate for one stream message: the event type's
+ * families, narrowed to its items where that applies, plus the for-you
+ * count (bootstrap) and Needs you when `for_you` is true.
+ */
+export function keysForChange(change: StreamChange): QueryKey[] {
+  const families = new Set<QueryFamily>(INVALIDATION[change.type] ?? QUERY_FAMILIES);
+  if (change.for_you) {
+    families.add('bootstrap');
+    families.add('needsYou');
+  }
+  const itemIds = [...new Set(change.objects.filter((o) => o.kind === 'item').map((o) => o.id))];
+  const keys: QueryKey[] = [];
+  for (const family of QUERY_FAMILIES) {
+    if (!families.has(family)) continue;
+    if (PER_ITEM.includes(family) && itemIds.length > 0) {
+      for (const id of itemIds) keys.push([ROOT, family, id]);
+    } else {
+      keys.push([ROOT, family]);
+    }
+  }
+  return keys;
+}
