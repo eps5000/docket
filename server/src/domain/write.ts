@@ -161,6 +161,8 @@ export interface WriteContext {
   /** The mutation's timestamp (ISO-8601 UTC). */
   readonly now: string;
   readonly mutationId: string;
+  /** The caller's idempotency key, applied by the write path that built this context; null without one. */
+  readonly idempotencyKey: string | null;
   readonly db: Db;
   get(table: string, id: string): Row | undefined;
   /** The row, or `not_found`. */
@@ -187,7 +189,7 @@ class Context implements WriteContext {
     readonly actor: Actor,
     readonly now: string,
     readonly mutationId: string,
-    private readonly idempotencyKey: string | null,
+    readonly idempotencyKey: string | null,
   ) {}
 
   get(table: string, id: string): Row | undefined {
