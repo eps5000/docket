@@ -81,6 +81,7 @@ Owner decision 14 (see §14).
 | Markdown | `markdown-it` + `DOMPurify` (render in the browser, sanitized) |
 | Tests | Vitest (unit, integration), Playwright (end to end), `@axe-core/playwright` |
 | Container | Multi-stage build, `node:22-bookworm-slim`, non-root user `tasklite` (uid 10001) |
+| CI | GitHub Actions on GitHub-hosted `ubuntu-latest` runners (free on this public repo; no Namespace or self-hosted runners). One workflow, `.github/workflows/ci.yml`, on pull requests and pushes to `main`: install with a pnpm cache, then lint, typecheck, Vitest, and `docker build`. From M4 it also runs Playwright end to end (Chromium) against the built image with the sample seed, uploading the report and traces as artifacts on failure. Mergify's merge queue waits for this check. |
 
 ### Repository layout to create
 
@@ -651,7 +652,7 @@ Work in order. Each milestone ends with its own tests green and a short demo not
 
 | # | Deliverable | Done when |
 |---|---|---|
-| M0 | Workspace scaffold, lint, typecheck, Vitest, Dockerfile, compose, `/healthz` and `/readyz`, CI workflow | `docker compose up` serves "Task Lite is running"; CI is green |
+| M0 | Workspace scaffold, lint, typecheck, Vitest, Dockerfile, compose, `/healthz` and `/readyz`, and the GitHub Actions CI workflow (§2 Stack) | `docker compose up` serves "Task Lite is running"; the CI check is green on the M0 PR, and Mergify waits for it |
 | M1 | Schema and migrations, domain services for §5 (including `satisfied_when`, decision records and the context bundle), event log, idempotency, undo, seed loader | Unit tests for every §5 rule pass; the seed loads deterministically |
 | M2 | MCP server per [MCP_SPEC.md](MCP_SPEC.md): auth, Host/Origin guards, identity, server instructions, all 36 tools with the exact description text, compact text rendering, structured errors, sweeper, restart handling | The MCP_SPEC §10 contract tests pass, including the description snapshot and token budgets; two simultaneous SDK clients work |
 | M3 | Owner session and CSRF, UI API (§7), SSE stream | API contract tests pass; the unlock flow works |
@@ -709,6 +710,7 @@ Owner decisions are marked **(owner)**. Every other entry is a technical choice 
 | T17 | Decision records: owner records are authoritative and can't be changed by agents; agents can supersede or withdraw only agent records; nothing goes to Needs you. | §5.14 |
 | T18 | Tool results: the text block is a complete compact rendering, and `structuredContent` is JSON. | MCP_SPEC §3.1 |
 | T19 | Context bundle budgets of 1k, 3k and 8k tokens, with visible truncation. | §5.15 |
+| T20 | CI runs on GitHub Actions hosted runners. The repo went public on 2026-11-14, so standard runners are free, and no Namespace runners are needed. | §2 |
 | T1 | One port (7420) for MCP, API and UI, published only on 127.0.0.1, with Host and Origin allowlists. | §2, §3 |
 | T2 | A separate owner key and browser session, so agents can't record human approval through the API. | §3 |
 | T3 | Displayed run state is derived from session signals (requests and pings) using `LIVE_WINDOW` 2 m, `STALE_AFTER` 30 m and `LEASE` 60 m. Restart interrupts open runs. | §5.3, §5.4 |
