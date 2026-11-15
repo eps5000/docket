@@ -1,0 +1,70 @@
+/**
+ * Structured errors (MCP_SPEC §4 ToolError and §6). Every MCP tool error and
+ * every API error carries one of these codes, a one- or two-sentence message
+ * (what happened, then what to do), and optional details or current state.
+ * This is a shared contract file: slices must not edit it.
+ */
+import { z } from 'zod';
+
+export const ERROR_CODES = [
+  'validation',
+  'conflict',
+  'not_found',
+  'forbidden',
+  'unavailable',
+  'internal',
+] as const;
+export type ErrorCode = (typeof ERROR_CODES)[number];
+
+export interface ToolErrorShape {
+  code: ErrorCode;
+  message: string;
+  details?: Record<string, unknown>;
+  current?: unknown;
+}
+
+export const toolErrorSchema = z.object({
+  code: z.enum(ERROR_CODES),
+  message: z.string(),
+  details: z.record(z.string(), z.unknown()).optional(),
+  current: z.unknown().optional(),
+});
+
+/** HTTP status for each code on the UI API. */
+export const HTTP_STATUS: Record<ErrorCode, number> = {
+  validation: 400,
+  forbidden: 403,
+  not_found: 404,
+  conflict: 409,
+  internal: 500,
+  unavailable: 503,
+};
+
+export class ToolError extends Error {
+  readonly code: ErrorCode;
+  readonly details?: Record<string, unknown>;
+  readonly current?: unknown;
+
+  constructor(
+    code: ErrorCode,
+    message: string,
+    extras: { details?: Record<string, unknown>; current?: unknown } = {},
+  ) {
+    super(message);
+    this.name = 'ToolError';
+    this.code = code;
+    if (extras.details !== undefined) this.details = extras.details;
+    if (extras.current !== undefined) this.current = extras.current;
+  }
+
+  toJSON(): ToolErrorShape {
+    const out: ToolErrorShape = { code: this.code, message: this.message };
+    if (this.details !== undefined) out.details = this.details;
+    if (this.current !== undefined) out.current = this.current;
+    return out;
+  }
+}
+
+export function isToolError(value: unknown): value is ToolError {
+  return value instanceof ToolError;
+}
