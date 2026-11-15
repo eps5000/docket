@@ -22,6 +22,12 @@ export interface Config {
   liveWindowMs: number;
   staleAfterMs: number;
   leaseMs: number;
+  /** A run parked longer than this shows under Problems; it keeps its claim (§5.16). */
+  parkMaxMs: number;
+  /** A parked run `resume_ready` this long shows as "Ready to resume, unattended" (§5.16). */
+  resumeUnattendedMs: number;
+  /** A resource unreleased this long after its run ended is orphaned (§5.16). */
+  orphanAfterMs: number;
   /** `HH:MM`, local time. */
   backupAt: string;
   backupKeepDays: number;
@@ -46,6 +52,9 @@ export const DEFAULTS = {
   TASKLITE_LIVE_WINDOW: '2m',
   TASKLITE_STALE_AFTER: '30m',
   TASKLITE_LEASE: '60m',
+  TASKLITE_PARK_MAX: '24h',
+  TASKLITE_RESUME_UNATTENDED: '30m',
+  TASKLITE_ORPHAN_AFTER: '15m',
   TASKLITE_BACKUP_AT: '03:00',
   TASKLITE_BACKUP_KEEP: '14',
 } as const;
@@ -114,6 +123,12 @@ export function loadConfig(
     liveWindowMs: parseDuration(get('TASKLITE_LIVE_WINDOW'), 'TASKLITE_LIVE_WINDOW'),
     staleAfterMs: parseDuration(get('TASKLITE_STALE_AFTER'), 'TASKLITE_STALE_AFTER'),
     leaseMs: parseDuration(get('TASKLITE_LEASE'), 'TASKLITE_LEASE'),
+    parkMaxMs: parseDuration(get('TASKLITE_PARK_MAX'), 'TASKLITE_PARK_MAX'),
+    resumeUnattendedMs: parseDuration(
+      get('TASKLITE_RESUME_UNATTENDED'),
+      'TASKLITE_RESUME_UNATTENDED',
+    ),
+    orphanAfterMs: parseDuration(get('TASKLITE_ORPHAN_AFTER'), 'TASKLITE_ORPHAN_AFTER'),
     backupAt,
     backupKeepDays,
     backupExtraDir: env(source, 'TASKLITE_BACKUP_EXTRA_DIR') ?? null,

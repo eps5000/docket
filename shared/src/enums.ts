@@ -71,6 +71,8 @@ export const SATISFIED_WHEN_LABELS: Record<SatisfiedWhen, string> = {
 export const STORED_RUN_STATES = [
   'open',
   'needs_input',
+  /** Waiting on purpose (`park_run`; BUILD_SPEC §5.16): keeps its claim, lease suspended. */
+  'parked',
   'finished',
   'failed',
   'interrupted',
@@ -82,6 +84,7 @@ export const RUN_STATES = [
   'live',
   'reported',
   'stale',
+  'parked',
   'needs_input',
   'failed',
   'finished',
@@ -97,6 +100,11 @@ export const RUN_STATE_LABELS: Record<RunState, { label: string; meaning: string
     meaning: "The agent says it's working, with no recent session signal",
   },
   stale: { label: 'stale', meaning: 'No signal; state unknown, not assumed finished' },
+  parked: {
+    label: 'parked',
+    meaning:
+      'Waiting on purpose (on an item, the coordinator or a person). Keeps its claim; never mistaken for finished.',
+  },
   needs_input: { label: 'needs input', meaning: 'Waiting on you' },
   failed: { label: 'failed', meaning: 'Run ended with an error' },
   finished: { label: 'finished', meaning: 'Run ended normally' },
@@ -104,6 +112,81 @@ export const RUN_STATE_LABELS: Record<RunState, { label: string; meaning: string
     label: 'interrupted',
     meaning: 'Stopped without finishing (lease expired, released, or service restart)',
   },
+};
+
+/** Displayed run states of a run that hasn't ended (it may still hold a claim). */
+export const OPEN_RUN_STATES = [
+  'live',
+  'reported',
+  'stale',
+  'parked',
+  'needs_input',
+] as const satisfies readonly RunState[];
+
+/** Why a run ended; set on every terminal transition (BUILD_SPEC §5.16; MCP_SPEC §3). */
+export const END_REASONS = [
+  'finished',
+  'failed',
+  'released',
+  'lease_expired',
+  'owner_released',
+  'service_restart',
+  'canceled',
+] as const;
+export type EndReason = (typeof END_REASONS)[number];
+
+/** End-reason labels (BUILD_SPEC §13: shared with their UI labels). */
+export const END_REASON_LABELS: Record<EndReason, string> = {
+  finished: 'finished',
+  failed: 'failed',
+  released: 'released by the agent',
+  lease_expired: 'lease expired',
+  owner_released: 'released by you',
+  service_restart: 'service restarted',
+  canceled: 'canceled',
+};
+
+// ---- Recovery: workspaces and resources (owner decision 26; BUILD_SPEC §5.16) ----
+
+/** Workspace state, derived per worktree path and never stored (MCP_SPEC §3). */
+export const WORKSPACE_STATES = [
+  'in_use',
+  'parked',
+  'at_risk',
+  'safe_to_prune',
+  'unknown',
+] as const;
+export type WorkspaceState = (typeof WORKSPACE_STATES)[number];
+
+/** State chip labels on Agents → Workspaces (UI_SPEC §6.6). */
+export const WORKSPACE_STATE_LABELS: Record<WorkspaceState, string> = {
+  in_use: 'In use',
+  parked: 'Parked',
+  at_risk: 'At risk',
+  safe_to_prune: 'Safe to prune',
+  unknown: 'Unknown',
+};
+
+/** Long-lived things a run starts (MCP_SPEC §4 Resource; BUILD_SPEC §4 `run_resources`). */
+export const RESOURCE_KINDS = [
+  'process',
+  'dev_server',
+  'session',
+  'container',
+  'temp_dir',
+  'port',
+  'other',
+] as const;
+export type ResourceKind = (typeof RESOURCE_KINDS)[number];
+
+export const RESOURCE_KIND_LABELS: Record<ResourceKind, string> = {
+  process: 'process',
+  dev_server: 'dev server',
+  session: 'session',
+  container: 'container',
+  temp_dir: 'temp dir',
+  port: 'port',
+  other: 'other',
 };
 
 /** Kinds of run signal (BUILD_SPEC §5.4). */
@@ -163,7 +246,14 @@ export type ReviewFollow = (typeof REVIEW_FOLLOW)[number];
 export const ARTIFACT_KINDS = ['url', 'pr', 'ci', 'deploy', 'test'] as const;
 export type ArtifactKind = (typeof ARTIFACT_KINDS)[number];
 
-export const DOC_KINDS = ['planning', 'packet_attachment', 'import_report', 'other'] as const;
+/** `brief` is written only by `claim_lead` and `start_run` (BUILD_SPEC §4, §5.16). */
+export const DOC_KINDS = [
+  'planning',
+  'packet_attachment',
+  'import_report',
+  'brief',
+  'other',
+] as const;
 export type DocKind = (typeof DOC_KINDS)[number];
 
 // ---- Decision records (BUILD_SPEC §5.14) ----
@@ -215,6 +305,12 @@ export const EVENT_TYPES = [
   'claim.released',
   'run.started',
   'run.ended',
+  // Recovery (US11): a heartbeat that declares or releases resources appends these
+  'run.parked',
+  'run.resumed',
+  'run.unpushed_handled',
+  'resource.declared',
+  'resource.released',
   // Review
   'packet.submitted',
   'packet.stale',

@@ -47,8 +47,31 @@ export function migrationsFolder(): string {
   return found;
 }
 
+/**
+ * Apply pending migrations.
+ *
+ * Drizzle runs them all in one transaction, where `PRAGMA foreign_keys` is a
+ * no-op, so a migration that rebuilds a parent table (SQLite's only way to
+ * change a CHECK constraint; 0002 rebuilds `runs` and `documents`) would fire
+ * the children's ON DELETE actions on `DROP TABLE`. Foreign keys are
+ * therefore off for the migration run, as SQLite's table-rebuild procedure
+ * prescribes, and `PRAGMA foreign_key_check` must come back clean before
+ * they're turned on again.
+ */
 export function migrateDb(db: Db): void {
-  migrate(db.orm, { migrationsFolder: migrationsFolder() });
+  const wasOn = db.sqlite.pragma('foreign_keys', { simple: true }) === 1;
+  db.sqlite.pragma('foreign_keys = OFF');
+  try {
+    migrate(db.orm, { migrationsFolder: migrationsFolder() });
+    const violations = db.sqlite.pragma('foreign_key_check') as unknown[];
+    if (violations.length > 0) {
+      throw new Error(
+        `Migration left ${violations.length} foreign key violation(s): ${JSON.stringify(violations.slice(0, 5))}`,
+      );
+    }
+  } finally {
+    if (wasOn) db.sqlite.pragma('foreign_keys = ON');
+  }
 }
 
 export interface MigrationStatus {

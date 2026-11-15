@@ -21,9 +21,9 @@ describe('database client', () => {
   });
 
   it('applies every migration, and migrating again is a no-op', () => {
-    expect(migrationStatus(t.db)).toEqual({ current: true, applied: 2, expected: 2 });
+    expect(migrationStatus(t.db)).toEqual({ current: true, applied: 3, expected: 3 });
     migrateDb(t.db);
-    expect(migrationStatus(t.db).applied).toBe(2);
+    expect(migrationStatus(t.db).applied).toBe(3);
   });
 
   it('creates every BUILD_SPEC §4 table', () => {
@@ -49,6 +49,7 @@ describe('database client', () => {
       'packet_attachments',
       'review_decisions',
       'runs',
+      'run_resources',
       'questions',
       'owner_notes',
       'commits',
@@ -141,6 +142,62 @@ describe('limits and enums are enforced by the schema', () => {
     lead('run_1', 'finished');
     lead('run_2', 'open');
     expect(() => lead('run_3', 'open')).toThrow(/UNIQUE constraint failed/);
+  });
+
+  it.each(['open', 'needs_input', 'parked'])(
+    'counts a %s lead run as holding the claim (a parked run keeps it, BUILD_SPEC §5.16)',
+    (state) => {
+      insertItem(t.db, { id: 'RCP-1' });
+      const lead = (id: string, s: string) =>
+        run(
+          "INSERT INTO runs (id, item_id, client, is_lead, state, last_signal_at, last_signal_kind, created_at, updated_at) VALUES (?, 'RCP-1', 'claude', 1, ?, ?, 'session', ?, ?)",
+          id,
+          s,
+          ts,
+          ts,
+          ts,
+        );
+      lead('run_1', state);
+      expect(() => lead('run_2', 'open')).toThrow(/UNIQUE constraint failed/);
+      expect(() => lead('run_3', 'parked')).toThrow(/UNIQUE constraint failed/);
+    },
+  );
+
+  it('enforces the recovery enums and limits (end_reason, resource kind and label, external ≤ 2 KB, brief kind)', () => {
+    insertItem(t.db, { id: 'RCP-1' });
+    const runRow = (id: string, extra: string, value: unknown) =>
+      run(
+        `INSERT INTO runs (id, item_id, client, state, last_signal_at, last_signal_kind, created_at, updated_at, ${extra}) VALUES (?, 'RCP-1', 'claude', 'finished', ?, 'session', ?, ?, ?)`,
+        id,
+        ts,
+        ts,
+        ts,
+        value,
+      );
+    runRow('run_ok', 'end_reason', 'service_restart');
+    expect(() => runRow('run_bad', 'end_reason', 'crashed')).toThrow(/CHECK constraint failed/);
+    runRow('run_ext', 'external', JSON.stringify({ orca: { a: 'x'.repeat(2_000) } }));
+    expect(() =>
+      runRow('run_big', 'external', JSON.stringify({ orca: { a: 'x'.repeat(2_048) } })),
+    ).toThrow(/CHECK constraint failed/);
+    const resource = (id: string, kind: string, label: string) =>
+      run(
+        "INSERT INTO run_resources (id, run_id, kind, label, locator, started_at, created_at, updated_at) VALUES (?, 'run_ok', ?, ?, '{\"port\":5173}', ?, ?, ?)",
+        id,
+        kind,
+        label,
+        ts,
+        ts,
+        ts,
+      );
+    resource('rsc_1', 'dev_server', 'dev server :5173');
+    expect(() => resource('rsc_2', 'daemon', 'x')).toThrow(/CHECK constraint failed/);
+    expect(() => resource('rsc_3', 'port', 'x'.repeat(121))).toThrow(/CHECK constraint failed/);
+    run(
+      "INSERT INTO documents (id, project_key, item_id, name, kind, created_at, updated_at) VALUES ('doc_b', 'RCP', 'RCP-1', 'brief-run_ok.md', 'brief', ?, ?)",
+      ts,
+      ts,
+    );
   });
 });
 
