@@ -107,7 +107,7 @@ Every mutating tool accepts `idempotency_key` (≤ 100 characters, unique per lo
 - **Use one** for anything you might retry after a timeout.
 
 ### Runs as signals
-Pass `run_id` on every call you make while working. **Every tool accepts an optional `run_id`**, reads included. `idempotency_key` is accepted only by the 26 mutating tools (B3 resolution 1).
+Pass `run_id` on every call you make while working. **Every tool accepts an optional `run_id`**, reads included. `idempotency_key` is accepted only by the 27 mutating tools (B3 resolution 1).
 - **What it does:** renews your lead lease and keeps you *live*.
 - **Calls without it** are attributed to your client but don't touch any run.
 
@@ -141,7 +141,7 @@ These are MCP hints:
 | Retry-safe mutating tools: `heartbeat`, `report_commit`, `update_step`, `update_check` | `idempotentHint: true` (and `false` on every other tool) |
 | All tools | `destructiveHint: false`, set explicitly, because MCP defaults it to true for tools that aren't read-only and agents can't delete |
 
-`readOnlyHint` is set explicitly on every tool: `true` for the 9 read tools, `false` for `get_item` and all mutations. No tool sets `openWorldHint` (B3 resolution 6).
+`readOnlyHint` is set explicitly on every tool: `true` for the 10 read tools, `false` for `get_item` and all mutations. No tool sets `openWorldHint` (B3 resolution 6).
 
 ### Results
 Every tool returns two things:
@@ -328,7 +328,7 @@ type Resource = { id: string; kind: 'process'|'dev_server'|'session'|'container'
   label: string; locator: { pid?: number; port?: number; session_id?: string; container?: string; path?: string; host?: string };
   started_at: string; released_at: string|null; release_note: string|null };
 type Question = { id: string; text: string; asked_at: string; answer: string|null; answered_at: string|null };
-type DocKind = 'planning'|'packet_attachment'|'import_report'|'other';
+type DocKind = 'planning'|'packet_attachment'|'import_report'|'brief'|'other';   // 'brief' is written only by claim_lead/start_run; put_document accepts planning|packet_attachment|other
 type DocVersionRef = { document_version_id: string; version_no: number; mime: string; size: number; sha256: string; created_at: string; created_by: string };
 type EventRow = { cursor: string; at: string; actor: string; item_id: string|null; type: EventType; summary: string };
 type EventType =
