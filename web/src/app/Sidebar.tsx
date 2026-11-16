@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { NavLink, useLocation } from 'react-router';
+import { Link, useLocation } from 'react-router';
 import { OPEN_RUN_STATES } from '@tasklite/shared';
 import { Icon, isNotBuilt, type IconName } from '../components/kit';
 import { paths } from '../lib/paths';
@@ -36,22 +36,23 @@ function NavItem({
   const { pathname } = useLocation();
   const current = navSection(pathname) === section;
   return (
-    <NavLink
+    <Link
       to={to}
       className="navbtn"
       aria-current={current ? 'page' : undefined}
       title={label}
-      aria-label={badge && badge.n > 0 ? `${label}, ${badge.n} ${badge.sr}` : label}
       data-nav={section ?? undefined}
     >
       <Icon name={icon} />
       <span className="nl">{label}</span>
       {badge && badge.n > 0 && (
-        <span className={`badge${badge.tone === 'gray' ? ' n' : ''}`} aria-hidden="true">
+        <span className={`badge${badge.tone === 'gray' ? ' n' : ''}`}>
+          {' '}
           {badge.n}
+          <span className="sr"> {badge.sr}</span>
         </span>
       )}
-    </NavLink>
+    </Link>
   );
 }
 
@@ -120,7 +121,6 @@ function ProjectSwitcher() {
         className="scopebtn"
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label={`Project: ${name}`}
         title={`Project: ${name}`}
         onClick={() => setOpen(!open)}
       >
@@ -130,8 +130,7 @@ function ProjectSwitcher() {
           <Icon name="folder" small />
         )}
         <span className="grow txt">
-          <span className="lbl2">Project</span>
-          <span className="nm">{name}</span>
+          <span className="lbl2">Project</span> <span className="nm">{name}</span>
         </span>
         <span className="chev" aria-hidden="true">
           <Icon name="chev" small />
@@ -189,11 +188,10 @@ function HealthLine() {
     text = 'Health not reported yet';
   }
   return (
-    <NavLink
+    <Link
       to={paths.settings()}
       className={`health health-${tone}`}
-      aria-label={`${text}. Open settings`}
-      title={text}
+      title={`${text}. Open settings`}
     >
       <span className="row">
         <i className={`ri ri-health-${tone}`} aria-hidden="true">
@@ -201,7 +199,7 @@ function HealthLine() {
         </i>
         <span className="hx">{text}</span>
       </span>
-    </NavLink>
+    </Link>
   );
 }
 

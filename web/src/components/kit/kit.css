@@ -29,6 +29,13 @@
 .tl a:hover {
   text-decoration: underline;
 }
+/* Links inside running text are underlined, not told apart by colour alone (WCAG 1.4.1). */
+.tl p a,
+.tl .callout a,
+.tl .src a:not(.btn) {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
 .tl :focus-visible {
   outline: 2px solid var(--brand);
   outline-offset: 2px;

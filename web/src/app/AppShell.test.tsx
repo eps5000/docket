@@ -158,10 +158,10 @@ describe('app shell', () => {
   it('keeps scope in sessionStorage and resets to All projects in a new session', () => {
     sessionStorage.setItem(STORAGE_KEYS.scope, 'RCP');
     renderAt('/');
-    expect(screen.getByRole('button', { name: 'Project: RCP' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Project RCP' })).toBeTruthy();
     cleanup();
     sessionStorage.clear();
     renderAt('/');
-    expect(screen.getByRole('button', { name: 'Project: All projects' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Project All projects' })).toBeTruthy();
   });
 });

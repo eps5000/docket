@@ -91,7 +91,7 @@ export function Header() {
       <button
         type="button"
         className="search"
-        aria-label="Search or jump to (Ctrl+K)"
+        title="Search or jump to (Ctrl K or /)"
         aria-keyshortcuts="Control+K /"
         onClick={() => setPaletteOpen(true)}
       >

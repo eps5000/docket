@@ -8,8 +8,10 @@ export function NotFound() {
     <div>
       <h1>Page not found</h1>
       <Card padded>
-        <span className="muted">There’s no page here. </span>
-        <Link to={paths.needsYou()}>Go to Needs you</Link>
+        <p style={{ margin: 0 }}>
+          <span className="muted">There’s no page here. </span>
+          <Link to={paths.needsYou()}>Go to Needs you</Link>
+        </p>
       </Card>
     </div>
   );

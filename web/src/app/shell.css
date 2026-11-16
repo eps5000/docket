@@ -151,6 +151,10 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.tl .crumbs a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
 .tl .crumbs b {
   color: var(--ink);
   font-weight: 600;
@@ -326,13 +330,21 @@
   .tl .shell {
     grid-template-columns: 64px minmax(0, 1fr);
   }
-  .tl nav.side .nl,
   .tl nav.side .navsec,
   .tl .logo span,
-  .tl .health .hx,
-  .tl .scopebtn .txt,
   .tl .scopebtn .chev {
     display: none;
+  }
+  /* Labels leave the rail visually but keep naming the links (UI_SPEC §2). */
+  .tl nav.side .nl,
+  .tl .health .hx,
+  .tl .scopebtn .txt {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
   }
   .tl .navbtn {
     justify-content: center;

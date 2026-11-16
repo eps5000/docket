@@ -114,7 +114,7 @@ export function InlineEditor({
         {label}
       </label>
       {preview && multiline ? (
-        <div className="card pad" aria-label={`${field} preview`}>
+        <div className="card pad" role="region" aria-label={`${field} preview`}>
           {renderPreview ? (
             renderPreview(value)
           ) : (
