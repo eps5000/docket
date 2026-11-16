@@ -341,6 +341,28 @@ describe('burn-down', () => {
     expect(s['2026-11-12']).toBe(0);
   });
 
+  it('replays in time order when an event was appended after newer ones', () => {
+    at('2026-10-01T10:00:00Z');
+    const a = create('A', { effort: 5 });
+    const b = create('B', { effort: 3 });
+    at('2026-11-12T10:00:00Z');
+    finish(b);
+    // A's completion on Nov 5 is appended after B's (as a fixture or a late import would).
+    d.sql.prepare("UPDATE items SET status = 'done' WHERE id = ?").run(a);
+    d.sql
+      .prepare(
+        `INSERT INTO events (at, actor_kind, client, project_key, item_id, type, summary, data, mutation_id)
+         VALUES ('2026-11-05T10:00:00.000Z', 'agent', 'claude', 'TST', ?, 'item.status_changed', 'done', ?, 'mut_late')`,
+      )
+      .run(a, JSON.stringify({ status: { old: 'progress', new: 'done' } }));
+    at('2026-11-16T12:00:00Z');
+    const s = series(burndown());
+    expect(s['2026-11-04']).toBe(8);
+    expect(s['2026-11-05']).toBe(3);
+    expect(s['2026-11-11']).toBe(3);
+    expect(s['2026-11-12']).toBe(0);
+  });
+
   it('ends each day in the configured local time zone', async () => {
     await d.cleanup();
     d = startDomain({

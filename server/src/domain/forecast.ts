@@ -13,9 +13,12 @@
  * local day (config `TZ`) for the last 28 days, replayed from events. The
  * replay starts from the current rows and walks the events *backwards*,
  * undoing each one with the old values it recorded, until it passes the
- * start of the window. It never reads an event older than the window (less a
- * day of slack for clock skew), so its cost is the window's events, not the
- * whole history: see the 100,000-event test in forecast.test.ts.
+ * start of the window. Events are read newest first by `seq` and the read
+ * stops at the first one older than the window less two days of slack (the
+ * write path stamps `at` when it appends, so older events never follow), so
+ * its cost is the window's events, not the whole history: see the
+ * 100,000-event test in forecast.test.ts. The window's events are then
+ * replayed in time order.
  * - Item creation comes from `items.created_at` (seeded items have no
  *   `item.created` event).
  * - Owner undo events carry only `undo_of`; crossing one restores the
@@ -258,6 +261,14 @@ interface Replay {
   completions: Completion[];
 }
 
+/** One step of the backward walk: an item event, or an item's creation. */
+interface Step {
+  at: string;
+  seq: number;
+  create?: Candidate;
+  event?: EventLite;
+}
+
 interface EventLite {
   seq: number;
   at: string;
@@ -361,10 +372,10 @@ function replay(r: ReadContext, tz: string | null, scope: ScopeSpec): Replay {
   }
   const openEffort = total;
 
-  // Creations inside the window, newest first, merged into the event walk.
-  const creations = [...items.values()]
+  // Creations inside the window become steps of the walk too.
+  const steps: Step[] = [...items.values()]
     .filter((c) => c.created_at >= cutoff)
-    .sort((a, b) => (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0));
+    .map((c) => ({ at: c.created_at, seq: -1, create: c }));
 
   const eventsQuery =
     scope.projects.length === 1
@@ -381,6 +392,16 @@ function replay(r: ReadContext, tz: string | null, scope: ScopeSpec): Replay {
              WHERE type IN ('item.updated', 'item.status_changed') ORDER BY seq DESC`,
           )
           .iterate();
+  // Newest first by seq, stopping at the first event older than the cutoff:
+  // events are appended when they happen, so nothing older is read.
+  for (const e of eventsQuery as IterableIterator<EventLite>) {
+    if (e.at < cutoff) break;
+    if (e.item_id && items.has(e.item_id)) steps.push({ at: e.at, seq: e.seq, event: e });
+  }
+  // Replay in time order, newest first (a few events may be appended out of
+  // order); at the same instant a creation comes last, before its own events.
+  steps.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : b.seq - a.seq));
+
   const original = sql.prepare(
     'SELECT type, item_id, data FROM events WHERE mutation_id = ? ORDER BY seq',
   );
@@ -427,14 +448,13 @@ function replay(r: ReadContext, tz: string | null, scope: ScopeSpec): Replay {
     });
   };
 
-  let next = 0;
-  for (const e of eventsQuery as IterableIterator<EventLite>) {
-    if (e.at < cutoff) break;
-    while (next < creations.length && creations[next]!.created_at > e.at) {
-      crossCreation(creations[next++]!);
+  for (const step of steps) {
+    if (step.create) {
+      crossCreation(step.create);
+      continue;
     }
-    const c = e.item_id ? items.get(e.item_id) : undefined;
-    if (!c) continue;
+    const e = step.event!;
+    const c = items.get(e.item_id!)!;
     const day = dayAt(e.at);
     recordDown(day);
     if (day < oldest) continue;
@@ -472,7 +492,6 @@ function replay(r: ReadContext, tz: string | null, scope: ScopeSpec): Replay {
       cross(c, day, (st) => applyChanged(st, data.changed, 'old'));
     }
   }
-  while (next < creations.length) crossCreation(creations[next++]!);
   recordDown(first);
 
   const series: Replay['series'] = [];
