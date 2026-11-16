@@ -1,8 +1,13 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { STATUS_LABELS, type Status, type WorkItem } from '@tasklite/shared';
 import { Button, TicketCard } from '../../components/kit';
+import { apiClient } from '../../app/queryClient';
+import { queryKeys } from '../../lib/api';
+import { plural } from '../../lib/format';
 import { paths } from '../../lib/paths';
+import { runOwnerMutation, showToast } from '../../lib/undo';
 
 export const BOARD_COLUMNS: readonly { status: Status; note?: string }[] = [
   { status: 'inbox' },
@@ -15,11 +20,14 @@ export const BOARD_COLUMNS: readonly { status: Status; note?: string }[] = [
 
 /**
  * Board (UI_SPEC §6.2.1): six columns; Ready splits into Startable and
- * Waiting on blockers; Done keeps *Archive* / *Archive all*. US2 (T082) fills
- * the cards' actions (archive with Undo is US7).
+ * Waiting on blockers; Done keeps every done item until it's archived: each
+ * card has *Archive* (or *Unarchive* under the Archived filter), the column
+ * header has *Archive all* for the visible done items, and each toasts with
+ * Undo (US7, T127).
  */
 export function BoardLayout({ items }: { items: readonly WorkItem[] }) {
   const [showWaiting, setShowWaiting] = useState(false);
+  const archiving = useArchive();
   return (
     <div className="board" data-layout="board">
       {BOARD_COLUMNS.map(({ status, note }) => {
@@ -82,17 +90,61 @@ export function BoardLayout({ items }: { items: readonly WorkItem[] }) {
             {note && <div className="src colnote">{note}</div>}
             {status === 'done' && cards.some((c) => !c.archived) && (
               <div className="row colnote" style={{ justifyContent: 'flex-end' }}>
-                <Button variant="ghost" size="sm" disabled title="Archive all lands with US7">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={archiving.busy}
+                  onClick={() =>
+                    void archiving.all(cards.filter((c) => !c.archived).map((c) => c.id))
+                  }
+                >
                   Archive all
                 </Button>
               </div>
             )}
             {cards.map((i) => (
-              <TicketCard key={i.id} item={i} />
+              <TicketCard
+                key={i.id}
+                item={i}
+                onArchive={() => void archiving.one(i.id)}
+                onUnarchive={() => void archiving.undo(i.id)}
+              />
             ))}
           </section>
         );
       })}
     </div>
   );
+}
+
+/** Archive, Archive all and Unarchive, each with the Undo toast (BUILD_SPEC §5.8, §5.11). */
+function useArchive() {
+  const queryClient = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  const run = async <T extends { mutation_id: string }>(fn: () => Promise<T>, success: string) => {
+    setBusy(true);
+    try {
+      const res = await runOwnerMutation(fn, { success });
+      if (res) await queryClient.invalidateQueries({ queryKey: queryKeys.all });
+    } catch (err) {
+      showToast(err instanceof Error && err.message ? err.message : 'That didn’t work. Try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return {
+    busy,
+    one: (id: string) =>
+      run(
+        () => apiClient['items.archive']({ params: { id } }),
+        `${id} archived. It’s still in the tracker; find it with search or the Archived filter.`,
+      ),
+    undo: (id: string) =>
+      run(() => apiClient['items.unarchive']({ params: { id } }), `${id} is back in your views.`),
+    all: (ids: string[]) =>
+      run(
+        () => apiClient['archive.many']({ body: { ids } }),
+        `Archived ${plural(ids.length, 'done item')}.`,
+      ),
+  };
 }
