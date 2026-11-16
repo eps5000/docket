@@ -194,8 +194,10 @@ export const workResponse = jsonResponse({
   epics: z.array(epicCardSchema),
   /** Chip counts. */
   filter_counts: z.partialRecord(uiFilterSchema, z.number().int()),
-  /** Links among `items`, for the map. */
+  /** Links among `items`, plus links from `outside` blockers, for the map. */
   links: z.array(linkEdgeSchema),
+  /** Blockers of `items` that aren't in `items` (the map's "Outside this view" column). */
+  outside: z.array(itemSummarySchema),
   /** Present only for `layout=timeline`. */
   timeline: timelineSchema.nullable(),
 });
@@ -256,6 +258,8 @@ export const itemDetailResponse = jsonResponse({
   notes_unread: z.number().int(),
   label_briefs: z.array(z.object({ name: z.string(), brief_md: z.string() })),
   links: z.array(linkEdgeSchema),
+  /** Items linked to this item (or, for an epic, its children) that aren't among them: 1-hop and "Outside this epic" cards. */
+  outside: z.array(itemSummarySchema),
 });
 export type ItemDetailResponse = z.infer<typeof itemDetailResponse>;
 

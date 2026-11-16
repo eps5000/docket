@@ -1006,6 +1006,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         epics,
         filter_counts,
         links: linkEdges(r.db, s.index, new Set(items.map((i) => i.id)), 'among'),
+        outside: [], // US4 (B11) fills this.
         timeline: null,
       };
     },
@@ -1241,6 +1242,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         notes_unread: notes.n,
         label_briefs,
         links: linkEdges(r.db, index, new Set([row.id, ...childRows.map((c) => c.id)]), 'touching'),
+        outside: [], // US4 (B11) fills this.
       };
     },
 

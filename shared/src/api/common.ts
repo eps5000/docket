@@ -50,7 +50,12 @@ export const noInput = z.strictObject({});
  * `POST /api/mutations/:id/undo` (BUILD_SPEC §5.11).
  */
 export function ownerMutationOutput<S extends z.ZodRawShape>(shape: S) {
-  return z.object({ mutation_id: z.string(), ...shape });
+  return z.object({
+    mutation_id: z.string(),
+    /** Write-check warnings, e.g. "RCP-99 doesn't exist" (MCP_SPEC §3.4); the UI shows them in the toast. */
+    warnings: z.array(z.string()).optional(),
+    ...shape,
+  });
 }
 
 /** A JSON response. */

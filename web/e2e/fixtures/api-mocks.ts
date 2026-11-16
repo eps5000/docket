@@ -75,6 +75,7 @@ export const emptyWork: WorkResponse = {
   epics: [],
   filter_counts: {},
   links: [],
+  outside: [],
   timeline: null,
 };
 
