@@ -27,6 +27,7 @@ export const API_GROUPS = [
   'import',
   'settings',
   'diagnostics',
+  'recovery',
   'undo',
   'upload',
 ] as const;

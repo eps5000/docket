@@ -13,6 +13,7 @@ These match the `EventType` union in [MCP_SPEC §4](../../../docs/MCP_SPEC.md):
 | Links and projects | `link.added`, `link.removed`, `link.updated`, `project.updated`, `label.upserted` |
 | Checklist | `plan.updated`, `step.updated`, `subagent.logged`, `checks.updated`, `check.updated`, `human_review.declared`, `human_review.updated`, `human_review.removed` |
 | Claims and runs | `claim.granted`, `claim.rejected`, `claim.released`, `run.started`, `run.ended` (heartbeats are **not** events) |
+| Recovery (US11) | `run.parked`, `run.resumed`, `run.unpushed_handled`, `resource.declared`, `resource.released`. A heartbeat that declares or releases resources appends these events; the heartbeat itself still doesn't. |
 | Review | `packet.submitted`, `packet.stale`, `packet.withdrawn`, `review.decided` |
 | Messages | `question.asked`, `question.answered`, `owner_note.added`, `note.added` |
 | Evidence | `document.added`, `commit.reported`, `artifact.linked` |

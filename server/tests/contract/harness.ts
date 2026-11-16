@@ -185,6 +185,11 @@ export const VALID_ARGS: Record<ToolName, Record<string, unknown>> = {
   start_run: { id: 'RCP-14', parent_run_id: 'run_01JA', agent_label: 'units-worker' },
   heartbeat: { run_id: 'run_01JA' },
   finish_run: { run_id: 'run_01JA', result: 'finished', summary: 'Built the list.' },
+  park_run: {
+    run_id: 'run_01JA',
+    reason: 'Waiting for RCP-12 (planner) to merge',
+    waiting_on: { items: ['RCP-12'] },
+  },
   set_plan: { id: 'RCP-17', steps: [{ text: 'Reproduce the jump after reload' }] },
   update_step: { id: 'RCP-14', step_id: 'wst_a', state: 'done' },
   log_subagent: {
@@ -234,4 +239,5 @@ export const VALID_ARGS: Record<ToolName, Record<string, unknown>> = {
   },
   list_decisions: { project: 'RCP' },
   withdraw_decision: { decision_id: 'dec_9', reason: 'No longer applies.' },
+  recovery_report: { include_briefs: true },
 };

@@ -13,6 +13,9 @@ import {
   decisionsQuery,
   diagnosticsQuery,
   isMutation,
+  problemSchema,
+  releaseResourceBody,
+  workspacesQuery,
   needsCsrf,
   patchItemBody,
   pathParams,
@@ -22,7 +25,7 @@ import {
   type RouteId,
 } from '../src/index.js';
 
-/** BUILD_SPEC §7, the clarification routes, and `/agent-upload` (§5.10). */
+/** BUILD_SPEC §7, the clarification routes, the recovery routes (decision 26), and `/agent-upload` (§5.10). */
 const EXPECTED = [
   'POST /api/session/unlock',
   'POST /api/session/lock',
@@ -72,6 +75,9 @@ const EXPECTED = [
   'POST /api/import/jira/:id/commit',
   'DELETE /api/import/jira/:id',
   'POST /api/mutations/:id/undo',
+  'GET /api/workspaces',
+  'POST /api/resources/:id/release',
+  'POST /api/runs/:runId/unpushed-handled',
   'GET /api/stream',
   'POST /agent-upload',
 ];
@@ -85,11 +91,11 @@ const keysOf = (schema: z.ZodType): string[] => {
 };
 
 describe('the route table', () => {
-  it('has every BUILD_SPEC §7 route, the clarification routes and /agent-upload, once each', () => {
+  it('has every BUILD_SPEC §7 route, the clarification and recovery routes and /agent-upload, once each', () => {
     const labels = ROUTE_IDS.map((id) => routeLabel(API_ROUTES[id]));
     expect(new Set(labels).size).toBe(labels.length);
     expect([...labels].sort()).toEqual([...EXPECTED].sort());
-    expect(labels).toHaveLength(50);
+    expect(labels).toHaveLength(53);
   });
 
   it('puts each route in a known group, and every group has a route', () => {
@@ -169,6 +175,37 @@ describe('strict inputs reuse the MCP did-you-mean message', () => {
 });
 
 describe('field rules', () => {
+  it('recovery: workspaces filter by scope and one state; release takes an optional note ≤ 500', () => {
+    expect(workspacesQuery.parse({})).toEqual({ scope: 'all' });
+    expect(workspacesQuery.parse({ scope: 'RCP', state: 'at_risk' })).toEqual({
+      scope: 'RCP',
+      state: 'at_risk',
+    });
+    expect(workspacesQuery.safeParse({ state: 'pruned' }).success).toBe(false);
+    expect(releaseResourceBody.parse({})).toEqual({});
+    expect(releaseResourceBody.parse({ note: 'Stopped it.' })).toEqual({ note: 'Stopped it.' });
+    expect(releaseResourceBody.safeParse({ note: 'x'.repeat(501) }).success).toBe(false);
+    expect(API_ROUTES['resources.release'].undoable).toBe(true);
+    expect(API_ROUTES['runs.unpushedHandled'].undoable).toBe(true);
+  });
+
+  it('recovery problems name the run and the resources their actions need', () => {
+    const row = {
+      kind: 'orphaned_resources',
+      item_id: 'RCP-21',
+      title: 'Unit conversion table',
+      reason: "RCP-21's run ended 03:12 but left: dev server :5173",
+      related: [],
+      link_id: null,
+      run_id: 'run_21',
+      resource_ids: ['rsc_1'],
+    };
+    expect(problemSchema.parse(row)).toEqual(row);
+    for (const kind of ['unpushed_work', 'parked_too_long', 'resume_unattended']) {
+      expect(problemSchema.safeParse({ ...row, kind }).success, kind).toBe(true);
+    }
+  });
+
   it('PATCH /api/items/:id needs expected_version and at least one change', () => {
     expect(patchItemBody.safeParse({ expected_version: 3 }).success).toBe(false);
     expect(patchItemBody.safeParse({ title: 'x' }).success).toBe(false);

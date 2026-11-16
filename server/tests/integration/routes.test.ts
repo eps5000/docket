@@ -126,6 +126,9 @@ const VALID: Record<RouteId, Req> = {
   'projects.delete': { params: { key: 'RCP' }, body: { confirm_key: 'RCP' } },
   'diagnostics.calls': { query: { days: '7' } },
   'mutations.undo': { params: { id: 'mut_01JAAAAAAAAAAAAAAAAAAAAAAA' }, body: {} },
+  'workspaces.list': { query: { scope: 'RCP', state: 'at_risk' } },
+  'resources.release': { params: { id: 'rsc_1' }, body: { note: 'Stopped the dev server.' } },
+  'runs.unpushedHandled': { params: { runId: 'run_21' }, body: {} },
   'agentUpload.post': { body: { item_id: 'RCP-2', kind: 'planning' } },
 };
 

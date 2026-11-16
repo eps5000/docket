@@ -52,6 +52,24 @@ export const LIMITS = {
   checks_max: 30,
   human_review_declare_max: 10,
   subgraph_depth_max: 5,
+  // ---- Recovery (MCP_SPEC §3 "Workspaces, briefs and resources", §5.4, §5.9) ----
+  /** `brief` text on claim_lead and start_run. */
+  brief: 20_000,
+  /** `external`: UTF-8 bytes of its JSON. */
+  external_bytes: 2_048,
+  resources_started_max: 10,
+  resource_label: 120,
+  park_reason: 500,
+  // B5 resolutions (limits MCP_SPEC doesn't name; listed in the B5 PR):
+  external_key: 40,
+  workspace_host: 200,
+  workspace_repo: 2_000,
+  workspace_path: 1_000,
+  orchestrator_name: 40,
+  locator_text: 200,
+  release_note: 500,
+  resources_released_max: 50,
+  waiting_on_items_max: 20,
   /** Upper bound for opaque identifiers and cursors (not a spec limit; a sanity bound). */
   id: 100,
   /** Lists in compact text truncate long text at this many characters (§3.1). */
@@ -81,4 +99,5 @@ export const ID_PREFIXES = {
   document_version: 'dv_',
   packet: 'pkt_',
   decision: 'dec_',
+  resource: 'rsc_',
 } as const;

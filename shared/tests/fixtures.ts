@@ -3,17 +3,33 @@
  * design/sample-data.json and the IDs of the MCP_SPEC §3.1 example (`wst_a`,
  * `chk_a`, `hr_a`, `dec_1`, `run_01JA…`). Plain objects, no database.
  */
+import type { RecoveryReport } from '../src/mcp/recovery.js';
 import type {
   ContextBundle,
   DecisionRecord,
   HumanReviewItem,
   Item,
   ItemSummary,
+  Resource,
+  Run,
   WorkStep,
 } from '../src/mcp/types.js';
 
 /** "Today" for the fixtures: times on this UTC date render as HH:MMZ. */
 export const NOW = new Date('2026-11-06T11:00:00.000Z');
+
+/** A run's recovery fields when nothing was reported (MCP_SPEC §4 Run). */
+export const NO_RECOVERY: Pick<
+  Run,
+  'end_reason' | 'parked' | 'workspace' | 'orchestrator' | 'brief_document_version_id' | 'resources'
+> = {
+  end_reason: null,
+  parked: null,
+  workspace: null,
+  orchestrator: null,
+  brief_document_version_id: null,
+  resources: [],
+};
 
 const step = (over: Partial<WorkStep> & Pick<WorkStep, 'id' | 'text' | 'state'>): WorkStep => ({
   was_text: null,
@@ -186,6 +202,7 @@ export const RCP14: Item = {
       current_step_id: 'wst_b',
       summary: null,
       error: null,
+      ...NO_RECOVERY,
     },
     {
       run_id: 'run_r77',
@@ -200,12 +217,15 @@ export const RCP14: Item = {
       current_step_id: null,
       summary: 'Conversion table + 31 tests',
       error: null,
+      ...NO_RECOVERY,
+      end_reason: 'finished',
     },
   ],
   decisions: [
     { id: 'dec_1', title: 'Units are metric internally; convert on display', authority: 'owner' },
   ],
   open_question: null,
+  resume: null,
   unread_owner_notes: [],
   documents: [
     {
@@ -310,4 +330,195 @@ export const RCP14_CONTEXT: ContextBundle = {
   last_review: null,
   budget: 'medium',
   truncated_sections: [],
+};
+
+// ---- Recovery (MCP_SPEC §3 "Workspaces, briefs and resources", §5.9, §7.12–7.13) ----
+
+export const DEV_SERVER: Resource = {
+  id: 'rsc_1',
+  kind: 'dev_server',
+  label: 'dev server :5173',
+  locator: { port: 5173, pid: 4242 },
+  started_at: '2026-11-06T02:40:00.000Z',
+  released_at: null,
+  release_note: null,
+};
+
+const runBase = {
+  parent_run_id: null,
+  is_lead: true,
+  lease_expires_at: null,
+  current_step_id: null,
+  summary: null,
+  error: null,
+  ...NO_RECOVERY,
+} as const;
+
+/** §7.12: parked on RCP-12, which is now done. */
+export const RUN_PARKED: Run = {
+  ...runBase,
+  run_id: 'run_A',
+  client: 'claude',
+  label: 'orca-w2',
+  run_state: 'parked',
+  started_at: '2026-11-06T08:00:00.000Z',
+  last_signal_at: '2026-11-06T10:40:00.000Z',
+  lease_expires_at: '2026-11-06T11:40:00.000Z',
+  parked: {
+    reason: 'Waiting for RCP-12 (planner) to merge before wiring templates in',
+    waiting_on: { items: ['RCP-12'] },
+    since: '2026-11-06T10:40:00.000Z',
+    resume_ready: true,
+  },
+  workspace: {
+    host: 'devbox',
+    repo: 'github.com/owner/recipes',
+    path: 'C:/work/rcp-23',
+    branch: 'rcp-23-templates',
+    base_ref: 'origin/main',
+    base_sha: '9a10624',
+    head_sha: 'c1d2e3f',
+    pushed_sha: 'c1d2e3f',
+    dirty: false,
+    state: 'parked',
+    updated_at: '2026-11-06T10:39:00.000Z',
+  },
+  orchestrator: { name: 'orca', dispatch_id: 'ctx_6f2d', task_id: null, run_id: null },
+  brief_document_version_id: 'dv_brief23',
+};
+
+/** §7.13: interrupted by a restart, everything pushed (the §5.9 text example). */
+export const RUN_RESTARTED: Run = {
+  ...runBase,
+  run_id: 'run_15',
+  client: 'codex',
+  label: 'orca-w1',
+  run_state: 'interrupted',
+  started_at: '2026-11-06T01:00:00.000Z',
+  last_signal_at: '2026-11-06T03:00:00.000Z',
+  end_reason: 'service_restart',
+  workspace: {
+    host: null,
+    repo: null,
+    path: 'C:/…/rcp-15',
+    branch: null,
+    base_ref: null,
+    base_sha: null,
+    head_sha: '4be1c09',
+    pushed_sha: '4be1c09',
+    dirty: null,
+    state: 'safe_to_prune',
+    updated_at: '2026-11-06T02:58:00.000Z',
+  },
+  brief_document_version_id: 'dv_…',
+};
+
+/** §7.13: lease expired with an unpushed commit, uncommitted changes and a dev server. */
+export const RUN_AT_RISK: Run = {
+  ...runBase,
+  run_id: 'run_21',
+  client: 'claude',
+  label: 'orca-w4',
+  run_state: 'interrupted',
+  started_at: '2026-11-06T01:30:00.000Z',
+  last_signal_at: '2026-11-06T02:10:00.000Z',
+  end_reason: 'lease_expired',
+  workspace: {
+    host: 'devbox',
+    repo: null,
+    path: 'C:/work/rcp-21',
+    branch: 'rcp-21-units',
+    base_ref: 'origin/main',
+    base_sha: '9a10624',
+    head_sha: '77aa001',
+    pushed_sha: '6f00e12',
+    dirty: true,
+    state: 'at_risk',
+    updated_at: '2026-11-06T02:10:00.000Z',
+  },
+  orchestrator: { name: 'orca', dispatch_id: 'ctx_91ab', task_id: 'task_7', run_id: null },
+  brief_document_version_id: 'dv_brief21',
+  resources: [DEV_SERVER],
+  external: { orca: { worktree_id: 'wt_21' } },
+};
+
+const summaryOf = (id: string, title: string, over: Partial<ItemSummary> = {}): ItemSummary => ({
+  ...RCP14_SUMMARY,
+  id,
+  title,
+  status: 'progress',
+  lead: null,
+  epic: null,
+  epic_title: null,
+  labels: [],
+  ...over,
+});
+
+export const RECOVERY_REPORT: RecoveryReport = {
+  interrupted: [
+    {
+      item: summaryOf('RCP-15', 'Pantry inventory schema'),
+      run: RUN_RESTARTED,
+      end_reason: 'service_restart',
+      checklist: { done: 2, total: 4 },
+      open_question: null,
+    },
+    {
+      item: summaryOf('RCP-21', 'Unit conversion table'),
+      run: RUN_AT_RISK,
+      end_reason: 'lease_expired',
+      checklist: { done: 1, total: 3 },
+      open_question: {
+        id: 'q_7',
+        text: 'Round 1/3 cup to 80 ml or 79 ml?',
+        asked_at: '2026-11-06T02:00:00.000Z',
+        answer: null,
+        answered_at: null,
+      },
+      brief: 'Implement the unit conversion table.\nResume from the checklist; claim_lead first.',
+    },
+  ],
+  stale: [],
+  parked: [
+    {
+      item: summaryOf('RCP-23', 'Meal plan templates', {
+        lead: { client: 'claude', label: 'orca-w2', run_id: 'run_A', run_state: 'parked' },
+      }),
+      run: RUN_PARKED,
+      resume_ready: true,
+    },
+  ],
+  workspaces: [
+    {
+      path: 'C:/work/rcp-21',
+      branch: 'rcp-21-units',
+      item_id: 'RCP-21',
+      run_id: 'run_21',
+      state: 'at_risk',
+      head_sha: '77aa001',
+      pushed_sha: '6f00e12',
+      dirty: true,
+      unreleased_resources: 1,
+    },
+    {
+      path: 'C:/work/rcp-30',
+      branch: 'rcp-30-share',
+      item_id: 'RCP-30',
+      run_id: 'run_30',
+      state: 'safe_to_prune',
+      head_sha: 'aa11bb2',
+      pushed_sha: 'aa11bb2',
+      dirty: false,
+      unreleased_resources: 0,
+    },
+  ],
+  orphaned_resources: [
+    {
+      resource: DEV_SERVER,
+      item_id: 'RCP-21',
+      run_id: 'run_21',
+      run_ended_at: '2026-11-06T03:12:00.000Z',
+    },
+  ],
+  next_cursor: null,
 };

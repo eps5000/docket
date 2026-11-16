@@ -1,0 +1,96 @@
+/**
+ * Recovery (owner decision 26; BUILD_SPEC §5.16, §7; UI_SPEC §6.1, §6.3.2,
+ * §6.6; contracts/ui-api.md US11): the Agents → Workspaces card and the two
+ * Problems actions, *Mark released* on an orphaned resource and *Handled* on
+ * "Unpushed work may be lost". Shared contract file (tasks.md, Slice rules).
+ */
+import { z } from 'zod';
+import { objectId, text } from '../mcp/common.js';
+import { LIMITS } from '../mcp/limits.js';
+import { resourceSchema, runStateSchema, workspaceStateSchema } from '../mcp/types.js';
+import { input, jsonResponse, noInput, ownerMutationOutput, scopeSchema } from './common.js';
+import { json, route } from './route.js';
+
+// ---- GET /api/workspaces ----
+
+export const workspacesQuery = input({
+  scope: scopeSchema,
+  /** One state only; the "Hide safe to prune" chip filters on the client. */
+  state: workspaceStateSchema.optional(),
+});
+
+/** One recorded worktree (UI_SPEC §6.6 Workspaces), from its latest run. */
+export const workspaceRowSchema = z.object({
+  path: z.string(),
+  state: workspaceStateSchema,
+  branch: z.string().nullable(),
+  host: z.string().nullable(),
+  repo: z.string().nullable(),
+  item_id: z.string(),
+  item_title: z.string(),
+  project: z.string(),
+  /** The latest run in this worktree. */
+  run_id: z.string(),
+  run_state: runStateSchema,
+  client: z.string(),
+  label: z.string().nullable(),
+  head_sha: z.string().nullable(),
+  pushed_sha: z.string().nullable(),
+  /** Reported commits not yet pushed ("n behind"); null when it can't be told. */
+  unpushed_commits: z.number().int().nullable(),
+  dirty: z.boolean().nullable(),
+  unreleased_resources: z.number().int(),
+  last_activity_at: z.string(),
+});
+export type WorkspaceRow = z.infer<typeof workspaceRowSchema>;
+
+export const workspacesResponse = jsonResponse({ rows: z.array(workspaceRowSchema) });
+export type WorkspacesResponse = z.infer<typeof workspacesResponse>;
+
+// ---- POST /api/resources/:id/release ----
+
+export const resourceParams = input({ id: objectId });
+export const releaseResourceBody = input({ note: text(LIMITS.release_note).optional() });
+export const releaseResourceResponse = ownerMutationOutput({ resource: resourceSchema });
+export type ReleaseResourceResponse = z.infer<typeof releaseResourceResponse>;
+
+// ---- POST /api/runs/:runId/unpushed-handled ----
+
+export const runParams = input({ runId: objectId });
+export const unpushedHandledResponse = ownerMutationOutput({
+  run_id: z.string(),
+  unpushed_handled_at: z.string(),
+});
+export type UnpushedHandledResponse = z.infer<typeof unpushedHandledResponse>;
+
+export const recoveryRoutes = {
+  'workspaces.list': route({
+    method: 'GET',
+    path: '/api/workspaces',
+    group: 'recovery',
+    params: noInput,
+    query: workspacesQuery,
+    body: null,
+    response: json(workspacesResponse),
+  }),
+  'resources.release': route({
+    method: 'POST',
+    path: '/api/resources/:id/release',
+    group: 'recovery',
+    params: resourceParams,
+    query: noInput,
+    body: releaseResourceBody,
+    response: json(releaseResourceResponse),
+    undoable: true,
+  }),
+  'runs.unpushedHandled': route({
+    method: 'POST',
+    path: '/api/runs/:runId/unpushed-handled',
+    group: 'recovery',
+    params: runParams,
+    query: noInput,
+    body: noInput,
+    response: json(unpushedHandledResponse),
+    undoable: true,
+  }),
+} as const;

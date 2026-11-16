@@ -103,7 +103,10 @@ Environment variables, with defaults:
 | `TASKLITE_ALLOWED_HOSTS` | `127.0.0.1:7420,localhost:7420` | Host header allowlist (DNS-rebinding guard). |
 | `TASKLITE_LIVE_WINDOW` | `2m` | Run counts as *live* if its session showed signs of life within this window. |
 | `TASKLITE_STALE_AFTER` | `30m` | Open run with no signal for this long is *stale*. |
-| `TASKLITE_LEASE` | `60m` | Lead claim lease, renewed by any signal from the run. |
+| `TASKLITE_LEASE` | `60m` | Lead claim lease, renewed by any signal from the run. Suspended while the run is parked. |
+| `TASKLITE_PARK_MAX` | `24h` | How long a run may stay parked before it shows under Problems. It keeps its claim either way. |
+| `TASKLITE_RESUME_UNATTENDED` | `30m` | How long a parked run may sit `resume_ready` before it shows under Problems as "Ready to resume". |
+| `TASKLITE_ORPHAN_AFTER` | `15m` | How long a resource may stay unreleased after its run ends before it shows as an orphaned resource. |
 | `TASKLITE_BACKUP_AT` | `03:00` | Local time for the nightly backup. |
 | `TASKLITE_BACKUP_KEEP` | `14` | Days of backups kept, in every location. |
 | `TASKLITE_BACKUP_EXTRA_DIR` | (unset) | Opt-in extra backup location: the path *inside the container* of a host folder bind-mounted by the owner (e.g. `/backups-extra`). When it's set and writable, each nightly backup is also copied there (owner decision 24). |
@@ -163,12 +166,13 @@ SQLite tables. Every row has `id`, `created_at` and `updated_at`; all timestamps
 | `packet_items` | `packet_id`, `hr_item_id`, `text_snapshot` | Freezes the item text as it was in this round. |
 | `packet_attachments` | `packet_id`, `document_version_id`, `caption` | |
 | `review_decisions` | `packet_id`, `hr_item_id`, `kind` (approve\|changes\|defer), `note`, `into` (checklist\|bug), `follow` (ticket\|none), `result_ref`, `decided_at` | Always owner. |
-| `runs` | `item_id`, `parent_run_id`, `client`, `label`, `session_id`, `is_lead`, `state` (open\|needs_input\|finished\|failed\|interrupted), `last_signal_at`, `last_signal_kind` (session\|report\|relayed), `lease_expires_at`, `summary`, `error`, `current_step_id` | The displayed run state is derived (§5.4). |
+| `runs` | `item_id`, `parent_run_id`, `client`, `label`, `session_id`, `is_lead`, `state` (open\|needs_input\|finished\|failed\|interrupted), `last_signal_at`, `last_signal_kind` (session\|report\|relayed), `lease_expires_at`, `summary`, `error`, `current_step_id`, `end_reason` (finished\|failed\|released\|lease_expired\|owner_released\|service_restart\|canceled), `parked_reason`, `waiting_on` (JSON), `parked_at`, `workspace` (JSON: host, repo, path, branch, base_ref, base_sha, head_sha, pushed_sha, dirty, updated_at), `orchestrator` (JSON: name, dispatch_id, task_id, run_id), `brief_document_version_id`, `external` (JSON, ≤ 2 KB), `unpushed_handled_at` (set by the owner's *Handled*) | The displayed run state is derived (§5.4). The stored `state` gains `parked`. Workspace state is derived (§5.16). |
+| `run_resources` | `id` (`rsc_…`), `run_id`, `kind` (process\|dev_server\|session\|container\|temp_dir\|port\|other), `label`, `locator` (JSON: pid, port, session_id, container, path, host), `started_at`, `released_at`, `released_by`, `release_note` | §5.16. |
 | `questions` | `item_id`, `run_id`, `text`, `asked_by`, `answer`, `answered_at`, `read_by_agent_at` | |
 | `owner_notes` | `item_id`, `text`, `read_by_agent_at` | |
-| `commits` | `item_id`, `sha`, `branch`, `message`, `pr_url`, `reported_by`, `reported_at` | Drives packet staleness. |
+| `commits` | `item_id`, `run_id`, `sha`, `branch`, `message`, `pr_url`, `pushed`, `reported_by`, `reported_at` | Drives packet staleness. With `pushed`, it also sets the run's `workspace.pushed_sha`. |
 | `artifacts` | `item_id`, `kind` (url\|pr\|ci\|deploy\|test), `label`, `url`, `state`, `provenance` | A08 evidence links. |
-| `documents` | `project_key`, `item_id` (nullable), `name`, `kind` (planning\|packet_attachment\|import_report\|other) | Unique `(item_id, name)`. |
+| `documents` | `project_key`, `item_id` (nullable), `name`, `kind` (planning\|packet_attachment\|import_report\|brief\|other; `brief` is written only through `claim_lead`/`start_run`) | Unique `(item_id, name)`. |
 | `document_versions` | `document_id`, `version_no`, `mime`, `size`, `sha256`, `path`, `created_by` | Immutable. |
 | `events` | `seq` (autoincrement, the change cursor), `at`, `actor_kind` (owner\|agent\|system), `client`, `label`, `run_id`, `project_key`, `item_id`, `type`, `summary`, `data` (JSON), `inverse` (JSON, nullable), `mutation_id`, `idempotency_key` | Append-only (O03). `summary` is the one-line text shown in Activity. |
 | `idempotency` | `key`, `client`, `request_hash`, `response`, `expires_at` | Retained 24 h. |
@@ -236,7 +240,7 @@ A15.
 - `claim_lead` is atomic, a conditional update on "no active lead run". It works on Ready items that aren't blocked (moving them to `progress`) and on `progress` items with no lead (resuming them).
 - A failed lead run (`finish_run` with `failed`) or a send-back from the owner leaves the item in `progress` with no lead. It shows under Problems (failed) or as `resumable`.
 - If someone else holds the claim, it returns `conflict` with the current claimant, lease expiry and last signal, and records the rejected claim as an event. The Activity view shows those rejections.
-- A claim creates an open lead run with `lease_expires_at = now + LEASE`. Any signal (§5.4) extends the lease.
+- A claim creates an open lead run with `lease_expires_at = now + LEASE`. Any signal (§5.4) extends the lease. **A parked run's lease is suspended** (§5.16): it neither expires nor goes stale.
 - **When the lease expires,** the sweeper ends the run as `interrupted` ("lease expired"), releases the claim, and moves the item from `progress` back to `ready`. The checklist, logs and partial work stay on the ticket, and an event records why.
 - **Owner *Release lead claim*:** same effect, earlier. It needs a confirmation dialog whose focus starts on Cancel.
 - **If the original agent comes back** after either, its next call naming the old run returns `conflict` with the current state.
@@ -253,6 +257,7 @@ A06, H05. **The rule: never show more certainty than the data supports.** A sign
 | live | open, and the last *session* signal is within `LIVE_WINDOW` |
 | reported | open, no session signal within `LIVE_WINDOW`, and the last signal of any kind is within `STALE_AFTER` |
 | stale | open, and no signal for `STALE_AFTER` |
+| parked | `state = parked` (§5.16). Never stale while parked. Shown with what it's waiting on. |
 | needs input | `state = needs_input` (an open question) |
 | failed / finished / interrupted | terminal `state` |
 
@@ -377,11 +382,44 @@ Shared knowledge that agents must respect: "Nutrition is per serving", "Use the 
 
 **Budgets** (approximate tokens, counted as characters ÷ 4): `small` 1,000, `medium` 3,000 (the default), `large` 8,000. Sections are filled in the order above. Truncation is marked inline ("…truncated; read pantry-prd.md v3 with get_item"), never silently.
 
+### 5.16 Recovery: workspaces, briefs, resources, parking
+Owner decision 26, after an Orca crash pruned worktrees that held in-flight work. The aim: a crashed orchestrator or worker restarts **without guessing**, and nothing is left running unnoticed. Task Lite only **records**; the coordinator acts (Principle I).
+
+- **Workspace.**
+  - Set on `claim_lead` and `start_run`; patched by `heartbeat`.
+  - `report_commit` with `pushed: true` sets `pushed_sha`.
+  - `head_sha` comes from the latest reported commit or heartbeat.
+  - **Derived state per worktree path:**
+    - `in_use`: an open run;
+    - `parked`: a parked run;
+    - `at_risk`: no open run, and `dirty`, or `head_sha` ≠ `pushed_sha`, or unreleased resources;
+    - `safe_to_prune`: all runs ended, pushed, clean, and resources released;
+    - `unknown`: not enough data.
+- **Brief.** `claim_lead` and `start_run` accept the brief as text (≤ 20,000 characters), stored as an immutable document of kind `brief` named `brief-<run_id>.md` on the item, or as a `document_version_id`. It's linked from the run. A restart re-sends it unchanged.
+- **Parking.**
+  - `park_run` sets `state = parked` with a reason and `waiting_on`. While parked the run never goes stale, its lease is suspended, its workspace counts as `in_use`, and it keeps its claim.
+  - Any later call with the `run_id` resumes it (events `run.parked` and `run.resumed`).
+  - `resume_ready` is true when every `waiting_on.items` entry is done or cleared, or `until` has passed.
+  - **Problems:**
+    - "Parked for 24h" after `PARK_MAX`;
+    - "Ready to resume, unattended" after `RESUME_UNATTENDED` with `resume_ready` true.
+
+    Neither releases the claim; the owner can *Release lead claim* as usual.
+- **Resources.**
+  - Declared and released through `heartbeat` (`resource.declared` and `resource.released` events).
+  - `finish_run` warns about unreleased resources and unpushed commits.
+  - When a run ends for any reason, its unreleased resources stay listed. After `ORPHAN_AFTER` they show as "Orphaned resources" under Problems until a later run of the item, or the owner, marks them released.
+- **End reasons.**
+  - Every run that ends records an `end_reason`: `finished` and `failed` (`finish_run`), `released` (`release_lead`), `lease_expired` (sweeper), `owner_released` (*Release lead claim*), `service_restart` (boot sweep) or `canceled` (owner cancel).
+  - **"Unpushed work may be lost"** shows under Problems when a run ends other than `finished`/`failed` while `dirty` is true or `head_sha` ≠ `pushed_sha`. It clears when a later run reports a pushed commit, or the owner marks it *Handled*.
+- **`recovery_report`** (MCP_SPEC §5.9) is read-only and assembles the restart list. The coordinator recovery runbook is in [templates/COORDINATOR-recovery.md](templates/COORDINATOR-recovery.md).
+- **Limits.** Task Lite never checks folders, stops processes or prevents pruning: it has no host access, by design. The coordinator does those things using this record.
+
 ---
 
 ## 6. MCP tool contract
 
-**Overview only.** [MCP_SPEC.md](MCP_SPEC.md) is authoritative for the server instructions, every tool's description text, input and output schemas, error messages and worked flows. It defines 36 tools, including `unlink_items`, `update_check` and `update_human_review`, which are paired with their siblings below.
+**Overview only.** [MCP_SPEC.md](MCP_SPEC.md) is authoritative for the server instructions, every tool's description text, input and output schemas, error messages and worked flows. It defines 38 tools, including `unlink_items`, `update_check` and `update_human_review`, which are paired with their siblings below.
 
 Tools are snake_case, with input and output schemas defined in `shared/` with zod, and every result returns `structuredContent`. Lists are paginated with `cursor` and `limit` (default 25, max 50) (A02).
 
@@ -403,9 +441,10 @@ Tools are snake_case, with input and output schemas defined in `shared/` with zo
 | `set_status` | Transition | `id, status, reason?` → item, or `validation` listing the allowed transitions | §5.1 |
 | `link_items` / `unlink_items` | | `from, to, type: blocks\|relates, satisfied_when?: done\|merged\|verified` → link (calling it again on an existing link updates `satisfied_when`); a cycle returns `validation` with the path | A04, §5.2 |
 | `upsert_label` | Agents may create labels | `project, name, brief?` → label | decision 13 |
-| `claim_lead` / `release_lead` | | `id, agent_label?` → `{run_id, lease_expires_at}`, or `conflict` with the claimant / `id, run_id, reason?` | A15 |
+| `claim_lead` / `release_lead` | | `id, agent_label?, workspace?, orchestrator?, brief? \| brief_document_version_id?, external?` → `{run_id, lease_expires_at}`, or `conflict` with the claimant / `id, run_id, reason?` | A15 |
 | `start_run` | Child run under a lead | `id, parent_run_id, agent_label?` → `{run_id}` | A06 |
-| `heartbeat` | Explicit signal | `run_id, current_step_id?, note?` → `{lease_expires_at}` | A06 |
+| `heartbeat` | Explicit signal, run updates | `run_id, current_step_id?, note?, workspace?, resources_started?, resources_released?, external?` → `{run_state, lease_expires_at, resources}` | A06, §5.16 |
+| `park_run` | Wait without losing the claim | `run_id, reason, waiting_on?` → `{run_state, resume_ready}` | §5.16 |
 | `finish_run` | | `run_id, result: finished\|failed, summary, error?` → run | A06 |
 | `set_plan` / `update_step` | Work checklist | `id, steps:[{text, state, id?}], reason` → plan version / `id, step_id, state, note?` | A16 |
 | `log_subagent` | | `id, step_id?, name, outcome, evidence?, provenance: observed\|relayed, child_run_id?` | A17 |
@@ -421,6 +460,7 @@ Tools are snake_case, with input and output schemas defined in `shared/` with zo
 | `get_changes` | Poll | `cursor?, project?, limit?` → `{events[], next_cursor}` | A13 |
 | `dependency_subgraph` | | `id, depth?=2 (1–5), direction?: up\|down\|both` → nodes with status and dates (each date labelled `entered` or `none`) and edges, plus the downstream items whose dates are at risk | A11 |
 | `deferred_reviews` | Cleanup list | `project?` → deferred items with follow-up status | decision 13 |
+| `recovery_report` | Restart list after a crash | `project?, since?, include_briefs?` → interrupted, stale and parked runs, workspaces, orphaned resources | decision 26 |
 | `get_context` | Working context in one call | `id, budget?: small\|medium\|large` → bundle (§5.15) | decision 19 |
 | `publish_decision` | Record a decision | `project, scope: {kind, id?}, title, decision, rationale?, supersedes?` → record (`authority=agent`) | decision 19 |
 | `list_decisions` | Read decisions | `project, scope?, include_inactive?=false` → records | decision 19 |
@@ -440,7 +480,9 @@ These descriptions are the agents' only manual, so write and review them as prod
 
 ## 7. UI JSON API
 
-Every route requires the owner session (§3). JSON bodies are validated with the shared zod schemas. Responses carry the version numbers the client needs for its next write. List endpoints accept `scope` (`all` or a project key).
+Every route requires the owner session (§3). JSON bodies **and query strings** are validated with the shared zod schemas, strictly: unknown keys get `validation` with the same did-you-mean message as MCP. **Request and response shapes are authoritative in `shared/src/api`**, which B4 derived from this table and UI_SPEC. Errors use one envelope, `{error: {code, message, details?}}`, with the MCP error codes; unimplemented routes answer `501` with code `unavailable`. Responses carry the version numbers the client needs for its next write. List endpoints accept `scope` (`all` or a project key).
+
+**Receipt writes:** heartbeats, run signals and delivery receipts ("notes delivered") change run or delivery state **without** appending events, through a separate receipt path (B4). Every other mutation goes through the event-appending write path.
 
 | Method & path | Used by |
 |---|---|
@@ -472,6 +514,8 @@ Every route requires the owner session (§3). JSON bodies are validated with the
 | `GET /api/documents/:versionId/content` | Document viewer, attachments |
 | `POST /api/import/jira/dry-run` · `GET /api/import/jira/:id` · `POST /api/import/jira/:id/commit` · `DELETE /api/import/jira/:id` | Jira import (§9) |
 | `POST /api/mutations/:id/undo` | Undo toast |
+| `GET /api/workspaces?scope&state` | Agents → Workspaces (decision 26): every recorded worktree with its state, branch, item, last activity and unreleased resources |
+| `POST /api/resources/:id/release` `{note?}` · `POST /api/runs/:runId/unpushed-handled` | Problems actions: *Mark released* on an orphaned resource; *Handled* on "Unpushed work may be lost" |
 | `GET /api/stream` | SSE: `event: change`, `id: <seq>`, `data: {seq, type, objects:[{kind, id}], for_you}`, where `for_you` is true only for `packet.submitted` and `question.asked` (used for desktop notifications; specs/001-task-lite-v1/contracts/events.md). The client invalidates matching TanStack Query keys. Supports `Last-Event-ID`. Sends a heartbeat comment every 25 s. |
 | `GET /healthz` (process up) · `GET /readyz` (database writable, docs dir writable, migrations current) | Compose healthcheck, sidebar health line |
 
@@ -572,7 +616,8 @@ Every rule in §5 has tests:
 - Jira mapping of every row in §9;
 - `satisfied_when` (done, merged and verified; project default vs link override; verified with deferred items; re-evaluation on change);
 - decision records (scope inheritance, authority rules, supersede and withdraw);
-- context bundle ordering and budgets.
+- context bundle ordering and budgets;
+- recovery (§5.16): parking (no stale; lease suspended; resume_ready; PARK_MAX), derived workspace states, end reasons for every path, orphan and unpushed Problems, and `recovery_report` after a simulated restart.
 
 ### Integration
 - Drive `/mcp` with the official MCP client SDK.
@@ -662,7 +707,7 @@ The milestones below group *capabilities*. The **execution order** is the batch 
 |---|---|---|
 | M0 | Workspace scaffold, lint, typecheck, Vitest, Dockerfile, compose, `/healthz` and `/readyz`, and the GitHub Actions CI workflow (§2 Stack) | `docker compose up` serves "Task Lite is running"; the CI check is green on the M0 PR, and Mergify waits for it |
 | M1 | Schema and migrations, domain services for §5 (including `satisfied_when`, decision records and the context bundle), event log, idempotency, undo, seed loader | Unit tests for every §5 rule pass; the seed loads deterministically |
-| M2 | MCP server per [MCP_SPEC.md](MCP_SPEC.md): auth, Host/Origin guards, identity, server instructions, all 36 tools with the exact description text, compact text rendering, structured errors, sweeper, restart handling | The MCP_SPEC §10 contract tests pass, including the description snapshot and token budgets; two simultaneous SDK clients work |
+| M2 | MCP server per [MCP_SPEC.md](MCP_SPEC.md): auth, Host/Origin guards, identity, server instructions, all 38 tools with the exact description text, compact text rendering, structured errors, sweeper, restart handling | The MCP_SPEC §10 contract tests pass, including the description snapshot and token budgets; two simultaneous SDK clients work |
 | M3 | Owner session and CSRF, UI API (§7, including owner text edits and the diagnostic log), SSE stream | API contract tests pass; the unlock flow works |
 | M4 | Web shell, tokens, Needs you, Work board and list, ticket and epic pages (four tabs, checklist editing, Decisions sections), open-item tabs, palette, quick capture | The e2e groups for Needs you, Tickets and epics, and Shell pass |
 | M5 | Packet screen and decisions, deferrals, questions and notes, archive, undo toasts, inline editing, desktop notifications and the tab-title count | The e2e groups for Packets and Work (archive) pass |
@@ -696,6 +741,7 @@ These must be byte-for-byte the same on both sides, so put them in `shared/`:
 - item types;
 - filters and their agent-query strings: `status:planning`, `status:ready -is:blocked`, `is:blocked`, `needs:human`, `has:human-review`, `review:deferred`, `run:live`, `is:archived`, and the agent-only `status:progress -has:lead` (`resumable`). Each saved filter's tooltip shows its query, and `search_items` accepts the same filters;
 - the MCP description strings and result-summary templates (`shared/mcp-copy.ts`, MCP_SPEC §9);
+- end reasons, workspace states and resource kinds (§5.16), with their UI labels;
 - the compact text renderers (MCP_SPEC §3.1). The UI uses none of them, but they live in `shared/` so tests can render seed data;
 - `satisfied_when` labels (Done / PR merged / Verified by you) and decision authority labels (Owner / Agent).
 
@@ -722,6 +768,11 @@ Owner decisions are marked **(owner)**. Every other entry is a technical choice 
 | 21 **(owner)** | Opt-in desktop notifications for new for-you events only (packet ready, question asked), plus the for-you count in the tab title. Browser-generated, nothing off-machine. | UI_SPEC §6.7a |
 | 22 **(owner)** | The owner edits an item's title, description, outcome and acceptance criteria inline. Dates, effort and blocker links stay agent-edited in V1. | §7, UI_SPEC §6.3 |
 | T21 | Diagnostic call log: JSONL, one line per MCP call without arguments, rotated daily, kept 7 days, downloadable from Settings. | §2 volume layout, §7 |
+| 26 **(owner)** | Recovery support: runs record their workspace, orchestrator IDs, brief and declared resources; runs can park; `recovery_report` gives the restart list; Problems flag orphaned resources and unpushed work. Prompted by an Orca crash that pruned worktrees holding in-flight work. Task Lite records; the coordinator acts. | §5.16, MCP_SPEC §3 and §5.9 |
+| T22 | Parked runs keep their claim indefinitely and are only flagged after `PARK_MAX` (24 h); they are never auto-released. | §5.16 |
+| T23 | Workspace state is derived per worktree path from reported data (`dirty`, `head_sha`, `pushed_sha`, resources), never by inspecting the host. | §5.16 |
+| T24 | API errors use the envelope `{error:{code,message,details?}}`; queries are strict; `shared/src/api` holds the authoritative request and response shapes (from B4). | §7 |
+| T25 | Event-less receipt writes for heartbeats, signals and delivery receipts (from B4). | §7 |
 | T1 | One port (7420) for MCP, API and UI, published only on 127.0.0.1, with Host and Origin allowlists. | §2, §3 |
 | 23 **(owner)** | The owner can cancel any open item from the UI, with an optional reason and Undo. | §5.1, UI_SPEC §6.3 |
 | 24 **(owner)** | Backups stay in the data volume by default; the owner can opt in to an extra copy in a host folder. | §5.13, §2 Configuration |

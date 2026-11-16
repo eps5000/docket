@@ -285,7 +285,7 @@ function internal(runtime: Runtime, tool: string, cause: unknown): ToolError {
   });
 }
 
-/** Register all 36 tools on a session's server (the McpHub `configure` hook). */
+/** Register all 38 tools on a session's server (the McpHub `configure` hook). */
 export function registerTools(server: McpServer, opts: RegisterOptions): void {
   // The tool list is fixed for the life of the server (MCP_SPEC §1). Declared
   // on the low-level server, before connect: McpServer's own tool registration

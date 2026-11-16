@@ -12,17 +12,20 @@ import {
   DECISION_SCOPE_KINDS,
   DECISION_STATUSES,
   DOC_KINDS,
+  END_REASONS,
   EVENT_TYPES,
   HUMAN_REVIEW_STATES,
   ITEM_TYPES,
   PACKET_STATES,
   PROVENANCES,
+  RESOURCE_KINDS,
   REVIEW_KINDS,
   RUN_STATES,
   SATISFIED_WHEN,
   STATUSES,
   SUBAGENT_PROVENANCES,
   WORK_STEP_STATES,
+  WORKSPACE_STATES,
 } from '../enums.js';
 
 // ---- Scalars ----
@@ -40,6 +43,9 @@ export const checkStateSchema = z.enum(CHECK_STATES);
 export const humanReviewStateSchema = z.enum(HUMAN_REVIEW_STATES);
 export const reviewKindSchema = z.enum(REVIEW_KINDS);
 export const addedBySchema = z.enum(ADDED_BY);
+export const endReasonSchema = z.enum(END_REASONS);
+export const workspaceStateSchema = z.enum(WORKSPACE_STATES);
+export const resourceKindSchema = z.enum(RESOURCE_KINDS);
 
 // ---- ItemSummary and Item ----
 
@@ -154,6 +160,76 @@ export const humanReviewItemSchema = z.object({
 });
 export type HumanReviewItem = z.infer<typeof humanReviewItemSchema>;
 
+// ---- Recovery: workspaces, resources, parking (MCP_SPEC §3 "Workspaces, briefs and resources") ----
+
+/** Where a run's work lives, as reported by the agent. `state` is derived per worktree path. */
+export const workspaceSchema = z.object({
+  host: z.string().nullable(),
+  repo: z.string().nullable(),
+  path: z.string().nullable(),
+  branch: z.string().nullable(),
+  base_ref: z.string().nullable(),
+  base_sha: z.string().nullable(),
+  head_sha: z.string().nullable(),
+  pushed_sha: z.string().nullable(),
+  /** Uncommitted changes, as the agent reports them; null when never reported. */
+  dirty: z.boolean().nullable(),
+  state: workspaceStateSchema,
+  updated_at: z.string(),
+});
+export type Workspace = z.infer<typeof workspaceSchema>;
+
+/** What a parked run waits on (`park_run`). */
+export const waitingOnSchema = z.object({
+  items: z.array(z.string()).optional(),
+  orchestrator: z.boolean().optional(),
+  person: z.boolean().optional(),
+  until: z.string().optional(),
+});
+export type WaitingOn = z.infer<typeof waitingOnSchema>;
+
+/** Enough to find a resource again. */
+export const resourceLocatorSchema = z.object({
+  pid: z.number().int().optional(),
+  port: z.number().int().optional(),
+  session_id: z.string().optional(),
+  container: z.string().optional(),
+  path: z.string().optional(),
+  host: z.string().optional(),
+});
+export type ResourceLocator = z.infer<typeof resourceLocatorSchema>;
+
+/** A long-lived thing a run started (`rsc_…`), declared and released through `heartbeat`. */
+export const resourceSchema = z.object({
+  id: z.string(),
+  kind: resourceKindSchema,
+  label: z.string(),
+  locator: resourceLocatorSchema,
+  started_at: z.string(),
+  released_at: z.string().nullable(),
+  release_note: z.string().nullable(),
+});
+export type Resource = z.infer<typeof resourceSchema>;
+
+/** The orchestrator's own IDs for a run (for example Orca's), so a coordinator can match its records. */
+export const orchestratorRefSchema = z.object({
+  name: z.string(),
+  dispatch_id: z.string().nullable(),
+  task_id: z.string().nullable(),
+  run_id: z.string().nullable(),
+});
+export type OrchestratorRef = z.infer<typeof orchestratorRefSchema>;
+
+/** A namespaced map (≤ 2 KB of JSON), stored as it is and never interpreted. */
+export const externalSchema = z.record(z.string(), z.unknown());
+
+export const runParkedSchema = z.object({
+  reason: z.string(),
+  waiting_on: waitingOnSchema,
+  since: z.string(),
+  resume_ready: z.boolean(),
+});
+
 export const runSchema = z.object({
   run_id: z.string(),
   parent_run_id: z.string().nullable(),
@@ -167,8 +243,27 @@ export const runSchema = z.object({
   current_step_id: z.string().nullable(),
   summary: z.string().nullable(),
   error: z.string().nullable(),
+  /** Set once the run has ended. */
+  end_reason: endReasonSchema.nullable(),
+  parked: runParkedSchema.nullable(),
+  workspace: workspaceSchema.nullable(),
+  orchestrator: orchestratorRefSchema.nullable(),
+  brief_document_version_id: z.string().nullable(),
+  resources: z.array(resourceSchema),
+  /** `get_item` view `full` and `recovery_report` only. */
+  external: externalSchema.optional(),
 });
 export type Run = z.infer<typeof runSchema>;
+
+/** `Item.resume`: set when the item is resumable or its last run was interrupted. */
+export const itemResumeSchema = z.object({
+  workspace: workspaceSchema.nullable(),
+  last_pushed_sha: z.string().nullable(),
+  brief_document_version_id: z.string().nullable(),
+  last_end_reason: endReasonSchema.nullable(),
+  unreleased_resources: z.number().int(),
+});
+export type ItemResume = z.infer<typeof itemResumeSchema>;
 
 export const questionSchema = z.object({
   id: z.string(),
@@ -232,6 +327,8 @@ export const itemSchema = itemSummarySchema.extend({
     z.object({ id: z.string(), title: z.string(), authority: z.enum(DECISION_AUTHORITIES) }),
   ),
   open_question: questionSchema.nullable(),
+  /** Set when the item is resumable or its last run was interrupted (MCP_SPEC §4). */
+  resume: itemResumeSchema.nullable(),
   /** Returned once, then marked read. */
   unread_owner_notes: z.array(z.object({ id: z.string(), text: z.string(), at: z.string() })),
   documents: z.array(

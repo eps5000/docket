@@ -1,5 +1,5 @@
 /**
- * The tool registry: all 36 tools in MCP_SPEC §5 order, with their group,
+ * The tool registry: all 38 tools in MCP_SPEC §5 order, with their group,
  * kind, input and output schemas and MCP annotations (§3 Tool annotations).
  * Descriptions live in mcp-copy.ts. Shared contract file (tasks.md, Slice rules).
  */
@@ -7,12 +7,13 @@ import type { z } from 'zod';
 import * as checklist from './checklist.js';
 import * as items from './items.js';
 import * as read from './read.js';
+import * as recovery from './recovery.js';
 import * as review from './review.js';
 import * as runs from './runs.js';
 
 /** Server file each tool's handler lives in (`server/src/mcp/tools/<group>.ts`). */
 export type ToolGroup =
-  'read' | 'items' | 'runs' | 'checklist' | 'evidence' | 'review' | 'decisions';
+  'read' | 'items' | 'runs' | 'checklist' | 'evidence' | 'review' | 'decisions' | 'recovery';
 
 /**
  * - `read`: no side effects (`readOnlyHint: true`).
@@ -81,6 +82,7 @@ export const TOOLS = [
   def('start_run', 'runs', 'mutating', runs.startRunInput, runs.startRunOutput),
   def('heartbeat', 'runs', 'mutating', runs.heartbeatInput, runs.heartbeatOutput),
   def('finish_run', 'runs', 'mutating', runs.finishRunInput, runs.finishRunOutput),
+  def('park_run', 'runs', 'mutating', runs.parkRunInput, runs.parkRunOutput),
   // §5.5 Checklist
   def('set_plan', 'checklist', 'mutating', checklist.setPlanInput, checklist.setPlanOutput),
   def(
@@ -143,6 +145,14 @@ export const TOOLS = [
     'mutating',
     review.withdrawDecisionInput,
     review.withdrawDecisionOutput,
+  ),
+  // §5.9 Recovery
+  def(
+    'recovery_report',
+    'recovery',
+    'read',
+    recovery.recoveryReportInput,
+    recovery.recoveryReportOutput,
   ),
 ] as const;
 

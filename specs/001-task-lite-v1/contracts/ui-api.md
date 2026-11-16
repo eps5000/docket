@@ -16,6 +16,7 @@ and mutations also need the `X-Tasklite-CSRF` header. This index groups the rout
 | `POST /api/import/jira/dry-run`, `GET …/:id`, `POST …/:id/commit`, `DELETE …/:id` | US9 | FR-090 to FR-092 |
 | `GET /api/settings`, `DELETE /api/projects/:key`, `GET /api/diagnostics/calls` | US10 | FR-103, FR-104, FR-107, FR-108 |
 | `POST /api/mutations/:id/undo` | all | FR-062 |
+| `GET /api/workspaces`, `POST /api/resources/:id/release`, `POST /api/runs/:runId/unpushed-handled` | US11 | FR-113, FR-114, FR-116 |
 
 **Additions from the 2026-11-14 clarifications** (already in BUILD_SPEC §7):
 - **Inline text editing** (decision 22): `PATCH /api/items/:id` accepts `title`, `description_md`, `outcome_md` and `acceptance[]`, with `expected_version`. A stale version returns `409` with `current`, and the UI renders the conflict callout.

@@ -273,6 +273,8 @@ export const QUERY_FAMILIES = [
   'item',
   'review',
   'agents',
+  /** Agents → Workspaces (owner decision 26). */
+  'workspaces',
   'search',
   'labels',
   'decisions',
@@ -296,6 +298,8 @@ export const queryKeys = {
   review: (id: string, round?: number) =>
     round === undefined ? ([ROOT, 'review', id] as const) : ([ROOT, 'review', id, round] as const),
   agents: (query: RouteQueryInput<'agents.list'> = {}) => [ROOT, 'agents', query] as const,
+  workspaces: (query: RouteQueryInput<'workspaces.list'> = {}) =>
+    [ROOT, 'workspaces', query] as const,
   search: (q: string) => [ROOT, 'search', q] as const,
   label: (project: string, name: string) => [ROOT, 'labels', project, name] as const,
   decisions: (query: RouteQueryInput<'decisions.list'>) => [ROOT, 'decisions', query] as const,
@@ -317,7 +321,8 @@ export interface StreamChange {
 }
 
 const ITEM_VIEWS = ['item', 'work', 'needsYou', 'search', 'labels', 'burndown'] as const;
-const RUNS = ['item', 'work', 'agents', 'needsYou', 'bootstrap'] as const;
+/** A run starting or ending also changes its workspace's state (BUILD_SPEC §5.16). */
+const RUNS = ['item', 'work', 'agents', 'needsYou', 'bootstrap', 'workspaces'] as const;
 const DECISIONS = ['decisions', 'item', 'labels', 'settings'] as const;
 
 /**
@@ -348,6 +353,13 @@ export const INVALIDATION: Record<EventType, readonly QueryFamily[]> = {
   'claim.released': RUNS,
   'run.started': RUNS,
   'run.ended': RUNS,
+  // Recovery (US11). Parking changes the run state everywhere it shows and the
+  // workspace state; resources and Handled change Problems and Workspaces.
+  'run.parked': RUNS,
+  'run.resumed': RUNS,
+  'run.unpushed_handled': ['item', 'needsYou', 'bootstrap', 'workspaces'],
+  'resource.declared': ['item', 'agents', 'workspaces'],
+  'resource.released': ['item', 'agents', 'needsYou', 'bootstrap', 'workspaces'],
   'packet.submitted': ['item', 'review', 'work', 'needsYou', 'bootstrap'],
   'packet.stale': ['item', 'review', 'needsYou'],
   'packet.withdrawn': ['item', 'review', 'work', 'needsYou', 'bootstrap'],
@@ -357,7 +369,8 @@ export const INVALIDATION: Record<EventType, readonly QueryFamily[]> = {
   'owner_note.added': ['item'],
   'note.added': ['item'],
   'document.added': ['item'],
-  'commit.reported': ['item', 'review', 'needsYou'],
+  // With pushed: true it moves the run's pushed_sha (workspace state, unpushed Problems).
+  'commit.reported': ['item', 'review', 'needsYou', 'workspaces'],
   // A merged PR can clear a `merged` blocker (BUILD_SPEC §5.2).
   'artifact.linked': ['item', 'work', 'needsYou'],
   'decision.published': DECISIONS,

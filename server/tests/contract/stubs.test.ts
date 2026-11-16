@@ -313,3 +313,124 @@ describe('harness', () => {
     }
   });
 });
+
+describe('recovery tools over MCP (B5: park_run, recovery_report and the new fields)', () => {
+  it('tools/list shows park_run as a write that is not idempotent, recovery_report as read-only', async () => {
+    h = await startHarness();
+    const { tools } = await h.a.listTools();
+    const byName = (n: string) => tools.find((t) => t.name === n)!;
+    expect(byName('park_run').annotations).toEqual({
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+    });
+    expect(byName('recovery_report').annotations).toEqual({
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: false,
+    });
+    expect(tools.map((t) => t.name).slice(-1)).toEqual(['recovery_report']);
+    expect(tools.findIndex((t) => t.name === 'park_run')).toBe(
+      tools.findIndex((t) => t.name === 'finish_run') + 1,
+    );
+  });
+
+  it.each([
+    ['park_run', { run_id: 'run_01JA', reason: 'Waiting for RCP-12' }],
+    ['recovery_report', {}],
+    ['recovery_report', { project: 'RCP', since: '2026-11-08T00:00:00Z', limit: 10 }],
+  ])('%s answers unavailable through contracts.ts', async (name, args) => {
+    h ??= await startHarness();
+    expect(expectUnavailable(await h.call(name, args))).toEqual({
+      code: 'unavailable',
+      message: `Not implemented yet: ${name}`,
+    });
+  });
+
+  it.each([
+    [
+      'claim_lead',
+      {
+        id: 'RCP-17',
+        workspace: { path: 'C:/work/rcp-17', branch: 'rcp-17', base_ref: 'origin/main' },
+        orchestrator: { name: 'orca', dispatch_id: 'ctx_1' },
+        brief: 'Fix the jump after reload.',
+        external: { orca: { worktree_id: 'wt_17' } },
+      },
+    ],
+    ['start_run', { id: 'RCP-14', parent_run_id: 'run_01JA', brief_document_version_id: 'dv_1' }],
+    [
+      'heartbeat',
+      {
+        run_id: 'run_01JA',
+        workspace: { head_sha: '77aa001', pushed_sha: '6f00e12', dirty: true },
+        resources_started: [
+          { kind: 'dev_server', label: 'dev server :5173', locator: { port: 5173 } },
+        ],
+        resources_released: [{ resource_id: 'rsc_1', note: 'stopped' }],
+      },
+    ],
+    ['report_commit', { id: 'RCP-14', sha: '4be1c09', pushed: true }],
+  ])('%s accepts the new fields and keeps its stub', async (name, args) => {
+    h ??= await startHarness();
+    expect(expectUnavailable(await h.call(name, args)).message).toBe(
+      `Not implemented yet: ${name}`,
+    );
+  });
+
+  it('an unknown key gets validation with a did-you-mean', async () => {
+    h = await startHarness();
+    const park = expectValidation(
+      await h.call('park_run', { run_id: 'run_01JA', reason: 'x', waiting_onn: {} }),
+    );
+    expect(park.message).toContain('Unknown field "waiting_onn"; did you mean "waiting_on"?');
+    const report = expectValidation(await h.call('recovery_report', { include_brief: true }));
+    expect(report.message).toContain(
+      'Unknown field "include_brief"; did you mean "include_briefs"?',
+    );
+    const nested = expectValidation(
+      await h.call('claim_lead', { id: 'RCP-17', workspace: { branh: 'x' } }),
+    );
+    expect(nested.message).toContain(
+      'Unknown field "workspace.branh"; did you mean "workspace.branch"?',
+    );
+  });
+
+  it('an oversized brief gets validation', async () => {
+    h = await startHarness();
+    const err = expectValidation(
+      await h.call('claim_lead', { id: 'RCP-17', brief: 'x'.repeat(20_001) }),
+    );
+    expect(err.details?.fields).toEqual({ brief: 'must be at most 20000 characters' });
+  });
+
+  it('brief and brief_document_version_id together get validation', async () => {
+    h = await startHarness();
+    const err = expectValidation(
+      await h.call('start_run', {
+        id: 'RCP-14',
+        parent_run_id: 'run_01JA',
+        brief: 'Do it.',
+        brief_document_version_id: 'dv_1',
+      }),
+    );
+    expect(err.message).toBe(
+      'Invalid arguments for start_run: brief_document_version_id pass brief or brief_document_version_id, not both. Fix it and retry.',
+    );
+  });
+
+  it('external over 2 KB and more than 10 resources per heartbeat get validation', async () => {
+    h = await startHarness();
+    expectValidation(
+      await h.call('claim_lead', { id: 'RCP-17', external: { orca: 'x'.repeat(2_100) } }),
+    );
+    const resource = { kind: 'port', label: 'port 3000', locator: { port: 3000 } };
+    const err = expectValidation(
+      await h.call('heartbeat', {
+        run_id: 'run_01JA',
+        resources_started: Array.from({ length: 11 }, () => resource),
+      }),
+    );
+    expect(err.details?.fields).toEqual({ resources_started: 'must have at most 10 entries' });
+  });
+});

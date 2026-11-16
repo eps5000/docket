@@ -25,31 +25,31 @@ const fails = (name: string, args: unknown) => {
 };
 
 describe('the registry', () => {
-  it('has 36 tools with unique names: 9 read, 1 delivering (get_item), 26 mutating', () => {
-    expect(TOOLS).toHaveLength(36);
-    expect(new Set(TOOLS.map((t) => t.name)).size).toBe(36);
+  it('has 38 tools with unique names: 10 read, 1 delivering (get_item), 27 mutating', () => {
+    expect(TOOLS).toHaveLength(38);
+    expect(new Set(TOOLS.map((t) => t.name)).size).toBe(38);
     const kinds = TOOLS.reduce<Record<string, number>>(
       (acc, t) => ({ ...acc, [t.kind]: (acc[t.kind] ?? 0) + 1 }),
       {},
     );
-    expect(kinds).toEqual({ read: 9, delivering: 1, mutating: 26 });
+    expect(kinds).toEqual({ read: 10, delivering: 1, mutating: 27 });
   });
 
-  it('groups tools into the seven server files', () => {
+  it('groups tools into the eight server files', () => {
     const groups = Object.fromEntries(
-      ['read', 'items', 'runs', 'checklist', 'evidence', 'review', 'decisions'].map((g) => [
-        g,
-        TOOLS.filter((t) => t.group === g).length,
-      ]),
+      ['read', 'items', 'runs', 'checklist', 'evidence', 'review', 'decisions', 'recovery'].map(
+        (g) => [g, TOOLS.filter((t) => t.group === g).length],
+      ),
     );
     expect(groups).toEqual({
       read: 8,
       items: 6,
-      runs: 5,
+      runs: 6,
       checklist: 7,
       evidence: 4,
       review: 3,
       decisions: 3,
+      recovery: 1,
     });
   });
 
@@ -77,6 +77,19 @@ describe('the registry', () => {
     ]);
     expect(TOOLS.some((t) => toolAnnotations(t).destructiveHint)).toBe(false);
   });
+
+  it('park_run is a write that is not idempotent; recovery_report is read-only (§3, B5)', () => {
+    expect(toolAnnotations(getTool('park_run'))).toEqual({
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+    });
+    expect(toolAnnotations(getTool('recovery_report'))).toEqual({
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: false,
+    });
+  });
 });
 
 describe('common fields', () => {
@@ -93,11 +106,11 @@ describe('common fields', () => {
     }
   });
 
-  it('run_id is required where §5 lists it (release_lead, heartbeat, finish_run)', () => {
+  it('run_id is required where §5 lists it (release_lead, heartbeat, finish_run, park_run)', () => {
     for (const t of TOOLS) {
       const required = (inputJsonSchema(t).required as string[] | undefined) ?? [];
       expect(required.includes('run_id'), t.name).toBe(
-        ['release_lead', 'heartbeat', 'finish_run'].includes(t.name),
+        ['release_lead', 'heartbeat', 'finish_run', 'park_run'].includes(t.name),
       );
     }
   });
@@ -128,6 +141,8 @@ describe('defaults (§5)', () => {
   it.each([
     ['create_item', { project: 'RCP', type: 'Task', title: 'x' }, { priority: 2, status: 'inbox' }],
     ['search_items', {}, { include_archived: true, limit: 25 }],
+    ['report_commit', { id: 'RCP-14', sha: '4be1c09' }, { pushed: false }],
+    ['recovery_report', {}, { include_briefs: false, limit: 25 }],
     ['get_item', { id: 'RCP-14' }, { view: 'standard' }],
     ['get_context', { id: 'RCP-14' }, { budget: 'medium' }],
     ['dependency_subgraph', { id: 'RCP-14' }, { depth: 2, direction: 'both' }],
@@ -334,5 +349,129 @@ describe('JSON Schema for MCP', () => {
     expect(
       JSON.stringify(TOOLS.map((t) => [inputJsonSchema(t), outputJsonSchema(t)])),
     ).not.toContain('9007199254740991');
+  });
+});
+
+describe('recovery inputs (MCP_SPEC §3 "Workspaces, briefs and resources", §5.4, §5.9; B5)', () => {
+  const claim = (extra: Record<string, unknown>) => ({ id: 'RCP-23', ...extra });
+  const beat = (extra: Record<string, unknown>) => ({ run_id: 'run_A', ...extra });
+  const devServer = { kind: 'dev_server', label: 'dev server :5173', locator: { port: 5173 } };
+
+  it('claim_lead and start_run take workspace, orchestrator, brief and external (§7.12)', () => {
+    const recovery = {
+      workspace: {
+        path: 'C:/work/rcp-23',
+        branch: 'rcp-23-templates',
+        base_ref: 'origin/main',
+        base_sha: '9a10624',
+        host: 'devbox',
+        repo: 'github.com/owner/recipes',
+      },
+      orchestrator: { name: 'orca', dispatch_id: 'ctx_6f2d', task_id: 'task_7', run_id: 'r_1' },
+      brief: 'Implement meal plan templates per the PRD.',
+      external: { orca: { worktree_id: 'wt_23' } },
+    };
+    ok('claim_lead', claim({ agent_label: 'orca-w2', ...recovery }));
+    ok('start_run', { id: 'RCP-23', parent_run_id: 'run_A', ...recovery });
+    ok('claim_lead', claim({ brief_document_version_id: 'dv_1' }));
+    ok('claim_lead', claim({}));
+  });
+
+  it('keeps the brief byte for byte: it is not trimmed', () => {
+    const brief = '  Indented first line\n\ttabbed\n';
+    expect(ok('claim_lead', claim({ brief })).brief).toBe(brief);
+  });
+
+  it('brief is at most 20,000 characters', () => {
+    ok('claim_lead', claim({ brief: 'x'.repeat(20_000) }));
+    fails('claim_lead', claim({ brief: 'x'.repeat(20_001) }));
+    fails('start_run', { id: 'RCP-23', parent_run_id: 'run_A', brief: 'x'.repeat(20_001) });
+  });
+
+  it('brief and brief_document_version_id are mutually exclusive', () => {
+    for (const tool of ['claim_lead', 'start_run']) {
+      const base = tool === 'claim_lead' ? claim({}) : { id: 'RCP-23', parent_run_id: 'run_A' };
+      const issues = fails(tool, { ...base, brief: 'b', brief_document_version_id: 'dv_1' });
+      expect(issues[0]!.path).toEqual(['brief_document_version_id']);
+      expect(issues[0]!.message).toBe('Pass brief or brief_document_version_id, not both.');
+    }
+  });
+
+  it('external is at most 2 KB of JSON (UTF-8 bytes)', () => {
+    const sized = (n: number) => ({ o: 'x'.repeat(n - '{"o":""}'.length) });
+    ok('claim_lead', claim({ external: sized(2_048) }));
+    fails('claim_lead', claim({ external: sized(2_049) }));
+    // Multi-byte characters count as bytes, not characters.
+    fails('heartbeat', beat({ external: { o: 'é'.repeat(1_100) } }));
+    fails('claim_lead', claim({ external: 'not a map' }));
+  });
+
+  it('nested recovery objects are strict', () => {
+    const wsTypo = fails('claim_lead', claim({ workspace: { pth: 'C:/x' } }));
+    expect(wsTypo.some((i) => i.code === 'unrecognized_keys')).toBe(true);
+    fails('claim_lead', claim({ orchestrator: { name: 'orca', dispatch: 'x' } }));
+    fails('heartbeat', beat({ workspace: { head_sha: '4be1c09', base_sha: '9a10624' } }));
+    fails('park_run', { run_id: 'run_A', reason: 'r', waiting_on: { item: ['RCP-12'] } });
+    fails('heartbeat', beat({ resources_started: [{ ...devServer, pid: 1 }] }));
+  });
+
+  it('checks workspace SHAs, ports and the orchestrator name', () => {
+    fails('claim_lead', claim({ workspace: { base_sha: 'main' } }));
+    fails('heartbeat', beat({ workspace: { pushed_sha: 'xyz' } }));
+    fails('claim_lead', claim({ orchestrator: { dispatch_id: 'ctx_1' } }));
+    fails('heartbeat', beat({ resources_started: [{ ...devServer, locator: { port: 70_000 } }] }));
+  });
+
+  it('heartbeat takes a workspace patch and up to 10 resources per call, labels ≤ 120', () => {
+    ok(
+      'heartbeat',
+      beat({ workspace: { head_sha: '77aa001', pushed_sha: '6f00e12', dirty: true } }),
+    );
+    ok('heartbeat', beat({ resources_started: Array.from({ length: 10 }, () => devServer) }));
+    fails('heartbeat', beat({ resources_started: Array.from({ length: 11 }, () => devServer) }));
+    fails('heartbeat', beat({ resources_started: [{ ...devServer, label: 'x'.repeat(121) }] }));
+    fails('heartbeat', beat({ resources_started: [{ ...devServer, kind: 'daemon' }] }));
+    fails('heartbeat', beat({ resources_started: [{ ...devServer, locator: {} }] }));
+    ok('heartbeat', beat({ resources_released: [{ resource_id: 'rsc_1', note: 'stopped' }] }));
+    fails(
+      'heartbeat',
+      beat({ resources_released: [{ resource_id: 'rsc_1', note: 'x'.repeat(501) }] }),
+    );
+  });
+
+  it('park_run needs run_id and a reason ≤ 500; waiting_on names items, flags and an ISO until', () => {
+    ok('park_run', {
+      run_id: 'run_A',
+      reason: 'Waiting for RCP-12',
+      waiting_on: {
+        items: ['RCP-12'],
+        orchestrator: true,
+        person: false,
+        until: '2026-11-16T09:00:00Z',
+      },
+    });
+    fails('park_run', { reason: 'x' });
+    fails('park_run', { run_id: 'run_A' });
+    fails('park_run', { run_id: 'run_A', reason: 'x'.repeat(501) });
+    fails('park_run', { run_id: 'run_A', reason: 'r', waiting_on: { items: ['rcp-12'] } });
+    fails('park_run', { run_id: 'run_A', reason: 'r', waiting_on: { until: 'tomorrow' } });
+  });
+
+  it('report_commit takes pushed', () => {
+    expect(ok('report_commit', { id: 'RCP-23', sha: 'c1d2e3f', pushed: true }).pushed).toBe(true);
+    fails('report_commit', { id: 'RCP-23', sha: 'c1d2e3f', pushed: 'yes' });
+  });
+
+  it('recovery_report takes project, since, include_briefs and paging', () => {
+    ok('recovery_report', {
+      project: 'RCP',
+      since: '2026-11-08T00:00:00Z',
+      include_briefs: true,
+      cursor: 'c_1',
+      limit: 50,
+    });
+    fails('recovery_report', { since: '2026-11-08' });
+    fails('recovery_report', { limit: 51 });
+    fails('recovery_report', { include_brief: true });
   });
 });

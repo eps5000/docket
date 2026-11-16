@@ -21,6 +21,7 @@ One owner runs Task Lite on their own computer. AI agents (installed coding agen
 - Q: Where should nightly backups be stored? → A: Inside the service's data volume by default. The owner can opt in to also writing each backup to a folder on the host machine, for an extra copy that survives losing the volume.
 - Q: Should the browser UI require an owner key to unlock, so a local agent can't record a human approval through the UI's API? → A: Yes. The owner pastes the key once per browser, and the session lasts 30 days from last use. The owner can lock the browser or rotate the key (which ends every session) in Settings.
 - Q: Should the owner be able to cancel an item themselves in the UI? → A: Yes, any open item, with an optional reason and Undo. Canceled items leave the owner's views like archived ones, and anything they block stays blocked until the link is removed.
+- Owner requirement (2026-11-15, not a clarify question): after an Orca crash pruned worktrees holding in-flight work, Task Lite must record enough to restart interrupted work without guessing (where the work lives, the brief, what was started), must distinguish "parked, waiting on purpose" from "finished", and must surface leftover processes and sessions. Task Lite records; the coordinator acts (owner decision 26; User Story 11).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -209,6 +210,28 @@ The owner starts Task Lite with one command, connects their agents by following 
 5. **Given** the owner has enabled the extra host-folder backup location, **When** the nightly backup runs, **Then** the same backup appears in both places. Settings shows the last successful time for each, and the host copy can be restored after the service's data volume is removed.
 6. **Given** the owner deletes a project after typing its key, **When** confirmed, **Then** its items and documents are removed together, and backups age out on their stated retention.
 
+### User Story 11 - Interrupted work restarts cleanly, and nothing is left running (Priority: P1)
+
+The coordinator (an Orca orchestrator, a script or the owner) dispatches workers. A worker crashes, or the orchestrator does, or worktrees get pruned. Task Lite still knows, for every piece of in-flight work: the instructions it was given, the worktree and branch, the last pushed commit, whether anything was unpushed, how far through its checklist it got, and what it left running. Workers that are idle on purpose are recorded as parked, so they're never mistaken for finished. After a crash the coordinator gets one restart list, re-dispatches from it, and cleans up leftovers. The owner sees anything at risk.
+
+**Why this priority**: losing in-flight work and rebuilding mandates by guesswork has already happened in practice. Coordination is only trustworthy if it survives crashes.
+
+**Independent Test**:
+1. Dispatch three workers through the MCP client, each with a workspace and a brief: one active, one parked waiting on an item, and one that declared a dev server and left a commit unpushed.
+2. Simulate a crash: restart the service and stop sending signals.
+3. `recovery_report` lists each worker correctly: the active one interrupted with its brief and workspace; the parked one parked, and `resume_ready` once its item is done; the third at risk, with its orphaned dev server and unpushed commit.
+4. Re-dispatching from the report resumes the work from the checklist.
+5. The owner sees the at-risk work and the orphaned resource under Problems.
+
+**Acceptance Scenarios**:
+
+1. **Given** a worker claimed an item with a workspace and a brief, **When** the service restarts, **Then** `recovery_report` lists it as interrupted (service_restart) with the exact brief, worktree path, branch, last pushed commit and checklist progress, and a new worker can claim and resume it.
+2. **Given** a worker is waiting for the coordinator, **When** it parks with `waiting_on: orchestrator` and stays idle for hours, **Then** it keeps its claim, never shows as stale or finished, and its workspace is reported as in use.
+3. **Given** a worker parked waiting on RCP-12, **When** RCP-12 is done, **Then** the parked run is flagged ready to resume. If nobody resumes it within 30 minutes, the owner sees "Ready to resume, unattended".
+4. **Given** a worker declared a dev server and its run ended without releasing it, **When** 15 minutes pass, **Then** the owner sees "Orphaned resources" with how to find it, and can mark it released once it's stopped.
+5. **Given** a run ended by lease expiry with uncommitted changes or unpushed commits, **When** the owner looks, **Then** they see "Unpushed work may be lost" with the worktree path, until a later run pushes or they mark it handled.
+6. **Given** a coordinator about to prune worktrees, **When** it checks `recovery_report` or Agents → Workspaces, **Then** only workspaces whose runs all ended, fully pushed, clean and with resources released are marked safe to prune.
+
 ### Edge Cases
 
 - **A lead's lease expires mid-work, and the agent calls again with its old run:** it is refused with the current state. The item has already returned to Ready, with its plan and logs kept.
@@ -228,6 +251,9 @@ The owner starts Task Lite with one command, connects their agents by following 
 - **The owner cancels an item an agent is working on:** the agent's run is interrupted and its claim released, and the agent's next call is refused with the item's canceled state. Items it blocked show "Blocked by canceled X" until the link is removed.
 - **A run belonging to a client that never answers liveness checks:** it shows as reported rather than live, never as live by assumption.
 - **A deleted project's IDs:** agents get "not found".
+- **A worktree was pruned while its run was open:** Task Lite can't see that. The run goes stale, then interrupted, and the restart list points to the last pushed commit, so the coordinator recreates the worktree from it. Anything unpushed is flagged as possibly lost.
+- **A worker parks and never resumes:** it keeps its claim. After 24 hours the owner sees it under Problems and can release the claim.
+- **A worker reports nothing about its workspace:** the workspace state is "unknown" and is never treated as safe to prune.
 
 ## Requirements *(mandatory)*
 
@@ -346,6 +372,14 @@ The owner starts Task Lite with one command, connects their agents by following 
 - **FR-106**: The service MUST NOT launch agents or call model APIs.
 - **FR-107**: Settings MUST show the agent connection instructions for each supported client, and a compatibility matrix of verified clients.
 - **FR-108** *(default, not asked)*: The service MUST keep a diagnostic log of each agent call (tool, client and label, run, duration and outcome code), without call contents, so the owner can see why an agent struggled.
+- **FR-110** (owner decision 26): Runs MUST be able to record where their work lives (host, repo, worktree path, branch, base ref and SHA, head and pushed commits, and whether there are uncommitted changes) and the orchestrator's identifiers. These are set on claim or start and updated as work proceeds.
+- **FR-111**: Runs MUST be able to record the brief they were given, stored immutably with the item and returned unchanged for a restart.
+- **FR-112**: Runs MUST be able to park with a reason and what they're waiting on (items, the orchestrator, a person, a time). A parked run never goes stale or loses its claim, and resumes on its next call. It's flagged ready to resume when its waits clear. The owner sees parked runs past 24 hours, and runs ready to resume but unattended for 30 minutes.
+- **FR-113**: Runs MUST be able to declare and release long-lived resources (processes, dev servers, sessions, containers, temp directories, ports) with enough detail to find them. Resources still unreleased 15 minutes after their run ends MUST show to the owner as orphaned, with an action to mark them released.
+- **FR-114**: Every ended run MUST record why it ended (finished, failed, released, lease expired, released by the owner, service restart, canceled). Runs that ended unexpectedly with unpushed or uncommitted work MUST show to the owner as "unpushed work may be lost" until a later push or the owner marks it handled.
+- **FR-115**: The system MUST provide a restart list for coordinators: interrupted, stale and parked runs, each with its brief, workspace, last pushed commit, checklist progress and open question; every workspace with its state (in use, parked, at risk, safe to prune, unknown); and orphaned resources.
+- **FR-116**: The owner UI MUST show where each run's work lives (branch, worktree, push state, resources, brief), offer a copyable resume note, and list every workspace with its state on the Agents page.
+- **FR-117**: The system MUST NOT inspect, stop or delete anything on the host. Recovery actions are the coordinator's or the owner's, guided by what the system records.
 
 ### Key Entities
 
@@ -362,6 +396,9 @@ The owner starts Task Lite with one command, connects their agents by following 
 - **Document**: a named file on an item or project, with immutable versions.
 - **Commit and artifact**: reported delivery evidence (commits, PRs, CI runs, deployments, URLs).
 - **Event**: the immutable record of every change.
+- **Workspace**: where a run's work lives (host, repo, worktree path, branch, base, head and pushed commits, uncommitted flag), with a derived state: in use, parked, at risk, safe to prune or unknown.
+- **Brief**: the exact instructions a run was given, stored immutably with the item.
+- **Resource**: a long-lived thing a run started (a process, dev server, session, container, temp directory or port), with how to find it, and when it was released and by whom.
 
 ## Success Criteria *(mandatory)*
 
@@ -380,6 +417,7 @@ The owner starts Task Lite with one command, connects their agents by following 
 - **SC-011**: A Jira dry run of 500 issues completes in under 2 minutes and accounts for 100% of issues as imported, skipped or lossy.
 - **SC-012**: In the pilot, agents follow the workflow (claim before work, plan in the checklist, hand off through packets) without reminders in at least 90% of items, and the owner checks Task Lite instead of Jira for status.
 - **SC-013** *(default, not asked)*: At the stated scale, owner views appear in under 1 second, and 95% of agent requests complete in under half a second on the owner's machine.
+- **SC-014**: After a simulated crash with at least three in-flight runs (active, parked, at risk), a coordinator can re-dispatch every interrupted run from the restart list alone (no conversation history, no probing), with 100% of briefs recovered unchanged. 100% of declared resources left running are reported as orphaned within 15 minutes.
 
 ## Assumptions
 

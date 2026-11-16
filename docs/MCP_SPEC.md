@@ -44,6 +44,9 @@ Workflow: Inbox → Planning → Ready → In progress → Review → Done.
 - Report each commit for the item it belongs to (report_commit). When the work is built and your checks pass, hand off with submit_packet. If there is no human review, close it with set_status "done".
 - If you need a decision from the owner, ask_owner and stop; the answer arrives in get_item.
 - Pass run_id on every call while you are working; it keeps your claim alive and shows you as live. Call finish_run when you stop.
+- Say where your work lives: pass workspace (worktree path, branch, base) to claim_lead, push work in progress at every checklist step, and report_commit with pushed true.
+- If you must wait (on another item, the coordinator or a person), call park_run with what you are waiting on. Never just go quiet: a silent run looks stale and loses its claim; a parked run keeps it.
+- Declare long-lived things you start (dev servers, sessions, containers) with heartbeat resources_started, and release them before finish_run. Coordinators: after a crash or restart, start with recovery_report, and never prune a workspace it lists as in use or at risk.
 - After any pause, call get_item: it delivers the owner's notes, answers and review decisions, each once.
 - Send only what changes. update_item, set_plan and set_checks patch: whatever you leave out stays as it is. Use get_item view "summary" when you only need status.
 
@@ -87,7 +90,9 @@ Errors are structured (code: validation | conflict | not_found | forbidden | una
   | `status` | `inbox`, `planning`, `ready`, `progress`, `review`, `done`, `canceled` |
   | `type` | `Epic`, `Story`, `Task`, `Bug` |
   | `priority` | 1 (high), 2, 3 |
-  | `run_state` (derived) | `live`, `reported`, `stale`, `needs_input`, `failed`, `finished`, `interrupted` |
+  | `run_state` (derived) | `live`, `reported`, `stale`, `parked`, `needs_input`, `failed`, `finished`, `interrupted` |
+  | `end_reason` | `finished`, `failed`, `released`, `lease_expired`, `owner_released`, `service_restart`, `canceled` |
+  | `workspace_state` (derived) | `in_use`, `parked`, `at_risk`, `safe_to_prune`, `unknown` |
   | `provenance` | `agent` (you assert it), `observed` (a child run you started produced it), `relayed` (you are passing on what a subagent told you), `ci` |
 
 ### Versions
@@ -102,12 +107,26 @@ Every mutating tool accepts `idempotency_key` (≤ 100 characters, unique per lo
 - **Use one** for anything you might retry after a timeout.
 
 ### Runs as signals
-Pass `run_id` on every call you make while working. **Every tool accepts an optional `run_id`**, reads included. `idempotency_key` is accepted only by the 26 mutating tools (B3 resolution 1).
+Pass `run_id` on every call you make while working. **Every tool accepts an optional `run_id`**, reads included. `idempotency_key` is accepted only by the 27 mutating tools (B3 resolution 1).
 - **What it does:** renews your lead lease and keeps you *live*.
 - **Calls without it** are attributed to your client but don't touch any run.
 
 ### Strict inputs
 Unknown input keys are rejected with `validation` (JSON Schema `additionalProperties: false`), so a typo such as `expected_verison` can't silently skip a check. The error names each unknown key and, when one is close, the valid field it probably meant, in both the message and `details.unknown` / `details.fields`. For example: `Unknown field "expected_verison"; did you mean "expected_version"?` (B3 resolution 4).
+
+### Workspaces, briefs and resources (recovery)
+Task Lite records **where work lives and what was started for it**, so a crashed orchestrator or worker can be restarted without guessing (owner decision 26). It never touches the host: it can't check a folder, stop a process or protect a worktree. The coordinator does those things using what Task Lite records.
+- **Workspace:** passed to `claim_lead` or `start_run` and updated through `heartbeat`. It holds the host, repo, worktree path, branch, base ref and base SHA, plus `head_sha`, `pushed_sha` and `dirty` (uncommitted changes, as the agent reports them).
+- **Orchestrator reference:** an optional `{ name, dispatch_id, task_id, run_id }`, for example Orca's IDs, so a coordinator can match its own records.
+- **Brief:** the exact instructions the run was given. Pass it as text (stored as an immutable `brief` document on the item) or as a `document_version_id`. On a restart it is re-sent unchanged.
+- **Resources:** long-lived things a run starts (a process, dev server, session, container, temp directory or port), each with a `locator` precise enough to find it again. Declared and released through `heartbeat`.
+- **External:** a namespaced map (≤ 2 KB of JSON, for example `{"orca": {...}}`). Stored as it is and never interpreted. Returned only in `get_item` view `full` and in `recovery_report`.
+- **Workspace state** (derived per worktree path):
+  - `in_use`: an open run;
+  - `parked`: a parked run;
+  - `at_risk`: no open run, but there are unpushed commits (`head_sha` ≠ `pushed_sha`), `dirty` is true, or resources are unreleased;
+  - `safe_to_prune`: every run ended, everything pushed, `dirty` false, and every resource released;
+  - `unknown`: not enough data.
 
 ### Pagination
 List tools return `{ items|events: [...], next_cursor: string|null }`. Pass `cursor` to continue. `limit` defaults to 25, and the maximum is 50 (200 for `get_changes`).
@@ -122,7 +141,7 @@ These are MCP hints:
 | Retry-safe mutating tools: `heartbeat`, `report_commit`, `update_step`, `update_check` | `idempotentHint: true` (and `false` on every other tool) |
 | All tools | `destructiveHint: false`, set explicitly, because MCP defaults it to true for tools that aren't read-only and agents can't delete |
 
-`readOnlyHint` is set explicitly on every tool: `true` for the 9 read tools, `false` for `get_item` and all mutations. No tool sets `openWorldHint` (B3 resolution 6).
+`readOnlyHint` is set explicitly on every tool: `true` for the 10 read tools, `false` for `get_item` and all mutations. No tool sets `openWorldHint` (B3 resolution 6).
 
 ### Results
 Every tool returns two things:
@@ -245,6 +264,8 @@ type Item = ItemSummary & {
   };
   runs: Run[];                                        // open runs first, then the last 5 ended
   open_question: Question|null;
+  resume: { workspace: Workspace|null; last_pushed_sha: string|null; brief_document_version_id: string|null;
+            last_end_reason: EndReason|null; unreleased_resources: number } | null;   // set when the item is resumable or its last run was interrupted
   unread_owner_notes: { id: string; text: string; at: string }[];   // returned once, then marked read
   documents: { document_id: string; name: string; kind: DocKind; latest: DocVersionRef }[];
   packets: { packet_id: string; round: number; state: 'open'|'decided'|'withdrawn'; stale: boolean; built_from_commit: string; created_at: string }[];
@@ -291,9 +312,23 @@ type HumanReviewItem = { id: string; text: string; state: 'declared'|'ready'|'ap
   follow_up_item_id: string|null };
 type Run = { run_id: string; parent_run_id: string|null; client: string; label: string|null; is_lead: boolean;
   run_state: RunState; started_at: string; last_signal_at: string; lease_expires_at: string|null;
-  current_step_id: string|null; summary: string|null; error: string|null };
+  current_step_id: string|null; summary: string|null; error: string|null;
+  end_reason: EndReason|null;
+  parked: { reason: string; waiting_on: WaitingOn; since: string; resume_ready: boolean } | null;
+  workspace: Workspace|null; orchestrator: { name: string; dispatch_id: string|null; task_id: string|null; run_id: string|null } | null;
+  brief_document_version_id: string|null;
+  resources: Resource[];
+  external?: Record<string, unknown> };                  // view 'full' and recovery_report only
+
+type Workspace = { host: string|null; repo: string|null; path: string|null; branch: string|null;
+  base_ref: string|null; base_sha: string|null; head_sha: string|null; pushed_sha: string|null; dirty: boolean|null;
+  state: 'in_use'|'parked'|'at_risk'|'safe_to_prune'|'unknown'; updated_at: string };
+type WaitingOn = { items?: string[]; orchestrator?: boolean; person?: boolean; until?: string };
+type Resource = { id: string; kind: 'process'|'dev_server'|'session'|'container'|'temp_dir'|'port'|'other';
+  label: string; locator: { pid?: number; port?: number; session_id?: string; container?: string; path?: string; host?: string };
+  started_at: string; released_at: string|null; release_note: string|null };
 type Question = { id: string; text: string; asked_at: string; answer: string|null; answered_at: string|null };
-type DocKind = 'planning'|'packet_attachment'|'import_report'|'other';
+type DocKind = 'planning'|'packet_attachment'|'import_report'|'brief'|'other';   // 'brief' is written only by claim_lead/start_run; put_document accepts planning|packet_attachment|other
 type DocVersionRef = { document_version_id: string; version_no: number; mime: string; size: number; sha256: string; created_at: string; created_by: string };
 type EventRow = { cursor: string; at: string; actor: string; item_id: string|null; type: EventType; summary: string };
 type EventType =
@@ -302,6 +337,7 @@ type EventType =
   | 'plan.updated' | 'step.updated' | 'subagent.logged' | 'checks.updated' | 'check.updated'
   | 'human_review.declared' | 'human_review.updated' | 'human_review.removed'
   | 'claim.granted' | 'claim.rejected' | 'claim.released' | 'run.started' | 'run.ended'
+  | 'run.parked' | 'run.resumed' | 'run.unpushed_handled' | 'resource.declared' | 'resource.released'
   | 'packet.submitted' | 'packet.stale' | 'packet.withdrawn' | 'review.decided'
   | 'question.asked' | 'question.answered' | 'owner_note.added' | 'note.added'
   | 'document.added' | 'commit.reported' | 'artifact.linked'
@@ -417,8 +453,8 @@ The format for each tool below:
 ### 5.4 Claiming and runs
 
 #### `claim_lead`
-**Description:** "Claim an item as its lead before you work on it. Works on Ready items (moves them to In progress) and on In progress items with no lead (resuming sent-back work). Returns your run_id: pass it on every later call. If someone else holds the claim you get a conflict with who holds it and until when; do not work on the item."
-- **Input:** `id`, `agent_label?` (≤ 40, for example `orca-w3`).
+**Description:** "Claim an item as its lead before you work on it. Works on Ready items (moves them to In progress) and on In progress items with no lead (resuming sent-back or interrupted work). Pass workspace (where the work lives) and, if a coordinator briefed you, the brief, so the work can be restarted after a crash. Returns your run_id: pass it on every later call. If someone else holds the claim you get a conflict with who holds it and until when; do not work on the item."
+- **Input:** `id`, `agent_label?` (≤ 40, for example `orca-w3`), `workspace?: { host?, repo?, path?, branch?, base_ref?, base_sha? }`, `orchestrator?: { name, dispatch_id?, task_id?, run_id? }`, `brief?` (text, ≤ 20,000) or `brief_document_version_id?`, `external?` (≤ 2 KB JSON).
 - **Output:** `{ run_id, item: ItemSummary, lease_expires_at }`.
 - **Errors:**
   - `conflict` with `current: { lead_client, lead_label, run_id, last_signal_at, lease_expires_at }`, recorded as a rejected claim the owner can see;
@@ -431,15 +467,16 @@ The format for each tool below:
 - **Errors:** `forbidden` (not your run), `not_found`.
 
 #### `start_run`
-**Description:** "Start a child run under your lead run when you delegate to a subagent that has its own Task Lite connection. The subagent passes the child run_id on its calls. For subagents without their own connection, use log_subagent instead."
-- **Input:** `id`, `parent_run_id`, `agent_label?`.
+**Description:** "Start a child run under your lead run when you delegate to a subagent that has its own Task Lite connection. Pass its workspace and brief as for claim_lead. The subagent passes the child run_id on its calls. For subagents without their own connection, use log_subagent instead."
+- **Input:** `id`, `parent_run_id`, `agent_label?`, `workspace?`, `orchestrator?`, `brief?` or `brief_document_version_id?`, `external?` (shapes as for `claim_lead`).
 - **Output:** `{ run_id }`.
 - **Errors:** `validation` (the parent isn't an open lead run on this item).
 
 #### `heartbeat`
-**Description:** "Tell Task Lite you are still working when you have nothing else to record. Any call with run_id does the same, so you rarely need this. Optionally set your current step."
-- **Input:** `run_id`, `current_step_id?`, `note?` (short; shown as the run's "doing" line).
-- **Output:** `{ run_state, lease_expires_at }`.
+**Description:** "Tell Task Lite you are still working, and update what it knows about your run: your current step, your workspace (head and pushed commits, uncommitted changes), and long-lived resources you started or released. Any call with run_id keeps you live, so use this when you have nothing else to record or something changed."
+- **Input:** `run_id`, `current_step_id?`, `note?` (short; shown as the run's "doing" line), `workspace?` (a patch: `head_sha?`, `pushed_sha?`, `dirty?`, `path?`, `branch?`), `resources_started?: [{ kind, label (≤ 120), locator }]` (≤ 10 per call), `resources_released?: [{ resource_id, note? }]`, `external?`.
+- **Output:** `{ run_state, lease_expires_at, resources: [{ id, label }] }`, where the new resources have IDs `rsc_…`.
+- **Note:** A heartbeat on a parked run resumes it.
 - **Errors:** `not_found`, `conflict` (the run has ended: lease expired or released; `current` holds the item's lead).
 
 #### `finish_run`
@@ -447,6 +484,16 @@ The format for each tool below:
 - **Input:** `run_id`, `result: 'finished'|'failed'`, `summary` (≤ 500), `error?` (≤ 4,000; shown monospaced).
 - **Output:** `{ run_state }`.
 - **Note:** A failed lead run leaves the item In progress with no lead. The owner sees it under Problems and can *Return to Ready*.
+- **Warnings:** finishing with unreleased resources, or with `head_sha` ≠ `pushed_sha`, succeeds but warns (`! 1 resource still declared: dev server :5173`; `! 2 commits not pushed`). The workspace then shows as `at_risk`.
+
+#### `park_run`
+**Description:** "Park your run when you must wait: on another item, on the coordinator to send you more work, or on a person. A parked run keeps its claim and its workspace stays marked in use, so it is never mistaken for finished or stale. Say what you are waiting on; Task Lite flags it as ready to resume when that clears. Any later call with your run_id resumes it."
+- **Input:** `run_id`, `reason` (≤ 500), `waiting_on?: { items?: string[], orchestrator?: boolean, person?: boolean, until? }`.
+- **Output:** `{ run_state: 'parked', resume_ready: boolean }`.
+- **Errors:** `conflict` (the run has ended), `validation` (unknown item in `waiting_on.items`).
+- **Rules:**
+  - A parked run doesn't go stale, and its lease is suspended. After `TASKLITE_PARK_MAX` (default 24 h) it shows under the owner's Problems but keeps its claim.
+  - `resume_ready` becomes true when every `waiting_on.items` entry is done or cleared, or `until` passes. A run parked only on the orchestrator or a person stays false until it is resumed.
 
 ### 5.5 Checklist
 
@@ -512,8 +559,8 @@ The format for each tool below:
 - **Output:** `{ artifact }`.
 
 #### `report_commit`
-**Description:** "Report a commit for the item it belongs to. Report every commit you make for an item, including fixes after a review. If a handoff packet was built from an older commit, it is marked out of date for the owner automatically."
-- **Input:** `id`, `sha` (7–40 hex), `branch?`, `message?` (first line, ≤ 200), `pr_url?`.
+**Description:** "Report a commit for the item it belongs to. Report every commit you make for an item, including fixes after a review, and set pushed true once it is on the remote: an unpushed commit can be lost in a crash. If a handoff packet was built from an older commit, it is marked out of date for the owner automatically."
+- **Input:** `id`, `sha` (7–40 hex), `branch?`, `message?` (first line, ≤ 200), `pr_url?`, `pushed?: boolean = false` (true once the commit is on the remote; it updates the run's `pushed_sha`).
 - **Output:** `{ recorded: true, stale_packets: [{ item_id, packet_id, round }] }`.
 - **Note:** Reporting the same SHA for the same item again is a no-op.
 
@@ -570,6 +617,25 @@ The format for each tool below:
 - **Input:** `decision_id`, `reason` (≤ 500).
 - **Output:** `{ decision: DecisionRecord }`.
 - **Errors:** `forbidden` (an owner decision), `not_found`.
+
+### 5.9 Recovery
+
+#### `recovery_report`
+**Description:** "After a crash or restart, or before pruning worktrees, get the restart list: runs that were interrupted, went stale or are parked, each with its brief, workspace, last pushed commit, checklist progress and any open question; every workspace with whether it is in use, at risk or safe to prune; and resources left running. Re-dispatch from this instead of guessing, and never prune a workspace marked in use or at risk."
+- **Input:** `project?`, `since?` (ISO time; default the last 7 days), `include_briefs?: boolean = false` (include the brief text; otherwise only document version IDs), `cursor?`, `limit?`.
+- **Output:**
+  ```ts
+  { interrupted: [{ item: ItemSummary; run: Run; end_reason: EndReason; checklist: { done: number; total: number };
+                    open_question: Question|null; brief?: string }];
+    stale:       [{ item: ItemSummary; run: Run }];
+    parked:      [{ item: ItemSummary; run: Run; resume_ready: boolean }];
+    workspaces:  [{ path: string; branch: string|null; item_id: string; run_id: string; state: WorkspaceState;
+                    head_sha: string|null; pushed_sha: string|null; dirty: boolean|null; unreleased_resources: number }];
+    orphaned_resources: [{ resource: Resource; item_id: string; run_id: string; run_ended_at: string }];
+    next_cursor: string|null }
+  ```
+- **Text rendering:** one block per section. An interrupted entry reads like `RCP-15 Pantry inventory schema · interrupted (service_restart) · 2/4 done · ws C:/…/rcp-15 @ 4be1c09 (pushed) · brief dv_…`.
+- **Read-only.** It never changes state; the coordinator acts on it.
 
 ---
 
@@ -712,6 +778,34 @@ In V1 the merge is agent-reported, and the UI says so. A GitHub integration woul
 
 ---
 
+### 7.12 Parking while you wait
+```
+claim_lead { id: "RCP-23", agent_label: "orca-w2", workspace: { path: "C:/…/rcp-23", branch: "rcp-23-templates", base_ref: "origin/main", base_sha: "9a10624" },
+             orchestrator: { name: "orca", dispatch_id: "ctx_…" }, brief: "Implement meal plan templates per …" } → run_A
+  … work …
+report_commit { id: "RCP-23", run_id: "run_A", sha: "c1d2e3f", pushed: true }
+park_run { run_id: "run_A", reason: "Waiting for RCP-12 (planner) to merge before wiring templates in", waiting_on: { items: ["RCP-12"] } }
+  (hours later RCP-12 is done; recovery_report lists run_A under parked with resume_ready: true)
+heartbeat { run_id: "run_A", note: "Resuming after RCP-12" }    → run_state live (unparked)
+```
+
+### 7.13 Crash recovery (coordinator)
+```
+recovery_report { include_briefs: true }
+  → interrupted: RCP-15 (service_restart) · 2/4 done · ws C:/…/rcp-15 @ 4be1c09 (pushed) · dirty false
+               RCP-21 (lease_expired) · 1/3 done · ws C:/…/rcp-21 @ 77aa001, pushed 6f00e12 · dirty true   ← at risk
+  → parked:    RCP-23 waiting on RCP-12 · resume_ready true
+  → workspaces: rcp-15 safe_to_prune? no: in the restart list; rcp-30 safe_to_prune
+  → orphaned_resources: dev server :5173 (RCP-21, run ended 03:12)
+```
+Then, for each entry:
+1. **Find the code.** If the worktree still exists, reuse it. If it's gone, recreate it from `pushed_sha` on its branch. If `dirty` was true or `head_sha` was ahead of `pushed_sha`, tell the owner that work may be lost (it already shows under their Problems).
+2. **Re-dispatch** a worker with the stored brief, unchanged, plus "Resume from the checklist; claim_lead first".
+3. **Clean up** the orphaned resources (stop the process, end the session). The new run, or the owner, marks them released.
+4. **Prune** only workspaces in `safe_to_prune`.
+
+The resumed worker calls `claim_lead`, which works on In progress items with no lead, then `get_context` and `get_item`, and continues from the first unfinished step.
+
 ## 8. Owner-side effects agents should expect
 
 | Owner action (UI) | What the agent sees |
@@ -723,6 +817,7 @@ In V1 the merge is agent-reported, and the UI says so. A GitHub integration woul
 | Answers a question | `question.answered`; the answer shows in `get_item` once |
 | Leaves a note | `owner_note.added`; it shows in `get_item.unread_owner_notes` once |
 | Adds checklist or review items | `plan.updated`, `checks.updated` or `human_review.declared`, with `added_by: owner` |
+| Marks an orphaned resource released, or unpushed work handled | `resource.released` or `run.unpushed_handled` (actor owner); the workspace may become `safe_to_prune` |
 | Releases a stale claim | `claim.released`; the old run is `interrupted`; the item is back to `ready`; calls with the old `run_id` get `conflict` |
 | Moves to Ready, or back to Planning | `item.status_changed` |
 | Archives | `item.archived` (agent queries still include archived items) |
@@ -765,6 +860,10 @@ These are part of M2 (BUILD_SPEC §11). Use the official MCP client SDK against 
 14. `satisfied_when`: done, merged and verified each gate `ready_to_start` correctly, a link override beats the project default, and verified on a blocker without human review gets `validation`.
 15. Write checks: each secret pattern is rejected and not persisted; references to items that don't exist produce warnings.
 16. `get_context` never marks notes read; `get_item` view `summary` doesn't either.
+17. Parking: a parked run never goes stale and keeps its claim. Its lease is suspended. It shows `resume_ready` when its items clear. A heartbeat resumes it. After `TASKLITE_PARK_MAX` it is flagged but keeps its claim.
+18. Workspace state: in_use, parked, at_risk (dirty, unpushed, unreleased resources) and safe_to_prune are each reached from the right inputs; `report_commit pushed:true` moves `pushed_sha`.
+19. `recovery_report` after a simulated restart lists every interrupted run with its end reason, its brief (with `include_briefs`), its workspace, its checklist progress and its orphaned resources, and the §7.13 flow re-claims and resumes it.
+20. `finish_run` with unreleased resources or unpushed commits warns, and the owner sees the matching Problem.
 
 ---
 

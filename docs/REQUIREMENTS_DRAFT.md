@@ -30,6 +30,7 @@ Status: discovery draft, updated 2026-11-07. **Superseded as the requirements of
 23. The owner can cancel any open item from the UI, with an optional reason and Undo. (Added 2026-11-14, spec clarification.)
 24. Nightly backups stay in the service's data volume by default; the owner can opt in to an extra copy in a folder on the host machine. (Added 2026-11-14, spec clarification.)
 25. The browser UI requires the owner key to unlock, once per browser, with a 30-day session from last use; the owner can lock a browser or rotate the key. (Confirmed 2026-11-14, spec clarification.)
+26. Recovery support: runs record where their work lives, the orchestrator's IDs, their brief and the resources they start; runs can park while waiting on purpose; a restart list lets a coordinator re-dispatch interrupted work without guessing; the owner sees orphaned resources and unpushed work at risk. Task Lite records; the coordinator acts. Prompted by an Orca crash that pruned worktrees holding in-flight work. (Added 2026-11-15.)
 
 ## Product intent
 

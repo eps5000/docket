@@ -11,6 +11,7 @@ import {
   REVIEW_INTO,
 } from '../enums.js';
 import {
+  commitSha,
   cursor,
   itemId,
   mutationInput,
@@ -23,7 +24,7 @@ import {
   readOutput,
   text,
 } from './common.js';
-import { LIMITS, SHA_RE, TEXT_LIMITS } from './limits.js';
+import { LIMITS, TEXT_LIMITS } from './limits.js';
 import {
   artifactSchema,
   decisionRecordSchema,
@@ -33,10 +34,7 @@ import {
   reviewKindSchema,
 } from './types.js';
 
-const sha = z
-  .string()
-  .trim()
-  .regex(SHA_RE, { error: 'Expected a commit SHA: 7–40 hex characters.' });
+const sha = commitSha;
 const url = z.url().max(LIMITS.url);
 
 // ---- add_note ----
@@ -106,6 +104,8 @@ export const reportCommitInput = mutationInput({
   /** First line. */
   message: text(LIMITS.commit_message).optional(),
   pr_url: url.optional(),
+  /** True once the commit is on the remote; it updates the run's `pushed_sha` (§5.16). */
+  pushed: z.boolean().default(false),
 });
 export const reportCommitOutput = mutationOutput({
   recorded: z.literal(true),

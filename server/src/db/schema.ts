@@ -23,6 +23,7 @@ import {
   DECISION_SCOPE_KINDS,
   DECISION_STATUSES,
   DOC_KINDS,
+  END_REASONS,
   HUMAN_REVIEW_STATES,
   ITEM_TYPES,
   LINK_TYPES,
@@ -30,6 +31,7 @@ import {
   PROVENANCES,
   REVIEW_FOLLOW,
   REVIEW_INTO,
+  RESOURCE_KINDS,
   REVIEW_KINDS,
   SATISFIED_WHEN,
   SIGNAL_KINDS,
@@ -79,12 +81,18 @@ export const LABEL_NAME_MAX = 40;
 /** Decision record: title ≤ 120, decision ≤ 4,000 (BUILD_SPEC §5.14). */
 export const DECISION_TITLE_MAX = 120;
 export const DECISION_MD_MAX = 4_000;
+/** Recovery (BUILD_SPEC §5.16): `runs.external` ≤ 2 KB of JSON; resource label ≤ 120. */
+export const EXTERNAL_MAX_BYTES = 2_048;
+export const RESOURCE_LABEL_MAX = 120;
 
 // ---- CHECK helpers (literals only: CHECK constraints cannot take parameters) ----
 
 const quote = (v: string | number) => (typeof v === 'number' ? String(v) : `'${v}'`);
 const oneOf = (column: string, values: readonly (string | number)[]): SQL =>
   sql.raw(`"${column}" IN (${values.map(quote).join(', ')})`);
+/** A nullable enum column: NULL, or one of `values`. */
+const nullOrOneOf = (column: string, values: readonly (string | number)[]): SQL =>
+  sql.raw(`"${column}" IS NULL OR "${column}" IN (${values.map(quote).join(', ')})`);
 const maxLen = (column: string, max: number): SQL => sql.raw(`length("${column}") <= ${max}`);
 const lenBetween = (column: string, min: number, max: number): SQL =>
   sql.raw(`length("${column}") BETWEEN ${min} AND ${max}`);
@@ -318,18 +326,70 @@ export const runs = sqliteTable(
     current_step_id: text('current_step_id').references(() => work_steps.id, {
       onDelete: 'set null',
     }),
+    // ---- Recovery (owner decision 26; BUILD_SPEC §5.16) ----
+    /** Set on every terminal transition. */
+    end_reason: text('end_reason', { enum: END_REASONS }),
+    parked_reason: text('parked_reason'),
+    /** `{items?, orchestrator?, person?, until?}` (MCP_SPEC §4 WaitingOn). */
+    waiting_on: text('waiting_on', { mode: 'json' }),
+    parked_at: text('parked_at'),
+    /** `{host, repo, path, branch, base_ref, base_sha, head_sha, pushed_sha, dirty, updated_at}`. */
+    workspace: text('workspace', { mode: 'json' }),
+    /** `{name, dispatch_id, task_id, run_id}`. */
+    orchestrator: text('orchestrator', { mode: 'json' }),
+    /** The run's brief: an immutable `brief` document version. */
+    brief_document_version_id: text('brief_document_version_id').references(
+      (): AnySQLiteColumn => document_versions.id,
+      { onDelete: 'set null' },
+    ),
+    /** A namespaced map, stored as it is and never interpreted (≤ 2 KB). */
+    external: text('external', { mode: 'json' }),
+    /** The owner's *Handled* on "Unpushed work may be lost". */
+    unpushed_handled_at: text('unpushed_handled_at'),
     version: version(),
     ...timestamps,
   },
   (t) => [
     index('runs_item').on(t.item_id),
     index('runs_state').on(t.state),
-    // At most one active lead run per item (A15, FR-013).
+    // At most one active lead run per item (A15, FR-013). A parked run keeps its claim (§5.16).
     uniqueIndex('runs_one_active_lead')
       .on(t.item_id)
-      .where(sql.raw(`"is_lead" = 1 AND "state" IN ('open', 'needs_input')`)),
+      .where(sql.raw(`"is_lead" = 1 AND "state" IN ('open', 'needs_input', 'parked')`)),
     check('runs_state', oneOf('state', STORED_RUN_STATES)),
     check('runs_last_signal_kind', oneOf('last_signal_kind', SIGNAL_KINDS)),
+    check('runs_end_reason', nullOrOneOf('end_reason', END_REASONS)),
+    check(
+      'runs_external',
+      sql.raw(`"external" IS NULL OR length(CAST("external" AS BLOB)) <= ${EXTERNAL_MAX_BYTES}`),
+    ),
+  ],
+);
+
+export const run_resources = sqliteTable(
+  'run_resources',
+  {
+    /** `rsc_…` */
+    id: id(),
+    run_id: text('run_id')
+      .notNull()
+      .references(() => runs.id, { onDelete: 'cascade' }),
+    kind: text('kind', { enum: RESOURCE_KINDS }).notNull(),
+    label: text('label').notNull(),
+    /** `{pid?, port?, session_id?, container?, path?, host?}` (MCP_SPEC §4 Resource). */
+    locator: text('locator', { mode: 'json' }).notNull(),
+    started_at: text('started_at').notNull(),
+    released_at: text('released_at'),
+    /** `owner`, or the agent actor (run) that released it. */
+    released_by: text('released_by'),
+    release_note: text('release_note'),
+    ...timestamps,
+  },
+  (t) => [
+    index('run_resources_run').on(t.run_id),
+    index('run_resources_unreleased').on(t.released_at),
+    check('run_resources_kind', oneOf('kind', RESOURCE_KINDS)),
+    check('run_resources_label', lenBetween('label', 1, RESOURCE_LABEL_MAX)),
   ],
 );
 
@@ -576,10 +636,14 @@ export const commits = sqliteTable(
   {
     id: id(),
     item_id: itemRef('item_id'),
+    /** The run that reported it, when the call carried `run_id` (BUILD_SPEC §5.16). */
+    run_id: text('run_id').references((): AnySQLiteColumn => runs.id, { onDelete: 'set null' }),
     sha: text('sha').notNull(),
     branch: text('branch'),
     message: text('message'),
     pr_url: text('pr_url'),
+    /** On the remote; with `run_id`, it sets the run's `workspace.pushed_sha`. */
+    pushed: integer('pushed', { mode: 'boolean' }).notNull().default(false),
     reported_by: text('reported_by').notNull(),
     reported_at: text('reported_at').notNull(),
     ...timestamps,

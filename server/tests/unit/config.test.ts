@@ -1,7 +1,7 @@
 import { readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { SecretStore, base32, loadConfig, parseDuration } from '../../src/config.js';
+import { DEFAULTS, SecretStore, base32, loadConfig, parseDuration } from '../../src/config.js';
 import { tempDir, type TempDir } from '../helpers.js';
 
 let tmp: TempDir;
@@ -21,6 +21,9 @@ describe('loadConfig', () => {
       liveWindowMs: 2 * 60_000,
       staleAfterMs: 30 * 60_000,
       leaseMs: 60 * 60_000,
+      parkMaxMs: 24 * 3_600_000,
+      resumeUnattendedMs: 30 * 60_000,
+      orphanAfterMs: 15 * 60_000,
       backupAt: '03:00',
       backupKeepDays: 14,
       backupExtraDir: null,
@@ -39,6 +42,9 @@ describe('loadConfig', () => {
       TASKLITE_LIVE_WINDOW: '90s',
       TASKLITE_STALE_AFTER: '1h',
       TASKLITE_LEASE: '45m',
+      TASKLITE_PARK_MAX: '12h',
+      TASKLITE_RESUME_UNATTENDED: '10m',
+      TASKLITE_ORPHAN_AFTER: '5m',
       TASKLITE_BACKUP_AT: '23:30',
       TASKLITE_BACKUP_KEEP: '30',
       TASKLITE_BACKUP_EXTRA_DIR: '/backups-extra',
@@ -52,6 +58,9 @@ describe('loadConfig', () => {
       liveWindowMs: 90_000,
       staleAfterMs: 3_600_000,
       leaseMs: 45 * 60_000,
+      parkMaxMs: 12 * 3_600_000,
+      resumeUnattendedMs: 10 * 60_000,
+      orphanAfterMs: 5 * 60_000,
       backupAt: '23:30',
       backupKeepDays: 30,
       backupExtraDir: '/backups-extra',
@@ -64,11 +73,21 @@ describe('loadConfig', () => {
     [{ TASKLITE_PORT: 'abc' }, /TASKLITE_PORT/],
     [{ TASKLITE_ALLOWED_HOSTS: ' , ' }, /TASKLITE_ALLOWED_HOSTS/],
     [{ TASKLITE_LEASE: '5 minutes' }, /TASKLITE_LEASE/],
+    [{ TASKLITE_PARK_MAX: 'a day' }, /TASKLITE_PARK_MAX/],
+    [{ TASKLITE_RESUME_UNATTENDED: '0m' }, /TASKLITE_RESUME_UNATTENDED/],
+    [{ TASKLITE_ORPHAN_AFTER: '-5m' }, /TASKLITE_ORPHAN_AFTER/],
     [{ TASKLITE_BACKUP_AT: '3am' }, /TASKLITE_BACKUP_AT/],
     [{ TASKLITE_BACKUP_KEEP: '0' }, /TASKLITE_BACKUP_KEEP/],
     [{ TASKLITE_SEED: 'demo' }, /TASKLITE_SEED/],
   ])('rejects %j', (env, message) => {
     expect(() => loadConfig(env)).toThrow(message);
+  });
+
+  it('docker/.env.example documents every variable with its default', () => {
+    const example = readFileSync(new URL('../../../docker/.env.example', import.meta.url), 'utf8');
+    for (const [name, value] of Object.entries(DEFAULTS)) {
+      expect(example, name).toContain(`# ${name}=${value}`);
+    }
   });
 
   it('never puts the token in an error message', () => {

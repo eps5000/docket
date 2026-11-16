@@ -11,7 +11,7 @@
  * Shared contract file (tasks.md, Slice rules).
  */
 import { z } from 'zod';
-import { DATE_RE, ITEM_ID_RE, LIMITS, PROJECT_KEY_RE } from './limits.js';
+import { DATE_RE, ITEM_ID_RE, LIMITS, PROJECT_KEY_RE, SHA_RE } from './limits.js';
 
 /** Plain text: trimmed, non-empty, at most `max` characters (§3 Types). */
 export const text = (max: number) => z.string().trim().min(1).max(max);
@@ -36,6 +36,18 @@ export const objectId = z.string().trim().min(1).max(LIMITS.id);
 
 /** `YYYY-MM-DD`. */
 export const date = z.string().regex(DATE_RE, { error: 'Expected a date like 2026-11-15.' });
+
+/** An ISO-8601 time with a zone, e.g. `2026-11-15T10:40:00Z`. */
+export const isoTime = z.iso.datetime({
+  offset: true,
+  error: 'Expected an ISO time like 2026-11-15T10:40:00Z.',
+});
+
+/** A commit SHA: 7–40 hex (§5.6 report_commit). */
+export const commitSha = z
+  .string()
+  .trim()
+  .regex(SHA_RE, { error: 'Expected a commit SHA: 7–40 hex characters.' });
 
 export const agentLabel = text(LIMITS.agent_label);
 

@@ -197,6 +197,12 @@ describe('query keys', () => {
     expect(queryKeys.label('RCP', 'ui')).toEqual(['tl', 'labels', 'RCP', 'ui']);
     expect(queryKeys.bootstrap()).toEqual(['tl', 'bootstrap']);
     expect(queryKeys.family('settings')).toEqual(queryKeys.settings());
+    expect(queryKeys.workspaces()).toEqual(['tl', 'workspaces', {}]);
+    expect(queryKeys.workspaces({ scope: 'RCP', state: 'at_risk' })).toEqual([
+      'tl',
+      'workspaces',
+      { scope: 'RCP', state: 'at_risk' },
+    ]);
   });
 });
 
@@ -288,6 +294,83 @@ describe('event → query-key invalidation (contracts/events.md)', () => {
       ['tl', 'work'],
       ['tl', 'item', 'RCP-14'],
       ['tl', 'agents'],
+      ['tl', 'workspaces'],
     ]);
+  });
+});
+
+describe('recovery (US11; contracts/events.md, BUILD_SPEC §7)', () => {
+  it('has typed calls for the three recovery routes', async () => {
+    const { fetch, sent } = fakeFetch(200, { rows: [] });
+    const client = createApiClient({ fetch, cookies: () => COOKIES });
+    await client['workspaces.list']({ query: { scope: 'RCP', state: 'at_risk' } });
+    await client['resources.release']({ params: { id: 'rsc_1' }, body: { note: 'Stopped it.' } });
+    await client['runs.unpushedHandled']({ params: { runId: 'run_21' } });
+    expect(sent.map((r) => `${r.method} ${r.url}`)).toEqual([
+      'GET /api/workspaces?scope=RCP&state=at_risk',
+      'POST /api/resources/rsc_1/release',
+      'POST /api/runs/run_21/unpushed-handled',
+    ]);
+    expect(sent[0]!.headers['X-Tasklite-CSRF']).toBeUndefined();
+    expect(sent[1]!.headers['X-Tasklite-CSRF']).toBe('abc123-_x');
+    expect(sent[1]!.body).toEqual({ note: 'Stopped it.' });
+    expect(sent[2]!.body).toEqual({});
+  });
+
+  it('Mark released and Handled hand their mutation_id to Undo', async () => {
+    const seen: MutationRecord[] = [];
+    const { fetch } = fakeFetch(200, { mutation_id: 'mut_r', run_id: 'run_21' });
+    const client = createApiClient({
+      fetch,
+      cookies: () => COOKIES,
+      onMutation: (m) => seen.push(m),
+    });
+    await client['runs.unpushedHandled']({ params: { runId: 'run_21' } });
+    await client['resources.release']({ params: { id: 'rsc_1' } });
+    expect(seen).toEqual([
+      { mutation_id: 'mut_r', route: 'runs.unpushedHandled', undoable: true },
+      { mutation_id: 'mut_r', route: 'resources.release', undoable: true },
+    ]);
+  });
+
+  it.each<[EventType, string[]]>([
+    ['run.parked', ['item', 'work', 'agents', 'needsYou', 'bootstrap', 'workspaces']],
+    ['run.resumed', ['item', 'work', 'agents', 'needsYou', 'bootstrap', 'workspaces']],
+    ['run.unpushed_handled', ['item', 'needsYou', 'bootstrap', 'workspaces']],
+    ['resource.declared', ['item', 'agents', 'workspaces']],
+    ['resource.released', ['item', 'agents', 'needsYou', 'bootstrap', 'workspaces']],
+  ])('%s invalidates its families', (type, families) => {
+    expect([...INVALIDATION[type]].sort()).toEqual([...families].sort());
+  });
+
+  it('a resource released by the owner refetches the item, Problems, the count and Workspaces', () => {
+    const keys = keysForChange({
+      seq: 9,
+      type: 'resource.released',
+      objects: [
+        { kind: 'item', id: 'RCP-21' },
+        { kind: 'run', id: 'run_21' },
+      ],
+      for_you: false,
+    });
+    expect(keys).toEqual([
+      ['tl', 'bootstrap'],
+      ['tl', 'needsYou'],
+      ['tl', 'item', 'RCP-21'],
+      ['tl', 'agents'],
+      ['tl', 'workspaces'],
+    ]);
+  });
+
+  it('run and commit events keep Workspaces fresh', () => {
+    for (const type of [
+      'claim.granted',
+      'claim.released',
+      'run.started',
+      'run.ended',
+      'commit.reported',
+    ] as const) {
+      expect(INVALIDATION[type], type).toContain('workspaces');
+    }
   });
 });
