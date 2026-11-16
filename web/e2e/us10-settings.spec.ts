@@ -157,6 +157,7 @@ test.describe('Settings', () => {
     );
     await expect(health.getByText(/runs? (was|were) active/)).toBeVisible();
     await shoot(page, 'settings-service-health', health);
+    await shoot(page, 'settings-this-browser', card(page, 'this-browser'));
   });
 
   test('Download diagnostic log: the last 7 days of calls, metadata only', async ({

@@ -764,6 +764,9 @@ const fileBytes = (path: string): number | null => {
     return null;
   }
 };
+/** The sum of the sizes that exist; null when none does. */
+const sumBytes = (sizes: (number | null)[]): number | null =>
+  sizes.some((n) => n !== null) ? sizes.reduce<number>((a, n) => a + (n ?? 0), 0) : null;
 
 // ---- Health (`/readyz` checks, for the sidebar health line) ----
 
@@ -1609,7 +1612,11 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
           },
         },
         health: {
-          database: { state: health.database ?? 'error', bytes: fileBytes(config.paths.db) },
+          database: {
+            state: health.database ?? 'error',
+            // With WAL, recent writes live in the -wal file until a checkpoint.
+            bytes: sumBytes([fileBytes(config.paths.db), fileBytes(`${config.paths.db}-wal`)]),
+          },
           documents: { state: health.docs_dir ?? 'error', bytes: dirBytes(config.paths.docs) },
           volume_free_bytes: volumeFree,
           backups,
