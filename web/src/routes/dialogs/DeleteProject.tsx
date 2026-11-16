@@ -1,6 +1,7 @@
 import { useId, useState } from 'react';
 import { Button, Callout, Dialog, DialogCancel, ErrorState } from '../../components/kit';
 import { apiClient } from '../../app/queryClient';
+import { plural } from '../../lib/format';
 
 /**
  * Delete project (UI_SPEC §6.7; BUILD_SPEC §5.12): destructive, Cancel
@@ -55,9 +56,9 @@ export function DeleteProjectDialog({
       }
     >
       <p style={{ marginTop: 0 }}>
-        This permanently removes <b>{project.items} work items</b>, their checklists, runs and
-        history, and <b>{project.documents} local documents</b> including handoff packets. Agents
-        will get “not found” for these IDs.
+        This permanently removes <b>{plural(project.items, 'work item')}</b>, their checklists, runs
+        and history, and <b>{plural(project.documents, 'local document')}</b> including handoff
+        packets. Agents will get “not found” for these IDs.
       </p>
       <Callout tone="warn">
         Backups keep a copy until their {keepDays}-day retention ends. Removing the Docker container
