@@ -749,3 +749,33 @@
   border: 0;
   padding: 0;
 }
+
+/* ---------- Steering (US6; UI_SPEC §6.1, §6.3, §6.3.2) ---------- */
+.tl .reply {
+  margin-top: 8px;
+  display: grid;
+  gap: 6px;
+  cursor: default;
+}
+.tl .reply textarea {
+  min-height: 56px;
+}
+.tl .att .prewrap {
+  white-space: normal;
+  margin-top: 6px;
+}
+.tl .leadact {
+  display: grid;
+  gap: 4px;
+  margin-top: 4px;
+}
+.tl .dlg .mt0 {
+  margin-top: 0;
+}
+.tl .dlg .releaselist {
+  margin: 0 0 8px;
+  padding-left: 18px;
+}
+.tl .notes-unread {
+  margin: -4px 0 8px;
+}

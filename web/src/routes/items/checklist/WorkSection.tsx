@@ -1,15 +1,17 @@
 import { useState } from 'react';
 import type { ItemDetailResponse, WorkStep } from '@tasklite/shared';
 import { Button, EmptyState, Icon, Provenance, Section } from '../../../components/kit';
+import { apiClient } from '../../../app/queryClient';
 import { formatAge, isoTitle } from '../../../lib/format';
+import { useSteer } from '../../shared/steer';
 import { ChecklistHistory } from '../../dialogs/ChecklistHistory';
 import type { ItemKind } from '../ItemPage';
 import { AddRow } from './AddRow';
 
 const GLYPH: Partial<Record<WorkStep['state'], string>> = { done: '✓', blocked: '!' };
 
-/** One work step, read view (UI_SPEC §6.3.1). */
-function StepRow({ step }: { step: WorkStep }) {
+/** One work step (UI_SPEC §6.3.1); the owner's own show *Remove* while not done. */
+function StepRow({ step, onRemove }: { step: WorkStep; onRemove?: () => void }) {
   return (
     <div className="ck" data-step={step.id}>
       <span className={`sicon s-${step.state}`} aria-hidden="true">
@@ -49,6 +51,18 @@ function StepRow({ step }: { step: WorkStep }) {
             <span title={isoTitle(step.state_at)}>{formatAge(step.state_at)}</span>
           </>
         )}
+        {onRemove && (
+          <div>
+            <Button
+              size="sm"
+              variant="ghost"
+              aria-label={`Remove step “${step.text}”`}
+              onClick={onRemove}
+            >
+              Remove
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -59,12 +73,25 @@ function StepRow({ step }: { step: WorkStep }) {
  * header when there are revisions). Rows show state, who and when, revised
  * text struck through with "Changed: …", review-added steps, the failed
  * step, and subagent contributions with their provenance (UI_SPEC §6.3.1).
+ * The owner adds steps of their own (the add row; Enter adds) and removes
+ * them while they aren't done; agents keep them (BUILD_SPEC §5.5).
  */
 export function WorkSection({ kind, data }: { kind: ItemKind; data: ItemDetailResponse }) {
   const [history, setHistory] = useState(false);
+  const steer = useSteer(data.item.id);
   const work = data.item.checklist.work;
   const done = work.filter((w) => w.state === 'done').length;
   const open = !['done', 'canceled'].includes(data.item.status);
+  const add = (text: string) =>
+    void steer(
+      () => apiClient['steps.add']({ params: { id: data.item.id }, body: { text } }),
+      'Step added. The agent sees it on its next read.',
+    );
+  const remove = (step: WorkStep) =>
+    void steer(
+      () => apiClient['steps.remove']({ params: { id: data.item.id, stepId: step.id } }),
+      'Step removed.',
+    );
   return (
     <Section
       sectionKey="work"
@@ -89,7 +116,15 @@ export function WorkSection({ kind, data }: { kind: ItemKind; data: ItemDetailRe
           }
         />
       ) : (
-        work.map((w) => <StepRow key={w.id} step={w} />)
+        work.map((w) => (
+          <StepRow
+            key={w.id}
+            step={w}
+            onRemove={
+              open && w.added_by === 'owner' && w.state !== 'done' ? () => remove(w) : undefined
+            }
+          />
+        ))
       )}
       {open && (
         <AddRow
@@ -99,6 +134,7 @@ export function WorkSection({ kind, data }: { kind: ItemKind; data: ItemDetailRe
               ? 'Add a step for the agent, e.g. Update the release notes'
               : 'Add a step for the agent, e.g. Handle an empty week plan'
           }
+          onAdd={add}
         />
       )}
       {history && (
