@@ -51,6 +51,8 @@ export interface ApiDeps {
   bus: EventEmitter;
   streamKeepAliveMs?: number;
   log?: (line: string) => void;
+  /** The agent token, for *Reveal token* only (never logged). */
+  agentToken?: () => string;
 }
 
 export function errorResponse(c: Context, err: unknown, log: (line: string) => void): Response {
@@ -82,7 +84,12 @@ export function createApiApp(deps: ApiDeps): Hono<ApiEnv> {
   api.use('*', requireSession(deps.sessions));
   api.use('*', requireCsrf());
 
-  const routeDeps: RouteDeps = { services: deps.services, write: deps.write, log };
+  const routeDeps: RouteDeps = {
+    services: deps.services,
+    write: deps.write,
+    log,
+    agentToken: deps.agentToken,
+  };
 
   // B2's routes.
   sessionRoutes(api, { ...routeDeps, sessions: deps.sessions });

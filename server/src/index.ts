@@ -4,6 +4,10 @@ import { serve } from '@hono/node-server';
 import { APP_NAME } from '@tasklite/shared';
 import { createApp } from './app.js';
 import { describeSeed, isDatabaseEmpty, loadSampleSeed } from './db/seed/loader.js';
+import { readContext } from './domain/contracts.js';
+import { SYSTEM_ACTOR } from './domain/write.js';
+import { holdServerLock, startBackupJob } from './jobs/backup.js';
+import { startupHousekeeping } from './jobs/startup.js';
 import { restartSweep, startSweeper } from './jobs/sweeper.js';
 import { createRuntime } from './runtime.js';
 import { APP_VERSION } from './version.js';
@@ -33,7 +37,25 @@ if (config.seed === 'sample') {
   }
 }
 
+// `tasklite restore` refuses while this lock is fresh (BUILD_SPEC §5.13).
+const lock = holdServerLock(config);
+
+// Housekeeping (BUILD_SPEC §5.10, §5.12): uploads interrupted by the restart, and
+// the documents of deleted projects whose removal failed after the commit.
+const { staged, removed } = await startupHousekeeping(runtime);
+if (staged > 0) console.log(`Removed ${staged} unfinished upload(s) from docs/.staging.`);
+if (removed.length > 0) {
+  console.log(`Removed the documents of deleted project(s): ${removed.join(', ')}.`);
+}
+
 const app = createApp(runtime, { webRoot });
+// The nightly backup at TASKLITE_BACKUP_AT (BUILD_SPEC §5.13).
+const backups = startBackupJob({
+  config,
+  log: runtime.log,
+  backup: () =>
+    runtime.services.backup.runNow(readContext(runtime.db, SYSTEM_ACTOR, runtime.clock())),
+});
 // Lease expiry and the 60 s pings to sessions of open runs (BUILD_SPEC §5.3, §5.4).
 const sweeper = startSweeper(runtime);
 
@@ -46,6 +68,8 @@ const server = serve({ fetch: app.fetch, hostname: '0.0.0.0', port: config.port 
 for (const signal of ['SIGTERM', 'SIGINT'] as const) {
   process.on(signal, () => {
     sweeper.stop();
+    backups.stop();
+    lock.stop();
     void runtime.close().finally(() => server.close(() => process.exit(0)));
     setTimeout(() => process.exit(0), 5_000).unref();
   });

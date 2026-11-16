@@ -122,6 +122,7 @@ export function createApp(runtime: Runtime, { webRoot }: AppOptions): Hono {
       bus: runtime.bus,
       streamKeepAliveMs: runtime.streamKeepAliveMs,
       log: runtime.log,
+      agentToken: () => runtime.secrets.agentToken(),
     }),
   );
 

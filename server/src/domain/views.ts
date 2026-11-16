@@ -575,7 +575,7 @@ function problemsOf({ s, runs, deferredCounts, backupError, config }: ProblemsIn
       kind: 'extra_backup_failed',
       item_id: null,
       title: null,
-      reason: `The extra backup copy failed: ${sentence(backupError)}`,
+      reason: `Extra backup copy failed: ${sentence(backupError)}`,
     });
   }
 
