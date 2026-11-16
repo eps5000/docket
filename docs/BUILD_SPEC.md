@@ -393,8 +393,8 @@ Owner decision 26, after an Orca crash pruned worktrees that held in-flight work
   - **Derived state per worktree path:**
     - `in_use`: an open run;
     - `parked`: a parked run;
-    - `at_risk`: no open run, and `dirty`, or `head_sha` ≠ `pushed_sha`, or unreleased resources;
-    - `safe_to_prune`: all runs ended, pushed, clean, and resources released;
+    - `at_risk`: no open run, and `dirty`, or `head_sha` ≠ `pushed_sha`, or unreleased resources; **or** a run ended unexpectedly (`lease_expired`, `service_restart`, `owner_released`) and its item is still open with no newer lead run, because that work is still in flight even if it's clean and pushed (B10 resolution);
+    - `safe_to_prune`: all runs ended, pushed, clean, resources released, and no interrupted work waiting to be picked up again;
     - `unknown`: not enough data.
 - **Brief.** `claim_lead` and `start_run` accept the brief as text (≤ 20,000 characters), stored as an immutable document of kind `brief` named `brief-<run_id>.md` on the item, or as a `document_version_id`. It's linked from the run. A restart re-sends it unchanged.
 - **Parking.**
@@ -412,7 +412,7 @@ Owner decision 26, after an Orca crash pruned worktrees that held in-flight work
   - When a run ends for any reason, its unreleased resources stay listed. After `ORPHAN_AFTER` they show as "Orphaned resources" under Problems until a later run of the item, or the owner, marks them released.
 - **End reasons.**
   - Every run that ends records an `end_reason`: `finished` and `failed` (`finish_run`), `released` (`release_lead`), `lease_expired` (sweeper), `owner_released` (*Release lead claim*), `service_restart` (boot sweep) or `canceled` (owner cancel).
-  - **"Unpushed work may be lost"** shows under Problems when a run ends other than `finished`/`failed` while `dirty` is true or `head_sha` ≠ `pushed_sha`. It clears when a later run reports a pushed commit, or the owner marks it *Handled*.
+  - **"Unpushed work may be lost"** shows under Problems when any run ends (including `finished` and `failed`) while `dirty` is true or `head_sha` ≠ `pushed_sha` (B10 resolution, matching MCP_SPEC §10 test 20). It clears when a later run reports a pushed commit, or the owner marks it *Handled*.
 - **`recovery_report`** (MCP_SPEC §5.9) is read-only and assembles the restart list. The coordinator's recovery procedure is in the [`tasklite-coordinator` skill](../skills/tasklite-coordinator/SKILL.md).
 - **Limits.** Task Lite never checks folders, stops processes or prevents pruning: it has no host access, by design. The coordinator does those things using this record.
 

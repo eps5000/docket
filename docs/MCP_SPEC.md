@@ -124,8 +124,8 @@ Task Lite records **where work lives and what was started for it**, so a crashed
 - **Workspace state** (derived per worktree path):
   - `in_use`: an open run;
   - `parked`: a parked run;
-  - `at_risk`: no open run, but there are unpushed commits (`head_sha` ≠ `pushed_sha`), `dirty` is true, or resources are unreleased;
-  - `safe_to_prune`: every run ended, everything pushed, `dirty` false, and every resource released;
+  - `at_risk`: no open run, but there are unpushed commits (`head_sha` ≠ `pushed_sha`), `dirty` is true, or resources are unreleased. **Also** when a run ended unexpectedly (`lease_expired`, `service_restart` or `owner_released`) and its item is still open and not yet led by a newer run: that work is in flight, even if it's clean and pushed (B10 resolution);
+  - `safe_to_prune`: every run ended, everything pushed, `dirty` false, every resource released, and no interrupted work waiting to be picked up again;
   - `unknown`: not enough data.
 - **Limits** (B5 resolutions, PR #13). Over a limit returns `validation`.
 
@@ -814,7 +814,7 @@ recovery_report { include_briefs: true }
   → interrupted: RCP-15 (service_restart) · 2/4 done · ws C:/…/rcp-15 @ 4be1c09 (pushed) · dirty false
                RCP-21 (lease_expired) · 1/3 done · ws C:/…/rcp-21 @ 77aa001, pushed 6f00e12 · dirty true   ← at risk
   → parked:    RCP-23 waiting on RCP-12 · resume_ready true
-  → workspaces: rcp-15 safe_to_prune? no: in the restart list; rcp-30 safe_to_prune
+  → workspaces: rcp-15 at_risk (interrupted, not yet re-dispatched); rcp-30 safe_to_prune
   → orphaned_resources: dev server :5173 (RCP-21, run ended 03:12)
 ```
 Then, for each entry:
