@@ -358,7 +358,7 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 **Fills**: `server/src/domain/{documents,archive}.ts`, cancel and text edits in `items.ts`, `put_document` and `upsert_label`, `server/src/api/routes/{planning,upload}.ts`, quick capture, inline editing, cancel, archive, the label page, viewers
 
 ### Tests for US7
-- [ ] T122 [P] [US7] Unit tests in `server/tests/unit/planning.test.ts` covering:
+- [X] T122 [P] [US7] Unit tests in `server/tests/unit/planning.test.ts` covering:
   - owner cancel (FR-064b): any open item, optional reason; an epic with open children is refused naming them; an active lead run ends `interrupted` and its claim is released; an open packet is withdrawn; undo restores the status but not the run;
   - the archive guards (done only), and archived items excluded from owner views but included in agent queries;
   - owner text edits (limits, secret check, version conflict, undo).
@@ -371,8 +371,8 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
   - inline edit with the conflict callout.
 
 ### Implementation for US7
-- [ ] T124 [US7] Implement the documents service (immutable versions, sha256, 25 MB through MCP, the `/agent-upload` multipart endpoint up to 500 MB, preview MIME handling, `Content-Disposition` and `nosniff`) in `server/src/domain/documents.ts` and `server/src/api/routes/upload.ts`. Replace the `put_document` and `upsert_label` stubs. Serve `brief` documents (written by `claim_lead`/`start_run`) like any other in the document viewer, and refuse `put_document` with kind `brief` (B10 note).
-- [ ] T125 [US7] Implement owner cancel, archive and unarchive, and owner text edits in `server/src/domain/{items,archive}.ts`, and fill the `planning` route handlers (quick capture, `PATCH` fields, cancel, archive, labels and move-to-ready, document content)
+- [X] T124 [US7] Implement the documents service (immutable versions, sha256, 25 MB through MCP, the `/agent-upload` multipart endpoint up to 500 MB, preview MIME handling, `Content-Disposition` and `nosniff`) in `server/src/domain/documents.ts` and `server/src/api/routes/upload.ts`. Replace the `put_document` and `upsert_label` stubs. Serve `brief` documents (written by `claim_lead`/`start_run`) like any other in the document viewer, and refuse `put_document` with kind `brief` (B10 note).
+- [X] T125 [US7] Implement owner cancel, archive and unarchive, and owner text edits in `server/src/domain/{items,archive}.ts`, and fill the `planning` route handlers (quick capture, `PATCH` fields, cancel, archive, labels and move-to-ready, document content)
 - [ ] T126 [US7] Fill quick capture and + New item in this epic; inline editing (title, description, outcome, acceptance; Preview; `Ctrl+Enter`/`Esc`; conflict callout; counters); and the item header's "⋯" Cancel item… flow, per UI_SPEC §6.3 and §6.9
 - [ ] T127 [US7] Fill the Done column Archive and Archive all actions, the Archived filter, the epic fold-up, the Label page (UI_SPEC §6.5), and the document viewer and Checklist history dialogs
 
