@@ -31,6 +31,7 @@ Status: discovery draft, updated 2026-11-07. **Superseded as the requirements of
 24. Nightly backups stay in the service's data volume by default; the owner can opt in to an extra copy in a folder on the host machine. (Added 2026-11-14, spec clarification.)
 25. The browser UI requires the owner key to unlock, once per browser, with a 30-day session from last use; the owner can lock a browser or rotate the key. (Confirmed 2026-11-14, spec clarification.)
 26. Recovery support: runs record where their work lives, the orchestrator's IDs, their brief and the resources they start; runs can park while waiting on purpose; a restart list lets a coordinator re-dispatch interrupted work without guessing; the owner sees orphaned resources and unpushed work at risk. Task Lite records; the coordinator acts. Prompted by an Orca crash that pruned worktrees holding in-flight work. (Added 2026-11-15.)
+27. Agent skills ship with Task Lite as plain files in `skills/`, so the owner can hand them to Orca or any agent and edit them to fit their own tooling: two core (`tasklite-worker`, `tasklite-coordinator`) and three optional (`tasklite-planner`, `tasklite-review-packet`, `tasklite-lead-subagents`). Not served over MCP in V1. (Added 2026-11-15.)
 
 ## Product intent
 
