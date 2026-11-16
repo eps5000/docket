@@ -227,18 +227,18 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 **Fills**: `server/src/domain/views.ts`, `server/src/api/routes/read.ts`, `web/src/routes/{needs-you,work,items,agents}`, `web/src/lib/{notifications,live}.ts`
 
 ### Tests for US2
-- [ ] T077 [P] [US2] API contract tests for `bootstrap`, `needs-you`, `work`, `items/:id`, `agents`, `search` and `stream` against the seed, in `server/tests/integration/us2-api.test.ts`
-- [ ] T078 [P] [US2] E2E: Needs you ("3 for you", only action cards, Problems actions), the four item tabs with counts and dots, live update without moving focus; in `web/e2e/us2-visibility.spec.ts`
-- [ ] T079 [P] [US2] E2E: notifications (one per new packet or question, a click opens the target, already-pending items don't notify, the tab title reads `(N) Task Lite`, with permission denied the status reads "Blocked by the browser"), in `web/e2e/us2-notifications.spec.ts`
+- [X] T077 [P] [US2] API contract tests for `bootstrap`, `needs-you`, `work`, `items/:id`, `agents`, `search` and `stream` against the seed, in `server/tests/integration/us2-api.test.ts`
+- [X] T078 [P] [US2] E2E: Needs you ("3 for you", only action cards, Problems actions), the four item tabs with counts and dots, live update without moving focus; in `web/e2e/us2-visibility.spec.ts`
+- [X] T079 [P] [US2] E2E: notifications (one per new packet or question, a click opens the target, already-pending items don't notify, the tab title reads `(N) Task Lite`, with permission denied the status reads "Blocked by the browser"), in `web/e2e/us2-notifications.spec.ts`
 
 ### Implementation for US2
-- [ ] T080 [US2] Implement the read models for needs-you (for-you, problems, deferred, planning queue, agent counts), work (board, list), item detail and agents in `server/src/domain/views.ts`, and fill the `read` route handlers
-- [ ] T081 [US2] Fill the Needs you screen (Agents strip, For you now, Problems with their actions, the Deferred and Planning queue cards; one screen at 1440×900) per UI_SPEC §6.1
-- [ ] T082 [US2] Fill Work → Board and List (filters with agent-query tooltips, Epics row, Ready split, Review cards opening packets) per UI_SPEC §6.2.1–2
-- [ ] T083 [US2] Fill the item page's read views (header, banners, tab counts and dots, Details sections, the Checklist read view, Activity) per UI_SPEC §6.3
-- [ ] T084 [P] [US2] Fill Agents (UI_SPEC §6.6) and the command palette results (items including archived and Jira keys, labels, views)
-- [ ] T085 [US2] Implement desktop notifications and the tab title (opt-in callout, the This browser switch, one claiming tab per browser, dedupe by `seq`, click routing) per UI_SPEC §6.7a in `web/src/lib/notifications.ts`
-- [ ] T086 [US2] Implement focus preservation across live updates and the reconnecting and unreachable banners per UI_SPEC §7 in `web/src/lib/live.ts`
+- [X] T080 [US2] Implement the read models for needs-you (for-you, problems, deferred, planning queue, agent counts), work (board, list), item detail and agents in `server/src/domain/views.ts`, and fill the `read` route handlers
+- [X] T081 [US2] Fill the Needs you screen (Agents strip, For you now, Problems with their actions, the Deferred and Planning queue cards; one screen at 1440×900) per UI_SPEC §6.1
+- [X] T082 [US2] Fill Work → Board and List (filters with agent-query tooltips, Epics row, Ready split, Review cards opening packets) per UI_SPEC §6.2.1–2
+- [X] T083 [US2] Fill the item page's read views (header, banners, tab counts and dots, Details sections, the Checklist read view, Activity) per UI_SPEC §6.3
+- [X] T084 [P] [US2] Fill Agents (UI_SPEC §6.6) and the command palette results (items including archived and Jira keys, labels, views)
+- [X] T085 [US2] Implement desktop notifications and the tab title (opt-in callout, the This browser switch, one claiming tab per browser, dedupe by `seq`, click routing) per UI_SPEC §6.7a in `web/src/lib/notifications.ts`
+- [X] T086 [US2] Implement focus preservation across live updates and the reconnecting and unreachable banners per UI_SPEC §7 in `web/src/lib/live.ts`
 
 ---
 

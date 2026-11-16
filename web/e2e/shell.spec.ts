@@ -4,7 +4,7 @@
  * All projects in a new context; the 501 "not built yet" state; the rail at
  * ≤ 1180px; and axe-clean shells and empty states in both themes.
  */
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 import {
   bootstrap,
   emptyAgents,
@@ -30,10 +30,24 @@ useSeededContainer();
 const nav = (page: Page) => page.getByRole('navigation', { name: 'Primary' });
 const h1 = (page: Page) => page.getByRole('heading', { level: 1 });
 const openTabs = (page: Page) => page.getByRole('navigation', { name: 'Open items' });
+/** A sidebar link by its label; badges ("3 for you", "5 active runs") follow it in the name. */
+const navLink = (page: Page, name: string) =>
+  nav(page).getByRole('link', { name: new RegExp(`^${name}(\\s|$)`) });
+/** A view tab by its label; counts and dots follow it in the name. */
+const viewTab = (views: Locator, name: string) =>
+  views.getByRole('tab', { name: new RegExp(`^${name}(\\s|\\d|$)`) });
 
 async function openPalette(page: Page) {
   await page.keyboard.press('Control+k');
   await expect(page.getByRole('dialog', { name: 'Search or jump to' })).toBeVisible();
+  // Typing goes to the search box only once it has focus.
+  await expect(page.getByRole('combobox', { name: 'Search' })).toBeFocused();
+}
+
+/** Type a search and wait until the box holds it (the query is debounced 150 ms). */
+async function search(page: Page, text: string) {
+  await page.keyboard.type(text);
+  await expect(page.getByRole('combobox', { name: 'Search' })).toHaveValue(text);
 }
 
 test.describe('shell navigation', () => {
@@ -65,13 +79,10 @@ test.describe('shell navigation', () => {
       ['Settings', '/settings', 'Settings'],
       ['Needs you', '/', 'Needs you'],
     ] as const) {
-      await nav(page).getByRole('link', { name, exact: true }).click();
+      await navLink(page, name).click();
       await expect(page).toHaveURL(new RegExp(`${path === '/' ? '/' : path}$`));
       await expect(h1(page)).toHaveText(title);
-      await expect(nav(page).getByRole('link', { name, exact: true })).toHaveAttribute(
-        'aria-current',
-        'page',
-      );
+      await expect(navLink(page, name)).toHaveAttribute('aria-current', 'page');
     }
     // Settings carries the Service-wide pill in the breadcrumb.
     await nav(page).getByRole('link', { name: 'Settings', exact: true }).click();
@@ -110,18 +121,17 @@ test.describe('shell navigation', () => {
     await expect(page).toHaveURL(/\/review\/RCP-12$/);
     await expect(h1(page)).toHaveText('Human review');
     // The packet keeps Needs you as the active nav item.
-    await expect(nav(page).getByRole('link', { name: 'Needs you', exact: true })).toHaveAttribute(
-      'aria-current',
-      'page',
-    );
+    await expect(navLink(page, 'Needs you')).toHaveAttribute('aria-current', 'page');
 
     await openPalette(page);
-    await page.keyboard.type('rcp');
+    await search(page, 'rcp');
     await page.getByRole('option', { name: /RCP-14/ }).click();
     await expect(page).toHaveURL(/\/items\/RCP-14$/);
 
+    // The item page renders after the URL changes (a transition); it must not take focus
+    // from the palette opened meanwhile (the cause of B7's flake).
     await openPalette(page);
-    await page.keyboard.type('ui');
+    await search(page, 'ui');
     await page.getByRole('option', { name: '# ui-refresh' }).click();
     await expect(page).toHaveURL(/\/labels\/RCP\/ui-refresh$/);
     await expect(h1(page)).toContainText('ui-refresh');
@@ -132,20 +142,22 @@ test.describe('shell navigation', () => {
   }) => {
     await page.goto('/items/RCP-14');
     const views = page.getByRole('tablist', { name: 'Ticket views' });
-    for (const name of ['Checklist', 'Dependencies', 'Activity', 'Details']) {
-      await views.getByRole('tab', { name, exact: true }).click();
-      await expect(views.getByRole('tab', { name, exact: true })).toHaveAttribute(
-        'aria-selected',
-        'true',
-      );
-      await expect(page.getByRole('tabpanel')).toContainText('Not built yet.');
+    for (const [name, content] of [
+      ['Checklist', 'Agent review'],
+      ['Dependencies', 'Waits on 1'],
+      ['Activity', 'Lead and runs'],
+      ['Details', 'Outcome'],
+    ] as const) {
+      await viewTab(views, name).click();
+      await expect(viewTab(views, name)).toHaveAttribute('aria-selected', 'true');
+      await expect(page.getByRole('tabpanel')).toContainText(content);
     }
     // Arrow keys move between view tabs.
-    await views.getByRole('tab', { name: 'Details', exact: true }).focus();
+    await viewTab(views, 'Details').focus();
     await page.keyboard.press('ArrowRight');
-    await expect(views.getByRole('tab', { name: 'Checklist', exact: true })).toBeFocused();
+    await expect(viewTab(views, 'Checklist')).toBeFocused();
     await expect(page).toHaveURL(/\/items\/RCP-14\?tab=checklist$/);
-    await views.getByRole('tab', { name: 'Activity', exact: true }).click();
+    await viewTab(views, 'Activity').click();
     await expect(page).toHaveURL(/\/items\/RCP-14\?tab=activity$/);
     // The open-item tab remembers the view in sessionStorage before we reload.
     await expect
@@ -156,10 +168,7 @@ test.describe('shell navigation', () => {
     await expect(openTabs(page).getByRole('link')).toHaveCount(2);
     await openTabs(page).getByRole('link', { name: 'RCP-14' }).click();
     await expect(page).toHaveURL(/\/items\/RCP-14\?tab=activity$/);
-    await expect(views.getByRole('tab', { name: 'Activity', exact: true })).toHaveAttribute(
-      'aria-selected',
-      'true',
-    );
+    await expect(viewTab(views, 'Activity')).toHaveAttribute('aria-selected', 'true');
 
     // Closing the active tab moves to its neighbour; closing the last returns to where you came from.
     await page.getByRole('button', { name: 'Close RCP-14' }).click();
@@ -221,21 +230,16 @@ test.describe('shell navigation', () => {
     await fresh.close();
   });
 
-  test('every data route answers 501 today and each shell shows "Not built yet", never a blank page', async ({
+  test('routes later slices build answer 501 and their shells show "Not built yet", never a blank page', async ({
     page,
   }) => {
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(e.message));
+    // US2's routes (Needs you, Work board/list/map, items, Agents) now answer; see us2-visibility.
     for (const path of [
-      '/',
-      '/work',
-      '/work?layout=list',
-      '/work?layout=map',
       '/work?layout=timeline',
-      '/items/RCP-14',
       '/review/RCP-12',
       '/labels/RCP/ui-refresh',
-      '/agents',
       '/settings',
     ]) {
       await page.goto(path);

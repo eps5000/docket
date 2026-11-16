@@ -45,9 +45,11 @@ export async function recordNotifications(context: BrowserContext): Promise<void
   await context.addInitScript(() => {
     const w = window as unknown as {
       __tlNotifications: { title: string; body?: string; tag?: string }[];
+      __tlNotificationObjects: { onclick: ((ev: Event) => unknown) | null }[];
       Notification: typeof Notification;
     };
     w.__tlNotifications = [];
+    w.__tlNotificationObjects = [];
     const Real = w.Notification;
     if (!Real) return;
     class Recorder extends EventTarget {
@@ -65,6 +67,7 @@ export async function recordNotifications(context: BrowserContext): Promise<void
         this.body = opts.body;
         this.tag = opts.tag;
         w.__tlNotifications.push({ title, body: opts.body, tag: opts.tag });
+        w.__tlNotificationObjects.push(this);
       }
       close() {}
     }
@@ -77,4 +80,18 @@ export async function recordedNotifications(page: Page): Promise<RecordedNotific
     () =>
       (window as unknown as { __tlNotifications?: RecordedNotification[] }).__tlNotifications ?? [],
   );
+}
+
+/** Click the `index`th recorded notification, as the OS would. */
+export async function clickNotification(page: Page, index: number): Promise<void> {
+  await page.evaluate((i) => {
+    const objects = (
+      window as unknown as {
+        __tlNotificationObjects?: { onclick: ((ev: Event) => unknown) | null }[];
+      }
+    ).__tlNotificationObjects;
+    const n = objects?.[i];
+    if (!n) throw new Error(`No notification ${i}`);
+    n.onclick?.(new Event('click'));
+  }, index);
 }

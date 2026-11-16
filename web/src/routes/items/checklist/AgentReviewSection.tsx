@@ -3,7 +3,10 @@ import { EmptyState, Provenance, Section } from '../../../components/kit';
 import type { ItemKind } from '../ItemPage';
 import { AddRow } from './AddRow';
 
-/** Agent review ("n/N passed · what the agent verifies itself"). US2 fills the rows (UI_SPEC §6.3.1). */
+/**
+ * Agent review ("n/N passed · what the agent verifies itself"): each check's
+ * state, evidence and provenance, or "not run yet" (UI_SPEC §6.3.1).
+ */
 export function AgentReviewSection({ kind, data }: { kind: ItemKind; data: ItemDetailResponse }) {
   const checks = data.item.checklist.checks;
   const passed = checks.filter((c) => c.state === 'pass').length;
@@ -21,10 +24,14 @@ export function AgentReviewSection({ kind, data }: { kind: ItemKind; data: ItemD
       ) : (
         checks.map((c) => (
           <div className="ck" key={c.id}>
-            <span className={`sicon s-${c.state}`} aria-hidden="true" />
-            <div>
+            <span className={`sicon s-${c.state}`} aria-hidden="true">
+              {c.state === 'pass' ? '✓' : c.state === 'fail' ? '×' : ''}
+            </span>
+            <div style={{ minWidth: 0 }}>
               <b>{c.text}</b>
-              <span className="sr"> ({c.state})</span>
+              <span className="sr"> ({c.state === 'todo' ? 'not run yet' : c.state})</span>
+              {c.evidence && <div className="src">{c.evidence}</div>}
+              {c.added_by === 'owner' && <div className="hrby">added by you</div>}
             </div>
             {c.state === 'todo' ? (
               <span className="src">not run yet</span>

@@ -65,6 +65,7 @@ function Palette({ onClose }: { onClose: () => void }) {
             <StatusChip status={i.status} />
           </>
         ),
+        archived: i.archived,
         onSelect: () => navigate(paths.item(i.id)),
       })),
     },

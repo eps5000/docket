@@ -1,13 +1,16 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router';
 import { ToastRegion } from '../components/kit';
+import type { StreamChange } from '../lib/api';
+import { CONNECTION_TEXT, useConnection, useFocusKeeper } from '../lib/live';
+import { Notifier, tabTitle } from '../lib/notifications';
 import { paths } from '../lib/paths';
 import { toasts, useToasts } from '../lib/undo';
 import { QuickCaptureHost } from '../routes/dialogs/QuickCapture';
 import { Header } from './Header';
 import { PaletteHost } from './PaletteHost';
-import { isLocked, setOnLocked } from './queryClient';
+import { apiClient, isLocked, setOnLocked } from './queryClient';
 import { useShell } from './ShellState';
 import { isPaletteShortcut } from './shortcuts';
 import { Sidebar } from './Sidebar';
@@ -51,7 +54,38 @@ export function AppShell() {
 
   // The stream needs an unlocked session: open it once bootstrap answered anything but 401.
   const unlocked = boot.isSuccess || (boot.isError && !isLocked(boot.error));
-  useLiveStream(queryClient, unlocked);
+
+  // Desktop notifications: one claiming tab per browser (UI_SPEC §6.7a).
+  const navRef = useRef(navigate);
+  const notifierRef = useRef<Notifier | null>(null);
+  useEffect(() => {
+    navRef.current = navigate;
+  }, [navigate]);
+  useEffect(() => {
+    if (!unlocked) return;
+    const notifier = new Notifier({
+      fetchNeedsYou: () => apiClient['needsYou.get']({ query: { scope: 'all' } }),
+      navigate: (path) => navRef.current(path),
+    });
+    notifierRef.current = notifier;
+    notifier.start();
+    return () => {
+      notifier.stop();
+      notifierRef.current = null;
+    };
+  }, [unlocked]);
+  const onChange = useCallback((change: StreamChange) => {
+    void notifierRef.current?.handle(change);
+  }, []);
+  const stream = useLiveStream(queryClient, unlocked, { onChange });
+  const connection = useConnection(unlocked && stream !== 'open');
+  useFocusKeeper(queryClient);
+
+  // The tab title shows the for-you count, notifications on or off.
+  const forYou = boot.data?.counts.for_you;
+  useEffect(() => {
+    document.title = tabTitle(forYou);
+  }, [forYou]);
 
   // Open-item tabs follow the location; other pages become "the page you came from".
   useEffect(() => {
@@ -60,11 +94,15 @@ export function AppShell() {
   }, [activeId, here, openTab, setLastPage]);
 
   // Move focus to the view on navigation (not on first load), like the prototype.
+  // Never take it from an open dialog: a navigation that commits late (React
+  // Router renders it in a transition) must not pull focus out of the palette
+  // the owner has just opened.
   useEffect(() => {
     if (first.current) {
       first.current = false;
       return;
     }
+    if (document.activeElement?.closest('[role="dialog"]')) return;
     viewRef.current?.focus({ preventScroll: true });
   }, [location.pathname]);
 
@@ -91,7 +129,19 @@ export function AppShell() {
           <Header />
           <TabStrip activeId={activeId} />
           <main className="view" id="main" ref={viewRef} tabIndex={-1}>
-            <Outlet />
+            {connection !== 'ok' && (
+              <div
+                className={`livebanner live-${connection}`}
+                role="alert"
+                data-connection={connection}
+              >
+                {CONNECTION_TEXT[connection]}
+              </div>
+            )}
+            {/* Unreachable: every write action in the view is disabled (UI_SPEC §7). */}
+            <fieldset className="livefs" disabled={connection === 'unreachable'}>
+              <Outlet />
+            </fieldset>
           </main>
         </div>
       </div>

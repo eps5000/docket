@@ -1,6 +1,6 @@
 import { Link } from 'react-router';
 import type { ItemDetailResponse } from '@tasklite/shared';
-import { HumanReviewChip, Icon, Section } from '../../../components/kit';
+import { HumanReviewChip, Icon, Provenance, Section } from '../../../components/kit';
 import { paths } from '../../../lib/paths';
 import { plural } from '../../../lib/format';
 import type { ItemKind } from '../ItemPage';
@@ -58,6 +58,21 @@ export function HumanReviewSection({ kind, data }: { kind: ItemKind; data: ItemD
             </span>
           </div>
           <HumanReviewChip state={h.state} />
+          {h.last_decision?.note && (
+            <div className="lastdec" style={{ gridColumn: 2 }}>
+              <Provenance
+                kind={
+                  h.last_decision.kind === 'approve'
+                    ? 'owner_approve'
+                    : h.last_decision.kind === 'changes'
+                      ? 'owner_changes'
+                      : 'owner_defer'
+                }
+                label={`Round ${h.last_decision.round}`}
+              />{' '}
+              {h.last_decision.note}
+            </div>
+          )}
         </div>
       ))}
       {note && <div className="src">{note}</div>}

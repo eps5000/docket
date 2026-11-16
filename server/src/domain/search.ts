@@ -2,8 +2,9 @@
  * Search, filters and the change feed (BUILD_SPEC §5.11, §13): the `search` service.
  *
  * US1 (T075) implements `whoami`, `list_projects`, `search_items` (the
- * agent filters, `fields`, cursor pagination) and `get_changes`. Still a
- * stub: the owner's command palette (US2).
+ * agent filters, `fields`, cursor pagination) and `get_changes`; and
+ * the owner's command palette is US2's (T084): items (archived and
+ * imported ones too, by Jira key), labels and views.
  *
  * Sort orders (MCP_SPEC §5.2): `ready_to_start` by priority, then by how
  * many items each would unblock (most first), then by ID; everything else
@@ -18,7 +19,7 @@ import {
   type ItemSummaryView,
 } from '@tasklite/shared';
 import { APP_VERSION } from '../version.js';
-import { notImplemented, type In, type SearchService, type ServiceDeps } from './contracts.js';
+import { type In, type SearchService, type ServiceDeps } from './contracts.js';
 import {
   BlockIndex,
   EVENT_COLUMNS,
@@ -30,6 +31,19 @@ import {
   type ItemRow,
   type StoredEvent,
 } from './model.js';
+
+/** Results per palette group (UI_SPEC §6.9). */
+export const PALETTE_ITEMS = 20;
+export const PALETTE_LABELS = 10;
+
+/** The palette's "Go to" views (UI_SPEC §6.9), the same list the web client shows. */
+export const PALETTE_VIEWS = [
+  { key: 'needs-you', label: 'Needs you', path: '/' },
+  { key: 'work', label: 'Work', path: '/work' },
+  { key: 'timeline', label: 'Timeline (Work)', path: '/work?layout=timeline' },
+  { key: 'agents', label: 'Agents', path: '/agents' },
+  { key: 'settings', label: 'Settings: projects and connections', path: '/settings' },
+] as const;
 
 const isOpen = (status: string) => (OPEN_STATUSES as readonly string[]).includes(status);
 
@@ -273,6 +287,68 @@ export function createSearchService(deps: ServiceDeps): SearchService {
       return { events: rows.map(eventRow), next_cursor: String(next) };
     },
 
-    palette: notImplemented('search.palette'),
+    palette(r, input) {
+      const sql = r.db.sqlite;
+      const text = input.q.trim();
+      if (!text) return { items: [], labels: [], views: [] };
+      const lower = text.toLowerCase();
+      // Items, archived and imported ones included (FR-067): an exact ID or Jira key first,
+      // then full-text matches on ID, title, text, labels and Jira key.
+      const words = text.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+      const fts = words.length > 0 ? words.map((w) => `"${w}"*`).join(' ') : null;
+      const rows = (
+        fts
+          ? sql
+              .prepare(
+                `SELECT i.id, i.title, i.type, i.status, i.project_key, i.jira_key, i.archived_at
+                 FROM items i JOIN projects p ON p.key = i.project_key
+                 WHERE p.deleted_at IS NULL AND (
+                   upper(i.id) = upper(?) OR upper(coalesce(i.jira_key, '')) = upper(?)
+                   OR i.id IN (SELECT id FROM search_fts WHERE search_fts MATCH ?))
+                 LIMIT 200`,
+              )
+              .all(text, text, fts)
+          : []
+      ) as {
+        id: string;
+        title: string;
+        type: ItemSummary['type'];
+        status: ItemSummary['status'];
+        project_key: string;
+        jira_key: string | null;
+        archived_at: string | null;
+      }[];
+      const exact = (x: (typeof rows)[number]) =>
+        x.id.toLowerCase() === lower || x.jira_key?.toLowerCase() === lower ? 0 : 1;
+      const items = rows
+        .sort(
+          (a, b) =>
+            exact(a) - exact(b) ||
+            Number(a.archived_at !== null) - Number(b.archived_at !== null) ||
+            compareIds(a.id, b.id),
+        )
+        .slice(0, PALETTE_ITEMS)
+        .map((x) => ({
+          id: x.id,
+          title: x.title,
+          type: x.type,
+          status: x.status,
+          project: x.project_key,
+          jira_key: x.jira_key,
+          archived: x.archived_at !== null,
+        }));
+      const labels = (
+        sql
+          .prepare(
+            `SELECT l.project_key, l.name FROM labels l JOIN projects p ON p.key = l.project_key
+             WHERE p.deleted_at IS NULL AND instr(l.name, ?) > 0 ORDER BY l.name, l.project_key LIMIT ?`,
+          )
+          .all(lower, PALETTE_LABELS) as { project_key: string; name: string }[]
+      ).map((l) => ({ project: l.project_key, name: l.name }));
+      const views = PALETTE_VIEWS.filter((v) => v.label.toLowerCase().includes(lower)).map((v) => ({
+        ...v,
+      }));
+      return { items, labels, views };
+    },
   };
 }
