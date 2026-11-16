@@ -302,9 +302,31 @@ describe('GET /api/items/:id', () => {
   it('a ticket in review: the open packet, and label decisions in scope', async () => {
     const d = await get('/api/items/RCP-12', itemDetailResponse);
     expect(d.open_packet).toMatchObject({ round: 2, stale: false, to_verify: 2 });
+    // "about 10 min" on the packet banner comes from the packet's own estimate.
+    const est = s.runtime.db.sqlite
+      .prepare("SELECT estimate FROM packets WHERE item_id = 'RCP-12' AND state = 'open'")
+      .get() as { estimate: string | null };
+    expect(d.open_packet!.estimate).toBe(est.estimate);
+    expect(d.from_review).toBeNull();
     expect(d.decisions.map((x) => x.id).sort()).toEqual(['dec_1', 'dec_3']);
     const owner = d.decisions.findIndex((x) => x.authority === 'owner');
     expect(owner).toBe(0);
+  });
+
+  it('a ticket made by a review decision: the from-review banner data', async () => {
+    const hr = s.runtime.db.sqlite
+      .prepare("SELECT id, text FROM hr_items WHERE item_id = 'RCP-12' LIMIT 1")
+      .get() as { id: string; text: string };
+    s.runtime.db.sqlite
+      .prepare("UPDATE items SET from_review = ? WHERE id = 'RCP-17'")
+      .run(JSON.stringify({ item_id: 'RCP-12', round: 1, hr_item_id: hr.id }));
+    const d = await get('/api/items/RCP-17', itemDetailResponse);
+    expect(d.from_review).toEqual({
+      item_id: 'RCP-12',
+      round: 1,
+      hr_item_id: hr.id,
+      text: hr.text,
+    });
   });
 
   it('an epic: its children and its own decisions', async () => {
