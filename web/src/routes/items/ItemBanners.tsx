@@ -1,11 +1,11 @@
-import { useId } from 'react';
 import { Link } from 'react-router';
 import type { ItemDetailResponse } from '@tasklite/shared';
 import { Button, Callout, Icon } from '../../components/kit';
 import { useShell } from '../../app/ShellState';
 import { useBootstrap } from '../../app/useBootstrap';
 import { paths } from '../../lib/paths';
-import { plural } from '../../lib/format';
+import { formatClock, isoTitle, plural } from '../../lib/format';
+import { AnswerBox } from '../shared/AnswerBox';
 
 /** Packet ready: amber banner with *Open packet* (UI_SPEC §6.3), and "out of date" when a newer commit came in. */
 export function PacketBanner({
@@ -36,22 +36,27 @@ export function PacketBanner({
   );
 }
 
-/** Open question: the question, an answer box and *Send answer* (UI_SPEC §6.3). US6 wires it. */
+/**
+ * Open question (UI_SPEC §6.3): who asked and when, the question, an answer
+ * box and *Send answer*. After answering: "You answered: “…”. Waiting for
+ * codex to read it." until the agent's next `get_item` delivers it.
+ */
 export function QuestionBanner({
+  itemId,
   question,
   agent,
   unread,
 }: {
+  itemId: string;
   question: NonNullable<ItemDetailResponse['item']['open_question']>;
-  /** Who asked (the lead's client), for "Waiting for codex to read it". */
+  /** Who asked, for "Waiting for codex to read it". */
   agent: string;
   /** The answer hasn't been delivered yet (BUILD_SPEC §5.7). */
   unread: boolean;
 }) {
-  const answerId = useId();
   if (question.answer) {
     return (
-      <Callout tone="ok" className="mb">
+      <Callout tone="ok" className="mb answered">
         You answered: “{question.answer}”.{unread ? ` Waiting for ${agent} to read it.` : ''}
       </Callout>
     );
@@ -60,19 +65,27 @@ export function QuestionBanner({
     <div className="banner q" data-banner="question">
       <Icon name="question" />
       <div className="grow">
-        <b>Question:</b> “{question.text}”
-        <label className="f" htmlFor={answerId}>
-          Your answer
-        </label>
-        <textarea id={answerId} />
-        <div className="row wrap" style={{ marginTop: 6 }}>
-          <Button variant="primary" size="sm" disabled title="Lands with US6">
-            Send answer
-          </Button>
-        </div>
+        <b>
+          {agent} asked at{' '}
+          <span title={isoTitle(question.asked_at)}>{formatClock(question.asked_at)}</span>:
+        </b>{' '}
+        “{question.text}”
+        <AnswerBox
+          itemId={itemId}
+          questionId={question.id}
+          agent={agent}
+          label="Your answer"
+          hint={`The run stays paused until ${agent} reads it.`}
+        />
       </div>
     </div>
   );
+}
+
+/** Who asked the open question: the latest `question.asked` in the activity, else the lead. */
+export function askerOf(data: ItemDetailResponse): string {
+  const asked = data.activity.find((a) => a.type === 'question.asked');
+  return asked?.actor ?? data.item.lead?.client ?? data.item.runs[0]?.client ?? 'the agent';
 }
 
 /** Out of scope: "RCP-21 belongs to Recipe App, outside the project you're viewing." */
@@ -121,8 +134,9 @@ export function ItemBanners({ data }: { data: ItemDetailResponse }) {
       {data.open_packet && <PacketBanner id={item.id} packet={data.open_packet} />}
       {item.open_question && (
         <QuestionBanner
+          itemId={item.id}
           question={item.open_question}
-          agent={item.lead?.client ?? item.runs[0]?.client ?? 'the agent'}
+          agent={askerOf(data)}
           unread={data.answer_unread}
         />
       )}

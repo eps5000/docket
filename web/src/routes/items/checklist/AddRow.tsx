@@ -3,7 +3,7 @@ import { Button } from '../../../components/kit';
 
 /**
  * One input with an *Add* button at the end of a checklist section; Enter
- * adds (UI_SPEC §6.3.1 "Add rows"). The steer slice (US6) wires `onAdd`.
+ * adds (UI_SPEC §6.3.1 "Add rows").
  */
 export function AddRow({
   label,
@@ -12,7 +12,7 @@ export function AddRow({
 }: {
   label: string;
   placeholder: string;
-  onAdd?: (text: string) => void;
+  onAdd: (text: string) => void;
 }) {
   const id = useId();
   return (
@@ -22,7 +22,7 @@ export function AddRow({
         e.preventDefault();
         const input = e.currentTarget.elements.namedItem('text') as HTMLInputElement;
         const text = input.value.trim();
-        if (!text || !onAdd) return;
+        if (!text) return;
         onAdd(text);
         input.value = '';
       }}
@@ -31,12 +31,7 @@ export function AddRow({
         {label}
       </label>
       <input id={id} name="text" className="input" placeholder={placeholder} autoComplete="off" />
-      <Button
-        type="submit"
-        size="sm"
-        disabled={!onAdd}
-        title={onAdd ? undefined : 'Lands with US6'}
-      >
+      <Button type="submit" size="sm">
         Add
       </Button>
     </form>

@@ -343,13 +343,13 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 **Fills**: `server/src/domain/messages.ts`, `ask_owner` and delivery in `get_item`, `server/src/api/routes/steer.ts`, Lead and runs, the History note box, checklist add rows, the inline answer
 
 ### Tests for US6
-- [ ] T117 [P] [US6] Unit tests for exactly-once delivery of answers and notes, one open question per item, and the run going to `needs_input` and back, in `server/tests/unit/messages.test.ts`
-- [ ] T118 [P] [US6] MCP contract test for flow §7.5 and an old `run_id` after release returning `conflict`, in `server/tests/contract/us6-steer.test.ts`
-- [ ] T119 [P] [US6] E2E: inline answer, note logged, the release dialog focusing Cancel with undo, Return to Ready, owner adds and removes a work step and a check, in `web/e2e/us6-steer.spec.ts`
+- [X] T117 [P] [US6] Unit tests for exactly-once delivery of answers and notes, one open question per item, and the run going to `needs_input` and back, in `server/tests/unit/messages.test.ts`
+- [X] T118 [P] [US6] MCP contract test for flow §7.5 and an old `run_id` after release returning `conflict`, in `server/tests/contract/us6-steer.test.ts`
+- [X] T119 [P] [US6] E2E: inline answer, note logged, the release dialog focusing Cancel with undo, Return to Ready, owner adds and removes a work step and a check, in `web/e2e/us6-steer.spec.ts`
 
 ### Implementation for US6
-- [ ] T120 [US6] Implement questions and owner notes (`ask_owner`, answer, delivery marking only in `get_item` standard and full views) in `server/src/domain/messages.ts`. Replace the `ask_owner` stub and fill the `steer` route handlers (answer, notes, release, return-to-ready, and the owner work, check and human-review entries). Reuse B9's `messages.markDelivered`; don't rebuild it. When the owner releases a claim or cancels, emit the run's end event with `data.run_id` and set `end_reason` (`owner_released`, `canceled`), so US11's recovery views see it (B10 note).
-- [ ] T121 [US6] Fill Lead and runs (conflict callout, error output, release dialog, Return to Ready), the History note box, the checklist add rows, the inline answer in Needs you, and the question banner, per UI_SPEC §6.3.1–2
+- [X] T120 [US6] Implement questions and owner notes (`ask_owner`, answer, delivery marking only in `get_item` standard and full views) in `server/src/domain/messages.ts`. Replace the `ask_owner` stub and fill the `steer` route handlers (answer, notes, release, return-to-ready, and the owner work, check and human-review entries). Reuse B9's `messages.markDelivered`; don't rebuild it. When the owner releases a claim or cancels, emit the run's end event with `data.run_id` and set `end_reason` (`owner_released`, `canceled`), so US11's recovery views see it (B10 note).
+- [X] T121 [US6] Fill Lead and runs (conflict callout, error output, release dialog, Return to Ready), the History note box, the checklist add rows, the inline answer in Needs you, and the question banner, per UI_SPEC §6.3.1–2
 
 ---
 

@@ -3,23 +3,23 @@
  * 7; FR-068; UI_SPEC §6.7a).
  *
  * - Items already for you when the page loads never notify (the real stream).
- * - One notification per new packet or question; the same seq or a burst on
- *   one item doesn't notify again; nothing else notifies; a click opens the
- *   packet or the item's question.
+ * - One notification per new packet or question; nothing else on the item
+ *   notifies, and a refused second question doesn't either; a click opens
+ *   the packet or the item's question. (The same seq or a burst notifying
+ *   once is unit-tested in src/lib/notifications.test.ts: a real server never
+ *   repeats a seq.)
  * - The tab title reads `(N) Task Lite`.
  * - The opt-in callout, and with permission denied the status reads
  *   "Blocked by the browser".
  *
- * Packets are real (B9): an agent hands one off with `submit_packet` through
- * the MCP helper, and the page hears it on the real `/api/stream`. Agents
- * can't ask questions yet (`ask_owner` is US6's), so the question cases still
- * feed a routed `/api/stream` carrying exactly what the server sends
- * (`for_you: true`, as us2-api.test.ts checks against the real stream), and
- * `/api/needs-you` adds the matching row. The packet tests run last: they
- * add to the "For you now · 3" the earlier tests count.
+ * Everything is real: an agent hands off a packet with `submit_packet` (B9)
+ * and asks with `ask_owner` (US6, B13) through the MCP helper, and the page
+ * hears it on the real `/api/stream`. The question test answers its
+ * question in the ticket's banner, so the count is back to 3 afterwards;
+ * the packet tests run last: they add to the "For you now · 3" the earlier
+ * tests count.
  */
-import type { Page, Route } from '@playwright/test';
-import type { ForYouRow, NeedsYouResponse } from '@tasklite/shared';
+import type { Page } from '@playwright/test';
 import {
   clickNotification,
   connectAgent,
@@ -34,48 +34,6 @@ import {
 } from './fixtures/index';
 
 useSeededContainer();
-
-const NEW_QUESTION: ForYouRow = {
-  kind: 'question',
-  item_id: 'RCP-16',
-  title: 'Nutrition summary card',
-  project: 'RCP',
-  question_id: 'q_e2e',
-  asked_by: 'claude · e2e-w1',
-  text: 'Should the card round to whole grams?',
-  asked_at: new Date().toISOString(),
-};
-
-/** A stream we feed by hand; each reconnect (300 ms) delivers what was queued. */
-async function routedStream(page: Page) {
-  const queue: string[] = [];
-  await page.route(/\/api\/stream(\?.*)?$/, async (route: Route) => {
-    const body = `retry: 300\n\n${queue.splice(0).join('')}`;
-    await route.fulfill({
-      status: 200,
-      headers: { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' },
-      body,
-    });
-  });
-  return {
-    push(seq: number, type: string, id: string, forYou: boolean) {
-      const data = { seq, type, objects: [{ kind: 'item', id }], for_you: forYou };
-      queue.push(`event: change\nid: ${seq}\ndata: ${JSON.stringify(data)}\n\n`);
-    },
-  };
-}
-
-/** Needs you as the server answers it, plus `extra` rows. */
-async function needsYouWith(page: Page, extra: () => ForYouRow[]) {
-  await page.route(/\/api\/needs-you(\?.*)?$/, async (route: Route) => {
-    const res = await route.fetch();
-    const body = (await res.json()) as NeedsYouResponse;
-    await route.fulfill({
-      response: res,
-      json: { ...body, for_you_now: [...body.for_you_now, ...extra()] },
-    });
-  });
-}
 
 async function notificationsOn(page: Page) {
   await page.context().addInitScript(() => localStorage.setItem('tl.notifications', 'on'));
@@ -150,41 +108,55 @@ test.describe('notifications', () => {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'For you now · 3' })).toBeVisible();
   });
-  test('one notification per new question; the same seq or a burst does not notify again; a click opens the question', async ({
+  test('one notification per new question; nothing else on the item notifies, nor a refused second question; a click opens the question', async ({
     page,
   }) => {
     await grantNotifications(page.context());
     await recordNotifications(page.context());
     await notificationsOn(page);
-    const rows: ForYouRow[] = [];
-    await needsYouWith(page, () => rows);
-    const stream = await routedStream(page);
     await page.goto('/work');
     await expect(page).toHaveTitle('(3) Task Lite');
 
-    // Not for you: never notifies.
-    stream.push(9001, 'item.updated', 'RCP-17', false);
-    stream.push(9002, 'run.ended', 'RCP-18', false);
-    await page.waitForTimeout(1000);
-    expect(await recordedNotifications(page)).toEqual([]);
+    const agent = await connectAgent('claude');
+    try {
+      // Not for you: never notifies.
+      const note = await agent.call('add_note', { id: 'RCP-16', text: 'Looking at rounding.' });
+      expect(note.isError, note.text).toBe(false);
+      await page.waitForTimeout(1000);
+      expect(await recordedNotifications(page)).toEqual([]);
 
-    rows.push(NEW_QUESTION);
-    stream.push(9004, 'question.asked', 'RCP-16', true);
-    await expect.poll(async () => (await recordedNotifications(page)).length).toBe(1);
+      const asked = await agent.call('ask_owner', {
+        id: 'RCP-16',
+        question: 'Should the card round to whole grams?',
+      });
+      expect(asked.isError, asked.text).toBe(false);
+      await expect.poll(async () => (await recordedNotifications(page)).length).toBe(1);
+      await expect(page).toHaveTitle('(4) Task Lite');
 
-    // The same seq again, and a burst on the same item: nothing more.
-    stream.push(9004, 'question.asked', 'RCP-16', true);
-    stream.push(9005, 'question.asked', 'RCP-16', true);
-    await page.waitForTimeout(1500);
-    expect(await recordedNotifications(page)).toEqual([
-      {
-        title: 'claude asks on RCP-16',
-        body: 'Should the card round to whole grams?',
-        tag: 'tl-question-RCP-16',
-      },
-    ]);
-    await clickNotification(page, 0);
-    await expect(page).toHaveURL(/\/items\/RCP-16$/);
+      // A second question while one is open is refused; another note isn't for you.
+      const second = await agent.call('ask_owner', { id: 'RCP-16', question: 'And for drinks?' });
+      expect(second.structured).toMatchObject({ code: 'validation' });
+      await agent.call('add_note', { id: 'RCP-16', text: 'Still waiting on rounding.' });
+      await page.waitForTimeout(1500);
+      expect(await recordedNotifications(page)).toEqual([
+        {
+          title: 'claude asks on RCP-16',
+          body: 'Should the card round to whole grams?',
+          tag: 'tl-question-RCP-16',
+        },
+      ]);
+      await clickNotification(page, 0);
+      await expect(page).toHaveURL(/\/items\/RCP-16$/);
+
+      // Answered in the banner, it's no longer for you.
+      const banner = page.locator('[data-banner="question"]');
+      await banner.getByLabel('Your answer').fill('Yes, whole grams.');
+      await banner.getByRole('button', { name: 'Send answer' }).click();
+      await expect(page.locator('.callout.answered')).toBeVisible();
+      await expect(page).toHaveTitle('(3) Task Lite');
+    } finally {
+      await agent.close();
+    }
   });
 
   test('a packet an agent submits notifies once; a click opens the packet', async ({ page }) => {

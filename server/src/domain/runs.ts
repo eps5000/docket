@@ -7,8 +7,12 @@
  * brief (an immutable `brief` document version); heartbeats patch the
  * workspace and declare or release resources; `park_run` suspends the lease
  * and any later call resumes it (the MCP signal hook calls `resume`);
- * `finish_run` warns about unreleased resources and unpushed commits. Still
- * stubs: the owner's release and *Return to Ready* (US6, T107).
+ * `finish_run` warns about unreleased resources and unpushed commits.
+ *
+ * US6 (T120) adds the owner's *Release lead claim* and *Return to Ready*.
+ * Both are undoable, and undo restores the item's status, never the run
+ * (BUILD_SPEC §5.1, §5.3). Ending a lead on the owner's behalf is
+ * `endLeadForOwner`, which US7's owner cancel reuses with `canceled`.
  */
 import { createHash } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -24,7 +28,6 @@ import {
   type WaitingOn,
 } from '@tasklite/shared';
 import {
-  notImplemented,
   type In,
   type Out,
   type ReceiptContext,
@@ -57,9 +60,52 @@ import {
   summaryOf,
   utcTime,
   windowsOf,
+  type ItemRow,
   type RunRow,
 } from './model.js';
-import type { WriteContext } from './write.js';
+import type { InverseOp, WriteContext } from './write.js';
+
+/**
+ * End an item's active lead on the owner's behalf: *Release lead claim*
+ * (`owner_released`) or the owner's cancel (`canceled`, US7). The run
+ * becomes `interrupted` with that `end_reason`, so B10's recovery views
+ * count it as an interruption (`recovery_report`, Problems, Workspaces),
+ * and a `claim.released` event names it in `data.run_id` (when it ended,
+ * for those views). The run's next call gets `conflict` (§5.3).
+ *
+ * The run is not part of the owner's undo: undo restores the item's
+ * status, not the run (BUILD_SPEC §5.1). So this event's inverse only
+ * touches the item (a version bump), which keeps the mutation undoable
+ * without reviving the run. The caller moves the item, with its own
+ * `item.status_changed` event and inverse.
+ *
+ * Returns the run it ended, or undefined when the item has no lead. Child
+ * runs are left as they are, as on lease expiry: they end themselves.
+ */
+export function endLeadForOwner(
+  w: WriteContext,
+  item: { id: string; project_key: string },
+  endReason: 'owner_released' | 'canceled',
+): RunRow | undefined {
+  const lead = activeLead(w.db, item.id);
+  if (!lead) return undefined;
+  w.update('runs', lead.id, { state: 'interrupted', end_reason: endReason });
+  const holder = actorName({ kind: 'agent', client: lead.client, label: lead.label });
+  const touchItem: InverseOp = { op: 'update', table: 'items', id: item.id, set: {} };
+  w.event({
+    type: 'claim.released',
+    summary:
+      endReason === 'owner_released'
+        ? `You released ${holder}’s lead claim on ${item.id}; its run is interrupted and the plan kept`
+        : `${holder}’s lead run on ${item.id} was interrupted: you canceled the item`,
+    item_id: item.id,
+    project_key: item.project_key,
+    data: { run_id: lead.id, end_reason: endReason, from: lead.state },
+    objects: [{ kind: 'run', id: lead.id }],
+    inverse: [touchItem],
+  });
+  return lead;
+}
 
 /**
  * A refused claim (§5.3). The refusal is recorded as a `claim.rejected`
@@ -407,8 +453,65 @@ export function createRunsService(deps: ServiceDeps): RunsService {
       return summary(w, item.id);
     },
 
-    ownerRelease: notImplemented('runs.ownerRelease'),
-    returnToReady: notImplemented('runs.returnToReady'),
+    ownerRelease(w, input) {
+      const item = w.checkVersion('items', input.id, input.expected_version) as unknown as ItemRow;
+      requireItem(w.db, item.id);
+      const lead = endLeadForOwner(w, item, 'owner_released');
+      if (!lead) {
+        throw new ToolError(
+          'conflict',
+          `${item.id} has no lead claim to release; it may have ended already. Showing the latest.`,
+          { current: summary(w, item.id) },
+        );
+      }
+      if (item.status === 'progress') {
+        const inverse = w.update('items', item.id, { status: 'ready' });
+        w.event({
+          type: 'item.status_changed',
+          summary: `${item.id} moved from progress to ready: lead claim released by you${input.reason ? ` (${input.reason})` : ''}`,
+          item_id: item.id,
+          project_key: item.project_key,
+          data: { status: { old: 'progress', new: 'ready' }, run_id: lead.id },
+          inverse: [inverse],
+        });
+      }
+      return summary(w, item.id);
+    },
+
+    returnToReady(w, input) {
+      const item = w.checkVersion('items', input.id, input.expected_version) as unknown as ItemRow;
+      requireItem(w.db, item.id);
+      const lead = activeLead(w.db, item.id);
+      if (lead && !leaseExpired(lead, w.now)) {
+        const holder = actorName({ kind: 'agent', client: lead.client, label: lead.label });
+        throw new ToolError(
+          'validation',
+          `${holder} leads ${item.id}. Release the lead claim instead, or wait for the run to end.`,
+          { details: { run_id: lead.id } },
+        );
+      }
+      if (item.status !== 'progress') {
+        throw new ToolError(
+          'validation',
+          `${item.id} is ${item.status}; only In progress items with no lead can return to Ready.`,
+          { details: { status: item.status, allowed: ['progress'] } },
+        );
+      }
+      // A lease that ran out before the sweeper got to it: end it as such first.
+      if (lead) expire(w, lead);
+      else {
+        const inverse = w.update('items', item.id, { status: 'ready' });
+        w.event({
+          type: 'item.status_changed',
+          summary: `You moved ${item.id} from progress to ready: ${input.reason ?? 'returned to Ready'}`,
+          item_id: item.id,
+          project_key: item.project_key,
+          data: { status: { old: 'progress', new: 'ready' }, reason: input.reason ?? null },
+          inverse: [inverse],
+        });
+      }
+      return summary(w, item.id);
+    },
 
     startRun(w, input) {
       assertCallerRun(w.db, w.actor, w.now);
