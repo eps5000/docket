@@ -113,6 +113,7 @@ export const searchResults: SearchResponse = {
       status: 'progress',
       project: 'RCP',
       jira_key: null,
+      archived: false,
     },
   ],
   labels: [{ project: 'RCP', name: 'ui-refresh' }],

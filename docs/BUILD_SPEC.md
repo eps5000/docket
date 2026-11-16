@@ -511,7 +511,7 @@ Every route requires the owner session (§3). JSON bodies **and query strings** 
 | `GET /api/agents?scope` | Agents table |
 | `GET /api/settings` · `PATCH /api/projects/:key` `{default_satisfied_when}` · `DELETE /api/projects/:key` `{confirm_key}` | Settings |
 | `GET /api/decisions?project&scope_kind&scope_id&include_inactive` · `POST /api/decisions` · `POST /api/decisions/:id/confirm` · `POST /api/decisions/:id/withdraw` `{reason}` | Decisions sections (ticket, epic, label, Settings → project) |
-| `GET /api/search?q` | Command palette (items, labels, views) |
+| `GET /api/search?q` | Command palette (items, labels, views). Items include archived ones, each with `archived: boolean` for the palette's *Archived* tag (UI_SPEC §4). |
 | `GET /api/documents/:versionId/content` | Document viewer, attachments |
 | `POST /api/import/jira/dry-run` · `GET /api/import/jira/:id` · `POST /api/import/jira/:id/commit` · `DELETE /api/import/jira/:id` | Jira import (§9) |
 | `POST /api/mutations/:id/undo` | Undo toast |
