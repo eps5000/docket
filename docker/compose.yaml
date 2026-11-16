@@ -20,7 +20,9 @@ services:
     volumes:
       - tasklite-data:/data
       # Opt-in extra backup location (owner decision 24). Uncomment, then set
-      # TASKLITE_BACKUP_EXTRA_DIR=/backups-extra in .env.
+      # TASKLITE_BACKUP_EXTRA_DIR=/backups-extra in .env. The folder must exist and be
+      # writable by uid 10001 (Linux: sudo chown 10001:10001 ~/TaskLiteBackups).
+      # See the README, "Backups and restore".
       # - ~/TaskLiteBackups:/backups-extra
     restart: unless-stopped
     healthcheck:
