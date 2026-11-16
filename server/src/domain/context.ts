@@ -11,7 +11,9 @@
  *    `inScopeOf`, the one scope rule);
  * 3. the epic's outcome, and the briefs of the item's labels;
  * 4. blockers (cleared or what each waits for, from B11's `BlockIndex`)
- *    and dependents;
+ *    and dependents. `blocked_by` is a safety fact (MCP_SPEC §3.1: the
+ *    text says "none" when it is empty), so unresolved blockers are kept
+ *    with the essentials; only cleared ones and dependents can be cut;
  * 5. Markdown planning documents on the item and its epic, newest version
  *    of each: text until the budget runs out, then names and versions;
  * 6. the latest decided review round: its verdicts and notes.
@@ -263,12 +265,17 @@ export function assemble(
   const full = gather(r, deps, id);
   const now = new Date(r.now);
   const maxChars = CONTEXT_BUDGETS[budget] * 4;
+  // `blocked_by` is a safety fact (MCP_SPEC §3.1): the text says "none" when the list is
+  // empty, so unresolved blockers travel with the essentials and are never cut. Only
+  // cleared blockers and dependents are section 4's to cut.
+  const unresolved = full.blockers.filter((x) => !x.cleared);
+  const cleared = full.blockers.filter((x) => x.cleared);
   const b: Bundle = {
     item: full.item,
     decisions: [],
     epic: null,
     labels: [],
-    blockers: [],
+    blockers: [...unresolved],
     dependents: [],
     planning_docs: [],
     last_review: null,
@@ -288,11 +295,15 @@ export function assemble(
     pending.set('epic', `epic ${full.epic.id} outcome; read it with get_item ${full.epic.id}`);
   if (full.labels.length > 0)
     pending.set('labels', `briefs of ${full.labels.map((l) => l.name).join(', ')}${larger}`);
-  if (full.blockers.length + full.dependents.length > 0)
-    pending.set(
-      'links',
-      `${plural(full.blockers.length, 'blocker')} and ${plural(full.dependents.length, 'dependent')}; read them with get_item ${id}`,
-    );
+  const linksLeft = (blockers: number, dependents: number) =>
+    `${[
+      blockers > 0 ? plural(blockers, 'cleared blocker') : null,
+      dependents > 0 ? plural(dependents, 'dependent') : null,
+    ]
+      .filter(Boolean)
+      .join(' and ')}; read them with get_item ${id}`;
+  if (cleared.length + full.dependents.length > 0)
+    pending.set('links', linksLeft(cleared.length, full.dependents.length));
   if (full.docs.length > 0)
     pending.set(
       'docs',
@@ -410,24 +421,17 @@ export function assemble(
     }
   }
 
-  // 4. Blockers, then dependents.
-  if (room && full.blockers.length + full.dependents.length > 0) {
+  // 4. Cleared blockers (unresolved ones are already in), then dependents.
+  if (room && cleared.length + full.dependents.length > 0) {
     pending.delete('links');
-    const left = (blockers: number, dependents: number) =>
-      `${[
-        blockers > 0 ? `${plural(blockers, 'more blocker')}` : null,
-        dependents > 0 ? `${plural(dependents, 'dependent')}` : null,
-      ]
-        .filter(Boolean)
-        .join(' and ')}; read them with get_item ${id}`;
     let cut = false;
-    for (let i = 0; i < full.blockers.length; i++) {
-      b.blockers.push(full.blockers[i]!);
-      const restB = full.blockers.length - i - 1;
+    for (let i = 0; i < cleared.length; i++) {
+      b.blockers.push(cleared[i]!);
+      const restB = cleared.length - i - 1;
       const restD = full.dependents.length;
-      if (fits(restB + restD > 0 ? [left(restB, restD)] : [])) continue;
+      if (fits(restB + restD > 0 ? [linksLeft(restB, restD)] : [])) continue;
       b.blockers.pop();
-      done('links', left(full.blockers.length - i, full.dependents.length));
+      done('links', linksLeft(cleared.length - i, full.dependents.length));
       cut = true;
       break;
     }
@@ -435,7 +439,7 @@ export function assemble(
       b.dependents = full.dependents;
       if (!fits()) {
         b.dependents = [];
-        done('links', left(0, full.dependents.length));
+        done('links', linksLeft(0, full.dependents.length));
       }
     }
   }

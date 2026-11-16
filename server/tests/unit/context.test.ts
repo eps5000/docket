@@ -469,8 +469,12 @@ describe('budgets: 1k / 3k / 8k tokens, characters ÷ 4 on the compact text', ()
       d.clock.advance(1_000);
       publish(claude, { kind: 'item', id: item }, `Agent ${i}`, para(20, `Agent${i}`));
     }
+    // One unresolved blocker (a safety fact, always kept) and one cleared one (cut first).
+    const open = create({ title: 'Still open', outcome: 'x' });
+    d.write(claude, (w, s) => s.links.link(w, { from: open, to: item, type: 'blocks' }));
     const lower = create({ title: 'Lower', outcome: 'x' });
     d.write(claude, (w, s) => s.links.link(w, { from: lower, to: item, type: 'blocks' }));
+    d.sql.prepare("UPDATE items SET status = 'done' WHERE id = ?").run(lower);
 
     const { bundle, text, tokens } = context(item, 'small');
     expect(tokens).toBeLessThanOrEqual(CONTEXT_BUDGETS.small);
@@ -490,9 +494,13 @@ describe('budgets: 1k / 3k / 8k tokens, characters ÷ 4 on the compact text', ()
     // A cut decision ends in "…" and loses its rationale.
     const last = bundle.decisions[bundle.decisions.length - 1]!;
     if (marker!.includes(' cut)')) expect(last.decision_md.endsWith('…')).toBe(true);
-    // The lower sections went first.
-    expect(bundle.blockers).toEqual([]);
-    expect(bundle.truncated_sections.some((s) => s.includes('blocker'))).toBe(true);
+    // The lower sections went first; the unresolved blocker stayed, so blocked_by is true.
+    expect(bundle.blockers.map((x) => x.id)).toEqual([open]);
+    expect(text).toContain(`blocked_by:
+  - ${open} Still open · planning · waiting for done`);
+    expect(bundle.truncated_sections).toContain(
+      `1 cleared blocker; read them with get_item ${item}`,
+    );
   });
 
   it('essentials alone over the budget: cut last, and marked', () => {
