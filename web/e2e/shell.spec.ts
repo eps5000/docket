@@ -235,13 +235,9 @@ test.describe('shell navigation', () => {
   }) => {
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(e.message));
-    // US2's routes (Needs you, Work board/list/map, items, Agents) now answer; see us2-visibility.
-    for (const path of [
-      '/work?layout=timeline',
-      '/review/RCP-12',
-      '/labels/RCP/ui-refresh',
-      '/settings',
-    ]) {
+    // US2's routes (Needs you, Work board/list/map, items, Agents) now answer; see
+    // us2-visibility. So does the packet screen (US3); see us3-review.
+    for (const path of ['/work?layout=timeline', '/labels/RCP/ui-refresh', '/settings']) {
       await page.goto(path);
       await expect(h1(page)).toBeVisible();
       const states = page.locator('[data-error-state="not-built"]');
