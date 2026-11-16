@@ -7,7 +7,7 @@ import { useBootstrap } from '../../app/useBootstrap';
 import { paths } from '../../lib/paths';
 import { plural } from '../../lib/format';
 
-/** Packet ready: amber banner with *Open packet* (UI_SPEC §6.3). US3 fills it. */
+/** Packet ready: amber banner with *Open packet* (UI_SPEC §6.3), and "out of date" when a newer commit came in. */
 export function PacketBanner({
   id,
   packet,
@@ -21,6 +21,12 @@ export function PacketBanner({
       <div className="grow">
         <b>Handoff packet ready (round {packet.round}).</b> {plural(packet.to_verify, 'thing')} to
         verify. The ticket can’t close until you approve.
+        {packet.stale && (
+          <>
+            {' '}
+            <b className="bad-text">Out of date:</b> a newer commit was reported after it.
+          </>
+        )}
       </div>
       <Link className="btn primary" to={paths.review(id, packet.round)}>
         Open packet

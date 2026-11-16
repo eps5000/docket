@@ -11,7 +11,15 @@ export function DocumentViewer({
   doc,
   onClose,
 }: {
-  doc: { versionId: string; name: string; version: number; by: string; at: string };
+  /** `version` when known; `caption` for a packet attachment. */
+  doc: {
+    versionId: string;
+    name: string;
+    version?: number;
+    by: string;
+    at: string;
+    caption?: string | null;
+  };
   onClose: () => void;
 }) {
   return (
@@ -32,10 +40,13 @@ export function DocumentViewer({
       }
     >
       <div className="src" style={{ marginBottom: 8 }}>
-        v{doc.version} · {doc.by} · {formatStamp(doc.at)}
+        {doc.version !== undefined && `v${doc.version} · `}
+        {doc.caption && `${doc.caption} · `}
+        {doc.by} · {formatStamp(doc.at)}
       </div>
       <div className="media" data-preview="">
-        <Icon name="clip" small /> v{doc.version}: preview appears here
+        <Icon name="clip" small /> {doc.version !== undefined ? `v${doc.version}: ` : ''}preview
+        appears here
       </div>
     </Dialog>
   );
