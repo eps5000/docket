@@ -166,17 +166,17 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 
 ## Phase 3c: Contracts, UI kit, shell and screens · M4 (contract half)
 
-- [ ] T057 [P] Build the UI kit per UI_SPEC §4–§5 in `web/src/components/kit/`: Button, IconButton, Chip (all variants), TypeBadge/TypeIcon, RunState (including `parked`, UI_SPEC §5), Provenance, Priority, Label, EpicLink, Card, Section (collapsible, per-type persistence), ViewTabs (counts, dots, ARIA tabs), TicketCard, EpicCard, DecisionRow shell, Toast, Dialog (focus trap; destructive dialogs focus Cancel), CommandPalette shell, EmptyState, and the inline editor primitive. Light and dark.
-- [ ] T058 [P] Add a dev-only kit gallery at `/dev/kit` in `web/src/routes/dev/kit.tsx`, with axe checks in `web/e2e/kit.spec.ts`
-- [ ] T059 Build the app shell in `web/src/app/`:
+- [X] T057 [P] Build the UI kit per UI_SPEC §4–§5 in `web/src/components/kit/`: Button, IconButton, Chip (all variants), TypeBadge/TypeIcon, RunState (including `parked`, UI_SPEC §5), Provenance, Priority, Label, EpicLink, Card, Section (collapsible, per-type persistence), ViewTabs (counts, dots, ARIA tabs), TicketCard, EpicCard, DecisionRow shell, Toast, Dialog (focus trap; destructive dialogs focus Cancel), CommandPalette shell, EmptyState, and the inline editor primitive. Light and dark.
+- [X] T058 [P] Add a dev-only kit gallery at `/dev/kit` in `web/src/routes/dev/kit.tsx`, with axe checks in `web/e2e/kit.spec.ts`
+- [X] T059 Build the app shell in `web/src/app/`:
   - 220 px sidebar (Needs you, Work, Agents, Settings), collapsing to a 64 px rail at ≤ 1180 px;
   - header with breadcrumb, + New, search (`Ctrl K` and `/`) and theme;
   - open-item tab strip, 8 maximum, remembering each tab's view;
   - `sessionStorage`/`localStorage` persistence per UI_SPEC §2;
   - an SSE hook using the invalidation map;
   - the Unlock route.
-- [ ] T060 Build the toast-with-undo plumbing (3.2 s, or 6 s with Undo; `role=status`; calls the undo route) and the conflict-toast handling in `web/src/lib/undo.ts`
-- [ ] T061 Build **every screen as a shell**, routed and using the typed client, rendering the UI_SPEC empty, loading (skeleton after 200 ms) and error states. Slices fill in the content. The shells:
+- [X] T060 Build the toast-with-undo plumbing (3.2 s, or 6 s with Undo; `role=status`; calls the undo route) and the conflict-toast handling in `web/src/lib/undo.ts`
+- [X] T061 Build **every screen as a shell**, routed and using the typed client, rendering the UI_SPEC empty, loading (skeleton after 200 ms) and error states. Slices fill in the content. The shells:
   - Needs you;
   - Work: Board, List, Map and Timeline layouts, filters and the Epics row;
   - the item page: header, banners, the four view tabs, and the sections per tab;
@@ -186,8 +186,8 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
   - the dialogs: Quick capture, Document viewer, Checklist history, Delete project, Jira import.
 
   In `web/src/routes/**`.
-- [ ] T062 [P] Build the end-to-end harness in `web/e2e/fixtures/`: a seeded container reset per test file, an unlock helper, an axe helper (both themes), an MCP client helper for driving agent actions from browser tests, and a notification-permission helper
-- [ ] T063 [P] Shell navigation E2E: every route reachable from the sidebar, palette and tabs; the 8-tab cap; scope resetting to All projects in a new context; axe-clean empty states. In `web/e2e/shell.spec.ts`.
+- [X] T062 [P] Build the end-to-end harness in `web/e2e/fixtures/`: a seeded container reset per test file, an unlock helper, an axe helper (both themes), an MCP client helper for driving agent actions from browser tests, and a notification-permission helper
+- [X] T063 [P] Shell navigation E2E: every route reachable from the sidebar, palette and tabs; the 8-tab cap; scope resetting to All projects in a new context; axe-clean empty states. In `web/e2e/shell.spec.ts`.
 
 **Checkpoint**: every screen is navigable with correct empty and error states, and the kit and shell pass axe. **The contract surface is complete; slices can now run in any dependency-respecting order.**
 
