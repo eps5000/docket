@@ -864,6 +864,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
             total: kids.length,
             done: kids.filter((k) => k.status === 'done').length,
             by_status,
+            for_you: kids.filter((k) => att.packets.has(k.id) || att.questions.has(k.id)).length,
           },
         };
       });
@@ -891,10 +892,16 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
               byPriorityThenId,
             )
           : [];
-      const children: ItemSummary[] = summarize(
+      const childIds = childRows.map((c) => c.id);
+      const childPackets = openPackets(r.db, childIds);
+      const childQuestions = openQuestions(r.db, childIds);
+      const children = summarize(
         { db: r.db, windows: windows(), now: r.now, index },
         childRows,
-      );
+      ).map((c: ItemSummary) => ({
+        ...c,
+        for_you: childPackets.has(c.id) || childQuestions.has(c.id),
+      }));
 
       // Decision records in scope (§6.3.5): an epic shows its own; a ticket everything that applies.
       type DecisionDbRow = {

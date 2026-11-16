@@ -12,12 +12,13 @@ export function EpicTicketsSection({ data }: { data: ItemDetailResponse }) {
   const kids = data.children;
   const done = kids.filter((k) => k.status === 'done').length;
   const blocked = kids.filter((k) => k.status === 'ready' && k.blocked).length;
+  const forYou = kids.filter((k) => k.for_you).length;
   const live = kids.filter((k) => !k.archived);
   return (
     <Section
       sectionKey="tickets"
       title="Tickets in this epic"
-      summary={`${done}/${kids.length} done · ${blocked} ready but blocked`}
+      summary={`${done}/${kids.length} done · ${blocked} ready but blocked · ${forYou} for you`}
     >
       {kids.length === 0 ? (
         <EmptyState text="No items yet." />

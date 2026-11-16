@@ -66,6 +66,8 @@ export const epicCardSchema = itemSummarySchema.extend({
     total: z.number().int(),
     done: z.number().int(),
     by_status: z.partialRecord(statusSchema, z.number().int()),
+    /** Children with a packet ready or an open question ("N for you", UI_SPEC §4). */
+    for_you: z.number().int(),
   }),
 });
 export type EpicCard = z.infer<typeof epicCardSchema>;
