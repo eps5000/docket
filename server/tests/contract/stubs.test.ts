@@ -19,6 +19,7 @@ import type { RunSignal, ToolHandlers } from '../../src/mcp/register.js';
 import { TOOLS } from '@tasklite/shared';
 import {
   VALID_ARGS,
+  expectNotFound,
   expectOk,
   expectToolError,
   expectUnavailable,
@@ -35,7 +36,7 @@ afterEach(async () => {
   h = undefined;
 });
 
-/** Tools US1 (T076) and US3 (T094) implemented; the rest stay stubs until their slice. */
+/** Tools US1 (T076), US3 (T094) and US11 (T100) implemented; the rest stay stubs until their slice. */
 export const US1_TOOLS: readonly ToolName[] = [
   'whoami',
   'list_projects',
@@ -64,6 +65,9 @@ export const US1_TOOLS: readonly ToolName[] = [
   'submit_packet',
   'get_review',
   'deferred_reviews',
+  // US11 (B10, T100).
+  'park_run',
+  'recovery_report',
 ];
 const STUB_TOOLS = TOOL_NAMES.filter((n) => !US1_TOOLS.includes(n));
 
@@ -368,19 +372,16 @@ describe('recovery tools over MCP (B5: park_run, recovery_report and the new fie
     );
   });
 
-  it.each([
-    ['park_run', { run_id: 'run_01JA', reason: 'Waiting for RCP-12' }],
-    ['recovery_report', {}],
-    ['recovery_report', { project: 'RCP', since: '2026-11-08T00:00:00Z', limit: 10 }],
-  ])('%s answers unavailable through contracts.ts', async (name, args) => {
-    h ??= await startHarness();
-    expect(expectUnavailable(await h.call(name, args))).toEqual({
-      code: 'unavailable',
-      message: `Not implemented yet: ${name}`,
-    });
+  it('park_run and recovery_report are implemented (US11): an unknown run is not_found, the report answers', async () => {
+    h = await startHarness();
+    expectNotFound(await h.call('park_run', { run_id: 'run_01JA', reason: 'Waiting for RCP-12' }));
+    expectOk(await h.call('recovery_report', {}));
+    expectOk(
+      await h.call('recovery_report', { project: 'RCP', since: '2026-11-08T00:00:00Z', limit: 10 }),
+    );
   });
 
-  it('heartbeat accepts the new fields; declaring resources keeps its stub (US11)', async () => {
+  it('heartbeat accepts the new fields; resources need a real run (US11)', async () => {
     h = await startHarness();
     const args = {
       run_id: 'run_01JA',
@@ -390,12 +391,10 @@ describe('recovery tools over MCP (B5: park_run, recovery_report and the new fie
       ],
       resources_released: [{ resource_id: 'rsc_1', note: 'stopped' }],
     };
-    expect(expectUnavailable(await h.call('heartbeat', args)).message).toBe(
-      'Not implemented yet: heartbeat',
-    );
+    expectNotFound(await h.call('heartbeat', args));
   });
 
-  it('claim_lead, start_run and report_commit accept the new fields (US11 stores them)', async () => {
+  it('claim_lead, start_run and report_commit accept and store the new fields (US11)', async () => {
     h = await startHarness();
     const claim = expectOk(
       await h.call('claim_lead', {
@@ -407,11 +406,18 @@ describe('recovery tools over MCP (B5: park_run, recovery_report and the new fie
       }),
     );
     const run_id = claim.structured.run_id as string;
+    const item = expectOk(await h.call('get_item', { id: 'RCP-17', view: 'full' }));
+    const run = (
+      item.structured.item as {
+        runs: { run_id: string; brief_document_version_id: string | null }[];
+      }
+    ).runs.find((r) => r.run_id === run_id)!;
+    expect(run.brief_document_version_id).toMatch(/^dv_/);
     expectOk(
       await h.call('start_run', {
         id: 'RCP-17',
         parent_run_id: run_id,
-        brief_document_version_id: 'dv_1',
+        brief_document_version_id: run.brief_document_version_id,
       }),
     );
     expectOk(await h.call('report_commit', { id: 'RCP-17', sha: '4be1c09', pushed: true }));

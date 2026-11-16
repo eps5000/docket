@@ -85,7 +85,7 @@ describe('the service stubs', () => {
     );
   });
 
-  /** Implemented already: undo (B2), US1's methods (B7, tasks.md T070–T075) and US2's read models (B8, T080, T084) and US3's review services (B9). */
+  /** Implemented already: undo (B2), US1's methods (B7, tasks.md T070–T075) and US2's read models (B8, T080, T084), US3's review services (B9) and US11's recovery (B10, T099–T100). */
   const IMPLEMENTED: Record<string, readonly string[]> = {
     undo: ['undo'],
     items: ['create', 'update', 'setStatus', 'get'],
@@ -99,6 +99,10 @@ describe('the service stubs', () => {
       'expireLeases',
       'interruptOpenRuns',
       'openRunSessions',
+      // US11 (B10, T099).
+      'updateResources',
+      'park',
+      'resume',
     ],
     checklist: ['setPlan', 'updateStep', 'logSubagent', 'setChecks', 'updateCheck'],
     evidence: ['addNote', 'linkArtifact', 'reportCommit'],
@@ -109,6 +113,15 @@ describe('the service stubs', () => {
     packets: ['submit', 'getReview', 'deferredReviews', 'screen', 'refresh', 'markStale'],
     reviewDecisions: ['decide', 'createFollowUp'],
     messages: ['markDelivered'],
+    // US11 (B10, T100).
+    recovery: [
+      'report',
+      'workspaceStates',
+      'itemResume',
+      'workspaces',
+      'ownerReleaseResource',
+      'markUnpushedHandled',
+    ],
   };
 
   it.each(methods)('%s.%s throws NotImplementedError until its slice implements it', (s, m) => {
