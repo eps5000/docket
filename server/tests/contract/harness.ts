@@ -56,6 +56,8 @@ export interface HarnessOptions {
   toolHandlers?: Partial<ToolHandlers>;
   /** Replace service methods (domain/contracts.ts), as a slice's implementation would. */
   services?: ServiceOverrides;
+  /** The service's log lines (default: the console). */
+  log?: (line: string) => void;
 }
 
 export async function startHarness(opts: HarnessOptions = {}): Promise<ContractHarness> {
@@ -63,6 +65,7 @@ export async function startHarness(opts: HarnessOptions = {}): Promise<ContractH
     clock: new TestClock(new Date(CONTRACT_NOW)),
     toolHandlers: opts.toolHandlers,
     services: opts.services,
+    log: opts.log,
   });
   if (opts.seed !== false) {
     loadSampleSeed(server.runtime.db, {

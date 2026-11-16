@@ -89,6 +89,11 @@ const B2_ROUTES: readonly RouteId[] = [
   'labels.moveToReady',
   'documents.content',
   'agentUpload.post',
+  // US10 (B15, T131): Reveal token, deleting a project and the diagnostic log
+  // (content in us10-ops.test.ts).
+  'settings.agentToken',
+  'projects.delete',
+  'diagnostics.calls',
 ];
 
 interface Req {

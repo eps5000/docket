@@ -26,12 +26,16 @@ export function createTestServer(
     clock?: TestClock;
     toolHandlers?: Partial<ToolHandlers>;
     services?: ServiceOverrides;
+    /** The service's log lines (default: the console). */
+    log?: (line: string) => void;
+    /** Reuse a data directory (a restart on the same volume); the caller removes it. */
+    dataDir?: string;
   } = {},
 ): TestServer {
   const tmp = tempDir('tasklite-int-');
-  const dataDir = join(tmp.dir, 'data');
+  const dataDir = opts.dataDir ?? join(tmp.dir, 'data');
   const webRoot = join(tmp.dir, 'web');
-  mkdirSync(dataDir);
+  mkdirSync(dataDir, { recursive: true });
   mkdirSync(webRoot);
   writeFileSync(join(webRoot, 'index.html'), '<!doctype html><title>Task Lite</title>');
   const clock = opts.clock ?? new TestClock();
@@ -42,6 +46,7 @@ export function createTestServer(
     streamKeepAliveMs: opts.keepAliveMs,
     toolHandlers: opts.toolHandlers,
     services: opts.services,
+    log: opts.log,
   });
   const app = createApp(runtime, { webRoot });
   return {

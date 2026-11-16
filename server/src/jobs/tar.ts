@@ -55,8 +55,10 @@ function header(name: string, size: number, type: '0' | 'x', mtime: Date, mode: 
 function paxRecord(key: string, value: string): Buffer {
   const body = ` ${key}=${value}\n`;
   const bodyLen = Buffer.byteLength(body);
-  let len = bodyLen + String(bodyLen).length;
-  if (String(len).length !== String(len - bodyLen).length) len += 1;
+  const digits = String(bodyLen).length;
+  let len = bodyLen + digits;
+  // Adding the length's own digits can carry it to one more digit (e.g. 98 + 2 → 100 + 3).
+  if (String(len).length > digits) len += 1;
   return Buffer.from(`${len}${body}`, 'utf8');
 }
 

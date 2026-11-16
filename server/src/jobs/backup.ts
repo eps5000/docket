@@ -320,18 +320,42 @@ function safeEntryName(name: string): string {
   return clean;
 }
 
-function fileSink(path: string, hash: ReturnType<typeof sha>): TarSink {
+interface FileSink extends TarSink {
+  /** Stop writing (a damaged archive) and wait until the file is closed. */
+  abort(): Promise<void>;
+}
+
+function fileSink(path: string, hash: ReturnType<typeof sha>): FileSink {
   mkdirSync(dirname(path), { recursive: true });
   const out = createWriteStream(path, { flags: 'wx', mode: 0o640 });
+  let failure: Error | null = null;
+  const closed = new Promise<void>((done) => out.once('close', () => done()));
+  out.on('error', (err) => {
+    failure = err;
+  });
+  const check = () => {
+    if (failure) throw failure;
+  };
   return {
     write: (chunk) => {
+      check();
       hash.update(chunk);
-      if (!out.write(chunk)) return new Promise((done) => out.once('drain', () => done()));
+      if (!out.write(chunk)) {
+        return new Promise<void>((done) => out.once('drain', () => done())).then(check);
+      }
     },
-    end: () =>
-      new Promise<void>((done, fail) =>
+    end: async () => {
+      check();
+      await new Promise<void>((done, fail) =>
         out.end((err?: Error | null) => (err ? fail(err) : done())),
-      ),
+      );
+      await closed;
+      check();
+    },
+    abort: async () => {
+      if (!out.closed) out.destroy();
+      await closed;
+    },
   };
 }
 
@@ -351,6 +375,7 @@ export async function verifyArchive(
     join(opts.tmpParent ?? dirname(path), `.tmp-${randomBytes(6).toString('hex')}`);
   mkdirSync(tmp, { recursive: true });
   const seen = new Map<string, { size: number; sha256: string }>();
+  const sinks: FileSink[] = [];
   let manifestText = '';
   try {
     try {
@@ -382,6 +407,7 @@ export async function verifyArchive(
           name === DB_ENTRY || (opts.extractTo !== undefined && name.startsWith('docs/'));
         if (extract) {
           const sink = fileSink(join(tmp, ...name.split('/')), hash);
+          sinks.push(sink);
           return {
             write: (c) => {
               size += c.length;
@@ -402,6 +428,8 @@ export async function verifyArchive(
         };
       });
     } catch (err) {
+      // Close any file still open before the caller removes the folder.
+      await Promise.all(sinks.map((x) => x.abort()));
       if (err instanceof ArchiveError) throw err;
       throw new ArchiveError(`The archive can't be read: ${(err as Error).message}`);
     }

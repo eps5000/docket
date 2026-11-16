@@ -122,20 +122,20 @@ export function createProjectsService(deps: ServiceDeps): ProjectsService {
           details: { fields: { confirm_key: `must be ${row.key}` } },
         });
       }
-      const n = (q: string) => (sql.prepare(q).get(row.key) as { n: number }).n;
+      const n = (q: string) => (sql.prepare(q).get({ key: row.key }) as { n: number }).n;
       const counts = {
-        items: n('SELECT count(*) AS n FROM items WHERE project_key = ?'),
-        documents: n('SELECT count(*) AS n FROM documents WHERE project_key = ?'),
+        items: n('SELECT count(*) AS n FROM items WHERE project_key = @key'),
+        documents: n('SELECT count(*) AS n FROM documents WHERE project_key = @key'),
         events: n(
-          'SELECT count(*) AS n FROM events WHERE project_key = ?1 OR item_id IN (SELECT id FROM items WHERE project_key = ?1)',
+          'SELECT count(*) AS n FROM events WHERE project_key = @key OR item_id IN (SELECT id FROM items WHERE project_key = @key)',
         ),
       };
       // Items first: their dependents cascade (checklists, runs, packets, links, documents on items…).
       sql
         .prepare(
-          'DELETE FROM events WHERE project_key = ?1 OR item_id IN (SELECT id FROM items WHERE project_key = ?1)',
+          'DELETE FROM events WHERE project_key = @key OR item_id IN (SELECT id FROM items WHERE project_key = @key)',
         )
-        .run(row.key);
+        .run({ key: row.key });
       sql.prepare('DELETE FROM items WHERE project_key = ?').run(row.key);
       sql.prepare('DELETE FROM documents WHERE project_key = ?').run(row.key);
       sql.prepare('DELETE FROM labels WHERE project_key = ?').run(row.key);
