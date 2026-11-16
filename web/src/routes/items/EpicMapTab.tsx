@@ -1,10 +1,11 @@
 import type { ItemDetailResponse } from '@tasklite/shared';
 import { Card, EmptyState } from '../../components/kit';
-import { ProgressMapShell } from '../shared/ProgressMapShell';
+import { ProgressMap } from '../../components/ProgressMap';
 
 /**
  * Map (epic; UI_SPEC §6.3): the epic-level review strip (when the epic has
- * human review), then a ProgressMap of its children. US4 fills the map.
+ * human review), then a ProgressMap of its children, with blockers from
+ * outside the epic in their own column.
  */
 export function EpicMapTab({ data }: { data: ItemDetailResponse }) {
   const hrs = data.item.checklist.human_review;
@@ -20,10 +21,12 @@ export function EpicMapTab({ data }: { data: ItemDetailResponse }) {
         {data.children.length === 0 ? (
           <EmptyState text="No items yet. When planned, the agent breaks this epic into stories, tasks and bugs." />
         ) : (
-          <ProgressMapShell
+          <ProgressMap
             items={data.children}
+            outside={data.outside}
             links={data.links}
             outsideTitle="Outside this epic"
+            home={{ project: data.item.project }}
           />
         )}
       </Card>

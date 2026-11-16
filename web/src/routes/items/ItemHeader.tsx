@@ -110,7 +110,7 @@ export function ItemHeader({ id, data }: { id: string; data?: ItemDetailResponse
         </div>
         <div className="row wrap" style={{ marginTop: 6 }}>
           <StatusChip status={item.status} />
-          <BlockedChip blockers={item.blocked_by} />
+          <BlockedChips item={item} />
           <ClosedProvenance item={item} />
           {epic && data && (
             <span className="src">
@@ -173,5 +173,31 @@ export function ItemHeader({ id, data }: { id: string; data?: ItemDetailResponse
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * "⊘ Blocked by RCP-12, …", and a chip of its own for each done blocker the
+ * link still holds: "⊘ Blocked by RCP-19 (needs merge)" or "(needs your
+ * verification)" (UI_SPEC §5).
+ */
+function BlockedChips({ item }: { item: ItemDetailResponse['item'] }) {
+  if (!item.blocked) return null;
+  const waiting = item.links.blocked_by.filter(
+    (l) => l.cleared === false && (l.waiting_for === 'merge' || l.waiting_for === 'verification'),
+  );
+  const held = new Set(waiting.map((l) => l.id));
+  const rest = item.blocked_by.filter((id) => !held.has(id));
+  return (
+    <>
+      {rest.length > 0 && <BlockedChip blockers={rest} />}
+      {waiting.map((l) => (
+        <BlockedChip
+          key={l.link_id}
+          blockers={[l.id]}
+          waitingFor={l.waiting_for as 'merge' | 'verification'}
+        />
+      ))}
+    </>
   );
 }

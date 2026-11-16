@@ -308,16 +308,16 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 **Fills**: `server/src/domain/{links,subgraph}.ts`, the dependency tools in `server/src/mcp/tools/items.ts` and `read.ts`, `server/src/api/routes/deps.ts`, `web/src/components/ProgressMap/` (slice-owned), the Dependencies and Map tabs, Work → Map, the Settings blocker rule
 
 ### Tests for US4
-- [ ] T102 [P] [US4] Unit tests for `satisfied_when`: done, merged and verified; the project default against a link override; verified on a blocker without review items → `validation`; verified with a deferred check → stays blocked plus a Problem; canceled blockers; an archived blocker is not cleared by archiving; re-evaluation and the event. In `server/tests/unit/dependencies.test.ts`.
-- [ ] T103 [P] [US4] Unit tests for cycle rejection with the path, strongly connected components on imported data, and cross-project blocking in `server/tests/unit/cycles.test.ts`
-- [ ] T104 [P] [US4] MCP contract test for flow §7.11 and `dependency_subgraph` with `delay_days` in `server/tests/contract/us4-deps.test.ts`
-- [ ] T105 [P] [US4] E2E: the map (waves, outside column, arrows kept on resize and zoom, hover tracing, pan, Fit), the blocked chip "(needs merge)", the project rule select with undo, cycle fix from the Dependencies tab; in `web/e2e/us4-deps.spec.ts`
+- [X] T102 [P] [US4] Unit tests for `satisfied_when`: done, merged and verified; the project default against a link override; verified on a blocker without review items → `validation`; verified with a deferred check → stays blocked plus a Problem; canceled blockers; an archived blocker is not cleared by archiving; re-evaluation and the event. In `server/tests/unit/dependencies.test.ts`.
+- [X] T103 [P] [US4] Unit tests for cycle rejection with the path, strongly connected components on imported data, and cross-project blocking in `server/tests/unit/cycles.test.ts`
+- [X] T104 [P] [US4] MCP contract test for flow §7.11 and `dependency_subgraph` with `delay_days` in `server/tests/contract/us4-deps.test.ts`
+- [X] T105 [P] [US4] E2E: the map (waves, outside column, arrows kept on resize and zoom, hover tracing, pan, Fit), the blocked chip "(needs merge)", the project rule select with undo, cycle fix from the Dependencies tab; in `web/e2e/us4-deps.spec.ts`
 
 ### Implementation for US4
-- [ ] T106 [US4] Implement the link service (`link_items` that creates or updates `satisfied_when`, `unlink_items`, cycle DFS, strongly connected components, the cleared-blocker evaluation per data-model.md) in `server/src/domain/links.ts`, and `dependency_subgraph` (depth 1–5, direction, `date_source`, `at_risk` with `delay_days`) in `server/src/domain/subgraph.ts`. Also add the item-reference write check (MCP_SPEC §3.4): item IDs mentioned in any text field that don't exist are accepted with a `! RCP-99 doesn't exist` warning. Apply it once in the write path so every text-writing tool gets it, and test it (left unassigned by B7).
-- [ ] T107 [US4] Replace the stubs for `link_items`, `unlink_items` and `dependency_subgraph`, and fill the `deps` route handlers
-- [ ] T108 [US4] Build the ProgressMap (waves = longest blocks path; 200 px columns, 76 px gap, 16 px rows; canvas at most 540 px tall; zoom steps 50/67/80/100/125, Fit down to 40%; More pills; SVG arrows) per UI_SPEC §6.3.4 in `web/src/components/ProgressMap/`
-- [ ] T109 [US4] Fill the Dependencies tab (1-hop view with "waiting for merge/verification", cycle callout), the epic Map tab, Work → Map, and the Settings "Blockers clear when" select
+- [X] T106 [US4] Implement the link service (`link_items` that creates or updates `satisfied_when`, `unlink_items`, cycle DFS, strongly connected components, the cleared-blocker evaluation per data-model.md) in `server/src/domain/links.ts`, and `dependency_subgraph` (depth 1–5, direction, `date_source`, `at_risk` with `delay_days`) in `server/src/domain/subgraph.ts`. Also add the item-reference write check (MCP_SPEC §3.4): item IDs mentioned in any text field that don't exist are accepted with a `! RCP-99 doesn't exist` warning. Apply it once in the write path so every text-writing tool gets it, and test it (left unassigned by B7).
+- [X] T107 [US4] Replace the stubs for `link_items`, `unlink_items` and `dependency_subgraph`, and fill the `deps` route handlers
+- [X] T108 [US4] Build the ProgressMap (waves = longest blocks path; 200 px columns, 76 px gap, 16 px rows; canvas at most 540 px tall; zoom steps 50/67/80/100/125, Fit down to 40%; More pills; SVG arrows) per UI_SPEC §6.3.4 in `web/src/components/ProgressMap/`
+- [X] T109 [US4] Fill the Dependencies tab (1-hop view with "waiting for merge/verification", cycle callout), the epic Map tab, Work → Map, and the Settings "Blockers clear when" select
 
 ---
 

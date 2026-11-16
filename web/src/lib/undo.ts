@@ -14,7 +14,8 @@
  *   undo (too late, already undone, changed since) toasts the server's reason.
  *
  * Slices call `runOwnerMutation` (or `toastSuccess` and `handleMutationError`
- * directly) and never build their own toasts.
+ * directly) and never build their own toasts. Write-check warnings on a
+ * result ("RCP-99 doesn't exist") are added to the success toast.
  */
 import type { QueryClient } from '@tanstack/react-query';
 import { useSyncExternalStore } from 'react';
@@ -136,6 +137,16 @@ export function toastSuccess(message: string, mutationId?: string): number {
 }
 
 /**
+ * The success message plus the write's warnings (MCP_SPEC §3.4), as the
+ * compact text shows them: "Saved. ! RCP-99 doesn't exist".
+ */
+export function withWarnings(message: string, warnings?: readonly string[]): string {
+  return warnings && warnings.length > 0
+    ? `${message} ${warnings.map((w) => `! ${w}`).join(' ')}`
+    : message;
+}
+
+/**
  * Handle a failed owner mutation. A `409` refetches `refetch` (default: every
  * query) and toasts the conflict message; returns true when it handled the
  * error. Other errors are left to the caller (inline callout or field error).
@@ -158,7 +169,7 @@ export async function handleMutationError(
  * undoable) or the conflict toast. Returns the result, or null when it
  * failed with a conflict. Other errors are rethrown.
  */
-export async function runOwnerMutation<T extends { mutation_id: string }>(
+export async function runOwnerMutation<T extends { mutation_id: string; warnings?: string[] }>(
   fn: () => Promise<T>,
   opts: {
     success: string | ((result: T) => string);
@@ -170,10 +181,8 @@ export async function runOwnerMutation<T extends { mutation_id: string }>(
 ): Promise<T | null> {
   try {
     const result = await fn();
-    toastSuccess(
-      typeof opts.success === 'function' ? opts.success(result) : opts.success,
-      result.mutation_id,
-    );
+    const message = typeof opts.success === 'function' ? opts.success(result) : opts.success;
+    toastSuccess(withWarnings(message, result.warnings), result.mutation_id);
     return result;
   } catch (err) {
     opts.rollback?.();

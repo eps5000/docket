@@ -1,10 +1,11 @@
 import type { WorkResponse } from '@tasklite/shared';
 import { Callout, EmptyState } from '../../components/kit';
-import { ProgressMapShell } from '../shared/ProgressMapShell';
+import { ProgressMap } from '../../components/ProgressMap';
 
 /**
- * Map (UI_SPEC §6.2.3): a ProgressMap of the filtered set, titled "Outside
- * this view". With no epic or label chosen, the tip callout. US4 fills the map.
+ * Map (UI_SPEC §6.2.3): a ProgressMap of the filtered set, with blockers
+ * from outside it under "Outside this view". With no epic or label chosen,
+ * the tip callout.
  */
 export function MapLayout({ data, scoped }: { data: WorkResponse; scoped: boolean }) {
   return (
@@ -17,7 +18,12 @@ export function MapLayout({ data, scoped }: { data: WorkResponse; scoped: boolea
       {data.items.length === 0 ? (
         <EmptyState text="No items match." />
       ) : (
-        <ProgressMapShell items={data.items} links={data.links} outsideTitle="Outside this view" />
+        <ProgressMap
+          items={data.items}
+          outside={data.outside}
+          links={data.links}
+          outsideTitle="Outside this view"
+        />
       )}
     </div>
   );

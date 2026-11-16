@@ -1,0 +1,420 @@
+/* The progress map (UI_SPEC §6.3.4), after design/prototype.html. Tokens only. */
+.tl .pm-box {
+  min-width: 0;
+  max-width: 100%;
+}
+.tl .pm-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px 16px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.tl .pm-big {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+.tl .pm-big .muted {
+  font-size: 15px;
+  font-weight: 600;
+}
+.tl .pm-bar {
+  height: 10px;
+  border-radius: 5px;
+  display: flex;
+  overflow: hidden;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+}
+.tl .pm-bar i {
+  display: block;
+  height: 100%;
+}
+.tl .pm-legend {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--ink-2);
+  grid-column: 2;
+}
+.tl .pm-legend span {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+}
+.tl .pm-legend b {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  display: inline-block;
+}
+.tl .pm-badtext {
+  color: var(--bad);
+}
+.tl .pb-done {
+  background: var(--ok);
+}
+.tl .pb-review {
+  background: var(--warn);
+}
+.tl .pb-progress {
+  background: var(--violet);
+}
+.tl .pb-ready {
+  background: var(--info);
+}
+.tl .pb-planning {
+  background: var(--teal);
+}
+.tl .pb-inbox {
+  background: var(--ctl);
+}
+
+/* ---------- tools ---------- */
+.tl .pm-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+.tl .pm-tools .pm-hint {
+  display: none;
+  margin-right: auto;
+}
+.tl .pm-box.pannable .pm-tools .pm-hint {
+  display: inline;
+}
+.tl .pm-tools .seg button {
+  min-width: 34px;
+}
+
+/* ---------- canvas ---------- */
+.tl .pm-frame {
+  position: relative;
+}
+.tl .pm-canvas {
+  position: relative;
+  overflow: auto;
+  max-height: 540px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 18px 22px;
+  cursor: grab;
+  background-color: var(--panel-2);
+  background-image: radial-gradient(var(--line-2) 1px, transparent 1.2px);
+  background-size: 18px 18px;
+}
+.tl .pm-canvas.dragging {
+  cursor: grabbing;
+  user-select: none;
+}
+.tl .pm-canvas:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+.tl .pm-sizer {
+  position: relative;
+}
+.tl .pm-map {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 200px;
+  column-gap: 76px;
+  align-items: start;
+}
+.tl .pm-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: relative;
+  z-index: 1;
+  width: 200px;
+}
+.tl .pm-colh {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-3);
+  font-weight: 650;
+  line-height: 1.3;
+  min-height: 28px;
+}
+.tl .pm-colh span {
+  display: block;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+}
+
+/* Edge fades and the More pills, only while content overflows. */
+.tl .pm-frame::before,
+.tl .pm-frame::after {
+  content: '';
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  width: 44px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 3;
+}
+.tl .pm-frame::before {
+  left: 1px;
+  border-radius: 10px 0 0 10px;
+  background: linear-gradient(90deg, var(--panel-2) 15%, transparent);
+}
+.tl .pm-frame::after {
+  right: 1px;
+  border-radius: 0 10px 10px 0;
+  background: linear-gradient(270deg, var(--panel-2) 15%, transparent);
+}
+.tl .pm-frame.more-l::before,
+.tl .pm-frame.more-r::after {
+  opacity: 1;
+}
+.tl .pm-more {
+  position: absolute;
+  top: 12px;
+  z-index: 4;
+  display: none;
+  border: 1px solid var(--ctl);
+  background: var(--panel);
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+.tl .pm-more.r {
+  right: 10px;
+}
+.tl .pm-more.l {
+  left: 10px;
+}
+.tl .pm-more.b {
+  top: auto;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.tl .pm-frame.more-r .pm-more.r,
+.tl .pm-frame.more-l .pm-more.l,
+.tl .pm-frame.more-b .pm-more.b {
+  display: block;
+}
+
+/* ---------- arrows ---------- */
+.tl svg.pm-edges {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: visible;
+}
+.tl .pm-edge {
+  fill: none;
+  stroke: var(--ink-3);
+  stroke-width: 1.5;
+  opacity: 0.7;
+  transition: opacity 0.12s;
+}
+.tl .pm-edge.ok {
+  stroke: var(--ok);
+  opacity: 0.55;
+  stroke-dasharray: 4 3;
+}
+.tl .pm-edge.hl {
+  stroke: var(--brand);
+  stroke-width: 2.5;
+  opacity: 1;
+}
+.tl .pm-edge.dim {
+  opacity: 0.15;
+}
+.tl .pm-head-block {
+  fill: var(--ink-3);
+}
+.tl .pm-head-ok {
+  fill: var(--ok);
+}
+
+/* ---------- cards ---------- */
+.tl .pm-node {
+  display: block;
+  position: relative;
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--sc, var(--ctl));
+  background: var(--panel);
+  border-radius: 8px;
+  padding: 6px 8px 6px 9px;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: opacity 0.12s;
+}
+.tl .pm-node:hover {
+  border-color: var(--brand);
+  border-left-color: var(--sc, var(--ctl));
+}
+.tl .pm-node .pm-top {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+.tl .pm-node .pm-title {
+  font-weight: 600;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin: 2px 0;
+  padding-right: 16px;
+}
+.tl .pm-node .pm-status {
+  font-size: 11.5px;
+  color: var(--ink-2);
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.tl .pm-node .pm-blocked {
+  color: var(--bad);
+  font-weight: 600;
+}
+.tl .pm-node .pm-ready {
+  color: var(--warn);
+  font-weight: 600;
+}
+.tl .pm-node .pm-wait {
+  color: var(--bad);
+  font-weight: 600;
+}
+.tl .pm-node.ps-done {
+  --sc: var(--ok);
+  background: var(--ok-soft);
+}
+.tl .pm-node.ps-review {
+  --sc: var(--warn);
+}
+.tl .pm-node.ps-progress {
+  --sc: var(--violet);
+}
+.tl .pm-node.ps-ready {
+  --sc: var(--info);
+}
+.tl .pm-node.ps-planning {
+  --sc: var(--teal);
+}
+.tl .pm-node.ps-inbox,
+.tl .pm-node.ps-canceled {
+  --sc: var(--ctl);
+}
+.tl .pm-node.ps-canceled .pm-title {
+  text-decoration: line-through;
+}
+.tl .pm-node.blk {
+  border-color: var(--bad);
+  box-shadow: inset 0 0 0 1px var(--bad);
+}
+.tl .pm-node.ext {
+  border-style: dashed;
+  background: var(--panel-2);
+}
+.tl .pm-node.cur,
+.tl .pm-node.hl {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+}
+.tl .pm-node.dim {
+  opacity: 0.4;
+}
+.tl .pm-node .pm-done {
+  position: absolute;
+  top: 5px;
+  right: 6px;
+  color: var(--ok);
+  font-weight: 800;
+}
+.tl .pm-hr {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+}
+.tl .pm-node .pm-hr {
+  position: absolute;
+  top: 5px;
+  right: 6px;
+}
+.tl .pm-hr svg {
+  width: 11px;
+  height: 11px;
+}
+.tl .pm-hr.now {
+  background: var(--warn);
+  color: var(--on-fill);
+}
+.tl .pm-hr.later {
+  border: 1.5px solid var(--warn);
+  color: var(--warn);
+  background: var(--panel);
+}
+.tl .pm-key {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.tl .pm-keyitem {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  margin-left: 6px;
+}
+.tl .pm-keyitem .pm-hr {
+  width: 16px;
+  height: 16px;
+}
+
+/* ---------- the 1-hop view (UI_SPEC §6.3.3) ---------- */
+.tl .pm-hop {
+  display: grid;
+  gap: 6px;
+  max-width: 360px;
+}
+.tl .pm-hop .pm-node {
+  cursor: pointer;
+}
+.tl .pm-hop .arrow {
+  text-align: center;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tl .pm-node,
+  .tl .pm-edge,
+  .tl .pm-frame::before,
+  .tl .pm-frame::after {
+    transition: none;
+  }
+}
