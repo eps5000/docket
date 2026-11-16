@@ -1,0 +1,15 @@
+# Keep LF in every working tree, including Windows checkouts. Drizzle records each migration by a
+# hash of the SQL file's bytes, so CRLF copies look like different migrations ("migrations pending"),
+# and CRLF shell scripts break inside the Linux container.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.mp4 binary
+*.webm binary
+*.woff binary
+*.woff2 binary
+*.zip binary
+*.gz binary
+*.db binary
