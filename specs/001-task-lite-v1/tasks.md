@@ -362,7 +362,7 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
   - owner cancel (FR-064b): any open item, optional reason; an epic with open children is refused naming them; an active lead run ends `interrupted` and its claim is released; an open packet is withdrawn; undo restores the status but not the run;
   - the archive guards (done only), and archived items excluded from owner views but included in agent queries;
   - owner text edits (limits, secret check, version conflict, undo).
-- [ ] T123 [P] [US7] E2E in `web/e2e/us7-planning.spec.ts`:
+- [X] T123 [P] [US7] E2E in `web/e2e/us7-planning.spec.ts`:
   - Cancel item… (inline confirm focusing *Keep item*, the lead warning, the open-children list, Undo, still found in search);
   - quick capture (title required, lands in Inbox; from an epic you stay on the epic);
   - label page Move N to Ready with undo;
@@ -373,8 +373,8 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 ### Implementation for US7
 - [X] T124 [US7] Implement the documents service (immutable versions, sha256, 25 MB through MCP, the `/agent-upload` multipart endpoint up to 500 MB, preview MIME handling, `Content-Disposition` and `nosniff`) in `server/src/domain/documents.ts` and `server/src/api/routes/upload.ts`. Replace the `put_document` and `upsert_label` stubs. Serve `brief` documents (written by `claim_lead`/`start_run`) like any other in the document viewer, and refuse `put_document` with kind `brief` (B10 note).
 - [X] T125 [US7] Implement owner cancel, archive and unarchive, and owner text edits in `server/src/domain/{items,archive}.ts`, and fill the `planning` route handlers (quick capture, `PATCH` fields, cancel, archive, labels and move-to-ready, document content)
-- [ ] T126 [US7] Fill quick capture and + New item in this epic; inline editing (title, description, outcome, acceptance; Preview; `Ctrl+Enter`/`Esc`; conflict callout; counters); and the item header's "⋯" Cancel item… flow, per UI_SPEC §6.3 and §6.9
-- [ ] T127 [US7] Fill the Done column Archive and Archive all actions, the Archived filter, the epic fold-up, the Label page (UI_SPEC §6.5), and the document viewer and Checklist history dialogs
+- [X] T126 [US7] Fill quick capture and + New item in this epic; inline editing (title, description, outcome, acceptance; Preview; `Ctrl+Enter`/`Esc`; conflict callout; counters); and the item header's "⋯" Cancel item… flow, per UI_SPEC §6.3 and §6.9
+- [X] T127 [US7] Fill the Done column Archive and Archive all actions, the Archived filter, the epic fold-up, the Label page (UI_SPEC §6.5), and the document viewer and Checklist history dialogs
 
 ---
 
