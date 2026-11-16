@@ -13,12 +13,14 @@
  * Owner attention (Principle V): only packets ready and open questions are
  * "for you". Problems never are.
  *
- * Not yet built here: recovery Problems rows (orphaned resources, unpushed
- * work, parked too long, ready to resume unattended) are US11's, and the
- * timeline section of `work` is US8's (`forecast.timeline`).
+ * The recovery Problems rows (orphaned resources, unpushed work, parked too
+ * long, ready to resume unattended) are US11's (T101), from the recovery read
+ * model (recovery-model.ts). Not yet built here: the timeline section of
+ * `work` is US8's (`forecast.timeline`).
  */
 import { statSync } from 'node:fs';
 import {
+  END_REASON_LABELS,
   OPEN_STATUSES,
   UI_FILTER_KEYS,
   type ActivityRow,
@@ -39,6 +41,7 @@ import {
   type Problem,
   type RunState,
   type Status,
+  type WaitingOn,
   type WorkItem,
   type WorkResponse,
 } from '@tasklite/shared';
@@ -69,6 +72,15 @@ import {
   type StoredEvent,
 } from './model.js';
 import { UNDO_WINDOW_MS } from './undo.js';
+import {
+  locatorText,
+  orphans,
+  parkInfo,
+  parseJson,
+  storedWorkspace,
+  unpushedRisks,
+  type RecoveryConfig,
+} from './recovery-model.js';
 
 type UiFilter = (typeof UI_FILTER_KEYS)[number];
 type Scope = 'all' | string;
@@ -350,9 +362,124 @@ interface ProblemsInput {
   deferredCounts: Map<string, number>;
   /** Extra backup copy errors, when the backup service reports them (US10). */
   backupError: string | null;
+  /** The recovery thresholds (BUILD_SPEC §5.16). */
+  config: RecoveryConfig;
 }
 
-function problemsOf({ s, runs, deferredCounts, backupError }: ProblemsInput): Problem[] {
+/** `RCP-12, RCP-13`, `the coordinator`, `a person`: what a parked run waits on. */
+function waitingLine(w: WaitingOn): string {
+  const parts: string[] = [];
+  if (w.items?.length) parts.push(w.items.join(', '));
+  if (w.orchestrator) parts.push('the coordinator');
+  if (w.person) parts.push('a person');
+  if (w.until) parts.push(`until ${dayLabel(w.until)}`);
+  return parts.join(', ') || 'nothing named';
+}
+
+/**
+ * The recovery Problems (UI_SPEC §6.1; BUILD_SPEC §5.16): orphaned
+ * resources, unpushed work that may be lost, runs parked past PARK_MAX, and
+ * runs ready to resume but unattended past RESUME_UNATTENDED. None of them
+ * releases a claim; they say what the owner (or a coordinator) should do.
+ */
+function recoveryProblems(
+  s: Scoped,
+  runs: ReturnType<typeof scopeRuns>,
+  config: RecoveryConfig,
+  push: (p: Problem) => void,
+  base: Pick<Problem, 'related' | 'link_id' | 'run_id' | 'resource_ids'>,
+): void {
+  const { db, items, now } = s;
+  const title = (id: string) => items.get(id)?.title ?? null;
+
+  // Resources left running after their run ended.
+  const byRun = new Map<string, ReturnType<typeof orphans>>();
+  for (const o of orphans(db, now, config.orphanAfterMs)) {
+    if (!items.has(o.run.item_id)) continue;
+    byRun.set(o.run.id, [...(byRun.get(o.run.id) ?? []), o]);
+  }
+  for (const [runId, left] of byRun) {
+    const first = left[0]!;
+    const what = left
+      .map((o) => {
+        const where = locatorText(parseJson(o.resource.locator) ?? {});
+        return where ? `${o.resource.label} (${where})` : o.resource.label;
+      })
+      .join(', ');
+    push({
+      ...base,
+      kind: 'orphaned_resources',
+      item_id: first.run.item_id,
+      title: title(first.run.item_id),
+      reason: `${first.run.item_id}'s run ended ${durationLabel(ms(now) - ms(first.ended_at))} ago but left: ${what}. Stop ${left.length === 1 ? 'it' : 'them'}, then mark ${left.length === 1 ? 'it' : 'them'} released.`,
+      run_id: runId,
+      resource_ids: left.map((o) => o.resource.id),
+    });
+  }
+
+  // Ended runs (finished ones too) that left work off the remote.
+  const ended = (
+    db.sqlite
+      .prepare(
+        "SELECT * FROM runs WHERE state IN ('finished', 'failed', 'interrupted') AND workspace IS NOT NULL AND unpushed_handled_at IS NULL",
+      )
+      .all() as RunRow[]
+  ).filter((r) => items.has(r.item_id));
+  for (const risk of unpushedRisks(db, ended)) {
+    const n = risk.unpushed_commits ?? 0;
+    const lost = [
+      n > 0 ? `${n} ${n === 1 ? 'commit' : 'commits'} not pushed` : null,
+      risk.dirty ? 'uncommitted changes' : null,
+    ]
+      .filter(Boolean)
+      .join(' and ');
+    const path = storedWorkspace(risk.run)?.path;
+    push({
+      ...base,
+      kind: 'unpushed_work',
+      item_id: risk.run.item_id,
+      title: title(risk.run.item_id),
+      reason: `${risk.run.item_id} ended (${END_REASON_LABELS[risk.run.end_reason!]}) with ${lost}${path ? ` in ${path}` : ''}.`,
+      run_id: risk.run.id,
+    });
+  }
+
+  // Parked runs: too long, or ready to resume with nobody resuming them.
+  for (const run of runs.open.filter((r) => r.state === 'parked')) {
+    const since = run.parked_at ?? run.updated_at;
+    const waiting = parseJson<WaitingOn>(run.waiting_on) ?? {};
+    const info = parkInfo(db, run, now, s.index);
+    if (info.resume_ready && ms(now) - ms(info.ready_since!) >= config.resumeUnattendedMs) {
+      const items2 = waiting.items ?? [];
+      const why =
+        items2.length > 0 && items2.every((id) => s.index.status(id) === 'done')
+          ? `${items2.join(', ')} ${items2.length === 1 ? 'is' : 'are'} done`
+          : items2.length > 0
+            ? `${items2.join(', ')} cleared`
+            : 'its wait time has passed';
+      push({
+        ...base,
+        kind: 'resume_unattended',
+        item_id: run.item_id,
+        title: title(run.item_id),
+        reason: `${run.item_id} can resume: ${why} · parked ${durationLabel(ms(now) - ms(since))}.`,
+        run_id: run.id,
+      });
+    }
+    if (ms(now) - ms(since) >= config.parkMaxMs) {
+      push({
+        ...base,
+        kind: 'parked_too_long',
+        item_id: run.item_id,
+        title: title(run.item_id),
+        reason: `${run.item_id} parked since ${dayLabel(since)} · waiting on ${waitingLine(waiting)}. It keeps its claim.`,
+        run_id: run.id,
+      });
+    }
+  }
+}
+
+function problemsOf({ s, runs, deferredCounts, backupError, config }: ProblemsInput): Problem[] {
   const { index, items, now } = s;
   const base = { related: [] as string[], link_id: null, run_id: null, resource_ids: [] };
   const list: { p: Problem; holds: number }[] = [];
@@ -463,6 +590,8 @@ function problemsOf({ s, runs, deferredCounts, backupError }: ProblemsInput): Pr
       }
     }
   }
+
+  recoveryProblems(s, runs, config, push, base);
 
   // Cycles (imported data can hold them; `link_items` refuses new ones).
   for (const cycle of cyclesOf(index, [...items.keys()])) {
@@ -721,6 +850,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         runs,
         deferredCounts: deferred.counts,
         backupError: backupError(r),
+        config: deps.config,
       }),
       deferred: deferred.rows,
       planning_queue: summarize(

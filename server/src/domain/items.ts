@@ -4,7 +4,8 @@
  * US1 (T070) implements create, update (patch semantics, labels, dates with
  * `dates_set_by`), `set_status` with its guards, and `get_item`. Still
  * stubs: the owner's edits and the label page (US7, T112), and
- * `upsert_label` (its slice). Item.resume is US11's (T099): null until then.
+ * `upsert_label` (its slice). US11 (T100) adds `Item.resume` and each run's
+ * workspace (with its derived state) and `resume_ready`.
  */
 import { ToolError, type ItemSummary, type ItemView, type Status } from '@tasklite/shared';
 import {
@@ -16,6 +17,7 @@ import {
   type ServiceDeps,
 } from './contracts.js';
 import { allocateItemId, newId } from './ids.js';
+import { RecoveryReader } from './recovery-model.js';
 import {
   BlockIndex,
   EVENT_COLUMNS,
@@ -30,7 +32,6 @@ import {
   leaseExpired,
   ms,
   requireItem,
-  runView,
   summarize,
   summaryOf,
   windowsOf,
@@ -796,6 +797,7 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
         .all(row.id, full ? 20 : 5) as StoredEvent[]
     ).map(eventRow);
 
+    const recovery = new RecoveryReader(db, windows(), now);
     const item: ItemView = {
       ...base,
       description_md: row.description_md,
@@ -813,7 +815,7 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
         human_review: hr,
         reviewed_with_epic: reviewedWithEpic,
       },
-      runs: [...openRuns, ...ended].map((x) => runView(db, x, windows(), now, { external: full })),
+      runs: [...openRuns, ...ended].map((x) => recovery.runView(x, { external: full })),
       decisions,
       open_question: openQuestion
         ? {
@@ -824,7 +826,7 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
             answered_at: openQuestion.answered_at,
           }
         : null,
-      resume: null,
+      resume: wanted('resume') ? deps.services().recovery.itemResume(r, { item_id: row.id }) : null,
       unread_owner_notes: notes.map((n) => ({ id: n.id, text: n.text, at: n.created_at })),
       documents,
       packets,

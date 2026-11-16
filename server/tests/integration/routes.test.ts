@@ -29,8 +29,9 @@ import { ORIGIN, createTestServer, parseSetCookies, type TestServer } from './ha
 /**
  * Routes that already work, and must keep their behaviour, not answer 501:
  * B2's, quick capture, which calls `items.create` (US1, B7) like `create_item`,
- * US2's read routes (B8, T080; content in us2-api.test.ts), and US3's review
- * routes (B9, T094; content in the US3 tests).
+ * US2's read routes (B8, T080; content in us2-api.test.ts), US3's review
+ * routes (B9, T094; content in the US3 tests), and US11's recovery routes
+ * (B10, T100; content in the US11 tests).
  */
 const B2_ROUTES: readonly RouteId[] = [
   'session.unlock',
@@ -53,6 +54,10 @@ const B2_ROUTES: readonly RouteId[] = [
   'humanReview.add',
   'humanReview.update',
   'humanReview.remove',
+  // US11 (B10, T100): Agents → Workspaces and the two recovery Problems actions.
+  'workspaces.list',
+  'resources.release',
+  'runs.unpushedHandled',
 ];
 
 interface Req {

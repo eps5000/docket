@@ -2,12 +2,27 @@
  * Lead claims, leases, runs and signals (BUILD_SPEC §5.3, §5.4): the `runs` service.
  *
  * US1 (T071) implements claims, release, child runs, heartbeats, finishing,
- * signals and lease expiry. Still stubs: the owner's release and *Return to
- * Ready* (US6, T107), and parking, resources and the recovery fields
- * (US11, T099). Claim and start accept the recovery fields (workspace,
- * orchestrator, brief, external) and ignore them until US11 stores them.
+ * signals and lease expiry. US11 (T099) adds recovery (BUILD_SPEC §5.16):
+ * claim and start record the workspace, orchestrator, `external` and the
+ * brief (an immutable `brief` document version); heartbeats patch the
+ * workspace and declare or release resources; `park_run` suspends the lease
+ * and any later call resumes it (the MCP signal hook calls `resume`);
+ * `finish_run` warns about unreleased resources and unpushed commits. Still
+ * stubs: the owner's release and *Return to Ready* (US6, T107).
  */
-import { ToolError, type ItemSummary, type SignalKind } from '@tasklite/shared';
+import { createHash } from 'node:crypto';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import {
+  RESOURCE_KIND_LABELS,
+  ToolError,
+  jsonBytes,
+  LIMITS,
+  type ItemSummary,
+  type ResourceKind,
+  type SignalKind,
+  type WaitingOn,
+} from '@tasklite/shared';
 import {
   notImplemented,
   type In,
@@ -18,6 +33,14 @@ import {
   type ServiceDeps,
 } from './contracts.js';
 import { newId } from './ids.js';
+import {
+  parkInfo,
+  parseJson,
+  sameSha,
+  storedWorkspace,
+  unpushedCount,
+  type StoredWorkspace,
+} from './recovery-model.js';
 import {
   activeLead,
   actorName,
@@ -143,6 +166,125 @@ export function createRunsService(deps: ServiceDeps): RunsService {
     }
   }
 
+  // ---- Recovery fields (BUILD_SPEC §5.16; MCP_SPEC §3) ----
+
+  type RecoveryFields = Pick<
+    In<'claim_lead'>,
+    'workspace' | 'orchestrator' | 'brief' | 'brief_document_version_id' | 'external'
+  >;
+
+  /**
+   * A brief passed as text: an immutable `brief` document on the item,
+   * `brief-<run_id>.md`, stored byte for byte so a restart re-sends it
+   * unchanged. The bytes go to the docs volume first, under a new path that
+   * nothing overwrites; a rolled-back claim leaves only an unreferenced file.
+   */
+  function storeBrief(
+    w: WriteContext,
+    item: { id: string; project_key: string },
+    runId: string,
+    brief: string,
+  ): string {
+    const at = ms(w.now);
+    const docId = newId('doc', at);
+    const versionId = newId('dv', at);
+    const name = `brief-${runId}.md`;
+    const bytes = Buffer.from(brief, 'utf8');
+    const path = `${item.project_key}/${docId}/v1/${name}`;
+    const full = join(deps.config.paths.docs, path);
+    mkdirSync(dirname(full), { recursive: true });
+    writeFileSync(full, bytes, { flag: 'wx' });
+    w.insert('documents', {
+      id: docId,
+      project_key: item.project_key,
+      item_id: item.id,
+      name,
+      kind: 'brief',
+    });
+    w.insert('document_versions', {
+      id: versionId,
+      document_id: docId,
+      version_no: 1,
+      mime: 'text/markdown',
+      size: bytes.length,
+      sha256: createHash('sha256').update(bytes).digest('hex'),
+      path,
+      created_by: callerName(w.db, w.actor),
+    });
+    w.event({
+      type: 'document.added',
+      summary: `Brief for run ${runId} stored (${name}, ${bytes.length} bytes)`,
+      item_id: item.id,
+      project_key: item.project_key,
+      data: { document_id: docId, document_version_id: versionId, kind: 'brief', run_id: runId },
+      objects: [{ kind: 'document', id: docId }],
+    });
+    return versionId;
+  }
+
+  /** An existing document version as the brief: it must be on this item (or its project). */
+  function checkBrief(
+    w: WriteContext,
+    item: { id: string; project_key: string },
+    versionId: string,
+  ): string {
+    const doc = w.db.sqlite
+      .prepare(
+        'SELECT d.item_id, d.project_key FROM document_versions v JOIN documents d ON d.id = v.document_id WHERE v.id = ?',
+      )
+      .get(versionId) as { item_id: string | null; project_key: string } | undefined;
+    const ok =
+      !!doc &&
+      (doc.item_id === item.id || (doc.item_id === null && doc.project_key === item.project_key));
+    if (!ok) {
+      throw new ToolError(
+        'validation',
+        `No document version ${versionId} on ${item.id}. Pass the brief as text, or the brief_document_version_id a run of ${item.id} was given.`,
+        {
+          details: { fields: { brief_document_version_id: 'not a document version on this item' } },
+        },
+      );
+    }
+    return versionId;
+  }
+
+  /** Check an existing brief before anything is written; returns a function that stores the fields. */
+  function recoveryColumns(
+    w: WriteContext,
+    item: { id: string; project_key: string },
+    input: RecoveryFields,
+  ): (runId: string) => Record<string, unknown> {
+    if (input.brief_document_version_id) checkBrief(w, item, input.brief_document_version_id);
+    return (runId) => ({
+      workspace: input.workspace ? { ...input.workspace, updated_at: w.now } : null,
+      orchestrator: input.orchestrator ?? null,
+      external: input.external ?? null,
+      brief_document_version_id:
+        input.brief !== undefined
+          ? storeBrief(w, item, runId, input.brief)
+          : (input.brief_document_version_id ?? null),
+    });
+  }
+
+  /** Unreleased resources of a run, oldest first. */
+  function unreleasedOf(db: WriteContext['db'], runId: string) {
+    return db.sqlite
+      .prepare(
+        'SELECT id, label FROM run_resources WHERE run_id = ? AND released_at IS NULL ORDER BY started_at, id',
+      )
+      .all(runId) as { id: string; label: string }[];
+  }
+
+  /** What `waiting_on` says, for event summaries: `RCP-12, RCP-13`, `the coordinator`. */
+  function waitingText(waiting: WaitingOn): string {
+    const parts: string[] = [];
+    if (waiting.items?.length) parts.push(waiting.items.join(', '));
+    if (waiting.orchestrator) parts.push('the coordinator');
+    if (waiting.person) parts.push('a person');
+    if (waiting.until) parts.push(`until ${utcTime(waiting.until, waiting.until)}`);
+    return parts.join(', ');
+  }
+
   return {
     claim(w, input: In<'claim_lead'>): Out<'claim_lead'> {
       const item = requireItem(w.db, input.id);
@@ -195,9 +337,11 @@ export function createRunsService(deps: ServiceDeps): RunsService {
         );
       }
 
+      const recovery = recoveryColumns(w, item, input);
       const runId = newId('run', ms(w.now));
       const label = input.agent_label ?? w.actor.label ?? null;
       const leaseUntil = isoPlus(w.now, deps.config.leaseMs);
+      const columns = recovery(runId);
       w.insert('runs', {
         id: runId,
         item_id: item.id,
@@ -211,6 +355,7 @@ export function createRunsService(deps: ServiceDeps): RunsService {
         // Conservative until the adapter classifies the claiming call (§5.4).
         last_signal_kind: 'report',
         lease_expires_at: leaseUntil,
+        ...columns,
       });
       const who = actorName({ kind: 'agent', client: w.actor.client, label });
       w.event({
@@ -282,8 +427,10 @@ export function createRunsService(deps: ServiceDeps): RunsService {
           { details: { parent_run_id: input.parent_run_id } },
         );
       }
+      const recovery = recoveryColumns(w, item, input);
       const runId = newId('run', ms(w.now));
       const label = input.agent_label ?? null;
+      const columns = recovery(runId);
       w.insert('runs', {
         id: runId,
         item_id: item.id,
@@ -296,6 +443,7 @@ export function createRunsService(deps: ServiceDeps): RunsService {
         last_signal_at: w.now,
         last_signal_kind: 'report',
         lease_expires_at: null,
+        ...columns,
       });
       w.event({
         type: 'run.started',
@@ -328,6 +476,21 @@ export function createRunsService(deps: ServiceDeps): RunsService {
           );
         }
       }
+      // `external` merges by namespace; the result must still fit (MCP_SPEC §3).
+      let external: Record<string, unknown> | null = null;
+      if (input.external) {
+        external = {
+          ...(parseJson<Record<string, unknown>>(run.external) ?? {}),
+          ...input.external,
+        };
+        if (jsonBytes(external) > LIMITS.external_bytes) {
+          throw new ToolError(
+            'validation',
+            `external would be ${jsonBytes(external)} bytes of JSON with your changes; the limit is ${LIMITS.external_bytes}. Send less, or replace a namespace.`,
+            { details: { fields: { external: `at most ${LIMITS.external_bytes} bytes` } } },
+          );
+        }
+      }
       r.db.sqlite
         .transaction(() => {
           if (input.current_step_id !== undefined || input.note !== undefined) {
@@ -337,27 +500,107 @@ export function createRunsService(deps: ServiceDeps): RunsService {
               )
               .run(input.current_step_id ?? null, input.note ?? null, run.id);
           }
+          // The workspace patch: what you leave out stays as it is (§5.16).
+          if (input.workspace) {
+            const current = getRun(r.db, run.id)!;
+            const ws: StoredWorkspace = {
+              ...(storedWorkspace(current) ?? {}),
+              ...input.workspace,
+              updated_at: r.now,
+            };
+            r.db.sqlite
+              .prepare('UPDATE runs SET workspace = ? WHERE id = ?')
+              .run(JSON.stringify(ws), run.id);
+          }
+          if (external) {
+            r.db.sqlite
+              .prepare('UPDATE runs SET external = ? WHERE id = ?')
+              .run(JSON.stringify(external), run.id);
+          }
           // The MCP signal hook has already recorded this call; another adapter's call can't prove a session.
           const fresh = getRun(r.db, run.id)!;
           if (ms(fresh.last_signal_at) < ms(r.now)) signal(r, run.id, 'report');
         })
         .immediate();
       const after = getRun(r.db, run.id)!;
-      const resources = (
-        r.db.sqlite
-          .prepare(
-            'SELECT id, label FROM run_resources WHERE run_id = ? AND released_at IS NULL ORDER BY started_at, id',
-          )
-          .all(run.id) as { id: string; label: string }[]
-      ).map((x) => ({ id: x.id, label: x.label }));
       return {
         run_state: displayRunState(after, windows(), r.now),
         lease_expires_at: after.lease_expires_at,
-        resources,
+        resources: unreleasedOf(r.db, run.id),
       };
     },
 
-    updateResources: notImplemented('runs.updateResources'),
+    updateResources(w, input) {
+      const run = requireRun(w.db, input.run_id);
+      assertOwnRun(w, run);
+      if (!isRunOpen(run.state) || leaseExpired(run, w.now)) throw runEndedError(w.db, run, w.now);
+      const item = requireItem(w.db, run.item_id);
+      const who = callerName(w.db, w.actor);
+      const declared: { id: string; kind: ResourceKind; label: string }[] = [];
+      for (const r of input.resources_started ?? []) {
+        const id = newId('rsc', ms(w.now));
+        w.insert('run_resources', {
+          id,
+          run_id: run.id,
+          kind: r.kind,
+          label: r.label,
+          locator: r.locator,
+          started_at: w.now,
+        });
+        declared.push({ id, kind: r.kind, label: r.label });
+      }
+      if (declared.length > 0) {
+        w.event({
+          type: 'resource.declared',
+          summary: `${who} declared ${declared.map((d) => `${RESOURCE_KIND_LABELS[d.kind]} “${d.label}”`).join(', ')}`,
+          item_id: item.id,
+          project_key: item.project_key,
+          data: { run_id: run.id, resources: declared },
+          objects: [{ kind: 'run', id: run.id }],
+        });
+      }
+      const released: { id: string; label: string; run_id: string }[] = [];
+      for (const rel of input.resources_released ?? []) {
+        const row = w.get('run_resources', rel.resource_id) as
+          { id: string; run_id: string; label: string; released_at: string | null } | undefined;
+        if (!row) {
+          throw new ToolError(
+            'not_found',
+            `No resource ${rel.resource_id}. Use an rsc_ ID that heartbeat or get_item returned.`,
+          );
+        }
+        const owner = getRun(w.db, row.run_id)!;
+        // A later run of the same item may release an earlier run's resources (§5.16).
+        if (owner.item_id !== item.id) {
+          throw new ToolError(
+            'forbidden',
+            `${row.id} was started for ${owner.item_id}, not ${item.id}. Only a run of ${owner.item_id}, or the owner, can release it.`,
+          );
+        }
+        if (row.released_at) continue; // Already released: nothing to do.
+        w.update('run_resources', row.id, {
+          released_at: w.now,
+          released_by: who,
+          release_note: rel.note ?? null,
+        });
+        released.push({ id: row.id, label: row.label, run_id: row.run_id });
+      }
+      if (released.length > 0) {
+        const others = [...new Set(released.map((x) => x.run_id))].filter((id) => id !== run.id);
+        w.event({
+          type: 'resource.released',
+          summary: `${who} released ${released.map((x) => `“${x.label}”`).join(', ')}`,
+          item_id: item.id,
+          project_key: item.project_key,
+          data: { run_id: run.id, resources: released },
+          objects: [
+            { kind: 'run', id: run.id },
+            ...others.map((id) => ({ kind: 'run' as const, id })),
+          ],
+        });
+      }
+      return { resources: unreleasedOf(w.db, run.id) };
+    },
 
     finish(w, input) {
       const run = requireRun(w.db, input.run_id);
@@ -376,11 +619,104 @@ export function createRunsService(deps: ServiceDeps): RunsService {
         data: { run_id: run.id, end_reason: input.result, is_lead: run.is_lead === 1 },
         objects: [{ kind: 'run', id: run.id }],
       });
-      return { run_state: input.result };
+      // Finishing with things left behind succeeds, but says so (MCP_SPEC §5.4).
+      const warnings: string[] = [];
+      const left = unreleasedOf(w.db, run.id);
+      if (left.length > 0) {
+        warnings.push(
+          `${left.length} ${left.length === 1 ? 'resource' : 'resources'} still declared: ${left.map((x) => x.label).join(', ')}`,
+        );
+      }
+      const ws = storedWorkspace(run);
+      if (ws?.head_sha && (!ws.pushed_sha || !sameSha(ws.head_sha, ws.pushed_sha))) {
+        const n = unpushedCount(w.db, [run.id], ws.head_sha, ws.pushed_sha) ?? 1;
+        warnings.push(`${n} ${n === 1 ? 'commit' : 'commits'} not pushed`);
+      }
+      // The output schema allows `warnings` on every mutation (mutationOutput); the adapter passes it on.
+      const out: Out<'finish_run'> & { warnings?: string[] } = { run_state: input.result };
+      if (warnings.length > 0) out.warnings = warnings;
+      return out;
     },
 
-    park: notImplemented('runs.park'),
-    resume: notImplemented('runs.resume'),
+    park(w, input) {
+      const run = requireRun(w.db, input.run_id);
+      assertOwnRun(w, run);
+      if (!isRunOpen(run.state) || leaseExpired(run, w.now)) throw runEndedError(w.db, run, w.now);
+      const item = requireItem(w.db, run.item_id);
+      const waiting: WaitingOn = input.waiting_on ?? {};
+      const unknown = (waiting.items ?? []).filter(
+        (id) =>
+          id === item.id ||
+          !w.db.sqlite
+            .prepare(
+              'SELECT 1 FROM items i JOIN projects p ON p.key = i.project_key WHERE i.id = ? AND p.deleted_at IS NULL',
+            )
+            .get(id),
+      );
+      if (unknown.length > 0) {
+        throw new ToolError(
+          'validation',
+          unknown.includes(item.id)
+            ? `A run can't wait on its own item ${item.id}. Name the items you are waiting for.`
+            : `Unknown item ${unknown.join(', ')} in waiting_on.items. Check the IDs with search_items.`,
+          { details: { fields: { 'waiting_on.items': 'unknown item' }, items: unknown } },
+        );
+      }
+      // Parking again updates what it waits on; it has been parked since the first time.
+      const parkedAt = run.state === 'parked' && run.parked_at ? run.parked_at : w.now;
+      w.update('runs', run.id, {
+        state: 'parked',
+        parked_reason: input.reason,
+        waiting_on: waiting,
+        parked_at: parkedAt,
+        // The lease is suspended: a parked run keeps its claim and never expires (§5.16).
+        lease_expires_at: null,
+      });
+      const on = waitingText(waiting);
+      w.event({
+        type: 'run.parked',
+        summary: `${callerName(w.db, { ...w.actor, run_id: run.id })} parked${on ? `, waiting on ${on}` : ''}: ${input.reason}`,
+        item_id: item.id,
+        project_key: item.project_key,
+        data: { run_id: run.id, reason: input.reason, waiting_on: waiting, from: run.state },
+        objects: [{ kind: 'run', id: run.id }],
+      });
+      const info = parkInfo(w.db, getRun(w.db, run.id)!, w.now);
+      return { run_state: 'parked' as const, resume_ready: info.resume_ready };
+    },
+
+    resume(w, input) {
+      const run = getRun(w.db, input.run_id);
+      if (!run || run.state !== 'parked') return { resumed: false };
+      const item = requireItem(w.db, run.item_id);
+      const asked = w.db.sqlite
+        .prepare('SELECT 1 FROM questions WHERE run_id = ? AND answered_at IS NULL')
+        .get(run.id);
+      const since = run.parked_at ?? run.updated_at;
+      const ready = parkInfo(w.db, run, w.now).resume_ready;
+      w.update('runs', run.id, {
+        state: asked ? 'needs_input' : 'open',
+        parked_reason: null,
+        waiting_on: null,
+        parked_at: null,
+        lease_expires_at: run.is_lead === 1 ? isoPlus(w.now, deps.config.leaseMs) : null,
+      });
+      w.event({
+        type: 'run.resumed',
+        summary: `${callerName(w.db, { ...w.actor, run_id: run.id })} resumed after ${durationText(ms(w.now) - ms(since))} parked${ready ? '' : ' (before what it waited on cleared)'}`,
+        item_id: item.id,
+        project_key: item.project_key,
+        data: {
+          run_id: run.id,
+          parked_at: since,
+          reason: run.parked_reason,
+          waiting_on: parseJson<WaitingOn>(run.waiting_on),
+          resume_ready: ready,
+        },
+        objects: [{ kind: 'run', id: run.id }],
+      });
+      return { resumed: true };
+    },
 
     recordSignal(r, input: RunSignalInput) {
       r.db.sqlite.transaction(() => signal(r, input.run_id, input.kind)).immediate();
@@ -426,4 +762,14 @@ export function createRunsService(deps: ServiceDeps): RunsService {
         .all() as { run_id: string; session_id: string }[];
     },
   };
+}
+
+/** `40s`, `47m`, `3h`, `2d`: how long a run was parked, for the Activity line. */
+function durationText(msValue: number): string {
+  const sec = Math.max(0, Math.round(msValue / 1000));
+  if (sec < 60) return `${sec}s`;
+  const min = Math.round(sec / 60);
+  if (min < 60) return `${min}m`;
+  const h = Math.round(min / 60);
+  return h < 48 ? `${h}h` : `${Math.round(h / 24)}d`;
 }

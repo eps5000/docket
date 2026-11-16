@@ -11,11 +11,23 @@
  *   A session without a stream can't be pinged, so its run can only show
  *   *reported* (BUILD_SPEC §5.4; verification V1).
  *
+ * - **Recovery flags** (BUILD_SPEC §5.16), every `sweepMs`: parked runs
+ *   keep their claim, so the lease sweep skips them (their lease is
+ *   suspended), and the restart sweep leaves them parked. The sweep then
+ *   notes, once each, the parked runs that became ready to resume, went
+ *   unattended or were parked too long, and resources that became orphaned,
+ *   in the service log. The Problems rows themselves are derived on read,
+ *   like *stale*, so the owner and `recovery_report` see them whether or
+ *   not a sweep has run.
+ *
  * Displayed run state (live, reported, stale) is derived on every read from
  * the stored signals, so there is nothing to re-derive here beyond keeping
  * those signals and leases current.
  */
 import { readContext } from '../domain/contracts.js';
+import { ms } from '../domain/model.js';
+import type { RunRow } from '../domain/model.js';
+import { orphans, parkInfo } from '../domain/recovery-model.js';
 import { SYSTEM_ACTOR } from '../domain/write.js';
 import type { Runtime } from '../runtime.js';
 
@@ -36,6 +48,50 @@ export function sweepOnce(runtime: Runtime): { interrupted: string[] } {
   return runtime.write.run({ actor: SYSTEM_ACTOR, operation: 'sweeper.leases', args: {} }, (w) =>
     runtime.services.runs.expireLeases(w),
   ).result;
+}
+
+/**
+ * The recovery flags raised now (BUILD_SPEC §5.16), as `<kind>:<id>` keys:
+ * `resume_ready:<run>`, `resume_unattended:<run>`, `parked_too_long:<run>`,
+ * `orphaned:<resource>`. Read-only.
+ */
+export function recoveryFlags(runtime: Runtime): Map<string, string> {
+  const { db, config } = runtime;
+  const now = runtime.clock().toISOString();
+  const flags = new Map<string, string>();
+  for (const run of db.sqlite
+    .prepare("SELECT * FROM runs WHERE state = 'parked'")
+    .all() as RunRow[]) {
+    const since = run.parked_at ?? run.updated_at;
+    const info = parkInfo(db, run, now);
+    if (info.resume_ready) {
+      flags.set(`resume_ready:${run.id}`, `${run.item_id} (${run.id}) is ready to resume`);
+      if (ms(now) - ms(info.ready_since!) >= config.resumeUnattendedMs)
+        flags.set(
+          `resume_unattended:${run.id}`,
+          `${run.item_id} (${run.id}) is ready to resume, unattended`,
+        );
+    }
+    if (ms(now) - ms(since) >= config.parkMaxMs)
+      flags.set(`parked_too_long:${run.id}`, `${run.item_id} (${run.id}) is parked too long`);
+  }
+  for (const o of orphans(db, now, config.orphanAfterMs)) {
+    flags.set(
+      `orphaned:${o.resource.id}`,
+      `${o.run.item_id} left ${o.resource.label} (${o.resource.id}) running`,
+    );
+  }
+  return flags;
+}
+
+/** Log each recovery flag once, when it is first raised; returns the new ones. */
+export function flagOnce(runtime: Runtime, seen: Set<string>): string[] {
+  const flags = recoveryFlags(runtime);
+  const raised = [...flags.keys()].filter((k) => !seen.has(k));
+  for (const k of raised) runtime.log(`sweeper: ${flags.get(k)}`);
+  for (const k of [...seen]) if (!flags.has(k)) seen.delete(k);
+  for (const k of raised) seen.add(k);
+  return raised;
 }
 
 /** Ping the open runs' sessions; each answered ping is a session signal. Returns the runs signalled. */
@@ -77,6 +133,7 @@ export function startSweeper(
 ): Sweeper {
   const report = (what: string, err: unknown) =>
     runtime.log(`sweeper: ${what} failed: ${err instanceof Error ? err.message : String(err)}`);
+  const seen = new Set<string>();
   const sweep = setInterval(() => {
     try {
       const { interrupted } = sweepOnce(runtime);
@@ -84,6 +141,11 @@ export function startSweeper(
         runtime.log(`sweeper: lease expired for ${interrupted.join(', ')}`);
     } catch (err) {
       report('lease sweep', err);
+    }
+    try {
+      flagOnce(runtime, seen);
+    } catch (err) {
+      report('recovery flags', err);
     }
   }, opts.sweepMs ?? SWEEP_MS);
   let pinging = false;

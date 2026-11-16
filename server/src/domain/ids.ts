@@ -21,6 +21,8 @@ export const ID_PREFIXES = {
   document_version: 'dv',
   packet: 'pkt',
   decision: 'dec',
+  /** A run's declared resource (MCP_SPEC §4 Resource; BUILD_SPEC §4 `run_resources`). */
+  resource: 'rsc',
   // Internal.
   mutation: 'mut',
   project: 'prj',
