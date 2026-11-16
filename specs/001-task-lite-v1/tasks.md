@@ -326,15 +326,15 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 **Fills**: `server/src/domain/{decisions,context}.ts`, `server/src/mcp/tools/decisions.ts`, `get_context` in `read.ts`, `server/src/api/routes/decisions.ts`, the Decisions sections
 
 ### Tests for US5
-- [ ] T110 [P] [US5] Unit tests for the context bundle (section order, budgets of 1k/3k/8k, truncation markers, essentials and decisions never cut first, notes counted but not marked read) in `server/tests/unit/context.test.ts`
-- [ ] T111 [P] [US5] Unit tests for decisions (scope inheritance from project to epic to label to item; agents forbidden on owner records; supersede and withdraw states; confirm) in `server/tests/unit/decisions.test.ts`
-- [ ] T112 [P] [US5] MCP contract test for flow §7.10 and the `get_context` budget (RCP-14 medium ≤ 3,000). Also turn on the pending SC-001 step in the budget test. In `server/tests/contract/us5-context.test.ts`.
-- [ ] T113 [P] [US5] E2E: the Decisions section on a ticket (inherited scope chips, Confirm → "Owner", Withdraw with undo, Record form), on an epic and on a label, in `web/e2e/us5-decisions.spec.ts`
+- [X] T110 [P] [US5] Unit tests for the context bundle (section order, budgets of 1k/3k/8k, truncation markers, essentials and decisions never cut first, notes counted but not marked read) in `server/tests/unit/context.test.ts`
+- [X] T111 [P] [US5] Unit tests for decisions (scope inheritance from project to epic to label to item; agents forbidden on owner records; supersede and withdraw states; confirm) in `server/tests/unit/decisions.test.ts`
+- [X] T112 [P] [US5] MCP contract test for flow §7.10 and the `get_context` budget (RCP-14 medium ≤ 3,000). Also turn on the pending SC-001 step in the budget test. In `server/tests/contract/us5-context.test.ts`.
+- [X] T113 [P] [US5] E2E: the Decisions section on a ticket (inherited scope chips, Confirm → "Owner", Withdraw with undo, Record form), on an epic and on a label, in `web/e2e/us5-decisions.spec.ts`
 
 ### Implementation for US5
-- [ ] T114 [US5] Implement the decision service (publish, list with `in_scope_of`, withdraw, confirm, supersede, authority rules) in `server/src/domain/decisions.ts`, and the context assembler per BUILD_SPEC §5.15 in `server/src/domain/context.ts`
-- [ ] T115 [US5] Replace the stubs for `get_context`, `publish_decision`, `list_decisions` and `withdraw_decision`, and fill the `decisions` route handlers
-- [ ] T116 [US5] Fill the Decisions sections (ticket, epic, label, the Settings project dialog) using the kit's DecisionRow, per UI_SPEC §6.3.5
+- [X] T114 [US5] Implement the decision service (publish, list with `in_scope_of`, withdraw, confirm, supersede, authority rules) in `server/src/domain/decisions.ts`, and the context assembler per BUILD_SPEC §5.15 in `server/src/domain/context.ts`
+- [X] T115 [US5] Replace the stubs for `get_context`, `publish_decision`, `list_decisions` and `withdraw_decision`, and fill the `decisions` route handlers
+- [X] T116 [US5] Fill the Decisions sections (ticket, epic, label, the Settings project dialog) using the kit's DecisionRow, per UI_SPEC §6.3.5
 
 ---
 
