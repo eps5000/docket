@@ -9,8 +9,9 @@
  *    did-you-mean message for unknown keys (`validationError`);
  * 2. run the handler with a context: the parsed input, the services, a read
  *    context, and `mutate` (the one write path, as the owner or the agent);
- * 3. check a JSON result against the route's response schema (a mismatch is
- *    a bug: `500 internal`);
+ * 3. add the write path's warnings (MCP_SPEC §3.4) to the result, then check
+ *    a JSON result against the route's response schema (a mismatch is a bug:
+ *    `500 internal`);
  * 4. a service that is still a stub (`NotImplementedError`) becomes
  *    `501 {error: {code: "unavailable", message: "Not implemented yet: <METHOD path>"}}`.
  *
@@ -163,6 +164,7 @@ export function defineRoute<K extends RouteId, E extends Env>(
       }
 
       const actor = route.auth === 'bearer' ? uploadActor(body) : OWNER_ACTOR;
+      const warnings: string[] = [];
       const ctx: RouteContext<K> = {
         c,
         params: params as RouteParams<K>,
@@ -174,12 +176,17 @@ export function defineRoute<K extends RouteId, E extends Env>(
         read: readContext(deps.write.db, actor, deps.write.now()),
         mutate: (fn) => {
           const out = deps.write.run({ actor, operation: label, args: { params, body } }, fn);
+          for (const w of out.warnings) if (!warnings.includes(w)) warnings.push(w);
           return { result: out.result, mutation_id: out.mutation_id };
         },
       };
 
-      const out = await handler(ctx);
+      let out = await handler(ctx);
       if (out instanceof Response) return out;
+      // Write-check warnings (MCP_SPEC §3.4) ride on owner mutation results; the UI toasts them.
+      if (warnings.length > 0 && out !== null && typeof out === 'object' && !Array.isArray(out)) {
+        out = { ...(out as object), warnings } as typeof out;
+      }
       if (route.response.kind !== 'json') {
         throw new Error(`${label} must return a Response`);
       }

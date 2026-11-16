@@ -131,3 +131,14 @@ describe('toast-with-undo plumbing', () => {
     expect(toasts.snapshot().map((t) => t.message)).toEqual(['t2', 't3', 't4']);
   });
 });
+
+describe('write-check warnings in the success toast (MCP_SPEC §3.4)', () => {
+  it('appends each warning as a ! line, and leaves a clean result alone', async () => {
+    const { withWarnings } = await import('./undo');
+    expect(withWarnings('Added to human review.', ["RCP-99 doesn't exist"])).toBe(
+      "Added to human review. ! RCP-99 doesn't exist",
+    );
+    expect(withWarnings('Saved.', [])).toBe('Saved.');
+    expect(withWarnings('Saved.')).toBe('Saved.');
+  });
+});

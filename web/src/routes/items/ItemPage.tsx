@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router';
 import type { ItemDetailResponse } from '@tasklite/shared';
 import { Button, ErrorState, Skeleton, ViewTabs, type ViewTab } from '../../components/kit';
+import { cyclesIn } from '../../components/ProgressMap';
 import { apiClient } from '../../app/queryClient';
 import { useBreadcrumb, useShell, type Crumb } from '../../app/ShellState';
 import { useBootstrap } from '../../app/useBootstrap';
@@ -111,15 +112,8 @@ export function ItemPage() {
   const data = query.data;
   const item = data?.item;
   const kind: ItemKind = item?.type === 'Epic' ? 'epic' : 'ticket';
-  // Cycles are computed on read over the whole graph; Needs you lists them (BUILD_SPEC §5.2).
-  const problems = useQuery({
-    queryKey: queryKeys.needsYou({ scope: 'all' }),
-    queryFn: () => apiClient['needsYou.get']({ query: { scope: 'all' } }),
-    enabled: kind === 'ticket' && !!item,
-  });
-  const inCycle = !!problems.data?.problems.some(
-    (p) => p.kind === 'cycle' && p.related.includes(id),
-  );
+  // The item page carries every link of a cycle the item is in (BUILD_SPEC §5.2).
+  const inCycle = kind === 'ticket' && !!data && cyclesIn(data.links).some((c) => c.includes(id));
   const remembered = tabs.tabs.find((t) => t.id === id)?.view;
   const tab = resolveTab(kind, params.get('tab'), remembered);
 

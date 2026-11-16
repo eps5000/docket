@@ -187,7 +187,12 @@ function ServiceHealthCard({ query }: { query: UseQueryResult<SettingsResponse> 
             <dt>Documents</dt>
             <dd>{d.health.documents.state}</dd>
             <dt>Backups</dt>
-            <dd>{d.health.backups.length} locations</dd>
+            {/* The backup service is US10's; until it reports, say so rather than "0 locations". */}
+            <dd>
+              {d.health.backups.length > 0
+                ? `${d.health.backups.length} locations`
+                : 'Not reported yet'}
+            </dd>
           </dl>
         )}
       </QueryState>

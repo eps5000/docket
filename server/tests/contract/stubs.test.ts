@@ -36,7 +36,7 @@ afterEach(async () => {
   h = undefined;
 });
 
-/** Tools US1 (T076), US3 (T094) and US11 (T100) implemented; the rest stay stubs until their slice. */
+/** Tools US1 (T076), US3 (T094), US11 (T100) and US4 (T107) implemented; the rest stay stubs until their slice. */
 export const US1_TOOLS: readonly ToolName[] = [
   'whoami',
   'list_projects',
@@ -68,6 +68,10 @@ export const US1_TOOLS: readonly ToolName[] = [
   // US11 (B10, T100).
   'park_run',
   'recovery_report',
+  // US4 (B11, T107).
+  'link_items',
+  'unlink_items',
+  'dependency_subgraph',
 ];
 const STUB_TOOLS = TOOL_NAMES.filter((n) => !US1_TOOLS.includes(n));
 

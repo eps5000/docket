@@ -15,7 +15,8 @@
  *      yet: <tool>". Mutating handlers write through `ctx.mutate`, which
  *      applies the call's idempotency key (replay → `replayed: true`; same
  *      key, different arguments → `validation`);
- *   4. check the result against the output schema (a mismatch is a bug:
+ *   4. add the write path's warnings (MCP_SPEC §3.4) to the result, check
+ *      the result against the output schema (a mismatch is a bug:
  *      `internal`), then return `structuredContent` plus the compact text;
  *   5. errors become `isError` results carrying the ToolError (§6);
  *   6. one call-log line per call: never the arguments.
@@ -222,6 +223,7 @@ export async function callTool(
       run_id: runId,
     };
     let replayed = false;
+    const warnings: string[] = [];
     const read = readContext(runtime.db, actor, now);
     const signal = runId ? runSignal(runtime, runId, session) : null;
     // Every call naming a known run is a signal (BUILD_SPEC §5.4): it renews the lead lease.
@@ -256,12 +258,18 @@ export async function callTool(
           fn,
         );
         replayed ||= out.replayed;
+        for (const w of out.warnings) if (!warnings.includes(w)) warnings.push(w);
         return out.result;
       },
     };
 
     const handler = opts.handlers[tool.name] as ToolHandler<ToolName>;
-    const result = await handler(args as never, ctx);
+    let result = await handler(args as never, ctx);
+    if (warnings.length > 0) {
+      // Write-check warnings (§3.4) join any the service gave (`finish_run`'s).
+      const own = (result as { warnings?: string[] }).warnings ?? [];
+      result = { ...result, warnings: [...own, ...warnings.filter((w) => !own.includes(w))] };
+    }
     const checked = tool.output.safeParse(result);
     if (!checked.success) {
       throw internal(

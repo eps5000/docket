@@ -58,6 +58,10 @@ const B2_ROUTES: readonly RouteId[] = [
   'workspaces.list',
   'resources.release',
   'runs.unpushedHandled',
+  // US4 (B11, T107): removing a link, the project's blocker rule, and Settings (its project rows).
+  'links.delete',
+  'projects.patch',
+  'settings.get',
 ];
 
 interface Req {
