@@ -1,0 +1,181 @@
+/**
+ * TicketCard and EpicCard (UI_SPEC §4, §6.2.1).
+ */
+import { Link } from 'react-router';
+import { STATUS_LABELS, type EpicCard as EpicCardData, type WorkItem } from '@tasklite/shared';
+import { formatAge, isoTitle } from '../../lib/format';
+import { paths } from '../../lib/paths';
+import { Button } from './Button';
+import { BlockedChip, Chip } from './Chip';
+import { Priority, RunState, TypeIcon } from './Badges';
+import { Label } from './Label';
+
+/** `codex · orca-w1`. */
+export function leadName(lead: { client: string; label: string | null }): string {
+  return lead.label ? `${lead.client} · ${lead.label}` : lead.client;
+}
+
+/** The human review chip on a card (UI_SPEC §5): packet ready, later, or deferred. */
+export function ReviewChip({
+  item,
+}: {
+  item: Pick<WorkItem, 'packet_ready' | 'human_review' | 'status'>;
+}) {
+  if (item.packet_ready)
+    return (
+      <Chip kind="warn" icon="packet">
+        Packet ready
+      </Chip>
+    );
+  const open = item.status !== 'done' && item.status !== 'canceled';
+  if (open && item.human_review.declared > 0)
+    return (
+      <Chip
+        kind="neutral"
+        icon="person"
+        title="You'll get a handoff packet when this reaches Review"
+      >
+        Human review later
+      </Chip>
+    );
+  if (!open && item.human_review.deferred > 0)
+    return (
+      <Chip kind="info" icon="pause">
+        Review deferred
+      </Chip>
+    );
+  return null;
+}
+
+/**
+ * A board card. Variants follow the item: blocked (red left edge), for you
+ * (amber left edge), done (+ *Archive*, outside the card link). Unclaimed
+ * cards show no run line. Review cards with a ready packet open the packet.
+ */
+export function TicketCard({
+  item,
+  now,
+  onArchive,
+  onUnarchive,
+}: {
+  item: WorkItem;
+  now?: Date;
+  onArchive?: () => void;
+  onUnarchive?: () => void;
+}) {
+  const toPacket = item.status === 'review' && item.packet_ready;
+  const edge = item.blocked ? 'isblocked' : item.for_you ? 'owed' : '';
+  const card = (
+    <Link
+      to={toPacket ? paths.review(item.id) : paths.item(item.id)}
+      className={['tcard', edge, item.archived && 'archived'].filter(Boolean).join(' ')}
+      title={toPacket ? 'Open the handoff packet' : item.title}
+      data-item={item.id}
+    >
+      <div className="row" style={{ justifyContent: 'space-between' }}>
+        <span className="row">
+          <span className="mono muted">{item.id}</span>
+          <TypeIcon type={item.type} />
+        </span>
+        <Priority p={item.priority} />
+      </div>
+      <div className="t">{item.title}</div>
+      {(item.epic || item.labels.length > 0) && (
+        <div className="meta">
+          {item.epic && item.epic_title && (
+            <span className="ptag" title={item.epic_title}>
+              <span style={{ color: 'var(--t-epic)' }} aria-hidden="true">
+                ◆
+              </span>{' '}
+              {item.epic_title}
+            </span>
+          )}
+          {item.labels.map((l) => (
+            <Label key={l} project={item.project} name={l} asLink={false} />
+          ))}
+        </div>
+      )}
+      {(item.blocked || item.packet_ready || item.human_review.declared > 0) && (
+        <div className="meta">
+          <BlockedChip blockers={item.blocked_by} />
+          <ReviewChip item={item} />
+        </div>
+      )}
+      {item.lead && (
+        <div className="meta">
+          <RunState state={item.lead.run_state} />
+          <span>· {leadName(item.lead)}</span>
+          <span
+            style={{ marginLeft: 'auto' }}
+            title={`Last activity ${isoTitle(item.last_activity_at)}`}
+          >
+            {formatAge(item.last_activity_at, now)}
+          </span>
+        </div>
+      )}
+    </Link>
+  );
+  if (item.status !== 'done') return card;
+  return (
+    <div className="tcw">
+      {card}
+      {item.archived
+        ? onUnarchive && (
+            <Button size="sm" className="archbtn" onClick={onUnarchive}>
+              Unarchive
+            </Button>
+          )
+        : onArchive && (
+            <Button
+              size="sm"
+              className="archbtn"
+              onClick={onArchive}
+              title="Hide it from your views. It stays in the tracker and in search."
+            >
+              Archive
+            </Button>
+          )}
+    </div>
+  );
+}
+
+/** 4px `--t-epic` left edge; title + ID; mini progress bar; "n/N done · Status · N for you". */
+export function EpicCard({
+  epic,
+  forYou = 0,
+  current = false,
+}: {
+  epic: EpicCardData;
+  forYou?: number;
+  current?: boolean;
+}) {
+  const { total, done, by_status } = epic.children;
+  const active = (by_status.progress ?? 0) + (by_status.review ?? 0);
+  const pct = (n: number) => (total ? `${(n / total) * 100}%` : '0%');
+  return (
+    <Link className="epiccard" to={paths.item(epic.id)} aria-current={current || undefined}>
+      <span className="row" style={{ gap: 6, minWidth: 0 }}>
+        <TypeIcon type="Epic" />
+        <span className="et" title={epic.title}>
+          {epic.title}
+        </span>
+        <span className="mono muted" style={{ marginLeft: 'auto' }}>
+          {epic.id}
+        </span>
+      </span>
+      <span className="pbar mini" role="img" aria-label={`${done} of ${total} done`}>
+        <i className="done" style={{ width: pct(done) }} />
+        <i className="active" style={{ width: pct(active) }} />
+      </span>
+      <span className="src">
+        {done}/{total} done · {STATUS_LABELS[epic.status]}
+        {forYou > 0 && (
+          <>
+            {' · '}
+            <b style={{ color: 'var(--warn)' }}>{forYou} for you</b>
+          </>
+        )}
+      </span>
+    </Link>
+  );
+}
