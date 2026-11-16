@@ -1435,8 +1435,9 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
             active: count('progress'),
             review: count('review'),
             planning: count('planning'),
+            // "n decisions" opens the project-wide Decisions section (UI_SPEC §6.7, §6.3.5).
             decisions: n(
-              "SELECT count(*) AS n FROM decision_records WHERE project_key = ? AND status = 'active'",
+              "SELECT count(*) AS n FROM decision_records WHERE project_key = ? AND scope_kind = 'project' AND status = 'active'",
             ),
           },
           labels: (

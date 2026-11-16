@@ -731,3 +731,21 @@
   font-size: 12.5px;
   color: var(--ink-2);
 }
+
+/* ---- Decisions (UI_SPEC §6.3.5; US5) ---- */
+.tl .decform {
+  padding: 10px 0 12px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 4px;
+}
+.tl .decform textarea {
+  width: 100%;
+}
+.tl .decform select {
+  max-width: 100%;
+}
+.tl .decdlg .card.sec {
+  box-shadow: none;
+  border: 0;
+  padding: 0;
+}

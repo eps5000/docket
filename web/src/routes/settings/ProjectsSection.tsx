@@ -1,4 +1,4 @@
-import { useQueryClient, type UseQueryResult } from '@tanstack/react-query';
+import { useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { useId, useState } from 'react';
 import {
   SATISFIED_WHEN,
@@ -6,7 +6,15 @@ import {
   type SatisfiedWhen,
   type SettingsResponse,
 } from '@tasklite/shared';
-import { Button, Card, EmptyState, Label, Skeleton } from '../../components/kit';
+import {
+  Button,
+  Card,
+  Dialog,
+  EmptyState,
+  ErrorState,
+  Label,
+  Skeleton,
+} from '../../components/kit';
 import { QueryState } from '../../app/QueryState';
 import { apiClient } from '../../app/queryClient';
 import { queryKeys } from '../../lib/api';
@@ -14,6 +22,7 @@ import { runOwnerMutation, showToast } from '../../lib/undo';
 import { useShell } from '../../app/ShellState';
 import { DeleteProjectDialog } from '../dialogs/DeleteProject';
 import { JiraImportDialog } from '../dialogs/JiraImport';
+import { DecisionsPanel } from '../shared/DecisionsPanel';
 
 type Project = SettingsResponse['projects'][number];
 
@@ -21,7 +30,7 @@ type Project = SettingsResponse['projects'][number];
  * h2 "Projects" (UI_SPEC §6.7): one row per project with counts, labels,
  * the mini status bar, "Blockers clear when", decisions, *Switch to* and
  * *Delete…*; *Import from Jira…* at the bottom. US4 fills the rows and the
- * blocker rule; US10 the rest (decisions dialog, delete); US9 the import.
+ * blocker rule; US5 the decisions dialog; US10 the rest (delete); US9 the import.
  */
 export function ProjectsSection({ query }: { query: UseQueryResult<SettingsResponse> }) {
   const [deleting, setDeleting] = useState<Project | null>(null);
@@ -96,6 +105,7 @@ function ProjectRow({ project: p, onDelete }: { project: Project; onDelete: () =
         {p.counts.planning} planning
       </div>
       <BlockerRule project={p} />
+      <ProjectDecisionsLink project={p} />
       <div className="row" style={{ gap: 6 }}>
         <Button size="sm" onClick={() => setScope(p.key)}>
           Switch to
@@ -168,5 +178,48 @@ function BlockerRule({ project: p }: { project: Project }) {
         ))}
       </select>
     </div>
+  );
+}
+
+/**
+ * "n decisions" (UI_SPEC §6.7): a link that opens a dialog with the
+ * project-wide Decisions section (§6.3.5).
+ */
+function ProjectDecisionsLink({ project: p }: { project: Project }) {
+  const [open, setOpen] = useState(false);
+  const n = p.counts.decisions;
+  return (
+    <>
+      <Button
+        variant="ghost"
+        size="sm"
+        data-project-decisions={p.key}
+        aria-haspopup="dialog"
+        onClick={() => setOpen(true)}
+      >
+        {n} {n === 1 ? 'decision' : 'decisions'}
+      </Button>
+      {open && (
+        <Dialog title={`${p.name} · Decisions`} onClose={() => setOpen(false)} className="decdlg">
+          <ProjectDecisions project={p} />
+        </Dialog>
+      )}
+    </>
+  );
+}
+
+function ProjectDecisions({ project: p }: { project: Project }) {
+  const q = { project: p.key, scope_kind: 'project' as const, include_inactive: true };
+  const query = useQuery({
+    queryKey: queryKeys.decisions(q),
+    queryFn: () => apiClient['decisions.list']({ query: q }),
+  });
+  if (query.isError) return <ErrorState error={query.error} onRetry={() => void query.refetch()} />;
+  if (!query.data) return <Skeleton lines={2} label="Loading decisions" />;
+  return (
+    <DecisionsPanel
+      place={{ kind: 'project', project: p.key, name: p.name }}
+      records={query.data.items}
+    />
   );
 }
