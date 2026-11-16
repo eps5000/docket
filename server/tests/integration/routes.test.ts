@@ -23,12 +23,14 @@ import {
   type RouteId,
 } from '@tasklite/shared';
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { seedId } from '../../src/db/seed/loader.js';
 import { ORIGIN, createTestServer, parseSetCookies, type TestServer } from './harness.js';
 
 /**
  * Routes that already work, and must keep their behaviour, not answer 501:
  * B2's, quick capture, which calls `items.create` (US1, B7) like `create_item`,
- * and US2's read routes (B8, T080). Their content is tested in us2-api.test.ts.
+ * US2's read routes (B8, T080; content in us2-api.test.ts), and US3's review
+ * routes (B9, T094; content in the US3 tests).
  */
 const B2_ROUTES: readonly RouteId[] = [
   'session.unlock',
@@ -43,6 +45,14 @@ const B2_ROUTES: readonly RouteId[] = [
   'items.get',
   'agents.list',
   'search.get',
+  // US3 (B9, T094): the packet screen, the deferred follow-up and human review items.
+  'review.get',
+  'review.decide',
+  'review.refresh',
+  'deferred.followUp',
+  'humanReview.add',
+  'humanReview.update',
+  'humanReview.remove',
 ];
 
 interface Req {
@@ -69,8 +79,13 @@ const VALID: Record<RouteId, Req> = {
     body: {
       round: 2,
       verdicts: [
-        { hr_item_id: 'hr_a', kind: 'approve' },
-        { hr_item_id: 'hr_b', kind: 'changes', note: 'Drag fails on touch.', into: 'bug' },
+        { hr_item_id: seedId('hr', 'RCP-12', 0), kind: 'approve' },
+        {
+          hr_item_id: seedId('hr', 'RCP-12', 1),
+          kind: 'changes',
+          note: 'Drag fails on touch.',
+          into: 'bug',
+        },
       ],
     },
   },
