@@ -165,9 +165,16 @@ describe('cycles, zoom and arrows', () => {
   });
 });
 
-/** A card by its item ID. */
-const cardOf = (id: string) =>
-  screen.getAllByRole('button').find((b) => b.dataset.pid === id) as HTMLButtonElement;
+/**
+ * A card by its item ID: a direct lookup, not a role query over the whole
+ * map (see the zoom test). Cards are <button>s, which the second test checks
+ * by role and accessible name.
+ */
+function cardOf(id: string): HTMLButtonElement {
+  const card = document.querySelector<HTMLElement>(`[data-pid="${id}"]`);
+  expect(card?.tagName).toBe('BUTTON');
+  return card as HTMLButtonElement;
+}
 
 describe('<ProgressMap>', () => {
   const view = () =>
@@ -218,18 +225,22 @@ describe('<ProgressMap>', () => {
 
   it('zoom controls step, reset and fit', () => {
     view();
-    const pct = () => screen.getByRole('button', { name: /^Zoom \d+%/ }).textContent;
+    // Find the Zoom group once, then query its four buttons inside it. A
+    // role-and-name query over the whole map computes the accessible name
+    // and the computed style of every element, which made this test take
+    // seconds on a loaded CI runner (B12's run timed out at 5 s).
+    const zoom = within(screen.getByRole('group', { name: 'Zoom' }));
+    const button = (name: string | RegExp) => zoom.getByRole('button', { name });
+    const pct = () => button(/^Zoom \d+%/).textContent;
     expect(pct()).toBe('100%');
-    fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }));
+    fireEvent.click(button('Zoom in'));
     expect(pct()).toBe('125%');
-    expect((screen.getByRole('button', { name: 'Zoom in' }) as HTMLButtonElement).disabled).toBe(
-      true,
-    );
-    fireEvent.click(screen.getByRole('button', { name: /^Zoom 125%/ }));
+    expect((button('Zoom in') as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(button(/^Zoom 125%/));
     expect(pct()).toBe('100%');
-    for (let i = 0; i < 4; i++) fireEvent.click(screen.getByRole('button', { name: 'Zoom out' }));
+    for (let i = 0; i < 4; i++) fireEvent.click(button('Zoom out'));
     expect(pct()).toBe('50%');
-    const fit = screen.getByRole('button', { name: 'Fit' });
+    const fit = button('Fit');
     fireEvent.click(fit);
     expect(fit.getAttribute('aria-pressed')).toBe('true');
   });
