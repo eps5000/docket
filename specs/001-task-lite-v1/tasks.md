@@ -348,7 +348,7 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [ ] T119 [P] [US6] E2E: inline answer, note logged, the release dialog focusing Cancel with undo, Return to Ready, owner adds and removes a work step and a check, in `web/e2e/us6-steer.spec.ts`
 
 ### Implementation for US6
-- [ ] T120 [US6] Implement questions and owner notes (`ask_owner`, answer, delivery marking only in `get_item` standard and full views) in `server/src/domain/messages.ts`. Replace the `ask_owner` stub and fill the `steer` route handlers (answer, notes, release, return-to-ready, and the owner work, check and human-review entries).
+- [ ] T120 [US6] Implement questions and owner notes (`ask_owner`, answer, delivery marking only in `get_item` standard and full views) in `server/src/domain/messages.ts`. Replace the `ask_owner` stub and fill the `steer` route handlers (answer, notes, release, return-to-ready, and the owner work, check and human-review entries). Reuse B9's `messages.markDelivered`; don't rebuild it. When the owner releases a claim or cancels, emit the run's end event with `data.run_id` and set `end_reason` (`owner_released`, `canceled`), so US11's recovery views see it (B10 note).
 - [ ] T121 [US6] Fill Lead and runs (conflict callout, error output, release dialog, Return to Ready), the History note box, the checklist add rows, the inline answer in Needs you, and the question banner, per UI_SPEC §6.3.1–2
 
 ---
@@ -371,7 +371,7 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
   - inline edit with the conflict callout.
 
 ### Implementation for US7
-- [ ] T124 [US7] Implement the documents service (immutable versions, sha256, 25 MB through MCP, the `/agent-upload` multipart endpoint up to 500 MB, preview MIME handling, `Content-Disposition` and `nosniff`) in `server/src/domain/documents.ts` and `server/src/api/routes/upload.ts`. Replace the `put_document` and `upsert_label` stubs.
+- [ ] T124 [US7] Implement the documents service (immutable versions, sha256, 25 MB through MCP, the `/agent-upload` multipart endpoint up to 500 MB, preview MIME handling, `Content-Disposition` and `nosniff`) in `server/src/domain/documents.ts` and `server/src/api/routes/upload.ts`. Replace the `put_document` and `upsert_label` stubs. Serve `brief` documents (written by `claim_lead`/`start_run`) like any other in the document viewer, and refuse `put_document` with kind `brief` (B10 note).
 - [ ] T125 [US7] Implement owner cancel, archive and unarchive, and owner text edits in `server/src/domain/{items,archive}.ts`, and fill the `planning` route handlers (quick capture, `PATCH` fields, cancel, archive, labels and move-to-ready, document content)
 - [ ] T126 [US7] Fill quick capture and + New item in this epic; inline editing (title, description, outcome, acceptance; Preview; `Ctrl+Enter`/`Esc`; conflict callout; counters); and the item header's "⋯" Cancel item… flow, per UI_SPEC §6.3 and §6.9
 - [ ] T127 [US7] Fill the Done column Archive and Archive all actions, the Archived filter, the epic fold-up, the Label page (UI_SPEC §6.5), and the document viewer and Checklist history dialogs
