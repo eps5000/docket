@@ -252,7 +252,12 @@ Checks on every write, inspired by tersl-memory's lint rules:
   - common key prefixes such as `sk-`, `ghp_`, `github_pat_`, `xox`, `AKIA`.
 
   Nothing is stored or logged when a write is rejected.
-- **References to items that don't exist.** Item IDs mentioned in text (`RCP-99`) that don't exist are accepted, with a warning: `! RCP-99 doesn't exist`.
+- **References to items that don't exist.** Item IDs mentioned in text (`RCP-99`) that don't exist are accepted, with a warning: `! RCP-99 doesn't exist`. Rules (B11 resolutions):
+  - only `<KEY>-<n>` where `KEY` is an existing project counts, so `UTF-8`, `SHA-256` or `XYZ-9` with no XYZ project never warn;
+  - IDs inside inline code and fenced code blocks are skipped;
+  - every text field is checked, except identifier and locator fields (`id`, `from`, `to`, `epic`, `blocked_by`, `link_id`, `run_id`, `url`, `branch`, `sha`, `path`, `workspace`, `locator`, `external`, `idempotency_key`);
+  - the check runs inside the write's transaction after the change, so an item created by the same call counts as existing;
+  - owner edits through the UI API get the same warnings, in `warnings` on the response, and the UI shows them in the save toast.
 
 ---
 
