@@ -287,6 +287,7 @@ export const searchResponse = jsonResponse({
       status: statusSchema,
       project: z.string(),
       jira_key: z.string().nullable(),
+      archived: z.boolean(),
     }),
   ),
   labels: z.array(z.object({ project: z.string(), name: z.string() })),
