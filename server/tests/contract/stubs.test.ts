@@ -36,7 +36,7 @@ afterEach(async () => {
   h = undefined;
 });
 
-/** Tools US1 (T076), US3 (T094), US11 (T100), US4 (T107) and US5 (T115) implemented; the rest stay stubs until their slice. */
+/** Tools US1 (T076), US3 (T094), US11 (T100), US4 (T107), US5 (T115) and US6 (T120) implemented; the rest stay stubs until their slice. */
 export const US1_TOOLS: readonly ToolName[] = [
   'whoami',
   'list_projects',
@@ -77,6 +77,8 @@ export const US1_TOOLS: readonly ToolName[] = [
   'publish_decision',
   'list_decisions',
   'withdraw_decision',
+  // US6 (B13, T120).
+  'ask_owner',
 ];
 const STUB_TOOLS = TOOL_NAMES.filter((n) => !US1_TOOLS.includes(n));
 
@@ -137,11 +139,14 @@ describe('errors reach the SDK client as results (B3 resolution 8)', () => {
     h = await startHarness();
     // listTools cached every outputSchema, so the client validates structuredContent.
     await h.a.listTools();
-    const unavailable = await h.a.callTool({ name: 'ask_owner', arguments: VALID_ARGS.ask_owner });
+    const unavailable = await h.a.callTool({
+      name: 'upsert_label',
+      arguments: VALID_ARGS.upsert_label,
+    });
     expect(unavailable.isError).toBe(true);
     expect(unavailable.structuredContent).toEqual({
       code: 'unavailable',
-      message: 'Not implemented yet: ask_owner',
+      message: 'Not implemented yet: upsert_label',
     });
     const validation = await h.a.callTool({
       name: 'create_item',
@@ -232,10 +237,10 @@ describe('idempotency (§3; §10 item 5)', () => {
 
   it('stubs store nothing, so a retried stub call just answers unavailable again', async () => {
     h = await startHarness();
-    const args = { ...VALID_ARGS.ask_owner, idempotency_key: 'stub-1' };
-    expectUnavailable(await h.call('ask_owner', args));
-    expectUnavailable(await h.call('ask_owner', args));
-    expectUnavailable(await h.call('ask_owner', { ...args, question: 'Other question?' }));
+    const args = { ...VALID_ARGS.upsert_label, idempotency_key: 'stub-1' };
+    expectUnavailable(await h.call('upsert_label', args));
+    expectUnavailable(await h.call('upsert_label', args));
+    expectUnavailable(await h.call('upsert_label', { ...args, brief_md: 'Desktop too.' }));
     const n = (
       h.server.runtime.db.sqlite.prepare('SELECT count(*) AS n FROM idempotency').get() as {
         n: number;

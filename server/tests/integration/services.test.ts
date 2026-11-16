@@ -85,7 +85,7 @@ describe('the service stubs', () => {
     );
   });
 
-  /** Implemented already: undo (B2), US1's methods (B7, tasks.md T070–T075) and US2's read models (B8, T080, T084), US3's review services (B9), US11's recovery (B10, T099–T100), US4's links (B11, T106) and US5's decisions and context (B12, T114). */
+  /** Implemented already: undo (B2), US1's methods (B7, tasks.md T070–T075) and US2's read models (B8, T080, T084), US3's review services (B9), US11's recovery (B10, T099–T100), US4's links (B11, T106), US5's decisions and context (B12, T114) and US6's steering (B13, T120). */
   const IMPLEMENTED: Record<string, readonly string[]> = {
     undo: ['undo'],
     items: ['create', 'update', 'setStatus', 'get'],
@@ -103,8 +103,22 @@ describe('the service stubs', () => {
       'updateResources',
       'park',
       'resume',
+      // US6 (B13, T120).
+      'ownerRelease',
+      'returnToReady',
     ],
-    checklist: ['setPlan', 'updateStep', 'logSubagent', 'setChecks', 'updateCheck'],
+    checklist: [
+      'setPlan',
+      'updateStep',
+      'logSubagent',
+      'setChecks',
+      'updateCheck',
+      // US6 (B13, T120).
+      'ownerAddStep',
+      'ownerRemoveStep',
+      'ownerAddCheck',
+      'ownerRemoveCheck',
+    ],
     evidence: ['addNote', 'linkArtifact', 'reportCommit'],
     search: ['whoami', 'listProjects', 'searchItems', 'getChanges', 'palette'],
     views: ['bootstrap', 'needsYou', 'work', 'itemDetail', 'agents', 'settings'],
@@ -112,7 +126,7 @@ describe('the service stubs', () => {
     humanReview: ['declare', 'update', 'ownerAdd', 'ownerUpdate', 'ownerRemove'],
     packets: ['submit', 'getReview', 'deferredReviews', 'screen', 'refresh', 'markStale'],
     reviewDecisions: ['decide', 'createFollowUp'],
-    messages: ['markDelivered'],
+    messages: ['markDelivered', 'askOwner', 'answer', 'addOwnerNote'],
     // US11 (B10, T100).
     recovery: [
       'report',

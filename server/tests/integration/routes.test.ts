@@ -31,8 +31,9 @@ import { ORIGIN, createTestServer, parseSetCookies, type TestServer } from './ha
  * B2's, quick capture, which calls `items.create` (US1, B7) like `create_item`,
  * US2's read routes (B8, T080; content in us2-api.test.ts), US3's review
  * routes (B9, T094; content in the US3 tests), US11's recovery routes
- * (B10, T100; content in the US11 tests), and US5's decisions routes (B12,
- * T115; content in us5-context.test.ts).
+ * (B10, T100; content in the US11 tests), US5's decisions routes (B12,
+ * T115; content in us5-context.test.ts), and US6's steer routes (B13, T120;
+ * content in the US6 tests).
  */
 const B2_ROUTES: readonly RouteId[] = [
   'session.unlock',
@@ -68,6 +69,15 @@ const B2_ROUTES: readonly RouteId[] = [
   'decisions.create',
   'decisions.confirm',
   'decisions.withdraw',
+  // US6 (B13, T120): steering a ticket (content in the US6 tests).
+  'items.answer',
+  'items.addNote',
+  'items.release',
+  'items.returnToReady',
+  'steps.add',
+  'steps.remove',
+  'checks.add',
+  'checks.remove',
 ];
 
 interface Req {

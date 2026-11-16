@@ -5,21 +5,20 @@
  * with plan versions and reasons), `update_step`, `log_subagent`,
  * `set_checks` and `update_check`. Writes patch (MCP_SPEC §3.3): what you
  * don't restate, you don't change. Owner-added entries are always kept;
- * agents may change their state, never their text. Still stubs: the
- * owner's own steps and checks (US6, T107).
+ * agents may change their state, never their text.
+ *
+ * US6 (T120) adds the owner's own steps and checks (`added_by: owner`):
+ * the owner adds them (undoable) and removes their own while a step isn't
+ * done, or while a check hasn't run. They join the current plan without a
+ * new plan version: they are the owner's additions, not a revision of the
+ * agent's plan.
  *
  * Plan history: each `set_plan` writes a `plan_versions` row and moves the
  * surviving steps to that version; removed steps keep their old version
  * number, so earlier plans stay readable.
  */
 import { LIMITS, ToolError } from '@tasklite/shared';
-import {
-  notImplemented,
-  type ChecklistService,
-  type In,
-  type Out,
-  type ServiceDeps,
-} from './contracts.js';
+import { type ChecklistService, type In, type Out, type ServiceDeps } from './contracts.js';
 import { newId } from './ids.js';
 import {
   assertCallerRun,
@@ -33,8 +32,10 @@ import {
   requireItem,
   stepView,
   type CheckRow,
+  type ItemRow,
   type StepRow,
 } from './model.js';
+import type { InverseOp, WriteContext } from './write.js';
 
 const isOwner = (addedBy: string) => addedBy === 'owner';
 
@@ -83,6 +84,21 @@ function ownerOnly(kind: string, id: string): ToolError {
     `${id} was added by the owner; only the owner can change its text or remove it. You may change its state.`,
     { details: { kind } },
   );
+}
+
+const quote = (text: string) => `“${text.length > 60 ? `${text.slice(0, 59)}…` : text}”`;
+
+/** The owner adds steps and checks to open items only. */
+function openItem(w: WriteContext, id: string, what: string): ItemRow {
+  const item = requireItem(w.db, id);
+  if (item.status === 'done' || item.status === 'canceled') {
+    throw new ToolError(
+      'validation',
+      `${item.id} is ${item.status}, so it takes no new ${what}. Reopen it, or create a follow-up item.`,
+      { details: { status: item.status } },
+    );
+  }
+  return item;
 }
 
 export function createChecklistService(_deps: ServiceDeps): ChecklistService {
@@ -473,9 +489,150 @@ export function createChecklistService(_deps: ServiceDeps): ChecklistService {
       return { check: checkView(checkRows(w.db, item.id).find((x) => x.id === c.id)!) };
     },
 
-    ownerAddStep: notImplemented('checklist.ownerAddStep'),
-    ownerRemoveStep: notImplemented('checklist.ownerRemoveStep'),
-    ownerAddCheck: notImplemented('checklist.ownerAddCheck'),
-    ownerRemoveCheck: notImplemented('checklist.ownerRemoveCheck'),
+    ownerAddStep(w, input) {
+      const item = openItem(w, input.id, 'steps');
+      const steps = currentSteps(w.db, item.id);
+      if (steps.length >= LIMITS.plan_steps_max) {
+        throw new ToolError(
+          'validation',
+          `${item.id} already has ${steps.length} steps, the most a plan can hold. Remove one first, or leave the agent a note.`,
+          { details: { fields: { text: `at most ${LIMITS.plan_steps_max} steps on the plan` } } },
+        );
+      }
+      const id = newId('wst', ms(w.now));
+      const order = steps.map((s) => s.id);
+      place(order, id, input.after, 'step');
+      const at = order.indexOf(id);
+      // Renumber from the new step on (positions may have gaps after removals).
+      const ops: InverseOp[] = [];
+      const position = at === 0 ? 0 : steps.find((s) => s.id === order[at - 1])!.position + 1;
+      let next = position + 1;
+      for (const sid of order.slice(at + 1)) {
+        const s = steps.find((x) => x.id === sid)!;
+        if (s.position < next) ops.push(w.update('work_steps', s.id, { position: next }));
+        next = Math.max(next, s.position) + 1;
+      }
+      ops.push(
+        w.insert('work_steps', {
+          id,
+          item_id: item.id,
+          plan_version_no: planVersion(w.db, item.id),
+          position,
+          text: input.text,
+          state: 'todo',
+          added_by: 'owner',
+        }),
+      );
+      w.event({
+        type: 'plan.updated',
+        summary: `You added a work step on ${item.id}: ${quote(input.text)}`,
+        item_id: item.id,
+        project_key: item.project_key,
+        data: { added: [id], removed: [], added_by: 'owner', after: input.after ?? null },
+        inverse: ops,
+      });
+      return stepView(
+        w.db,
+        currentSteps(w.db, item.id).filter((s) => s.id === id),
+      )[0]!;
+    },
+
+    ownerRemoveStep(w, input) {
+      const item = requireItem(w.db, input.id);
+      const step = currentSteps(w.db, item.id).find((s) => s.id === input.stepId);
+      if (!step) {
+        throw new ToolError(
+          'not_found',
+          `No work step ${input.stepId} on ${item.id}'s current plan. Reload the item.`,
+        );
+      }
+      if (!isOwner(step.added_by)) {
+        throw new ToolError(
+          'forbidden',
+          `${step.id} is the agent’s step; you can only remove steps you added. Leave the agent a note instead.`,
+        );
+      }
+      if (step.state === 'done') {
+        throw new ToolError(
+          'validation',
+          `${step.id} is already done, so it stays on the checklist.`,
+          { details: { state: step.state } },
+        );
+      }
+      const inverse = w.remove('work_steps', step.id);
+      w.event({
+        type: 'plan.updated',
+        summary: `You removed the work step ${quote(step.text)} from ${item.id}`,
+        item_id: item.id,
+        project_key: item.project_key,
+        data: { added: [], removed: [step.id], added_by: 'owner', text: step.text },
+        inverse: [inverse],
+      });
+    },
+
+    ownerAddCheck(w, input) {
+      const item = openItem(w, input.id, 'checks');
+      const rows = checkRows(w.db, item.id);
+      if (rows.length >= LIMITS.checks_max) {
+        throw new ToolError(
+          'validation',
+          `${item.id} already has ${rows.length} checks, the most an item can hold. Remove one first.`,
+          { details: { fields: { text: `at most ${LIMITS.checks_max} checks` } } },
+        );
+      }
+      const id = newId('chk', ms(w.now));
+      const inverse = w.insert('agent_checks', {
+        id,
+        item_id: item.id,
+        position: rows.reduce((max, c) => Math.max(max, c.position), -1) + 1,
+        text: input.text,
+        state: 'todo',
+        evidence: null,
+        provenance: 'agent',
+        added_by: 'owner',
+      });
+      w.event({
+        type: 'checks.updated',
+        summary: `You added a check on ${item.id}: ${quote(input.text)}`,
+        item_id: item.id,
+        project_key: item.project_key,
+        data: { added: [id], removed: [], changed: {}, added_by: 'owner' },
+        inverse: [inverse],
+      });
+      return checkView(checkRows(w.db, item.id).find((c) => c.id === id)!);
+    },
+
+    ownerRemoveCheck(w, input) {
+      const item = requireItem(w.db, input.id);
+      const c = checkRows(w.db, item.id).find((x) => x.id === input.checkId);
+      if (!c) {
+        throw new ToolError(
+          'not_found',
+          `No check ${input.checkId} on ${item.id}. Reload the item.`,
+        );
+      }
+      if (!isOwner(c.added_by)) {
+        throw new ToolError(
+          'forbidden',
+          `${c.id} is the agent’s check; you can only remove checks you added. Leave the agent a note instead.`,
+        );
+      }
+      if (c.state !== 'todo') {
+        throw new ToolError(
+          'validation',
+          `${c.id} has already run (${c.state}), so it stays on the checklist.`,
+          { details: { state: c.state } },
+        );
+      }
+      const inverse = w.remove('agent_checks', c.id);
+      w.event({
+        type: 'checks.updated',
+        summary: `You removed the check ${quote(c.text)} from ${item.id}`,
+        item_id: item.id,
+        project_key: item.project_key,
+        data: { added: [], removed: [c.id], changed: {}, added_by: 'owner', text: c.text },
+        inverse: [inverse],
+      });
+    },
   };
 }
