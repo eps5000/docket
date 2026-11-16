@@ -1,19 +1,22 @@
+import { useState } from 'react';
 import { Link } from 'react-router';
 import { STATUSES, STATUS_LABELS, type ItemDetailResponse } from '@tasklite/shared';
-import { EmptyState, Section, TypeIcon } from '../../../components/kit';
+import { Button, Chip, EmptyState, Section, TypeIcon } from '../../../components/kit';
 import { paths } from '../../../lib/paths';
 
 /**
  * Tickets in this epic (summary "n/N done · n ready but blocked · n for
- * you"), grouped by status; archived tickets fold into "+ N archived · Show".
- * US2 fills it.
+ * you"), grouped by status; archived tickets fold into "+ N archived · Show"
+ * (US7, T127). US2 fills it.
  */
 export function EpicTicketsSection({ data }: { data: ItemDetailResponse }) {
   const kids = data.children;
   const done = kids.filter((k) => k.status === 'done').length;
   const blocked = kids.filter((k) => k.status === 'ready' && k.blocked).length;
   const forYou = kids.filter((k) => k.for_you).length;
-  const live = kids.filter((k) => !k.archived);
+  const [showArchived, setShowArchived] = useState(false);
+  const archivedN = kids.filter((k) => k.archived).length;
+  const live = showArchived ? kids : kids.filter((k) => !k.archived);
   return (
     <Section
       sectionKey="tickets"
@@ -38,15 +41,24 @@ export function EpicTicketsSection({ data }: { data: ItemDetailResponse }) {
                     {k.id}
                   </Link>
                   <span className="grow one">{k.title}</span>
+                  {k.archived && <Chip kind="neutral">Archived</Chip>}
                 </div>
               ))}
             </div>
           );
         })
       )}
-      {kids.length > live.length && (
-        <div className="src" style={{ marginTop: 8 }}>
-          + {kids.length - live.length} archived
+      {archivedN > 0 && (
+        <div className="src row" style={{ marginTop: 8 }} data-archived-fold="">
+          {!showArchived && <span>+ {archivedN} archived ·</span>}
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-expanded={showArchived}
+            onClick={() => setShowArchived(!showArchived)}
+          >
+            {showArchived ? 'Hide archived' : 'Show'}
+          </Button>
         </div>
       )}
     </Section>

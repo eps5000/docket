@@ -1,5 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import type { LabelPageResponse, LinkEdge } from '@tasklite/shared';
 import {
@@ -14,7 +14,10 @@ import {
 import { apiClient } from '../../app/queryClient';
 import { useBreadcrumb } from '../../app/ShellState';
 import { queryKeys } from '../../lib/api';
+import { formatDay, isoTitle, plural } from '../../lib/format';
 import { paths } from '../../lib/paths';
+import { runOwnerMutation, showToast } from '../../lib/undo';
+import { Markdown } from '../shared/Markdown';
 import { ProgressMapShell } from '../shared/ProgressMapShell';
 import { DecisionsPanel } from '../shared/DecisionsPanel';
 import '../screens.css';
@@ -22,11 +25,14 @@ import '../screens.css';
 /**
  * The label page (`/labels/:project/:name`, UI_SPEC §6.5): header row with
  * *Show on the board* and *Move N to Ready*; then Brief, Progress across
- * epics, By epic, and Decisions. US7 fills it; US5 (B12) fills Decisions,
- * which load on their own so they show even before the rest of the page.
+ * epics, By epic, and Decisions. US7 (T127) fills it, with *Move N to
+ * Ready* (undoable); US5 (B12) fills Decisions, which load on their own so
+ * they show even before the rest of the page.
  */
 export function LabelPage() {
   const { project = '', name = '' } = useParams();
+  const queryClient = useQueryClient();
+  const [moving, setMoving] = useState(false);
   const query = useQuery({
     queryKey: queryKeys.label(project, name),
     queryFn: () => apiClient['labels.get']({ params: { project, name } }),
@@ -38,6 +44,24 @@ export function LabelPage() {
     ],
   });
   const data = query.data;
+  const moveToReady = async (n: number) => {
+    setMoving(true);
+    try {
+      const res = await runOwnerMutation(
+        () => apiClient['labels.moveToReady']({ params: { project, name } }),
+        { success: (r) => `Moved ${plural(r.moved.length, 'item')} with #${name} to Ready.` },
+      );
+      if (res) await queryClient.invalidateQueries({ queryKey: queryKeys.all });
+    } catch (err) {
+      showToast(
+        err instanceof Error && err.message
+          ? err.message
+          : `Couldn’t move ${n} to Ready. Try again.`,
+      );
+    } finally {
+      setMoving(false);
+    }
+  };
   return (
     <div className="labelpage">
       <div className="row wrap headrow">
@@ -55,7 +79,13 @@ export function LabelPage() {
             Show on the board
           </Link>
           {data && data.counts.planning > 0 && (
-            <Button size="sm" variant="primary" icon="promote" disabled title="Lands with US7">
+            <Button
+              size="sm"
+              variant="primary"
+              icon="promote"
+              disabled={moving}
+              onClick={() => void moveToReady(data.counts.planning)}
+            >
               Move {data.counts.planning} to Ready
             </Button>
           )}
@@ -104,7 +134,14 @@ function LabelBody({ data }: { data: LabelPageResponse }) {
       <Card padded data-card="brief">
         <h3>Brief</h3>
         {data.label.brief_md ? (
-          <div className="prose">{data.label.brief_md}</div>
+          <>
+            <Markdown text={data.label.brief_md} />
+            {data.label.brief_by && data.label.brief_at && (
+              <div className="src" title={isoTitle(data.label.brief_at)}>
+                written by {data.label.brief_by} · {formatDay(data.label.brief_at)}
+              </div>
+            )}
+          </>
         ) : (
           <EmptyState text="No brief. Add one if this label is an initiative with shared decisions." />
         )}

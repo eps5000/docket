@@ -1,14 +1,39 @@
+import { useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { Link } from 'react-router';
 import type { ItemSummary } from '@tasklite/shared';
-import { Card, CardHeader, EmptyState } from '../../components/kit';
+import { Button, Card, CardHeader, EmptyState } from '../../components/kit';
+import { apiClient } from '../../app/queryClient';
+import { queryKeys } from '../../lib/api';
 import { paths } from '../../lib/paths';
+import { runOwnerMutation, showToast } from '../../lib/undo';
 import { LOWER_CARD_ROWS } from './DeferredCard';
 
 /**
  * Your Planning queue · N (UI_SPEC §6.1): item + type and epic, with *Move to
- * Ready* (US7 wires the action).
+ * Ready* (US7, T126: with Undo).
  */
 export function PlanningQueueCard({ items }: { items: readonly ItemSummary[] }) {
+  const queryClient = useQueryClient();
+  const [busy, setBusy] = useState<string | null>(null);
+  const toReady = async (i: ItemSummary) => {
+    setBusy(i.id);
+    try {
+      const res = await runOwnerMutation(
+        () =>
+          apiClient['items.patch']({
+            params: { id: i.id },
+            body: { expected_version: i.version, status: 'ready' },
+          }),
+        { success: `Moved ${i.id} to Ready.` },
+      );
+      if (res) await queryClient.invalidateQueries({ queryKey: queryKeys.all });
+    } catch (err) {
+      showToast(err instanceof Error && err.message ? err.message : 'That didn’t work. Try again.');
+    } finally {
+      setBusy(null);
+    }
+  };
   return (
     <Card data-card="planning-queue">
       <CardHeader title={`Your Planning queue · ${items.length}`} />
@@ -29,6 +54,14 @@ export function PlanningQueueCard({ items }: { items: readonly ItemSummary[] }) 
                 {i.epic_title ? ` · ◆ ${i.epic_title}` : ''}
               </div>
             </div>
+            <Button
+              size="sm"
+              icon="promote"
+              disabled={busy !== null}
+              onClick={() => void toReady(i)}
+            >
+              Move to Ready<span className="sr"> ({i.id})</span>
+            </Button>
           </div>
         ))
       )}
