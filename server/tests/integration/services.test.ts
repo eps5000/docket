@@ -85,7 +85,7 @@ describe('the service stubs', () => {
     );
   });
 
-  /** Implemented already: undo (B2), US1's methods (B7, tasks.md T070–T075) and US2's read models (B8, T080, T084), US3's review services (B9), US11's recovery (B10, T099–T100) and US4's links (B11, T106). */
+  /** Implemented already: undo (B2), US1's methods (B7, tasks.md T070–T075) and US2's read models (B8, T080, T084), US3's review services (B9), US11's recovery (B10, T099–T100), US4's links (B11, T106) and US5's decisions and context (B12, T114). */
   const IMPLEMENTED: Record<string, readonly string[]> = {
     undo: ['undo'],
     items: ['create', 'update', 'setStatus', 'get'],
@@ -126,6 +126,9 @@ describe('the service stubs', () => {
     links: ['link', 'unlink', 'blockState'],
     subgraph: ['dependencySubgraph', 'cycles'],
     projects: ['setDefaultSatisfiedWhen'],
+    // US5 (B12, T114).
+    decisions: ['publish', 'list', 'withdraw', 'confirm'],
+    context: ['getContext'],
   };
 
   it.each(methods)('%s.%s throws NotImplementedError until its slice implements it', (s, m) => {

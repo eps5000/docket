@@ -36,7 +36,7 @@ afterEach(async () => {
   h = undefined;
 });
 
-/** Tools US1 (T076), US3 (T094), US11 (T100) and US4 (T107) implemented; the rest stay stubs until their slice. */
+/** Tools US1 (T076), US3 (T094), US11 (T100), US4 (T107) and US5 (T115) implemented; the rest stay stubs until their slice. */
 export const US1_TOOLS: readonly ToolName[] = [
   'whoami',
   'list_projects',
@@ -72,6 +72,11 @@ export const US1_TOOLS: readonly ToolName[] = [
   'link_items',
   'unlink_items',
   'dependency_subgraph',
+  // US5 (B12, T115).
+  'get_context',
+  'publish_decision',
+  'list_decisions',
+  'withdraw_decision',
 ];
 const STUB_TOOLS = TOOL_NAMES.filter((n) => !US1_TOOLS.includes(n));
 
@@ -132,11 +137,11 @@ describe('errors reach the SDK client as results (B3 resolution 8)', () => {
     h = await startHarness();
     // listTools cached every outputSchema, so the client validates structuredContent.
     await h.a.listTools();
-    const unavailable = await h.a.callTool({ name: 'get_context', arguments: { id: 'RCP-12' } });
+    const unavailable = await h.a.callTool({ name: 'ask_owner', arguments: VALID_ARGS.ask_owner });
     expect(unavailable.isError).toBe(true);
     expect(unavailable.structuredContent).toEqual({
       code: 'unavailable',
-      message: 'Not implemented yet: get_context',
+      message: 'Not implemented yet: ask_owner',
     });
     const validation = await h.a.callTool({
       name: 'create_item',
