@@ -19,7 +19,7 @@ export function EpicsRow({ epics, current }: { epics: readonly EpicCardData[]; c
       </div>
       <div className="epicrow">
         {epics.map((e) => (
-          <EpicCard key={e.id} epic={e} current={current === e.id} />
+          <EpicCard key={e.id} epic={e} forYou={e.children.for_you} current={current === e.id} />
         ))}
       </div>
     </section>

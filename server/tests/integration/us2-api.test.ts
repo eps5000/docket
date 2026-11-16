@@ -223,6 +223,12 @@ describe('GET /api/work', () => {
     const rcp1 = w.epics.find((e) => e.id === 'RCP-1')!;
     expect(rcp1.children.total).toBe(12);
     expect(rcp1.children.done).toBe(1);
+    // "N for you" on each epic card: its children with a packet ready or an open question.
+    for (const e of w.epics) {
+      const kids = w.items.filter((i) => i.epic === e.id && i.for_you).length;
+      expect(e.children.for_you, e.id).toBe(kids);
+    }
+    expect(w.epics.reduce((n, e) => n + e.children.for_you, 0)).toBeGreaterThan(0);
     // Links among the items shown, with the effective rule and whether each clears.
     expect(w.links).toEqual(
       expect.arrayContaining([
@@ -306,6 +312,10 @@ describe('GET /api/items/:id', () => {
     expect(d.item.type).toBe('Epic');
     expect(d.children).toHaveLength(12);
     expect(d.children.every((c) => c.epic === 'RCP-1')).toBe(true);
+    // Each child says whether it's for you, matching Work's for-you rows ("n for you", UI_SPEC §6.3).
+    const w = await get('/api/work', workResponse);
+    const forYou = new Set(w.items.filter((i) => i.for_you).map((i) => i.id));
+    for (const c of d.children) expect(c.for_you, c.id).toBe(forYou.has(c.id));
     expect(d.decisions.map((x) => x.id)).toEqual(['dec_1']);
   });
 

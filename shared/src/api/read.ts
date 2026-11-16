@@ -223,8 +223,8 @@ export type PlanVersion = z.infer<typeof planVersionSchema>;
 
 export const itemDetailResponse = jsonResponse({
   item: itemSchema,
-  /** For an epic: its children. Empty otherwise. */
-  children: z.array(itemSummarySchema),
+  /** For an epic: its children, each with whether it's for you ("n for you", UI_SPEC §6.3). Empty otherwise. */
+  children: z.array(itemSummarySchema.extend({ for_you: z.boolean() })),
   /** Active and inactive records in scope, owner first (UI_SPEC §6.3.5). */
   decisions: z.array(decisionRecordSchema),
   /** The Checklist history dialog. */

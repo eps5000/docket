@@ -154,6 +154,7 @@ const EPIC: EpicCardData = {
     total: 12,
     done: 3,
     by_status: { done: 3, progress: 2, review: 2, ready: 4, planning: 1 },
+    for_you: 2,
   },
 };
 const decision = (over: Partial<DecisionRecord>): DecisionRecord => ({
