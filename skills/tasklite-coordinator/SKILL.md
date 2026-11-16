@@ -72,18 +72,24 @@ For a detailed look at one worker, use `get_item { id, view: "summary" }`. Don't
 
 1. Call `recovery_report`.
 2. **Prune only workspaces in `safe_to_prune`.** Never prune `in_use`, `parked` or `at_risk`, and treat `unknown` as not safe. **Idle is not finished.**
-3. Stop every entry in `orphaned_resources`, using its locator. The resumed run, or the owner, marks it released.
+3. Stop every entry in `orphaned_resources`, using its locator. The resumed run, or the owner, marks it released. (A resource only counts as orphaned 15 minutes after its run ended. Right after a crash, look at the interrupted runs' own unreleased `run.resources` too.)
 
 **After a crash (yours, a worker's or Task Lite's):** call `recovery_report { include_briefs: true }`. Then, for each interrupted or stale entry:
+
+Skip entries with no workspace and no brief: you didn't dispatch them, so leave them to the owner.
 
 1. **Find the code:**
    - if the worktree at `workspace.path` still exists, reuse it;
    - if it's gone, recreate it from `pushed_sha` on its `branch`;
    - if `dirty` was true or `head_sha` was ahead of `pushed_sha`, work may be lost. Say so in the new brief. The owner already sees it under Problems.
-2. **Re-dispatch** with the **stored brief, unchanged**, plus: "Resume from the checklist: `claim_lead` first, then `get_context` and `get_item`."
-3. **Clean up** that run's unreleased resources.
+2. **Re-dispatch** with the **stored brief, unchanged**, plus: "Resume from the checklist: `claim_lead` first, then `get_context` and `get_item`." Have the worker pass `brief_document_version_id` from the report rather than the text, so the same stored version is reused instead of copied.
+3. **Clean up** that run's unreleased resources: everything in its `run.resources` that has no `released_at`.
 
-**For parked entries:** if `resume_ready` is true, send more work (or re-dispatch if the process is gone). Otherwise leave it: it's waiting on purpose.
+**For parked entries:** a parked run keeps its claim through a crash, so a new worker's `claim_lead` would get `conflict`.
+
+- If `resume_ready` is true and the worker's process is still alive, send it more work.
+- If the process is gone, re-dispatch a worker with the parked run's **`run_id`** from the report, and tell it: "Don't claim. Continue under run `<run_id>`: your first call with it resumes the parked run; then `get_context` and `get_item`."
+- Otherwise leave it: it's waiting on purpose.
 
 **Finally,** call `recovery_report` again. Nothing interrupted should be left un-dispatched, and nothing should be orphaned.
 

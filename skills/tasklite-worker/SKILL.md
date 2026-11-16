@@ -25,6 +25,8 @@ The project's `AGENTS.md` / `CLAUDE.md` has its own rules: who moves work to Rea
 
    If you get `conflict`, someone else holds the item. Pick another one. Never retry in a loop, and never work on an item you haven't claimed.
 
+   **Given a `run_id` by your coordinator** (you're resuming a parked run after a crash)? Don't claim. Pass that `run_id` on your first call, for example `heartbeat { run_id, note: "Resuming" }`. That resumes the run with its claim, workspace and brief. Then continue from step 4.
+
 4. **Get context:** `get_context { id }`. One call gathers the outcome, the acceptance criteria, the decisions you must follow, the epic and label briefs, blockers and planning docs.
 
 **Then, only if needed:**
