@@ -1,6 +1,7 @@
 import { OPEN_RUN_STATES, type ItemDetailResponse, type Run } from '@tasklite/shared';
 import { Callout, Chip, EmptyState, RunState, Section, leadName } from '../../../components/kit';
 import { formatAge, formatAgo, formatClock, isoTitle } from '../../../lib/format';
+import { parkedDetail } from './resumeNote';
 import { WhereTheWorkLives } from './WhereTheWorkLives';
 
 /**
@@ -19,15 +20,7 @@ function current(data: ItemDetailResponse, run: Run): string | null {
 }
 
 /** "waiting on RCP-12" for a parked run (UI_SPEC §5). */
-export function parkedDetail(parked: {
-  waiting_on: { items?: string[]; orchestrator?: boolean; person?: boolean };
-}) {
-  const w = parked.waiting_on;
-  if (w.items?.length) return `waiting on ${w.items.join(', ')}`;
-  if (w.orchestrator) return 'waiting on the coordinator';
-  if (w.person) return 'waiting on a person';
-  return undefined;
-}
+export { parkedDetail } from './resumeNote';
 
 /**
  * The latest rejected claim while the current lead holds the item (UI_SPEC
@@ -87,7 +80,7 @@ export function LeadAndRunsSection({ data }: { data: ItemDetailResponse }) {
                 <span title={isoTitle(r.lease_expires_at)}>{formatClock(r.lease_expires_at)}</span>.
               </div>
             )}
-            <WhereTheWorkLives run={r} />
+            <WhereTheWorkLives run={r} data={data} />
           </div>
         ))
       )}
