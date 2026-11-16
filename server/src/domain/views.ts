@@ -61,6 +61,7 @@ import {
   type ViewsService,
 } from './contracts.js';
 import { compareIds, cycleText, cyclesOf } from './links.js';
+import { inScopeOf, ofScope } from './decisions.js';
 import {
   BlockIndex,
   EVENT_COLUMNS,
@@ -1071,66 +1072,12 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         for_you: childPackets.has(c.id) || childQuestions.has(c.id),
       }));
 
-      // Decision records in scope (§6.3.5): an epic shows its own; a ticket everything that applies.
-      type DecisionDbRow = {
-        id: string;
-        project_key: string;
-        scope_kind: DecisionRecord['scope']['kind'];
-        scope_id: string | null;
-        title: string;
-        decision_md: string;
-        rationale_md: string | null;
-        authority: DecisionRecord['authority'];
-        author: string;
-        status: DecisionRecord['status'];
-        supersedes_id: string | null;
-        superseded_by_id: string | null;
-        confirmed_at: string | null;
-        version: number;
-        created_at: string;
-      };
-      const decisionRows = (
+      // Decision records (§6.3.5), every status (the section can show inactive ones): an
+      // epic shows its own; a ticket everything that applies (decisions.ts, the one scope rule).
+      const decisions: DecisionRecord[] =
         row.type === 'Epic'
-          ? sql
-              .prepare(
-                `SELECT d.*, (SELECT n.id FROM decision_records n WHERE n.supersedes_id = d.id LIMIT 1) AS superseded_by_id
-                 FROM decision_records d WHERE d.project_key = ? AND d.scope_kind = 'epic' AND d.scope_id = ?`,
-              )
-              .all(row.project_key, row.id)
-          : sql
-              .prepare(
-                `SELECT d.*, (SELECT n.id FROM decision_records n WHERE n.supersedes_id = d.id LIMIT 1) AS superseded_by_id
-                 FROM decision_records d WHERE d.project_key = ? AND (
-                   d.scope_kind = 'project'
-                   OR (d.scope_kind = 'epic' AND d.scope_id = ?)
-                   OR (d.scope_kind = 'item' AND d.scope_id = ?)
-                   OR (d.scope_kind = 'label' AND d.scope_id IN (SELECT value FROM json_each(?))))`,
-              )
-              .all(row.project_key, row.epic_id ?? '', row.id, JSON.stringify(item.labels))
-      ) as DecisionDbRow[];
-      const decisions: DecisionRecord[] = decisionRows
-        .sort(
-          (a, b) =>
-            (a.authority === 'owner' ? 0 : 1) - (b.authority === 'owner' ? 0 : 1) ||
-            b.created_at.localeCompare(a.created_at) ||
-            a.id.localeCompare(b.id),
-        )
-        .map((d) => ({
-          id: d.id,
-          project: d.project_key,
-          scope: { kind: d.scope_kind, id: d.scope_id },
-          title: d.title,
-          decision_md: d.decision_md,
-          rationale_md: d.rationale_md,
-          authority: d.authority,
-          author: d.author,
-          status: d.status,
-          supersedes_id: d.supersedes_id,
-          superseded_by_id: d.superseded_by_id,
-          created_at: d.created_at,
-          confirmed_at: d.confirmed_at,
-          version: d.version,
-        }));
+          ? ofScope(r.db, row.project_key, { kind: 'epic', id: row.id }, { includeInactive: true })
+          : inScopeOf(r.db, { ...row, labels: item.labels }, { includeInactive: true });
 
       // Checklist history: each plan version, with the step changes its event recorded.
       const versions = sql
