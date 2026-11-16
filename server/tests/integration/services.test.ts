@@ -85,9 +85,28 @@ describe('the service stubs', () => {
     );
   });
 
+  /** Implemented already: undo (B2), and US1's methods (B7, tasks.md T070–T075). */
+  const IMPLEMENTED: Record<string, readonly string[]> = {
+    undo: ['undo'],
+    items: ['create', 'update', 'setStatus', 'get'],
+    runs: [
+      'claim',
+      'release',
+      'startRun',
+      'heartbeat',
+      'finish',
+      'recordSignal',
+      'expireLeases',
+      'interruptOpenRuns',
+      'openRunSessions',
+    ],
+    checklist: ['setPlan', 'updateStep', 'logSubagent', 'setChecks', 'updateCheck'],
+    evidence: ['addNote', 'linkArtifact', 'reportCommit'],
+    search: ['whoami', 'listProjects', 'searchItems', 'getChanges'],
+  };
+
   it.each(methods)('%s.%s throws NotImplementedError until its slice implements it', (s, m) => {
-    // Implemented already: undo (B2); recordSignal is a no-op the signal hook calls.
-    if (s === 'undo' || (s === 'runs' && m === 'recordSignal')) return;
+    if (IMPLEMENTED[s]?.includes(m)) return;
     const fn = (services[s as keyof Services] as unknown as Record<string, () => unknown>)[m]!;
     let thrown: unknown;
     try {

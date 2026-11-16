@@ -35,8 +35,34 @@ afterEach(async () => {
   h = undefined;
 });
 
+/** Tools US1 implemented (tasks.md T076); the rest stay stubs until their slice. */
+export const US1_TOOLS: readonly ToolName[] = [
+  'whoami',
+  'list_projects',
+  'search_items',
+  'get_item',
+  'get_changes',
+  'create_item',
+  'update_item',
+  'set_status',
+  'claim_lead',
+  'release_lead',
+  'start_run',
+  'heartbeat',
+  'finish_run',
+  'set_plan',
+  'update_step',
+  'log_subagent',
+  'set_checks',
+  'update_check',
+  'add_note',
+  'link_artifact',
+  'report_commit',
+];
+const STUB_TOOLS = TOOL_NAMES.filter((n) => !US1_TOOLS.includes(n));
+
 describe('stubs', () => {
-  it.each(TOOL_NAMES)('%s answers unavailable: "Not implemented yet"', async (name) => {
+  it.each(STUB_TOOLS)('%s answers unavailable: "Not implemented yet"', async (name) => {
     h ??= await startHarness();
     const result = await h.call(name, VALID_ARGS[name]);
     const err = expectUnavailable(result);
@@ -92,11 +118,11 @@ describe('errors reach the SDK client as results (B3 resolution 8)', () => {
     h = await startHarness();
     // listTools cached every outputSchema, so the client validates structuredContent.
     await h.a.listTools();
-    const unavailable = await h.a.callTool({ name: 'whoami', arguments: {} });
+    const unavailable = await h.a.callTool({ name: 'get_review', arguments: { id: 'RCP-12' } });
     expect(unavailable.isError).toBe(true);
     expect(unavailable.structuredContent).toEqual({
       code: 'unavailable',
-      message: 'Not implemented yet: whoami',
+      message: 'Not implemented yet: get_review',
     });
     const validation = await h.a.callTool({
       name: 'create_item',
@@ -187,10 +213,10 @@ describe('idempotency (§3; §10 item 5)', () => {
 
   it('stubs store nothing, so a retried stub call just answers unavailable again', async () => {
     h = await startHarness();
-    const args = { ...VALID_ARGS.add_note, idempotency_key: 'stub-1' };
-    expectUnavailable(await h.call('add_note', args));
-    expectUnavailable(await h.call('add_note', args));
-    expectUnavailable(await h.call('add_note', { ...args, text: 'Other text.' }));
+    const args = { ...VALID_ARGS.ask_owner, idempotency_key: 'stub-1' };
+    expectUnavailable(await h.call('ask_owner', args));
+    expectUnavailable(await h.call('ask_owner', args));
+    expectUnavailable(await h.call('ask_owner', { ...args, question: 'Other question?' }));
     const n = (
       h.server.runtime.db.sqlite.prepare('SELECT count(*) AS n FROM idempotency').get() as {
         n: number;
@@ -272,8 +298,9 @@ describe('the call log', () => {
     expect(
       lines.map(({ tool, client, label, run, result }) => ({ tool, client, label, run, result })),
     ).toEqual([
-      { tool: 'add_note', client: 'claude', label: null, run: 'run_01JA', result: 'unavailable' },
-      { tool: 'claim_lead', client: 'codex', label: 'orca-w3', run: null, result: 'unavailable' },
+      // A mutation naming a run that doesn't exist (US1: not_found).
+      { tool: 'add_note', client: 'claude', label: null, run: 'run_01JA', result: 'not_found' },
+      { tool: 'claim_lead', client: 'codex', label: 'orca-w3', run: null, result: 'ok' },
       { tool: 'create_item', client: 'claude', label: null, run: null, result: 'validation' },
     ]);
   });
@@ -347,35 +374,41 @@ describe('recovery tools over MCP (B5: park_run, recovery_report and the new fie
     });
   });
 
-  it.each([
-    [
-      'claim_lead',
-      {
+  it('heartbeat accepts the new fields; declaring resources keeps its stub (US11)', async () => {
+    h = await startHarness();
+    const args = {
+      run_id: 'run_01JA',
+      workspace: { head_sha: '77aa001', pushed_sha: '6f00e12', dirty: true },
+      resources_started: [
+        { kind: 'dev_server', label: 'dev server :5173', locator: { port: 5173 } },
+      ],
+      resources_released: [{ resource_id: 'rsc_1', note: 'stopped' }],
+    };
+    expect(expectUnavailable(await h.call('heartbeat', args)).message).toBe(
+      'Not implemented yet: heartbeat',
+    );
+  });
+
+  it('claim_lead, start_run and report_commit accept the new fields (US11 stores them)', async () => {
+    h = await startHarness();
+    const claim = expectOk(
+      await h.call('claim_lead', {
         id: 'RCP-17',
         workspace: { path: 'C:/work/rcp-17', branch: 'rcp-17', base_ref: 'origin/main' },
         orchestrator: { name: 'orca', dispatch_id: 'ctx_1' },
         brief: 'Fix the jump after reload.',
         external: { orca: { worktree_id: 'wt_17' } },
-      },
-    ],
-    ['start_run', { id: 'RCP-14', parent_run_id: 'run_01JA', brief_document_version_id: 'dv_1' }],
-    [
-      'heartbeat',
-      {
-        run_id: 'run_01JA',
-        workspace: { head_sha: '77aa001', pushed_sha: '6f00e12', dirty: true },
-        resources_started: [
-          { kind: 'dev_server', label: 'dev server :5173', locator: { port: 5173 } },
-        ],
-        resources_released: [{ resource_id: 'rsc_1', note: 'stopped' }],
-      },
-    ],
-    ['report_commit', { id: 'RCP-14', sha: '4be1c09', pushed: true }],
-  ])('%s accepts the new fields and keeps its stub', async (name, args) => {
-    h ??= await startHarness();
-    expect(expectUnavailable(await h.call(name, args)).message).toBe(
-      `Not implemented yet: ${name}`,
+      }),
     );
+    const run_id = claim.structured.run_id as string;
+    expectOk(
+      await h.call('start_run', {
+        id: 'RCP-17',
+        parent_run_id: run_id,
+        brief_document_version_id: 'dv_1',
+      }),
+    );
+    expectOk(await h.call('report_commit', { id: 'RCP-17', sha: '4be1c09', pushed: true }));
   });
 
   it('an unknown key gets validation with a did-you-mean', async () => {
