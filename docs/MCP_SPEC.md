@@ -127,6 +127,24 @@ Task Lite records **where work lives and what was started for it**, so a crashed
   - `at_risk`: no open run, but there are unpushed commits (`head_sha` ≠ `pushed_sha`), `dirty` is true, or resources are unreleased;
   - `safe_to_prune`: every run ended, everything pushed, `dirty` false, and every resource released;
   - `unknown`: not enough data.
+- **Limits** (B5 resolutions, PR #13). Over a limit returns `validation`.
+
+  | Field | Limit |
+  |---|---|
+  | `workspace.host`, `branch`, `base_ref` | 200 |
+  | `workspace.repo` | 2,000 |
+  | `workspace.path` | 1,000 |
+  | `base_sha`, `head_sha`, `pushed_sha` | 7–40 hex, like any SHA |
+  | `orchestrator.name` | 40 |
+  | `orchestrator.dispatch_id`, `task_id`, `run_id` | 100 |
+  | `brief` | 20,000; mutually exclusive with `brief_document_version_id` |
+  | resource `label` | 120 |
+  | resource `locator` | `pid`: a non-negative integer; `port`: 1–65535; `session_id`, `container`, `host`: 200; `path`: 1,000 |
+  | `resources_started` | 10 per call |
+  | release `note` (`resources_released[].note`, and the owner's release body) | 500 |
+  | `waiting_on.items` | 20 item IDs; `until` is an ISO time |
+  | `external` | keys 1–40 characters; 2,048 bytes of UTF-8 JSON in total |
+  | `recovery_report` `limit` | default 25, maximum 50 (the usual pagination) |
 
 ### Pagination
 List tools return `{ items|events: [...], next_cursor: string|null }`. Pass `cursor` to continue. `limit` defaults to 25, and the maximum is 50 (200 for `get_changes`).
