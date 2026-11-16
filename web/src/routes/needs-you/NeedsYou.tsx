@@ -5,6 +5,7 @@ import { QueryState } from '../../app/QueryState';
 import { useShell } from '../../app/ShellState';
 import { queryKeys } from '../../lib/api';
 import { AgentsStrip } from './AgentsStrip';
+import { NotificationsCallout } from './NotificationsCallout';
 import { DeferredCard } from './DeferredCard';
 import { ForYouNow } from './ForYouNow';
 import { PlanningQueueCard } from './PlanningQueueCard';
@@ -25,7 +26,7 @@ export function NeedsYou() {
   return (
     <div className="needs-you">
       <h1>Needs you</h1>
-      {/* The desktop-notification opt-in callout goes here (T085, UI_SPEC §6.7a). */}
+      <NotificationsCallout />
       <QueryState query={query} skeleton={<NeedsYouSkeleton />}>
         {(data) => (
           <>

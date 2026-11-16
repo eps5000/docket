@@ -6,7 +6,8 @@ import type { ItemKind } from '../ItemPage';
 
 /**
  * History (summary "n updates"), with the *note for the agent* box at the
- * top (UI_SPEC §6.3). US2 fills the rows; US6 wires *Add note*.
+ * top (UI_SPEC §6.3). Rows are the item's events, newest
+ * first, with who did it; US6 wires *Add note*.
  */
 export function HistorySection({ kind, data }: { kind: ItemKind; data: ItemDetailResponse }) {
   const noteId = useId();
@@ -34,7 +35,12 @@ export function HistorySection({ kind, data }: { kind: ItemKind; data: ItemDetai
             <span className="src mono" title={isoTitle(a.at)}>
               {formatAge(a.at)}
             </span>
-            <span>{a.summary}</span>
+            <span>
+              {a.summary}
+              {a.actor_kind === 'agent' && !a.summary.startsWith(a.actor.split(' · ')[0]!) && (
+                <span className="src"> · {a.actor}</span>
+              )}
+            </span>
           </div>
         ))
       )}

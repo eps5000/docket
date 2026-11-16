@@ -15,6 +15,7 @@ import { DetailsTab } from './DetailsTab';
 import { EpicMapTab } from './EpicMapTab';
 import { ItemBanners } from './ItemBanners';
 import { ItemHeader } from './ItemHeader';
+import { claimConflict } from './activity/LeadAndRunsSection';
 import '../screens.css';
 
 export type ItemKind = 'ticket' | 'epic';
@@ -34,7 +35,11 @@ export function resolveTab(kind: ItemKind, fromUrl: string | null, remembered?: 
 }
 
 /** The four view tabs with their counts and dots (UI_SPEC §6.3 table). */
-export function itemTabs(kind: ItemKind, data?: ItemDetailResponse): ViewTab<ItemTab>[] {
+export function itemTabs(
+  kind: ItemKind,
+  data?: ItemDetailResponse,
+  opts: { inCycle?: boolean } = {},
+): ViewTab<ItemTab>[] {
   const item = data?.item;
   const work = item?.checklist.work ?? [];
   const workDone = work.filter((w) => w.state === 'done').length;
@@ -44,12 +49,18 @@ export function itemTabs(kind: ItemKind, data?: ItemDetailResponse): ViewTab<Ite
     : 0;
   const links = item ? item.links.blocks.length + item.links.blocked_by.length : 0;
   const runTrouble = item?.runs.find((r) => r.is_lead && ['stale', 'failed'].includes(r.run_state));
+  const conflict = data ? claimConflict(data) : null;
   const tabs: ViewTab<ItemTab>[] = [
     { key: 'details', label: 'Details', hint: 'What this is: outcome, documents, dates' },
     {
       key: 'checklist',
       label: 'Checklist',
-      count: kind === 'epic' ? epicTotal : work.length ? `${workDone}/${work.length}` : undefined,
+      count:
+        kind === 'epic'
+          ? epicTotal || undefined
+          : work.length
+            ? `${workDone}/${work.length}`
+            : undefined,
       dot: packetReady ? { tone: 'warn', text: 'packet ready' } : undefined,
       hint: 'Work steps, agent review and human review',
     },
@@ -65,13 +76,18 @@ export function itemTabs(kind: ItemKind, data?: ItemDetailResponse): ViewTab<Ite
       : {
           key: 'deps',
           label: 'Dependencies',
-          count: links,
+          count: links || undefined,
+          dot: opts.inCycle ? { tone: 'bad', text: 'in a dependency cycle' } : undefined,
           hint: 'Where it sits: what it waits on and what it unblocks',
         },
     {
       key: 'activity',
       label: 'Activity',
-      dot: runTrouble ? { tone: 'warn', text: `${runTrouble.run_state} run` } : undefined,
+      dot: runTrouble
+        ? { tone: 'warn', text: `${runTrouble.run_state} run` }
+        : conflict
+          ? { tone: 'warn', text: 'claim conflict' }
+          : undefined,
       hint: 'What the agents did: lead, runs and history',
     },
   ];
@@ -95,6 +111,15 @@ export function ItemPage() {
   const data = query.data;
   const item = data?.item;
   const kind: ItemKind = item?.type === 'Epic' ? 'epic' : 'ticket';
+  // Cycles are computed on read over the whole graph; Needs you lists them (BUILD_SPEC §5.2).
+  const problems = useQuery({
+    queryKey: queryKeys.needsYou({ scope: 'all' }),
+    queryFn: () => apiClient['needsYou.get']({ query: { scope: 'all' } }),
+    enabled: kind === 'ticket' && !!item,
+  });
+  const inCycle = !!problems.data?.problems.some(
+    (p) => p.kind === 'cycle' && p.related.includes(id),
+  );
   const remembered = tabs.tabs.find((t) => t.id === id)?.view;
   const tab = resolveTab(kind, params.get('tab'), remembered);
 
@@ -135,7 +160,7 @@ export function ItemPage() {
       {data && <ItemBanners data={data} />}
       <ViewTabs
         label={kind === 'epic' ? 'Epic views' : 'Ticket views'}
-        tabs={itemTabs(kind, data)}
+        tabs={itemTabs(kind, data, { inCycle })}
         active={tab}
         onChange={setTab}
         extra={

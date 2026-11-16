@@ -388,3 +388,24 @@
   padding: 1px 4px;
   border-radius: 4px;
 }
+
+/* ---------- live stream: reconnecting / unreachable (UI_SPEC §7) ---------- */
+.tl .livebanner {
+  margin: -18px -20px 14px;
+  padding: 6px 20px;
+  font-size: 12px;
+  background: var(--warn-soft);
+  color: var(--warn);
+  border-bottom: 1px solid var(--line);
+}
+.tl .livebanner.live-unreachable {
+  background: var(--bad-soft);
+  color: var(--bad);
+}
+/* The view's wrapper: disabled while the service is unreachable, otherwise invisible. */
+.tl .livefs {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}

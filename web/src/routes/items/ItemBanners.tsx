@@ -32,14 +32,20 @@ export function PacketBanner({
 /** Open question: the question, an answer box and *Send answer* (UI_SPEC §6.3). US6 wires it. */
 export function QuestionBanner({
   question,
+  agent,
+  unread,
 }: {
   question: NonNullable<ItemDetailResponse['item']['open_question']>;
+  /** Who asked (the lead's client), for "Waiting for codex to read it". */
+  agent: string;
+  /** The answer hasn't been delivered yet (BUILD_SPEC §5.7). */
+  unread: boolean;
 }) {
   const answerId = useId();
   if (question.answer) {
     return (
       <Callout tone="ok" className="mb">
-        You answered: “{question.answer}”. Waiting for the agent to read it.
+        You answered: “{question.answer}”.{unread ? ` Waiting for ${agent} to read it.` : ''}
       </Callout>
     );
   }
@@ -91,7 +97,13 @@ export function ItemBanners({ data }: { data: ItemDetailResponse }) {
         <OutOfScopeBanner id={item.id} project={item.project} />
       )}
       {data.open_packet && <PacketBanner id={item.id} packet={data.open_packet} />}
-      {item.open_question && <QuestionBanner question={item.open_question} />}
+      {item.open_question && (
+        <QuestionBanner
+          question={item.open_question}
+          agent={item.lead?.client ?? item.runs[0]?.client ?? 'the agent'}
+          unread={data.answer_unread}
+        />
+      )}
       {/* "Created from your human review of …" (From review) is filled by US3. */}
     </>
   );
