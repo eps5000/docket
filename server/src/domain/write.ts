@@ -6,7 +6,8 @@
  *    a rejected write is not stored and not logged;
  * 2. one BEGIN IMMEDIATE transaction holding the idempotency lookup, the
  *    change itself (with version checks), the event append and the
- *    idempotency record;
+ *    idempotency record; a mutation that changes no row (an explicit
+ *    no-op) records no event, and one that changes a row must record one;
  * 3. after commit, subscribers (the live stream) hear about the new events.
  *
  * Domain services receive a `WriteContext`. Its row helpers return the
@@ -387,6 +388,11 @@ export class WritePath {
     return this.clock();
   }
 
+  /** Rows changed on this connection so far (SQLite `total_changes()`). */
+  private totalChanges(): number {
+    return (this.db.sqlite.prepare('SELECT total_changes() AS n').get() as { n: number }).n;
+  }
+
   run<T>(opts: WriteOptions, fn: (ctx: WriteContext) => T): WriteResult<T> {
     const key = opts.idempotencyKey ?? null;
     if (key !== null && (key.length === 0 || key.length > IDEMPOTENCY_KEY_MAX)) {
@@ -438,8 +444,11 @@ export class WritePath {
           }
 
           const ctx = new Context(this.db, opts.actor, nowIso, newId('mut', now.getTime()), key);
+          const changesBefore = this.totalChanges();
           const result = fn(ctx);
-          if (ctx.seqs.length === 0) {
+          // A mutation that changed nothing (an explicit no-op, such as reporting a commit
+          // already recorded) has nothing to record. Anything that changed a row needs an event.
+          if (ctx.seqs.length === 0 && this.totalChanges() !== changesBefore) {
             throw new ToolError(
               'internal',
               `Mutation "${opts.operation}" recorded no event; every mutation must append one.`,

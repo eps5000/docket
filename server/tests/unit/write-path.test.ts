@@ -133,6 +133,16 @@ describe('event appending', () => {
     expect(seen).toEqual([[1]]);
   });
 
+  it('allows an explicit no-op: a mutation that changes no row records no event', () => {
+    const before = allEvents(t.db).length;
+    const out = write.run({ actor: agent, operation: 'noop', args: {} }, (ctx) => {
+      ctx.require('items', 'RCP-1');
+      return 'unchanged';
+    });
+    expect(out.result).toBe('unchanged');
+    expect(allEvents(t.db)).toHaveLength(before);
+  });
+
   it('refuses a mutation that records no event', () => {
     expect(() =>
       write.run({ actor: agent, operation: 'silent', args: {} }, (ctx) => {
