@@ -323,6 +323,10 @@ export class BlockIndex {
     return this.items.get(id)?.status;
   }
 
+  project(id: string): string | undefined {
+    return this.items.get(id)?.project_key;
+  }
+
   /** The effective rule: the link's own, else the blocked item's project default, else done. */
   rule(link: LinkRow): SatisfiedWhen {
     const project = this.items.get(link.to_id)?.project_key;

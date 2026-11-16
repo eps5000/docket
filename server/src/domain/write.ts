@@ -3,7 +3,9 @@
  *
  * Every mutation, from MCP or the UI API, runs through `WritePath.run`:
  * 1. secret check on every text field of the arguments (MCP_SPEC §3.4):
- *    a rejected write is not stored and not logged;
+ *    a rejected write is not stored and not logged; after the change, the
+ *    item-reference check (references.ts) adds warnings for IDs that don't
+ *    exist;
  * 2. one BEGIN IMMEDIATE transaction holding the idempotency lookup, the
  *    change itself (with version checks), the event append and the
  *    idempotency record; a mutation that changes no row (an explicit
@@ -28,6 +30,7 @@ import { is } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import * as schema from '../db/schema.js';
 import { newId } from './ids.js';
+import { referenceWarnings } from './references.js';
 
 // ---- Actors and events ----
 
@@ -326,6 +329,8 @@ export interface WriteResult<T> {
   result: T;
   mutation_id: string;
   replayed: boolean;
+  /** Write-check warnings (MCP_SPEC §3.4), e.g. "RCP-99 doesn't exist". */
+  warnings: string[];
 }
 
 export interface WritePathOptions {
@@ -413,7 +418,7 @@ export class WritePath {
       : '';
 
     let outcome: {
-      response: { result: T; mutation_id: string };
+      response: { result: T; mutation_id: string; warnings?: string[] };
       seqs: number[];
       replayed: boolean;
     };
@@ -436,7 +441,11 @@ export class WritePath {
                 );
               }
               return {
-                response: JSON.parse(stored.response) as { result: T; mutation_id: string },
+                response: JSON.parse(stored.response) as {
+                  result: T;
+                  mutation_id: string;
+                  warnings?: string[];
+                },
                 seqs: [],
                 replayed: true,
               };
@@ -454,7 +463,14 @@ export class WritePath {
               `Mutation "${opts.operation}" recorded no event; every mutation must append one.`,
             );
           }
-          const response = { result, mutation_id: ctx.mutationId };
+          // Item IDs in the text that don't exist: accepted, with a warning (§3.4). After
+          // the change, so an item this call created counts as existing.
+          const warnings = referenceWarnings(this.db, opts.args);
+          const response = {
+            result,
+            mutation_id: ctx.mutationId,
+            ...(warnings.length > 0 ? { warnings } : {}),
+          };
           if (key) {
             this.db.sqlite
               .prepare(
@@ -480,6 +496,7 @@ export class WritePath {
     }
 
     if (outcome.seqs.length > 0) this.onCommit?.(outcome.seqs);
-    return { ...outcome.response, replayed: outcome.replayed };
+    const { warnings, ...rest } = outcome.response;
+    return { ...rest, warnings: warnings ?? [], replayed: outcome.replayed };
   }
 }

@@ -85,7 +85,7 @@ describe('the service stubs', () => {
     );
   });
 
-  /** Implemented already: undo (B2), US1's methods (B7, tasks.md T070–T075) and US2's read models (B8, T080, T084), US3's review services (B9) and US11's recovery (B10, T099–T100). */
+  /** Implemented already: undo (B2), US1's methods (B7, tasks.md T070–T075) and US2's read models (B8, T080, T084), US3's review services (B9), US11's recovery (B10, T099–T100) and US4's links (B11, T106). */
   const IMPLEMENTED: Record<string, readonly string[]> = {
     undo: ['undo'],
     items: ['create', 'update', 'setStatus', 'get'],
@@ -107,7 +107,7 @@ describe('the service stubs', () => {
     checklist: ['setPlan', 'updateStep', 'logSubagent', 'setChecks', 'updateCheck'],
     evidence: ['addNote', 'linkArtifact', 'reportCommit'],
     search: ['whoami', 'listProjects', 'searchItems', 'getChanges', 'palette'],
-    views: ['bootstrap', 'needsYou', 'work', 'itemDetail', 'agents'],
+    views: ['bootstrap', 'needsYou', 'work', 'itemDetail', 'agents', 'settings'],
     // US3 (B9, T091–T093), and the delivery receipt agreed for B9.
     humanReview: ['declare', 'update', 'ownerAdd', 'ownerUpdate', 'ownerRemove'],
     packets: ['submit', 'getReview', 'deferredReviews', 'screen', 'refresh', 'markStale'],
@@ -122,6 +122,10 @@ describe('the service stubs', () => {
       'ownerReleaseResource',
       'markUnpushedHandled',
     ],
+    // US4 (B11, T106).
+    links: ['link', 'unlink', 'blockState'],
+    subgraph: ['dependencySubgraph', 'cycles'],
+    projects: ['setDefaultSatisfiedWhen'],
   };
 
   it.each(methods)('%s.%s throws NotImplementedError until its slice implements it', (s, m) => {

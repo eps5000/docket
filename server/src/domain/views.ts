@@ -2,7 +2,11 @@
  * The owner's read models (UI_SPEC §6; BUILD_SPEC §7): the `views` service.
  *
  * US2 (T080) fills `bootstrap`, `needsYou`, `work`, `itemDetail` and
- * `agents`. `labelPage` (US7) and `settings` (US10) are still stubs.
+ * `agents`. `labelPage` (US7) is still a stub. US4 (B11) fills `settings`
+ * far enough for the project rows and their "Blockers clear when" rule, with
+ * connection and health values only where they are true today (config, the
+ * `/readyz` checks); US10 completes it (smoke-test status, backups). US4 also
+ * adds `outside` cards and cycle links to `work` and `itemDetail`.
  *
  * Every view is a fixed number of bounded queries over the scope, never a
  * query per item (SC-013): items in scope are read once, blocked state comes
@@ -18,7 +22,8 @@
  * model (recovery-model.ts). Not yet built here: the timeline section of
  * `work` is US8's (`forecast.timeline`).
  */
-import { statSync } from 'node:fs';
+import { readdirSync, statfsSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   END_REASON_LABELS,
   OPEN_STATUSES,
@@ -40,6 +45,7 @@ import {
   type PlanVersion,
   type Problem,
   type RunState,
+  type SettingsResponse,
   type Status,
   type WaitingOn,
   type WorkItem,
@@ -54,6 +60,7 @@ import {
   type ServiceDeps,
   type ViewsService,
 } from './contracts.js';
+import { compareIds, cycleText, cyclesOf } from './links.js';
 import {
   BlockIndex,
   EVENT_COLUMNS,
@@ -72,6 +79,7 @@ import {
   type StoredEvent,
 } from './model.js';
 import { UNDO_WINDOW_MS } from './undo.js';
+import { allowedOriginsFor } from '../api/guards.js';
 import {
   locatorText,
   orphans,
@@ -118,13 +126,6 @@ const sentence = (text: string) => {
   const line = text.replace(/\s+/g, ' ').trim();
   return /[.?!]$/.test(line) ? line : `${line}.`;
 };
-
-/** `RCP-9` before `RCP-10`. */
-function compareIds(a: string, b: string): number {
-  const [pa, na] = a.split('-');
-  const [pb, nb] = b.split('-');
-  return pa === pb ? Number(na) - Number(nb) : pa! < pb! ? -1 : 1;
-}
 
 const byPriorityThenId = (a: { priority: number; id: string }, b: typeof a) =>
   a.priority - b.priority || compareIds(a.id, b.id);
@@ -306,54 +307,6 @@ function runCounts(s: Scoped, runs: ReturnType<typeof scopeRuns>) {
 }
 
 // ---- Problems (UI_SPEC §6.1; BUILD_SPEC §5.2) ----
-
-/** Strongly connected components of the `blocks` graph larger than one node (Tarjan). */
-export function cyclesOf(index: BlockIndex, nodes: Iterable<string>): string[][] {
-  const order = new Map<string, number>();
-  const low = new Map<string, number>();
-  const onStack = new Set<string>();
-  const stack: string[] = [];
-  const out: string[][] = [];
-  let counter = 0;
-  const next = (id: string) => (index.dependents.get(id) ?? []).map((l) => l.to_id);
-  // Iterative, so a long imported chain can't overflow the call stack.
-  for (const root of nodes) {
-    if (order.has(root)) continue;
-    const work: { id: string; edges: string[]; i: number }[] = [];
-    const visit = (id: string) => {
-      order.set(id, counter);
-      low.set(id, counter);
-      counter++;
-      stack.push(id);
-      onStack.add(id);
-      work.push({ id, edges: next(id), i: 0 });
-    };
-    visit(root);
-    while (work.length > 0) {
-      const frame = work[work.length - 1]!;
-      if (frame.i < frame.edges.length) {
-        const to = frame.edges[frame.i++]!;
-        if (!order.has(to)) visit(to);
-        else if (onStack.has(to)) low.set(frame.id, Math.min(low.get(frame.id)!, order.get(to)!));
-        continue;
-      }
-      work.pop();
-      const parent = work[work.length - 1];
-      if (parent) low.set(parent.id, Math.min(low.get(parent.id)!, low.get(frame.id)!));
-      if (low.get(frame.id) === order.get(frame.id)) {
-        const component: string[] = [];
-        for (;;) {
-          const x = stack.pop()!;
-          onStack.delete(x);
-          component.push(x);
-          if (x === frame.id) break;
-        }
-        if (component.length > 1) out.push(component.sort(compareIds));
-      }
-    }
-  }
-  return out;
-}
 
 interface ProblemsInput {
   s: Scoped;
@@ -604,7 +557,7 @@ function problemsOf({ s, runs, deferredCounts, backupError, config }: ProblemsIn
       const row = items.get(id) as (ItemRow & { imported?: number }) | undefined;
       return !!row?.imported;
     });
-    const path = cycle.length === 2 ? cycle.join(' ⇄ ') : [...cycle, cycle[0]].join(' → ');
+    const path = cycleText(index, cycle);
     push({
       ...base,
       kind: 'cycle',
@@ -741,6 +694,74 @@ function linkEdges(db: Db, index: BlockIndex, ids: Set<string>, mode: 'among' | 
   }
   return edges;
 }
+
+/** Live item rows by ID (any project), sorted by priority then ID. */
+function rowsById(db: Db, ids: Iterable<string>): ItemRow[] {
+  const list = [...new Set(ids)];
+  if (list.length === 0) return [];
+  return (
+    db.sqlite
+      .prepare(
+        `SELECT i.* FROM items i JOIN projects p ON p.key = i.project_key
+         WHERE p.deleted_at IS NULL AND i.id IN (SELECT value FROM json_each(?))`,
+      )
+      .all(JSON.stringify(list)) as ItemRow[]
+  ).sort(byPriorityThenId);
+}
+
+/**
+ * Every `blocks` link inside a cycle that touches `ids` (BUILD_SPEC §5.2):
+ * the Dependencies tab offers *Remove "A blocks B"* for each one, including
+ * links that don't touch the item itself.
+ */
+function cycleEdges(index: BlockIndex, ids: Set<string>): LinkEdge[] {
+  const edges: LinkEdge[] = [];
+  for (const component of cyclesOf(index, [...ids])) {
+    if (!component.some((id) => ids.has(id))) continue;
+    const members = new Set(component);
+    for (const id of component) {
+      for (const l of index.dependents.get(id) ?? []) {
+        if (!members.has(l.to_id)) continue;
+        edges.push({
+          link_id: l.id,
+          from: l.from_id,
+          to: l.to_id,
+          type: 'blocks',
+          satisfied_when: index.rule(l),
+          cleared: index.cleared(l),
+        });
+      }
+    }
+  }
+  return edges;
+}
+
+/** `a` plus the edges of `b` it doesn't have yet (by link ID). */
+function mergeEdges(a: LinkEdge[], b: LinkEdge[]): LinkEdge[] {
+  const seen = new Set(a.map((e) => e.link_id));
+  return [...a, ...b.filter((e) => !seen.has(e.link_id) && seen.add(e.link_id))];
+}
+
+/** Bytes under `dir` (documents), or null when it can't be read. */
+function dirBytes(dir: string): number | null {
+  try {
+    let total = 0;
+    for (const entry of readdirSync(dir, { withFileTypes: true, recursive: true })) {
+      if (entry.isFile()) total += statSync(join(entry.parentPath, entry.name)).size;
+    }
+    return total;
+  } catch {
+    return null;
+  }
+}
+
+const fileBytes = (path: string): number | null => {
+  try {
+    return statSync(path).size;
+  } catch {
+    return null;
+  }
+};
 
 // ---- Health (`/readyz` checks, for the sidebar health line) ----
 
@@ -975,6 +996,21 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
           ? rows.filter((i) => i.archived)
           : visible.filter(matches[input.filter] ?? (() => true));
 
+      // The map: links among the items, plus blockers from outside the view (UI_SPEC §6.3.4).
+      const shown = new Set(items.map((i) => i.id));
+      const outsideIds = new Set<string>();
+      for (const id of shown) {
+        for (const l of s.index.blockers.get(id) ?? []) {
+          if (!shown.has(l.from_id)) outsideIds.add(l.from_id);
+        }
+      }
+      const outside = summarize(ctx, rowsById(r.db, outsideIds));
+      const links = linkEdges(r.db, s.index, shown, 'touching').filter(
+        (e) =>
+          (shown.has(e.from) && shown.has(e.to)) ||
+          (e.type === 'blocks' && shown.has(e.to) && outsideIds.has(e.from)),
+      );
+
       // The Epics row: non-archived epics in scope, with their children's progress.
       const epicRows = [...s.items.values()]
         .filter((i) => i.type === 'Epic' && i.archived_at === null && i.status !== 'canceled')
@@ -1005,8 +1041,8 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         items,
         epics,
         filter_counts,
-        links: linkEdges(r.db, s.index, new Set(items.map((i) => i.id)), 'among'),
-        outside: [], // US4 (B11) fills this.
+        links,
+        outside,
         timeline: null,
       };
     },
@@ -1230,6 +1266,18 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
           .all(row.project_key, JSON.stringify(item.labels)) as { name: string; brief_md: string }[]
       ).map((l) => ({ name: l.name, brief_md: l.brief_md }));
 
+      // Links touching the item (or the epic's children), and every link of a cycle they are in;
+      // `outside` holds the cards for the other ends (1-hop nodes, "Outside this epic").
+      const own = new Set([row.id, ...childIds]);
+      const links = mergeEdges(linkEdges(r.db, index, own, 'touching'), cycleEdges(index, own));
+      const outside = summarize(
+        { db: r.db, windows: windows(), now: r.now, index },
+        rowsById(
+          r.db,
+          links.flatMap((e) => [e.from, e.to]).filter((id) => !own.has(id)),
+        ),
+      );
+
       return {
         item,
         children,
@@ -1241,8 +1289,8 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         answer_unread: !!question?.answered_at && question.read_by_agent_at === null,
         notes_unread: notes.n,
         label_briefs,
-        links: linkEdges(r.db, index, new Set([row.id, ...childRows.map((c) => c.id)]), 'touching'),
-        outside: [], // US4 (B11) fills this.
+        links,
+        outside,
       };
     },
 
@@ -1408,6 +1456,113 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
     },
 
     labelPage: notImplemented('views.labelPage'),
-    settings: notImplemented('views.settings'),
+    settings(r): SettingsResponse {
+      const sql = r.db.sqlite;
+      const config = deps.config;
+      const s = scoped(r, windows(), 'all');
+      const att = attention(s);
+      const projects = (
+        sql
+          .prepare(
+            'SELECT key, name, short_name, color, default_satisfied_when, version FROM projects WHERE deleted_at IS NULL ORDER BY key',
+          )
+          .all() as SettingsResponse['projects'][number][]
+      ).map((p) => {
+        const rows = [...s.items.values()].filter((i) => i.project_key === p.key);
+        const work = rows.filter((i) => i.type !== 'Epic');
+        const count = (st: Status) => work.filter((i) => i.status === st).length;
+        const n = (q: string) => (sql.prepare(q).get(p.key) as { n: number }).n;
+        return {
+          key: p.key,
+          name: p.name,
+          short_name: p.short_name,
+          color: p.color,
+          default_satisfied_when: p.default_satisfied_when,
+          version: p.version,
+          counts: {
+            epics: rows.filter((i) => i.type === 'Epic').length,
+            items: rows.length,
+            documents: n('SELECT count(*) AS n FROM documents WHERE project_key = ?'),
+            for_you: rows.filter((i) => att.packets.has(i.id) || att.questions.has(i.id)).length,
+            done: count('done'),
+            active: count('progress'),
+            review: count('review'),
+            planning: count('planning'),
+            decisions: n(
+              "SELECT count(*) AS n FROM decision_records WHERE project_key = ? AND status = 'active'",
+            ),
+          },
+          labels: (
+            sql
+              .prepare('SELECT name FROM labels WHERE project_key = ? ORDER BY name')
+              .all(p.key) as {
+              name: string;
+            }[]
+          ).map((l) => l.name),
+        };
+      });
+
+      // Clients seen on runs. Nothing records smoke-test results yet (US10), so none is "verified".
+      const clients = (
+        sql
+          .prepare(
+            'SELECT client, max(last_signal_at) AS last_seen_at FROM runs GROUP BY client ORDER BY client',
+          )
+          .all() as { client: string; last_seen_at: string | null }[]
+      ).map((c) => ({
+        client: c.client,
+        transport: 'Streamable HTTP',
+        last_seen_at: c.last_seen_at,
+        status: 'not_verified' as const,
+        notes: null,
+      }));
+
+      const health = healthOf(r, deps).checks;
+      let volumeFree: number | null = null;
+      try {
+        const fs = statfsSync(config.dataDir);
+        volumeFree = fs.bavail * fs.bsize;
+      } catch {
+        volumeFree = null;
+      }
+      let backups: SettingsResponse['health']['backups'] = [];
+      try {
+        backups = deps.services().backup.status(r);
+      } catch (err) {
+        if (!isNotImplemented(err)) throw err;
+      }
+      // The process start: the last time the service (re)started.
+      const restartedAt = new Date(Date.now() - process.uptime() * 1000).toISOString();
+      const interrupted = (
+        sql
+          .prepare(
+            "SELECT count(*) AS n FROM runs WHERE end_reason = 'service_restart' AND updated_at >= ?",
+          )
+          .get(new Date(ms(restartedAt) - 60_000).toISOString()) as { n: number }
+      ).n;
+      const host = config.allowedHosts[0]!;
+      return {
+        projects,
+        connections: {
+          clients,
+          endpoint: {
+            mcp_url: `http://${host}/mcp`,
+            web_url: `http://${host}/`,
+            bind: 'loopback',
+            auth: 'bearer',
+            origins: allowedOriginsFor(config.allowedHosts),
+          },
+        },
+        health: {
+          database: { state: health.database ?? 'error', bytes: fileBytes(config.paths.db) },
+          documents: { state: health.docs_dir ?? 'error', bytes: dirBytes(config.paths.docs) },
+          volume_free_bytes: volumeFree,
+          backups,
+          extra_backup_configured: config.backupExtraDir !== null,
+          restarted_at: restartedAt,
+          interrupted_at_restart: interrupted,
+        },
+      };
+    },
   };
 }
