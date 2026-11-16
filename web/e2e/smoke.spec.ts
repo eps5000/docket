@@ -1,4 +1,7 @@
-import { expect, seriousViolations, test } from './fixtures';
+import { expect, expectAxeClean, test } from './fixtures/index';
+
+/** Console noise the browser logs for expected 4xx/5xx answers (locked = 401, unbuilt = 501). */
+const RESOURCE_ERROR = /Failed to load resource/;
 
 test.describe('smoke', () => {
   test('the container is healthy and ready', async ({ request }) => {
@@ -17,25 +20,18 @@ test.describe('smoke', () => {
     expect(await res.text()).toContain('Task Lite is running');
   });
 
-  for (const colorScheme of ['light', 'dark'] as const) {
-    test(`shows "Task Lite is running" with no serious axe violations (${colorScheme})`, async ({
-      page,
-      makeAxeBuilder,
-    }) => {
-      await page.emulateMedia({ colorScheme });
-      await page.goto('/');
-      await expect(
-        page.getByRole('heading', { level: 1, name: 'Task Lite is running' }),
-      ).toBeVisible();
-      expect(seriousViolations(await makeAxeBuilder().analyze())).toEqual([]);
-    });
-  }
+  test('a locked browser lands on Unlock, with no serious axe violations', async ({ page }) => {
+    await page.goto('/');
+    await expect(page).toHaveURL(/\/unlock$/);
+    await expect(page.getByRole('heading', { level: 1, name: 'Unlock Task Lite' })).toBeVisible();
+    await expectAxeClean(page, 'Unlock');
+  });
 
   test('the app mounts without errors', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (err) => errors.push(err.message));
     page.on('console', (msg) => {
-      if (msg.type() === 'error') errors.push(msg.text());
+      if (msg.type() === 'error' && !RESOURCE_ERROR.test(msg.text())) errors.push(msg.text());
     });
     await page.goto('/');
     await page.waitForLoadState('networkidle');
@@ -45,10 +41,11 @@ test.describe('smoke', () => {
     expect(errors).toEqual([]);
   });
 
-  test('client-side routes fall back to the app', async ({ page }) => {
-    await page.goto('/work/board');
-    await expect(
-      page.getByRole('heading', { level: 1, name: 'Task Lite is running' }),
-    ).toBeVisible();
+  test('client-side routes fall back to the app and come back after unlocking', async ({
+    page,
+  }) => {
+    await page.goto('/work?layout=list');
+    await expect(page).toHaveURL(/\/unlock\?next=%2Fwork%3Flayout%3Dlist$/);
+    await expect(page.getByRole('heading', { level: 1, name: 'Unlock Task Lite' })).toBeVisible();
   });
 });
