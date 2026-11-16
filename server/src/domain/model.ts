@@ -21,6 +21,7 @@ import {
   type Status,
   type StoredRunState,
   type WaitingOn,
+  type Workspace,
 } from '@tasklite/shared';
 import type { Config } from '../config.js';
 import type { Db } from '../db/client.js';
@@ -131,6 +132,7 @@ export interface RunRow {
   orchestrator: string | null;
   brief_document_version_id: string | null;
   external: string | null;
+  unpushed_handled_at: string | null;
   version: number;
   created_at: string;
   updated_at: string;
@@ -167,15 +169,17 @@ const parseJson = <T>(text: string | null): T | null => {
 };
 
 /**
- * A run as agents see it (MCP_SPEC §4 Run). Workspace state is US11's
- * (decision 26): until it lands the workspace is not shown.
+ * A run as agents see it (MCP_SPEC §4 Run). The workspace (with its derived
+ * state) and `resume_ready` come from the recovery read model
+ * (recovery-model.ts, `RecoveryReader.runView`), which reads the worktree's
+ * other runs; without them the workspace is not shown.
  */
 export function runView(
   db: Db,
   row: RunRow,
   windows: RunWindows,
   now: string,
-  opts: { external?: boolean } = {},
+  opts: { external?: boolean; workspace?: Workspace | null; resumeReady?: boolean } = {},
 ): Run {
   const resources = (
     db.sqlite
@@ -224,10 +228,10 @@ export function runView(
             reason: row.parked_reason ?? '',
             waiting_on: parseJson<WaitingOn>(row.waiting_on) ?? {},
             since: row.parked_at ?? row.updated_at,
-            resume_ready: false,
+            resume_ready: opts.resumeReady ?? false,
           }
         : null,
-    workspace: null,
+    workspace: opts.workspace ?? null,
     orchestrator: orch?.name
       ? {
           name: orch.name,

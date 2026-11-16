@@ -7,6 +7,7 @@ import {
   CardHeader,
   EmptyState,
   FilterChip,
+  IconButton,
   Skeleton,
   WorkspaceStateChip,
 } from '../../components/kit';
@@ -16,6 +17,7 @@ import { useShell } from '../../app/ShellState';
 import { queryKeys } from '../../lib/api';
 import { formatAge, middleTruncate } from '../../lib/format';
 import { paths } from '../../lib/paths';
+import { copyText } from '../items/activity/WhereTheWorkLives';
 
 /** Sort order: At risk, In use, Parked, Unknown, Safe to prune (UI_SPEC §6.6). */
 export const WORKSPACE_ORDER: readonly WorkspaceState[] = [
@@ -35,8 +37,8 @@ export function sortWorkspaces(rows: readonly WorkspaceRow[], hideSafe: boolean)
 /**
  * Workspaces (owner decision 26; UI_SPEC §6.6): every recorded worktree, so
  * you and a coordinator can see what's safe to prune. "Hide safe to prune"
- * is on by default. Reads `GET /api/workspaces`; US11 fills the rows'
- * *Copy* and pushed details.
+ * is on by default. Reads `GET /api/workspaces` (US11): the state is derived
+ * from what agents reported, never from the host.
  */
 export function WorkspacesCard() {
   const { scope } = useShell();
@@ -91,7 +93,15 @@ export function WorkspacesCard() {
                       <WorkspaceStateChip state={r.state} />
                     </td>
                     <td className="mono" title={r.path}>
-                      {middleTruncate(r.path)}
+                      <span className="row" style={{ gap: 4 }}>
+                        {middleTruncate(r.path)}
+                        <IconButton
+                          icon="copy"
+                          bare
+                          aria-label={`Copy path ${r.path}`}
+                          onClick={() => copyText(r.path, 'the path')}
+                        />
+                      </span>
                     </td>
                     <td className="mono">{r.branch ?? '—'}</td>
                     <td>
@@ -100,7 +110,7 @@ export function WorkspacesCard() {
                       </Link>
                     </td>
                     <td className="muted">{formatAge(r.last_activity_at)}</td>
-                    <td>
+                    <td title={r.pushed_sha ? `pushed ${r.pushed_sha}` : undefined}>
                       {r.unpushed_commits === null
                         ? '—'
                         : r.unpushed_commits === 0

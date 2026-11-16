@@ -6,7 +6,9 @@
  *
  * - `report_commit` with a SHA already recorded for the item is a no-op
  *   (it may still mark the commit pushed). It stores `pushed` and the
- *   reporting run; moving the run's `workspace.pushed_sha` is US11's (T099).
+ *   reporting run, and moves that run's workspace (US11, T099; BUILD_SPEC
+ *   §5.16): a new commit becomes `head_sha`, and `pushed: true` sets
+ *   `pushed_sha`. Without a `run_id` it moves the item's active lead.
  * - Packet staleness belongs to `packets.markStale` (US3, T09x). It is
  *   called when the item, or its epic, has an open packet; until US3
  *   implements it, no packet is reported stale.
@@ -16,13 +18,31 @@ import { newId } from './ids.js';
 import {
   EVENT_COLUMNS,
   EVENT_FROM,
+  activeLead,
   assertCallerRun,
   callerName,
   eventRow,
   ms,
   requireItem,
+  type RunRow,
   type StoredEvent,
 } from './model.js';
+import { storedWorkspace, type StoredWorkspace } from './recovery-model.js';
+import type { WriteContext } from './write.js';
+
+/**
+ * Move the reporting run's workspace (BUILD_SPEC §5.16): `head_sha` from the
+ * latest reported commit, `pushed_sha` once it is on the remote.
+ */
+function moveWorkspace(
+  w: WriteContext,
+  run: RunRow | undefined,
+  patch: Pick<StoredWorkspace, 'head_sha' | 'pushed_sha'>,
+): void {
+  if (!run) return;
+  const ws: StoredWorkspace = { ...(storedWorkspace(run) ?? {}), ...patch, updated_at: w.now };
+  w.update('runs', run.id, { workspace: ws });
+}
 
 export function createEvidenceService(deps: ServiceDeps): EvidenceService {
   return {
@@ -83,10 +103,13 @@ export function createEvidenceService(deps: ServiceDeps): EvidenceService {
         .prepare('SELECT id, pushed FROM commits WHERE item_id = ? AND lower(sha) = ?')
         .get(item.id, sha) as { id: string; pushed: number } | undefined;
       const who = callerName(w.db, w.actor);
+      // The run whose workspace this commit moves: the caller's, else the item's lead.
+      const target = run && run.item_id === item.id ? run : activeLead(w.db, item.id);
       if (existing) {
         // The same SHA again is a no-op, except that it may now be on the remote.
         if (pushed && !existing.pushed) {
           w.update('commits', existing.id, { pushed: true });
+          moveWorkspace(w, target, { pushed_sha: sha });
           w.event({
             type: 'commit.reported',
             summary: `${who} reported commit ${sha.slice(0, 7)} pushed`,
@@ -109,6 +132,7 @@ export function createEvidenceService(deps: ServiceDeps): EvidenceService {
         reported_by: who,
         reported_at: w.now,
       });
+      moveWorkspace(w, target, pushed ? { head_sha: sha, pushed_sha: sha } : { head_sha: sha });
       w.event({
         type: 'commit.reported',
         summary: `${who} reported commit ${sha.slice(0, 7)}${input.message ? ` “${input.message}”` : ''}${pushed ? ' (pushed)' : ''}`,

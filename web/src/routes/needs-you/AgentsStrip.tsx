@@ -3,11 +3,16 @@ import type { NeedsYouResponse, RunState as RunStateValue } from '@tasklite/shar
 import { RunState } from '../../components/kit';
 import { paths } from '../../lib/paths';
 
-/** The states the strip counts, in order (UI_SPEC §6.1). */
+/**
+ * The states the strip counts, in order (UI_SPEC §6.1), plus parked (US11):
+ * a worker waiting on purpose is never hidden, so it can't be mistaken for
+ * one that finished.
+ */
 export const STRIP_STATES: readonly RunStateValue[] = [
   'live',
   'reported',
   'needs_input',
+  'parked',
   'stale',
   'failed',
 ];

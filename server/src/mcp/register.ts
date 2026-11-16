@@ -7,8 +7,9 @@
  * - `tools/call`:
  *   1. validate the arguments against the zod schema; a bad call gets a
  *      `validation` ToolError, even from a stub;
- *   2. the `run_id` signal hook: classify the signal (session or report),
- *      record it and renew the lead lease;
+ *   2. the `run_id` signal hook: resume the run if it is parked (US11),
+ *      classify the signal (session or report), record it and renew the
+ *      lead lease;
  *   3. run the handler, which calls the domain services (domain/contracts.ts);
  *      a service that is still a stub answers `unavailable` "Not implemented
  *      yet: <tool>". Mutating handlers write through `ctx.mutate`, which
@@ -151,6 +152,21 @@ export function runSignal(
   return { run_id: runId, kind: live ? 'session' : 'report', known: !!row };
 }
 
+/**
+ * Resume a parked run (BUILD_SPEC §5.16): state back to open, lease renewed,
+ * `run.resumed`. A mutation of its own through the write path, before the
+ * call's own handler, so the handler sees a running run. A call naming a run
+ * that isn't parked writes nothing.
+ */
+export function resumeIfParked(runtime: Runtime, actor: Actor, runId: string): void {
+  const row = runtime.db.sqlite.prepare('SELECT state FROM runs WHERE id = ?').get(runId) as
+    { state: string } | undefined;
+  if (row?.state !== 'parked') return;
+  runtime.write.run({ actor, operation: 'run.resume', args: { run_id: runId } }, (w) =>
+    runtime.services.runs.resume(w, { run_id: runId }),
+  );
+}
+
 // ---- tools/call ----
 
 export interface RegisterOptions {
@@ -210,6 +226,8 @@ export async function callTool(
     const signal = runId ? runSignal(runtime, runId, session) : null;
     // Every call naming a known run is a signal (BUILD_SPEC §5.4): it renews the lead lease.
     if (signal?.known) {
+      // A parked run resumes on any later call naming it (§5.16); park_run itself re-parks.
+      if (tool.name !== 'park_run') resumeIfParked(runtime, actor, signal.run_id);
       runtime.services.runs.recordSignal(read, {
         run_id: signal.run_id,
         kind: signal.kind,
