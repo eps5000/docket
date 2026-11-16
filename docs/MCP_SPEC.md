@@ -396,6 +396,7 @@ The format for each tool below:
 - **Output:** `{ items: ItemSummary[], next_cursor }`. See the sort-order note below.
 - **Errors:** `validation` (unknown filter or value).
 - **Note on sort order:** `ready_to_start` sorts by priority, then by the number of items it would unblock (most first), then by ID. Every other filter sorts by priority, then `updated_at` ascending.
+- **Note on `resumable`** (B7 resolution, PR #19): In progress with no lead. An **Epic** counts only if it has ever had a lead run (it was claimed, for example for an epic-level packet, then sent back or interrupted). Epic status is set by hand, so an epic stays In progress while its children are worked, and a literal rule would offer every active epic as resumable work. `claim_lead` still accepts any In progress item with no lead, so the owner can hand an epic to an agent deliberately.
 - **Note on `mine`:** items where an open lead run belongs to the caller's client and `agent_label`. Pass `agent_label` to narrow it; otherwise every run from the client matches.
 
 #### `get_item`
