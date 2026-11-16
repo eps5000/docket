@@ -55,3 +55,9 @@ export function middleTruncate(text: string, max = 36): string {
   const tail = Math.floor(keep / 2);
   return `${text.slice(0, head)}…${text.slice(text.length - tail)}`;
 }
+
+/** "40s ago", "47m ago", or "Nov 5" (a date needs no "ago"). */
+export function formatAgo(at: string | Date, now: Date = new Date()): string {
+  const age = formatAge(at, now);
+  return /^\d+[smh]$/.test(age) ? `${age} ago` : age;
+}

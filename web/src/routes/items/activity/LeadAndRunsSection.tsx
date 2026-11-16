@@ -1,6 +1,6 @@
 import { OPEN_RUN_STATES, type ItemDetailResponse, type Run } from '@tasklite/shared';
 import { Callout, Chip, EmptyState, RunState, Section, leadName } from '../../../components/kit';
-import { formatAge, formatClock, isoTitle } from '../../../lib/format';
+import { formatAge, formatAgo, formatClock, isoTitle } from '../../../lib/format';
 import { WhereTheWorkLives } from './WhereTheWorkLives';
 
 /**
@@ -74,7 +74,7 @@ export function LeadAndRunsSection({ data }: { data: ItemDetailResponse }) {
                 age={formatAge(r.last_signal_at)}
               />
               <span className="src" title={isoTitle(r.started_at)}>
-                started {formatAge(r.started_at)} ago
+                started {formatAgo(r.started_at)}
               </span>
             </div>
             {(r.summary || current(data, r)) && (

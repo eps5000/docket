@@ -1159,7 +1159,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         const stepLine = step
           ? `work item ${step.position + 1} of ${step.total}: ${step.text}`
           : null;
-        const role = x.is_lead === 1 ? 'Lead' : `Child run ${x.id}`;
+        const role = x.is_lead === 1 ? 'Lead' : 'Child run';
         let doing: string | null;
         if (state === 'needs_input') doing = 'Waiting on your answer';
         else if (state === 'failed') doing = x.error ?? x.summary;

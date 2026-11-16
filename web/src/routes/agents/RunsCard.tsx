@@ -6,7 +6,7 @@ import { apiClient } from '../../app/queryClient';
 import { QueryState } from '../../app/QueryState';
 import { useShell } from '../../app/ShellState';
 import { queryKeys } from '../../lib/api';
-import { formatAge, formatClock, isoTitle } from '../../lib/format';
+import { formatAgo, formatClock, isoTitle } from '../../lib/format';
 import { paths } from '../../lib/paths';
 
 /** "How we know" (UI_SPEC §6.6). */
@@ -105,7 +105,7 @@ export function RunsCard() {
                     </td>
                     <td>{r.doing}</td>
                     <td className="muted" title={isoTitle(r.last_signal_at ?? r.at)}>
-                      {`${formatAge(r.last_signal_at ?? r.at)} ago`}
+                      {formatAgo(r.last_signal_at ?? r.at)}
                     </td>
                     <td className="src">{leaseText(r)}</td>
                     <td>
