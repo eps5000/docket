@@ -27,7 +27,8 @@ import { ORIGIN, createTestServer, parseSetCookies, type TestServer } from './ha
 
 /**
  * Routes that already work, and must keep their behaviour, not answer 501:
- * B2's, and quick capture, which calls `items.create` (US1, B7) like `create_item`.
+ * B2's, quick capture, which calls `items.create` (US1, B7) like `create_item`,
+ * and US2's read routes (B8, T080). Their content is tested in us2-api.test.ts.
  */
 const B2_ROUTES: readonly RouteId[] = [
   'session.unlock',
@@ -36,6 +37,12 @@ const B2_ROUTES: readonly RouteId[] = [
   'mutations.undo',
   'stream.get',
   'items.create',
+  'bootstrap.get',
+  'needsYou.get',
+  'work.get',
+  'items.get',
+  'agents.list',
+  'search.get',
 ];
 
 interface Req {
