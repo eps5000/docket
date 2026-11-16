@@ -20,7 +20,8 @@ export function PacketBanner({
       <Icon name="packet" />
       <div className="grow">
         <b>Handoff packet ready (round {packet.round}).</b> {plural(packet.to_verify, 'thing')} to
-        verify. The ticket can’t close until you approve.
+        verify{packet.estimate ? `, about ${packet.estimate}` : ''}. The ticket can’t close until
+        you approve.
         {packet.stale && (
           <>
             {' '}
@@ -93,6 +94,21 @@ export function OutOfScopeBanner({ id, project }: { id: string; project: string 
   );
 }
 
+/** From review: "Created from your human review of RCP-12 (…)" (UI_SPEC §6.3). */
+export function FromReviewBanner({
+  from,
+}: {
+  from: NonNullable<ItemDetailResponse['from_review']>;
+}) {
+  return (
+    <Callout className="mb">
+      Created from your human review of{' '}
+      <Link to={paths.review(from.item_id, from.round)}>{from.item_id}</Link>
+      {from.text ? ` (“${from.text}”)` : ''}.
+    </Callout>
+  );
+}
+
 /** The banners above the tabs, visible on every tab (UI_SPEC §6.3). */
 export function ItemBanners({ data }: { data: ItemDetailResponse }) {
   const { scope } = useShell();
@@ -110,7 +126,7 @@ export function ItemBanners({ data }: { data: ItemDetailResponse }) {
           unread={data.answer_unread}
         />
       )}
-      {/* "Created from your human review of …" (From review) is filled by US3. */}
+      {data.from_review && <FromReviewBanner from={data.from_review} />}
     </>
   );
 }

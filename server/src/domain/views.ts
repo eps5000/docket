@@ -1048,8 +1048,35 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
             round: packet.round,
             stale: packet.stale,
             to_verify: item.checklist.human_review.filter((h) => h.state === 'ready').length,
+            estimate:
+              (
+                sql.prepare('SELECT estimate FROM packets WHERE id = ?').get(packet.packet_id) as
+                  { estimate: string | null } | undefined
+              )?.estimate ?? null,
           }
         : null;
+
+      const fromReviewRaw = (
+        sql.prepare('SELECT from_review FROM items WHERE id = ?').get(row.id) as {
+          from_review: string | null;
+        }
+      ).from_review;
+      const fr = fromReviewRaw
+        ? (JSON.parse(fromReviewRaw) as { item_id?: string; round?: number; hr_item_id?: string })
+        : null;
+      const from_review =
+        fr?.item_id && fr.hr_item_id && typeof fr.round === 'number'
+          ? {
+              item_id: fr.item_id,
+              round: fr.round,
+              hr_item_id: fr.hr_item_id,
+              text:
+                (
+                  sql.prepare('SELECT text FROM hr_items WHERE id = ?').get(fr.hr_item_id) as
+                    { text: string } | undefined
+                )?.text ?? null,
+            }
+          : null;
 
       const question = sql
         .prepare(
@@ -1078,6 +1105,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         plan_history,
         activity,
         open_packet,
+        from_review,
         answer_unread: !!question?.answered_at && question.read_by_agent_at === null,
         notes_unread: notes.n,
         label_briefs,

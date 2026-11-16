@@ -237,6 +237,18 @@ export const itemDetailResponse = jsonResponse({
       round: z.number().int(),
       stale: z.boolean(),
       to_verify: z.number().int(),
+      /** The agent's estimate, for "about 10 min" (UI_SPEC §6.3). */
+      estimate: z.string().nullable(),
+    })
+    .nullable(),
+  /** "Created from your human review of RCP-12 (…)": set on Bugs and follow-ups made by a review decision. */
+  from_review: z
+    .object({
+      item_id: z.string(),
+      round: z.number().int(),
+      hr_item_id: z.string(),
+      /** The human review item's text, for the banner. */
+      text: z.string().nullable(),
     })
     .nullable(),
   /** "Waiting for <agent> to read it" (BUILD_SPEC §5.7). */
