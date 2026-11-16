@@ -76,6 +76,11 @@ jobs:
           TASKLITE_E2E_NO_START: '1'
         run: pnpm --filter @tasklite/web e2e
 
+      # SC-008 (T128): `docker compose down && up` keeps every item, event and document,
+      # and a backup restores identically into a scratch volume.
+      - name: Container replacement keeps the data (SC-008)
+        run: docker/check-replacement.sh -f docker/compose.yaml
+
       - name: Container logs
         if: failure()
         run: docker compose -f docker/compose.yaml logs --no-color

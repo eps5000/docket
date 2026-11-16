@@ -22,6 +22,7 @@
  * model (recovery-model.ts). Not yet built here: the timeline section of
  * `work` is US8's (`forecast.timeline`).
  */
+import { COMPAT_SURFACES } from './compat.js';
 import { readdirSync, statfsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import {
@@ -575,7 +576,7 @@ function problemsOf({ s, runs, deferredCounts, backupError, config }: ProblemsIn
       kind: 'extra_backup_failed',
       item_id: null,
       title: null,
-      reason: `The extra backup copy failed: ${sentence(backupError)}`,
+      reason: `Extra backup copy failed: ${sentence(backupError)}`,
     });
   }
 
@@ -763,6 +764,9 @@ const fileBytes = (path: string): number | null => {
     return null;
   }
 };
+/** The sum of the sizes that exist; null when none does. */
+const sumBytes = (sizes: (number | null)[]): number | null =>
+  sizes.some((n) => n !== null) ? sizes.reduce<number>((a, n) => a + (n ?? 0), 0) : null;
 
 // ---- Health (`/readyz` checks, for the sidebar health line) ----
 
@@ -1538,20 +1542,38 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         };
       });
 
-      // Clients seen on runs. Nothing records smoke-test results yet (US10), so none is "verified".
-      const clients = (
-        sql
-          .prepare(
-            'SELECT client, max(last_signal_at) AS last_seen_at FROM runs GROUP BY client ORDER BY client',
-          )
-          .all() as { client: string; last_seen_at: string | null }[]
-      ).map((c) => ({
-        client: c.client,
-        transport: 'Streamable HTTP',
-        last_seen_at: c.last_seen_at,
-        status: 'not_verified' as const,
-        notes: null,
+      // The supported surfaces (compat.ts), each with when it was last seen on a run;
+      // then any other client that has connected. None is verified until the smoke test is
+      // recorded (T146).
+      const seen = sql
+        .prepare(
+          `SELECT client, label LIKE 'orca%' AS orca, max(last_signal_at) AS last_seen_at
+           FROM runs GROUP BY client, label LIKE 'orca%'`,
+        )
+        .all() as { client: string; orca: number; last_seen_at: string | null }[];
+      const lastSeen = (client: string, orca: boolean) =>
+        seen.find((x) => x.client === client && Boolean(x.orca) === orca)?.last_seen_at ?? null;
+      const clients: SettingsResponse['connections']['clients'] = COMPAT_SURFACES.map((c) => ({
+        client: c.name,
+        transport: c.transport,
+        last_seen_at: c.client ? lastSeen(c.client, c.orca) : null,
+        status: c.verified ? 'verified' : c.offByDefault ? 'not_configured' : 'not_verified',
+        notes: c.verified ? `Smoke test passed ${c.verified.on} · ${c.verified.notes}` : c.notes,
       }));
+      const known = new Set(COMPAT_SURFACES.map((c) => c.client));
+      for (const client of [...new Set(seen.map((x) => x.client))].sort()) {
+        if (known.has(client)) continue;
+        clients.push({
+          client,
+          transport: 'Streamable HTTP',
+          last_seen_at: seen
+            .filter((x) => x.client === client)
+            .map((x) => x.last_seen_at)
+            .reduce<string | null>((a, b) => (a && (!b || a > b) ? a : b), null),
+          status: 'not_verified',
+          notes: 'Not a supported client; not smoke-tested.',
+        });
+      }
 
       const health = healthOf(r, deps).checks;
       let volumeFree: number | null = null;
@@ -1590,7 +1612,11 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
           },
         },
         health: {
-          database: { state: health.database ?? 'error', bytes: fileBytes(config.paths.db) },
+          database: {
+            state: health.database ?? 'error',
+            // With WAL, recent writes live in the -wal file until a checkpoint.
+            bytes: sumBytes([fileBytes(config.paths.db), fileBytes(`${config.paths.db}-wal`)]),
+          },
           documents: { state: health.docs_dir ?? 'error', bytes: dirBytes(config.paths.docs) },
           volume_free_bytes: volumeFree,
           backups,

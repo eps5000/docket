@@ -1,0 +1,18 @@
+# A disposable Task Lite with the sample data, for the O07 smoke test.
+# It reuses your agent token, so the client configs you already have work unchanged.
+# From the docker/ folder:
+#   docker compose stop tasklite     # your real instance, if it runs (its data stays put)
+#   docker compose -p tasklite-smoke -f compose.yaml -f smoke/compose.smoke.yaml up -d --build --wait
+# Afterwards:
+#   docker compose -p tasklite-smoke -f compose.yaml -f smoke/compose.smoke.yaml down --volumes
+#   docker compose start tasklite
+services:
+  tasklite:
+    image: tasklite:smoke
+    container_name: tasklite-smoke
+    environment:
+      TASKLITE_SEED: sample
+      TASKLITE_TOKEN: ${TASKLITE_TOKEN:?Set TASKLITE_TOKEN first (Settings → Reveal token)}
+volumes:
+  tasklite-data:
+    name: tasklite-smoke-data

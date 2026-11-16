@@ -632,6 +632,36 @@
 .tl .proj-card:first-of-type {
   border-top: 0;
 }
+/* The project's mini status bar (UI_SPEC §6.7); the counts are also in text. */
+.tl .bar-mini {
+  display: flex;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--panel-2);
+}
+.tl .bar-mini > i {
+  display: block;
+  height: 100%;
+}
+/* Settings → Connections: the revealed token, and one line per backup location. */
+.tl .reveal {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+.tl .reveal code {
+  padding: 3px 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel-2);
+  word-break: break-all;
+}
+.tl .backup-loc + .backup-loc {
+  margin-top: 4px;
+}
 
 /* ---------- dialogs ---------- */
 .tl .media {

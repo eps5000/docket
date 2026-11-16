@@ -383,23 +383,23 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 **Fills**: `server/src/jobs/backup.ts`, `server/src/domain/projects.ts`, `server/src/cli/index.ts`, the `settings` and `diagnostics` route handlers, the Settings and Unlock content, the README, `docker/smoke/`
 
 ### Tests for US10
-- [ ] T128 [P] [US10] Integration tests in `server/tests/integration/us10-ops.test.ts`:
+- [X] T128 [P] [US10] Integration tests in `server/tests/integration/us10-ops.test.ts`:
   - **extra backup location:** with it set, the archive appears in both places and the extra copy restores after the data dir is removed; an unwritable extra dir still lets the default backup succeed and raises a Problem;
   - **restore:** a backup restored into a temporary data dir is identical (item, event and document checksums);
   - **project delete:** rows and the docs dir are removed, and the tombstone is retried at startup;
   - **logs:** the call log contains no arguments, and no log contains an `Authorization` value;
   - **deleted IDs:** a deleted project's IDs return `not_found` to agents;
   - **container replacement** (`docker compose down && up` in the CI Docker job) keeps every item, event and document (SC-008).
-- [ ] T129 [P] [US10] E2E: Settings (projects, connections, snippets showing `$TASKLITE_TOKEN`, Reveal token auto-hiding after 30 s, the delete dialog with typed key and focus on Cancel, the backup locations, *Download diagnostic log*), in `web/e2e/us10-settings.spec.ts`
+- [X] T129 [P] [US10] E2E: Settings (projects, connections, snippets showing `$TASKLITE_TOKEN`, Reveal token auto-hiding after 30 s, the delete dialog with typed key and focus on Cancel, the backup locations, *Download diagnostic log*), in `web/e2e/us10-settings.spec.ts`
 
 ### Implementation for US10
-- [ ] T130 [US10] Implement the nightly backup in `server/src/jobs/backup.ts` and the CLI in `server/src/cli/index.ts`:
+- [X] T130 [US10] Implement the nightly backup in `server/src/jobs/backup.ts` and the CLI in `server/src/cli/index.ts`:
   - `VACUUM INTO` plus a docs tar.gz, with `BACKUP_KEEP` retention;
   - the opt-in copy to `TASKLITE_BACKUP_EXTRA_DIR` (a failed extra copy never fails the default backup, and raises a Problem);
   - the CLI commands `backup now`, `restore <file>` (refuses while running; verifies first), `owner-key` and `agent-token`.
-- [ ] T131 [US10] Implement project delete (transaction plus tombstone, docs removal after commit, retry at startup) in `server/src/domain/projects.ts`, and fill the `settings` and `diagnostics` route handlers
-- [ ] T132 [US10] Fill Settings (Projects, Connections with the compatibility matrix and snippets, Endpoint, Service health with backup locations, This browser) and the Unlock screen per UI_SPEC §6.7–6.8
-- [ ] T133 [US10] Write the README quick start (clean machine to connected agent in ≤ 10 minutes, plus the optional extra-backup bind mount) and `docker/smoke/` (a script and checklist per client surface, O07)
+- [X] T131 [US10] Implement project delete (transaction plus tombstone, docs removal after commit, retry at startup) in `server/src/domain/projects.ts`, and fill the `settings` and `diagnostics` route handlers
+- [X] T132 [US10] Fill Settings (Projects, Connections with the compatibility matrix and snippets, Endpoint, Service health with backup locations, This browser) and the Unlock screen per UI_SPEC §6.7–6.8
+- [X] T133 [US10] Write the README quick start (clean machine to connected agent in ≤ 10 minutes, plus the optional extra-backup bind mount) and `docker/smoke/` (a script and checklist per client surface, O07)
 
 ---
 

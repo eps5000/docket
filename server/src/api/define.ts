@@ -60,6 +60,8 @@ export interface RouteDeps {
   services: Services;
   write: WritePath;
   log: (line: string) => void;
+  /** The agent token, for Settings → *Reveal token* only. Never logged. */
+  agentToken?: () => string;
 }
 
 export interface RouteContext<K extends RouteId> {

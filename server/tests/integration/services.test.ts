@@ -148,7 +148,10 @@ describe('the service stubs', () => {
     // US4 (B11, T106).
     links: ['link', 'unlink', 'blockState'],
     subgraph: ['dependencySubgraph', 'cycles'],
-    projects: ['setDefaultSatisfiedWhen'],
+    // US4 (B11, T106) and US10 (B15, T130–T131).
+    projects: ['setDefaultSatisfiedWhen', 'delete', 'removeDeletedDocs'],
+    backup: ['status', 'runNow'],
+    diagnostics: ['calls'],
     // US5 (B12, T114).
     decisions: ['publish', 'list', 'withdraw', 'confirm'],
     context: ['getContext'],
