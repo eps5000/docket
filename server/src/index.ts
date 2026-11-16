@@ -4,6 +4,7 @@ import { serve } from '@hono/node-server';
 import { APP_NAME } from '@tasklite/shared';
 import { createApp } from './app.js';
 import { describeSeed, isDatabaseEmpty, loadSampleSeed } from './db/seed/loader.js';
+import { restartSweep, startSweeper } from './jobs/sweeper.js';
 import { createRuntime } from './runtime.js';
 import { APP_VERSION } from './version.js';
 
@@ -16,6 +17,13 @@ const webRoot = resolve(here, '../../web/dist');
 const runtime = createRuntime({ dataDir: '/data', env: process.env });
 const { config } = runtime;
 
+// Service start (BUILD_SPEC §5.3): every run still open from before is interrupted.
+// Before the seed, so a freshly seeded database keeps its sample runs.
+const { interrupted } = restartSweep(runtime);
+if (interrupted.length > 0) {
+  console.log(`Service restarted: ${interrupted.length} open run(s) marked interrupted.`);
+}
+
 if (config.seed === 'sample') {
   if (isDatabaseEmpty(runtime.db)) {
     const summary = loadSampleSeed(runtime.db, { now: new Date(), docsDir: config.paths.docs });
@@ -26,6 +34,8 @@ if (config.seed === 'sample') {
 }
 
 const app = createApp(runtime, { webRoot });
+// Lease expiry and the 60 s pings to sessions of open runs (BUILD_SPEC §5.3, §5.4).
+const sweeper = startSweeper(runtime);
 
 const server = serve({ fetch: app.fetch, hostname: '0.0.0.0', port: config.port }, (info) => {
   console.log(`${APP_NAME} ${APP_VERSION} listening on 0.0.0.0:${info.port}`);
@@ -35,6 +45,7 @@ const server = serve({ fetch: app.fetch, hostname: '0.0.0.0', port: config.port 
 // Docker sends SIGTERM on stop; close the listener so the container stops promptly.
 for (const signal of ['SIGTERM', 'SIGINT'] as const) {
   process.on(signal, () => {
+    sweeper.stop();
     void runtime.close().finally(() => server.close(() => process.exit(0)));
     setTimeout(() => process.exit(0), 5_000).unref();
   });

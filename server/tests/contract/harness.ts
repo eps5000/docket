@@ -5,7 +5,8 @@
  *   per test, seeded from design/sample-data.json unless `seed: false`.
  * - Two official MCP SDK clients with different `clientInfo` (`claude-code`
  *   and `codex-mcp-client`), connected over Streamable HTTP with the agent
- *   token. Their HTTP goes straight into the Hono app (no socket).
+ *   token, each with its server→client (`GET`) stream open. Their HTTP goes
+ *   straight into the Hono app (no socket).
  * - `tokens(text)`: the budget measure, characters ÷ 4 (§3.2).
  * - Assertions for each ToolError code that also check the error is
  *   well-formed (§6).
@@ -80,6 +81,11 @@ export async function startHarness(opts: HarnessOptions = {}): Promise<ContractH
     const client = new Client(clientInfo);
     await client.connect(transport);
     clients.push(client);
+    // The SDK opens its GET stream after initialize; wait for it, so a run this
+    // client starts is live from its first call (BUILD_SPEC §5.4).
+    for (let i = 0; i < 200 && !server.runtime.mcp.hasStream(transport.sessionId ?? ''); i++) {
+      await new Promise((r) => setTimeout(r, 5));
+    }
     return client;
   };
 

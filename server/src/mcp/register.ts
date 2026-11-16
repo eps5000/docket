@@ -7,7 +7,8 @@
  * - `tools/call`:
  *   1. validate the arguments against the zod schema; a bad call gets a
  *      `validation` ToolError, even from a stub;
- *   2. the `run_id` signal hook: classify the signal (session or report);
+ *   2. the `run_id` signal hook: classify the signal (session or report),
+ *      record it and renew the lead lease;
  *   3. run the handler, which calls the domain services (domain/contracts.ts);
  *      a service that is still a stub answers `unavailable` "Not implemented
  *      yet: <tool>". Mutating handlers write through `ctx.mutate`, which
@@ -131,9 +132,12 @@ export const TOOL_LIST: Tool[] = TOOLS.map((tool) => ({
 // ---- The run signal hook ----
 
 /**
- * Classify the `run_id` a call carries. A *session* signal needs the call's
- * MCP session to match the run's (MCP_SPEC §9); anything else is *report*.
- * US1 extends this hook to renew the lead lease and record the signal.
+ * Classify the `run_id` a call carries (BUILD_SPEC §5.4; MCP_SPEC §9). A
+ * *session* signal needs the call's MCP session to be the run's, and that
+ * session to hold its server→client (`GET`) stream open: only then can the
+ * server ping it, so only then may the run show *live* (verification V1).
+ * Anything else is *report*. `callTool` then records the signal, which
+ * renews the lead lease (`runs.recordSignal`).
  */
 export function runSignal(
   runtime: Runtime,
@@ -143,7 +147,8 @@ export function runSignal(
   const row = runtime.db.sqlite.prepare('SELECT session_id FROM runs WHERE id = ?').get(runId) as
     { session_id: string | null } | undefined;
   const sameSession = !!row && !!session?.session_id && row.session_id === session.session_id;
-  return { run_id: runId, kind: sameSession ? 'session' : 'report', known: !!row };
+  const live = sameSession && runtime.mcp.hasStream(session!.session_id);
+  return { run_id: runId, kind: live ? 'session' : 'report', known: !!row };
 }
 
 // ---- tools/call ----
@@ -203,7 +208,7 @@ export async function callTool(
     let replayed = false;
     const read = readContext(runtime.db, actor, now);
     const signal = runId ? runSignal(runtime, runId, session) : null;
-    // Every call naming a known run is a signal (BUILD_SPEC §5.4); US1 renews the lease here.
+    // Every call naming a known run is a signal (BUILD_SPEC §5.4): it renews the lead lease.
     if (signal?.known) {
       runtime.services.runs.recordSignal(read, {
         run_id: signal.run_id,

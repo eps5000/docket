@@ -25,13 +25,17 @@ import {
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ORIGIN, createTestServer, parseSetCookies, type TestServer } from './harness.js';
 
-/** Routes B2 implemented; they must keep their behaviour, not answer 501. */
+/**
+ * Routes that already work, and must keep their behaviour, not answer 501:
+ * B2's, and quick capture, which calls `items.create` (US1, B7) like `create_item`.
+ */
 const B2_ROUTES: readonly RouteId[] = [
   'session.unlock',
   'session.lock',
   'session.rotateKey',
   'mutations.undo',
   'stream.get',
+  'items.create',
 ];
 
 interface Req {
@@ -340,7 +344,7 @@ describe.each(ROUTE_IDS)('%s', (id) => {
       expect([200, 404]).toContain(res.status);
       await res.body?.cancel();
       record(id, 'exists', 'yes');
-      record(id, 'valid', `${res.status} (B2, implemented)`);
+      record(id, 'valid', `${res.status} (implemented)`);
       return;
     }
     const err = await errorOf(res);
