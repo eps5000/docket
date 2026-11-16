@@ -185,6 +185,7 @@ const VALID: Record<RouteId, Req> = {
   'jira.commit': { params: { id: 'imp_1' }, body: {} },
   'jira.cancel': { params: { id: 'imp_1' }, body: {} },
   'settings.get': {},
+  'settings.agentToken': {},
   'projects.delete': { params: { key: 'RCP' }, body: { confirm_key: 'RCP' } },
   'diagnostics.calls': { query: { days: '7' } },
   'mutations.undo': { params: { id: 'mut_01JAAAAAAAAAAAAAAAAAAAAAAA' }, body: {} },
