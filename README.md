@@ -15,7 +15,7 @@ It isn't an agent runner. Orca, or the owner, starts agents (owner decision 18),
 Task Lite uses [Spec Kit](https://github.com/github/spec-kit) for spec-driven development. Agents get its skills (`/speckit-implement`, `/speckit-analyze` and the rest) from `.claude/skills/`.
 - [Constitution](.specify/memory/constitution.md): the non-negotiable principles every PR is checked against.
 - [Requirements of record](specs/001-task-lite-v1/spec.md): user stories, acceptance scenarios, functional requirements and success criteria.
-- [Tasks](specs/001-task-lite-v1/tasks.md): 148 tasks, contracts first, then one user-story slice per batch. Read "How to run the build" before starting. Each batch is one agent session and one PR, so never run `/speckit-implement` across the whole list.
+- [Tasks](specs/001-task-lite-v1/tasks.md): 149 tasks, contracts first, then one user-story slice per batch. Read "How to run the build" before starting. Each batch is one agent session and one PR, so never run `/speckit-implement` across the whole list.
 - [Plan](specs/001-task-lite-v1/plan.md) · [research](specs/001-task-lite-v1/research.md) · [data model](specs/001-task-lite-v1/data-model.md) · [contracts](specs/001-task-lite-v1/contracts/) · [quickstart](specs/001-task-lite-v1/quickstart.md)
 
 The detailed design those point to:
@@ -26,7 +26,7 @@ The detailed design those point to:
 5. [Sample data](design/sample-data.json): the seed dataset, exported from the prototype.
 
 ## Using it in a project
-If you coordinate agents (Orca, a script, or by hand), give the coordinator [templates/COORDINATOR-recovery.md](docs/templates/COORDINATOR-recovery.md): how to dispatch, park, prune safely and recover after a crash. Connect your agents ([MCP spec §11](docs/MCP_SPEC.md#11-client-setup)), then paste [templates/AGENTS-tasklite.md](docs/templates/AGENTS-tasklite.md) into the project's `AGENTS.md` and/or `CLAUDE.md` and fill in its placeholders. It tells agents this project's rules: who moves work to Ready, when human review is required, and which planning docs are expected.
+Install the [agent skills](skills/README.md): `tasklite-worker` for every agent, and `tasklite-coordinator` for whatever dispatches them (Orca, a script, or you). The coordinator skill covers dispatching, parking, pruning safely and recovering after a crash. Three optional skills cover planning, review packets and subagents. Connect your agents ([MCP spec §11](docs/MCP_SPEC.md#11-client-setup)), then paste [templates/AGENTS-tasklite.md](docs/templates/AGENTS-tasklite.md) into the project's `AGENTS.md` and/or `CLAUDE.md` and fill in its placeholders. It tells agents this project's rules: who moves work to Ready, when human review is required, and which planning docs are expected.
 
 ## Background
 - [Requirements and owner decisions](docs/REQUIREMENTS_DRAFT.md)
