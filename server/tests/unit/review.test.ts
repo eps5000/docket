@@ -378,13 +378,13 @@ describe('a submitted round', () => {
     ]);
   });
 
-  it('the same packet content hashes the same; another estimate hashes differently', () => {
+  it('the hash covers the item: the same handoff on two items hashes differently', () => {
     const a = handedOff(TWO, { title: 'A' });
     const b = handedOff(TWO, { title: 'A' });
     const hash = (id: string) =>
       d.row<{ content_hash: string }>('SELECT content_hash FROM packets WHERE id = ?', id)
         .content_hash;
-    expect(hash(a.packet.packet_id)).not.toBe(hash(b.packet.packet_id)); // the item ID is part of it
+    expect(hash(a.packet.packet_id)).not.toBe(hash(b.packet.packet_id));
     expect(a.packet.display_id).toMatch(/^pkt-/);
   });
 
