@@ -1,5 +1,7 @@
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { migrateDb, migrationStatus } from '../../src/db/client.js';
+import { migrateDb, migrationsFolder, migrationStatus } from '../../src/db/client.js';
 import { createTestDb, insertItem, insertProject, type TestDb } from '../helpers.js';
 
 let t: TestDb;
@@ -14,6 +16,15 @@ const run = (sql: string, ...params: unknown[]) => t.db.sqlite.prepare(sql).run(
 const ts = '2026-11-14T00:00:00.000Z';
 
 describe('database client', () => {
+  it('keeps migration SQL in LF, so its hash matches on every checkout', () => {
+    // Drizzle identifies applied migrations by a hash of the file's bytes; a CRLF checkout
+    // would look like new migrations. .gitattributes forces LF; this catches a missing rule.
+    const dir = migrationsFolder();
+    const files = readdirSync(dir).filter((f) => f.endsWith('.sql'));
+    expect(files.length).toBeGreaterThan(0);
+    for (const f of files) expect(readFileSync(join(dir, f), 'utf8'), f).not.toContain('\r');
+  });
+
   it('opens in WAL mode with foreign keys and a 5 s busy timeout', () => {
     expect(pragma('journal_mode')).toBe('wal');
     expect(pragma('foreign_keys')).toBe(1);
