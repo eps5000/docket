@@ -5,7 +5,9 @@
  * - `ask_owner` creates an open question (at most one per item) and puts
  *   the asking run in `needs_input`: the run the call names, else the
  *   caller's own open lead on the item. A run that has ended gets
- *   `conflict`.
+ *   `conflict`. While the item has an answer no agent has read yet,
+ *   asking again gets `validation` ("Call get_item first"), so no owner
+ *   answer is ever dropped.
  * - The owner answers (`question.answered`, undoable) and leaves notes
  *   (`owner_note.added`, undoable). Answering doesn't touch the run: it
  *   stays `needs_input` until the agent reads the answer.
@@ -61,6 +63,20 @@ export function createMessagesService(_deps: ServiceDeps): MessagesService {
           'validation',
           `${item.id} already has an open question: ${quote(open.text)}. Wait for the answer in get_item (open_question).`,
           { details: { question_id: open.id } },
+        );
+      }
+      // An answer the agent hasn't read yet would never be delivered once a newer question
+      // takes its place in get_item, so it must be read first (gate review of B13).
+      const unread = w.db.sqlite
+        .prepare(
+          'SELECT id FROM questions WHERE item_id = ? AND answered_at IS NOT NULL AND read_by_agent_at IS NULL ORDER BY created_at DESC LIMIT 1',
+        )
+        .get(item.id) as { id: string } | undefined;
+      if (unread) {
+        throw new ToolError(
+          'validation',
+          `${item.id} has an answer you haven't read. Call get_item first.`,
+          { details: { question_id: unread.id } },
         );
       }
       // The asking run: the one the call names (on this item), else the caller's own lead here.

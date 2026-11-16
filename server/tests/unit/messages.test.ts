@@ -139,8 +139,41 @@ describe('ask_owner', () => {
     );
     const q = d.row<QuestionRow>("SELECT * FROM questions WHERE item_id = 'DOC-4'");
     answer('DOC-4', q.id, 'Per serving; put 100 g in a footnote.');
-    // Answered: a new question may be asked (the answer is still delivered once).
+    // Answered and read: a new question may be asked.
+    getItem({ id: 'DOC-4' });
     expect(ask(d.agent('codex'), 'DOC-4', 'And for drinks?').question_id).toMatch(/^q_/);
+  });
+
+  it('asking again while an answer is unread gets validation; after get_item delivers it, asking works', () => {
+    const { actor } = claim();
+    const { question_id } = ask(actor, 'RCP-17', 'Which unit?');
+    answer('RCP-17', question_id, 'Grams.');
+    const err = d.fails(
+      actor,
+      (w, s) =>
+        s.messages.askOwner(w, { id: 'RCP-17', question: 'And volumes?' } as In<'ask_owner'>),
+      'validation',
+    );
+    expect(err.message).toBe("RCP-17 has an answer you haven't read. Call get_item first.");
+    expect(err.details).toEqual({ question_id });
+    // Summary and get_context don't deliver, so they don't unlock it either.
+    getItem({ id: 'RCP-17', view: 'summary' }, actor);
+    d.fails(
+      actor,
+      (w, s) =>
+        s.messages.askOwner(w, { id: 'RCP-17', question: 'And volumes?' } as In<'ask_owner'>),
+      'validation',
+    );
+    expect(
+      d.row<{ n: number }>("SELECT count(*) AS n FROM questions WHERE item_id = 'RCP-17'").n,
+    ).toBe(1);
+    // Delivered: the answer was read, and the next question goes through.
+    expect(getItem({ id: 'RCP-17' }, actor).open_question?.answer).toBe('Grams.');
+    expect(ask(actor, 'RCP-17', 'And volumes?').question_id).toMatch(/^q_/);
+    expect(getItem({ id: 'RCP-17' }, actor).open_question).toMatchObject({
+      text: 'And volumes?',
+      answer: null,
+    });
   });
 
   it('a run that has ended gets conflict, and nothing is stored', () => {

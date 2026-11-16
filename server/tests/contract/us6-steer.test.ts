@@ -226,6 +226,46 @@ describe('flow §7.5: question round trip', () => {
     expect(openQuestion(got.structured)?.answer).toBe('In the URL.');
     expect(runState(runId)).toBe('open');
   });
+
+  it('asking again while an answer is unread gets validation; after get_item delivers it, asking works', async () => {
+    h = await startHarness();
+    const owner = await ownerApi();
+    const claimed = await step('claim_lead', { id: 'RCP-17', agent_label: 'orca-w3' });
+    const runId = claimed.structured.run_id as string;
+    const first = await step('ask_owner', {
+      id: 'RCP-17',
+      run_id: runId,
+      question: 'Keep the week in the URL or in local storage?',
+    });
+    await owner('POST', '/api/items/RCP-17/answer', {
+      question_id: first.structured.question_id,
+      text: 'In the URL.',
+    });
+    const refused = expectValidation(
+      await fails('ask_owner', { id: 'RCP-17', run_id: runId, question: 'And the day too?' }),
+    );
+    expect(refused.message).toBe("RCP-17 has an answer you haven't read. Call get_item first.");
+    expect(refused.details).toEqual({ question_id: first.structured.question_id });
+    // Summary doesn't deliver, so it doesn't unlock asking either.
+    await step('get_item', { id: 'RCP-17', view: 'summary', run_id: runId });
+    expectValidation(
+      await fails('ask_owner', { id: 'RCP-17', run_id: runId, question: 'And the day too?' }),
+    );
+
+    const got = await step('get_item', { id: 'RCP-17', run_id: runId });
+    expect(openQuestion(got.structured)?.answer).toBe('In the URL.');
+    const again = await step('ask_owner', {
+      id: 'RCP-17',
+      run_id: runId,
+      question: 'And the day too?',
+    });
+    expect(again.structured.question_id).not.toBe(first.structured.question_id);
+    expect(runState(runId)).toBe('needs_input');
+    const needs = (await owner('GET', '/api/needs-you?scope=all')).body;
+    expect(forYou(needs)).toContainEqual(
+      expect.objectContaining({ kind: 'question', item_id: 'RCP-17', text: 'And the day too?' }),
+    );
+  });
 });
 
 describe('owner notes (MCP_SPEC §10 test 8)', () => {
