@@ -247,21 +247,21 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 **Fills**: `server/src/domain/{human-review,packets,review-decisions}.ts`, `server/src/mcp/tools/{checklist,review}.ts` (review tools), `server/src/api/routes/review.ts`, `web/src/routes/review/`, the human review section of the Checklist tab
 
 ### Tests for US3
-- [ ] T087 [P] [US3] Unit tests for the `submit_packet` guards (blocked, packet already open, nothing declared, a failing check without a gap) and the decision outcomes (approve all; any changes; defer with or without follow-up; mixed; approvals carry forward) in `server/tests/unit/review.test.ts`
-- [ ] T088 [P] [US3] Unit tests for stale packets (ticket-level and epic-level), fresh-packet requests and deferred-list membership in `server/tests/unit/review-stale.test.ts`
-- [ ] T089 [P] [US3] MCP contract tests for flows §7.3, §7.4 and §7.9 in `server/tests/contract/us3-review.test.ts`
-- [ ] T090 [P] [US3] E2E for the packet screen (SC-006: deciding a two-item packet takes at most 4 clicks beyond verification; round selector, disabled submit, the note required for changes, outcome-named button, undo, past-round styling, attachments, 1024 px layout) in `web/e2e/us3-review.spec.ts`
+- [X] T087 [P] [US3] Unit tests for the `submit_packet` guards (blocked, packet already open, nothing declared, a failing check without a gap) and the decision outcomes (approve all; any changes; defer with or without follow-up; mixed; approvals carry forward) in `server/tests/unit/review.test.ts`
+- [X] T088 [P] [US3] Unit tests for stale packets (ticket-level and epic-level), fresh-packet requests and deferred-list membership in `server/tests/unit/review-stale.test.ts`
+- [X] T089 [P] [US3] MCP contract tests for flows §7.3, §7.4 and §7.9 in `server/tests/contract/us3-review.test.ts`
+- [X] T090 [P] [US3] E2E for the packet screen (SC-006: deciding a two-item packet takes at most 4 clicks beyond verification; round selector, disabled submit, the note required for changes, outcome-named button, undo, past-round styling, attachments, 1024 px layout) in `web/e2e/us3-review.spec.ts`
 
 ### Implementation for US3
-- [ ] T091 [US3] Implement the human review service (declare, update or remove the author's own items; locked while `ready`; agents get `forbidden` on owner-added items) in `server/src/domain/human-review.ts`
-- [ ] T092 [US3] Implement the packet service (`submit_packet` with guards, content hash, snapshots, attachments; stale derivation; `get_review`; `deferred_reviews`) in `server/src/domain/packets.ts`
-- [ ] T093 [US3] Implement owner decisions in `server/src/domain/review-decisions.ts`:
+- [X] T091 [US3] Implement the human review service (declare, update or remove the author's own items; locked while `ready`; agents get `forbidden` on owner-added items) in `server/src/domain/human-review.ts`
+- [X] T092 [US3] Implement the packet service (`submit_packet` with guards, content hash, snapshots, attachments; stale derivation; `get_review`; `deferred_reviews`) in `server/src/domain/packets.ts`
+- [X] T093 [US3] Implement owner decisions in `server/src/domain/review-decisions.ts`:
   - atomic verdicts;
   - changes → a checklist step with `from_review`, or a Bug in Ready with the parent's project, epic and priority, a title of up to 70 characters, and a `relates` link;
   - defer → a follow-up Task in Inbox titled "Verify: …" (60 characters);
   - the outcome, with an undo inverse.
-- [ ] T094 [US3] Replace the stubs for `declare_human_review`, `update_human_review`, `submit_packet`, `get_review` and `deferred_reviews`, and fill the `review` route handlers
-- [ ] T095 [US3] Fill the packet screen (queue, packet, decision panel, Viewing group) per UI_SPEC §6.4, and the human review section of the Checklist tab per UI_SPEC §6.3.1
+- [X] T094 [US3] Replace the stubs for `declare_human_review`, `update_human_review`, `submit_packet`, `get_review` and `deferred_reviews`, and fill the `review` route handlers
+- [X] T095 [US3] Fill the packet screen (queue, packet, decision panel, Viewing group) per UI_SPEC §6.4, and the human review section of the Checklist tab per UI_SPEC §6.3.1
 
 **Checkpoint**: the US1–US3 tests pass. The P1 product is complete.
 

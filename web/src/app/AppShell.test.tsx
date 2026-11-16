@@ -88,13 +88,20 @@ describe('app shell', () => {
     locked = true;
     const user = userEvent.setup();
     const router = renderAt('/agents');
-    await waitFor(() => expect(router.state.location.pathname).toBe('/unlock'));
+    // Wait for what the owner sees, not for the router: React Router 7's
+    // RouterProvider applies each navigation in React.startTransition, so
+    // `router.state.location` changes before React commits the new page. A
+    // DOM query right after waiting on the router raced that commit and
+    // failed under CI load (PR #22). The router state is settled once the
+    // page is on screen, so check it after.
+    expect(await screen.findByRole('heading', { name: 'Unlock Task Lite' })).toBeTruthy();
+    expect(router.state.location.pathname).toBe('/unlock');
     expect(router.state.location.search).toBe('?next=%2Fagents');
-    expect(screen.getByRole('heading', { name: 'Unlock Task Lite' })).toBeTruthy();
     locked = false;
     await user.type(screen.getByLabelText('Owner key'), 'ABCD');
     await user.click(screen.getByRole('button', { name: 'Unlock' }));
-    await waitFor(() => expect(router.state.location.pathname).toBe('/agents'));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Agents' })).toBeTruthy();
+    expect(router.state.location.pathname).toBe('/agents');
     expect(calls).toContain('POST /api/session/unlock');
   });
 

@@ -10,16 +10,19 @@
  * - The opt-in callout, and with permission denied the status reads
  *   "Blocked by the browser".
  *
- * Agents can't submit packets or ask questions yet (`submit_packet` is US3's,
- * `ask_owner` US6's), so new for-you events reach the page through a routed
- * `/api/stream` carrying exactly what the server sends (`for_you: true`, as
- * us2-api.test.ts checks against the real stream), and `/api/needs-you` adds
- * the matching rows. B9 can switch these to real agent calls.
+ * Packets are real (B9): an agent hands one off with `submit_packet` through
+ * the MCP helper, and the page hears it on the real `/api/stream`. Agents
+ * can't ask questions yet (`ask_owner` is US6's), so the question cases still
+ * feed a routed `/api/stream` carrying exactly what the server sends
+ * (`for_you: true`, as us2-api.test.ts checks against the real stream), and
+ * `/api/needs-you` adds the matching row. The packet tests run last: they
+ * add to the "For you now · 3" the earlier tests count.
  */
 import type { Page, Route } from '@playwright/test';
 import type { ForYouRow, NeedsYouResponse } from '@tasklite/shared';
 import {
   clickNotification,
+  connectAgent,
   denyNotifications,
   expect,
   grantNotifications,
@@ -32,19 +35,6 @@ import {
 
 useSeededContainer();
 
-const NEW_PACKET: ForYouRow = {
-  kind: 'packet',
-  item_id: 'RCP-17',
-  title: 'Planner jumps back to the current week after reload',
-  project: 'RCP',
-  packet_id: 'pkt_e2e',
-  round: 1,
-  to_verify: 1,
-  estimate: '5 min',
-  stale: false,
-  built_from_commit: 'abc1234',
-  submitted_at: new Date().toISOString(),
-};
 const NEW_QUESTION: ForYouRow = {
   kind: 'question',
   item_id: 'RCP-16',
@@ -110,70 +100,6 @@ test.describe('notifications', () => {
     expect(await recordedNotifications(page)).toEqual([]);
   });
 
-  test('one notification per new packet or question; a click opens the packet or the question', async ({
-    page,
-  }) => {
-    await grantNotifications(page.context());
-    await recordNotifications(page.context());
-    await notificationsOn(page);
-    const rows: ForYouRow[] = [];
-    await needsYouWith(page, () => rows);
-    const stream = await routedStream(page);
-    await page.goto('/work');
-    await expect(page).toHaveTitle('(3) Task Lite');
-
-    // Not for you: never notifies.
-    stream.push(9001, 'item.updated', 'RCP-17', false);
-    stream.push(9002, 'run.ended', 'RCP-18', false);
-    await page.waitForTimeout(1000);
-    expect(await recordedNotifications(page)).toEqual([]);
-
-    // A packet, then a question: one each.
-    rows.push(NEW_PACKET);
-    stream.push(9003, 'packet.submitted', 'RCP-17', true);
-    await expect.poll(async () => (await recordedNotifications(page)).length).toBe(1);
-    rows.push(NEW_QUESTION);
-    stream.push(9004, 'question.asked', 'RCP-16', true);
-    await expect.poll(async () => (await recordedNotifications(page)).length).toBe(2);
-
-    // The same seq again, and a burst on the same item: nothing more.
-    stream.push(9003, 'packet.submitted', 'RCP-17', true);
-    stream.push(9005, 'packet.submitted', 'RCP-17', true);
-    await page.waitForTimeout(1500);
-    expect(await recordedNotifications(page)).toEqual([
-      {
-        title: 'Handoff ready: RCP-17 Planner jumps back to the current week after reload',
-        body: '1 thing to verify · about 5 min',
-        tag: 'tl-packet-RCP-17',
-      },
-      {
-        title: 'claude asks on RCP-16',
-        body: 'Should the card round to whole grams?',
-        tag: 'tl-question-RCP-16',
-      },
-    ]);
-
-    // Clicking goes to the packet, or to the item's question.
-    await clickNotification(page, 0);
-    await expect(page).toHaveURL(/\/review\/RCP-17$/);
-    await clickNotification(page, 1);
-    await expect(page).toHaveURL(/\/items\/RCP-16$/);
-  });
-
-  test('turned off, nothing notifies (the title still counts)', async ({ page }) => {
-    await grantNotifications(page.context());
-    await recordNotifications(page.context());
-    await page.context().addInitScript(() => localStorage.setItem('tl.notifications', 'off'));
-    const rows: ForYouRow[] = [NEW_PACKET];
-    await needsYouWith(page, () => rows);
-    const stream = await routedStream(page);
-    await page.goto('/');
-    stream.push(9101, 'packet.submitted', 'RCP-17', true);
-    await page.waitForTimeout(1500);
-    expect(await recordedNotifications(page)).toEqual([]);
-    await expect(page).toHaveTitle(/^\(\d+\) Task Lite$/);
-  });
-
   test('the opt-in callout: Turn on asks the browser, Not now hides it for good', async ({
     page,
   }) => {
@@ -223,5 +149,123 @@ test.describe('notifications', () => {
     // The UI keeps working without notifications.
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'For you now · 3' })).toBeVisible();
+  });
+  test('one notification per new question; the same seq or a burst does not notify again; a click opens the question', async ({
+    page,
+  }) => {
+    await grantNotifications(page.context());
+    await recordNotifications(page.context());
+    await notificationsOn(page);
+    const rows: ForYouRow[] = [];
+    await needsYouWith(page, () => rows);
+    const stream = await routedStream(page);
+    await page.goto('/work');
+    await expect(page).toHaveTitle('(3) Task Lite');
+
+    // Not for you: never notifies.
+    stream.push(9001, 'item.updated', 'RCP-17', false);
+    stream.push(9002, 'run.ended', 'RCP-18', false);
+    await page.waitForTimeout(1000);
+    expect(await recordedNotifications(page)).toEqual([]);
+
+    rows.push(NEW_QUESTION);
+    stream.push(9004, 'question.asked', 'RCP-16', true);
+    await expect.poll(async () => (await recordedNotifications(page)).length).toBe(1);
+
+    // The same seq again, and a burst on the same item: nothing more.
+    stream.push(9004, 'question.asked', 'RCP-16', true);
+    stream.push(9005, 'question.asked', 'RCP-16', true);
+    await page.waitForTimeout(1500);
+    expect(await recordedNotifications(page)).toEqual([
+      {
+        title: 'claude asks on RCP-16',
+        body: 'Should the card round to whole grams?',
+        tag: 'tl-question-RCP-16',
+      },
+    ]);
+    await clickNotification(page, 0);
+    await expect(page).toHaveURL(/\/items\/RCP-16$/);
+  });
+
+  test('a packet an agent submits notifies once; a click opens the packet', async ({ page }) => {
+    await grantNotifications(page.context());
+    await recordNotifications(page.context());
+    await notificationsOn(page);
+    await page.goto('/work');
+    await expect(page).toHaveTitle('(3) Task Lite');
+
+    const agent = await connectAgent('codex');
+    try {
+      // Claiming is not for you; once the board shows it, the live stream is delivering.
+      const claim = await agent.call('claim_lead', { id: 'RCP-17', agent_label: 'e2e-w1' });
+      expect(claim.isError, claim.text).toBe(false);
+      const run_id = claim.structured.run_id as string;
+      await expect(page.locator('[data-item="RCP-17"]').first()).toContainText('codex');
+      const declared = await agent.call('declare_human_review', {
+        id: 'RCP-17',
+        run_id,
+        items: ['Reload the planner on week 3. Does it stay on week 3?'],
+      });
+      expect(declared.isError, declared.text).toBe(false);
+      expect(await recordedNotifications(page)).toEqual([]);
+
+      const packet = await agent.call('submit_packet', {
+        id: 'RCP-17',
+        run_id,
+        built_from_commit: 'abc1234',
+        estimate: '5 min',
+        how: ['Open the planner, go to week 3 and reload.'],
+        checked: [{ text: 'Regression test passes', provenance: 'ci', evidence: 'CI #90' }],
+      });
+      expect(packet.isError, packet.text).toBe(false);
+      await expect.poll(async () => (await recordedNotifications(page)).length).toBe(1);
+      await expect(page).toHaveTitle('(4) Task Lite');
+
+      // More changes on the same item that aren't for you: nothing more.
+      const commit = await agent.call('report_commit', { id: 'RCP-17', run_id, sha: 'def5678' });
+      expect(commit.text).toContain('out of date: RCP-17 round 1');
+      await page.waitForTimeout(1500);
+      expect(await recordedNotifications(page)).toEqual([
+        {
+          title: 'Handoff ready: RCP-17 Planner jumps back to the current week after reload',
+          body: '1 thing to verify · about 5 min',
+          tag: 'tl-packet-RCP-17',
+        },
+      ]);
+      await clickNotification(page, 0);
+      await expect(page).toHaveURL(/\/review\/RCP-17$/);
+    } finally {
+      await agent.close();
+    }
+  });
+
+  test('turned off, a submitted packet does not notify (the title still counts)', async ({
+    page,
+  }) => {
+    await grantNotifications(page.context());
+    await recordNotifications(page.context());
+    await page.context().addInitScript(() => localStorage.setItem('tl.notifications', 'off'));
+    await page.goto('/');
+    await expect(page).toHaveTitle(/^\(\d+\) Task Lite$/);
+    const before = Number(/^\((\d+)\)/.exec(await page.title())![1]);
+    const agent = await connectAgent('codex');
+    try {
+      const claim = await agent.call('claim_lead', { id: 'RCP-25', agent_label: 'e2e-w2' });
+      expect(claim.isError, claim.text).toBe(false);
+      const packet = await agent.call('submit_packet', {
+        id: 'RCP-25',
+        run_id: claim.structured.run_id as string,
+        built_from_commit: 'abc9999',
+        estimate: '10 min',
+        how: ['Open the pantry screens on your phone.'],
+        checked: [],
+      });
+      expect(packet.isError, packet.text).toBe(false);
+      await expect(page).toHaveTitle(`(${before + 1}) Task Lite`);
+      await page.waitForTimeout(1000);
+      expect(await recordedNotifications(page)).toEqual([]);
+    } finally {
+      await agent.close();
+    }
   });
 });

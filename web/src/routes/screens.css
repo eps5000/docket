@@ -542,6 +542,126 @@
   padding: 10px 12px;
   margin-top: 8px;
 }
+/* The packet screen (US3, UI_SPEC §6.4). */
+.tl .rvqitem[aria-current='page'] {
+  background: var(--brand-soft);
+}
+.tl .rounds {
+  display: inline-flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.tl .vbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--ctl);
+  border-radius: 7px;
+  padding: 2px 8px;
+  min-height: 28px;
+  color: var(--ink);
+  background: var(--panel);
+  text-decoration: none;
+  font-size: 12.5px;
+}
+.tl .vbtn:hover {
+  background: var(--panel-2);
+  text-decoration: none;
+}
+.tl .vbtn[aria-current='true'] {
+  border-color: var(--brand);
+  box-shadow: inset 0 0 0 1px var(--brand);
+  font-weight: 600;
+}
+.tl .vbtn .chip {
+  padding: 0 5px;
+}
+.tl .dot.needs {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--warn);
+  display: inline-block;
+}
+.tl .pkt-callout {
+  margin: 10px 14px 0;
+}
+.tl .decide-callout {
+  margin-top: 10px;
+}
+.tl .bad-text {
+  color: var(--bad);
+}
+.tl .verdict {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+.tl .verdict .ap[aria-checked='true'] {
+  background: var(--ok-soft);
+  border-color: var(--ok);
+  color: var(--ok);
+}
+.tl .verdict .ch[aria-checked='true'] {
+  background: var(--warn-soft);
+  border-color: var(--warn);
+  color: var(--warn);
+}
+.tl .verdict .df[aria-checked='true'] {
+  background: var(--info-soft);
+  border-color: var(--info);
+  color: var(--info);
+}
+.tl .verdict-more textarea {
+  width: 100%;
+  min-height: 60px;
+}
+.tl .howlist,
+.tl .gaplist {
+  margin: 0;
+  padding-left: 20px;
+}
+.tl .howlist li {
+  margin: 3px 0;
+}
+.tl .attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.tl .attach {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--ctl);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--ink);
+  padding: 6px 10px;
+  font: inherit;
+  cursor: pointer;
+}
+.tl .attach:hover {
+  background: var(--panel-2);
+}
+/* The Checklist tab's human review rows (UI_SPEC §6.3.1). */
+.tl .hractions {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+.tl .hrlock {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.tl .hredit textarea {
+  width: 100%;
+  min-height: 52px;
+}
 @media (max-width: 1180px) {
   .tl .dash-top {
     grid-template-columns: 1fr;

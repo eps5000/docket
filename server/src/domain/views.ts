@@ -121,7 +121,7 @@ const placeholders = (n: number) => `(${Array.from({ length: n }, () => '?').joi
 
 // ---- The scope ----
 
-interface Scoped {
+export interface Scoped {
   db: Db;
   now: string;
   windows: RunWindows;
@@ -131,7 +131,7 @@ interface Scoped {
   inScope: (projectKey: string | null | undefined) => boolean;
 }
 
-function scoped(r: ReadContext, windows: RunWindows, scope: Scope): Scoped {
+export function scoped(r: ReadContext, windows: RunWindows, scope: Scope): Scoped {
   const sql = r.db.sqlite;
   const rows = (
     scope === 'all'
@@ -158,7 +158,7 @@ function scoped(r: ReadContext, windows: RunWindows, scope: Scope): Scoped {
 
 // ---- Attention: packets and questions ----
 
-interface OpenPacket {
+export interface OpenPacket {
   id: string;
   item_id: string;
   round: number;
@@ -176,7 +176,7 @@ const sameSha = (a: string, b: string) => a.startsWith(b) || b.startsWith(a);
  * reported after the packet with another SHA; for an epic-level packet, a
  * commit on any child) and how many items it asks you to verify.
  */
-function openPackets(db: Db, itemIds: string[]): Map<string, OpenPacket> {
+export function openPackets(db: Db, itemIds: string[]): Map<string, OpenPacket> {
   const out = new Map<string, OpenPacket>();
   if (itemIds.length === 0) return out;
   const sql = db.sqlite;
@@ -513,7 +513,7 @@ function plannedEnd(s: Scoped, id: string): string | null {
 
 // ---- Deferred, not verified (BUILD_SPEC §5.6) ----
 
-interface DeferredInfo {
+export interface DeferredInfo {
   rows: DeferredRow[];
   /** Deferred items per item, for the Problems row about verified blockers. */
   counts: Map<string, number>;
@@ -525,7 +525,7 @@ interface DeferredInfo {
  * Deferred human review items whose follow-up isn't done with its own review
  * approved, or that have no follow-up. Newest first.
  */
-function deferredOf(s: Scoped): DeferredInfo {
+export function deferredOf(s: Scoped): DeferredInfo {
   const rows = (
     s.db.sqlite
       .prepare(

@@ -85,7 +85,7 @@ describe('the service stubs', () => {
     );
   });
 
-  /** Implemented already: undo (B2), US1's methods (B7, tasks.md T070–T075) and US2's read models (B8, T080, T084). */
+  /** Implemented already: undo (B2), US1's methods (B7, tasks.md T070–T075) and US2's read models (B8, T080, T084) and US3's review services (B9). */
   const IMPLEMENTED: Record<string, readonly string[]> = {
     undo: ['undo'],
     items: ['create', 'update', 'setStatus', 'get'],
@@ -104,6 +104,11 @@ describe('the service stubs', () => {
     evidence: ['addNote', 'linkArtifact', 'reportCommit'],
     search: ['whoami', 'listProjects', 'searchItems', 'getChanges', 'palette'],
     views: ['bootstrap', 'needsYou', 'work', 'itemDetail', 'agents'],
+    // US3 (B9, T091–T093), and the delivery receipt agreed for B9.
+    humanReview: ['declare', 'update', 'ownerAdd', 'ownerUpdate', 'ownerRemove'],
+    packets: ['submit', 'getReview', 'deferredReviews', 'screen', 'refresh', 'markStale'],
+    reviewDecisions: ['decide', 'createFollowUp'],
+    messages: ['markDelivered'],
   };
 
   it.each(methods)('%s.%s throws NotImplementedError until its slice implements it', (s, m) => {

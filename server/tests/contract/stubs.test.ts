@@ -35,7 +35,7 @@ afterEach(async () => {
   h = undefined;
 });
 
-/** Tools US1 implemented (tasks.md T076); the rest stay stubs until their slice. */
+/** Tools US1 (T076) and US3 (T094) implemented; the rest stay stubs until their slice. */
 export const US1_TOOLS: readonly ToolName[] = [
   'whoami',
   'list_projects',
@@ -58,6 +58,12 @@ export const US1_TOOLS: readonly ToolName[] = [
   'add_note',
   'link_artifact',
   'report_commit',
+  // US3 (B9, T094).
+  'declare_human_review',
+  'update_human_review',
+  'submit_packet',
+  'get_review',
+  'deferred_reviews',
 ];
 const STUB_TOOLS = TOOL_NAMES.filter((n) => !US1_TOOLS.includes(n));
 
@@ -118,11 +124,11 @@ describe('errors reach the SDK client as results (B3 resolution 8)', () => {
     h = await startHarness();
     // listTools cached every outputSchema, so the client validates structuredContent.
     await h.a.listTools();
-    const unavailable = await h.a.callTool({ name: 'get_review', arguments: { id: 'RCP-12' } });
+    const unavailable = await h.a.callTool({ name: 'get_context', arguments: { id: 'RCP-12' } });
     expect(unavailable.isError).toBe(true);
     expect(unavailable.structuredContent).toEqual({
       code: 'unavailable',
-      message: 'Not implemented yet: get_review',
+      message: 'Not implemented yet: get_context',
     });
     const validation = await h.a.callTool({
       name: 'create_item',
