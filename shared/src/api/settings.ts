@@ -67,6 +67,13 @@ export const settingsResponse = jsonResponse({
 });
 export type SettingsResponse = z.infer<typeof settingsResponse>;
 
+/**
+ * Settings → Connections → *Reveal token* (UI_SPEC §6.7; MCP_SPEC §11): the
+ * agent bearer token, behind the owner session. The server answers with
+ * `Cache-Control: no-store` and never writes the value to any log.
+ */
+export const agentTokenResponse = jsonResponse({ token: z.string() });
+
 export const deleteProjectParams = input({ key: projectKey });
 /** The owner types the key to confirm (BUILD_SPEC §5.12). */
 export const deleteProjectBody = input({ confirm_key: projectKey });
@@ -81,6 +88,16 @@ export const settingsRoutes = {
     query: noInput,
     body: null,
     response: json(settingsResponse),
+  }),
+  /** *Reveal token*: owner session only; `Cache-Control: no-store`; never logged. */
+  'settings.agentToken': route({
+    method: 'GET',
+    path: '/api/settings/agent-token',
+    group: 'settings',
+    params: noInput,
+    query: noInput,
+    body: null,
+    response: json(agentTokenResponse),
   }),
   /** Not undoable: removes the records and documents together (O10). */
   'projects.delete': route({

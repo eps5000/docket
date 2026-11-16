@@ -509,7 +509,7 @@ Every route requires the owner session (§3). JSON bodies **and query strings** 
 | `POST /api/deferred/:hrId/follow-up` | *Create test ticket* |
 | `GET /api/labels/:project/:name` · `POST /api/labels/:project/:name/move-to-ready` | Label page |
 | `GET /api/agents?scope` | Agents table |
-| `GET /api/settings` · `PATCH /api/projects/:key` `{default_satisfied_when}` · `DELETE /api/projects/:key` `{confirm_key}` | Settings |
+| `GET /api/settings` · `GET /api/settings/agent-token` → `{token}` · `PATCH /api/projects/:key` `{default_satisfied_when}` · `DELETE /api/projects/:key` `{confirm_key}` | Settings. The agent-token route backs *Reveal token*: owner session only, `Cache-Control: no-store`, and the value is never written to any log. |
 | `GET /api/decisions?project&scope_kind&scope_id&include_inactive` · `POST /api/decisions` · `POST /api/decisions/:id/confirm` · `POST /api/decisions/:id/withdraw` `{reason}` | Decisions sections (ticket, epic, label, Settings → project) |
 | `GET /api/search?q` | Command palette (items, labels, views). Items include archived ones, each with `archived: boolean` for the palette's *Archived* tag (UI_SPEC §4). |
 | `GET /api/documents/:versionId/content` | Document viewer, attachments |
