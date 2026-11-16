@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
 import { Link, useParams } from 'react-router';
-import type { LabelPageResponse } from '@tasklite/shared';
+import type { LabelPageResponse, LinkEdge } from '@tasklite/shared';
 import {
   Button,
   Card,
@@ -93,8 +94,11 @@ function LabelDecisions({ project, name }: { project: string; name: string }) {
   return <DecisionsPanel place={{ kind: 'label', project, name }} records={query.data.items} />;
 }
 
+/** The label page has no links of its own; one stable array keeps the map from re-measuring. */
+const NO_LINKS: readonly LinkEdge[] = [];
+
 function LabelBody({ data }: { data: LabelPageResponse }) {
-  const all = data.by_epic.flatMap((g) => g.items);
+  const all = useMemo(() => data.by_epic.flatMap((g) => g.items), [data]);
   return (
     <div className="stack1">
       <Card padded data-card="brief">
@@ -110,7 +114,7 @@ function LabelBody({ data }: { data: LabelPageResponse }) {
         {all.length === 0 ? (
           <EmptyState text="Nothing has this label." />
         ) : (
-          <ProgressMapShell items={all} links={[]} outsideTitle="Without this label" />
+          <ProgressMapShell items={all} links={NO_LINKS} outsideTitle="Without this label" />
         )}
       </Card>
       <Card padded data-card="by-epic">

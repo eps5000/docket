@@ -2,14 +2,21 @@
  * Items: create, edit, status transitions, labels and the owner's field and text edits (BUILD_SPEC §5.1; decision 22): the `items` service.
  *
  * US1 (T070) implements create, update (patch semantics, labels, dates with
- * `dates_set_by`), `set_status` with its guards, and `get_item`. Still
- * stubs: the owner's edits and the label page (US7, T112), and
- * `upsert_label` (its slice). US11 (T100) adds `Item.resume` and each run's
+ * `dates_set_by`), `set_status` with its guards, and `get_item`. US7 (T125)
+ * adds the owner's `PATCH` (priority, the Inbox/Planning/Ready moves, and
+ * inline text edits with the same limits, secret check and conflict
+ * handling as agents, undoable; decision 22), `upsert_label`, and the label
+ * page's *Move N to Ready*. US11 (T100) adds `Item.resume` and each run's
  * workspace (with its derived state) and `resume_ready`.
  */
-import { ToolError, type ItemSummary, type ItemView, type Status } from '@tasklite/shared';
 import {
-  notImplemented,
+  ToolError,
+  type ItemSummary,
+  type ItemText,
+  type ItemView,
+  type Status,
+} from '@tasklite/shared';
+import {
   type DeliveryReceipt,
   type In,
   type ItemsService,
@@ -41,7 +48,7 @@ import {
   type StoredEvent,
 } from './model.js';
 import { inScopeOf } from './decisions.js';
-import type { WriteContext } from './write.js';
+import type { InverseOp, WriteContext } from './write.js';
 
 /** The moves `set_status` allows from each status (BUILD_SPEC §5.1). Review is entered by submit_packet. */
 export const ALLOWED_MOVES: Record<Status, Status[]> = {
@@ -56,6 +63,25 @@ export const ALLOWED_MOVES: Record<Status, Status[]> = {
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const list = (ids: string[]) => ids.join(', ');
+
+/** The owner's status moves on `PATCH /api/items/:id` (UI_SPEC §6.3 contextual actions). */
+const OWNER_MOVES: Partial<Record<Status, Status[]>> = {
+  inbox: ['planning'],
+  planning: ['ready'],
+  ready: ['planning'],
+};
+
+/** How Activity names the fields the owner edits inline ("You edited the outcome"). */
+const TEXT_NAMES = {
+  title: 'title',
+  description_md: 'description',
+  outcome_md: 'outcome',
+  acceptance: 'acceptance criteria',
+} as const;
+
+/** "a", "a and b", "a, b and c". */
+const joinWords = (words: string[]) =>
+  words.length <= 1 ? (words[0] ?? '') : `${words.slice(0, -1).join(', ')} and ${words.at(-1)!}`;
 
 export function createItemsService(deps: ServiceDeps): ItemsService {
   const windows = () => windowsOf(deps.config);
@@ -374,7 +400,97 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
       return summary(w, before.id);
     },
 
-    ownerPatch: notImplemented('items.ownerPatch'),
+    ownerPatch(w, input) {
+      const before = requireItem(w.db, input.id);
+      if (before.version !== input.expected_version) staleEdit(w, before, input);
+      const set: Record<string, unknown> = {};
+      const changed: Record<string, { old: unknown; new: unknown }> = {};
+      const inverse: InverseOp[] = [];
+      const texts: string[] = [];
+      for (const key of ['title', 'description_md', 'outcome_md'] as const) {
+        const value = input[key];
+        if (value === undefined || value === before[key]) continue;
+        set[key] = value;
+        changed[key] = { old: before[key], new: value };
+      }
+      if (input.priority !== undefined && input.priority !== before.priority) {
+        set.priority = input.priority;
+        changed.priority = { old: before.priority, new: input.priority };
+      }
+      let move: { from: Status; to: Status } | null = null;
+      if (input.status !== undefined && input.status !== before.status) {
+        const from = before.status;
+        const to = input.status;
+        const ok =
+          (from === 'inbox' && to === 'planning') ||
+          (from === 'planning' && to === 'ready') ||
+          (from === 'ready' && to === 'planning');
+        if (!ok) {
+          throw new ToolError(
+            'validation',
+            `${before.id} is ${from}; here you can move Inbox items to Planning, and Planning and Ready items between each other. Use Return to Ready or Release lead claim for work in progress.`,
+            { details: { status: from, allowed: OWNER_MOVES[from] ?? [] } },
+          );
+        }
+        set.status = to;
+        move = { from, to };
+      }
+      if (input.acceptance !== undefined) {
+        const rows = w.db.sqlite
+          .prepare(
+            'SELECT id, text FROM acceptance_criteria WHERE item_id = ? ORDER BY position, id',
+          )
+          .all(before.id) as { id: string; text: string }[];
+        const old = rows.map((r) => r.text);
+        if (old.join('\n') !== input.acceptance.join('\n')) {
+          for (const r of rows) inverse.push(w.remove('acceptance_criteria', r.id));
+          input.acceptance.forEach((text, position) => {
+            inverse.push(
+              w.insert('acceptance_criteria', {
+                id: newId('ac', ms(w.now)),
+                item_id: before.id,
+                position,
+                text,
+              }),
+            );
+          });
+          changed.acceptance = { old, new: input.acceptance };
+        }
+      }
+      for (const key of ['title', 'description_md', 'outcome_md', 'acceptance'] as const) {
+        if (changed[key]) texts.push(TEXT_NAMES[key]);
+      }
+      const edited = texts.length > 0 || changed.priority !== undefined;
+      // Nothing differs: no write and no event (the write path allows an explicit no-op).
+      if (!edited && !move) return itemText(w, before.id);
+      inverse.push(w.update('items', before.id, set));
+      if (edited) {
+        const parts: string[] = [];
+        if (texts.length > 0) parts.push(`edited the ${joinWords(texts)}`);
+        if (changed.priority) parts.push(`set ${before.id} to P${String(input.priority)}`);
+        w.event({
+          type: 'item.updated',
+          summary: `You ${parts.join(' and ')}`,
+          item_id: before.id,
+          project_key: before.project_key,
+          data: { changed, fields: Object.keys(changed) },
+          inverse,
+        });
+      }
+      if (move) {
+        // One undo reverses both: the update event carries the inverse when there is one.
+        const touch: InverseOp = { op: 'update', table: 'items', id: before.id, set: {} };
+        w.event({
+          type: 'item.status_changed',
+          summary: `You moved ${before.id} from ${move.from} to ${move.to}`,
+          item_id: before.id,
+          project_key: before.project_key,
+          data: { status: { old: move.from, new: move.to } },
+          inverse: edited ? [touch] : inverse,
+        });
+      }
+      return itemText(w, before.id);
+    },
 
     setStatus(w, input) {
       const item = w.checkVersion('items', input.id, input.expected_version) as unknown as ItemRow;
@@ -538,9 +654,143 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
       return readItem(r, input);
     },
 
-    upsertLabel: notImplemented('items.upsertLabel'),
-    moveLabelToReady: notImplemented('items.moveLabelToReady'),
+    upsertLabel(w, input) {
+      assertCallerRun(w.db, w.actor, w.now);
+      const project = w.db.sqlite
+        .prepare('SELECT key FROM projects WHERE key = ? AND deleted_at IS NULL')
+        .get(input.project) as { key: string } | undefined;
+      if (!project) {
+        throw new ToolError(
+          'not_found',
+          `No project ${input.project}. Check the key with list_projects.`,
+        );
+      }
+      const row = w.db.sqlite
+        .prepare('SELECT id, brief_md FROM labels WHERE project_key = ? AND name = ?')
+        .get(input.project, input.name) as { id: string; brief_md: string | null } | undefined;
+      const who = callerName(w.db, w.actor);
+      const brief = input.brief_md;
+      if (row && (brief === undefined || brief === (row.brief_md ?? ''))) {
+        // Silence preserves: nothing to change, nothing recorded.
+        return { project: input.project, name: input.name, brief_md: row.brief_md || null };
+      }
+      const id = row?.id ?? newId('lbl', ms(w.now));
+      const briefFields =
+        brief !== undefined ? { brief_md: brief, brief_by: who, brief_at: w.now } : {};
+      const inverse = row
+        ? w.update('labels', id, briefFields)
+        : w.insert('labels', {
+            id,
+            project_key: input.project,
+            name: input.name,
+            brief_md: '',
+            ...briefFields,
+          });
+      w.event({
+        type: 'label.upserted',
+        summary: row
+          ? `${who} updated the brief of #${input.name}`
+          : `${who} created label #${input.name}${brief ? ' with a brief' : ''}`,
+        project_key: input.project,
+        data: { name: input.name, created: !row, brief_changed: brief !== undefined },
+        objects: [{ kind: 'label', id }],
+        inverse: [inverse],
+      });
+      return { project: input.project, name: input.name, brief_md: brief || null };
+    },
+
+    moveLabelToReady(w, input) {
+      const label = w.db.sqlite
+        .prepare('SELECT id FROM labels WHERE project_key = ? AND name = ?')
+        .get(input.project, input.name) as { id: string } | undefined;
+      if (!label) {
+        throw new ToolError('not_found', `No label #${input.name} in ${input.project}.`);
+      }
+      const ids = (
+        w.db.sqlite
+          .prepare(
+            `SELECT i.id FROM items i JOIN item_labels il ON il.item_id = i.id
+             WHERE il.label_id = ? AND i.status = 'planning' AND i.archived_at IS NULL
+             ORDER BY CAST(substr(i.id, instr(i.id, '-') + 1) AS INTEGER)`,
+          )
+          .all(label.id) as { id: string }[]
+      ).map((r) => r.id);
+      if (ids.length === 0) {
+        throw new ToolError('validation', `Nothing with #${input.name} is in Planning.`);
+      }
+      for (const id of ids) {
+        const inverse = w.update('items', id, { status: 'ready' });
+        w.event({
+          type: 'item.status_changed',
+          summary: `You moved ${id} from planning to ready (#${input.name})`,
+          item_id: id,
+          project_key: input.project,
+          data: { status: { old: 'planning', new: 'ready' }, label: input.name },
+          inverse: [inverse],
+        });
+      }
+      return ids;
+    },
   };
+
+  /** The owner's edit was based on an old version: `conflict` with the latest text and who changed it. */
+  function staleEdit(
+    w: WriteContext,
+    current: ItemRow,
+    input: { expected_version: number; [k: string]: unknown },
+  ): never {
+    const last = w.db.sqlite
+      .prepare(
+        `SELECT actor_kind, client, label, at, data FROM events
+         WHERE item_id = ? AND type IN ('item.updated', 'item.status_changed')
+         ORDER BY seq DESC LIMIT 1`,
+      )
+      .get(current.id) as
+      | {
+          actor_kind: string;
+          client: string | null;
+          label: string | null;
+          at: string;
+          data: string | null;
+        }
+      | undefined;
+    const by = last
+      ? last.actor_kind === 'owner'
+        ? 'you'
+        : actorName({ kind: last.actor_kind as 'agent', client: last.client, label: last.label })
+      : null;
+    const fields = last?.data
+      ? Object.keys((JSON.parse(last.data) as { changed?: object }).changed ?? {})
+      : [];
+    const names = fields
+      .filter((f): f is keyof typeof TEXT_NAMES => f in TEXT_NAMES)
+      .map((f) => TEXT_NAMES[f]);
+    const what = by
+      ? ` (${by} ${names.length > 0 ? `edited the ${joinWords(names)}` : 'changed it'})`
+      : '';
+    throw new ToolError(
+      'conflict',
+      `${current.id} changed since you opened it${what}. Their version is shown; reapply yours if it still makes sense.`,
+      {
+        current: {
+          ...itemText(w, current.id),
+          changed_by: by,
+          changed_at: last?.at ?? current.updated_at,
+          expected_version: input.expected_version,
+        },
+      },
+    );
+  }
+
+  function itemText(w: { db: WriteContext['db']; now: string }, id: string): ItemText {
+    const row = requireItem(w.db, id);
+    return {
+      ...summary(w, id),
+      description_md: row.description_md,
+      outcome_md: row.outcome_md,
+      acceptance: acceptanceOf(w.db, id),
+    };
+  }
 
   // ---- get_item (MCP_SPEC §5.2, §3.2) ----
 

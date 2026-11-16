@@ -14,6 +14,7 @@ import { readFileSync } from 'node:fs';
 import { McpError } from '@modelcontextprotocol/sdk/types.js';
 import { TOOL_NAMES, ToolError, type EventRow, type ToolName } from '@tasklite/shared';
 import { afterEach, describe, expect, it } from 'vitest';
+import { notImplemented } from '../../src/domain/contracts.js';
 import { HANDLER_GROUPS } from '../../src/mcp/tools/index.js';
 import type { RunSignal, ToolHandlers } from '../../src/mcp/register.js';
 import { TOOLS } from '@tasklite/shared';
@@ -36,7 +37,7 @@ afterEach(async () => {
   h = undefined;
 });
 
-/** Tools US1 (T076), US3 (T094), US11 (T100), US4 (T107), US5 (T115) and US6 (T120) implemented; the rest stay stubs until their slice. */
+/** Tools US1 (T076), US3 (T094), US11 (T100), US4 (T107), US5 (T115), US6 (T120) and US7 (T124) implemented: since US7, all of them. */
 export const US1_TOOLS: readonly ToolName[] = [
   'whoami',
   'list_projects',
@@ -79,16 +80,25 @@ export const US1_TOOLS: readonly ToolName[] = [
   'withdraw_decision',
   // US6 (B13, T120).
   'ask_owner',
+  // US7 (B14, T124).
+  'put_document',
+  'upsert_label',
 ];
 const STUB_TOOLS = TOOL_NAMES.filter((n) => !US1_TOOLS.includes(n));
 
 describe('stubs', () => {
-  it.each(STUB_TOOLS)('%s answers unavailable: "Not implemented yet"', async (name) => {
-    h ??= await startHarness();
-    const result = await h.call(name, VALID_ARGS[name]);
+  it('no tool is a stub any more (US7 implemented the last two)', () => {
+    expect(STUB_TOOLS).toEqual([]);
+  });
+
+  it('a service that is still a stub answers unavailable: "Not implemented yet"', async () => {
+    h = await startHarness({
+      services: { items: { upsertLabel: notImplemented('items.upsertLabel') } },
+    });
+    const result = await h.call('upsert_label', VALID_ARGS.upsert_label);
     const err = expectUnavailable(result);
-    expect(err).toEqual({ code: 'unavailable', message: `Not implemented yet: ${name}` });
-    expect(textOf(result)).toBe(`unavailable: Not implemented yet: ${name}`);
+    expect(err).toEqual({ code: 'unavailable', message: 'Not implemented yet: upsert_label' });
+    expect(textOf(result)).toBe('unavailable: Not implemented yet: upsert_label');
   });
 
   it('each stub lives in its group file (server/src/mcp/tools/<group>.ts)', () => {
@@ -136,7 +146,9 @@ describe('validation runs before the handler', () => {
 
 describe('errors reach the SDK client as results (B3 resolution 8)', () => {
   it('unavailable and validation errors are isError results; the client does not throw', async () => {
-    h = await startHarness();
+    h = await startHarness({
+      services: { items: { upsertLabel: notImplemented('items.upsertLabel') } },
+    });
     // listTools cached every outputSchema, so the client validates structuredContent.
     await h.a.listTools();
     const unavailable = await h.a.callTool({
@@ -236,7 +248,9 @@ describe('idempotency (§3; §10 item 5)', () => {
   });
 
   it('stubs store nothing, so a retried stub call just answers unavailable again', async () => {
-    h = await startHarness();
+    h = await startHarness({
+      services: { items: { upsertLabel: notImplemented('items.upsertLabel') } },
+    });
     const args = { ...VALID_ARGS.upsert_label, idempotency_key: 'stub-1' };
     expectUnavailable(await h.call('upsert_label', args));
     expectUnavailable(await h.call('upsert_label', args));

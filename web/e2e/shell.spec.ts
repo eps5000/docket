@@ -237,8 +237,9 @@ test.describe('shell navigation', () => {
     page.on('pageerror', (e) => errors.push(e.message));
     // US2's routes (Needs you, Work board/list/map, items, Agents) now answer; see
     // us2-visibility. So does the packet screen (US3); see us3-review. Settings
-    // answers since US4 (its project rows; us4-deps).
-    for (const path of ['/work?layout=timeline', '/labels/RCP/ui-refresh']) {
+    // answers since US4 (its project rows; us4-deps), and the label page since US7
+    // (us7-planning).
+    for (const path of ['/work?layout=timeline']) {
       await page.goto(path);
       await expect(h1(page)).toBeVisible();
       const states = page.locator('[data-error-state="not-built"]');
