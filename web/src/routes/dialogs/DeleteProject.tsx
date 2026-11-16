@@ -3,25 +3,31 @@ import { Button, Callout, Dialog, DialogCancel, ErrorState } from '../../compone
 import { apiClient } from '../../app/queryClient';
 
 /**
- * Delete project (UI_SPEC §6.7): destructive, Cancel focused first; *Delete
- * project* is enabled only when the typed key matches. US10 wires the
- * after-delete flow (scope reset, toast).
+ * Delete project (UI_SPEC §6.7; BUILD_SPEC §5.12): destructive, Cancel
+ * focused first; *Delete project* is enabled only when the typed key
+ * matches. Not undoable. `onDeleted` resets the scope and toasts.
  */
 export function DeleteProjectDialog({
   project,
+  keepDays = 14,
   onClose,
   onDeleted,
 }: {
   project: { key: string; name: string; items: number; documents: number };
+  /** Backup retention, from Settings (TASKLITE_BACKUP_KEEP). */
+  keepDays?: number;
   onClose: () => void;
   onDeleted?: () => void;
 }) {
   const inputId = useId();
   const [typed, setTyped] = useState('');
   const [error, setError] = useState<unknown>(null);
-  const ok = typed === project.key;
+  const [busy, setBusy] = useState(false);
+  const ok = typed === project.key && !busy;
   const remove = async () => {
+    if (!ok) return;
     setError(null);
+    setBusy(true);
     try {
       await apiClient['projects.delete']({
         params: { key: project.key },
@@ -31,6 +37,7 @@ export function DeleteProjectDialog({
       onClose();
     } catch (err) {
       setError(err);
+      setBusy(false);
     }
   };
   return (
@@ -53,19 +60,27 @@ export function DeleteProjectDialog({
         will get “not found” for these IDs.
       </p>
       <Callout tone="warn">
-        Backups keep a copy until their 14-day retention ends. Removing the Docker container alone
-        doesn’t delete data.
+        Backups keep a copy until their {keepDays}-day retention ends. Removing the Docker container
+        alone doesn’t delete data.
       </Callout>
-      <label className="f" htmlFor={inputId}>
-        Type <b className="mono">{project.key}</b> to confirm
-      </label>
-      <input
-        id={inputId}
-        className="input"
-        value={typed}
-        onChange={(e) => setTyped(e.target.value)}
-        autoComplete="off"
-      />
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          void remove();
+        }}
+      >
+        <label className="f" htmlFor={inputId}>
+          Type <b className="mono">{project.key}</b> to confirm
+        </label>
+        <input
+          id={inputId}
+          className="input"
+          value={typed}
+          onChange={(e) => setTyped(e.target.value)}
+          autoComplete="off"
+          spellCheck={false}
+        />
+      </form>
       {error !== null && (
         <div style={{ marginTop: 10 }}>
           <ErrorState error={error} />

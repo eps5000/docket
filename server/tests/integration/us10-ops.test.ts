@@ -823,3 +823,40 @@ describe('container replacement (SC-008)', () => {
     expect(after.documents).toEqual(before.documents);
   });
 });
+
+// ---- Settings → Connections and Service health (UI_SPEC §6.7; FR-107) ----
+
+describe('GET /api/settings: connections and health', () => {
+  it('lists every supported surface, none verified before the smoke test, and the backup locations', async () => {
+    const s = seeded();
+    const cookie = await unlock(s);
+    const get = async () =>
+      (await (await s.request('/api/settings', { headers: { cookie } })).json()) as {
+        connections: {
+          clients: { client: string; status: string; last_seen_at: string | null; notes: string }[];
+        };
+        health: {
+          backups: { location: string; last_success_at: string | null; keep_days: number }[];
+          extra_backup_configured: boolean;
+        };
+      };
+    const before = await get();
+    expect(before.connections.clients.map((c) => [c.client, c.status])).toEqual([
+      ['Codex CLI (host)', 'not_verified'],
+      ['Claude Code (host)', 'not_verified'],
+      ['Orca worker · Codex', 'not_verified'],
+      ['Orca worker · Claude', 'not_verified'],
+      ['Agent in another container', 'not_configured'],
+    ]);
+    // The sample seed has codex and claude runs, some labelled orca-*.
+    expect(before.connections.clients.some((c) => c.last_seen_at !== null)).toBe(true);
+    expect(before.health.extra_backup_configured).toBe(false);
+    expect(before.health.backups).toEqual([
+      expect.objectContaining({ location: 'volume', last_success_at: null, keep_days: 14 }),
+    ]);
+
+    await s.runtime.services.backup.runNow(read(s));
+    const after = await get();
+    expect(after.health.backups[0]!.last_success_at).toBe(NOW.toISOString());
+  });
+});

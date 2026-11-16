@@ -30,11 +30,22 @@ type Project = SettingsResponse['projects'][number];
  * h2 "Projects" (UI_SPEC §6.7): one row per project with counts, labels,
  * the mini status bar, "Blockers clear when", decisions, *Switch to* and
  * *Delete…*; *Import from Jira…* at the bottom. US4 fills the rows and the
- * blocker rule; US5 the decisions dialog; US10 the rest (delete); US9 the import.
+ * blocker rule; US5 the decisions dialog; US10 the mini status bar and
+ * delete; US9 the import.
  */
 export function ProjectsSection({ query }: { query: UseQueryResult<SettingsResponse> }) {
   const [deleting, setDeleting] = useState<Project | null>(null);
   const [importing, setImporting] = useState(false);
+  const qc = useQueryClient();
+  const { scope, setScope, tabs, closeTab } = useShell();
+  const keepDays = query.data?.health.backups[0]?.keep_days ?? 14;
+  /** After a delete: leave its scope and its open tabs, toast, and refetch everything. */
+  const deleted = (p: Project) => {
+    if (scope === p.key) setScope('all');
+    for (const t of tabs.tabs) if (t.id.startsWith(`${p.key}-`)) closeTab(t.id, null);
+    showToast(`Deleted ${p.name}.`);
+    void qc.invalidateQueries({ queryKey: queryKeys.all });
+  };
   return (
     <section aria-labelledby="settings-projects" className="settings-sec">
       <h2 id="settings-projects">Projects</h2>
@@ -72,7 +83,9 @@ export function ProjectsSection({ query }: { query: UseQueryResult<SettingsRespo
             items: deleting.counts.items,
             documents: deleting.counts.documents,
           }}
+          keepDays={keepDays}
           onClose={() => setDeleting(null)}
+          onDeleted={() => deleted(deleting)}
         />
       )}
       {importing && <JiraImportDialog onClose={() => setImporting(false)} />}
@@ -100,10 +113,7 @@ function ProjectRow({ project: p, onDelete }: { project: Project; onDelete: () =
           ))}
         </div>
       </div>
-      <div className="src">
-        {p.counts.done} done · {p.counts.active} active · {p.counts.review} review ·{' '}
-        {p.counts.planning} planning
-      </div>
+      <MiniStatusBar project={p} />
       <BlockerRule project={p} />
       <ProjectDecisionsLink project={p} />
       <div className="row" style={{ gap: 6 }}>
@@ -113,6 +123,38 @@ function ProjectRow({ project: p, onDelete }: { project: Project; onDelete: () =
         <Button size="sm" variant="danger-text" onClick={onDelete}>
           Delete…
         </Button>
+      </div>
+    </div>
+  );
+}
+
+const BAR = [
+  ['done', 'var(--ok)', 'done'],
+  ['review', 'var(--warn)', 'in review'],
+  ['active', 'var(--violet)', 'in progress'],
+  ['planning', 'var(--teal)', 'planning'],
+] as const;
+
+/** The mini status bar (UI_SPEC §6.7), with its counts in text (never colour alone). */
+function MiniStatusBar({ project: p }: { project: Project }) {
+  const c = p.counts;
+  const total = BAR.reduce((n, [k]) => n + c[k], 0);
+  return (
+    <div>
+      <div
+        className="bar-mini"
+        role="img"
+        aria-label={BAR.map(([k, , label]) => `${c[k]} ${label}`).join(', ')}
+      >
+        {BAR.map(([k, colour]) => (
+          <i
+            key={k}
+            style={{ width: `${total ? (c[k] / total) * 100 : 0}%`, background: colour }}
+          />
+        ))}
+      </div>
+      <div className="src" style={{ marginTop: 3 }}>
+        {c.done} done · {c.active} active · {c.review} review · {c.planning} planning
       </div>
     </div>
   );
