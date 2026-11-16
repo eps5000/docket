@@ -40,6 +40,7 @@ import {
   type RunRow,
   type StoredEvent,
 } from './model.js';
+import { inScopeOf } from './decisions.js';
 import type { WriteContext } from './write.js';
 
 /** The moves `set_status` allows from each status (BUILD_SPEC §5.1). Review is entered by submit_packet. */
@@ -686,22 +687,12 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
       .slice(0, 5);
 
     const labels = base.labels;
-    const decisions = sql
-      .prepare(
-        `SELECT id, title, authority FROM decision_records
-         WHERE project_key = ? AND status = 'active' AND (
-           scope_kind = 'project'
-           OR (scope_kind = 'epic' AND scope_id IN (?, ?))
-           OR (scope_kind = 'item' AND scope_id = ?)
-           OR (scope_kind = 'label' AND scope_id IN (SELECT value FROM json_each(?)))
-         )
-         ORDER BY CASE authority WHEN 'owner' THEN 0 ELSE 1 END, created_at, id`,
-      )
-      .all(row.project_key, row.epic_id ?? '', row.id, row.id, JSON.stringify(labels)) as {
-      id: string;
-      title: string;
-      authority: 'owner' | 'agent';
-    }[];
+    // Active records in scope (decisions.ts, the one scope rule), owner first.
+    const decisions = inScopeOf(db, { ...row, labels }).map((d) => ({
+      id: d.id,
+      title: d.title,
+      authority: d.authority,
+    }));
 
     const documents = (
       sql

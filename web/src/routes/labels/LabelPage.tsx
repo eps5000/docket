@@ -4,7 +4,6 @@ import type { LabelPageResponse } from '@tasklite/shared';
 import {
   Button,
   Card,
-  DecisionRow,
   EmptyState,
   ErrorState,
   Skeleton,
@@ -16,12 +15,14 @@ import { useBreadcrumb } from '../../app/ShellState';
 import { queryKeys } from '../../lib/api';
 import { paths } from '../../lib/paths';
 import { ProgressMapShell } from '../shared/ProgressMapShell';
+import { DecisionsPanel } from '../shared/DecisionsPanel';
 import '../screens.css';
 
 /**
  * The label page (`/labels/:project/:name`, UI_SPEC §6.5): header row with
  * *Show on the board* and *Move N to Ready*; then Brief, Progress across
- * epics, By epic, and Decisions. US7 fills it.
+ * epics, By epic, and Decisions. US7 fills it; US5 (B12) fills Decisions,
+ * which load on their own so they show even before the rest of the page.
  */
 export function LabelPage() {
   const { project = '', name = '' } = useParams();
@@ -59,17 +60,37 @@ export function LabelPage() {
           )}
         </span>
       </div>
-      {query.isError ? (
-        <ErrorState error={query.error} onRetry={() => void query.refetch()} />
-      ) : !data ? (
-        <div className="card pad">
-          <Skeleton lines={4} label="Loading the label" />
-        </div>
-      ) : (
-        <LabelBody data={data} />
-      )}
+      <div className="stack1">
+        {query.isError ? (
+          <ErrorState error={query.error} onRetry={() => void query.refetch()} />
+        ) : !data ? (
+          <div className="card pad">
+            <Skeleton lines={4} label="Loading the label" />
+          </div>
+        ) : (
+          <LabelBody data={data} />
+        )}
+        <LabelDecisions project={project} name={name} />
+      </div>
     </div>
   );
+}
+
+/** Decisions: the label's own records (UI_SPEC §6.5, §6.3.5). */
+function LabelDecisions({ project, name }: { project: string; name: string }) {
+  const q = { project, scope_kind: 'label' as const, scope_id: name, include_inactive: true };
+  const query = useQuery({
+    queryKey: queryKeys.decisions(q),
+    queryFn: () => apiClient['decisions.list']({ query: q }),
+  });
+  if (query.isError) return <ErrorState error={query.error} onRetry={() => void query.refetch()} />;
+  if (!query.data)
+    return (
+      <div className="card pad">
+        <Skeleton lines={2} label="Loading decisions" />
+      </div>
+    );
+  return <DecisionsPanel place={{ kind: 'label', project, name }} records={query.data.items} />;
 }
 
 function LabelBody({ data }: { data: LabelPageResponse }) {
@@ -114,14 +135,6 @@ function LabelBody({ data }: { data: LabelPageResponse }) {
               ))}
             </div>
           ))
-        )}
-      </Card>
-      <Card padded data-card="decisions">
-        <h3>Decisions</h3>
-        {data.decisions.length === 0 ? (
-          <EmptyState text="No decisions recorded. Agents record conventions and choices here; yours are authoritative." />
-        ) : (
-          data.decisions.map((d) => <DecisionRow key={d.id} record={d} canAct={false} />)
         )}
       </Card>
     </div>

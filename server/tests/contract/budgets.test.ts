@@ -4,7 +4,8 @@
  * 120% of its budget, and prints the measured numbers so regressions show.
  *
  * SC-001 (find, claim and get full context in ≤ 4 calls and ≤ 3,500 tokens)
- * needs get_context, which lands with US5: that test is pending until then.
+ * is measured on the flow MCP_SPEC §7.1 names: whoami → search_items →
+ * claim_lead → get_context (US5, tasks.md T112).
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { expectOk, startHarness, textOf, tokens, type ContractHarness } from './harness.js';
@@ -76,6 +77,14 @@ describe('reads', () => {
       if (tokens(text) > worst.n) worst = { id, n: tokens(text), text };
     }
     within(`get_item summary (largest: ${worst.id})`, worst.text, 300);
+  });
+
+  it('get_context RCP-14 medium ≤ 3,000', async () => {
+    within(
+      'get_context RCP-14 medium',
+      textOf(await h.call('get_context', { id: 'RCP-14', budget: 'medium' })),
+      3_000,
+    );
   });
 
   it('search_items with 25 results ≤ 1,000', async () => {
@@ -193,9 +202,42 @@ describe('mutations ≤ 60', () => {
 });
 
 describe('SC-001', () => {
-  // whoami → search_items → claim_lead → get_context in ≤ 4 calls and ≤ 3,500 tokens in total.
-  // get_context is US5 (tasks.md T110–T116): measured once it lands.
-  it.todo(
-    'finds, claims and gets full context in ≤ 4 calls and ≤ 3,500 tokens (pending get_context, US5)',
-  );
+  // From connecting: whoami → search_items → claim_lead → get_context, in ≤ 4 calls and
+  // ≤ 3,500 tokens of results in total, on the sample data (spec.md SC-001). Its own
+  // fresh server, so the mutation tests above don't change what is ready.
+  it('finds, claims and gets full context in ≤ 4 calls and ≤ 3,500 tokens', async () => {
+    const fresh = await startHarness();
+    try {
+      const calls: { call: string; tokens: number }[] = [];
+      const call = async (name: string, args: Record<string, unknown>) => {
+        const out = expectOk(await fresh.call(name, args));
+        calls.push({ call: `${name} ${JSON.stringify(args)}`, tokens: tokens(out.text) });
+        return out;
+      };
+      await call('whoami', {});
+      const found = await call('search_items', { filter: 'ready_to_start', limit: 1 });
+      const best = (found.structured.items as { id: string }[])[0]!.id;
+      const claim = await call('claim_lead', { id: best, agent_label: 'orca-w3' });
+      expect(claim.structured.run_id).toBeTruthy();
+      const context = await call('get_context', { id: best });
+      expect(context.text.split('\n')[0]).toMatch(new RegExp(`^Context for ${best} `));
+
+      const total = calls.reduce((n, c) => n + c.tokens, 0);
+      console.log(
+        [
+          '',
+          `SC-001 (best item ${best}):`,
+          '| Call | Tokens |',
+          '|---|---:|',
+          ...calls.map((c) => `| ${c.call} | ${c.tokens} |`),
+          `| **Total (${calls.length} calls)** | **${total}** |`,
+        ].join('\n'),
+      );
+      measured.push({ call: `SC-001 total (${calls.length} calls)`, tokens: total, budget: 3_500 });
+      expect(calls.length).toBeLessThanOrEqual(4);
+      expect(total, `SC-001: ${total} tokens`).toBeLessThanOrEqual(3_500);
+    } finally {
+      await fresh.close();
+    }
+  });
 });
