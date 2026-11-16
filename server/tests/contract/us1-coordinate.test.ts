@@ -43,15 +43,16 @@ describe('§7.1 start a session and pick up work', () => {
     });
     expect(me.session_id).toBeTruthy();
 
-    // Resumable: In progress with no lead (here a failed run, and an epic in progress).
+    // Resumable: In progress with no lead. Here only RCP-18 (its lead run failed); the epic
+    // RCP-1 is In progress but was never claimed, so it is not work to resume.
     const resumable = ok(await h.call('search_items', { project: 'RCP', filter: 'resumable' }));
     for (const item of resumable.items as { status: string; lead: unknown }[]) {
       expect(item.status).toBe('progress');
       expect(item.lead).toBeNull();
     }
-    expect(ids(await h.call('search_items', { project: 'RCP', filter: 'resumable' }))).toContain(
+    expect(ids(await h.call('search_items', { project: 'RCP', filter: 'resumable' }))).toEqual([
       'RCP-18',
-    );
+    ]);
 
     // Ready to start: Ready, unblocked, unclaimed; priority first.
     const ready = await h.call('search_items', {

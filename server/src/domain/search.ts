@@ -23,6 +23,7 @@ import {
   BlockIndex,
   EVENT_COLUMNS,
   EVENT_FROM,
+  RESUMABLE_SQL,
   eventRow,
   summarize,
   windowsOf,
@@ -159,7 +160,7 @@ export function createSearchService(deps: ServiceDeps): SearchService {
           where.push("i.status = 'ready'");
           break;
         case 'resumable':
-          where.push("i.status = 'progress'");
+          where.push(RESUMABLE_SQL('i'));
           break;
         case 'waiting_for_review':
           where.push("i.status = 'review'");

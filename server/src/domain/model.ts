@@ -374,6 +374,31 @@ export class BlockIndex {
   }
 }
 
+// ---- Resumable (BUILD_SPEC §13: `status:progress -has:lead`) ----
+
+/**
+ * Resumable: In progress with no active lead. An Epic counts only if it has
+ * ever had a lead run (it was claimed, typically for an epic-level packet,
+ * then sent back or interrupted): epic status is set by hand, so an epic
+ * stays In progress while its children are worked, and agents told to take
+ * resumable work first must not claim it. Stories, Tasks and Bugs follow the
+ * literal rule. (Gate review of B7.)
+ *
+ * The SQL condition for items aliased `alias`; pair it with "no active lead".
+ */
+export const RESUMABLE_SQL = (alias: string) =>
+  `(${alias}.status = 'progress' AND NOT EXISTS (SELECT 1 FROM runs ra WHERE ra.item_id = ${alias}.id AND ra.is_lead = 1 AND ra.state IN ${OPEN_STORED_SQL})` +
+  ` AND (${alias}.type <> 'Epic' OR EXISTS (SELECT 1 FROM runs rl WHERE rl.item_id = ${alias}.id AND rl.is_lead = 1)))`;
+
+/** Whether one item is resumable (the same rule as `RESUMABLE_SQL`). */
+export function isResumable(db: Db, itemId: string): boolean {
+  return (
+    db.sqlite
+      .prepare(`SELECT 1 FROM items i WHERE i.id = ? AND ${RESUMABLE_SQL('i')}`)
+      .get(itemId) !== undefined
+  );
+}
+
 // ---- Item summaries (MCP_SPEC §4 ItemSummary) ----
 
 export interface ItemRow {
