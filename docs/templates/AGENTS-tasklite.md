@@ -9,7 +9,7 @@ Keep it short: agents read it at the start of every session.
 
 ## Work tracking: Task Lite
 
-This project's work lives in Task Lite (MCP server `tasklite`), project key **{{KEY}}**. Track all work there; don't keep a separate task list.
+This project's work lives in Task Lite (MCP server `tasklite`), project key **{{KEY}}**. Track all work there; don't keep a separate task list. The `tasklite-worker` skill has the full workflow; the rules below are this project's and take precedence.
 
 **Starting a session**
 - Call `whoami`. Then `search_items` with project `{{KEY}}`: first filter `resumable` (work sent back to you), then `ready_to_start`. Take the highest-priority item.

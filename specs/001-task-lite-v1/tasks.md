@@ -299,7 +299,7 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [ ] T100 [US11] Implement `recovery_report`, workspace-state derivation and `Item.resume` in `server/src/domain/recovery.ts`. Replace the `park_run` and `recovery_report` stubs, add the recovery fields to the `claim_lead`, `start_run`, `heartbeat`, `finish_run`, `report_commit` and `get_item` handlers, and fill the `recovery` route handlers.
 - [ ] T101 [US11] Fill the UI per UI_SPEC: the recovery Problems rows and their actions on Needs you, the "Where the work lives" block with *Copy resume note* in the Lead and runs section, and the Agents → Workspaces card
 
-**Checkpoint**: the US11 independent test passes, and `docs/templates/COORDINATOR-recovery.md` matches the behaviour.
+**Checkpoint**: the US11 independent test passes, and the `tasklite-coordinator` skill matches the behaviour.
 
 ---
 
@@ -433,7 +433,11 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [ ] T145 [P] FR-106 guard: run the contract and e2e suites with the container on an internal network with no egress, and assert no outbound connection attempts (only the Jira fixture may reach out), in `.github/workflows/ci.yml` and `server/tests/integration/no-egress.test.ts`
 - [ ] T146 Run the real-client smoke test (installed Codex, installed Claude Code, an Orca worker running Codex, an Orca worker running Claude), fill in the Settings compatibility matrix, and record the BUILD_SPEC §12 verifications V1–V3 and V6
 - [ ] T147 Stretch: add `tasklite export` (full JSON plus documents) in `server/src/cli/export.ts`. It is required before the pilot (ROADMAP §1).
-- [ ] T148 Run the quickstart.md validation end to end, and run `/speckit-analyze` until there are no CRITICAL findings
+- [ ] T148 [P] Skills (owner decision 27):
+  - **Lint:** `server/tests/contract/skills-lint.test.ts` parses every `skills/*/SKILL.md` and fails if a backticked snake_case name isn't a registered tool, a top-level input field, or an enum value from `shared/`. It also checks that each file has `name` and `description` frontmatter.
+  - **Eval:** script the US1 and US11 scenarios against the seeded server with a real client, with and without `tasklite-worker` and `tasklite-coordinator`, and record calls, tokens and mistakes in the PR. The skills must do at least as well as without them, and meet the SC-001 budget.
+  - **Fix and verify:** fix any skill text the eval shows is wrong, and record V7 (where each client loads skills).
+- [ ] T149 Run the quickstart.md validation end to end, and run `/speckit-analyze` until there are no CRITICAL findings
 
 ---
 
@@ -452,7 +456,7 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 | B7 | 4 US1 🎯 MVP | T064–T076 | Try it with a real agent client (quickstart §2) |
 | B8 | 5 US2 | T077–T086 | |
 | B9 | 6 US3 | T087–T095 | |
-| B10 | 6r US11 | T096–T101 | P1 complete. Run the crash drill in `COORDINATOR-recovery.md` by hand |
+| B10 | 6r US11 | T096–T101 | P1 complete. Run the crash drill in the `tasklite-coordinator` skill by hand |
 | B11 | 7 US4 | T102–T109 | |
 | B12 | 8 US5 | T110–T116 | |
 | B13 | 9 US6 | T117–T121 | |
@@ -460,7 +464,7 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 | B15 | 11 US10 | T128–T133 | |
 | B16 | 12 US8 | T134–T137 | |
 | B17 | 13 US9 | T138–T141 | |
-| B18 | 14 Polish | T142–T148 | |
+| B18 | 14 Polish | T142–T149 | |
 
 **Slices after B6 may run in any order that respects** the dependency table below. Don't run two slices at once: they share route and screen groups.
 
