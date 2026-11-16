@@ -1,0 +1,120 @@
+import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { Link } from 'react-router';
+import type { WorkspaceRow, WorkspaceState } from '@tasklite/shared';
+import {
+  Card,
+  CardHeader,
+  EmptyState,
+  FilterChip,
+  Skeleton,
+  WorkspaceStateChip,
+} from '../../components/kit';
+import { apiClient } from '../../app/queryClient';
+import { QueryState } from '../../app/QueryState';
+import { useShell } from '../../app/ShellState';
+import { queryKeys } from '../../lib/api';
+import { formatAge, middleTruncate } from '../../lib/format';
+import { paths } from '../../lib/paths';
+
+/** Sort order: At risk, In use, Parked, Unknown, Safe to prune (UI_SPEC §6.6). */
+export const WORKSPACE_ORDER: readonly WorkspaceState[] = [
+  'at_risk',
+  'in_use',
+  'parked',
+  'unknown',
+  'safe_to_prune',
+];
+
+export function sortWorkspaces(rows: readonly WorkspaceRow[], hideSafe: boolean): WorkspaceRow[] {
+  return rows
+    .filter((r) => !hideSafe || r.state !== 'safe_to_prune')
+    .sort((a, b) => WORKSPACE_ORDER.indexOf(a.state) - WORKSPACE_ORDER.indexOf(b.state));
+}
+
+/**
+ * Workspaces (owner decision 26; UI_SPEC §6.6): every recorded worktree, so
+ * you and a coordinator can see what's safe to prune. "Hide safe to prune"
+ * is on by default. Reads `GET /api/workspaces`; US11 fills the rows'
+ * *Copy* and pushed details.
+ */
+export function WorkspacesCard() {
+  const { scope } = useShell();
+  const [hideSafe, setHideSafe] = useState(true);
+  const query = useQuery({
+    queryKey: queryKeys.workspaces({ scope }),
+    queryFn: () => apiClient['workspaces.list']({ query: { scope } }),
+  });
+  return (
+    <Card style={{ overflow: 'auto' }} data-card="workspaces">
+      <CardHeader
+        title="Workspaces"
+        extra={
+          <FilterChip
+            label="Hide safe to prune"
+            pressed={hideSafe}
+            onClick={() => setHideSafe(!hideSafe)}
+          />
+        }
+      />
+      <QueryState
+        query={query}
+        skeleton={
+          <div className="pad">
+            <Skeleton lines={3} label="Loading workspaces" />
+          </div>
+        }
+      >
+        {(d) => {
+          const rows = sortWorkspaces(d.rows, hideSafe);
+          if (d.rows.length === 0)
+            return (
+              <EmptyState text="No workspaces recorded yet. Agents report theirs when they claim work." />
+            );
+          return (
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">State</th>
+                  <th scope="col">Path</th>
+                  <th scope="col">Branch</th>
+                  <th scope="col">Item</th>
+                  <th scope="col">Last activity</th>
+                  <th scope="col">Pushed</th>
+                  <th scope="col">Resources</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.path}>
+                    <td>
+                      <WorkspaceStateChip state={r.state} />
+                    </td>
+                    <td className="mono" title={r.path}>
+                      {middleTruncate(r.path)}
+                    </td>
+                    <td className="mono">{r.branch ?? '—'}</td>
+                    <td>
+                      <Link className="mono" to={paths.item(r.item_id)}>
+                        {r.item_id}
+                      </Link>
+                    </td>
+                    <td className="muted">{formatAge(r.last_activity_at)}</td>
+                    <td>
+                      {r.unpushed_commits === null
+                        ? '—'
+                        : r.unpushed_commits === 0
+                          ? '✓'
+                          : `${r.unpushed_commits} behind`}
+                    </td>
+                    <td>{r.unreleased_resources}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          );
+        }}
+      </QueryState>
+    </Card>
+  );
+}
