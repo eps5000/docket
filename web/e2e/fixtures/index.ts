@@ -73,4 +73,5 @@ export {
   denyNotifications,
   recordNotifications,
   recordedNotifications,
+  clickNotification,
 } from './notifications';

@@ -21,6 +21,8 @@ test.describe('screenshots', () => {
 
   test.beforeEach(async ({ page }) => {
     await unlock(page.context());
+    // The views as the owner sees them after answering the notifications callout.
+    await page.context().addInitScript(() => localStorage.setItem('tl.notifications', 'off'));
   });
 
   for (const [name, path] of [
@@ -33,6 +35,9 @@ test.describe('screenshots', () => {
     ['item-checklist', '/items/RCP-14?tab=checklist'],
     ['item-deps', '/items/RCP-14?tab=deps'],
     ['item-activity', '/items/RCP-14?tab=activity'],
+    ['item-packet-banner', '/items/RCP-12?tab=checklist'],
+    ['item-stale-activity', '/items/RCP-15?tab=activity'],
+    ['epic-details', '/items/RCP-1'],
     ['packet', '/review/RCP-12'],
     ['label', '/labels/RCP/ui-refresh'],
     ['agents', '/agents'],
@@ -45,6 +50,26 @@ test.describe('screenshots', () => {
       await shoot(page, name);
     });
   }
+
+  test('palette with results', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: /^For you now/ })).toBeVisible();
+    await page.keyboard.press('Control+k');
+    const box = page.getByRole('combobox', { name: 'Search' });
+    await expect(box).toBeFocused();
+    await page.keyboard.type('pantry');
+    await expect(page.getByRole('option').first()).toBeVisible();
+    await page.waitForLoadState('networkidle');
+    await shoot(page, 'palette');
+  });
+
+  test('needs you with the notifications callout', async ({ page }) => {
+    await page.context().addInitScript(() => localStorage.removeItem('tl.notifications'));
+    await page.goto('/');
+    await expect(page.locator('[data-card="notify-optin"]')).toBeVisible();
+    await page.waitForLoadState('networkidle');
+    await shoot(page, 'needs-you-optin');
+  });
 
   test('unlock', async ({ browser }) => {
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });

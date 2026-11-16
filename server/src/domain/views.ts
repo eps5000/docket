@@ -1108,18 +1108,36 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         }[]
       ).filter((l) => s.items.has(l.item_id));
 
-      // Current step text and position, for "work item 2 of 4: …".
+      // Current step text and position, for "work item 2 of 4: …": the step the run named in
+      // a heartbeat, else the lead's plan step marked current (update_step).
+      type StepInfo = {
+        id: string;
+        item_id: string;
+        text: string;
+        position: number;
+        total: number;
+      };
       const stepIds = runs.map((x) => x.current_step_id).filter((x): x is string => !!x);
-      const steps = new Map<string, { text: string; position: number; total: number }>();
-      if (stepIds.length > 0) {
+      const leadItems = runs
+        .filter((x) => x.is_lead === 1 && isRunOpen(x.state))
+        .map((x) => x.item_id);
+      const steps = new Map<string, StepInfo>();
+      const currentByItem = new Map<string, StepInfo>();
+      if (stepIds.length + leadItems.length > 0) {
         for (const st of sql
           .prepare(
-            `SELECT ws.id, ws.text, ws.position,
+            `SELECT ws.id, ws.item_id, ws.text, ws.position, ws.state,
                     (SELECT count(*) FROM work_steps o WHERE o.item_id = ws.item_id AND o.plan_version_no = ws.plan_version_no) AS total
-             FROM work_steps ws WHERE ws.id IN ${placeholders(stepIds.length)}`,
+             FROM work_steps ws
+             WHERE ws.id IN ${placeholders(stepIds.length)}
+                OR (ws.state = 'current' AND ws.item_id IN ${placeholders(leadItems.length)}
+                    AND ws.plan_version_no = (SELECT max(version_no) FROM plan_versions pv WHERE pv.item_id = ws.item_id))
+             ORDER BY ws.position`,
           )
-          .all(...stepIds) as { id: string; text: string; position: number; total: number }[]) {
+          .all(...stepIds, ...leadItems) as (StepInfo & { state: string })[]) {
           steps.set(st.id, st);
+          if (st.state === 'current' && !currentByItem.has(st.item_id))
+            currentByItem.set(st.item_id, st);
         }
       }
 
@@ -1135,7 +1153,9 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
       for (const x of runs) {
         const state = displayRunState(x, w, s.now);
         const open = isRunOpen(x.state);
-        const step = x.current_step_id ? steps.get(x.current_step_id) : undefined;
+        const step =
+          (x.current_step_id ? steps.get(x.current_step_id) : undefined) ??
+          (x.is_lead === 1 && isRunOpen(x.state) ? currentByItem.get(x.item_id) : undefined);
         const stepLine = step
           ? `work item ${step.position + 1} of ${step.total}: ${step.text}`
           : null;

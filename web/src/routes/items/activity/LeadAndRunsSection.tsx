@@ -1,11 +1,20 @@
-import type { ItemDetailResponse } from '@tasklite/shared';
+import { OPEN_RUN_STATES, type ItemDetailResponse, type Run } from '@tasklite/shared';
 import { Callout, Chip, EmptyState, RunState, Section, leadName } from '../../../components/kit';
 import { formatAge, formatClock, isoTitle } from '../../../lib/format';
 import { WhereTheWorkLives } from './WhereTheWorkLives';
 
-/** The text of the step a run is on: "Working on: …". */
-function current(data: ItemDetailResponse, stepId: string | null): string | null {
-  const step = stepId ? data.item.checklist.work.find((w) => w.id === stepId) : undefined;
+/**
+ * The step a run is on, "Working on: …": the one its heartbeat named, else,
+ * for an open lead, the plan step marked current.
+ */
+function current(data: ItemDetailResponse, run: Run): string | null {
+  const work = data.item.checklist.work;
+  const open = (OPEN_RUN_STATES as readonly string[]).includes(run.run_state);
+  const step = run.current_step_id
+    ? work.find((w) => w.id === run.current_step_id)
+    : run.is_lead && open
+      ? work.find((w) => w.state === 'current')
+      : undefined;
   return step ? `Working on: ${step.text}` : null;
 }
 
@@ -68,8 +77,8 @@ export function LeadAndRunsSection({ data }: { data: ItemDetailResponse }) {
                 started {formatAge(r.started_at)} ago
               </span>
             </div>
-            {(r.summary || current(data, r.current_step_id)) && (
-              <div className="src">{r.summary ?? current(data, r.current_step_id)}</div>
+            {(r.summary || current(data, r)) && (
+              <div className="src">{r.summary ?? current(data, r)}</div>
             )}
             {r.error && <pre className="err">{r.error}</pre>}
             {r.is_lead && r.run_state === 'stale' && r.lease_expires_at && (
