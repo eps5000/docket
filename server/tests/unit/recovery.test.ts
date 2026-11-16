@@ -633,7 +633,7 @@ describe('workspace state, derived per worktree path (MCP_SPEC §3)', () => {
     expect(wsState(path)).toBe('safe_to_prune');
   });
 
-  it('at_risk after lease expiry or owner release until the item is done or canceled', () => {
+  it('at_risk after lease expiry until the item is done or canceled', () => {
     const { run_id } = claim('RCP-17', { workspace: ws });
     pushedClean(run_id);
     d.clock.advance(cfg().leaseMs + minutes(1));
