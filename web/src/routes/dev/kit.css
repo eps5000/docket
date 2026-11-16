@@ -1,0 +1,62 @@
+/* The kit gallery's own layout (dev and test builds only). */
+.tl .kit {
+  padding: 16px;
+}
+.tl .kithead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.tl .kithead h1 {
+  margin: 0;
+}
+.tl .kitpanes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 12px;
+}
+.tl .kitpane {
+  min-height: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.tl .kitgroup h2 {
+  margin-bottom: 8px;
+}
+.tl .kitbody {
+  display: grid;
+  gap: 10px;
+}
+.tl .kitrow {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+.tl .kitgrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.tl .kitcards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+  align-items: start;
+}
+.tl .kittoasts {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+@media (max-width: 1180px) {
+  .tl .kitpanes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
