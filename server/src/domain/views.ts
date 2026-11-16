@@ -537,6 +537,9 @@ function problemsOf({ s, runs, deferredCounts, backupError, config }: ProblemsIn
     });
   }
 
+  // Work that may be lost or left running ranks before date and link problems.
+  recoveryProblems(s, runs, config, push, base);
+
   for (const item of items.values()) {
     if (!isOpenStatus(item.status)) continue;
     const block = index.state(item.id);
@@ -590,8 +593,6 @@ function problemsOf({ s, runs, deferredCounts, backupError, config }: ProblemsIn
       }
     }
   }
-
-  recoveryProblems(s, runs, config, push, base);
 
   // Cycles (imported data can hold them; `link_items` refuses new ones).
   for (const cycle of cyclesOf(index, [...items.keys()])) {

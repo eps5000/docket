@@ -10,6 +10,20 @@ import { RESUMABLE_RUN_STATES, parkedDetail, resumeNote, unpushedCommits } from 
 
 const ENDED: readonly Run['run_state'][] = ['finished', 'failed', 'interrupted'];
 
+/** How to find a resource again: `pid 4242, port 5173`. */
+function locatorText(l: Run['resources'][number]['locator']): string {
+  return [
+    l.host && `host ${l.host}`,
+    l.pid !== undefined && `pid ${l.pid}`,
+    l.port !== undefined && `port ${l.port}`,
+    l.session_id && `session ${l.session_id}`,
+    l.container && `container ${l.container}`,
+    l.path && `path ${l.path}`,
+  ]
+    .filter(Boolean)
+    .join(', ');
+}
+
 /** Copy to the clipboard, with a toast either way. */
 export function copyText(text: string, what: string): void {
   const fail = () => showToast('Couldn’t copy. Select the text instead.');
@@ -117,8 +131,10 @@ export function WhereTheWorkLives({ run, data }: { run: Run; data: ItemDetailRes
       )}
       {run.resources.map((r) => (
         <div className="row wrap src" key={r.id} data-resource={r.id}>
-          <span>
-            {RESOURCE_KIND_LABELS[r.kind]} {r.label} ·{' '}
+          <span
+            title={`${RESOURCE_KIND_LABELS[r.kind]}${locatorText(r.locator) ? ` · ${locatorText(r.locator)}` : ''}`}
+          >
+            {r.label} ·{' '}
             {r.released_at ? (
               <span title={isoTitle(r.released_at)}>released {formatClock(r.released_at)}</span>
             ) : (
