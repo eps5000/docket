@@ -276,18 +276,18 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 **Fills**: `server/src/domain/{runs,recovery}.ts`, `server/src/jobs/sweeper.ts`, `server/src/mcp/tools/{runs,evidence,recovery}.ts`, `server/src/api/routes/recovery.ts`, the Problems rows, the item page's "Where the work lives" block, and Agents → Workspaces
 
 ### Tests for US11
-- [ ] T096 [P] [US11] Unit tests in `server/tests/unit/recovery.test.ts`:
+- [X] T096 [P] [US11] Unit tests in `server/tests/unit/recovery.test.ts`:
   - parking suspends the lease, and any call with the `run_id` resumes it;
   - `resume_ready` once every `waiting_on` item clears; "unattended" after `TASKLITE_RESUME_UNATTENDED`; a Problem after `TASKLITE_PARK_MAX`;
   - `end_reason` set on every terminal path;
   - unreleased resources orphaned after `TASKLITE_ORPHAN_AFTER`;
   - unpushed at-risk detection (`head_sha` ≠ `pushed_sha`, or `dirty`) and clearing it (a later push, or owner handled);
   - workspace state derivation for every case, including `unknown` when nothing was reported.
-- [ ] T097 [P] [US11] MCP contract tests for flows §7.12 and §7.13 and MCP_SPEC §10 tests 17–20, in `server/tests/contract/us11-recovery.test.ts`: the brief comes back byte-identical; `finish_run` warns on unreleased resources and unpushed commits; `recovery_report` paging and `include_briefs`; SC-014's crash simulation (three runs, restart, re-dispatch from the report alone)
-- [ ] T098 [P] [US11] E2E in `web/e2e/us11-recovery.spec.ts`: the Problems rows (orphaned resources, unpushed work may be lost, parked 24 h, ready to resume unattended) with *Mark released* and *Handled* plus undo; the "Where the work lives" block and *Copy resume note*; Agents → Workspaces states; axe in both themes
+- [X] T097 [P] [US11] MCP contract tests for flows §7.12 and §7.13 and MCP_SPEC §10 tests 17–20, in `server/tests/contract/us11-recovery.test.ts`: the brief comes back byte-identical; `finish_run` warns on unreleased resources and unpushed commits; `recovery_report` paging and `include_briefs`; SC-014's crash simulation (three runs, restart, re-dispatch from the report alone)
+- [X] T098 [P] [US11] E2E in `web/e2e/us11-recovery.spec.ts`: the Problems rows (orphaned resources, unpushed work may be lost, parked 24 h, ready to resume unattended) with *Mark released* and *Handled* plus undo; the "Where the work lives" block and *Copy resume note*; Agents → Workspaces states; axe in both themes
 
 ### Implementation for US11
-- [ ] T099 [US11] Implement the recovery behaviour in the runs service (`server/src/domain/runs.ts`):
+- [X] T099 [US11] Implement the recovery behaviour in the runs service (`server/src/domain/runs.ts`):
   - workspace, orchestrator, brief (stored as a `brief` document version) and `external` on claim and start;
   - heartbeat workspace patches, `resources_started` and `resources_released` (with events);
   - `park_run`, and resuming on any call;
@@ -296,8 +296,8 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
   - `report_commit` `pushed` → `pushed_sha`.
 
   Extend the sweeper: suspend leases while parked, and flag ready-to-resume, unattended, parked-too-long and orphaned.
-- [ ] T100 [US11] Implement `recovery_report`, workspace-state derivation and `Item.resume` in `server/src/domain/recovery.ts`. Replace the `park_run` and `recovery_report` stubs, add the recovery fields to the `claim_lead`, `start_run`, `heartbeat`, `finish_run`, `report_commit` and `get_item` handlers, and fill the `recovery` route handlers.
-- [ ] T101 [US11] Fill the UI per UI_SPEC: the recovery Problems rows and their actions on Needs you, the "Where the work lives" block with *Copy resume note* in the Lead and runs section, and the Agents → Workspaces card
+- [X] T100 [US11] Implement `recovery_report`, workspace-state derivation and `Item.resume` in `server/src/domain/recovery.ts`. Replace the `park_run` and `recovery_report` stubs, add the recovery fields to the `claim_lead`, `start_run`, `heartbeat`, `finish_run`, `report_commit` and `get_item` handlers, and fill the `recovery` route handlers.
+- [X] T101 [US11] Fill the UI per UI_SPEC: the recovery Problems rows and their actions on Needs you, the "Where the work lives" block with *Copy resume note* in the Lead and runs section, and the Agents → Workspaces card
 
 **Checkpoint**: the US11 independent test passes, and the `tasklite-coordinator` skill matches the behaviour.
 
