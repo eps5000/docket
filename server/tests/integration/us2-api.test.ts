@@ -380,10 +380,10 @@ describe('GET /api/search', () => {
 
   it('puts an exact ID first, and finds archived and imported items by Jira key', async () => {
     const exact = await get('/api/search?q=RCP-14', searchResponse);
-    expect(exact.items[0]!.id).toBe('RCP-14');
+    expect(exact.items[0]).toMatchObject({ id: 'RCP-14', archived: false });
     sql().prepare("UPDATE items SET archived_at = ? WHERE id = 'DOC-2'").run(NOW.toISOString());
     const archived = await get('/api/search?q=skeleton', searchResponse);
-    expect(archived.items.map((i) => i.id)).toEqual(['DOC-2']);
+    expect(archived.items.map((i) => [i.id, i.archived])).toEqual([['DOC-2', true]]);
     const key = (
       sql().prepare("SELECT jira_key FROM items WHERE id = 'DOC-7'").get() as {
         jira_key: string;

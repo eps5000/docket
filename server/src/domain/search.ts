@@ -335,6 +335,7 @@ export function createSearchService(deps: ServiceDeps): SearchService {
           status: x.status,
           project: x.project_key,
           jira_key: x.jira_key,
+          archived: x.archived_at !== null,
         }));
       const labels = (
         sql

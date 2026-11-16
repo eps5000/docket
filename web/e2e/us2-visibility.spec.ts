@@ -9,6 +9,7 @@
  * it was, and owner views rendering in under 1 s (SC-013).
  */
 import type { Page } from '@playwright/test';
+import type { SearchResponse } from '@tasklite/shared';
 import { expect, test, unlock, useSeededContainer, connectAgent } from './fixtures/index';
 
 useSeededContainer();
@@ -254,6 +255,31 @@ test.describe('Agents and the palette', () => {
     await box.fill('DOC-7');
     await results.getByRole('option', { name: /DOC-7/ }).first().click();
     await expect(page).toHaveURL(/\/items\/DOC-7$/);
+  });
+
+  test('archived items show an "Archived" tag in the palette', async ({ page }) => {
+    // Archiving is US7's, and the seed has no archived item, so mark DOC-2 archived in the
+    // real search answer; us2-api.test.ts checks the server sets the flag from archived_at.
+    await page.route(/\/api\/search\?/, async (route) => {
+      const res = await route.fetch();
+      const body = (await res.json()) as SearchResponse;
+      await route.fulfill({
+        response: res,
+        json: {
+          ...body,
+          items: body.items.map((i) => (i.id === 'DOC-2' ? { ...i, archived: true } : i)),
+        },
+      });
+    });
+    await page.goto('/');
+    await page.keyboard.press('Control+k');
+    const box = page.getByRole('combobox', { name: 'Search' });
+    await expect(box).toBeFocused();
+    await page.keyboard.type('docs site skeleton');
+    const option = page.getByRole('option', { name: /DOC-2/ });
+    await expect(option).toContainText('Archived');
+    await box.fill('pantry');
+    await expect(page.getByRole('option', { name: /RCP-15/ })).not.toContainText('Archived');
   });
 });
 
