@@ -128,9 +128,10 @@ test.describe('the progress map', () => {
     const canvas = map(page).getByRole('region', { name: /Progress map/ });
     const box = (await canvas.boundingBox())!;
     const before = await canvas.evaluate((el) => el.scrollLeft);
-    await page.mouse.move(box.x + box.width - 30, box.y + box.height - 12);
+    // The top padding is background on every platform (the bottom edge can be a scrollbar).
+    await page.mouse.move(box.x + box.width - 30, box.y + 8);
     await page.mouse.down();
-    await page.mouse.move(box.x + box.width - 230, box.y + box.height - 12, { steps: 8 });
+    await page.mouse.move(box.x + box.width - 230, box.y + 8, { steps: 8 });
     await page.mouse.up();
     expect(await canvas.evaluate((el) => el.scrollLeft)).toBeGreaterThan(before);
     await expect(map(page).getByRole('button', { name: /scroll the map left/ })).toBeVisible();
