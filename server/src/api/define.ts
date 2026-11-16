@@ -15,11 +15,20 @@
  * 4. a service that is still a stub (`NotImplementedError`) becomes
  *    `501 {error: {code: "unavailable", message: "Not implemented yet: <METHOD path>"}}`.
  *
+ * Multipart (`/agent-upload`, US7): the body is read as a stream
+ * (multipart.ts). The file part goes straight to `documents.stage`, which
+ * hashes it and writes it to the staging directory as it arrives, with the
+ * 500 MB limit enforced while streaming (and up front from Content-Length,
+ * as `413`). A staged file the handler did not move into place is deleted,
+ * whatever the outcome.
+ *
  * Handlers live in `routes/<group>.ts` and call only the services in
  * domain/contracts.ts.
  */
+import { existsSync, rmSync } from 'node:fs';
 import type { Context, Env, Hono } from 'hono';
 import {
+  AGENT_UPLOAD_MAX_BYTES,
   API_ROUTES,
   NOT_IMPLEMENTED_STATUS,
   ToolError,
@@ -38,10 +47,13 @@ import {
   readContext,
   type ReadContext,
   type Services,
+  type StagedFile,
+  type UploadFile,
   type WriteContext,
 } from '../domain/contracts.js';
 import { OWNER_ACTOR, type Actor, type WritePath } from '../domain/write.js';
 import { errorBody } from './guards.js';
+import { MultipartReader, boundaryOf } from './multipart.js';
 
 /** What every route handler can use. */
 export interface RouteDeps {
@@ -55,8 +67,8 @@ export interface RouteContext<K extends RouteId> {
   readonly params: RouteParams<K>;
   readonly query: RouteQuery<K>;
   readonly body: RouteBody<K>;
-  /** The uploaded file (multipart routes only). */
-  readonly file: File | null;
+  /** The uploaded file, already streamed to the staging directory (multipart routes only). */
+  readonly staged: StagedFile | null;
   /** The owner on `/api`; the agent on `/agent-upload`. */
   readonly actor: Actor;
   readonly services: Services;
@@ -92,35 +104,80 @@ async function readJsonBody(c: Context, label: string): Promise<unknown> {
   }
 }
 
+/** Multipart framing allowed on top of the file itself before Content-Length is refused. */
+const MULTIPART_OVERHEAD = 1024 * 1024;
+
+/**
+ * Read a multipart body as a stream: fields as text, and the `file` part
+ * handed to `stage` as it arrives (never buffered). Other file parts are
+ * skipped. On a refusal mid-stream, the rest of the body is drained so the
+ * client gets the answer.
+ */
 async function readMultipart(
   c: Context,
   label: string,
-): Promise<{ fields: Record<string, unknown>; file: File | null }> {
+  stage: (file: UploadFile) => Promise<StagedFile>,
+): Promise<{ fields: Record<string, unknown>; staged: StagedFile | null }> {
   const type = c.req.header('content-type') ?? '';
-  if (!type.toLowerCase().startsWith('multipart/form-data')) {
+  const boundary = boundaryOf(type);
+  if (!type.toLowerCase().startsWith('multipart/form-data') || !boundary) {
     throw new ToolError(
       'validation',
       `${label} takes multipart/form-data with a file field; send the upload as a form.`,
     );
   }
-  // The placeholder buffers the form; the documents slice (T111) streams it to disk instead.
-  const form = await c.req.parseBody();
-  const fields: Record<string, unknown> = {};
-  let file: File | null = null;
-  for (const [key, value] of Object.entries(form)) {
-    if (key === 'file' && value instanceof File) file = value;
-    else fields[key] = value;
+  const length = Number(c.req.header('content-length') ?? NaN);
+  if (Number.isFinite(length) && length > AGENT_UPLOAD_MAX_BYTES + MULTIPART_OVERHEAD) {
+    throw new ToolError(
+      'validation',
+      'The upload is larger than 500 MB, the /agent-upload limit. Split the file or store a smaller one.',
+      { details: { too_large: true, limit_bytes: AGENT_UPLOAD_MAX_BYTES } },
+    );
   }
-  return { fields, file };
+  const body = c.req.raw.body;
+  if (!body) {
+    throw new ToolError('validation', `${label} needs a body with a file field; send a form.`);
+  }
+  const reader = new MultipartReader(body, boundary);
+  const fields: Record<string, unknown> = {};
+  let staged: StagedFile | null = null;
+  try {
+    for (let part = await reader.next(); part; part = await reader.next()) {
+      if (part.name === 'file' && staged === null) {
+        staged = await stage({
+          name: part.filename ?? 'upload',
+          type: part.contentType ?? '',
+          size: -1,
+          stream: () => reader.stream(),
+        });
+      } else if (part.filename === null) {
+        fields[part.name] = await reader.text();
+      }
+    }
+  } catch (err) {
+    if (staged) rmSync(staged.path, { force: true });
+    await reader.discard();
+    throw err;
+  }
+  return { fields, staged };
 }
 
-/** The actor of a bearer-authenticated upload: an agent without an MCP session. */
-function uploadActor(body: unknown): Actor {
+/**
+ * The actor of a bearer-authenticated upload: an agent without an MCP
+ * session. With a `run_id`, the run's client (and its label, unless one is
+ * given) attribute it; otherwise the client is `agent`.
+ */
+function uploadActor(deps: RouteDeps, body: unknown): Actor {
   const fields = (body ?? {}) as { agent_label?: string; run_id?: string };
+  const run = fields.run_id
+    ? (deps.write.db.sqlite
+        .prepare('SELECT client, label FROM runs WHERE id = ?')
+        .get(fields.run_id) as { client: string; label: string | null } | undefined)
+    : undefined;
   return {
     kind: 'agent',
-    client: 'unknown',
-    label: fields.agent_label ?? null,
+    client: run?.client ?? 'agent',
+    label: fields.agent_label ?? run?.label ?? null,
     session_id: null,
     run_id: fields.run_id ?? null,
   };
@@ -141,36 +198,39 @@ export function defineRoute<K extends RouteId, E extends Env>(
     : route.path;
 
   app.on(route.method, path, async (c) => {
+    let staged: StagedFile | null = null;
     try {
       const params = parsePart(label, route.params as z.ZodType, c.req.param());
       const query = parsePart(label, route.query as z.ZodType, c.req.query());
       let body: unknown = undefined;
-      let file: File | null = null;
       if (route.body) {
         let raw: unknown;
         if (route.bodyKind === 'multipart') {
-          const form = await readMultipart(c, label);
+          const stager = readContext(deps.write.db, uploadActor(deps, {}), deps.write.now());
+          const form = await readMultipart(c, label, (file) =>
+            deps.services.documents.stage(stager, file),
+          );
           raw = form.fields;
-          file = form.file;
+          staged = form.staged;
         } else {
           raw = await readJsonBody(c, label);
         }
         body = parsePart(label, route.body as z.ZodType, raw);
-        if (route.bodyKind === 'multipart' && !file) {
+        if (route.bodyKind === 'multipart' && !staged) {
           throw new ToolError('validation', `Invalid arguments for ${label}: file is required.`, {
             details: { fields: { file: 'is required' } },
           });
         }
       }
 
-      const actor = route.auth === 'bearer' ? uploadActor(body) : OWNER_ACTOR;
+      const actor = route.auth === 'bearer' ? uploadActor(deps, body) : OWNER_ACTOR;
       const warnings: string[] = [];
       const ctx: RouteContext<K> = {
         c,
         params: params as RouteParams<K>,
         query: query as RouteQuery<K>,
         body: body as RouteBody<K>,
-        file,
+        staged,
         actor,
         services: deps.services,
         read: readContext(deps.write.db, actor, deps.write.now()),
@@ -199,6 +259,9 @@ export function defineRoute<K extends RouteId, E extends Env>(
       }
       return c.json(checked.data as object);
     } catch (err) {
+      if (err instanceof ToolError && err.details?.too_large === true) {
+        return c.json(errorBody('validation', err.message), 413);
+      }
       if (isNotImplemented(err)) {
         return c.json(
           errorBody('unavailable', notImplementedRouteMessage(route.method, route.path)),
@@ -206,6 +269,9 @@ export function defineRoute<K extends RouteId, E extends Env>(
         );
       }
       throw err;
+    } finally {
+      // A staged upload the handler did not move into place is never kept.
+      if (staged && existsSync(staged.path)) rmSync(staged.path, { force: true });
     }
   });
 }

@@ -78,6 +78,17 @@ const B2_ROUTES: readonly RouteId[] = [
   'steps.remove',
   'checks.add',
   'checks.remove',
+  // US7 (B14, T124–T125): planning, archive, cancel, the label page and documents
+  // (content in us7-planning.test.ts and us7-documents.test.ts).
+  'items.patch',
+  'items.archive',
+  'items.unarchive',
+  'archive.many',
+  'items.cancel',
+  'labels.get',
+  'labels.moveToReady',
+  'documents.content',
+  'agentUpload.post',
 ];
 
 interface Req {

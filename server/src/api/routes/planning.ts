@@ -66,18 +66,29 @@ export function planningRoutes<E extends Env>(api: Hono<E>, deps: RouteDeps): vo
     return { mutation_id, moved: result };
   });
 
-  /** Streams the stored bytes with `Content-Disposition` and `nosniff` (BUILD_SPEC §5.10). */
+  /**
+   * Streams the stored bytes with `Content-Disposition` and `nosniff`
+   * (BUILD_SPEC §5.10). Everything but a PDF (which needs the browser's
+   * viewer) also gets a sandboxing CSP, so an SVG or text opened directly
+   * can't run script in the app's origin.
+   */
   defineRoute(api, 'documents.content', deps, ({ services, read, params }) => {
     const doc = services.documents.content(read, { version_id: params.versionId });
     const stream = Readable.toWeb(createReadStream(doc.path)) as ReadableStream<Uint8Array>;
-    const filename = encodeURIComponent(doc.name);
-    return new Response(stream, {
-      headers: {
-        'content-type': doc.mime,
-        'content-length': String(doc.size),
-        'content-disposition': `${doc.disposition}; filename*=UTF-8''${filename}`,
-        'x-content-type-options': 'nosniff',
-      },
-    });
+    const filename = encodeURIComponent(doc.name).replace(
+      /['()*]/g,
+      (ch) => `%${ch.charCodeAt(0).toString(16).toUpperCase()}`,
+    );
+    const headers: Record<string, string> = {
+      'content-type': doc.mime,
+      'content-length': String(doc.size),
+      'content-disposition': `${doc.disposition}; filename*=UTF-8''${filename}`,
+      'x-content-type-options': 'nosniff',
+      'cache-control': 'private, max-age=31536000, immutable',
+    };
+    if (doc.mime !== 'application/pdf') {
+      headers['content-security-policy'] = "sandbox; default-src 'none'; style-src 'unsafe-inline'";
+    }
+    return new Response(stream, { headers });
   });
 }

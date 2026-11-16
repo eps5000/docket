@@ -2,7 +2,7 @@
  * The owner's read models (UI_SPEC §6; BUILD_SPEC §7): the `views` service.
  *
  * US2 (T080) fills `bootstrap`, `needsYou`, `work`, `itemDetail` and
- * `agents`. `labelPage` (US7) is still a stub. US4 (B11) fills `settings`
+ * `agents`; US7 (T125) fills `labelPage`. US4 (B11) fills `settings`
  * far enough for the project rows and their "Blockers clear when" rule, with
  * connection and health values only where they are true today (config, the
  * `/readyz` checks); US10 completes it (smoke-test status, backups). US4 also
@@ -26,6 +26,7 @@ import { readdirSync, statfsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   END_REASON_LABELS,
+  ToolError,
   OPEN_STATUSES,
   UI_FILTER_KEYS,
   type ActivityRow,
@@ -55,7 +56,6 @@ import { migrationStatus, type Db } from '../db/client.js';
 import { APP_VERSION } from '../version.js';
 import {
   isNotImplemented,
-  notImplemented,
   type ReadContext,
   type ServiceDeps,
   type ViewsService,
@@ -1402,7 +1402,95 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
       return { rows: [...active, ...ended].map((x) => x.row) };
     },
 
-    labelPage: notImplemented('views.labelPage'),
+    /**
+     * The label page (UI_SPEC §6.5; US7): the label and its brief, counts,
+     * its items grouped by epic, and the label's decision records. Archived
+     * items stay (it's a progress view); canceled ones don't.
+     */
+    labelPage(r, input) {
+      const sql = r.db.sqlite;
+      const label = sql
+        .prepare(
+          `SELECT l.id, l.project_key, l.name, l.brief_md, l.brief_by, l.brief_at
+           FROM labels l JOIN projects p ON p.key = l.project_key
+           WHERE l.project_key = ? AND l.name = ? AND p.deleted_at IS NULL`,
+        )
+        .get(input.project, input.name) as
+        | {
+            id: string;
+            project_key: string;
+            name: string;
+            brief_md: string | null;
+            brief_by: string | null;
+            brief_at: string | null;
+          }
+        | undefined;
+      if (!label) {
+        throw new ToolError(
+          'not_found',
+          `No label #${input.name} in ${input.project}. Check the name in search.`,
+        );
+      }
+      const rows = (
+        sql
+          .prepare(
+            `SELECT i.* FROM items i JOIN item_labels il ON il.item_id = i.id
+             WHERE il.label_id = ? AND i.status != 'canceled'`,
+          )
+          .all(label.id) as ItemRow[]
+      ).sort((a, b) => compareIds(a.id, b.id));
+      const summaries = summarize(
+        { db: r.db, windows: windows(), now: r.now, index: new BlockIndex(r.db) },
+        rows,
+      );
+      const epicIds = [...new Set(rows.map((i) => i.epic_id ?? (i.type === 'Epic' ? i.id : null)))];
+      const epicTitles = new Map(
+        rowsById(
+          r.db,
+          epicIds.filter((x): x is string => x !== null),
+        ).map((e) => [e.id, e.title]),
+      );
+      const groups = new Map<string | null, ItemSummary[]>();
+      summaries.forEach((s, i) => {
+        const row = rows[i]!;
+        const key = row.epic_id ?? (row.type === 'Epic' ? row.id : null);
+        groups.set(key, [...(groups.get(key) ?? []), s]);
+      });
+      const keys = [...groups.keys()].sort((a, b) =>
+        a === null ? 1 : b === null ? -1 : compareIds(a, b),
+      );
+      return {
+        label: {
+          project: label.project_key,
+          name: label.name,
+          brief_md: label.brief_md || null,
+          brief_by: label.brief_md ? label.brief_by : null,
+          brief_at: label.brief_md ? label.brief_at : null,
+        },
+        counts: {
+          total: rows.length,
+          done: rows.filter((i) => i.status === 'done').length,
+          planning: rows.filter((i) => i.status === 'planning' && i.archived_at === null).length,
+        },
+        by_epic: keys.map((key) => {
+          const items = groups.get(key)!;
+          return {
+            epic: key ? { id: key, title: epicTitles.get(key) ?? key } : null,
+            done: items.filter((i) => i.status === 'done').length,
+            total: items.length,
+            items,
+          };
+        }),
+        decisions: ofScope(
+          r.db,
+          label.project_key,
+          { kind: 'label', id: label.name },
+          {
+            includeInactive: true,
+          },
+        ),
+      };
+    },
     settings(r): SettingsResponse {
       const sql = r.db.sqlite;
       const config = deps.config;

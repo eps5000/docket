@@ -85,10 +85,19 @@ describe('the service stubs', () => {
     );
   });
 
-  /** Implemented already: undo (B2), US1's methods (B7, tasks.md T070–T075) and US2's read models (B8, T080, T084), US3's review services (B9), US11's recovery (B10, T099–T100), US4's links (B11, T106), US5's decisions and context (B12, T114) and US6's steering (B13, T120). */
+  /** Implemented already: undo (B2), US1's methods (B7, tasks.md T070–T075) and US2's read models (B8, T080, T084), US3's review services (B9), US11's recovery (B10, T099–T100), US4's links (B11, T106), US5's decisions and context (B12, T114), US6's steering (B13, T120) and US7's planning, archive and documents (B14, T124–T125). */
   const IMPLEMENTED: Record<string, readonly string[]> = {
     undo: ['undo'],
-    items: ['create', 'update', 'setStatus', 'get'],
+    items: [
+      'create',
+      'update',
+      'setStatus',
+      'get',
+      // US7 (B14, T125).
+      'ownerPatch',
+      'upsertLabel',
+      'moveLabelToReady',
+    ],
     runs: [
       'claim',
       'release',
@@ -121,7 +130,7 @@ describe('the service stubs', () => {
     ],
     evidence: ['addNote', 'linkArtifact', 'reportCommit'],
     search: ['whoami', 'listProjects', 'searchItems', 'getChanges', 'palette'],
-    views: ['bootstrap', 'needsYou', 'work', 'itemDetail', 'agents', 'settings'],
+    views: ['bootstrap', 'needsYou', 'work', 'itemDetail', 'agents', 'settings', 'labelPage'],
     // US3 (B9, T091–T093), and the delivery receipt agreed for B9.
     humanReview: ['declare', 'update', 'ownerAdd', 'ownerUpdate', 'ownerRemove'],
     packets: ['submit', 'getReview', 'deferredReviews', 'screen', 'refresh', 'markStale'],
@@ -143,6 +152,9 @@ describe('the service stubs', () => {
     // US5 (B12, T114).
     decisions: ['publish', 'list', 'withdraw', 'confirm'],
     context: ['getContext'],
+    // US7 (B14, T124–T125).
+    documents: ['put', 'stage', 'commitUpload', 'content'],
+    archive: ['archive', 'unarchive', 'archiveMany', 'cancel'],
   };
 
   it.each(methods)('%s.%s throws NotImplementedError until its slice implements it', (s, m) => {
