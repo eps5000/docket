@@ -6,6 +6,7 @@ description: Coordinate several agents against Task Lite. Covers choosing and di
 # Coordinating agents with Task Lite
 
 **Task Lite records; you act.** It never launches agents, checks folders or stops processes. It tells you:
+
 - what's ready;
 - who holds what;
 - what each run was told and where its work lives;
@@ -30,7 +31,7 @@ You dispatch workers, create and prune worktrees, and clean up. Workers follow `
 ## 3. Dispatching a worker
 
 1. **Create the worktree:** a new branch from an up-to-date base. Record the path, branch, base ref and base SHA.
-2. **Write the brief.** It's stored unchanged and re-sent after a crash, so make it self-contained about the *environment*, and leave the *item content* to Task Lite:
+2. **Write the brief.** It's stored unchanged and re-sent after a crash, so make it self-contained about the _environment_, and leave the _item content_ to Task Lite:
    ```text
    Work Task Lite item RCP-17 using the tasklite-worker skill.
    Worktree: C:/work/rcp-17 · branch rcp-17-week-reload · base origin/main @ 9a10624
@@ -46,15 +47,15 @@ You dispatch workers, create and prune worktrees, and clean up. Workers follow `
 
 Call `get_changes { cursor, types: [...] }`, then save the new `next_cursor`. Watch for:
 
-| Event | What it means for you |
-|---|---|
-| `claim.rejected` | Two workers raced for one item. Re-assign the loser. |
-| `run.parked` | A worker is waiting on purpose. Leave it, and send work when you're ready. |
-| `question.asked` | Owner input is needed. **Don't answer for the owner**; that worker's dependent work waits. |
-| `packet.submitted` | Handed to the owner. The worker should finish its run. |
-| `review.decided` | Changes requested? The item becomes `resumable`; dispatch it again. |
-| `run.ended` | Check the item's status and the workspace state before reusing or pruning anything. |
-| `resource.declared` / `resource.released` | Track what's running on the host. |
+| Event                                     | What it means for you                                                                      |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `claim.rejected`                          | Two workers raced for one item. Re-assign the loser.                                       |
+| `run.parked`                              | A worker is waiting on purpose. Leave it, and send work when you're ready.                 |
+| `question.asked`                          | Owner input is needed. **Don't answer for the owner**; that worker's dependent work waits. |
+| `packet.submitted`                        | Handed to the owner. The worker should finish its run.                                     |
+| `review.decided`                          | Changes requested? The item becomes `resumable`; dispatch it again.                        |
+| `run.ended`                               | Check the item's status and the workspace state before reusing or pruning anything.        |
+| `resource.declared` / `resource.released` | Track what's running on the host.                                                          |
 
 For a detailed look at one worker, use `get_item { id, view: "summary" }`. Don't loop over items reading them in full.
 
@@ -68,11 +69,13 @@ For a detailed look at one worker, use `get_item { id, view: "summary" }`. Don't
 ## 6. Pruning and crash recovery
 
 **Before pruning any worktree or killing any process:**
+
 1. Call `recovery_report`.
 2. **Prune only workspaces in `safe_to_prune`.** Never prune `in_use`, `parked` or `at_risk`, and treat `unknown` as not safe. **Idle is not finished.**
 3. Stop every entry in `orphaned_resources`, using its locator. The resumed run, or the owner, marks it released.
 
 **After a crash (yours, a worker's or Task Lite's):** call `recovery_report { include_briefs: true }`. Then, for each interrupted or stale entry:
+
 1. **Find the code:**
    - if the worktree at `workspace.path` still exists, reuse it;
    - if it's gone, recreate it from `pushed_sha` on its `branch`;

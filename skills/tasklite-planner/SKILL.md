@@ -16,21 +16,23 @@ Good planning is what makes `ready_to_start` trustworthy. Workers then pick up i
 
 ## 2. Shape
 
-| Use | For | Not for |
-|---|---|---|
-| **Epic** | A deliverable the owner would recognise ("Pantry") | A theme that spans several deliverables |
-| **Story / Task / Bug** | One agent session to a few, usually one PR, with its own outcome | A step inside someone's work: that's a checklist step, made with `set_plan` |
-| **Label**, with a `brief_md` | An initiative across epics, with shared rules in its brief (`upsert_label`) | Status or priority |
+| Use                          | For                                                                         | Not for                                                                     |
+| ---------------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| **Epic**                     | A deliverable the owner would recognise ("Pantry")                          | A theme that spans several deliverables                                     |
+| **Story / Task / Bug**       | One agent session to a few, usually one PR, with its own outcome            | A step inside someone's work: that's a checklist step, made with `set_plan` |
+| **Label**, with a `brief_md` | An initiative across epics, with shared rules in its brief (`upsert_label`) | Status or priority                                                          |
 
 **Split a piece into its own item only when it needs its own blocker, owner or review.**
 
 **For every item:**
+
 - `outcome_md`: one or two sentences on what's true for the user when it's done;
 - `acceptance`: 2–6 lines, each checkable by an agent or a person;
 - `priority`: 1 means it unblocks or matters most;
 - `effort` if you can estimate it (points or hours, whatever the project uses). It feeds the forecast. Leave dates to the owner unless asked.
 
 **Example:**
+
 ```
 create_item { project: "RCP", type: "Epic", title: "Pantry", status: "planning",
   outcome_md: "Users keep a pantry list and get recipe suggestions from what's at home." }
@@ -45,10 +47,10 @@ create_item { project: "RCP", type: "Story", title: "Pantry-aware recipe suggest
 - **Link only real dependencies.** "B can't start until A is finished" is a link: use `blocked_by` on create, or `link_items { type: "blocks" }`. "These are related" is `relates`, which is informational and never blocks.
 - **Choose what "finished" means** for each `blocks` link with `satisfied_when`. Omit it to use the project default.
 
-  | Rule | Use when |
-  |---|---|
-  | `done` | B only needs A's decision or interface to exist |
-  | `merged` | B builds on A's code: schemas, shared modules, migrations |
+  | Rule       | Use when                                                                                     |
+  | ---------- | -------------------------------------------------------------------------------------------- |
+  | `done`     | B only needs A's decision or interface to exist                                              |
+  | `merged`   | B builds on A's code: schemas, shared modules, migrations                                    |
   | `verified` | B is only worth doing once the owner has approved A by hand. A must have human review items. |
 
 - **Check the shape** with `dependency_subgraph { id: <epic or key item>, depth: 3 }`:
@@ -57,6 +59,7 @@ create_item { project: "RCP", type: "Story", title: "Pantry-aware recipe suggest
   - nothing important stuck behind a long chain.
 
   With planned dates, `delay_days` shows what a slip would push.
+
 - **Prefer short, wide graphs.** Long chains serialise the agents.
 
 ## 4. Human review: declare it now

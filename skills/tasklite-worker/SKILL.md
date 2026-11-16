@@ -24,9 +24,11 @@ The project's `AGENTS.md` / `CLAUDE.md` has its own rules: who moves work to Rea
    Keep the returned `run_id`, and **pass it on every call from now on**. That's what keeps your claim alive.
 
    If you get `conflict`, someone else holds the item. Pick another one. Never retry in a loop, and never work on an item you haven't claimed.
+
 4. **Get context:** `get_context { id }`. One call gathers the outcome, the acceptance criteria, the decisions you must follow, the epic and label briefs, blockers and planning docs.
 
 **Then, only if needed:**
+
 - `get_item { id }`: when the context shows unread owner notes or an answered question, or when you're resuming. It delivers notes, answers and review decisions **once**, so read them.
 - `get_review { id }` first: when resuming work the owner sent back. Their "changes" notes are already steps in your checklist.
 
@@ -46,6 +48,7 @@ The project's `AGENTS.md` / `CLAUDE.md` has its own rules: who moves work to Rea
 5. `update_step { state: "done" }`.
 
 **Along the way:**
+
 - **Stay live.** Any call with `run_id` renews your lease. In a long stretch with nothing to record, send `heartbeat { run_id, note }`, well inside `stale_after_s`.
 - **Pausing with uncommitted changes?** Send `heartbeat { workspace: { dirty: true } }` first.
 - **Started something long-lived?** That means a dev server, a session, a container, a temp directory or a held port. Declare it with `heartbeat { resources_started: [{ kind, label, locator }] }`, and keep the `rsc_…` IDs. The locator must be precise enough for someone else to find it: a port, a pid, a session ID or a path.
@@ -54,15 +57,15 @@ The project's `AGENTS.md` / `CLAUDE.md` has its own rules: who moves work to Rea
 
 ## 4. When you can't carry on
 
-| Situation | Do this |
-|---|---|
-| You need a product decision | `ask_owner`: one question, the options you see, and your recommendation. Stop the work that depends on it. If you're ending the session, `finish_run` with a summary saying what you're waiting for. |
-| You're waiting for another item to land | `park_run { reason, waiting_on: { items: [...] } }` |
-| You're waiting for the coordinator to send more work | `park_run { reason, waiting_on: { orchestrator: true } }` |
-| A single step is blocked | `update_step { state: "blocked", note }`, and carry on with other steps |
-| You're stopping before the work is done | Push, `report_commit`, release your resources, then `release_lead { reason }`. The item goes back to Ready with your plan kept. |
-| Something broke and you can't continue | `finish_run { result: "failed", error }` |
-| A write returns `conflict` | Read `current` in the error. Re-apply your change only if it still makes sense. |
+| Situation                                            | Do this                                                                                                                                                                                              |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| You need a product decision                          | `ask_owner`: one question, the options you see, and your recommendation. Stop the work that depends on it. If you're ending the session, `finish_run` with a summary saying what you're waiting for. |
+| You're waiting for another item to land              | `park_run { reason, waiting_on: { items: [...] } }`                                                                                                                                                  |
+| You're waiting for the coordinator to send more work | `park_run { reason, waiting_on: { orchestrator: true } }`                                                                                                                                            |
+| A single step is blocked                             | `update_step { state: "blocked", note }`, and carry on with other steps                                                                                                                              |
+| You're stopping before the work is done              | Push, `report_commit`, release your resources, then `release_lead { reason }`. The item goes back to Ready with your plan kept.                                                                      |
+| Something broke and you can't continue               | `finish_run { result: "failed", error }`                                                                                                                                                             |
+| A write returns `conflict`                           | Read `current` in the error. Re-apply your change only if it still makes sense.                                                                                                                      |
 
 **Never just go quiet.** A silent run looks stale and loses its claim. A parked run keeps it, and its worktree is protected from pruning. Any later call with your `run_id` un-parks you.
 

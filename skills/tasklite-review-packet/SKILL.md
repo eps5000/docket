@@ -11,13 +11,14 @@ The packet is the most expensive moment in the loop, because it costs the owner'
 
 Use `declare_human_review`, ideally during Planning or at the latest when you write the plan.
 
-| Good | Bad |
-|---|---|
-| "On your phone, drag a recipe between days. Does it feel right?" | "Check drag and drop" |
+| Good                                                                          | Bad                   |
+| ----------------------------------------------------------------------------- | --------------------- |
+| "On your phone, drag a recipe between days. Does it feel right?"              | "Check drag and drop" |
 | "Export one week's list and paste it into your notes app. Does it read well?" | "Verify export works" |
-| "Sign in from a second browser. Is the first one signed out within a minute?" | "Test sessions" |
+| "Sign in from a second browser. Is the first one signed out within a minute?" | "Test sessions"       |
 
 **Each item should be:**
+
 - one plain instruction;
 - something only a person can judge (feel, wording, a real device), not what your tests already prove;
 - 1–5 items per packet.
@@ -36,15 +37,16 @@ Use `declare_human_review`, ideally during Planning or at the latest when you wr
 
 Call `submit_packet` with these fields:
 
-| Field | How to write it |
-|---|---|
-| `estimate` | An honest owner time, such as `"10 min"`. If it's above 20 minutes, ask yourself whether the packet should be split. |
-| `how` | 1–15 numbered steps the owner can follow **without you**: exact commands, URLs, branch, test account and data, and what they should see. One action per step. |
-| `checked` | What you already verified, each with `provenance` (`agent`, `observed` or `ci`) and `evidence` (the command and its result, or the CI run). That way the owner doesn't repeat it. |
-| `gaps` | What you didn't or couldn't verify ("Not tested on Android"). Honest gaps build trust, and missing ones break it. |
-| `attachments` | The uploaded versions, each with a one-line caption saying what it shows. |
+| Field         | How to write it                                                                                                                                                                   |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `estimate`    | An honest owner time, such as `"10 min"`. If it's above 20 minutes, ask yourself whether the packet should be split.                                                              |
+| `how`         | 1–15 numbered steps the owner can follow **without you**: exact commands, URLs, branch, test account and data, and what they should see. One action per step.                     |
+| `checked`     | What you already verified, each with `provenance` (`agent`, `observed` or `ci`) and `evidence` (the command and its result, or the CI run). That way the owner doesn't repeat it. |
+| `gaps`        | What you didn't or couldn't verify ("Not tested on Android"). Honest gaps build trust, and missing ones break it.                                                                 |
+| `attachments` | The uploaded versions, each with a one-line caption saying what it shows.                                                                                                         |
 
 **Example `how`:**
+
 ```
 1. git fetch && git checkout rcp-12-planner && pnpm i && pnpm dev   (takes about 1 min)
 2. Open http://127.0.0.1:5173/plan on your phone (same Wi-Fi) or in a narrow window.
