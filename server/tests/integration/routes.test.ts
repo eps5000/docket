@@ -22,7 +22,7 @@ import {
   type ApiRouteDef,
   type RouteId,
 } from '@tasklite/shared';
-import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { seedId } from '../../src/db/seed/loader.js';
 import { ORIGIN, createTestServer, parseSetCookies, type TestServer } from './harness.js';
 
@@ -33,7 +33,8 @@ import { ORIGIN, createTestServer, parseSetCookies, type TestServer } from './ha
  * routes (B9, T094; content in the US3 tests), US11's recovery routes
  * (B10, T100; content in the US11 tests), US5's decisions routes (B12,
  * T115; content in us5-context.test.ts), US6's steer routes (B13, T120;
- * content in the US6 tests), and US8's burn-down (B16, T136).
+ * content in the US6 tests), US8's burn-down (B16, T136), and US9's Jira
+ * import (B17, T141).
  */
 const B2_ROUTES: readonly RouteId[] = [
   'session.unlock',
@@ -96,6 +97,11 @@ const B2_ROUTES: readonly RouteId[] = [
   'settings.agentToken',
   'projects.delete',
   'diagnostics.calls',
+  // US9 (B17, T141): the Jira import (content in us9-jira.test.ts and jira-map.test.ts).
+  'jira.dryRun',
+  'jira.get',
+  'jira.commit',
+  'jira.cancel',
 ];
 
 interface Req {
@@ -213,9 +219,12 @@ function badParam(name: string, valid: string): string {
 
 let s: TestServer;
 beforeEach(() => {
+  // No network: the Jira dry run (US9) reads its site in the background.
+  vi.stubGlobal('fetch', () => Promise.reject(new TypeError('fetch failed: no network in tests')));
   s = createTestServer();
 });
 afterEach(async () => {
+  vi.unstubAllGlobals();
   await s.cleanup();
 });
 

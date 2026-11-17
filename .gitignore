@@ -22,3 +22,6 @@ playwright/.cache/
 Thumbs.db
 .vscode/
 .idea/
+
+# Jira e2e fixture certificates (docker/jira-fixture/make-certs.sh)
+docker/jira-fixture/certs/

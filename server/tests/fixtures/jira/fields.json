@@ -1,0 +1,68 @@
+[
+  { "id": "summary", "name": "Summary", "custom": false, "schema": { "type": "string" } },
+  { "id": "issuetype", "name": "Issue Type", "custom": false, "schema": { "type": "issuetype" } },
+  { "id": "status", "name": "Status", "custom": false, "schema": { "type": "status" } },
+  { "id": "priority", "name": "Priority", "custom": false, "schema": { "type": "priority" } },
+  { "id": "parent", "name": "Parent", "custom": false },
+  { "id": "labels", "name": "Labels", "custom": false, "schema": { "type": "array" } },
+  { "id": "description", "name": "Description", "custom": false, "schema": { "type": "string" } },
+  { "id": "issuelinks", "name": "Linked Issues", "custom": false, "schema": { "type": "array" } },
+  { "id": "comment", "name": "Comment", "custom": false, "schema": { "type": "comments-page" } },
+  { "id": "attachment", "name": "Attachment", "custom": false, "schema": { "type": "array" } },
+  { "id": "duedate", "name": "Due date", "custom": false, "schema": { "type": "date" } },
+  { "id": "assignee", "name": "Assignee", "custom": false, "schema": { "type": "user" } },
+  { "id": "reporter", "name": "Reporter", "custom": false, "schema": { "type": "user" } },
+  { "id": "fixVersions", "name": "Fix versions", "custom": false, "schema": { "type": "array" } },
+  { "id": "components", "name": "Components", "custom": false, "schema": { "type": "array" } },
+  { "id": "created", "name": "Created", "custom": false, "schema": { "type": "datetime" } },
+  { "id": "updated", "name": "Updated", "custom": false, "schema": { "type": "datetime" } },
+  { "id": "resolutiondate", "name": "Resolved", "custom": false, "schema": { "type": "datetime" } },
+  {
+    "id": "customfield_10015",
+    "name": "Start date",
+    "custom": true,
+    "schema": {
+      "type": "date",
+      "custom": "com.atlassian.jira.plugin.system.customfieldtypes:datepicker"
+    }
+  },
+  {
+    "id": "customfield_10016",
+    "name": "Story point estimate",
+    "custom": true,
+    "schema": { "type": "number", "custom": "com.pyxis.greenhopper.jira:jsw-story-points" }
+  },
+  {
+    "id": "customfield_10028",
+    "name": "Story Points",
+    "custom": true,
+    "schema": {
+      "type": "number",
+      "custom": "com.atlassian.jira.plugin.system.customfieldtypes:float"
+    }
+  },
+  {
+    "id": "customfield_10020",
+    "name": "Sprint",
+    "custom": true,
+    "schema": { "type": "array", "custom": "com.pyxis.greenhopper.jira:gh-sprint" }
+  },
+  {
+    "id": "customfield_10001",
+    "name": "Team",
+    "custom": true,
+    "schema": {
+      "type": "team",
+      "custom": "com.atlassian.jira.plugin.system.customfieldtypes:atlassian-team"
+    }
+  },
+  {
+    "id": "customfield_10021",
+    "name": "Flagged",
+    "custom": true,
+    "schema": {
+      "type": "array",
+      "custom": "com.atlassian.jira.plugin.system.customfieldtypes:multicheckboxes"
+    }
+  }
+]
