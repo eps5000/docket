@@ -1,6 +1,15 @@
+import { Fragment } from 'react';
 import { Link } from 'react-router';
-import type { PROBLEM_KINDS, Problem } from '@tasklite/shared';
-import { Button, Card, CardHeader, EmptyState, Icon, type IconName } from '../../components/kit';
+import type { PROBLEM_KINDS, Problem, WorkspaceRow } from '@tasklite/shared';
+import {
+  Button,
+  Card,
+  CardHeader,
+  EmptyState,
+  Icon,
+  WorkspaceStateChip,
+  type IconName,
+} from '../../components/kit';
 import { apiClient } from '../../app/queryClient';
 import { queryKeys } from '../../lib/api';
 import { paths, type ItemTab } from '../../lib/paths';
@@ -89,6 +98,67 @@ export const PROBLEM_ROWS: Record<
   },
 };
 
+/** The recovery rows, which show the worktree's state chip (B20). */
+export const RECOVERY_KINDS: readonly ProblemKind[] = [
+  'orphaned_resources',
+  'unpushed_work',
+  'parked_too_long',
+  'resume_unattended',
+];
+
+/**
+ * The worktree a recovery row is about: the one whose latest run is the
+ * row's run, else the item's only recorded worktree.
+ */
+export function workspaceFor(
+  p: Problem,
+  workspaces: readonly WorkspaceRow[],
+): WorkspaceRow | undefined {
+  if (!RECOVERY_KINDS.includes(p.kind)) return undefined;
+  const byRun = p.run_id ? workspaces.find((w) => w.run_id === p.run_id) : undefined;
+  if (byRun) return byRun;
+  const forItem = workspaces.filter((w) => w.item_id === p.item_id);
+  return forItem.length === 1 ? forItem[0] : undefined;
+}
+
+/**
+ * A reason's facts, key fact first (the server writes them joined by " · ").
+ * Each fact is kept whole: the line wraps between facts, never inside one,
+ * and never starts with "·".
+ */
+export function reasonFacts(reason: string): string[] {
+  return reason
+    .split(' · ')
+    .map((f) => f.trim())
+    .filter(Boolean);
+}
+
+/** " ·" with a no-break space, so it stays with the fact before it. */
+const FACT_SEP = `${String.fromCharCode(0xa0)}·`;
+
+function Reason({ text }: { text: string }) {
+  const facts = reasonFacts(text);
+  if (facts.length <= 1)
+    return (
+      <div className="src reason" title={text}>
+        {text}
+      </div>
+    );
+  return (
+    <div className="src reason facts" title={text}>
+      {facts.map((f, i) => (
+        <Fragment key={i}>
+          {i > 0 && ' '}
+          <span className="fact">
+            {f}
+            {i < facts.length - 1 && FACT_SEP}
+          </span>
+        </Fragment>
+      ))}
+    </div>
+  );
+}
+
 const refetch = [
   queryKeys.family('needsYou'),
   queryKeys.family('bootstrap'),
@@ -116,8 +186,18 @@ async function act(p: Problem, kind: 'release' | 'handled') {
   }
 }
 
-/** Problems · N: at most 5 rows, then "N more" (UI_SPEC §6.1). US2 and US11 fill the rows. */
-export function ProblemsCard({ problems }: { problems: readonly Problem[] }) {
+/**
+ * Problems · N: at most 5 rows, then "N more" (UI_SPEC §6.1). US2 and US11 fill the rows.
+ * Each reason takes up to two lines, key fact first (B20); recovery rows show
+ * their worktree's state chip, from `/api/workspaces`.
+ */
+export function ProblemsCard({
+  problems,
+  workspaces = [],
+}: {
+  problems: readonly Problem[];
+  workspaces?: readonly WorkspaceRow[];
+}) {
   const shown = problems.slice(0, MAX_PROBLEMS);
   return (
     <Card data-card="problems">
@@ -125,7 +205,13 @@ export function ProblemsCard({ problems }: { problems: readonly Problem[] }) {
       {problems.length === 0 ? (
         <EmptyState text="No stale or failed runs, cycles or date conflicts." />
       ) : (
-        shown.map((p, i) => <ProblemRow key={`${p.kind}:${p.item_id ?? ''}:${i}`} problem={p} />)
+        shown.map((p, i) => (
+          <ProblemRow
+            key={`${p.kind}:${p.item_id ?? ''}:${i}`}
+            problem={p}
+            workspace={workspaceFor(p, workspaces)}
+          />
+        ))
       )}
       {problems.length > MAX_PROBLEMS && (
         <div className="cardfoot">
@@ -136,7 +222,7 @@ export function ProblemsCard({ problems }: { problems: readonly Problem[] }) {
   );
 }
 
-export function ProblemRow({ problem }: { problem: Problem }) {
+export function ProblemRow({ problem, workspace }: { problem: Problem; workspace?: WorkspaceRow }) {
   const m = PROBLEM_ROWS[problem.kind];
   return (
     <div className="mrow" data-problem={problem.kind}>
@@ -151,10 +237,9 @@ export function ProblemRow({ problem }: { problem: Problem }) {
             </Link>
           )}
           {problem.title && <span className="tt">{problem.title}</span>}
+          {workspace && <WorkspaceStateChip state={workspace.state} />}
         </div>
-        <div className="src one" title={problem.reason}>
-          {problem.reason}
-        </div>
+        <Reason text={problem.reason} />
       </div>
       <div className="row" style={{ gap: 6 }}>
         {m.actions.map((a) =>

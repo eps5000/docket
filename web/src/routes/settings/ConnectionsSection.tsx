@@ -71,49 +71,61 @@ export function ConnectionsSection({ query }: { query: UseQueryResult<SettingsRe
                 </div>
               }
             >
-              {(d) =>
-                d.connections.clients.length === 0 ? (
+              {(d) => {
+                // Surfaces that are off until set up (an agent in another container) are a
+                // footnote under the table, not a row (B20).
+                const rows = d.connections.clients.filter((c) => c.status !== 'not_configured');
+                const notes = d.connections.clients.filter((c) => c.status === 'not_configured');
+                return d.connections.clients.length === 0 ? (
                   <EmptyState text="No clients seen yet." />
                 ) : (
-                  <table>
-                    <thead>
-                      <tr>
-                        <th scope="col">Client</th>
-                        <th scope="col">Transport</th>
-                        <th scope="col">Last seen</th>
-                        <th scope="col">Status</th>
-                        <th scope="col">Results</th>
-                        <th scope="col">Notes</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {d.connections.clients.map((c) => (
-                        <tr key={c.client} data-client={c.client}>
-                          <td>
-                            <b>{c.client}</b>
-                          </td>
-                          <td className="src">{c.transport}</td>
-                          <td
-                            className="src"
-                            title={c.last_seen_at ? isoTitle(c.last_seen_at) : undefined}
-                          >
-                            {c.last_seen_at ? formatAgo(c.last_seen_at) : 'never'}
-                          </td>
-                          <td>
-                            <Chip kind={CLIENT_STATUS[c.status].kind}>
-                              {CLIENT_STATUS[c.status].label}
-                            </Chip>
-                          </td>
-                          <td className="src" title={RESULT_MODE[c.result_mode].title}>
-                            {RESULT_MODE[c.result_mode].label}
-                          </td>
-                          <td className="src">{c.notes}</td>
+                  <>
+                    <table>
+                      <thead>
+                        <tr>
+                          <th scope="col">Client</th>
+                          <th scope="col">Transport</th>
+                          <th scope="col">Last seen</th>
+                          <th scope="col">Status</th>
+                          <th scope="col">Results</th>
+                          <th scope="col">Notes</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )
-              }
+                      </thead>
+                      <tbody>
+                        {rows.map((c) => (
+                          <tr key={c.client} data-client={c.client}>
+                            <td>
+                              <b>{c.client}</b>
+                            </td>
+                            <td className="src">{c.transport}</td>
+                            <td
+                              className="src"
+                              title={c.last_seen_at ? isoTitle(c.last_seen_at) : undefined}
+                            >
+                              {c.last_seen_at ? formatAgo(c.last_seen_at) : 'never'}
+                            </td>
+                            <td>
+                              <Chip kind={CLIENT_STATUS[c.status].kind}>
+                                {CLIENT_STATUS[c.status].label}
+                              </Chip>
+                            </td>
+                            <td className="src" title={RESULT_MODE[c.result_mode].title}>
+                              {RESULT_MODE[c.result_mode].label}
+                            </td>
+                            <td className="src">{c.notes}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {notes.map((c) => (
+                      <p key={c.client} className="src footnote" data-client-note={c.client}>
+                        <b>{c.client}</b> ({c.transport}): not configured.
+                        {c.notes ? ` ${c.notes}` : ''}
+                      </p>
+                    ))}
+                  </>
+                );
+              }}
             </QueryState>
           </Card>
           <ClientSetupCard />

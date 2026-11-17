@@ -116,6 +116,15 @@ async function openWork(page: Page, layout?: 'timeline'): Promise<void> {
 const grid = (page: Page) => page.locator('[data-card="timeline-grid"]');
 const timelineRow = (page: Page, id: string) => grid(page).locator(`[data-row="${id}"]`);
 const burndownCard = (page: Page) => page.locator('[data-card="burndown"]');
+/** The burn-down starts collapsed to its summary line (B20); this opens it. */
+const burndownToggle = (page: Page) =>
+  burndownCard(page).getByRole('button', { name: /^Remaining effort/ });
+async function openBurndown(page: Page) {
+  const toggle = burndownToggle(page);
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+}
 
 /** Text a sighted user sees in the grid: everything but sr-only text and attributes. */
 async function visibleGridText(page: Page): Promise<string> {
@@ -145,7 +154,8 @@ test.describe('Work → Timeline', () => {
       .getByRole('button', { name: 'Timeline' })
       .click();
     await expect(timelineRow(page, 'RCP-16')).toBeVisible();
-    await expect(burndownCard(page).locator('[data-burndown-line]')).toBeVisible();
+    // The burn-down starts collapsed to its one-line summary (B20).
+    await expect(burndownCard(page).locator('[data-burndown-summary]')).toBeVisible();
     const ms = Date.now() - t0;
     console.log(`Timeline and burn-down for the seed rendered in ${ms} ms`);
     expect(ms).toBeLessThan(1000);
@@ -245,10 +255,21 @@ test.describe('the burn-down card', () => {
   }) => {
     await openWork(page, 'timeline');
     const card = burndownCard(page);
-    await expect(card.getByRole('heading', { name: 'Remaining effort' })).toBeVisible();
+    // Collapsed: the one-line summary, open and unestimated counts and the forecast state.
+    await expect(card.getByRole('heading', { name: 'Remaining effort' })).toBeAttached();
     await expect(card.locator('[data-burndown-summary]')).toHaveText(
       /^\d+ pts open · \d+ not estimated · last 4 weeks$/,
     );
+    await expect(card.locator('[data-forecast-short]')).toHaveText('no forecast yet');
+    await expect(card.locator('[data-burndown-chart]')).toHaveCount(0);
+    await expectAxeClean(page, 'burn-down card, collapsed', { include: '[data-card="burndown"]' });
+    await shoot(page, 'burndown-collapsed', card);
+
+    // Open: the chart; the state is remembered.
+    await openBurndown(page);
+    await expect(card.locator('[data-burndown-chart] svg')).toBeVisible();
+    await page.reload();
+    await expect(burndownToggle(page)).toHaveAttribute('aria-expanded', 'true');
     await expect(card.locator('[data-burndown-chart] svg')).toBeVisible();
     // The seed's estimated items were added inside the window: up-ticks with a title.
     const adds = card.locator('[data-addition]');
@@ -304,6 +325,10 @@ test.describe('with enough history', () => {
     );
 
     const card = burndownCard(page);
+    await expect(card.locator('[data-forecast-short]')).toHaveText(
+      /^Forecast P50 \w{3} \d+ – P85 \w{3} \d+$/,
+    );
+    await openBurndown(page);
     await expect(card.locator('[data-forecast-line]')).toHaveText(
       /^Forecast: P50 \w{3} \d+ – P85 \w{3} \d+ · \d+(\.\d)? pts\/wk over the last 4 weeks · n=10 · excludes \d+ unestimated items?$/,
     );

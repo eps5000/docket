@@ -2,6 +2,7 @@
  * Small badges: TypeBadge / TypeIcon, RunState, Provenance, DecisionAuthority,
  * Priority (UI_SPEC §4–§5).
  */
+import { Fragment } from 'react';
 import {
   DECISION_AUTHORITY_LABELS,
   RUN_STATE_LABELS,
@@ -9,7 +10,9 @@ import {
   type ItemType,
   type Priority as PriorityValue,
   type RunState as RunStateValue,
+  type WaitingOn,
 } from '@tasklite/shared';
+import { formatStamp } from '../../lib/format';
 import { Icon, TypeGlyph, type IconName } from './icons';
 
 // ---- TypeBadge / TypeIcon ----
@@ -66,6 +69,75 @@ export function RunState({
         {m.label}
         {tail ? ` · ${tail}` : ''}
       </span>
+    </span>
+  );
+}
+
+/**
+ * What a parked run waits on (UI_SPEC §5): "waiting on RCP-12", "waiting on
+ * the coordinator", "waiting on a person", "waiting until Nov 20 10:00".
+ */
+export function parkedReason(waiting: WaitingOn): string | undefined {
+  const on = [
+    waiting.items?.length ? waiting.items.join(', ') : null,
+    waiting.orchestrator ? 'the coordinator' : null,
+    waiting.person ? 'a person' : null,
+  ].filter(Boolean);
+  if (on.length > 0) return `waiting on ${on.join(' and ')}`;
+  if (waiting.until) return `waiting until ${formatStamp(waiting.until)}`;
+  return undefined;
+}
+
+/** " · " with a no-break space before the dot, so a wrapped line never starts with it. */
+const RUN_SEP = `${String.fromCharCode(0xa0)}· `;
+
+/**
+ * The one run-state line (UI_SPEC §5, B20): `state · reason · agent`, then the
+ * age at the right. Used on cards, the epic's Tickets list, Agents, the item's
+ * agent bar and Lead and runs, so a run reads the same everywhere. The
+ * separators stay with the segment before them (a no-break space), so a
+ * wrapped line never starts with "·". The state carries its icon shape and
+ * label; `title` holds its one-line meaning.
+ */
+export function RunLine({
+  state,
+  reason,
+  agent,
+  age,
+  ageTitle,
+}: {
+  state: RunStateValue;
+  /** Why: "waiting on the coordinator" for a parked run. */
+  reason?: string | null;
+  /** `client · label`. */
+  agent?: string | null;
+  age?: string;
+  ageTitle?: string;
+}) {
+  const m = RUN_STATE_LABELS[state];
+  const segs = [
+    { cls: 'rl-state', text: m.label },
+    reason ? { cls: 'rl-reason', text: reason } : null,
+    agent ? { cls: 'rl-agent', text: agent } : null,
+  ].filter((s): s is { cls: string; text: string } => s !== null);
+  return (
+    <span className={`runline rs-${state}`} title={m.meaning} data-run-line={state}>
+      <i className={`ri ri-${state}`} aria-hidden="true">
+        {RUN_GLYPH[state] ?? ''}
+      </i>
+      <span className="rl">
+        {segs.map((s, i) => (
+          <Fragment key={s.cls}>
+            {i > 0 && RUN_SEP}
+            <span className={s.cls}>{s.text}</span>
+          </Fragment>
+        ))}
+      </span>
+      {age && (
+        <span className="rl-age" title={ageTitle}>
+          {age}
+        </span>
+      )}
     </span>
   );
 }

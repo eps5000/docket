@@ -104,9 +104,11 @@ test.describe('Settings', () => {
         clients.locator(`tr[data-client="${name}"]`).getByText('Not verified'),
       ).toBeVisible();
     }
-    await expect(
-      clients.locator('tr[data-client="Agent in another container"]').getByText('Not configured'),
-    ).toBeVisible();
+    // Off-by-default surfaces are a footnote under the table, not a row (B20).
+    await expect(clients.locator('tr[data-client="Agent in another container"]')).toHaveCount(0);
+    await expect(clients.locator('[data-client-note="Agent in another container"]')).toHaveText(
+      'Agent in another container (Docker network): not configured. Off by default. Needs an explicit network path (O02).',
+    );
     await expect(clients.getByText('✓ Verified')).toHaveCount(0);
     // Result modes under the default TASKLITE_TEXT_ONLY_CLIENTS (MCP_SPEC §3 Results).
     await expect(clients.getByRole('columnheader', { name: 'Results' })).toBeVisible();

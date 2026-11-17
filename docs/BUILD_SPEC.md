@@ -492,9 +492,9 @@ Every route requires the owner session (§3). JSON bodies **and query strings** 
 | `POST /api/session/unlock` `{key}` · `POST /api/session/lock` · `POST /api/session/rotate-key` | Unlock screen, Settings. Rotate-key writes a new owner key (0600), ends every owner session including the caller's, clears the cookies, and returns `{rotated: true}`. It never returns the key; the owner reads it with `tasklite owner-key` (decided in B2). |
 | `GET /api/bootstrap` | Shell: projects, labels, sidebar counts, settings, health |
 | `GET /api/needs-you?scope` | Needs you: `for_you_now[]` (packets, questions), `problems[]`, `deferred[]`, `planning_queue[]`, `agent_counts{}` |
-| `GET /api/work?scope&epic&label&filter&layout` | Work board/list/map; Timeline adds dates and forecast |
+| `GET /api/work?scope&epic&label&filter&layout` | Work board/list/map; Timeline adds dates and forecast. Each item carries `lead_parked: {waiting_on, since, resume_ready} \| null` (optional; B20), so a parked card's run line says what it waits on |
 | `GET /api/burndown?scope&epic&label` | Timeline burn-down card |
-| `GET /api/items/:id` | Ticket or epic page (all four tabs; small enough to load at once) |
+| `GET /api/items/:id` | Ticket or epic page (all four tabs; small enough to load at once). An epic's `children[]` carry `lead_parked` (optional; B20) for the Tickets list's run line |
 | `POST /api/items` | Quick capture: `{title, type, project, epic?, notes?}` → item in Inbox |
 | `PATCH /api/items/:id` | `{expected_version, priority?, status?: planning\|ready, title?, description_md?, outcome_md?, acceptance?: string[]}`. Text edits use the same limits, secret checks and conflict handling as agents, are undoable, and are recorded with `actor_kind=owner` (decision 22). |
 | `GET /api/diagnostics/calls?days=7` | Settings → *Download diagnostic log*: JSONL of agent calls (time, tool, client, label, run, duration, result code), never arguments or results (FR-108) |
@@ -510,7 +510,7 @@ Every route requires the owner session (§3). JSON bodies **and query strings** 
 | `GET /api/review/:id?round` · `POST /api/review/:id/decisions` · `POST /api/review/:id/refresh` | Packet screen |
 | `POST /api/deferred/:hrId/follow-up` | *Create test ticket* |
 | `GET /api/labels/:project/:name` · `POST /api/labels/:project/:name/move-to-ready` | Label page |
-| `GET /api/agents?scope` | Agents table |
+| `GET /api/agents?scope` | Agents → Active now and Recent. Each row carries `lead_parked` (optional; B20): what a parked run waits on. UI API only; agents read `Run.parked` through `get_item` |
 | `GET /api/settings` · `GET /api/settings/agent-token` → `{token}` · `PATCH /api/projects/:key` `{default_satisfied_when}` · `DELETE /api/projects/:key` `{confirm_key}` | Settings. The agent-token route backs *Reveal token*: owner session only, `Cache-Control: no-store`, and the value is never written to any log. |
 | `GET /api/decisions?project&scope_kind&scope_id&include_inactive` · `POST /api/decisions` · `POST /api/decisions/:id/confirm` · `POST /api/decisions/:id/withdraw` `{reason}` | Decisions sections (ticket, epic, label, Settings → project) |
 | `GET /api/search?q` | Command palette (items, labels, views). Items include archived ones, each with `archived: boolean` for the palette's *Archived* tag (UI_SPEC §4). |

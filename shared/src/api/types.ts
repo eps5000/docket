@@ -13,6 +13,7 @@ import {
   runStateSchema,
   satisfiedWhenSchema,
   statusSchema,
+  waitingOnSchema,
 } from '../mcp/types.js';
 
 /** A project as the shell knows it (BUILD_SPEC §4 `projects`). */
@@ -44,8 +45,23 @@ export const itemTextSchema = itemSummarySchema.extend({
 });
 export type ItemText = z.infer<typeof itemTextSchema>;
 
+/**
+ * What a parked lead waits on, for the one-line run state on cards, the epic's
+ * Tickets list and Agents rows ("parked · waiting on the coordinator · claude";
+ * UI_SPEC §5). UI API only (B20): agents read `Run.parked` through get_item.
+ * Null when the lead isn't parked.
+ */
+export const leadParkedSchema = z.object({
+  waiting_on: waitingOnSchema,
+  since: z.string(),
+  resume_ready: z.boolean(),
+});
+export type LeadParked = z.infer<typeof leadParkedSchema>;
+
 /** A row on Work (board, list, map): what the cards and the list need beyond the summary. */
 export const workItemSchema = itemSummarySchema.extend({
+  /** The lead's park, when it is parked (B20). */
+  lead_parked: leadParkedSchema.nullable().optional(),
   /** Review cards with a ready packet open the packet screen directly (UI_SPEC §6.2.1). */
   packet_ready: z.boolean(),
   for_you: z.boolean(),

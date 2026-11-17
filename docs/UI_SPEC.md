@@ -76,7 +76,7 @@ Agents do almost all the writing. The owner verifies, decides, nudges and archiv
 | Open-item tabs + each tab's view | `sessionStorage` | Like browser tabs |
 | Theme | `localStorage` | Preference |
 | Desktop notifications on/off, and which events were already notified | `localStorage` | Opt-in per browser; no repeat notifications across tabs |
-| Collapsed sections (per section *type*, e.g. "work") | `localStorage` | Close Work once, and it stays closed on the next ticket |
+| Collapsed sections (per section *type*, e.g. "work") | `localStorage` | Close Work once, and it stays closed on the next ticket. A few sections start collapsed (Agents → Recent, the burn-down); opening one is remembered the same way |
 | Everything else (filters, layout) | URL query | Shareable, Back works |
 
 **Routes:**
@@ -85,7 +85,7 @@ Agents do almost all the writing. The owner verifies, decides, nudges and archiv
 - `/items/:id?tab=details|checklist|deps|map|activity`
 - `/review/:id?round=`
 - `/labels/:project/:name`
-- `/agents`
+- `/agents?state=` (Active now filtered to one run state, from the Needs you strip) and `/agents#workspaces`
 - `/settings`
 - `/unlock`
 
@@ -141,15 +141,18 @@ Copy the prototype's `.tl` token block. Light and dark values below; the prototy
 | `IconButton` | — | `aria-label` (required) | 32×32. |
 | `Chip` | status (7), blocked, human review (4), neutral, warn, ok, bad, info | `kind, children` | Rounded pill; always text, never colour alone. |
 | `TypeBadge` / `TypeIcon` | Epic, Story, Task, Bug | `type, iconOnly?` | 16px square in the type colour with a white glyph, plus the name. Icon-only on board cards and tabs, with an sr-only name. |
-| `RunState` | live, reported, stale, parked, needs input, failed, finished, interrupted | `state, age?` | Icon shape + label + `title` holding the one-line meaning (§5). The live dot pulses, except under reduced motion. |
+| `RunState` | live, reported, stale, parked, needs input, failed, finished, interrupted | `state, age?` | Icon shape + label + `title` holding the one-line meaning (§5). The live dot pulses, except under reduced motion. Used alone only where a state is counted (the Needs you strip). |
+| `RunLine` | one per run state | `state, reason?, agent?, age?` | **The one run-state line** (§5): `state · reason · agent`, then the age at the right. Cards, the epic's Tickets list, Agents, the agent bar and Lead and runs all use it. The separators keep to the segment before them, so a wrapped line never starts with "·"; the state and the agent never break inside. |
+| `WorkspaceStateChip` | In use, Parked, At risk, Safe to prune, Unknown | `state` | Agents → Workspaces, the agent bar, Where the work lives, and recovery Problems rows. At risk is `--warn`, Safe to prune `--ok`. |
 | `Provenance` | owner (approve), owner (changes), owner (defer), observed, agent, relayed, CI, git | `kind, label?` | §5. Only the owner variants are solid-filled. |
 | `Priority` | P1–P3 | `p` | Three signal bars plus a `title`. Never coloured. |
 | `Label` | — | `name` | Outline tag, links to the label page. |
 | `EpicLink` | — | `epic` | ◆ in the epic colour, plus the title; links to the epic. |
 | `Card` | plain, padded | | 1px `--line`, radius 10. |
-| `Section` (collapsible) | open, collapsed | `key, title, summary, extraHead?` | The header is a button: chevron + h3 title + `· summary`, with `aria-expanded`. Collapsed sections use `--panel-2` and render only the header. Collapse state is per section *type* (§2). |
+| `Section` (collapsible) | open, collapsed | `key, title, summary, extraHead?, defaultCollapsed?, id?` | The header is a button: chevron + h3 title + `· summary`, with `aria-expanded`. Collapsed sections use `--panel-2` and render only the header. Collapse state is per section *type* (§2). `defaultCollapsed` starts it closed until the owner opens it (Agents → Recent, the burn-down). |
 | `ViewTabs` | ticket, epic | `tabs[{key, label, count?, dot?}], active` | ARIA tablist. A count is muted text after the label. A dot is 7px, amber or red, with sr-only text. |
-| `TicketCard` | default, blocked (red left edge), for-you (amber left edge), done (+ Archive) | `item` | Shows ID + type icon + priority; title (2–3 lines); epic and labels; chips; run state with lead and age. **Unclaimed cards show no run line.** |
+| `TicketCard` | default, blocked (red left edge), for-you (amber left edge), done (+ Archive) | `item` | Shows ID + type icon + priority; title (2–3 lines); epic and labels; chips; the lead's `RunLine` with its age. A parked lead's line says what it waits on: "parked · waiting on the coordinator · claude · orca-w4", or "parked · ready to resume · …". **Unclaimed cards show no run line.** |
+| `ForYouChip` | — | | Amber "For you" with the attention icon: a packet is ready or an agent asked you something. On list rows that have no amber card edge (the epic's Tickets list). |
 | `EpicCard` | — | `epic` | 4px `--t-epic` left edge; title + ID; mini progress bar (done green, active violet); "n/N done · Status · N for you". |
 | `ProgressMap` | epic, label, work | `items, scopeTitle` | §6.3.4. |
 | `HandoffPacket` | live round, past round | `packet, verdicts` | §6.4. |
@@ -201,11 +204,17 @@ Blocked is derived and shows as a separate red chip, "⊘ Blocked by RCP-12, …
 | live | solid green, pulsing | Working: the client session is responding |
 | reported | violet ring | The agent says it's working, with no recent session signal |
 | stale | dashed ring | No signal; state unknown, not assumed finished |
-| parked | ring with a pause bar, `--ink-3` | Waiting on purpose (on an item, the coordinator or a person). Keeps its claim; never mistaken for finished. Shown as "parked · waiting on RCP-12". |
+| parked | ring with a pause bar, `--ink-3` | Waiting on purpose (on an item, the coordinator or a person, or until a time). Keeps its claim; never mistaken for finished. Shown as "parked · waiting on RCP-12", "· waiting on the coordinator", "· waiting on a person", "· waiting until Nov 20 10:00", or "· ready to resume" once what it waited on has cleared. |
 | needs input | amber "?" | Waiting on you |
 | failed | red "×" | Run ended with an error |
 | finished | gray "✓" | Run ended normally |
 | interrupted | ring "–" | Stopped without finishing (lease expired, released, or service restart) |
+
+**One run-state line** (B20). Everywhere a run is shown with its context (Board and List cards, the epic's Tickets list, Agents, the agent bar, Lead and runs) it is one `RunLine`: `state · reason · agent`, then the age.
+- **state:** the run state's icon and label;
+- **reason:** why, when there is one worth a glance: what a parked run waits on, or "ready to resume";
+- **agent:** `client · label`. Omitted where the agent has its own column (Agents) or its own line;
+- segments are omitted, never left empty, and a wrapped line never starts with "·".
 
 **Provenance:**
 
@@ -245,27 +254,27 @@ Every screen has three states before its content renders:
 Fits one 1440×900 screen without scrolling at sample volume. Contents, top to bottom:
 
 1. **h1 "Needs you".** No subtitle and no scope pill.
-2. **Agents strip** (one line): counts per run state that has any (live, reported, needs input, stale, failed), plus *All runs →* (Agents). Empty: "No active runs".
+2. **Agents strip** (one line, a `nav` labelled "Agents"): counts per run state that has any (live, reported, needs input, parked, stale, failed). **Each count is a link** to Agents → Active now filtered to that state (`/agents?state=parked`). Then "n workspaces at risk", in `--warn`, when n > 0, linking to Agents → Workspaces (`/agents#workspaces`). Then *All runs →* (Agents). Empty: "No active runs".
 3. **Top band** (`1.55fr | 1fr`):
    - **For you now · N:**
      - **packet rows:** box icon; title + ID; "Round n packet · k to verify · about 10 min", plus a red "out of date: code changed after it was written" when stale; *Open packet* (primary);
      - **question rows:** ? icon; "codex asks: “…”" on one truncated line; *Answer* opens an inline reply (textarea, *Send answer*, *Cancel*, "codex reads it on its next query");
      - rows have an amber tint, and clicking a row opens the item;
      - empty: "Nothing to verify. Agents will hand off when work is built."
-   - **Problems · N:** at most 5 rows, then "N more". Each row has icon, ID link + title, one truncated reason line, and one action:
+   - **Problems · N:** at most 5 rows, then "N more". Each row has icon, ID link + title, a reason of **up to two lines with the key fact first**, and its action. The server writes the reason as facts joined by " · "; each fact is kept whole, so the line wraps between facts and a fact that doesn't fit is hidden whole rather than cut (the full reason is in `title`). A single long fact (an error message) ends in an ellipsis. **Recovery rows** (orphaned resources, unpushed work, parked, ready to resume) show the worktree's `WorkspaceStateChip` after the title.
 
      | Problem | Action |
      |---|---|
-     | Stale run | *Inspect* → item, Activity tab |
+     | Stale run ("Lead silent for 47m · the lease expires in 13m · treated as unknown, not finished") | *Inspect* → item, Activity tab |
      | Failed run | *Inspect* → item, Activity tab |
      | Cycle | *Fix* → item, Dependencies tab |
      | Date risk | *Timeline* → Work, Timeline layout |
      | Canceled blocker | *Fix* → item, Dependencies tab |
      | A blocker that must be verified closed with a deferred check ("RCP-22 needs RCP-12 verified, but 1 check was deferred") | *Open* → the blocked item, Dependencies tab |
-     | Orphaned resources ("RCP-21's run ended 03:12 but left: dev server :5173") | *Mark released* (once you've stopped it) · *Open* → Activity |
-     | Unpushed work may be lost ("RCP-21 ended (lease expired) with 1 commit not pushed and uncommitted changes in C:/…/rcp-21") | *Handled* · *Open* → Activity |
-     | Parked for 24 h ("RCP-23 parked since Nov 14 · waiting on the coordinator") | *Open* → Activity (Release lead claim lives there) |
-     | Ready to resume, unattended ("RCP-23 can resume: RCP-12 is done · parked 2 h") | *Open* → Activity |
+     | Orphaned resources ("vite :5173 still running 18m after its run ended · stop it, then mark it released") | *Mark released* (once you've stopped it) · *Open* → Activity |
+     | Unpushed work may be lost ("1 commit not pushed · uncommitted changes · C:/work/rcp-25 · run ended (lease expired)") | *Handled* · *Open* → Activity |
+     | Parked for 24 h ("Parked since Nov 14 · waiting on the coordinator · keeps its claim") | *Open* → Activity (Release lead claim is also on the agent bar) |
+     | Ready to resume, unattended ("Ready to resume: RCP-11 is done · parked 40m") | *Open* → Activity |
      | Extra backup copy failed | *Open* → Settings |
 
      Empty: "No stale or failed runs, cycles or date conflicts."
@@ -273,7 +282,7 @@ Fits one 1440×900 screen without scrolling at sample volume. Contents, top to b
    - **Deferred, not verified · N:** item + review text + "Test ticket RCP-29 · inbox" or "No follow-up ticket" with *Create test ticket*. *View all* goes to Work with the Deferred review filter. Empty: "Nothing deferred."
    - **Your Planning queue · N:** item + type and epic, with *Move to Ready*. *View all* goes to Work with the In planning filter. Empty: "Nothing in Planning."
 
-**Rows are one or two lines**; truncate with an ellipsis and put the full text in `title`. Reviews that are coming up do **not** appear here (they're the *Human review later* filter on Work).
+**Rows are one or two lines**; truncate with an ellipsis (Problems: whole facts, above) and put the full text in `title`. Reviews that are coming up do **not** appear here (they're the *Human review later* filter on Work).
 
 ### 6.2 Work (`/work`)
 - **Header row:** h1 "Work", and on the right a segmented control: Board | List | Map | Timeline.
@@ -286,7 +295,8 @@ Fits one 1440×900 screen without scrolling at sample volume. Contents, top to b
 
 #### 6.2.1 Board
 - **Columns:** six, `repeat(6, minmax(176px,1fr))`, scrolling sideways when needed: Inbox · Planning ("Yours") · Ready · In progress · Review ("Your human review") · Done. Each header shows its name and count.
-- **Ready** splits into *Startable · n*, then *Waiting on blockers · n*. Waiting items show as red ID chips, with *Show* expanding them to cards.
+- **Ready** splits into *Startable · n*, then *Waiting on blockers · n*. Waiting items show as red ID chips. "Waiting on blockers · n · Show" is **one button** across the column (at least 32px tall, `aria-expanded`, a chevron), which expands them to cards.
+- **Run line:** each claimed card ends with the lead's `RunLine` (§5): "parked · waiting on the coordinator · claude · orca-w4", in the parked style.
 - **Review cards** with a ready packet open the packet screen directly (`title` "Open the handoff packet"). Other cards open the item.
 - **Done** keeps every done item until it's archived (no time cutoff):
   - each card has *Archive* (a small button at the bottom right, outside the card link);
@@ -308,7 +318,7 @@ A `ProgressMap` of the filtered set, titled "Outside this view". When no epic or
   - text under the bar **only** when there's a blocker: "after DOC-4 ends Nov 10", with the risky one in bold `--bad`;
   - a dashed vertical tick at each blocker's planned end; a red "Now" line.
 - **Bottom:** a forecast lane per project (§9.1); a legend (Entered plan, Actual, Forecast, Blocker's planned end, Now); "Not on the timeline (no dates): ID, ID, …".
-- **Burn-down card** above the grid (§9.1).
+- **Burn-down card** above the grid (§9.1), collapsed to its one-line summary until opened.
 - Archived items are excluded.
 
 ### 6.3 Ticket and epic (`/items/:id`)
@@ -346,6 +356,13 @@ A `ProgressMap` of the filtered set, titled "Outside this view". When no epic or
 - **Limits:** title 200 characters, outcome and description 20,000, each criterion 500. A counter appears once 80% of the limit is used.
 - **Accessibility:** the edit button's label is "Edit title" (etc.), and focus moves into the field on open and back to the button on close.
 
+**Agent bar** (B20), directly under the header, on every tab, so the coordination state is never a tab away. A `section` labelled "Lead agent".
+- **With a lead:** one line: the lead's `RunLine` (`state · client · label`) · "last signal 40s ago" · "step 2/4" (the step it's on, its text in `title`) · the worktree's `WorkspaceStateChip`, then at the right *Release lead claim…* (stale or parked lead) and *Copy resume note* (stale or parked). These are the Lead and runs actions (§6.3.2), the same code and dialog.
+- **Parked lead:** a second line, "Parked: waiting on the coordinator since 10:57" (or "waiting on RCP-12", "a person", "until …"; a day and time once it's over 24 h), with the park's own reason in `title`, plus a "Ready to resume" chip when it can.
+- **No lead:** nothing, except a quiet dashed "No agent on this" while the item is In progress (its run failed, or was released). Epics show no bar.
+- It updates in place from the live stream without moving focus. A polite live region announces only a change of run state ("claude · orca-w4 is stale on RCP-17."), never the ages ticking.
+- Activity → Lead and runs stays: it is the full run history.
+
 **Banners above the tabs** (visible on every tab):
 - **Packet ready:** amber banner, "Handoff packet ready (round n). k things to verify, about 10 min. The ticket can't close until you approve.", with *Open packet*.
 - **Open question:** the question, an answer textarea and *Send answer*. After answering: "You answered: “…”. Waiting for codex to read it."
@@ -356,11 +373,11 @@ A `ProgressMap` of the filtered set, titled "Outside this view". When no epic or
 
 | Tab | Ticket | Epic | Label extras |
 |---|---|---|---|
-| **Details** (default) | Outcome (summary "n acceptance criteria"); Decisions (summary "n in scope · n by agents"; hidden when there are none); Documents (summary count); Dates and effort (summary "Nov 4 → Nov 11" or "not set") | Brief and documents; Decisions (this epic's own, plus a link "n project decisions"); Tickets in this epic (summary "n/N done · n ready but blocked · n for you"), grouped by status. Archived tickets fold into "+ N archived · Show". | — |
+| **Details** (default) | Outcome (summary "n acceptance criteria"); Decisions (summary "n in scope · n by agents"; hidden when there are none); Documents (summary count); Dates and effort (summary "Nov 4 → Nov 11" or "not set") | Brief and documents; Decisions (this epic's own, plus a link "n project decisions"); Tickets in this epic (summary "n/N done · n ready but blocked · n for you"), grouped by status. Each row: type icon, ID, title, then the same pieces a Board card uses: the `BlockedChip`, a `ForYouChip`, and the lead's `RunLine`. Archived tickets fold into "+ N archived · Show". | — |
 | **Checklist** | Work (summary "n/N done · the agent's plan"; *Checklist history* in the header when there are revisions); Agent review ("n/N passed · what the agent verifies itself"); Human review ("n items · packet ready · what you verify yourself"; *Open packet* in the header when ready) | Same three sections, at epic level | Count: work done/total on tickets; total item count on epics; amber dot when a packet is ready |
 | **Dependencies** (ticket) | A plain card. h3 "Waits on n · unblocks n"; the 1-hop view (§6.3.3); a cycle callout with a *Remove "A blocks B"* button per cycle link; "Relates to (doesn't block): …"; *See it on the epic map →* | — | Count = links; red dot when in a cycle |
 | **Map** (epic) | — | Epic-level review strip (when the epic has human review), then a `ProgressMap` of its children | Count "done/total" |
-| **Activity** | Lead and runs (summary "codex · orca-w1 · stale" or "unclaimed"); History (summary "n updates"), with the *note for the agent* box at the top | History with *note for the agents* | Amber dot on stale, failed or claim-conflict runs |
+| **Activity** | Lead and runs, the full run history (summary "codex · orca-w1 · stale" or "unclaimed"); History (summary "n updates"), with the *note for the agent* box at the top | History with *note for the agents* | Amber dot on stale, failed or claim-conflict runs |
 
 *+ New item in this epic* sits at the right of an epic's tab row.
 
@@ -396,7 +413,8 @@ A `ProgressMap` of the filtered set, titled "Outside this view". When no epic or
   - "New items aren't in the current packet; the agent includes them next round." (packet open).
 
 #### 6.3.2 Lead and runs
-- **Run rows:** agent name, a "lead" chip, run state with age, and "what" (current step or last report).
+- **Run rows:** the run's `RunLine` (`state · reason · agent`, the agent in bold, the last-signal age), a "lead" chip, "started 30m ago", and "what" (current step or last report).
+- *Release lead claim…* and *Copy resume note* are shared with the agent bar (§6.3): one implementation, one dialog.
 - **Where the work lives** (owner decision 26), one compact block under each run row:
   - `branch · worktree path` (path truncated in the middle, full path in `title`, *Copy*);
   - `last commit 4be1c09 · pushed ✓`, or `2 commits not pushed !` in `--warn`, plus `uncommitted changes` when `dirty`;
@@ -529,21 +547,29 @@ Not in the sidebar. It opens from *Open packet* (Needs you, the ticket banner, t
   - Decisions: the label's records (§6.3.5).
 
 ### 6.6 Agents (`/agents`)
-h1 "Agents". A table with these columns:
-- State (`RunState`, or "log entry" for subagent logs);
-- Agent (bold);
+h1 "Agents", then three collapsible `Section`s (B20), in this order:
+
+1. **Active now** (summary: the count). Runs in the order **needs input, failed, stale, parked, live, reported**, newest signal first within a state.
+   - `?state=parked` (the Needs you strip's links) shows that state only: the summary reads "1 parked" and the header has *Show all*.
+   - Empty: "No runs yet. Connect an agent from Settings." when nothing has ever run, else "No active runs." (or "No parked runs right now." when filtered).
+2. **Workspaces** (summary "n at risk"; anchor `#workspaces`), below.
+3. **Recent** (summary "n in the last 24 h"), **collapsed by default**, its open state remembered like any section: finished and interrupted runs that ended in the last 24 h, newest first. Empty: "No runs ended in the last 24 h."
+
+Active now and Recent share one table, with these columns:
+- State (the `RunLine` without the agent: "parked · waiting on RCP-12");
+- Agent (bold, never wrapped);
 - Item (link);
 - Doing / did;
 - Last signal ("40s ago");
 - Lease ("Until 12:02", "Expires 11:13", "Paused", "Released", "—");
 - How we know: "Client heartbeat" when live, `Provenance` for agent-reported, observed or relayed, or the gray chip "Unknown: no heartbeat" when stale.
 
-Rows link to the item. Sort order: needs input, stale, failed, live, reported, then finished by recency. Empty: "No runs yet. Connect an agent from Settings."
+Rows link to the item. **Subagent log entries aren't listed here;** they show on their item's Checklist (§6.3.1).
 
-**Workspaces** (a second card on Agents; owner decision 26): every recorded worktree, so you and a coordinator can see what's safe to prune.
+**Workspaces** (the second section on Agents; owner decision 26): every recorded worktree, so you and a coordinator can see what's safe to prune.
 - **Columns:** State chip (*In use*, *Parked*, *At risk* in `--warn`, *Safe to prune* in `--ok`, *Unknown*), Path (with *Copy*), Branch, Item, Last activity, Pushed (`✓`, or `n behind`), Resources (unreleased count).
 - **Sort order:** At risk, In use, Parked, Unknown, Safe to prune.
-- **A filter chip** "Hide safe to prune" is on by default.
+- **A filter chip** "Hide safe to prune", in the section header, is on by default.
 - **Empty:** "No workspaces recorded yet. Agents report theirs when they claim work."
 
 ### 6.7 Settings (`/settings`)
@@ -559,7 +585,7 @@ h1 "Settings".
   - *Import from Jira…* at the bottom (§9.2).
 - **Delete dialog:** titled "Delete Sample · Recipe App?". Body: "This permanently removes **N work items**, their checklists, runs and history, and **N local documents** including handoff packets. Agents will get “not found” for these IDs." Then a warning callout: "Backups keep a copy until their 14-day retention ends. Removing the Docker container alone doesn't delete data." Then an input "Type RCP to confirm" and *Cancel* (focused) / *Delete project* (enabled only when the input matches).
 - **h2 "Connections":**
-  - **Client compatibility table** (Client, Transport, Last seen, Status chip Verified / Not verified / Not configured, Results: Text only / Structured per MCP_SPEC §3 Results, Notes), with "Smoke test: claim, plan, log, read back" in the header;
+  - **Client compatibility table** (Client, Transport, Last seen, Status chip Verified / Not verified, Results: Text only / Structured per MCP_SPEC §3 Results, Notes), with "Smoke test: claim, plan, log, read back" in the header. Surfaces that are off by default ("Agent in another container") are a **footnote under the table**, not a row: "**Agent in another container** (Docker network): not configured. Off by default. Needs an explicit network path (O02).";
   - **Client setup card:** Codex | Claude Code segmented control, a code block, and *Copy*. The token placeholder is `$TASKLITE_TOKEN`; show the token itself only behind *Reveal token*, which needs a click and auto-hides after 30 s;
   - **Endpoint card:** MCP URL, Web UI URL, Bind "Loopback only", Auth "Bearer token", Origins;
   - **Service health card:** Database and Documents with ready chips and sizes, Volume, Backups: one row per location, "In the data volume · Nov 6 03:00 · kept 14 days", and, if configured, "Extra copy: /backups-extra · Nov 6 03:01". When the extra location isn't configured, a muted line explains how to add it ("Mount a host folder and set TASKLITE_BACKUP_EXTRA_DIR; see the README"), Restarted (with "0 runs were active…"), *Download diagnostic log* (the last 7 days of agent calls, without contents), and *Lock this browser* / *Rotate owner key*.
@@ -609,7 +635,7 @@ On success, go to the page that was requested.
 |---|---|---|
 | Any owner mutation | pending | Optimistic update. On `conflict`: roll back, refetch, toast "Changed by codex just now. Showing the latest." |
 | Any owner mutation | success | Toast: past-tense summary + *Undo* (6 s) where undo is supported (BUILD_SPEC §5.11) |
-| Data from agents | arrives | SSE invalidates the affected queries. Lists update in place without moving focus. New For-you rows get a 1 s `--warn-soft` highlight (skipped under reduced motion). |
+| Data from agents | arrives | SSE invalidates the affected queries. Lists update in place without moving focus. New For-you rows get a 1 s `--warn-soft` highlight (skipped under reduced motion). The agent bar updates in place too, and announces only a change of run state, politely. |
 | Stream | disconnected > 10 s | A thin banner at the top of the view: "Reconnecting to the service…". After 60 s: "Service unreachable. Changes you make won't be saved." All write actions are disabled. |
 | Buttons | hover / active / disabled | Hover `--panel-2` (primary: 8% darker); active 1px down; disabled 55% opacity with `cursor:not-allowed` |
 | Section header | click / Enter / Space | Toggle collapse; the chevron rotates −90° when collapsed |
@@ -642,8 +668,8 @@ All of these are off under `prefers-reduced-motion: reduce`.
 ## 9. Screens not prototyped
 
 ### 9.1 Burn-down and forecast (Work → Timeline)
-- **Burn-down card**, above the timeline grid, scoped by the same Epic and Label filters, otherwise the project scope:
-  - h3 "Remaining effort", with the summary "n pts open · n not estimated · last 4 weeks" right-aligned;
+- **Burn-down card**, above the timeline grid, scoped by the same Epic and Label filters, otherwise the project scope. A `Section` that **starts collapsed** to its one-line summary and opens on click; its state is remembered (§2):
+  - h3 "Remaining effort", with the summary "n pts open · n not estimated · last 4 weeks · Forecast P50 Nov 24 – P85 Dec 3" (or "· no forecast yet");
   - **Chart:** 180px tall, full width.
     - X is days (last 28, plus forecast space to the P85 date); Y is points, starting at 0.
     - A `--violet` 2px step line shows remaining effort.
@@ -693,7 +719,7 @@ Owner-only. The token never appears again after step 1.
   - "Nov 6 10:42" in packet and audit contexts;
   - always local time;
   - the full ISO time goes in `title`.
-- **Missing data:** no lead → nothing (not "Unclaimed"); no dates → "not set"; no outcome → "No outcome written yet."; no documents → "No documents yet. Planning docs (PRD, UX, TDD) and handoff packets appear here."
+- **Missing data:** no lead → nothing (not "Unclaimed"), except the agent bar's quiet "No agent on this" on an In progress item; no dates → "not set"; no outcome → "No outcome written yet."; no documents → "No documents yet. Planning docs (PRD, UX, TDD) and handoff packets appear here."
 - **Imported items:** an "Imported from Jira" chip and the Jira key in search results.
 - **Service errors:** API errors appear as the inline callout from §6. A validation error from a form shows next to the field.
 
@@ -709,6 +735,7 @@ Target: WCAG 2.1 AA, in both themes.
   - map nodes are buttons;
   - section headers are buttons with `aria-expanded`;
   - view tabs follow the ARIA tabs pattern (`role=tablist/tab/tabpanel`, arrow keys, Home/End);
+  - the item's agent bar is a region labelled "Lead agent"; the Needs you Agents strip is a `nav` labelled "Agents" whose counts are links;
   - verdicts are radio groups (`role=radiogroup`) labelled "Decision for item n";
   - the project menu uses `menuitemradio`.
 - **Dialogs:** `role=dialog`, `aria-modal`, labelled by the title. Focus is trapped, Esc closes, and focus returns to the trigger. Destructive dialogs focus Cancel first.

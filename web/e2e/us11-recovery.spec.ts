@@ -11,6 +11,11 @@
  * - Agents → Workspaces states, with "Hide safe to prune" on by default;
  * - axe on each, in both themes.
  *
+ * B20 adds the coordination views over the same state: the item's agent bar
+ * (a parked lead, ready to resume or not), parked Board cards and the epic's
+ * Tickets list, the Needs you strip's links into Agents, and the workspace
+ * chip on recovery Problems rows.
+ *
  * Time-based rows (orphaned after ORPHAN_AFTER, parked past PARK_MAX,
  * unattended past RESUME_UNATTENDED) can't wait for the clock: after the
  * agent's calls, `age()` moves the run's recorded times back in the
@@ -121,8 +126,9 @@ test.describe.serial('US11 recovery', () => {
 
     await openNeedsYou(page);
     const r = row(page, 'orphaned_resources', 'RCP-17');
+    // Key fact first (B20): what is still running, then since when.
     await expect(r).toContainText(
-      "RCP-17's run ended 20m ago but left: dev server :5173 (pid 4242, port 5173)",
+      'dev server :5173 (pid 4242, port 5173) still running 20m after its run ended',
     );
     await r.getByRole('button', { name: 'Mark released' }).click();
     const toast = page.getByRole('status');
@@ -166,9 +172,14 @@ test.describe.serial('US11 recovery', () => {
 
     await openNeedsYou(page);
     const r = row(page, 'unpushed_work', 'RCP-25');
-    await expect(r).toContainText(
-      'RCP-25 ended (released by the agent) with 1 commit not pushed and uncommitted changes in C:/work/rcp-25.',
+    await expect(r.locator('.reason')).toHaveAttribute(
+      'title',
+      '1 commit not pushed · uncommitted changes · C:/work/rcp-25 · run ended (released by the agent)',
     );
+    // Whole facts: each is its own unit, so a wrap never cuts one.
+    await expect(r.locator('.reason .fact')).toHaveCount(4);
+    // The worktree's state chip, as on Agents → Workspaces.
+    await expect(r.locator('.chip')).toHaveText('At risk');
     await r.getByRole('button', { name: 'Handled' }).click();
     const toast = page.getByRole('status');
     await expect(toast).toContainText('Marked handled.');
@@ -213,11 +224,13 @@ test.describe.serial('US11 recovery', () => {
 
     await openNeedsYou(page);
     await expect(row(page, 'parked_too_long', 'RCP-17')).toContainText(
-      'waiting on the coordinator. It keeps its claim.',
+      'waiting on the coordinator · keeps its claim',
     );
+    await expect(row(page, 'parked_too_long', 'RCP-17').locator('.chip')).toHaveText('Parked');
     await expect(row(page, 'resume_unattended', 'RCP-18')).toContainText(
-      'RCP-18 can resume: RCP-11 is done · parked 40m.',
+      'Ready to resume: RCP-11 is done · parked 40m',
     );
+    await expect(row(page, 'resume_unattended', 'RCP-18').locator('.chip')).toHaveText('Parked');
     // All four recovery rows fit the card at once.
     for (const kind of [
       'orphaned_resources',
@@ -237,6 +250,95 @@ test.describe.serial('US11 recovery', () => {
     );
     await expect(block.locator('[data-ws="parked"]')).toContainText('Ready to resume');
     await expect(block.getByRole('button', { name: 'Copy resume note' })).toBeVisible();
+  });
+
+  test('B20: the agent bar, parked Board cards, the epic Tickets list and the strip links', async ({
+    ownerPage: page,
+  }) => {
+    await page.context().addInitScript(() => localStorage.setItem('tl.notifications', 'off'));
+    const bar = page.getByRole('region', { name: 'Lead agent' });
+
+    // A parked lead, on any tab: run line, the parked line, the worktree chip, the actions.
+    await page.goto('/items/RCP-17?tab=details');
+    await expect(bar).toHaveAttribute('data-agent-bar', 'parked');
+    await expect(bar.locator('.runline .rl')).toHaveText(/^parked\s· claude · orca-w3$/);
+    await expect(bar.locator('[data-ab="parked"]')).toHaveText(
+      /^Parked: waiting on the coordinator since \w{3} \d+ \d\d:\d\d$/,
+    );
+    await expect(bar.locator('.chip')).toHaveText('Parked');
+    await expect(bar.getByRole('button', { name: 'Release lead claim…' })).toBeVisible();
+    await expect(bar.getByRole('button', { name: 'Copy resume note' })).toBeVisible();
+    await expectAxeClean(page, 'agent bar, parked lead');
+
+    // Ready to resume, on another tab.
+    await page.goto('/items/RCP-18?tab=checklist');
+    await expect(bar.locator('[data-ab="parked"]')).toContainText(
+      /^Parked: waiting on RCP-11 since \d\d:\d\d/,
+    );
+    await expect(bar.locator('[data-ab="parked"]')).toContainText('Ready to resume');
+
+    // Board: one run line per parked card, state · reason · agent.
+    await page.goto('/work');
+    const runLine = (id: string) => page.locator(`a.tcard[data-item="${id}"] .runline`);
+    await expect(runLine('RCP-17')).toHaveCount(1);
+    await expect(runLine('RCP-17').locator('.rl')).toHaveText(
+      /^parked\s· waiting on the coordinator\s· claude · orca-w3$/,
+    );
+    await expect(runLine('RCP-18').locator('.rl')).toHaveText(
+      /^parked\s· ready to resume\s· claude · orca-w4$/,
+    );
+    // No wrapped run line starts with the separator: each "·" sits on its segment's line.
+    const leading = await page.locator('a.tcard .runline .rl').evaluateAll((els) =>
+      els.flatMap((el) => {
+        const lines = new Map<number, string>();
+        const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+        for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+          const text = n.textContent ?? '';
+          for (let i = 0; i < text.length; i++) {
+            const r = document.createRange();
+            r.setStart(n, i);
+            r.setEnd(n, i + 1);
+            const top = Math.round(r.getBoundingClientRect().top);
+            if (!lines.has(top)) lines.set(top, text.slice(i).trimStart());
+          }
+        }
+        return [...lines.values()].filter((l) => l.startsWith('·'));
+      }),
+    );
+    expect(leading).toEqual([]);
+    await expectAxeClean(page, 'board with parked cards', { include: '[data-layout="board"]' });
+
+    // The epic's Tickets list uses the same pieces.
+    await page.goto('/items/RCP-1');
+    await expect(page.locator('[data-ticket="RCP-17"] .runline .rl')).toHaveText(
+      /^parked\s· waiting on the coordinator\s· claude · orca-w3$/,
+    );
+    await expect(page.locator('[data-ticket="RCP-16"]')).toContainText('Blocked by');
+    await expectAxeClean(page, 'epic tickets with run state');
+
+    // The Needs you strip: a count opens Agents filtered to that state.
+    await page.context().addInitScript(() => sessionStorage.setItem('tl.scope', 'RCP'));
+    await page.goto('/');
+    const strip = page.locator('[data-card="agents-strip"]');
+    await expect(strip.locator('a[data-state="parked"]')).toContainText('× 2');
+    const risk = strip.locator('a[data-state="workspaces-at-risk"]');
+    await expect(risk).toHaveText(/^\d+ workspaces? at risk$/);
+    const n = Number((await risk.innerText()).split(' ')[0]);
+    await strip.locator('a[data-state="parked"]').click();
+    await expect(page).toHaveURL(/\/agents\?state=parked$/);
+    const active = page.locator('[data-section="agents-active"]');
+    await expect(active.locator('tbody tr')).toHaveCount(2);
+    await expect(
+      active.locator('tbody tr').filter({ hasText: 'RCP-18' }).locator('.rl'),
+    ).toHaveText(/^parked\s· ready to resume$/);
+    await expectAxeClean(page, 'agents filtered to parked');
+
+    // "n workspaces at risk" opens Agents → Workspaces, whose header says the same n.
+    await page.goto('/');
+    await risk.click();
+    await expect(page).toHaveURL(/\/agents#workspaces$/);
+    await expect(page.getByRole('button', { name: /^Workspaces/ })).toContainText(`${n} at risk`);
+    await expect(page.locator('#workspaces')).toBeInViewport();
   });
 
   test('Where the work lives and Copy resume note', async ({ ownerPage: page }) => {
@@ -318,7 +420,7 @@ test.describe.serial('US11 recovery', () => {
     });
 
     await page.goto('/agents');
-    const card = page.locator('[data-card="workspaces"]');
+    const card = page.locator('[data-section="agents-workspaces"]');
     const hide = card.getByRole('button', { name: 'Hide safe to prune' });
     await expect(hide).toHaveAttribute('aria-pressed', 'true');
     const rowOf = (path: string) => card.locator(`tbody tr:has(td[title="${path}"])`);
@@ -336,6 +438,12 @@ test.describe.serial('US11 recovery', () => {
       [...states.map((x) => order.indexOf(x.trim()))].sort((a, b) => a - b),
     );
     await expect(rowOf('C:/work/rcp-25')).toContainText('1 behind');
+    // The header counts them (B20).
+    const atRisk = states.filter((x) => x.trim() === 'At risk').length;
+    expect(atRisk).toBeGreaterThan(0);
+    await expect(card.getByRole('button', { name: /^Workspaces/ })).toContainText(
+      `${atRisk} at risk`,
+    );
     await expectAxeClean(page, 'agents with workspaces');
 
     await hide.click();

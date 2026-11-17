@@ -127,7 +127,7 @@ describe('GET /api/needs-you', () => {
     );
     const stale = n.problems.find((p) => p.kind === 'stale_run')!;
     expect(stale.reason).toBe(
-      "Lead run silent for 47m; the lease expires in 13m. Treated as unknown, not finished. Another agent's claim was rejected 2m ago.",
+      "Lead silent for 47m · the lease expires in 13m · treated as unknown, not finished · another agent's claim was rejected 2m ago",
     );
     expect(stale.run_id).toBeTruthy();
     const failed = n.problems.find((p) => p.kind === 'failed_run')!;

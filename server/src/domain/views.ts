@@ -43,6 +43,7 @@ import {
   type Item,
   type ItemDetailResponse,
   type ItemSummary,
+  type LeadParked,
   type LinkEdge,
   type NeedsYouResponse,
   type PlanVersion,
@@ -283,6 +284,37 @@ function scopeRuns(s: Scoped) {
   return { open, latestLead };
 }
 
+/** What a parked run waits on, since when, and whether it can resume (`lead_parked`, B20). */
+function parkedOf(db: Db, run: RunRow, now: string, index: BlockIndex): LeadParked {
+  return {
+    waiting_on: parseJson<WaitingOn>(run.waiting_on) ?? {},
+    since: run.parked_at ?? run.updated_at,
+    resume_ready: parkInfo(db, run, now, index).resume_ready,
+  };
+}
+
+/**
+ * `lead_parked` for the parked leads among `summaries` (B20, UI API only: the
+ * run line on cards and the epic's Tickets list), keyed by run id. One query.
+ */
+function leadParkedOf(
+  db: Db,
+  summaries: readonly Pick<ItemSummary, 'lead'>[],
+  now: string,
+  index: BlockIndex,
+): (s: Pick<ItemSummary, 'lead'>) => LeadParked | null {
+  const ids = summaries.filter((i) => i.lead?.run_state === 'parked').map((i) => i.lead!.run_id);
+  const byRun = new Map<string, LeadParked>();
+  if (ids.length > 0) {
+    for (const run of db.sqlite
+      .prepare(`SELECT * FROM runs WHERE state = 'parked' AND id IN ${placeholders(ids.length)}`)
+      .all(...ids) as RunRow[]) {
+      byRun.set(run.id, parkedOf(db, run, now, index));
+    }
+  }
+  return (i) => (i.lead ? (byRun.get(i.lead.run_id) ?? null) : null);
+}
+
 /**
  * A failed lead run that still needs someone: the item is In progress with
  * no active lead and its latest lead run failed (BUILD_SPEC §5.3: "It shows
@@ -368,7 +400,8 @@ function recoveryProblems(
       kind: 'orphaned_resources',
       item_id: first.run.item_id,
       title: title(first.run.item_id),
-      reason: `${first.run.item_id}'s run ended ${durationLabel(ms(now) - ms(first.ended_at))} ago but left: ${what}. Stop ${left.length === 1 ? 'it' : 'them'}, then mark ${left.length === 1 ? 'it' : 'them'} released.`,
+      // Key fact first (B20): what is still running, then since when, then what to do.
+      reason: `${what} still running ${durationLabel(ms(now) - ms(first.ended_at))} after its run ended · stop ${left.length === 1 ? 'it' : 'them'}, then mark ${left.length === 1 ? 'it' : 'them'} released`,
       run_id: runId,
       resource_ids: left.map((o) => o.resource.id),
     });
@@ -384,19 +417,20 @@ function recoveryProblems(
   ).filter((r) => items.has(r.item_id));
   for (const risk of unpushedRisks(db, ended)) {
     const n = risk.unpushed_commits ?? 0;
-    const lost = [
+    const path = storedWorkspace(risk.run)?.path;
+    // Key fact first (B20): what may be lost, where, then how the run ended.
+    const facts = [
       n > 0 ? `${n} ${n === 1 ? 'commit' : 'commits'} not pushed` : null,
       risk.dirty ? 'uncommitted changes' : null,
-    ]
-      .filter(Boolean)
-      .join(' and ');
-    const path = storedWorkspace(risk.run)?.path;
+      path ?? null,
+      `run ended (${END_REASON_LABELS[risk.run.end_reason!]})`,
+    ].filter(Boolean);
     push({
       ...base,
       kind: 'unpushed_work',
       item_id: risk.run.item_id,
       title: title(risk.run.item_id),
-      reason: `${risk.run.item_id} ended (${END_REASON_LABELS[risk.run.end_reason!]}) with ${lost}${path ? ` in ${path}` : ''}.`,
+      reason: facts.join(' · '),
       run_id: risk.run.id,
     });
   }
@@ -419,7 +453,7 @@ function recoveryProblems(
         kind: 'resume_unattended',
         item_id: run.item_id,
         title: title(run.item_id),
-        reason: `${run.item_id} can resume: ${why} · parked ${durationLabel(ms(now) - ms(since))}.`,
+        reason: `Ready to resume: ${why} · parked ${durationLabel(ms(now) - ms(since))}`,
         run_id: run.id,
       });
     }
@@ -429,7 +463,7 @@ function recoveryProblems(
         kind: 'parked_too_long',
         item_id: run.item_id,
         title: title(run.item_id),
-        reason: `${run.item_id} parked since ${dayLabel(since)} · waiting on ${waitingLine(waiting)}. It keeps its claim.`,
+        reason: `Parked since ${dayLabel(since)} · waiting on ${waitingLine(waiting)} · keeps its claim`,
         run_id: run.id,
       });
     }
@@ -470,14 +504,14 @@ function problemsOf({ s, runs, deferredCounts, backupError, config }: ProblemsIn
     const rej = rejected.get(r.item_id);
     const claim =
       rej && ms(rej) >= ms(r.created_at)
-        ? ` Another agent's claim was rejected ${durationLabel(ms(now) - ms(rej))} ago.`
+        ? ` · another agent's claim was rejected ${durationLabel(ms(now) - ms(rej))} ago`
         : '';
     push({
       ...base,
       kind: 'stale_run',
       item_id: r.item_id,
       title: title(r.item_id),
-      reason: `Lead run silent for ${silent}; ${lease}. Treated as unknown, not finished.${claim}`,
+      reason: `Lead silent for ${silent} · ${lease} · treated as unknown, not finished${claim}`,
       run_id: r.id,
     });
   }
@@ -964,10 +998,12 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
           lastActivity.set(e.item_id, e.at);
         }
       }
+      const parked = leadParkedOf(s.db, summaries, s.now, s.index);
       const rows: WorkItem[] = summaries.map((i) => {
         const packet_ready = att.packets.has(i.id);
         return {
           ...i,
+          lead_parked: parked(i),
           packet_ready,
           for_you: packet_ready || att.questions.has(i.id),
           last_activity_at: lastActivity.get(i.id) ?? i.updated_at,
@@ -1064,12 +1100,15 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
       const childIds = childRows.map((c) => c.id);
       const childPackets = openPackets(r.db, childIds);
       const childQuestions = openQuestions(r.db, childIds);
-      const children = summarize(
+      const childSummaries = summarize(
         { db: r.db, windows: windows(), now: r.now, index },
         childRows,
-      ).map((c: ItemSummary) => ({
+      );
+      const childParked = leadParkedOf(r.db, childSummaries, r.now, index);
+      const children = childSummaries.map((c: ItemSummary) => ({
         ...c,
         for_you: childPackets.has(c.id) || childQuestions.has(c.id),
+        lead_parked: childParked(c),
       }));
 
       // Decision records (§6.3.5), every status (the section can show inactive ones): an
@@ -1369,6 +1408,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
             lease_expires_at: x.lease_expires_at,
             lease,
             provenance,
+            lead_parked: x.state === 'parked' ? parkedOf(r.db, x, s.now, s.index) : null,
             at: open ? x.last_signal_at : x.updated_at,
           },
         });

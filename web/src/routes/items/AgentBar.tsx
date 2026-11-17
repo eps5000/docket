@@ -1,0 +1,107 @@
+import { useState } from 'react';
+import { RUN_STATE_LABELS, type ItemDetailResponse } from '@tasklite/shared';
+import {
+  Button,
+  Chip,
+  RunLine,
+  WorkspaceStateChip,
+  leadName,
+  parkedReason,
+} from '../../components/kit';
+import { formatAgo, formatSince, isoTitle } from '../../lib/format';
+import {
+  CopyResumeNoteButton,
+  canCopyResumeNote,
+  canReleaseLead,
+  currentStep,
+  useReleaseLead,
+} from './activity/leadActions';
+
+/**
+ * The agent bar (B20; UI_SPEC §6.3): on every tab, under the title row, the
+ * item's lead at a glance: the run-state line (`state · agent`), last signal,
+ * the step it's on ("step 2/4"), the worktree's state, and *Release lead
+ * claim…* / *Copy resume note* (the same actions as Activity → Lead and runs,
+ * from leadActions.tsx). A parked lead adds a line: "Parked: waiting on the
+ * coordinator since 10:57", plus "Ready to resume" once it can.
+ *
+ * With no lead it shows nothing, or a quiet "No agent on this" while the item
+ * is In progress. It is a labelled region; it updates in place from the live
+ * stream without moving focus, and a polite live region announces only a
+ * change of run state (UI_SPEC §7).
+ */
+export function AgentBar({ data }: { data: ItemDetailResponse }) {
+  const item = data.item;
+  const lead = item.lead;
+  const run = lead ? item.runs.find((r) => r.run_id === lead.run_id) : undefined;
+  const release = useReleaseLead(data);
+
+  // Announce a change of run state (not the first render, not ages ticking).
+  const key = run ? `${run.run_id}:${run.run_state}` : 'none';
+  const [seen, setSeen] = useState(key);
+  const [announce, setAnnounce] = useState('');
+  if (seen !== key) {
+    setSeen(key);
+    setAnnounce(
+      run
+        ? `${leadName(run)} is ${RUN_STATE_LABELS[run.run_state].label} on ${item.id}.`
+        : `No agent leads ${item.id} now.`,
+    );
+  }
+  const live = (
+    <span className="sr" aria-live="polite">
+      {announce}
+    </span>
+  );
+
+  if (item.type === 'Epic') return null;
+  if (!lead || !run) {
+    if (item.status !== 'progress') return <div className="agentbar-none">{live}</div>;
+    return (
+      <section className="agentbar quiet" aria-label="Lead agent" data-agent-bar="none">
+        <span className="src">No agent on this</span>
+        {live}
+      </section>
+    );
+  }
+
+  const step = currentStep(data, run);
+  const ws = run.workspace;
+  const parked = run.run_state === 'parked' ? run.parked : null;
+  const waiting = parked ? parkedReason(parked.waiting_on) : undefined;
+  return (
+    <section className="agentbar" aria-label="Lead agent" data-agent-bar={run.run_state}>
+      <div className="ab-line">
+        <RunLine state={run.run_state} agent={leadName(run)} />
+        <span className="src" title={isoTitle(run.last_signal_at)} data-ab="signal">
+          last signal {formatAgo(run.last_signal_at)}
+        </span>
+        {step && (
+          <span className="src" title={step.text} data-ab="step">
+            step {step.n}/{step.total}
+          </span>
+        )}
+        {ws && <WorkspaceStateChip state={ws.state} />}
+        <span className="ab-acts">
+          {canReleaseLead(data, run) && (
+            <Button size="sm" disabled={release.busy} onClick={() => release.request(run)}>
+              Release lead claim…
+            </Button>
+          )}
+          {canCopyResumeNote(run) && <CopyResumeNoteButton data={data} run={run} />}
+        </span>
+      </div>
+      {parked && (
+        <div className="ab-parked src" data-ab="parked" title={parked.reason || undefined}>
+          <span>
+            Parked: {waiting ?? 'waiting'} since{' '}
+            <span title={isoTitle(parked.since)}>{formatSince(parked.since)}</span>
+          </span>
+          {parked.resume_ready && <Chip kind="ok">Ready to resume</Chip>}
+        </div>
+      )}
+      {live}
+      {release.dialog}
+    </section>
+  );
+}

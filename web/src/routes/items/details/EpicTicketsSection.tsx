@@ -1,13 +1,25 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { STATUSES, STATUS_LABELS, type ItemDetailResponse } from '@tasklite/shared';
-import { Button, Chip, EmptyState, Section, TypeIcon } from '../../../components/kit';
+import {
+  BlockedChip,
+  Button,
+  Chip,
+  EmptyState,
+  ForYouChip,
+  RunLine,
+  Section,
+  TypeIcon,
+  leadName,
+  leadReason,
+} from '../../../components/kit';
 import { paths } from '../../../lib/paths';
 
 /**
  * Tickets in this epic (summary "n/N done · n ready but blocked · n for
  * you"), grouped by status; archived tickets fold into "+ N archived · Show"
- * (US7, T127). US2 fills it.
+ * (US7, T127). US2 fills it. Each row carries the coordination state the
+ * Board cards show (B20): the blocked chip, *For you*, and the lead's run line.
  */
 export function EpicTicketsSection({ data }: { data: ItemDetailResponse }) {
   const kids = data.children;
@@ -35,12 +47,23 @@ export function EpicTicketsSection({ data }: { data: ItemDetailResponse }) {
                 {STATUS_LABELS[s]} · {group.length}
               </div>
               {group.map((k) => (
-                <div className="lrow" key={k.id}>
+                <div className="lrow ticketrow" key={k.id} data-ticket={k.id}>
                   <TypeIcon type={k.type} />
                   <Link to={paths.item(k.id)} className="mono">
                     {k.id}
                   </Link>
-                  <span className="grow one">{k.title}</span>
+                  <span className="grow one" title={k.title}>
+                    {k.title}
+                  </span>
+                  {k.blocked && <BlockedChip blockers={k.blocked_by} />}
+                  {k.for_you && <ForYouChip />}
+                  {k.lead && (
+                    <RunLine
+                      state={k.lead.run_state}
+                      reason={leadReason(k.lead_parked)}
+                      agent={leadName(k.lead)}
+                    />
+                  )}
                   {k.archived && <Chip kind="neutral">Archived</Chip>}
                 </div>
               ))}
