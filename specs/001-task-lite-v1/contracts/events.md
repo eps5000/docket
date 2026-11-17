@@ -18,7 +18,7 @@ These match the `EventType` union in [MCP_SPEC §4](../../../docs/MCP_SPEC.md):
 | Messages | `question.asked`, `question.answered`, `owner_note.added`, `note.added` |
 | Evidence | `document.added`, `commit.reported`, `artifact.linked` |
 | Decisions | `decision.published`, `decision.confirmed`, `decision.superseded`, `decision.withdrawn` |
-| Agent setup (decision 29) | `agent_file.updated` (an owner edit, or a new bundled version at startup, actor system), `agent_file.reverted`, `workflow.updated`, `install.recorded` (a push install, or a command install's download). Their stream `objects[]` use the kinds `agent_file`, `project` and `install`; none touches an item. |
+| Agent setup (decision 29) | `agent_file.updated` (an owner edit, or a new bundled version at startup, actor system), `agent_file.reverted`, `workflow.updated`, `install.recorded` (a push install, or a command install's download; B24: a command install also records one when its command is created, so `data.stage` is `pushed`, `command_issued` or `downloaded`, and the summaries read "Installed by push: …", "Install command created: …" and "Installed by command: …"). Their stream `objects[]` use the kinds `agent_file`, `project` and `install`; none touches an item. |
 
 ## Event row
 `{ cursor, at, actor, actor_kind: owner|agent|system, item_id, project, type, summary }`.

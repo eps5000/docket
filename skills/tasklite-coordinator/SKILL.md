@@ -14,6 +14,8 @@ description: Coordinate several agents against Task Lite. Covers choosing and di
 
 You dispatch workers, create and prune worktrees, and clean up. Workers follow `tasklite-worker`; tell them to use it.
 
+**Agent files.** The owner installs the skills and the project's `AGENTS.md` / `CLAUDE.md` section from Settings → Agent setup (_Install…_, by a copy-paste command or into a mounted folder), and the install log shows which versions each repo got. If a worker doesn't have `tasklite-worker`, ask the owner to install it there; paste the skill into the brief only as a last resort. Each project's **Workflow notes** reach every worker through `get_context`, so don't repeat them, or the `AGENTS.md` rules, in briefs.
+
 ## 1. Every time you start, including after any crash or restart
 
 1. Call `whoami`, then `list_projects`.
