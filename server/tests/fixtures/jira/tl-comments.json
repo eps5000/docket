@@ -1,0 +1,81 @@
+{
+  "_comment": "Synthetic comments for project TL, as the comment endpoint returns them. Search results embed only the first two of each issue (maxResults 2), so TL-2's third comment is read through the comment endpoint's pagination. Invented content.",
+  "TL-2": [
+    {
+      "id": "40001",
+      "author": { "accountId": "fixture-acct-0001", "displayName": "Riley Example" },
+      "created": "2026-03-04T10:00:00.000+0000",
+      "body": {
+        "type": "doc",
+        "version": 1,
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              { "type": "text", "text": "Can we reuse the " },
+              { "type": "text", "text": "validateCard", "marks": [{ "type": "code" }] },
+              { "type": "text", "text": " helper?" }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "40002",
+      "author": { "accountId": "fixture-acct-0002", "displayName": "Sam Placeholder" },
+      "created": "2026-03-04T11:30:00.000+0000",
+      "body": {
+        "type": "doc",
+        "version": 1,
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "Use header Authorization: Bearer abcdefghijklmnopqrstuv for the sandbox."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "40003",
+      "author": { "accountId": "fixture-acct-0003", "displayName": "Jo Sample" },
+      "created": "2026-03-05T09:00:00.000+0000",
+      "body": {
+        "type": "doc",
+        "version": 1,
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [{ "type": "text", "text": "Third comment, read from the second page." }]
+          },
+          {
+            "type": "panel",
+            "attrs": { "panelType": "info" },
+            "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "FYI" }] }]
+          }
+        ]
+      }
+    }
+  ],
+  "TL-7": [
+    {
+      "id": "40010",
+      "author": { "accountId": "fixture-acct-0002", "displayName": "Sam Placeholder" },
+      "created": "2026-03-06T12:00:00.000+0000",
+      "body": {
+        "type": "doc",
+        "version": 1,
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [{ "type": "text", "text": "Done, see the unit test." }]
+          }
+        ]
+      }
+    }
+  ]
+}
