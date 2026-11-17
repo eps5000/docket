@@ -376,6 +376,14 @@ export function mapDbError(err: unknown): unknown {
   return err;
 }
 
+/**
+ * The commit listener of each database's main write path (the runtime's, which
+ * feeds the SSE bus). A write path built later without its own `onCommit`, as
+ * services do for writes after a commit (for example a Jira import's
+ * attachments), uses it, so open screens still hear about those writes (B18).
+ */
+const commitListeners = new WeakMap<Db, (seqs: number[]) => void>();
+
 export class WritePath {
   readonly db: Db;
   private readonly clock: () => Date;
@@ -386,6 +394,7 @@ export class WritePath {
     this.db = opts.db;
     this.clock = opts.clock ?? (() => new Date());
     this.knownSecrets = opts.knownSecrets ?? (() => []);
+    if (opts.onCommit) commitListeners.set(opts.db, opts.onCommit);
     this.onCommit = opts.onCommit;
   }
 
@@ -495,7 +504,7 @@ export class WritePath {
       throw mapDbError(err);
     }
 
-    if (outcome.seqs.length > 0) this.onCommit?.(outcome.seqs);
+    if (outcome.seqs.length > 0) (this.onCommit ?? commitListeners.get(this.db))?.(outcome.seqs);
     const { warnings, ...rest } = outcome.response;
     return { ...rest, warnings: warnings ?? [], replayed: outcome.replayed };
   }

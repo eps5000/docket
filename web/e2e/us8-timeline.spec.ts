@@ -201,6 +201,26 @@ test.describe('Work → Timeline', () => {
     await shoot(page, 'timeline-grid', grid(page));
   });
 
+  test('an active epic or label filter shows as a removable chip (B18)', async ({
+    ownerPage: page,
+  }) => {
+    await page.context().addInitScript(() => localStorage.setItem('tl.notifications', 'off'));
+    await page.goto('/work?layout=timeline&epic=RCP-1&label=ui-refresh');
+    await expect(grid(page)).toBeVisible();
+    const chips = page.getByRole('group', { name: 'Active filters' });
+    const epicChip = chips.getByRole('button', { name: /^Remove the epic filter: / });
+    const labelChip = chips.getByRole('button', { name: 'Remove the label filter: #ui-refresh' });
+    await expect(epicChip).toBeVisible();
+    await expect(labelChip).toHaveText(/# ui-refresh/);
+    await shoot(page, 'timeline-filter-chips', chips);
+    await epicChip.click();
+    await expect(page).toHaveURL(/layout=timeline&label=ui-refresh$/);
+    await expect(epicChip).toHaveCount(0);
+    await labelChip.click();
+    await expect(page).toHaveURL(/\/work\?layout=timeline$/);
+    await expect(chips).toHaveCount(0);
+  });
+
   test('the date risk is also in Problems, and its Timeline action opens Work → Timeline', async ({
     ownerPage: page,
   }) => {

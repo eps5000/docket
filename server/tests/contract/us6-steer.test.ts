@@ -202,6 +202,42 @@ describe('flow §7.5: question round trip', () => {
     expect((await owner('GET', '/api/items/DOC-4')).body.answer_unread).toBe(false);
   });
 
+  it("undoing an answer works until the agent reads it; after that it's refused with conflict", async () => {
+    h = await startHarness();
+    const owner = await ownerApi();
+    const claimed = await step('claim_lead', { id: 'RCP-17', agent_label: 'orca-w3' });
+    const runId = claimed.structured.run_id as string;
+    const ask = async (question: string) =>
+      (await step('ask_owner', { id: 'RCP-17', run_id: runId, question })).structured
+        .question_id as string;
+
+    // Unread: undo takes the answer back, and the question is open again.
+    const q1 = await ask('Keep the week in the URL or in local storage?');
+    const first = await owner('POST', '/api/items/RCP-17/answer', {
+      question_id: q1,
+      text: 'In the URL.',
+    });
+    const undone = await owner('POST', `/api/mutations/${first.body.mutation_id as string}/undo`);
+    expect(undone.status).toBe(200);
+    expect((await owner('GET', '/api/items/RCP-17')).body.answer_unread).toBe(false);
+
+    // Read by the agent: the undo is refused, and the answer stays.
+    const second = await owner('POST', '/api/items/RCP-17/answer', {
+      question_id: q1,
+      text: 'In local storage.',
+    });
+    const got = await step('get_item', { id: 'RCP-17', run_id: runId });
+    expect(openQuestion(got.structured)?.answer).toBe('In local storage.');
+    const refused = await owner('POST', `/api/mutations/${second.body.mutation_id as string}/undo`);
+    expect(refused.status).toBe(409);
+    expect(refused.body).toMatchObject({
+      error: {
+        code: 'conflict',
+        message: 'The agent already read this answer; leave a note instead.',
+      },
+    });
+  });
+
   it('a lead that asks goes to needs input, and back to open when get_item delivers the answer', async () => {
     h = await startHarness();
     const owner = await ownerApi();

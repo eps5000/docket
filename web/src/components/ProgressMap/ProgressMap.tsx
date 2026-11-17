@@ -8,6 +8,9 @@
  *   Cycle column last. Columns 200 px, 76 px apart, 16 px between cards.
  * - Arrows: SVG cubic curves from the right edge of a blocker to the left
  *   edge of the blocked card; solid = still blocks, dashed green = cleared.
+ *   They are drawn above the cards. One that skips a column (for example
+ *   from the outside column to wave 2) crosses the cards between, so it
+ *   gets a halo in the card colour and reads as passing over them (B18).
  *   They are measured from the laid-out cards (unscaled), redrawn on resize
  *   (80 ms debounce) and scale with the map on zoom.
  * - Hover or focus on a card highlights its links and dims the rest.
@@ -30,10 +33,12 @@ import {
 } from 'react';
 import { STATUS_LABELS, type LinkEdge } from '@tasklite/shared';
 import { Icon } from '../kit';
+import { useRenderLimit } from '../../lib/progressive';
 import { MapCard } from './MapCard';
 import {
   BAR_ORDER,
   arrowPath,
+  skipsColumn,
   fitZoom,
   layoutMap,
   stepZoom,
@@ -70,10 +75,24 @@ type Zoom = { fit: false; z: number } | { fit: true };
 
 interface Arrow extends MapEdge {
   d: string;
+  /** It skips a column, so it crosses cards: draw it with a halo. */
+  over: boolean;
 }
 
-export function ProgressMap({ items, outside = [], links, outsideTitle, home }: ProgressMapProps) {
+/** One shared empty `outside`: a fresh `[]` default would change the layout every render and loop. */
+const NO_OUTSIDE: readonly MapItem[] = [];
+
+export function ProgressMap({
+  items,
+  outside = NO_OUTSIDE,
+  links,
+  outsideTitle,
+  home,
+}: ProgressMapProps) {
   const layout = useMemo(() => layoutMap(items, outside, links), [items, outside, links]);
+  // A whole workspace on one map (thousands of cards) renders each column's first cards at
+  // once and the rest right after (lib/progressive.ts); arrows redraw as cards arrive.
+  const limit = useRenderLimit(items.length + outside.length);
   const uid = useId().replace(/:/g, '');
   const mapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -110,14 +129,15 @@ export function ProgressMap({ items, outside = [], links, outsideTitle, home }: 
       const a = pos(e.from);
       const b = pos(e.to);
       if (!a || !b || a.right > b.left) continue;
-      arrows.push({ ...e, d: arrowPath(a, b) });
+      arrows.push({ ...e, d: arrowPath(a, b), over: skipsColumn(a, b) });
     }
     setGeo({ w: map.offsetWidth, h: map.offsetHeight, arrows, view: canvas.clientWidth });
   }, [layout]);
 
+  // Again when more cards arrive (`limit`), so their arrows are drawn too.
   useLayoutEffect(() => {
     measure();
-  }, [measure]);
+  }, [measure, limit]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -391,16 +411,28 @@ export function ProgressMap({ items, outside = [], links, outsideTitle, home }: 
                 {geo.arrows.map((a) => {
                   const on = related && (a.from === traced || a.to === traced);
                   return (
-                    <path
-                      key={a.link_id}
-                      className={['pm-edge', a.cleared && 'ok', on && 'hl', related && !on && 'dim']
-                        .filter(Boolean)
-                        .join(' ')}
-                      data-from={a.from}
-                      data-to={a.to}
-                      d={a.d}
-                      markerEnd={`url(#${a.cleared ? `pa-ok-${uid}` : `pa-${uid}`})`}
-                    />
+                    <g key={a.link_id}>
+                      {a.over && (
+                        <path
+                          className={['pm-halo', related && !on && 'dim'].filter(Boolean).join(' ')}
+                          d={a.d}
+                        />
+                      )}
+                      <path
+                        className={[
+                          'pm-edge',
+                          a.cleared && 'ok',
+                          on && 'hl',
+                          related && !on && 'dim',
+                        ]
+                          .filter(Boolean)
+                          .join(' ')}
+                        data-from={a.from}
+                        data-to={a.to}
+                        d={a.d}
+                        markerEnd={`url(#${a.cleared ? `pa-ok-${uid}` : `pa-${uid}`})`}
+                      />
+                    </g>
                   );
                 })}
               </svg>
@@ -410,7 +442,7 @@ export function ProgressMap({ items, outside = [], links, outsideTitle, home }: 
                     {c.title}
                     <span>{c.sub}</span>
                   </div>
-                  {c.cards.map((i) => (
+                  {c.cards.slice(0, limit).map((i) => (
                     <MapCard
                       key={i.id}
                       item={i}

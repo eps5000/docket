@@ -86,6 +86,14 @@ export function Work() {
           onChange={set}
         />
       )}
+      {layout === 'timeline' && (epic || label) && (
+        <ActiveScope
+          epic={epic}
+          epicTitle={data?.epics.find((e) => e.id === epic)?.title}
+          label={label}
+          onRemove={set}
+        />
+      )}
       <QueryState query={query} skeleton={<WorkSkeleton layout={layout} />}>
         {(d) => (
           <>
@@ -100,6 +108,55 @@ export function Work() {
           </>
         )}
       </QueryState>
+    </div>
+  );
+}
+
+/**
+ * The Timeline hides the filter row, so an epic or label filter it was opened
+ * with shows here as a removable chip (B18; UI_SPEC §6.2.4).
+ */
+function ActiveScope({
+  epic,
+  epicTitle,
+  label,
+  onRemove,
+}: {
+  epic?: string;
+  epicTitle?: string;
+  label?: string;
+  onRemove: (patch: Record<string, string | undefined>) => void;
+}) {
+  return (
+    <div className="filters" role="group" aria-label="Active filters" data-active-filters>
+      {epic && (
+        <button
+          type="button"
+          className="chip c-info fchip"
+          aria-label={`Remove the epic filter: ${epicTitle ?? epic}`}
+          title="Show every epic"
+          onClick={() => onRemove({ epic: undefined })}
+        >
+          <span aria-hidden="true">◆</span> {epicTitle ?? epic}
+          <span aria-hidden="true" className="fchip-x">
+            ×
+          </span>
+        </button>
+      )}
+      {label && (
+        <button
+          type="button"
+          className="chip c-info fchip"
+          aria-label={`Remove the label filter: #${label}`}
+          title="Show every label"
+          onClick={() => onRemove({ label: undefined })}
+        >
+          # {label}
+          <span aria-hidden="true" className="fchip-x">
+            ×
+          </span>
+        </button>
+      )}
     </div>
   );
 }

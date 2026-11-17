@@ -270,11 +270,25 @@ describe('the commit (FR-091)', () => {
     await waitFor(import_id, ['ready']);
     s.clock.advance(5 * 60_000);
     const importedAt = s.clock.now().toISOString();
+    // Every commit reaches the SSE bus, the post-commit document writes too (B18).
+    const published: number[][] = [];
+    const onChange = (seqs: number[]) => published.push(seqs);
+    s.runtime.bus.on('change', onChange);
     const commit = await api(`/api/import/jira/${import_id}/commit`, { method: 'POST' });
     expect(commit.status, JSON.stringify(commit.body)).toBe(200);
     expect(commit.body.mutation_id).toMatch(/^mut_/);
     expect(commit.body.import.state).toBe('committing');
     const done = await waitFor(import_id, ['committed']);
+    s.runtime.bus.off('change', onChange);
+    const docSeqs = (
+      s.runtime.db.sqlite
+        .prepare(
+          "SELECT seq FROM events WHERE type = 'document.added' AND project_key = 'TLI' AND mutation_id != ?",
+        )
+        .all(commit.body.mutation_id) as { seq: number }[]
+    ).map((e) => e.seq);
+    expect(docSeqs.length).toBeGreaterThan(0);
+    expect(published.flat()).toEqual(expect.arrayContaining(docSeqs));
     expect(done.result).toEqual({
       imported: 17,
       project: 'TLI',
