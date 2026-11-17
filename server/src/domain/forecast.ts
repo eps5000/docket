@@ -85,6 +85,15 @@ function formatterFor(tz: string | null | undefined): Intl.DateTimeFormat {
   return f;
 }
 
+/**
+ * The zone `localDay` actually uses for `tz`: the configured zone, UTC when
+ * that zone is unknown, or the process's own zone when none is configured.
+ * The Timeline sends it, so the browser draws "today" in the same zone.
+ */
+export function effectiveZone(tz: string | null | undefined): string {
+  return formatterFor(tz).resolvedOptions().timeZone;
+}
+
 /** The local calendar day of an instant in `tz` (the host zone when null). */
 export function localDay(iso: string, tz: string | null | undefined): string {
   const parts = formatterFor(tz).formatToParts(new Date(iso));
@@ -674,7 +683,7 @@ export function createForecastService(deps: ServiceDeps): ForecastService {
       const from = mondayOf(lo);
       const to = maxDay(addDays(mondayOf(hi), 6), addDays(from, 7 * 5 - 1));
 
-      return { from, to, rows, undated, forecasts };
+      return { from, to, rows, undated, forecasts, time_zone: effectiveZone(zone) };
     },
 
     burndown(r, input): BurndownResponse {

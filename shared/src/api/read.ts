@@ -184,6 +184,12 @@ export const timelineSchema = z.object({
   /** "Not on the timeline (no dates)". */
   undated: z.array(z.string()),
   forecasts: z.array(z.object({ project: z.string(), forecast: forecastSchema })),
+  /**
+   * The IANA time zone the server's days are in (config `TZ`, else the
+   * container's own zone). The UI draws "today" and the Now line in it, so
+   * they agree with the burn-down's days (B18).
+   */
+  time_zone: z.string(),
 });
 export type Timeline = z.infer<typeof timelineSchema>;
 

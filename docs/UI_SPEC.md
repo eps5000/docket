@@ -653,6 +653,7 @@ All of these are off under `prefers-reduced-motion: reduce`.
   - **Under the chart, one line:** "Forecast: P50 Nov 24 – P85 Dec 3 · 6.2 pts/wk over the last 4 weeks · n=11 · excludes 2 unestimated items". With no forecast: "No forecast yet: needs 8 completed items with effort (have 2)."
   - **Accessibility:** an sr-only summary sentence, and a *Show as table* toggle (date, remaining, change).
   - **Empty** (nothing estimated in scope): "No estimated work in this view. Agents set effort with update_item."
+- **Days and time zone:** the chart's "Today" and the Timeline's red Now line both use the server's time zone (config `TZ`), which the Timeline response sends as `time_zone`, never the browser's, so they always agree on the day.
 - **Forecast lane** at the bottom of the Timeline, per project in scope:
   - with a forecast: a hatched bar from P50 to P85 labelled "P50 Nov 24 – P85 Dec 3";
   - without one: the "No forecast yet…" line.
