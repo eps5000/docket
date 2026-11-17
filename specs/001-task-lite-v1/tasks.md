@@ -443,11 +443,11 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [X] T145 [P] FR-106 guard: run the contract and e2e suites with the container on an internal network with no egress, and assert no outbound connection attempts (only the Jira fixture may reach out), in `.github/workflows/ci.yml` and `server/tests/integration/no-egress.test.ts`
 - [ ] T146 Run the real-client smoke test (installed Codex, installed Claude Code, an Orca worker running Codex, an Orca worker running Claude), fill in the Settings compatibility matrix, and record the BUILD_SPEC §12 verifications V1–V3 and V6
 - [X] T147 Stretch: add `tasklite export` (full JSON plus documents) in `server/src/cli/export.ts`. It is required before the pilot (ROADMAP §1).
-- [ ] T148 [P] Skills (owner decision 27):
+- [X] T148 [P] Skills (owner decision 27):
   - **Lint:** `server/tests/contract/skills-lint.test.ts` parses every `skills/*/SKILL.md` and fails if a backticked snake_case name isn't a registered tool, a top-level input field, or an enum value from `shared/`. It also checks that each file has `name` and `description` frontmatter.
   - **Eval:** script the US1 and US11 scenarios against the seeded server with a real client, with and without `tasklite-worker` and `tasklite-coordinator`, and record calls, tokens and mistakes in the PR. The skills must do at least as well as without them, and meet the SC-001 budget.
   - **Fix and verify:** fix any skill text the eval shows is wrong, and record V7 (where each client loads skills).
-- [ ] T149 Run the quickstart.md validation end to end, and run `/speckit-analyze` until there are no CRITICAL findings
+- [X] T149 Run the quickstart.md validation end to end, and run `/speckit-analyze` until there are no CRITICAL findings
 
 ---
 

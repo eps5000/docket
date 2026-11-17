@@ -39,8 +39,12 @@ export const COMPAT_SURFACES: readonly CompatSurface[] = [
     client: 'claude',
     orca: false,
     transport: 'Streamable HTTP',
+    // B18 (T146): the smoke kit passed headless (claude -p 2.1.318, a temporary
+    // --mcp-config, a disposable instance). The README's user-scope setup, the UI checks
+    // and an interactive session are still the owner's to run, so this stays unverified.
     verified: null,
-    notes: 'Not smoke-tested yet. Run docker/smoke (O07).',
+    notes:
+      'Headless smoke passed Nov 17 (claude -p, temporary config). Your user-scope setup is still to check: run docker/smoke (O07).',
   },
   {
     name: 'Orca worker · Codex',

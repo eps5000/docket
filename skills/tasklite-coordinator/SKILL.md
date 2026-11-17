@@ -82,7 +82,7 @@ Skip entries with no workspace and no brief: you didn't dispatch them, so leave 
    - if the worktree at `workspace.path` still exists, reuse it;
    - if it's gone, recreate it from `pushed_sha` on its `branch`;
    - if `dirty` was true or `head_sha` was ahead of `pushed_sha`, work may be lost. Say so in the new brief. The owner already sees it under Problems.
-2. **Re-dispatch** with the **stored brief, unchanged**, plus: "Resume from the checklist: `claim_lead` first, then `get_context` and `get_item`." Have the worker pass `brief_document_version_id` from the report rather than the text, so the same stored version is reused instead of copied.
+2. **Re-dispatch** with the **stored brief, unchanged**, plus: "Resume from the checklist: `claim_lead` first, then `get_context` and `get_item`." Have the worker pass `brief_document_version_id` from the report rather than the text, so the same stored version is reused instead of copied. Start the new prompt with the stored brief exactly as the report gives it, and put everything you add (the resume line, the lost-work warning) after it. Never edit lines inside it.
 3. **Clean up** that run's unreleased resources: everything in its `run.resources` that has no `released_at`.
 
 **For parked entries:** a parked run keeps its claim through a crash, so a new worker's `claim_lead` would get `conflict`.

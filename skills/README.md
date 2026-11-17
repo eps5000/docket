@@ -25,7 +25,7 @@ Each skill is a folder with a `SKILL.md`, in the standard skill format. Copy the
 cp -r skills/tasklite-worker skills/tasklite-coordinator ~/.claude/skills/
 ```
 
-The Codex paths are checked in the real-client smoke test (BUILD_SPEC §12, V7).
+Claude Code's project path (`.claude/skills/`) is verified: the B18 skills eval ran with it, headless, and Claude Code invoked both core skills. The user-wide paths, Codex's, and whether Orca workers see user-wide skills are checked in the real-client smoke test (BUILD_SPEC §12, V7; `docker/smoke/OWNER-CHECKLIST.md`).
 
 ## Make them yours
 

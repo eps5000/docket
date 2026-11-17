@@ -11,12 +11,11 @@ The project's `AGENTS.md` / `CLAUDE.md` has its own rules: who moves work to Rea
 
 ## 1. Start: four calls or fewer
 
-1. **Identify yourself:** `whoami`, once per session. Note `lease_s` and `stale_after_s`.
-2. **Find work:**
+1. **Find work:**
    - **Given an item ID?** Skip the search.
-   - **Otherwise:** `search_items { project, filter: "resumable" }` first. That's work sent back to you, and it comes before new work. Then `search_items { project, filter: "ready_to_start", limit: 5 }`.
-   - **Take the first result.** Ready work is already sorted by priority, then by how much it unblocks.
-3. **Claim it:** `claim_lead`, with:
+   - **Otherwise:** `search_items { project, filter: "resumable" }` first. That's work sent back to you, and it comes before new work. **If it returns anything, take the first result** and claim it. Don't inspect candidates with `get_item` first: `get_context` after the claim tells you everything.
+   - **Only if nothing is resumable:** `search_items { project, filter: "ready_to_start", limit: 5 }`, and take the first result. Ready work is already sorted by priority, then by how much it unblocks.
+2. **Claim it:** `claim_lead`, with:
    - `agent_label`: your worker name, if you have one;
    - `workspace`: `repo`, `path` (your worktree), `branch`, `base_ref`, `base_sha`;
    - `brief` and `orchestrator`: if a coordinator dispatched you, the brief text exactly as you received it, plus its IDs.
@@ -25,9 +24,11 @@ The project's `AGENTS.md` / `CLAUDE.md` has its own rules: who moves work to Rea
 
    If you get `conflict`, someone else holds the item. Pick another one. Never retry in a loop, and never work on an item you haven't claimed.
 
-   **Given a `run_id` by your coordinator** (you're resuming a parked run after a crash)? Don't claim. Pass that `run_id` on your first call, for example `heartbeat { run_id, note: "Resuming" }`. That resumes the run with its claim, workspace and brief. Then continue from step 4.
+   **Given a `run_id` by your coordinator** (you're resuming a parked run after a crash)? Don't claim. Pass that `run_id` on your first call, for example `heartbeat { run_id, note: "Resuming" }`. That resumes the run with its claim, workspace and brief. Then continue from step 3.
 
-4. **Get context:** `get_context { id }`. One call gathers the outcome, the acceptance criteria, the decisions you must follow, the epic and label briefs, blockers and planning docs.
+3. **Get context:** `get_context { id }`. One call gathers the outcome, the acceptance criteria, the decisions you must follow, the epic and label briefs, blockers and planning docs.
+
+`whoami` isn't needed to start: `claim_lead` returns your lease's expiry. Call it once only when you need your client name or the windows (`lease_s`, `stale_after_s`).
 
 **Then, only if needed:**
 
@@ -37,6 +38,7 @@ The project's `AGENTS.md` / `CLAUDE.md` has its own rules: who moves work to Rea
 ## 2. Plan
 
 - **`set_plan`:** 3–8 one-line steps, each a verifiable piece of progress. Steps aren't tickets. Create a new item only when a piece needs its own blocker, owner or review.
+  - The first plan sends `steps: [{ text }, …]` only. Task Lite assigns the step IDs and returns them; use those with `update_step`. Never make up an ID: an unknown one is refused.
 - **`set_checks`:** what you'll verify yourself, stated concretely. For example "Planner unit tests pass" or "Reload keeps the selected week (e2e)", never "it works".
 - **Human review:** if the project rules say this item needs it and none is declared, `declare_human_review` now. Write plain instructions the owner can follow in minutes. See `tasklite-review-packet`.
 - **Changing the plan later:** patch it, and give a `reason`. Send only the steps that change. Don't silently drop a step: mark it `skipped`, with a note.

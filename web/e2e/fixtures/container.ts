@@ -13,7 +13,9 @@
  * a reset never pulls the database out from under another file.
  *
  * TASKLITE_E2E_CONTAINER names the container (default `tasklite`, the
- * compose `container_name`). TASKLITE_E2E_NO_RESET=1 skips resets.
+ * compose `container_name`; the global setup sets `tasklite-e2e` when it
+ * starts the disposable instance). TASKLITE_E2E_NO_RESET=1 skips resets.
+ * Resets refuse a possibly real instance (`assertDisposable`).
  */
 import { execFileSync } from 'node:child_process';
 import { test } from '@playwright/test';
@@ -62,6 +64,7 @@ async function waitReady(timeoutMs = 60_000): Promise<void> {
 /** A fresh sample seed in the running container. */
 export async function resetSeededContainer(): Promise<void> {
   if (process.env.TASKLITE_E2E_NO_RESET === '1') return;
+  assertDisposable();
   docker(['stop', '--time', '10', CONTAINER]);
   // The image's entrypoint is the server; run the cleanup in a throwaway
   // container that shares the volume, as the same non-root user.
@@ -85,6 +88,34 @@ export async function resetSeededContainer(): Promise<void> {
   ]);
   docker(['start', CONTAINER]);
   await waitReady();
+}
+
+/**
+ * A reset deletes the container's database and documents, so refuse anything that may
+ * be the owner's real instance (B18, T149): the default `tasklite-data` volume, unless
+ * TASKLITE_E2E_ALLOW_RESET=1 says it is disposable (CI's fresh runner), and a container
+ * without TASKLITE_SEED=sample (its reset would leave an empty database, not the seed).
+ */
+function assertDisposable(): void {
+  const volume = docker([
+    'inspect',
+    '--format',
+    '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Name}}{{end}}{{end}}',
+    CONTAINER,
+  ]);
+  const env = docker(['inspect', '--format', '{{json .Config.Env}}', CONTAINER]);
+  if (volume === 'tasklite-data' && process.env.TASKLITE_E2E_ALLOW_RESET !== '1') {
+    throw new Error(
+      `Refusing to reset "${CONTAINER}": it uses the tasklite-data volume, which may hold your real data. ` +
+        'Stop it and let the tests start their own disposable instance (docker/compose.e2e.yaml), ' +
+        'or set TASKLITE_E2E_ALLOW_RESET=1 if this volume is disposable.',
+    );
+  }
+  if (!(JSON.parse(env) as string[]).includes('TASKLITE_SEED=sample')) {
+    throw new Error(
+      `Refusing to reset "${CONTAINER}": it wasn't started with TASKLITE_SEED=sample, so it may be a real instance.`,
+    );
+  }
 }
 
 /** Reset the container once before this file's tests. */
