@@ -35,8 +35,9 @@ import { ORIGIN, createTestServer, parseSetCookies, type TestServer } from './ha
  * routes (B9, T094; content in the US3 tests), US11's recovery routes
  * (B10, T100; content in the US11 tests), US5's decisions routes (B12,
  * T115; content in us5-context.test.ts), US6's steer routes (B13, T120;
- * content in the US6 tests), US8's burn-down (B16, T136), and US9's Jira
- * import (B17, T141).
+ * content in the US6 tests), US8's burn-down (B16, T136), US9's Jira
+ * import (B17, T141), and US13's agent files and Workflow notes (B23, T153,
+ * T157; content in agent-files.test.ts and us13-agent-files.test.ts).
  */
 const B2_ROUTES: readonly RouteId[] = [
   'session.unlock',
@@ -104,6 +105,13 @@ const B2_ROUTES: readonly RouteId[] = [
   'jira.get',
   'jira.commit',
   'jira.cancel',
+  // US13 (B23, T153, T157): agent files and Workflow notes.
+  'agentFiles.list',
+  'agentFiles.get',
+  'agentFiles.put',
+  'agentFiles.revert',
+  'workflow.get',
+  'workflow.put',
 ];
 
 interface Req {
@@ -211,7 +219,7 @@ const VALID: Record<RouteId, Req> = {
   'resources.release': { params: { id: 'rsc_1' }, body: { note: 'Stopped the dev server.' } },
   'runs.unpushedHandled': { params: { runId: 'run_21' }, body: {} },
   'agentUpload.post': { body: { item_id: 'RCP-2', kind: 'planning' } },
-  // Agent setup (decision 29; B21, T150): 501 placeholders until US13.
+  // Agent setup (decision 29): agent files and Workflow notes (B23); installs are 501 until B24.
   'agentFiles.list': { query: { project: 'RCP' } },
   'agentFiles.get': { params: { key: 'skill:tasklite-worker' }, query: { project: 'RCP' } },
   'agentFiles.put': {

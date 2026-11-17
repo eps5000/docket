@@ -1,5 +1,6 @@
-# Keep the build context to what the image build needs: root workspace files
-# and the shared/, server/ and web/ packages.
+# Keep the build context to what the image build needs: root workspace files,
+# the shared/, server/ and web/ packages, and the agent files (skills/ and the
+# AGENTS.md block template) the server loads into the bundled layer.
 **/node_modules
 **/dist
 **/coverage
@@ -15,6 +16,7 @@
 .vscode
 .idea
 docs
+!docs/templates/AGENTS-tasklite.md
 specs
 # design/ is reference material, except the sample data the seed loader
 # reads (T031, TASKLITE_SEED=sample and `tasklite seed sample`).

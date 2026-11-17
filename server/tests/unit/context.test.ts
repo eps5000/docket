@@ -528,3 +528,83 @@ describe('the compact text is the measure', () => {
     expect(renderContext(bundle as ContextBundle, { now: NOW })).toBe(text);
   });
 });
+
+// ---- Section 5: the project's Workflow notes (decision 29; T157) ----
+
+describe('section 5: Workflow notes', () => {
+  let wfVersion = 0;
+  function workflow(content_md: string) {
+    d.write(OWNER_ACTOR, (w, s) =>
+      s.agentFiles.putWorkflow(w, { key: 'TST', content_md, expected_version: wfVersion }),
+    );
+    wfVersion += 1;
+  }
+  beforeEach(() => {
+    wfVersion = 0;
+  });
+
+  it('delivers the current notes after blocks and before planning_docs', () => {
+    const { item } = world();
+    workflow('- Old notes.');
+    workflow('- Branch per item: tst-<n>.\n- Open PRs against main.');
+    const { bundle, text, tokens } = context(item);
+    expect(tokens).toBeLessThanOrEqual(CONTEXT_BUDGETS.medium);
+    expect(bundle.workflow).toEqual({
+      project: 'TST',
+      version_no: 2,
+      content_md: '- Branch per item: tst-<n>.\n- Open PRs against main.',
+      truncated: false,
+    });
+    expect(text).toContain(
+      'workflow: TST v2\n  - Branch per item: tst-<n>.\n  - Open PRs against main.',
+    );
+    const order = [/^blocks:/, /^workflow: TST v2/, /^planning_docs:/].map((re) => at(text, re));
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    expect(order.every((n) => n >= 0)).toBe(true);
+  });
+
+  it('is null without notes, and after they are cleared', () => {
+    const item = create({ title: 'Plain' });
+    expect(context(item).bundle.workflow).toBeNull();
+    workflow('- Notes.');
+    expect(context(item).bundle.workflow).not.toBeNull();
+    workflow('');
+    expect(context(item).bundle.workflow).toBeNull();
+    expect(context(item).text).not.toContain('workflow:');
+  });
+
+  it('is cut inline (marked) before anything in sections 1–4 at a small budget', () => {
+    const { item } = world();
+    workflow(para(120, 'Workflow'));
+    const { bundle, text, tokens } = context(item, 'small');
+    expect(tokens).toBeLessThanOrEqual(CONTEXT_BUDGETS.small);
+    // Sections 1–4 are whole.
+    expect(bundle.decisions).toHaveLength(4);
+    expect(bundle.epic).not.toBeNull();
+    expect(bundle.labels).toHaveLength(2);
+    expect(bundle.dependents).toHaveLength(1);
+    // The notes are cut, marked inline, and everything below is left out with markers.
+    expect(bundle.workflow).toMatchObject({ project: 'TST', version_no: 1, truncated: true });
+    expect(bundle.workflow!.content_md.endsWith('…')).toBe(true);
+    expect(text).toContain('  …truncated; ask get_context with a larger budget');
+    expect(bundle.planning_docs).toEqual([]);
+    expect(bundle.truncated_sections.some((s) => s.startsWith('2 planning docs'))).toBe(true);
+    // A larger budget carries the whole notes.
+    const large = context(item, 'large').bundle.workflow!;
+    expect(large.truncated).toBe(false);
+    expect(large.content_md).toBe(para(120, 'Workflow'));
+  });
+
+  it('left out with a marker when a higher section already ran out of room', () => {
+    const item = create({ title: 'Big outcome', outcome: para(200, 'Outcome') });
+    workflow('- Notes.');
+    const { bundle, text } = context(item, 'small');
+    expect(bundle.workflow).toBeNull();
+    expect(bundle.truncated_sections).toContain(
+      'workflow notes TST v1; ask get_context with a larger budget',
+    );
+    expect(text).toContain(
+      '…truncated; workflow notes TST v1; ask get_context with a larger budget',
+    );
+  });
+});
