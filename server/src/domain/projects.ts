@@ -20,8 +20,16 @@
  * After the commit, `removeDeletedDocs` removes `/data/docs/<KEY>` for every
  * tombstone. A failure is logged and retried at the next startup. Backups
  * are untouched and age out on their own retention.
+ *
+ * US9 (T141) opens new projects for the Jira import (`openProject`). A key
+ * held by a live project is refused. A key held by a tombstone is refused
+ * while its documents folder still exists (the cleanup hasn't finished, and
+ * the new project's documents would land among the old ones); once the
+ * folder is gone, the tombstone row is revived as the new project. It keeps
+ * its `next_seq`, so the new items never reuse an ID an agent may still hold
+ * for a deleted item.
  */
-import { rmSync, statSync } from 'node:fs';
+import { existsSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   SATISFIED_WHEN_LABELS,
@@ -29,9 +37,12 @@ import {
   type Project,
   type SatisfiedWhen,
 } from '@tasklite/shared';
+import type { Db } from '../db/client.js';
 import type { ProjectsService, ServiceDeps } from './contracts.js';
+import { newId } from './ids.js';
 import { blockDiff } from './links.js';
 import { BlockIndex } from './model.js';
+import type { WriteContext } from './write.js';
 
 interface ProjectRow {
   id: string;
@@ -53,6 +64,86 @@ const projectView = (p: ProjectRow): Project => ({
 });
 
 const items = (n: number) => `${n} ${n === 1 ? 'item' : 'items'}`;
+
+/** Colours for new projects, picked from the key so a project keeps its colour. */
+const PROJECT_COLORS = ['#3b5bdb', '#d9480f', '#2b8a3e', '#862e9c', '#c2255c', '#0b7285'];
+
+/**
+ * Why `key` can't be used for a new project right now, or null when it can
+ * (US9; B15's tombstones). Read-only: the dry run checks it up front, and
+ * `openProject` checks it again inside the commit.
+ */
+export function newProjectKeyProblem(db: Db, docsDir: string, key: string): ToolError | null {
+  const row = db.sqlite.prepare('SELECT deleted_at FROM projects WHERE key = ?').get(key) as
+    { deleted_at: string | null } | undefined;
+  if (!row) return null;
+  if (row.deleted_at === null) {
+    return new ToolError(
+      'conflict',
+      `Project ${key} already exists. Pick another key, or import into ${key} if it's empty.`,
+      { details: { fields: { 'target.key': 'already exists' } } },
+    );
+  }
+  if (existsSync(join(docsDir, key))) {
+    return new ToolError(
+      'conflict',
+      `Project ${key} was deleted and its documents are still being removed. Try again in a minute, or pick another key.`,
+      { details: { fields: { 'target.key': 'deleted project still being cleaned up' } } },
+    );
+  }
+  return null;
+}
+
+/**
+ * Open a new project for an import, in the caller's transaction: a fresh
+ * row, or the key's tombstone revived once its cleanup has finished. Owner
+ * only. Records `project.updated` (there is no project-created event type).
+ */
+export function openProject(
+  w: WriteContext,
+  docsDir: string,
+  input: { key: string; name: string },
+): Project {
+  if (w.actor.kind !== 'owner') {
+    throw new ToolError('forbidden', 'Only the owner creates projects, through the Jira import.');
+  }
+  const problem = newProjectKeyProblem(w.db, docsDir, input.key);
+  if (problem) throw problem;
+  const sql = w.db.sqlite;
+  const color =
+    PROJECT_COLORS[
+      [...input.key].reduce((n, ch) => n + ch.charCodeAt(0), 0) % PROJECT_COLORS.length
+    ]!;
+  const tombstone = sql.prepare('SELECT * FROM projects WHERE key = ?').get(input.key) as
+    (ProjectRow & { deleted_at: string; next_seq: number }) | undefined;
+  const fields = {
+    name: input.name,
+    short_name: input.name,
+    color,
+    default_satisfied_when: 'done' as const,
+  };
+  let id: string;
+  if (tombstone) {
+    id = tombstone.id;
+    w.update('projects', id, { ...fields, deleted_at: null });
+  } else {
+    id = newId('prj', new Date(w.now).getTime());
+    w.insert('projects', { id, key: input.key, ...fields, next_seq: 1 });
+  }
+  w.event({
+    type: 'project.updated',
+    summary: `Created project ${input.name} (${input.key})${tombstone ? ', reusing the key of a deleted project' : ''}`,
+    project_key: input.key,
+    data: {
+      old: tombstone ? { deleted_at: tombstone.deleted_at } : null,
+      new: { key: input.key, ...fields, deleted_at: null },
+      reused_key: !!tombstone,
+      ...(tombstone ? { next_seq: tombstone.next_seq } : {}),
+    },
+    objects: [{ kind: 'project', id: input.key }],
+  });
+  return projectView(sql.prepare('SELECT * FROM projects WHERE id = ?').get(id) as ProjectRow);
+}
 
 export function createProjectsService(deps: ServiceDeps): ProjectsService {
   return {

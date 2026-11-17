@@ -85,7 +85,7 @@ describe('the service stubs', () => {
     );
   });
 
-  /** Implemented already: undo (B2), US1's methods (B7, tasks.md T070–T075) and US2's read models (B8, T080, T084), US3's review services (B9), US11's recovery (B10, T099–T100), US4's links (B11, T106), US5's decisions and context (B12, T114), US6's steering (B13, T120) US7's planning, archive and documents (B14, T124–T125) and US8's timeline, burn-down and forecast (B16, T136). */
+  /** Implemented already: undo (B2), US1's methods (B7, tasks.md T070–T075) and US2's read models (B8, T080, T084), US3's review services (B9), US11's recovery (B10, T099–T100), US4's links (B11, T106), US5's decisions and context (B12, T114), US6's steering (B13, T120) US7's planning, archive and documents (B14, T124–T125) US8's timeline, burn-down and forecast (B16, T136) and US9's Jira import (B17, T140–T141). */
   const IMPLEMENTED: Record<string, readonly string[]> = {
     undo: ['undo'],
     items: [
@@ -160,6 +160,8 @@ describe('the service stubs', () => {
     archive: ['archive', 'unarchive', 'archiveMany', 'cancel'],
     // US8 (B16, T136).
     forecast: ['timeline', 'burndown', 'forecast'],
+    // US9 (B17, T140–T141).
+    jiraImport: ['dryRun', 'get', 'commit', 'cancel'],
   };
 
   it.each(methods)('%s.%s throws NotImplementedError until its slice implements it', (s, m) => {
