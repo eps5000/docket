@@ -20,6 +20,7 @@ import { paths } from '../../lib/paths';
 import { runOwnerMutation, showToast } from '../../lib/undo';
 import { Markdown } from '../shared/Markdown';
 import { BundledUpdatedChip, LayerChip } from './AgentChips';
+import { InstallDialog } from './AgentInstall';
 import { DiffView } from './DiffView';
 import { HelpLink } from '../../help/HelpLink';
 
@@ -27,7 +28,8 @@ import { HelpLink } from '../../help/HelpLink';
  * A project's *Agent files & workflow* (UI_SPEC §6.7b "Project section";
  * FR-122, FR-123): the Workflow notes, a versioned Markdown editor that
  * agents get in `get_context`, and the effective set, each file with the
- * layer it comes from and a link to its view.
+ * layer it comes from and a link to its view, with *Install…* for this
+ * project's files (B24).
  */
 export function ProjectAgentSection({
   project,
@@ -48,7 +50,7 @@ export function ProjectAgentSection({
         <HelpLink anchor="settings.agent-setup" />
       </div>
       <WorkflowCard project={project} projectName={projectName} />
-      <EffectiveSet project={project} />
+      <EffectiveSet project={project} projectName={projectName} />
     </section>
   );
 }
@@ -252,7 +254,8 @@ function WorkflowBody({ wf, projectName }: { wf: Workflow; projectName: string }
   );
 }
 
-function EffectiveSet({ project }: { project: string }) {
+function EffectiveSet({ project, projectName }: { project: string; projectName: string }) {
+  const [installing, setInstalling] = useState(false);
   const q = { project };
   const query = useQuery({
     queryKey: queryKeys.agentFiles(q),
@@ -260,7 +263,21 @@ function EffectiveSet({ project }: { project: string }) {
   });
   return (
     <Card className="afset">
-      <CardHeader title="Effective agent files" />
+      <CardHeader
+        title="Effective agent files"
+        extra={
+          <Button size="sm" onClick={() => setInstalling(true)} data-project-install="">
+            Install…
+          </Button>
+        }
+      />
+      {installing && (
+        <InstallDialog
+          project={project}
+          projectName={projectName}
+          onClose={() => setInstalling(false)}
+        />
+      )}
       <QueryState
         query={query}
         skeleton={

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useId } from 'react';
+import { useId, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import {
   AGENT_FILE_KEY_RE,
@@ -15,6 +15,7 @@ import { formatDay, isoTitle } from '../../lib/format';
 import { paths } from '../../lib/paths';
 import { BundledUpdatedChip, LayerChip } from './AgentChips';
 import { AgentFileView } from './AgentFileView';
+import { InstallDialog, InstallSection } from './AgentInstall';
 import { ProjectAgentSection } from './ProjectAgentSection';
 import './agent-setup.css';
 import { HelpLink } from '../../help/HelpLink';
@@ -26,8 +27,8 @@ type Project = Pick<SettingsResponse['projects'][number], 'key' | 'name'>;
  * FR-122; US13): the agent files agents get, service-wide or for one
  * project, each with its effective layer and the bundled-updated flag; the
  * file view (`?file=<key>`); and the project's *Agent files & workflow*
- * section (`?project=<KEY>`). Install, the install log and the push folder
- * come next (B24): their place is held by a disabled *Install*.
+ * section (`?project=<KEY>`); and *Install and check* (B24): the Install
+ * dialog, the install log with its checks, and the push folder card.
  */
 export function AgentSetup({ projects }: { projects: readonly Project[] }) {
   const [params] = useSearchParams();
@@ -39,6 +40,7 @@ export function AgentSetup({ projects }: { projects: readonly Project[] }) {
   const file = rawFile && AGENT_FILE_KEY_RE.test(rawFile) ? rawFile : null;
   const layer = params.get('layer');
   const projectName = projects.find((p) => p.key === project)?.name ?? project;
+  const [installing, setInstalling] = useState(false);
 
   const q = project ? { project } : {};
   const list = useQuery({
@@ -103,13 +105,13 @@ export function AgentSetup({ projects }: { projects: readonly Project[] }) {
               )
             }
           </QueryState>
-          <div className="cardfoot" data-install-placeholder="">
+          <div className="cardfoot" data-install-footer="">
             <span className="src">
-              Installing these files into a repo or user-wide, the install log and the push folder
-              come next.
+              Install {project ? `${projectName ?? project}’s` : 'the service-wide'} files into a
+              repo or user-wide, by command or into your push folder.
             </span>
-            <Button size="sm" disabled title="Install comes in the next update">
-              Install (coming next)
+            <Button size="sm" variant="primary" onClick={() => setInstalling(true)}>
+              Install…
             </Button>
           </div>
         </Card>
@@ -128,6 +130,16 @@ export function AgentSetup({ projects }: { projects: readonly Project[] }) {
       )}
 
       {project && <ProjectAgentSection project={project} projectName={projectName ?? project} />}
+
+      <InstallSection project={project} />
+
+      {installing && (
+        <InstallDialog
+          project={project}
+          projectName={projectName}
+          onClose={() => setInstalling(false)}
+        />
+      )}
     </div>
   );
 }

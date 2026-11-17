@@ -90,7 +90,7 @@ jobs:
       - name: Build and start the container (sealed, no egress)
         env:
           TASKLITE_SEED: sample
-        run: docker compose -f docker/compose.yaml -f docker/compose.jira-fixture.yaml -f docker/compose.no-egress.yaml up -d --build --wait --wait-timeout 120
+        run: docker compose -f docker/compose.yaml -f docker/compose.jira-fixture.yaml -f docker/compose.push-e2e.yaml -f docker/compose.no-egress.yaml up -d --build --wait --wait-timeout 120
 
       - name: Playwright
         env:
@@ -102,16 +102,16 @@ jobs:
       # FR-106 (T145): nothing in the container tried to reach another host during the
       # whole e2e run, and a deliberate probe is caught (so the check can fail).
       - name: No egress (FR-106)
-        run: docker/no-egress/check.sh -f docker/compose.yaml -f docker/compose.jira-fixture.yaml -f docker/compose.no-egress.yaml
+        run: docker/no-egress/check.sh -f docker/compose.yaml -f docker/compose.jira-fixture.yaml -f docker/compose.push-e2e.yaml -f docker/compose.no-egress.yaml
 
       # SC-008 (T128): `docker compose down && up` keeps every item, event and document,
       # and a backup restores identically into a scratch volume.
       - name: Container replacement keeps the data (SC-008)
-        run: docker/check-replacement.sh -f docker/compose.yaml -f docker/compose.jira-fixture.yaml -f docker/compose.no-egress.yaml
+        run: docker/check-replacement.sh -f docker/compose.yaml -f docker/compose.jira-fixture.yaml -f docker/compose.push-e2e.yaml -f docker/compose.no-egress.yaml
 
       - name: Container logs
         if: failure()
-        run: docker compose -f docker/compose.yaml -f docker/compose.jira-fixture.yaml -f docker/compose.no-egress.yaml logs --no-color
+        run: docker compose -f docker/compose.yaml -f docker/compose.jira-fixture.yaml -f docker/compose.push-e2e.yaml -f docker/compose.no-egress.yaml logs --no-color
 
       - name: Upload Playwright report and traces
         if: failure()
@@ -125,4 +125,4 @@ jobs:
 
       - name: Stop the container
         if: always()
-        run: docker compose -f docker/compose.yaml -f docker/compose.jira-fixture.yaml -f docker/compose.no-egress.yaml down --volumes
+        run: docker compose -f docker/compose.yaml -f docker/compose.jira-fixture.yaml -f docker/compose.push-e2e.yaml -f docker/compose.no-egress.yaml down --volumes

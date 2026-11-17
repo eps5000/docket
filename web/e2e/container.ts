@@ -7,6 +7,10 @@ export const composeFile = fileURLToPath(new URL('../../docker/compose.yaml', im
 export const e2eComposeFile = fileURLToPath(
   new URL('../../docker/compose.e2e.yaml', import.meta.url),
 );
+/** E2E only: the push install's root inside the container (US13, B24). */
+export const pushE2eComposeFile = fileURLToPath(
+  new URL('../../docker/compose.push-e2e.yaml', import.meta.url),
+);
 export const E2E_PROJECT = 'tasklite-e2e';
 export const E2E_CONTAINER = 'tasklite-e2e';
 
@@ -25,7 +29,18 @@ export async function isHealthy(): Promise<boolean> {
 export function compose(...args: string[]): void {
   execFileSync(
     'docker',
-    ['compose', '-p', E2E_PROJECT, '-f', composeFile, '-f', e2eComposeFile, ...args],
+    [
+      'compose',
+      '-p',
+      E2E_PROJECT,
+      '-f',
+      composeFile,
+      '-f',
+      e2eComposeFile,
+      '-f',
+      pushE2eComposeFile,
+      ...args,
+    ],
     {
       stdio: 'inherit',
       env: { ...process.env, TASKLITE_SEED: process.env.TASKLITE_SEED ?? 'sample' },
