@@ -14,9 +14,11 @@
  *    and dependents. `blocked_by` is a safety fact (MCP_SPEC §3.1: the
  *    text says "none" when it is empty), so unresolved blockers are kept
  *    with the essentials; only cleared ones and dependents can be cut;
- * 5. Markdown planning documents on the item and its epic, newest version
+ * 5. the project's Workflow notes (decision 29): `workflow: null` until
+ *    T157 fills it here, truncated last among sections 1–5;
+ * 6. Markdown planning documents on the item and its epic, newest version
  *    of each: text until the budget runs out, then names and versions;
- * 6. the latest decided review round: its verdicts and notes.
+ * 7. the latest decided review round: its verdicts and notes.
  *
  * **Budgets:** `small` 1,000, `medium` 3,000, `large` 8,000 tokens, counted
  * as characters ÷ 4 on the compact text (`renderContext`, the exact text
@@ -277,6 +279,9 @@ export function assemble(
     labels: [],
     blockers: [...unresolved],
     dependents: [],
+    // Section 5, the project's Workflow notes (decision 29): null until T157 fills
+    // it, truncated last among sections 1–5.
+    workflow: null,
     planning_docs: [],
     last_review: null,
     budget,

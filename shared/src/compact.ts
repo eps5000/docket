@@ -572,6 +572,24 @@ export function renderContext(ctx: ContextBundle, opts: RenderOptions = {}): str
   if (ctx.dependents.length > 0) {
     lines.push(`blocks: ${ctx.dependents.map((d) => `${d.id} ${d.status}`).join(', ')}`);
   }
+  // Section 5 (decision 29): the project's Workflow notes, after the briefs and links.
+  const wf = ctx.workflow;
+  if (wf) {
+    lines.push(`workflow: ${wf.project} v${wf.version_no}`);
+    if (wf.content_md.trim())
+      lines.push(
+        ...wf.content_md
+          .trimEnd()
+          .split(/\r?\n/)
+          .map((l) => `${I1}${l}`),
+      );
+    if (wf.truncated)
+      lines.push(
+        ctx.budget === 'large'
+          ? `${I1}…truncated`
+          : `${I1}…truncated; ask get_context with a larger budget`,
+      );
+  }
   if (ctx.planning_docs.length > 0) {
     lines.push('planning_docs:');
     for (const d of ctx.planning_docs) {

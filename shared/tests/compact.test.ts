@@ -6,6 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   formatTime,
+  renderContext,
   renderError,
   renderItem,
   renderItemRow,
@@ -290,6 +291,37 @@ describe('item views', () => {
       '  activity:\n  - 10:52Z claude step.updated claude reported progress on work item 2',
     );
     expect(text).toContain('planned 2026-11-03→2026-11-10 (owner) · effort 3 pts · jira MEAL-88');
+  });
+});
+
+describe('get_context: Workflow notes (decision 29; MCP_SPEC §5.2)', () => {
+  const lines = (ctx: typeof RCP14_CONTEXT) => renderContext(ctx, opts).split('\n');
+
+  it('renders a workflow: section after the label briefs and links, before planning docs', () => {
+    const out = lines(RCP14_CONTEXT);
+    const at = (prefix: string) => out.findIndex((l) => l.startsWith(prefix));
+    expect(out.slice(at('workflow:'), at('workflow:') + 3)).toEqual([
+      'workflow: RCP v2',
+      '  - Branch per item: rcp-<n>.',
+      '  - Run pnpm test before every report_commit.',
+    ]);
+    expect(at('labels:')).toBeLessThan(at('workflow:'));
+    expect(at('blocks:')).toBeLessThan(at('workflow:'));
+    expect(at('workflow:')).toBeLessThan(at('planning_docs:'));
+  });
+
+  it('omits the section when the project has no notes (workflow: null)', () => {
+    expect(lines({ ...RCP14_CONTEXT, workflow: null }).some((l) => l.startsWith('workflow'))).toBe(
+      false,
+    );
+  });
+
+  it('marks truncated notes inline, never silently', () => {
+    const workflow = { ...RCP14_CONTEXT.workflow!, truncated: true };
+    expect(lines({ ...RCP14_CONTEXT, workflow })).toContain(
+      '  …truncated; ask get_context with a larger budget',
+    );
+    expect(lines({ ...RCP14_CONTEXT, workflow, budget: 'large' })).toContain('  …truncated');
   });
 });
 

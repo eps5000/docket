@@ -318,6 +318,12 @@ export const RCP14_CONTEXT: ContextBundle = {
     { id: 'RCP-24', title: 'Share the shopping list', status: 'planning' },
     { id: 'RCP-27', title: 'Pantry-aware shopping list', status: 'planning' },
   ],
+  workflow: {
+    project: 'RCP',
+    version_no: 2,
+    content_md: '- Branch per item: rcp-<n>.\n- Run pnpm test before every report_commit.',
+    truncated: false,
+  },
   planning_docs: [
     {
       name: 'meal-planning-brief.md',
