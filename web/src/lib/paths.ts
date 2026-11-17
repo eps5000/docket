@@ -30,6 +30,9 @@ export const paths = {
   agents: (q: { state?: string; section?: 'workspaces' } = {}) =>
     `${withQuery('/agents', { state: q.state })}${q.section ? `#${q.section}` : ''}`,
   settings: () => '/settings',
+  /** Settings → Agent setup (UI_SPEC §6.7b): a project's view and one file's view. */
+  agentSetup: (q: { project?: string; file?: string; layer?: string } = {}) =>
+    withQuery('/settings/agent-setup', q),
   unlock: (next?: string) =>
     withQuery('/unlock', { next: next && next !== '/' ? next : undefined }),
   devKit: () => '/dev/kit',

@@ -14,8 +14,10 @@
  *    and dependents. `blocked_by` is a safety fact (MCP_SPEC §3.1: the
  *    text says "none" when it is empty), so unresolved blockers are kept
  *    with the essentials; only cleared ones and dependents can be cut;
- * 5. the project's Workflow notes (decision 29): `workflow: null` until
- *    T157 fills it here, truncated last among sections 1–5;
+ * 5. the project's Workflow notes (decision 29; agent-files.ts), the
+ *    current non-empty version: placed after sections 1–4, so it is the
+ *    first of 1–5 to be cut; a cut is marked inline (`…truncated`), and
+ *    notes left out entirely get a `…truncated; workflow notes …` line;
  * 6. Markdown planning documents on the item and its epic, newest version
  *    of each: text until the budget runs out, then names and versions;
  * 7. the latest decided review round: its verdicts and notes.
@@ -35,6 +37,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { renderContext, type ContextBundle, type Status } from '@tasklite/shared';
 import type { ContextService, ReadContext, ServiceDeps } from './contracts.js';
+import { currentWorkflow } from './agent-files.js';
 import { inScopeOf, labelsOf } from './decisions.js';
 import { BlockIndex, requireItem } from './model.js';
 
@@ -102,6 +105,7 @@ interface Full {
   labels: Bundle['labels'];
   blockers: Bundle['blockers'];
   dependents: Bundle['dependents'];
+  workflow: Bundle['workflow'];
   docs: (Doc & { full: string | null })[];
   last_review: Bundle['last_review'];
 }
@@ -252,6 +256,10 @@ function gather(r: ReadContext, deps: ServiceDeps, id: string): Full {
     labels: labelRows.map((l) => ({ name: l.name, brief_md: l.brief_md })),
     blockers,
     dependents,
+    workflow: (() => {
+      const wf = currentWorkflow(db, row.project_key);
+      return wf ? { ...wf, truncated: false } : null;
+    })(),
     docs,
     last_review: last_review && last_review.items.length > 0 ? last_review : null,
   };
@@ -279,8 +287,6 @@ export function assemble(
     labels: [],
     blockers: [...unresolved],
     dependents: [],
-    // Section 5, the project's Workflow notes (decision 29): null until T157 fills
-    // it, truncated last among sections 1–5.
     workflow: null,
     planning_docs: [],
     last_review: null,
@@ -309,6 +315,11 @@ export function assemble(
       .join(' and ')}; read them with get_item ${id}`;
   if (cleared.length + full.dependents.length > 0)
     pending.set('links', linksLeft(cleared.length, full.dependents.length));
+  if (full.workflow)
+    pending.set(
+      'workflow',
+      `workflow notes ${full.workflow.project} v${full.workflow.version_no}${larger}`,
+    );
   if (full.docs.length > 0)
     pending.set(
       'docs',
@@ -449,7 +460,30 @@ export function assemble(
     }
   }
 
-  // 5. Planning documents: names and versions first, then text until the budget runs out.
+  // 5. The project's Workflow notes: whole while they fit, else cut inline (the renderer
+  // marks it), else left out with a marker. Cut before anything in sections 1–4.
+  if (room && full.workflow) {
+    pending.delete('workflow');
+    const source = full.workflow;
+    const wf = { ...source };
+    b.workflow = wf;
+    if (!fits()) {
+      wf.truncated = true;
+      const cut = longestFit(source.content_md, (text) => {
+        wf.content_md = text;
+        return fits();
+      });
+      if (cut !== null) {
+        wf.content_md = cut;
+        room = false;
+      } else {
+        b.workflow = null;
+        done('workflow', `workflow notes ${source.project} v${source.version_no}${larger}`);
+      }
+    }
+  }
+
+  // 6. Planning documents: names and versions first, then text until the budget runs out.
   if (room && full.docs.length > 0) {
     pending.delete('docs');
     const names = (from: number) =>
@@ -482,7 +516,7 @@ export function assemble(
     }
   }
 
-  // 6. The last review round.
+  // 7. The last review round.
   if (room && full.last_review) {
     pending.delete('review');
     const review = full.last_review;

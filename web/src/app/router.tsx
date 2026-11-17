@@ -32,6 +32,7 @@ export const shellRoutes: RouteObject[] = [
   { path: 'labels/:project/:name', element: <LabelPage /> },
   { path: 'agents', element: <Agents /> },
   { path: 'settings', element: <Settings /> },
+  { path: 'settings/agent-setup', element: <Settings /> },
   { path: '*', element: <NotFound /> },
 ];
 

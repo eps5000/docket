@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { useId, useState } from 'react';
+import { Link } from 'react-router';
 import {
   SATISFIED_WHEN,
   SATISFIED_WHEN_LABELS,
@@ -18,6 +19,7 @@ import {
 import { QueryState } from '../../app/QueryState';
 import { apiClient } from '../../app/queryClient';
 import { queryKeys } from '../../lib/api';
+import { paths } from '../../lib/paths';
 import { runOwnerMutation, showToast } from '../../lib/undo';
 import { useShell } from '../../app/ShellState';
 import { DeleteProjectDialog } from '../dialogs/DeleteProject';
@@ -124,7 +126,16 @@ function ProjectRow({ project: p, onDelete }: { project: Project; onDelete: () =
       </div>
       <MiniStatusBar project={p} />
       <BlockerRule project={p} />
-      <ProjectDecisionsLink project={p} />
+      <div className="row wrap" style={{ gap: 2 }}>
+        <ProjectDecisionsLink project={p} />
+        <Link
+          className="btn ghost sm"
+          to={paths.agentSetup({ project: p.key })}
+          data-project-agent-files={p.key}
+        >
+          Agent files &amp; workflow
+        </Link>
+      </div>
       <div className="row" style={{ gap: 6 }}>
         <Button size="sm" onClick={() => setScope(p.key)}>
           Switch to

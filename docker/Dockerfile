@@ -46,6 +46,10 @@ COPY --from=build --chown=root:root /src/web/dist /app/web/dist
 # The sample seed's data (BUILD_SPEC §8), read by TASKLITE_SEED=sample and
 # `tasklite seed sample`. The loader finds it at /app/design.
 COPY --chown=root:root design/sample-data.json /app/design/sample-data.json
+# The agent files (BUILD_SPEC §5.17): loaded into the bundled layer at startup
+# from /app/skills/<name>/SKILL.md and /app/docs/templates/AGENTS-tasklite.md.
+COPY --chown=root:root skills/ /app/skills/
+COPY --chown=root:root docs/templates/AGENTS-tasklite.md /app/docs/templates/AGENTS-tasklite.md
 
 # `tasklite owner-key | agent-token | seed sample` (BUILD_SPEC §3, MCP_SPEC §11).
 RUN printf '#!/bin/sh\nexec node /app/server/dist/cli/index.js "$@"\n' > /usr/local/bin/tasklite \

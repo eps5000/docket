@@ -7,6 +7,7 @@ import { describeSeed, isDatabaseEmpty, loadSampleSeed } from './db/seed/loader.
 import { readContext } from './domain/contracts.js';
 import { SYSTEM_ACTOR } from './domain/write.js';
 import { holdServerLock, startBackupJob } from './jobs/backup.js';
+import { syncBundledFiles } from './jobs/bundled.js';
 import { startupHousekeeping } from './jobs/startup.js';
 import { restartSweep, startSweeper } from './jobs/sweeper.js';
 import { createRuntime } from './runtime.js';
@@ -36,6 +37,11 @@ if (config.seed === 'sample') {
     console.log('TASKLITE_SEED=sample ignored: the database already has data.');
   }
 }
+
+// The agent files shipped in the image (BUILD_SPEC §5.17): a new bundled version for
+// each file whose content changed. Owner edits are never overwritten.
+const { added } = syncBundledFiles(runtime);
+if (added.length > 0) console.log(`Loaded bundled agent files: ${added.join(', ')}.`);
 
 // `tasklite restore` refuses while this lock is fresh (BUILD_SPEC §5.13).
 const lock = holdServerLock(config);
