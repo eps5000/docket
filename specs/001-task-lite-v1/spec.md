@@ -22,6 +22,7 @@ One owner runs Task Lite on their own computer. AI agents (installed coding agen
 - Q: Should the browser UI require an owner key to unlock, so a local agent can't record a human approval through the UI's API? → A: Yes. The owner pastes the key once per browser, and the session lasts 30 days from last use. The owner can lock the browser or rotate the key (which ends every session) in Settings.
 - Q: Should the owner be able to cancel an item themselves in the UI? → A: Yes, any open item, with an optional reason and Undo. Canceled items leave the owner's views like archived ones, and anything they block stays blocked until the link is removed.
 - Owner requirement (2026-11-15, not a clarify question): after an Orca crash pruned worktrees holding in-flight work, Task Lite must record enough to restart interrupted work without guessing (where the work lives, the brief, what was started), must distinguish "parked, waiting on purpose" from "finished", and must surface leftover processes and sessions. Task Lite records; the coordinator acts (owner decision 26; User Story 11).
+- Owner requirement (2026-11-17, not a clarify question): the owner wants in-app help, and wants to view, customize per project, install and verify the agent files Task Lite ships, because projects may combine Task Lite with other workflow tools (for example Spec Kit) (owner decision 29; User Stories 12 and 13).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -232,6 +233,44 @@ The coordinator (an Orca orchestrator, a script or the owner) dispatches workers
 5. **Given** a run ended by lease expiry with uncommitted changes or unpushed commits, **When** the owner looks, **Then** they see "Unpushed work may be lost" with the worktree path, until a later run pushes or they mark it handled.
 6. **Given** a coordinator about to prune worktrees, **When** it checks `recovery_report` or Agents → Workspaces, **Then** only workspaces whose runs all ended, fully pushed, clean and with resources released are marked safe to prune.
 
+### User Story 12 - Help is one click away (Priority: P2)
+
+The owner can open short how-to articles from the sidebar, from the search palette, or from a "?" next to the screen or state they're looking at: connecting an agent, reviewing a packet, what parked, stale and at risk mean, recovering after a crash, pruning safely, blocker rules, Jira import, backups and restore, and agent setup.
+
+**Why this priority**: the product now has coordination concepts (claims, leases, parking, workspaces) that a new owner can't guess. Help makes them learnable without leaving the app.
+
+**Independent Test**: from a fresh install, open Help, search for "parked", open the article, and follow a "?" from the Agents page to the same article.
+
+**Acceptance Scenarios**:
+
+1. **Given** the owner is on Agents → Workspaces, **When** they click the "?" by the heading, **Then** the "Workspace states and safe pruning" article opens.
+2. **Given** the search palette is open, **When** the owner types "restore", **Then** the backup and restore article appears under Help.
+
+---
+
+### User Story 13 - See, tailor and install the agent files (Priority: P2)
+
+The owner can see exactly which instructions agents get: the bundled skills and AGENTS.md block, the owner's service-wide edits, and each project's overrides and Workflow notes, with history and diffs. They install them into a repo or user-wide with one command, or with one click when they've mounted a folder, and later see whether the installed copy was edited locally.
+
+**Why this priority**: different projects run different workflows (some also use Spec Kit), and when an agent misbehaves the owner needs to see which instructions it had.
+
+**Independent Test**:
+1. Edit `tasklite-worker` for one project.
+2. Install it into that project's repo with the copy-paste command.
+3. Edit the installed file by hand.
+4. Run the check.
+
+The diff shows the local edit, and the install log shows the exact versions sent.
+
+**Acceptance Scenarios**:
+
+1. **Given** a bundled skill, **When** the owner edits it service-wide, **Then** a new version is saved with a diff against the bundled one, and *Revert to bundled* restores it.
+2. **Given** a project override of a skill, **When** the owner opens that project's agent files, **Then** the effective set shows the override and which layer each file comes from.
+3. **Given** the owner set Workflow notes on a project, **When** an agent calls `get_context` for an item in it, **Then** the bundle includes those notes.
+4. **Given** a mounted push folder, **When** the owner clicks *Install* for a project, **Then** the files are written to the repo, the AGENTS.md block is replaced only between its markers, and the install is logged with every file's version.
+5. **Given** an installed copy was edited locally, **When** the owner runs the check (in the UI with a mount, or by command without one), **Then** each changed file is listed with a diff against what was sent.
+6. **Given** a Task Lite upgrade changes a bundled skill the owner has edited, **When** the owner opens Agent setup, **Then** it says "Bundled version updated" and offers a diff, and the owner's version is not overwritten.
+
 ### Edge Cases
 
 - **A lead's lease expires mid-work, and the agent calls again with its old run:** it is refused with the current state. The item has already returned to Ready, with its plan and logs kept.
@@ -254,6 +293,9 @@ The coordinator (an Orca orchestrator, a script or the owner) dispatches workers
 - **A worktree was pruned while its run was open:** Task Lite can't see that. The run goes stale, then interrupted, and the restart list points to the last pushed commit, so the coordinator recreates the worktree from it. Anything unpushed is flagged as possibly lost.
 - **A worker parks and never resumes:** it keeps its claim. After 24 hours the owner sees it under Problems and can release the claim.
 - **A worker reports nothing about its workspace:** the workspace state is "unknown" and is never treated as safe to prune.
+- **The push folder isn't mounted or isn't writable:** *Install* falls back to showing the command, and says why.
+- **A repo's AGENTS.md has no Task Lite markers:** install appends the block between new markers and changes nothing else.
+- **An installed file was deleted locally:** the check reports it missing; reinstalling restores it.
 
 ## Requirements *(mandatory)*
 
@@ -379,7 +421,15 @@ The coordinator (an Orca orchestrator, a script or the owner) dispatches workers
 - **FR-114**: Every ended run MUST record why it ended (finished, failed, released, lease expired, released by the owner, service restart, canceled). Runs that ended unexpectedly with unpushed or uncommitted work MUST show to the owner as "unpushed work may be lost" until a later push or the owner marks it handled.
 - **FR-115**: The system MUST provide a restart list for coordinators: interrupted, stale and parked runs, each with its brief, workspace, last pushed commit, checklist progress and open question; every workspace with its state (in use, parked, at risk, safe to prune, unknown); and orphaned resources.
 - **FR-116**: The owner UI MUST show where each run's work lives (branch, worktree, push state, resources, brief), offer a copyable resume note, and list every workspace with its state on the Agents page.
-- **FR-117**: The system MUST NOT inspect, stop or delete anything on the host. Recovery actions are the coordinator's or the owner's, guided by what the system records.
+- **FR-117**: The system MUST NOT inspect, stop or delete anything on the host, except reading and writing agent files in a folder the owner explicitly mounts for that purpose (FR-125). Recovery actions are the coordinator's or the owner's, guided by what the system records.
+- **FR-120** (owner decision 29): The owner UI MUST provide Help articles, reachable from the sidebar, the search palette and contextual "?" links.
+- **FR-121**: The system MUST keep the agent files it ships (each skill and the AGENTS.md block) in three layers: bundled (read-only, updated by upgrades), service-wide edits, and per-project overrides. Each edit is a new version with an author, note, history and diff, and can be reverted to the layer below.
+- **FR-122**: For each project, the system MUST show the effective agent files (which version of each file applies and from which layer), and MUST flag files whose bundled version changed after the owner edited them, without overwriting the owner's version.
+- **FR-123**: Each project MUST be able to hold Workflow notes (Markdown, ≤ 10,000 characters), versioned like the agent files, and `get_context` MUST include them for that project's items.
+- **FR-124**: The system MUST offer installing a project's or the service-wide effective agent files, for Claude Code or Codex, into a repo or user-wide, by a copy-paste command that downloads them from Task Lite with a short-lived single-use link.
+- **FR-125**: The system MUST offer an opt-in push install into a host folder the owner mounts for that purpose. It writes only skill folders and the marked Task Lite section of AGENTS.md/CLAUDE.md, and never deletes other files.
+- **FR-126**: Every install MUST be logged with its time, client, target, method and the exact version of every file, and installed files MUST carry a manifest of those versions.
+- **FR-127**: The system MUST show whether installed copies differ from what was sent: in the UI for pushed installs, and through a copy-paste check command for others.
 
 ### Key Entities
 
@@ -399,6 +449,9 @@ The coordinator (an Orca orchestrator, a script or the owner) dispatches workers
 - **Workspace**: where a run's work lives (host, repo, worktree path, branch, base, head and pushed commits, uncommitted flag), with a derived state: in use, parked, at risk, safe to prune or unknown.
 - **Brief**: the exact instructions a run was given, stored immutably with the item.
 - **Resource**: a long-lived thing a run started (a process, dev server, session, container, temp directory or port), with how to find it, and when it was released and by whom.
+- **AgentFile / AgentFileVersion**: a skill or the AGENTS.md block, in a layer (bundled, service, or project), with immutable versions, content hash, author and note.
+- **ProjectWorkflow**: a project's Workflow notes, versioned, delivered in `get_context`.
+- **Install**: one install of an effective file set: when, client, target (repo or user-wide, path), method (command or push), and the version of every file sent.
 
 ## Success Criteria *(mandatory)*
 
@@ -418,6 +471,8 @@ The coordinator (an Orca orchestrator, a script or the owner) dispatches workers
 - **SC-012**: In the pilot, agents follow the workflow (claim before work, plan in the checklist, hand off through packets) without reminders in at least 90% of items, and the owner checks Task Lite instead of Jira for status.
 - **SC-013** *(default, not asked)*: At the stated scale, owner views appear in under 1 second, and 95% of agent requests complete in under half a second on the owner's machine.
 - **SC-014**: After a simulated crash with at least three in-flight runs (active, parked, at risk), a coordinator can re-dispatch every interrupted run from the restart list alone (no conversation history, no probing), with 100% of briefs recovered unchanged. 100% of declared resources left running are reported as orphaned within 15 minutes.
+- **SC-015**: A new owner finds and opens the right Help article from the screen they're on in one click, for every state named in the UI (parked, stale, at risk, safe to prune, and so on).
+- **SC-016**: For any installed copy, the owner can tell within one minute which file versions were sent and whether each was edited locally.
 
 ## Assumptions
 

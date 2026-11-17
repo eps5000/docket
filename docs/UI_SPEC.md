@@ -47,7 +47,7 @@ Agents do almost all the writing. The owner verifies, decides, nudges and archiv
 - **Grid:** `220px minmax(0,1fr)`. Every grid child needs `min-width:0`. (Without it, wide maps and tables push the layout wider than the window.)
 - **Sidebar:**
   - **Project switcher** (*All projects* or one project): a menu of radio items, each with its for-you count. It scopes every page except Settings.
-  - **Nav items:** Needs you (red badge = for-you count), Work, Agents (gray badge = active runs), then the "Service-wide" divider and Settings.
+  - **Nav items:** Needs you (red badge = for-you count), Work, Agents (gray badge = active runs), then the "Service-wide" divider, Settings and **Help** (decision 29).
   - **Health line** at the bottom: "Healthy · N clients", linking to Settings. When unhealthy, it shows "Service problem" in `--bad` with the same link.
 - **Header:**
   - **Breadcrumb:**
@@ -590,6 +590,31 @@ h1 "Settings".
   - **Endpoint card:** MCP URL, Web UI URL, Bind "Loopback only", Auth "Bearer token", Origins;
   - **Service health card:** Database and Documents with ready chips and sizes, Volume, Backups: one row per location, "In the data volume · Nov 6 03:00 · kept 14 days", and, if configured, "Extra copy: /backups-extra · Nov 6 03:01". When the extra location isn't configured, a muted line explains how to add it ("Mount a host folder and set TASKLITE_BACKUP_EXTRA_DIR; see the README"), Restarted (with "0 runs were active…"), *Download diagnostic log* (the last 7 days of agent calls, without contents), and *Lock this browser* / *Rotate owner key*.
   - **This browser card:** "Desktop notifications" with a switch, a status line ("On", "Off", "Blocked by the browser. Allow notifications for 127.0.0.1:7420 in your browser settings.") and *Send a test notification*. Theme is also set here.
+
+### 6.7b Agent setup (`/settings/agent-setup`, decision 29)
+A tab on Settings, plus a section on each project's Settings row (*Agent files & workflow*).
+- **File list:** one row per agent file (each skill, and the AGENTS.md block), with its effective layer chip ("Bundled", "Your edit", "Project override"), the version, and a "Bundled version updated" chip when it applies.
+- **File view:**
+  - the rendered text and a *Raw* toggle;
+  - a layer switcher (Bundled · Service-wide · this project);
+  - *Edit* (the inline editor, with a required note), *Revert to …*, *History* (versions with author and note);
+  - *Diff* against any other version or layer.
+- **Project section:**
+  - **Workflow notes:** a Markdown editor, versioned, with a line saying "Agents get this in get_context";
+  - **Effective set:** each file, with which layer it comes from and links to its view.
+- **Install dialog:**
+  - choose the client (Claude Code or Codex), then the target (*This project's repo*, with a path field, or *User-wide*);
+  - with push configured: *Install* writes the files and shows what changed;
+  - otherwise, or always as an alternative: the PowerShell and bash commands, each with *Copy*, and a note "Run from the repo folder" for repo installs;
+  - the dialog says plainly what will be written, and that only the marked Task Lite section of AGENTS.md/CLAUDE.md is touched.
+- **Install log:** each install with time, client, target, method and file count. *Check* (with push), or the check command (without), shows "Up to date" or a per-file diff marked "edited locally", "missing" or "extra".
+- **Push folder card:** whether it's configured, the host and container paths, a *Test* button, and a plain-language how-to ("Mount your code folder into Task Lite so it can install files for you").
+
+### 6.7c Help (`/help`, `/help/:slug`, decision 29)
+- **`/help`:** a searchable list of articles, each with its title and one-line summary, grouped as Getting started, Working with agents, Recovery, Planning and Operations.
+- **An article:** the rendered Markdown, with "Related" links.
+- **Contextual "?":** a small `IconButton` with an accessible name of "Help: <topic>", next to headings and states that have an article (Agents → Workspaces, run states, Problems rows, Settings cards, the packet screen). It opens the article in a side panel without leaving the screen, with *Open in Help* in the panel.
+- **The palette** lists matching articles under "Help".
 
 ### 6.7a Desktop notifications
 Spec clarification, 2026-11-14 (FR-068).

@@ -451,6 +451,20 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 
 ---
 
+## Phase 15: Help and agent setup (owner decision 29)
+
+**Contracts first**, as for every other change: B21 lands the schema, routes, the `get_context` contract change and the snapshot, then the slices fill them.
+
+- [ ] T150 [contract] Migration for `agent_files`, `agent_file_versions`, `project_workflows` and `installs` (BUILD_SPEC §4); route schemas and 501 placeholders for every §7 decision-29 route, including `GET /install/:token`; config keys `TASKLITE_PUSH_ROOT` and `TASKLITE_PUSH_HOST_PATH`; the typed client entries. Tests: migration (fresh and current-main databases), route contract.
+- [ ] T151 [contract] `get_context`: add `workflow` to `ContextBundle` (MCP_SPEC §4), its compact renderer, the description change in `mcp-copy.ts` and MCP_SPEC §5.2 (the same PR), and the snapshot and budget tests. Return `workflow: null` until T157 fills it.
+- [ ] T152 [US12] Help center: `docs/help/*.md` articles (at least: connect an agent, review a packet, run states, workspaces and safe pruning, crash recovery, blocker rules, decisions, Jira import, backup and restore, agent setup), bundled into the web build; `/help`, `/help/:slug`, palette results, and contextual "?" side panels per UI_SPEC §6.7c. E2E plus axe.
+- [ ] T153 [US13] Agent files service: bundled loading at startup (with new-version detection), layers and resolution, versions, revert, diff, and the bundled-updated flag (BUILD_SPEC §5.17). Unit tests for every resolution and upgrade case.
+- [ ] T154 [US13] Agent setup UI per UI_SPEC §6.7b: the file list, file view with layers, edit, history and diff, and the project section (effective set, Workflow notes editor). E2E plus axe.
+- [ ] T155 [US13] Install: the bundle builder (layout per client and target, marked AGENTS.md section, manifest), the single-use download token, the PowerShell and bash commands, and the install log. Tests: bundle contents, marker insertion and replacement, token expiry and reuse refused, nothing outside the markers changed.
+- [ ] T156 [US13] Push install and check: the push-root guard (no paths outside it, no symlinks out, never delete), *Test*, writes, and the diff check; the copy-paste check command. Tests on a temporary push root, including path-escape attempts.
+- [ ] T157 [US13] Fill `workflow` in the context bundle (truncated last among sections 1–5) and the Workflow notes routes; a contract test that `get_context` for a project's item includes its notes.
+- [ ] T158 Update the `tasklite-coordinator` and `tasklite-worker` skills (and `skills/README.md`) to mention Workflow notes and Agent setup installs; update the README's install section to point at Agent setup. Keep the skills lint green.
+
 ## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.
@@ -475,6 +489,10 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 | B16 | 12 US8 | T134–T137 | |
 | B17 | 13 US9 | T138–T141 | |
 | B18 | 14 Polish | T142–T149 | |
+| B21 | 15 Contracts for help and agent setup | T150–T151 | The snapshot changes once, for `get_context` |
+| B22 | 15 Help center (US12) | T152 | |
+| B23 | 15 Agent files and workflow (US13) | T153–T154, T157 | |
+| B24 | 15 Install and check (US13) | T155–T156, T158 | Needs B23 |
 
 **Slices after B6 may run in any order that respects** the dependency table below. Don't run two slices at once: they share route and screen groups.
 
@@ -518,6 +536,7 @@ Open a PR titled "<Bn>: <phase name>" with the checkpoint evidence. Do not queue
 | 12 US8 | US1, US4 |
 | 13 US9 | US1, US4, US7 (documents) |
 | 14 Polish | the stories being shipped |
+| 15 Help and agent setup | B21 first; B22 any time after; B23 then B24 |
 
 **Within a phase:** tests (failing) → services → replace stubs or fill handlers → fill screens → checkpoint.
 

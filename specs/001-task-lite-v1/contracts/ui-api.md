@@ -17,6 +17,7 @@ and mutations also need the `X-Tasklite-CSRF` header. This index groups the rout
 | `GET /api/settings`, `DELETE /api/projects/:key`, `GET /api/diagnostics/calls` | US10 | FR-103, FR-104, FR-107, FR-108 |
 | `POST /api/mutations/:id/undo` | all | FR-062 |
 | `GET /api/workspaces`, `POST /api/resources/:id/release`, `POST /api/runs/:runId/unpushed-handled` | US11 | FR-113, FR-114, FR-116 |
+| `GET/PUT /api/agent-files…`, `GET/PUT /api/projects/:key/workflow`, `POST/GET /api/installs…`, `GET /api/push-target…`, `GET /install/:token` | US13 | FR-121 to FR-127 |
 
 **Additions from the 2026-11-14 clarifications** (already in BUILD_SPEC §7):
 - **Inline text editing** (decision 22): `PATCH /api/items/:id` accepts `title`, `description_md`, `outcome_md` and `acceptance[]`, with `expected_version`. A stale version returns `409` with `current`, and the UI renders the conflict callout.

@@ -321,6 +321,7 @@ type ContextBundle = {
   labels: { name: string; brief_md: string }[];
   blockers: { id: string; title: string; status: Status; cleared: boolean; waiting_for: string|null; outcome_first_line: string }[];
   dependents: { id: string; title: string; status: Status }[];
+  workflow: { project: string; version_no: number; content_md: string; truncated: boolean } | null;   // the project's Workflow notes (decision 29)
   planning_docs: { name: string; version_no: number; content_md: string|null; truncated: boolean }[];
   last_review: { round: number; items: { text: string; kind: 'approve'|'changes'|'defer'; note: string|null }[] } | null;
   budget: 'small'|'medium'|'large'; truncated_sections: string[];
@@ -418,6 +419,7 @@ The format for each tool below:
 **Description:** "Get everything you need to work on an item in one call: its outcome and acceptance, the decisions you must follow (owner decisions first), the epic and label briefs, blockers and what they are waiting for, planning documents, and the last review's notes. Sized to a budget; anything cut is marked. Read-only: owner notes are counted here but delivered by get_item."
 - **Input:** `id`, `budget?: 'small'|'medium'|'large' = 'medium'` (about 1k, 3k and 8k tokens).
 - **Output:** `{ context: ContextBundle }`. The text block renders the bundle in the compact format, in the BUILD_SPEC §5.15 priority order, with `…truncated; …` lines where it was cut.
+- **Note (decision 29):** the bundle includes the project's Workflow notes, rendered as a `workflow:` section after the label briefs. The description line above gains "the project's workflow notes" in the contract batch that ships it (tasks Phase 15), together with `mcp-copy.ts` and the snapshot.
 - **Errors:** `not_found`.
 
 #### `dependency_subgraph`

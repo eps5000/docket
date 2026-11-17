@@ -108,6 +108,8 @@ Environment variables, with defaults:
 | `TASKLITE_PARK_MAX` | `24h` | How long a run may stay parked before it shows under Problems. It keeps its claim either way. |
 | `TASKLITE_RESUME_UNATTENDED` | `30m` | How long a parked run may sit `resume_ready` before it shows under Problems as "Ready to resume". |
 | `TASKLITE_ORPHAN_AFTER` | `15m` | How long a resource may stay unreleased after its run ends before it shows as an orphaned resource. |
+| `TASKLITE_PUSH_ROOT` | unset | Opt-in push install (decision 29): the container path of a host folder the owner mounts, for example `/host-code`. Unset means push install is off. |
+| `TASKLITE_PUSH_HOST_PATH` | unset | The same folder's path on the host, for example `C:/Users/me/code`, so the UI can show and accept host paths. |
 | `TASKLITE_BACKUP_AT` | `03:00` | Local time for the nightly backup. |
 | `TASKLITE_BACKUP_KEEP` | `14` | Days of backups kept, in every location. |
 | `TASKLITE_BACKUP_EXTRA_DIR` | (unset) | Opt-in extra backup location: the path *inside the container* of a host folder bind-mounted by the owner (e.g. `/backups-extra`). When it's set and writable, each nightly backup is also copied there (owner decision 24). |
@@ -173,6 +175,10 @@ SQLite tables. Every row has `id`, `created_at` and `updated_at`; all timestamps
 | `questions` | `item_id`, `run_id`, `text`, `asked_by`, `answer`, `answered_at`, `read_by_agent_at` | |
 | `owner_notes` | `item_id`, `text`, `read_by_agent_at` | |
 | `commits` | `item_id`, `run_id`, `sha`, `branch`, `message`, `pr_url`, `pushed`, `reported_by`, `reported_at` | Drives packet staleness. With `pushed`, it also sets the run's `workspace.pushed_sha`. |
+| `agent_files` | `id` (`af_…`), `key` (`skill:<name>` or `agents_block`), `layer` (bundled\|service\|project), `project_key` (project layer only), `current_version_id`, `bundled_hash_at_edit` | One row per key, layer and project. Unique `(key, layer, project_key)`. §5.17. |
+| `agent_file_versions` | `id` (`afv_…`), `file_id`, `version_no`, `content`, `sha256`, `author`, `note`, `created_at` | Immutable. |
+| `project_workflows` | `project_key`, `version_no`, `content_md` (≤ 10,000), `author`, `note`, `created_at` | Versioned; the newest is current. Delivered in `get_context` (§5.15). |
+| `installs` | `id` (`ins_…`), `at`, `client` (claude\|codex), `target_kind` (repo\|user), `project_key` (nullable), `path`, `method` (command\|push), `manifest` (JSON: key → `{version_id, sha256}`), `token_used_at` | §5.17. |
 | `artifacts` | `item_id`, `kind` (url\|pr\|ci\|deploy\|test), `label`, `url`, `state`, `provenance` | A08 evidence links. |
 | `documents` | `project_key`, `item_id` (nullable), `name`, `kind` (planning\|packet_attachment\|import_report\|brief\|other; `brief` is written only through `claim_lead`/`start_run`) | Unique `(item_id, name)`. |
 | `document_versions` | `document_id`, `version_no`, `mime`, `size`, `sha256`, `path`, `created_by` | Immutable. |
@@ -380,8 +386,9 @@ Shared knowledge that agents must respect: "Nutrition is per serving", "Use the 
 2. active decision records in scope, owner records first;
 3. the epic's outcome/brief, and the briefs of the item's labels;
 4. blockers and dependents: ID, title, status, cleared or not, and the first line of each one's outcome;
-5. for Markdown planning documents on the item and its epic, the newest version of each. Text is included until the budget runs out; after that, only names and versions;
-6. the latest review round's decisions and notes, if any.
+5. the project's **Workflow** notes (decision 29), current version, truncated last among sections 1–5;
+6. for Markdown planning documents on the item and its epic, the newest version of each. Text is included until the budget runs out; after that, only names and versions;
+7. the latest review round's decisions and notes, if any.
 
 **Budgets** (approximate tokens, counted as characters ÷ 4): `small` 1,000, `medium` 3,000 (the default), `large` 8,000. Sections are filled in the order above. Truncation is marked inline ("…truncated; read pantry-prd.md v3 with get_item"), never silently.
 
@@ -416,7 +423,29 @@ Owner decision 26, after an Orca crash pruned worktrees that held in-flight work
   - Every run that ends records an `end_reason`: `finished` and `failed` (`finish_run`), `released` (`release_lead`), `lease_expired` (sweeper), `owner_released` (*Release lead claim*), `service_restart` (boot sweep) or `canceled` (owner cancel).
   - **"Unpushed work may be lost"** shows under Problems when any run ends (including `finished` and `failed`) while `dirty` is true or `head_sha` ≠ `pushed_sha` (B10 resolution, matching MCP_SPEC §10 test 20). It clears when a later run reports a pushed commit, or the owner marks it *Handled*.
 - **`recovery_report`** (MCP_SPEC §5.9) is read-only and assembles the restart list. The coordinator's recovery procedure is in the [`tasklite-coordinator` skill](../skills/tasklite-coordinator/SKILL.md).
-- **Limits.** Task Lite never checks folders, stops processes or prevents pruning: it has no host access, by design. The coordinator does those things using this record.
+- **Limits.** Task Lite never checks folders, stops processes or prevents pruning: it has no host access, by design (the one exception is the opt-in agent-files push folder, §5.17). The coordinator does those things using this record.
+
+### 5.17 Agent setup: agent files, workflow notes, install (decision 29)
+- **Files.** The agent files are each `skills/<name>/SKILL.md` and the AGENTS.md block (`docs/templates/AGENTS-tasklite.md`). At startup the server loads the copies in the image into the **bundled** layer. When the bundled content changes on upgrade, a new bundled version is added; owner edits are never overwritten.
+- **Layers and resolution.** For a project, the effective version of each file is its project override, else the service-wide edit, else bundled. Each edit is a new immutable version with author and note. *Revert* creates a version equal to the layer below (or removes the override). If a file was edited while the bundled version was X and the bundled version is now Y, it's flagged "bundled version updated", with a three-way view (bundled X → bundled Y, and the owner's edit).
+- **Workflow notes** are per project, versioned, ≤ 10,000 characters, and included in `get_context` (§5.15).
+- **Install bundle.** A tar.gz of the effective files laid out for the client and target:
+  - Claude Code: `.claude/skills/<name>/SKILL.md` in a repo, or `~/.claude/skills/<name>/SKILL.md` user-wide;
+  - Codex: `.codex/skills/` and `~/.codex/skills/`, per verification V7;
+  - the AGENTS.md block is inserted between `<!-- tasklite:begin -->` and `<!-- tasklite:end -->` in `AGENTS.md` (Codex) or `CLAUDE.md` (Claude Code), appended with markers if absent, and nothing outside the markers changes;
+  - a `.tasklite-manifest.json` lists each file's key, version ID and sha256, plus the install ID.
+- **Command install.** `POST /api/installs` returns a single-use download token, valid 10 minutes and loopback only, and PowerShell and bash one-liners that download `GET /install/:token` and unpack it into the target. The install is logged when the token is used.
+- **Push install** (opt-in; FR-125): only when `TASKLITE_PUSH_ROOT` is set and writable.
+  - The target path must be inside the push root.
+  - The server writes only the skill folders, the manifest and the marked AGENTS.md section, and never deletes or overwrites other files.
+  - Settings shows a *Test* that writes and removes a probe file.
+- **Check.**
+  - **With push:** `POST /api/installs/:id/check` reads the installed files and diffs them against the manifest's versions (changed, missing, extra skill folders).
+  - **Without push:** the install response also carries a check one-liner that hashes the local files against the manifest and prints the differences.
+- **Never** run anything on the host, follow symlinks out of the push root, or read outside it.
+
+### 5.18 Help center (decision 29)
+Articles are Markdown files in `docs/help/<slug>.md`, with front matter `title`, `summary` and `anchors` (the screens and states that link to them). They're bundled into the web build: no API, no database. The UI lists them at `/help`, renders them at `/help/:slug`, includes them in palette results, and shows a "?" link wherever an anchor applies. Content changes ship as normal PRs.
 
 ---
 
@@ -464,7 +493,7 @@ Tools are snake_case, with input and output schemas defined in `shared/` with zo
 | `dependency_subgraph` | | `id, depth?=2 (1–5), direction?: up\|down\|both` → nodes with status and dates (each date labelled `entered` or `none`) and edges, plus the downstream items whose dates are at risk | A11 |
 | `deferred_reviews` | Cleanup list | `project?` → deferred items with follow-up status | decision 13 |
 | `recovery_report` | Restart list after a crash | `project?, since?, include_briefs?` → interrupted, stale and parked runs, workspaces, orphaned resources | decision 26 |
-| `get_context` | Working context in one call | `id, budget?: small\|medium\|large` → bundle (§5.15) | decision 19 |
+| `get_context` | Working context in one call | `id, budget?: small\|medium\|large` → bundle (§5.15), including the project's Workflow notes (decision 29) | decisions 19, 29 |
 | `publish_decision` | Record a decision | `project, scope: {kind, id?}, title, decision, rationale?, supersedes?` → record (`authority=agent`) | decision 19 |
 | `list_decisions` | Read decisions | `project, scope?, include_inactive?=false` → records | decision 19 |
 | `withdraw_decision` | Withdraw an agent decision | `decision_id, reason` → record | decision 19 |
@@ -518,6 +547,10 @@ Every route requires the owner session (§3). JSON bodies **and query strings** 
 | `POST /api/import/jira/dry-run` · `GET /api/import/jira/:id` · `POST /api/import/jira/:id/commit` · `DELETE /api/import/jira/:id` | Jira import (§9) |
 | `POST /api/mutations/:id/undo` | Undo toast |
 | `GET /api/workspaces?scope&state` | Agents → Workspaces (decision 26): every recorded worktree with its state, branch, item, last activity and unreleased resources |
+| `GET /api/agent-files?project` · `GET /api/agent-files/:key?project` · `PUT /api/agent-files/:key` `{layer, project?, content, expected_version, note?}` · `POST /api/agent-files/:key/revert` `{layer, project?}` | Settings → Agent setup and the project's agent files (§5.17): the effective set, each layer, history and diffs, the bundled-updated flag |
+| `GET /api/projects/:key/workflow` · `PUT /api/projects/:key/workflow` `{content_md, expected_version, note?}` | The project's Workflow notes |
+| `POST /api/installs` `{client, target_kind, project?, path?, method}` → `{install_id, command?, check_command?, result?}` · `GET /api/installs?project` · `POST /api/installs/:id/check` · `GET /api/push-target` · `POST /api/push-target/test` | Install, the install log, local-edit checks, the push folder status |
+| `GET /install/:token` (no session; single-use, 10 min, loopback) | The install bundle the copy-paste command downloads |
 | `POST /api/resources/:id/release` `{note?}` · `POST /api/runs/:runId/unpushed-handled` | Problems actions: *Mark released* on an orphaned resource; *Handled* on "Unpushed work may be lost" |
 | `GET /api/stream` | SSE: `event: change`, `id: <seq>`, `data: {seq, type, objects:[{kind, id}], for_you}`, where `for_you` is true only for `packet.submitted` and `question.asked` (used for desktop notifications; specs/001-task-lite-v1/contracts/events.md). The client invalidates matching TanStack Query keys. Supports `Last-Event-ID`. Sends a heartbeat comment every 25 s. |
 | `GET /healthz` (process up) · `GET /readyz` (database writable, docs dir writable, migrations current) | Compose healthcheck, sidebar health line |
@@ -791,6 +824,7 @@ Owner decisions are marked **(owner)**. Every other entry is a technical choice 
 | 26 **(owner)** | Recovery support: runs record their workspace, orchestrator IDs, brief and declared resources; runs can park; `recovery_report` gives the restart list; Problems flag orphaned resources and unpushed work. Prompted by an Orca crash that pruned worktrees holding in-flight work. Task Lite records; the coordinator acts. | §5.16, MCP_SPEC §3 and §5.9 |
 | 27 **(owner)** | Ship five agent skills as plain files in `skills/`: `tasklite-worker` and `tasklite-coordinator` (core), `tasklite-planner`, `tasklite-review-packet` and `tasklite-lead-subagents` (optional). They teach workflow, never restate schemas, and are lint-checked against the tool contract in CI. Owners may edit them. Serving them as MCP prompts is on the roadmap. | `skills/README.md`, ROADMAP §2 |
 | 28 **(owner)** | Per-client result modes: clients known to give the model `structuredContent` (by default Claude Code, `clientInfo.name` `claude-code`) get text-only results, with no `outputSchema` and no `structuredContent`, so the model reads the complete compact text; every other client keeps structured output. Configured by `TASKLITE_TEXT_ONLY_CLIENTS`. Resolves V6. | §2 Configuration, §12 V6, MCP_SPEC §3 Results and §11 |
+| 29 **(owner)** | Help center and agent setup: Help articles in the app; the agent files (skills and AGENTS.md block) viewable and editable in three layers (bundled, service-wide, per project) with history; per-project Workflow notes in `get_context`; install by copy-paste command or opt-in push into a mounted host folder; every install logged with exact versions, and installed copies checked for local edits. Serving the files over MCP stays on the roadmap. | §5.17, §5.18, §7, UI_SPEC §6.10–6.11 |
 | T22 | Parked runs keep their claim indefinitely and are only flagged after `PARK_MAX` (24 h); they are never auto-released. | §5.16 |
 | T23 | Workspace state is derived per worktree path from reported data (`dirty`, `head_sha`, `pushed_sha`, resources), never by inspecting the host. | §5.16 |
 | T24 | API errors use the envelope `{error:{code,message,details?}}`; queries are strict; `shared/src/api` holds the authoritative request and response shapes (from B4). | §7 |
