@@ -230,21 +230,21 @@ test.describe('shell navigation', () => {
     await fresh.close();
   });
 
-  test('routes later slices build answer 501 and their shells show "Not built yet", never a blank page', async ({
+  test('every routed screen now answers: no "Not built yet" state, never a blank page', async ({
     page,
   }) => {
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(e.message));
-    // US2's routes (Needs you, Work board/list/map, items, Agents) now answer; see
+    // US2's routes (Needs you, Work board/list/map, items, Agents) answer; see
     // us2-visibility. So does the packet screen (US3); see us3-review. Settings
-    // answers since US4 (its project rows; us4-deps), and the label page since US7
-    // (us7-planning).
+    // answers since US4 (its project rows; us4-deps), the label page since US7
+    // (us7-planning), and Work → Timeline since US8 (us8-timeline). Only the
+    // Jira import dialog (US9) still answers 501, and it has no route of its own.
     for (const path of ['/work?layout=timeline']) {
       await page.goto(path);
       await expect(h1(page)).toBeVisible();
-      const states = page.locator('[data-error-state="not-built"]');
-      await expect(states.first()).toBeVisible();
-      await expect(states.first()).toContainText('unavailable');
+      await expect(page.locator('[data-card="timeline-grid"]')).toBeVisible();
+      await expect(page.locator('[data-error-state="not-built"]')).toHaveCount(0);
     }
     expect(errors).toEqual([]);
   });
