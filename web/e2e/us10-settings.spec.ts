@@ -108,6 +108,18 @@ test.describe('Settings', () => {
       clients.locator('tr[data-client="Agent in another container"]').getByText('Not configured'),
     ).toBeVisible();
     await expect(clients.getByText('✓ Verified')).toHaveCount(0);
+    // Result modes under the default TASKLITE_TEXT_ONLY_CLIENTS (MCP_SPEC §3 Results).
+    await expect(clients.getByRole('columnheader', { name: 'Results' })).toBeVisible();
+    for (const [name, mode] of [
+      ['Codex CLI (host)', 'Structured'],
+      ['Claude Code (host)', 'Text only'],
+      ['Orca worker · Codex', 'Structured'],
+      ['Orca worker · Claude', 'Text only'],
+    ] as const) {
+      await expect(
+        clients.locator(`tr[data-client="${name}"]`).getByText(mode, { exact: true }),
+      ).toBeVisible();
+    }
     await shoot(page, 'settings-clients', clients);
 
     const setup = card(page, 'client-setup');

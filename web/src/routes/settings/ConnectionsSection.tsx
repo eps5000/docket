@@ -38,6 +38,12 @@ const CLIENT_STATUS = {
   not_configured: { kind: 'neutral', label: 'Not configured' },
 } as const;
 
+/** Each client's result mode (MCP_SPEC §3 Results): what its model is given. */
+const RESULT_MODE = {
+  text: { label: 'Text only', title: 'No structuredContent: the model reads the compact text' },
+  structured: { label: 'Structured', title: 'structuredContent plus the compact text' },
+} as const;
+
 type Health = SettingsResponse['health'];
 
 /**
@@ -76,6 +82,7 @@ export function ConnectionsSection({ query }: { query: UseQueryResult<SettingsRe
                         <th scope="col">Transport</th>
                         <th scope="col">Last seen</th>
                         <th scope="col">Status</th>
+                        <th scope="col">Results</th>
                         <th scope="col">Notes</th>
                       </tr>
                     </thead>
@@ -96,6 +103,9 @@ export function ConnectionsSection({ query }: { query: UseQueryResult<SettingsRe
                             <Chip kind={CLIENT_STATUS[c.status].kind}>
                               {CLIENT_STATUS[c.status].label}
                             </Chip>
+                          </td>
+                          <td className="src" title={RESULT_MODE[c.result_mode].title}>
+                            {RESULT_MODE[c.result_mode].label}
                           </td>
                           <td className="src">{c.notes}</td>
                         </tr>

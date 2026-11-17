@@ -8,7 +8,14 @@
  * claim_lead → get_context (US5, tasks.md T112).
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { expectOk, startHarness, textOf, tokens, type ContractHarness } from './harness.js';
+import {
+  PRODUCT_RESULT_MODES,
+  expectOk,
+  startHarness,
+  textOf,
+  tokens,
+  type ContractHarness,
+} from './harness.js';
 
 const TOLERANCE = 1.2;
 const measured: { call: string; tokens: number; budget: number }[] = [];
@@ -236,6 +243,52 @@ describe('SC-001', () => {
       measured.push({ call: `SC-001 total (${calls.length} calls)`, tokens: total, budget: 3_500 });
       expect(calls.length).toBeLessThanOrEqual(4);
       expect(total, `SC-001: ${total} tokens`).toBeLessThanOrEqual(3_500);
+    } finally {
+      await fresh.close();
+    }
+  });
+
+  // A text-only client (MCP_SPEC §3 Results; owner decision 28), here `claude-code` under the
+  // shipped default: its model sees every result in full, which is the text block alone.
+  it("holds for what a text-only client's model sees", async () => {
+    const fresh = await startHarness({ env: PRODUCT_RESULT_MODES });
+    try {
+      const calls: { call: string; tokens: number }[] = [];
+      const call = async (name: string, args: Record<string, unknown>) => {
+        const result = await fresh.call(name, args);
+        expect(result.isError ?? false, `${name}: ${JSON.stringify(result)}`).toBe(false);
+        expect(result, `${name} is text-only`).not.toHaveProperty('structuredContent');
+        // Everything in the result that a model could be given.
+        const seen = result.content.map((c) => (c.type === 'text' ? c.text : JSON.stringify(c)));
+        calls.push({ call: `${name} ${JSON.stringify(args)}`, tokens: tokens(seen.join('\n')) });
+        return textOf(result);
+      };
+      await call('whoami', {});
+      const found = await call('search_items', { filter: 'ready_to_start', limit: 1 });
+      // The header line, then one row per item, ID first (§3.1).
+      const best = /^(\S+) /.exec(found.split('\n')[1]!)![1]!;
+      await call('claim_lead', { id: best, agent_label: 'orca-w3' });
+      const context = await call('get_context', { id: best });
+      expect(context.split('\n')[0]).toMatch(new RegExp(`^Context for ${best} `));
+
+      const total = calls.reduce((n, c) => n + c.tokens, 0);
+      console.log(
+        [
+          '',
+          `SC-001, text-only client (best item ${best}):`,
+          '| Call | Tokens the model sees |',
+          '|---|---:|',
+          ...calls.map((c) => `| ${c.call} | ${c.tokens} |`),
+          `| **Total (${calls.length} calls)** | **${total}** |`,
+        ].join('\n'),
+      );
+      measured.push({
+        call: `SC-001 text-only total (${calls.length} calls)`,
+        tokens: total,
+        budget: 3_500,
+      });
+      expect(calls.length).toBeLessThanOrEqual(4);
+      expect(total, `SC-001 text-only: ${total} tokens`).toBeLessThanOrEqual(3_500);
     } finally {
       await fresh.close();
     }

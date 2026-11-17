@@ -21,7 +21,7 @@ import { afterAll, afterEach, describe, expect, it } from 'vitest';
 import { createApp } from '../../src/app.js';
 import { restartSweep } from '../../src/jobs/sweeper.js';
 import { createRuntime, type Runtime } from '../../src/runtime.js';
-import { ORIGIN, parseSetCookies } from '../integration/harness.js';
+import { ORIGIN, STRUCTURED_FOR_ALL, parseSetCookies } from '../integration/harness.js';
 import {
   CLIENT_A,
   expectConflict,
@@ -109,7 +109,7 @@ async function restart(harness: ContractHarness, env: Record<string, string> = {
   await harness.server.runtime.close();
   const runtime = createRuntime({
     dataDir: harness.server.dataDir,
-    env,
+    env: { ...STRUCTURED_FOR_ALL, ...env },
     clock: harness.server.clock.now,
     log: () => {},
   });

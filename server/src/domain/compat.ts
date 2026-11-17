@@ -11,10 +11,34 @@
  * (BUILD_SPEC §3). Orca workers are told apart by their `agent_label`
  * starting with `orca`, which is how the coordinator skill labels them;
  * a worker that doesn't follow that convention shows under the host client.
+ *
+ * Each surface's result mode (MCP_SPEC §3 Results; owner decision 28) comes
+ * from the `clientInfo.name` it sends and TASKLITE_TEXT_ONLY_CLIENTS, as it
+ * does for a live session (mcp/server.ts `resultMode`).
  */
+/** How a session's tool results are shaped (MCP_SPEC §3 Results). */
+export type ResultMode = 'structured' | 'text';
+
+/**
+ * The result mode for a `clientInfo.name`: `text` when TASKLITE_TEXT_ONLY_CLIENTS
+ * (lower-cased, config.ts) lists it exactly, ignoring case; else `structured`.
+ */
+export function resultMode(
+  name: string | null | undefined,
+  textOnlyClients: readonly string[],
+): ResultMode {
+  const lower = (name ?? '').trim().toLowerCase();
+  return lower !== '' && textOnlyClients.includes(lower) ? 'text' : 'structured';
+}
+
 export interface CompatSurface {
   name: string;
   client: string | null;
+  /**
+   * The exact `clientInfo.name` the surface sends at `initialize`, which
+   * decides its result mode; null when there's no single one.
+   */
+  clientInfoName: string | null;
   orca: boolean;
   transport: string;
   /** When the smoke test passed (ISO day) and what it showed; null until it has. */
@@ -29,6 +53,8 @@ export const COMPAT_SURFACES: readonly CompatSurface[] = [
   {
     name: 'Codex CLI (host)',
     client: 'codex',
+    // Codex's MCP client name (its source); not yet seen from a real Codex (smoke test).
+    clientInfoName: 'codex-mcp-client',
     orca: false,
     transport: 'Streamable HTTP',
     verified: null,
@@ -37,6 +63,8 @@ export const COMPAT_SURFACES: readonly CompatSurface[] = [
   {
     name: 'Claude Code (host)',
     client: 'claude',
+    // Seen from Claude Code 2.1.318 headless (B19).
+    clientInfoName: 'claude-code',
     orca: false,
     transport: 'Streamable HTTP',
     // B18 (T146): the smoke kit passed headless (claude -p 2.1.318, a temporary
@@ -49,6 +77,8 @@ export const COMPAT_SURFACES: readonly CompatSurface[] = [
   {
     name: 'Orca worker · Codex',
     client: 'codex',
+    // Orca launches the installed client, so the worker sends the host client's name.
+    clientInfoName: 'codex-mcp-client',
     orca: true,
     transport: 'Streamable HTTP (user config)',
     verified: null,
@@ -57,6 +87,7 @@ export const COMPAT_SURFACES: readonly CompatSurface[] = [
   {
     name: 'Orca worker · Claude',
     client: 'claude',
+    clientInfoName: 'claude-code',
     orca: true,
     transport: 'Streamable HTTP (user config)',
     verified: null,
@@ -65,6 +96,7 @@ export const COMPAT_SURFACES: readonly CompatSurface[] = [
   {
     name: 'Agent in another container',
     client: null,
+    clientInfoName: null,
     orca: false,
     transport: 'Docker network',
     verified: null,

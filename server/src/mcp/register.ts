@@ -20,6 +20,10 @@
  *      `internal`), then return `structuredContent` plus the compact text;
  *   5. errors become `isError` results carrying the ToolError (§6);
  *   6. one call-log line per call: never the arguments.
+ *
+ * Text-only sessions (MCP_SPEC §3 Results; owner decision 28; server.ts
+ * `resultMode`) get the same tools without `outputSchema`, and results
+ * without `structuredContent`: the text block alone, `isError` as usual.
  */
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import {
@@ -57,7 +61,7 @@ import {
 import { newId } from '../domain/ids.js';
 import { mapDbError, type Actor, type WriteContext } from '../domain/write.js';
 import type { Runtime } from '../runtime.js';
-import type { McpSessionInfo } from './server.js';
+import type { McpSessionInfo, ResultMode } from './server.js';
 
 // ---- Handlers ----
 
@@ -131,6 +135,13 @@ export const TOOL_LIST: Tool[] = TOOLS.map((tool) => ({
   annotations: toolAnnotations(tool),
 }));
 
+/** The same entries for text-only sessions: everything but `outputSchema` (MCP_SPEC §3 Results). */
+export const TOOL_LIST_TEXT_ONLY: Tool[] = TOOL_LIST.map((tool) => omit(tool, 'outputSchema'));
+
+/** The `tools/list` entries for a result mode. */
+export const toolList = (mode: ResultMode): Tool[] =>
+  mode === 'text' ? TOOL_LIST_TEXT_ONLY : TOOL_LIST;
+
 // ---- The run signal hook ----
 
 /**
@@ -177,20 +188,22 @@ export interface RegisterOptions {
 }
 
 function toolResult(
+  mode: ResultMode,
   text: string,
   structured: Record<string, unknown>,
   isError = false,
 ): CallToolResult {
   return {
     content: [{ type: 'text', text }],
-    structuredContent: structured,
+    // Text-only sessions read the compact text alone (MCP_SPEC §3 Results).
+    ...(mode === 'structured' ? { structuredContent: structured } : {}),
     ...(isError ? { isError: true } : {}),
   };
 }
 
-function errorResult(err: ToolError): CallToolResult {
+function errorResult(mode: ResultMode, err: ToolError): CallToolResult {
   const shape = err.toJSON();
-  return toolResult(renderError(shape), shape as unknown as Record<string, unknown>, true);
+  return toolResult(mode, renderError(shape), shape as unknown as Record<string, unknown>, true);
 }
 
 /** Execute one tool call. Exported for unit tests; `registerTools` wires it to MCP. */
@@ -204,6 +217,7 @@ export async function callTool(
   const { runtime } = opts;
   const started = performance.now();
   const session = opts.session();
+  const mode: ResultMode = session?.result_mode ?? 'structured';
   let label: string | null = null;
   let runId: string | null = null;
   let code: 'ok' | ToolErrorCode = 'ok';
@@ -280,7 +294,7 @@ export async function callTool(
     }
     const structured = { ...(checked.data as Record<string, unknown>) };
     if (replayed) structured.replayed = true;
-    return toolResult(renderResult(tool.name, structured, { args, now }), structured);
+    return toolResult(mode, renderResult(tool.name, structured, { args, now }), structured);
   } catch (raw) {
     if (raw instanceof McpError) throw raw;
     // A service that is still a stub: "Not implemented yet: <tool>" (tasks.md T041, T048).
@@ -289,7 +303,7 @@ export async function callTool(
       : mapDbError(raw);
     const err = mapped instanceof ToolError ? mapped : internal(runtime, tool.name, mapped);
     code = err.code;
-    return errorResult(err);
+    return errorResult(mode, err);
   } finally {
     try {
       runtime.callLog.record({
@@ -322,7 +336,9 @@ export function registerTools(server: McpServer, opts: RegisterOptions): void {
   // on the low-level server, before connect: McpServer's own tool registration
   // would advertise `listChanged: true`.
   server.server.registerCapabilities({ tools: { listChanged: false } });
-  server.server.setRequestHandler(ListToolsRequestSchema, () => ({ tools: TOOL_LIST }));
+  server.server.setRequestHandler(ListToolsRequestSchema, () => ({
+    tools: toolList(opts.session()?.result_mode ?? 'structured'),
+  }));
   server.server.setRequestHandler(CallToolRequestSchema, (request) =>
     callTool(opts, request.params.name, request.params.arguments),
   );

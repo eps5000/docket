@@ -23,7 +23,7 @@
  * (`forecast.timeline`, added by the read route); the date risk rule is
  * shared with it (`dateRiskBlockers` in model.ts).
  */
-import { COMPAT_SURFACES } from './compat.js';
+import { COMPAT_SURFACES, resultMode } from './compat.js';
 import { readdirSync, statfsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import {
@@ -1554,6 +1554,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         transport: c.transport,
         last_seen_at: c.client ? lastSeen(c.client, c.orca) : null,
         status: c.verified ? 'verified' : c.offByDefault ? 'not_configured' : 'not_verified',
+        result_mode: resultMode(c.clientInfoName, deps.config.textOnlyClients),
         notes: c.verified ? `Smoke test passed ${c.verified.on} · ${c.verified.notes}` : c.notes,
       }));
       const known = new Set(COMPAT_SURFACES.map((c) => c.client));
@@ -1567,6 +1568,8 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
             .map((x) => x.last_seen_at)
             .reduce<string | null>((a, b) => (a && (!b || a > b) ? a : b), null),
           status: 'not_verified',
+          // Another client's normalised name is its own `clientInfo.name` (BUILD_SPEC §3).
+          result_mode: resultMode(client, deps.config.textOnlyClients),
           notes: 'Not a supported client; not smoke-tested.',
         });
       }

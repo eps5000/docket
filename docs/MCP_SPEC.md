@@ -166,7 +166,11 @@ Every tool returns two things:
 - `structuredContent`: JSON matching its output schema, for programs.
 - One `text` content block: a **complete compact rendering** of the same result, for the model (§3.1). It is *not* a JSON dump, and *not* just a one-line summary. A client that forwards only the text loses nothing an agent needs.
 
-Which of the two each client actually gives the model is checked during the build (BUILD_SPEC §12, V6).
+**Result modes** (owner decision 28). Some clients give the model `structuredContent` rather than the text, which costs about 3.5 times the tokens (BUILD_SPEC §12, V6). So each session gets one of two modes, decided at `initialize` from `clientInfo.name`:
+- **Text-only**, when the name is listed in `TASKLITE_TEXT_ONLY_CLIENTS` (exact, ignoring case; BUILD_SPEC §2). The default lists `claude-code`. `tools/list` has no `outputSchema`, and results carry the text block alone. Errors still set `isError: true`, and their text holds the full ToolError (§6). Everything else is the same: descriptions, input schemas, annotations and behaviour. Long text truncated in lists (§3.1) is in full in `get_item` view `full`.
+- **Structured**, for every other client: both, as above.
+
+The budgets (§3.2) measure the text block, which is all a text-only client's model sees.
 
 Results may carry `warnings: string[]` (§3.4). These are rendered as `! …` lines at the end of the text. Every mutating tool's output schema allows an optional `replayed: boolean` and `warnings: string[]` (B3 resolution 5).
 
@@ -910,6 +914,7 @@ Source: Codex MCP docs, `learn.chatgpt.com/docs/extend/mcp?surface=cli`.
   ```
 - **Flags:** none needed; Streamable HTTP isn't behind an experimental flag.
 - **No CLI form:** `codex mcp add` has no documented bearer-token flag for HTTP servers, so use the config file.
+- **Result mode:** structured (§3 Results). Which part Codex gives the model is still to verify (BUILD_SPEC §12, V6); if it is `structuredContent`, add its `clientInfo.name` to `TASKLITE_TEXT_ONLY_CLIENTS`.
 
 ### Claude Code
 Source: `code.claude.com/docs/en/mcp`. Flags come before the name, and the name before the URL.
@@ -935,9 +940,10 @@ Source: `code.claude.com/docs/en/mcp`. Flags come before the name, and the name 
   ```
   Note: `type` must be `http`. An entry with a `url` but no `type` is treated as stdio and skipped.
 - **Check it:** `claude mcp list` should show `tasklite … ✔ Connected`. Inside Claude Code, `/mcp` shows the status.
+- **Result mode:** text-only (§3 Results). Claude Code sends `clientInfo.name` `claude-code` and gives the model `structuredContent` when there is one (BUILD_SPEC §12, V6), so by default it gets no `outputSchema` and no `structuredContent`, and its model reads the compact text.
 
 ### Orca workers
-Orca launches the installed Codex or Claude, so the configurations above apply as long as the worker inherits your user config and environment. That's verified for Codex workers; Claude workers are still to verify (BUILD_SPEC §12, V2). Settings shows "Not verified" until the smoke test passes.
+Orca launches the installed Codex or Claude, so the configurations above apply as long as the worker inherits your user config and environment. That's verified for Codex workers; Claude workers are still to verify (BUILD_SPEC §12, V2). Settings shows "Not verified" until the smoke test passes. A worker sends its client's `clientInfo.name`, so it gets that client's result mode: text-only for Claude, structured for Codex. Settings shows each surface's mode.
 
 ### Settings snippets
 The Client setup card in Settings (UI_SPEC §6.7) shows exactly the Codex TOML and the user-scope Claude command above, with the token as `$TASKLITE_TOKEN`, never the value.

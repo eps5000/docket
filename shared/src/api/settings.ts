@@ -30,6 +30,8 @@ export const clientStatusSchema = z.object({
   transport: z.string(),
   last_seen_at: z.string().nullable(),
   status: z.enum(['verified', 'not_verified', 'not_configured']),
+  /** How the client's tool results are shaped (MCP_SPEC §3 Results): `text` = text-only. */
+  result_mode: z.enum(['structured', 'text']),
   notes: z.string().nullable(),
 });
 

@@ -405,7 +405,7 @@ The coordinator (an Orca orchestrator, a script or the owner) dispatches workers
 ### Measurable Outcomes
 
 - **SC-001**: From connecting, an agent finds, claims and has full working context for the best available item in at most 4 calls, receiving no more than about 3,500 tokens of results in total on the sample data.
-- **SC-002**: Re-reading an item's status costs an agent no more than about 300 tokens, and a 25-item search no more than about 1,000. Regressions beyond 20% fail the build.
+- **SC-002**: Re-reading an item's status costs an agent no more than about 300 tokens, and a 25-item search no more than about 1,000, measured on the compact text block, which is all a text-only client's model reads, so for those clients it is met by design (MCP_SPEC §3 Results). Regressions beyond 20% fail the build.
 - **SC-003**: Across 100 simultaneous attempts by two agents to claim the same item, exactly one succeeds every time, and no update is lost.
 - **SC-004**: When an item's last blocker clears, it appears in agents' ready list on the very next request, with no human or agent action.
 - **SC-005**: The owner can tell what needs them, and act on the first item, within 10 seconds of opening the UI, without scrolling, on a 1440×900 screen at sample-data volume.
