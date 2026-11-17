@@ -382,6 +382,30 @@ export class BlockIndex {
   }
 }
 
+// ---- Date risk (BUILD_SPEC §5.9) ----
+
+/**
+ * Date risk: the item's unresolved blockers whose planned end falls on or
+ * after the item's planned start. Open items only (blocked_by is empty
+ * otherwise); epics are never flagged. Problems and the Timeline both call
+ * this, and `dependency_subgraph` applies the same comparison after its slips.
+ */
+export function dateRiskBlockers(
+  index: BlockIndex,
+  item: { id: string; type: string; planned_start: string | null },
+  plannedEnd: (id: string) => string | null,
+): string[] {
+  const start = item.planned_start;
+  if (!start || item.type === 'Epic') return [];
+  return index.state(item.id).blocked_by.filter((b) => {
+    const end = index.status(b) !== undefined ? plannedEnd(b) : null;
+    return end !== null && endsOnOrAfter(end, start);
+  });
+}
+
+/** A blocker planned to end on `end` puts a start on `start` at risk (dates `YYYY-MM-DD`). */
+export const endsOnOrAfter = (end: string, start: string): boolean => end >= start;
+
 // ---- Resumable (BUILD_SPEC §13: `status:progress -has:lead`) ----
 
 /**

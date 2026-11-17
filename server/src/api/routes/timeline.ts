@@ -3,8 +3,9 @@
  * Timeline layout itself is `GET /api/work?layout=timeline` (read.ts, which
  * calls `forecast.timeline`).
  *
- * Placeholder (tasks.md T045): guarded and validated, and calls its
- * service; the stub answers 501 until US8 (T123) implements it.
+ * Guarded and validated (tasks.md T045); US8 (B16, T136) filled the
+ * service: remaining effort per local day replayed from events, scope
+ * additions, the unestimated count and the forecast (domain/forecast.ts).
  */
 import type { Env, Hono } from 'hono';
 import { defineRoute, type RouteDeps } from '../define.js';

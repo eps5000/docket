@@ -32,8 +32,8 @@ import { ORIGIN, createTestServer, parseSetCookies, type TestServer } from './ha
  * US2's read routes (B8, T080; content in us2-api.test.ts), US3's review
  * routes (B9, T094; content in the US3 tests), US11's recovery routes
  * (B10, T100; content in the US11 tests), US5's decisions routes (B12,
- * T115; content in us5-context.test.ts), and US6's steer routes (B13, T120;
- * content in the US6 tests).
+ * T115; content in us5-context.test.ts), US6's steer routes (B13, T120;
+ * content in the US6 tests), and US8's burn-down (B16, T136).
  */
 const B2_ROUTES: readonly RouteId[] = [
   'session.unlock',
@@ -69,6 +69,8 @@ const B2_ROUTES: readonly RouteId[] = [
   'decisions.create',
   'decisions.confirm',
   'decisions.withdraw',
+  // US8 (B16, T136): the burn-down card (content in tests/unit/forecast.test.ts and us2-api.test.ts).
+  'burndown.get',
   // US6 (B13, T120): steering a ticket (content in the US6 tests).
   'items.answer',
   'items.addNote',

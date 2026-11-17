@@ -19,8 +19,9 @@
  *
  * The recovery Problems rows (orphaned resources, unpushed work, parked too
  * long, ready to resume unattended) are US11's (T101), from the recovery read
- * model (recovery-model.ts). Not yet built here: the timeline section of
- * `work` is US8's (`forecast.timeline`).
+ * model (recovery-model.ts). The timeline section of `work` is US8's
+ * (`forecast.timeline`, added by the read route); the date risk rule is
+ * shared with it (`dateRiskBlockers` in model.ts).
  */
 import { COMPAT_SURFACES } from './compat.js';
 import { readdirSync, statfsSync, statSync } from 'node:fs';
@@ -66,6 +67,7 @@ import { inScopeOf, ofScope } from './decisions.js';
 import {
   BlockIndex,
   EVENT_COLUMNS,
+  dateRiskBlockers,
   EVENT_FROM,
   OPEN_STORED_SQL,
   displayRunState,
@@ -497,25 +499,19 @@ function problemsOf({ s, runs, deferredCounts, backupError, config }: ProblemsIn
 
   for (const item of items.values()) {
     if (!isOpenStatus(item.status)) continue;
-    const block = index.state(item.id);
 
     // Date risk: planned to start before an unresolved blocker is planned to finish.
-    if (item.planned_start && item.type !== 'Epic') {
-      const risky = block.blocked_by.filter((b) => {
-        const end = index.status(b) !== undefined ? plannedEnd(s, b) : null;
-        return end !== null && end >= item.planned_start!;
+    const risky = dateRiskBlockers(index, item, (b) => plannedEnd(s, b));
+    if (risky.length > 0) {
+      const b = risky[0]!;
+      push({
+        ...base,
+        kind: 'date_risk',
+        item_id: item.id,
+        title: item.title,
+        reason: `Planned start ${dayLabel(item.planned_start!)} is before its blocker ${b} is planned to finish (${dayLabel(plannedEnd(s, b)!)}).`,
+        related: risky,
       });
-      if (risky.length > 0) {
-        const b = risky[0]!;
-        push({
-          ...base,
-          kind: 'date_risk',
-          item_id: item.id,
-          title: item.title,
-          reason: `Planned start ${dayLabel(item.planned_start)} is before its blocker ${b} is planned to finish (${dayLabel(plannedEnd(s, b)!)}).`,
-          related: risky,
-        });
-      }
     }
 
     for (const link of index.blockers.get(item.id) ?? []) {

@@ -10,6 +10,7 @@
 import {
   agentsResponse,
   bootstrapResponse,
+  burndownResponse,
   itemDetailResponse,
   needsYouResponse,
   searchResponse,
@@ -272,10 +273,25 @@ describe('GET /api/work', () => {
     expect(archived.items.map((i) => i.id)).toEqual(['DOC-2']);
   });
 
-  it('timeline is US8: the route still answers 501 for it', async () => {
-    const res = await s.request('/api/work?layout=timeline', { headers: { cookie } });
-    expect(res.status).toBe(501);
-    results.push({ route: 'GET /api/work?layout=timeline', result: '501 (US8)', ms: 0 });
+  it('Timeline (US8): dated tickets, the seed’s RCP-16 date risk, undated items and forecast lanes', async () => {
+    const w = await get('/api/work?layout=timeline&scope=RCP', workResponse);
+    const t = w.timeline!;
+    expect(t).not.toBeNull();
+    const rcp16 = t.rows.find((r) => r.id === 'RCP-16')!;
+    expect(rcp16.blockers.filter((b) => b.risky).map((b) => b.id)).not.toEqual([]);
+    expect(t.rows.some((r) => r.type === 'Epic')).toBe(false);
+    expect(t.undated).toContain('RCP-20');
+    expect(t.forecasts.map((f) => f.project)).toEqual(['RCP']);
+    expect(t.forecasts[0]!.forecast.available).toBe(false);
+  });
+
+  it('burn-down (US8): 28 days, open effort and the unestimated count', async () => {
+    const b = await get('/api/burndown?scope=RCP', burndownResponse);
+    expect(b.series).toHaveLength(28);
+    expect(b.window_days).toBe(28);
+    expect(b.open_effort).toBeGreaterThan(0);
+    expect(b.not_estimated).toBeGreaterThan(0);
+    expect(b.forecast).toMatchObject({ available: false });
   });
 });
 

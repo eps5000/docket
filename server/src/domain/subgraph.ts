@@ -14,7 +14,7 @@
 import { ToolError, type Status } from '@tasklite/shared';
 import type { ServiceDeps, SubgraphService } from './contracts.js';
 import { compareIds, cyclesOf } from './links.js';
-import { BlockIndex, requireItem } from './model.js';
+import { BlockIndex, endsOnOrAfter, requireItem } from './model.js';
 
 const DAY = 86_400_000;
 const dayMs = (date: string) => Date.parse(`${date}T00:00:00Z`);
@@ -136,7 +136,7 @@ export function createSubgraphService(_deps: ServiceDeps): SubgraphService {
           // A cleared blocker is no risk, unless this call slips it.
           if (index.cleared(l) && !slipped) continue;
           const e = end(l.from_id);
-          if (e === null || e < start) continue;
+          if (e === null || !endsOnOrAfter(e, start)) continue;
           if (!worst || e > worst.end) worst = { blocker: l.from_id, end: e };
         }
         if (!worst) continue;

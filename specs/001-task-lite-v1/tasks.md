@@ -407,10 +407,10 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 
 **Fills**: `server/src/domain/forecast.ts`, the `timeline` route handlers, Work → Timeline, the burn-down card
 
-- [ ] T134 [P] [US8] Unit tests in `server/tests/unit/forecast.test.ts`: date risk; burn-down replay from events, with scope additions and the unestimated count; forecast thresholds (≥ 8 estimated items done in the last 4 weeks, across ≥ 2 weeks); Monte Carlo P50/P85 deterministic with a seeded RNG; planned dates unchanged
-- [ ] T135 [P] [US8] E2E: Timeline (planned and actual bars, set-by only on hover, blocker ticks, risk text, undated list, forecast lane), and the burn-down card with *Show as table*, in `web/e2e/us8-timeline.spec.ts`
-- [ ] T136 [US8] Implement the timeline query, burn-down and forecast in `server/src/domain/forecast.ts`, and fill the `timeline` route handlers
-- [ ] T137 [US8] Fill the Timeline layout and the burn-down card per UI_SPEC §6.2.4 and §9.1
+- [X] T134 [P] [US8] Unit tests in `server/tests/unit/forecast.test.ts`: date risk; burn-down replay from events, with scope additions and the unestimated count; forecast thresholds (≥ 8 estimated items done in the last 4 weeks, across ≥ 2 weeks); Monte Carlo P50/P85 deterministic with a seeded RNG; planned dates unchanged
+- [X] T135 [P] [US8] E2E: Timeline (planned and actual bars, set-by only on hover, blocker ticks, risk text, undated list, forecast lane), and the burn-down card with *Show as table*, in `web/e2e/us8-timeline.spec.ts`
+- [X] T136 [US8] Implement the timeline query, burn-down and forecast in `server/src/domain/forecast.ts`, and fill the `timeline` route handlers
+- [X] T137 [US8] Fill the Timeline layout and the burn-down card per UI_SPEC §6.2.4 and §9.1
 
 ---
 
