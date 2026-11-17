@@ -9,6 +9,14 @@ import { TestClock, tempDir } from '../helpers.js';
 
 export const ORIGIN = 'http://127.0.0.1:7420';
 
+/**
+ * Test servers give every client structured results, so the suites can read
+ * `structuredContent` whatever `clientInfo` they connect with (most connect
+ * as `claude-code`, which is text-only by default). The text-only mode has
+ * its own tests (contract/result-modes.test.ts), which pass their own list.
+ */
+export const STRUCTURED_FOR_ALL = { TASKLITE_TEXT_ONLY_CLIENTS: 'none' } as const;
+
 export interface TestServer {
   app: Hono;
   runtime: Runtime;
@@ -41,7 +49,7 @@ export function createTestServer(
   const clock = opts.clock ?? new TestClock();
   const runtime = createRuntime({
     dataDir,
-    env: opts.env ?? {},
+    env: { ...STRUCTURED_FOR_ALL, ...opts.env },
     clock: clock.now,
     streamKeepAliveMs: opts.keepAliveMs,
     toolHandlers: opts.toolHandlers,

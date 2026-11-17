@@ -113,6 +113,7 @@ function call(name: string, args: Record<string, unknown>): Promise<CallToolResu
     client: 'claude',
     client_name: null,
     client_version: null,
+    result_mode: 'structured',
     started_at: d.clock.now().toISOString(),
     last_seen_at: d.clock.now().toISOString(),
   };

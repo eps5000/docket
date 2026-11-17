@@ -104,6 +104,7 @@ describe('100 concurrent claims (FR-013)', () => {
         client: i % 2 ? 'claude' : 'codex',
         client_name: null,
         client_version: null,
+        result_mode: 'structured',
         started_at: d.clock.now().toISOString(),
         last_seen_at: d.clock.now().toISOString(),
       };

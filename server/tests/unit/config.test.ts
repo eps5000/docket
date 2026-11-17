@@ -29,6 +29,7 @@ describe('loadConfig', () => {
       backupExtraDir: null,
       seed: null,
       tz: null,
+      textOnlyClients: ['claude-code'],
     });
     expect(c.paths.db.replace(/\\/g, '/')).toBe('/data/tasklite.db');
     expect(c.paths.ownerKey.replace(/\\/g, '/')).toBe('/data/secrets/owner-key');
@@ -50,6 +51,7 @@ describe('loadConfig', () => {
       TASKLITE_BACKUP_EXTRA_DIR: '/backups-extra',
       TASKLITE_SEED: 'sample',
       TZ: 'Europe/London',
+      TASKLITE_TEXT_ONLY_CLIENTS: ' Claude-Code, my-agent ,',
     });
     expect(c).toMatchObject({
       tokenFromEnv: 'tok-1234567890abcdef',
@@ -66,7 +68,13 @@ describe('loadConfig', () => {
       backupExtraDir: '/backups-extra',
       seed: 'sample',
       tz: 'Europe/London',
+      textOnlyClients: ['claude-code', 'my-agent'],
     });
+  });
+
+  it('TASKLITE_TEXT_ONLY_CLIENTS=none gives every client structured results', () => {
+    expect(loadConfig({ TASKLITE_TEXT_ONLY_CLIENTS: 'none' }).textOnlyClients).toEqual([]);
+    expect(loadConfig({ TASKLITE_TEXT_ONLY_CLIENTS: 'NONE' }).textOnlyClients).toEqual([]);
   });
 
   it.each([

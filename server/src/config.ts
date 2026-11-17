@@ -35,6 +35,11 @@ export interface Config {
   seed: 'sample' | null;
   /** Display time zone; storage is always UTC. */
   tz: string | null;
+  /**
+   * `clientInfo.name`s (lower-cased) whose sessions get text-only tool results:
+   * no `outputSchema`, no `structuredContent` (MCP_SPEC §3 Results; owner decision 28).
+   */
+  textOnlyClients: string[];
   paths: {
     db: string;
     docs: string;
@@ -57,6 +62,8 @@ export const DEFAULTS = {
   TASKLITE_ORPHAN_AFTER: '15m',
   TASKLITE_BACKUP_AT: '03:00',
   TASKLITE_BACKUP_KEEP: '14',
+  // Claude Code gives the model `structuredContent`, not the text (BUILD_SPEC §12 V6).
+  TASKLITE_TEXT_ONLY_CLIENTS: 'claude-code',
 } as const;
 
 export class ConfigError extends Error {
@@ -114,6 +121,16 @@ export function loadConfig(
     throw new ConfigError(`TASKLITE_SEED must be "sample" or unset (got "${seedValue}")`);
   }
 
+  // `none` turns text-only results off for every client.
+  const textOnly = get('TASKLITE_TEXT_ONLY_CLIENTS');
+  const textOnlyClients =
+    textOnly.toLowerCase() === 'none'
+      ? []
+      : textOnly
+          .split(',')
+          .map((c) => c.trim().toLowerCase())
+          .filter(Boolean);
+
   const secrets = join(dataDir, 'secrets');
   return {
     dataDir,
@@ -134,6 +151,7 @@ export function loadConfig(
     backupExtraDir: env(source, 'TASKLITE_BACKUP_EXTRA_DIR') ?? null,
     seed: seedValue === 'sample' ? 'sample' : null,
     tz: env(source, 'TZ') ?? null,
+    textOnlyClients,
     paths: {
       db: join(dataDir, 'tasklite.db'),
       docs: join(dataDir, 'docs'),

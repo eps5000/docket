@@ -859,4 +859,26 @@ describe('GET /api/settings: connections and health', () => {
     const after = await get();
     expect(after.health.backups[0]!.last_success_at).toBe(NOW.toISOString());
   });
+
+  it("shows each surface's result mode from TASKLITE_TEXT_ONLY_CLIENTS (MCP_SPEC §3 Results)", async () => {
+    const modes = async (env: Record<string, string>) => {
+      const s = seeded(env);
+      const cookie = await unlock(s);
+      const body = (await (await s.request('/api/settings', { headers: { cookie } })).json()) as {
+        connections: { clients: { client: string; result_mode: string }[] };
+      };
+      return body.connections.clients.map((c) => [c.client, c.result_mode]);
+    };
+    // The shipped default (an empty value counts as unset): Claude Code is text-only.
+    expect(await modes({ TASKLITE_TEXT_ONLY_CLIENTS: '' })).toEqual([
+      ['Codex CLI (host)', 'structured'],
+      ['Claude Code (host)', 'text'],
+      ['Orca worker · Codex', 'structured'],
+      ['Orca worker · Claude', 'text'],
+      ['Agent in another container', 'structured'],
+    ]);
+    expect(
+      (await modes({ TASKLITE_TEXT_ONLY_CLIENTS: 'codex-mcp-client' })).map(([, m]) => m),
+    ).toEqual(['text', 'structured', 'text', 'structured', 'structured']);
+  });
 });

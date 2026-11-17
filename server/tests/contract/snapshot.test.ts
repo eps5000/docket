@@ -7,6 +7,10 @@
  *   description verbatim, its fields, defaults and limits, and the §3
  *   annotations.
  *
+ * - text-only sessions (MCP_SPEC §3 Results; owner decision 28): the same
+ *   instructions and the same tools (names, descriptions, input schemas,
+ *   annotations) with no `outputSchema`.
+ *
  * Expected copy is extracted from docs/MCP_SPEC.md at test time, never from
  * a copy. The full `tools/list` is also kept as a file snapshot
  * (__snapshots__/tools-list.json), so any schema change shows in review.
@@ -20,7 +24,7 @@ import {
   specInstructions,
   specToolPart,
 } from '../../../shared/tests/spec.js';
-import { startHarness, type ContractHarness } from './harness.js';
+import { PRODUCT_RESULT_MODES, startHarness, type ContractHarness } from './harness.js';
 
 let h: ContractHarness;
 let tools: Tool[];
@@ -506,5 +510,50 @@ describe('the whole contract', () => {
     await expect(`${JSON.stringify(tools, null, 2)}\n`).toMatchFileSnapshot(
       './__snapshots__/tools-list.json',
     );
+  });
+});
+
+describe('text-only sessions (§3 Results)', () => {
+  let t: ContractHarness;
+  let textTools: Tool[];
+  let structuredTools: Tool[];
+  beforeAll(async () => {
+    // The shipped default: `claude-code` (client a) is text-only; codex (b) is structured.
+    // A fresh structured list: the tests above sort `required` arrays in place.
+    t = await startHarness({ seed: false, env: PRODUCT_RESULT_MODES });
+    textTools = (await t.a.listTools()).tools;
+    structuredTools = (await t.b.listTools()).tools;
+  });
+  afterAll(async () => {
+    await t.close();
+  });
+
+  it('returns the same server instructions verbatim (§2)', () => {
+    expect(t.a.getInstructions()).toBe(specInstructions());
+    expect(t.a.getServerCapabilities()).toEqual({ tools: { listChanged: false } });
+  });
+
+  it('lists the same 38 tools, in order, with the §5 descriptions verbatim', () => {
+    expect(textTools.map((x) => x.name)).toEqual(specDescriptions().map(([name]) => name));
+    for (const [name, description] of specDescriptions()) {
+      expect(textTools.find((x) => x.name === name)!.description, name).toBe(description);
+    }
+  });
+
+  it('has no outputSchema on any tool', () => {
+    for (const tool of textTools) expect(tool, tool.name).not.toHaveProperty('outputSchema');
+  });
+
+  it('keeps the structured input schemas and annotations exactly', () => {
+    expect(structuredTools.every((x) => x.outputSchema !== undefined)).toBe(true);
+    for (const [i, tool] of textTools.entries()) {
+      expect(tool.inputSchema, tool.name).toEqual(structuredTools[i]!.inputSchema);
+      expect(tool.annotations, tool.name).toEqual(structuredTools[i]!.annotations);
+    }
+  });
+
+  it('is the structured tools/list without outputSchema, and nothing else', () => {
+    // The structured list itself is the reviewed file snapshot (above).
+    expect(textTools).toEqual(structuredTools.map(({ outputSchema: _, ...rest }) => rest));
   });
 });

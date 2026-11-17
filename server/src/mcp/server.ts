@@ -15,6 +15,13 @@
  *   answered ping is a *session* signal, BUILD_SPEC §5.4). A session without
  *   a stream can't be pinged, and its runs can only show *reported*.
  *
+ * - Result mode (MCP_SPEC §3 Results; owner decision 28): decided once, at
+ *   `initialize`. A session whose `clientInfo.name` is in
+ *   TASKLITE_TEXT_ONLY_CLIENTS (exact, ignoring case) is `text`: its
+ *   `tools/list` has no `outputSchema` and its results no
+ *   `structuredContent`, so the model reads the compact text. Every other
+ *   session is `structured`.
+ *
  * - Capabilities: `tools` with `listChanged: false`; no resources or prompts.
  *   `initialize` returns the server instructions (MCP_SPEC §2). The tools
  *   themselves are registered by `configure` (mcp/register.ts).
@@ -23,6 +30,9 @@ import { randomUUID } from 'node:crypto';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import { EmptyResultSchema } from '@modelcontextprotocol/sdk/types.js';
+import { resultMode, type ResultMode } from '../domain/compat.js';
+
+export type { ResultMode };
 
 export const SERVER_NAME = 'tasklite';
 
@@ -41,6 +51,8 @@ export interface McpSessionInfo {
   client: string;
   client_name: string | null;
   client_version: string | null;
+  /** Decided at `initialize`; `structured` until then. */
+  result_mode: ResultMode;
   started_at: string;
   last_seen_at: string;
 }
@@ -58,6 +70,8 @@ export interface McpHubOptions {
   clock?: () => Date;
   /** Returned as `instructions` in the `initialize` result (MCP_SPEC §2). */
   instructions?: string;
+  /** Lower-cased `clientInfo.name`s whose sessions get text-only results (config). */
+  textOnlyClients?: readonly string[];
   /** Called for each new server, before it connects; registers the tools. */
   configure?: (server: McpServer, session: () => McpSessionInfo | undefined) => void;
 }
@@ -136,6 +150,7 @@ export class McpHub {
       client: 'unknown',
       client_name: null,
       client_version: null,
+      result_mode: 'structured',
       started_at: now,
       last_seen_at: now,
     };
@@ -170,6 +185,7 @@ export class McpHub {
       info.client_name = clientInfo.name;
       info.client_version = clientInfo.version;
       info.client = normaliseClientName(clientInfo.name);
+      info.result_mode = resultMode(clientInfo.name, this.opts.textOnlyClients ?? []);
     }
     // Not an initialize request: nothing to keep.
     if (!entry) await server.close();

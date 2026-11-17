@@ -71,7 +71,9 @@ let agent: McpAgent;
 const runs: Record<string, string> = {};
 
 test.beforeAll(async () => {
-  agent = await connectAgent('claude-code', '1.0.0');
+  // Not `claude-code`: that name gets text-only results by default (MCP_SPEC §3 Results),
+  // and this file reads structuredContent. The normalised client is `claude` either way.
+  agent = await connectAgent('claude', '1.0.0');
 });
 test.afterAll(async () => {
   await agent?.close();

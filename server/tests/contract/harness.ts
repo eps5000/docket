@@ -7,6 +7,9 @@
  *   and `codex-mcp-client`), connected over Streamable HTTP with the agent
  *   token, each with its server→client (`GET`) stream open. Their HTTP goes
  *   straight into the Hono app (no socket).
+ * - Every client gets structured results unless `env` says otherwise
+ *   (integration/harness.ts STRUCTURED_FOR_ALL); `PRODUCT_RESULT_MODES`
+ *   restores the shipped default, where `claude-code` is text-only.
  * - `tokens(text)`: the budget measure, characters ÷ 4 (§3.2).
  * - Assertions for each ToolError code that also check the error is
  *   well-formed (§6).
@@ -58,7 +61,15 @@ export interface HarnessOptions {
   services?: ServiceOverrides;
   /** The service's log lines (default: the console). */
   log?: (line: string) => void;
+  /** Environment overrides for the server's configuration. */
+  env?: Record<string, string>;
 }
+
+/**
+ * The shipped TASKLITE_TEXT_ONLY_CLIENTS default (BUILD_SPEC §2): an empty
+ * value counts as unset, so `claude-code` sessions are text-only.
+ */
+export const PRODUCT_RESULT_MODES = { TASKLITE_TEXT_ONLY_CLIENTS: '' } as const;
 
 export async function startHarness(opts: HarnessOptions = {}): Promise<ContractHarness> {
   const server = createTestServer({
@@ -66,6 +77,7 @@ export async function startHarness(opts: HarnessOptions = {}): Promise<ContractH
     toolHandlers: opts.toolHandlers,
     services: opts.services,
     log: opts.log,
+    env: opts.env,
   });
   if (opts.seed !== false) {
     loadSampleSeed(server.runtime.db, {
