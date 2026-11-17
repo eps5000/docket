@@ -1,11 +1,14 @@
 /**
  * Every UI API route (BUILD_SPEC §7, the 2026-11-14 clarification routes,
- * the recovery routes from owner decision 26, and `/agent-upload` from §5.10), keyed by a stable route ID. The server, the
+ * the recovery routes from owner decision 26, the agent setup routes from
+ * owner decision 29 (including the session-less `GET /install/:token`), and
+ * `/agent-upload` from §5.10), keyed by a stable route ID. The server, the
  * route contract test and the web client all read this one table.
  *
  * Shared contract file (tasks.md, Slice rules).
  */
 import type { z } from 'zod';
+import { agentSetupRoutes } from './agent-setup.js';
 import { decisionsRoutes } from './decisions.js';
 import { depsRoutes } from './deps.js';
 import { diagnosticsRoutes, undoRoutes, uploadRoutes } from './diagnostics.js';
@@ -33,6 +36,7 @@ export const API_ROUTES = {
   ...settingsRoutes,
   ...diagnosticsRoutes,
   ...recoveryRoutes,
+  ...agentSetupRoutes,
   ...undoRoutes,
   ...uploadRoutes,
 } as const;

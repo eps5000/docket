@@ -370,7 +370,8 @@ type EventType =
   | 'question.asked' | 'question.answered' | 'owner_note.added' | 'note.added'
   | 'document.added' | 'commit.reported' | 'artifact.linked'
   | 'link.updated' | 'project.updated'
-  | 'decision.published' | 'decision.confirmed' | 'decision.superseded' | 'decision.withdrawn';
+  | 'decision.published' | 'decision.confirmed' | 'decision.superseded' | 'decision.withdrawn'
+  | 'agent_file.updated' | 'agent_file.reverted' | 'workflow.updated' | 'install.recorded';   // decision 29
 
 type ToolError = { code: 'validation'|'conflict'|'not_found'|'forbidden'|'unavailable'|'internal';
   message: string; details?: Record<string, unknown>; current?: unknown };
@@ -416,10 +417,10 @@ The format for each tool below:
 - **Errors:** `not_found`.
 
 #### `get_context`
-**Description:** "Get everything you need to work on an item in one call: its outcome and acceptance, the decisions you must follow (owner decisions first), the epic and label briefs, blockers and what they are waiting for, planning documents, and the last review's notes. Sized to a budget; anything cut is marked. Read-only: owner notes are counted here but delivered by get_item."
+**Description:** "Get everything you need to work on an item in one call: its outcome and acceptance, the decisions you must follow (owner decisions first), the epic and label briefs, blockers and what they are waiting for, the project's workflow notes, planning documents, and the last review's notes. Sized to a budget; anything cut is marked. Read-only: owner notes are counted here but delivered by get_item."
 - **Input:** `id`, `budget?: 'small'|'medium'|'large' = 'medium'` (about 1k, 3k and 8k tokens).
 - **Output:** `{ context: ContextBundle }`. The text block renders the bundle in the compact format, in the BUILD_SPEC §5.15 priority order, with `…truncated; …` lines where it was cut.
-- **Note (decision 29):** the bundle includes the project's Workflow notes, rendered as a `workflow:` section after the label briefs. The description line above gains "the project's workflow notes" in the contract batch that ships it (tasks Phase 15), together with `mcp-copy.ts` and the snapshot.
+- **Note (decision 29):** the bundle includes the project's Workflow notes (`ContextBundle.workflow`, §4; BUILD_SPEC §5.15 section 5), rendered as a `workflow:` section after the blockers and dependents, before the planning documents (the §5.15 order), with a `…truncated` line when cut. Shipped in B21 (tasks T151): the description above names "the project's workflow notes", in `mcp-copy.ts` and the snapshot too. The server returns `workflow: null` until T157 fills it.
 - **Errors:** `not_found`.
 
 #### `dependency_subgraph`

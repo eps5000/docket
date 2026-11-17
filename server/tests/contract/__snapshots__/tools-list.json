@@ -2271,7 +2271,11 @@
                           "decision.published",
                           "decision.confirmed",
                           "decision.superseded",
-                          "decision.withdrawn"
+                          "decision.withdrawn",
+                          "agent_file.updated",
+                          "agent_file.reverted",
+                          "workflow.updated",
+                          "install.recorded"
                         ]
                       },
                       "summary": {
@@ -2374,7 +2378,7 @@
   },
   {
     "name": "get_context",
-    "description": "Get everything you need to work on an item in one call: its outcome and acceptance, the decisions you must follow (owner decisions first), the epic and label briefs, blockers and what they are waiting for, planning documents, and the last review's notes. Sized to a budget; anything cut is marked. Read-only: owner notes are counted here but delivered by get_item.",
+    "description": "Get everything you need to work on an item in one call: its outcome and acceptance, the decisions you must follow (owner decisions first), the epic and label briefs, blockers and what they are waiting for, the project's workflow notes, planning documents, and the last review's notes. Sized to a budget; anything cut is marked. Read-only: owner notes are counted here but delivered by get_item.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -2755,6 +2759,37 @@
                     "additionalProperties": false
                   }
                 },
+                "workflow": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "project": {
+                          "type": "string"
+                        },
+                        "version_no": {
+                          "type": "integer"
+                        },
+                        "content_md": {
+                          "type": "string"
+                        },
+                        "truncated": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "project",
+                        "version_no",
+                        "content_md",
+                        "truncated"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
                 "planning_docs": {
                   "type": "array",
                   "items": {
@@ -2858,6 +2893,7 @@
                 "labels",
                 "blockers",
                 "dependents",
+                "workflow",
                 "planning_docs",
                 "last_review",
                 "budget",
@@ -3349,7 +3385,11 @@
               "decision.published",
               "decision.confirmed",
               "decision.superseded",
-              "decision.withdrawn"
+              "decision.withdrawn",
+              "agent_file.updated",
+              "agent_file.reverted",
+              "workflow.updated",
+              "install.recorded"
             ]
           }
         },
@@ -3438,7 +3478,11 @@
                       "decision.published",
                       "decision.confirmed",
                       "decision.superseded",
-                      "decision.withdrawn"
+                      "decision.withdrawn",
+                      "agent_file.updated",
+                      "agent_file.reverted",
+                      "workflow.updated",
+                      "install.recorded"
                     ]
                   },
                   "summary": {
@@ -7834,7 +7878,11 @@
                     "decision.published",
                     "decision.confirmed",
                     "decision.superseded",
-                    "decision.withdrawn"
+                    "decision.withdrawn",
+                    "agent_file.updated",
+                    "agent_file.reverted",
+                    "workflow.updated",
+                    "install.recorded"
                   ]
                 },
                 "summary": {

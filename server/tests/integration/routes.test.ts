@@ -4,7 +4,9 @@
  * For every route in the shared route table:
  * - it exists (a valid request never gets the "No API route" 404);
  * - without an owner session it gets 401 (`/agent-upload`: without the
- *   bearer token); unlock is the one route that needs neither;
+ *   bearer token); unlock is the one route that needs neither, and
+ *   `GET /install/:token` (decision 29) needs no session at all: its token
+ *   is the credential, so it answers the same with or without one;
  * - a mutation without the CSRF header gets 403;
  * - a bad request gets 400 `validation`: an unknown query key and, for
  *   routes with a body, an unknown body key, each with a did-you-mean when
@@ -110,6 +112,9 @@ interface Req {
   body?: Record<string, unknown>;
 }
 
+/** A well-formed install token (43 base64url characters) that no install holds. */
+const TOKEN = 'A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8S9t0-_x';
+
 /** A valid request for every route. */
 const VALID: Record<RouteId, Req> = {
   'session.unlock': { body: { key: '(owner key)' } },
@@ -206,6 +211,33 @@ const VALID: Record<RouteId, Req> = {
   'resources.release': { params: { id: 'rsc_1' }, body: { note: 'Stopped the dev server.' } },
   'runs.unpushedHandled': { params: { runId: 'run_21' }, body: {} },
   'agentUpload.post': { body: { item_id: 'RCP-2', kind: 'planning' } },
+  // Agent setup (decision 29; B21, T150): 501 placeholders until US13.
+  'agentFiles.list': { query: { project: 'RCP' } },
+  'agentFiles.get': { params: { key: 'skill:tasklite-worker' }, query: { project: 'RCP' } },
+  'agentFiles.put': {
+    params: { key: 'skill:tasklite-worker' },
+    body: {
+      layer: 'project',
+      project: 'RCP',
+      content: '# Worker\n',
+      expected_version: 0,
+      note: 'Our branch names.',
+    },
+  },
+  'agentFiles.revert': { params: { key: 'agents_block' }, body: { layer: 'service' } },
+  'workflow.get': { params: { key: 'RCP' } },
+  'workflow.put': {
+    params: { key: 'RCP' },
+    body: { content_md: '- Branch per item: rcp-<n>.', expected_version: 0, note: 'First notes.' },
+  },
+  'installs.create': {
+    body: { client: 'claude', target_kind: 'repo', project: 'RCP', method: 'command' },
+  },
+  'installs.list': { query: { project: 'RCP' } },
+  'installs.check': { params: { id: 'ins_1' }, body: {} },
+  'pushTarget.get': {},
+  'pushTarget.test': { body: {} },
+  'install.download': { params: { token: TOKEN } },
 };
 
 /** A path parameter value that fails its schema: a lower-cased item ID or key, a bad label, or blank. */
@@ -303,7 +335,7 @@ async function errorOf(res: Response) {
 async function authFor(id: RouteId) {
   const route = API_ROUTES[id];
   if (route.auth === 'bearer') return { bearer: true };
-  if (route.auth === 'none') return {};
+  if (route.auth === 'none' || route.auth === 'token') return {};
   return { session: await unlock() };
 }
 
@@ -331,6 +363,16 @@ describe.each(ROUTE_IDS)('%s', (id) => {
       });
       expect(res.status).toBe(403);
       record(id, '401', 'n/a (no session needed)');
+      return;
+    }
+    if (route.auth === 'token') {
+      // GET /install/:token: no session, CSRF or bearer. Without any it reaches the
+      // handler (501 until B24), and an owner session changes nothing.
+      const res = await send(id, VALID[id]);
+      expect(res.status, label).toBe(501);
+      const session = await unlock();
+      expect((await send(id, VALID[id], { session })).status, label).toBe(501);
+      record(id, '401', 'n/a (token route: no session; 501 without one)');
       return;
     }
     const res = await send(id, VALID[id]);
@@ -427,6 +469,48 @@ describe.each(ROUTE_IDS)('%s', (id) => {
     expect(err).toEqual({ code: 'unavailable', message: `Not implemented yet: ${label}` });
     record(id, 'exists', 'yes');
     record(id, 'valid', '501 unavailable');
+  });
+});
+
+describe('GET /install/:token: no session, loopback only (decision 29)', () => {
+  const path = `/install/${TOKEN}`;
+
+  it('answers without a session, CSRF header or bearer token', async () => {
+    const res = await s.request(path);
+    expect(res.status).toBe(501);
+    expect(await errorOf(res)).toEqual({
+      code: 'unavailable',
+      message: 'Not implemented yet: GET /install/:token',
+    });
+  });
+
+  it('a Host outside the allowlist gets 421, like every route', async () => {
+    const res = await s.app.request(`http://evil.test:7420${path}`);
+    expect(res.status).toBe(421);
+  });
+
+  it('a foreign Origin gets 403', async () => {
+    const res = await s.request(path, { headers: { origin: 'http://evil.test' } });
+    expect(res.status).toBe(403);
+  });
+
+  it.each([
+    ['too short', 'A'.repeat(42)],
+    ['too long', 'A'.repeat(44)],
+    ['not base64url', `${'A'.repeat(42)}=`],
+  ])('a malformed token (%s) gets validation', async (_name, token) => {
+    const res = await s.request(`/install/${encodeURIComponent(token)}`);
+    expect(res.status).toBe(400);
+    expect((await errorOf(res)).code).toBe('validation');
+  });
+
+  it('is a server path: never the SPA fallback', async () => {
+    const res = await s.request('/install');
+    expect(res.headers.get('content-type') ?? '').not.toMatch(/text\/html/);
+  });
+
+  it('the owner API stays behind the session: /api/installs without one is 401', async () => {
+    expect((await s.request('/api/installs')).status).toBe(401);
   });
 });
 

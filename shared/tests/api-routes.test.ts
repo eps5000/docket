@@ -9,6 +9,12 @@ import {
   API_GROUPS,
   API_ROUTES,
   ROUTE_IDS,
+  agentFileParams,
+  createInstallBody,
+  installTokenParams,
+  putAgentFileBody,
+  putWorkflowBody,
+  revertAgentFileBody,
   decideBody,
   decisionsQuery,
   diagnosticsQuery,
@@ -25,7 +31,7 @@ import {
   type RouteId,
 } from '../src/index.js';
 
-/** BUILD_SPEC §7, the clarification routes, the recovery routes (decision 26), and `/agent-upload` (§5.10). */
+/** BUILD_SPEC §7, the clarification routes, the recovery routes (decision 26), the agent setup routes (decision 29), and `/agent-upload` (§5.10). */
 const EXPECTED = [
   'POST /api/session/unlock',
   'POST /api/session/lock',
@@ -79,6 +85,19 @@ const EXPECTED = [
   'GET /api/workspaces',
   'POST /api/resources/:id/release',
   'POST /api/runs/:runId/unpushed-handled',
+  // Agent setup (decision 29; BUILD_SPEC §7; B21).
+  'GET /api/agent-files',
+  'GET /api/agent-files/:key',
+  'PUT /api/agent-files/:key',
+  'POST /api/agent-files/:key/revert',
+  'GET /api/projects/:key/workflow',
+  'PUT /api/projects/:key/workflow',
+  'POST /api/installs',
+  'GET /api/installs',
+  'POST /api/installs/:id/check',
+  'GET /api/push-target',
+  'POST /api/push-target/test',
+  'GET /install/:token',
   'GET /api/stream',
   'POST /agent-upload',
 ];
@@ -92,11 +111,11 @@ const keysOf = (schema: z.ZodType): string[] => {
 };
 
 describe('the route table', () => {
-  it('has every BUILD_SPEC §7 route, the clarification and recovery routes and /agent-upload, once each', () => {
+  it('has every BUILD_SPEC §7 route, the clarification, recovery and agent setup routes and /agent-upload, once each', () => {
     const labels = ROUTE_IDS.map((id) => routeLabel(API_ROUTES[id]));
     expect(new Set(labels).size).toBe(labels.length);
     expect([...labels].sort()).toEqual([...EXPECTED].sort());
-    expect(labels).toHaveLength(54);
+    expect(labels).toHaveLength(66);
   });
 
   it('puts each route in a known group, and every group has a route', () => {
@@ -134,7 +153,7 @@ describe('the route table', () => {
     if (r.response.kind === 'json') expect(keysOf(r.response.schema)).toContain('mutation_id');
   });
 
-  it('auth: unlock has none, /agent-upload takes the bearer token, everything else the session', () => {
+  it('auth: unlock has none, /agent-upload the bearer token, /install/:token its token, everything else the session', () => {
     for (const id of ROUTE_IDS) {
       const r = API_ROUTES[id];
       const expected =
@@ -142,7 +161,9 @@ describe('the route table', () => {
           ? 'none'
           : r.path === '/agent-upload'
             ? 'bearer'
-            : 'session';
+            : r.path === '/install/:token'
+              ? 'token'
+              : 'session';
       expect(r.auth, id).toBe(expected);
       expect(needsCsrf(r), id).toBe(expected === 'session' && r.method !== 'GET');
     }
@@ -176,6 +197,68 @@ describe('strict inputs reuse the MCP did-you-mean message', () => {
 });
 
 describe('field rules', () => {
+  it('agent files: a key is agents_block or skill:<name>; a project layer needs a project, service takes none', () => {
+    const key = (v: string) => agentFileParams.safeParse({ key: v }).success;
+    expect(key('agents_block')).toBe(true);
+    expect(key('skill:tasklite-worker')).toBe(true);
+    for (const bad of ['readme', 'skill:', 'skill:Worker', `skill:${'a'.repeat(61)}`]) {
+      expect(key(bad), bad).toBe(false);
+    }
+    const put = { content: '# Worker\n', expected_version: 0 };
+    expect(putAgentFileBody.safeParse({ ...put, layer: 'service' }).success).toBe(true);
+    expect(putAgentFileBody.safeParse({ ...put, layer: 'project', project: 'RCP' }).success).toBe(
+      true,
+    );
+    expect(putAgentFileBody.safeParse({ ...put, layer: 'project' }).success).toBe(false);
+    expect(putAgentFileBody.safeParse({ ...put, layer: 'service', project: 'RCP' }).success).toBe(
+      false,
+    );
+    expect(putAgentFileBody.safeParse({ ...put, layer: 'bundled' }).success).toBe(false);
+    expect(putAgentFileBody.safeParse({ ...put, layer: 'service', content: '' }).success).toBe(
+      false,
+    );
+    expect(
+      putAgentFileBody.safeParse({ ...put, layer: 'service', content: 'x'.repeat(50_001) }).success,
+    ).toBe(false);
+    // Content is kept exactly as written: not trimmed.
+    expect(putAgentFileBody.parse({ ...put, layer: 'service', content: ' x \n' }).content).toBe(
+      ' x \n',
+    );
+    expect(revertAgentFileBody.safeParse({ layer: 'project' }).success).toBe(false);
+    for (const id of ['agentFiles.put', 'agentFiles.revert', 'workflow.put'] as const) {
+      expect(API_ROUTES[id].undoable, id).toBe(true);
+    }
+  });
+
+  it('workflow notes: 0–10,000 characters, so an empty version clears them', () => {
+    expect(putWorkflowBody.safeParse({ content_md: '', expected_version: 3 }).success).toBe(true);
+    expect(
+      putWorkflowBody.safeParse({ content_md: 'x'.repeat(10_000), expected_version: 0 }).success,
+    ).toBe(true);
+    expect(
+      putWorkflowBody.safeParse({ content_md: 'x'.repeat(10_001), expected_version: 0 }).success,
+    ).toBe(false);
+    expect(putWorkflowBody.safeParse({ content_md: 'x' }).success).toBe(false);
+  });
+
+  it('installs: push needs a path; the token is 43 base64url characters', () => {
+    const base = { client: 'codex', target_kind: 'user', method: 'command' } as const;
+    expect(createInstallBody.safeParse(base).success).toBe(true);
+    expect(createInstallBody.safeParse({ ...base, method: 'push' }).success).toBe(false);
+    expect(
+      createInstallBody.safeParse({ ...base, method: 'push', path: 'C:/Users/me/code/recipes' })
+        .success,
+    ).toBe(true);
+    expect(createInstallBody.safeParse({ ...base, client: 'cursor' }).success).toBe(false);
+    expect(installTokenParams.safeParse({ token: 'A'.repeat(43) }).success).toBe(true);
+    expect(installTokenParams.safeParse({ token: `${'a'.repeat(41)}-_` }).success).toBe(true);
+    for (const bad of ['A'.repeat(42), 'A'.repeat(44), `${'A'.repeat(42)}=`]) {
+      expect(installTokenParams.safeParse({ token: bad }).success, bad).toBe(false);
+    }
+    expect(API_ROUTES['install.download'].response.kind).toBe('file');
+    expect(API_ROUTES['installs.create'].undoable).toBe(false);
+  });
+
   it('recovery: workspaces filter by scope and one state; release takes an optional note ≤ 500', () => {
     expect(workspacesQuery.parse({})).toEqual({ scope: 'all' });
     expect(workspacesQuery.parse({ scope: 'RCP', state: 'at_risk' })).toEqual({

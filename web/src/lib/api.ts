@@ -280,6 +280,14 @@ export const QUERY_FAMILIES = [
   'decisions',
   'settings',
   'jiraImport',
+  /** Settings → Agent setup (decision 29): the file list and each file's view. */
+  'agentFiles',
+  /** A project's Workflow notes (decision 29). */
+  'workflow',
+  /** The install log (decision 29). */
+  'installs',
+  /** The push folder card (decision 29). */
+  'pushTarget',
 ] as const;
 export type QueryFamily = (typeof QUERY_FAMILIES)[number];
 
@@ -305,6 +313,15 @@ export const queryKeys = {
   decisions: (query: RouteQueryInput<'decisions.list'>) => [ROOT, 'decisions', query] as const,
   settings: () => [ROOT, 'settings'] as const,
   jiraImport: (id: string) => [ROOT, 'jiraImport', id] as const,
+  /** The effective set, service-wide or for one project. */
+  agentFiles: (query: RouteQueryInput<'agentFiles.list'> = {}) =>
+    [ROOT, 'agentFiles', query] as const,
+  /** One file's view: every layer and its history. */
+  agentFile: (key: string, query: RouteQueryInput<'agentFiles.get'> = {}) =>
+    [ROOT, 'agentFiles', key, query] as const,
+  workflow: (project: string) => [ROOT, 'workflow', project] as const,
+  installs: (query: RouteQueryInput<'installs.list'> = {}) => [ROOT, 'installs', query] as const,
+  pushTarget: () => [ROOT, 'pushTarget'] as const,
 };
 
 export type QueryKey = readonly unknown[];
@@ -377,6 +394,11 @@ export const INVALIDATION: Record<EventType, readonly QueryFamily[]> = {
   'decision.confirmed': DECISIONS,
   'decision.superseded': DECISIONS,
   'decision.withdrawn': DECISIONS,
+  // Agent setup (decision 29). A file's list row and its view share the family.
+  'agent_file.updated': ['agentFiles'],
+  'agent_file.reverted': ['agentFiles'],
+  'workflow.updated': ['workflow'],
+  'install.recorded': ['installs'],
 };
 
 /** Families narrowed to the event's items when it names any. */

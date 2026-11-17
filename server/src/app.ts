@@ -5,6 +5,7 @@ import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';
 import { createApiApp, errorResponse } from './api/app.js';
 import { allowedOriginsFor, bearerAuth, hostGuard, originGuard } from './api/guards.js';
+import { installRoutes } from './api/routes/install.js';
 import { uploadRoutes } from './api/routes/upload.js';
 import { migrationStatus } from './db/client.js';
 import type { Runtime } from './runtime.js';
@@ -15,7 +16,7 @@ export interface AppOptions {
 }
 
 /** Paths owned by the server. They never fall back to the SPA. */
-const SERVER_PREFIXES = ['/api', '/mcp', '/agent-upload', '/healthz', '/readyz'];
+const SERVER_PREFIXES = ['/api', '/mcp', '/agent-upload', '/install', '/healthz', '/readyz'];
 
 function isServerPath(path: string): boolean {
   return SERVER_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`));
@@ -110,6 +111,13 @@ export function createApp(runtime: Runtime, { webRoot }: AppOptions): Hono {
   uploadApp.onError((err, c) => errorResponse(c, err, runtime.log));
   uploadRoutes(uploadApp, { services: runtime.services, write: runtime.write, log: runtime.log });
   app.route('/', uploadApp);
+
+  // The install bundle (decision 29, BUILD_SPEC §5.17): no session or bearer; the
+  // single-use token in the path is the credential, behind the Host and Origin guards above.
+  const installApp = new Hono();
+  installApp.onError((err, c) => errorResponse(c, err, runtime.log));
+  installRoutes(installApp, { services: runtime.services, write: runtime.write, log: runtime.log });
+  app.route('/', installApp);
 
   // The owner: the UI API, behind the owner session.
   app.route(

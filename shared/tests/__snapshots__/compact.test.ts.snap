@@ -52,6 +52,9 @@ labels:
   - mobile: Phone-first: touch targets of at least 44 px.
 blocked_by: none
 blocks: RCP-24 planning, RCP-27 planning
+workflow: RCP v2
+  - Branch per item: rcp-<n>.
+  - Run pnpm test before every report_commit.
 planning_docs:
   - meal-planning-brief.md v3
       # Brief

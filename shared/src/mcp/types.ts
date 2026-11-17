@@ -444,6 +444,18 @@ export const contextBundleSchema = z.object({
     }),
   ),
   dependents: z.array(z.object({ id: z.string(), title: z.string(), status: statusSchema })),
+  /**
+   * The project's Workflow notes, current version (decision 29; BUILD_SPEC
+   * §5.15 section 5, §5.17). Null when the project has none.
+   */
+  workflow: z
+    .object({
+      project: z.string(),
+      version_no: z.number().int(),
+      content_md: z.string(),
+      truncated: z.boolean(),
+    })
+    .nullable(),
   planning_docs: z.array(
     z.object({
       name: z.string(),

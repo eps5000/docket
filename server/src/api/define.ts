@@ -3,7 +3,7 @@
  *
  * The guards run first, as middleware (B2): Host and Origin allowlists on
  * the app, then the owner session and CSRF on `/api`, or the bearer token on
- * `/agent-upload`. Then, for every route, the same steps:
+ * `/agent-upload` (`/install/:token` has neither: its token is the credential). Then, for every route, the same steps:
  * 1. validate the path parameters, the query and the body against the
  *    route's strict schemas; a failure is `400 validation`, with the MCP
  *    did-you-mean message for unknown keys (`validationError`);
@@ -51,7 +51,7 @@ import {
   type UploadFile,
   type WriteContext,
 } from '../domain/contracts.js';
-import { OWNER_ACTOR, type Actor, type WritePath } from '../domain/write.js';
+import { OWNER_ACTOR, SYSTEM_ACTOR, type Actor, type WritePath } from '../domain/write.js';
 import { errorBody } from './guards.js';
 import { MultipartReader, boundaryOf } from './multipart.js';
 
@@ -71,7 +71,7 @@ export interface RouteContext<K extends RouteId> {
   readonly body: RouteBody<K>;
   /** The uploaded file, already streamed to the staging directory (multipart routes only). */
   readonly staged: StagedFile | null;
-  /** The owner on `/api`; the agent on `/agent-upload`. */
+  /** The owner on `/api`; the agent on `/agent-upload`; the system on `/install/:token`. */
   readonly actor: Actor;
   readonly services: Services;
   readonly read: ReadContext;
@@ -225,7 +225,13 @@ export function defineRoute<K extends RouteId, E extends Env>(
         }
       }
 
-      const actor = route.auth === 'bearer' ? uploadActor(deps, body) : OWNER_ACTOR;
+      // `GET /install/:token` has no caller identity: the service records the download.
+      const actor =
+        route.auth === 'bearer'
+          ? uploadActor(deps, body)
+          : route.auth === 'token'
+            ? SYSTEM_ACTOR
+            : OWNER_ACTOR;
       const warnings: string[] = [];
       const ctx: RouteContext<K> = {
         c,

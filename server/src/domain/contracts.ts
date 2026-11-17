@@ -35,17 +35,22 @@
  */
 import {
   ToolError,
+  type AgentFileDetail,
+  type AgentFilesResponse,
   type AgentsResponse,
   type Artifact,
   type BootstrapResponse,
   type BurndownResponse,
   type Check,
+  type CreateInstallResponse,
   type ContextBundle,
   type DecideResponse,
   type DecisionRecord,
   type EventRow,
   type Forecast,
   type HumanReviewItem,
+  type InstallCheckResponse,
+  type InstallsResponse,
   type ItemDetailResponse,
   type ItemResume,
   type ItemSummary,
@@ -55,6 +60,8 @@ import {
   type LabelPageResponse,
   type NeedsYouResponse,
   type Project,
+  type PushTargetResponse,
+  type PushTargetTestResponse,
   type Question,
   type Resource,
   type ReviewResponse,
@@ -71,6 +78,7 @@ import {
   type WorkResponse,
   type WorkspaceState,
   type WorkspacesResponse,
+  type Workflow,
   type WorkStep,
 } from '@tasklite/shared';
 import type { Config, SecretStore } from '../config.js';
@@ -315,6 +323,98 @@ export interface RecoveryService {
   ): { run_id: string; unpushed_handled_at: string };
 }
 
+/** One agent file as shipped in the image (`skills/<name>/SKILL.md`, `docs/templates/AGENTS-tasklite.md`). */
+export interface BundledAgentFile {
+  /** `skill:<name>` or `agents_block`. */
+  key: string;
+  content: string;
+}
+
+/**
+ * Agent files and Workflow notes (owner decision 29; BUILD_SPEC §5.17;
+ * FR-121–FR-123). For a project, a file's effective version is its project
+ * override, else the service-wide edit, else bundled. Every edit is a new
+ * immutable version; an upgrade never overwrites an owner edit.
+ */
+export interface AgentFilesService {
+  /**
+   * At startup: add a bundled version for each file whose image copy differs
+   * from the newest bundled version (event `agent_file.updated`, actor system).
+   */
+  syncBundled(w: WriteContext, input: { files: BundledAgentFile[] }): { added: string[] };
+  /** `GET /api/agent-files`: the effective set, for a project or service-wide. */
+  list(r: ReadContext, input: RouteQuery<'agentFiles.list'>): AgentFilesResponse;
+  /** `GET /api/agent-files/:key`: every layer with its history, and the bundled-updated flag. */
+  get(
+    r: ReadContext,
+    input: RouteParams<'agentFiles.get'> & RouteQuery<'agentFiles.get'>,
+  ): AgentFileDetail;
+  /** *Edit*: a new version in the service or project layer (event `agent_file.updated`). */
+  put(
+    w: WriteContext,
+    input: RouteParams<'agentFiles.put'> & RouteBody<'agentFiles.put'>,
+  ): AgentFileDetail;
+  /** *Revert to …*: back to the layer below (event `agent_file.reverted`). */
+  revert(
+    w: WriteContext,
+    input: RouteParams<'agentFiles.revert'> & RouteBody<'agentFiles.revert'>,
+  ): AgentFileDetail;
+  /** `GET /api/projects/:key/workflow`: the current notes (version 0 and empty when none) and history. */
+  workflow(r: ReadContext, input: RouteParams<'workflow.get'>): Workflow;
+  /** A new Workflow notes version (event `workflow.updated`); `get_context` delivers the newest (§5.15). */
+  putWorkflow(
+    w: WriteContext,
+    input: RouteParams<'workflow.put'> & RouteBody<'workflow.put'>,
+  ): Workflow;
+}
+
+/** An install ready to record: built (and, for push, written) outside any transaction. */
+export interface PreparedInstall {
+  input: RouteBody<'installs.create'>;
+  /** The effective files' versions, as in `.tasklite-manifest.json`. */
+  manifest: { key: string; version_id: string; sha256: string }[];
+  /** Push only: what was written into the push root. */
+  result?: CreateInstallResponse['result'];
+}
+
+/** A command install's bundle, ready to stream (`GET /install/:token`). */
+export interface InstallBundle {
+  install_id: string;
+  /** For `Content-Disposition`, e.g. `tasklite-<install_id>.tar.gz`. */
+  filename: string;
+  bytes: Uint8Array;
+}
+
+/**
+ * Installs (owner decision 29; BUILD_SPEC §5.17; FR-124–FR-127): the bundle,
+ * the single-use download token, push into the opt-in push root, the log
+ * and the check. Never runs anything on the host, follows symlinks out of
+ * the push root, or reads outside it. Host I/O happens outside the write
+ * transaction, so the routes call these in two steps (like `/agent-upload`).
+ */
+export interface InstallsService {
+  /** `POST /api/installs`, step 1: resolve the effective set and build the bundle; push writes the files. */
+  prepare(r: ReadContext, input: RouteBody<'installs.create'>): Promise<PreparedInstall>;
+  /**
+   * Step 2: record the install. A command install stores its token's sha256
+   * and expiry and returns the commands; a push install is logged now
+   * (event `install.recorded`).
+   */
+  record(w: WriteContext, input: PreparedInstall): CreateInstallResponse;
+  /** `GET /api/installs`: the install log, newest first. */
+  list(r: ReadContext, input: RouteQuery<'installs.list'>): InstallsResponse;
+  /** `POST /api/installs/:id/check`: diff a pushed install's files against its manifest. */
+  check(r: ReadContext, input: RouteParams<'installs.check'>): Promise<InstallCheckResponse>;
+  /** `GET /install/:token`, step 1: the bundle for a valid, unused, unexpired token, else `not_found`. */
+  bundleForToken(r: ReadContext, input: RouteParams<'install.download'>): Promise<InstallBundle>;
+  /** Step 2: mark the token used and log the install (event `install.recorded`). */
+  markDownloaded(w: WriteContext, input: { install_id: string }): void;
+  /** `GET /api/push-target`: whether `TASKLITE_PUSH_ROOT` is set and writable, with both paths. */
+  pushTarget(r: ReadContext): Promise<PushTargetResponse>;
+  /** `POST /api/push-target/test`: write and remove a probe file. Not an event. */
+  testPushTarget(r: ReadContext): Promise<PushTargetTestResponse>;
+}
+
 /** Work steps, subagent logs and agent checks (§5.5). */
 export interface ChecklistService {
   setPlan(w: WriteContext, input: In<'set_plan'>): Out<'set_plan'>;
@@ -550,6 +650,8 @@ export interface Services {
   jiraImport: JiraImportService;
   diagnostics: DiagnosticsService;
   recovery: RecoveryService;
+  agentFiles: AgentFilesService;
+  installs: InstallsService;
   undo: UndoService;
 }
 
