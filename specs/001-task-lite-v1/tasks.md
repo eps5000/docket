@@ -433,7 +433,9 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - check the PDF document preview by hand in Chrome; headless Chromium can't render it (B14);
 - map arrows from the outside column run underneath wave-1 cards (B11);
 - undoing an owner answer after the agent has read it reopens the question; the receipt isn't an event (B13);
-- consider listing earlier document versions in the viewer; only the latest shows today (B14).
+- consider listing earlier document versions in the viewer; only the latest shows today (B14);
+- the Timeline shows no indicator of an active epic or label filter (B16);
+- the burn-down's "today" uses the server's time zone, while the Now line uses the browser's (B16).
 
 - [ ] T142 [P] Accessibility pass: run the axe suite on every route in both themes; keyboard paths (skip link, tabs pattern, map canvas arrows, dialogs); NVDA spot check of the packet flow. In `web/e2e/a11y.spec.ts`.
 - [ ] T143 [P] Performance check at scale (generate 20 projects, 5,000 items and 100,000 events): owner views under 1 s, agent calls p95 under 500 ms (SC-013), in `server/tests/perf/scale.test.ts` (run on demand)
