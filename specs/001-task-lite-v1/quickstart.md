@@ -5,13 +5,13 @@ interface; the integration agent makes them true.
 
 ## 1. Start
 ```bash
-cp docker/.env.example docker/.env            # optional: set TASKLITE_TOKEN; otherwise one is generated
-docker compose -f docker/compose.yaml up -d
+cp docker/.env.example docker/.env            # optional: set TZ to your zone; TASKLITE_TOKEN is generated if unset
+docker compose -f docker/compose.yaml up -d --build --wait
 docker compose -f docker/compose.yaml exec tasklite tasklite seed sample   # disposable sample data (O09)
 docker compose -f docker/compose.yaml exec tasklite tasklite owner-key     # paste into the browser's unlock screen
 docker compose -f docker/compose.yaml exec tasklite tasklite agent-token   # for agent clients
 ```
-Open `http://127.0.0.1:7420`, unlock, and you should land on **Needs you**, showing "3 for you".
+Open `http://127.0.0.1:7420`, unlock, and you should land on **Needs you**, showing "For you now · 3" (the tab title reads "(3) Task Lite").
 
 ## 2. Connect an agent
 Set `TASKLITE_TOKEN` in your environment, then follow [MCP_SPEC §11](../../docs/MCP_SPEC.md):
@@ -26,8 +26,13 @@ Settings → Connections shows "Last seen: just now".
 pnpm install
 pnpm -r lint && pnpm -r typecheck
 pnpm --filter server test              # unit + integration + MCP contract (incl. token budgets)
-pnpm --filter web e2e                  # Playwright against a seeded container (+ axe)
+pnpm --filter web e2e                  # Playwright against a disposable seeded container (+ axe)
 ```
+The end-to-end tests reset their container's database before each spec file. With nothing on
+port 7420 they start their own disposable instance (`docker/compose.e2e.yaml`: container
+`tasklite-e2e`, volume `tasklite-e2e-data`), so stop yours first
+(`docker compose -f docker/compose.yaml stop tasklite`). They refuse to reset an instance on the
+`tasklite-data` volume or one started without `TASKLITE_SEED=sample`.
 CI runs the same on GitHub Actions (`.github/workflows/ci.yml`).
 
 ## 4. Validate each user story (manual, about 20 minutes)
@@ -36,7 +41,7 @@ CI runs the same on GitHub Actions (`.github/workflows/ci.yml`).
 |---|---|---|
 | **US1** coordinate | Agent: `search_items {filter:"ready_to_start"}` → `claim_lead` the top item → `get_context` → `set_plan` with 2 steps → `update_step` done ×2 → `report_commit` → `set_status done` | The item goes Ready → In progress → Done. A second client's `claim_lead` gets `conflict` naming the first. |
 | **US1** leases | Claim an item, then stop calling for 30 min (or set `TASKLITE_STALE_AFTER=1m`, `TASKLITE_LEASE=2m`) | The run shows *stale*, then the item is back in Ready with its plan kept. Restarting the container turns open runs into *interrupted*. |
-| **US2** visibility | Open Needs you, Work (Board, List, Map, Timeline), RCP-14 (all four tabs), Agents | "3 for you". Run states are in words. Provenance badges are distinct. The tab title shows `(3) Task Lite`. |
+| **US2** visibility | Open Needs you, Work (Board, List, Map, Timeline), RCP-14 (all four tabs), Agents | "For you now · 3". Run states are in words. Provenance badges are distinct. The tab title shows `(3) Task Lite`. |
 | **US2** notifications | Settings → This browser → turn notifications on; background the tab; have an agent `ask_owner` | One desktop notification. Clicking it opens the question. |
 | **US3** review | Open RCP-12's packet: Needs changes on item 1 (note → checklist), Defer item 2 (follow-up ticket) → Send back | RCP-12 goes back to In progress with a new checklist step. A "Verify: …" task appears in Inbox. Undo restores everything. |
 | **US4** dependencies | Settings → Recipe App → "Blockers clear when: PR merged" | Items behind done-but-unmerged blockers show "(needs merge)". `link_artifact {kind:"pr", state:"merged"}` clears it. Linking a cycle is refused with its path. |

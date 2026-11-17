@@ -1,0 +1,15 @@
+# A disposable Task Lite for the end-to-end tests (web/e2e): its own container, image and
+# volume, with the sample seed. The tests reset its database before each spec file, so it
+# must never be your real instance. web/e2e/global-setup.ts starts it when nothing answers
+# on 127.0.0.1:7420:
+#   docker compose -p tasklite-e2e -f docker/compose.yaml -f docker/compose.e2e.yaml up -d --build --wait
+# Remove it afterwards with `… down --volumes`.
+services:
+  tasklite:
+    image: tasklite:e2e
+    container_name: tasklite-e2e
+    environment:
+      TASKLITE_SEED: sample
+volumes:
+  tasklite-data:
+    name: tasklite-e2e-data
