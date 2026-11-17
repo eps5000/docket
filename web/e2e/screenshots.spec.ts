@@ -297,5 +297,18 @@ test.describe('screenshots: coordination states (B20)', () => {
     await page.getByRole('combobox', { name: 'Search' }).fill('restore');
     await expect(page.getByRole('group', { name: 'Help' })).toBeVisible();
     await shootB22(page, 'palette-help');
+    await page.keyboard.press('Escape');
+    // The "?" on Settings → Agent setup (after B23), and its article in the panel.
+    await page.goto('/settings/agent-setup?project=RCP');
+    await page.waitForLoadState('networkidle');
+    await shootB22(page, 'agent-setup');
+    await page
+      .getByRole('button', { name: 'Help: Agent setup: skills and the AGENTS.md block' })
+      .first()
+      .click();
+    const setupPanel = page.getByRole('dialog');
+    await expect(setupPanel).toBeVisible();
+    await setupPanel.evaluate((el) => Promise.all(el.getAnimations().map((x) => x.finished)));
+    await shootB22(page, 'panel-agent-setup');
   });
 });
