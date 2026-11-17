@@ -5,6 +5,7 @@
 import { lazy, Suspense } from 'react';
 import { createBrowserRouter, type RouteObject } from 'react-router';
 import { Agents } from '../routes/agents/Agents';
+import { HelpArticlePage, HelpIndex } from '../routes/help/HelpPages';
 import { ItemPage } from '../routes/items/ItemPage';
 import { LabelPage } from '../routes/labels/LabelPage';
 import { NeedsYou } from '../routes/needs-you/NeedsYou';
@@ -33,6 +34,8 @@ export const shellRoutes: RouteObject[] = [
   { path: 'agents', element: <Agents /> },
   { path: 'settings', element: <Settings /> },
   { path: 'settings/agent-setup', element: <Settings /> },
+  { path: 'help', element: <HelpIndex /> },
+  { path: 'help/:slug', element: <HelpArticlePage /> },
   { path: '*', element: <NotFound /> },
 ];
 

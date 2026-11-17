@@ -37,6 +37,7 @@ import {
   type VerdictKind,
 } from './decision';
 import '../screens.css';
+import { HelpLink } from '../../help/HelpLink';
 
 type Packet = ReviewResponse['packet'];
 type PacketItem = Packet['items'][number];
@@ -83,7 +84,10 @@ export function PacketScreen() {
   }, [noteError]);
   return (
     <div className="review">
-      <h1>Human review</h1>
+      <div className="withhelp wh-h1">
+        <h1>Human review</h1>
+        <HelpLink anchor="review.packet" />
+      </div>
       <div className="rv" data-layout="packet">
         <PacketQueue data={data} id={id} loading={query.isPending} />
         <Card className="packet" data-column="packet">

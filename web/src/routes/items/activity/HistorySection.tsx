@@ -6,6 +6,7 @@ import { formatAge, isoTitle, plural } from '../../../lib/format';
 import { showToast } from '../../../lib/undo';
 import { useSteer } from '../../shared/steer';
 import type { ItemKind } from '../ItemPage';
+import { HelpLink } from '../../../help/HelpLink';
 
 /**
  * History (summary "n updates"), with the *note for the agent* box at the
@@ -41,7 +42,12 @@ export function HistorySection({ kind, data }: { kind: ItemKind; data: ItemDetai
   };
 
   return (
-    <Section sectionKey="history" title="History" summary={plural(rows.length, 'update')}>
+    <Section
+      sectionKey="history"
+      title="History"
+      summary={plural(rows.length, 'update')}
+      extraHead={<HelpLink anchor="item.history" />}
+    >
       <div className="row notebox">
         <label className="sr" htmlFor={noteId}>
           Note for the {who}

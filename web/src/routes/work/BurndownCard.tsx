@@ -17,6 +17,7 @@ import {
   forecastRange,
 } from './timelineModel';
 import './timeline.css';
+import { HelpLink } from '../../help/HelpLink';
 
 /** The collapsed card's forecast: "P50 Nov 24 – P85 Dec 3", or "no forecast yet". */
 export function forecastShort(f: BurndownResponse['forecast']): string {
@@ -47,6 +48,7 @@ export function BurndownCard({ epic, label }: { epic?: string; label?: string })
         sectionKey="burndown"
         title="Remaining effort"
         defaultCollapsed
+        extraHead={<HelpLink anchor="work.burndown" />}
         summary={
           d && (
             <>

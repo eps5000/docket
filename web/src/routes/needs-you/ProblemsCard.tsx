@@ -11,6 +11,8 @@ import {
   type IconName,
 } from '../../components/kit';
 import { apiClient } from '../../app/queryClient';
+import type { HelpAnchor } from '../../help/anchors';
+import { HelpLink } from '../../help/HelpLink';
 import { queryKeys } from '../../lib/api';
 import { paths, type ItemTab } from '../../lib/paths';
 import { runOwnerMutation, showToast } from '../../lib/undo';
@@ -33,39 +35,52 @@ const itemTab = (tab: ItemTab) => (p: Problem) => (p.item_id ? paths.item(p.item
  */
 export const PROBLEM_ROWS: Record<
   ProblemKind,
-  { icon: IconName; tone: 'gray' | 'bad' | 'warn'; actions: Action[] }
+  {
+    /** The "?" on the row (UI_SPEC §6.7c): the article that explains this problem. */
+    help: HelpAnchor;
+    icon: IconName;
+    tone: 'gray' | 'bad' | 'warn';
+    actions: Action[];
+  }
 > = {
   stale_run: {
+    help: 'problems.stale_run',
     icon: 'stale',
     tone: 'gray',
     actions: [{ label: 'Inspect', kind: 'link', to: itemTab('activity') }],
   },
   failed_run: {
+    help: 'problems.failed_run',
     icon: 'failed',
     tone: 'bad',
     actions: [{ label: 'Inspect', kind: 'link', to: itemTab('activity') }],
   },
   cycle: {
+    help: 'problems.cycle',
     icon: 'cycle',
     tone: 'bad',
     actions: [{ label: 'Fix', kind: 'link', to: itemTab('deps') }],
   },
   date_risk: {
+    help: 'problems.date_risk',
     icon: 'date',
     tone: 'bad',
     actions: [{ label: 'Timeline', kind: 'link', to: () => paths.work({ layout: 'timeline' }) }],
   },
   canceled_blocker: {
+    help: 'problems.canceled_blocker',
     icon: 'x',
     tone: 'bad',
     actions: [{ label: 'Fix', kind: 'link', to: itemTab('deps') }],
   },
   deferred_verified_blocker: {
+    help: 'problems.deferred_verified_blocker',
     icon: 'pause',
     tone: 'warn',
     actions: [{ label: 'Open', kind: 'link', to: itemTab('deps') }],
   },
   orphaned_resources: {
+    help: 'problems.orphaned_resources',
     icon: 'server',
     tone: 'warn',
     actions: [
@@ -74,6 +89,7 @@ export const PROBLEM_ROWS: Record<
     ],
   },
   unpushed_work: {
+    help: 'problems.unpushed_work',
     icon: 'upload',
     tone: 'warn',
     actions: [
@@ -82,16 +98,19 @@ export const PROBLEM_ROWS: Record<
     ],
   },
   parked_too_long: {
+    help: 'problems.parked_too_long',
     icon: 'pause',
     tone: 'gray',
     actions: [{ label: 'Open', kind: 'link', to: itemTab('activity') }],
   },
   resume_unattended: {
+    help: 'problems.resume_unattended',
     icon: 'clock',
     tone: 'warn',
     actions: [{ label: 'Open', kind: 'link', to: itemTab('activity') }],
   },
   extra_backup_failed: {
+    help: 'problems.extra_backup_failed',
     icon: 'server',
     tone: 'bad',
     actions: [{ label: 'Open', kind: 'link', to: () => paths.settings() }],
@@ -253,6 +272,7 @@ export function ProblemRow({ problem, workspace }: { problem: Problem; workspace
             </Button>
           ),
         )}
+        <HelpLink anchor={m.help} />
       </div>
     </div>
   );

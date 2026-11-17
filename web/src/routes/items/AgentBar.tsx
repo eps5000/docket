@@ -16,6 +16,7 @@ import {
   currentStep,
   useReleaseLead,
 } from './activity/leadActions';
+import { HelpLink } from '../../help/HelpLink';
 
 /**
  * The agent bar (B20; UI_SPEC §6.3): on every tab, under the title row, the
@@ -89,6 +90,7 @@ export function AgentBar({ data }: { data: ItemDetailResponse }) {
             </Button>
           )}
           {canCopyResumeNote(run) && <CopyResumeNoteButton data={data} run={run} />}
+          <HelpLink anchor="item.agent-bar" />
         </span>
       </div>
       {parked && (

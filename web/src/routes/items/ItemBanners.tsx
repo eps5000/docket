@@ -6,6 +6,7 @@ import { useBootstrap } from '../../app/useBootstrap';
 import { paths } from '../../lib/paths';
 import { formatClock, isoTitle, plural } from '../../lib/format';
 import { AnswerBox } from '../shared/AnswerBox';
+import { HelpLink } from '../../help/HelpLink';
 
 /** Packet ready: amber banner with *Open packet* (UI_SPEC §6.3), and "out of date" when a newer commit came in. */
 export function PacketBanner({
@@ -78,6 +79,7 @@ export function QuestionBanner({
           hint={`The run stays paused until ${agent} reads it.`}
         />
       </div>
+      <HelpLink anchor="item.question" />
     </div>
   );
 }

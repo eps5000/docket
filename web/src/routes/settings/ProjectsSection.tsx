@@ -25,6 +25,7 @@ import { useShell } from '../../app/ShellState';
 import { DeleteProjectDialog } from '../dialogs/DeleteProject';
 import { JiraImportDialog } from '../dialogs/JiraImport';
 import { DecisionsPanel } from '../shared/DecisionsPanel';
+import { HelpLink } from '../../help/HelpLink';
 
 type Project = SettingsResponse['projects'][number];
 
@@ -239,6 +240,7 @@ function BlockerRule({ project: p }: { project: Project }) {
           </option>
         ))}
       </select>
+      <HelpLink anchor="settings.blocker-rule" />
     </div>
   );
 }

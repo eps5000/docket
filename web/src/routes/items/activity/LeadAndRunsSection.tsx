@@ -15,6 +15,7 @@ import { useSteer } from '../../shared/steer';
 import { canReleaseLead, currentStep, useReleaseLead } from './leadActions';
 import { parkedDetail } from './resumeNote';
 import { WhereTheWorkLives } from './WhereTheWorkLives';
+import { HelpLink } from '../../../help/HelpLink';
 
 /** "waiting on RCP-12" for a parked run (UI_SPEC §5). */
 export { parkedDetail } from './resumeNote';
@@ -80,6 +81,7 @@ export function LeadAndRunsSection({ data }: { data: ItemDetailResponse }) {
       sectionKey="runs"
       title="Lead and runs"
       summary={lead ? `${leadName(lead)} · ${lead.run_state.replace('_', ' ')}` : 'unclaimed'}
+      extraHead={<HelpLink anchor="item.lead-and-runs" />}
     >
       {conflict && lead && (
         <Callout tone="warn" className="mb">

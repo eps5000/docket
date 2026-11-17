@@ -9,6 +9,7 @@ const PAGE_TITLES = {
   work: 'Work',
   agents: 'Agents',
   settings: 'Settings',
+  help: 'Help',
 } as const;
 
 function CrumbView({ c }: { c: Crumb }) {

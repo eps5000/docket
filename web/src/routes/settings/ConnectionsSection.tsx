@@ -19,6 +19,7 @@ import { QueryState } from '../../app/QueryState';
 import { formatAgo, formatStamp, isoTitle, plural } from '../../lib/format';
 import { paths } from '../../lib/paths';
 import { showToast } from '../../lib/undo';
+import { HelpLink } from '../../help/HelpLink';
 
 /**
  * The client setup snippets, exactly as MCP_SPEC §11 gives them: the token
@@ -61,7 +62,12 @@ export function ConnectionsSection({ query }: { query: UseQueryResult<SettingsRe
           <Card style={{ overflow: 'auto' }} data-card="clients">
             <CardHeader
               title="Client compatibility"
-              extra={<span className="src">Smoke test: claim, plan, log, read back</span>}
+              extra={
+                <span className="row" style={{ gap: 6 }}>
+                  <span className="src">Smoke test: claim, plan, log, read back</span>
+                  <HelpLink anchor="settings.clients" />
+                </span>
+              }
             />
             <QueryState
               query={query}
@@ -201,7 +207,10 @@ function ClientSetupCard() {
   return (
     <Card padded data-card="client-setup">
       <div className="row" style={{ justifyContent: 'space-between' }}>
-        <h3 style={{ margin: 0 }}>Client setup</h3>
+        <div className="withhelp">
+          <h3 style={{ margin: 0 }}>Client setup</h3>
+          <HelpLink anchor="settings.client-setup" />
+        </div>
         <SegmentedControl
           label="Client"
           value={client}
@@ -330,7 +339,10 @@ function ServiceHealthCard({ query }: { query: UseQueryResult<SettingsResponse> 
   };
   return (
     <Card padded data-card="service-health">
-      <h3>Service health</h3>
+      <div className="withhelp wh-h3">
+        <h3>Service health</h3>
+        <HelpLink anchor="settings.service-health" />
+      </div>
       <QueryState query={query} skeleton={<Skeleton lines={4} label="Loading service health" />}>
         {(d) => (
           <dl className="kv">

@@ -264,4 +264,51 @@ test.describe('screenshots: coordination states (B20)', () => {
       await shootB20(page, 'timeline-expanded');
     }
   });
+
+  // B22: the Help center (US12), viewport-sized so the side panel shows over its page.
+  async function shootB22(page: Page, name: string) {
+    for (const theme of ['light', 'dark'] as const) {
+      await setTheme(page, theme);
+      await page.screenshot({ path: join(out!, `b22-${name}-${theme}.png`) });
+    }
+  }
+
+  test('B22 help index, an article, the side panel and palette results', async ({ page }) => {
+    await page.goto('/help');
+    await expect(page.getByRole('heading', { name: 'Getting started' })).toBeVisible();
+    await shootB22(page, 'help');
+    await page.goto('/help/workspaces-and-pruning');
+    await expect(page.getByRole('region', { name: 'Related' })).toBeVisible();
+    await shootB22(page, 'article');
+    await page.goto('/agents');
+    await page.waitForLoadState('networkidle');
+    await page.getByRole('button', { name: 'Help: Workspace states and safe pruning' }).click();
+    const panel = page.getByRole('dialog');
+    await expect(panel).toBeVisible();
+    // Let the slide-in finish.
+    await panel.evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
+    await shootB22(page, 'panel-agents-workspaces');
+    await page.keyboard.press('Escape');
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: /^For you now/ })).toBeVisible();
+    await page.waitForLoadState('networkidle');
+    await shootB22(page, 'needs-you');
+    await page.keyboard.press('Control+k');
+    await page.getByRole('combobox', { name: 'Search' }).fill('restore');
+    await expect(page.getByRole('group', { name: 'Help' })).toBeVisible();
+    await shootB22(page, 'palette-help');
+    await page.keyboard.press('Escape');
+    // The "?" on Settings → Agent setup (after B23), and its article in the panel.
+    await page.goto('/settings/agent-setup?project=RCP');
+    await page.waitForLoadState('networkidle');
+    await shootB22(page, 'agent-setup');
+    await page
+      .getByRole('button', { name: 'Help: Agent setup: skills and the AGENTS.md block' })
+      .first()
+      .click();
+    const setupPanel = page.getByRole('dialog');
+    await expect(setupPanel).toBeVisible();
+    await setupPanel.evaluate((el) => Promise.all(el.getAnimations().map((x) => x.finished)));
+    await shootB22(page, 'panel-agent-setup');
+  });
 });

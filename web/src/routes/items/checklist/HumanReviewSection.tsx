@@ -10,6 +10,7 @@ import { plural } from '../../../lib/format';
 import { runOwnerMutation, showToast } from '../../../lib/undo';
 import type { ItemKind } from '../ItemPage';
 import { AddRow } from './AddRow';
+import { HelpLink } from '../../../help/HelpLink';
 
 const LAST: Record<
   'approve' | 'changes' | 'defer',
@@ -68,11 +69,14 @@ export function HumanReviewSection({ kind, data }: { kind: ItemKind; data: ItemD
       title="Human review"
       summary={`${hrs.length ? plural(hrs.length, 'item') : 'none'}${packet ? ' · packet ready' : ''} · what you verify yourself`}
       extraHead={
-        packet ? (
-          <Link className="btn primary sm" to={paths.review(item.id)}>
-            <Icon name="packet" /> Open packet
-          </Link>
-        ) : undefined
+        <>
+          {packet && (
+            <Link className="btn primary sm" to={paths.review(item.id)}>
+              <Icon name="packet" /> Open packet
+            </Link>
+          )}
+          <HelpLink anchor="item.human-review" />
+        </>
       }
     >
       {hrs.map((h) => (

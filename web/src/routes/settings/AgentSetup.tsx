@@ -17,6 +17,7 @@ import { BundledUpdatedChip, LayerChip } from './AgentChips';
 import { AgentFileView } from './AgentFileView';
 import { ProjectAgentSection } from './ProjectAgentSection';
 import './agent-setup.css';
+import { HelpLink } from '../../help/HelpLink';
 
 type Project = Pick<SettingsResponse['projects'][number], 'key' | 'name'>;
 
@@ -48,7 +49,10 @@ export function AgentSetup({ projects }: { projects: readonly Project[] }) {
   return (
     <div className="agent-setup">
       <section aria-labelledby="as-files" className="settings-sec">
-        <h2 id="as-files">Agent files</h2>
+        <div className="withhelp">
+          <h2 id="as-files">Agent files</h2>
+          <HelpLink anchor="settings.agent-setup" />
+        </div>
         <p className="src as-lede">
           The skills and the AGENTS.md block agents work from. Each file comes from Task Lite
           (bundled), your service-wide edit, or a project override, in that order of precedence.
