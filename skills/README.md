@@ -12,7 +12,16 @@ These are agent skills that teach the **workflow** for using Task Lite well. The
 
 ## Install
 
-Each skill is a folder with a `SKILL.md`, in the standard skill format. Copy the folders you want into the agent's skills directory:
+**From Task Lite (recommended):** open **Settings → Agent setup** and click *Install…*. It installs the effective skills (your edits and the project's overrides included) and the AGENTS.md block, into a repo or user-wide, either by a copy-paste command (PowerShell or bash, single use, 10 minutes) or by writing them into a folder you've mounted (the *Push folder* card). Every install is logged with the exact version of each file, and *Check* (or the check command) shows whether an installed copy was edited by hand.
+
+| Client | Skills (repo / user-wide) | The AGENTS.md block |
+|---|---|---|
+| Claude Code | `.claude/skills/<name>/` / `~/.claude/skills/<name>/` | `CLAUDE.md` / `~/.claude/CLAUDE.md` |
+| Codex | `.codex/skills/<name>/` / `~/.codex/skills/<name>/` | `AGENTS.md` / `~/.codex/AGENTS.md` |
+
+The block goes between `<!-- tasklite:begin -->` and `<!-- tasklite:end -->`; nothing else in the file changes. A `.tasklite-manifest.json` in `.claude/` or `.codex/` records what was sent.
+
+**By hand:** each skill is a folder with a `SKILL.md`, in the standard skill format. Copy the folders you want into the agent's skills directory (this copies the bundled versions, without your edits in Agent setup):
 
 | Client | User-wide | One project |
 |---|---|---|
@@ -29,7 +38,7 @@ Claude Code's project path (`.claude/skills/`) is verified: the B18 skills eval 
 
 ## Make them yours
 
-They're plain Markdown, so edit them to fit your tooling: your orchestrator's commands, your branch rules, your test commands. Keep project-specific rules in the project's `AGENTS.md` / `CLAUDE.md` ([template](../docs/templates/AGENTS-tasklite.md)). The skills defer to it where they differ.
+They're plain Markdown, so edit them to fit your tooling: your orchestrator's commands, your branch rules, your test commands. Edit them in **Settings → Agent setup**, service-wide or as a project override, with history and diffs; then install again. Keep project-specific rules in the project's `AGENTS.md` / `CLAUDE.md` ([template](../docs/templates/AGENTS-tasklite.md)) or in its **Workflow notes**, which agents get in `get_context` for every item in the project. The skills defer to both where they differ.
 
 **Keep them in sync with the tools.** CI parses every `SKILL.md` and fails if it names a tool or a top-level input field that doesn't exist. If you add your own skills here, they get the same check.
 

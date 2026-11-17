@@ -42,6 +42,8 @@ export const HELP_ANCHORS = {
   'settings.blocker-rule': 'Settings → Projects → Blockers clear when',
   'settings.agent-setup':
     'Settings → Agent setup: Agent files, and a project’s Agent files & workflow',
+  'settings.install-log': 'Settings → Agent setup → Install and check: the install log',
+  'settings.push-folder': 'Settings → Agent setup → Install and check: the push folder card',
   'jira.import': 'Settings → Projects → Import from Jira (the dialog)',
 } as const;
 

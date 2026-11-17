@@ -460,10 +460,10 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [X] T152 [US12] Help center: `docs/help/*.md` articles (at least: connect an agent, review a packet, run states, workspaces and safe pruning, crash recovery, blocker rules, decisions, Jira import, backup and restore, agent setup), bundled into the web build; `/help`, `/help/:slug`, palette results, and contextual "?" side panels per UI_SPEC §6.7c. E2E plus axe.
 - [X] T153 [US13] Agent files service: bundled loading at startup (with new-version detection), layers and resolution, versions, revert, diff, and the bundled-updated flag (BUILD_SPEC §5.17). Unit tests for every resolution and upgrade case.
 - [X] T154 [US13] Agent setup UI per UI_SPEC §6.7b: the file list, file view with layers, edit, history and diff, and the project section (effective set, Workflow notes editor). E2E plus axe.
-- [ ] T155 [US13] Install: the bundle builder (layout per client and target, marked AGENTS.md section, manifest), the single-use download token, the PowerShell and bash commands, and the install log. Tests: bundle contents, marker insertion and replacement, token expiry and reuse refused, nothing outside the markers changed.
-- [ ] T156 [US13] Push install and check: the push-root guard (no paths outside it, no symlinks out, never delete), *Test*, writes, and the diff check; the copy-paste check command. Tests on a temporary push root, including path-escape attempts.
+- [X] T155 [US13] Install: the bundle builder (layout per client and target, marked AGENTS.md section, manifest), the single-use download token, the PowerShell and bash commands, and the install log. Tests: bundle contents, marker insertion and replacement, token expiry and reuse refused, nothing outside the markers changed.
+- [X] T156 [US13] Push install and check: the push-root guard (no paths outside it, no symlinks out, never delete), *Test*, writes, and the diff check; the copy-paste check command. Tests on a temporary push root, including path-escape attempts.
 - [X] T157 [US13] Fill `workflow` in the context bundle (truncated last among sections 1–5) and the Workflow notes routes; a contract test that `get_context` for a project's item includes its notes.
-- [ ] T158 Update the `tasklite-coordinator` and `tasklite-worker` skills (and `skills/README.md`) to mention Workflow notes and Agent setup installs; update the README's install section to point at Agent setup. Keep the skills lint green.
+- [X] T158 Update the `tasklite-coordinator` and `tasklite-worker` skills (and `skills/README.md`) to mention Workflow notes and Agent setup installs; update the README's install section to point at Agent setup. Keep the skills lint green.
 
 ## How to run the build
 

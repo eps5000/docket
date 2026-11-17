@@ -297,6 +297,12 @@ export const installCheckResponse = jsonResponse({
       key: z.string().nullable(),
       path: z.string(),
       state: z.enum(INSTALL_CHECK_STATES),
+      /**
+       * Push checks, edited files only (B24): the installed text, at most
+       * 50,000 characters, so the UI can diff it against the version sent.
+       * For the AGENTS.md block it is the text between the markers.
+       */
+      local_content: z.string().max(AGENT_SETUP_LIMITS.agent_file_content).optional(),
     }),
   ),
 });

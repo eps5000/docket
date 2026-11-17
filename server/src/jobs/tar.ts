@@ -119,6 +119,20 @@ export async function writeTarGz(
   );
 }
 
+/** A small gzipped tar in memory (the install bundle, BUILD_SPEC §5.17). */
+export async function tarGzBytes(entries: Iterable<TarFileEntry>): Promise<Buffer> {
+  async function* blocks(): AsyncGenerator<Buffer> {
+    for (const entry of entries) yield* entryBlocks(entry);
+    yield ZERO;
+    yield ZERO;
+  }
+  const chunks: Buffer[] = [];
+  await pipeline(Readable.from(blocks()), createGzip({ level: 6 }), async (source) => {
+    for await (const chunk of source as AsyncIterable<Buffer>) chunks.push(chunk);
+  });
+  return Buffer.concat(chunks);
+}
+
 /** Where an entry's bytes go while reading; `null` skips it. */
 export interface TarSink {
   write(chunk: Buffer): void | Promise<void>;

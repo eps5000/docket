@@ -13,3 +13,4 @@ export * from './mcp/index.js';
 export * from './mcp-copy.js';
 export * from './compact.js';
 export * from './api/index.js';
+export * from './install.js';

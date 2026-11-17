@@ -7,7 +7,7 @@ description: Work one Task Lite item end to end through the tasklite MCP server.
 
 Task Lite enforces claims, dependencies and review gates for you. This skill is the **efficient order of calls** and the habits that keep your runs cheap and recoverable.
 
-The project's `AGENTS.md` / `CLAUDE.md` has its own rules: who moves work to Ready, when human review is needed, and the branch naming. Where they differ from this skill, they win.
+The project has its own rules: who moves work to Ready, when human review is needed, the branch naming. They're in the repo's `AGENTS.md` / `CLAUDE.md` (the Task Lite section, installed from Settings → Agent setup) and in the project's **Workflow notes**, which `get_context` gives you as its `workflow:` section. Where they differ from this skill, they win.
 
 ## 1. Start: four calls or fewer
 
@@ -26,7 +26,7 @@ The project's `AGENTS.md` / `CLAUDE.md` has its own rules: who moves work to Rea
 
    **Given a `run_id` by your coordinator** (you're resuming a parked run after a crash)? Don't claim. Pass that `run_id` on your first call, for example `heartbeat { run_id, note: "Resuming" }`. That resumes the run with its claim, workspace and brief. Then continue from step 3.
 
-3. **Get context:** `get_context { id }`. One call gathers the outcome, the acceptance criteria, the decisions you must follow, the epic and label briefs, blockers and planning docs.
+3. **Get context:** `get_context { id }`. One call gathers the outcome, the acceptance criteria, the decisions you must follow, the epic and label briefs, blockers, the project's Workflow notes and planning docs. Follow the Workflow notes like the project's `AGENTS.md`.
 
 `whoami` isn't needed to start: `claim_lead` returns your lease's expiry. Call it once only when you need your client name or the windows (`lease_s`, `stale_after_s`).
 

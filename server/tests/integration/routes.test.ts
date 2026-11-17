@@ -26,6 +26,7 @@ import {
 } from '@tasklite/shared';
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { seedId } from '../../src/db/seed/loader.js';
+import { syncBundledFiles } from '../../src/jobs/bundled.js';
 import { ORIGIN, createTestServer, parseSetCookies, type TestServer } from './harness.js';
 
 /**
@@ -36,8 +37,10 @@ import { ORIGIN, createTestServer, parseSetCookies, type TestServer } from './ha
  * (B10, T100; content in the US11 tests), US5's decisions routes (B12,
  * T115; content in us5-context.test.ts), US6's steer routes (B13, T120;
  * content in the US6 tests), US8's burn-down (B16, T136), US9's Jira
- * import (B17, T141), and US13's agent files and Workflow notes (B23, T153,
- * T157; content in agent-files.test.ts and us13-agent-files.test.ts).
+ * import (B17, T141), US13's agent files and Workflow notes (B23, T153,
+ * T157; content in agent-files.test.ts and us13-agent-files.test.ts), and
+ * US13's install and check (B24, T155, T156; content in installs.test.ts,
+ * install-shell.test.ts and push-root.test.ts).
  */
 const B2_ROUTES: readonly RouteId[] = [
   'session.unlock',
@@ -112,6 +115,13 @@ const B2_ROUTES: readonly RouteId[] = [
   'agentFiles.revert',
   'workflow.get',
   'workflow.put',
+  // US13 (B24, T155, T156): install and check (content in installs.test.ts).
+  'installs.create',
+  'installs.list',
+  'installs.check',
+  'pushTarget.get',
+  'pushTarget.test',
+  'install.download',
 ];
 
 interface Req {
@@ -219,7 +229,7 @@ const VALID: Record<RouteId, Req> = {
   'resources.release': { params: { id: 'rsc_1' }, body: { note: 'Stopped the dev server.' } },
   'runs.unpushedHandled': { params: { runId: 'run_21' }, body: {} },
   'agentUpload.post': { body: { item_id: 'RCP-2', kind: 'planning' } },
-  // Agent setup (decision 29): agent files and Workflow notes (B23); installs are 501 until B24.
+  // Agent setup (decision 29): agent files and Workflow notes (B23), installs (B24).
   'agentFiles.list': { query: { project: 'RCP' } },
   'agentFiles.get': { params: { key: 'skill:tasklite-worker' }, query: { project: 'RCP' } },
   'agentFiles.put': {
@@ -375,12 +385,12 @@ describe.each(ROUTE_IDS)('%s', (id) => {
     }
     if (route.auth === 'token') {
       // GET /install/:token: no session, CSRF or bearer. Without any it reaches the
-      // handler (501 until B24), and an owner session changes nothing.
+      // handler (an unknown token is 404), and an owner session changes nothing.
       const res = await send(id, VALID[id]);
-      expect(res.status, label).toBe(501);
+      expect(res.status, label).toBe(404);
       const session = await unlock();
-      expect((await send(id, VALID[id], { session })).status, label).toBe(501);
-      record(id, '401', 'n/a (token route: no session; 501 without one)');
+      expect((await send(id, VALID[id], { session })).status, label).toBe(404);
+      record(id, '401', 'n/a (token route: no session; 404 for an unknown token)');
       return;
     }
     const res = await send(id, VALID[id]);
@@ -461,6 +471,8 @@ describe.each(ROUTE_IDS)('%s', (id) => {
   });
 
   it('answers a valid request', async () => {
+    // An install needs the agent files loaded (they load at startup).
+    if (id === 'installs.create') syncBundledFiles(s.runtime);
     const auth = await authFor(id);
     const res = await send(id, VALID[id], auth);
     if (B2_ROUTES.includes(id)) {
@@ -483,13 +495,10 @@ describe.each(ROUTE_IDS)('%s', (id) => {
 describe('GET /install/:token: no session, loopback only (decision 29)', () => {
   const path = `/install/${TOKEN}`;
 
-  it('answers without a session, CSRF header or bearer token', async () => {
+  it('answers without a session, CSRF header or bearer token: an unknown token is 404', async () => {
     const res = await s.request(path);
-    expect(res.status).toBe(501);
-    expect(await errorOf(res)).toEqual({
-      code: 'unavailable',
-      message: 'Not implemented yet: GET /install/:token',
-    });
+    expect(res.status).toBe(404);
+    expect((await errorOf(res)).code).toBe('not_found');
   });
 
   it('a Host outside the allowlist gets 421, like every route', async () => {

@@ -119,7 +119,9 @@ test.describe('Agent setup (US13)', () => {
     ]) {
       await expect(fileRow(page, key).getByText('Bundled', { exact: true })).toBeVisible();
     }
-    await expect(page.getByRole('button', { name: 'Install (coming next)' })).toBeDisabled();
+    await expect(
+      page.locator('[data-install-footer]').getByRole('button', { name: 'Install…' }),
+    ).toBeEnabled();
 
     await fileRow(page, 'skill:tasklite-worker')
       .getByRole('link', { name: 'tasklite-worker' })

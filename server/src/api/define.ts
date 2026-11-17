@@ -243,7 +243,10 @@ export function defineRoute<K extends RouteId, E extends Env>(
         services: deps.services,
         read: readContext(deps.write.db, actor, deps.write.now()),
         mutate: (fn) => {
-          const out = deps.write.run({ actor, operation: label, args: { params, body } }, fn);
+          // A token route's path holds its credential (`/install/:token`): it never
+          // reaches the write path's secret scan, request hash or warnings.
+          const args = route.auth === 'token' ? { body } : { params, body };
+          const out = deps.write.run({ actor, operation: label, args }, fn);
           for (const w of out.warnings) if (!warnings.includes(w)) warnings.push(w);
           return { result: out.result, mutation_id: out.mutation_id };
         },

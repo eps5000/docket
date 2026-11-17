@@ -174,3 +174,142 @@
 .tl .afsetlist li:first-child {
   border-top: 0;
 }
+
+/* Install and check (B24; UI_SPEC §6.7b): the dialog, the install log, the push folder. */
+.tl .ingrid {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 12px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .tl .ingrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.tl .inform {
+  display: grid;
+  gap: 10px;
+}
+.tl .infield {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.tl .infield.instack {
+  display: grid;
+  gap: 4px;
+}
+.tl .inlabel {
+  font-weight: 600;
+  min-width: 92px;
+}
+.tl .inwhat {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel-2);
+}
+.tl .inwhat ul {
+  margin: 6px 0;
+  padding-left: 18px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.tl .incopy {
+  display: grid;
+  gap: 4px;
+  margin: 6px 0;
+}
+.tl pre.code.incode {
+  margin: 0;
+  max-height: 160px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 11.5px;
+}
+.tl .inchanges,
+.tl .inchecks,
+.tl .insent {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  overflow-wrap: anywhere;
+}
+.tl .inlog {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.tl .inlog > li {
+  padding: 10px 14px;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 8px;
+}
+.tl .inlog > li:first-child {
+  border-top: 0;
+}
+.tl .inrow {
+  gap: 10px;
+  align-items: center;
+}
+.tl .indetail {
+  padding: 8px 10px;
+  border-left: 3px solid var(--line-2);
+  background: var(--panel-2);
+  border-radius: 0 6px 6px 0;
+}
+.tl .indiff {
+  margin-top: 6px;
+}
+.tl .inpaths {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 4px 12px;
+  margin: 0;
+}
+.tl .inpaths dt {
+  color: var(--ink-2);
+}
+.tl .inpaths dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.tl .inhow {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+.tl .inhow h4 {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+.tl .inhow ol {
+  padding-left: 18px;
+  display: grid;
+  gap: 10px;
+}
+.tl .inhow details {
+  margin: 10px 0;
+}
+.tl .inhow summary {
+  cursor: pointer;
+  color: var(--brand);
+}
+.tl .dlg.indlg .seg button {
+  white-space: nowrap;
+}
+.tl .inlog > li,
+.tl .indetail,
+.tl .inchecks > li {
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+}
+.tl .indiff {
+  min-width: 0;
+  overflow-x: auto;
+}
