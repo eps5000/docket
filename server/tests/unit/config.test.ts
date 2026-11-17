@@ -27,6 +27,8 @@ describe('loadConfig', () => {
       backupAt: '03:00',
       backupKeepDays: 14,
       backupExtraDir: null,
+      pushRoot: null,
+      pushHostPath: null,
       seed: null,
       tz: null,
       textOnlyClients: ['claude-code'],
@@ -49,6 +51,8 @@ describe('loadConfig', () => {
       TASKLITE_BACKUP_AT: '23:30',
       TASKLITE_BACKUP_KEEP: '30',
       TASKLITE_BACKUP_EXTRA_DIR: '/backups-extra',
+      TASKLITE_PUSH_ROOT: ' /host-code ',
+      TASKLITE_PUSH_HOST_PATH: 'C:/Users/me/code',
       TASKLITE_SEED: 'sample',
       TZ: 'Europe/London',
       TASKLITE_TEXT_ONLY_CLIENTS: ' Claude-Code, my-agent ,',
@@ -66,6 +70,8 @@ describe('loadConfig', () => {
       backupAt: '23:30',
       backupKeepDays: 30,
       backupExtraDir: '/backups-extra',
+      pushRoot: '/host-code',
+      pushHostPath: 'C:/Users/me/code',
       seed: 'sample',
       tz: 'Europe/London',
       textOnlyClients: ['claude-code', 'my-agent'],
@@ -87,6 +93,8 @@ describe('loadConfig', () => {
     [{ TASKLITE_BACKUP_AT: '3am' }, /TASKLITE_BACKUP_AT/],
     [{ TASKLITE_BACKUP_KEEP: '0' }, /TASKLITE_BACKUP_KEEP/],
     [{ TASKLITE_SEED: 'demo' }, /TASKLITE_SEED/],
+    [{ TASKLITE_PUSH_ROOT: 'host-code' }, /TASKLITE_PUSH_ROOT/],
+    [{ TASKLITE_PUSH_HOST_PATH: 'C:/Users/me/code' }, /TASKLITE_PUSH_HOST_PATH needs/],
   ])('rejects %j', (env, message) => {
     expect(() => loadConfig(env)).toThrow(message);
   });
@@ -95,6 +103,10 @@ describe('loadConfig', () => {
     const example = readFileSync(new URL('../../../docker/.env.example', import.meta.url), 'utf8');
     for (const [name, value] of Object.entries(DEFAULTS)) {
       expect(example, name).toContain(`# ${name}=${value}`);
+    }
+    // Opt-in variables with no default are documented with an example value.
+    for (const name of ['TASKLITE_PUSH_ROOT', 'TASKLITE_PUSH_HOST_PATH']) {
+      expect(example, name).toMatch(new RegExp(`^# ${name}=\\S`, 'm'));
     }
   });
 

@@ -11,7 +11,7 @@
  */
 import { randomBytes } from 'node:crypto';
 import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 
 export interface Config {
   dataDir: string;
@@ -32,6 +32,13 @@ export interface Config {
   backupAt: string;
   backupKeepDays: number;
   backupExtraDir: string | null;
+  /**
+   * Opt-in push install (decision 29; BUILD_SPEC §5.17): the container path of
+   * a host folder the owner mounts. Null means push install is off.
+   */
+  pushRoot: string | null;
+  /** The same folder's path on the host, so the UI can show and accept host paths. */
+  pushHostPath: string | null;
   seed: 'sample' | null;
   /** Display time zone; storage is always UTC. */
   tz: string | null;
@@ -131,6 +138,19 @@ export function loadConfig(
           .map((c) => c.trim().toLowerCase())
           .filter(Boolean);
 
+  // Push install (§5.17): off unless TASKLITE_PUSH_ROOT is set. The host path
+  // only describes the push root, so it means nothing without one.
+  const pushRoot = env(source, 'TASKLITE_PUSH_ROOT') ?? null;
+  const pushHostPath = env(source, 'TASKLITE_PUSH_HOST_PATH') ?? null;
+  if (pushRoot !== null && !isAbsolute(pushRoot)) {
+    throw new ConfigError(
+      `TASKLITE_PUSH_ROOT must be an absolute path inside the container (got "${pushRoot}")`,
+    );
+  }
+  if (pushHostPath !== null && pushRoot === null) {
+    throw new ConfigError('TASKLITE_PUSH_HOST_PATH needs TASKLITE_PUSH_ROOT; set both or neither');
+  }
+
   const secrets = join(dataDir, 'secrets');
   return {
     dataDir,
@@ -149,6 +169,8 @@ export function loadConfig(
     backupAt,
     backupKeepDays,
     backupExtraDir: env(source, 'TASKLITE_BACKUP_EXTRA_DIR') ?? null,
+    pushRoot,
+    pushHostPath,
     seed: seedValue === 'sample' ? 'sample' : null,
     tz: env(source, 'TZ') ?? null,
     textOnlyClients,

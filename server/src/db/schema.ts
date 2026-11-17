@@ -16,6 +16,12 @@
  * they live in the hand-written migration 0001_search_fts.sql.
  */
 import {
+  AGENT_FILE_LAYERS,
+  AGENT_SETUP_LIMITS,
+  AGENTS_BLOCK_KEY,
+  INSTALL_CLIENTS,
+  INSTALL_METHODS,
+  INSTALL_TARGET_KINDS,
   ARTIFACT_KINDS,
   CHECK_STATES,
   CLOSED_BY,
@@ -654,6 +660,158 @@ export const commits = sqliteTable(
       'commits_sha',
       sql.raw(`length("sha") BETWEEN 7 AND 40 AND lower("sha") NOT GLOB '*[^0-9a-f]*'`),
     ),
+  ],
+);
+
+// ---- Agent setup (owner decision 29; BUILD_SPEC §5.17) ----
+
+/**
+ * One agent file (a skill, or the AGENTS.md block) in one layer: bundled,
+ * the service-wide edit, or a project override. One row per key, layer and
+ * project; its versions are immutable rows in `agent_file_versions`.
+ */
+export const agent_files = sqliteTable(
+  'agent_files',
+  {
+    /** `af_…` */
+    id: id(),
+    /** `skill:<name>` or `agents_block`. */
+    key: text('key').notNull(),
+    layer: text('layer', { enum: AGENT_FILE_LAYERS }).notNull(),
+    /** Project layer only. */
+    project_key: text('project_key').references(() => projects.key, { onDelete: 'cascade' }),
+    /** The layer's current version; null only while the first version is being written. */
+    current_version_id: text('current_version_id').references(
+      (): AnySQLiteColumn => agent_file_versions.id,
+      { onDelete: 'set null' },
+    ),
+    /** Edited layers: the bundled sha256 the edit was based on ("bundled version updated"). */
+    bundled_hash_at_edit: text('bundled_hash_at_edit'),
+    ...timestamps,
+  },
+  (t) => [
+    // Unique (key, layer, project_key): SQLite treats NULLs as distinct, so one
+    // partial index per case.
+    uniqueIndex('agent_files_key_layer').on(t.key, t.layer).where(sql.raw(`"project_key" IS NULL`)),
+    uniqueIndex('agent_files_key_project')
+      .on(t.key, t.project_key)
+      .where(sql.raw(`"project_key" IS NOT NULL`)),
+    index('agent_files_project').on(t.project_key),
+    check('agent_files_layer', oneOf('layer', AGENT_FILE_LAYERS)),
+    check(
+      'agent_files_project_layer',
+      sql.raw(`("layer" = 'project') = ("project_key" IS NOT NULL)`),
+    ),
+    check(
+      'agent_files_key',
+      sql.raw(
+        `"key" = '${AGENTS_BLOCK_KEY}' OR ("key" GLOB 'skill:?*' AND length("key") <= ${6 + AGENT_SETUP_LIMITS.skill_name} AND substr("key", 7) NOT GLOB '*[^a-z0-9-]*')`,
+      ),
+    ),
+  ],
+);
+
+export const agent_file_versions = sqliteTable(
+  'agent_file_versions',
+  {
+    /** `afv_…` */
+    id: id(),
+    file_id: text('file_id')
+      .notNull()
+      .references((): AnySQLiteColumn => agent_files.id, { onDelete: 'cascade' }),
+    version_no: integer('version_no').notNull(),
+    content: text('content').notNull(),
+    sha256: text('sha256').notNull(),
+    /** `owner`, or `system` for bundled versions loaded at startup. */
+    author: text('author').notNull(),
+    note: text('note'),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('agent_file_versions_file_version').on(t.file_id, t.version_no),
+    check('agent_file_versions_version_no', sql.raw(`"version_no" >= 1`)),
+    check(
+      'agent_file_versions_content',
+      lenBetween('content', 1, AGENT_SETUP_LIMITS.agent_file_content),
+    ),
+    check('agent_file_versions_sha256', sql.raw(`length("sha256") = 64`)),
+    check(
+      'agent_file_versions_note',
+      sql.raw(`"note" IS NULL OR length("note") <= ${AGENT_SETUP_LIMITS.note}`),
+    ),
+  ],
+);
+
+/** A project's Workflow notes, versioned; the newest is current (delivered in `get_context`). */
+export const project_workflows = sqliteTable(
+  'project_workflows',
+  {
+    /** `wf_…` */
+    id: id(),
+    project_key: text('project_key')
+      .notNull()
+      .references(() => projects.key, { onDelete: 'cascade' }),
+    version_no: integer('version_no').notNull(),
+    /** May be empty: an empty version clears the notes. */
+    content_md: text('content_md').notNull(),
+    author: text('author').notNull(),
+    note: text('note'),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('project_workflows_project_version').on(t.project_key, t.version_no),
+    check('project_workflows_version_no', sql.raw(`"version_no" >= 1`)),
+    check('project_workflows_content_md', maxLen('content_md', AGENT_SETUP_LIMITS.workflow_md)),
+    check(
+      'project_workflows_note',
+      sql.raw(`"note" IS NULL OR length("note") <= ${AGENT_SETUP_LIMITS.note}`),
+    ),
+  ],
+);
+
+/**
+ * An install of agent files (FR-124–FR-127). A command install keeps only
+ * the sha256 of its single-use download token and when it expires (B21
+ * resolution: the raw token is never stored, and single use survives a
+ * restart); `token_used_at` is set when the bundle is downloaded.
+ */
+export const installs = sqliteTable(
+  'installs',
+  {
+    /** `ins_…` */
+    id: id(),
+    at: text('at').notNull(),
+    client: text('client', { enum: INSTALL_CLIENTS }).notNull(),
+    target_kind: text('target_kind', { enum: INSTALL_TARGET_KINDS }).notNull(),
+    project_key: text('project_key').references(() => projects.key, { onDelete: 'cascade' }),
+    /** The host path; null for a command install the owner ran without one. */
+    path: text('path'),
+    method: text('method', { enum: INSTALL_METHODS }).notNull(),
+    /** key → `{version_id, sha256}`. */
+    manifest: text('manifest', { mode: 'json' }).notNull(),
+    token_sha256: text('token_sha256'),
+    token_expires_at: text('token_expires_at'),
+    token_used_at: text('token_used_at'),
+    ...timestamps,
+  },
+  (t) => [
+    index('installs_at').on(t.at),
+    index('installs_project').on(t.project_key),
+    uniqueIndex('installs_token').on(t.token_sha256).where(sql.raw(`"token_sha256" IS NOT NULL`)),
+    check('installs_client', oneOf('client', INSTALL_CLIENTS)),
+    check('installs_target_kind', oneOf('target_kind', INSTALL_TARGET_KINDS)),
+    check('installs_method', oneOf('method', INSTALL_METHODS)),
+    check(
+      'installs_path',
+      sql.raw(`"path" IS NULL OR length("path") BETWEEN 1 AND ${AGENT_SETUP_LIMITS.install_path}`),
+    ),
+    check(
+      'installs_token',
+      sql.raw(
+        `("token_sha256" IS NULL) = ("token_expires_at" IS NULL) AND ("method" = 'command' OR "token_sha256" IS NULL)`,
+      ),
+    ),
+    check('installs_push_path', sql.raw(`"method" = 'command' OR "path" IS NOT NULL`)),
   ],
 );
 

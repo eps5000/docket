@@ -272,6 +272,59 @@ export type DecisionStatus = (typeof DECISION_STATUSES)[number];
 export const DECISION_SCOPE_KINDS = ['project', 'epic', 'label', 'item'] as const;
 export type DecisionScopeKind = (typeof DECISION_SCOPE_KINDS)[number];
 
+// ---- Agent setup (owner decision 29; BUILD_SPEC §4, §5.17) ----
+
+/**
+ * The layers an agent file can have. For a project, the effective version is
+ * the project override, else the service-wide edit, else bundled.
+ */
+export const AGENT_FILE_LAYERS = ['bundled', 'service', 'project'] as const;
+export type AgentFileLayer = (typeof AGENT_FILE_LAYERS)[number];
+
+/** The layer chips on Settings → Agent setup (UI_SPEC §6.7b). */
+export const AGENT_FILE_LAYER_LABELS: Record<AgentFileLayer, string> = {
+  bundled: 'Bundled',
+  service: 'Your edit',
+  project: 'Project override',
+};
+
+/** The layers the owner edits and reverts; bundled is read-only (upgrades update it). */
+export const EDITABLE_AGENT_FILE_LAYERS = ['service', 'project'] as const;
+export type EditableAgentFileLayer = (typeof EDITABLE_AGENT_FILE_LAYERS)[number];
+
+/** The AGENTS.md block's key. Each skill's key is `skill:<name>`. */
+export const AGENTS_BLOCK_KEY = 'agents_block';
+
+export const INSTALL_CLIENTS = ['claude', 'codex'] as const;
+export type InstallClient = (typeof INSTALL_CLIENTS)[number];
+
+export const INSTALL_CLIENT_LABELS: Record<InstallClient, string> = {
+  claude: 'Claude Code',
+  codex: 'Codex',
+};
+
+/** `repo`: the project's repo; `user`: user-wide (`~/.claude`, `~/.codex`). */
+export const INSTALL_TARGET_KINDS = ['repo', 'user'] as const;
+export type InstallTargetKind = (typeof INSTALL_TARGET_KINDS)[number];
+
+/** `command`: the copy-paste download; `push`: written into the push root (opt-in). */
+export const INSTALL_METHODS = ['command', 'push'] as const;
+export type InstallMethod = (typeof INSTALL_METHODS)[number];
+
+/** What a pushed file did, shown after *Install* (UI_SPEC §6.7b). */
+export const INSTALL_FILE_CHANGES = ['created', 'updated', 'unchanged'] as const;
+export type InstallFileChange = (typeof INSTALL_FILE_CHANGES)[number];
+
+/** A *Check* result per file (UI_SPEC §6.7b). */
+export const INSTALL_CHECK_STATES = ['edited', 'missing', 'extra'] as const;
+export type InstallCheckState = (typeof INSTALL_CHECK_STATES)[number];
+
+export const INSTALL_CHECK_STATE_LABELS: Record<InstallCheckState, string> = {
+  edited: 'Edited locally',
+  missing: 'Missing',
+  extra: 'Extra',
+};
+
 // ---- Events (contracts/events.md; MCP_SPEC §4 EventType) ----
 
 export const ACTOR_KINDS = ['owner', 'agent', 'system'] as const;
@@ -330,6 +383,11 @@ export const EVENT_TYPES = [
   'decision.confirmed',
   'decision.superseded',
   'decision.withdrawn',
+  // Agent setup (decision 29; BUILD_SPEC §5.17)
+  'agent_file.updated',
+  'agent_file.reverted',
+  'workflow.updated',
+  'install.recorded',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 
@@ -350,6 +408,10 @@ export const OBJECT_KINDS = [
   'document',
   'decision',
   'question',
+  /** Decision 29: an agent file (one key, layer and project). */
+  'agent_file',
+  /** Decision 29: an install of agent files. */
+  'install',
 ] as const;
 export type ObjectKind = (typeof OBJECT_KINDS)[number];
 
