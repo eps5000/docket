@@ -1,6 +1,7 @@
 import type { ItemDetailResponse } from '@tasklite/shared';
 import { Section } from '../../../components/kit';
 import { formatDay } from '../../../lib/format';
+import { HelpLink } from '../../../help/HelpLink';
 
 /** Dates and effort (summary "Nov 4 → Nov 11" or "not set"). Agent-edited in V1; US8 fills it. */
 export function DatesSection({ data }: { data: ItemDetailResponse }) {
@@ -10,7 +11,12 @@ export function DatesSection({ data }: { data: ItemDetailResponse }) {
       ? `${formatDay(item.planned_start)} → ${formatDay(item.planned_end)}`
       : null;
   return (
-    <Section sectionKey="dates" title="Dates and effort" summary={planned ?? 'not set'}>
+    <Section
+      sectionKey="dates"
+      title="Dates and effort"
+      summary={planned ?? 'not set'}
+      extraHead={<HelpLink anchor="item.dates" />}
+    >
       <dl className="kv">
         <dt>Planned</dt>
         <dd className={planned ? undefined : 'muted'}>

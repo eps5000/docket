@@ -17,6 +17,7 @@ import { queryKeys } from '../../lib/api';
 import { formatAge, middleTruncate } from '../../lib/format';
 import { paths } from '../../lib/paths';
 import { copyText } from '../items/activity/copy';
+import { HelpLink } from '../../help/HelpLink';
 
 /** Sort order: At risk, In use, Parked, Unknown, Safe to prune (UI_SPEC §6.6). */
 export const WORKSPACE_ORDER: readonly WorkspaceState[] = [
@@ -60,11 +61,14 @@ export function WorkspacesCard() {
       title="Workspaces"
       summary={atRisk === undefined ? undefined : `${atRisk} at risk`}
       extraHead={
-        <FilterChip
-          label="Hide safe to prune"
-          pressed={hideSafe}
-          onClick={() => setHideSafe(!hideSafe)}
-        />
+        <>
+          <FilterChip
+            label="Hide safe to prune"
+            pressed={hideSafe}
+            onClick={() => setHideSafe(!hideSafe)}
+          />
+          <HelpLink anchor="agents.workspaces" />
+        </>
       }
     >
       <QueryState

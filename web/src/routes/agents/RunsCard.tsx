@@ -3,6 +3,7 @@ import type { AgentRow, RunState as RunStateValue } from '@tasklite/shared';
 import { Chip, EmptyState, Provenance, RunLine, Section, leadReason } from '../../components/kit';
 import { formatAgo, formatClock, isoTitle } from '../../lib/format';
 import { paths } from '../../lib/paths';
+import { HelpLink } from '../../help/HelpLink';
 
 /**
  * Active now, in this order (B20; UI_SPEC §6.6): what needs you first, then
@@ -162,11 +163,14 @@ export function ActiveRunsSection({
       title="Active now"
       summary={label ? `${active.length} ${label}` : String(active.length)}
       extraHead={
-        only ? (
-          <Link to={paths.agents()} className="btn sm ghost" data-filter={only}>
-            Show all
-          </Link>
-        ) : undefined
+        <>
+          {only && (
+            <Link to={paths.agents()} className="btn sm ghost" data-filter={only}>
+              Show all
+            </Link>
+          )}
+          <HelpLink anchor="agents.active-now" />
+        </>
       }
     >
       {active.length > 0 ? (
@@ -195,6 +199,7 @@ export function RecentRunsSection({ rows }: { rows: readonly AgentRow[] }) {
       title="Recent"
       summary={`${recent.length} in the last 24 h`}
       defaultCollapsed
+      extraHead={<HelpLink anchor="agents.recent" />}
     >
       {recent.length > 0 ? (
         <RunsTable rows={recent} label="Recent runs" />

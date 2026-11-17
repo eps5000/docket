@@ -155,7 +155,12 @@ describe('the agent bar (B20)', () => {
     expect(b.getAttribute('data-agent-bar')).toBe('live');
     expect(within(b).getByText('In use')).toBeTruthy();
     expect(b.querySelector('[data-ab="parked"]')).toBeNull();
-    expect(within(b).queryByRole('button')).toBeNull();
+    // No recovery actions: the only button is the Help "?" (B22).
+    expect(
+      within(b)
+        .getAllByRole('button')
+        .map((x) => x.getAttribute('aria-label')),
+    ).toEqual(['Help: Run states: live, parked, stale and more']);
   });
 
   it('no lead: a quiet "No agent on this" while In progress, nothing otherwise', () => {

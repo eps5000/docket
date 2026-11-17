@@ -5,6 +5,7 @@ import { Button, Callout, DecisionRow, EmptyState, Section } from '../../compone
 import { apiClient } from '../../app/queryClient';
 import { queryKeys } from '../../lib/api';
 import { runOwnerMutation, showToast } from '../../lib/undo';
+import { HelpLink } from '../../help/HelpLink';
 
 /** Where a Decisions section sits (UI_SPEC §6.3.5), and what it can scope a new record to. */
 export type DecisionsPlace =
@@ -159,19 +160,22 @@ export function DecisionsPanel({
       title="Decisions"
       summary={`${active.length} in scope · ${byAgents} by agents`}
       extraHead={
-        <Button
-          id={recordButtonId}
-          variant="ghost"
-          size="sm"
-          aria-expanded={form !== null}
-          onClick={() =>
-            setForm(
-              form ? null : { title: '', decision: '', rationale: '', scope: options[0]!.scope },
-            )
-          }
-        >
-          + Record a decision
-        </Button>
+        <>
+          <Button
+            id={recordButtonId}
+            variant="ghost"
+            size="sm"
+            aria-expanded={form !== null}
+            onClick={() =>
+              setForm(
+                form ? null : { title: '', decision: '', rationale: '', scope: options[0]!.scope },
+              )
+            }
+          >
+            + Record a decision
+          </Button>
+          <HelpLink anchor="decisions.section" />
+        </>
       }
     >
       {form && (

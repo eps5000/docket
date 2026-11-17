@@ -33,6 +33,9 @@ export const paths = {
   /** Settings → Agent setup (UI_SPEC §6.7b): a project's view and one file's view. */
   agentSetup: (q: { project?: string; file?: string; layer?: string } = {}) =>
     withQuery('/settings/agent-setup', q),
+  /** `/help` (`?q=` searches) or one article, `/help/run-states` (UI_SPEC §6.7c). */
+  help: (slug?: string, q?: string) =>
+    slug ? `/help/${encodeURIComponent(slug)}` : withQuery('/help', { q }),
   unlock: (next?: string) =>
     withQuery('/unlock', { next: next && next !== '/' ? next : undefined }),
   devKit: () => '/dev/kit',

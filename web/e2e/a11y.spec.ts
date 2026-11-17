@@ -95,6 +95,17 @@ const ROUTES: { name: string; path: string; ready: (p: Page) => Locator }[] = [
     path: '/settings/agent-setup?project=RCP&file=skill:tasklite-worker',
     ready: (p) => p.locator('[data-workflow="RCP"] .sectionhead'),
   },
+  // B22: Help (US12). The side panel is scanned in us12-help.spec.ts.
+  {
+    name: 'Help',
+    path: '/help',
+    ready: (p) => p.getByRole('heading', { name: 'Getting started' }),
+  },
+  {
+    name: 'Help article',
+    path: '/help/run-states',
+    ready: (p) => p.getByRole('region', { name: 'Related' }),
+  },
   { name: 'Not found', path: '/no-such-page', ready: (p) => p.getByRole('heading', { level: 1 }) },
 ];
 

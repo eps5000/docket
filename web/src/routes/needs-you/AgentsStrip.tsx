@@ -3,6 +3,7 @@ import type { NeedsYouResponse, RunState as RunStateValue } from '@tasklite/shar
 import { RunState } from '../../components/kit';
 import { plural } from '../../lib/format';
 import { paths } from '../../lib/paths';
+import { HelpLink } from '../../help/HelpLink';
 
 /**
  * The states the strip counts, in order (UI_SPEC §6.1), plus parked (US11):
@@ -36,6 +37,7 @@ export function AgentsStrip({
   return (
     <nav className="pulse" data-card="agents-strip" aria-label="Agents">
       <b>Agents</b>
+      <HelpLink anchor="needs-you.agents-strip" />
       {shown.length === 0 ? (
         <span className="muted">No active runs</span>
       ) : (

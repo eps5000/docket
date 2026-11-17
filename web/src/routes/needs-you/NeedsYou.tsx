@@ -13,6 +13,7 @@ import { ForYouNow } from './ForYouNow';
 import { PlanningQueueCard } from './PlanningQueueCard';
 import { ProblemsCard } from './ProblemsCard';
 import '../screens.css';
+import { HelpLink } from '../../help/HelpLink';
 
 /**
  * Needs you (`/`, UI_SPEC §6.1): h1, Agents strip, the top band (For you
@@ -30,7 +31,10 @@ export function NeedsYou() {
   const atRisk = workspaces.filter((w) => w.state === 'at_risk').length;
   return (
     <div className="needs-you">
-      <h1>Needs you</h1>
+      <div className="withhelp wh-h1">
+        <h1>Needs you</h1>
+        <HelpLink anchor="needs-you.page" />
+      </div>
       <NotificationsCallout />
       <QueryState query={query} skeleton={<NeedsYouSkeleton />}>
         {(data) => (

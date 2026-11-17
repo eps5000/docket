@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { CommandPalette, StatusChip, isNotBuilt, type PaletteGroup } from '../components/kit';
+import { searchArticles } from '../help/articles';
 import { queryKeys } from '../lib/api';
 import { paths } from '../lib/paths';
 import { apiClient } from './queryClient';
@@ -14,7 +15,11 @@ export const GO_TO_VIEWS = [
   { key: 'timeline', label: 'Timeline (Work)', path: paths.work({ layout: 'timeline' }) },
   { key: 'agents', label: 'Agents', path: paths.agents() },
   { key: 'settings', label: 'Settings: projects and connections', path: paths.settings() },
+  { key: 'help', label: 'Help', path: paths.help() },
 ] as const;
+
+/** At most this many Help articles in the palette; /help lists the rest. */
+export const MAX_HELP_RESULTS = 5;
 
 function useDebounced<T>(value: T, ms: number): T {
   const [v, setV] = useState(value);
@@ -83,6 +88,16 @@ function Palette({ onClose }: { onClose: () => void }) {
       options: GO_TO_VIEWS.filter((v) => !lower || v.label.toLowerCase().includes(lower)).map(
         (v) => ({ key: `view:${v.key}`, label: v.label, onSelect: () => navigate(v.path) }),
       ),
+    },
+    {
+      // Help articles (UI_SPEC §6.7c), after Go to so Enter on a view name still goes there.
+      label: 'Help',
+      options: (lower ? searchArticles(lower).slice(0, MAX_HELP_RESULTS) : []).map((a) => ({
+        key: `help:${a.slug}`,
+        label: a.title,
+        meta: <span className="src">{a.group}</span>,
+        onSelect: () => navigate(paths.help(a.slug)),
+      })),
     },
   ];
   const total = groups.reduce((n, g) => n + g.options.length, 0);

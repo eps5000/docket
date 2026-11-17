@@ -7,6 +7,7 @@ import { apiClient } from '../../app/queryClient';
 import { useShell } from '../../app/ShellState';
 import { queryKeys } from '../../lib/api';
 import { plural } from '../../lib/format';
+import { HelpLink } from '../../help/HelpLink';
 
 type Step = 1 | 2 | 3;
 
@@ -284,13 +285,16 @@ export function JiraImportDialog({
         </>
       }
     >
-      <ol className="steps" aria-label="Steps">
-        {(['Connect', 'Review', 'Import'] as const).map((s, i) => (
-          <li key={s} aria-current={step === i + 1 ? 'step' : undefined}>
-            {i + 1} {s}
-          </li>
-        ))}
-      </ol>
+      <div className="withhelp jira-stephead">
+        <ol className="steps" aria-label="Steps">
+          {(['Connect', 'Review', 'Import'] as const).map((s, i) => (
+            <li key={s} aria-current={step === i + 1 ? 'step' : undefined}>
+              {i + 1} {s}
+            </li>
+          ))}
+        </ol>
+        <HelpLink anchor="jira.import" />
+      </div>
 
       {step === 1 && (
         <form

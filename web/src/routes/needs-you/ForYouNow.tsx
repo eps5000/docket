@@ -4,6 +4,7 @@ import type { ForYouRow } from '@tasklite/shared';
 import { Button, Card, CardHeader, EmptyState, Icon } from '../../components/kit';
 import { paths } from '../../lib/paths';
 import { AnswerBox } from '../shared/AnswerBox';
+import { HelpLink } from '../../help/HelpLink';
 
 const rowKey = (r: ForYouRow) => `${r.kind}:${r.item_id}`;
 
@@ -34,7 +35,10 @@ export function ForYouNow({ rows }: { rows: readonly ForYouRow[] }) {
   const fresh = track.fresh;
   return (
     <Card data-card="for-you">
-      <CardHeader title={`For you now · ${rows.length}`} />
+      <CardHeader
+        title={`For you now · ${rows.length}`}
+        extra={<HelpLink anchor="needs-you.for-you" />}
+      />
       {rows.length === 0 ? (
         <EmptyState text="Nothing to verify. Agents will hand off when work is built." />
       ) : (

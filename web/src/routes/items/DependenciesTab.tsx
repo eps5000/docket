@@ -7,6 +7,7 @@ import { apiClient } from '../../app/queryClient';
 import { queryKeys } from '../../lib/api';
 import { paths } from '../../lib/paths';
 import { runOwnerMutation, showToast } from '../../lib/undo';
+import { HelpLink } from '../../help/HelpLink';
 
 /**
  * Dependencies (ticket; UI_SPEC §6.3, §6.3.3): a plain card with "Waits on n
@@ -53,9 +54,12 @@ export function DependenciesTab({ data }: { data: ItemDetailResponse }) {
 
   return (
     <Card padded data-section="deps">
-      <h3>
-        Waits on {waits.length} · unblocks {unblocks.length}
-      </h3>
+      <div className="withhelp wh-h3">
+        <h3>
+          Waits on {waits.length} · unblocks {unblocks.length}
+        </h3>
+        <HelpLink anchor="item.dependencies" />
+      </div>
       {cycles.map((c) => (
         <CycleCallout key={c.join()} itemId={item.id} component={c} links={data.links} />
       ))}

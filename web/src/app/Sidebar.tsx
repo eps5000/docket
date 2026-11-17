@@ -7,7 +7,9 @@ import { useShell } from './ShellState';
 import { useBootstrap } from './useBootstrap';
 
 /** Which nav item a path belongs to (UI_SPEC §2, §6.4: the packet keeps Needs you active). */
-export function navSection(pathname: string): 'needs-you' | 'work' | 'agents' | 'settings' | null {
+export function navSection(
+  pathname: string,
+): 'needs-you' | 'work' | 'agents' | 'settings' | 'help' | null {
   if (pathname === '/' || pathname.startsWith('/review/')) return 'needs-you';
   if (
     pathname.startsWith('/work') ||
@@ -17,6 +19,7 @@ export function navSection(pathname: string): 'needs-you' | 'work' | 'agents' | 
     return 'work';
   if (pathname.startsWith('/agents')) return 'agents';
   if (pathname.startsWith('/settings')) return 'settings';
+  if (pathname === '/help' || pathname.startsWith('/help/')) return 'help';
   return null;
 }
 
@@ -234,6 +237,7 @@ export function Sidebar() {
         Service-wide
       </div>
       <NavItem to={paths.settings()} icon="plug" label="Settings" section="settings" />
+      <NavItem to={paths.help()} icon="question" label="Help" section="help" />
       <HealthLine />
     </nav>
   );

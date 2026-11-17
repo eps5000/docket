@@ -23,6 +23,8 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
 COPY shared/ shared/
 COPY server/ server/
 COPY web/ web/
+# The Help articles, bundled into the web build (BUILD_SPEC §5.18).
+COPY docs/help/ docs/help/
 RUN pnpm -r build
 
 # A self-contained server with production dependencies only.
