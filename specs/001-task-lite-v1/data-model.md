@@ -34,6 +34,9 @@ MCP shapes in [MCP_SPEC §4](../../docs/MCP_SPEC.md). This file adds what tasks 
 | **Commit / Artifact** | `sha`, `branch`, `pr_url` / `kind`, `label`, `url`, `state`, `provenance` | on an item | sha is 7–40 hex; a `pr` artifact with state `merged` satisfies `merged` (FR-031) |
 | **Workspace** *(columns on `runs`)* | `workspace` JSON (host, repo, path, branch, base_ref, base_sha, head_sha, pushed_sha, dirty), `orchestrator` JSON, `brief_document_version_id`, `end_reason`, `parked_reason`, `waiting_on`, `parked_at`, `external`, `unpushed_handled_at` | on a run; state derived per path | external ≤ 2 KB; brief ≤ 20,000 (FR-110 to FR-112, FR-114) |
 | **RunResource** | `id` `rsc_…`, `kind`, `label`, `locator` JSON, `started_at`, `released_at`, `released_by`, `release_note` | on a run | label ≤ 120; ≤ 10 per heartbeat (FR-113) |
+| **AgentFile / AgentFileVersion** | `key`, `layer` (bundled/service/project), `project_key`; version `content`, `sha256`, `author`, `note` | per project for the project layer | versions immutable; one current per key, layer and project (FR-121) |
+| **ProjectWorkflow** | `project_key`, `version_no`, `content_md` | on a project | ≤ 10,000 characters (FR-123) |
+| **Install** | `client`, `target_kind`, `path`, `method`, `manifest` | optional project | logged on token use or push (FR-126) |
 | **Event** | `seq` (the cursor), `actor_kind`, `client`, `label`, `run_id`, `type`, `summary`, `data`, `inverse`, `mutation_id`, `idempotency_key` | references a project and item | append-only (FR-006); the `inverse` is used by owner undo |
 | **Idempotency** | `key`, `client`, `request_hash`, `response`, `expires_at` | — | 24 h (FR-007) |
 | **OwnerSession** | `id`, `last_seen_at`, `user_agent` | — | 30-day sliding expiry; key rotation ends all sessions (FR-101) |
