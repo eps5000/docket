@@ -21,6 +21,7 @@ import { runOwnerMutation, showToast } from '../../lib/undo';
 import { Markdown } from '../shared/Markdown';
 import { BundledUpdatedChip, LayerChip } from './AgentChips';
 import { DiffView } from './DiffView';
+import { HelpLink } from '../../help/HelpLink';
 
 /**
  * A project's *Agent files & workflow* (UI_SPEC §6.7b "Project section";
@@ -42,7 +43,10 @@ export function ProjectAgentSection({
       id="agent-files-and-workflow"
       data-project-agent-section={project}
     >
-      <h2 id="as-project">{projectName} · Agent files &amp; workflow</h2>
+      <div className="withhelp">
+        <h2 id="as-project">{projectName} · Agent files &amp; workflow</h2>
+        <HelpLink anchor="settings.agent-setup" />
+      </div>
       <WorkflowCard project={project} projectName={projectName} />
       <EffectiveSet project={project} />
     </section>

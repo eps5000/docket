@@ -88,6 +88,7 @@ test('every "?" on the main screens opens a panel with its article', async ({ pa
     ['/items/RCP-14?tab=deps', null],
     ['/review/RCP-12', 'Human review'],
     ['/settings', 'Settings'],
+    ['/settings/agent-setup?project=RCP', 'Settings'],
   ] as const) {
     await page.goto(path);
     if (ready)

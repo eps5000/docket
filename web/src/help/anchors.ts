@@ -40,6 +40,8 @@ export const HELP_ANCHORS = {
   'settings.client-setup': 'Settings → Connections → Client setup',
   'settings.service-health': 'Settings → Connections → Service health',
   'settings.blocker-rule': 'Settings → Projects → Blockers clear when',
+  'settings.agent-setup':
+    'Settings → Agent setup: Agent files, and a project’s Agent files & workflow',
   'jira.import': 'Settings → Projects → Import from Jira (the dialog)',
 } as const;
 

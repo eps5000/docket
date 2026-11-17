@@ -163,6 +163,7 @@ describe('"?" anchors', () => {
       ['review.packet', 'review-a-packet'],
       ['settings.service-health', 'backups-restore-export'],
       ['jira.import', 'jira-import'],
+      ['settings.agent-setup', 'agent-setup'],
     ] as const) {
       expect(articleForAnchor(anchor)?.slug, anchor).toBe(slug);
     }

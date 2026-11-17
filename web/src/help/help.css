@@ -35,6 +35,9 @@
 .tl .withhelp.wh-h3 {
   margin-bottom: 8px;
 }
+.tl .settings-sec > .withhelp {
+  margin: 0 0 10px;
+}
 .tl .withhelp.jira-stephead {
   justify-content: space-between;
 }
