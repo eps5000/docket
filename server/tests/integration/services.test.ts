@@ -166,6 +166,17 @@ describe('the service stubs', () => {
     jiraImport: ['dryRun', 'get', 'commit', 'cancel'],
     // US13 (B23, T153, T157): agent files and Workflow notes.
     agentFiles: ['syncBundled', 'list', 'get', 'put', 'revert', 'workflow', 'putWorkflow'],
+    // US13 (B24, T155, T156): install and check.
+    installs: [
+      'prepare',
+      'record',
+      'list',
+      'check',
+      'bundleForToken',
+      'markDownloaded',
+      'pushTarget',
+      'testPushTarget',
+    ],
   };
 
   it.each(methods)('%s.%s throws NotImplementedError until its slice implements it', (s, m) => {
