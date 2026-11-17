@@ -27,7 +27,7 @@
 import { constants } from 'node:fs';
 import { lstat, mkdir, open, readdir, realpath, stat } from 'node:fs/promises';
 import { isAbsolute, join, relative, sep } from 'node:path';
-import { ToolError } from '@tasklite/shared';
+import { ToolError, hasControlChars } from '@tasklite/shared';
 
 const NOFOLLOW = (constants as { O_NOFOLLOW?: number }).O_NOFOLLOW ?? 0;
 
@@ -66,7 +66,7 @@ export function rootSegments(
   hostPath: string | null,
 ): string[] {
   const p = input.trim().replace(/\\/g, '/');
-  if (p === '' || /[\x00-\x1f\x7f]/.test(p)) {
+  if (p === '' || hasControlChars(p)) {
     throw refuse('Give the folder to install into, inside the push folder.');
   }
   let rest = hostPath ? stripPrefix(p, hostPath) : null;

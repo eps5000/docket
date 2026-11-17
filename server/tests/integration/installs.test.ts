@@ -189,7 +189,14 @@ describe('command install: the bundle and the single-use token (T155)', () => {
     // The scripts write CLAUDE.md, in the repo's root.
     expect(files.get('tasklite-install/install.sh')).toContain('instr="$base/CLAUDE.md"');
     expect(files.get('tasklite-install/install.ps1')).toContain("Join-Path $Base 'CLAUDE.md'");
-    expect(files.get('tasklite-install/install.ps1')).toMatch(/^[\x00-\x7f]*$/);
+    // ASCII only, so Windows PowerShell 5.1 reads it the same in any code page.
+    for (const script of ['install.ps1', 'install.sh']) {
+      const text = files.get(`tasklite-install/${script}`)!;
+      expect(
+        [...text].every((c) => c.charCodeAt(0) < 0x80),
+        script,
+      ).toBe(true);
+    }
     // The manifest: the install ID, the client and target, and each file's key, path, version and sha256.
     const manifest = JSON.parse(
       files.get('tasklite-install/files/.claude/.tasklite-manifest.json')!,

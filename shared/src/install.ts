@@ -194,8 +194,11 @@ export const bashQuote = (s: string): string => `'${s.replace(/'/g, `'\\''`)}'`;
 /** Single-quote for PowerShell: `'it''s'` (and the typographic quotes it also honours). */
 export const psQuote = (s: string): string => `'${s.replace(/['‘’‚‛]/g, (q) => q + q)}'`;
 
-/** A path the owner typed is used only if it has no control characters. */
-export const isSafeCommandPath = (s: string): boolean => !/[\x00-\x1f\x7f]/.test(s);
+/** Control characters (newlines, NUL, escapes): never in a path we put in a command. */
+export const hasControlChars = (s: string): boolean =>
+  [...s].some((c) => c.charCodeAt(0) < 0x20 || c.charCodeAt(0) === 0x7f);
+/** A path the owner typed is put in a command only without control characters. */
+export const isSafeCommandPath = (s: string): boolean => !hasControlChars(s);
 
 export interface InstallCommandInput {
   client: InstallClient;

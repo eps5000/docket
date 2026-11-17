@@ -19,10 +19,13 @@ import { createServer, type AddressInfo } from 'node:net';
 import { join } from 'node:path';
 import { serve, type ServerType } from '@hono/node-server';
 import { TASKLITE_BEGIN, TASKLITE_END } from '@tasklite/shared';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { syncBundledFiles } from '../../src/jobs/bundled.js';
 import { insertProject, tempDir, type TempDir } from '../helpers.js';
 import { createTestServer, parseSetCookies, type TestServer } from './harness.js';
+
+// Each test runs several shells and downloads: well over the default 5 s.
+vi.setConfig({ testTimeout: 180_000, hookTimeout: 60_000 });
 
 const transcript: string[] = [];
 
