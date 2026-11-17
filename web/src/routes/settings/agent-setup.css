@@ -1,0 +1,176 @@
+/* Settings → Agent setup (UI_SPEC §6.7b; US13). Tokens only. */
+.tl .agent-setup .as-lede {
+  margin: -4px 0 10px;
+  max-width: 72ch;
+}
+.tl .aftable td {
+  vertical-align: middle;
+}
+.tl .aftable tr[aria-current='true'] td {
+  background: var(--brand-soft);
+}
+.tl .afv {
+  padding: 14px 16px;
+}
+.tl .afvhead h2 {
+  margin: 0;
+  font-size: 16px;
+}
+.tl .afvhead > .src {
+  margin-top: 2px;
+}
+.tl .afflag {
+  margin-top: 10px;
+}
+.tl .aftools {
+  gap: 8px;
+  margin: 12px 0 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+.tl .afmeta,
+.tl .afuse {
+  margin-bottom: 6px;
+}
+.tl .afbody .md {
+  max-width: 90ch;
+}
+.tl pre.code.afraw,
+.tl pre.code.afpre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.tl pre.code.afraw {
+  max-height: 70vh;
+}
+.tl pre.code.afpre {
+  margin: 0 0 10px;
+  color: var(--ink-2);
+}
+.tl .afedit {
+  display: grid;
+  gap: 8px;
+}
+.tl .afedit textarea {
+  font: 12px/1.5 var(--mono);
+  min-height: 240px;
+}
+.tl .afnote {
+  display: grid;
+  gap: 4px;
+  max-width: 60ch;
+}
+.tl .afnote label {
+  font-weight: 600;
+}
+.tl .afhist {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.tl .afhist h3 {
+  margin: 0 0 6px;
+  font-size: 13px;
+}
+.tl .afhist ol,
+.tl .afwfhist ol {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+}
+.tl .afhist li,
+.tl .afwfhist li {
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+}
+.tl .afhist li:first-child,
+.tl .afwfhist li:first-child {
+  border-top: 0;
+}
+.tl .afhnote {
+  margin-top: 2px;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+/* The line diff: markers in text as well as colour (never colour alone). */
+.tl .afdiff {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: auto;
+  max-height: 70vh;
+}
+.tl .afdiff-stats {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel-2);
+}
+.tl .afdiff-lines {
+  font: 12px/1.5 var(--mono);
+  min-width: max-content;
+}
+.tl .afdiff .dl {
+  display: grid;
+  grid-template-columns: 4ch 4ch 2ch minmax(0, 1fr);
+  gap: 6px;
+  padding: 0 10px 0 6px;
+  white-space: pre;
+}
+.tl .afdiff .dl .ln {
+  color: var(--ink-3);
+  text-align: right;
+}
+.tl .afdiff .dl.add {
+  background: var(--ok-soft);
+}
+.tl .afdiff .dl.del {
+  background: var(--bad-soft);
+}
+.tl .afdiff .dl.add .mk {
+  color: var(--ok);
+  font-weight: 700;
+}
+.tl .afdiff .dl.del .mk {
+  color: var(--bad);
+  font-weight: 700;
+}
+.tl .afdiff .dl.fold {
+  display: block;
+  color: var(--ink-3);
+  background: var(--panel-2);
+  padding: 2px 10px;
+}
+.tl .afdiff-same {
+  padding: 6px 0;
+}
+
+/* The project section: Workflow notes and the effective set. */
+.tl .afwf,
+.tl .afset {
+  margin-bottom: 12px;
+}
+.tl .afwfline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.tl .afwfhist {
+  margin-top: 10px;
+}
+.tl .afsetlist {
+  list-style: none;
+  margin: 0;
+  padding: 4px 14px 10px;
+}
+.tl .afsetlist li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 0;
+  border-top: 1px solid var(--line);
+}
+.tl .afsetlist li:first-child {
+  border-top: 0;
+}

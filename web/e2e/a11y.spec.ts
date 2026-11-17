@@ -90,6 +90,11 @@ const ROUTES: { name: string; path: string; ready: (p: Page) => Locator }[] = [
     ready: (p) => p.locator('[data-ticket="RCP-14"]'),
   },
   { name: 'Settings', path: '/settings', ready: (p) => p.getByRole('heading', { level: 1 }) },
+  {
+    name: 'Settings → Agent setup: a project, a file and its Workflow notes',
+    path: '/settings/agent-setup?project=RCP&file=skill:tasklite-worker',
+    ready: (p) => p.locator('[data-workflow="RCP"] .sectionhead'),
+  },
   { name: 'Not found', path: '/no-such-page', ready: (p) => p.getByRole('heading', { level: 1 }) },
 ];
 
