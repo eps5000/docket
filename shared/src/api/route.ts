@@ -8,12 +8,14 @@
  */
 import type { z } from 'zod';
 
-export type ApiMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE';
+export type ApiMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 /**
  * Route groups: one server file each (`server/src/api/routes/<group>.ts`),
  * following contracts/ui-api.md. `session` and `undo` are B2's routes;
- * `upload` is `/agent-upload` (BUILD_SPEC §5.10).
+ * `upload` is `/agent-upload` (BUILD_SPEC §5.10). `setup` is agent setup
+ * (decision 29, BUILD_SPEC §5.17); `install` is `GET /install/:token`, the
+ * session-less bundle download.
  */
 export const API_GROUPS = [
   'session',
@@ -28,6 +30,8 @@ export const API_GROUPS = [
   'settings',
   'diagnostics',
   'recovery',
+  'setup',
+  'install',
   'undo',
   'upload',
 ] as const;
@@ -37,9 +41,12 @@ export type ApiGroup = (typeof API_GROUPS)[number];
  * - `session`: the `tl_owner` cookie (every `/api` route but unlock), plus
  *   the CSRF header on mutations;
  * - `none`: `POST /api/session/unlock` only;
- * - `bearer`: the agent token (`/agent-upload`), never the owner session.
+ * - `bearer`: the agent token (`/agent-upload`), never the owner session;
+ * - `token`: `GET /install/:token` only: no session, CSRF or bearer; the
+ *   single-use token in the path is the credential (checked by the handler),
+ *   behind the app's Host and Origin guards (loopback only; decision 29).
  */
-export type ApiAuth = 'session' | 'none' | 'bearer';
+export type ApiAuth = 'session' | 'none' | 'bearer' | 'token';
 
 /**
  * - `json`: a JSON body checked against `schema`;

@@ -219,6 +219,8 @@ describe('event → query-key invalidation (contracts/events.md)', () => {
     for (const type of EVENT_TYPES) {
       if (type === 'project.updated' || type === 'label.upserted') continue;
       if (type.startsWith('decision.')) continue;
+      // Agent setup (decision 29) touches no item.
+      if (/^(agent_file|workflow|install)\./.test(type)) continue;
       expect(INVALIDATION[type], type).toContain('item');
     }
   });
@@ -296,6 +298,83 @@ describe('event → query-key invalidation (contracts/events.md)', () => {
       ['tl', 'agents'],
       ['tl', 'workspaces'],
     ]);
+  });
+});
+
+describe('agent setup (decision 29; BUILD_SPEC §5.17, §7)', () => {
+  it('has typed calls for the agent setup routes, including the session-less download', async () => {
+    const { fetch, sent } = fakeFetch(200, {});
+    const client = createApiClient({ fetch, cookies: () => COOKIES });
+    await client['agentFiles.list']({ query: { project: 'RCP' } });
+    await client['agentFiles.get']({ params: { key: 'skill:tasklite-worker' } });
+    await client['agentFiles.put']({
+      params: { key: 'agents_block' },
+      body: { layer: 'service', content: '# Block\n', expected_version: 2, note: 'Ours.' },
+    });
+    await client['agentFiles.revert']({
+      params: { key: 'agents_block' },
+      body: { layer: 'project', project: 'RCP' },
+    });
+    await client['workflow.put']({
+      params: { key: 'RCP' },
+      body: { content_md: '- Branch per item.', expected_version: 0 },
+    });
+    await client['installs.create']({
+      body: { client: 'codex', target_kind: 'user', method: 'command' },
+    });
+    await client['installs.check']({ params: { id: 'ins_1' } });
+    await client['pushTarget.test']({});
+    await client['install.download']({ params: { token: 'A'.repeat(43) } });
+    expect(sent.map((r) => `${r.method} ${r.url}`)).toEqual([
+      'GET /api/agent-files?project=RCP',
+      'GET /api/agent-files/skill%3Atasklite-worker',
+      'PUT /api/agent-files/agents_block',
+      'POST /api/agent-files/agents_block/revert',
+      'PUT /api/projects/RCP/workflow',
+      'POST /api/installs',
+      'POST /api/installs/ins_1/check',
+      'POST /api/push-target/test',
+      `GET /install/${'A'.repeat(43)}`,
+    ]);
+    expect(sent[2]!.headers['X-Tasklite-CSRF']).toBe('abc123-_x');
+    expect(sent[8]!.headers['X-Tasklite-CSRF']).toBeUndefined();
+  });
+
+  it('edits, reverts and Workflow notes hand their mutation_id to Undo; an install does not', async () => {
+    const seen: MutationRecord[] = [];
+    const { fetch } = fakeFetch(200, { mutation_id: 'mut_a' });
+    const client = createApiClient({
+      fetch,
+      cookies: () => COOKIES,
+      onMutation: (m) => seen.push(m),
+    });
+    await client['workflow.put']({
+      params: { key: 'RCP' },
+      body: { content_md: '', expected_version: 1 },
+    });
+    expect(seen).toEqual([{ mutation_id: 'mut_a', route: 'workflow.put', undoable: true }]);
+  });
+
+  it('query keys share a family per screen, so one event refreshes list and view', () => {
+    expect(queryKeys.agentFiles({ project: 'RCP' })).toEqual([
+      'tl',
+      'agentFiles',
+      { project: 'RCP' },
+    ]);
+    expect(queryKeys.agentFile('agents_block')).toEqual(['tl', 'agentFiles', 'agents_block', {}]);
+    expect(queryKeys.workflow('RCP')).toEqual(['tl', 'workflow', 'RCP']);
+    expect(queryKeys.installs()).toEqual(['tl', 'installs', {}]);
+    expect(queryKeys.pushTarget()).toEqual(['tl', 'pushTarget']);
+    expect(
+      keysForChange({
+        seq: 9,
+        type: 'agent_file.updated',
+        objects: [{ kind: 'agent_file', id: 'af_1' }],
+        for_you: false,
+      }),
+    ).toEqual([['tl', 'agentFiles']]);
+    expect(INVALIDATION['workflow.updated']).toEqual(['workflow']);
+    expect(INVALIDATION['install.recorded']).toEqual(['installs']);
   });
 });
 

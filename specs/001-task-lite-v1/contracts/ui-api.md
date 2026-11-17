@@ -1,7 +1,9 @@
 # Contract index: UI API
 
 **Authoritative**: [BUILD_SPEC §7](../../../docs/BUILD_SPEC.md). Every route needs the owner session,
-and mutations also need the `X-Tasklite-CSRF` header. This index groups the routes by user story.
+and mutations also need the `X-Tasklite-CSRF` header, except `POST /api/session/unlock`,
+`/agent-upload` (the agent bearer token) and `GET /install/:token` (its single-use token; decision 29).
+This index groups the routes by user story.
 
 | Routes (BUILD_SPEC §7) | User story | Requirements |
 |---|---|---|
@@ -22,4 +24,5 @@ and mutations also need the `X-Tasklite-CSRF` header. This index groups the rout
 **Additions from the 2026-11-14 clarifications** (already in BUILD_SPEC §7):
 - **Inline text editing** (decision 22): `PATCH /api/items/:id` accepts `title`, `description_md`, `outcome_md` and `acceptance[]`, with `expected_version`. A stale version returns `409` with `current`, and the UI renders the conflict callout.
 - **Diagnostic log** (T21): `GET /api/diagnostics/calls?days=7` streams JSONL. It is metadata only.
+- **Agent setup** (decision 29; contracts in B21): request and response shapes are in `shared/src/api/agent-setup.ts`. `GET /install/:token` sits outside `/api`, takes no session, CSRF or bearer token, and stays behind the Host and Origin guards (loopback only); unknown, expired and used tokens all answer `404`. The edits, reverts and Workflow notes are undoable; installs, checks and the push *Test* are not.
 - **Notifications** (decision 21) need **no** API: the browser derives them from `/api/stream` events of type `packet.submitted` and `question.asked` (see [events.md](events.md)).

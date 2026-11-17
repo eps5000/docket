@@ -14,4 +14,5 @@ export * from './import.js';
 export * from './settings.js';
 export * from './diagnostics.js';
 export * from './recovery.js';
+export * from './agent-setup.js';
 export * from './routes.js';

@@ -2,6 +2,7 @@
  * Wires every domain service (contracts.ts) from its own file. The runtime
  * builds one `Services` and hands it to both adapters, MCP and the UI API.
  */
+import { createAgentFilesService } from './agent-files.js';
 import { createArchiveService } from './archive.js';
 import { createBackupService } from './backup.js';
 import { createChecklistService } from './checklist.js';
@@ -14,6 +15,7 @@ import { createEvidenceService } from './evidence.js';
 import { createForecastService } from './forecast.js';
 import { createHumanReviewService } from './human-review.js';
 import { createItemsService } from './items.js';
+import { createInstallsService } from './installs.js';
 import { createJiraImportService } from './jira-import.js';
 import { createLinksService } from './links.js';
 import { createMessagesService } from './messages.js';
@@ -59,6 +61,8 @@ export function createServices(
     jiraImport: createJiraImportService(full),
     diagnostics: createDiagnosticsService(full),
     recovery: createRecoveryService(full),
+    agentFiles: createAgentFilesService(full),
+    installs: createInstallsService(full),
     undo: createUndoService(full),
   };
   for (const [name, methods] of Object.entries(overrides)) {
