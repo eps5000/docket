@@ -702,6 +702,90 @@
   font-weight: 650;
 }
 
+/* ---------- Jira import (UI_SPEC §9.2) ---------- */
+.tl .jira-fields {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.tl .jira-fields .seg {
+  margin-top: 4px;
+}
+.tl .jira-target {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+}
+.tl .jira-target .grow {
+  flex: 1;
+}
+.tl .jira-progress {
+  margin: 12px 0 0;
+  color: var(--ink-2);
+}
+.tl .jira-error {
+  margin-top: 12px;
+}
+.tl .jira-report h3 {
+  font-size: 13px;
+  margin: 16px 0 6px;
+}
+.tl .jira-tiles {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+}
+.tl .jira-tiles li {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: var(--panel-2);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.tl .jira-tiles b {
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+.tl .jira-tiles span {
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.tl .jira-mapping {
+  font-size: 12.5px;
+}
+.tl .jira-mapping td,
+.tl .jira-mapping th {
+  padding: 5px 8px;
+}
+.tl .jira-mapping .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.tl .jira-lossy {
+  margin-top: 12px;
+}
+.tl .jira-lossy summary {
+  cursor: pointer;
+  font-weight: 650;
+  font-size: 13px;
+}
+.tl .jira-lossy ul,
+.tl .jira-list {
+  margin: 6px 0 10px;
+  padding-left: 18px;
+  font-size: 12.5px;
+}
+.tl .jira-lossy li {
+  margin: 4px 0;
+}
+
 /* ---------- Needs you: notifications opt-in, new For-you rows (UI_SPEC §6.7a, §7, §8) ---------- */
 .tl .notifycallout {
   display: flex;

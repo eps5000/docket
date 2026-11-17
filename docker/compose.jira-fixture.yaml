@@ -1,0 +1,42 @@
+# End-to-end tests only: a synthetic Jira site for the import dialog (US9), on the compose
+# network. Never use it for a real install. First run docker/jira-fixture/make-certs.sh, then:
+#   docker compose -f docker/compose.yaml -f docker/compose.jira-fixture.yaml up -d --build --wait
+# The site is https://jira-fixture.test:8443 (email owner@example.test, token
+# tl-fixture-api-token-0001; all invented). It is the only host the container reaches (FR-106).
+services:
+  jira-fixture:
+    image: node:22-bookworm-slim
+    command: ['node', '/fixture/server.mjs']
+    working_dir: /fixture
+    environment:
+      JIRA_FIXTURE_CERT: /certs/server.pem
+      JIRA_FIXTURE_KEY: /certs/server.key
+      JIRA_FIXTURE_ORIGIN: https://jira-fixture.test:8443
+    volumes:
+      - ../server/tests/fixtures/jira:/fixture:ro
+      - ./jira-fixture/certs:/certs:ro
+    networks:
+      default:
+        aliases:
+          - jira-fixture.test
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "require('net').connect(8443,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      start_period: 5s
+      start_interval: 1s
+      retries: 3
+
+  tasklite:
+    environment:
+      # Trust the throwaway test CA for the fixture's certificate (and nothing else changes).
+      NODE_EXTRA_CA_CERTS: /etc/tasklite-e2e/jira-ca.pem
+    volumes:
+      - ./jira-fixture/certs/ca.pem:/etc/tasklite-e2e/jira-ca.pem:ro
+    depends_on:
+      jira-fixture:
+        condition: service_healthy

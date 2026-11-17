@@ -88,7 +88,16 @@ export function ProjectsSection({ query }: { query: UseQueryResult<SettingsRespo
           onDeleted={() => deleted(deleting)}
         />
       )}
-      {importing && <JiraImportDialog onClose={() => setImporting(false)} />}
+      {importing && (
+        <JiraImportDialog
+          onClose={() => setImporting(false)}
+          projects={(query.data?.projects ?? []).map((p) => ({
+            key: p.key,
+            name: p.name,
+            items: p.counts.items,
+          }))}
+        />
+      )}
     </section>
   );
 }
