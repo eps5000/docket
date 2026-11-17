@@ -44,7 +44,7 @@ export const COMPAT_SURFACES: readonly CompatSurface[] = [
     // and an interactive session are still the owner's to run, so this stays unverified.
     verified: null,
     notes:
-      'Headless smoke passed Nov 17 (claude -p, temporary config). Your user-scope setup: not verified yet. Run docker/smoke (O07).',
+      'Headless smoke passed Nov 17 (claude -p, temporary config). Your user-scope setup is still to check: run docker/smoke (O07).',
   },
   {
     name: 'Orca worker · Codex',
