@@ -7,6 +7,7 @@ import { apiClient } from '../../app/queryClient';
 import { queryKeys } from '../../lib/api';
 import { plural } from '../../lib/format';
 import { paths } from '../../lib/paths';
+import { useRenderLimit } from '../../lib/progressive';
 import { runOwnerMutation, showToast } from '../../lib/undo';
 
 export const BOARD_COLUMNS: readonly { status: Status; note?: string }[] = [
@@ -28,6 +29,9 @@ export const BOARD_COLUMNS: readonly { status: Status; note?: string }[] = [
 export function BoardLayout({ items }: { items: readonly WorkItem[] }) {
   const [showWaiting, setShowWaiting] = useState(false);
   const archiving = useArchive();
+  // At scale (thousands of items), each column renders its first cards at once and the rest
+  // right after (lib/progressive.ts). Counts and Archive all always use the whole column.
+  const limit = useRenderLimit(items.length);
   return (
     <div className="board" data-layout="board">
       {BOARD_COLUMNS.map(({ status, note }) => {
@@ -48,7 +52,7 @@ export function BoardLayout({ items }: { items: readonly WorkItem[] }) {
               {go.length === 0 ? (
                 <div className="src colnote">Nothing startable</div>
               ) : (
-                go.map((i) => <TicketCard key={i.id} item={i} />)
+                go.slice(0, limit).map((i) => <TicketCard key={i.id} item={i} />)
               )}
               {wait.length > 0 && (
                 <>
@@ -64,10 +68,10 @@ export function BoardLayout({ items }: { items: readonly WorkItem[] }) {
                     </Button>
                   </div>
                   {showWaiting ? (
-                    wait.map((i) => <TicketCard key={i.id} item={i} />)
+                    wait.slice(0, limit).map((i) => <TicketCard key={i.id} item={i} />)
                   ) : (
                     <div className="mini">
-                      {wait.map((i) => (
+                      {wait.slice(0, limit).map((i) => (
                         <Link
                           key={i.id}
                           to={paths.item(i.id)}
@@ -102,7 +106,7 @@ export function BoardLayout({ items }: { items: readonly WorkItem[] }) {
                 </Button>
               </div>
             )}
-            {cards.map((i) => (
+            {cards.slice(0, limit).map((i) => (
               <TicketCard
                 key={i.id}
                 item={i}
