@@ -17,6 +17,7 @@ import type { Status } from '@tasklite/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   BURNDOWN_DAYS,
+  effectiveZone,
   FORECAST_TRIALS,
   forecastOf,
   localDay,
@@ -28,6 +29,7 @@ import { OWNER_ACTOR, type Actor } from '../../src/domain/write.js';
 import { addProject, startDomain, type Domain } from '../us1-helpers.js';
 
 const DAY = 86_400_000;
+const NOV_16 = '2026-11-16T12:00:00Z';
 let d: Domain;
 let claude: Actor;
 
@@ -382,6 +384,16 @@ describe('burn-down', () => {
     expect(s['2026-11-09']).toBe(0);
     expect(localDay('2026-11-10T02:00:00Z', 'America/New_York')).toBe('2026-11-09');
     expect(localDay('2026-11-10T02:00:00Z', 'UTC')).toBe('2026-11-10');
+  });
+
+  it('the timeline reports the zone its days are in, so the Now line can use it (B18)', async () => {
+    expect(timeline().time_zone).toBe(effectiveZone(d.server.runtime.config.tz));
+    await d.cleanup();
+    d = startDomain({ seed: false, env: { TZ: 'America/Chicago' }, now: new Date(NOV_16) });
+    addProject(d, 'TST');
+    claude = d.agent('claude');
+    expect(timeline().time_zone).toBe('America/Chicago');
+    expect(effectiveZone('Not/AZone')).toBe('UTC');
   });
 
   it('is empty, not zero-filled with false history, when nothing in scope is estimated', () => {

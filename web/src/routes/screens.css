@@ -63,7 +63,8 @@
 }
 .tl .kv {
   display: grid;
-  grid-template-columns: 96px 1fr;
+  /* minmax(0, …): a long URL wraps instead of widening the page at 1024 px (B18, T144). */
+  grid-template-columns: 96px minmax(0, 1fr);
   gap: 7px 8px;
   font-size: 12.5px;
   margin: 0;
@@ -73,6 +74,7 @@
 }
 .tl .kv dd {
   margin: 0;
+  overflow-wrap: anywhere;
 }
 .tl .lrow {
   display: flex;
@@ -199,6 +201,23 @@
   align-items: center;
   flex-wrap: wrap;
   margin-bottom: 12px;
+}
+/* An active filter on the Timeline, as a removable chip (B18). */
+.tl button.fchip {
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 550;
+  min-height: 24px;
+  border-color: currentColor;
+}
+.tl button.fchip:hover {
+  text-decoration: underline;
+}
+.tl .fchip-x {
+  font-size: 14px;
+  line-height: 1;
+  margin-left: 2px;
 }
 .tl .epicrow {
   display: grid;
@@ -1063,8 +1082,4 @@
   display: grid;
   gap: 8px;
   border-color: var(--warn);
-}
-/* Archived cards keep full contrast (WCAG 1.4.3); Unarchive and the filter say they're archived. */
-.tl .tcw .tcard.archived {
-  opacity: 1;
 }

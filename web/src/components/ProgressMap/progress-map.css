@@ -214,13 +214,26 @@
 }
 
 /* ---------- arrows ---------- */
+/* Above the cards (B18), so an arrow that skips a column is never hidden
+   under the cards it crosses; it never takes pointer events. */
 .tl svg.pm-edges {
   position: absolute;
   left: 0;
   top: 0;
   pointer-events: none;
-  z-index: 0;
+  z-index: 2;
   overflow: visible;
+}
+/* The halo under an arrow that crosses cards: a band in the card colour. */
+.tl .pm-halo {
+  fill: none;
+  stroke: var(--panel);
+  stroke-width: 6;
+  stroke-linecap: round;
+  transition: opacity 0.12s;
+}
+.tl .pm-halo.dim {
+  opacity: 0.15;
 }
 .tl .pm-edge {
   fill: none;

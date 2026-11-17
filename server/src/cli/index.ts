@@ -7,6 +7,8 @@
  *   tasklite backup now       take a verified backup now (also the extra copy, if set)
  *   tasklite restore <file>   restore a backup; refuses while the server runs
  *   tasklite checksums        print item, event and document checksums (SC-008 checks)
+ *   tasklite export           write every owner table as JSON plus the documents to one
+ *                             .tar.gz (T147; no secrets, like backups)
  *   tasklite seed sample      load the sample data into an empty database
  *
  * `--data-dir <path>` points at a data directory other than /data, and
@@ -18,6 +20,7 @@ import { fileURLToPath } from 'node:url';
 import { SecretStore, ensureDataDirs, loadConfig } from '../config.js';
 import { migrateDb, openDb } from '../db/client.js';
 import { describeSeed, isDatabaseEmpty, loadSampleSeed } from '../db/seed/loader.js';
+import { runExport } from './export.js';
 import {
   ArchiveError,
   RestoreRefused,
@@ -32,6 +35,8 @@ const USAGE = `Usage:
   tasklite backup now           Take a verified backup now
   tasklite restore <file>       Restore a backup (stop the service first)
   tasklite checksums            Print item, event and document checksums
+  tasklite export [--out <file>]
+                                Export all your data (JSON plus documents) to one .tar.gz
   tasklite seed sample          Load the sample data into an empty database
 Options:
   --data-dir <path>             Data directory (default /data)
@@ -55,6 +60,7 @@ export async function main(argv: string[]): Promise<number> {
   const dataDir = option(args, '--data-dir') ?? '/data';
   const nowText = option(args, '--now');
   const throughSeq = option(args, '--through-seq');
+  const outPath = option(args, '--out');
   const [command, sub, ...rest] = args;
   const config = loadConfig(process.env, { dataDir });
 
@@ -124,6 +130,40 @@ export async function main(argv: string[]): Promise<number> {
       if (seq !== undefined && !Number.isInteger(seq)) throw new Error('--through-seq is a number');
       out(JSON.stringify(liveChecksums(config.paths, { throughSeq: seq })));
       return 0;
+    }
+
+    case 'export': {
+      if (sub !== undefined) break;
+      const db = openDb(config.paths.db);
+      try {
+        migrateDb(db);
+        const secrets = new SecretStore(config);
+        const { archive_path, manifest } = await runExport({
+          config,
+          sqlite: db.sqlite,
+          clock: () => new Date(),
+          secrets: () => secrets.known(),
+          out: outPath,
+        });
+        const rows = Object.values(manifest.tables).reduce((n, t) => n + t.rows, 0);
+        const c = manifest.checksums;
+        out(`Export written: ${archive_path}`);
+        out(
+          `${Object.keys(manifest.tables).length} tables (${rows} rows), ${manifest.documents.count} document files (${manifest.documents.bytes} bytes). No keys or tokens.`,
+        );
+        out(`items ${c.items.count} ${c.items.sha256}`);
+        out(`events ${c.events.count} ${c.events.sha256}`);
+        out(`documents ${c.documents.count} ${c.documents.sha256}`);
+        if (manifest.documents.missing.length > 0) {
+          err(`${manifest.documents.missing.length} document file(s) were missing on the volume.`);
+        }
+        if (!outPath) {
+          out(`Copy it out: docker compose cp tasklite:${archive_path} .`);
+        }
+        return 0;
+      } finally {
+        db.sqlite.close();
+      }
     }
 
     case 'seed': {

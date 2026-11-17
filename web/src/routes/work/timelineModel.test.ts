@@ -1,6 +1,7 @@
 import type { BurndownResponse } from '@tasklite/shared';
 import { describe, expect, it } from 'vitest';
 import {
+  zonedNow,
   barText,
   burndownEmpty,
   burndownGeometry,
@@ -167,5 +168,18 @@ describe('burn-down table and chart', () => {
     expect(niceMax(0)).toEqual({ max: 1, step: 1 });
     expect(niceMax(11)).toEqual({ max: 15, step: 5 });
     expect(niceMax(37)).toEqual({ max: 40, step: 10 });
+  });
+});
+
+describe('zonedNow (B18: the Now line uses the server zone)', () => {
+  // 2026-11-16 04:30 UTC is still Nov 15 in Chicago and already Nov 16 in Tokyo.
+  const at = new Date('2026-11-16T04:30:00Z');
+  it('gives the day and the fraction of it in the given zone', () => {
+    expect(zonedNow(at, 'UTC')).toEqual({ day: '2026-11-16', fraction: 4.5 / 24 });
+    expect(zonedNow(at, 'America/Chicago')).toEqual({ day: '2026-11-15', fraction: 22.5 / 24 });
+    expect(zonedNow(at, 'Asia/Tokyo')).toEqual({ day: '2026-11-16', fraction: 13.5 / 24 });
+  });
+  it('falls back to the browser zone for an unknown zone', () => {
+    expect(zonedNow(at, 'Not/AZone')).toEqual(zonedNow(at));
   });
 });

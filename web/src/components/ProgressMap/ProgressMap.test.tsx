@@ -6,12 +6,13 @@
  */
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { LinkEdge, Status } from '@tasklite/shared';
 import {
   FIT_MIN,
   ProgressMap,
   arrowPath,
+  skipsColumn,
   cyclePath,
   cyclesIn,
   fitZoom,
@@ -158,6 +159,11 @@ describe('cycles, zoom and arrows', () => {
     expect(fitZoom({ width: 300, height: 200 }, { width: 800, height: 500 })).toBe(1);
   });
 
+  it('an arrow that skips a column crosses cards, so it gets a halo (B18)', () => {
+    expect(skipsColumn({ right: 200 }, { left: 276 })).toBe(false); // the next column
+    expect(skipsColumn({ right: 200 }, { left: 552 })).toBe(true); // one column between
+  });
+
   it('an arrow is a cubic curve from the right edge to just before the left edge', () => {
     expect(arrowPath({ right: 200, midY: 40 }, { left: 276, midY: 100 })).toBe(
       'M200,40 C238,40 238,100 273,100',
@@ -191,6 +197,22 @@ describe('<ProgressMap>', () => {
         </div>
       </MemoryRouter>,
     );
+
+  it('renders without the outside prop, with no render loop (B18: a stable default)', () => {
+    const errors: unknown[] = [];
+    const spy = vi.spyOn(console, 'error').mockImplementation((...a) => errors.push(a));
+    const { container } = render(
+      <MemoryRouter>
+        <div className="tl">
+          <ProgressMap items={items} links={links} outsideTitle="Outside this epic" />
+        </div>
+      </MemoryRouter>,
+    );
+    spy.mockRestore();
+    expect(errors).toEqual([]);
+    expect(container.querySelector('[data-col="outside"]')).toBeNull();
+    expect(cardOf('RCP-14')).toBeTruthy();
+  });
 
   it('renders the header, the columns in order and the key', () => {
     const { container } = view();

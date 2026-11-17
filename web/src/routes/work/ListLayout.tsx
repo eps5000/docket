@@ -11,6 +11,7 @@ import {
 } from '../../components/kit';
 import { formatAge, isoTitle } from '../../lib/format';
 import { paths } from '../../lib/paths';
+import { useRenderLimit } from '../../lib/progressive';
 import { Link } from 'react-router';
 
 /**
@@ -19,6 +20,8 @@ import { Link } from 'react-router';
  */
 export function ListLayout({ items }: { items: readonly WorkItem[] }) {
   const navigate = useNavigate();
+  // Thousands of rows render progressively: the first screenful at once (lib/progressive.ts).
+  const limit = useRenderLimit(items.length);
   return (
     <div className="card" style={{ overflow: 'auto' }} data-layout="list">
       <table>
@@ -41,7 +44,7 @@ export function ListLayout({ items }: { items: readonly WorkItem[] }) {
               </td>
             </tr>
           ) : (
-            items.map((i) => (
+            items.slice(0, limit).map((i) => (
               <tr key={i.id} className="clickrow" onClick={() => navigate(paths.item(i.id))}>
                 <td>
                   <Link to={paths.item(i.id)} className="mono" onClick={(e) => e.stopPropagation()}>

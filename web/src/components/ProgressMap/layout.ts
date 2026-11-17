@@ -257,3 +257,11 @@ export function arrowPath(
   const mx = (a.right + b.left) / 2;
   return `M${a.right},${a.midY} C${mx},${a.midY} ${mx},${b.midY} ${b.left - 3},${b.midY}`;
 }
+
+/** The gap between columns (UI_SPEC §6.3.4), in unscaled pixels. */
+const COL_GAP = 76;
+
+/** Whether an arrow from `a` to `b` skips at least one column (and so crosses its cards). */
+export function skipsColumn(a: { right: number }, b: { left: number }): boolean {
+  return b.left - a.right > COL_GAP + 1;
+}

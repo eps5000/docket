@@ -43,6 +43,19 @@ jobs:
       - name: Vitest
         run: pnpm -r test
 
+      # FR-106 (T145): the contract and integration suites again, in a container with no
+      # network at all, with every outbound attempt recorded by the egress audit. Any
+      # attempt fails the step. (The audit's own probe test runs in the step above.)
+      - name: Contract suite with no network (FR-106)
+        run: |
+          docker run --rm --network none --user "$(id -u):$(id -g)" -e HOME=/tmp             -v "$PWD:/w" -w /w/server             -e NODE_OPTIONS=--import=/w/docker/no-egress/egress-audit.mjs             -e TASKLITE_EGRESS_LOG=/w/egress-contract.jsonl             node:22-bookworm-slim             node node_modules/vitest/vitest.mjs run tests/contract tests/integration               --exclude tests/integration/no-egress.test.ts
+          if [ -s egress-contract.jsonl ]; then
+            echo "Outbound connection attempts during the contract suite:"
+            cat egress-contract.jsonl
+            exit 1
+          fi
+          echo "No outbound connection attempts."
+
       - name: Docker build
         run: docker build -f docker/Dockerfile -t tasklite:ci .
 
@@ -71,24 +84,32 @@ jobs:
       - name: Jira fixture certificates
         run: docker/jira-fixture/make-certs.sh
 
-      - name: Build and start the container
+      # FR-106 (T145): the container runs on an internal network with no route out
+      # (docker/compose.no-egress.yaml). Only the Jira fixture is reachable from it; the
+      # browser comes in through a loopback-published gateway.
+      - name: Build and start the container (sealed, no egress)
         env:
           TASKLITE_SEED: sample
-        run: docker compose -f docker/compose.yaml -f docker/compose.jira-fixture.yaml up -d --build --wait --wait-timeout 120
+        run: docker compose -f docker/compose.yaml -f docker/compose.jira-fixture.yaml -f docker/compose.no-egress.yaml up -d --build --wait --wait-timeout 120
 
       - name: Playwright
         env:
           TASKLITE_E2E_NO_START: '1'
         run: pnpm --filter @tasklite/web e2e
 
+      # FR-106 (T145): nothing in the container tried to reach another host during the
+      # whole e2e run, and a deliberate probe is caught (so the check can fail).
+      - name: No egress (FR-106)
+        run: docker/no-egress/check.sh -f docker/compose.yaml -f docker/compose.jira-fixture.yaml -f docker/compose.no-egress.yaml
+
       # SC-008 (T128): `docker compose down && up` keeps every item, event and document,
       # and a backup restores identically into a scratch volume.
       - name: Container replacement keeps the data (SC-008)
-        run: docker/check-replacement.sh -f docker/compose.yaml -f docker/compose.jira-fixture.yaml
+        run: docker/check-replacement.sh -f docker/compose.yaml -f docker/compose.jira-fixture.yaml -f docker/compose.no-egress.yaml
 
       - name: Container logs
         if: failure()
-        run: docker compose -f docker/compose.yaml -f docker/compose.jira-fixture.yaml logs --no-color
+        run: docker compose -f docker/compose.yaml -f docker/compose.jira-fixture.yaml -f docker/compose.no-egress.yaml logs --no-color
 
       - name: Upload Playwright report and traces
         if: failure()
@@ -102,4 +123,4 @@ jobs:
 
       - name: Stop the container
         if: always()
-        run: docker compose -f docker/compose.yaml -f docker/compose.jira-fixture.yaml down --volumes
+        run: docker compose -f docker/compose.yaml -f docker/compose.jira-fixture.yaml -f docker/compose.no-egress.yaml down --volumes

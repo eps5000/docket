@@ -14,6 +14,7 @@ export {
   stepZoom,
   fitZoom,
   arrowPath,
+  skipsColumn,
   ZOOM_STEPS,
   FIT_MIN,
 } from './layout';

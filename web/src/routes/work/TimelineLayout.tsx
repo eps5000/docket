@@ -4,6 +4,7 @@ import type { Timeline } from '@tasklite/shared';
 import { Card, EmptyState, TypeIcon } from '../../components/kit';
 import { useBootstrap } from '../../app/useBootstrap';
 import { paths } from '../../lib/paths';
+import { useRenderLimit } from '../../lib/progressive';
 import { BurndownCard } from './BurndownCard';
 import {
   addDays,
@@ -16,10 +17,10 @@ import {
   forecastLine,
   forecastRange,
   isRisky,
-  localNow,
   plannedSpan,
   plannedTitle,
   weekStarts,
+  zonedNow,
   type TimelineRow,
 } from './timelineModel';
 import './timeline.css';
@@ -41,13 +42,15 @@ export function TimelineLayout({
   label?: string;
 }) {
   const boot = useBootstrap();
+  // Hundreds of dated rows render progressively: the first screenful at once (lib/progressive.ts).
+  const limit = useRenderLimit(timeline?.rows.length ?? 0);
   const shortName = (key: string) =>
     boot.data?.projects.find((p) => p.key === key)?.short_name ?? key;
   if (!timeline) return null;
   const { from, to, rows } = timeline;
   const span = Math.max(1, daysBetween(from, to) + 1);
   const pct = (day: string) => (daysBetween(from, day) / span) * 100;
-  const now = localNow();
+  const now = zonedNow(new Date(), timeline.time_zone);
   const nowX = ((daysBetween(from, now.day) + now.fraction) / span) * 100;
   const nowShown = nowX >= 0 && nowX <= 100;
   const weeks = weekStarts(from, to);
@@ -77,7 +80,7 @@ export function TimelineLayout({
                 ))}
               </div>
             </div>
-            {rows.map((r) => (
+            {rows.slice(0, limit).map((r) => (
               <TimelineRowView key={r.id} row={r} pct={pct} nowX={nowShown ? nowX : null} />
             ))}
             {timeline.forecasts.map(({ project, forecast }) => (

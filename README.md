@@ -23,6 +23,8 @@ docker compose up -d --build --wait
 ```
 The first build takes a few minutes. Your data lives in the `tasklite-data` volume, so it survives restarts and container replacement. To try it with sample work first, start it with `TASKLITE_SEED=sample` (bash: `TASKLITE_SEED=sample docker compose up -d --build --wait`). The seed only loads into an empty database.
 
+Set `TZ` to your time zone, e.g. `America/Chicago`: copy `.env.example` to `.env` in the `docker/` folder, uncomment `TZ=` and set it, then run the `up` command again. A container's own zone is usually UTC, so without it the burn-down's days and the Timeline's Now line are in UTC. Storage is always UTC.
+
 **2. Unlock the UI.** Open <http://127.0.0.1:7420/> and paste the owner key, which this prints:
 ```bash
 docker compose exec tasklite tasklite owner-key

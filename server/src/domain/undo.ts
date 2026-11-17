@@ -8,6 +8,8 @@
  * `data.undo_of = <mutation_id>` (no separate `undo` event type; settled
  * with the coordinator for B2). The undo has its own mutation ID and is not
  * itself undoable. A second undo of the same mutation returns `conflict`.
+ * Undoing an answer the agent has already read also returns `conflict`
+ * (B18): the agent may have acted on it, so the owner leaves a note instead.
  */
 import { ToolError, type EventType } from '@tasklite/shared';
 import type { ServiceDeps, UndoService } from './contracts.js';
@@ -97,6 +99,22 @@ export function applyUndo(ctx: WriteContext, mutationId: string): { undone: stri
       'conflict',
       'Undo is only possible within 60 seconds of the change. Make the change again instead.',
     );
+  }
+
+  // An answer the agent has already read can't be taken back: the receipt
+  // (`read_by_agent_at`) isn't an event, so the clash check below misses it.
+  for (const e of events) {
+    if (e.type !== 'question.answered' || !e.data) continue;
+    const qid = (JSON.parse(e.data) as { question_id?: string }).question_id;
+    const read = qid
+      ? (sqlite.prepare('SELECT read_by_agent_at FROM questions WHERE id = ?').get(qid) as
+          { read_by_agent_at: string | null } | undefined)
+      : undefined;
+    if (read?.read_by_agent_at) {
+      throw new ToolError('conflict', 'The agent already read this answer; leave a note instead.', {
+        details: { question_id: qid },
+      });
+    }
   }
 
   // Did anything later touch the same objects?

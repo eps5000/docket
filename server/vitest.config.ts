@@ -10,5 +10,7 @@ export default defineConfig({
   },
   test: {
     include: ['tests/**/*.test.ts'],
+    // The scale check runs on demand only: `pnpm perf` (vitest.perf.config.ts).
+    exclude: ['tests/perf/**', '**/node_modules/**'],
   },
 });

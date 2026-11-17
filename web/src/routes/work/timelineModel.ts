@@ -27,13 +27,37 @@ export function dayLabel(date: string): string {
   return MONTH_DAY.format(new Date(dayMs(date)));
 }
 
-/** Today in the browser's local time, and how far through it we are (0–1). */
-export function localNow(now: Date = new Date()): { day: string; fraction: number } {
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  const midnight = new Date(y, now.getMonth(), now.getDate()).getTime();
-  return { day: `${y}-${m}-${d}`, fraction: (now.getTime() - midnight) / DAY };
+/**
+ * Today in `timeZone` (the server's, sent with the Timeline), and how far
+ * through it we are (0–1). The burn-down's days are in the server's zone too,
+ * so "today" and the Now line agree whatever the browser's zone is (B18).
+ * An unknown zone falls back to the browser's.
+ */
+export function zonedNow(
+  now: Date = new Date(),
+  timeZone?: string,
+): { day: string; fraction: number } {
+  let parts: Intl.DateTimeFormatPart[];
+  try {
+    parts = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hourCycle: 'h23',
+    }).formatToParts(now);
+  } catch {
+    return zonedNow(now);
+  }
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? '0';
+  const secs = Number(get('hour')) * 3600 + Number(get('minute')) * 60 + Number(get('second'));
+  return {
+    day: `${get('year')}-${get('month')}-${get('day')}`,
+    fraction: secs / 86_400,
+  };
 }
 
 // ---- Timeline ----

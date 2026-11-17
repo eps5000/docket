@@ -874,8 +874,10 @@
   min-height: 24px;
   font-size: 12px;
 }
+/* Archived cards keep full contrast (WCAG 1.4.3): a dashed border, not opacity.
+   Unarchive and the Archived filter say so in words. */
 .tl .tcard.archived {
-  opacity: 0.7;
+  border-style: dashed;
 }
 .tl a.epiccard {
   display: grid;
