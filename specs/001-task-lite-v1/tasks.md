@@ -418,10 +418,10 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 
 **Fills**: `server/src/import/jira/`, the `import` route handlers, the Import dialog
 
-- [ ] T138 [P] [US9] Unit tests for every mapping row in BUILD_SPEC §9 (types, status categories, priorities, links, ADF to Markdown losses, sub-tasks as work steps, field detection), using recorded responses in `server/tests/fixtures/jira/`, in `server/tests/unit/jira-map.test.ts`
-- [ ] T139 [P] [US9] Integration test: the dry run writes nothing; the commit is atomic; the token appears nowhere (grep the data dir and logs); a recorded 500-issue fixture dry-runs in under 2 minutes and accounts for 100% of issues (SC-011); in `server/tests/integration/us9-jira.test.ts`
-- [ ] T140 [US9] Implement the Jira client (REST v3 search and pagination, links, comments, attachment metadata and download, honouring `Retry-After`; the token held in memory, expiring after 1 h or on cancel), the mapper and the report builder, in `server/src/import/jira/{client,mapper,report}.ts`
-- [ ] T141 [US9] Implement the commit (one transaction, `jira_key`, `imported`, post-commit attachment download, the report stored as an `import_report` document), and fill the `import` route handlers and the three-step Import dialog per UI_SPEC §9.2
+- [X] T138 [P] [US9] Unit tests for every mapping row in BUILD_SPEC §9 (types, status categories, priorities, links, ADF to Markdown losses, sub-tasks as work steps, field detection), using recorded responses in `server/tests/fixtures/jira/`, in `server/tests/unit/jira-map.test.ts`
+- [X] T139 [P] [US9] Integration test: the dry run writes nothing; the commit is atomic; the token appears nowhere (grep the data dir and logs); a recorded 500-issue fixture dry-runs in under 2 minutes and accounts for 100% of issues (SC-011); in `server/tests/integration/us9-jira.test.ts`
+- [X] T140 [US9] Implement the Jira client (REST v3 search and pagination, links, comments, attachment metadata and download, honouring `Retry-After`; the token held in memory, expiring after 1 h or on cancel), the mapper and the report builder, in `server/src/import/jira/{client,mapper,report}.ts`
+- [X] T141 [US9] Implement the commit (one transaction, `jira_key`, `imported`, post-commit attachment download, the report stored as an `import_report` document), and fill the `import` route handlers and the three-step Import dialog per UI_SPEC §9.2
 
 ---
 
