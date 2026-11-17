@@ -1,0 +1,58 @@
+# FR-106 guard (tasks.md T145): Task Lite on a network with no route out.
+# CI only; never for a real install. Add it after the other files:
+#   docker compose -f docker/compose.yaml -f docker/compose.jira-fixture.yaml \
+#     -f docker/compose.no-egress.yaml up -d --build --wait
+# - `sealed` is an internal network: no gateway, no NAT, nothing outside it is reachable.
+# - tasklite and jira-fixture are only on `sealed`. The Jira fixture is the one other host
+#   tasklite may reach (TASKLITE_EGRESS_ALLOW).
+# - `gateway` forwards 127.0.0.1:7420 inwards to tasklite (Docker doesn't publish ports
+#   for a container that is only on an internal network).
+# - Every Node process in the tasklite container loads no-egress/egress-audit.mjs, which
+#   records any attempt to reach another host in /data/egress-audit.jsonl. CI asserts it
+#   stays empty (docker/no-egress/check.sh).
+networks:
+  sealed:
+    internal: true
+
+services:
+  tasklite:
+    networks: !override
+      sealed: {}
+    ports: !reset []
+    environment:
+      NODE_OPTIONS: --import=/opt/no-egress/egress-audit.mjs
+      TASKLITE_EGRESS_LOG: /data/egress-audit.jsonl
+      TASKLITE_EGRESS_ALLOW: jira-fixture.test
+    volumes:
+      - ./no-egress:/opt/no-egress:ro
+
+  jira-fixture:
+    networks: !override
+      sealed:
+        aliases:
+          - jira-fixture.test
+
+  gateway:
+    image: node:22-bookworm-slim
+    command: ['node', '/opt/no-egress/gateway.mjs']
+    volumes:
+      - ./no-egress:/opt/no-egress:ro
+    networks:
+      - default
+      - sealed
+    ports:
+      - '127.0.0.1:7420:7420'
+    depends_on:
+      tasklite:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:7420/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      start_period: 5s
+      start_interval: 1s
+      retries: 3
