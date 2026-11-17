@@ -353,6 +353,7 @@ O03.
 - Keep `BACKUP_KEEP` days.
 - CLI:
   - `tasklite backup now`;
+  - `tasklite checksums`: prints item, event and document checksums, to compare a restore with its backup (B15);
   - `tasklite restore <file>`: refuses while the server is running. Run it with `docker compose run --rm tasklite tasklite restore …` after stopping the service. It verifies the archive before replacing anything.
 - **Extra location** (owner decision 24): if `TASKLITE_BACKUP_EXTRA_DIR` is set, the finished archive is also copied there, with the same retention. A failed or missing extra copy never fails the default backup; it shows as a Problem, "Extra backup copy failed: <reason>", until a later copy succeeds. `tasklite restore` accepts an archive from either location.
 - Settings shows each location with its last successful backup time and how long backups are kept.
