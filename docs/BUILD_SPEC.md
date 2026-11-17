@@ -733,6 +733,22 @@ These can't be settled on paper. Each one has a default already, so none of them
 | V5 | SQLite WAL performance on a Docker Desktop named volume on Windows. | Named volume (not a bind mount). If writes are slow, measure before changing anything. | M1 |
 | V7 | Where each client loads skills from (Claude Code `~/.claude/skills/`; Codex `~/.codex/skills/` and its project path), and whether an Orca worker sees user-wide skills. | Document the paths that work in `skills/README.md`; fall back to pasting the skill into the worker's brief. | M8 |
 
+### Results (B18, 2026-11-17)
+
+What ran unattended on the build machine (Windows 11, Docker Desktop 29.9, installed Claude Code 2.1.318), and what is still the owner's. Each owner step is in `docker/smoke/OWNER-CHECKLIST.md`. Nothing below was run with the owner's own client configuration or data.
+
+| # | Status | What was observed |
+|---|---|---|
+| V1 | **Partly; owner to verify** | Headless Claude Code (`claude -p`) showed *live* while it ran, from request activity. Its session ends with the process, so headless can't say whether an interactive session stays open and answers `ping`. Owner: interactive Claude Code and Codex, idle past the 2-minute live window. |
+| V2 | **Owner to verify** | Needs an Orca worker running Claude from the owner's account. |
+| V3 | **Partly; owner to verify** | `"Authorization": "Bearer ${TASKLITE_TOKEN}"` in an `--mcp-config` file (the `.mcp.json` format) is expanded from the environment. Still open: what user scope (`claude mcp add --scope user`) stores. |
+| V4 | **Fixture only** | Field-ID detection (start date, story points) is verified against the synthetic Jira fixture (`docker/compose.jira-fixture.yaml`, B17), not a real Jira site. The dry-run report shows which field was used. Owner: a dry run on their own site before the pilot (ROADMAP §1.4). |
+| V5 | **Verified** | SQLite WAL on a Docker Desktop named volume on Windows: in the container's call log, every write tool had p50 ≈ 1 ms and p95 ≤ 5 ms over 280 writes. At scale (20 projects, 5,000 items, 100,000 events) every owner view rendered in under 1 s against the container (T143). The named volume stays. |
+| V6 | **Verified for Claude Code (headless): it forwards `structuredContent`, not the text block** | In the stream-json transcripts the model's tool result is the `structuredContent` JSON. On typical reads that is about 3.5× the compact text's tokens: 6,494 against 1,836 over eight calls, and a 25-item search costs 2,045 against 325. So SC-002 holds for the text block the budgets measure, but not for what Claude Code reads. Per this row's default: **an owner decision.** For example, send a trimmed `structuredContent`, or none, to clients that forward it (a contract change: MCP_SPEC, snapshot and budgets). Codex: owner to verify. |
+| V7 | **Partly; owner to verify** | Claude Code loads skills from a project's `.claude/skills/` (the B18 eval: `tasklite-worker` and `tasklite-coordinator` invoked headless). Still open: `~/.claude/skills/`, Codex's paths, and whether Orca workers see user-wide skills. |
+
+**Settings compatibility matrix:** every surface stays *Not verified* (`server/src/domain/compat.ts`). Claude Code's note says the headless smoke passed and that the user-scope setup is still to verify.
+
 ---
 
 ## 13. Definitions the UI and MCP share

@@ -4,6 +4,10 @@ Run this by hand, once per client surface, to fill in the Settings compatibility
 (BUILD_SPEC §10 "Smoke test with real clients", §12 V1–V3, V6, V7; tasks.md T146).
 Until a person has done it, every surface stays **Not verified** in Settings.
 
+**Start with [OWNER-CHECKLIST.md](OWNER-CHECKLIST.md):** one pass of about 20 minutes over all
+four surfaces, plus the PDF preview and an NVDA spot check. It lists what B18 already verified
+unattended, so you only do the rest.
+
 | Surface | Checklist |
 |---|---|
 | Installed Codex CLI | [codex.md](codex.md) |
@@ -19,6 +23,13 @@ Until a person has done it, every surface stays **Not verified** in Settings.
 - `compose.smoke.yaml`: a disposable instance with the sample data on its own volume,
   using your existing `TASKLITE_TOKEN`.
 - One checklist per surface. Each one ends with what to record.
+- `smoke.mjs pdf`: puts a one-page PDF on RCP-14, for the PDF preview check in Chrome.
+- `eval/eval.mjs`: the skills eval (T148). It runs the US1 and US11 scenarios with installed
+  Claude Code headless (`claude -p`), with and without the core skills, against a disposable
+  instance, and prints calls, tokens and mistakes per run. It uses a temporary `--mcp-config`
+  with `--strict-mcp-config` and `--setting-sources project`, so your client configuration is
+  never read or changed. It resets the instance's data before each run, so point it only at a
+  disposable one (TASKLITE_EVAL_CONTAINER, default `tasklite`).
 
 ## Before you start (once)
 1. Set up each client as the [README quick start](../../README.md#quick-start) says
