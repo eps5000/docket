@@ -516,7 +516,12 @@
 }
 .tl .runline .rl {
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+}
+/* The state and the agent never break inside ("orca-" / "w3"); the reason may wrap. */
+.tl .runline .rl-state,
+.tl .runline .rl-agent {
+  white-space: nowrap;
 }
 .tl .runline .rl-state {
   color: var(--ink-2);

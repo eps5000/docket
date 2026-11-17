@@ -63,7 +63,10 @@ export function BoardLayout({ items }: { items: readonly WorkItem[] }) {
                     aria-expanded={showWaiting}
                     onClick={() => setShowWaiting(!showWaiting)}
                   >
-                    <span>Waiting on blockers · {wait.length}</span>
+                    {/* Wraps as "Waiting on / blockers · 5", never with the count alone. */}
+                    <span>
+                      Waiting on <span className="nowrap">blockers · {wait.length}</span>
+                    </span>
                     <span className="subtog-act">
                       {showWaiting ? 'Hide' : 'Show'}
                       <span className={`chev${showWaiting ? '' : ' shut'}`} aria-hidden="true">

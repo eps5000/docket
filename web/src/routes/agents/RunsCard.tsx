@@ -116,7 +116,7 @@ export function RunsTable({ rows, label }: { rows: readonly AgentRow[]; label: s
               <td>
                 {r.run_state && <RunLine state={r.run_state} reason={leadReason(r.lead_parked)} />}
               </td>
-              <td>
+              <td className="nowrap">
                 <b>{r.label ? `${r.client} · ${r.label}` : r.client}</b>
               </td>
               <td>

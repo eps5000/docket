@@ -1235,3 +1235,7 @@
 .tl .footnote {
   margin: 8px 14px 12px;
 }
+
+.tl .nowrap {
+  white-space: nowrap;
+}
