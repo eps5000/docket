@@ -1,0 +1,1059 @@
+{
+  "_comment": "Synthetic Jira Cloud REST v3 issues for project TL (edge cases). Invented content: no real site, person, email or token. Comments beyond the first two of an issue live in tl-comments.json and are served by the comment endpoint. TL-22's long description is added by site.mjs.",
+  "project": { "id": "10100", "key": "TL", "name": "Till (edge cases)" },
+  "issues": [
+    {
+      "id": "11001",
+      "key": "TL-1",
+      "fields": {
+        "summary": "Checkout revamp",
+        "issuetype": { "id": "10000", "name": "Epic", "subtask": false, "hierarchyLevel": 1 },
+        "status": { "name": "To Do", "statusCategory": { "id": 2, "key": "new", "name": "To Do" } },
+        "priority": { "id": "2", "name": "High" },
+        "labels": ["payments"],
+        "description": {
+          "type": "doc",
+          "version": 1,
+          "content": [
+            {
+              "type": "heading",
+              "attrs": { "level": 2 },
+              "content": [{ "type": "text", "text": "Goal" }]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                { "type": "text", "text": "Make checkout " },
+                { "type": "text", "text": "fast", "marks": [{ "type": "strong" }] },
+                { "type": "text", "text": " and " },
+                { "type": "text", "text": "boring", "marks": [{ "type": "em" }] },
+                { "type": "text", "text": ". See " },
+                {
+                  "type": "text",
+                  "text": "the brief",
+                  "marks": [
+                    { "type": "link", "attrs": { "href": "https://docs.example.test/checkout" } }
+                  ]
+                },
+                { "type": "text", "text": " and run " },
+                { "type": "text", "text": "pnpm test", "marks": [{ "type": "code" }] },
+                { "type": "text", "text": "." },
+                { "type": "hardBreak" },
+                { "type": "text", "text": "Old flow is ", "marks": [] },
+                { "type": "text", "text": "gone", "marks": [{ "type": "strike" }] }
+              ]
+            },
+            {
+              "type": "bulletList",
+              "content": [
+                {
+                  "type": "listItem",
+                  "content": [
+                    { "type": "paragraph", "content": [{ "type": "text", "text": "One page" }] }
+                  ]
+                },
+                {
+                  "type": "listItem",
+                  "content": [
+                    { "type": "paragraph", "content": [{ "type": "text", "text": "Saved cards" }] },
+                    {
+                      "type": "orderedList",
+                      "attrs": { "order": 1 },
+                      "content": [
+                        {
+                          "type": "listItem",
+                          "content": [
+                            {
+                              "type": "paragraph",
+                              "content": [{ "type": "text", "text": "Opt in" }]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "listItem",
+                          "content": [
+                            {
+                              "type": "paragraph",
+                              "content": [{ "type": "text", "text": "Opt out" }]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "codeBlock",
+              "attrs": { "language": "ts" },
+              "content": [{ "type": "text", "text": "const total = items.reduce(sum, 0);" }]
+            },
+            {
+              "type": "blockquote",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [{ "type": "text", "text": "Ship before the holidays." }]
+                }
+              ]
+            },
+            { "type": "rule" },
+            {
+              "type": "table",
+              "attrs": { "isNumberColumnEnabled": false, "layout": "default" },
+              "content": [
+                {
+                  "type": "tableRow",
+                  "content": [
+                    {
+                      "type": "tableHeader",
+                      "content": [
+                        { "type": "paragraph", "content": [{ "type": "text", "text": "Step" }] }
+                      ]
+                    },
+                    {
+                      "type": "tableHeader",
+                      "content": [
+                        { "type": "paragraph", "content": [{ "type": "text", "text": "Owner" }] }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "tableRow",
+                  "content": [
+                    {
+                      "type": "tableCell",
+                      "content": [
+                        { "type": "paragraph", "content": [{ "type": "text", "text": "Cart" }] }
+                      ]
+                    },
+                    {
+                      "type": "tableCell",
+                      "content": [
+                        {
+                          "type": "paragraph",
+                          "content": [{ "type": "text", "text": "Web | API" }]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "issuelinks": [],
+        "attachment": [
+          {
+            "id": "20001",
+            "filename": "plan.md",
+            "size": 120,
+            "mimeType": "text/markdown",
+            "created": "2026-03-02T09:20:00.000+0000"
+          }
+        ],
+        "comment": { "comments": [], "maxResults": 2, "total": 0, "startAt": 0 },
+        "duedate": "2026-12-15",
+        "customfield_10015": "2026-11-01",
+        "created": "2026-03-02T09:15:00.000+0000",
+        "updated": "2026-03-09T11:00:00.000+0000",
+        "resolutiondate": null,
+        "assignee": null,
+        "reporter": { "accountId": "fixture-acct-0001", "displayName": "Riley Example" }
+      }
+    },
+    {
+      "id": "11002",
+      "key": "TL-2",
+      "fields": {
+        "summary": "Card form validation",
+        "issuetype": { "id": "10001", "name": "Story", "subtask": false, "hierarchyLevel": 0 },
+        "parent": {
+          "id": "11001",
+          "key": "TL-1",
+          "fields": {
+            "summary": "Checkout revamp",
+            "issuetype": { "name": "Epic", "hierarchyLevel": 1 }
+          }
+        },
+        "status": {
+          "name": "In Progress",
+          "statusCategory": { "id": 4, "key": "indeterminate", "name": "In Progress" }
+        },
+        "priority": { "id": "1", "name": "Highest" },
+        "labels": ["frontend", "Tech_Debt"],
+        "description": {
+          "type": "doc",
+          "version": 1,
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                { "type": "text", "text": "Ask " },
+                {
+                  "type": "mention",
+                  "attrs": { "id": "fixture-acct-0002", "text": "@Sam Placeholder" }
+                },
+                { "type": "text", "text": " about " },
+                { "type": "emoji", "attrs": { "shortName": ":credit_card:", "text": "💳" } },
+                { "type": "text", "text": " rules by " },
+                { "type": "date", "attrs": { "timestamp": "1764547200000" } },
+                { "type": "text", "text": ". State: " },
+                { "type": "status", "attrs": { "text": "AT RISK", "color": "red" } },
+                { "type": "text", "text": " Spec: " },
+                { "type": "inlineCard", "attrs": { "url": "https://docs.example.test/cards" } }
+              ]
+            },
+            {
+              "type": "panel",
+              "attrs": { "panelType": "warning" },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [{ "type": "text", "text": "Never log the card number." }]
+                }
+              ]
+            }
+          ]
+        },
+        "issuelinks": [
+          {
+            "id": "30001",
+            "type": { "id": "1", "name": "Blocks", "inward": "is blocked by", "outward": "blocks" },
+            "inwardIssue": { "id": "11003", "key": "TL-3" }
+          },
+          {
+            "id": "30003",
+            "type": {
+              "id": "3",
+              "name": "Relates",
+              "inward": "relates to",
+              "outward": "relates to"
+            },
+            "inwardIssue": { "id": "11004", "key": "TL-4" }
+          }
+        ],
+        "attachment": [
+          {
+            "id": "20002",
+            "filename": "card-form.png",
+            "size": 96,
+            "mimeType": "image/png",
+            "created": "2026-03-05T10:00:00.000+0000"
+          },
+          {
+            "id": "20003",
+            "filename": "huge-recording.mp4",
+            "size": 629145600,
+            "mimeType": "video/mp4",
+            "created": "2026-03-05T10:01:00.000+0000"
+          },
+          {
+            "id": "20004",
+            "filename": "trace.log",
+            "size": 64,
+            "mimeType": "text/plain",
+            "created": "2026-03-05T10:02:00.000+0000"
+          }
+        ],
+        "comment": { "comments": [], "maxResults": 2, "total": 3, "startAt": 0 },
+        "duedate": "2026-12-01",
+        "customfield_10015": "2026-11-20",
+        "customfield_10016": 5,
+        "customfield_10020": [{ "id": 7, "name": "Sprint 7", "state": "active" }],
+        "customfield_10001": { "id": "team-1", "name": "Checkout squad" },
+        "fixVersions": [{ "id": "10200", "name": "2026.12" }],
+        "components": [{ "id": "10300", "name": "Web" }],
+        "created": "2026-03-03T09:15:00.000+0000",
+        "updated": "2026-03-10T16:45:00.000+0000",
+        "resolutiondate": null,
+        "assignee": { "accountId": "fixture-acct-0002", "displayName": "Sam Placeholder" },
+        "reporter": { "accountId": "fixture-acct-0001", "displayName": "Riley Example" }
+      }
+    },
+    {
+      "id": "11003",
+      "key": "TL-3",
+      "fields": {
+        "summary": "Wire payment provider sandbox",
+        "issuetype": { "id": "10002", "name": "Task", "subtask": false, "hierarchyLevel": 0 },
+        "parent": {
+          "id": "11001",
+          "key": "TL-1",
+          "fields": {
+            "summary": "Checkout revamp",
+            "issuetype": { "name": "Epic", "hierarchyLevel": 1 }
+          }
+        },
+        "status": {
+          "name": "Code review",
+          "statusCategory": { "id": 4, "key": "indeterminate", "name": "In Progress" }
+        },
+        "priority": { "id": "3", "name": "Medium" },
+        "labels": [],
+        "description": null,
+        "issuelinks": [
+          {
+            "id": "30001",
+            "type": { "id": "1", "name": "Blocks", "inward": "is blocked by", "outward": "blocks" },
+            "outwardIssue": { "id": "11002", "key": "TL-2" }
+          }
+        ],
+        "attachment": [],
+        "comment": { "comments": [], "maxResults": 2, "total": 0, "startAt": 0 },
+        "duedate": null,
+        "customfield_10016": 3,
+        "created": "2026-03-03T10:00:00.000+0000",
+        "updated": "2026-03-08T10:00:00.000+0000",
+        "resolutiondate": null,
+        "assignee": null,
+        "reporter": { "accountId": "fixture-acct-0001", "displayName": "Riley Example" }
+      }
+    },
+    {
+      "id": "11004",
+      "key": "TL-4",
+      "fields": {
+        "summary": "Total rounds wrong for 3 items",
+        "issuetype": { "id": "10003", "name": "Bug", "subtask": false, "hierarchyLevel": 0 },
+        "status": { "name": "Done", "statusCategory": { "id": 3, "key": "done", "name": "Done" } },
+        "priority": { "id": "4", "name": "Low" },
+        "labels": ["payments"],
+        "description": {
+          "type": "doc",
+          "version": 1,
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                { "type": "text", "text": "Totals are " },
+                {
+                  "type": "text",
+                  "text": "red",
+                  "marks": [{ "type": "textColor", "attrs": { "color": "#ff5630" } }]
+                },
+                { "type": "text", "text": " and " },
+                { "type": "text", "text": "underlined", "marks": [{ "type": "underline" }] },
+                { "type": "text", "text": "; H" },
+                {
+                  "type": "text",
+                  "text": "2",
+                  "marks": [{ "type": "subsup", "attrs": { "type": "sub" } }]
+                },
+                { "type": "text", "text": "O." }
+              ]
+            },
+            {
+              "type": "expand",
+              "attrs": { "title": "Repro" },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [{ "type": "text", "text": "Add three items at 0.10." }]
+                }
+              ]
+            },
+            {
+              "type": "mediaSingle",
+              "attrs": { "layout": "center" },
+              "content": [
+                {
+                  "type": "media",
+                  "attrs": {
+                    "id": "media-0001",
+                    "type": "file",
+                    "collection": "",
+                    "alt": "screenshot.png"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "table",
+              "content": [
+                {
+                  "type": "tableRow",
+                  "content": [
+                    {
+                      "type": "tableHeader",
+                      "attrs": { "colspan": 2 },
+                      "content": [
+                        { "type": "paragraph", "content": [{ "type": "text", "text": "Totals" }] }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "tableRow",
+                  "content": [
+                    {
+                      "type": "tableCell",
+                      "content": [
+                        { "type": "paragraph", "content": [{ "type": "text", "text": "0.30" }] }
+                      ]
+                    },
+                    {
+                      "type": "tableCell",
+                      "content": [
+                        { "type": "paragraph", "content": [{ "type": "text", "text": "0.31" }] }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "extension",
+              "attrs": {
+                "extensionType": "com.example.macro",
+                "extensionKey": "chart",
+                "parameters": {}
+              }
+            },
+            {
+              "type": "decisionList",
+              "attrs": { "localId": "d1" },
+              "content": [
+                {
+                  "type": "decisionItem",
+                  "attrs": { "localId": "d2", "state": "DECIDED" },
+                  "content": [{ "type": "text", "text": "Round half up" }]
+                }
+              ]
+            },
+            {
+              "type": "layoutSection",
+              "content": [
+                {
+                  "type": "layoutColumn",
+                  "attrs": { "width": 50 },
+                  "content": [
+                    { "type": "paragraph", "content": [{ "type": "text", "text": "Left" }] }
+                  ]
+                },
+                {
+                  "type": "layoutColumn",
+                  "attrs": { "width": 50 },
+                  "content": [
+                    { "type": "paragraph", "content": [{ "type": "text", "text": "Right" }] }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "taskList",
+              "attrs": { "localId": "t1" },
+              "content": [
+                {
+                  "type": "taskItem",
+                  "attrs": { "localId": "t2", "state": "DONE" },
+                  "content": [{ "type": "text", "text": "Write a failing test" }]
+                },
+                {
+                  "type": "taskItem",
+                  "attrs": { "localId": "t3", "state": "TODO" },
+                  "content": [{ "type": "text", "text": "Fix rounding" }]
+                }
+              ]
+            },
+            { "type": "fancyWidget", "content": [{ "type": "text", "text": "Unknown node text" }] }
+          ]
+        },
+        "issuelinks": [
+          {
+            "id": "30002",
+            "type": {
+              "id": "2",
+              "name": "Duplicate",
+              "inward": "is duplicated by",
+              "outward": "duplicates"
+            },
+            "outwardIssue": { "id": "11005", "key": "TL-5" }
+          },
+          {
+            "id": "30003",
+            "type": {
+              "id": "3",
+              "name": "Relates",
+              "inward": "relates to",
+              "outward": "relates to"
+            },
+            "outwardIssue": { "id": "11002", "key": "TL-2" }
+          }
+        ],
+        "attachment": [],
+        "comment": { "comments": [], "maxResults": 2, "total": 0, "startAt": 0 },
+        "duedate": null,
+        "created": "2026-03-04T08:00:00.000+0000",
+        "updated": "2026-03-06T08:00:00.000+0000",
+        "resolutiondate": "2026-03-06T08:00:00.000+0000",
+        "assignee": null,
+        "reporter": { "accountId": "fixture-acct-0003", "displayName": "Jo Sample" }
+      }
+    },
+    {
+      "id": "11005",
+      "key": "TL-5",
+      "fields": {
+        "summary": "Rounding error on totals",
+        "issuetype": { "id": "10003", "name": "Bug", "subtask": false, "hierarchyLevel": 0 },
+        "status": {
+          "name": "Closed",
+          "statusCategory": { "id": 3, "key": "done", "name": "Done" }
+        },
+        "priority": { "id": "5", "name": "Lowest" },
+        "labels": [],
+        "description": {
+          "type": "doc",
+          "version": 1,
+          "content": [
+            { "type": "paragraph", "content": [{ "type": "text", "text": "Same as TL-4." }] }
+          ]
+        },
+        "issuelinks": [
+          {
+            "id": "30002",
+            "type": {
+              "id": "2",
+              "name": "Duplicate",
+              "inward": "is duplicated by",
+              "outward": "duplicates"
+            },
+            "inwardIssue": { "id": "11004", "key": "TL-4" }
+          }
+        ],
+        "attachment": [],
+        "comment": { "comments": [], "maxResults": 2, "total": 0, "startAt": 0 },
+        "duedate": null,
+        "created": "2026-03-04T08:30:00.000+0000",
+        "updated": "2026-03-06T08:30:00.000+0000",
+        "resolutiondate": "2026-03-06T08:30:00.000+0000",
+        "assignee": null,
+        "reporter": { "accountId": "fixture-acct-0003", "displayName": "Jo Sample" }
+      }
+    },
+    {
+      "id": "11006",
+      "key": "TL-6",
+      "fields": {
+        "summary": "Evaluate fraud scoring",
+        "issuetype": { "id": "10010", "name": "Spike", "subtask": false, "hierarchyLevel": 0 },
+        "status": {
+          "name": "Backlog",
+          "statusCategory": { "id": 2, "key": "new", "name": "To Do" }
+        },
+        "priority": { "id": "10", "name": "Critical" },
+        "labels": [],
+        "description": {
+          "type": "doc",
+          "version": 1,
+          "content": [
+            { "type": "paragraph", "content": [{ "type": "text", "text": "Time-box two days." }] }
+          ]
+        },
+        "issuelinks": [],
+        "attachment": [],
+        "comment": { "comments": [], "maxResults": 2, "total": 0, "startAt": 0 },
+        "duedate": null,
+        "created": "2026-03-05T08:00:00.000+0000",
+        "updated": "2026-03-05T08:00:00.000+0000",
+        "resolutiondate": null,
+        "assignee": null,
+        "reporter": { "accountId": "fixture-acct-0001", "displayName": "Riley Example" }
+      }
+    },
+    {
+      "id": "11007",
+      "key": "TL-7",
+      "fields": {
+        "summary": "Add Luhn check",
+        "issuetype": { "id": "10004", "name": "Subtask", "subtask": true, "hierarchyLevel": -1 },
+        "parent": {
+          "id": "11002",
+          "key": "TL-2",
+          "fields": {
+            "summary": "Card form validation",
+            "issuetype": { "name": "Story", "hierarchyLevel": 0 }
+          }
+        },
+        "status": { "name": "Done", "statusCategory": { "id": 3, "key": "done", "name": "Done" } },
+        "priority": { "id": "3", "name": "Medium" },
+        "labels": [],
+        "description": {
+          "type": "doc",
+          "version": 1,
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [{ "type": "text", "text": "Use the standard algorithm." }]
+            }
+          ]
+        },
+        "issuelinks": [],
+        "attachment": [
+          {
+            "id": "20005",
+            "filename": "notes.txt",
+            "size": 40,
+            "mimeType": "text/plain",
+            "created": "2026-03-06T09:00:00.000+0000"
+          }
+        ],
+        "comment": { "comments": [], "maxResults": 2, "total": 1, "startAt": 0 },
+        "duedate": "2026-11-25",
+        "created": "2026-03-06T08:00:00.000+0000",
+        "updated": "2026-03-07T08:00:00.000+0000",
+        "resolutiondate": "2026-03-07T08:00:00.000+0000",
+        "assignee": { "accountId": "fixture-acct-0002", "displayName": "Sam Placeholder" },
+        "reporter": { "accountId": "fixture-acct-0001", "displayName": "Riley Example" }
+      }
+    },
+    {
+      "id": "11008",
+      "key": "TL-8",
+      "fields": {
+        "summary": "Show inline errors",
+        "issuetype": { "id": "10004", "name": "Subtask", "subtask": true, "hierarchyLevel": -1 },
+        "parent": {
+          "id": "11002",
+          "key": "TL-2",
+          "fields": {
+            "summary": "Card form validation",
+            "issuetype": { "name": "Story", "hierarchyLevel": 0 }
+          }
+        },
+        "status": {
+          "name": "In Progress",
+          "statusCategory": { "id": 4, "key": "indeterminate", "name": "In Progress" }
+        },
+        "priority": { "id": "3", "name": "Medium" },
+        "labels": [],
+        "description": null,
+        "issuelinks": [],
+        "attachment": [],
+        "comment": { "comments": [], "maxResults": 2, "total": 0, "startAt": 0 },
+        "duedate": null,
+        "created": "2026-03-06T08:10:00.000+0000",
+        "updated": "2026-03-07T08:10:00.000+0000",
+        "resolutiondate": null,
+        "assignee": null,
+        "reporter": { "accountId": "fixture-acct-0001", "displayName": "Riley Example" }
+      }
+    },
+    {
+      "id": "11009",
+      "key": "TL-9",
+      "fields": {
+        "summary": "Copy review",
+        "issuetype": { "id": "10004", "name": "Subtask", "subtask": true, "hierarchyLevel": -1 },
+        "parent": {
+          "id": "11002",
+          "key": "TL-2",
+          "fields": {
+            "summary": "Card form validation",
+            "issuetype": { "name": "Story", "hierarchyLevel": 0 }
+          }
+        },
+        "status": { "name": "To Do", "statusCategory": { "id": 2, "key": "new", "name": "To Do" } },
+        "priority": { "id": "3", "name": "Medium" },
+        "labels": [],
+        "description": null,
+        "issuelinks": [
+          {
+            "id": "30009",
+            "type": {
+              "id": "3",
+              "name": "Relates",
+              "inward": "relates to",
+              "outward": "relates to"
+            },
+            "outwardIssue": { "id": "11003", "key": "TL-3" }
+          }
+        ],
+        "attachment": [],
+        "comment": { "comments": [], "maxResults": 2, "total": 0, "startAt": 0 },
+        "duedate": null,
+        "created": "2026-03-06T08:20:00.000+0000",
+        "updated": "2026-03-06T08:20:00.000+0000",
+        "resolutiondate": null,
+        "assignee": null,
+        "reporter": { "accountId": "fixture-acct-0001", "displayName": "Riley Example" }
+      }
+    },
+    {
+      "id": "11010",
+      "key": "TL-10",
+      "fields": {
+        "summary": "Orphan step",
+        "issuetype": { "id": "10004", "name": "Subtask", "subtask": true, "hierarchyLevel": -1 },
+        "parent": {
+          "id": "19999",
+          "key": "TL-99",
+          "fields": {
+            "summary": "Hidden parent",
+            "issuetype": { "name": "Story", "hierarchyLevel": 0 }
+          }
+        },
+        "status": { "name": "To Do", "statusCategory": { "id": 2, "key": "new", "name": "To Do" } },
+        "priority": { "id": "3", "name": "Medium" },
+        "labels": [],
+        "description": null,
+        "issuelinks": [],
+        "attachment": [],
+        "comment": { "comments": [], "maxResults": 2, "total": 0, "startAt": 0 },
+        "duedate": null,
+        "created": "2026-03-06T08:30:00.000+0000",
+        "updated": "2026-03-06T08:30:00.000+0000",
+        "resolutiondate": null,
+        "assignee": null,
+        "reporter": { "accountId": "fixture-acct-0001", "displayName": "Riley Example" }
+      }
+    },
+    {
+      "id": "11011",
+      "key": "TL-11",
+      "fields": {
+        "summary": "Saved cards",
+        "issuetype": { "id": "10001", "name": "Story", "subtask": false, "hierarchyLevel": 0 },
+        "status": {
+          "name": "Triage",
+          "statusCategory": { "id": 1, "key": "undefined", "name": "No Category" }
+        },
+        "priority": null,
+        "description": null,
+        "issuelinks": [],
+        "attachment": [],
+        "comment": { "comments": [], "maxResults": 2, "total": 0, "startAt": 0 },
+        "created": "2026-03-07T08:00:00.000+0000",
+        "updated": "2026-03-07T08:00:00.000+0000",
+        "resolutiondate": null,
+        "assignee": null,
+        "reporter": null
+      }
+    },
+    {
+      "id": "11012",
+      "key": "TL-12",
+      "fields": {
+        "summary": "Cycle A",
+        "issuetype": { "id": "10001", "name": "Story", "subtask": false, "hierarchyLevel": 0 },
+        "status": { "name": "To Do", "statusCategory": { "id": 2, "key": "new", "name": "To Do" } },
+        "priority": { "id": "3", "name": "Medium" },
+        "labels": [],
+        "description": null,
+        "issuelinks": [
+          {
+            "id": "30012",
+            "type": { "id": "1", "name": "Blocks", "inward": "is blocked by", "outward": "blocks" },
+            "outwardIssue": { "id": "11013", "key": "TL-13" }
+          },
+          {
+            "id": "30014",
+            "type": { "id": "1", "name": "Blocks", "inward": "is blocked by", "outward": "blocks" },
+            "inwardIssue": { "id": "11014", "key": "TL-14" }
+          },
+          {
+            "id": "30017",
+            "type": {
+              "id": "20",
+              "name": "Depends",
+              "inward": "is depended on by",
+              "outward": "depends on"
+            },
+            "inwardIssue": { "id": "11015", "key": "TL-15" }
+          }
+        ],
+        "attachment": [],
+        "comment": { "comments": [], "maxResults": 2, "total": 0, "startAt": 0 },
+        "duedate": null,
+        "created": "2026-03-07T09:00:00.000+0000",
+        "updated": "2026-03-07T09:00:00.000+0000",
+        "resolutiondate": null,
+        "assignee": null,
+        "reporter": { "accountId": "fixture-acct-0001", "displayName": "Riley Example" }
+      }
+    },
+    {
+      "id": "11013",
+      "key": "TL-13",
+      "fields": {
+        "summary": "Cycle B",
+        "issuetype": { "id": "10001", "name": "Story", "subtask": false, "hierarchyLevel": 0 },
+        "status": { "name": "To Do", "statusCategory": { "id": 2, "key": "new", "name": "To Do" } },
+        "priority": { "id": "3", "name": "Medium" },
+        "labels": [],
+        "description": null,
+        "issuelinks": [
+          {
+            "id": "30012",
+            "type": { "id": "1", "name": "Blocks", "inward": "is blocked by", "outward": "blocks" },
+            "inwardIssue": { "id": "11012", "key": "TL-12" }
+          },
+          {
+            "id": "30013",
+            "type": { "id": "1", "name": "Blocks", "inward": "is blocked by", "outward": "blocks" },
+            "outwardIssue": { "id": "11014", "key": "TL-14" }
+          }
+        ],
+        "attachment": [],
+        "comment": { "comments": [], "maxResults": 2, "total": 0, "startAt": 0 },
+        "duedate": null,
+        "created": "2026-03-07T09:10:00.000+0000",
+        "updated": "2026-03-07T09:10:00.000+0000",
+        "resolutiondate": null,
+        "assignee": null,
+        "reporter": { "accountId": "fixture-acct-0001", "displayName": "Riley Example" }
+      }
+    },
+    {
+      "id": "11014",
+      "key": "TL-14",
+      "fields": {
+        "summary": "Cycle C",
+        "issuetype": { "id": "10001", "name": "Story", "subtask": false, "hierarchyLevel": 0 },
+        "status": { "name": "To Do", "statusCategory": { "id": 2, "key": "new", "name": "To Do" } },
+        "priority": { "id": "3", "name": "Medium" },
+        "labels": [],
+        "description": null,
+        "issuelinks": [
+          {
+            "id": "30013",
+            "type": { "id": "1", "name": "Blocks", "inward": "is blocked by", "outward": "blocks" },
+            "inwardIssue": { "id": "11013", "key": "TL-13" }
+          },
+          {
+            "id": "30014",
+            "type": { "id": "1", "name": "Blocks", "inward": "is blocked by", "outward": "blocks" },
+            "outwardIssue": { "id": "11012", "key": "TL-12" }
+          }
+        ],
+        "attachment": [],
+        "comment": { "comments": [], "maxResults": 2, "total": 0, "startAt": 0 },
+        "duedate": null,
+        "created": "2026-03-07T09:20:00.000+0000",
+        "updated": "2026-03-07T09:20:00.000+0000",
+        "resolutiondate": null,
+        "assignee": null,
+        "reporter": { "accountId": "fixture-acct-0001", "displayName": "Riley Example" }
+      }
+    },
+    {
+      "id": "11015",
+      "key": "TL-15",
+      "fields": {
+        "summary": "Cross-project dependency",
+        "issuetype": { "id": "10002", "name": "Task", "subtask": false, "hierarchyLevel": 0 },
+        "status": { "name": "To Do", "statusCategory": { "id": 2, "key": "new", "name": "To Do" } },
+        "priority": { "id": "3", "name": "Medium" },
+        "labels": [],
+        "description": null,
+        "issuelinks": [
+          {
+            "id": "30015",
+            "type": { "id": "1", "name": "Blocks", "inward": "is blocked by", "outward": "blocks" },
+            "inwardIssue": { "id": "12004", "key": "OPS-4" }
+          },
+          {
+            "id": "30016",
+            "type": { "id": "4", "name": "Cloners", "inward": "is cloned by", "outward": "clones" },
+            "outwardIssue": { "id": "11011", "key": "TL-11" }
+          },
+          {
+            "id": "30017",
+            "type": {
+              "id": "20",
+              "name": "Depends",
+              "inward": "is depended on by",
+              "outward": "depends on"
+            },
+            "outwardIssue": { "id": "11012", "key": "TL-12" }
+          }
+        ],
+        "attachment": [],
+        "comment": { "comments": [], "maxResults": 2, "total": 0, "startAt": 0 },
+        "duedate": null,
+        "created": "2026-03-07T10:00:00.000+0000",
+        "updated": "2026-03-07T10:00:00.000+0000",
+        "resolutiondate": null,
+        "assignee": null,
+        "reporter": { "accountId": "fixture-acct-0001", "displayName": "Riley Example" }
+      }
+    },
+    {
+      "id": "11016",
+      "key": "TL-16",
+      "fields": {
+        "summary": "A deliberately long summary that keeps going past the two hundred character limit Task Lite places on titles, so the importer has to shorten it and say so in the dry-run report, rather than failing the whole import over one wordy ticket",
+        "issuetype": { "id": "10002", "name": "Task", "subtask": false, "hierarchyLevel": 0 },
+        "status": { "name": "To Do", "statusCategory": { "id": 2, "key": "new", "name": "To Do" } },
+        "priority": { "id": "3", "name": "Medium" },
+        "labels": [],
+        "description": null,
+        "issuelinks": [],
+        "attachment": [],
+        "comment": { "comments": [], "maxResults": 2, "total": 0, "startAt": 0 },
+        "duedate": null,
+        "created": "2026-03-07T11:00:00.000+0000",
+        "updated": "2026-03-07T11:00:00.000+0000",
+        "resolutiondate": null,
+        "assignee": null,
+        "reporter": { "accountId": "fixture-acct-0001", "displayName": "Riley Example" }
+      }
+    },
+    {
+      "id": "11017",
+      "key": "TL-17",
+      "fields": {
+        "summary": "Rotate the CI credentials",
+        "issuetype": { "id": "10002", "name": "Task", "subtask": false, "hierarchyLevel": 0 },
+        "status": { "name": "To Do", "statusCategory": { "id": 2, "key": "new", "name": "To Do" } },
+        "priority": { "id": "2", "name": "High" },
+        "labels": [],
+        "description": {
+          "type": "doc",
+          "version": 1,
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "The old one was ghp_FAKEfixtureTOKEN0000000000000000 and must go."
+                }
+              ]
+            }
+          ]
+        },
+        "issuelinks": [],
+        "attachment": [],
+        "comment": { "comments": [], "maxResults": 2, "total": 0, "startAt": 0 },
+        "duedate": null,
+        "created": "2026-03-07T12:00:00.000+0000",
+        "updated": "2026-03-07T12:00:00.000+0000",
+        "resolutiondate": null,
+        "assignee": null,
+        "reporter": { "accountId": "fixture-acct-0001", "displayName": "Riley Example" }
+      }
+    },
+    {
+      "id": "11018",
+      "key": "TL-18",
+      "fields": {
+        "summary": "Use key sk-fixture0000000000000000 in staging",
+        "issuetype": { "id": "10002", "name": "Task", "subtask": false, "hierarchyLevel": 0 },
+        "status": { "name": "To Do", "statusCategory": { "id": 2, "key": "new", "name": "To Do" } },
+        "priority": { "id": "3", "name": "Medium" },
+        "labels": [],
+        "description": null,
+        "issuelinks": [],
+        "attachment": [],
+        "comment": { "comments": [], "maxResults": 2, "total": 0, "startAt": 0 },
+        "duedate": null,
+        "created": "2026-03-07T12:10:00.000+0000",
+        "updated": "2026-03-07T12:10:00.000+0000",
+        "resolutiondate": null,
+        "assignee": null,
+        "reporter": { "accountId": "fixture-acct-0001", "displayName": "Riley Example" }
+      }
+    },
+    {
+      "id": "11019",
+      "key": "TL-19",
+      "fields": {
+        "summary": "Payments platform epic",
+        "issuetype": { "id": "10000", "name": "Epic", "subtask": false, "hierarchyLevel": 1 },
+        "parent": {
+          "id": "11020",
+          "key": "TL-20",
+          "fields": {
+            "summary": "Platform 2027",
+            "issuetype": { "name": "Initiative", "hierarchyLevel": 2 }
+          }
+        },
+        "status": {
+          "name": "In Progress",
+          "statusCategory": { "id": 4, "key": "indeterminate", "name": "In Progress" }
+        },
+        "priority": { "id": "3", "name": "Medium" },
+        "labels": [],
+        "description": null,
+        "issuelinks": [],
+        "attachment": [],
+        "comment": { "comments": [], "maxResults": 2, "total": 0, "startAt": 0 },
+        "duedate": null,
+        "created": "2026-03-08T08:00:00.000+0000",
+        "updated": "2026-03-08T08:00:00.000+0000",
+        "resolutiondate": null,
+        "assignee": null,
+        "reporter": { "accountId": "fixture-acct-0001", "displayName": "Riley Example" }
+      }
+    },
+    {
+      "id": "11020",
+      "key": "TL-20",
+      "fields": {
+        "summary": "Platform 2027",
+        "issuetype": { "id": "10020", "name": "Initiative", "subtask": false, "hierarchyLevel": 2 },
+        "status": { "name": "To Do", "statusCategory": { "id": 2, "key": "new", "name": "To Do" } },
+        "priority": { "id": "3", "name": "Medium" },
+        "labels": [],
+        "description": null,
+        "issuelinks": [],
+        "attachment": [],
+        "comment": { "comments": [], "maxResults": 2, "total": 0, "startAt": 0 },
+        "duedate": null,
+        "created": "2026-03-08T08:10:00.000+0000",
+        "updated": "2026-03-08T08:10:00.000+0000",
+        "resolutiondate": null,
+        "assignee": null,
+        "reporter": { "accountId": "fixture-acct-0001", "displayName": "Riley Example" }
+      }
+    },
+    {
+      "id": "11021",
+      "key": "TL-21",
+      "fields": {
+        "summary": "Bad dates and estimate",
+        "issuetype": { "id": "10001", "name": "Story", "subtask": false, "hierarchyLevel": 0 },
+        "status": { "name": "To Do", "statusCategory": { "id": 2, "key": "new", "name": "To Do" } },
+        "priority": { "id": "3", "name": "Medium" },
+        "labels": ["a b c!", "!!!"],
+        "description": null,
+        "issuelinks": [],
+        "attachment": [],
+        "comment": { "comments": [], "maxResults": 2, "total": 0, "startAt": 0 },
+        "duedate": "2026-11-01",
+        "customfield_10015": "2026-11-30",
+        "customfield_10016": -2,
+        "created": "2026-03-08T09:00:00.000+0000",
+        "updated": "2026-03-08T09:00:00.000+0000",
+        "resolutiondate": null,
+        "assignee": null,
+        "reporter": { "accountId": "fixture-acct-0001", "displayName": "Riley Example" }
+      }
+    },
+    {
+      "id": "11022",
+      "key": "TL-22",
+      "fields": {
+        "summary": "Very long description",
+        "issuetype": { "id": "10002", "name": "Task", "subtask": false, "hierarchyLevel": 0 },
+        "status": { "name": "Done", "statusCategory": { "id": 3, "key": "done", "name": "Done" } },
+        "priority": { "id": "3", "name": "Medium" },
+        "labels": [],
+        "description": null,
+        "issuelinks": [],
+        "attachment": [],
+        "comment": { "comments": [], "maxResults": 2, "total": 0, "startAt": 0 },
+        "duedate": null,
+        "created": "2026-03-08T10:00:00.000+0000",
+        "updated": "2026-03-08T10:00:00.000+0000",
+        "resolutiondate": "2026-03-09T10:00:00.000+0000",
+        "assignee": null,
+        "reporter": { "accountId": "fixture-acct-0001", "displayName": "Riley Example" }
+      }
+    }
+  ]
+}

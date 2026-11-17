@@ -66,10 +66,15 @@ jobs:
       - name: Install Chromium
         run: pnpm --filter @tasklite/web exec playwright install --with-deps chromium
 
+      # US9 (T141): a synthetic Jira site on the compose network for the import dialog's
+      # e2e (docker/compose.jira-fixture.yaml), with a throwaway test CA. No internet.
+      - name: Jira fixture certificates
+        run: docker/jira-fixture/make-certs.sh
+
       - name: Build and start the container
         env:
           TASKLITE_SEED: sample
-        run: docker compose -f docker/compose.yaml up -d --build --wait --wait-timeout 120
+        run: docker compose -f docker/compose.yaml -f docker/compose.jira-fixture.yaml up -d --build --wait --wait-timeout 120
 
       - name: Playwright
         env:
@@ -79,11 +84,11 @@ jobs:
       # SC-008 (T128): `docker compose down && up` keeps every item, event and document,
       # and a backup restores identically into a scratch volume.
       - name: Container replacement keeps the data (SC-008)
-        run: docker/check-replacement.sh -f docker/compose.yaml
+        run: docker/check-replacement.sh -f docker/compose.yaml -f docker/compose.jira-fixture.yaml
 
       - name: Container logs
         if: failure()
-        run: docker compose -f docker/compose.yaml logs --no-color
+        run: docker compose -f docker/compose.yaml -f docker/compose.jira-fixture.yaml logs --no-color
 
       - name: Upload Playwright report and traces
         if: failure()
@@ -97,4 +102,4 @@ jobs:
 
       - name: Stop the container
         if: always()
-        run: docker compose -f docker/compose.yaml down --volumes
+        run: docker compose -f docker/compose.yaml -f docker/compose.jira-fixture.yaml down --volumes

@@ -238,8 +238,8 @@ test.describe('shell navigation', () => {
     // US2's routes (Needs you, Work board/list/map, items, Agents) answer; see
     // us2-visibility. So does the packet screen (US3); see us3-review. Settings
     // answers since US4 (its project rows; us4-deps), the label page since US7
-    // (us7-planning), and Work → Timeline since US8 (us8-timeline). Only the
-    // Jira import dialog (US9) still answers 501, and it has no route of its own.
+    // (us7-planning), Work → Timeline since US8 (us8-timeline), and the Jira
+    // import dialog since US9 (us9-jira; it has no route of its own).
     for (const path of ['/work?layout=timeline']) {
       await page.goto(path);
       await expect(h1(page)).toBeVisible();
