@@ -242,7 +242,11 @@ test.describe('the item page', () => {
     await expect(bar.locator('.runline')).toContainText('live');
     await expect(bar.locator('.runline')).toContainText('claude · orca-w3');
     await expect(bar).toContainText(/last signal \d+[smh] ago/);
-    await expect(bar.getByRole('button')).toHaveCount(0);
+    // No recovery actions: the only button is the Help "?" (B22).
+    await expect(bar.getByRole('button')).toHaveCount(1);
+    await expect(bar.getByRole('button')).toHaveAccessibleName(
+      'Help: Run states: live, parked, stale and more',
+    );
     await page
       .getByRole('tablist', { name: 'Ticket views' })
       .getByRole('tab', { name: /^Checklist/ })
