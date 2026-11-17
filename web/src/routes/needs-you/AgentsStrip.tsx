@@ -1,6 +1,7 @@
 import { Link } from 'react-router';
 import type { NeedsYouResponse, RunState as RunStateValue } from '@tasklite/shared';
 import { RunState } from '../../components/kit';
+import { plural } from '../../lib/format';
 import { paths } from '../../lib/paths';
 
 /**
@@ -17,25 +18,52 @@ export const STRIP_STATES: readonly RunStateValue[] = [
   'failed',
 ];
 
-/** One line: a count per run state that has any, plus *All runs →*. Empty: "No active runs". */
-export function AgentsStrip({ counts }: { counts: NeedsYouResponse['agent_counts'] }) {
+/**
+ * One line: a count per run state that has any, each a link to Agents → Active
+ * now filtered to that state (`/agents?state=…`, B20); "n workspaces at risk"
+ * when any are, linking to Agents → Workspaces; then *All runs →*. Empty: "No
+ * active runs".
+ */
+export function AgentsStrip({
+  counts,
+  atRisk = 0,
+}: {
+  counts: NeedsYouResponse['agent_counts'];
+  /** Workspaces at risk (unpushed or uncommitted work), from `/api/workspaces`. */
+  atRisk?: number;
+}) {
   const shown = STRIP_STATES.filter((s) => (counts[s] ?? 0) > 0);
   return (
-    <div className="pulse" data-card="agents-strip">
+    <nav className="pulse" data-card="agents-strip" aria-label="Agents">
       <b>Agents</b>
       {shown.length === 0 ? (
         <span className="muted">No active runs</span>
       ) : (
         shown.map((s) => (
-          <span key={s} className="row" style={{ gap: 4 }}>
+          <Link
+            key={s}
+            className="pulselink"
+            to={paths.agents({ state: s })}
+            data-state={s}
+            title={`Show the ${s.replace('_', ' ')} runs on Agents`}
+          >
             <RunState state={s} />
             <span className="muted">× {counts[s]}</span>
-          </span>
+          </Link>
         ))
+      )}
+      {atRisk > 0 && (
+        <Link
+          className="pulselink risk"
+          to={paths.agents({ section: 'workspaces' })}
+          data-state="workspaces-at-risk"
+        >
+          {plural(atRisk, 'workspace')} at risk
+        </Link>
       )}
       <Link to={paths.agents()} style={{ marginLeft: 'auto' }}>
         All runs →
       </Link>
-    </div>
+    </nav>
   );
 }

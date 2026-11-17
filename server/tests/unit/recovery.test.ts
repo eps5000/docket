@@ -282,7 +282,7 @@ describe('resume_ready and the parking Problems', () => {
     d.clock.advance(minutes(1));
     const [p] = problems('resume_unattended');
     expect(p).toMatchObject({ item_id: 'RCP-17', run_id });
-    expect(p!.reason).toBe('RCP-17 can resume: RCP-12 is done · parked 3h.');
+    expect(p!.reason).toBe('Ready to resume: RCP-12 is done · parked 3h');
   });
 
   it('"Parked for 24 h" after PARK_MAX, and the run keeps its claim', () => {
@@ -293,9 +293,7 @@ describe('resume_ready and the parking Problems', () => {
     d.clock.advance(minutes(1));
     const [p] = problems('parked_too_long');
     expect(p).toMatchObject({ item_id: 'RCP-17', run_id });
-    expect(p!.reason).toBe(
-      'RCP-17 parked since Nov 6 · waiting on the coordinator. It keeps its claim.',
-    );
+    expect(p!.reason).toBe('Parked since Nov 6 · waiting on the coordinator · keeps its claim');
     expect(run(run_id).state).toBe('parked');
     sweepOnce(d.server.runtime);
     expect(run(run_id).state).toBe('parked');
@@ -313,6 +311,47 @@ describe('resume_ready and the parking Problems', () => {
       [`parked_too_long:${run_id}`, `resume_unattended:${run_id}`].sort(),
     );
     expect(flagOnce(d.server.runtime, seen)).toEqual([]);
+  });
+});
+
+describe('lead_parked on the owner views (B20, UI API only)', () => {
+  it('fills Work cards, the epic Tickets list and Agents rows; null when the lead is not parked', () => {
+    const { run_id } = claim('RCP-17');
+    park(run_id, { orchestrator: true });
+    const owner = d.read(OWNER_ACTOR);
+    const work = d.services.views.work(owner, { scope: 'all', filter: 'all', layout: 'board' });
+    const card = work.items.find((i) => i.id === 'RCP-17')!;
+    expect(card.lead_parked).toEqual({
+      waiting_on: { orchestrator: true },
+      since: run(run_id).parked_at,
+      resume_ready: false,
+    });
+    expect(
+      work.items.filter((i) => i.id !== 'RCP-17').every((i) => (i.lead_parked ?? null) === null),
+    ).toBe(true);
+
+    const epic = d.services.views.itemDetail(owner, { id: card.epic! });
+    expect(epic.children.find((c) => c.id === 'RCP-17')!.lead_parked).toEqual(card.lead_parked);
+
+    const rows = d.services.views.agents(owner, { scope: 'all' }).rows;
+    expect(rows.find((r) => r.run_id === run_id)!.lead_parked).toEqual(card.lead_parked);
+    expect(
+      rows.filter((r) => r.run_id !== run_id).every((r) => (r.lead_parked ?? null) === null),
+    ).toBe(true);
+  });
+
+  it('turns resume_ready once what it waits on is done', () => {
+    const { run_id } = claim('RCP-17');
+    park(run_id, { items: ['RCP-12'] });
+    closeItem('RCP-12');
+    const owner = d.read(OWNER_ACTOR);
+    const card = d.services.views
+      .work(owner, { scope: 'all', filter: 'all', layout: 'board' })
+      .items.find((i) => i.id === 'RCP-17')!;
+    expect(card.lead_parked).toMatchObject({
+      waiting_on: { items: ['RCP-12'] },
+      resume_ready: true,
+    });
   });
 });
 
@@ -420,7 +459,7 @@ describe('resources and orphans (FR-113)', () => {
     const [p] = problems('orphaned_resources');
     expect(p).toMatchObject({ item_id: 'RCP-17', run_id, resource_ids: [rsc] });
     expect(p!.reason).toBe(
-      "RCP-17's run ended 15m ago but left: dev server :5173 (pid 4242, port 5173). Stop it, then mark it released.",
+      'dev server :5173 (pid 4242, port 5173) still running 15m after its run ended · stop it, then mark it released',
     );
     expect(report().orphaned_resources).toEqual([
       expect.objectContaining({
@@ -500,7 +539,7 @@ describe('unpushed work may be lost (FR-114)', () => {
     const [p] = problems('unpushed_work');
     expect(p).toMatchObject({ item_id: 'RCP-17', run_id });
     expect(p!.reason).toBe(
-      'RCP-17 ended (lease expired) with 1 commit not pushed and uncommitted changes in C:/work/rcp-17.',
+      '1 commit not pushed · uncommitted changes · C:/work/rcp-17 · run ended (lease expired)',
     );
   });
 
@@ -518,7 +557,7 @@ describe('unpushed work may be lost (FR-114)', () => {
     expect(finish(run_id)).toEqual({ run_state: 'finished', warnings: ['2 commits not pushed'] });
     const [p] = problems('unpushed_work');
     expect(p).toMatchObject({ item_id: 'RCP-17', run_id });
-    expect(p!.reason).toBe('RCP-17 ended (finished) with 2 commits not pushed in C:/work/rcp-17.');
+    expect(p!.reason).toBe('2 commits not pushed · C:/work/rcp-17 · run ended (finished)');
     expect(wsState('C:/work/rcp-17')).toBe('at_risk');
   });
 

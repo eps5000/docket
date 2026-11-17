@@ -6,7 +6,9 @@ import { queryKeys } from '../../../lib/api';
 import { formatClock, isoTitle, middleTruncate } from '../../../lib/format';
 import { runOwnerMutation, showToast } from '../../../lib/undo';
 import { DocumentViewer } from '../../dialogs/DocumentViewer';
-import { RESUMABLE_RUN_STATES, parkedDetail, resumeNote, unpushedCommits } from './resumeNote';
+import { copyText } from './copy';
+import { CopyResumeNoteButton, canCopyResumeNote } from './leadActions';
+import { parkedDetail, unpushedCommits } from './resumeNote';
 
 const ENDED: readonly Run['run_state'][] = ['finished', 'failed', 'interrupted'];
 
@@ -24,15 +26,7 @@ function locatorText(l: Run['resources'][number]['locator']): string {
     .join(', ');
 }
 
-/** Copy to the clipboard, with a toast either way. */
-export function copyText(text: string, what: string): void {
-  const fail = () => showToast('Couldn’t copy. Select the text instead.');
-  if (!navigator.clipboard) {
-    fail();
-    return;
-  }
-  void navigator.clipboard.writeText(text).then(() => showToast(`Copied ${what}.`), fail);
-}
+export { copyText } from './copy';
 
 async function markReleased(id: string): Promise<void> {
   try {
@@ -71,7 +65,7 @@ export function WhereTheWorkLives({ run, data }: { run: Run; data: ItemDetailRes
   const dv = run.brief_document_version_id;
   const orch = run.orchestrator;
   const orchIds = orch ? [orch.dispatch_id, orch.task_id, orch.run_id].filter(Boolean) : [];
-  const resumable = run.is_lead && RESUMABLE_RUN_STATES.includes(run.run_state);
+  const resumable = canCopyResumeNote(run);
   return (
     <div
       className="worklives"
@@ -160,15 +154,7 @@ export function WhereTheWorkLives({ run, data }: { run: Run; data: ItemDetailRes
       )}
       {resumable && (
         <div className="row">
-          <Button
-            size="sm"
-            icon="copy"
-            onClick={() =>
-              copyText(resumeNote(data.item, run, window.location.origin), 'the resume note')
-            }
-          >
-            Copy resume note
-          </Button>
+          <CopyResumeNoteButton data={data} run={run} />
         </div>
       )}
       {viewer && dv && (

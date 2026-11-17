@@ -73,6 +73,22 @@ const ROUTES: { name: string; path: string; ready: (p: Page) => Locator }[] = [
     ready: (p) => p.getByRole('heading', { level: 1 }),
   },
   { name: 'Agents', path: '/agents', ready: (p) => p.getByRole('heading', { level: 1 }) },
+  // B20: Agents filtered from the Needs you strip; the agent bar with a stale lead and with none.
+  {
+    name: 'Agents, filtered to stale',
+    path: '/agents?state=stale',
+    ready: (p) => p.getByRole('table', { name: 'Active runs: stale' }),
+  },
+  {
+    name: 'Ticket: the agent bar, no lead (In progress)',
+    path: '/items/RCP-18',
+    ready: (p) => p.getByRole('region', { name: 'Lead agent' }),
+  },
+  {
+    name: 'Epic: Details with the Tickets list',
+    path: '/items/RCP-1?tab=details',
+    ready: (p) => p.locator('[data-ticket="RCP-14"]'),
+  },
   { name: 'Settings', path: '/settings', ready: (p) => p.getByRole('heading', { level: 1 }) },
   { name: 'Not found', path: '/no-such-page', ready: (p) => p.getByRole('heading', { level: 1 }) },
 ];
@@ -148,8 +164,11 @@ test.describe('dialogs: axe while open, and the keyboard (T142)', () => {
   });
 
   test('a destructive dialog starts on Cancel and traps focus', async ({ page }) => {
-    await page.goto('/items/RCP-15?tab=activity');
-    const release = page.getByRole('button', { name: 'Release lead claim…' });
+    // From the agent bar (B20), on any tab.
+    await page.goto('/items/RCP-15?tab=details');
+    const release = page
+      .getByRole('region', { name: 'Lead agent' })
+      .getByRole('button', { name: 'Release lead claim…' });
     await release.click();
     const dialog = page.getByRole('dialog', { name: 'Release lead claim on RCP-15?' });
     await expect(dialog.getByRole('button', { name: 'Cancel' })).toBeFocused();

@@ -22,8 +22,10 @@ import {
   Priority,
   PROVENANCE,
   Provenance,
+  RunLine,
   RunState,
   Section,
+  parkedReason,
   Skeleton,
   TicketCard,
   ToastRegion,
@@ -230,6 +232,41 @@ describe('Section (collapsible, per-type persistence)', () => {
 
     await user.click(screen.getByRole('button', { name: /^Work/ }));
     expect(screen.getByText('Other steps')).toBeTruthy();
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEYS.collapsed)!)).toEqual({});
+  });
+
+  it('starts collapsed with defaultCollapsed, and remembers that you opened it (B20)', async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(
+      <Section
+        sectionKey="agents-recent"
+        title="Recent"
+        summary="2 in the last 24 h"
+        defaultCollapsed
+      >
+        <p>Recent runs</p>
+      </Section>,
+    );
+    const toggle = screen.getByRole('button', { name: /Recent/ });
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByText('Recent runs')).toBeNull();
+    // Nothing is stored while it matches its default.
+    expect(localStorage.getItem(STORAGE_KEYS.collapsed)).toBeNull();
+
+    await user.click(toggle);
+    expect(screen.getByText('Recent runs')).toBeTruthy();
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEYS.collapsed)!)).toEqual({
+      'agents-recent': false,
+    });
+    unmount();
+
+    render(
+      <Section sectionKey="agents-recent" title="Recent" defaultCollapsed>
+        <p>Still open</p>
+      </Section>,
+    );
+    expect(screen.getByText('Still open')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: /Recent/ }));
     expect(JSON.parse(localStorage.getItem(STORAGE_KEYS.collapsed)!)).toEqual({});
   });
 
@@ -456,6 +493,41 @@ const baseItem = {
   last_activity_at: '2026-11-06T10:59:20Z',
 };
 
+const NBSP = String.fromCharCode(0xa0);
+
+describe('RunLine and parkedReason (B20)', () => {
+  it('renders state · reason · agent, then the age, with the meaning in title', () => {
+    const { container } = render(
+      <RunLine state="stale" reason="silent 47m" agent="codex · orca-w1" age="2m" />,
+    );
+    const line = container.querySelector('.runline')!;
+    expect(line.classList.contains('rs-stale')).toBe(true);
+    expect(line.getAttribute('title')).toBe(RUN_STATE_LABELS.stale.meaning);
+    expect(line.querySelector('.rl')!.textContent).toBe(
+      `stale${NBSP}· silent 47m${NBSP}· codex · orca-w1`,
+    );
+    expect(line.querySelector('.rl-age')!.textContent).toBe('2m');
+  });
+
+  it('omits empty segments', () => {
+    const { container } = render(<RunLine state="live" />);
+    expect(container.querySelector('.rl')!.textContent).toBe('live');
+  });
+
+  it('says what a parked run waits on', () => {
+    expect(parkedReason({ items: ['RCP-12'] })).toBe('waiting on RCP-12');
+    expect(parkedReason({ orchestrator: true })).toBe('waiting on the coordinator');
+    expect(parkedReason({ person: true })).toBe('waiting on a person');
+    expect(parkedReason({ items: ['RCP-12'], person: true })).toBe(
+      'waiting on RCP-12 and a person',
+    );
+    expect(parkedReason({ until: '2026-11-20T10:00:00' })).toMatch(
+      /^waiting until Nov 20 \d\d:\d\d$/,
+    );
+    expect(parkedReason({})).toBeUndefined();
+  });
+});
+
 describe('TicketCard', () => {
   it('shows no run line when unclaimed', () => {
     const { container } = render(
@@ -463,7 +535,7 @@ describe('TicketCard', () => {
         <TicketCard item={baseItem} />
       </MemoryRouter>,
     );
-    expect(container.querySelector('.run')).toBeNull();
+    expect(container.querySelector('.run, .runline')).toBeNull();
     expect(container.querySelector('a.tcard')!.getAttribute('href')).toBe('/items/RCP-14');
   });
 
@@ -479,9 +551,35 @@ describe('TicketCard', () => {
         />
       </MemoryRouter>,
     );
-    expect(container.querySelector('.run-live')).toBeTruthy();
+    expect(container.querySelector('.runline.rs-live')).toBeTruthy();
     expect(container.textContent).toContain('claude · orca-w3');
     expect(container.textContent).toContain('40s');
+  });
+
+  it('shows a parked lead as one line: state · what it waits on · agent (B20)', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <TicketCard
+          item={{
+            ...baseItem,
+            lead: { client: 'claude', label: 'orca-w4', run_id: 'r-2', run_state: 'parked' },
+            lead_parked: {
+              waiting_on: { orchestrator: true },
+              since: '2026-11-06T10:57:00Z',
+              resume_ready: false,
+            },
+          }}
+        />
+      </MemoryRouter>,
+    );
+    const lines = container.querySelectorAll('.runline');
+    expect(lines).toHaveLength(1);
+    const text = lines[0]!.querySelector('.rl')!.textContent!;
+    // The separators are glued to the segment before them: no line starts with "·".
+    expect(text).toBe(
+      ['parked', 'waiting on the coordinator', 'claude · orca-w4'].join(`${NBSP}· `),
+    );
+    expect(lines[0]!.getAttribute('title')).toBe(RUN_STATE_LABELS.parked.meaning);
   });
 
   it('marks blocked and for-you edges and opens the packet for Review cards with one ready', () => {

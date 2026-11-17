@@ -10,6 +10,7 @@ import { useBootstrap } from '../../app/useBootstrap';
 import { queryKeys } from '../../lib/api';
 import { paths, type ItemTab } from '../../lib/paths';
 import { ActivityTab } from './ActivityTab';
+import { AgentBar } from './AgentBar';
 import { ChecklistTab } from './ChecklistTab';
 import { DependenciesTab } from './DependenciesTab';
 import { DetailsTab } from './DetailsTab';
@@ -96,8 +97,8 @@ export function itemTabs(
 }
 
 /**
- * The ticket and epic page (`/items/:id`, UI_SPEC §6.3): header, banners,
- * the four view tabs, and one column of sections per tab. Tab memory lives in
+ * The ticket and epic page (`/items/:id`, UI_SPEC §6.3): header, the agent
+ * bar (B20), banners, the four view tabs, and one column of sections per tab. Tab memory lives in
  * the open-item tab (sessionStorage). US2 (T083) fills the read views.
  */
 export function ItemPage() {
@@ -151,6 +152,7 @@ export function ItemPage() {
   return (
     <div className="itempage" data-item-page={id}>
       <ItemHeader id={id} data={data} />
+      {data && <AgentBar data={data} />}
       {data && <ItemBanners data={data} />}
       <ViewTabs
         label={kind === 'epic' ? 'Epic views' : 'Ticket views'}

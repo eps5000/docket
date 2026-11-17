@@ -14,6 +14,10 @@ export interface SectionProps {
   summary?: ReactNode;
   /** Actions at the right of the header (*Checklist history*, *Open packet*, *Edit*). */
   extraHead?: ReactNode;
+  /** Start collapsed until the owner opens it (Agents → Recent, the burn-down); remembered like any other. */
+  defaultCollapsed?: boolean;
+  /** An anchor (`/agents#workspaces`). */
+  id?: string;
   children?: ReactNode;
 }
 
@@ -22,12 +26,22 @@ export interface SectionProps {
  * h3 title + "· summary", with `aria-expanded`. Collapsed sections use
  * `--panel-2` and render only the header.
  */
-export function Section({ sectionKey, title, summary, extraHead, children }: SectionProps) {
-  const [collapsed, setCollapsed] = useState(() => isSectionCollapsed(sectionKey));
+export function Section({
+  sectionKey,
+  title,
+  summary,
+  extraHead,
+  defaultCollapsed = false,
+  id,
+  children,
+}: SectionProps) {
+  const [collapsed, setCollapsed] = useState(() =>
+    isSectionCollapsed(sectionKey, defaultCollapsed),
+  );
   const bodyId = useId();
   const toggle = () => {
     const next = !collapsed;
-    setSectionCollapsed(sectionKey, next);
+    setSectionCollapsed(sectionKey, next, defaultCollapsed);
     setCollapsed(next);
   };
   return (
@@ -35,6 +49,7 @@ export function Section({ sectionKey, title, summary, extraHead, children }: Sec
       className={`card sec${collapsed ? ' collapsed' : ''}`}
       data-section={sectionKey}
       aria-label={title}
+      id={id}
     >
       <div className="sechead">
         <button

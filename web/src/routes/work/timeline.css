@@ -251,3 +251,8 @@
   border: 1px solid var(--line);
   border-radius: 8px;
 }
+
+/* B20: the burn-down is a collapsible section; the chart keeps the card's full width. */
+.tl [data-card='burndown'] .secbody {
+  padding: 0 14px 14px;
+}

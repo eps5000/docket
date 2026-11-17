@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { STATUS_LABELS, type Status, type WorkItem } from '@tasklite/shared';
-import { Button, TicketCard } from '../../components/kit';
+import { Button, Icon, TicketCard } from '../../components/kit';
 import { apiClient } from '../../app/queryClient';
 import { queryKeys } from '../../lib/api';
 import { plural } from '../../lib/format';
@@ -56,17 +56,21 @@ export function BoardLayout({ items }: { items: readonly WorkItem[] }) {
               )}
               {wait.length > 0 && (
                 <>
-                  <div className="subh">
+                  {/* One button with a full-width hit target (B20), not a label plus a small link. */}
+                  <button
+                    type="button"
+                    className="subh subtog"
+                    aria-expanded={showWaiting}
+                    onClick={() => setShowWaiting(!showWaiting)}
+                  >
                     <span>Waiting on blockers · {wait.length}</span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      aria-expanded={showWaiting}
-                      onClick={() => setShowWaiting(!showWaiting)}
-                    >
+                    <span className="subtog-act">
                       {showWaiting ? 'Hide' : 'Show'}
-                    </Button>
-                  </div>
+                      <span className={`chev${showWaiting ? '' : ' shut'}`} aria-hidden="true">
+                        <Icon name="chev" small />
+                      </span>
+                    </span>
+                  </button>
                   {showWaiting ? (
                     wait.slice(0, limit).map((i) => <TicketCard key={i.id} item={i} />)
                   ) : (

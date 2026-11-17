@@ -4,10 +4,11 @@ import {
   BlockedChip,
   Priority,
   ReviewChip,
-  RunState,
+  RunLine,
   StatusChip,
   TypeIcon,
   leadName,
+  leadReason,
 } from '../../components/kit';
 import { formatAge, isoTitle } from '../../lib/format';
 import { paths } from '../../lib/paths';
@@ -69,10 +70,11 @@ export function ListLayout({ items }: { items: readonly WorkItem[] }) {
                 </td>
                 <td>
                   {i.lead && (
-                    <>
-                      <div>{leadName(i.lead)}</div>
-                      <RunState state={i.lead.run_state} />
-                    </>
+                    <RunLine
+                      state={i.lead.run_state}
+                      reason={leadReason(i.lead_parked)}
+                      agent={leadName(i.lead)}
+                    />
                   )}
                 </td>
                 <td>

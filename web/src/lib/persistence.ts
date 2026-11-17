@@ -28,7 +28,11 @@ export const STORAGE_KEYS = {
   notifications: 'tl.notifications',
   /** localStorage: event seqs already notified in this browser (UI_SPEC §6.7a; T085). */
   notified: 'tl.notified',
-  /** localStorage: `{[sectionType]: true}` for collapsed sections. */
+  /**
+   * localStorage: `{[sectionType]: boolean}`, kept only where it differs from
+   * the section's default (most sections start open; Recent and the burn-down
+   * start collapsed).
+   */
   collapsed: 'tl.collapsed',
 } as const;
 
@@ -88,14 +92,18 @@ export function writeJson(key: StorageKey, value: unknown): void {
 
 // ---- Collapsed sections (per section type) ----
 
-export function isSectionCollapsed(type: string): boolean {
+export function isSectionCollapsed(type: string, defaultCollapsed = false): boolean {
   const map = readJson<Record<string, boolean>>(STORAGE_KEYS.collapsed, {});
-  return map[type] === true;
+  return typeof map[type] === 'boolean' ? map[type] : defaultCollapsed;
 }
 
-export function setSectionCollapsed(type: string, collapsed: boolean): void {
+export function setSectionCollapsed(
+  type: string,
+  collapsed: boolean,
+  defaultCollapsed = false,
+): void {
   const map = readJson<Record<string, boolean>>(STORAGE_KEYS.collapsed, {});
-  if (collapsed) map[type] = true;
-  else delete map[type];
+  if (collapsed === defaultCollapsed) delete map[type];
+  else map[type] = collapsed;
   writeJson(STORAGE_KEYS.collapsed, map);
 }

@@ -61,3 +61,9 @@ export function formatAgo(at: string | Date, now: Date = new Date()): string {
   const age = formatAge(at, now);
   return /^\d+[smh]$/.test(age) ? `${age} ago` : age;
 }
+
+/** "10:57" when within the last 24 h, else "Nov 14 10:57" (a park's "since"). */
+export function formatSince(at: string | Date, now: Date = new Date()): string {
+  const d = toDate(at);
+  return now.getTime() - d.getTime() < 86_400_000 ? formatClock(d) : formatStamp(d);
+}

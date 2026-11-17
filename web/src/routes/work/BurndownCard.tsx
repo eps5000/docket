@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import type { BurndownResponse } from '@tasklite/shared';
-import { Button, Card, CardHeader, EmptyState, Skeleton } from '../../components/kit';
+import { Button, EmptyState, Section, Skeleton } from '../../components/kit';
 import { apiClient } from '../../app/queryClient';
 import { QueryState } from '../../app/QueryState';
 import { useShell } from '../../app/ShellState';
@@ -14,15 +14,24 @@ import {
   changeText,
   dayLabel,
   forecastLine,
+  forecastRange,
 } from './timelineModel';
 import './timeline.css';
+
+/** The collapsed card's forecast: "P50 Nov 24 – P85 Dec 3", or "no forecast yet". */
+export function forecastShort(f: BurndownResponse['forecast']): string {
+  return f.available ? `Forecast ${forecastRange(f)}` : 'no forecast yet';
+}
 
 /**
  * Remaining effort (UI_SPEC §9.1): the burn-down card above the Timeline
  * grid, scoped by the same Epic and Label filters, otherwise the project
- * scope. A hand-built SVG step chart (180px, tokens only, both themes) with
- * scope additions as up-ticks, a Today line and the forecast band; one line
- * of forecast under it; an sr-only summary and *Show as table*.
+ * scope. It starts collapsed to its one-line summary ("n pts open · n not
+ * estimated · last 4 weeks · P50 … / no forecast yet") and opens on click; the
+ * state is remembered like any section (B20). Open: a hand-built SVG step
+ * chart (180px, tokens only, both themes) with scope additions as up-ticks, a
+ * Today line and the forecast band; one line of forecast under it; an sr-only
+ * summary and *Show as table*.
  */
 export function BurndownCard({ epic, label }: { epic?: string; label?: string }) {
   const { scope } = useShell();
@@ -33,18 +42,23 @@ export function BurndownCard({ epic, label }: { epic?: string; label?: string })
   const [table, setTable] = useState(false);
   const d = query.data;
   return (
-    <Card data-card="burndown">
-      <CardHeader
+    <div data-card="burndown">
+      <Section
+        sectionKey="burndown"
         title="Remaining effort"
-        extra={
+        defaultCollapsed
+        summary={
           d && (
-            <span className="src" data-burndown-summary="">
-              {d.open_effort} pts open · {d.not_estimated} not estimated · last 4 weeks
-            </span>
+            <>
+              <span data-burndown-summary="">
+                {d.open_effort} pts open · {d.not_estimated} not estimated · last 4 weeks
+              </span>
+              {' · '}
+              <span data-forecast-short="">{forecastShort(d.forecast)}</span>
+            </>
           )
         }
-      />
-      <div className="pad" style={{ paddingTop: 0 }}>
+      >
         <QueryState
           query={query}
           skeleton={<Skeleton lines={1} tall={1} label="Loading burn-down" />}
@@ -76,8 +90,8 @@ export function BurndownCard({ epic, label }: { epic?: string; label?: string })
             )
           }
         </QueryState>
-      </div>
-    </Card>
+      </Section>
+    </div>
   );
 }
 

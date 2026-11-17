@@ -51,10 +51,16 @@ test.describe('Needs you', () => {
     await expect(page.getByRole('heading', { name: /^Deferred, not verified · 2$/ })).toBeVisible();
     await expect(page.getByRole('heading', { name: /^Your Planning queue · 5$/ })).toBeVisible();
 
-    // The Agents strip counts runs by state, in words.
+    // The Agents strip counts runs by state, in words; each count links to Agents → that state.
     const strip = card(page, 'agents-strip');
     for (const s of ['live', 'reported', 'needs input', 'stale', 'failed']) {
       await expect(strip).toContainText(s);
+    }
+    for (const s of ['live', 'reported', 'needs_input', 'stale', 'failed']) {
+      await expect(strip.locator(`a[data-state="${s}"]`)).toHaveAttribute(
+        'href',
+        `/agents?state=${s}`,
+      );
     }
 
     // One screen at 1440×900: nothing scrolls.
@@ -72,7 +78,10 @@ test.describe('Needs you', () => {
     await expect(problems.getByRole('heading', { name: /^Problems · \d+$/ })).toBeVisible();
     const stale = problems.locator('[data-problem="stale_run"]');
     await expect(stale).toContainText('RCP-15');
-    await expect(stale).toContainText('Treated as unknown, not finished.');
+    // Key fact first, whole facts on up to two lines (B20).
+    await expect(stale).toContainText('Lead silent for');
+    await expect(stale).toContainText('treated as unknown, not finished');
+    await expect(stale.locator('.reason')).toHaveAttribute('title', /^Lead silent for \d+m · /);
     await stale.getByRole('link', { name: 'Inspect' }).click();
     await expect(page).toHaveURL(/\/items\/RCP-15\?tab=activity$/);
     await expect(page.getByRole('tabpanel')).toContainText('Lead and runs');
@@ -216,29 +225,101 @@ test.describe('the item page', () => {
     const views = page.getByRole('tablist', { name: 'Epic views' });
     await expect(views.getByRole('tab', { name: /^Map/ })).toContainText(/\d+\/12/);
     await expect(page.getByRole('tabpanel')).toContainText('Tickets in this epic');
+    // Each ticket carries the coordination state its Board card shows (B20).
+    const ticket = (id: string) => page.locator(`[data-ticket="${id}"]`);
+    await expect(ticket('RCP-14').locator('.runline')).toContainText('live');
+    await expect(ticket('RCP-14').locator('.runline')).toContainText('claude · orca-w3');
+    await expect(ticket('RCP-16')).toContainText('Blocked by');
+    await expect(ticket('RCP-12')).toContainText('For you');
+    await expect(ticket('RCP-29').locator('.runline')).toHaveCount(0);
+  });
+
+  test('the agent bar on every tab: a live lead, a stale lead, no lead (B20)', async ({ page }) => {
+    const bar = page.getByRole('region', { name: 'Lead agent' });
+    // A live lead: its run line, last signal and worktree, on Details and on Checklist.
+    await page.goto('/items/RCP-14?tab=details');
+    await expect(bar).toHaveAttribute('data-agent-bar', 'live');
+    await expect(bar.locator('.runline')).toContainText('live');
+    await expect(bar.locator('.runline')).toContainText('claude · orca-w3');
+    await expect(bar).toContainText(/last signal \d+[smh] ago/);
+    await expect(bar.getByRole('button')).toHaveCount(0);
+    await page
+      .getByRole('tablist', { name: 'Ticket views' })
+      .getByRole('tab', { name: /^Checklist/ })
+      .click();
+    await expect(bar).toHaveAttribute('data-agent-bar', 'live');
+
+    // A stale lead: the same Release and resume-note actions as Lead and runs.
+    await page.goto('/items/RCP-15?tab=deps');
+    await expect(bar).toHaveAttribute('data-agent-bar', 'stale');
+    await expect(bar.getByRole('button', { name: 'Release lead claim…' })).toBeVisible();
+    await expect(bar.getByRole('button', { name: 'Copy resume note' })).toBeVisible();
+
+    // No lead: a quiet line while In progress (RCP-18's run failed), nothing in Ready.
+    await page.goto('/items/RCP-18');
+    await expect(bar).toHaveText('No agent on this');
+    await page.goto('/items/RCP-16');
+    await expect(page.getByRole('tabpanel')).toBeVisible();
+    await expect(bar).toHaveCount(0);
   });
 });
 
 test.describe('Agents and the palette', () => {
-  test('Agents: needs input, stale, failed, live, reported first, with lease and how we know', async ({
+  test('Agents: Active now (needs input, failed, stale, live, reported), Workspaces, then Recent collapsed', async ({
     page,
   }) => {
     await page.goto('/agents');
-    const rows = page.locator('[data-card="runs"] tbody tr');
-    await expect(rows.nth(0)).toContainText('needs input');
+    const active = page.locator('[data-section="agents-active"]');
+    const rows = active.locator('tbody tr');
+    await expect(rows.first()).toBeVisible();
+    const sections = await page
+      .locator('.agents section[data-section]')
+      .evaluateAll((els) => els.map((e) => e.getAttribute('data-section')));
+    expect(sections).toEqual(['agents-active', 'agents-workspaces', 'agents-recent']);
+    expect(await rows.evaluateAll((els) => els.map((e) => e.getAttribute('data-state')))).toEqual([
+      'needs_input',
+      'failed',
+      'stale',
+      'live',
+      'reported',
+    ]);
     await expect(rows.nth(0)).toContainText('Paused');
-    await expect(rows.nth(1)).toContainText('stale');
-    await expect(rows.nth(1)).toContainText('Unknown: no heartbeat');
-    await expect(rows.nth(1)).toContainText(/Expires \d\d:\d\d/);
-    await expect(rows.nth(2)).toContainText('failed');
-    await expect(rows.nth(3)).toContainText('live');
-    await expect(rows.nth(3)).toContainText('Client heartbeat');
-    await expect(rows.nth(3)).toContainText(/Until \d\d:\d\d/);
-    await expect(rows.nth(4)).toContainText('reported');
+    await expect(rows.nth(2)).toContainText('Unknown: no heartbeat');
+    await expect(rows.nth(2)).toContainText(/Expires \d\d:\d\d/);
+    const rcp14 = rows.filter({ hasText: 'RCP-14' });
+    await expect(rcp14).toContainText('Client heartbeat');
+    await expect(rcp14).toContainText(/Until \d\d:\d\d/);
     await expect(rows.nth(4)).toContainText('Agent-reported');
-    await expect(page.locator('[data-card="runs"]')).toContainText('log entry');
-    await rows.nth(3).getByRole('cell').nth(3).click();
+    // Subagent log entries live on their item's Checklist, not here.
+    await expect(page.locator('main')).not.toContainText('log entry');
+    await expect(page.locator('main')).not.toContainText('Subagent log');
+    // Recent starts collapsed, and remembers that it was opened.
+    const recent = page.getByRole('button', { name: /^Recent/ });
+    await expect(recent).toHaveAttribute('aria-expanded', 'false');
+    await recent.click();
+    await expect(page.getByRole('table', { name: 'Recent runs' })).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole('button', { name: /^Recent/ })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
+    await rcp14.getByRole('cell').nth(3).click();
     await expect(page).toHaveURL(/\/items\/RCP-14$/);
+  });
+
+  test('a Needs you strip count opens Agents filtered to that state; Show all clears it', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    await card(page, 'agents-strip').locator('a[data-state="stale"]').click();
+    await expect(page).toHaveURL(/\/agents\?state=stale$/);
+    const active = page.locator('[data-section="agents-active"]');
+    await expect(active.getByRole('button', { name: /^Active now/ })).toContainText('1 stale');
+    await expect(active.locator('tbody tr')).toHaveCount(1);
+    await expect(active.locator('tbody tr')).toContainText('RCP-15');
+    await active.getByRole('link', { name: 'Show all' }).click();
+    await expect(page).toHaveURL(/\/agents$/);
+    await expect(active.locator('tbody tr')).toHaveCount(5);
   });
 
   test('palette search finds items by ID and title, labels and views', async ({ page }) => {
@@ -301,7 +382,7 @@ test.describe('live updates', () => {
     // A second tab on Agents.
     const other = await page.context().newPage();
     await other.goto('/agents');
-    await expect(other.locator('[data-card="runs"] tbody tr').first()).toBeVisible();
+    await expect(other.locator('[data-section="agents-active"] tbody tr').first()).toBeVisible();
 
     const agent = await connectAgent('claude');
     try {
@@ -325,6 +406,11 @@ test.describe('live updates', () => {
       await expect(panel).toContainText('claude · e2e-w1');
       await expect(panel).toContainText('live');
       await expect(page.getByRole('tablist', { name: 'Ticket views' })).toContainText('0/2');
+      // The agent bar appears above the tabs, live, without taking focus (B20).
+      const bar = page.getByRole('region', { name: 'Lead agent' });
+      await expect(bar).toHaveAttribute('data-agent-bar', 'live');
+      await expect(bar).toContainText('claude · e2e-w1');
+      await expect(bar.locator('[data-ab="step"]')).toHaveText('step 1/2');
       // …and the owner's focus, text and caret are where they were.
       await expect(note).toBeFocused();
       await expect(note).toHaveValue('Check the week boundary');
@@ -332,7 +418,9 @@ test.describe('live updates', () => {
       expect(await page.evaluate(() => window.scrollY)).toBe(scrollBefore);
 
       // Agents shows the new run, live, doing the current step.
-      const row = other.locator('[data-card="runs"] tbody tr').filter({ hasText: 'RCP-17' });
+      const row = other
+        .locator('[data-section="agents-active"] tbody tr')
+        .filter({ hasText: 'RCP-17' });
       await expect(row).toContainText('claude · e2e-w1');
       await expect(row).toContainText('live');
       await expect(row).toContainText('Reproduce the jump on reload');

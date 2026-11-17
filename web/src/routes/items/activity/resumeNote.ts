@@ -1,14 +1,9 @@
-import type { Item, Run } from '@tasklite/shared';
+import type { Item, Run, WaitingOn } from '@tasklite/shared';
+import { parkedReason } from '../../../components/kit/Badges';
 
-/** "waiting on RCP-12" for a parked run (UI_SPEC §5). */
-export function parkedDetail(parked: {
-  waiting_on: { items?: string[]; orchestrator?: boolean; person?: boolean };
-}) {
-  const w = parked.waiting_on;
-  if (w.items?.length) return `waiting on ${w.items.join(', ')}`;
-  if (w.orchestrator) return 'waiting on the coordinator';
-  if (w.person) return 'waiting on a person';
-  return undefined;
+/** "waiting on RCP-12" for a parked run (UI_SPEC §5; the kit's `parkedReason`). */
+export function parkedDetail(parked: { waiting_on: WaitingOn }) {
+  return parkedReason(parked.waiting_on);
 }
 
 /** A short SHA matches its long form. */

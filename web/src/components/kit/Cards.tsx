@@ -2,17 +2,40 @@
  * TicketCard and EpicCard (UI_SPEC §4, §6.2.1).
  */
 import { Link } from 'react-router';
-import { STATUS_LABELS, type EpicCard as EpicCardData, type WorkItem } from '@tasklite/shared';
+import {
+  STATUS_LABELS,
+  type EpicCard as EpicCardData,
+  type LeadParked,
+  type WorkItem,
+} from '@tasklite/shared';
 import { formatAge, isoTitle } from '../../lib/format';
 import { paths } from '../../lib/paths';
 import { Button } from './Button';
 import { BlockedChip, Chip } from './Chip';
-import { Priority, RunState, TypeIcon } from './Badges';
+import { Priority, RunLine, TypeIcon, parkedReason } from './Badges';
 import { Label } from './Label';
 
 /** `codex · orca-w1`. */
 export function leadName(lead: { client: string; label: string | null }): string {
   return lead.label ? `${lead.client} · ${lead.label}` : lead.client;
+}
+
+/**
+ * The reason on a lead's run line (UI_SPEC §5): a parked lead says what it
+ * waits on, or "ready to resume" once that has cleared. Other states need none.
+ */
+export function leadReason(parked: LeadParked | null | undefined): string | undefined {
+  if (!parked) return undefined;
+  return parked.resume_ready ? 'ready to resume' : parkedReason(parked.waiting_on);
+}
+
+/** "For you" on a list row: a packet is ready or a question is open (UI_SPEC §5). */
+export function ForYouChip() {
+  return (
+    <Chip kind="warn" icon="attention" title="A packet is ready or an agent asked you something">
+      For you
+    </Chip>
+  );
 }
 
 /** The human review chip on a card (UI_SPEC §5): packet ready, later, or deferred. */
@@ -102,16 +125,13 @@ export function TicketCard({
         </div>
       )}
       {item.lead && (
-        <div className="meta">
-          <RunState state={item.lead.run_state} />
-          <span>· {leadName(item.lead)}</span>
-          <span
-            style={{ marginLeft: 'auto' }}
-            title={`Last activity ${isoTitle(item.last_activity_at)}`}
-          >
-            {formatAge(item.last_activity_at, now)}
-          </span>
-        </div>
+        <RunLine
+          state={item.lead.run_state}
+          reason={leadReason(item.lead_parked)}
+          agent={leadName(item.lead)}
+          age={formatAge(item.last_activity_at, now)}
+          ageTitle={`Last activity ${isoTitle(item.last_activity_at)}`}
+        />
       )}
     </Link>
   );

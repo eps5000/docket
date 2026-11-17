@@ -26,7 +26,9 @@ export const paths = {
   review: (id: string, round?: number) => withQuery(`/review/${encodeURIComponent(id)}`, { round }),
   label: (project: string, name: string) =>
     `/labels/${encodeURIComponent(project)}/${encodeURIComponent(name)}`,
-  agents: () => '/agents',
+  /** `/agents?state=parked` (Active now, one state) or `/agents#workspaces` (B20). */
+  agents: (q: { state?: string; section?: 'workspaces' } = {}) =>
+    `${withQuery('/agents', { state: q.state })}${q.section ? `#${q.section}` : ''}`,
   settings: () => '/settings',
   unlock: (next?: string) =>
     withQuery('/unlock', { next: next && next !== '/' ? next : undefined }),

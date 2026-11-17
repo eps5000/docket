@@ -24,6 +24,7 @@ import {
   forecastSchema,
   healthSchema,
   labelSchema,
+  leadParkedSchema,
   linkEdgeSchema,
   projectSchema,
   runStateCountsSchema,
@@ -232,7 +233,13 @@ export type PlanVersion = z.infer<typeof planVersionSchema>;
 export const itemDetailResponse = jsonResponse({
   item: itemSchema,
   /** For an epic: its children, each with whether it's for you ("n for you", UI_SPEC §6.3). Empty otherwise. */
-  children: z.array(itemSummarySchema.extend({ for_you: z.boolean() })),
+  children: z.array(
+    itemSummarySchema.extend({
+      for_you: z.boolean(),
+      /** The lead's park, when it is parked (B20; the Tickets list's run line). */
+      lead_parked: leadParkedSchema.nullable().optional(),
+    }),
+  ),
   /** Active and inactive records in scope, owner first (UI_SPEC §6.3.5). */
   decisions: z.array(decisionRecordSchema),
   /** The Checklist history dialog. */
@@ -289,6 +296,8 @@ export const agentRowSchema = z.object({
   lease: z.enum(['held', 'expired', 'paused', 'released', 'none']),
   /** How we know, for agent-reported, observed or relayed rows. */
   provenance: z.enum([...PROVENANCES, ...SUBAGENT_PROVENANCES]).nullable(),
+  /** What a parked run waits on (B20): "parked · waiting on the coordinator". */
+  lead_parked: leadParkedSchema.nullable().optional(),
   at: z.string(),
 });
 export type AgentRow = z.infer<typeof agentRowSchema>;

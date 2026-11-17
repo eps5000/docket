@@ -1,9 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
+import type { WorkspaceRow } from '@tasklite/shared';
 import { Skeleton } from '../../components/kit';
 import { apiClient } from '../../app/queryClient';
 import { QueryState } from '../../app/QueryState';
 import { useShell } from '../../app/ShellState';
 import { queryKeys } from '../../lib/api';
+import { useWorkspaces } from '../agents/WorkspacesCard';
 import { AgentsStrip } from './AgentsStrip';
 import { NotificationsCallout } from './NotificationsCallout';
 import { DeferredCard } from './DeferredCard';
@@ -23,6 +25,9 @@ export function NeedsYou() {
     queryKey: queryKeys.needsYou({ scope }),
     queryFn: () => apiClient['needsYou.get']({ query: { scope } }),
   });
+  // The strip's "n workspaces at risk" and the recovery rows' state chips (B20).
+  const workspaces = useWorkspaces().data?.rows ?? NO_WORKSPACES;
+  const atRisk = workspaces.filter((w) => w.state === 'at_risk').length;
   return (
     <div className="needs-you">
       <h1>Needs you</h1>
@@ -30,10 +35,10 @@ export function NeedsYou() {
       <QueryState query={query} skeleton={<NeedsYouSkeleton />}>
         {(data) => (
           <>
-            <AgentsStrip counts={data.agent_counts} />
+            <AgentsStrip counts={data.agent_counts} atRisk={atRisk} />
             <div className="dash-top">
               <ForYouNow rows={data.for_you_now} />
-              <ProblemsCard problems={data.problems} />
+              <ProblemsCard problems={data.problems} workspaces={workspaces} />
             </div>
             <div className="dash-row two">
               <DeferredCard rows={data.deferred} />
@@ -45,6 +50,8 @@ export function NeedsYou() {
     </div>
   );
 }
+
+const NO_WORKSPACES: readonly WorkspaceRow[] = [];
 
 function NeedsYouSkeleton() {
   return (

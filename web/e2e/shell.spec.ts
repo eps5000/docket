@@ -84,6 +84,12 @@ test.describe('shell navigation', () => {
       await expect(h1(page)).toHaveText(title);
       await expect(navLink(page, name)).toHaveAttribute('aria-current', 'page');
     }
+    // Agents stays the current item when filtered or opened at Workspaces (B20).
+    for (const path of ['/agents?state=live', '/agents#workspaces']) {
+      await page.goto(path);
+      await expect(h1(page)).toHaveText('Agents');
+      await expect(navLink(page, 'Agents')).toHaveAttribute('aria-current', 'page');
+    }
     // Settings carries the Service-wide pill in the breadcrumb.
     await nav(page).getByRole('link', { name: 'Settings', exact: true }).click();
     await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toContainText(
@@ -151,6 +157,10 @@ test.describe('shell navigation', () => {
       await viewTab(views, name).click();
       await expect(viewTab(views, name)).toHaveAttribute('aria-selected', 'true');
       await expect(page.getByRole('tabpanel')).toContainText(content);
+      // The agent bar sits above the tabs on every one of them (B20).
+      await expect(page.getByRole('region', { name: 'Lead agent' })).toContainText(
+        'claude · orca-w3',
+      );
     }
     // Arrow keys move between view tabs.
     await viewTab(views, 'Details').focus();
