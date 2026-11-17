@@ -28,5 +28,5 @@ Follow [README.md](README.md) "Before you start" first. Commands run from the re
 - [ ] PASS or FAIL for each `check` line, and the run state you saw (live or reported).
 - [ ] Anything you had to change from the README to make it connect.
 - [ ] V3: in a repo with a project `.mcp.json` using `${TASKLITE_TOKEN}`, does it connect after you approve it? (User scope stores the expanded token; note that.)
-- [ ] V6: does Claude Code show the model the text block, `structuredContent`, or both?
+- [ ] V6: B18 found (headless, 2.1.318) that the model gets `structuredContent` as JSON, not the text block. Confirm it's the same interactively: ask "Paste exactly what the last tool result gave you".
 - [ ] V7: does Claude Code load skills from `~/.claude/skills/`?

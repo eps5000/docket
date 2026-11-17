@@ -15,6 +15,8 @@
  *       claim by the expected client and label, a plan of two steps, the
  *       first step done, and a run that is still open. Prints PASS or FAIL
  *       for each, then the checks only a person can make in the UI.
+ *   node docker/smoke/smoke.mjs pdf
+ *       Puts a one-page PDF on RCP-14, for the by-hand PDF preview check.
  *
  * Surfaces: codex, claude, orca-codex, orca-claude.
  *
@@ -230,14 +232,66 @@ async function check(surfaceName, id) {
   process.exitCode = failed === 0 ? 0 : 1;
 }
 
+/** A one-page PDF ("Task Lite PDF preview check"), built by hand: no dependencies. */
+function tinyPdf() {
+  const NL = String.fromCharCode(10);
+  const text = 'BT /F1 18 Tf 30 110 Td (Task Lite PDF preview check) Tj ET';
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 420 200] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
+    ['<< /Length ' + text.length + ' >>', 'stream', text, 'endstream'].join(NL),
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+  ];
+  let out = '%PDF-1.4' + NL;
+  const offsets = [];
+  objects.forEach((body, i) => {
+    offsets.push(out.length);
+    out += [`${i + 1} 0 obj`, body, 'endobj', ''].join(NL);
+  });
+  const xref = out.length;
+  const lines = ['xref', `0 ${objects.length + 1}`, '0000000000 65535 f '];
+  for (const o of offsets) lines.push(`${String(o).padStart(10, '0')} 00000 n `);
+  lines.push(
+    'trailer',
+    `<< /Size ${objects.length + 1} /Root 1 0 R >>`,
+    'startxref',
+    String(xref),
+    '%%EOF',
+    '',
+  );
+  return Buffer.from(out + lines.join(NL), 'latin1');
+}
+
+/** Put a small PDF on RCP-14, for the by-hand PDF preview check (UI_SPEC §6.9; B14 carry-over). */
+async function pdf() {
+  const mcp = await connect();
+  try {
+    const put = await mcp.call('put_document', {
+      item_id: 'RCP-14',
+      name: 'pdf-preview-check.pdf',
+      kind: 'other',
+      mime: 'application/pdf',
+      content_base64: tinyPdf().toString('base64'),
+    });
+    if (!put.ok) fail(`put_document failed: ${put.text}`);
+    say('Put pdf-preview-check.pdf on RCP-14.');
+    say(`Open ${BASE}/items/RCP-14?tab=details in Chrome, then Documents → pdf-preview-check.pdf.`);
+    say('Expect the page "Task Lite PDF preview check" inside the viewer, and Download to work.');
+  } finally {
+    await mcp.close();
+  }
+}
+
 const [command, ...args] = process.argv.slice(2);
 try {
   if (command === 'preflight') await preflight();
   else if (command === 'prepare') await prepare(args[0]);
   else if (command === 'check') await check(args[0], args[1]);
+  else if (command === 'pdf') await pdf();
   else {
     say(
-      'Usage: node docker/smoke/smoke.mjs preflight | prepare <surface> | check <surface> <ITEM-ID>',
+      'Usage: node docker/smoke/smoke.mjs preflight | prepare <surface> | check <surface> <ITEM-ID> | pdf',
     );
     say(`Surfaces: ${Object.keys(SURFACES).join(', ')}`);
     process.exitCode = command ? 2 : 0;
