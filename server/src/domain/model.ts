@@ -22,7 +22,7 @@ import {
   type StoredRunState,
   type WaitingOn,
   type Workspace,
-} from '@tasklite/shared';
+} from '@docket/shared';
 import type { Config } from '../config.js';
 import type { Db } from '../db/client.js';
 import type { BlockState } from './contracts.js';

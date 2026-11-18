@@ -6,7 +6,7 @@
  *   fixed by MCP_SPEC §3; the rest name internal rows.
  */
 import type Database from 'better-sqlite3';
-import { ToolError } from '@tasklite/shared';
+import { ToolError } from '@docket/shared';
 import { monotonicFactory } from 'ulid';
 
 export const ID_PREFIXES = {

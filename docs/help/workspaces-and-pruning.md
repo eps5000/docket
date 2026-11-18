@@ -13,7 +13,7 @@ related:
 
 A **workspace** is the folder (usually a git worktree) where an agent works on an item. Agents report it when they claim work, along with its branch, commits and anything they left running, like a dev server. **Agents → Workspaces** lists every one, so you and your coordinator can see what's safe to delete.
 
-Task Lite only records what agents report. It never looks at your folders or stops processes; your coordinator, or you, do that.
+Docket only records what agents report. It never looks at your folders or stops processes; your coordinator, or you, do that.
 
 ## The states
 
@@ -41,6 +41,6 @@ When a run ends and something it started is still listed as running 15 minutes l
 
 ## Pruning safely
 
-Ask your coordinator to prune, not to guess: the `tasklite-coordinator` skill prunes only workspaces that are **Safe to prune**. If you prune by hand, check this table first.
+Ask your coordinator to prune, not to guess: the `docket-coordinator` skill prunes only workspaces that are **Safe to prune**. If you prune by hand, check this table first.
 
 For an at-risk workspace after a crash, see [Recovering after a crash](/help/crash-recovery).

@@ -31,7 +31,7 @@ import {
   type KeyboardEvent,
   type PointerEvent,
 } from 'react';
-import { STATUS_LABELS, type LinkEdge } from '@tasklite/shared';
+import { STATUS_LABELS, type LinkEdge } from '@docket/shared';
 import { Icon } from '../kit';
 import { useRenderLimit } from '../../lib/progressive';
 import { MapCard } from './MapCard';

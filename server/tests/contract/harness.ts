@@ -23,7 +23,7 @@ import {
   type ErrorCode,
   type ToolErrorShape,
   type ToolName,
-} from '@tasklite/shared';
+} from '@docket/shared';
 import { expect } from 'vitest';
 import { loadSampleSeed } from '../../src/db/seed/loader.js';
 import type { ServiceOverrides } from '../../src/domain/services.js';
@@ -66,10 +66,10 @@ export interface HarnessOptions {
 }
 
 /**
- * The shipped TASKLITE_TEXT_ONLY_CLIENTS default (BUILD_SPEC §2): an empty
+ * The shipped DOCKET_TEXT_ONLY_CLIENTS default (BUILD_SPEC §2): an empty
  * value counts as unset, so `claude-code` sessions are text-only.
  */
-export const PRODUCT_RESULT_MODES = { TASKLITE_TEXT_ONLY_CLIENTS: '' } as const;
+export const PRODUCT_RESULT_MODES = { DOCKET_TEXT_ONLY_CLIENTS: '' } as const;
 
 export async function startHarness(opts: HarnessOptions = {}): Promise<ContractHarness> {
   const server = createTestServer({
@@ -264,8 +264,8 @@ export const VALID_ARGS: Record<ToolName, Record<string, unknown>> = {
   get_agent_files: { project: 'RCP' },
   propose_agent_file_change: {
     project: 'RCP',
-    file: 'skill:tasklite-worker',
-    content: '---\nname: tasklite-worker\n---\n',
+    file: 'skill:docket-worker',
+    content: '---\nname: docket-worker\n---\n',
     reason: 'Run the linter before each commit.',
     based_on_version_id: 'afv_1',
   },

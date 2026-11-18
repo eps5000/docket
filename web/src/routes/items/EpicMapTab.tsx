@@ -1,4 +1,4 @@
-import type { ItemDetailResponse } from '@tasklite/shared';
+import type { ItemDetailResponse } from '@docket/shared';
 import { Card, EmptyState } from '../../components/kit';
 import { ProgressMap } from '../../components/ProgressMap';
 

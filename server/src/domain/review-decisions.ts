@@ -21,7 +21,7 @@
  * of the changes made since the previous event, so the owner's Undo reverts
  * everything: statuses, steps, Bugs and follow-ups.
  */
-import { ToolError, type ItemSummary } from '@tasklite/shared';
+import { ToolError, type ItemSummary } from '@docket/shared';
 import type { ReviewDecisionsService, ServiceDeps } from './contracts.js';
 import { hrRows, parseLastDecision, type HrRow } from './human-review.js';
 import { allocateItemId, newId } from './ids.js';

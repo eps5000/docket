@@ -11,7 +11,7 @@ related:
   - run-states
 ---
 
-Task Lite doesn't start agents. You (or Orca) start them, and they report here: what they claimed, what they're doing, and what they need from you. The sidebar has three places to look.
+Docket doesn't start agents. You (or Orca) start them, and they report here: what they claimed, what they're doing, and what they need from you. The sidebar has three places to look.
 
 ## Needs you
 
@@ -35,7 +35,7 @@ Every open run, what it's doing and when it last signalled, then **Workspaces** 
 
 ## The project switcher
 
-The **Project** menu at the top of the sidebar scopes every page except Settings. It goes back to *All projects* each time you open Task Lite, so you never miss something because of a filter you forgot.
+The **Project** menu at the top of the sidebar scopes every page except Settings. It goes back to *All projects* each time you open Docket, so you never miss something because of a filter you forgot.
 
 ## Search
 

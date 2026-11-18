@@ -4,7 +4,7 @@
 #   docker/no-egress/check.sh [docker compose arguments…]
 #
 # The arguments select the stack, the no-egress overlay included. It checks that:
-#   1. the tasklite container is attached to exactly one network, and it is internal;
+#   1. the docket container is attached to exactly one network, and it is internal;
 #   2. the egress audit recorded nothing: no Node process in the container tried to
 #      reach a host other than itself and the Jira fixture during the whole run;
 #   3. the audit works: a deliberate probe from inside the container (a fetch to a
@@ -15,15 +15,15 @@ export MSYS_NO_PATHCONV=1
 compose=(docker compose "$@")
 [ "$#" -gt 0 ] || { echo "Pass the compose arguments, the no-egress overlay included." >&2; exit 2; }
 
-id=$("${compose[@]}" ps -q tasklite)
+id=$("${compose[@]}" ps -q docket)
 nets=$(docker inspect --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}' "$id")
 count=$(echo "$nets" | wc -w | tr -d ' ')
-[ "$count" -eq 1 ] || { echo "FAIL: tasklite is on $count networks ($nets); expected only the sealed one." >&2; exit 1; }
+[ "$count" -eq 1 ] || { echo "FAIL: docket is on $count networks ($nets); expected only the sealed one." >&2; exit 1; }
 internal=$(docker network inspect --format '{{.Internal}}' $nets)
-[ "$internal" = "true" ] || { echo "FAIL: tasklite's network $nets is not internal." >&2; exit 1; }
-echo "ok    tasklite is only on $nets (internal: no route out)"
+[ "$internal" = "true" ] || { echo "FAIL: docket's network $nets is not internal." >&2; exit 1; }
+echo "ok    docket is only on $nets (internal: no route out)"
 
-audit=$("${compose[@]}" exec -T tasklite sh -c 'cat /data/egress-audit.jsonl 2>/dev/null || true')
+audit=$("${compose[@]}" exec -T docket sh -c 'cat /data/egress-audit.jsonl 2>/dev/null || true')
 if [ -n "$audit" ]; then
   echo "FAIL: outbound connection attempts were recorded during the run:" >&2
   echo "$audit" >&2
@@ -32,7 +32,7 @@ fi
 echo "ok    no outbound connection attempts recorded during the run"
 
 # The deliberate probe, with its own log so it never pollutes the run's.
-probe=$("${compose[@]}" exec -T -e TASKLITE_EGRESS_LOG=/tmp/egress-probe.jsonl tasklite node -e '
+probe=$("${compose[@]}" exec -T -e DOCKET_EGRESS_LOG=/tmp/egress-probe.jsonl docket node -e '
   const net = require("node:net");
   const tcp = new Promise((done) => {
     const s = net.connect({ host: "1.1.1.1", port: 443, timeout: 3000 });
@@ -44,7 +44,7 @@ probe=$("${compose[@]}" exec -T -e TASKLITE_EGRESS_LOG=/tmp/egress-probe.jsonl t
     .then(() => "REACHED", (e) => (e.cause && e.cause.code) || e.name);
   Promise.all([tcp, web]).then(([a, b]) => console.log(`tcp=${a} fetch=${b}`));
 ')
-recorded=$("${compose[@]}" exec -T tasklite sh -c 'cat /tmp/egress-probe.jsonl 2>/dev/null; rm -f /tmp/egress-probe.jsonl')
+recorded=$("${compose[@]}" exec -T docket sh -c 'cat /tmp/egress-probe.jsonl 2>/dev/null; rm -f /tmp/egress-probe.jsonl')
 echo "probe: $probe"
 echo "$recorded" | sed 's/^/probe recorded: /'
 case "$probe" in *REACHED*) echo "FAIL: the probe reached the internet; the network isn't sealed." >&2; exit 1 ;; esac

@@ -48,7 +48,7 @@ jobs:
       # attempt fails the step. (The audit's own probe test runs in the step above.)
       - name: Contract suite with no network (FR-106)
         run: |
-          docker run --rm --network none --user "$(id -u):$(id -g)" -e HOME=/tmp             -v "$PWD:/w" -w /w/server             -e NODE_OPTIONS=--import=/w/docker/no-egress/egress-audit.mjs             -e TASKLITE_EGRESS_LOG=/w/egress-contract.jsonl             node:22-bookworm-slim             node node_modules/vitest/vitest.mjs run tests/contract tests/integration               --exclude tests/integration/no-egress.test.ts
+          docker run --rm --network none --user "$(id -u):$(id -g)" -e HOME=/tmp             -v "$PWD:/w" -w /w/server             -e NODE_OPTIONS=--import=/w/docker/no-egress/egress-audit.mjs             -e DOCKET_EGRESS_LOG=/w/egress-contract.jsonl             node:22-bookworm-slim             node node_modules/vitest/vitest.mjs run tests/contract tests/integration               --exclude tests/integration/no-egress.test.ts
           if [ -s egress-contract.jsonl ]; then
             echo "Outbound connection attempts during the contract suite:"
             cat egress-contract.jsonl
@@ -57,7 +57,7 @@ jobs:
           echo "No outbound connection attempts."
 
       - name: Docker build
-        run: docker build -f docker/Dockerfile -t tasklite:ci .
+        run: docker build -f docker/Dockerfile -t docket:ci .
 
   e2e:
     name: e2e
@@ -77,7 +77,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Install Chromium
-        run: pnpm --filter @tasklite/web exec playwright install --with-deps chromium
+        run: pnpm --filter @docket/web exec playwright install --with-deps chromium
 
       # US9 (T141): a synthetic Jira site on the compose network for the import dialog's
       # e2e (docker/compose.jira-fixture.yaml), with a throwaway test CA. No internet.
@@ -89,15 +89,15 @@ jobs:
       # browser comes in through a loopback-published gateway.
       - name: Build and start the container (sealed, no egress)
         env:
-          TASKLITE_SEED: sample
+          DOCKET_SEED: sample
         run: docker compose -f docker/compose.yaml -f docker/compose.jira-fixture.yaml -f docker/compose.push-e2e.yaml -f docker/compose.no-egress.yaml up -d --build --wait --wait-timeout 120
 
       - name: Playwright
         env:
-          TASKLITE_E2E_NO_START: '1'
-          # The runner's fresh tasklite-data volume is disposable (fixtures/container.ts).
-          TASKLITE_E2E_ALLOW_RESET: '1'
-        run: pnpm --filter @tasklite/web e2e
+          DOCKET_E2E_NO_START: '1'
+          # The runner's fresh docket-data volume is disposable (fixtures/container.ts).
+          DOCKET_E2E_ALLOW_RESET: '1'
+        run: pnpm --filter @docket/web e2e
 
       # FR-106 (T145): nothing in the container tried to reach another host during the
       # whole e2e run, and a deliberate probe is caught (so the check can fail).

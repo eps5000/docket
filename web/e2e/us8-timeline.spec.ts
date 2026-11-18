@@ -13,7 +13,7 @@
  *   band, and planned dates unchanged.
  * - axe on the Timeline and the burn-down card (and its table), both themes.
  *
- * Set TASKLITE_E2E_SCREENSHOTS to a folder to also capture the PR's light
+ * Set DOCKET_E2E_SCREENSHOTS to a folder to also capture the PR's light
  * and dark screenshots.
  */
 import { execFileSync } from 'node:child_process';
@@ -31,7 +31,7 @@ import {
 
 useSeededContainer();
 
-const out = process.env.TASKLITE_E2E_SCREENSHOTS;
+const out = process.env.DOCKET_E2E_SCREENSHOTS;
 
 async function shoot(page: Page, name: string, target?: Locator) {
   if (!out) return;
@@ -47,7 +47,7 @@ async function shoot(page: Page, name: string, target?: Locator) {
 /** Run SQL in the container's database (fixture: history the clock can't make). */
 function sql(statements: [string, unknown[]][]): void {
   const script =
-    "const D=require('better-sqlite3');const db=new D('/data/tasklite.db');db.pragma('busy_timeout = 5000');" +
+    "const D=require('better-sqlite3');const db=new D('/data/docket.db');db.pragma('busy_timeout = 5000');" +
     'db.transaction(()=>{for (const [q, a] of JSON.parse(process.argv[1])) db.prepare(q).run(...a);})();db.close();';
   execFileSync(
     'docker',
@@ -107,8 +107,8 @@ function seedHistory(): void {
 /** Open Work in RCP's scope. */
 async function openWork(page: Page, layout?: 'timeline'): Promise<void> {
   await page.context().addInitScript(() => {
-    sessionStorage.setItem('tl.scope', 'RCP');
-    localStorage.setItem('tl.notifications', 'off');
+    sessionStorage.setItem('docket.scope', 'RCP');
+    localStorage.setItem('docket.notifications', 'off');
   });
   await page.goto(layout ? `/work?layout=${layout}` : '/work');
 }
@@ -214,7 +214,7 @@ test.describe('Work → Timeline', () => {
   test('an active epic or label filter shows as a removable chip (B18)', async ({
     ownerPage: page,
   }) => {
-    await page.context().addInitScript(() => localStorage.setItem('tl.notifications', 'off'));
+    await page.context().addInitScript(() => localStorage.setItem('docket.notifications', 'off'));
     await page.goto('/work?layout=timeline&epic=RCP-1&label=ui-refresh');
     await expect(grid(page)).toBeVisible();
     const chips = page.getByRole('group', { name: 'Active filters' });
@@ -235,8 +235,8 @@ test.describe('Work → Timeline', () => {
     ownerPage: page,
   }) => {
     await page.context().addInitScript(() => {
-      sessionStorage.setItem('tl.scope', 'RCP');
-      localStorage.setItem('tl.notifications', 'off');
+      sessionStorage.setItem('docket.scope', 'RCP');
+      localStorage.setItem('docket.notifications', 'off');
     });
     await page.goto('/');
     const problem = page.locator('[data-problem="date_risk"]').filter({ hasText: 'RCP-16' });

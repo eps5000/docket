@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
-import type { BurndownResponse } from '@tasklite/shared';
+import type { BurndownResponse } from '@docket/shared';
 import { Button, EmptyState, Section, Skeleton } from '../../components/kit';
 import { apiClient } from '../../app/queryClient';
 import { QueryState } from '../../app/QueryState';

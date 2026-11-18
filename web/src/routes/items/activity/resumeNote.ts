@@ -1,4 +1,4 @@
-import type { Item, Run, WaitingOn } from '@tasklite/shared';
+import type { Item, Run, WaitingOn } from '@docket/shared';
 import { parkedReason } from '../../../components/kit/Badges';
 
 /** "waiting on RCP-12" for a parked run (UI_SPEC §5; the kit's `parkedReason`). */

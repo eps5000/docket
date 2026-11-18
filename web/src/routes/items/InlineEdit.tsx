@@ -1,6 +1,6 @@
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
-import { TEXT_LIMITS, type ItemText, type RouteBodyInput } from '@tasklite/shared';
+import { TEXT_LIMITS, type ItemText, type RouteBodyInput } from '@docket/shared';
 import { Button, Callout, IconButton, InlineEditor, showCounter } from '../../components/kit';
 import { apiClient } from '../../app/queryClient';
 import { isConflict, queryKeys } from '../../lib/api';

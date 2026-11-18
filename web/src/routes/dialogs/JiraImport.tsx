@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
-import type { JiraImport, JiraReport } from '@tasklite/shared';
+import type { JiraImport, JiraReport } from '@docket/shared';
 import { Button, Callout, Dialog, DialogCancel, SegmentedControl } from '../../components/kit';
 import { apiClient } from '../../app/queryClient';
 import { useShell } from '../../app/ShellState';
@@ -31,8 +31,7 @@ export function formatBytes(bytes: number): string {
 export function itemCount(report: JiraReport): number {
   return report.mapping
     .filter(
-      (m) =>
-        m.jira.startsWith('Type: ') && m.task_lite !== 'Work step' && m.task_lite !== 'Skipped',
+      (m) => m.jira.startsWith('Type: ') && m.docket !== 'Work step' && m.docket !== 'Skipped',
     )
     .reduce((n, m) => n + m.count, 0);
 }
@@ -483,7 +482,7 @@ function ReportView({
         <thead>
           <tr>
             <th scope="col">Jira</th>
-            <th scope="col">Task Lite</th>
+            <th scope="col">Docket</th>
             <th scope="col" className="num">
               Count
             </th>
@@ -494,9 +493,9 @@ function ReportView({
         </thead>
         <tbody>
           {report.mapping.map((m) => (
-            <tr key={`${m.jira}→${m.task_lite}`}>
+            <tr key={`${m.jira}→${m.docket}`}>
               <td>{m.jira}</td>
-              <td>{m.task_lite}</td>
+              <td>{m.docket}</td>
               <td className="num">{m.count}</td>
               <td className="num">{m.lossy > 0 ? m.lossy : '—'}</td>
             </tr>

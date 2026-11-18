@@ -1,7 +1,7 @@
 /**
  * Network guards (BUILD_SPEC §3; decision T1; constitution Principle VI).
  * - Host allowlist (DNS-rebinding guard): a Host outside
- *   TASKLITE_ALLOWED_HOSTS gets 421.
+ *   DOCKET_ALLOWED_HOSTS gets 421.
  * - Origin allowlist: a request carrying an Origin that isn't one of ours
  *   gets 403 (the MCP spec requires this check).
  * - Bearer auth for /mcp: a missing or wrong token gets 401 before any MCP
@@ -9,7 +9,7 @@
  */
 import { createHash, timingSafeEqual } from 'node:crypto';
 import type { Context, MiddlewareHandler } from 'hono';
-import type { ErrorCode } from '@tasklite/shared';
+import type { ErrorCode } from '@docket/shared';
 
 /** The JSON error body used by guards and the API. */
 export function errorBody(code: ErrorCode, message: string, details?: Record<string, unknown>) {
@@ -38,7 +38,7 @@ export function hostGuard(
       return c.json(
         errorBody(
           'forbidden',
-          'This Host is not allowed. Use http://127.0.0.1:7420 or add the host to TASKLITE_ALLOWED_HOSTS.',
+          'This Host is not allowed. Use http://127.0.0.1:7420 or add the host to DOCKET_ALLOWED_HOSTS.',
         ),
         421,
       );
@@ -70,11 +70,11 @@ export function bearerAuth(expectedToken: () => string): MiddlewareHandler {
     const header = c.req.header('authorization') ?? '';
     const m = /^Bearer[ \t]+(\S+)[ \t]*$/i.exec(header);
     if (!m || !safeEqual(m[1]!, expectedToken())) {
-      c.header('WWW-Authenticate', 'Bearer realm="tasklite"');
+      c.header('WWW-Authenticate', 'Bearer realm="docket"');
       return c.json(
         errorBody(
           'forbidden',
-          'Missing or wrong bearer token. Send Authorization: Bearer <TASKLITE_TOKEN>.',
+          'Missing or wrong bearer token. Send Authorization: Bearer <DOCKET_TOKEN>.',
         ),
         401,
       );

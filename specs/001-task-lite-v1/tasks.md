@@ -1,8 +1,8 @@
 ---
-description: "Dependency-ordered task list for Task Lite V1 (contracts first, then slices)"
+description: "Dependency-ordered task list for Docket (formerly Task Lite) V1 (contracts first, then slices)"
 ---
 
-# Tasks: Task Lite V1
+# Tasks: Docket V1
 
 **Input**: Design documents in `specs/001-task-lite-v1/`: plan.md, spec.md, research.md, data-model.md, contracts/ and quickstart.md. The authoritative detail is in `docs/BUILD_SPEC.md`, `docs/MCP_SPEC.md` and `docs/UI_SPEC.md`.
 
@@ -54,14 +54,14 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [X] T001 Create the pnpm workspace with `shared/`, `server/` and `web/`, root `package.json`, `pnpm-workspace.yaml`, `tsconfig.base.json` (strict) and `.nvmrc` (22), per the plan.md structure. Add `.dockerignore`.
 - [X] T002 [P] Configure ESLint and Prettier, with lint and typecheck scripts at the root, in `eslint.config.js` and `.prettierrc`
 - [X] T003 [P] Set up Vitest in `server/vitest.config.ts` and `shared/vitest.config.ts`
-- [X] T004 [P] Set up Vite, React 19, React Router and TanStack Query in `web/`, with a placeholder route that renders "Task Lite is running"
+- [X] T004 [P] Set up Vite, React 19, React Router and TanStack Query in `web/`, with a placeholder route that renders "Docket is running"
 - [X] T005 [P] Copy the prototype's `.tl` token block (light, dark, `prefers-color-scheme`) unchanged into `web/src/styles/tokens.css` (UI_SPEC §3)
-- [X] T006 Write a multi-stage `docker/Dockerfile` (`node:22-bookworm-slim`, non-root user `tasklite`, uid 10001) and `docker/compose.yaml`: publish `127.0.0.1:7420:7420`, named volume `tasklite-data:/data`, a commented-out opt-in extra-backup bind mount, `restart: unless-stopped`, healthcheck on `/healthz`. Add `docker/.env.example` with every variable in BUILD_SPEC §2 Configuration.
+- [X] T006 Write a multi-stage `docker/Dockerfile` (`node:22-bookworm-slim`, non-root user `docket`, uid 10001) and `docker/compose.yaml`: publish `127.0.0.1:7420:7420`, named volume `docket-data:/data`, a commented-out opt-in extra-backup bind mount, `restart: unless-stopped`, healthcheck on `/healthz`. Add `docker/.env.example` with every variable in BUILD_SPEC §2 Configuration.
 - [X] T007 Create the server entry point `server/src/index.ts` serving `/healthz`, `/readyz` (database and docs dir writable, migrations current) and the web build, with SPA fallback
 - [X] T008 Create `.github/workflows/ci.yml` on `ubuntu-latest`. One job runs pnpm cache → lint → typecheck → Vitest → `docker build`. A second job starts the image and runs Playwright end to end, uploading the report and traces on failure. Name the jobs so the Mergify queue can require them.
-- [X] T009 [P] Set up Playwright in `web/playwright.config.ts`, with `@axe-core/playwright` and a fixture that starts the seeded container. Include one smoke spec ("Task Lite is running") in `web/e2e/smoke.spec.ts`.
+- [X] T009 [P] Set up Playwright in `web/playwright.config.ts`, with `@axe-core/playwright` and a fixture that starts the seeded container. Include one smoke spec ("Docket is running") in `web/e2e/smoke.spec.ts`.
 
-**Checkpoint**: `docker compose up` serves "Task Lite is running", and both CI jobs are green.
+**Checkpoint**: `docker compose up` serves "Docket is running", and both CI jobs are green.
 
 ---
 
@@ -95,7 +95,7 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [X] T028 Implement the SSE stream at `/api/stream` in `server/src/api/stream.ts`: `event: change`, `id: <seq>`, `data: {seq, type, objects, for_you}`, `Last-Event-ID` resume, a keep-alive comment every 25 s (contracts/events.md)
 - [X] T029 Create the MCP server in `server/src/mcp/server.ts`: Streamable HTTP at `/mcp` with stateful sessions; identity from `clientInfo` normalised (contains codex → `codex`; contains claude → `claude`); the session ID recorded for run binding
 - [X] T030 [P] Implement the diagnostic call-log writer (`/data/logs/calls-YYYYMMDD.jsonl`: time, tool, client, label, run, duration, result code, never arguments; rotated daily, kept 7 days) in `server/src/jobs/logs.ts`
-- [X] T031 Implement the seed loader in `server/src/db/seed/loader.ts`. It maps `design/sample-data.json` per BUILD_SPEC §8: time shift, decision records `dec_1` to `dec_3`, and the `RCP-19 → RCP-16` link set to `merged`. Add the `tasklite seed sample` command and `TASKLITE_SEED=sample`. **Note from B1:** `.dockerignore` currently excludes `design/`. Re-include `design/sample-data.json` (for example with `!design/sample-data.json`) and copy it into the image, otherwise seeding fails inside the container.
+- [X] T031 Implement the seed loader in `server/src/db/seed/loader.ts`. It maps `design/sample-data.json` per BUILD_SPEC §8: time shift, decision records `dec_1` to `dec_3`, and the `RCP-19 → RCP-16` link set to `merged`. Add the `docket seed sample` command and `DOCKET_SEED=sample`. **Note from B1:** `.dockerignore` currently excludes `design/`. Re-include `design/sample-data.json` (for example with `!design/sample-data.json`) and copy it into the image, otherwise seeding fails inside the container.
 
 **Checkpoint**: the seed loads deterministically. `/mcp` and `/api` answer behind their guards. Undo and the live stream work. Every `/api` route requires an unlocked owner session.
 
@@ -145,7 +145,7 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 
 **Purpose**: add the recovery contract (MCP_SPEC §2, §3 "Workspaces, briefs and resources", §4, §5.4, §5.6, §5.9, §7.12–7.13, §8; BUILD_SPEC §4, §5.16, §7) before the UI kit, so the kit and the screen shells can show parked runs and workspaces. This batch ships in the same PR as the spec changes on `eps5000/contract-recovery`, because the snapshot test reads MCP_SPEC.
 
-- [X] T050 [P] Add a migration (never edit an existing one) and update `server/src/db/schema.ts`. `runs` gets `end_reason`, `parked_reason`, `waiting_on`, `parked_at`, `workspace` (JSON), `orchestrator` (JSON), `brief_document_version_id`, `external` and `unpushed_handled_at`. Add `brief` to the `documents.kind` values. Add the `run_resources` table. `commits` gets `run_id` and `pushed`. Extend `shared/src/enums.ts` with `parked` in the run state, `end_reason`, `workspace_state` and the resource kinds. Add the config keys `TASKLITE_PARK_MAX`, `TASKLITE_RESUME_UNATTENDED` and `TASKLITE_ORPHAN_AFTER` to `server/src/config.ts` and `docker/.env.example`. Extend the migration test.
+- [X] T050 [P] Add a migration (never edit an existing one) and update `server/src/db/schema.ts`. `runs` gets `end_reason`, `parked_reason`, `waiting_on`, `parked_at`, `workspace` (JSON), `orchestrator` (JSON), `brief_document_version_id`, `external` and `unpushed_handled_at`. Add `brief` to the `documents.kind` values. Add the `run_resources` table. `commits` gets `run_id` and `pushed`. Extend `shared/src/enums.ts` with `parked` in the run state, `end_reason`, `workspace_state` and the resource kinds. Add the config keys `DOCKET_PARK_MAX`, `DOCKET_RESUME_UNATTENDED` and `DOCKET_ORPHAN_AFTER` to `server/src/config.ts` and `docker/.env.example`. Extend the migration test.
 - [X] T051 [P] Extend the MCP shared types in `shared/src/mcp/types.ts`: `Run` (`end_reason`, `parked`, `workspace`, `orchestrator`, `brief_document_version_id`, `resources`, `external`), the new `Workspace`, `WaitingOn` and `Resource` types, `Item.resume`, and the new EventTypes (`run.parked`, `run.resumed`, `run.unpushed_handled`, `resource.declared`, `resource.released`)
 - [X] T052 Update the tool schemas in `shared/src/mcp/runs.ts` and `shared/src/mcp/review.ts`:
   - `claim_lead` and `start_run` accept `workspace`, `orchestrator`, `brief` or `brief_document_version_id`, and `external`;
@@ -229,7 +229,7 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 ### Tests for US2
 - [X] T077 [P] [US2] API contract tests for `bootstrap`, `needs-you`, `work`, `items/:id`, `agents`, `search` and `stream` against the seed, in `server/tests/integration/us2-api.test.ts`
 - [X] T078 [P] [US2] E2E: Needs you ("3 for you", only action cards, Problems actions), the four item tabs with counts and dots, live update without moving focus; in `web/e2e/us2-visibility.spec.ts`
-- [X] T079 [P] [US2] E2E: notifications (one per new packet or question, a click opens the target, already-pending items don't notify, the tab title reads `(N) Task Lite`, with permission denied the status reads "Blocked by the browser"), in `web/e2e/us2-notifications.spec.ts`
+- [X] T079 [P] [US2] E2E: notifications (one per new packet or question, a click opens the target, already-pending items don't notify, the tab title reads `(N) Docket`, with permission denied the status reads "Blocked by the browser"), in `web/e2e/us2-notifications.spec.ts`
 
 ### Implementation for US2
 - [X] T080 [US2] Implement the read models for needs-you (for-you, problems, deferred, planning queue, agent counts), work (board, list), item detail and agents in `server/src/domain/views.ts`, and fill the `read` route handlers
@@ -269,7 +269,7 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 
 ## Phase 6r: User Story 11 · Interrupted work restarts cleanly (P1)
 
-**Goal**: coordinators can re-dispatch every interrupted run from Task Lite alone, parked workers are never mistaken for finished ones, and nothing is left running unnoticed (owner decision 26; FR-110 to FR-117).
+**Goal**: coordinators can re-dispatch every interrupted run from Docket alone, parked workers are never mistaken for finished ones, and nothing is left running unnoticed (owner decision 26; FR-110 to FR-117).
 
 **Independent Test**: spec US11 and SC-014. Dispatch three workers (active; parked on an item; with a dev server and an unpushed commit), restart the service, then re-dispatch from `recovery_report` alone.
 
@@ -278,9 +278,9 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 ### Tests for US11
 - [X] T096 [P] [US11] Unit tests in `server/tests/unit/recovery.test.ts`:
   - parking suspends the lease, and any call with the `run_id` resumes it;
-  - `resume_ready` once every `waiting_on` item clears; "unattended" after `TASKLITE_RESUME_UNATTENDED`; a Problem after `TASKLITE_PARK_MAX`;
+  - `resume_ready` once every `waiting_on` item clears; "unattended" after `DOCKET_RESUME_UNATTENDED`; a Problem after `DOCKET_PARK_MAX`;
   - `end_reason` set on every terminal path;
-  - unreleased resources orphaned after `TASKLITE_ORPHAN_AFTER`;
+  - unreleased resources orphaned after `DOCKET_ORPHAN_AFTER`;
   - unpushed at-risk detection (`head_sha` ≠ `pushed_sha`, or `dirty`) and clearing it (a later push, or owner handled);
   - workspace state derivation for every case, including `unknown` when nothing was reported.
 - [X] T097 [P] [US11] MCP contract tests for flows §7.12 and §7.13 and MCP_SPEC §10 tests 17–20, in `server/tests/contract/us11-recovery.test.ts`: the brief comes back byte-identical; `finish_run` warns on unreleased resources and unpushed commits; `recovery_report` paging and `include_briefs`; SC-014's crash simulation (three runs, restart, re-dispatch from the report alone)
@@ -299,7 +299,7 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [X] T100 [US11] Implement `recovery_report`, workspace-state derivation and `Item.resume` in `server/src/domain/recovery.ts`. Replace the `park_run` and `recovery_report` stubs, add the recovery fields to the `claim_lead`, `start_run`, `heartbeat`, `finish_run`, `report_commit` and `get_item` handlers, and fill the `recovery` route handlers.
 - [X] T101 [US11] Fill the UI per UI_SPEC: the recovery Problems rows and their actions on Needs you, the "Where the work lives" block with *Copy resume note* in the Lead and runs section, and the Agents → Workspaces card
 
-**Checkpoint**: the US11 independent test passes, and the `tasklite-coordinator` skill matches the behaviour.
+**Checkpoint**: the US11 independent test passes, and the `docket-coordinator` skill matches the behaviour.
 
 ---
 
@@ -378,7 +378,7 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 
 ---
 
-## Phase 11: User Story 10 · Running Task Lite safely (P2)
+## Phase 11: User Story 10 · Running Docket safely (P2)
 
 **Fills**: `server/src/jobs/backup.ts`, `server/src/domain/projects.ts`, `server/src/cli/index.ts`, the `settings` and `diagnostics` route handlers, the Settings and Unlock content, the README, `docker/smoke/`
 
@@ -390,12 +390,12 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
   - **logs:** the call log contains no arguments, and no log contains an `Authorization` value;
   - **deleted IDs:** a deleted project's IDs return `not_found` to agents;
   - **container replacement** (`docker compose down && up` in the CI Docker job) keeps every item, event and document (SC-008).
-- [X] T129 [P] [US10] E2E: Settings (projects, connections, snippets showing `$TASKLITE_TOKEN`, Reveal token auto-hiding after 30 s, the delete dialog with typed key and focus on Cancel, the backup locations, *Download diagnostic log*), in `web/e2e/us10-settings.spec.ts`
+- [X] T129 [P] [US10] E2E: Settings (projects, connections, snippets showing `$DOCKET_TOKEN`, Reveal token auto-hiding after 30 s, the delete dialog with typed key and focus on Cancel, the backup locations, *Download diagnostic log*), in `web/e2e/us10-settings.spec.ts`
 
 ### Implementation for US10
 - [X] T130 [US10] Implement the nightly backup in `server/src/jobs/backup.ts` and the CLI in `server/src/cli/index.ts`:
   - `VACUUM INTO` plus a docs tar.gz, with `BACKUP_KEEP` retention;
-  - the opt-in copy to `TASKLITE_BACKUP_EXTRA_DIR` (a failed extra copy never fails the default backup, and raises a Problem);
+  - the opt-in copy to `DOCKET_BACKUP_EXTRA_DIR` (a failed extra copy never fails the default backup, and raises a Problem);
   - the CLI commands `backup now`, `restore <file>` (refuses while running; verifies first), `owner-key` and `agent-token`.
 - [X] T131 [US10] Implement project delete (transaction plus tombstone, docs removal after commit, retry at startup) in `server/src/domain/projects.ts`, and fill the `settings` and `diagnostics` route handlers
 - [X] T132 [US10] Fill Settings (Projects, Connections with the compatibility matrix and snippets, Endpoint, Service health with backup locations, This browser) and the Unlock screen per UI_SPEC §6.7–6.8
@@ -442,10 +442,10 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [X] T144 [P] Reduced-motion and 1024×900 layout checks (the packet decision panel under the queue) in `web/e2e/layout.spec.ts`
 - [X] T145 [P] FR-106 guard: run the contract and e2e suites with the container on an internal network with no egress, and assert no outbound connection attempts (only the Jira fixture may reach out), in `.github/workflows/ci.yml` and `server/tests/integration/no-egress.test.ts`
 - [ ] T146 Run the real-client smoke test (installed Codex, installed Claude Code, an Orca worker running Codex, an Orca worker running Claude), fill in the Settings compatibility matrix, and record the BUILD_SPEC §12 verifications V1–V3 and V6
-- [X] T147 Stretch: add `tasklite export` (full JSON plus documents) in `server/src/cli/export.ts`. It is required before the pilot (ROADMAP §1).
+- [X] T147 Stretch: add `docket export` (full JSON plus documents) in `server/src/cli/export.ts`. It is required before the pilot (ROADMAP §1).
 - [X] T148 [P] Skills (owner decision 27):
   - **Lint:** `server/tests/contract/skills-lint.test.ts` parses every `skills/*/SKILL.md` and fails if a backticked snake_case name isn't a registered tool, a top-level input field, or an enum value from `shared/`. It also checks that each file has `name` and `description` frontmatter.
-  - **Eval:** script the US1 and US11 scenarios against the seeded server with a real client, with and without `tasklite-worker` and `tasklite-coordinator`, and record calls, tokens and mistakes in the PR. The skills must do at least as well as without them, and meet the SC-001 budget.
+  - **Eval:** script the US1 and US11 scenarios against the seeded server with a real client, with and without `docket-worker` and `docket-coordinator`, and record calls, tokens and mistakes in the PR. The skills must do at least as well as without them, and meet the SC-001 budget.
   - **Fix and verify:** fix any skill text the eval shows is wrong, and record V7 (where each client loads skills).
 - [X] T149 Run the quickstart.md validation end to end, and run `/speckit-analyze` until there are no CRITICAL findings
 
@@ -455,7 +455,7 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 
 **Contracts first**, as for every other change: B21 lands the schema, routes, the `get_context` contract change and the snapshot, then the slices fill them.
 
-- [X] T150 [contract] Migration for `agent_files`, `agent_file_versions`, `project_workflows` and `installs` (BUILD_SPEC §4); route schemas and 501 placeholders for every §7 decision-29 route, including `GET /install/:token`; config keys `TASKLITE_PUSH_ROOT` and `TASKLITE_PUSH_HOST_PATH`; the typed client entries. Tests: migration (fresh and current-main databases), route contract.
+- [X] T150 [contract] Migration for `agent_files`, `agent_file_versions`, `project_workflows` and `installs` (BUILD_SPEC §4); route schemas and 501 placeholders for every §7 decision-29 route, including `GET /install/:token`; config keys `DOCKET_PUSH_ROOT` and `DOCKET_PUSH_HOST_PATH`; the typed client entries. Tests: migration (fresh and current-main databases), route contract.
 - [X] T151 [contract] `get_context`: add `workflow` to `ContextBundle` (MCP_SPEC §4), its compact renderer, the description change in `mcp-copy.ts` and MCP_SPEC §5.2 (the same PR), and the snapshot and budget tests. Return `workflow: null` until T157 fills it.
 - [X] T152 [US12] Help center: `docs/help/*.md` articles (at least: connect an agent, review a packet, run states, workspaces and safe pruning, crash recovery, blocker rules, decisions, Jira import, backup and restore, agent setup), bundled into the web build; `/help`, `/help/:slug`, palette results, and contextual "?" side panels per UI_SPEC §6.7c. E2E plus axe.
 - [X] T153 [US13] Agent files service: bundled loading at startup (with new-version detection), layers and resolution, versions, revert, diff, and the bundled-updated flag (BUILD_SPEC §5.17). Unit tests for every resolution and upgrade case.
@@ -463,13 +463,13 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [X] T155 [US13] Install: the bundle builder (layout per client and target, marked AGENTS.md section, manifest), the single-use download token, the PowerShell and bash commands, and the install log. Tests: bundle contents, marker insertion and replacement, token expiry and reuse refused, nothing outside the markers changed.
 - [X] T156 [US13] Push install and check: the push-root guard (no paths outside it, no symlinks out, never delete), *Test*, writes, and the diff check; the copy-paste check command. Tests on a temporary push root, including path-escape attempts.
 - [X] T157 [US13] Fill `workflow` in the context bundle (truncated last among sections 1–5) and the Workflow notes routes; a contract test that `get_context` for a project's item includes its notes.
-- [X] T158 Update the `tasklite-coordinator` and `tasklite-worker` skills (and `skills/README.md`) to mention Workflow notes and Agent setup installs; update the README's install section to point at Agent setup. Keep the skills lint green.
+- [X] T158 Update the `docket-coordinator` and `docket-worker` skills (and `skills/README.md`) to mention Workflow notes and Agent setup installs; update the README's install section to point at Agent setup. Keep the skills lint green.
 
 ## Phase 16: Agent proposals and drift (owner decision 30)
 
-- [x] T159 [contract] Spec plus code in one PR (the snapshot reads MCP_SPEC): migration (`agent_file_proposals`, `instruction_reports`, `drift`); the MCP tools `get_agent_files` and `propose_agent_file_change` with exact descriptions; `claim_lead.instructions` with its description update; the new server-instructions bullet; route schemas and placeholders for proposals and drift; config `TASKLITE_DRIFT_CHECK_INTERVAL`; events (`agent_file.proposed`, `agent_file.proposal_decided`, `drift.detected`, `drift.resolved`); client entries. Snapshot 38 → 40 tools.
+- [x] T159 [contract] Spec plus code in one PR (the snapshot reads MCP_SPEC): migration (`agent_file_proposals`, `instruction_reports`, `drift`); the MCP tools `get_agent_files` and `propose_agent_file_change` with exact descriptions; `claim_lead.instructions` with its description update; the new server-instructions bullet; route schemas and placeholders for proposals and drift; config `DOCKET_DRIFT_CHECK_INTERVAL`; events (`agent_file.proposed`, `agent_file.proposal_decided`, `drift.detected`, `drift.resolved`); client entries. Snapshot 38 → 40 tools.
 - [x] T160 [US14] Proposals: the service (read, propose, approve, edit then approve, decline, three-way basis, limits, write checks); the tools; the owner routes; and the UI per UI_SPEC §6.7b-1, including the Needs you line. Tests, e2e and axe.
-- [x] T161 [US14] Drift: the scheduled push-folder check; instruction reports from `claim_lead`; drift records and remedies (*Adopt*, *Restore*, *Keep local*, with the accepted hash); the Problems row; run instruction display; and the installed `tasklite-check` script that produces the report (PowerShell and bash, with content only for differing files). Tests, including the SC-017 drift suite.
+- [x] T161 [US14] Drift: the scheduled push-folder check; instruction reports from `claim_lead`; drift records and remedies (*Adopt*, *Restore*, *Keep local*, with the accepted hash); the Problems row; run instruction display; and the installed `docket-check` script that produces the report (PowerShell and bash, with content only for differing files). Tests, including the SC-017 drift suite.
 - [x] T162 [US14] Update the skills (worker: report instructions on claim, and propose instead of editing; coordinator: drift remedies), the AGENTS.md block, `skills/README.md`, the README, and the Agent files help article. The skills lint stays green.
 
 ## How to run the build## How to run the build
@@ -487,7 +487,7 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 | B7 | 4 US1 🎯 MVP | T064–T076 | Try it with a real agent client (quickstart §2) |
 | B8 | 5 US2 | T077–T086 | |
 | B9 | 6 US3 | T087–T095 | |
-| B10 | 6r US11 | T096–T101 | P1 complete. Run the crash drill in the `tasklite-coordinator` skill by hand |
+| B10 | 6r US11 | T096–T101 | P1 complete. Run the crash drill in the `docket-coordinator` skill by hand |
 | B11 | 7 US4 | T102–T109 | |
 | B12 | 8 US5 | T110–T116 | |
 | B13 | 9 US6 | T117–T121 | |
@@ -556,4 +556,4 @@ Open a PR titled "<Bn>: <phase name>" with the checkpoint evidence. Do not queue
 2. **MVP (B7).** Agents coordinate end to end. Validate with a real client.
 3. **P1 complete (B8–B10):** the first owner-usable release, including crash recovery.
 4. **P2 then P3 (B11–B17),** each behind green CI and the gate.
-5. **Polish (B18), then the pilot checklist** (ROADMAP §1). From B8 on, track the remaining batches in Task Lite itself.
+5. **Polish (B18), then the pilot checklist** (ROADMAP §1). From B8 on, track the remaining batches in Docket itself.

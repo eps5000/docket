@@ -4,7 +4,7 @@
  * within LIVE_WINDOW (2 m); any signal within STALE_AFTER (30 m) is
  * *reported*; after that, *stale*. Edges are inclusive: "within" the window.
  */
-import type { SignalKind, StoredRunState } from '@tasklite/shared';
+import type { SignalKind, StoredRunState } from '@docket/shared';
 import { afterEach, describe, expect, it } from 'vitest';
 import { displayRunState } from '../../src/domain/model.js';
 import { minutes, startDomain, type Domain } from '../us1-helpers.js';
@@ -70,7 +70,7 @@ describe('stored states', () => {
   });
 });
 
-describe('configured windows (TASKLITE_LIVE_WINDOW, TASKLITE_STALE_AFTER)', () => {
+describe('configured windows (DOCKET_LIVE_WINDOW, DOCKET_STALE_AFTER)', () => {
   it('uses the configured lengths', () => {
     const w = { liveWindowMs: minutes(1), staleAfterMs: minutes(5) };
     const at = (ms: number) => ({

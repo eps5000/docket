@@ -12,7 +12,7 @@
  *   in a wave; they get their own column, and the links between them aren't
  *   drawn (the Dependencies tab fixes them).
  */
-import type { ItemSummary, LinkEdge, Status } from '@tasklite/shared';
+import type { ItemSummary, LinkEdge, Status } from '@docket/shared';
 
 /** A card on the map: a summary, plus whether its packet is ready (Work rows know it). */
 export type MapItem = ItemSummary & { packet_ready?: boolean };

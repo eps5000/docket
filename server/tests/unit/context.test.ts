@@ -6,7 +6,7 @@
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { renderContext, type ContextBundle } from '@tasklite/shared';
+import { renderContext, type ContextBundle } from '@docket/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { CONTEXT_BUDGETS } from '../../src/domain/context.js';
 import { OWNER_ACTOR, type Actor } from '../../src/domain/write.js';

@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useId, useRef, useState } from 'react';
 import { Link } from 'react-router';
-import type { ItemDetailResponse } from '@tasklite/shared';
+import type { ItemDetailResponse } from '@docket/shared';
 import { Button, IconButton } from '../../components/kit';
 import { apiClient } from '../../app/queryClient';
 import { queryKeys } from '../../lib/api';

@@ -49,11 +49,11 @@ export const jiraReportSchema = z.object({
     skipped: z.number().int(),
     lossy: z.number().int(),
   }),
-  /** The mapping table: Jira → Task Lite, count, lossy count. */
+  /** The mapping table: Jira → Docket, count, lossy count. */
   mapping: z.array(
     z.object({
       jira: z.string(),
-      task_lite: z.string(),
+      docket: z.string(),
       count: z.number().int(),
       lossy: z.number().int(),
     }),

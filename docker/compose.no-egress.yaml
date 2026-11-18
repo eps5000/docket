@@ -1,13 +1,13 @@
-# FR-106 guard (tasks.md T145): Task Lite on a network with no route out.
+# FR-106 guard (tasks.md T145): Docket on a network with no route out.
 # CI only; never for a real install. Add it after the other files:
 #   docker compose -f docker/compose.yaml -f docker/compose.jira-fixture.yaml \
 #     -f docker/compose.no-egress.yaml up -d --build --wait
 # - `sealed` is an internal network: no gateway, no NAT, nothing outside it is reachable.
-# - tasklite and jira-fixture are only on `sealed`. The Jira fixture is the one other host
-#   tasklite may reach (TASKLITE_EGRESS_ALLOW).
-# - `gateway` forwards 127.0.0.1:7420 inwards to tasklite (Docker doesn't publish ports
+# - docket and jira-fixture are only on `sealed`. The Jira fixture is the one other host
+#   docket may reach (DOCKET_EGRESS_ALLOW).
+# - `gateway` forwards 127.0.0.1:7420 inwards to docket (Docker doesn't publish ports
 #   for a container that is only on an internal network).
-# - Every Node process in the tasklite container loads no-egress/egress-audit.mjs, which
+# - Every Node process in the docket container loads no-egress/egress-audit.mjs, which
 #   records any attempt to reach another host in /data/egress-audit.jsonl. CI asserts it
 #   stays empty (docker/no-egress/check.sh).
 networks:
@@ -15,14 +15,14 @@ networks:
     internal: true
 
 services:
-  tasklite:
+  docket:
     networks: !override
       sealed: {}
     ports: !reset []
     environment:
       NODE_OPTIONS: --import=/opt/no-egress/egress-audit.mjs
-      TASKLITE_EGRESS_LOG: /data/egress-audit.jsonl
-      TASKLITE_EGRESS_ALLOW: jira-fixture.test
+      DOCKET_EGRESS_LOG: /data/egress-audit.jsonl
+      DOCKET_EGRESS_ALLOW: jira-fixture.test
     volumes:
       - ./no-egress:/opt/no-egress:ro
 
@@ -43,7 +43,7 @@ services:
     ports:
       - '127.0.0.1:7420:7420'
     depends_on:
-      tasklite:
+      docket:
         condition: service_healthy
     healthcheck:
       test:

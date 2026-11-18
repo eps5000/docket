@@ -4,7 +4,7 @@
  * the owner's *Mark released* and *Handled*.
  *
  * US11 (T100). Everything here is derived from what agents reported
- * (recovery-model.ts): Task Lite never checks a folder, a process or a
+ * (recovery-model.ts): Docket never checks a folder, a process or a
  * remote (FR-117). The coordinator acts on the restart list; the owner acts
  * on the Problems rows.
  */
@@ -16,7 +16,7 @@ import {
   type Question,
   type WorkspaceRow,
   type WorkspaceState,
-} from '@tasklite/shared';
+} from '@docket/shared';
 import type { RecoveryService, ServiceDeps, ReadContext } from './contracts.js';
 import {
   OPEN_STORED_SQL,

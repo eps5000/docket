@@ -18,12 +18,12 @@
 .vscode
 .idea
 docs/*
-!docs/templates/AGENTS-tasklite.md
+!docs/templates/AGENTS-docket.md
 !docs/templates/WORKFLOW-starter.md
 !docs/help
 specs
 # design/ is reference material, except the sample data the seed loader
-# reads (T031, TASKLITE_SEED=sample and `tasklite seed sample`).
+# reads (T031, DOCKET_SEED=sample and `docket seed sample`).
 design
 !design/sample-data.json
 docker/.env

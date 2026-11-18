@@ -11,7 +11,7 @@
  *
  * Nothing in it comes from the credentials: no email, no token.
  */
-import type { JiraReport } from '@tasklite/shared';
+import type { JiraReport } from '@docket/shared';
 import { compareKeys } from './mapper.js';
 import type { ImportPlan, PlannedLink } from './types.js';
 

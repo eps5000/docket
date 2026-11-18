@@ -311,8 +311,19 @@ export type InstallTargetKind = (typeof INSTALL_TARGET_KINDS)[number];
 export const INSTALL_METHODS = ['command', 'push'] as const;
 export type InstallMethod = (typeof INSTALL_METHODS)[number];
 
-/** What a pushed file did, shown after *Install* (UI_SPEC §6.7b). */
-export const INSTALL_FILE_CHANGES = ['created', 'updated', 'unchanged'] as const;
+/**
+ * What a pushed file did, shown after *Install* (UI_SPEC §6.7b). `removed`
+ * and `kept_edited` are old `tasklite-*` skill folders an earlier install
+ * recorded (B28): removed while unmodified, else kept ("old name, edited
+ * locally").
+ */
+export const INSTALL_FILE_CHANGES = [
+  'created',
+  'updated',
+  'unchanged',
+  'removed',
+  'kept_edited',
+] as const;
 export type InstallFileChange = (typeof INSTALL_FILE_CHANGES)[number];
 
 /** A *Check* result per file (UI_SPEC §6.7b). */

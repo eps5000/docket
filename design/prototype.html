@@ -1354,8 +1354,8 @@ V.connections = () => {
     ['Orca worker · Claude','Not verified','never','todo','Check that this surface inherits the user MCP config'],
     ['Agent in another container','Docker network','—','off','Off by default. Needs an explicit network path (O02)']];
   const st = s => s==='pass' ? '<span class="chip c-ok">✓ Verified</span>' : s==='todo' ? '<span class="chip c-warn">Not verified</span>' : '<span class="chip c-gray">Not configured</span>';
-  const snip = {codex:`# ~/.codex/config.toml\n[mcp_servers.tasklite]\nurl = "http://127.0.0.1:7420/mcp"\nbearer_token_env_var = "TASKLITE_TOKEN"`,
-                claude:`claude mcp add --transport http --scope user tasklite \\\n  http://127.0.0.1:7420/mcp \\\n  --header "Authorization: Bearer $TASKLITE_TOKEN"`};
+  const snip = {codex:`# ~/.codex/config.toml\n[mcp_servers.tasklite]\nurl = "http://127.0.0.1:7420/mcp"\nbearer_token_env_var = "DOCKET_TOKEN"`,
+                claude:`claude mcp add --transport http --scope user tasklite \\\n  http://127.0.0.1:7420/mcp \\\n  --header "Authorization: Bearer $DOCKET_TOKEN"`};
   return `<h2 style="margin:22px 0 10px">Connections</h2>
   <div class="grid2"><div class="stack">
     <div class="card" style="overflow:auto"><div class="sectionhead"><h3>Client compatibility</h3><span class="src">O07 smoke test: claim, plan, log, read back</span></div>

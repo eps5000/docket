@@ -1,5 +1,5 @@
 import { useId } from 'react';
-import { FILTERS, type EpicCard, type UI_FILTER_KEYS, type WorkResponse } from '@tasklite/shared';
+import { FILTERS, type EpicCard, type UI_FILTER_KEYS, type WorkResponse } from '@docket/shared';
 import { FilterChip } from '../../components/kit';
 import { useShell } from '../../app/ShellState';
 import { useBootstrap } from '../../app/useBootstrap';

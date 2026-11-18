@@ -1,7 +1,7 @@
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { serve } from '@hono/node-server';
-import { APP_NAME } from '@tasklite/shared';
+import { APP_NAME } from '@docket/shared';
 import { createApp } from './app.js';
 import { describeSeed, isDatabaseEmpty, loadSampleSeed } from './db/seed/loader.js';
 import { readContext } from './domain/contracts.js';
@@ -34,7 +34,7 @@ if (config.seed === 'sample') {
     const summary = loadSampleSeed(runtime.db, { now: new Date(), docsDir: config.paths.docs });
     console.log(`Loaded the sample seed: ${describeSeed(summary)}`);
   } else {
-    console.log('TASKLITE_SEED=sample ignored: the database already has data.');
+    console.log('DOCKET_SEED=sample ignored: the database already has data.');
   }
 }
 
@@ -43,7 +43,7 @@ if (config.seed === 'sample') {
 const { added } = syncBundledFiles(runtime);
 if (added.length > 0) console.log(`Loaded bundled agent files: ${added.join(', ')}.`);
 
-// `tasklite restore` refuses while this lock is fresh (BUILD_SPEC §5.13).
+// `docket restore` refuses while this lock is fresh (BUILD_SPEC §5.13).
 const lock = holdServerLock(config);
 
 // Housekeeping (BUILD_SPEC §5.10, §5.12): uploads interrupted by the restart, and
@@ -55,7 +55,7 @@ if (removed.length > 0) {
 }
 
 const app = createApp(runtime, { webRoot });
-// The nightly backup at TASKLITE_BACKUP_AT (BUILD_SPEC §5.13).
+// The nightly backup at DOCKET_BACKUP_AT (BUILD_SPEC §5.13).
 const backups = startBackupJob({
   config,
   log: runtime.log,
@@ -64,12 +64,12 @@ const backups = startBackupJob({
 });
 // Lease expiry and the 60 s pings to sessions of open runs (BUILD_SPEC §5.3, §5.4).
 const sweeper = startSweeper(runtime);
-// The push folder's drift check, at startup and every TASKLITE_DRIFT_CHECK_INTERVAL (decision 30).
+// The push folder's drift check, at startup and every DOCKET_DRIFT_CHECK_INTERVAL (decision 30).
 const driftCheck = startDriftCheck(runtime);
 
 const server = serve({ fetch: app.fetch, hostname: '0.0.0.0', port: config.port }, (info) => {
   console.log(`${APP_NAME} ${APP_VERSION} listening on 0.0.0.0:${info.port}`);
-  console.log('Owner key: run `tasklite owner-key` in the container to print it.');
+  console.log('Owner key: run `docket owner-key` in the container to print it.');
 });
 
 // Docker sends SIGTERM on stop; close the listener so the container stops promptly.

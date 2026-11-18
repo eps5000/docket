@@ -1,4 +1,4 @@
-# Research: Task Lite V1
+# Research: Docket (formerly Task Lite) V1
 
 Phase 0 output. The spec has no remaining `NEEDS CLARIFICATION`; this file records each technical
 decision in Spec Kit's Decision / Rationale / Alternatives form. The full decisions log, with
@@ -88,7 +88,7 @@ section links, is [BUILD_SPEC §14](../../docs/BUILD_SPEC.md); the owner decisio
   - server-sent events at `/api/stream`, with `Last-Event-ID` resume and query invalidation in the UI;
   - desktop notifications built in the browser with the Notification API, from for-you events on that stream;
   - repeats suppressed per browser via `localStorage` and a single-tab lock (`navigator.locks` or BroadcastChannel);
-  - a `(N) Task Lite` tab title.
+  - a `(N) Docket` tab title.
 - **Rationale**: no server push infrastructure, nothing leaves the machine, and works with the tab in the background.
 - **Alternatives**:
   - polling: laggy and wasteful;

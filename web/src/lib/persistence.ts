@@ -19,33 +19,33 @@
 
 export const STORAGE_KEYS = {
   /** sessionStorage: `all` or a project key. Resets on every new visit (owner decision 10). */
-  scope: 'tl.scope',
+  scope: 'docket.scope',
   /** sessionStorage: `{tabs: [{id, type, title, view}], order}`. */
-  openTabs: 'tl.tabs',
+  openTabs: 'docket.tabs',
   /** localStorage: `system` | `light` | `dark`. */
-  theme: 'tl.theme',
+  theme: 'docket.theme',
   /** localStorage: `on` | `off` (UI_SPEC §6.7a; filled by T085). */
-  notifications: 'tl.notifications',
+  notifications: 'docket.notifications',
   /** localStorage: event seqs already notified in this browser (UI_SPEC §6.7a; T085). */
-  notified: 'tl.notified',
+  notified: 'docket.notified',
   /**
    * localStorage: `{[sectionType]: boolean}`, kept only where it differs from
    * the section's default (most sections start open; Recent and the burn-down
    * start collapsed).
    */
-  collapsed: 'tl.collapsed',
+  collapsed: 'docket.collapsed',
 } as const;
 
 export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS];
 
 /** Which storage each key lives in (UI_SPEC §2). */
 export const STORAGE_AREA: Record<StorageKey, 'session' | 'local'> = {
-  'tl.scope': 'session',
-  'tl.tabs': 'session',
-  'tl.theme': 'local',
-  'tl.notifications': 'local',
-  'tl.notified': 'local',
-  'tl.collapsed': 'local',
+  'docket.scope': 'session',
+  'docket.tabs': 'session',
+  'docket.theme': 'local',
+  'docket.notifications': 'local',
+  'docket.notified': 'local',
+  'docket.collapsed': 'local',
 };
 
 function area(key: StorageKey): Storage | null {

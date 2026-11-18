@@ -15,7 +15,7 @@ export const ORIGIN = 'http://127.0.0.1:7420';
  * as `claude-code`, which is text-only by default). The text-only mode has
  * its own tests (contract/result-modes.test.ts), which pass their own list.
  */
-export const STRUCTURED_FOR_ALL = { TASKLITE_TEXT_ONLY_CLIENTS: 'none' } as const;
+export const STRUCTURED_FOR_ALL = { DOCKET_TEXT_ONLY_CLIENTS: 'none' } as const;
 
 export interface TestServer {
   app: Hono;
@@ -40,12 +40,12 @@ export function createTestServer(
     dataDir?: string;
   } = {},
 ): TestServer {
-  const tmp = tempDir('tasklite-int-');
+  const tmp = tempDir('docket-int-');
   const dataDir = opts.dataDir ?? join(tmp.dir, 'data');
   const webRoot = join(tmp.dir, 'web');
   mkdirSync(dataDir, { recursive: true });
   mkdirSync(webRoot);
-  writeFileSync(join(webRoot, 'index.html'), '<!doctype html><title>Task Lite</title>');
+  writeFileSync(join(webRoot, 'index.html'), '<!doctype html><title>Docket</title>');
   const clock = opts.clock ?? new TestClock();
   const runtime = createRuntime({
     dataDir,

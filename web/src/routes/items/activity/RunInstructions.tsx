@@ -1,14 +1,14 @@
 import { Link } from 'react-router';
-import type { ItemDetailResponse, RunInstructions } from '@tasklite/shared';
+import type { ItemDetailResponse, RunInstructions } from '@docket/shared';
 import { Chip } from '../../../components/kit';
 import { useBootstrap } from '../../../app/useBootstrap';
 import { paths } from '../../../lib/paths';
 
 type FileLine = RunInstructions['files'][number];
 
-/** "Recipe App’s copy v2", "default v1", or "not sent by Task Lite". */
+/** "Recipe App’s copy v2", "default v1", or "not sent by Docket". */
 function sourceText(f: FileLine, projectName: string): string {
-  if (f.source === null) return 'not sent by Task Lite';
+  if (f.source === null) return 'not sent by Docket';
   const where = f.source === 'project' ? `${projectName}’s copy` : 'default';
   return f.version_no !== null ? `${where} v${f.version_no}` : where;
 }
@@ -33,10 +33,10 @@ function EditedChip({ f, project }: { f: FileLine; project: string }) {
 }
 
 /**
- * "Instructions: tasklite-worker · Recipe App’s copy v2" (UI_SPEC §6.7b-1;
+ * "Instructions: docket-worker · Recipe App’s copy v2" (UI_SPEC §6.7b-1;
  * FR-133): the instruction versions a run reported working from on
  * `claim_lead`, with ⚠ "edited locally" when the reported file differs from
- * what Task Lite sent, linking to the drift record.
+ * what Docket sent, linking to the drift record.
  *
  * `compact` (the agent bar): the first file (the worker skill) and how many
  * more, with the chip when any file was edited. Otherwise (Lead and runs):

@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router';
-import type { ItemDetailResponse, LinkEdge, LinkRef } from '@tasklite/shared';
+import type { ItemDetailResponse, LinkEdge, LinkRef } from '@docket/shared';
 import { Button, Callout, Card, EmptyState } from '../../components/kit';
 import { MapCard, cyclePath, cyclesIn, type MapItem } from '../../components/ProgressMap';
 import { apiClient } from '../../app/queryClient';

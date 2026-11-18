@@ -6,7 +6,7 @@ import {
   SATISFIED_WHEN_LABELS,
   type SatisfiedWhen,
   type SettingsResponse,
-} from '@tasklite/shared';
+} from '@docket/shared';
 import {
   Button,
   Card,

@@ -1,4 +1,4 @@
-# Task Lite: V1 build spec
+# Docket (formerly Task Lite): V1 build spec
 
 Status: ready to build, 2026-11-07. This is the implementation contract for MVP V1. It is written for an integration agent working without the design conversation.
 
@@ -8,7 +8,7 @@ Status: ready to build, 2026-11-07. This is the implementation contract for MVP 
 3. [UI_SPEC.md](UI_SPEC.md): screens, components, tokens, states and accessibility.
 4. [design/prototype.html](../design/prototype.html): the visual and behavioural reference. Open `?selftest` to render every view.
 5. [design/sample-data.json](../design/sample-data.json): the seed data, exported from the prototype.
-6. [templates/AGENTS-tasklite.md](templates/AGENTS-tasklite.md): the block each project adds to its `AGENTS.md` or `CLAUDE.md`. Ship it in the repo; the README tells owners to use it.
+6. [templates/AGENTS-docket.md](templates/AGENTS-docket.md): the block each project adds to its `AGENTS.md` or `CLAUDE.md`. Ship it in the repo; the README tells owners to use it.
    - [../skills/](../skills/README.md): the agent skills (owner decision 27). Ship them in the repo; CI lint-checks them against the tool contract.
 7. [ROADMAP.md](ROADMAP.md): what is deliberately *not* in V1 (dispatching, GitHub-observed merges, contracts, a knowledge layer), the pre-pilot checklist, and the TERSL reference notes. Don't build anything from it.
 8. Background only, not instructions: [REQUIREMENTS_DRAFT.md](REQUIREMENTS_DRAFT.md) (requirement IDs such as A05 and H04 cited below), [UI_DESIGN.md](UI_DESIGN.md) (design rationale and revision history) and [JIRA_RESEARCH.md](JIRA_RESEARCH.md).
@@ -19,13 +19,13 @@ Status: ready to build, 2026-11-07. This is the implementation contract for MVP 
 
 ## 1. What V1 is
 
-Task Lite is a local **agent coordination service** with a human supervision UI. It's the shared, enforced source of truth that agents work through: work items and their dependencies, eligibility to start, lead claims and leases, plans and evidence, decision records, and the owner's review gates. It runs as one Docker container on the owner's machine and serves three things on one port:
+Docket is a local **agent coordination service** with a human supervision UI. It's the shared, enforced source of truth that agents work through: work items and their dependencies, eligibility to start, lead claims and leases, plans and evidence, decision records, and the owner's review gates. It runs as one Docker container on the owner's machine and serves three things on one port:
 
 - an **MCP endpoint** (`/mcp`). Installed agent clients (Codex, Claude Code, and both launched as Orca workers) use it to plan, claim, update and hand off work;
 - a **JSON API** (`/api`) for the web UI;
 - the **web UI** (`/`). It exists so the owner can see what agents did, what they're doing, and what needs the owner.
 
-The service never calls a model API and never launches an agent (O08). It is the **coordinator**, not the dispatcher (owner decision 18): it holds the authoritative record of what work exists, what is eligible to start, who holds it, and the rules (blocking, leases, review gates), and it enforces them on every call. Orca, or the owner, decides when to start an agent; the agent then asks Task Lite what to do.
+The service never calls a model API and never launches an agent (O08). It is the **coordinator**, not the dispatcher (owner decision 18): it holds the authoritative record of what work exists, what is eligible to start, who holds it, and the rules (blocking, leases, review gates), and it enforces them on every call. Orca, or the owner, decides when to start an agent; the agent then asks Docket what to do.
 
 ### In scope for V1
 All P0 requirements, plus four P1 items the owner pulled in: the Timeline layout, Label pages, burn-down and forecast (H14, A18), and the Jira import dry run and import (O05). The UI covers every screen in the prototype plus two screens that weren't prototyped: burn-down/forecast and Jira import. Those two are specified in UI_SPEC.md §9.
@@ -37,7 +37,7 @@ V1 also includes four coordination features from the 2026-11-14 review (owner de
 - **stricter dependency rules**: a blocker can be required to be merged or verified, not just done (§5.2).
 
 ### Out of scope for V1
-- Machine-readable full export (O06; a `tasklite export` CLI is a stretch goal, see M7).
+- Machine-readable full export (O06; a `docket export` CLI is a stretch goal, see M7).
 - Bulk mutation tools for agents (A12).
 - Git/CI integrations (A14).
 - Sprints and dashboards (H12).
@@ -53,7 +53,7 @@ V1 also includes four coordination features from the 2026-11-14 review (owner de
 ## 2. Architecture
 
 ```
-┌─────────────────────────── docker container: tasklite ───────────────────────────┐
+┌─────────────────────────── docker container: docket ───────────────────────────┐
 │  Node 22 process (TypeScript)                                                     │
 │   ├─ Hono HTTP server on 0.0.0.0:7420 (published as 127.0.0.1:7420 only)          │
 │   │   ├─ /mcp     MCP Streamable HTTP (bearer token)        ─┐                    │
@@ -62,7 +62,7 @@ V1 also includes four coordination features from the 2026-11-14 review (owner de
 │   │   └─ /*       static React build (SPA fallback to index.html)                 │
 │   ├─ scheduler: run-state sweeper (every 30 s), nightly backup (03:00 local)      │
 │   └─ SQLite (better-sqlite3, WAL) + document store on /data                       │
-└──────────────────────────────────── volume: tasklite-data → /data ───────────────┘
+└──────────────────────────────────── volume: docket-data → /data ───────────────┘
 ```
 
 **One write path.** MCP tools and API handlers are thin adapters over the same domain services. Every mutation runs in one SQLite transaction: it validates, applies the change, bumps `version` and appends events. No adapter writes tables directly. This is how O04 holds: there is one task store, and agents and the UI see the same state.
@@ -80,7 +80,7 @@ Owner decision 14 (see §14).
 | Web | React 19 + Vite, React Router, TanStack Query. Plain CSS using the prototype's tokens (no CSS framework) |
 | Markdown | `markdown-it` + `DOMPurify` (render in the browser, sanitized) |
 | Tests | Vitest (unit, integration), Playwright (end to end), `@axe-core/playwright` |
-| Container | Multi-stage build, `node:22-bookworm-slim`, non-root user `tasklite` (uid 10001) |
+| Container | Multi-stage build, `node:22-bookworm-slim`, non-root user `docket` (uid 10001) |
 | CI | GitHub Actions on GitHub-hosted `ubuntu-latest` runners (free on this public repo; no Namespace or self-hosted runners). One workflow, `.github/workflows/ci.yml`, on pull requests and pushes to `main`: install with a pnpm cache, then lint, typecheck, Vitest, and `docker build`. From M4 it also runs Playwright end to end (Chromium) against the built image with the sample seed, uploading the report and traces as artifacts on failure. Mergify's merge queue waits for this check. |
 
 ### Repository layout to create
@@ -99,51 +99,51 @@ Environment variables, with defaults:
 
 | Var | Default | Meaning |
 |---|---|---|
-| `TASKLITE_TOKEN` | (generated) | Agent bearer token for `/mcp`. If unset, generated on first boot into `/data/secrets/agent-token` (mode 0600) and shown in Settings. Never logged. |
-| `TASKLITE_PORT` | `7420` | Listen port inside the container. |
-| `TASKLITE_ALLOWED_HOSTS` | `127.0.0.1:7420,localhost:7420` | Host header allowlist (DNS-rebinding guard). |
-| `TASKLITE_LIVE_WINDOW` | `2m` | Run counts as *live* if its session showed signs of life within this window. |
-| `TASKLITE_STALE_AFTER` | `30m` | Open run with no signal for this long is *stale*. |
-| `TASKLITE_LEASE` | `60m` | Lead claim lease, renewed by any signal from the run. Suspended while the run is parked. |
-| `TASKLITE_PARK_MAX` | `24h` | How long a run may stay parked before it shows under Problems. It keeps its claim either way. |
-| `TASKLITE_RESUME_UNATTENDED` | `30m` | How long a parked run may sit `resume_ready` before it shows under Problems as "Ready to resume". |
-| `TASKLITE_ORPHAN_AFTER` | `15m` | How long a resource may stay unreleased after its run ends before it shows as an orphaned resource. |
-| `TASKLITE_PUSH_ROOT` | unset | Opt-in push install (decision 29): the container path of a host folder the owner mounts, for example `/host-code`. Unset means push install is off. |
-| `TASKLITE_PUSH_HOST_PATH` | unset | The same folder's path on the host, for example `C:/Users/me/code`, so the UI can show and accept host paths. |
-| `TASKLITE_DRIFT_CHECK_INTERVAL` | `15m` | How often push-folder installs are checked for files edited outside Task Lite (decision 30). |
-| `TASKLITE_BACKUP_AT` | `03:00` | Local time for the nightly backup. |
-| `TASKLITE_BACKUP_KEEP` | `14` | Days of backups kept, in every location. |
-| `TASKLITE_BACKUP_EXTRA_DIR` | (unset) | Opt-in extra backup location: the path *inside the container* of a host folder bind-mounted by the owner (e.g. `/backups-extra`). When it's set and writable, each nightly backup is also copied there (owner decision 24). |
-| `TASKLITE_TEXT_ONLY_CLIENTS` | `claude-code` | MCP clients whose sessions get text-only tool results (MCP_SPEC §3 Results; owner decision 28): exact `clientInfo.name`s, comma-separated, ignoring case. `none` gives every client structured results. The default is the name Claude Code sends. |
-| `TASKLITE_SEED` | (unset) | `sample` loads the sample data into an empty database. |
+| `DOCKET_TOKEN` | (generated) | Agent bearer token for `/mcp`. If unset, generated on first boot into `/data/secrets/agent-token` (mode 0600) and shown in Settings. Never logged. |
+| `DOCKET_PORT` | `7420` | Listen port inside the container. |
+| `DOCKET_ALLOWED_HOSTS` | `127.0.0.1:7420,localhost:7420` | Host header allowlist (DNS-rebinding guard). |
+| `DOCKET_LIVE_WINDOW` | `2m` | Run counts as *live* if its session showed signs of life within this window. |
+| `DOCKET_STALE_AFTER` | `30m` | Open run with no signal for this long is *stale*. |
+| `DOCKET_LEASE` | `60m` | Lead claim lease, renewed by any signal from the run. Suspended while the run is parked. |
+| `DOCKET_PARK_MAX` | `24h` | How long a run may stay parked before it shows under Problems. It keeps its claim either way. |
+| `DOCKET_RESUME_UNATTENDED` | `30m` | How long a parked run may sit `resume_ready` before it shows under Problems as "Ready to resume". |
+| `DOCKET_ORPHAN_AFTER` | `15m` | How long a resource may stay unreleased after its run ends before it shows as an orphaned resource. |
+| `DOCKET_PUSH_ROOT` | unset | Opt-in push install (decision 29): the container path of a host folder the owner mounts, for example `/host-code`. Unset means push install is off. |
+| `DOCKET_PUSH_HOST_PATH` | unset | The same folder's path on the host, for example `C:/Users/me/code`, so the UI can show and accept host paths. |
+| `DOCKET_DRIFT_CHECK_INTERVAL` | `15m` | How often push-folder installs are checked for files edited outside Docket (decision 30). |
+| `DOCKET_BACKUP_AT` | `03:00` | Local time for the nightly backup. |
+| `DOCKET_BACKUP_KEEP` | `14` | Days of backups kept, in every location. |
+| `DOCKET_BACKUP_EXTRA_DIR` | (unset) | Opt-in extra backup location: the path *inside the container* of a host folder bind-mounted by the owner (e.g. `/backups-extra`). When it's set and writable, each nightly backup is also copied there (owner decision 24). |
+| `DOCKET_TEXT_ONLY_CLIENTS` | `claude-code` | MCP clients whose sessions get text-only tool results (MCP_SPEC §3 Results; owner decision 28): exact `clientInfo.name`s, comma-separated, ignoring case. `none` gives every client structured results. The default is the name Claude Code sends. |
+| `DOCKET_SEED` | (unset) | `sample` loads the sample data into an empty database. |
 | `TZ` | host TZ | Display time zone. Storage is always UTC. |
 
-`docker/compose.yaml` publishes `127.0.0.1:7420:7420` only (O02), mounts the named volume `tasklite-data:/data` (plus a commented-out, opt-in bind mount for the extra backup folder, e.g. `~/TaskLiteBackups:/backups-extra`), sets `restart: unless-stopped`, and has a healthcheck on `/healthz`.
+`docker/compose.yaml` publishes `127.0.0.1:7420:7420` only (O02), mounts the named volume `docket-data:/data` (plus a commented-out, opt-in bind mount for the extra backup folder, e.g. `~/DocketBackups:/backups-extra`), sets `restart: unless-stopped`, and has a healthcheck on `/healthz`.
 
 ### Volume layout
 
 ```
-/data/tasklite.db (+ -wal, -shm)
+/data/docket.db (+ -wal, -shm)
 /data/docs/<PROJECT_KEY>/<document_id>/v<n>/<filename>
 /data/secrets/agent-token  /data/secrets/owner-key
 /data/logs/calls-YYYYMMDD.jsonl   (diagnostic call log, kept 7 days)
-/data/backups/tasklite-YYYYMMDD-HHMM.tar.gz
+/data/backups/docket-YYYYMMDD-HHMM.tar.gz
 ```
 
 ---
 
 ## 3. Security and identity
 
-- **Network.** Only `127.0.0.1:7420` is published. Every request's `Host` must be in `TASKLITE_ALLOWED_HOSTS`, otherwise 421. Requests with an `Origin` header must have an allowed origin (the MCP spec requires this), otherwise 403. Other devices and containers are out of scope. A container-network path is documented as off by default (O02).
-- **Agents.** `/mcp` requires `Authorization: Bearer <TASKLITE_TOKEN>`. One token serves all clients (owner decision 16).
+- **Network.** Only `127.0.0.1:7420` is published. Every request's `Host` must be in `DOCKET_ALLOWED_HOSTS`, otherwise 421. Requests with an `Origin` header must have an allowed origin (the MCP spec requires this), otherwise 403. Other devices and containers are out of scope. A container-network path is documented as off by default (O02).
+- **Agents.** `/mcp` requires `Authorization: Bearer <DOCKET_TOKEN>`. One token serves all clients (owner decision 16).
   - **Who is calling:** the client name comes from the MCP `initialize` handshake (`clientInfo.name`), normalised: contains `codex` → `codex`; contains `claude` → `claude`; anything else is used as is. Agents add an optional `agent_label` (for example `orca-w3`) on `claim_lead` and `start_run`.
   - **Display:** the actor shows as `claude · orca-w3`.
   - **Storage:** events store `actor_kind=agent`, `client`, `label`, `session_id` and `run_id`.
 - **Owner.** The browser gets an **owner session**, and agents never get its credential. Without this, any local agent could `curl` the API and record a human approval, which breaks H06. How it works:
   - On first boot the server writes `/data/secrets/owner-key`: 32 random bytes, base32-encoded.
-  - The first visit in a browser shows a one-field "Unlock Task Lite" screen. The owner pastes the key, printed by `docker compose exec tasklite tasklite owner-key`.
-  - The server then sets the `tl_owner` cookie: HttpOnly, SameSite=Strict, Path=/, 30-day sliding expiry. It's a signed session ID, and sessions are stored in the database.
-  - `/api/*` requires that cookie. Mutating API calls also need the header `X-Tasklite-CSRF`, which must match the `tl_csrf` cookie (double submit).
+  - The first visit in a browser shows a one-field "Unlock Docket" screen. The owner pastes the key, printed by `docker compose exec docket docket owner-key`.
+  - The server then sets the `docket_owner` cookie: HttpOnly, SameSite=Strict, Path=/, 30-day sliding expiry. It's a signed session ID, and sessions are stored in the database.
+  - `/api/*` requires that cookie. Mutating API calls also need the header `X-Docket-CSRF`, which must match the `docket_csrf` cookie (double submit).
   - Settings → Connections has *Lock this browser* (ends the session) and *Rotate owner key* (ends all sessions).
 - **Secrets.** Tokens, keys and Jira API tokens are never written to task content, events or logs, and logs redact `Authorization` headers. The Jira API token lives only in memory for the import session (§9).
 - **What agents cannot do through MCP:** record review decisions, answer their own questions as the owner, write owner notes, archive or unarchive, delete projects, or release another agent's claim. Those are owner actions, available only through `/api`.
@@ -363,10 +363,10 @@ O03.
 - Nightly at `BACKUP_AT`: `VACUUM INTO` a temporary database, then tar.gz it together with `/data/docs` into `/data/backups`.
 - Keep `BACKUP_KEEP` days.
 - CLI:
-  - `tasklite backup now`;
-  - `tasklite checksums`: prints item, event and document checksums, to compare a restore with its backup (B15);
-  - `tasklite restore <file>`: refuses while the server is running. Run it with `docker compose run --rm tasklite tasklite restore …` after stopping the service. It verifies the archive before replacing anything.
-- **Extra location** (owner decision 24): if `TASKLITE_BACKUP_EXTRA_DIR` is set, the finished archive is also copied there, with the same retention. A failed or missing extra copy never fails the default backup; it shows as a Problem, "Extra backup copy failed: <reason>", until a later copy succeeds. `tasklite restore` accepts an archive from either location.
+  - `docket backup now`;
+  - `docket checksums`: prints item, event and document checksums, to compare a restore with its backup (B15);
+  - `docket restore <file>`: refuses while the server is running. Run it with `docker compose run --rm docket docket restore …` after stopping the service. It verifies the archive before replacing anything.
+- **Extra location** (owner decision 24): if `DOCKET_BACKUP_EXTRA_DIR` is set, the finished archive is also copied there, with the same retention. A failed or missing extra copy never fails the default backup; it shows as a Problem, "Extra backup copy failed: <reason>", until a later copy succeeds. `docket restore` accepts an archive from either location.
 - Settings shows each location with its last successful backup time and how long backups are kept.
 
 ### 5.14 Decision records
@@ -397,7 +397,7 @@ Shared knowledge that agents must respect: "Nutrition is per serving", "Use the 
 **Budgets** (approximate tokens, counted as characters ÷ 4): `small` 1,000, `medium` 3,000 (the default), `large` 8,000. Sections are filled in the order above. Truncation is marked inline ("…truncated; read pantry-prd.md v3 with get_item"), never silently.
 
 ### 5.16 Recovery: workspaces, briefs, resources, parking
-Owner decision 26, after an Orca crash pruned worktrees that held in-flight work. The aim: a crashed orchestrator or worker restarts **without guessing**, and nothing is left running unnoticed. Task Lite only **records**; the coordinator acts (Principle I).
+Owner decision 26, after an Orca crash pruned worktrees that held in-flight work. The aim: a crashed orchestrator or worker restarts **without guessing**, and nothing is left running unnoticed. Docket only **records**; the coordinator acts (Principle I).
 
 - **Workspace.**
   - Set on `claim_lead` and `start_run`; patched by `heartbeat`.
@@ -426,37 +426,43 @@ Owner decision 26, after an Orca crash pruned worktrees that held in-flight work
 - **End reasons.**
   - Every run that ends records an `end_reason`: `finished` and `failed` (`finish_run`), `released` (`release_lead`), `lease_expired` (sweeper), `owner_released` (*Release lead claim*), `service_restart` (boot sweep) or `canceled` (owner cancel).
   - **"Unpushed work may be lost"** shows under Problems when any run ends (including `finished` and `failed`) while `dirty` is true or `head_sha` ≠ `pushed_sha` (B10 resolution, matching MCP_SPEC §10 test 20). It clears when a later run reports a pushed commit, or the owner marks it *Handled*.
-- **`recovery_report`** (MCP_SPEC §5.9) is read-only and assembles the restart list. The coordinator's recovery procedure is in the [`tasklite-coordinator` skill](../skills/tasklite-coordinator/SKILL.md).
-- **Limits.** Task Lite never checks folders, stops processes or prevents pruning: it has no host access, by design (the one exception is the opt-in agent-files push folder, §5.17). The coordinator does those things using this record.
+- **`recovery_report`** (MCP_SPEC §5.9) is read-only and assembles the restart list. The coordinator's recovery procedure is in the [`docket-coordinator` skill](../skills/docket-coordinator/SKILL.md).
+- **Limits.** Docket never checks folders, stops processes or prevents pruning: it has no host access, by design (the one exception is the opt-in agent-files push folder, §5.17). The coordinator does those things using this record.
 
 ### 5.17 Agent setup: agent files, workflow notes, install (decision 29)
-- **Files.** The agent files are each `skills/<name>/SKILL.md` and the AGENTS.md block (`docs/templates/AGENTS-tasklite.md`). At startup the server loads the copies in the image into the **bundled** layer. When the bundled content changes on upgrade, a new bundled version is added; owner edits are never overwritten.
+- **Files.** The agent files are each `skills/<name>/SKILL.md` and the AGENTS.md block (`docs/templates/AGENTS-docket.md`). At startup the server loads the copies in the image into the **bundled** layer. When the bundled content changes on upgrade, a new bundled version is added; owner edits are never overwritten.
 - **Layers and resolution.** For a project, the effective version of each file is its project override, else the service-wide edit, else bundled. Each edit is a new immutable version with author and note. *Revert* creates a version equal to the layer below (or removes the override). If a file was edited while the bundled version was X and the bundled version is now Y, it's flagged "bundled version updated", with a three-way view (bundled X → bundled Y, and the owner's edit). B23: *Revert* removes the edit or override from use (its versions stay as history), so the layer below applies again and later upgrades reach it. Only the shipped files can be edited. Diffs are line diffs computed in the browser from the versions the GET routes return. Editing again, even with the same text, re-bases the edit on the current bundled version and clears the flag.
-- **How the UI presents the layers (B25).** The storage model above is unchanged; the Agent files screen (UI_SPEC §6.7b) shows two ideas instead of three layers. The **default** is what every project uses: the service-wide edit if there is one, else bundled ("Task Lite's version"); *Reset to Task Lite's version* is the revert of the service layer. **<Project>'s copy** is the project override, shown only for a project that has one; *Customize for <project>* creates it from the current default (a PUT of the project layer with `expected_version` 0), and *Use default* is the revert of the project layer. A copy is flagged "the default changed" when the server's bundled-updated flag is on its project layer, or when the service edit's current version is newer than the copy's (computed in the browser from the versions the GETs return). "Customized in" (All projects) comes from listing each project's files; no route was added. The screen follows the project switcher and never says bundled, layer, override or service-wide.
+- **How the UI presents the layers (B25).** The storage model above is unchanged; the Agent files screen (UI_SPEC §6.7b) shows two ideas instead of three layers. The **default** is what every project uses: the service-wide edit if there is one, else bundled ("Docket's version"); *Reset to Docket's version* is the revert of the service layer. **<Project>'s copy** is the project override, shown only for a project that has one; *Customize for <project>* creates it from the current default (a PUT of the project layer with `expected_version` 0), and *Use default* is the revert of the project layer. A copy is flagged "the default changed" when the server's bundled-updated flag is on its project layer, or when the service edit's current version is newer than the copy's (computed in the browser from the versions the GETs return). "Customized in" (All projects) comes from listing each project's files; no route was added. The screen follows the project switcher and never says bundled, layer, override or service-wide.
 - **Workflow notes** are per project, versioned, ≤ 10,000 characters, and included in `get_context` (§5.15). B25: the old block's project questions moved into a Workflow notes starter (`docs/templates/WORKFLOW-starter.md`, bundled into the web build), each with a suggested answer, which *Start from template* loads into the editor unsaved. The shipped AGENTS.md block is generic and has no `{{…}}` placeholders; `{{KEY}}` is still filled for a project's repo install if an owner's edit uses it.
 - **Install bundle.** A tar.gz of the effective files laid out for the client and target:
   - Claude Code: `.claude/skills/<name>/SKILL.md` in a repo, or `~/.claude/skills/<name>/SKILL.md` user-wide;
   - Codex: `.codex/skills/` and `~/.codex/skills/`, per verification V7;
-  - the AGENTS.md block is inserted between `<!-- tasklite:begin -->` and `<!-- tasklite:end -->` in `AGENTS.md` (Codex) or `CLAUDE.md` (Claude Code), appended with markers if absent, and nothing outside the markers changes;
-  - a `.tasklite-manifest.json` lists each file's key, version ID and sha256, plus the install ID.
+  - the AGENTS.md block is inserted between `<!-- docket:begin -->` and `<!-- docket:end -->` in `AGENTS.md` (Codex) or `CLAUDE.md` (Claude Code), appended with markers if absent, and nothing outside the markers changes;
+  - a `.docket-manifest.json` lists each file's key, version ID and sha256, plus the install ID.
 - **Command install.** `POST /api/installs` returns a single-use download token, valid 10 minutes and loopback only, and PowerShell and bash one-liners that download `GET /install/:token` and unpack it into the target. The install is logged when the token is used.
-- **Push install** (opt-in; FR-125): only when `TASKLITE_PUSH_ROOT` is set and writable.
+- **Push install** (opt-in; FR-125): only when `DOCKET_PUSH_ROOT` is set and writable.
   - The target path must be inside the push root.
-  - The server writes only the skill folders, the manifest, the `tasklite-check` scripts next to it (decision 30, B27b) and the marked AGENTS.md section, and never deletes or overwrites other files.
+  - The server writes only the skill folders, the manifest, the `docket-check` scripts next to it (decision 30, B27b) and the marked AGENTS.md section, and never deletes or overwrites other files, except folders Docket itself installed and recorded, when unmodified (below).
   - Settings shows a *Test* that writes and removes a probe file.
 - **Check.**
   - **With push:** `POST /api/installs/:id/check` reads the installed files and diffs them against the manifest's versions (changed, missing, extra skill folders).
   - **Without push:** the install response also carries a check one-liner that hashes the local files against the manifest and prints the differences.
 - **Never** run anything on the host, follow symlinks out of the push root, or read outside it.
+- **Never deletes, except folders Docket itself installed and recorded, when unmodified (B28).** The rename from Task Lite left installs with `tasklite-*` skill folders, a `.tasklite-manifest.json` and `<!-- tasklite:begin/end -->` markers. Both install methods:
+  - treat the old marker pair as a valid section (not damaged markers) and replace it with the `docket` markers; a file with both pairs is refused;
+  - read the previous manifest at the location (`.docket-manifest.json`, else `.tasklite-manifest.json`), and remove each `tasklite-*` skill folder it lists, but only while the folder holds nothing but its `SKILL.md` and that file still matches the recorded sha256 (CR bytes removed). This is the one deletion: folders Docket wrote and recorded, unmodified;
+  - keep an edited old folder and report it ("old name, edited locally"); the check and `docket-check` list it as extra under its old key, and Agent files offers *Adopt* (as the `docket-*` file, its frontmatter name updated) or *Keep local*. *Restore* can't remove it;
+  - leave the old manifest and `tasklite-check` scripts in place (never deleted).
+  `docket-check` and the drift check read either manifest name and either marker pair, and reports or proposals that still use `skill:tasklite-*` keys are mapped to `skill:docket-*`. Migration 0005 renamed the stored keys; an old install's manifest entries record the folder they were written to (`installed_as`).
 - **B24 resolutions** (install and check; agreed with the coordinator):
-  - **Layout** (`installLayout` in `shared/src/install.ts`), relative to the base (the repo, or home for user-wide): `.claude/skills/<name>/SKILL.md` or `.codex/skills/<name>/SKILL.md`; the block in `CLAUDE.md`/`AGENTS.md` (repo) or `.claude/CLAUDE.md`/`.codex/AGENTS.md` (user-wide); the manifest at `.claude/.tasklite-manifest.json` or `.codex/.tasklite-manifest.json`. A user-wide install from the UI sends the service-wide set (no project).
+  - **Layout** (`installLayout` in `shared/src/install.ts`), relative to the base (the repo, or home for user-wide): `.claude/skills/<name>/SKILL.md` or `.codex/skills/<name>/SKILL.md`; the block in `CLAUDE.md`/`AGENTS.md` (repo) or `.claude/CLAUDE.md`/`.codex/AGENTS.md` (user-wide); the manifest at `.claude/.docket-manifest.json` or `.codex/.docket-manifest.json`. A user-wide install from the UI sends the service-wide set (no project).
   - **The block as installed:** the template's leading HTML comment is stripped, and `{{KEY}}` is filled with the project key for a project's repo install only. The Install dialog warns when `{{…}}` placeholders remain (*Edit block*, *Install anyway*).
   - **The marked section:** replaced between the markers, or appended after a blank line (the old text stays an exact prefix), or a new file. A missing or repeated marker refuses the install, and nothing is written.
   - **The manifest's `sha256`** is the installed content's with CR bytes removed: a skill's equals its version's sha256; the block's is the rendered block's. The check hashes the same way (the block is the text between the markers, less one newline at each end), so Git's line endings on Windows aren't edits.
   - **Command install:** `record` appends `install.recorded` with `data.stage: "command_issued"` ("Install command created: …"); the download appends a second with stage `downloaded` ("Installed by command: …", actor system). Push appends one with stage `pushed`. The log lists push installs and downloaded command installs. The token is kept out of the write path's arguments, rows, events and logs (tested by grep).
   - **The one-liners** download into a temporary folder, unpack with `tar` (Windows' own `tar.exe` from PowerShell), and run the bundle's dependency-free install step (`install.sh` / `install.ps1`, ASCII). A repo install refuses a folder without `.git` before it uses the token. PowerShell runs the step as a script block, so it works under the Restricted execution policy. Tested for real with bash, PowerShell 7 and Windows PowerShell 5.1.
-  - **Push paths:** a host path under `TASKLITE_PUSH_HOST_PATH` (any case and slashes for a Windows path), a container path under the root, or a path relative to the root. The base folder must already exist. Each escape is blocked in `server/src/domain/push-root.ts`.
-  - **Check:** *extra* means a `tasklite-*` skill folder that isn't in the manifest; other skill folders are the owner's own. A symlinked installed file reads as *edited* (never followed). **Contract change (B24):** each edited file of a push check carries `local_content` (≤ 50,000 characters; for the block, the text between the markers), so the UI diffs it against the version sent. The command check prints each file's state with the version ID sent.
+  - **Push paths:** a host path under `DOCKET_PUSH_HOST_PATH` (any case and slashes for a Windows path), a container path under the root, or a path relative to the root. The base folder must already exist. Each escape is blocked in `server/src/domain/push-root.ts`.
+  - **Check:** *extra* means a `docket-*` skill folder that isn't in the manifest; other skill folders are the owner's own. A symlinked installed file reads as *edited* (never followed). **Contract change (B24):** each edited file of a push check carries `local_content` (≤ 50,000 characters; for the block, the text between the markers), so the UI diffs it against the version sent. The command check prints each file's state with the version ID sent.
 
 ### 5.18 Help center (decision 29)
 Articles are Markdown files in `docs/help/<slug>.md`, with front matter `title`, `summary` and `anchors` (the screens and states that link to them). They're bundled into the web build: no API, no database. The UI lists them at `/help`, renders them at `/help/:slug`, includes them in palette results, and shows a "?" link wherever an anchor applies. Content changes ship as normal PRs.
@@ -469,18 +475,18 @@ Articles are Markdown files in `docs/help/<slug>.md`, with front matter `title`,
 - **Deciding.** The owner approves (saved as a new version of the target, author "proposed by <client · label> · approved by owner"), edits then approves, or declines with an optional note. If the target changed since `based_on_version_id`, the review shows a three-way view. Every decision is an event, and approval is undoable like any owner edit.
 - **Agents can't write agent files directly** (FR-130). The owner routes stay owner-only.
 - **Instruction reports.**
-  - **From agents:** `claim_lead` accepts `instructions?: { install_id?, files: [{ key, sha256, content? }] }`. The installed `tasklite-check` script produces it, and includes `content` (≤ 50,000 characters) only for files whose hash differs from the manifest. The report is stored on the run.
-  - **From the push folder:** a scheduled check (`TASKLITE_DRIFT_CHECK_INTERVAL`, default 15 min, and at startup) runs the B24 check on every push install's location.
-- **Drift.** A report that differs from the install's manifest raises a drift record per location: changed, missing and extra files. The owner sees a Problems row, "Agent files changed outside Task Lite · <project> · <file>", with the diff when content is available, and three remedies:
+  - **From agents:** `claim_lead` accepts `instructions?: { install_id?, files: [{ key, sha256, content? }] }`. The installed `docket-check` script produces it, and includes `content` (≤ 50,000 characters) only for files whose hash differs from the manifest. The report is stored on the run.
+  - **From the push folder:** a scheduled check (`DOCKET_DRIFT_CHECK_INTERVAL`, default 15 min, and at startup) runs the B24 check on every push install's location.
+- **Drift.** A report that differs from the install's manifest raises a drift record per location: changed, missing and extra files. The owner sees a Problems row, "Agent files changed outside Docket · <project> · <file>", with the diff when content is available, and three remedies:
   - *Adopt*: save the local content as the project's copy, as an owner edit;
-  - *Restore*: reinstall Task Lite's version (push, or show the command);
+  - *Restore*: reinstall Docket's version (push, or show the command);
   - *Keep local*: accept it; no new alert until the content hash changes again.
-- **Runs** show "Instructions: tasklite-worker · Recipe App's copy v2", with ⚠ "edited locally" when the reported hash differs from what was sent.
+- **Runs** show "Instructions: docket-worker · Recipe App's copy v2", with ⚠ "edited locally" when the reported hash differs from what was sent.
 - **B27 resolutions** (agreed with the coordinator, or settled in the build and listed in the PRs):
-  - **Proposals:** the target must be a file Task Lite ships (or `workflow`), and `based_on_version_id` a version of it (any layer) or of the project's notes. A newer proposal from the same run removes its own older pending one (the event says so). *Approve* saves through the owner's edit path with the author "proposed by <client · label> · approved by owner" ("edited and approved" when the owner changed the text); the note is the owner's, else the agent's reason. A decided proposal can't be decided again (`conflict`). Workflow notes versions carry their `wf_…` `id` (optional, B27a).
-  - **`tasklite-check`:** `tasklite-check.sh` and `tasklite-check.ps1`, written next to the manifest by both install methods. It hashes like B24's check, prints one line of JSON (`install_id`, and each present file's `key` and `sha256`, plus `content` for a file that differs, ≤ 50,000 characters), leaves missing files out, lists extra `tasklite-*` skill folders, and stops at 20 files. The PowerShell version prints non-ASCII as `\uXXXX`.
-  - **Reports and drift:** an unknown `install_id` is stored as no install. Text is kept only for files that differ. Against the manifest: *edited* (another hash), *missing* (not reported), *extra* (a `tasklite-*` skill the install didn't write); other keys are unknown and only listed on the run. A later report updates an open record when the hash or kind moves on, and resolves it as `restored` when the file matches again. A newer install at the same location (client, target, path) resolves an older install's open records. A record resolved by *Keep local* or *Adopt* accepts its hash. A quiet push check writes nothing (no report row, no event); the push check uses the latest push install per location. **Reporting never blocks claiming** (gate review): a reported file whose text looks like a secret keeps its key and sha256 and loses its text before the write check (`claim_lead`'s adapter, and the push check), and the report and the drift record say `content_withheld: secret` (`driftSchema` gains it, optional). The text is never stored or logged; *Adopt* is then unavailable with that reason.
-  - **Remedies:** *Adopt* needs the local text and a shipped key; a missing file can't be adopted. *Restore* reinstalls the install's current effective files (push writes them; command returns a new command) and resolves every open record of that install; an extra folder can't be restored (Task Lite never deletes). The Problems row's reason is "<file> edited|missing|added outside Task Lite · <project short name or user-wide> · <where> · found by the scheduled check | reported by <agent> on <item>", with `drift_id` and no item.
+  - **Proposals:** the target must be a file Docket ships (or `workflow`), and `based_on_version_id` a version of it (any layer) or of the project's notes. A newer proposal from the same run removes its own older pending one (the event says so). *Approve* saves through the owner's edit path with the author "proposed by <client · label> · approved by owner" ("edited and approved" when the owner changed the text); the note is the owner's, else the agent's reason. A decided proposal can't be decided again (`conflict`). Workflow notes versions carry their `wf_…` `id` (optional, B27a).
+  - **`docket-check`:** `docket-check.sh` and `docket-check.ps1`, written next to the manifest by both install methods. It hashes like B24's check, prints one line of JSON (`install_id`, and each present file's `key` and `sha256`, plus `content` for a file that differs, ≤ 50,000 characters), leaves missing files out, lists extra `docket-*` skill folders, and stops at 20 files. The PowerShell version prints non-ASCII as `\uXXXX`.
+  - **Reports and drift:** an unknown `install_id` is stored as no install. Text is kept only for files that differ. Against the manifest: *edited* (another hash), *missing* (not reported), *extra* (a `docket-*` skill the install didn't write); other keys are unknown and only listed on the run. A later report updates an open record when the hash or kind moves on, and resolves it as `restored` when the file matches again. A newer install at the same location (client, target, path) resolves an older install's open records. A record resolved by *Keep local* or *Adopt* accepts its hash. A quiet push check writes nothing (no report row, no event); the push check uses the latest push install per location. **Reporting never blocks claiming** (gate review): a reported file whose text looks like a secret keeps its key and sha256 and loses its text before the write check (`claim_lead`'s adapter, and the push check), and the report and the drift record say `content_withheld: secret` (`driftSchema` gains it, optional). The text is never stored or logged; *Adopt* is then unavailable with that reason.
+  - **Remedies:** *Adopt* needs the local text and a shipped key; a missing file can't be adopted. *Restore* reinstalls the install's current effective files (push writes them; command returns a new command) and resolves every open record of that install; an extra folder can't be restored (Docket never deletes). The Problems row's reason is "<file> edited|missing|added outside Docket · <project short name or user-wide> · <where> · found by the scheduled check | reported by <agent> on <item>", with `drift_id` and no item.
 
 ## 6. MCP tool contract
 
@@ -551,7 +557,7 @@ Every route requires the owner session (§3). JSON bodies **and query strings** 
 
 | Method & path | Used by |
 |---|---|
-| `POST /api/session/unlock` `{key}` · `POST /api/session/lock` · `POST /api/session/rotate-key` | Unlock screen, Settings. Rotate-key writes a new owner key (0600), ends every owner session including the caller's, clears the cookies, and returns `{rotated: true}`. It never returns the key; the owner reads it with `tasklite owner-key` (decided in B2). |
+| `POST /api/session/unlock` `{key}` · `POST /api/session/lock` · `POST /api/session/rotate-key` | Unlock screen, Settings. Rotate-key writes a new owner key (0600), ends every owner session including the caller's, clears the cookies, and returns `{rotated: true}`. It never returns the key; the owner reads it with `docket owner-key` (decided in B2). |
 | `GET /api/bootstrap` | Shell: projects, labels, sidebar counts, settings, health |
 | `GET /api/needs-you?scope` | Needs you: `for_you_now[]` (packets, questions), `problems[]`, `deferred[]`, `planning_queue[]`, `agent_counts{}` |
 | `GET /api/work?scope&epic&label&filter&layout` | Work board/list/map; Timeline adds dates and forecast. Each item carries `lead_parked: {waiting_on, since, resume_ready} \| null` (optional; B20), so a parked card's run line says what it waits on |
@@ -594,7 +600,7 @@ Every route requires the owner session (§3). JSON bodies **and query strings** 
 
 ## 8. Seed data
 
-`design/sample-data.json` is the prototype's dataset in shorthand. The seed loader (`tasklite seed sample`, or `TASKLITE_SEED=sample` when the database is empty) maps it into the schema:
+`design/sample-data.json` is the prototype's dataset in shorthand. The seed loader (`docket seed sample`, or `DOCKET_SEED=sample` when the database is empty) maps it into the schema:
 
 - **Time shift:** the prototype's clock is `2026-11-06T11:00` local. Shift every date and time by `now − that clock`, so relative states ("silent 47m", "lease expires in 13 min") look current on the day you run it. Times like `'09:10'` mean that day; `'Nov 5'` means a date.
 - **`items[]`:**
@@ -634,14 +640,14 @@ The seed exists so the acceptance tests (§10) run against a known state. Keep t
 O05; owner decision 17 puts it in V1.
 
 **Flow** (UI in UI_SPEC.md §9.2):
-1. The owner enters the Jira site URL, account email, API token, Jira project key, and a target Task Lite project (new key and name, or an existing empty project).
+1. The owner enters the Jira site URL, account email, API token, Jira project key, and a target Docket project (new key and name, or an existing empty project).
 2. **Dry run:** the server reads the Jira Cloud REST v3 API (search with JQL `project = X ORDER BY key`, then issue links, comments, attachments metadata and fields). It builds the mapped records **in memory** and produces a report. It writes nothing except the report.
 3. The owner reviews the report, then *Import* commits everything in one transaction. Attachment bytes download after the commit, and failures are reported per file.
 4. The API token is held in memory for the import session only (expires after 1 hour or on cancel). It's never stored, logged or written into the report.
 
 **Mapping** (anything lossy appears in the report):
 
-| Jira | Task Lite | Lossy? |
+| Jira | Docket | Lossy? |
 |---|---|---|
 | Epic | Epic | — |
 | Story, Task, Bug | same type | — |
@@ -756,7 +762,7 @@ Port the prototype's scenario checks; the list below matches what the prototype 
   - axe finds no serious or critical violations on each screen, in both light and dark themes;
   - at 1024×900 the packet's decision panel sits under the queue;
   - every visit starts at All projects (a new browser context sees scope All);
-  - **notifications** (with the permission granted in the browser context): a new packet and a new question each produce exactly one notification, a click opens the right place, the tab title shows `(N) Task Lite`, and already-pending items don't notify on load;
+  - **notifications** (with the permission granted in the browser context): a new packet and a new question each produce exactly one notification, a click opens the right place, the tab title shows `(N) Docket`, and already-pending items don't notify on load;
   - **inline editing:** edit and save an outcome, see it in `get_context`, and undo it; a conflicting agent edit shows the conflict callout.
 
 ### Smoke test with real clients (O07)
@@ -776,14 +782,14 @@ The milestones below group *capabilities*. The **execution order** is the batch 
 
 | # | Deliverable | Done when |
 |---|---|---|
-| M0 | Workspace scaffold, lint, typecheck, Vitest, Dockerfile, compose, `/healthz` and `/readyz`, and the GitHub Actions CI workflow (§2 Stack) | `docker compose up` serves "Task Lite is running"; the CI check is green on the M0 PR, and Mergify waits for it |
+| M0 | Workspace scaffold, lint, typecheck, Vitest, Dockerfile, compose, `/healthz` and `/readyz`, and the GitHub Actions CI workflow (§2 Stack) | `docker compose up` serves "Docket is running"; the CI check is green on the M0 PR, and Mergify waits for it |
 | M1 | Schema and migrations, domain services for §5 (including `satisfied_when`, decision records and the context bundle), event log, idempotency, undo, seed loader | Unit tests for every §5 rule pass; the seed loads deterministically |
 | M2 | MCP server per [MCP_SPEC.md](MCP_SPEC.md): auth, Host/Origin guards, identity, server instructions, all 40 tools with the exact description text, compact text rendering, structured errors, sweeper, restart handling | The MCP_SPEC §10 contract tests pass, including the description snapshot and token budgets; two simultaneous SDK clients work |
 | M3 | Owner session and CSRF, UI API (§7, including owner text edits and the diagnostic log), SSE stream | API contract tests pass; the unlock flow works |
 | M4 | Web shell, tokens, Needs you, Work board and list, ticket and epic pages (four tabs, checklist editing, Decisions sections), open-item tabs, palette, quick capture | The e2e groups for Needs you, Tickets and epics, and Shell pass |
 | M5 | Packet screen and decisions, deferrals, questions and notes, archive, undo toasts, inline editing, desktop notifications and the tab-title count | The e2e groups for Packets and Work (archive) pass |
 | M6 | Progress map (epic, label, Work → Map), Timeline, Label pages (with Decisions), Agents, Settings (including blocker rules and project decisions), document viewer | The e2e groups for Map, Labels and cross-cutting pass |
-| M7 | Burn-down and forecast, Jira import (dry run and import), backup/restore CLI, delete project. Stretch: `tasklite export` | Unit tests for forecast and mapping pass; a dry run against a test Jira project produces a report |
+| M7 | Burn-down and forecast, Jira import (dry run and import), backup/restore CLI, delete project. Stretch: `docket export` | Unit tests for forecast and mapping pass; a dry run against a test Jira project produces a report |
 | M8 | O07 smoke with real clients, an accessibility pass, dark mode and 1024 px checks, a README quick start | The smoke matrix is filled in; axe is clean; the README walks through from an empty machine to a connected agent in under 10 minutes |
 
 ---
@@ -796,7 +802,7 @@ These can't be settled on paper. Each one has a default already, so none of them
 |---|---|---|---|
 | V1 | Do Codex and Claude Code keep their MCP session open, and do they answer server `ping`? This decides whether *live* is reachable or every run shows as *reported*. | The §5.4 rules. If pings aren't answered, *live* relies on requests alone, and the UI is still truthful. | M2, M8 |
 | V2 | Does an Orca worker running Claude inherit the user's MCP configuration? (The Codex one was verified in discovery.) | Show "Not verified" in Settings until the smoke test passes. | M8 |
-| V3 | Client config. Checked against the docs on 2026-11-07 (MCP_SPEC §11): Codex `bearer_token_env_var` and the Claude `mcp add --transport http --header` form are confirmed. Still open: whether Claude expands `${TASKLITE_TOKEN}` in user-scope config (it does in a project's `.mcp.json`). | Use the user-scope `mcp add` form, which stores the expanded token. | M8 |
+| V3 | Client config. Checked against the docs on 2026-11-07 (MCP_SPEC §11): Codex `bearer_token_env_var` and the Claude `mcp add --transport http --header` form are confirmed. Still open: whether Claude expands `${DOCKET_TOKEN}` in user-scope config (it does in a project's `.mcp.json`). | Use the user-scope `mcp add` form, which stores the expanded token. | M8 |
 | V4 | Field IDs for start date and story points on the owner's Jira site. | Detect them by field name, and let the dry-run report show which field was used. | M7 |
 | V6 | Which part of a tool result each client gives the model: the text block, `structuredContent`, or both. This decides where the token savings land. | The text block is a complete compact rendering, so a text-only client loses nothing. If a client forwards both, measure, and consider an option to send a short text block. | M2, M8 |
 | V5 | SQLite WAL performance on a Docker Desktop named volume on Windows. | Named volume (not a bind mount). If writes are slow, measure before changing anything. | M1 |
@@ -810,11 +816,11 @@ What ran unattended on the build machine (Windows 11, Docker Desktop 29.9, insta
 |---|---|---|
 | V1 | **Partly; owner to verify** | Headless Claude Code (`claude -p`) showed *live* while it ran, from request activity. Its session ends with the process, so headless can't say whether an interactive session stays open and answers `ping`. Owner: interactive Claude Code and Codex, idle past the 2-minute live window. |
 | V2 | **Owner to verify** | Needs an Orca worker running Claude from the owner's account. |
-| V3 | **Partly; owner to verify** | `"Authorization": "Bearer ${TASKLITE_TOKEN}"` in an `--mcp-config` file (the `.mcp.json` format) is expanded from the environment. Still open: what user scope (`claude mcp add --scope user`) stores. |
+| V3 | **Partly; owner to verify** | `"Authorization": "Bearer ${DOCKET_TOKEN}"` in an `--mcp-config` file (the `.mcp.json` format) is expanded from the environment. Still open: what user scope (`claude mcp add --scope user`) stores. |
 | V4 | **Fixture only** | Field-ID detection (start date, story points) is verified against the synthetic Jira fixture (`docker/compose.jira-fixture.yaml`, B17), not a real Jira site. The dry-run report shows which field was used. Owner: a dry run on their own site before the pilot (ROADMAP §1.4). |
 | V5 | **Verified** | SQLite WAL on a Docker Desktop named volume on Windows: in the container's call log, every write tool had p50 ≈ 1 ms and p95 ≤ 5 ms over 280 writes. At scale (20 projects, 5,000 items, 100,000 events) every owner view rendered in under 1 s against the container (T143). The named volume stays. |
-| V6 | **Resolved by owner decision 28 (B19): text-only results for Claude Code** | B18 found, from the stream-json transcripts of headless Claude Code 2.1.318, that the model's tool result is the `structuredContent` JSON, not the text block: on typical reads about 3.5× the compact text's tokens (6,494 against 1,836 over eight calls; a 25-item search 2,045 against 325). So clients that do this now get text-only results: no `outputSchema`, no `structuredContent` (MCP_SPEC §3 Results). Claude Code sends `clientInfo.name` `claude-code`, the default of `TASKLITE_TEXT_ONLY_CLIENTS` (§2). Measured in B19 with headless Claude Code 2.1.318 (sonnet) on a throwaway instance, through the SC-001 opening (`search_items`, `claim_lead`, `get_context` on RCP-17): from Claude Code's usage, the three results added 1,246 tokens to the model's context before and 659 after, per-call framing included; the results themselves fell from 2,219 characters of JSON (≈ 555 tokens) to 944 of compact text (≈ 236), the text-block budget. Codex: still to verify which part it forwards; it stays structured until then. |
-| V7 | **Partly; owner to verify** | Claude Code loads skills from a project's `.claude/skills/` (the B18 eval: `tasklite-worker` and `tasklite-coordinator` invoked headless). Still open: `~/.claude/skills/`, Codex's paths, and whether Orca workers see user-wide skills. |
+| V6 | **Resolved by owner decision 28 (B19): text-only results for Claude Code** | B18 found, from the stream-json transcripts of headless Claude Code 2.1.318, that the model's tool result is the `structuredContent` JSON, not the text block: on typical reads about 3.5× the compact text's tokens (6,494 against 1,836 over eight calls; a 25-item search 2,045 against 325). So clients that do this now get text-only results: no `outputSchema`, no `structuredContent` (MCP_SPEC §3 Results). Claude Code sends `clientInfo.name` `claude-code`, the default of `DOCKET_TEXT_ONLY_CLIENTS` (§2). Measured in B19 with headless Claude Code 2.1.318 (sonnet) on a throwaway instance, through the SC-001 opening (`search_items`, `claim_lead`, `get_context` on RCP-17): from Claude Code's usage, the three results added 1,246 tokens to the model's context before and 659 after, per-call framing included; the results themselves fell from 2,219 characters of JSON (≈ 555 tokens) to 944 of compact text (≈ 236), the text-block budget. Codex: still to verify which part it forwards; it stays structured until then. |
+| V7 | **Partly; owner to verify** | Claude Code loads skills from a project's `.claude/skills/` (the B18 eval: `docket-worker` and `docket-coordinator` invoked headless). Still open: `~/.claude/skills/`, Codex's paths, and whether Orca workers see user-wide skills. |
 
 **Settings compatibility matrix:** every surface stays *Not verified* (`server/src/domain/compat.ts`). Claude Code's note says the headless smoke passed and that the user-scope setup is still to verify. Since B19 it also shows each surface's result mode (MCP_SPEC §3 Results): text-only for Claude Code, structured for Codex.
 
@@ -845,7 +851,7 @@ Owner decisions are marked **(owner)**. Every other entry is a technical choice 
 | 15 **(owner)** | Requirement O11 (project-level approval policies) is **superseded** by decision 13. Gates are per-ticket human review items declared according to the project's workflow, and the tracker enforces only "can't close while a review item is undecided". H06's "project with a required owner gate" becomes "ticket with human review items". | §5.1, §5.6 |
 | 16 **(owner)** | One agent bearer token. Identity comes from the MCP `clientInfo`, plus an optional `agent_label`. | §3 |
 | 17 **(owner)** | V1 also includes the Timeline layout, Label pages, burn-down and forecast, and the Jira import (dry run and import). | §1, §5.9, §9 |
-| 18 **(owner)** | Task Lite coordinates; it doesn't dispatch. Orca, or the owner, starts agents (decision 2 reaffirmed after the 2026-11-14 "control plane" review). Revisit after the pilot (ROADMAP.md). | §1 |
+| 18 **(owner)** | Docket coordinates; it doesn't dispatch. Orca, or the owner, starts agents (decision 2 reaffirmed after the 2026-11-14 "control plane" review). Revisit after the pilot (ROADMAP.md). | §1 |
 | 19 **(owner)** | V1 adds four coordination features: the context bundle, decision records, lean responses, and stricter dependency rules. | §1, §5.2, §5.14, §5.15, MCP_SPEC §3 |
 | 20 **(owner)** | TERSL / Tourbillon is a reference to learn from, not a dependency: no TERSL format or TERSL/DB in V1. The learnings applied are in ROADMAP.md. | ROADMAP.md |
 | T16 | Blocker satisfaction is `done`, `merged` (agent-reported) or `verified` (all human review approved), as a project default with a per-link override. | §5.2 |
@@ -856,11 +862,12 @@ Owner decisions are marked **(owner)**. Every other entry is a technical choice 
 | 21 **(owner)** | Opt-in desktop notifications for new for-you events only (packet ready, question asked), plus the for-you count in the tab title. Browser-generated, nothing off-machine. | UI_SPEC §6.7a |
 | 22 **(owner)** | The owner edits an item's title, description, outcome and acceptance criteria inline. Dates, effort and blocker links stay agent-edited in V1. | §7, UI_SPEC §6.3 |
 | T21 | Diagnostic call log: JSONL, one line per MCP call without arguments, rotated daily, kept 7 days, downloadable from Settings. | §2 volume layout, §7 |
-| 26 **(owner)** | Recovery support: runs record their workspace, orchestrator IDs, brief and declared resources; runs can park; `recovery_report` gives the restart list; Problems flag orphaned resources and unpushed work. Prompted by an Orca crash that pruned worktrees holding in-flight work. Task Lite records; the coordinator acts. | §5.16, MCP_SPEC §3 and §5.9 |
-| 27 **(owner)** | Ship five agent skills as plain files in `skills/`: `tasklite-worker` and `tasklite-coordinator` (core), `tasklite-planner`, `tasklite-review-packet` and `tasklite-lead-subagents` (optional). They teach workflow, never restate schemas, and are lint-checked against the tool contract in CI. Owners may edit them. Serving them as MCP prompts is on the roadmap. | `skills/README.md`, ROADMAP §2 |
-| 28 **(owner)** | Per-client result modes: clients known to give the model `structuredContent` (by default Claude Code, `clientInfo.name` `claude-code`) get text-only results, with no `outputSchema` and no `structuredContent`, so the model reads the complete compact text; every other client keeps structured output. Configured by `TASKLITE_TEXT_ONLY_CLIENTS`. Resolves V6. | §2 Configuration, §12 V6, MCP_SPEC §3 Results and §11 |
+| 26 **(owner)** | Recovery support: runs record their workspace, orchestrator IDs, brief and declared resources; runs can park; `recovery_report` gives the restart list; Problems flag orphaned resources and unpushed work. Prompted by an Orca crash that pruned worktrees holding in-flight work. Docket records; the coordinator acts. | §5.16, MCP_SPEC §3 and §5.9 |
+| 27 **(owner)** | Ship five agent skills as plain files in `skills/`: `docket-worker` and `docket-coordinator` (core), `docket-planner`, `docket-review-packet` and `docket-lead-subagents` (optional). They teach workflow, never restate schemas, and are lint-checked against the tool contract in CI. Owners may edit them. Serving them as MCP prompts is on the roadmap. | `skills/README.md`, ROADMAP §2 |
+| 28 **(owner)** | Per-client result modes: clients known to give the model `structuredContent` (by default Claude Code, `clientInfo.name` `claude-code`) get text-only results, with no `outputSchema` and no `structuredContent`, so the model reads the complete compact text; every other client keeps structured output. Configured by `DOCKET_TEXT_ONLY_CLIENTS`. Resolves V6. | §2 Configuration, §12 V6, MCP_SPEC §3 Results and §11 |
 | 29 **(owner)** | Help center and agent setup: Help articles in the app; the agent files (skills and AGENTS.md block) viewable and editable in three layers (bundled, service-wide, per project) with history; per-project Workflow notes in `get_context`; install by copy-paste command or opt-in push into a mounted host folder; every install logged with exact versions, and installed copies checked for local edits. Serving the files over MCP stays on the roadmap. | §5.17, §5.18, §7, UI_SPEC §6.10–6.11 |
-| 30 **(owner)** | Agents change agent files only by proposing (`get_agent_files`, `propose_agent_file_change`); the owner approves, edits or declines, with proposer and approver recorded. Drift detection for edits made outside Task Lite: scheduled checks of push installs, and instruction hashes agents report on `claim_lead`; drift shows as a Problem with *Adopt*, *Restore* and *Keep local*; runs record their instruction versions. | §5.19, MCP_SPEC §5.10, UI_SPEC §6.7b |
+| 30 **(owner)** | Agents change agent files only by proposing (`get_agent_files`, `propose_agent_file_change`); the owner approves, edits or declines, with proposer and approver recorded. Drift detection for edits made outside Docket: scheduled checks of push installs, and instruction hashes agents report on `claim_lead`; drift shows as a Problem with *Adopt*, *Restore* and *Keep local*; runs record their instruction versions. | §5.19, MCP_SPEC §5.10, UI_SPEC §6.7b |
+| R1 **(owner)** | The product is renamed Docket (formerly Task Lite; B28), mechanically: packages, CLI, `DOCKET_*` settings, MCP server name, Docker image, container and volume, skills, markers and manifest. Old names keep working: `TASKLITE_*` settings with a warning, the old markers and manifest, `skill:tasklite-*` keys, old backups and the old database file name. The one deletion is old skill folders Docket installed and recorded, when unmodified. The GitHub repo URL is unchanged. | §5.17 |
 | T22 | Parked runs keep their claim indefinitely and are only flagged after `PARK_MAX` (24 h); they are never auto-released. | §5.16 |
 | T23 | Workspace state is derived per worktree path from reported data (`dirty`, `head_sha`, `pushed_sha`, resources), never by inspecting the host. | §5.16 |
 | T24 | API errors use the envelope `{error:{code,message,details?}}`; queries are strict; `shared/src/api` holds the authoritative request and response shapes (from B4). | §7 |

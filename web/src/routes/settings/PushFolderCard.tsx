@@ -36,8 +36,8 @@ export function PushFolderCard() {
   };
   const f = folder.trim() || 'C:/Users/you/code';
   const volume = `      - ${f}:/host-code`;
-  const env = `TASKLITE_PUSH_ROOT=/host-code\nTASKLITE_PUSH_HOST_PATH=${f}`;
-  const override = `services:\n  tasklite:\n    volumes:\n      - ${f}:/host-code\n    environment:\n      TASKLITE_PUSH_ROOT: /host-code\n      TASKLITE_PUSH_HOST_PATH: ${f}`;
+  const env = `DOCKET_PUSH_ROOT=/host-code\nDOCKET_PUSH_HOST_PATH=${f}`;
+  const override = `services:\n  docket:\n    volumes:\n      - ${f}:/host-code\n    environment:\n      DOCKET_PUSH_ROOT: /host-code\n      DOCKET_PUSH_HOST_PATH: ${f}`;
 
   return (
     <Card padded data-card="push-folder">
@@ -59,7 +59,7 @@ export function PushFolderCard() {
         </QueryState>
       </div>
       <p className="src" style={{ margin: '6px 0 10px' }}>
-        Mount your code folder into Task Lite so it can install files for you. Without it, Install
+        Mount your code folder into Docket so it can install files for you. Without it, Install
         gives you a command to paste instead; both work.
       </p>
       <QueryState query={query} skeleton={<Skeleton lines={2} label="Loading the push folder" />}>
@@ -68,10 +68,8 @@ export function PushFolderCard() {
             {t.configured && (
               <dl className="inpaths">
                 <dt>On your computer</dt>
-                <dd className="mono">
-                  {t.host_path ?? '(not given: set TASKLITE_PUSH_HOST_PATH)'}
-                </dd>
-                <dt>Inside Task Lite</dt>
+                <dd className="mono">{t.host_path ?? '(not given: set DOCKET_PUSH_HOST_PATH)'}</dd>
+                <dt>Inside Docket</dt>
                 <dd className="mono">{t.container_path}</dd>
               </dl>
             )}
@@ -103,9 +101,9 @@ export function PushFolderCard() {
                 </div>
                 <ol>
                   <li>
-                    Open <code>docker/compose.yaml</code> in the folder you installed Task Lite
-                    from. Under <code>volumes:</code>, below <code>- tasklite-data:/data</code>, add
-                    this line (keep the indentation):
+                    Open <code>docker/compose.yaml</code> in the folder you installed Docket from.
+                    Under <code>volumes:</code>, below <code>- docket-data:/data</code>, add this
+                    line (keep the indentation):
                     <CopyBlock text={volume} label="compose.yaml line" what="volume line" />
                   </li>
                   <li>
@@ -114,10 +112,10 @@ export function PushFolderCard() {
                     <CopyBlock text={env} label=".env lines" what=".env lines" />
                   </li>
                   <li>
-                    Restart Task Lite:
+                    Restart Docket:
                     <CopyBlock
                       text="docker compose -f docker/compose.yaml up -d"
-                      label="Terminal, in the Task Lite folder"
+                      label="Terminal, in the Docket folder"
                       what="restart command"
                     />
                   </li>
@@ -126,8 +124,8 @@ export function PushFolderCard() {
                 <details>
                   <summary>Rather not edit compose.yaml? Use an override file instead</summary>
                   <p className="src">
-                    Save this as <code>docker/compose.push.yaml</code>, then start Task Lite with
-                    both files. Upgrades never touch it.
+                    Save this as <code>docker/compose.push.yaml</code>, then start Docket with both
+                    files. Upgrades never touch it.
                   </p>
                   <CopyBlock
                     text={override}
@@ -141,9 +139,10 @@ export function PushFolderCard() {
                   />
                 </details>
                 <p className="src">
-                  Task Lite writes there only the skill folders, its manifest and the marked Task
-                  Lite section of AGENTS.md or CLAUDE.md, and never deletes anything. On Linux, the
-                  folder must be writable by Task Lite’s user (uid 10001), for example{' '}
+                  Docket writes there only the skill folders, its manifest and the marked Docket
+                  section of AGENTS.md or CLAUDE.md. The only thing it deletes is an old-name skill
+                  folder it installed itself before the rename, while unmodified. On Linux, the
+                  folder must be writable by Docket’s user (uid 10001), for example{' '}
                   <code>sudo setfacl -R -m u:10001:rwX ~/code</code>.
                 </p>
               </div>

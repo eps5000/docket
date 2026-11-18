@@ -82,7 +82,7 @@ export const NOT_IMPLEMENTED_STATUS = 501;
 export const notImplementedRouteMessage = (method: string, path: string) =>
   `Not implemented yet: ${method} ${path}`;
 
-/** The header that must echo the `tl_csrf` cookie on every mutation (BUILD_SPEC §3). */
-export const CSRF_HEADER_NAME = 'X-Tasklite-CSRF';
-export const CSRF_COOKIE_NAME = 'tl_csrf';
-export const SESSION_COOKIE_NAME = 'tl_owner';
+/** The header that must echo the `docket_csrf` cookie on every mutation (BUILD_SPEC §3). */
+export const CSRF_HEADER_NAME = 'X-Docket-CSRF';
+export const CSRF_COOKIE_NAME = 'docket_csrf';
+export const SESSION_COOKIE_NAME = 'docket_owner';

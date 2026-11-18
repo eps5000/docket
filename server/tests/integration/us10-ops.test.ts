@@ -1,11 +1,11 @@
 /**
- * Running Task Lite safely (tasks.md T128; BUILD_SPEC §3, §5.12, §5.13;
+ * Running Docket safely (tasks.md T128; BUILD_SPEC §3, §5.12, §5.13;
  * FR-101–FR-108; SC-008; constitution Principle VI).
  *
  * - **Backups:** an archive is written to /data/backups and verified, holds
  *   the database and every document but not `docs/.staging`, and is pruned
  *   after `BACKUP_KEEP` days.
- * - **Extra location:** with `TASKLITE_BACKUP_EXTRA_DIR` set, the archive is
+ * - **Extra location:** with `DOCKET_BACKUP_EXTRA_DIR` set, the archive is
  *   in both places, and the extra copy restores after the data directory is
  *   removed; a missing or unwritable extra folder still lets the default
  *   backup succeed and raises a Problem, which clears after a good copy.
@@ -52,7 +52,7 @@ import {
 } from '../../src/jobs/backup.js';
 import { startupHousekeeping } from '../../src/jobs/startup.js';
 import { restartSweep } from '../../src/jobs/sweeper.js';
-import { readTarGz } from '../../src/jobs/tar.js';
+import { readTarGz, writeTarGz } from '../../src/jobs/tar.js';
 import {
   expectNotFound,
   expectOk,
@@ -70,7 +70,7 @@ let servers: TestServer[] = [];
 let logs: string[] = [];
 
 beforeEach(() => {
-  tmp = tempDir('tasklite-us10-');
+  tmp = tempDir('docket-us10-');
   logs = [];
 });
 afterEach(async () => {
@@ -107,7 +107,7 @@ async function readTarGzNames(path: string): Promise<string[]> {
 
 const read = (s: TestServer) => readContext(s.runtime.db, OWNER_ACTOR, s.clock.now());
 const checksumsOf = (dataDir: string): DataChecksums =>
-  liveChecksums({ db: join(dataDir, 'tasklite.db'), docs: join(dataDir, 'docs') });
+  liveChecksums({ db: join(dataDir, 'docket.db'), docs: join(dataDir, 'docs') });
 
 /** Every file under `dir` (relative path → sha256), skipping `.staging`. */
 function fileHashes(dir: string, base = dir, out = new Map<string, string>()) {
@@ -133,12 +133,12 @@ async function unlock(s: TestServer): Promise<string> {
   });
   expect(res.status).toBe(200);
   const c = parseSetCookies(res);
-  return `tl_owner=${c.tl_owner!.value}; tl_csrf=${c.tl_csrf!.value}`;
+  return `docket_owner=${c.docket_owner!.value}; docket_csrf=${c.docket_csrf!.value}`;
 }
 
 function ownerHeaders(cookie: string): Record<string, string> {
-  const csrf = /tl_csrf=([^;]+)/.exec(cookie)![1]!;
-  return { cookie, 'x-tasklite-csrf': csrf, 'content-type': 'application/json' };
+  const csrf = /docket_csrf=([^;]+)/.exec(cookie)![1]!;
+  return { cookie, 'x-docket-csrf': csrf, 'content-type': 'application/json' };
 }
 
 /** A folder the service can't write: read-only where chmod works, else a file in its place. */
@@ -163,10 +163,10 @@ describe('backups (BUILD_SPEC §5.13)', () => {
     const result = await s.runtime.services.backup.runNow(read(s));
     expect(result.extra_copy).toBeNull();
     expect(result.archive_path.startsWith(s.runtime.config.paths.backups)).toBe(true);
-    expect(result.archive_path).toMatch(/tasklite-\d{8}-\d{4}\.tar\.gz$/);
+    expect(result.archive_path).toMatch(/docket-\d{8}-\d{4}\.tar\.gz$/);
 
     const names = await readTarGzNames(result.archive_path);
-    expect(names[0]).toBe('tasklite.db');
+    expect(names[0]).toBe('docket.db');
     expect(names.at(-1)).toBe('manifest.json');
     const docNames = names.filter((n) => n.startsWith('docs/'));
     expect(docNames.length).toBe(fileHashes(docs).size);
@@ -190,17 +190,17 @@ describe('backups (BUILD_SPEC §5.13)', () => {
     expect(logs.some((l) => l.startsWith('Backup written and verified:'))).toBe(true);
   });
 
-  it(`keeps TASKLITE_BACKUP_KEEP days and clears leftovers of interrupted runs`, async () => {
-    const s = seeded({ TASKLITE_BACKUP_KEEP: '3' });
+  it(`keeps DOCKET_BACKUP_KEEP days and clears leftovers of interrupted runs`, async () => {
+    const s = seeded({ DOCKET_BACKUP_KEEP: '3' });
     const dir = s.runtime.config.paths.backups;
     mkdirSync(dir, { recursive: true });
     const old = new Date(NOW.getTime() - 4 * 86_400_000);
     const recent = new Date(NOW.getTime() - 2 * 86_400_000);
     const nameAt = (d: Date) =>
-      `tasklite-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}-0300.tar.gz`;
+      `docket-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}-0300.tar.gz`;
     writeFileSync(join(dir, nameAt(old)), 'old');
     writeFileSync(join(dir, nameAt(recent)), 'recent');
-    writeFileSync(join(dir, 'tasklite-20261101-0300.tar.gz.partial'), 'interrupted');
+    writeFileSync(join(dir, 'docket-20261101-0300.tar.gz.partial'), 'interrupted');
     writeFileSync(join(dir, 'notes.txt'), 'the owner’s own file');
 
     await s.runtime.services.backup.runNow(read(s));
@@ -212,11 +212,9 @@ describe('backups (BUILD_SPEC §5.13)', () => {
     expect(listArchives(dir)).toHaveLength(2);
   });
 
-  it('names archives by local time and schedules the next run at TASKLITE_BACKUP_AT', () => {
-    expect(archiveTime('tasklite-20261106-0300.tar.gz')).toEqual(new Date(2026, 10, 6, 3, 0));
-    expect(archiveTime('tasklite-20261106-030015-2.tar.gz')).toEqual(
-      new Date(2026, 10, 6, 3, 0, 15),
-    );
+  it('names archives by local time and schedules the next run at DOCKET_BACKUP_AT', () => {
+    expect(archiveTime('docket-20261106-0300.tar.gz')).toEqual(new Date(2026, 10, 6, 3, 0));
+    expect(archiveTime('docket-20261106-030015-2.tar.gz')).toEqual(new Date(2026, 10, 6, 3, 0, 15));
     expect(archiveTime('status.json')).toBeNull();
     const before = new Date(2026, 10, 6, 2, 59);
     expect(nextBackupAt(before, '03:00')).toEqual(new Date(2026, 10, 6, 3, 0));
@@ -236,7 +234,7 @@ describe('the extra backup location (owner decision 24; FR-103a)', () => {
   it('writes the same archive to both places, and the extra copy restores after the data dir is removed', async () => {
     const extra = join(tmp.dir, 'host-backups');
     mkdirSync(extra);
-    const s = seeded({ TASKLITE_BACKUP_EXTRA_DIR: extra });
+    const s = seeded({ DOCKET_BACKUP_EXTRA_DIR: extra });
     const dataDir = s.dataDir;
     const before = checksumsOf(dataDir);
     const docsBefore = fileHashes(join(dataDir, 'docs'));
@@ -266,8 +264,8 @@ describe('the extra backup location (owner decision 24; FR-103a)', () => {
     rmSync(dataDir, { recursive: true, force: true });
     expect(existsSync(dataDir)).toBe(false);
 
-    const config = loadConfig({ TASKLITE_BACKUP_EXTRA_DIR: extra }, { dataDir });
-    // `tasklite restore` accepts a bare name from the extra location.
+    const config = loadConfig({ DOCKET_BACKUP_EXTRA_DIR: extra }, { dataDir });
+    // `docket restore` accepts a bare name from the extra location.
     const restored = await restoreBackup({ config, file: name });
     expect(restored.archive).toBe(copy);
     expect(checksumsOf(dataDir)).toEqual(before);
@@ -275,7 +273,7 @@ describe('the extra backup location (owner decision 24; FR-103a)', () => {
     expect(readdirSync(join(dataDir, 'docs', '.staging'))).toEqual([]);
 
     // The restored data starts as a service again.
-    const again = server({ TASKLITE_BACKUP_EXTRA_DIR: extra }, dataDir);
+    const again = server({ DOCKET_BACKUP_EXTRA_DIR: extra }, dataDir);
     const items = again.runtime.db.sqlite.prepare('SELECT count(*) AS n FROM items').get() as {
       n: number;
     };
@@ -285,7 +283,7 @@ describe('the extra backup location (owner decision 24; FR-103a)', () => {
   it('a missing or unwritable extra folder never fails the default backup, and raises a Problem until a copy succeeds', async () => {
     const extra = join(tmp.dir, 'not-mounted');
     unwritableDir(extra);
-    const s = seeded({ TASKLITE_BACKUP_EXTRA_DIR: extra });
+    const s = seeded({ DOCKET_BACKUP_EXTRA_DIR: extra });
 
     const result = await s.runtime.services.backup.runNow(read(s));
     expect(existsSync(result.archive_path)).toBe(true);
@@ -426,6 +424,54 @@ describe('restore (BUILD_SPEC §5.13; SC-008)', () => {
     expect(checksumsOf(s.dataDir)).toEqual(before);
   });
 
+  it('restores a backup taken before the rename (B28: tasklite-*.tar.gz, tasklite-backup, tasklite.db)', async () => {
+    const s = seeded();
+    const archive = await backupOf(s);
+    const before = checksumsOf(s.dataDir);
+    // Rewrite the archive as Task Lite wrote it: old name, old format, old database entry.
+    const entries: { name: string; bytes: Buffer }[] = [];
+    await readTarGz(archive, (e) => {
+      const parts: Buffer[] = [];
+      return {
+        write: (c) => {
+          parts.push(Buffer.from(c));
+        },
+        end: () => {
+          entries.push({ name: e.name, bytes: Buffer.concat(parts) });
+        },
+      };
+    });
+    const old = entries.map((e) => {
+      if (e.name === 'docket.db') return { ...e, name: 'tasklite.db' };
+      if (e.name !== 'manifest.json') return e;
+      const m = JSON.parse(e.bytes.toString('utf8')) as {
+        format: string;
+        files: Record<string, unknown>;
+      };
+      m.format = 'tasklite-backup';
+      m.files['tasklite.db'] = m.files['docket.db'];
+      delete m.files['docket.db'];
+      return { ...e, bytes: Buffer.from(JSON.stringify(m)) };
+    });
+    const backups = s.runtime.config.paths.backups;
+    const legacy = join(backups, 'tasklite-20261101-0300.tar.gz');
+    await writeTarGz(
+      legacy,
+      old.map((e) => ({ name: e.name, size: e.bytes.length, source: { bytes: e.bytes } })),
+    );
+    // Listed and kept with the new ones.
+    expect(listArchives(backups).map((a) => a.name)).toContain('tasklite-20261101-0300.tar.gz');
+    expect(archiveTime('tasklite-20261101-0300.tar.gz')).toEqual(new Date(2026, 10, 1, 3, 0));
+    const scratch = join(tmp.dir, 'scratch-old');
+    const result = await restoreBackup({
+      config: loadConfig({}, { dataDir: scratch }),
+      file: legacy,
+    });
+    expect(result.checksums).toEqual(before);
+    // Restored into a fresh volume, the database takes the new name.
+    expect(checksumsOf(scratch)).toEqual(before);
+  });
+
   it('verifies the archive first: a damaged or foreign archive is refused and nothing changes', async () => {
     const s = seeded();
     const archive = await backupOf(s);
@@ -449,7 +495,7 @@ describe('restore (BUILD_SPEC §5.13; SC-008)', () => {
     const foreign = join(tmp.dir, 'foreign.tar.gz');
     writeFileSync(foreign, 'not an archive');
     await expect(restoreBackup({ config, file: foreign })).rejects.toThrow();
-    await expect(restoreBackup({ config, file: 'tasklite-19990101-0300.tar.gz' })).rejects.toThrow(
+    await expect(restoreBackup({ config, file: 'docket-19990101-0300.tar.gz' })).rejects.toThrow(
       /No backup at/,
     );
 
@@ -815,7 +861,7 @@ describe('container replacement (SC-008)', () => {
     await startupHousekeeping(second.runtime);
     // The restart may append events (open runs end as interrupted); none before it change.
     const after = liveChecksums(
-      { db: join(volume, 'tasklite.db'), docs: join(volume, 'docs') },
+      { db: join(volume, 'docket.db'), docs: join(volume, 'docs') },
       { throughSeq: before.events.max_seq },
     );
     expect(after.items.ids_sha256).toBe(before.items.ids_sha256);
@@ -860,7 +906,7 @@ describe('GET /api/settings: connections and health', () => {
     expect(after.health.backups[0]!.last_success_at).toBe(NOW.toISOString());
   });
 
-  it("shows each surface's result mode from TASKLITE_TEXT_ONLY_CLIENTS (MCP_SPEC §3 Results)", async () => {
+  it("shows each surface's result mode from DOCKET_TEXT_ONLY_CLIENTS (MCP_SPEC §3 Results)", async () => {
     const modes = async (env: Record<string, string>) => {
       const s = seeded(env);
       const cookie = await unlock(s);
@@ -870,7 +916,7 @@ describe('GET /api/settings: connections and health', () => {
       return body.connections.clients.map((c) => [c.client, c.result_mode]);
     };
     // The shipped default (an empty value counts as unset): Claude Code is text-only.
-    expect(await modes({ TASKLITE_TEXT_ONLY_CLIENTS: '' })).toEqual([
+    expect(await modes({ DOCKET_TEXT_ONLY_CLIENTS: '' })).toEqual([
       ['Codex CLI (host)', 'structured'],
       ['Claude Code (host)', 'text'],
       ['Orca worker · Codex', 'structured'],
@@ -878,7 +924,7 @@ describe('GET /api/settings: connections and health', () => {
       ['Agent in another container', 'structured'],
     ]);
     expect(
-      (await modes({ TASKLITE_TEXT_ONLY_CLIENTS: 'codex-mcp-client' })).map(([, m]) => m),
+      (await modes({ DOCKET_TEXT_ONLY_CLIENTS: 'codex-mcp-client' })).map(([, m]) => m),
     ).toEqual(['text', 'structured', 'text', 'structured', 'structured']);
   });
 });

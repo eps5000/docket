@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link } from 'react-router';
-import type { WorkspaceRow, WorkspaceState } from '@tasklite/shared';
+import type { WorkspaceRow, WorkspaceState } from '@docket/shared';
 import {
   EmptyState,
   FilterChip,

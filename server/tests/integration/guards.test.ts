@@ -48,12 +48,12 @@ describe('Host allowlist (DNS-rebinding guard)', () => {
     expect((await initialize({}, 'http://localhost:7420/mcp')).status).toBe(200);
   });
 
-  it('uses TASKLITE_ALLOWED_HOSTS when set', async () => {
+  it('uses DOCKET_ALLOWED_HOSTS when set', async () => {
     await s.cleanup();
-    s = createTestServer({ env: { TASKLITE_ALLOWED_HOSTS: 'tasklite.local:9000' } });
+    s = createTestServer({ env: { DOCKET_ALLOWED_HOSTS: 'docket.local:9000' } });
     token = s.runtime.secrets.agentToken();
     expect((await initialize({}, 'http://127.0.0.1:7420/mcp')).status).toBe(421);
-    expect((await initialize({}, 'http://tasklite.local:9000/mcp')).status).toBe(200);
+    expect((await initialize({}, 'http://docket.local:9000/mcp')).status).toBe(200);
   });
 
   it('leaves /healthz open so the container healthcheck works on any port', async () => {
@@ -128,13 +128,13 @@ describe('bearer token on /mcp', () => {
     const body = (await res.json()) as {
       result: { serverInfo: { name: string; version: string } };
     };
-    expect(body.result.serverInfo.name).toBe('tasklite');
+    expect(body.result.serverInfo.name).toBe('docket');
     expect(body.result.serverInfo.version).toMatch(/^\d+\.\d+\.\d+/);
   });
 
-  it('accepts TASKLITE_TOKEN from the environment instead of the generated one', async () => {
+  it('accepts DOCKET_TOKEN from the environment instead of the generated one', async () => {
     await s.cleanup();
-    s = createTestServer({ env: { TASKLITE_TOKEN: 'env-token-0123456789abcdef' } });
+    s = createTestServer({ env: { DOCKET_TOKEN: 'env-token-0123456789abcdef' } });
     token = 'env-token-0123456789abcdef';
     expect(s.runtime.secrets.agentToken()).toBe(token);
     expect((await initialize()).status).toBe(200);

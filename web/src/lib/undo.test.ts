@@ -26,7 +26,7 @@ function harness(answer: (call: Call) => Response) {
   });
   const client = createApiClient({
     fetch: fetch as unknown as typeof globalThis.fetch,
-    cookies: () => 'tl_csrf=tok',
+    cookies: () => 'docket_csrf=tok',
     onMutation: recordMutation,
   });
   const invalidateQueries = vi.fn(async () => {});
@@ -62,7 +62,7 @@ describe('toast-with-undo plumbing', () => {
     toast!.onUndo!();
     await vi.waitFor(() => expect(calls).toHaveLength(2));
     expect(calls[1]).toMatchObject({ url: '/api/mutations/m-1/undo', method: 'POST' });
-    expect(calls[1]!.headers['X-Tasklite-CSRF']).toBe('tok');
+    expect(calls[1]!.headers['X-Docket-CSRF']).toBe('tok');
     await vi.waitFor(() =>
       expect(toasts.snapshot().map((t) => t.message)).toContain(UNDONE_MESSAGE),
     );
@@ -108,7 +108,7 @@ describe('toast-with-undo plumbing', () => {
     expect(toasts.snapshot().map((t) => t.message)).toEqual([
       'Changed by codex just now. Showing the latest.',
     ]);
-    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['tl', 'item', 'RCP-12'] });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['docket', 'item', 'RCP-12'] });
     expect(await handleMutationError(new Error('boom'))).toBe(false);
   });
 

@@ -17,7 +17,7 @@
  * surviving steps to that version; removed steps keep their old version
  * number, so earlier plans stay readable.
  */
-import { LIMITS, ToolError } from '@tasklite/shared';
+import { LIMITS, ToolError } from '@docket/shared';
 import { type ChecklistService, type In, type Out, type ServiceDeps } from './contracts.js';
 import { newId } from './ids.js';
 import {

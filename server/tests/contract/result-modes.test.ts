@@ -2,7 +2,7 @@
  * Result modes (MCP_SPEC §3 Results; BUILD_SPEC §12 V6; owner decision 28).
  *
  * A session's mode is decided at `initialize` from `clientInfo.name`:
- * - listed in TASKLITE_TEXT_ONLY_CLIENTS (default `claude-code`, the name
+ * - listed in DOCKET_TEXT_ONLY_CLIENTS (default `claude-code`, the name
  *   Claude Code 2.1.318 reports) → text-only: `tools/list` has no
  *   `outputSchema`, and results carry the text block alone, errors still
  *   `isError` with the full message;
@@ -13,7 +13,7 @@
  */
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import { renderError, toolErrorSchema } from '@tasklite/shared';
+import { renderError, toolErrorSchema } from '@docket/shared';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   CLIENT_A,
@@ -120,9 +120,9 @@ describe('the shipped default: claude-code is text-only', () => {
   });
 });
 
-describe('TASKLITE_TEXT_ONLY_CLIENTS', () => {
+describe('DOCKET_TEXT_ONLY_CLIENTS', () => {
   it('names the text-only clients exactly, ignoring case', async () => {
-    h = await startHarness({ env: { TASKLITE_TEXT_ONLY_CLIENTS: 'My-Agent' } });
+    h = await startHarness({ env: { DOCKET_TEXT_ONLY_CLIENTS: 'My-Agent' } });
     const mine = await h.connect({ name: 'my-agent', version: '1.0.0' });
     expect(modeOf(h, mine)).toBe('text');
     expectTextOnly(await call(mine, 'whoami'));
@@ -132,7 +132,7 @@ describe('TASKLITE_TEXT_ONLY_CLIENTS', () => {
   });
 
   it('none gives every client structured results', async () => {
-    h = await startHarness({ env: { TASKLITE_TEXT_ONLY_CLIENTS: 'none' } });
+    h = await startHarness({ env: { DOCKET_TEXT_ONLY_CLIENTS: 'none' } });
     expect(modeOf(h, h.a)).toBe('structured');
     expect((await h.a.listTools()).tools.every((t) => t.outputSchema !== undefined)).toBe(true);
     expectOk(await call(h.a, 'whoami'));

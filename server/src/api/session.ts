@@ -2,16 +2,16 @@
  * Owner sessions (BUILD_SPEC §3; decision T2; constitution Principle VI).
  *
  * - `POST /api/session/unlock {key}` checks the owner key and sets
- *   `tl_owner`: a signed session ID (HttpOnly, SameSite=Strict, Path=/,
+ *   `docket_owner`: a signed session ID (HttpOnly, SameSite=Strict, Path=/,
  *   30-day sliding expiry). Sessions live in `owner_sessions`, stored by the
  *   sha256 of their ID, so the database never holds a usable cookie.
- * - It also sets `tl_csrf` (readable by the UI, SameSite=Strict). Mutating
- *   API calls must echo it in `X-Tasklite-CSRF` (double submit). The value is
+ * - It also sets `docket_csrf` (readable by the UI, SameSite=Strict). Mutating
+ *   API calls must echo it in `X-Docket-CSRF` (double submit). The value is
  *   derived from the session, so a planted cookie can't forge it.
  * - `POST /api/session/lock` ends this browser's session.
  * - `POST /api/session/rotate-key` writes a new owner key and ends every
  *   session, the caller's included. It never returns the key; the owner
- *   reads it with `tasklite owner-key`.
+ *   reads it with `docket owner-key`.
  * - The signing key is derived from the owner key, so rotation also
  *   invalidates every outstanding signature.
  */
@@ -23,9 +23,9 @@ import type { Db } from '../db/client.js';
 import { defineRoute, type RouteDeps } from './define.js';
 import { errorBody, safeEqual } from './guards.js';
 
-export const SESSION_COOKIE = 'tl_owner';
-export const CSRF_COOKIE = 'tl_csrf';
-export const CSRF_HEADER = 'x-tasklite-csrf';
+export const SESSION_COOKIE = 'docket_owner';
+export const CSRF_COOKIE = 'docket_csrf';
+export const CSRF_HEADER = 'x-docket-csrf';
 export const SESSION_MAX_AGE_S = 30 * 24 * 60 * 60;
 /** How often a busy session's `last_seen_at` and cookie expiry are refreshed. */
 const TOUCH_INTERVAL_MS = 60_000;
@@ -53,7 +53,7 @@ export class OwnerSessions {
 
   private signingKey(): Buffer {
     return createHash('sha256')
-      .update(`tasklite-owner-session\0${this.deps.secrets.ownerKey()}`)
+      .update(`docket-owner-session\0${this.deps.secrets.ownerKey()}`)
       .digest();
   }
 
@@ -151,7 +151,7 @@ export function requireSession(sessions: OwnerSessions): MiddlewareHandler<ApiEn
       return c.json(
         errorBody(
           'forbidden',
-          'Task Lite is locked. Unlock it with the owner key (tasklite owner-key).',
+          'Docket is locked. Unlock it with the owner key (docket owner-key).',
         ),
         401,
       );
@@ -162,7 +162,7 @@ export function requireSession(sessions: OwnerSessions): MiddlewareHandler<ApiEn
   };
 }
 
-/** Mutations need X-Tasklite-CSRF matching both the tl_csrf cookie and the session. */
+/** Mutations need X-Docket-CSRF matching both the docket_csrf cookie and the session. */
 export function requireCsrf(): MiddlewareHandler<ApiEnv> {
   return async (c, next) => {
     if (SAFE_METHODS.has(c.req.method) || c.req.path === UNLOCK_PATH) return next();
@@ -171,10 +171,7 @@ export function requireCsrf(): MiddlewareHandler<ApiEnv> {
     const cookie = getCookie(c, CSRF_COOKIE) ?? '';
     if (!header || !safeEqual(header, cookie) || !safeEqual(header, session.csrf)) {
       return c.json(
-        errorBody(
-          'forbidden',
-          'Missing or wrong X-Tasklite-CSRF header. Reload the page and retry.',
-        ),
+        errorBody('forbidden', 'Missing or wrong X-Docket-CSRF header. Reload the page and retry.'),
         403,
       );
     }
@@ -193,7 +190,7 @@ export function sessionRoutes<E extends Env>(
       return c.json(
         errorBody(
           'forbidden',
-          "That isn't the owner key. Print it with: docker compose exec tasklite tasklite owner-key",
+          "That isn't the owner key. Print it with: docker compose exec docket docket owner-key",
         ),
         403,
       );

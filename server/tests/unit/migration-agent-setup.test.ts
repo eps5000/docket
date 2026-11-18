@@ -140,7 +140,7 @@ describe('0003_agent_setup on a fresh database', () => {
   afterEach(() => t.cleanup());
 
   it('applies every migration, with foreign keys on and the check clean', () => {
-    expect(migrationStatus(t.db)).toEqual({ current: true, applied: 5, expected: 5 });
+    expect(migrationStatus(t.db)).toEqual({ current: true, applied: 6, expected: 6 });
     expect(t.db.sqlite.pragma('foreign_keys', { simple: true })).toBe(1);
     expect(t.db.sqlite.pragma('foreign_key_check')).toEqual([]);
   });
@@ -181,13 +181,13 @@ describe('0003_agent_setup on a fresh database', () => {
   });
 
   it('keeps one row per key, layer and project (bundled and service have no project)', () => {
-    file(t.db, 'af_1', 'skill:tasklite-worker', 'bundled');
-    file(t.db, 'af_2', 'skill:tasklite-worker', 'service');
-    file(t.db, 'af_3', 'skill:tasklite-worker', 'project', 'RCP');
-    file(t.db, 'af_4', 'skill:tasklite-worker', 'project', 'DOC');
+    file(t.db, 'af_1', 'skill:docket-worker', 'bundled');
+    file(t.db, 'af_2', 'skill:docket-worker', 'service');
+    file(t.db, 'af_3', 'skill:docket-worker', 'project', 'RCP');
+    file(t.db, 'af_4', 'skill:docket-worker', 'project', 'DOC');
     file(t.db, 'af_5', 'agents_block', 'bundled');
-    expect(() => file(t.db, 'af_6', 'skill:tasklite-worker', 'service')).toThrow(/UNIQUE/);
-    expect(() => file(t.db, 'af_7', 'skill:tasklite-worker', 'project', 'RCP')).toThrow(/UNIQUE/);
+    expect(() => file(t.db, 'af_6', 'skill:docket-worker', 'service')).toThrow(/UNIQUE/);
+    expect(() => file(t.db, 'af_7', 'skill:docket-worker', 'project', 'RCP')).toThrow(/UNIQUE/);
   });
 
   const badFiles: [name: string, key: string, layer: string, project: string | null][] = [
@@ -204,7 +204,7 @@ describe('0003_agent_setup on a fresh database', () => {
   });
 
   it('versions are numbered per file, ≤ 50,000 characters, and cascade with their file', () => {
-    file(t.db, 'af_1', 'skill:tasklite-worker', 'bundled');
+    file(t.db, 'af_1', 'skill:docket-worker', 'bundled');
     version(t.db, 'afv_1', 'af_1', 1);
     version(t.db, 'afv_2', 'af_1', 2, 'x'.repeat(50_000));
     expect(() => version(t.db, 'afv_3', 'af_1', 2)).toThrow(/UNIQUE/);
@@ -268,11 +268,11 @@ describe('0003_agent_setup on a main-era database (0000–0002, with data)', () 
   let db: Db;
 
   beforeEach(() => {
-    tmp = tempDir('tasklite-migrate-');
-    db = openDb(join(tmp.dir, 'tasklite.db'));
+    tmp = tempDir('docket-migrate-');
+    db = openDb(join(tmp.dir, 'docket.db'));
     // What main's migrateDb produced before B21: 0000 to 0002 only.
     migrate(drizzle(db.sqlite), { migrationsFolder: mainEraMigrations(tmp.dir) });
-    expect(migrationStatus(db)).toEqual({ current: false, applied: 3, expected: 5 });
+    expect(migrationStatus(db)).toEqual({ current: false, applied: 3, expected: 6 });
     for (const table of NEW_TABLES) expect(tables(db)).not.toContain(table);
     insertProject(db, 'RCP');
     insertItem(db, { id: 'RCP-1' });
@@ -295,9 +295,9 @@ describe('0003_agent_setup on a main-era database (0000–0002, with data)', () 
 
   it('migrates to current, and migrating again is a no-op', () => {
     migrateDb(db);
-    expect(migrationStatus(db)).toEqual({ current: true, applied: 5, expected: 5 });
+    expect(migrationStatus(db)).toEqual({ current: true, applied: 6, expected: 6 });
     migrateDb(db);
-    expect(migrationStatus(db).applied).toBe(5);
+    expect(migrationStatus(db).applied).toBe(6);
     expect(tables(db)).toEqual(expect.arrayContaining(NEW_TABLES));
   });
 
@@ -320,7 +320,7 @@ describe('0003_agent_setup on a main-era database (0000–0002, with data)', () 
     migrateDb(db);
     expect(db.sqlite.pragma('foreign_keys', { simple: true })).toBe(1);
     workflow(db, 'RCP', 1);
-    file(db, 'af_1', 'skill:tasklite-worker', 'project', 'RCP');
+    file(db, 'af_1', 'skill:docket-worker', 'project', 'RCP');
     version(db, 'afv_1', 'af_1', 1);
     install(db, 'ins_1', { project_key: 'RCP' });
     expect(() => file(db, 'af_2', 'agents_block', 'project', 'ZZZ')).toThrow(/FOREIGN KEY/);

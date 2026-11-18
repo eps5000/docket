@@ -38,13 +38,13 @@ async function ownerApi() {
     body: JSON.stringify({ key: h!.server.runtime.secrets.ownerKey() }),
   });
   const cookies = parseSetCookies(res);
-  const cookie = `tl_owner=${cookies.tl_owner!.value}; tl_csrf=${cookies.tl_csrf!.value}`;
+  const cookie = `docket_owner=${cookies.docket_owner!.value}; docket_csrf=${cookies.docket_csrf!.value}`;
   return async (method: string, path: string, body?: unknown) => {
     const r = await req(path, {
       method,
       headers: {
         cookie,
-        ...(method === 'GET' ? {} : { 'x-tasklite-csrf': cookies.tl_csrf!.value }),
+        ...(method === 'GET' ? {} : { 'x-docket-csrf': cookies.docket_csrf!.value }),
         ...(body === undefined ? {} : { 'content-type': 'application/json' }),
       },
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -54,7 +54,7 @@ async function ownerApi() {
   };
 }
 
-const WORKER = encodeURIComponent('skill:tasklite-worker');
+const WORKER = encodeURIComponent('skill:docket-worker');
 const NOTES = [
   '- Branch per item: `rcp-<n>-<slug>`; PRs against `main`.',
   '- Run `pnpm test` before submit_for_review.',
@@ -144,11 +144,11 @@ describe('agent files over the owner API (T153)', () => {
     expect(list.status).toBe(200);
     const files = list.body.files as S[];
     expect(files.map((f) => f.key)).toEqual([
-      'skill:tasklite-coordinator',
-      'skill:tasklite-lead-subagents',
-      'skill:tasklite-planner',
-      'skill:tasklite-review-packet',
-      'skill:tasklite-worker',
+      'skill:docket-coordinator',
+      'skill:docket-lead-subagents',
+      'skill:docket-planner',
+      'skill:docket-review-packet',
+      'skill:docket-worker',
       'agents_block',
     ]);
     expect(files.every((f) => f.effective_layer === 'bundled' && f.bundled_updated === false)).toBe(
@@ -188,12 +188,12 @@ describe('agent files over the owner API (T153)', () => {
     });
     expect(override.status).toBe(200);
     const rcp = (await owner('GET', '/api/agent-files?project=RCP')).body.files as S[];
-    expect(rcp.find((f) => f.key === 'skill:tasklite-worker')).toMatchObject({
+    expect(rcp.find((f) => f.key === 'skill:docket-worker')).toMatchObject({
       effective_layer: 'project',
     });
     expect(rcp.find((f) => f.key === 'agents_block')).toMatchObject({ effective_layer: 'bundled' });
     const doc = (await owner('GET', '/api/agent-files?project=DOC')).body.files as S[];
-    expect(doc.find((f) => f.key === 'skill:tasklite-worker')).toMatchObject({
+    expect(doc.find((f) => f.key === 'skill:docket-worker')).toMatchObject({
       effective_layer: 'service',
     });
 
@@ -215,11 +215,11 @@ describe('agent files over the owner API (T153)', () => {
       { actor: { kind: 'system', client: null, label: null }, operation: 'test', args: {} },
       (w) =>
         runtime.services.agentFiles.syncBundled(w, {
-          files: [{ key: 'skill:tasklite-worker', content: `${bundledText}\nUpgraded.\n` }],
+          files: [{ key: 'skill:docket-worker', content: `${bundledText}\nUpgraded.\n` }],
         }),
     );
     const flagged = (await owner('GET', '/api/agent-files')).body.files as S[];
-    expect(flagged.find((f) => f.key === 'skill:tasklite-worker')).toMatchObject({
+    expect(flagged.find((f) => f.key === 'skill:docket-worker')).toMatchObject({
       effective_layer: 'service',
       bundled_updated: true,
     });

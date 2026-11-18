@@ -1,14 +1,14 @@
 /**
  * The push-root guard (owner decision 29; BUILD_SPEC §5.17; FR-117, FR-125).
  *
- * The push install is the one place Task Lite touches host files, and only
- * inside the folder the owner mounted (`TASKLITE_PUSH_ROOT`). Every path goes
+ * The push install is the one place Docket touches host files, and only
+ * inside the folder the owner mounted (`DOCKET_PUSH_ROOT`). Every path goes
  * through here, and each escape is blocked as follows:
  *
  * - **`..`**: a path the owner gives may not contain a `..` segment at all,
  *   and the joined path must still be inside the root lexically.
  * - **Absolute paths:** accepted only under the push folder's host path
- *   (`TASKLITE_PUSH_HOST_PATH`) or its container path, which are mapped onto
+ *   (`DOCKET_PUSH_HOST_PATH`) or its container path, which are mapped onto
  *   the root; any other absolute path (or `~`) is refused.
  * - **Symlinks:** the root is resolved with `realpath` once. The base folder
  *   and every folder on the way to a file are checked one at a time with
@@ -16,18 +16,21 @@
  *   the root. A symlinked *file* is never written or read through, and files
  *   are opened with `O_NOFOLLOW` (where the OS has it), so a link swapped in
  *   after the check still isn't followed.
- * - **Never delete:** this module has no delete. Folders are created one
- *   level at a time, files are written in place. The callers write only the
- *   `tasklite-*` skill files, the manifest and the instructions file (whose
- *   text outside the Task Lite markers is kept byte for byte).
+ * - **Never delete, with one exception:** folders are created one level at
+ *   a time, files are written in place. The callers write only the
+ *   `docket-*` skill files, the manifest and the instructions file (whose
+ *   text outside the Docket markers is kept byte for byte). The one removal
+ *   (B28) is `removeRecordedSkillFolder`: an old `tasklite-*` skill folder
+ *   an earlier install recorded, only while it holds nothing but its
+ *   unmodified `SKILL.md`.
  *
  * Errors are `validation` ToolErrors with a plain message; none of them
  * quote anything from outside the root.
  */
 import { constants } from 'node:fs';
-import { lstat, mkdir, open, readdir, realpath, stat } from 'node:fs/promises';
+import { lstat, mkdir, open, readdir, realpath, rmdir, stat, unlink } from 'node:fs/promises';
 import { isAbsolute, join, relative, sep } from 'node:path';
-import { ToolError, hasControlChars } from '@tasklite/shared';
+import { ToolError, hasControlChars } from '@docket/shared';
 
 const NOFOLLOW = (constants as { O_NOFOLLOW?: number }).O_NOFOLLOW ?? 0;
 
@@ -57,7 +60,7 @@ function stripPrefix(p: string, prefix: string): string | null {
 
 /**
  * The folder the owner named, as segments under the root. It may be a host
- * path under `TASKLITE_PUSH_HOST_PATH`, a container path under the root, or
+ * path under `DOCKET_PUSH_HOST_PATH`, a container path under the root, or
  * relative to the root.
  */
 export function rootSegments(
@@ -87,7 +90,7 @@ export function rootSegments(
 
 export class SymlinkRefused extends ToolError {
   constructor(path: string) {
-    super('validation', `${path} is a symbolic link; Task Lite never writes or reads through one.`);
+    super('validation', `${path} is a symbolic link; Docket never writes or reads through one.`);
   }
 }
 
@@ -128,7 +131,7 @@ export class PushRoot {
       throw refuse(`There's no folder at ${input} in the push folder. Check the path.`);
     }
     if (!isInside(this.real, real)) {
-      throw refuse(`${input} links outside the push folder; Task Lite won't follow it.`);
+      throw refuse(`${input} links outside the push folder; Docket won't follow it.`);
     }
     if (!(await stat(real)).isDirectory()) throw refuse(`${input} isn't a folder.`);
     return real;
@@ -157,7 +160,7 @@ export class PushRoot {
       if (info.isSymbolicLink()) {
         const real = await realpath(next).catch(() => null);
         if (!real || !isInside(this.real, real)) {
-          throw refuse(`${relDir} links outside the push folder; Task Lite won't follow it.`);
+          throw refuse(`${relDir} links outside the push folder; Docket won't follow it.`);
         }
         if (!(await stat(real)).isDirectory()) throw refuse(`${relDir} isn't a folder.`);
         cur = real;
@@ -227,6 +230,41 @@ export class PushRoot {
     } finally {
       await fh.close();
     }
+  }
+
+  /**
+   * Remove an old skill folder an earlier install wrote and recorded (B28;
+   * BUILD_SPEC §5.17): `relDir` must be a real folder (not a link) holding
+   * exactly one regular file, `SKILL.md`, for which `unmodified` returns
+   * true. Anything else is left alone and the result is false.
+   */
+  async removeRecordedSkillFolder(
+    base: string,
+    relDir: string,
+    unmodified: (bytes: Buffer) => boolean,
+  ): Promise<boolean> {
+    const { dir, name } = PushRoot.split(relDir);
+    const parent = await this.folder(base, dir, false);
+    if (parent === null) return false;
+    const path = join(parent, name);
+    const info = await lstat(path).catch(() => null);
+    if (!info || info.isSymbolicLink() || !info.isDirectory()) return false;
+    const entries = await readdir(path, { withFileTypes: true });
+    if (entries.length !== 1 || entries[0]!.name !== 'SKILL.md' || !entries[0]!.isFile()) {
+      return false;
+    }
+    const file = join(path, 'SKILL.md');
+    const fh = await open(file, constants.O_RDONLY | NOFOLLOW);
+    let bytes: Buffer;
+    try {
+      bytes = await fh.readFile();
+    } finally {
+      await fh.close();
+    }
+    if (!unmodified(bytes)) return false;
+    await unlink(file);
+    await rmdir(path);
+    return true;
   }
 
   /** The names of the folders (or links to folders) in `relDir`; empty when it doesn't exist. */

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { ItemDetailResponse, Run } from '@tasklite/shared';
+import type { ItemDetailResponse, Run } from '@docket/shared';
 import {
   Button,
   Callout,

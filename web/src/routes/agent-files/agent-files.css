@@ -413,7 +413,7 @@
   text-decoration: underline;
 }
 
-/* Changed outside Task Lite (UI_SPEC §6.7b-1; US14; B27b). */
+/* Changed outside Docket (UI_SPEC §6.7b-1; US14; B27b). */
 .tl .afdrift {
   gap: 10px;
   scroll-margin-top: 16px;

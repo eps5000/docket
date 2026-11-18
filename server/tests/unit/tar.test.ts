@@ -13,7 +13,7 @@ import { tempDir, type TempDir } from '../helpers.js';
 
 let tmp: TempDir;
 beforeEach(() => {
-  tmp = tempDir('tasklite-tar-');
+  tmp = tempDir('docket-tar-');
 });
 afterEach(() => tmp.cleanup());
 
@@ -41,7 +41,7 @@ describe('tar.gz round trip', () => {
     const big = join(tmp.dir, 'big.bin');
     writeFileSync(big, randomBytes(3 * 1024 * 1024 + 7));
     const entries: TarFileEntry[] = [
-      { name: 'tasklite.db', size: 0, source: { bytes: Buffer.alloc(0) } },
+      { name: 'docket.db', size: 0, source: { bytes: Buffer.alloc(0) } },
       { name: 'exact.bin', size: 512, source: { bytes: randomBytes(512) } },
       { name: 'odd.bin', size: 513, source: { bytes: randomBytes(513) } },
       { name: LONG, size: 5, source: { bytes: Buffer.from('hello') } },
@@ -84,11 +84,11 @@ describe('tar.gz round trip', () => {
   it.skipIf(tar.status !== 0)('the system tar lists the archive, long names included', async () => {
     const archive = join(tmp.dir, 'a.tar.gz');
     await writeTarGz(archive, [
-      { name: 'tasklite.db', size: 2, source: { bytes: Buffer.from('db') } },
+      { name: 'docket.db', size: 2, source: { bytes: Buffer.from('db') } },
       { name: LONG, size: 2, source: { bytes: Buffer.from('ok') } },
     ]);
     const listed = spawnSync('tar', ['-tzf', 'a.tar.gz'], { encoding: 'utf8', cwd: tmp.dir });
     expect(listed.status, listed.stderr).toBe(0);
-    expect(listed.stdout.trim().split(/\r?\n/)).toEqual(['tasklite.db', LONG]);
+    expect(listed.stdout.trim().split(/\r?\n/)).toEqual(['docket.db', LONG]);
   });
 });

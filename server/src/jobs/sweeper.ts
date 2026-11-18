@@ -21,7 +21,7 @@
  *   not a sweep has run.
  *
  * - **The drift check** (owner decision 30; BUILD_SPEC §5.19), at startup and
- *   every `TASKLITE_DRIFT_CHECK_INTERVAL`: each push install's location is
+ *   every `DOCKET_DRIFT_CHECK_INTERVAL`: each push install's location is
  *   read (never written) and compared with its manifest; see
  *   `startDriftCheck` below.
  *
@@ -191,7 +191,7 @@ export async function driftCheckOnce(runtime: Runtime): Promise<{ drift_ids: str
 }
 
 /**
- * Run the drift check at startup and every `TASKLITE_DRIFT_CHECK_INTERVAL`
+ * Run the drift check at startup and every `DOCKET_DRIFT_CHECK_INTERVAL`
  * (default 15 min); off when the interval is `0` or `off`. Tests pass a
  * shorter `intervalMs`. A check still running when the next is due is
  * skipped, not stacked.
@@ -211,7 +211,7 @@ export function startDriftCheck(
     driftCheckOnce(runtime)
       .then(({ drift_ids }) => {
         if (drift_ids.length > 0) {
-          runtime.log(`drift check: ${drift_ids.length} agent file change(s) outside Task Lite`);
+          runtime.log(`drift check: ${drift_ids.length} agent file change(s) outside Docket`);
         }
       })
       .catch((err: unknown) =>

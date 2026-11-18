@@ -16,12 +16,12 @@ const get = (path: string, init?: RequestInit) =>
   Promise.resolve(app.request(`${BASE}${path}`, init));
 
 beforeEach(() => {
-  tmp = tempDir('tasklite-app-');
+  tmp = tempDir('docket-app-');
   webRoot = join(tmp.dir, 'web');
   mkdirSync(join(webRoot, 'assets'), { recursive: true });
   writeFileSync(
     join(webRoot, 'index.html'),
-    '<!doctype html><title>Task Lite</title><div id="root"></div>',
+    '<!doctype html><title>Docket</title><div id="root"></div>',
   );
   writeFileSync(join(webRoot, 'assets', 'app.js'), 'console.log("app");');
   mkdirSync(join(tmp.dir, 'data'));

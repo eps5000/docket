@@ -1,7 +1,7 @@
 import type { UseQueryResult } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
-import type { SettingsResponse } from '@tasklite/shared';
+import { LEGACY_VOLUME, type SettingsResponse } from '@docket/shared';
 import {
   Button,
   Card,
@@ -23,11 +23,11 @@ import { HelpLink } from '../../help/HelpLink';
 
 /**
  * The client setup snippets, exactly as MCP_SPEC §11 gives them: the token
- * is always `$TASKLITE_TOKEN`, never its value.
+ * is always `$DOCKET_TOKEN`, never its value.
  */
 export const SNIPPETS = {
-  codex: `# ~/.codex/config.toml\n[mcp_servers.tasklite]\nurl = "http://127.0.0.1:7420/mcp"\nbearer_token_env_var = "TASKLITE_TOKEN"`,
-  claude: `claude mcp add --transport http --scope user tasklite \\\n  http://127.0.0.1:7420/mcp \\\n  --header "Authorization: Bearer $TASKLITE_TOKEN"`,
+  codex: `# ~/.codex/config.toml\n[mcp_servers.docket]\nurl = "http://127.0.0.1:7420/mcp"\nbearer_token_env_var = "DOCKET_TOKEN"`,
+  claude: `claude mcp add --transport http --scope user docket \\\n  http://127.0.0.1:7420/mcp \\\n  --header "Authorization: Bearer $DOCKET_TOKEN"`,
 } as const;
 
 /** *Reveal token* shows the token for this long, then hides it (UI_SPEC §6.7). */
@@ -238,9 +238,13 @@ function ClientSetupCard() {
           </Button>
         )}
         <span className="src">
-          Put it in <span className="mono">TASKLITE_TOKEN</span> where your agents run.
+          Put it in <span className="mono">DOCKET_TOKEN</span> where your agents run.
         </span>
       </div>
+      <p className="src" data-rename-note="">
+        Set up before the rename? Rename your MCP server entry from tasklite to docket; the URL is
+        unchanged, so the old entry keeps working until you do.
+      </p>
       {token !== null && (
         <div className="reveal" data-token-revealed="">
           <code aria-label="Agent token">{token}</code>
@@ -308,7 +312,7 @@ function BackupLines({ health }: { health: Health }) {
       ) : (
         !health.extra_backup_configured && (
           <div className="src backup-loc" data-backup="extra-help">
-            Mount a host folder and set TASKLITE_BACKUP_EXTRA_DIR; see the README.
+            Mount a host folder and set DOCKET_BACKUP_EXTRA_DIR; see the README.
           </div>
         )
       )}
@@ -357,9 +361,31 @@ function ServiceHealthCard({ query }: { query: UseQueryResult<SettingsResponse> 
             </dd>
             <dt>Volume</dt>
             <dd>
-              <span className="mono">tasklite-data</span>
+              {d.health.volume.name ? (
+                <>
+                  <span className="mono" data-volume>
+                    {d.health.volume.name}
+                  </span>{' '}
+                  mounted at <span className="mono">/data</span>
+                </>
+              ) : (
+                <>
+                  The volume at <span className="mono">/data</span>
+                </>
+              )}
               {d.health.volume_free_bytes !== null && (
                 <span className="src"> · {bytes(d.health.volume_free_bytes)} free</span>
+              )}
+              {d.health.volume.name === LEGACY_VOLUME && (
+                <div className="src">
+                  The volume from before the rename to Docket. It keeps working; the README says how
+                  to move it to docket-data.
+                </div>
+              )}
+              {d.health.volume.legacy_db_file && (
+                <div className="src">
+                  Its database file keeps its name from before the rename (docket.db).
+                </div>
               )}
             </dd>
             <dt>Backups</dt>
@@ -384,7 +410,7 @@ function ServiceHealthCard({ query }: { query: UseQueryResult<SettingsResponse> 
         <a
           className="btn sm"
           href="/api/diagnostics/calls?days=7"
-          download="tasklite-calls-7d.jsonl"
+          download="docket-calls-7d.jsonl"
           title="The last 7 days of agent calls, without their contents"
         >
           Download diagnostic log
@@ -415,7 +441,7 @@ function ServiceHealthCard({ query }: { query: UseQueryResult<SettingsResponse> 
           </p>
           <div className="src">
             Get the new key with:{' '}
-            <span className="mono">docker compose exec tasklite tasklite owner-key</span>
+            <span className="mono">docker compose exec docket docket owner-key</span>
           </div>
         </Dialog>
       )}

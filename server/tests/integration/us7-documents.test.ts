@@ -13,7 +13,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { AGENT_UPLOAD_MAX_BYTES } from '@tasklite/shared';
+import { AGENT_UPLOAD_MAX_BYTES } from '@docket/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { loadSampleSeed } from '../../src/db/seed/loader.js';
 import { createTestServer, parseSetCookies, type TestServer } from './harness.js';
@@ -28,7 +28,7 @@ afterEach(async () => {
 });
 
 const MB = 1024 * 1024;
-const BOUNDARY = '----tasklite-test-boundary-7f3a';
+const BOUNDARY = '----docket-test-boundary-7f3a';
 const docs = () => s.runtime.config.paths.docs;
 const staged = () => {
   const dir = join(docs(), '.staging');
@@ -120,7 +120,7 @@ async function unlock() {
     body: JSON.stringify({ key: s.runtime.secrets.ownerKey() }),
   });
   const cookies = parseSetCookies(res);
-  return `tl_owner=${cookies.tl_owner!.value}; tl_csrf=${cookies.tl_csrf!.value}`;
+  return `docket_owner=${cookies.docket_owner!.value}; docket_csrf=${cookies.docket_csrf!.value}`;
 }
 
 const errorOf = async (res: Response) =>

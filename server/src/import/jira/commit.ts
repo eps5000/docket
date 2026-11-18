@@ -24,7 +24,7 @@
  * Attachment bytes are not part of the transaction: the service downloads
  * them after the commit (jira-import.ts).
  */
-import { ToolError, scanForSecrets, type JiraReport } from '@tasklite/shared';
+import { ToolError, scanForSecrets, type JiraReport } from '@docket/shared';
 import type { Db } from '../../db/client.js';
 import type { DocumentsService } from '../../domain/contracts.js';
 import { allocateItemId, newId } from '../../domain/ids.js';
@@ -50,7 +50,7 @@ export interface CommitInput {
 export interface CommitResult {
   project: string;
   project_name: string;
-  /** Jira key → Task Lite item ID. */
+  /** Jira key → Docket item ID. */
   ids: Map<string, string>;
   report_document_id: string;
   report_name: string;

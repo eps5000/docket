@@ -12,12 +12,12 @@
  */
 import { readFileSync } from 'node:fs';
 import { McpError } from '@modelcontextprotocol/sdk/types.js';
-import { TOOL_NAMES, ToolError, type EventRow, type ToolName } from '@tasklite/shared';
+import { TOOL_NAMES, ToolError, type EventRow, type ToolName } from '@docket/shared';
 import { afterEach, describe, expect, it } from 'vitest';
 import { notImplemented } from '../../src/domain/contracts.js';
 import { HANDLER_GROUPS } from '../../src/mcp/tools/index.js';
 import type { RunSignal, ToolHandlers } from '../../src/mcp/register.js';
-import { TOOLS } from '@tasklite/shared';
+import { TOOLS } from '@docket/shared';
 import {
   VALID_ARGS,
   expectNotFound,
@@ -105,7 +105,7 @@ describe('stubs', () => {
           install_id: 'ins_1',
           files: [
             { key: 'agents_block', sha256: sha },
-            { key: 'skill:tasklite-worker', sha256: sha.toUpperCase(), content: '# edited\n' },
+            { key: 'skill:docket-worker', sha256: sha.toUpperCase(), content: '# edited\n' },
           ],
         },
       }),

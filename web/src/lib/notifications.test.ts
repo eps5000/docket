@@ -4,7 +4,7 @@
  * seq, once per item in a burst, only when on and allowed, only in the tab
  * that claimed the job; the tab title; the Settings status line.
  */
-import type { NeedsYouResponse } from '@tasklite/shared';
+import type { NeedsYouResponse } from '@docket/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { StreamChange } from './api';
 import {
@@ -84,10 +84,10 @@ function notifier(rows: NeedsYouResponse['for_you_now'], now = () => 1_000_000) 
 }
 
 describe('tab title', () => {
-  it('reads (N) Task Lite, or Task Lite when nothing is for you', () => {
-    expect(tabTitle(3)).toBe('(3) Task Lite');
-    expect(tabTitle(0)).toBe('Task Lite');
-    expect(tabTitle(undefined)).toBe('Task Lite');
+  it('reads (N) Docket, or Docket when nothing is for you', () => {
+    expect(tabTitle(3)).toBe('(3) Docket');
+    expect(tabTitle(0)).toBe('Docket');
+    expect(tabTitle(undefined)).toBe('Docket');
   });
 });
 

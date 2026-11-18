@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { TEXT_LIMITS } from '@tasklite/shared';
+import { TEXT_LIMITS } from '@docket/shared';
 import { Button } from '../../components/kit';
 import { apiClient } from '../../app/queryClient';
 import { showToast } from '../../lib/undo';

@@ -10,7 +10,7 @@
  * attachments · due date, start date, story points (field detection) ·
  * unmapped fields · secrets · the report's totals.
  */
-import { AGENT_UPLOAD_MAX_BYTES } from '@tasklite/shared';
+import { AGENT_UPLOAD_MAX_BYTES } from '@docket/shared';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { adfToMarkdown } from '../../src/import/jira/adf.js';
 import {
@@ -59,8 +59,8 @@ const item = (key: string): PlannedItem => {
 };
 const outcome = (key: string) => plan.outcomes.find((o) => o.key === key)!;
 const reasons = (key: string) => outcome(key).reasons.join('; ');
-const row = (jira: string, taskLite: string) =>
-  report.mapping.find((r) => r.jira === jira && r.task_lite === taskLite);
+const row = (jira: string, docket: string) =>
+  report.mapping.find((r) => r.jira === jira && r.docket === docket);
 const fieldRow = (name: string) => report.fields.find((f) => f.field === name);
 
 beforeAll(async () => {
@@ -360,7 +360,7 @@ describe('links', () => {
 });
 
 describe('labels', () => {
-  it('are created as Task Lite names; renamed and unusable ones are listed', () => {
+  it('are created as Docket names; renamed and unusable ones are listed', () => {
     expect(item('TL-1').labels).toEqual(['payments']);
     expect(item('TL-2').labels).toEqual(['frontend', 'tech-debt']);
     expect(reasons('TL-2')).toContain('label “Tech_Debt” imported as tech-debt');

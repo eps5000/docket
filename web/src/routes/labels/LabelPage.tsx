@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router';
-import type { LabelPageResponse, LinkEdge } from '@tasklite/shared';
+import type { LabelPageResponse, LinkEdge } from '@docket/shared';
 import {
   Button,
   Card,

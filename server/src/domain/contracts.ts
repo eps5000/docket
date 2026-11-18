@@ -87,7 +87,7 @@ import {
   type WorkspacesResponse,
   type Workflow,
   type WorkStep,
-} from '@tasklite/shared';
+} from '@docket/shared';
 import type { Config, SecretStore } from '../config.js';
 import type { Db } from '../db/client.js';
 import type { CallLog } from '../jobs/logs.js';
@@ -307,7 +307,7 @@ export interface ResourceRef {
 /**
  * Recovery (owner decision 26; BUILD_SPEC §5.16; MCP_SPEC §5.9): workspace
  * state, `Item.resume`, the restart list, and the owner's two Problems
- * actions. Task Lite only records: nothing here touches the host.
+ * actions. Docket only records: nothing here touches the host.
  */
 export interface RecoveryService {
   /** `recovery_report`: read-only. */
@@ -330,7 +330,7 @@ export interface RecoveryService {
   ): { run_id: string; unpushed_handled_at: string };
 }
 
-/** One agent file as shipped in the image (`skills/<name>/SKILL.md`, `docs/templates/AGENTS-tasklite.md`). */
+/** One agent file as shipped in the image (`skills/<name>/SKILL.md`, `docs/templates/AGENTS-docket.md`). */
 export interface BundledAgentFile {
   /** `skill:<name>` or `agents_block`. */
   key: string;
@@ -378,7 +378,7 @@ export interface AgentFilesService {
 /** An install ready to record: built (and, for push, written) outside any transaction. */
 export interface PreparedInstall {
   input: RouteBody<'installs.create'>;
-  /** The effective files' versions, as in `.tasklite-manifest.json`. */
+  /** The effective files' versions, as in `.docket-manifest.json`. */
   manifest: { key: string; version_id: string; sha256: string }[];
   /** Push only: what was written into the push root. */
   result?: CreateInstallResponse['result'];
@@ -387,7 +387,7 @@ export interface PreparedInstall {
 /** A command install's bundle, ready to stream (`GET /install/:token`). */
 export interface InstallBundle {
   install_id: string;
-  /** For `Content-Disposition`, e.g. `tasklite-<install_id>.tar.gz`. */
+  /** For `Content-Disposition`, e.g. `docket-<install_id>.tar.gz`. */
   filename: string;
   bytes: Uint8Array;
 }
@@ -416,7 +416,7 @@ export interface InstallsService {
   bundleForToken(r: ReadContext, input: RouteParams<'install.download'>): Promise<InstallBundle>;
   /** Step 2: mark the token used and log the install (event `install.recorded`). */
   markDownloaded(w: WriteContext, input: { install_id: string }): void;
-  /** `GET /api/push-target`: whether `TASKLITE_PUSH_ROOT` is set and writable, with both paths. */
+  /** `GET /api/push-target`: whether `DOCKET_PUSH_ROOT` is set and writable, with both paths. */
   pushTarget(r: ReadContext): Promise<PushTargetResponse>;
   /** `POST /api/push-target/test`: write and remove a probe file. Not an event. */
   testPushTarget(r: ReadContext): Promise<PushTargetTestResponse>;
@@ -482,7 +482,7 @@ export interface PreparedRestore {
 /**
  * Drift: installed agent files that differ from what was sent (FR-131–FR-133).
  * Reports come from agents on `claim_lead` and from the scheduled check of
- * push installs (`TASKLITE_DRIFT_CHECK_INTERVAL`, and at startup). A report
+ * push installs (`DOCKET_DRIFT_CHECK_INTERVAL`, and at startup). A report
  * that differs from its install's manifest raises one open record per
  * install and file (event `drift.detected`); a remedy resolves it (event
  * `drift.resolved`). *Keep local* accepts the hash: no new alert until it
@@ -505,7 +505,7 @@ export interface DriftService {
   list(r: ReadContext, input: RouteQuery<'drift.list'>): DriftListResponse;
   /** *Adopt as <project>'s copy* (the default for a user-wide install): an owner edit; undoable. */
   adopt(w: WriteContext, input: RouteParams<'drift.adopt'>): Drift;
-  /** *Restore Task Lite's version*, step 1: rebuild the install (push writes the files). */
+  /** *Restore Docket's version*, step 1: rebuild the install (push writes the files). */
   restorePrepare(r: ReadContext, input: RouteParams<'drift.restore'>): Promise<PreparedRestore>;
   /** Step 2: record the reinstall and resolve the drift. */
   restoreRecord(
@@ -692,7 +692,7 @@ export interface ProjectsService {
 }
 
 /**
- * Backups (§5.13). `tasklite restore` runs offline with the server stopped,
+ * Backups (§5.13). `docket restore` runs offline with the server stopped,
  * so it has no service method: it lives in the CLI and `jobs/backup.ts`.
  */
 export interface BackupService {

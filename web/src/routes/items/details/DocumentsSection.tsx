@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { ItemDetailResponse } from '@tasklite/shared';
+import type { ItemDetailResponse } from '@docket/shared';
 import { Chip, EmptyState, Icon, Section } from '../../../components/kit';
 import { formatAge, isoTitle } from '../../../lib/format';
 import { DocumentViewer } from '../../dialogs/DocumentViewer';

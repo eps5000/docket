@@ -8,7 +8,7 @@
  *   the packet or the item's question. (The same seq or a burst notifying
  *   once is unit-tested in src/lib/notifications.test.ts: a real server never
  *   repeats a seq.)
- * - The tab title reads `(N) Task Lite`.
+ * - The tab title reads `(N) Docket`.
  * - The opt-in callout, and with permission denied the status reads
  *   "Blocked by the browser".
  *
@@ -36,7 +36,7 @@ import {
 useSeededContainer();
 
 async function notificationsOn(page: Page) {
-  await page.context().addInitScript(() => localStorage.setItem('tl.notifications', 'on'));
+  await page.context().addInitScript(() => localStorage.setItem('docket.notifications', 'on'));
 }
 
 test.describe('notifications', () => {
@@ -44,7 +44,7 @@ test.describe('notifications', () => {
     await unlock(page.context());
   });
 
-  test('items already for you on load never notify; the tab title reads (3) Task Lite', async ({
+  test('items already for you on load never notify; the tab title reads (3) Docket', async ({
     page,
   }) => {
     await grantNotifications(page.context());
@@ -52,7 +52,7 @@ test.describe('notifications', () => {
     await notificationsOn(page);
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'For you now · 3' })).toBeVisible();
-    await expect(page).toHaveTitle('(3) Task Lite');
+    await expect(page).toHaveTitle('(3) Docket');
     // Give the real stream time to deliver anything it would.
     await page.waitForTimeout(2000);
     expect(await recordedNotifications(page)).toEqual([]);
@@ -115,7 +115,7 @@ test.describe('notifications', () => {
     await recordNotifications(page.context());
     await notificationsOn(page);
     await page.goto('/work');
-    await expect(page).toHaveTitle('(3) Task Lite');
+    await expect(page).toHaveTitle('(3) Docket');
 
     const agent = await connectAgent('claude');
     try {
@@ -131,7 +131,7 @@ test.describe('notifications', () => {
       });
       expect(asked.isError, asked.text).toBe(false);
       await expect.poll(async () => (await recordedNotifications(page)).length).toBe(1);
-      await expect(page).toHaveTitle('(4) Task Lite');
+      await expect(page).toHaveTitle('(4) Docket');
 
       // A second question while one is open is refused; another note isn't for you.
       const second = await agent.call('ask_owner', { id: 'RCP-16', question: 'And for drinks?' });
@@ -153,7 +153,7 @@ test.describe('notifications', () => {
       await banner.getByLabel('Your answer').fill('Yes, whole grams.');
       await banner.getByRole('button', { name: 'Send answer' }).click();
       await expect(page.locator('.callout.answered')).toBeVisible();
-      await expect(page).toHaveTitle('(3) Task Lite');
+      await expect(page).toHaveTitle('(3) Docket');
     } finally {
       await agent.close();
     }
@@ -164,7 +164,7 @@ test.describe('notifications', () => {
     await recordNotifications(page.context());
     await notificationsOn(page);
     await page.goto('/work');
-    await expect(page).toHaveTitle('(3) Task Lite');
+    await expect(page).toHaveTitle('(3) Docket');
 
     const agent = await connectAgent('codex');
     try {
@@ -191,7 +191,7 @@ test.describe('notifications', () => {
       });
       expect(packet.isError, packet.text).toBe(false);
       await expect.poll(async () => (await recordedNotifications(page)).length).toBe(1);
-      await expect(page).toHaveTitle('(4) Task Lite');
+      await expect(page).toHaveTitle('(4) Docket');
 
       // More changes on the same item that aren't for you: nothing more.
       const commit = await agent.call('report_commit', { id: 'RCP-17', run_id, sha: 'def5678' });
@@ -216,9 +216,9 @@ test.describe('notifications', () => {
   }) => {
     await grantNotifications(page.context());
     await recordNotifications(page.context());
-    await page.context().addInitScript(() => localStorage.setItem('tl.notifications', 'off'));
+    await page.context().addInitScript(() => localStorage.setItem('docket.notifications', 'off'));
     await page.goto('/');
-    await expect(page).toHaveTitle(/^\(\d+\) Task Lite$/);
+    await expect(page).toHaveTitle(/^\(\d+\) Docket$/);
     const before = Number(/^\((\d+)\)/.exec(await page.title())![1]);
     const agent = await connectAgent('codex');
     try {
@@ -233,7 +233,7 @@ test.describe('notifications', () => {
         checked: [],
       });
       expect(packet.isError, packet.text).toBe(false);
-      await expect(page).toHaveTitle(`(${before + 1}) Task Lite`);
+      await expect(page).toHaveTitle(`(${before + 1}) Docket`);
       await page.waitForTimeout(1000);
       expect(await recordedNotifications(page)).toEqual([]);
     } finally {

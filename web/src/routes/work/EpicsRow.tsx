@@ -1,4 +1,4 @@
-import { ITEM_TYPES, type EpicCard as EpicCardData } from '@tasklite/shared';
+import { ITEM_TYPES, type EpicCard as EpicCardData } from '@docket/shared';
 import { EpicCard, TypeBadge } from '../../components/kit';
 
 /**

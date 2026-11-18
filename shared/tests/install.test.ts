@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   BrokenMarkersError,
-  TASKLITE_BEGIN as B,
-  TASKLITE_END as E,
+  DOCKET_BEGIN as B,
+  DOCKET_END as E,
   bashQuote,
   checkCommands,
   fillsProjectKey,
@@ -17,18 +17,26 @@ import {
   renderAgentsBlock,
   withoutCr,
 } from '../src/install.js';
+import {
+  LEGACY_BEGIN,
+  LEGACY_END,
+  isLegacySkillKey,
+  mapLegacySkillKey,
+  mapLegacySkillName,
+  withLegacyEnv,
+} from '../src/legacy.js';
 
 describe('installLayout (BUILD_SPEC §5.17, V7)', () => {
   it.each([
-    ['claude', 'repo', '.claude/skills/tasklite-worker/SKILL.md', 'CLAUDE.md', ''],
-    ['claude', 'user', '.claude/skills/tasklite-worker/SKILL.md', '.claude/CLAUDE.md', '~/'],
-    ['codex', 'repo', '.codex/skills/tasklite-worker/SKILL.md', 'AGENTS.md', ''],
-    ['codex', 'user', '.codex/skills/tasklite-worker/SKILL.md', '.codex/AGENTS.md', '~/'],
+    ['claude', 'repo', '.claude/skills/docket-worker/SKILL.md', 'CLAUDE.md', ''],
+    ['claude', 'user', '.claude/skills/docket-worker/SKILL.md', '.claude/CLAUDE.md', '~/'],
+    ['codex', 'repo', '.codex/skills/docket-worker/SKILL.md', 'AGENTS.md', ''],
+    ['codex', 'user', '.codex/skills/docket-worker/SKILL.md', '.codex/AGENTS.md', '~/'],
   ] as const)('%s %s', (client, target, skill, instructions, display) => {
     const layout = installLayout(client, target);
-    expect(installPathOf(layout, 'skill:tasklite-worker')).toBe(skill);
+    expect(installPathOf(layout, 'skill:docket-worker')).toBe(skill);
     expect(installPathOf(layout, 'agents_block')).toBe(instructions);
-    expect(layout.manifest).toBe(`${layout.dir}/.tasklite-manifest.json`);
+    expect(layout.manifest).toBe(`${layout.dir}/.docket-manifest.json`);
     expect(layout.display).toBe(display);
   });
 });
@@ -40,7 +48,7 @@ describe('the AGENTS.md block as installed', () => {
     'Then replace every {{…}} placeholder.',
     '-->',
     '',
-    '## Work tracking: Task Lite',
+    '## Work tracking: Docket',
     '',
     'Project key **{{KEY}}**; search with project `{{KEY}}`.',
     '- {{OPTION A: Only the owner moves items to Ready.}}',
@@ -49,7 +57,7 @@ describe('the AGENTS.md block as installed', () => {
 
   it('strips the leading comment and fills {{KEY}} for a project', () => {
     const out = renderAgentsBlock(template, 'RCP');
-    expect(out.startsWith('## Work tracking: Task Lite')).toBe(true);
+    expect(out.startsWith('## Work tracking: Docket')).toBe(true);
     expect(out).toContain('Project key **RCP**; search with project `RCP`.');
     expect(out).not.toContain('<!--');
     expect(out.endsWith('Ready.}}')).toBe(true);
@@ -76,7 +84,7 @@ describe('the AGENTS.md block as installed', () => {
 });
 
 describe('the marked section: insert, replace, append; nothing else changes', () => {
-  const block = '## Work tracking\nUse Task Lite.';
+  const block = '## Work tracking\nUse Docket.';
   const section = `${B}\n${block}\n${E}`;
 
   it('creates the file when there is none', () => {
@@ -172,10 +180,69 @@ describe('the copy-paste commands', () => {
 
   it('the check commands read the client folder’s manifest and need no token', () => {
     const c = checkCommands({ client: 'claude', target_kind: 'repo' });
-    expect(c.bash).toContain('m="$d/.claude/.tasklite-manifest.json"');
-    expect(c.powershell).toContain("Join-Path $d '.claude/.tasklite-manifest.json'");
+    expect(c.bash).toContain('m="$d/.claude/.docket-manifest.json"');
+    expect(c.powershell).toContain("Join-Path $d '.claude/.docket-manifest.json'");
     expect(c.bash).not.toContain('/install/');
     const u = checkCommands({ client: 'codex', target_kind: 'user' });
     expect(u.bash).toContain('"~/.codex/skills/$y/"');
+  });
+});
+
+describe('the old markers and names from before the rename (B28)', () => {
+  const OB = LEGACY_BEGIN;
+  const OE = LEGACY_END;
+  const block = '## Work tracking\nUse Docket.';
+
+  it('the old pair is a valid section, not damaged markers', () => {
+    const text = `# Mine\n${OB}\nold block\n${OE}\nAfter.\n`;
+    expect(findMarkedSection(text)).toMatchObject({ kind: 'present', legacy: true });
+    expect(installedBlock(text)).toBe('old block');
+  });
+
+  it('an install replaces the old section with the docket markers, keeping every byte outside', () => {
+    const pre = '# Mine\r\nÜnïcödé rules.\r\n';
+    const post = '\r\nAfter: ours too.\r\n';
+    const merged = mergeMarkedSection(`${pre}${OB}\nold block\n${OE}${post}`, block);
+    expect(merged).toEqual({
+      text: `${pre}${B}\n${block}\n${E}${post}`,
+      how: 'replaced',
+      legacy: true,
+    });
+    expect(findMarkedSection(merged.text)).toMatchObject({ kind: 'present', legacy: false });
+  });
+
+  it('a damaged old pair, or old and new markers together, is refused', () => {
+    expect(findMarkedSection(`${OB}\nno end\n`)).toEqual({ kind: 'broken' });
+    expect(findMarkedSection(`${OE}\n${OB}\n`)).toEqual({ kind: 'broken' });
+    const both = `${B}\na\n${E}\n${OB}\nb\n${OE}\n`;
+    expect(findMarkedSection(both)).toEqual({ kind: 'broken' });
+    expect(() => mergeMarkedSection(both, block)).toThrow(BrokenMarkersError);
+  });
+
+  it('the layout knows the old manifest and check scripts', () => {
+    const layout = installLayout('claude', 'repo');
+    expect(layout.legacyManifest).toBe('.claude/.tasklite-manifest.json');
+    expect(layout.legacyCheckScripts).toEqual([
+      '.claude/tasklite-check.sh',
+      '.claude/tasklite-check.ps1',
+    ]);
+  });
+
+  it('maps old skill keys and names, and leaves everything else', () => {
+    expect(mapLegacySkillKey('skill:tasklite-worker')).toBe('skill:docket-worker');
+    expect(mapLegacySkillKey('skill:docket-worker')).toBe('skill:docket-worker');
+    expect(mapLegacySkillKey('agents_block')).toBe('agents_block');
+    expect(mapLegacySkillName('tasklite-planner')).toBe('docket-planner');
+    expect(isLegacySkillKey('skill:my-tasklite-thing')).toBe(false);
+  });
+
+  it('reads old settings only where the new ones are unset, warning without values', () => {
+    const { env, warnings } = withLegacyEnv(
+      { TASKLITE_PORT: '1', DOCKET_SEED: 'sample', TASKLITE_SEED: 'x', TASKLITE_OTHER: 'y' },
+      ['DOCKET_PORT', 'DOCKET_SEED', 'DOCKET_TOKEN'],
+    );
+    expect(env).toMatchObject({ DOCKET_PORT: '1', DOCKET_SEED: 'sample' });
+    expect(env.DOCKET_TOKEN).toBeUndefined();
+    expect(warnings).toEqual(['TASKLITE_PORT is deprecated; use DOCKET_PORT']);
   });
 });

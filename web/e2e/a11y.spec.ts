@@ -21,7 +21,7 @@ useSeededContainer();
 
 test.beforeEach(async ({ page }) => {
   await unlock(page.context());
-  await page.context().addInitScript(() => localStorage.setItem('tl.notifications', 'off'));
+  await page.context().addInitScript(() => localStorage.setItem('docket.notifications', 'off'));
 });
 
 /** Every route, and what says it has rendered. */
@@ -92,7 +92,7 @@ const ROUTES: { name: string; path: string; ready: (p: Page) => Locator }[] = [
   { name: 'Settings', path: '/settings', ready: (p) => p.getByRole('heading', { level: 1 }) },
   {
     name: 'Agent files: one project, a file and its Workflow notes',
-    path: '/agent-files?project=RCP&file=skill:tasklite-worker',
+    path: '/agent-files?project=RCP&file=skill:docket-worker',
     ready: (p) => p.locator('[data-workflow="RCP"] .sectionhead'),
   },
   {
@@ -128,15 +128,16 @@ test.describe('axe on every route, both themes (T142)', () => {
     const context = await browser.newContext();
     const page = await context.newPage();
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'Unlock Task Lite' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Unlock Docket' })).toBeVisible();
     await expectAxeClean(page, 'Unlock');
     await context.close();
   });
 
   test('archived cards keep full contrast (the kit fix)', async ({ page }) => {
-    const csrf = (await page.context().cookies()).find((c) => c.name === 'tl_csrf')?.value ?? '';
+    const csrf =
+      (await page.context().cookies()).find((c) => c.name === 'docket_csrf')?.value ?? '';
     const res = await page.request.post('/api/items/RCP-11/archive', {
-      headers: { 'X-Tasklite-CSRF': csrf },
+      headers: { 'X-Docket-CSRF': csrf },
       data: {},
     });
     expect(res.status(), await res.text()).toBe(200);

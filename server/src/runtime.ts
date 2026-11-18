@@ -4,7 +4,7 @@
  * the domain services, the MCP hub and the call log. `index.ts` and the tests both build one.
  */
 import { EventEmitter } from 'node:events';
-import { SERVER_INSTRUCTIONS } from '@tasklite/shared';
+import { SERVER_INSTRUCTIONS } from '@docket/shared';
 import { OwnerSessions } from './api/session.js';
 import { SecretStore, loadConfig, type Config } from './config.js';
 import { migrateDb, openDb, type Db } from './db/client.js';
@@ -52,6 +52,13 @@ export function createRuntime(opts: RuntimeOptions = {}): Runtime {
   const clock = opts.clock ?? (() => new Date());
   const log = opts.log ?? ((line: string) => console.log(line));
   const config = loadConfig(opts.env ?? process.env, { dataDir: opts.dataDir });
+  // Old TASKLITE_* settings still work, with one warning per key and never a value (B28).
+  for (const warning of config.deprecations) log(`Warning: ${warning}`);
+  if (config.legacyDbFile) {
+    log(
+      `Using the database file ${config.paths.db}, from before the rename to Docket; it is kept as it is.`,
+    );
+  }
   const secrets = new SecretStore(config);
   const db = openDb(config.paths.db);
   migrateDb(db);

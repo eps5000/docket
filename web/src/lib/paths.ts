@@ -2,7 +2,7 @@
  * Client routes (UI_SPEC §2 "Routes"). Every link builds its URL here, so
  * the route table in app/router.tsx and the links can't drift.
  */
-import type { WORK_LAYOUTS } from '@tasklite/shared';
+import type { WORK_LAYOUTS } from '@docket/shared';
 
 export type WorkLayout = (typeof WORK_LAYOUTS)[number];
 export type ItemTab = 'details' | 'checklist' | 'deps' | 'map' | 'activity';

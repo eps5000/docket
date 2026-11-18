@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { RUN_STATE_LABELS, type ItemDetailResponse } from '@tasklite/shared';
+import { RUN_STATE_LABELS, type ItemDetailResponse } from '@docket/shared';
 import {
   Button,
   Chip,

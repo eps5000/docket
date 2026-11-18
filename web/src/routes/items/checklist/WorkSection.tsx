@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { ItemDetailResponse, WorkStep } from '@tasklite/shared';
+import type { ItemDetailResponse, WorkStep } from '@docket/shared';
 import { Button, EmptyState, Icon, Provenance, Section } from '../../../components/kit';
 import { apiClient } from '../../../app/queryClient';
 import { formatAge, isoTitle } from '../../../lib/format';

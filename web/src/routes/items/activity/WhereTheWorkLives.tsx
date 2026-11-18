@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { RESOURCE_KIND_LABELS, type ItemDetailResponse, type Run } from '@tasklite/shared';
+import { RESOURCE_KIND_LABELS, type ItemDetailResponse, type Run } from '@docket/shared';
 import { Button, Chip, IconButton, WorkspaceStateChip } from '../../../components/kit';
 import { apiClient } from '../../../app/queryClient';
 import { queryKeys } from '../../../lib/api';
@@ -46,7 +46,7 @@ async function markReleased(id: string): Promise<void> {
 
 /**
  * "Where the work lives" (owner decision 26; UI_SPEC §6.3.2): one compact
- * block under each run row, from what the agent reported (Task Lite never
+ * block under each run row, from what the agent reported (Docket never
  * looks at the host):
  * - `branch · worktree path` (middle-truncated, full path in `title`, *Copy*)
  *   and the worktree's state;

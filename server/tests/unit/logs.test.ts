@@ -19,7 +19,7 @@ const entry: CallLogEntry = {
 };
 
 beforeEach(() => {
-  tmp = tempDir('tasklite-logs-');
+  tmp = tempDir('docket-logs-');
   clock = new TestClock(new Date('2026-11-14T10:00:00.000Z'));
   log = new CallLog({ dir: join(tmp.dir, 'logs'), clock: clock.now });
 });

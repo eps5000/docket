@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useId, useState } from 'react';
 import { Link } from 'react-router';
-import { PRIORITIES, type ItemDetailResponse, type Priority } from '@tasklite/shared';
+import { PRIORITIES, type ItemDetailResponse, type Priority } from '@docket/shared';
 import {
   BlockedChip,
   Button,

@@ -1,13 +1,13 @@
 /*
  * The UI kit (UI_SPEC §3–§5, §8, §11). Built only from the tokens in
- * styles/tokens.css: no colour literals here except --tl-overlay, whose value
+ * styles/tokens.css: no colour literals here except --docket-overlay, whose value
  * UI_SPEC §4 (Dialog) fixes for both themes. Measurements follow
  * design/prototype.html.
  * Shared contract file (tasks.md, Slice rules).
  */
 .tl {
   /* The dialog overlay value UI_SPEC §4 (Dialog) fixes, the same in both themes. */
-  --tl-overlay: rgba(10, 12, 16, 0.38);
+  --docket-overlay: rgba(10, 12, 16, 0.38);
 }
 
 /* ---------- base ---------- */
@@ -1051,7 +1051,7 @@
 .tl .ov {
   position: fixed;
   inset: 0;
-  background: var(--tl-overlay);
+  background: var(--docket-overlay);
   display: flex;
   align-items: flex-start;
   justify-content: center;

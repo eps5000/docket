@@ -10,7 +10,7 @@ import type { ToolName } from './mcp/tools.js';
 
 /** MCP_SPEC §2: returned as `instructions` in the `initialize` result. */
 export const SERVER_INSTRUCTIONS = [
-  "Task Lite coordinates the owner's agent work. Use it to find work you may start, get its context, record your plan and progress, follow and record decisions, and hand finished work to the owner for review. It enforces claims, dependencies and review gates for you. The owner supervises in a web UI; keep entries short and factual.",
+  "Docket coordinates the owner's agent work. Use it to find work you may start, get its context, record your plan and progress, follow and record decisions, and hand finished work to the owner for review. It enforces claims, dependencies and review gates for you. The owner supervises in a web UI; keep entries short and factual.",
   '',
   'Workflow: Inbox → Planning → Ready → In progress → Review → Done.',
   '- Only start work that is Ready (search_items filter "ready_to_start") or was sent back to you (filter "resumable"). Claim it first with claim_lead; if someone else holds it, pick something else.',
@@ -36,7 +36,7 @@ export const SERVER_INSTRUCTIONS = [
 /** MCP_SPEC §5: the exact `description` registered for each tool. */
 export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   whoami:
-    'Check your connection to Task Lite. Returns how the server identifies you, server limits and the server time. Call it once at the start of a session.',
+    'Check your connection to Docket. Returns how the server identifies you, server limits and the server time. Call it once at the start of a session.',
   list_projects:
     'List projects with item counts. Use the project key when creating items or searching.',
   search_items:
@@ -63,17 +63,17 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   upsert_label:
     'Create a label or update its brief. Use a label for an initiative that spans several epics; the brief holds the shared decisions.',
   claim_lead:
-    'Claim an item as its lead before you work on it. Works on Ready items (moves them to In progress) and on In progress items with no lead (resuming sent-back or interrupted work). Pass workspace (where the work lives) and, if a coordinator briefed you, the brief, so the work can be restarted after a crash. Pass instructions with the output of the installed tasklite-check script, so the owner knows which instructions you work from. Returns your run_id: pass it on every later call. If someone else holds the claim you get a conflict with who holds it and until when; do not work on the item.',
+    'Claim an item as its lead before you work on it. Works on Ready items (moves them to In progress) and on In progress items with no lead (resuming sent-back or interrupted work). Pass workspace (where the work lives) and, if a coordinator briefed you, the brief, so the work can be restarted after a crash. Pass instructions with the output of the installed docket-check script, so the owner knows which instructions you work from. Returns your run_id: pass it on every later call. If someone else holds the claim you get a conflict with who holds it and until when; do not work on the item.',
   release_lead:
     'Give up the lead claim without finishing, for example when you are stopping before the work is done. The item returns to Ready so another agent can pick it up; your plan and notes stay.',
   start_run:
-    'Start a child run under your lead run when you delegate to a subagent that has its own Task Lite connection. Pass its workspace and brief as for claim_lead. The subagent passes the child run_id on its calls. For subagents without their own connection, use log_subagent instead.',
+    'Start a child run under your lead run when you delegate to a subagent that has its own Docket connection. Pass its workspace and brief as for claim_lead. The subagent passes the child run_id on its calls. For subagents without their own connection, use log_subagent instead.',
   heartbeat:
-    'Tell Task Lite you are still working, and update what it knows about your run: your current step, your workspace (head and pushed commits, uncommitted changes), and long-lived resources you started or released. Any call with run_id keeps you live, so use this when you have nothing else to record or something changed.',
+    'Tell Docket you are still working, and update what it knows about your run: your current step, your workspace (head and pushed commits, uncommitted changes), and long-lived resources you started or released. Any call with run_id keeps you live, so use this when you have nothing else to record or something changed.',
   finish_run:
     "End your run. result 'finished' when you stopped normally, 'failed' with an error when something broke. Finishing a lead run releases the claim but does not change the item's status: hand off with submit_packet or close with set_status first.",
   park_run:
-    'Park your run when you must wait: on another item, on the coordinator to send you more work, or on a person. A parked run keeps its claim and its workspace stays marked in use, so it is never mistaken for finished or stale. Say what you are waiting on; Task Lite flags it as ready to resume when that clears. Any later call with your run_id resumes it.',
+    'Park your run when you must wait: on another item, on the coordinator to send you more work, or on a person. A parked run keeps its claim and its workspace stays marked in use, so it is never mistaken for finished or stale. Say what you are waiting on; Docket flags it as ready to resume when that clears. Any later call with your run_id resumes it.',
   set_plan:
     "Publish or revise your plan as one-line work steps. By default this patches: steps with an id are updated (changing text records the old text and your reason), steps without an id are added, and nothing is removed unless you list it in remove. Use mode 'replace' to restate the whole plan. Owner-added steps are always kept. Every revision is kept as history.",
   update_step:
@@ -121,8 +121,7 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
  * mutation this is the whole result: what changed and the new version.
  */
 export const TOOL_SUMMARIES: Record<ToolName, string> = {
-  whoami:
-    'Connected as {client} · session {session_id} · Task Lite {server_version} · {server_time}',
+  whoami: 'Connected as {client} · session {session_id} · Docket {server_version} · {server_time}',
   list_projects: 'Projects: {count}',
   search_items: 'Items: {count}{more}',
   get_item: '{id} {title}',

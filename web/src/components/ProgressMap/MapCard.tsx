@@ -10,7 +10,7 @@
  */
 import type { FocusEvent, MouseEvent } from 'react';
 import { useNavigate } from 'react-router';
-import { STATUS_LABELS } from '@tasklite/shared';
+import { STATUS_LABELS } from '@docket/shared';
 import { Icon, RunState, TypeIcon } from '../kit';
 import { paths } from '../../lib/paths';
 import type { MapItem } from './layout';

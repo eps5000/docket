@@ -15,7 +15,7 @@ export function DeleteProjectDialog({
   onDeleted,
 }: {
   project: { key: string; name: string; items: number; documents: number };
-  /** Backup retention, from Settings (TASKLITE_BACKUP_KEEP). */
+  /** Backup retention, from Settings (DOCKET_BACKUP_KEEP). */
   keepDays?: number;
   onClose: () => void;
   onDeleted?: () => void;

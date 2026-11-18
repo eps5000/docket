@@ -5,7 +5,7 @@ export default defineConfig({
   resolve: {
     // Test against the shared package's source, not its build output.
     alias: {
-      '@tasklite/shared': fileURLToPath(new URL('../shared/src/index.ts', import.meta.url)),
+      '@docket/shared': fileURLToPath(new URL('../shared/src/index.ts', import.meta.url)),
     },
   },
   test: {

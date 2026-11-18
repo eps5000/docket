@@ -17,7 +17,7 @@
  *   Each carries its inverse, so every owner action is undoable (§5.11).
  * - **Not a Needs-you item:** nothing here raises attention.
  */
-import { ToolError, type DecisionRecord, type DecisionScopeKind, LIMITS } from '@tasklite/shared';
+import { ToolError, type DecisionRecord, type DecisionScopeKind, LIMITS } from '@docket/shared';
 import type { Db } from '../db/client.js';
 import type { DecisionsService, ReadContext, ServiceDeps } from './contracts.js';
 import { newId } from './ids.js';

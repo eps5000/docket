@@ -4,7 +4,7 @@
  * line, the burn-down table and the chart's geometry. Kept apart from the
  * components so they can be unit tested without a DOM.
  */
-import type { BurndownResponse, Forecast, Timeline } from '@tasklite/shared';
+import type { BurndownResponse, Forecast, Timeline } from '@docket/shared';
 
 export type TimelineRow = Timeline['rows'][number];
 

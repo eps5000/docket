@@ -1,12 +1,12 @@
 /**
  * The copy-paste install and check commands, run for real (T155, T156):
- * a listening Task Lite, a scratch repo with a `.git` folder and a CLAUDE.md
+ * a listening Docket, a scratch repo with a `.git` folder and a CLAUDE.md
  * of its own, and each shell that is on this machine (bash with curl, tar
  * and sha256sum; PowerShell 7 `pwsh`; Windows PowerShell 5.1). Each shell:
  * 1. installs by the one-liner (download, unpack, the bundle's install step);
  * 2. checks: up to date;
  * 3. after one installed file is edited and another deleted, and an extra
- *    tasklite-* folder added, checks again: edited, missing, extra;
+ *    docket-* folder added, checks again: edited, missing, extra;
  * 4. reinstalls with a new command, which restores them;
  * and the CLAUDE.md text outside the markers stays byte-identical throughout.
  *
@@ -20,11 +20,13 @@ import { createServer, type AddressInfo } from 'node:net';
 import { join } from 'node:path';
 import { serve, type ServerType } from '@hono/node-server';
 import {
-  TASKLITE_BEGIN,
-  TASKLITE_END,
+  DOCKET_BEGIN,
+  DOCKET_END,
+  LEGACY_BEGIN,
+  LEGACY_END,
   instructionsInput,
   type InstructionsInput,
-} from '@tasklite/shared';
+} from '@docket/shared';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { syncBundledFiles } from '../../src/jobs/bundled.js';
 import { insertProject, tempDir, type TempDir } from '../helpers.js';
@@ -44,8 +46,8 @@ function which(cmd: string, probe: string[]): string | null {
 function findBash(): string | null {
   const candidates =
     process.platform === 'win32'
-      ? [process.env.TASKLITE_TEST_BASH, 'C:\\Program Files\\Git\\bin\\bash.exe'].filter(Boolean)
-      : [process.env.TASKLITE_TEST_BASH ?? 'bash'];
+      ? [process.env.DOCKET_TEST_BASH, 'C:\\Program Files\\Git\\bin\\bash.exe'].filter(Boolean)
+      : [process.env.DOCKET_TEST_BASH ?? 'bash'];
   for (const c of candidates as string[]) {
     if (process.platform === 'win32' && !existsSync(c)) continue;
     if (
@@ -86,8 +88,8 @@ async function freePort(): Promise<number> {
 beforeAll(async () => {
   if (!Object.values(SHELLS).some(Boolean)) return;
   port = await freePort();
-  tmp = tempDir('tasklite-shell-');
-  s = createTestServer({ env: { TASKLITE_ALLOWED_HOSTS: `127.0.0.1:${port}` }, log: () => {} });
+  tmp = tempDir('docket-shell-');
+  s = createTestServer({ env: { DOCKET_ALLOWED_HOSTS: `127.0.0.1:${port}` }, log: () => {} });
   insertProject(s.runtime.db, 'RCP');
   syncBundledFiles(s.runtime);
   http = serve({ fetch: s.app.fetch, hostname: '127.0.0.1', port });
@@ -98,13 +100,13 @@ beforeAll(async () => {
     body: JSON.stringify({ key: s.runtime.secrets.ownerKey() }),
   });
   const cookies = parseSetCookies(unlock);
-  const cookie = `tl_owner=${cookies.tl_owner!.value}; tl_csrf=${cookies.tl_csrf!.value}`;
+  const cookie = `docket_owner=${cookies.docket_owner!.value}; docket_csrf=${cookies.docket_csrf!.value}`;
   request = async (method, path, body) => {
     const r = await fetch(`${origin}${path}`, {
       method,
       headers: {
         cookie,
-        'x-tasklite-csrf': cookies.tl_csrf!.value,
+        'x-docket-csrf': cookies.docket_csrf!.value,
         ...(body === undefined ? {} : { 'content-type': 'application/json' }),
       },
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -150,22 +152,22 @@ async function run(shell: ShellName, command: string, cwd: string) {
 const sha256 = (text: string) => createHash('sha256').update(text, 'utf8').digest('hex');
 
 function readManifest(repo: string) {
-  return JSON.parse(readFileSync(join(repo, '.claude/.tasklite-manifest.json'), 'utf8')) as {
+  return JSON.parse(readFileSync(join(repo, '.claude/.docket-manifest.json'), 'utf8')) as {
     install_id: string;
     files: { key: string; sha256: string }[];
   };
 }
 
 /**
- * Run the installed tasklite-check as an agent would (one shell call), and
+ * Run the installed docket-check as an agent would (one shell call), and
  * parse its one line of JSON with `claim_lead`'s own `instructions` schema.
  * PowerShell runs it as a script block, so the Restricted policy allows it.
  */
 async function report(shell: ShellName, repo: string): Promise<InstructionsInput> {
   const cmd =
     shell === 'bash'
-      ? 'bash .claude/tasklite-check.sh'
-      : "& ([scriptblock]::Create([IO.File]::ReadAllText((Resolve-Path '.claude/tasklite-check.ps1').ProviderPath))) (Resolve-Path '.claude').ProviderPath";
+      ? 'bash .claude/docket-check.sh'
+      : "& ([scriptblock]::Create([IO.File]::ReadAllText((Resolve-Path '.claude/docket-check.ps1').ProviderPath))) (Resolve-Path '.claude').ProviderPath";
   const r = await run(shell, cmd, repo);
   expect(r.status, r.out).toBe(0);
   // pwsh on Linux, fed commands on stdin, may put terminal escape codes before the line.
@@ -207,83 +209,83 @@ describe.each(Object.keys(SHELLS) as ShellName[])('the %s commands', (shell) => 
       transcript.push(`## ${shell}: install`);
       const i1 = await run(shell, first.install, repo);
       expect(i1.status, i1.out).toBe(0);
-      expect(i1.out).toContain('wrote .claude/skills/tasklite-worker/SKILL.md');
-      expect(i1.out).toContain('added the Task Lite section to the end of CLAUDE.md');
+      expect(i1.out).toContain('wrote .claude/skills/docket-worker/SKILL.md');
+      expect(i1.out).toContain('added the Docket section to the end of CLAUDE.md');
       const claude = readFileSync(join(repo, 'CLAUDE.md'));
       expect(claude.subarray(0, Buffer.byteLength(PRE)).equals(Buffer.from(PRE))).toBe(true);
       expect(claude.subarray(Buffer.byteLength(PRE)).toString('utf8')).toMatch(
         new RegExp(
-          `^\\n\\n${TASKLITE_BEGIN}\\n## Work tracking: Task Lite[\\s\\S]*\\n${TASKLITE_END}\\n$`,
+          `^\\n\\n${DOCKET_BEGIN}\\n## Work tracking: Docket[\\s\\S]*\\n${DOCKET_END}\\n$`,
         ),
       );
-      expect(existsSync(join(repo, '.claude/.tasklite-manifest.json'))).toBe(true);
+      expect(existsSync(join(repo, '.claude/.docket-manifest.json'))).toBe(true);
 
       // The same command again: the token is used, and nothing changes.
       const reused = await run(shell, first.install, repo);
       expect(reused.status).not.toBe(0);
-      expect(reused.out).toContain('Task Lite refused the download');
+      expect(reused.out).toContain('Docket refused the download');
 
       // 2. Check: up to date.
       transcript.push(`## ${shell}: check`);
       const c1 = await run(shell, first.check, repo);
       expect(c1.status, c1.out).toBe(0);
-      expect(c1.out).toContain('Up to date: all 6 files match what Task Lite sent.');
+      expect(c1.out).toContain('Up to date: all 6 files match what Docket sent.');
 
-      // The installed tasklite-check (decision 30): every file listed by hash, no text.
+      // The installed docket-check (decision 30): every file listed by hash, no text.
       const manifest = readManifest(repo);
-      transcript.push(`## ${shell}: tasklite-check, as installed`);
+      transcript.push(`## ${shell}: docket-check, as installed`);
       const r1 = await report(shell, repo);
       expect(r1.install_id).toBe(manifest.install_id);
       expect(r1.files).toEqual(manifest.files.map((f) => ({ key: f.key, sha256: f.sha256 })));
 
       // 3. Edit one file, delete another, add an extra folder: the check lists them.
-      const worker = join(repo, '.claude/skills/tasklite-worker/SKILL.md');
+      const worker = join(repo, '.claude/skills/docket-worker/SKILL.md');
       const edited = `${readFileSync(worker, 'utf8')}\nLocal tweak: "quotes", \\back\\slashes,\ttabs, Ünïcödé.\r\n`;
       writeFileSync(worker, edited);
-      rmSync(join(repo, '.claude/skills/tasklite-planner/SKILL.md'));
-      mkdirSync(join(repo, '.claude/skills/tasklite-old'));
-      // tasklite-check: the edited file with its text (CRs removed, as hashed), the
+      rmSync(join(repo, '.claude/skills/docket-planner/SKILL.md'));
+      mkdirSync(join(repo, '.claude/skills/docket-old'));
+      // docket-check: the edited file with its text (CRs removed, as hashed), the
       // missing one left out, the extra folder listed.
-      transcript.push(`## ${shell}: tasklite-check after an edit, a delete and an extra folder`);
+      transcript.push(`## ${shell}: docket-check after an edit, a delete and an extra folder`);
       const r2 = await report(shell, repo);
       const noCr = edited.replace(/\r/g, '');
-      expect(r2.files.find((f) => f.key === 'skill:tasklite-worker')).toEqual({
-        key: 'skill:tasklite-worker',
+      expect(r2.files.find((f) => f.key === 'skill:docket-worker')).toEqual({
+        key: 'skill:docket-worker',
         sha256: sha256(noCr),
         content: noCr,
       });
-      expect(r2.files.some((f) => f.key === 'skill:tasklite-planner')).toBe(false);
-      expect(r2.files.find((f) => f.key === 'skill:tasklite-old')).toEqual({
-        key: 'skill:tasklite-old',
+      expect(r2.files.some((f) => f.key === 'skill:docket-planner')).toBe(false);
+      expect(r2.files.find((f) => f.key === 'skill:docket-old')).toEqual({
+        key: 'skill:docket-old',
         sha256: sha256(''),
       });
       // Unchanged files still carry no text.
       expect(r2.files.filter((f) => f.content !== undefined).map((f) => f.key)).toEqual([
-        'skill:tasklite-worker',
+        'skill:docket-worker',
       ]);
 
       transcript.push(`## ${shell}: check after an edit and a delete`);
       const c2 = await run(shell, first.check, repo);
       expect(c2.status, c2.out).toBe(0);
       expect(c2.out).toMatch(
-        /^edited +\.claude\/skills\/tasklite-worker\/SKILL\.md +\(sent skill:tasklite-worker afv_/m,
+        /^edited +\.claude\/skills\/docket-worker\/SKILL\.md +\(sent skill:docket-worker afv_/m,
       );
       expect(c2.out).toMatch(
-        /^missing +\.claude\/skills\/tasklite-planner\/SKILL\.md +\(sent skill:tasklite-planner afv_/m,
+        /^missing +\.claude\/skills\/docket-planner\/SKILL\.md +\(sent skill:docket-planner afv_/m,
       );
-      expect(c2.out).toMatch(/^extra +\.claude\/skills\/tasklite-old\/$/m);
+      expect(c2.out).toMatch(/^extra +\.claude\/skills\/docket-old\/$/m);
       expect(c2.out).not.toMatch(/^edited +CLAUDE\.md/m);
-      expect(c2.out).toContain('Differs from what Task Lite sent: 3 file(s).');
+      expect(c2.out).toContain('Differs from what Docket sent: 3 file(s).');
 
       // An edit inside the markers is an edit of the block.
       const text = readFileSync(join(repo, 'CLAUDE.md'), 'utf8');
       writeFileSync(
         join(repo, 'CLAUDE.md'),
-        text.replace('## Work tracking: Task Lite', '## Work tracking (ours)'),
+        text.replace('## Work tracking: Docket', '## Work tracking (ours)'),
       );
       const c3 = await run(shell, first.check, repo);
       expect(c3.out).toMatch(/^edited +CLAUDE\.md +\(sent agents_block afv_/m);
-      // tasklite-check sends the block's text between the markers, as hashed.
+      // docket-check sends the block's text between the markers, as hashed.
       const r3 = await report(shell, repo);
       const block = r3.files.find((f) => f.key === 'agents_block')!;
       expect(block.content).toMatch(/^## Work tracking \(ours\)\n/);
@@ -295,16 +297,127 @@ describe.each(Object.keys(SHELLS) as ShellName[])('the %s commands', (shell) => 
       transcript.push(`## ${shell}: reinstall`);
       const i2 = await run(shell, second.install, repo);
       expect(i2.status, i2.out).toBe(0);
-      expect(i2.out).toContain(
-        'replaced the Task Lite section of CLAUDE.md (nothing else changed)',
-      );
+      expect(i2.out).toContain('replaced the Docket section of CLAUDE.md (nothing else changed)');
       const c4 = await run(shell, second.check, repo);
       expect(c4.out).not.toMatch(/^(edited|missing) /m);
-      expect(c4.out).toMatch(/^extra +\.claude\/skills\/tasklite-old\/$/m);
-      expect(existsSync(join(repo, '.claude/skills/tasklite-old'))).toBe(true);
+      expect(c4.out).toMatch(/^extra +\.claude\/skills\/docket-old\/$/m);
+      expect(existsSync(join(repo, '.claude/skills/docket-old'))).toBe(true);
       const after = readFileSync(join(repo, 'CLAUDE.md'));
       expect(after.subarray(0, Buffer.byteLength(PRE)).equals(Buffer.from(PRE))).toBe(true);
-      expect(after.toString('utf8').endsWith(`${TASKLITE_END}\n`)).toBe(true);
+      expect(after.toString('utf8').endsWith(`${DOCKET_END}\n`)).toBe(true);
+    },
+  );
+
+  it.skipIf(!SHELLS[shell])(
+    'an install from before the rename: old section replaced, unmodified old folders removed, the edited one kept and reported',
+    async () => {
+      const repo = join(tmp.dir, `old-${shell}`);
+      mkdirSync(join(repo, '.git'), { recursive: true });
+      const OLD_WORKER = '---\nname: tasklite-worker\n---\n# Worker\n';
+      const OLD_PLANNER = '---\nname: tasklite-planner\n---\n# Planner\n';
+      const OLD_BLOCK = '## Work tracking: the old name';
+      for (const [name, text] of [
+        ['tasklite-worker', OLD_WORKER],
+        ['tasklite-planner', OLD_PLANNER],
+        ['tasklite-mine', '# Never installed by Docket\n'],
+      ] as const) {
+        mkdirSync(join(repo, '.claude/skills', name), { recursive: true });
+        writeFileSync(join(repo, '.claude/skills', name, 'SKILL.md'), text);
+      }
+      const line = (key: string, path: string, text: string) =>
+        `    ${JSON.stringify({ key, path, version_id: 'afv_old', sha256: sha256(text) })}`;
+      writeFileSync(
+        join(repo, '.claude/.tasklite-manifest.json'),
+        [
+          '{',
+          '  "install_id": "ins_old",',
+          '  "files": [',
+          `${line('skill:tasklite-worker', '.claude/skills/tasklite-worker/SKILL.md', OLD_WORKER)},`,
+          `${line('skill:tasklite-planner', '.claude/skills/tasklite-planner/SKILL.md', OLD_PLANNER)},`,
+          line('agents_block', 'CLAUDE.md', OLD_BLOCK),
+          '  ]',
+          '}',
+          '',
+        ].join('\n'),
+      );
+      writeFileSync(join(repo, '.claude/tasklite-check.sh'), '# the old check\n');
+      const POST = '\r\nAfter the section: ours. Ünïcödé.\r\n';
+      writeFileSync(
+        join(repo, 'CLAUDE.md'),
+        `${PRE}\r\n\r\n${LEGACY_BEGIN}\n${OLD_BLOCK}\n${LEGACY_END}${POST}`,
+      );
+      // Edited after the old install.
+      const editedPlanner = `${OLD_PLANNER}- Our own rule.\n`;
+      writeFileSync(join(repo, '.claude/skills/tasklite-planner/SKILL.md'), editedPlanner);
+
+      const key = shell === 'bash' ? 'bash' : 'powershell';
+      const created = await request('POST', '/api/installs', {
+        client: 'claude',
+        target_kind: 'repo',
+        project: 'RCP',
+        method: 'command',
+      });
+      const check = (created.check_command as Record<string, string>)[key]!;
+
+      // Before reinstalling, the check command reads the old manifest and markers.
+      transcript.push(`## ${shell}: check an install from before the rename`);
+      const c0 = await run(shell, check, repo);
+      expect(c0.status, c0.out).toBe(0);
+      expect(c0.out).toContain('against Docket install ins_old');
+      expect(c0.out).toMatch(/^edited +\.claude\/skills\/tasklite-planner\/SKILL\.md/m);
+      expect(c0.out).not.toMatch(/CLAUDE\.md/);
+      expect(c0.out).toMatch(/^extra +\.claude\/skills\/tasklite-mine\/ +\(old name\)$/m);
+
+      transcript.push(`## ${shell}: install over it`);
+      const i = await run(shell, (created.command as Record<string, string>)[key]!, repo);
+      expect(i.status, i.out).toBe(0);
+      expect(i.out).toContain('removed .claude/skills/tasklite-worker/ (the old name, unmodified)');
+      expect(i.out).toContain('kept .claude/skills/tasklite-planner/ (old name, edited locally)');
+      expect(i.out).toContain(
+        'replaced the old tasklite section of CLAUDE.md with the Docket section (nothing else changed)',
+      );
+      expect(i.out).toContain(
+        'left .claude/.tasklite-manifest.json .claude/tasklite-check.sh from before the rename',
+      );
+      expect(existsSync(join(repo, '.claude/skills/tasklite-worker'))).toBe(false);
+      expect(readFileSync(join(repo, '.claude/skills/tasklite-planner/SKILL.md'), 'utf8')).toBe(
+        editedPlanner,
+      );
+      expect(existsSync(join(repo, '.claude/skills/tasklite-mine/SKILL.md'))).toBe(true);
+      expect(existsSync(join(repo, '.claude/.tasklite-manifest.json'))).toBe(true);
+      const claude = readFileSync(join(repo, 'CLAUDE.md'));
+      const pre = Buffer.from(`${PRE}\r\n\r\n`);
+      expect(claude.subarray(0, pre.length).equals(pre)).toBe(true);
+      expect(claude.subarray(claude.length - Buffer.byteLength(POST)).toString('utf8')).toBe(POST);
+      const text = claude.toString('utf8');
+      expect(text).toContain(`${DOCKET_BEGIN}\n## Work tracking: Docket`);
+      expect(text).not.toContain(LEGACY_BEGIN);
+      expect(text).not.toContain(OLD_BLOCK);
+
+      // docket-check reports the old folders the new manifest doesn't list, with their text.
+      transcript.push(`## ${shell}: docket-check after the install`);
+      const r = await report(shell, repo);
+      expect(r.files.find((f) => f.key === 'skill:tasklite-planner')).toEqual({
+        key: 'skill:tasklite-planner',
+        sha256: sha256(editedPlanner),
+        content: editedPlanner,
+      });
+      expect(r.files.some((f) => f.key === 'skill:tasklite-mine')).toBe(true);
+      expect(r.files.some((f) => f.key === 'skill:tasklite-worker')).toBe(false);
+      const c1 = await run(shell, check, repo);
+      expect(c1.out).toMatch(/^extra +\.claude\/skills\/tasklite-planner\/ +\(old name\)$/m);
+      expect(c1.out).not.toMatch(/^(edited|missing) /m);
+
+      // A second install removes nothing more: the edited folder isn't recorded by the new manifest.
+      const again = await request('POST', '/api/installs', {
+        client: 'claude',
+        target_kind: 'repo',
+        project: 'RCP',
+        method: 'command',
+      });
+      const i2 = await run(shell, (again.command as Record<string, string>)[key]!, repo);
+      expect(i2.status, i2.out).toBe(0);
+      expect(existsSync(join(repo, '.claude/skills/tasklite-planner/SKILL.md'))).toBe(true);
     },
   );
 
@@ -325,7 +438,7 @@ describe.each(Object.keys(SHELLS) as ShellName[])('the %s commands', (shell) => 
     const repo = join(tmp.dir, `late-repo-${shell}`);
     mkdirSync(join(repo, '.git'), { recursive: true });
     expect((await run(shell, cmd, repo)).status).toBe(0);
-    expect(readFileSync(join(repo, 'CLAUDE.md'), 'utf8').startsWith(TASKLITE_BEGIN)).toBe(true);
+    expect(readFileSync(join(repo, 'CLAUDE.md'), 'utf8').startsWith(DOCKET_BEGIN)).toBe(true);
   });
 
   it.skipIf(!SHELLS[shell])(
@@ -333,7 +446,7 @@ describe.each(Object.keys(SHELLS) as ShellName[])('the %s commands', (shell) => 
     async () => {
       const repo = join(tmp.dir, `damaged-${shell}`);
       mkdirSync(join(repo, '.git'), { recursive: true });
-      const damaged = `# Mine\n${TASKLITE_BEGIN}\nno end marker\n`;
+      const damaged = `# Mine\n${DOCKET_BEGIN}\nno end marker\n`;
       writeFileSync(join(repo, 'CLAUDE.md'), damaged);
       const created = await request('POST', '/api/installs', {
         client: 'claude',
@@ -343,7 +456,7 @@ describe.each(Object.keys(SHELLS) as ShellName[])('the %s commands', (shell) => 
       const key = shell === 'bash' ? 'bash' : 'powershell';
       const r = await run(shell, (created.command as Record<string, string>)[key]!, repo);
       expect(r.status).not.toBe(0);
-      expect(r.out).toContain('has a damaged Task Lite section');
+      expect(r.out).toContain('has a damaged Docket section');
       expect(readFileSync(join(repo, 'CLAUDE.md'), 'utf8')).toBe(damaged);
       expect(existsSync(join(repo, '.claude'))).toBe(false);
     },

@@ -19,10 +19,10 @@
  * Time-based rows (orphaned after ORPHAN_AFTER, parked past PARK_MAX,
  * unattended past RESUME_UNATTENDED) can't wait for the clock: after the
  * agent's calls, `age()` moves the run's recorded times back in the
- * container's database. Task Lite derives the rows on read, so this is the
+ * container's database. Docket derives the rows on read, so this is the
  * same state the clock would reach.
  *
- * Set TASKLITE_E2E_SCREENSHOTS to a folder to also capture the PR's light
+ * Set DOCKET_E2E_SCREENSHOTS to a folder to also capture the PR's light
  * and dark screenshots.
  */
 import { execFileSync } from 'node:child_process';
@@ -41,7 +41,7 @@ import type { McpAgent } from './fixtures/mcp';
 
 useSeededContainer();
 
-const out = process.env.TASKLITE_E2E_SCREENSHOTS;
+const out = process.env.DOCKET_E2E_SCREENSHOTS;
 
 async function shoot(page: Page, name: string) {
   if (!out) return;
@@ -55,7 +55,7 @@ async function shoot(page: Page, name: string) {
 /** Run SQL updates in the container's database (fixture: ageing recorded times). */
 function age(statements: [string, unknown[]][]): void {
   const script =
-    "const D=require('better-sqlite3');const db=new D('/data/tasklite.db');db.pragma('busy_timeout = 5000');" +
+    "const D=require('better-sqlite3');const db=new D('/data/docket.db');db.pragma('busy_timeout = 5000');" +
     'for (const [q, a] of JSON.parse(process.argv[1])) db.prepare(q).run(...a);db.close();';
   execFileSync(
     'docker',
@@ -87,8 +87,8 @@ test.afterAll(async () => {
 /** The Problems card, scoped to RCP (where every recovery row of this file lives). */
 async function openNeedsYou(page: Page) {
   await page.context().addInitScript(() => {
-    sessionStorage.setItem('tl.scope', 'RCP');
-    localStorage.setItem('tl.notifications', 'off');
+    sessionStorage.setItem('docket.scope', 'RCP');
+    localStorage.setItem('docket.notifications', 'off');
   });
   await page.goto('/');
   await expect(page.getByRole('heading', { name: /^Problems · \d+/ })).toBeVisible();
@@ -151,8 +151,7 @@ test.describe.serial('US11 recovery', () => {
         base_ref: 'origin/main',
       },
       orchestrator: { name: 'orca', dispatch_id: 'ctx_6f2d91', task_id: 'task_25' },
-      brief:
-        'Work Task Lite item RCP-25 using the tasklite-worker skill.\nWorktree: C:/work/rcp-25.',
+      brief: 'Work Docket item RCP-25 using the docket-worker skill.\nWorktree: C:/work/rcp-25.',
     });
     const run_id = (runs.unpushed = claim.structured.run_id as string);
     await ok(agent, 'set_plan', {
@@ -255,7 +254,7 @@ test.describe.serial('US11 recovery', () => {
   test('B20: the agent bar, parked Board cards, the epic Tickets list and the strip links', async ({
     ownerPage: page,
   }) => {
-    await page.context().addInitScript(() => localStorage.setItem('tl.notifications', 'off'));
+    await page.context().addInitScript(() => localStorage.setItem('docket.notifications', 'off'));
     const bar = page.getByRole('region', { name: 'Lead agent' });
 
     // A parked lead, on any tab: run line, the parked line, the worktree chip, the actions.
@@ -317,7 +316,7 @@ test.describe.serial('US11 recovery', () => {
     await expectAxeClean(page, 'epic tickets with run state');
 
     // The Needs you strip: a count opens Agents filtered to that state.
-    await page.context().addInitScript(() => sessionStorage.setItem('tl.scope', 'RCP'));
+    await page.context().addInitScript(() => sessionStorage.setItem('docket.scope', 'RCP'));
     await page.goto('/');
     const strip = page.locator('[data-card="agents-strip"]');
     await expect(strip.locator('a[data-state="parked"]')).toContainText('× 2');

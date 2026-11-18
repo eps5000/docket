@@ -97,8 +97,8 @@ test.describe('kit gallery (/dev/kit)', () => {
   });
 
   test('screenshot (PR evidence)', async ({ page }) => {
-    const out = process.env.TASKLITE_E2E_SCREENSHOTS;
-    test.skip(!out, 'Set TASKLITE_E2E_SCREENSHOTS to a folder to capture screenshots.');
+    const out = process.env.DOCKET_E2E_SCREENSHOTS;
+    test.skip(!out, 'Set DOCKET_E2E_SCREENSHOTS to a folder to capture screenshots.');
     await page.screenshot({ path: `${out}/dev-kit.png`, fullPage: true });
   });
 

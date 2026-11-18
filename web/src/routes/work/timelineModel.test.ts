@@ -1,4 +1,4 @@
-import type { BurndownResponse } from '@tasklite/shared';
+import type { BurndownResponse } from '@docket/shared';
 import { describe, expect, it } from 'vitest';
 import {
   zonedNow,

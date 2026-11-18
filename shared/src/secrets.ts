@@ -38,7 +38,7 @@ export function findSecret(text: string, opts: SecretOptions = {}): SecretMatch 
   for (const value of opts.known ?? []) {
     const known = value.trim();
     if (known.length >= MIN_KNOWN_LENGTH && lower.includes(known.toLowerCase())) {
-      return { kind: 'Task Lite token' };
+      return { kind: 'Docket token' };
     }
   }
   for (const { kind, re } of PATTERNS) {

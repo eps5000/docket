@@ -5,7 +5,7 @@
  * Jira's responses are typed loosely on purpose: fields can be missing or
  * null on any site, and the mapper treats every value as untrusted.
  */
-import type { ItemType } from '@tasklite/shared';
+import type { ItemType } from '@docket/shared';
 
 // ---- Jira REST v3 (the subset read) ----
 
@@ -163,8 +163,8 @@ export interface ImportPlan {
   links: PlannedLink[];
   outcomes: IssueOutcome[];
   fields_used: FieldsUsed;
-  /** "Jira → Task Lite" rows, in display order. */
-  mapping: Map<string, { jira: string; task_lite: string } & Tally>;
+  /** "Jira → Docket" rows, in display order. */
+  mapping: Map<string, { jira: string; docket: string } & Tally>;
   fields: Map<string, FieldTally>;
   attachments_skipped: { key: string; name: string; reason: string }[];
 }

@@ -1,7 +1,7 @@
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
-import { AGENT_FILE_KEY_RE, PROJECT_KEY_RE, type AgentFileRow, type Drift } from '@tasklite/shared';
+import { AGENT_FILE_KEY_RE, PROJECT_KEY_RE, type AgentFileRow, type Drift } from '@docket/shared';
 import { Button, Card, Chip, EmptyState, Icon, Skeleton } from '../../components/kit';
 import { QueryState } from '../../app/QueryState';
 import { apiClient } from '../../app/queryClient';
@@ -36,7 +36,7 @@ interface OpenState {
  * - **one project:** its Workflow notes, then each file as that project uses
  *   it, the default or the project's own copy (*Customize for …*, *Edit*,
  *   *Use default*), *Install into …’s repo*, and that project's install log;
- * - **All projects:** each file's default (*Reset* to Task Lite's version),
+ * - **All projects:** each file's default (*Reset* to Docket's version),
  *   where it's customized, *Install user-wide*, and the full install log.
  *
  * `?project=<KEY|all>` switches the scope (links from elsewhere), then drops
@@ -122,7 +122,7 @@ export function AgentFiles() {
         {push.data && !push.data.configured && (
           <>
             {' '}
-            Install gives you a command to paste; to let Task Lite write the files itself,{' '}
+            Install gives you a command to paste; to let Docket write the files itself,{' '}
             <SetUpPushLink />.
           </>
         )}
@@ -145,7 +145,7 @@ export function AgentFiles() {
         >
           {(d) =>
             d.files.length === 0 ? (
-              <EmptyState text="No agent files loaded yet. They load when Task Lite starts." />
+              <EmptyState text="No agent files loaded yet. They load when Docket starts." />
             ) : project ? (
               <ProjectTable
                 files={d.files}
@@ -228,7 +228,7 @@ function ProjectTable({
   onOpen: (key: string, mode?: FileViewMode) => void;
   /** Pending proposals per file (the "1 proposal" chip). */
   proposals: ReadonlyMap<string, number>;
-  /** Open drift per file (the "changed outside Task Lite" chip). */
+  /** Open drift per file (the "changed outside Docket" chip). */
   drifted: ReadonlyMap<string, Drift>;
 }) {
   const switchToDefault = useSwitchToDefault();
@@ -379,11 +379,11 @@ function DefaultsTable({
                         {formatAgo(edit.created_at)}
                       </span>
                       <Button size="sm" variant="ghost" onClick={() => void reset(f)}>
-                        Reset<span className="sr"> {f.name} to Task Lite’s version</span>
+                        Reset<span className="sr"> {f.name} to Docket’s version</span>
                       </Button>
                     </span>
                   ) : (
-                    <span>Task Lite’s version</span>
+                    <span>Docket’s version</span>
                   )}
                 </td>
                 <td data-customized-in="">
@@ -408,7 +408,7 @@ function DefaultsTable({
                   <td colSpan={3}>
                     <span className="afflagtext">
                       <Icon name="attention" small />
-                      Task Lite’s version of {f.name} changed since you edited the default.
+                      Docket’s version of {f.name} changed since you edited the default.
                     </span>{' '}
                     <Button size="sm" variant="ghost" onClick={() => onOpen(f.key, 'changed')}>
                       Compare<span className="sr"> {f.name}</span>

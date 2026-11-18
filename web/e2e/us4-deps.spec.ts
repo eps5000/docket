@@ -13,7 +13,7 @@
  * - The cycle fix from the Dependencies tab, with Undo.
  * - axe on the map, the Dependencies tab and Settings, both themes.
  *
- * Set TASKLITE_E2E_SCREENSHOTS to a folder to also capture the PR's light
+ * Set DOCKET_E2E_SCREENSHOTS to a folder to also capture the PR's light
  * and dark screenshots.
  */
 import { join } from 'node:path';
@@ -22,7 +22,7 @@ import { expect, expectAxeClean, setTheme, test, useSeededContainer } from './fi
 
 useSeededContainer();
 
-const out = process.env.TASKLITE_E2E_SCREENSHOTS;
+const out = process.env.DOCKET_E2E_SCREENSHOTS;
 
 async function shoot(page: Page, name: string, target?: Locator) {
   if (!out) return;

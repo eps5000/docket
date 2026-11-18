@@ -54,7 +54,7 @@ import {
   type WaitingOn,
   type WorkItem,
   type WorkResponse,
-} from '@tasklite/shared';
+} from '@docket/shared';
 import { migrationStatus, type Db } from '../db/client.js';
 import { APP_VERSION } from '../version.js';
 import {
@@ -355,7 +355,7 @@ interface ProblemsInput {
   backupError: string | null;
   /** The recovery thresholds (BUILD_SPEC §5.16). */
   config: RecoveryConfig;
-  /** Agent files changed outside Task Lite (decision 30), already scoped. */
+  /** Agent files changed outside Docket (decision 30), already scoped. */
   drift: Problem[];
 }
 
@@ -541,7 +541,7 @@ function problemsOf({
 
   // Work that may be lost or left running ranks before date and link problems.
   recoveryProblems(s, runs, config, push, base);
-  // Instructions changed outside Task Lite: every later agent follows them (decision 30).
+  // Instructions changed outside Docket: every later agent follows them (decision 30).
   for (const p of drift) push(p);
 
   for (const item of items.values()) {
@@ -1674,6 +1674,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
           },
           documents: { state: health.docs_dir ?? 'error', bytes: dirBytes(config.paths.docs) },
           volume_free_bytes: volumeFree,
+          volume: { name: config.dataVolume, legacy_db_file: config.legacyDbFile },
           backups,
           extra_backup_configured: config.backupExtraDir !== null,
           restarted_at: restartedAt,

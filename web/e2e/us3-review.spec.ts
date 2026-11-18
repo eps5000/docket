@@ -13,7 +13,7 @@
  * - the Checklist tab's human review section;
  * - axe on the packet screen and the Checklist tab, both themes.
  *
- * Set TASKLITE_E2E_SCREENSHOTS to a folder to also capture the PR's light
+ * Set DOCKET_E2E_SCREENSHOTS to a folder to also capture the PR's light
  * and dark screenshots.
  */
 import { join } from 'node:path';
@@ -31,7 +31,7 @@ import type { McpAgent } from './fixtures/mcp';
 
 useSeededContainer();
 
-const out = process.env.TASKLITE_E2E_SCREENSHOTS;
+const out = process.env.DOCKET_E2E_SCREENSHOTS;
 
 async function shoot(page: Page, name: string) {
   if (!out) return;
@@ -89,7 +89,7 @@ test.describe('the packet screen', () => {
   });
   test.beforeEach(async ({ page }) => {
     await unlock(page.context());
-    await page.context().addInitScript(() => localStorage.setItem('tl.notifications', 'off'));
+    await page.context().addInitScript(() => localStorage.setItem('docket.notifications', 'off'));
   });
 
   test('SC-006: approving a two-item packet takes 3 clicks; the button names the outcome; the queue advances', async ({
@@ -292,7 +292,7 @@ test.describe('the packet screen', () => {
 test.describe('the Checklist tab: human review', () => {
   test.beforeEach(async ({ page }) => {
     await unlock(page.context());
-    await page.context().addInitScript(() => localStorage.setItem('tl.notifications', 'off'));
+    await page.context().addInitScript(() => localStorage.setItem('docket.notifications', 'off'));
   });
 
   test('items in a packet are locked; Open packet goes to the packet', async ({ page }) => {
@@ -340,7 +340,7 @@ test.describe('Needs you', () => {
     page,
   }) => {
     await unlock(page.context());
-    await page.context().addInitScript(() => localStorage.setItem('tl.notifications', 'off'));
+    await page.context().addInitScript(() => localStorage.setItem('docket.notifications', 'off'));
     await page.goto('/');
     await expect(page.getByRole('heading', { name: /^For you now/ })).toBeVisible();
     await shoot(page, 'needs-you');

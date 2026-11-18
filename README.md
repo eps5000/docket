@@ -1,19 +1,21 @@
-# Task Lite: local agent coordination
+# Docket: the shared record your AI agents work from
 
-Task Lite is the shared, enforced source of truth that AI agents work through: what work exists, what's eligible to start, who holds it, what it depends on, which decisions apply, and what the owner must verify. Agents use it over a local MCP endpoint; the server enforces the rules (claims and leases, dependencies, review gates), so agents don't have to remember them. A web UI lets the owner supervise: what agents did, what they're doing, and what needs the owner.
+*Formerly Task Lite. Upgrading? See [Moving from Task Lite](#moving-from-task-lite).*
+
+Docket is the shared, enforced source of truth that AI agents work through: what work exists, what's eligible to start, who holds it, what it depends on, which decisions apply, and what the owner must verify. Agents use it over a local MCP endpoint; the server enforces the rules (claims and leases, dependencies, review gates), so agents don't have to remember them. A web UI lets the owner supervise: what agents did, what they're doing, and what needs the owner.
 
 **Why it exists:**
 - **Fewer tokens.** Each agent gets its context in one budgeted call, compact results and patch-style writes, instead of re-reading tickets and documents.
 - **Dependencies agents don't track by hand.** Ready work is computed by the server from the dependency graph and each project's blocker rule.
-- **Visibility.** Everything agents do goes through Task Lite, so the owner sees what actually happened.
+- **Visibility.** Everything agents do goes through Docket, so the owner sees what actually happened.
 
-It isn't an agent runner. Orca, or the owner, starts agents (owner decision 18), and Task Lite tells them what to do and records what they did.
+It isn't an agent runner. Orca, or the owner, starts agents (owner decision 18), and Docket tells them what to do and records what they did.
 
 **Current phase: building V1.** The container, the MCP server and the owner UI run today. V1 is built and verified with disposable sample work; a real pilot project is chosen afterward.
 
 ## Quick start
 
-From a clean machine to a connected agent in about 10 minutes. You need [Docker](https://docs.docker.com/get-docker/) (Docker Desktop on Windows and macOS, or Docker Engine with Compose v2 on Linux) and git. Task Lite listens on `127.0.0.1:7420` only, so nothing outside this machine can reach it.
+From a clean machine to a connected agent in about 10 minutes. You need [Docker](https://docs.docker.com/get-docker/) (Docker Desktop on Windows and macOS, or Docker Engine with Compose v2 on Linux) and git. Docket listens on `127.0.0.1:7420` only, so nothing outside this machine can reach it.
 
 **1. Start it.** Run every `docker compose` command in this guide from the `docker/` folder.
 ```bash
@@ -21,61 +23,74 @@ git clone https://github.com/eps5000/task-lite.git
 cd task-lite/docker
 docker compose up -d --build --wait
 ```
-The first build takes a few minutes. Your data lives in the `tasklite-data` volume, so it survives restarts and container replacement. To try it with sample work first, start it with `TASKLITE_SEED=sample` (bash: `TASKLITE_SEED=sample docker compose up -d --build --wait`). The seed only loads into an empty database.
+The first build takes a few minutes. Your data lives in the `docket-data` volume, so it survives restarts and container replacement. To try it with sample work first, start it with `DOCKET_SEED=sample` (bash: `DOCKET_SEED=sample docker compose up -d --build --wait`). The seed only loads into an empty database.
 
 Set `TZ` to your time zone, e.g. `America/Chicago`: copy `.env.example` to `.env` in the `docker/` folder, uncomment `TZ=` and set it, then run the `up` command again. A container's own zone is usually UTC, so without it the burn-down's days and the Timeline's Now line are in UTC. Storage is always UTC.
 
 **2. Unlock the UI.** Open <http://127.0.0.1:7420/> and paste the owner key, which this prints:
 ```bash
-docker compose exec tasklite tasklite owner-key
+docker compose exec docket docket owner-key
 ```
 Agents never get this key. The browser stays unlocked for 30 days from its last use. *Lock this browser* and *Rotate owner key* are in Settings → Connections.
 
 **3. Put the agent token where your agents run.** Get it from Settings → Connections → *Reveal token* (it hides again after 30 s), or:
 ```bash
-docker compose exec tasklite tasklite agent-token
+docker compose exec docket docket agent-token
 ```
-Set it as `TASKLITE_TOKEN` in the environment your agent clients start from:
-- macOS or Linux: add `export TASKLITE_TOKEN="<token>"` to your shell profile, then open a new terminal.
-- Windows: `setx TASKLITE_TOKEN "<token>"`, then open a new terminal.
+Set it as `DOCKET_TOKEN` in the environment your agent clients start from:
+- macOS or Linux: add `export DOCKET_TOKEN="<token>"` to your shell profile, then open a new terminal.
+- Windows: `setx DOCKET_TOKEN "<token>"`, then open a new terminal.
 
 Don't include a trailing newline or spaces: they break auth.
 
 **4. Connect your agents** ([MCP spec §11](docs/MCP_SPEC.md#11-client-setup); Settings → Connections shows the same snippets).
 - **Codex:** add this to `~/.codex/config.toml` (Windows: `%USERPROFILE%\.codex\config.toml`). The token is read from the environment on each connection, never stored in the file:
   ```toml
-  [mcp_servers.tasklite]
+  [mcp_servers.docket]
   url = "http://127.0.0.1:7420/mcp"
-  bearer_token_env_var = "TASKLITE_TOKEN"
+  bearer_token_env_var = "DOCKET_TOKEN"
   ```
 - **Claude Code** (user scope, so every project gets it):
   ```bash
-  claude mcp add --transport http --scope user tasklite http://127.0.0.1:7420/mcp \
-    --header "Authorization: Bearer $TASKLITE_TOKEN"
+  claude mcp add --transport http --scope user docket http://127.0.0.1:7420/mcp \
+    --header "Authorization: Bearer $DOCKET_TOKEN"
   ```
-  In PowerShell, use `--header "Authorization: Bearer $env:TASKLITE_TOKEN"`. Your shell expands the variable, so Claude Code stores the token itself; run the command again if you rotate the token. For one repo only, use a project `.mcp.json` instead (MCP spec §11).
+  In PowerShell, use `--header "Authorization: Bearer $env:DOCKET_TOKEN"`. Your shell expands the variable, so Claude Code stores the token itself; run the command again if you rotate the token. For one repo only, use a project `.mcp.json` instead (MCP spec §11).
 - **Orca workers** start the installed Codex or Claude Code, so the setup above applies as long as they inherit your user config and environment.
 
-**5. Check it.** `claude mcp list` should show `tasklite … ✔ Connected`, and `/mcp` inside Codex or Claude Code lists its tools. Ask the agent to call the `whoami` tool. Settings → Connections then shows the client as last seen just now. It stays "Not verified" there until someone runs the [smoke kit](docker/smoke/README.md).
+**5. Check it.** `claude mcp list` should show `docket … ✔ Connected`, and `/mcp` inside Codex or Claude Code lists its tools. Ask the agent to call the `whoami` tool. Settings → Connections then shows the client as last seen just now. It stays "Not verified" there until someone runs the [smoke kit](docker/smoke/README.md).
 
 **6. Install the agent files.** Open **Agent files** in the sidebar and pick your project in the project switcher. Write its **Workflow notes** (*Start from template* fills in suggested rules to edit), review the skills and the AGENTS.md block, then click *Install into <project>'s repo* (or, with All projects, *Install user-wide*):
-- **A command:** Task Lite gives you a PowerShell and a bash one-liner. Run it from the repo folder (or anywhere, for a user-wide install). It works once, for 10 minutes, and needs nothing else installed.
-- **One-click:** if you've mounted a code folder (**Settings → One-click install** walks you through it, and `docker/compose.yaml` has a commented example), Task Lite writes the files into the repo folder itself.
+- **A command:** Docket gives you a PowerShell and a bash one-liner. Run it from the repo folder (or anywhere, for a user-wide install). It works once, for 10 minutes, and needs nothing else installed.
+- **One-click:** if you've mounted a code folder (**Settings → One-click install** walks you through it, and `docker/compose.yaml` has a commented example), Docket writes the files into the repo folder itself.
 
-Either way it installs the skills, puts the AGENTS.md block between `<!-- tasklite:begin -->` and `<!-- tasklite:end -->` in `CLAUDE.md` (Claude Code) or `AGENTS.md` (Codex) without touching the rest of the file, and logs the exact version of every file. The install log's *Check* (or its check command) shows later whether an installed copy was edited by hand. Task Lite also watches for that itself: it checks folders it installed into every 15 minutes (`TASKLITE_DRIFT_CHECK_INTERVAL`), and agents report their installed files' hashes when they claim work (the installed `tasklite-check` script), so an edit made outside Task Lite shows under Problems with a diff and *Adopt*, *Restore* or *Keep local*. Agents that want to change their instructions propose it instead, for your approval in Agent files. See the in-app help article "Agent files", or [skills/README.md](skills/README.md) for the paths.
+Either way it installs the skills, puts the AGENTS.md block between `<!-- docket:begin -->` and `<!-- docket:end -->` in `CLAUDE.md` (Claude Code) or `AGENTS.md` (Codex) without touching the rest of the file, and logs the exact version of every file. The install log's *Check* (or its check command) shows later whether an installed copy was edited by hand. Docket also watches for that itself: it checks folders it installed into every 15 minutes (`DOCKET_DRIFT_CHECK_INTERVAL`), and agents report their installed files' hashes when they claim work (the installed `docket-check` script), so an edit made outside Docket shows under Problems with a diff and *Adopt*, *Restore* or *Keep local*. Agents that want to change their instructions propose it instead, for your approval in Agent files. See the in-app help article "Agent files", or [skills/README.md](skills/README.md) for the paths.
+
+### Moving from Task Lite
+Docket was called Task Lite until B28. Nothing you already set up stops working, but rename these when you can:
+- **Your data volume.** The compose file now uses `docket-data`; your data is still in `tasklite-data`, which Docket never touches automatically. Settings → Connections → Service health shows which volume is mounted. To move it, stop the old container (`docker stop tasklite`), build the new image (`docker compose build`), and copy the volume with one command:
+  ```bash
+  docker run --rm --user 0:0 -v tasklite-data:/from:ro -v docket-data:/to --entrypoint sh docket:local -c 'cp -a /from/. /to/'
+  ```
+  Then `docker compose up -d --wait`, and `docker rm tasklite` once you're happy. The database file keeps its old name, `tasklite.db`, and Docket keeps using it. Remove the old volume yourself (`docker volume rm tasklite-data`) only when you're sure the copy works. To keep using the old volume instead, add a `docker/compose.override.yaml` that gives the `docket-data` volume `name: tasklite-data`, and set `DOCKET_DATA_VOLUME: tasklite-data` for the `docket` service.
+- **Settings.** Every `TASKLITE_*` setting is now `DOCKET_*` (`docker/.env.example` lists them). An old `TASKLITE_*` value still works while its `DOCKET_*` one is unset, and the server logs one warning per key at startup, for example "TASKLITE_PORT is deprecated; use DOCKET_PORT". It never logs the value.
+- **MCP clients.** Rename your MCP server entry from `tasklite` to `docket` (Codex: `[mcp_servers.docket]`; Claude Code: `claude mcp remove tasklite`, then the `claude mcp add … docket …` command above). The URL is unchanged, so the old entry keeps working until you do. If your clients read the token from `TASKLITE_TOKEN`, rename that variable too, or keep pointing the entry at it.
+- **The CLI and the container** are `docket`: `docker compose exec docket docket owner-key`. The browser asks for the owner key once more, because the session cookie was renamed.
+- **Installed agent files.** Install again from Agent files. The install replaces an old `<!-- tasklite:begin -->` section with the Docket markers, writes the `docket-*` skills, and removes the old `tasklite-*` skill folders it installed itself, only while they are unmodified. An old folder you edited is kept and shows in Agent files as "old name, edited locally", with *Adopt* or *Keep local*. The old `.tasklite-manifest.json` and `tasklite-check` scripts are left in place; delete them when you like.
+- **Backups** taken before the rename (`tasklite-*.tar.gz`) are still listed, kept and restorable.
 
 ### Backups and restore
-- **Nightly**, at 03:00 local time (`TASKLITE_BACKUP_AT`), Task Lite writes a verified backup of the database and documents to `/data/backups` in its volume, and keeps 14 days of them (`TASKLITE_BACKUP_KEEP`). Settings → Connections → Service health shows the last one.
-- **Now:** `docker compose exec tasklite tasklite backup now`.
+- **Nightly**, at 03:00 local time (`DOCKET_BACKUP_AT`), Docket writes a verified backup of the database and documents to `/data/backups` in its volume, and keeps 14 days of them (`DOCKET_BACKUP_KEEP`). Settings → Connections → Service health shows the last one.
+- **Now:** `docker compose exec docket docket backup now`.
 - **An extra copy on the host (optional).** The volume copy doesn't survive losing the volume, so you can also have each backup copied to a folder on this machine, kept for the same 14 days:
-  1. Create the folder, for example `~/TaskLiteBackups`. On Linux, let the container's user write to it: `sudo chown 10001:10001 ~/TaskLiteBackups`.
-  2. In `docker/compose.yaml`, uncomment the line `- ~/TaskLiteBackups:/backups-extra`.
-  3. Create `docker/.env` (copy `.env.example`) with `TASKLITE_BACKUP_EXTRA_DIR=/backups-extra`.
-  4. `docker compose up -d`, then `docker compose exec tasklite tasklite backup now`. Settings shows both locations. If the extra copy fails (folder missing, full or not writable), the backup in the volume still succeeds, and Needs you shows "Extra backup copy failed" until a copy works.
+  1. Create the folder, for example `~/DocketBackups`. On Linux, let the container's user write to it: `sudo chown 10001:10001 ~/DocketBackups`.
+  2. In `docker/compose.yaml`, uncomment the line `- ~/DocketBackups:/backups-extra`.
+  3. Create `docker/.env` (copy `.env.example`) with `DOCKET_BACKUP_EXTRA_DIR=/backups-extra`.
+  4. `docker compose up -d`, then `docker compose exec docket docket backup now`. Settings shows both locations. If the extra copy fails (folder missing, full or not writable), the backup in the volume still succeeds, and Needs you shows "Extra backup copy failed" until a copy works.
 - **Restore** a backup (from either location; this replaces the current data, after checking the archive):
   ```bash
-  docker compose stop tasklite
-  docker compose run --rm tasklite tasklite restore tasklite-YYYYMMDD-HHMM.tar.gz
+  docker compose stop docket
+  docker compose run --rm docket docket restore docket-YYYYMMDD-HHMM.tar.gz
   docker compose up -d
   ```
   Restore refuses to run while the service is running. It prints item, event and document checksums that match the backup. Backups hold no tokens or keys, so restoring onto a new volume makes new ones (step 2 and 3 again).
@@ -83,7 +98,7 @@ Either way it installs the skills, puts the AGENTS.md block between `<!-- taskli
 - **Deleting a project** (Settings → Projects → *Delete…*, after typing its key) removes its items and documents together. Backups keep a copy until they age out.
 
 ## Start here (builders)
-Task Lite uses [Spec Kit](https://github.com/github/spec-kit) for spec-driven development. Agents get its skills (`/speckit-implement`, `/speckit-analyze` and the rest) from `.claude/skills/`.
+Docket uses [Spec Kit](https://github.com/github/spec-kit) for spec-driven development. Agents get its skills (`/speckit-implement`, `/speckit-analyze` and the rest) from `.claude/skills/`.
 - [Constitution](.specify/memory/constitution.md): the non-negotiable principles every PR is checked against.
 - [Requirements of record](specs/001-task-lite-v1/spec.md): user stories, acceptance scenarios, functional requirements and success criteria.
 - [Tasks](specs/001-task-lite-v1/tasks.md): 149 tasks, contracts first, then one user-story slice per batch. Read "How to run the build" before starting. Each batch is one agent session and one PR, so never run `/speckit-implement` across the whole list.
@@ -97,7 +112,7 @@ The detailed design those point to:
 5. [Sample data](design/sample-data.json): the seed dataset, exported from the prototype.
 
 ## Using it in a project
-Install the [agent skills](skills/README.md) from **Agent files** (*Install into <project>'s repo*): `tasklite-worker` for every agent, and `tasklite-coordinator` for whatever dispatches them (Orca, a script, or you). The coordinator skill covers dispatching, parking, pruning safely and recovering after a crash. Three optional skills cover planning, review packets and subagents. The same install puts the [AGENTS.md block](docs/templates/AGENTS-tasklite.md) into the repo's `AGENTS.md` or `CLAUDE.md`: a short, generic section that points agents at Task Lite, the worker skill and the rules every agent keeps. Each project's own rules (who moves work to Ready, when human review is required, which planning docs are expected, branches, checks) go in its **Workflow notes**, which agents get with every item in `get_context`; the [starter](docs/templates/WORKFLOW-starter.md) has a suggested answer for each. Connect your agents ([MCP spec §11](docs/MCP_SPEC.md#11-client-setup)).
+Install the [agent skills](skills/README.md) from **Agent files** (*Install into <project>'s repo*): `docket-worker` for every agent, and `docket-coordinator` for whatever dispatches them (Orca, a script, or you). The coordinator skill covers dispatching, parking, pruning safely and recovering after a crash. Three optional skills cover planning, review packets and subagents. The same install puts the [AGENTS.md block](docs/templates/AGENTS-docket.md) into the repo's `AGENTS.md` or `CLAUDE.md`: a short, generic section that points agents at Docket, the worker skill and the rules every agent keeps. Each project's own rules (who moves work to Ready, when human review is required, which planning docs are expected, branches, checks) go in its **Workflow notes**, which agents get with every item in `get_context`; the [starter](docs/templates/WORKFLOW-starter.md) has a suggested answer for each. Connect your agents ([MCP spec §11](docs/MCP_SPEC.md#11-client-setup)).
 
 ## Background
 - [Requirements and owner decisions](docs/REQUIREMENTS_DRAFT.md)

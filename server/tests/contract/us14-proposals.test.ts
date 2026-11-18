@@ -17,7 +17,7 @@
  */
 import { mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { TOOL_NAMES } from '@tasklite/shared';
+import { TOOL_NAMES } from '@docket/shared';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
 import { syncBundledFiles } from '../../src/jobs/bundled.js';
 import { tempDir } from '../helpers.js';
@@ -62,13 +62,13 @@ async function ownerApi() {
     body: JSON.stringify({ key: h!.server.runtime.secrets.ownerKey() }),
   });
   const cookies = parseSetCookies(res);
-  const cookie = `tl_owner=${cookies.tl_owner!.value}; tl_csrf=${cookies.tl_csrf!.value}`;
+  const cookie = `docket_owner=${cookies.docket_owner!.value}; docket_csrf=${cookies.docket_csrf!.value}`;
   return async (method: string, path: string, body?: unknown) => {
     const r = await req(path, {
       method,
       headers: {
         cookie,
-        ...(method === 'GET' ? {} : { 'x-tasklite-csrf': cookies.tl_csrf!.value }),
+        ...(method === 'GET' ? {} : { 'x-docket-csrf': cookies.docket_csrf!.value }),
         ...(body === undefined ? {} : { 'content-type': 'application/json' }),
       },
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -78,7 +78,7 @@ async function ownerApi() {
   };
 }
 
-const WORKER = 'skill:tasklite-worker';
+const WORKER = 'skill:docket-worker';
 const files = (r: { structured: S }) => r.structured.files as S[];
 
 /** Claim a Ready seed item as `orca-w3`; returns the run. */
@@ -120,7 +120,7 @@ describe('get_agent_files (MCP_SPEC §5.10)', () => {
     const one = expectOk(await h!.call('get_agent_files', { project: 'RCP', file: WORKER }));
     expect(files(one)).toHaveLength(1);
     const shipped = readFileSync(
-      new URL('../../../skills/tasklite-worker/SKILL.md', import.meta.url),
+      new URL('../../../skills/docket-worker/SKILL.md', import.meta.url),
       'utf8',
     );
     expect(files(one)[0]).toMatchObject({ key: WORKER, source: 'default', content: shipped });
@@ -172,7 +172,7 @@ describe('propose_agent_file_change (FR-128)', () => {
         id: r.structured.proposal_id,
         project: 'RCP',
         file_key: WORKER,
-        name: 'tasklite-worker',
+        name: 'docket-worker',
         content,
         reason: 'Lint before each commit; RCP-17 broke CI.',
         based_on_version_id: before.version_id,
@@ -195,7 +195,7 @@ describe('propose_agent_file_change (FR-128)', () => {
     const item = await owner('GET', '/api/items/RCP-17');
     expect(
       (item.body.activity as { summary: string }[]).some((a) =>
-        a.summary.startsWith('claude · orca-w3 proposed a change to tasklite-worker (RCP'),
+        a.summary.startsWith('claude · orca-w3 proposed a change to docket-worker (RCP'),
       ),
     ).toBe(true);
   });
@@ -233,7 +233,7 @@ describe('propose_agent_file_change (FR-128)', () => {
     // Four more without a run: 5 pending, then the sixth is refused.
     for (const n of [2, 3, 4, 5]) expectOk(await propose(n));
     const sixth = expectValidation(await propose(6));
-    expect(sixth.message).toContain('5 proposals for tasklite-worker (RCP');
+    expect(sixth.message).toContain('5 proposals for docket-worker (RCP');
     expect(sixth.details).toMatchObject({ pending: 5, limit: 5 });
     // A different target (the default) has its own 5.
     expectOk(await propose(7, { project: undefined }));
@@ -275,7 +275,7 @@ describe('propose_agent_file_change (FR-128)', () => {
         based_on_version_id: block.version_id,
       }),
     );
-    expect(wrongBase.message).toContain("isn't a version of tasklite-worker");
+    expect(wrongBase.message).toContain("isn't a version of docket-worker");
 
     expectValidation(
       await h!.call('propose_agent_file_change', {
@@ -315,7 +315,7 @@ describe('agents can’t decide (FR-130)', () => {
       ['GET', '/api/agent-file-proposals'],
       ['POST', '/api/agent-file-proposals/afp_1/approve'],
       ['POST', '/api/agent-file-proposals/afp_1/decline'],
-      ['PUT', '/api/agent-files/skill%3Atasklite-worker'],
+      ['PUT', '/api/agent-files/skill%3Adocket-worker'],
     ] as const) {
       const r = await h!.server.app.request(`${ORIGIN}${path}`, {
         method,
@@ -468,11 +468,11 @@ describe('the owner decides (FR-129)', () => {
   });
 
   it('approve → get_context delivers the Workflow notes, and the next install sends the copy', async () => {
-    const tmp = tempDir('tasklite-us14-push-');
+    const tmp = tempDir('docket-us14-push-');
     const root = join(tmp.dir, 'code');
     mkdirSync(join(root, 'recipes', '.git'), { recursive: true });
     try {
-      await start({ env: { TASKLITE_PUSH_ROOT: root } });
+      await start({ env: { DOCKET_PUSH_ROOT: root } });
       const owner = await ownerApi();
       const notes = '- Branch per item: `rcp-<n>-<slug>`.';
       const wf = expectOk(
@@ -519,16 +519,16 @@ describe('the owner decides (FR-129)', () => {
       expect(install.status).toBe(200);
       expect(
         readFileSync(
-          join(root, 'recipes', '.claude', 'skills', 'tasklite-worker', 'SKILL.md'),
+          join(root, 'recipes', '.claude', 'skills', 'docket-worker', 'SKILL.md'),
           'utf8',
         ),
       ).toBe(content);
       const manifest = readFileSync(
-        join(root, 'recipes', '.claude', '.tasklite-manifest.json'),
+        join(root, 'recipes', '.claude', '.docket-manifest.json'),
         'utf8',
       );
       expect(manifest).toContain(
-        `"key":"${WORKER}","path":".claude/skills/tasklite-worker/SKILL.md","version_id":"${versionId as string}"`,
+        `"key":"${WORKER}","path":".claude/skills/docket-worker/SKILL.md","version_id":"${versionId as string}"`,
       );
     } finally {
       await h?.close();

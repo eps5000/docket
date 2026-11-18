@@ -1,23 +1,23 @@
 /**
- * Drift: agent files changed outside Task Lite (tasks.md T161; spec US14
+ * Drift: agent files changed outside Docket (tasks.md T161; spec US14
  * acceptance scenarios 3–5; UI_SPEC §6.7b-1; FR-131–FR-133; SC-017).
  *
  * Against the container's e2e push folder (docker/compose.push-e2e.yaml:
  * `/tmp/host-code`, shown as `C:/Users/owner/code`). One walkthrough:
  * 1. install into Recipe App's repo by push, then hand-edit the installed
- *    `tasklite-worker`; the scheduled check (it runs at startup: the
+ *    `docket-worker`; the scheduled check (it runs at startup: the
  *    container restarts) finds it: a Problems row, *Review* → the "Changed
- *    outside Task Lite" entry with its diff, the row chip; *Adopt as Recipe
+ *    outside Docket" entry with its diff, the row chip; *Adopt as Recipe
  *    App's copy*;
- * 2. hand-edit again; an agent runs the installed `tasklite-check` (in the
+ * 2. hand-edit again; an agent runs the installed `docket-check` (in the
  *    container, with its own bash) and claims RCP-17 with the output: the
  *    Problems row names the agent; the agent bar and Lead and runs show
- *    "Instructions: tasklite-worker · default v1" with ⚠ "edited locally";
+ *    "Instructions: docket-worker · default v1" with ⚠ "edited locally";
  *    the chip opens the entry; *Keep local*; the same report raises nothing;
  * 3. a further edit is reported on the next claim and alerts again;
- *    *Restore Task Lite's version* rewrites the file.
+ *    *Restore Docket's version* rewrites the file.
  *
- * axe is clean on each screen, both themes. Set TASKLITE_E2E_SCREENSHOTS to
+ * axe is clean on each screen, both themes. Set DOCKET_E2E_SCREENSHOTS to
  * a folder to capture the PR's screenshots.
  */
 import { execFileSync } from 'node:child_process';
@@ -40,8 +40,8 @@ useSeededContainer();
 const ROOT = '/tmp/host-code';
 const REPO = `${ROOT}/recipes`;
 const HOST_REPO = 'C:/Users/owner/code/recipes';
-const WORKER_FILE = `${REPO}/.claude/skills/tasklite-worker/SKILL.md`;
-const WORKER = 'skill:tasklite-worker';
+const WORKER_FILE = `${REPO}/.claude/skills/docket-worker/SKILL.md`;
+const WORKER = 'skill:docket-worker';
 
 function sh(script: string): string {
   return execFileSync('docker', ['exec', CONTAINER, 'sh', '-c', script], {
@@ -61,7 +61,7 @@ async function restartAndWait(): Promise<void> {
     }
     await new Promise((r) => setTimeout(r, 500));
   }
-  throw new Error('Task Lite did not come back after the restart');
+  throw new Error('Docket did not come back after the restart');
 }
 
 test.afterAll(async () => {
@@ -73,7 +73,7 @@ test.afterAll(async () => {
   }
 });
 
-const out = process.env.TASKLITE_E2E_SCREENSHOTS;
+const out = process.env.DOCKET_E2E_SCREENSHOTS;
 async function shoot(page: Page, name: string, target: Locator) {
   if (!out) return;
   for (const theme of ['light', 'dark'] as const) {
@@ -85,20 +85,20 @@ async function shoot(page: Page, name: string, target: Locator) {
 
 /** The owner's API from the unlocked page's context (cookies and the CSRF header). */
 async function owner(page: Page, method: 'GET' | 'POST', path: string, data?: unknown) {
-  const csrf = (await page.context().cookies()).find((c) => c.name === 'tl_csrf')?.value ?? '';
+  const csrf = (await page.context().cookies()).find((c) => c.name === 'docket_csrf')?.value ?? '';
   const r = await page.request.fetch(path, {
     method,
     data,
-    headers: method === 'GET' ? {} : { 'x-tasklite-csrf': csrf, origin: baseURL },
+    headers: method === 'GET' ? {} : { 'x-docket-csrf': csrf, origin: baseURL },
   });
   expect(r.ok(), `${method} ${path}: ${await r.text()}`).toBe(true);
   return (await r.json()) as Record<string, unknown>;
 }
 
-/** Run the installed tasklite-check as an agent would: one shell call, one line of JSON. */
-function tasklitecheck(): Record<string, unknown> {
-  const line = sh(`bash ${REPO}/.claude/tasklite-check.sh`).trim();
-  console.log(`tasklite-check (${line.length} characters): ${line.slice(0, 300)}…`);
+/** Run the installed docket-check as an agent would: one shell call, one line of JSON. */
+function docketcheck(): Record<string, unknown> {
+  const line = sh(`bash ${REPO}/.claude/docket-check.sh`).trim();
+  console.log(`docket-check (${line.length} characters): ${line.slice(0, 300)}…`);
   return JSON.parse(line) as Record<string, unknown>;
 }
 
@@ -124,7 +124,7 @@ test.describe('Drift (US14)', () => {
       method: 'push',
     });
     expect(install.install_id).toMatch(/^ins_/);
-    expect(sh(`ls ${REPO}/.claude`)).toContain('tasklite-check.sh');
+    expect(sh(`ls ${REPO}/.claude`)).toContain('docket-check.sh');
     sh(`printf '\\n- Always run pnpm lint first (edited in VS Code).\\n' >> ${WORKER_FILE}`);
 
     // The scheduled check runs at startup (and every 15 minutes).
@@ -133,7 +133,7 @@ test.describe('Drift (US14)', () => {
     const problems = page.locator('[data-card="problems"]');
     const row = problems.locator('[data-problem="agent_files_drift"]');
     await expect(row).toContainText(
-      'tasklite-worker edited outside Task Lite · Recipe App · C:/Users/owner/code/recipes · found by the scheduled check',
+      'docket-worker edited outside Docket · Recipe App · C:/Users/owner/code/recipes · found by the scheduled check',
     );
     await shoot(page, '1-problem', problems);
     await row.getByRole('link', { name: 'Review' }).click();
@@ -141,31 +141,31 @@ test.describe('Drift (US14)', () => {
 
     const section = page.locator('[data-drift-section]');
     await expect(
-      section.getByRole('heading', { name: 'Changed outside Task Lite · 1' }),
+      section.getByRole('heading', { name: 'Changed outside Docket · 1' }),
     ).toBeVisible();
     const entry = section.locator('[data-drift]');
-    await expect(entry.getByRole('heading', { name: 'tasklite-worker' })).toBeVisible();
+    await expect(entry.getByRole('heading', { name: 'docket-worker' })).toBeVisible();
     await expect(entry.getByText('Edited locally')).toBeVisible();
     await expect(entry.getByText(HOST_REPO)).toBeVisible();
     await expect(entry.getByText('Found by the scheduled check of the push folder')).toBeVisible();
     const diff = entry.getByRole('region', {
-      name: 'tasklite-worker: Task Lite’s version → the local file',
+      name: 'docket-worker: Docket’s version → the local file',
     });
     await expect(diff).toContainText('Always run pnpm lint first (edited in VS Code).');
     await expect(diff).toContainText('2 lines added, 0 lines removed');
     await shoot(page, '1-section', section);
-    await expectAxeClean(page, 'Agent files: changed outside Task Lite');
+    await expectAxeClean(page, 'Agent files: changed outside Docket');
 
     // All projects: the entry's project is named; pick Recipe App to see the row chip.
     await page.goto('/agent-files?project=RCP');
     const fileRow = page.locator(`[data-agent-file="${WORKER}"]`);
-    await expect(fileRow.locator('[data-drift-chip]')).toHaveText('changed outside Task Lite');
+    await expect(fileRow.locator('[data-drift-chip]')).toHaveText('changed outside Docket');
     await page
       .locator('[data-drift]')
-      .getByRole('button', { name: 'Adopt as Recipe App’s copy (tasklite-worker)' })
+      .getByRole('button', { name: 'Adopt as Recipe App’s copy (docket-worker)' })
       .click();
     await expect(
-      toast(page, 'Adopted: the local tasklite-worker is now Recipe App’s copy.'),
+      toast(page, 'Adopted: the local docket-worker is now Recipe App’s copy.'),
     ).toBeVisible();
     await expect(page.locator('[data-drift-section]')).toHaveCount(0);
     await expect(fileRow).toHaveAttribute('data-using', 'copy');
@@ -178,7 +178,7 @@ test.describe('Drift (US14)', () => {
     sh(`printf -- '- And squash on merge.\\n' >> ${WORKER_FILE}`);
     const agent = await connectAgent('codex-mcp-client', '0.50.0');
     try {
-      const report = tasklitecheck();
+      const report = docketcheck();
       const files = report.files as { key: string; content?: string }[];
       expect(files.filter((f) => f.content !== undefined).map((f) => f.key)).toEqual([WORKER]);
       const claim = await agent.call('claim_lead', {
@@ -191,13 +191,13 @@ test.describe('Drift (US14)', () => {
 
       await page.goto('/');
       await expect(page.locator('[data-problem="agent_files_drift"]')).toContainText(
-        'tasklite-worker edited outside Task Lite · Recipe App · C:/Users/owner/code/recipes · reported by codex · orca-w3 on RCP-17',
+        'docket-worker edited outside Docket · Recipe App · C:/Users/owner/code/recipes · reported by codex · orca-w3 on RCP-17',
       );
 
       await page.goto('/items/RCP-17');
       const bar = page.locator('[data-agent-bar]');
       const instr = bar.locator('[data-ab="instructions"]');
-      await expect(instr).toContainText('Instructions: tasklite-worker · default v1 (+5 more)');
+      await expect(instr).toContainText('Instructions: docket-worker · default v1 (+5 more)');
       await expect(instr.getByText('edited locally')).toBeVisible();
       await shoot(page, '2-agent-bar', bar);
       await expectAxeClean(page, 'Ticket: run instructions on the agent bar');
@@ -205,24 +205,24 @@ test.describe('Drift (US14)', () => {
       // Lead and runs lists every file.
       await page.getByRole('tab', { name: /Activity/ }).click();
       const lines = page.locator('[data-run-instructions]');
-      await expect(lines).toContainText('tasklite-worker · default v1');
+      await expect(lines).toContainText('docket-worker · default v1');
       await expect(lines).toContainText('AGENTS.md block · default v1');
       await shoot(page, '2-lead-and-runs', page.locator('[data-run]').first());
 
       // The chip opens the entry.
-      await instr.getByRole('link', { name: /tasklite-worker edited locally/ }).click();
+      await instr.getByRole('link', { name: /docket-worker edited locally/ }).click();
       await expect(page).toHaveURL(/\/agent-files#drift-dft_/);
       const entry = page.locator('[data-drift]');
       await expect(entry.getByText(/Reported by codex · orca-w3/)).toBeVisible();
       await expect(entry.getByRole('link', { name: 'RCP-17' })).toBeVisible();
-      await entry.getByRole('button', { name: 'Keep local (tasklite-worker)' }).click();
+      await entry.getByRole('button', { name: 'Keep local (docket-worker)' }).click();
       await expect(
-        toast(page, 'Kept the local tasklite-worker. A further change there alerts you again.'),
+        toast(page, 'Kept the local docket-worker. A further change there alerts you again.'),
       ).toBeVisible();
       await expect(page.locator('[data-drift-section]')).toHaveCount(0);
 
       // The same content reported again raises nothing.
-      const again = await agent.call('claim_lead', { id: 'RCP-25', instructions: tasklitecheck() });
+      const again = await agent.call('claim_lead', { id: 'RCP-25', instructions: docketcheck() });
       expect(again.isError, again.text).toBe(false);
       // Free RCP-25 for the next claim.
       const released = await agent.call('release_lead', {
@@ -238,13 +238,13 @@ test.describe('Drift (US14)', () => {
     }
   });
 
-  test('3. a further edit alerts again; Restore Task Lite’s version rewrites the file', async ({
+  test('3. a further edit alerts again; Restore Docket’s version rewrites the file', async ({
     ownerPage: page,
   }) => {
     sh(`printf -- '- One more local rule.\\n' >> ${WORKER_FILE}`);
     const agent = await connectAgent('codex-mcp-client', '0.50.0');
     try {
-      const claim = await agent.call('claim_lead', { id: 'RCP-25', instructions: tasklitecheck() });
+      const claim = await agent.call('claim_lead', { id: 'RCP-25', instructions: docketcheck() });
       expect(claim.isError, claim.text).toBe(false);
       lastRun = claim.structured.run_id as string;
     } finally {
@@ -253,10 +253,8 @@ test.describe('Drift (US14)', () => {
     await page.goto('/agent-files?project=RCP#drift');
     const entry = page.locator('[data-drift]');
     await expect(entry.getByRole('region')).toContainText('One more local rule.');
-    await entry
-      .getByRole('button', { name: 'Restore Task Lite’s version (tasklite-worker)' })
-      .click();
-    await expect(toast(page, /Restored: Task Lite reinstalled its version in/)).toBeVisible();
+    await entry.getByRole('button', { name: 'Restore Docket’s version (docket-worker)' }).click();
+    await expect(toast(page, /Restored: Docket reinstalled its version in/)).toBeVisible();
     await expect(page.locator('[data-drift-section]')).toHaveCount(0);
     // The installed file is Recipe App's copy (the adopted text) again, without the later edits.
     const now = sh(`cat ${WORKER_FILE}`);
@@ -272,7 +270,7 @@ test.describe('Drift (US14)', () => {
     sh(`printf -- '- Push with ${secret}\n' >> ${WORKER_FILE}`);
     const agent = await connectAgent('codex-mcp-client', '0.50.0');
     try {
-      const report = tasklitecheck();
+      const report = docketcheck();
       expect(JSON.stringify(report)).toContain(secret);
       const released = await agent.call('release_lead', {
         id: 'RCP-25',
@@ -290,7 +288,7 @@ test.describe('Drift (US14)', () => {
     await expect(entry.getByText('Content withheld: it looked like a secret.')).toBeVisible();
     await expect(entry).not.toContainText(secret);
     const adopt = entry.getByRole('button', {
-      name: 'Adopt as Recipe App’s copy (tasklite-worker)',
+      name: 'Adopt as Recipe App’s copy (docket-worker)',
     });
     await expect(adopt).toBeDisabled();
     await expect(
@@ -298,7 +296,7 @@ test.describe('Drift (US14)', () => {
     ).toBeVisible();
     await shoot(page, '4-withheld', entry);
     await expectAxeClean(page, 'Agent files: content withheld');
-    await entry.getByRole('button', { name: 'Keep local (tasklite-worker)' }).click();
+    await entry.getByRole('button', { name: 'Keep local (docket-worker)' }).click();
     await expect(page.locator('[data-drift-section]')).toHaveCount(0);
   });
 });

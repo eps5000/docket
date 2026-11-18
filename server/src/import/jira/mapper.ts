@@ -1,9 +1,9 @@
 /**
- * The Jira → Task Lite mapping (BUILD_SPEC §9), as a pure function of what
+ * The Jira → Docket mapping (BUILD_SPEC §9), as a pure function of what
  * the dry run read. It builds the import plan in memory and tallies every
  * mapping, skip and loss for the report. Nothing here touches the database.
  *
- * | Jira | Task Lite |
+ * | Jira | Docket |
  * |---|---|
  * | Epic; Story, Task, Bug | the same type |
  * | Sub-task | a work step on its parent (state from the status category); its own comments, assignee, dates and the rest drop out, listed |
@@ -14,7 +14,7 @@
  * | Blocks | `blocks` |
  * | Relates | `relates` |
  * | Duplicate, Cloners, other link types | `relates`, with the link type noted in the description |
- * | labels | labels (Task Lite names are lowercase letters, digits and dashes; renamed ones are listed) |
+ * | labels | labels (Docket names are lowercase letters, digits and dashes; renamed ones are listed) |
  * | description (ADF) | Markdown; unsupported nodes listed |
  * | comments | events: "Imported comment · author · date" |
  * | attachments | documents, up to 500 MB each; larger ones skipped and listed |
@@ -33,7 +33,7 @@ import {
   TEXT_LIMITS,
   findSecret,
   type ItemType,
-} from '@tasklite/shared';
+} from '@docket/shared';
 import { adfToMarkdown } from './adf.js';
 import type {
   FieldTally,
@@ -208,7 +208,7 @@ function shorten(text: string, max: number): string {
   return text.length <= max ? text : `${text.slice(0, max - 1).trimEnd()}…`;
 }
 
-/** A label as Task Lite stores it: lowercase letters, digits and dashes, at most 40. */
+/** A label as Docket stores it: lowercase letters, digits and dashes, at most 40. */
 export function labelName(raw: string): string {
   return raw
     .toLowerCase()
@@ -324,15 +324,15 @@ export function mapSnapshot(snapshot: JiraSnapshot, opts: MapOptions = {}): Impo
 
   // ---- Tallies ----
   const groups = {
-    type: new Map<string, { jira: string; task_lite: string } & Tally>(),
-    status: new Map<string, { jira: string; task_lite: string } & Tally>(),
-    priority: new Map<string, { jira: string; task_lite: string } & Tally>(),
-    parent: new Map<string, { jira: string; task_lite: string } & Tally>(),
-    link: new Map<string, { jira: string; task_lite: string } & Tally>(),
+    type: new Map<string, { jira: string; docket: string } & Tally>(),
+    status: new Map<string, { jira: string; docket: string } & Tally>(),
+    priority: new Map<string, { jira: string; docket: string } & Tally>(),
+    parent: new Map<string, { jira: string; docket: string } & Tally>(),
+    link: new Map<string, { jira: string; docket: string } & Tally>(),
   };
-  const row = (group: keyof typeof groups, jira: string, taskLite: string, lossy = false) => {
-    const k = `${jira}→${taskLite}`;
-    const r = groups[group].get(k) ?? { jira, task_lite: taskLite, count: 0, lossy: 0 };
+  const row = (group: keyof typeof groups, jira: string, docket: string, lossy = false) => {
+    const k = `${jira}→${docket}`;
+    const r = groups[group].get(k) ?? { jira, docket: docket, count: 0, lossy: 0 };
     r.count++;
     if (lossy) r.lossy++;
     groups[group].set(k, r);

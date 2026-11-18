@@ -6,12 +6,12 @@ Follow [README.md](README.md) "Before you start" first. Commands run from the re
 
 1. [ ] `~/.codex/config.toml` (Windows: `%USERPROFILE%\.codex\config.toml`) has exactly:
    ```toml
-   [mcp_servers.tasklite]
+   [mcp_servers.docket]
    url = "http://127.0.0.1:7420/mcp"
-   bearer_token_env_var = "TASKLITE_TOKEN"
+   bearer_token_env_var = "DOCKET_TOKEN"
    ```
-2. [ ] `TASKLITE_TOKEN` is set in the terminal you start Codex from (Windows: `setx`, then a new terminal).
-3. [ ] Start `codex` in any folder. `/mcp` lists `tasklite` with its tools.
+2. [ ] `DOCKET_TOKEN` is set in the terminal you start Codex from (Windows: `setx`, then a new terminal).
+3. [ ] Start `codex` in any folder. `/mcp` lists `docket` with its tools.
 
 ## Run
 
@@ -19,7 +19,7 @@ Follow [README.md](README.md) "Before you start" first. Commands run from the re
 2. [ ] Paste the prompt into the client. It should call `whoami`, `claim_lead`, `set_plan`,
        `update_step` and `get_item`, and report the plan with the first step done.
 3. [ ] `node docker/smoke/smoke.mjs check codex <ID>`: every line says PASS.
-4. [ ] In the browser (unlock with `docker compose -p tasklite-smoke -f docker/compose.yaml -f docker/smoke/compose.smoke.yaml exec tasklite tasklite owner-key`):
+4. [ ] In the browser (unlock with `docker compose -p docket-smoke -f docker/compose.yaml -f docker/smoke/compose.smoke.yaml exec docket docket owner-key`):
    - [ ] **Agents** shows the client name and label on the ticket, with its run state.
    - [ ] **Settings → Connections** shows this surface last seen just now.
 5. [ ] Tell the client to call `release_lead` on the ticket.

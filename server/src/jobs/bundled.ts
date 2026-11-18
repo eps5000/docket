@@ -6,20 +6,20 @@
  *
  * Where they are: the image and the workspace share one layout (index.ts),
  * so from `server/dist/` (or `server/src/` in tests) the root is two levels
- * up, holding `skills/<name>/SKILL.md` and `docs/templates/AGENTS-tasklite.md`.
+ * up, holding `skills/<name>/SKILL.md` and `docs/templates/AGENTS-docket.md`.
  * The Dockerfile copies both into `/app`.
  */
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { AGENT_FILE_KEY_RE, AGENT_SETUP_LIMITS } from '@tasklite/shared';
+import { AGENT_FILE_KEY_RE, AGENT_SETUP_LIMITS } from '@docket/shared';
 import type { BundledAgentFile, Services } from '../domain/contracts.js';
 import { SYSTEM_ACTOR, type WritePath } from '../domain/write.js';
 
 /** The image's (or the checkout's) root: `skills/` and `docs/templates/` live here. */
 export const DEFAULT_BUNDLED_ROOT = resolve(fileURLToPath(new URL('../../..', import.meta.url)));
 
-export const AGENTS_TEMPLATE = join('docs', 'templates', 'AGENTS-tasklite.md');
+export const AGENTS_TEMPLATE = join('docs', 'templates', 'AGENTS-docket.md');
 
 /**
  * Every shipped agent file under `root`: each `skills/<name>/SKILL.md` whose

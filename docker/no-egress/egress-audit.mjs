@@ -3,7 +3,7 @@
  * process makes to reach another host, so CI can assert there were none.
  *
  * Loaded with `node --import=<this file>` (NODE_OPTIONS) when
- * TASKLITE_EGRESS_LOG names a file. It watches:
+ * DOCKET_EGRESS_LOG names a file. It watches:
  * - TCP and TLS connects (`net.Socket.prototype.connect`, which `fetch`,
  *   `http`, `https` and `tls` all go through);
  * - UDP sends and connects (`dgram`);
@@ -11,7 +11,7 @@
  *   forms).
  *
  * Loopback (localhost, 127.0.0.0/8, ::1) and Unix sockets are local and never
- * recorded. TASKLITE_EGRESS_ALLOW is a comma-separated list of host names
+ * recorded. DOCKET_EGRESS_ALLOW is a comma-separated list of host names
  * that may be reached (CI allows only `jira-fixture.test`). Everything else
  * is appended to the log as one JSON line and echoed to stderr as
  * "EGRESS ATTEMPT …". The attempt itself still runs, so behaviour is
@@ -144,10 +144,10 @@ export function installEgressAudit({ allow = [], record }) {
 }
 
 // Loaded with --import: audit this process.
-const log = process.env.TASKLITE_EGRESS_LOG;
+const log = process.env.DOCKET_EGRESS_LOG;
 if (log) {
   installEgressAudit({
-    allow: (process.env.TASKLITE_EGRESS_ALLOW ?? '').split(','),
+    allow: (process.env.DOCKET_EGRESS_ALLOW ?? '').split(','),
     record: (attempt) => {
       const line = JSON.stringify(attempt);
       try {

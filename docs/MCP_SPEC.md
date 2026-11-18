@@ -1,12 +1,12 @@
-# Task Lite: MCP spec
+# Docket: MCP spec
 
 Status: ready to build, 2026-11-07. This is the complete agent-facing contract: connection, conventions, the server instructions, every tool's description text and schemas, errors, and worked flows. [BUILD_SPEC.md](BUILD_SPEC.md) §5 defines the rules these tools enforce. Where the two disagree on a schema, this file wins; on a rule, BUILD_SPEC wins.
 
-**Agents are the primary users of Task Lite.** The tool descriptions and server instructions below are the only manual most agents will ever read, so treat them as product copy:
+**Agents are the primary users of Docket.** The tool descriptions and server instructions below are the only manual most agents will ever read, so treat them as product copy:
 - **Implement them verbatim.**
 - **Change them deliberately:** edit this file first, and keep the contract tests in §10 in step with it.
 
-Companion template: [templates/AGENTS-tasklite.md](templates/AGENTS-tasklite.md) is the block each project pastes into its `AGENTS.md` or `CLAUDE.md`.
+Companion template: [templates/AGENTS-docket.md](templates/AGENTS-docket.md) is the block each project pastes into its `AGENTS.md` or `CLAUDE.md`.
 
 ---
 
@@ -16,8 +16,8 @@ Companion template: [templates/AGENTS-tasklite.md](templates/AGENTS-tasklite.md)
 |---|---|
 | Endpoint | `http://127.0.0.1:7420/mcp` |
 | Transport | MCP Streamable HTTP, protocol version per the SDK's latest stable. Stateful sessions (`Mcp-Session-Id`). The server accepts `GET` for the server→client stream and `DELETE` to end a session. |
-| Auth | `Authorization: Bearer <TASKLITE_TOKEN>`. A missing or wrong token gets HTTP 401 before any MCP handling. |
-| Server info | `name: "tasklite"`, `version` = the app version |
+| Auth | `Authorization: Bearer <DOCKET_TOKEN>`. A missing or wrong token gets HTTP 401 before any MCP handling. |
+| Server info | `name: "docket"`, `version` = the app version |
 | Capabilities | `tools` (with `listChanged: false`). No resources or prompts in V1. Everything an agent needs comes from tools, and the server instructions point to the tools. |
 | Client identity | `clientInfo.name` from `initialize`, normalised (BUILD_SPEC §3). Agents add `agent_label` on `claim_lead` and `start_run`. |
 | Liveness | The server pings each session that has an open run every 60 s. Answering pings is what lets a run show as *live* (BUILD_SPEC §5.4). |
@@ -31,7 +31,7 @@ Client setup commands are in §11.
 The server returns this text as `instructions` in the `initialize` result. Clients show it to the model as standing guidance. Implement it verbatim, substituting nothing.
 
 ```
-Task Lite coordinates the owner's agent work. Use it to find work you may start, get its context, record your plan and progress, follow and record decisions, and hand finished work to the owner for review. It enforces claims, dependencies and review gates for you. The owner supervises in a web UI; keep entries short and factual.
+Docket coordinates the owner's agent work. Use it to find work you may start, get its context, record your plan and progress, follow and record decisions, and hand finished work to the owner for review. It enforces claims, dependencies and review gates for you. The owner supervises in a web UI; keep entries short and factual.
 
 Workflow: Inbox → Planning → Ready → In progress → Review → Done.
 - Only start work that is Ready (search_items filter "ready_to_start") or was sent back to you (filter "resumable"). Claim it first with claim_lead; if someone else holds it, pick something else.
@@ -116,7 +116,7 @@ Pass `run_id` on every call you make while working. **Every tool accepts an opti
 Unknown input keys are rejected with `validation` (JSON Schema `additionalProperties: false`), so a typo such as `expected_verison` can't silently skip a check. The error names each unknown key and, when one is close, the valid field it probably meant, in both the message and `details.unknown` / `details.fields`. For example: `Unknown field "expected_verison"; did you mean "expected_version"?` (B3 resolution 4).
 
 ### Workspaces, briefs and resources (recovery)
-Task Lite records **where work lives and what was started for it**, so a crashed orchestrator or worker can be restarted without guessing (owner decision 26). It never touches the host: it can't check a folder, stop a process or protect a worktree. The coordinator does those things using what Task Lite records.
+Docket records **where work lives and what was started for it**, so a crashed orchestrator or worker can be restarted without guessing (owner decision 26). It never touches the host: it can't check a folder, stop a process or protect a worktree. The coordinator does those things using what Docket records.
 - **Workspace:** passed to `claim_lead` or `start_run` and updated through `heartbeat`. It holds the host, repo, worktree path, branch, base ref and base SHA, plus `head_sha`, `pushed_sha` and `dirty` (uncommitted changes, as the agent reports them).
 - **Orchestrator reference:** an optional `{ name, dispatch_id, task_id, run_id }`, for example Orca's IDs, so a coordinator can match its own records.
 - **Brief:** the exact instructions the run was given. Pass it as text (stored as an immutable `brief` document on the item) or as a `document_version_id`. On a restart it is re-sent unchanged.
@@ -168,7 +168,7 @@ Every tool returns two things:
 - One `text` content block: a **complete compact rendering** of the same result, for the model (§3.1). It is *not* a JSON dump, and *not* just a one-line summary. A client that forwards only the text loses nothing an agent needs.
 
 **Result modes** (owner decision 28). Some clients give the model `structuredContent` rather than the text, which costs about 3.5 times the tokens (BUILD_SPEC §12, V6). So each session gets one of two modes, decided at `initialize` from `clientInfo.name`:
-- **Text-only**, when the name is listed in `TASKLITE_TEXT_ONLY_CLIENTS` (exact, ignoring case; BUILD_SPEC §2). The default lists `claude-code`. `tools/list` has no `outputSchema`, and results carry the text block alone. Errors still set `isError: true`, and their text holds the full ToolError (§6). Everything else is the same: descriptions, input schemas, annotations and behaviour. Long text truncated in lists (§3.1) is in full in `get_item` view `full`.
+- **Text-only**, when the name is listed in `DOCKET_TEXT_ONLY_CLIENTS` (exact, ignoring case; BUILD_SPEC §2). The default lists `claude-code`. `tools/list` has no `outputSchema`, and results carry the text block alone. Errors still set `isError: true`, and their text holds the full ToolError (§6). Everything else is the same: descriptions, input schemas, annotations and behaviour. Long text truncated in lists (§3.1) is in full in `get_item` view `full`.
 - **Structured**, for every other client: both, as above.
 
 The budgets (§3.2) measure the text block, which is all a text-only client's model sees.
@@ -393,7 +393,7 @@ The format for each tool below:
 ### 5.1 Orientation
 
 #### `whoami`
-**Description:** "Check your connection to Task Lite. Returns how the server identifies you, server limits and the server time. Call it once at the start of a session."
+**Description:** "Check your connection to Docket. Returns how the server identifies you, server limits and the server time. Call it once at the start of a session."
 - **Input:** none.
 - **Output:** `{ client, session_id, server_version, server_time, limits: { page_max: 50, changes_max: 200, document_mcp_bytes: 26214400, text_limits: {...} }, live_window_s, stale_after_s, lease_s }`.
 
@@ -487,8 +487,8 @@ The format for each tool below:
 ### 5.4 Claiming and runs
 
 #### `claim_lead`
-**Description:** "Claim an item as its lead before you work on it. Works on Ready items (moves them to In progress) and on In progress items with no lead (resuming sent-back or interrupted work). Pass workspace (where the work lives) and, if a coordinator briefed you, the brief, so the work can be restarted after a crash. Pass instructions with the output of the installed tasklite-check script, so the owner knows which instructions you work from. Returns your run_id: pass it on every later call. If someone else holds the claim you get a conflict with who holds it and until when; do not work on the item."
-- **Input:** `id`, `agent_label?` (≤ 40, for example `orca-w3`), `workspace?: { host?, repo?, path?, branch?, base_ref?, base_sha? }`, `orchestrator?: { name, dispatch_id?, task_id?, run_id? }`, `brief?` (text, ≤ 20,000) or `brief_document_version_id?`, `external?` (≤ 2 KB JSON), `instructions?: { install_id?, files: [{ key, sha256, content? }] }` (decision 30: the output of the installed `tasklite-check` script; `content` ≤ 50,000 only for files that differ from the manifest).
+**Description:** "Claim an item as its lead before you work on it. Works on Ready items (moves them to In progress) and on In progress items with no lead (resuming sent-back or interrupted work). Pass workspace (where the work lives) and, if a coordinator briefed you, the brief, so the work can be restarted after a crash. Pass instructions with the output of the installed docket-check script, so the owner knows which instructions you work from. Returns your run_id: pass it on every later call. If someone else holds the claim you get a conflict with who holds it and until when; do not work on the item."
+- **Input:** `id`, `agent_label?` (≤ 40, for example `orca-w3`), `workspace?: { host?, repo?, path?, branch?, base_ref?, base_sha? }`, `orchestrator?: { name, dispatch_id?, task_id?, run_id? }`, `brief?` (text, ≤ 20,000) or `brief_document_version_id?`, `external?` (≤ 2 KB JSON), `instructions?: { install_id?, files: [{ key, sha256, content? }] }` (decision 30: the output of the installed `docket-check` script; `content` ≤ 50,000 only for files that differ from the manifest).
 - **`instructions` limits** (B26 resolutions): strict; `files` holds 0–20 entries (empty, with `install_id`, means every installed file is missing); `key` is `agents_block` or `skill:<name>`; `sha256` is 64 hex characters, either case (compared lowercased); `content` is 0–50,000 characters, not trimmed. `start_run` doesn't take it.
 - **Output:** `{ run_id, item: ItemSummary, lease_expires_at }`.
 - **Errors:**
@@ -502,13 +502,13 @@ The format for each tool below:
 - **Errors:** `forbidden` (not your run), `not_found`.
 
 #### `start_run`
-**Description:** "Start a child run under your lead run when you delegate to a subagent that has its own Task Lite connection. Pass its workspace and brief as for claim_lead. The subagent passes the child run_id on its calls. For subagents without their own connection, use log_subagent instead."
+**Description:** "Start a child run under your lead run when you delegate to a subagent that has its own Docket connection. Pass its workspace and brief as for claim_lead. The subagent passes the child run_id on its calls. For subagents without their own connection, use log_subagent instead."
 - **Input:** `id`, `parent_run_id`, `agent_label?`, `workspace?`, `orchestrator?`, `brief?` or `brief_document_version_id?`, `external?` (shapes as for `claim_lead`).
 - **Output:** `{ run_id }`.
 - **Errors:** `validation` (the parent isn't an open lead run on this item).
 
 #### `heartbeat`
-**Description:** "Tell Task Lite you are still working, and update what it knows about your run: your current step, your workspace (head and pushed commits, uncommitted changes), and long-lived resources you started or released. Any call with run_id keeps you live, so use this when you have nothing else to record or something changed."
+**Description:** "Tell Docket you are still working, and update what it knows about your run: your current step, your workspace (head and pushed commits, uncommitted changes), and long-lived resources you started or released. Any call with run_id keeps you live, so use this when you have nothing else to record or something changed."
 - **Input:** `run_id`, `current_step_id?`, `note?` (short; shown as the run's "doing" line), `workspace?` (a patch: `head_sha?`, `pushed_sha?`, `dirty?`, `path?`, `branch?`), `resources_started?: [{ kind, label (≤ 120), locator }]` (≤ 10 per call), `resources_released?: [{ resource_id, note? }]`, `external?`.
 - **Output:** `{ run_state, lease_expires_at, resources: [{ id, label }] }`, where the new resources have IDs `rsc_…`.
 - **Note:** A heartbeat on a parked run resumes it.
@@ -522,12 +522,12 @@ The format for each tool below:
 - **Warnings:** finishing with unreleased resources, or with `head_sha` ≠ `pushed_sha`, succeeds but warns (`! 1 resource still declared: dev server :5173`; `! 2 commits not pushed`). The workspace then shows as `at_risk`.
 
 #### `park_run`
-**Description:** "Park your run when you must wait: on another item, on the coordinator to send you more work, or on a person. A parked run keeps its claim and its workspace stays marked in use, so it is never mistaken for finished or stale. Say what you are waiting on; Task Lite flags it as ready to resume when that clears. Any later call with your run_id resumes it."
+**Description:** "Park your run when you must wait: on another item, on the coordinator to send you more work, or on a person. A parked run keeps its claim and its workspace stays marked in use, so it is never mistaken for finished or stale. Say what you are waiting on; Docket flags it as ready to resume when that clears. Any later call with your run_id resumes it."
 - **Input:** `run_id`, `reason` (≤ 500), `waiting_on?: { items?: string[], orchestrator?: boolean, person?: boolean, until? }`.
 - **Output:** `{ run_state: 'parked', resume_ready: boolean }`.
 - **Errors:** `conflict` (the run has ended), `validation` (unknown item in `waiting_on.items`).
 - **Rules:**
-  - A parked run doesn't go stale, and its lease is suspended. After `TASKLITE_PARK_MAX` (default 24 h) it shows under the owner's Problems but keeps its claim.
+  - A parked run doesn't go stale, and its lease is suspended. After `DOCKET_PARK_MAX` (default 24 h) it shows under the owner's Problems but keeps its claim.
   - `resume_ready` becomes true when every `waiting_on.items` entry is done or cleared, or `until` passes. A run parked only on the orchestrator or a person stays false until it is resumed.
 
 ### 5.5 Checklist
@@ -705,7 +705,7 @@ Every error is returned as a tool result: `isError: true`, a `text` block holdin
 | `conflict` | Version mismatch, claim held, run ended | "RCP-15 is led by codex · orca-w1 (lease until 11:13 UTC). Pick another item." | `current` (record or claim) |
 | `not_found` | Unknown ID, or deleted | "No item RCP-99. Check the ID with search_items." | — |
 | `forbidden` | Owner-only operation, someone else's run, owner-added or locked item | "hr_01J… was added by the owner; only the owner can change it." | — |
-| `unavailable` | Database busy past 5 s, disk full, maintenance (restore) | "Task Lite is busy; retry in a few seconds with the same idempotency_key." | `details.retry_after_s` |
+| `unavailable` | Database busy past 5 s, disk full, maintenance (restore) | "Docket is busy; retry in a few seconds with the same idempotency_key." | `details.retry_after_s` |
 | `internal` | Bug | "Unexpected error (ref e_01J…). It has been logged." | `details.ref` |
 
 JSON-RPC protocol errors (malformed requests, unknown tool) follow the MCP spec and are separate from these.
@@ -916,7 +916,7 @@ These are part of M2 (BUILD_SPEC §11). Use the official MCP client SDK against 
 14. `satisfied_when`: done, merged and verified each gate `ready_to_start` correctly, a link override beats the project default, and verified on a blocker without human review gets `validation`.
 15. Write checks: each secret pattern is rejected and not persisted; references to items that don't exist produce warnings.
 16. `get_context` never marks notes read; `get_item` view `summary` doesn't either.
-17. Parking: a parked run never goes stale and keeps its claim. Its lease is suspended. It shows `resume_ready` when its items clear. A heartbeat resumes it. After `TASKLITE_PARK_MAX` it is flagged but keeps its claim.
+17. Parking: a parked run never goes stale and keeps its claim. Its lease is suspended. It shows `resume_ready` when its items clear. A heartbeat resumes it. After `DOCKET_PARK_MAX` it is flagged but keeps its claim.
 18. Workspace state: in_use, parked, at_risk (dirty, unpushed, unreleased resources) and safe_to_prune are each reached from the right inputs; `report_commit pushed:true` moves `pushed_sha`.
 19. `recovery_report` after a simulated restart lists every interrupted run with its end reason, its brief (with `include_briefs`), its workspace, its checklist progress and its orphaned resources, and the §7.13 flow re-claims and resumes it.
 20. `finish_run` with unreleased resources or unpushed commits warns, and the owner sees the matching Problem.
@@ -928,50 +928,50 @@ These are part of M2 (BUILD_SPEC §11). Use the official MCP client SDK against 
 The commands below were checked against the clients' current documentation on 2026-11-07. The real-client smoke test (BUILD_SPEC §10) is still the final check.
 
 ### Token
-- **Where it comes from:** Settings → Connections → *Reveal token* (or `docker compose exec tasklite tasklite agent-token`).
-- **Put it in the environment** the agent clients run in, as `TASKLITE_TOKEN`. On Windows: `setx TASKLITE_TOKEN "<token>"`, then open a new terminal. Orca workers must see the same variable (BUILD_SPEC §12, V2).
+- **Where it comes from:** Settings → Connections → *Reveal token* (or `docker compose exec docket docket agent-token`).
+- **Put it in the environment** the agent clients run in, as `DOCKET_TOKEN`. On Windows: `setx DOCKET_TOKEN "<token>"`, then open a new terminal. Orca workers must see the same variable (BUILD_SPEC §12, V2).
 - **Watch for whitespace:** a trailing newline in the token breaks auth, and Claude Code warns about hidden whitespace.
 
 ### Codex
 Source: Codex MCP docs, `learn.chatgpt.com/docs/extend/mcp?surface=cli`.
 - **Where:** add this to `~/.codex/config.toml` (Windows: `%USERPROFILE%\.codex\config.toml`). The token is read from the environment on every connection and never stored in the file:
   ```toml
-  [mcp_servers.tasklite]
+  [mcp_servers.docket]
   url = "http://127.0.0.1:7420/mcp"
-  bearer_token_env_var = "TASKLITE_TOKEN"
+  bearer_token_env_var = "DOCKET_TOKEN"
   ```
 - **Flags:** none needed; Streamable HTTP isn't behind an experimental flag.
 - **No CLI form:** `codex mcp add` has no documented bearer-token flag for HTTP servers, so use the config file.
-- **Result mode:** structured (§3 Results). Which part Codex gives the model is still to verify (BUILD_SPEC §12, V6); if it is `structuredContent`, add its `clientInfo.name` to `TASKLITE_TEXT_ONLY_CLIENTS`.
+- **Result mode:** structured (§3 Results). Which part Codex gives the model is still to verify (BUILD_SPEC §12, V6); if it is `structuredContent`, add its `clientInfo.name` to `DOCKET_TEXT_ONLY_CLIENTS`.
 
 ### Claude Code
 Source: `code.claude.com/docs/en/mcp`. Flags come before the name, and the name before the URL.
 - **For every project (user scope; recommended):**
   ```bash
-  claude mcp add --transport http --scope user tasklite http://127.0.0.1:7420/mcp \
-    --header "Authorization: Bearer $TASKLITE_TOKEN"
+  claude mcp add --transport http --scope user docket http://127.0.0.1:7420/mcp \
+    --header "Authorization: Bearer $DOCKET_TOKEN"
   ```
-  PowerShell: `--header "Authorization: Bearer $env:TASKLITE_TOKEN"`.
+  PowerShell: `--header "Authorization: Bearer $env:DOCKET_TOKEN"`.
 
   **Caveat:** your shell expands the variable when you run this, so Claude Code stores the token itself in its user config. That's acceptable for a loopback-only service. If you rotate the token, run the command again.
-- **One repo only (project scope):** add `.mcp.json` at the repo root. Claude Code expands `${TASKLITE_TOKEN}` in this file, so the token isn't stored. The first time, it shows as "Pending approval" until you approve it in an interactive `claude` session.
+- **One repo only (project scope):** add `.mcp.json` at the repo root. Claude Code expands `${DOCKET_TOKEN}` in this file, so the token isn't stored. The first time, it shows as "Pending approval" until you approve it in an interactive `claude` session.
   ```json
   {
     "mcpServers": {
-      "tasklite": {
+      "docket": {
         "type": "http",
         "url": "http://127.0.0.1:7420/mcp",
-        "headers": { "Authorization": "Bearer ${TASKLITE_TOKEN}" }
+        "headers": { "Authorization": "Bearer ${DOCKET_TOKEN}" }
       }
     }
   }
   ```
   Note: `type` must be `http`. An entry with a `url` but no `type` is treated as stdio and skipped.
-- **Check it:** `claude mcp list` should show `tasklite … ✔ Connected`. Inside Claude Code, `/mcp` shows the status.
+- **Check it:** `claude mcp list` should show `docket … ✔ Connected`. Inside Claude Code, `/mcp` shows the status.
 - **Result mode:** text-only (§3 Results). Claude Code sends `clientInfo.name` `claude-code` and gives the model `structuredContent` when there is one (BUILD_SPEC §12, V6), so by default it gets no `outputSchema` and no `structuredContent`, and its model reads the compact text.
 
 ### Orca workers
 Orca launches the installed Codex or Claude, so the configurations above apply as long as the worker inherits your user config and environment. That's verified for Codex workers; Claude workers are still to verify (BUILD_SPEC §12, V2). Settings shows "Not verified" until the smoke test passes. A worker sends its client's `clientInfo.name`, so it gets that client's result mode: text-only for Claude, structured for Codex. Settings shows each surface's mode.
 
 ### Settings snippets
-The Client setup card in Settings (UI_SPEC §6.7) shows exactly the Codex TOML and the user-scope Claude command above, with the token as `$TASKLITE_TOKEN`, never the value.
+The Client setup card in Settings (UI_SPEC §6.7) shows exactly the Codex TOML and the user-scope Claude command above, with the token as `$DOCKET_TOKEN`, never the value.

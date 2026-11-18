@@ -3,7 +3,7 @@
  * capture, the 409 conflict shape, the query key factory, and the event →
  * query-key invalidation map (contracts/events.md).
  */
-import { EVENT_TYPES, ROUTE_IDS, type EventType } from '@tasklite/shared';
+import { EVENT_TYPES, ROUTE_IDS, type EventType } from '@docket/shared';
 import { describe, expect, it } from 'vitest';
 import {
   ApiError,
@@ -45,24 +45,24 @@ function fakeFetch(status: number, json: unknown) {
   return { fetch, sent };
 }
 
-const COOKIES = 'theme=dark; tl_csrf=abc123-_x; other=1';
+const COOKIES = 'theme=dark; docket_csrf=abc123-_x; other=1';
 
 describe('CSRF', () => {
-  it('reads the tl_csrf cookie', () => {
+  it('reads the docket_csrf cookie', () => {
     expect(csrfToken(COOKIES)).toBe('abc123-_x');
-    expect(csrfToken('tl_csrf=a%3Db')).toBe('a=b');
+    expect(csrfToken('docket_csrf=a%3Db')).toBe('a=b');
     expect(csrfToken('theme=dark')).toBeNull();
     expect(csrfToken('')).toBeNull();
-    expect(readCookie('tl_csrf', 'xtl_csrf=nope; tl_csrf=yes')).toBe('yes');
+    expect(readCookie('docket_csrf', 'xdocket_csrf=nope; docket_csrf=yes')).toBe('yes');
   });
 
-  it('sends X-Tasklite-CSRF on mutations, from the cookie', async () => {
+  it('sends X-Docket-CSRF on mutations, from the cookie', async () => {
     const { fetch, sent } = fakeFetch(200, { mutation_id: 'mut_1', item: {} });
     const client = createApiClient({ fetch, cookies: () => COOKIES });
     await client['items.archive']({ params: { id: 'RCP-3' } });
     expect(sent[0]!.method).toBe('POST');
     expect(sent[0]!.url).toBe('/api/items/RCP-3/archive');
-    expect(sent[0]!.headers['X-Tasklite-CSRF']).toBe('abc123-_x');
+    expect(sent[0]!.headers['X-Docket-CSRF']).toBe('abc123-_x');
     expect(sent[0]!.body).toEqual({});
   });
 
@@ -72,7 +72,7 @@ describe('CSRF', () => {
     await client['needsYou.get']({ query: { scope: 'RCP' } });
     expect(sent[0]!.method).toBe('GET');
     expect(sent[0]!.url).toBe('/api/needs-you?scope=RCP');
-    expect(sent[0]!.headers['X-Tasklite-CSRF']).toBeUndefined();
+    expect(sent[0]!.headers['X-Docket-CSRF']).toBeUndefined();
     expect(sent[0]!.body).toBeUndefined();
   });
 
@@ -81,9 +81,9 @@ describe('CSRF', () => {
     await createApiClient({ fetch, cookies: () => COOKIES })['session.unlock']({
       body: { key: 'K' },
     });
-    expect(sent[0]!.headers['X-Tasklite-CSRF']).toBeUndefined();
+    expect(sent[0]!.headers['X-Docket-CSRF']).toBeUndefined();
     await createApiClient({ fetch, cookies: () => '' })['session.lock']({});
-    expect(sent[1]!.headers['X-Tasklite-CSRF']).toBeUndefined();
+    expect(sent[1]!.headers['X-Docket-CSRF']).toBeUndefined();
   });
 });
 
@@ -189,17 +189,17 @@ describe('typed inputs (compile-time)', () => {
 });
 
 describe('query keys', () => {
-  it('every key starts with tl and its family', () => {
-    expect(queryKeys.item('RCP-14')).toEqual(['tl', 'item', 'RCP-14']);
-    expect(queryKeys.review('RCP-12')).toEqual(['tl', 'review', 'RCP-12']);
-    expect(queryKeys.review('RCP-12', 2)).toEqual(['tl', 'review', 'RCP-12', 2]);
-    expect(queryKeys.work({ layout: 'map' })).toEqual(['tl', 'work', { layout: 'map' }]);
-    expect(queryKeys.label('RCP', 'ui')).toEqual(['tl', 'labels', 'RCP', 'ui']);
-    expect(queryKeys.bootstrap()).toEqual(['tl', 'bootstrap']);
+  it('every key starts with docket and its family', () => {
+    expect(queryKeys.item('RCP-14')).toEqual(['docket', 'item', 'RCP-14']);
+    expect(queryKeys.review('RCP-12')).toEqual(['docket', 'review', 'RCP-12']);
+    expect(queryKeys.review('RCP-12', 2)).toEqual(['docket', 'review', 'RCP-12', 2]);
+    expect(queryKeys.work({ layout: 'map' })).toEqual(['docket', 'work', { layout: 'map' }]);
+    expect(queryKeys.label('RCP', 'ui')).toEqual(['docket', 'labels', 'RCP', 'ui']);
+    expect(queryKeys.bootstrap()).toEqual(['docket', 'bootstrap']);
     expect(queryKeys.family('settings')).toEqual(queryKeys.settings());
-    expect(queryKeys.workspaces()).toEqual(['tl', 'workspaces', {}]);
+    expect(queryKeys.workspaces()).toEqual(['docket', 'workspaces', {}]);
     expect(queryKeys.workspaces({ scope: 'RCP', state: 'at_risk' })).toEqual([
-      'tl',
+      'docket',
       'workspaces',
       { scope: 'RCP', state: 'at_risk' },
     ]);
@@ -235,12 +235,12 @@ describe('event → query-key invalidation (contracts/events.md)', () => {
       ],
       for_you: false,
     });
-    expect(keys).toContainEqual(['tl', 'item', 'RCP-12']);
-    expect(keys).toContainEqual(['tl', 'review', 'RCP-12']);
-    expect(keys).toContainEqual(['tl', 'work']);
-    expect(keys).toContainEqual(['tl', 'needsYou']);
-    expect(keys).not.toContainEqual(['tl', 'item']);
-    expect(keys).not.toContainEqual(['tl', 'settings']);
+    expect(keys).toContainEqual(['docket', 'item', 'RCP-12']);
+    expect(keys).toContainEqual(['docket', 'review', 'RCP-12']);
+    expect(keys).toContainEqual(['docket', 'work']);
+    expect(keys).toContainEqual(['docket', 'needsYou']);
+    expect(keys).not.toContainEqual(['docket', 'item']);
+    expect(keys).not.toContainEqual(['docket', 'settings']);
   });
 
   it('invalidates the whole item family when the event names no item', () => {
@@ -250,9 +250,9 @@ describe('event → query-key invalidation (contracts/events.md)', () => {
       objects: [{ kind: 'project', id: 'RCP' }],
       for_you: false,
     });
-    expect(keys).toContainEqual(['tl', 'item']);
-    expect(keys).toContainEqual(['tl', 'settings']);
-    expect(keys).toContainEqual(['tl', 'bootstrap']);
+    expect(keys).toContainEqual(['docket', 'item']);
+    expect(keys).toContainEqual(['docket', 'settings']);
+    expect(keys).toContainEqual(['docket', 'bootstrap']);
   });
 
   it.each<EventType>(['packet.submitted', 'question.asked'])(
@@ -264,18 +264,18 @@ describe('event → query-key invalidation (contracts/events.md)', () => {
         objects: [{ kind: 'item', id: 'DOC-4' }],
         for_you: true,
       });
-      expect(keys).toContainEqual(['tl', 'bootstrap']);
-      expect(keys).toContainEqual(['tl', 'needsYou']);
-      expect(keys).toContainEqual(['tl', 'item', 'DOC-4']);
+      expect(keys).toContainEqual(['docket', 'bootstrap']);
+      expect(keys).toContainEqual(['docket', 'needsYou']);
+      expect(keys).toContainEqual(['docket', 'item', 'DOC-4']);
     },
   );
 
   it('adds the for-you count whenever for_you is set, even for a quiet type', () => {
     const keys = keysForChange({ seq: 2, type: 'note.added', objects: [], for_you: true });
     expect(keys).toEqual([
-      ['tl', 'bootstrap'],
-      ['tl', 'needsYou'],
-      ['tl', 'item'],
+      ['docket', 'bootstrap'],
+      ['docket', 'needsYou'],
+      ['docket', 'item'],
     ]);
   });
 
@@ -291,12 +291,12 @@ describe('event → query-key invalidation (contracts/events.md)', () => {
       for_you: false,
     });
     expect(keys).toEqual([
-      ['tl', 'bootstrap'],
-      ['tl', 'needsYou'],
-      ['tl', 'work'],
-      ['tl', 'item', 'RCP-14'],
-      ['tl', 'agents'],
-      ['tl', 'workspaces'],
+      ['docket', 'bootstrap'],
+      ['docket', 'needsYou'],
+      ['docket', 'work'],
+      ['docket', 'item', 'RCP-14'],
+      ['docket', 'agents'],
+      ['docket', 'workspaces'],
     ]);
   });
 });
@@ -306,7 +306,7 @@ describe('agent setup (decision 29; BUILD_SPEC §5.17, §7)', () => {
     const { fetch, sent } = fakeFetch(200, {});
     const client = createApiClient({ fetch, cookies: () => COOKIES });
     await client['agentFiles.list']({ query: { project: 'RCP' } });
-    await client['agentFiles.get']({ params: { key: 'skill:tasklite-worker' } });
+    await client['agentFiles.get']({ params: { key: 'skill:docket-worker' } });
     await client['agentFiles.put']({
       params: { key: 'agents_block' },
       body: { layer: 'service', content: '# Block\n', expected_version: 2, note: 'Ours.' },
@@ -327,7 +327,7 @@ describe('agent setup (decision 29; BUILD_SPEC §5.17, §7)', () => {
     await client['install.download']({ params: { token: 'A'.repeat(43) } });
     expect(sent.map((r) => `${r.method} ${r.url}`)).toEqual([
       'GET /api/agent-files?project=RCP',
-      'GET /api/agent-files/skill%3Atasklite-worker',
+      'GET /api/agent-files/skill%3Adocket-worker',
       'PUT /api/agent-files/agents_block',
       'POST /api/agent-files/agents_block/revert',
       'PUT /api/projects/RCP/workflow',
@@ -336,8 +336,8 @@ describe('agent setup (decision 29; BUILD_SPEC §5.17, §7)', () => {
       'POST /api/push-target/test',
       `GET /install/${'A'.repeat(43)}`,
     ]);
-    expect(sent[2]!.headers['X-Tasklite-CSRF']).toBe('abc123-_x');
-    expect(sent[8]!.headers['X-Tasklite-CSRF']).toBeUndefined();
+    expect(sent[2]!.headers['X-Docket-CSRF']).toBe('abc123-_x');
+    expect(sent[8]!.headers['X-Docket-CSRF']).toBeUndefined();
   });
 
   it('edits, reverts and Workflow notes hand their mutation_id to Undo; an install does not', async () => {
@@ -357,14 +357,19 @@ describe('agent setup (decision 29; BUILD_SPEC §5.17, §7)', () => {
 
   it('query keys share a family per screen, so one event refreshes list and view', () => {
     expect(queryKeys.agentFiles({ project: 'RCP' })).toEqual([
-      'tl',
+      'docket',
       'agentFiles',
       { project: 'RCP' },
     ]);
-    expect(queryKeys.agentFile('agents_block')).toEqual(['tl', 'agentFiles', 'agents_block', {}]);
-    expect(queryKeys.workflow('RCP')).toEqual(['tl', 'workflow', 'RCP']);
-    expect(queryKeys.installs()).toEqual(['tl', 'installs', {}]);
-    expect(queryKeys.pushTarget()).toEqual(['tl', 'pushTarget']);
+    expect(queryKeys.agentFile('agents_block')).toEqual([
+      'docket',
+      'agentFiles',
+      'agents_block',
+      {},
+    ]);
+    expect(queryKeys.workflow('RCP')).toEqual(['docket', 'workflow', 'RCP']);
+    expect(queryKeys.installs()).toEqual(['docket', 'installs', {}]);
+    expect(queryKeys.pushTarget()).toEqual(['docket', 'pushTarget']);
     expect(
       keysForChange({
         seq: 9,
@@ -372,7 +377,7 @@ describe('agent setup (decision 29; BUILD_SPEC §5.17, §7)', () => {
         objects: [{ kind: 'agent_file', id: 'af_1' }],
         for_you: false,
       }),
-    ).toEqual([['tl', 'agentFiles']]);
+    ).toEqual([['docket', 'agentFiles']]);
     expect(INVALIDATION['workflow.updated']).toEqual(['workflow']);
     expect(INVALIDATION['install.recorded']).toEqual(['installs']);
   });
@@ -401,9 +406,9 @@ describe('proposals and drift (decision 30; BUILD_SPEC §5.19, §7)', () => {
       'POST /api/drift/dft_1/restore',
       'POST /api/drift/dft_1/keep-local',
     ]);
-    expect(sent[0]!.headers['X-Tasklite-CSRF']).toBeUndefined();
+    expect(sent[0]!.headers['X-Docket-CSRF']).toBeUndefined();
     for (const r of sent.slice(1).filter((x) => x.method === 'POST')) {
-      expect(r.headers['X-Tasklite-CSRF'], r.url).toBe('abc123-_x');
+      expect(r.headers['X-Docket-CSRF'], r.url).toBe('abc123-_x');
     }
   });
 
@@ -429,11 +434,11 @@ describe('proposals and drift (decision 30; BUILD_SPEC §5.19, §7)', () => {
 
   it('query keys and invalidation: proposals, drift and the screens that show them', () => {
     expect(queryKeys.proposals({ project: 'RCP' })).toEqual([
-      'tl',
+      'docket',
       'proposals',
       { project: 'RCP' },
     ]);
-    expect(queryKeys.drift()).toEqual(['tl', 'drift', {}]);
+    expect(queryKeys.drift()).toEqual(['docket', 'drift', {}]);
     expect(
       keysForChange({
         seq: 12,
@@ -445,10 +450,10 @@ describe('proposals and drift (decision 30; BUILD_SPEC §5.19, §7)', () => {
         for_you: false,
       }),
     ).toEqual([
-      ['tl', 'needsYou'],
-      ['tl', 'agentFiles'],
-      ['tl', 'workflow'],
-      ['tl', 'proposals'],
+      ['docket', 'needsYou'],
+      ['docket', 'agentFiles'],
+      ['docket', 'workflow'],
+      ['docket', 'proposals'],
     ]);
     expect(
       keysForChange({
@@ -461,11 +466,11 @@ describe('proposals and drift (decision 30; BUILD_SPEC §5.19, §7)', () => {
         for_you: false,
       }),
     ).toEqual([
-      ['tl', 'bootstrap'],
-      ['tl', 'needsYou'],
-      ['tl', 'item', 'RCP-14'],
-      ['tl', 'agentFiles'],
-      ['tl', 'drift'],
+      ['docket', 'bootstrap'],
+      ['docket', 'needsYou'],
+      ['docket', 'item', 'RCP-14'],
+      ['docket', 'agentFiles'],
+      ['docket', 'drift'],
     ]);
     expect(INVALIDATION['agent_file.proposed']).toEqual(['proposals', 'needsYou']);
   });
@@ -483,8 +488,8 @@ describe('recovery (US11; contracts/events.md, BUILD_SPEC §7)', () => {
       'POST /api/resources/rsc_1/release',
       'POST /api/runs/run_21/unpushed-handled',
     ]);
-    expect(sent[0]!.headers['X-Tasklite-CSRF']).toBeUndefined();
-    expect(sent[1]!.headers['X-Tasklite-CSRF']).toBe('abc123-_x');
+    expect(sent[0]!.headers['X-Docket-CSRF']).toBeUndefined();
+    expect(sent[1]!.headers['X-Docket-CSRF']).toBe('abc123-_x');
     expect(sent[1]!.body).toEqual({ note: 'Stopped it.' });
     expect(sent[2]!.body).toEqual({});
   });
@@ -526,11 +531,11 @@ describe('recovery (US11; contracts/events.md, BUILD_SPEC §7)', () => {
       for_you: false,
     });
     expect(keys).toEqual([
-      ['tl', 'bootstrap'],
-      ['tl', 'needsYou'],
-      ['tl', 'item', 'RCP-21'],
-      ['tl', 'agents'],
-      ['tl', 'workspaces'],
+      ['docket', 'bootstrap'],
+      ['docket', 'needsYou'],
+      ['docket', 'item', 'RCP-21'],
+      ['docket', 'agents'],
+      ['docket', 'workspaces'],
     ]);
   });
 

@@ -21,7 +21,7 @@ import {
   type NeedsYouResponse,
   type SearchResponse,
   type WorkResponse,
-} from '@tasklite/shared';
+} from '@docket/shared';
 import type { z } from 'zod';
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { loadSampleSeed } from '../../src/db/seed/loader.js';
@@ -45,7 +45,7 @@ beforeEach(async () => {
     body: JSON.stringify({ key: s.runtime.secrets.ownerKey() }),
   });
   const cookies = parseSetCookies(res);
-  cookie = `tl_owner=${cookies.tl_owner!.value}; tl_csrf=${cookies.tl_csrf!.value}`;
+  cookie = `docket_owner=${cookies.docket_owner!.value}; docket_csrf=${cookies.docket_csrf!.value}`;
 });
 afterEach(async () => {
   await s.cleanup();

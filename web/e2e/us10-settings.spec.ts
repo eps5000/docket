@@ -1,13 +1,13 @@
 /**
- * Running Task Lite safely: Settings and Unlock (tasks.md T129; spec US10;
+ * Running Docket safely: Settings and Unlock (tasks.md T129; spec US10;
  * UI_SPEC §6.7, §6.8, §7, §11; MCP_SPEC §11).
  *
  * - Projects: a row per project with counts, labels and the mini status bar.
  * - Connections: the compatibility matrix (nothing "Verified" before the
- *   smoke test); the Codex and Claude Code snippets with `$TASKLITE_TOKEN`,
+ *   smoke test); the Codex and Claude Code snippets with `$DOCKET_TOKEN`,
  *   never the value; *Reveal token* shows the token and hides it after 30 s.
  * - Service health: the backup locations, before and after
- *   `tasklite backup now`, and the extra-location hint; *Download diagnostic
+ *   `docket backup now`, and the extra-location hint; *Download diagnostic
  *   log* gives metadata-only JSONL.
  * - The delete dialog: typed key, focus on Cancel, then the delete itself;
  *   agents get not_found for the deleted IDs.
@@ -15,7 +15,7 @@
  *   one goes to the page that was asked for.
  * - axe on Settings, the delete dialog and Unlock, both themes.
  *
- * Set TASKLITE_E2E_SCREENSHOTS to a folder to also capture the PR's light
+ * Set DOCKET_E2E_SCREENSHOTS to a folder to also capture the PR's light
  * and dark screenshots.
  */
 import { execFileSync } from 'node:child_process';
@@ -41,7 +41,7 @@ test.afterAll(async () => {
   await resetSeededContainer();
 });
 
-const out = process.env.TASKLITE_E2E_SCREENSHOTS;
+const out = process.env.DOCKET_E2E_SCREENSHOTS;
 
 async function shoot(page: Page, name: string, target: Locator) {
   if (!out) return;
@@ -57,12 +57,12 @@ const toast = (page: Page, text: string | RegExp) =>
   page.locator('.toast').filter({ hasText: text });
 
 const CODEX = `# ~/.codex/config.toml
-[mcp_servers.tasklite]
+[mcp_servers.docket]
 url = "http://127.0.0.1:7420/mcp"
-bearer_token_env_var = "TASKLITE_TOKEN"`;
-const CLAUDE = `claude mcp add --transport http --scope user tasklite \\
+bearer_token_env_var = "DOCKET_TOKEN"`;
+const CLAUDE = `claude mcp add --transport http --scope user docket \\
   http://127.0.0.1:7420/mcp \\
-  --header "Authorization: Bearer $TASKLITE_TOKEN"`;
+  --header "Authorization: Bearer $DOCKET_TOKEN"`;
 
 test.describe('Settings', () => {
   test('projects: counts, labels and the mini status bar; axe is clean', async ({
@@ -88,7 +88,7 @@ test.describe('Settings', () => {
     );
   });
 
-  test('connections: the matrix, the snippets with $TASKLITE_TOKEN, and Reveal token hiding after 30 s', async ({
+  test('connections: the matrix, the snippets with $DOCKET_TOKEN, and Reveal token hiding after 30 s', async ({
     ownerPage: page,
   }) => {
     await page.clock.install();
@@ -110,7 +110,7 @@ test.describe('Settings', () => {
       'Agent in another container (Docker network): not configured. Off by default. Needs an explicit network path (O02).',
     );
     await expect(clients.getByText('✓ Verified')).toHaveCount(0);
-    // Result modes under the default TASKLITE_TEXT_ONLY_CLIENTS (MCP_SPEC §3 Results).
+    // Result modes under the default DOCKET_TEXT_ONLY_CLIENTS (MCP_SPEC §3 Results).
     await expect(clients.getByRole('columnheader', { name: 'Results' })).toBeVisible();
     for (const [name, mode] of [
       ['Codex CLI (host)', 'Structured'],
@@ -155,16 +155,16 @@ test.describe('Settings', () => {
     await shoot(page, 'settings-endpoint', card(page, 'endpoint'));
   });
 
-  test('service health: backup locations before and after `tasklite backup now`', async ({
+  test('service health: backup locations before and after `docket backup now`', async ({
     ownerPage: page,
   }) => {
     await page.goto('/settings');
     const health = card(page, 'service-health');
     await expect(health.getByText('✓ ready')).toHaveCount(2);
     await expect(health.locator('[data-backup="extra-help"]')).toHaveText(
-      'Mount a host folder and set TASKLITE_BACKUP_EXTRA_DIR; see the README.',
+      'Mount a host folder and set DOCKET_BACKUP_EXTRA_DIR; see the README.',
     );
-    execFileSync('docker', ['exec', CONTAINER, 'tasklite', 'backup', 'now'], { encoding: 'utf8' });
+    execFileSync('docker', ['exec', CONTAINER, 'docket', 'backup', 'now'], { encoding: 'utf8' });
     await page.reload();
     await expect(health.locator('[data-backup="volume"]')).toHaveText(
       /^In the data volume · [A-Z][a-z]{2} \d{1,2} \d{2}:\d{2} · kept \d+ days$/,
@@ -260,8 +260,8 @@ test.describe('Unlock', () => {
     const page = await context.newPage();
     await page.goto('/settings');
     await expect(page).toHaveURL(/\/unlock/);
-    await expect(page.getByRole('heading', { name: 'Unlock Task Lite' })).toBeVisible();
-    await expect(page.getByText('docker compose exec tasklite tasklite owner-key')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Unlock Docket' })).toBeVisible();
+    await expect(page.getByText('docker compose exec docket docket owner-key')).toBeVisible();
     await expect(page.getByLabel('Owner key')).toBeFocused();
     await expectAxeClean(page, 'Unlock');
     await shoot(page, 'unlock', page.locator('main.unlock'));

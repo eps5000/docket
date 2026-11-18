@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
-import type { ReviewResponse } from '@tasklite/shared';
+import type { ReviewResponse } from '@docket/shared';
 import {
   Button,
   Callout,

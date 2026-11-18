@@ -49,7 +49,7 @@ function Breadcrumb() {
         ? [{ kind: 'current', text: 'Settings' }]
         : [
             { kind: 'text', text: scopeName },
-            { kind: 'current', text: section ? PAGE_TITLES[section] : 'Task Lite' },
+            { kind: 'current', text: section ? PAGE_TITLES[section] : 'Docket' },
           ],
     serviceWide: section === 'settings',
   };

@@ -16,7 +16,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { PROJECT_KEY_RE } from '@tasklite/shared';
+import { PROJECT_KEY_RE } from '@docket/shared';
 import { readJson, readString, STORAGE_KEYS, writeJson, writeString } from '../lib/persistence';
 import {
   closeTab as closeTabState,

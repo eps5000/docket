@@ -3,9 +3,9 @@
  * 20 projects, 5,000 items and 100,000 events. Owner views must answer in
  * under 1 s, and agent calls must have a p95 under 500 ms.
  *
- * On demand only (not in every CI run): `pnpm --filter @tasklite/server perf`
+ * On demand only (not in every CI run): `pnpm --filter @docket/server perf`
  * (vitest.perf.config.ts). It prints a timing table for the PR. With
- * TASKLITE_PERF_KEEP=<dir> it also keeps the data set (database, documents,
+ * DOCKET_PERF_KEEP=<dir> it also keeps the data set (database, documents,
  * secrets), to load into a throwaway volume and time the screens in a browser.
  *
  * The data: the sample seed (2 projects), plus 18 generated projects built
@@ -225,11 +225,11 @@ afterAll(async () => {
     ),
   ];
   console.log(lines.join('\n'));
-  // TASKLITE_PERF_KEEP=<dir>: keep the data set, to time the screens in a browser against it.
-  const keep = process.env.TASKLITE_PERF_KEEP;
+  // DOCKET_PERF_KEEP=<dir>: keep the data set, to time the screens in a browser against it.
+  const keep = process.env.DOCKET_PERF_KEEP;
   if (keep && h) {
     mkdirSync(keep, { recursive: true });
-    sql().prepare('VACUUM INTO ?').run(join(keep, 'tasklite.db'));
+    sql().prepare('VACUUM INTO ?').run(join(keep, 'docket.db'));
     const paths = h.server.runtime.config.paths;
     cpSync(paths.docs, join(keep, 'docs'), { recursive: true });
     cpSync(paths.secrets, join(keep, 'secrets'), { recursive: true });

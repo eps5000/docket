@@ -27,7 +27,7 @@
  * an error message, and no response carries it.
  */
 import { existsSync, rmSync } from 'node:fs';
-import { ToolError, type JiraImport, type JiraReport } from '@tasklite/shared';
+import { ToolError, type JiraImport, type JiraReport } from '@docket/shared';
 import {
   JiraClient,
   JiraError,

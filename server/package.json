@@ -1,5 +1,5 @@
 {
-  "name": "@tasklite/server",
+  "name": "@docket/server",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -15,12 +15,12 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "perf": "vitest run --config vitest.perf.config.ts",
-    "db:generate": "pnpm --filter @tasklite/shared build && drizzle-kit generate"
+    "db:generate": "pnpm --filter @docket/shared build && drizzle-kit generate"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.8",
     "@modelcontextprotocol/sdk": "^1.32.2",
-    "@tasklite/shared": "workspace:^",
+    "@docket/shared": "workspace:^",
     "better-sqlite3": "^12.11.1",
     "drizzle-orm": "^0.45.4",
     "hono": "^4.13.18",
@@ -33,6 +33,6 @@
     "vitest": "^5.1.0"
   },
   "bin": {
-    "tasklite": "dist/cli/index.js"
+    "docket": "dist/cli/index.js"
   }
 }

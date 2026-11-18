@@ -4,11 +4,11 @@
  * with the scale data set, which no other spec may reset.
  *
  *   # 1. Generate and keep the data set (server/tests/perf/scale.test.ts)
- *   TASKLITE_PERF_KEEP=/tmp/tl-scale pnpm --filter @tasklite/server perf
+ *   DOCKET_PERF_KEEP=/tmp/tl-scale pnpm --filter @docket/server perf
  *   # 2. Copy it into a throwaway volume, owned by uid 10001, and start the image on it
  *   # 3. Run only this spec against it
- *   TASKLITE_E2E_PERF=1 TASKLITE_E2E_NO_START=1 TASKLITE_E2E_CONTAINER=<name> \
- *     pnpm --filter @tasklite/web exec playwright test e2e/perf-scale.spec.ts
+ *   DOCKET_E2E_PERF=1 DOCKET_E2E_NO_START=1 DOCKET_E2E_CONTAINER=<name> \
+ *     pnpm --filter @docket/web exec playwright test e2e/perf-scale.spec.ts
  *
  * Each view is timed twice: a cold load (a fresh page: HTML, the bundle, the
  * API calls and the first render) and a switch inside the app (the router
@@ -21,7 +21,7 @@ import { unlock } from './fixtures/unlock';
 const BUDGET_MS = 1_000;
 
 test.describe('owner views at scale (T143)', () => {
-  test.skip(!process.env.TASKLITE_E2E_PERF, 'Set TASKLITE_E2E_PERF=1 against the scale data set.');
+  test.skip(!process.env.DOCKET_E2E_PERF, 'Set DOCKET_E2E_PERF=1 against the scale data set.');
 
   const views: { name: string; path: string; ready: (page: Page) => Promise<void> }[] = [
     {
@@ -79,7 +79,7 @@ test.describe('owner views at scale (T143)', () => {
   test('every owner view is on screen in under 1 s', async ({ browser }) => {
     test.setTimeout(300_000);
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-    await context.addInitScript(() => localStorage.setItem('tl.notifications', 'off'));
+    await context.addInitScript(() => localStorage.setItem('docket.notifications', 'off'));
     await unlock(context);
     const rows: string[] = ['| View | Cold load ms | In-app switch ms |', '|---|---|---|'];
     const slow: string[] = [];

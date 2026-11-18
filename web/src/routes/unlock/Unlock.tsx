@@ -49,13 +49,12 @@ export function Unlock() {
     <main className="unlock">
       <form className="card" onSubmit={submit} aria-labelledby="unlock-title">
         <div className="logo" style={{ padding: 0 }}>
-          <i aria-hidden="true">TL</i>
-          <span>Task Lite</span>
+          <i aria-hidden="true">D</i>
+          <span>Docket</span>
         </div>
-        <h1 id="unlock-title">Unlock Task Lite</h1>
+        <h1 id="unlock-title">Unlock Docket</h1>
         <p className="src" style={{ margin: 0 }}>
-          Paste the owner key. Get it with:{' '}
-          <code>docker compose exec tasklite tasklite owner-key</code>
+          Paste the owner key. Get it with: <code>docker compose exec docket docket owner-key</code>
         </p>
         <label className="f" htmlFor={inputId}>
           Owner key

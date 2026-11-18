@@ -15,7 +15,7 @@ export function diagnosticsRoutes<E extends Env>(api: Hono<E>, deps: RouteDeps):
     return new Response(body, {
       headers: {
         'content-type': 'application/x-ndjson; charset=utf-8',
-        'content-disposition': `attachment; filename="tasklite-calls-${query.days}d.jsonl"`,
+        'content-disposition': `attachment; filename="docket-calls-${query.days}d.jsonl"`,
         'x-content-type-options': 'nosniff',
       },
     });

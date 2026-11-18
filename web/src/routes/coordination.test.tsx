@@ -11,7 +11,7 @@ import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { AgentRow, ItemDetailResponse, Problem, Run, WorkspaceRow } from '@tasklite/shared';
+import type { AgentRow, ItemDetailResponse, Problem, Run, WorkspaceRow } from '@docket/shared';
 import { AgentBar } from './items/AgentBar';
 import {
   ActiveRunsSection,

@@ -23,7 +23,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
-import { TASKLITE_BEGIN, TASKLITE_END } from '@tasklite/shared';
+import { DOCKET_BEGIN, DOCKET_END } from '@docket/shared';
 import { afterEach, describe, expect, it } from 'vitest';
 import { syncBundledFiles } from '../../src/jobs/bundled.js';
 import { insertProject, tempDir, type TempDir } from '../helpers.js';
@@ -43,21 +43,21 @@ afterEach(async () => {
 });
 
 const SKILLS = [
-  'tasklite-coordinator',
-  'tasklite-lead-subagents',
-  'tasklite-planner',
-  'tasklite-review-packet',
-  'tasklite-worker',
+  'docket-coordinator',
+  'docket-lead-subagents',
+  'docket-planner',
+  'docket-review-packet',
+  'docket-worker',
 ];
 
 /** A server with RCP and the shipped agent files; `push` mounts a temporary push root. */
 async function start(opts: { push?: 'set' | 'missing'; hostPath?: string } = {}) {
-  tmp = tempDir('tasklite-pushroot-');
+  tmp = tempDir('docket-pushroot-');
   const root = join(tmp.dir, 'code');
   mkdirSync(join(root, 'recipes'), { recursive: true });
   const env: Record<string, string> = {};
-  if (opts.push) env.TASKLITE_PUSH_ROOT = opts.push === 'set' ? root : join(tmp.dir, 'not-mounted');
-  if (opts.hostPath) env.TASKLITE_PUSH_HOST_PATH = opts.hostPath;
+  if (opts.push) env.DOCKET_PUSH_ROOT = opts.push === 'set' ? root : join(tmp.dir, 'not-mounted');
+  if (opts.hostPath) env.DOCKET_PUSH_HOST_PATH = opts.hostPath;
   s = createTestServer({ env, log: (line) => logs.push(line) });
   insertProject(s.runtime.db, 'RCP');
   syncBundledFiles(s.runtime);
@@ -67,13 +67,13 @@ async function start(opts: { push?: 'set' | 'missing'; hostPath?: string } = {})
     body: JSON.stringify({ key: s.runtime.secrets.ownerKey() }),
   });
   const cookies = parseSetCookies(res);
-  const cookie = `tl_owner=${cookies.tl_owner!.value}; tl_csrf=${cookies.tl_csrf!.value}`;
+  const cookie = `docket_owner=${cookies.docket_owner!.value}; docket_csrf=${cookies.docket_csrf!.value}`;
   const api = async (method: string, path: string, body?: unknown) => {
     const r = await s!.request(path, {
       method,
       headers: {
         cookie,
-        ...(method === 'GET' ? {} : { 'x-tasklite-csrf': cookies.tl_csrf!.value }),
+        ...(method === 'GET' ? {} : { 'x-docket-csrf': cookies.docket_csrf!.value }),
         ...(body === undefined ? {} : { 'content-type': 'application/json' }),
       },
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -136,7 +136,7 @@ describe('command install: the bundle and the single-use token (T155)', () => {
     expect(tokenOf(body.command.powershell)).toBe(token);
     expect(Buffer.from(token, 'base64url')).toHaveLength(32);
     expect(body.command.bash).toContain(`'http://127.0.0.1:7420/install/${token}'`);
-    expect(body.check_command.bash).toContain('.claude/.tasklite-manifest.json');
+    expect(body.check_command.bash).toContain('.claude/.docket-manifest.json');
     expect(Date.parse(body.expires_at) - server.clock.current.getTime()).toBe(10 * 60_000);
 
     // Not in the log until the token is used; one event, "Install command created".
@@ -151,52 +151,47 @@ describe('command install: the bundle and the single-use token (T155)', () => {
     expect(res.headers.get('content-type')).toBe('application/gzip');
     expect(res.headers.get('cache-control')).toBe('no-store');
     expect(res.headers.get('content-disposition')).toBe(
-      `attachment; filename="tasklite-${body.install_id}.tar.gz"`,
+      `attachment; filename="docket-${body.install_id}.tar.gz"`,
     );
     const bundle = Buffer.from(await res.arrayBuffer());
     const files = untar(bundle);
     expect([...files.keys()].sort()).toEqual(
       [
-        ...SKILLS.map((n) => `tasklite-install/files/.claude/skills/${n}/SKILL.md`),
-        'tasklite-install/files/.claude/.tasklite-manifest.json',
-        // tasklite-check, next to the manifest (decision 30, B27b).
-        'tasklite-install/files/.claude/tasklite-check.sh',
-        'tasklite-install/files/.claude/tasklite-check.ps1',
-        'tasklite-install/files.txt',
-        'tasklite-install/block.md',
-        'tasklite-install/install.sh',
-        'tasklite-install/install.ps1',
+        ...SKILLS.map((n) => `docket-install/files/.claude/skills/${n}/SKILL.md`),
+        'docket-install/files/.claude/.docket-manifest.json',
+        // docket-check, next to the manifest (decision 30, B27b).
+        'docket-install/files/.claude/docket-check.sh',
+        'docket-install/files/.claude/docket-check.ps1',
+        'docket-install/files.txt',
+        'docket-install/block.md',
+        'docket-install/install.sh',
+        'docket-install/install.ps1',
       ].sort(),
     );
-    expect(files.get('tasklite-install/files.txt')).toBe(
+    expect(files.get('docket-install/files.txt')).toBe(
       [
         ...SKILLS.map((n) => `.claude/skills/${n}/SKILL.md`),
-        '.claude/.tasklite-manifest.json',
-        '.claude/tasklite-check.sh',
-        '.claude/tasklite-check.ps1',
+        '.claude/.docket-manifest.json',
+        '.claude/docket-check.sh',
+        '.claude/docket-check.ps1',
         '',
       ].join('\n'),
     );
     // Each skill is the effective version's text, byte for byte.
-    const worker = readFileSync(
-      join(__dirname, '../../../skills/tasklite-worker/SKILL.md'),
-      'utf8',
-    );
-    expect(files.get('tasklite-install/files/.claude/skills/tasklite-worker/SKILL.md')).toBe(
-      worker,
-    );
+    const worker = readFileSync(join(__dirname, '../../../skills/docket-worker/SKILL.md'), 'utf8');
+    expect(files.get('docket-install/files/.claude/skills/docket-worker/SKILL.md')).toBe(worker);
     // The block: the comment stripped; the shipped block has no placeholders (B25).
-    const block = files.get('tasklite-install/block.md')!;
-    expect(block.startsWith('## Work tracking: Task Lite')).toBe(true);
-    expect(block).toContain('`tasklite-worker` skill');
+    const block = files.get('docket-install/block.md')!;
+    expect(block.startsWith('## Work tracking: Docket')).toBe(true);
+    expect(block).toContain('`docket-worker` skill');
     expect(block).not.toContain('{{');
     expect(block).not.toContain('<!--');
     // The scripts write CLAUDE.md, in the repo's root.
-    expect(files.get('tasklite-install/install.sh')).toContain('instr="$base/CLAUDE.md"');
-    expect(files.get('tasklite-install/install.ps1')).toContain("Join-Path $Base 'CLAUDE.md'");
+    expect(files.get('docket-install/install.sh')).toContain('instr="$base/CLAUDE.md"');
+    expect(files.get('docket-install/install.ps1')).toContain("Join-Path $Base 'CLAUDE.md'");
     // ASCII only, so Windows PowerShell 5.1 reads it the same in any code page.
     for (const script of ['install.ps1', 'install.sh']) {
-      const text = files.get(`tasklite-install/${script}`)!;
+      const text = files.get(`docket-install/${script}`)!;
       expect(
         [...text].every((c) => c.charCodeAt(0) < 0x80),
         script,
@@ -204,7 +199,7 @@ describe('command install: the bundle and the single-use token (T155)', () => {
     }
     // The manifest: the install ID, the client and target, and each file's key, path, version and sha256.
     const manifest = JSON.parse(
-      files.get('tasklite-install/files/.claude/.tasklite-manifest.json')!,
+      files.get('docket-install/files/.claude/.docket-manifest.json')!,
     ) as {
       install_id: string;
       client: string;
@@ -222,11 +217,11 @@ describe('command install: the bundle and the single-use token (T155)', () => {
       ...SKILLS.map((n) => [`skill:${n}`, `.claude/skills/${n}/SKILL.md`]),
       ['agents_block', 'CLAUDE.md'],
     ]);
-    expect(manifest.files.find((f) => f.key === 'skill:tasklite-worker')!.sha256).toBe(sha(worker));
+    expect(manifest.files.find((f) => f.key === 'skill:docket-worker')!.sha256).toBe(sha(worker));
     expect(manifest.files.find((f) => f.key === 'agents_block')!.sha256).toBe(sha(block));
     // One file per line, for the bash check.
     for (const f of manifest.files) {
-      expect(files.get('tasklite-install/files/.claude/.tasklite-manifest.json')).toContain(
+      expect(files.get('docket-install/files/.claude/.docket-manifest.json')).toContain(
         JSON.stringify({ key: f.key, path: f.path, version_id: f.version_id, sha256: f.sha256 }),
       );
     }
@@ -323,11 +318,11 @@ describe('command install: the bundle and the single-use token (T155)', () => {
     expect(cmd.bash).not.toContain('.git');
     const res = await server.request(`/install/${tokenOf(cmd.bash)}`);
     const files = untar(Buffer.from(await res.arrayBuffer()));
-    expect(files.has('tasklite-install/files/.codex/skills/tasklite-worker/SKILL.md')).toBe(true);
-    expect(files.has('tasklite-install/files/.codex/.tasklite-manifest.json')).toBe(true);
-    expect(files.get('tasklite-install/install.sh')).toContain('instr="$base/.codex/AGENTS.md"');
-    expect(files.get('tasklite-install/block.md')).toMatch(/^## Work tracking: Task Lite/);
-    expect(files.get('tasklite-install/block.md')).not.toContain('{{');
+    expect(files.has('docket-install/files/.codex/skills/docket-worker/SKILL.md')).toBe(true);
+    expect(files.has('docket-install/files/.codex/.docket-manifest.json')).toBe(true);
+    expect(files.get('docket-install/install.sh')).toContain('instr="$base/.codex/AGENTS.md"');
+    expect(files.get('docket-install/block.md')).toMatch(/^## Work tracking: Docket/);
+    expect(files.get('docket-install/block.md')).not.toContain('{{');
     expect(eventsOf(server).at(-1)!.summary).toBe(
       'Installed by command: Codex, user-wide, 6 files',
     );
@@ -335,17 +330,13 @@ describe('command install: the bundle and the single-use token (T155)', () => {
 
   it('sends a project override as that project’s effective version', async () => {
     const { api, server } = await start();
-    const put = await api(
-      'PUT',
-      `/api/agent-files/${encodeURIComponent('skill:tasklite-worker')}`,
-      {
-        layer: 'project',
-        project: 'RCP',
-        content: '# RCP worker\n',
-        expected_version: 0,
-        note: 'Ours.',
-      },
-    );
+    const put = await api('PUT', `/api/agent-files/${encodeURIComponent('skill:docket-worker')}`, {
+      layer: 'project',
+      project: 'RCP',
+      content: '# RCP worker\n',
+      expected_version: 0,
+      note: 'Ours.',
+    });
     expect(put.status).toBe(200);
     const created = await api('POST', '/api/installs', {
       client: 'claude',
@@ -357,7 +348,7 @@ describe('command install: the bundle and the single-use token (T155)', () => {
       `/install/${tokenOf((created.body.command as { bash: string }).bash)}`,
     );
     const files = untar(Buffer.from(await res.arrayBuffer()));
-    expect(files.get('tasklite-install/files/.claude/skills/tasklite-worker/SKILL.md')).toBe(
+    expect(files.get('docket-install/files/.claude/skills/docket-worker/SKILL.md')).toBe(
       '# RCP worker\n',
     );
   });
@@ -417,9 +408,9 @@ describe('push install and check (T156)', () => {
       files: [
         ...SKILLS.map((n) => ({ path: `.claude/skills/${n}/SKILL.md`, change: 'created' })),
         { path: 'CLAUDE.md', change: 'updated' },
-        { path: '.claude/.tasklite-manifest.json', change: 'created' },
-        { path: '.claude/tasklite-check.sh', change: 'created' },
-        { path: '.claude/tasklite-check.ps1', change: 'created' },
+        { path: '.claude/.docket-manifest.json', change: 'created' },
+        { path: '.claude/docket-check.sh', change: 'created' },
+        { path: '.claude/docket-check.ps1', change: 'created' },
       ],
     });
     expect(first.body.command).toBeUndefined();
@@ -429,11 +420,11 @@ describe('push install and check (T156)', () => {
     const claude = readFileSync(join(repo, 'CLAUDE.md'));
     expect(claude.subarray(0, Buffer.byteLength(PRE)).equals(Buffer.from(PRE))).toBe(true);
     const tail = claude.subarray(Buffer.byteLength(PRE)).toString('utf8');
-    expect(tail.startsWith(`\n${TASKLITE_BEGIN}\n## Work tracking: Task Lite`)).toBe(true);
-    expect(tail.endsWith(`${TASKLITE_END}\n`)).toBe(true);
+    expect(tail.startsWith(`\n${DOCKET_BEGIN}\n## Work tracking: Docket`)).toBe(true);
+    expect(tail.endsWith(`${DOCKET_END}\n`)).toBe(true);
     expect(readFileSync(join(repo, 'README.md'), 'utf8')).toBe('readme');
     const manifest = JSON.parse(
-      readFileSync(join(repo, '.claude/.tasklite-manifest.json'), 'utf8'),
+      readFileSync(join(repo, '.claude/.docket-manifest.json'), 'utf8'),
     ) as S;
     expect(manifest.install_id).toBe(id);
 
@@ -455,14 +446,14 @@ describe('push install and check (T156)', () => {
     expect(clean.body).toMatchObject({ install_id: id, state: 'up_to_date', files: [] });
 
     // A Windows checkout's CRLF is not an edit.
-    const plannerPath = join(repo, '.claude/skills/tasklite-planner/SKILL.md');
+    const plannerPath = join(repo, '.claude/skills/docket-planner/SKILL.md');
     writeFileSync(plannerPath, readFileSync(plannerPath, 'utf8').replace(/\n/g, '\r\n'));
     expect((await api('POST', `/api/installs/${id}/check`, {})).body.state).toBe('up_to_date');
 
-    // Edit one, delete one, edit the block, add an extra tasklite-* folder and an unrelated skill.
-    const workerPath = join(repo, '.claude/skills/tasklite-worker/SKILL.md');
+    // Edit one, delete one, edit the block, add an extra docket-* folder and an unrelated skill.
+    const workerPath = join(repo, '.claude/skills/docket-worker/SKILL.md');
     writeFileSync(workerPath, `${readFileSync(workerPath, 'utf8')}\nLocal tweak.\n`);
-    rmSync(join(repo, '.claude/skills/tasklite-coordinator/SKILL.md'));
+    rmSync(join(repo, '.claude/skills/docket-coordinator/SKILL.md'));
     writeFileSync(
       join(repo, 'CLAUDE.md'),
       readFileSync(join(repo, 'CLAUDE.md'), 'utf8').replace(
@@ -470,7 +461,7 @@ describe('push install and check (T156)', () => {
         '## Work tracking (ours)',
       ),
     );
-    mkdirSync(join(repo, '.claude/skills/tasklite-old'));
+    mkdirSync(join(repo, '.claude/skills/docket-old'));
     mkdirSync(join(repo, '.claude/skills/my-own-skill'));
     const check = await api('POST', `/api/installs/${id}/check`, {});
     expect(check.status).toBe(200);
@@ -483,17 +474,17 @@ describe('push install and check (T156)', () => {
     expect(check.body.state).toBe('differs');
     expect(files.map(({ key, path, state }) => ({ key, path, state }))).toEqual([
       {
-        key: 'skill:tasklite-coordinator',
-        path: '.claude/skills/tasklite-coordinator/SKILL.md',
+        key: 'skill:docket-coordinator',
+        path: '.claude/skills/docket-coordinator/SKILL.md',
         state: 'missing',
       },
       {
-        key: 'skill:tasklite-worker',
-        path: '.claude/skills/tasklite-worker/SKILL.md',
+        key: 'skill:docket-worker',
+        path: '.claude/skills/docket-worker/SKILL.md',
         state: 'edited',
       },
       { key: 'agents_block', path: 'CLAUDE.md', state: 'edited' },
-      { key: null, path: '.claude/skills/tasklite-old/', state: 'extra' },
+      { key: null, path: '.claude/skills/docket-old/', state: 'extra' },
     ]);
     expect(files[1]!.local_content).toContain('Local tweak.');
     expect(files[2]!.local_content!.startsWith('## Work tracking (ours)')).toBe(true);
@@ -523,16 +514,16 @@ describe('push install and check (T156)', () => {
       ]),
     );
     expect(changes).toMatchObject({
-      '.claude/skills/tasklite-coordinator/SKILL.md': 'created',
-      '.claude/skills/tasklite-worker/SKILL.md': 'updated',
-      '.claude/skills/tasklite-planner/SKILL.md': 'updated',
-      '.claude/skills/tasklite-review-packet/SKILL.md': 'unchanged',
+      '.claude/skills/docket-coordinator/SKILL.md': 'created',
+      '.claude/skills/docket-worker/SKILL.md': 'updated',
+      '.claude/skills/docket-planner/SKILL.md': 'updated',
+      '.claude/skills/docket-review-packet/SKILL.md': 'unchanged',
       'CLAUDE.md': 'updated',
-      '.claude/.tasklite-manifest.json': 'updated',
+      '.claude/.docket-manifest.json': 'updated',
     });
     const recheck = await api('POST', `/api/installs/${again.body.install_id as string}/check`, {});
     expect(recheck.body.files).toEqual([
-      { key: null, path: '.claude/skills/tasklite-old/', state: 'extra' },
+      { key: null, path: '.claude/skills/docket-old/', state: 'extra' },
     ]);
     expect(existsSync(join(repo, '.claude/skills/my-own-skill'))).toBe(true);
     // Still byte-identical outside the markers after the replace.
@@ -546,7 +537,7 @@ describe('push install and check (T156)', () => {
   it('refuses a damaged section, and writes nothing', async () => {
     const { api, root } = await start({ push: 'set' });
     const repo = join(root, 'recipes');
-    writeFileSync(join(repo, 'CLAUDE.md'), `# Mine\n${TASKLITE_END}\n`);
+    writeFileSync(join(repo, 'CLAUDE.md'), `# Mine\n${DOCKET_END}\n`);
     const res = await api('POST', '/api/installs', {
       client: 'claude',
       target_kind: 'repo',
@@ -554,7 +545,7 @@ describe('push install and check (T156)', () => {
       path: 'recipes',
     });
     expect(res.status).toBe(400);
-    expect((res.body.error as S).message).toMatch(/CLAUDE\.md has a damaged Task Lite section/);
+    expect((res.body.error as S).message).toMatch(/CLAUDE\.md has a damaged Docket section/);
     expect(readdirSync(repo)).toEqual(['CLAUDE.md']);
     expect((await api('GET', '/api/installs')).body).toEqual({ installs: [] });
   });
@@ -606,7 +597,7 @@ describe('the push folder: status and Test', () => {
     expect(test.body).toEqual({
       ok: false,
       message:
-        "Push install is off: TASKLITE_PUSH_ROOT isn't set. Mount a folder and set it, then restart Task Lite.",
+        "Push install is off: DOCKET_PUSH_ROOT isn't set. Mount a folder and set it, then restart Docket.",
     });
     const push = await api('POST', '/api/installs', {
       client: 'claude',
@@ -615,7 +606,7 @@ describe('the push folder: status and Test', () => {
       path: 'recipes',
     });
     expect(push.status).toBe(400);
-    expect((push.body.error as S).message).toMatch(/TASKLITE_PUSH_ROOT isn't set/);
+    expect((push.body.error as S).message).toMatch(/DOCKET_PUSH_ROOT isn't set/);
   });
 
   it('set: writable, and Test writes and removes a probe file', async () => {

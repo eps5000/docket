@@ -11,7 +11,7 @@
  * slipping the root by `delay_days` and pushing each slip downstream: an item
  * that must start later ends later by the same number of days.
  */
-import { ToolError, type Status } from '@tasklite/shared';
+import { ToolError, type Status } from '@docket/shared';
 import type { ServiceDeps, SubgraphService } from './contracts.js';
 import { compareIds, cyclesOf } from './links.js';
 import { BlockIndex, endsOnOrAfter, requireItem } from './model.js';

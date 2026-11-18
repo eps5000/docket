@@ -4,7 +4,7 @@
 # edits the files and checks them. Never for a real install: mount a real folder instead
 # (see the commented example in compose.yaml).
 services:
-  tasklite:
+  docket:
     environment:
-      TASKLITE_PUSH_ROOT: /tmp/host-code
-      TASKLITE_PUSH_HOST_PATH: C:/Users/owner/code
+      DOCKET_PUSH_ROOT: /tmp/host-code
+      DOCKET_PUSH_HOST_PATH: C:/Users/owner/code

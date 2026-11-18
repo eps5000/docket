@@ -489,12 +489,9 @@ describe('agent file inputs (MCP_SPEC §5.4 instructions, §5.10; decision 30; B
   const sha = 'a'.repeat(64);
   const claim = (instructions: unknown) => ({ id: 'RCP-23', instructions });
 
-  it('claim_lead takes the tasklite-check report: install_id, and up to 20 files', () => {
+  it('claim_lead takes the docket-check report: install_id, and up to 20 files', () => {
     ok('claim_lead', claim({ install_id: 'ins_1', files: [{ key: 'agents_block', sha256: sha }] }));
-    ok(
-      'claim_lead',
-      claim({ files: [{ key: 'skill:tasklite-worker', sha256: sha.toUpperCase() }] }),
-    );
+    ok('claim_lead', claim({ files: [{ key: 'skill:docket-worker', sha256: sha.toUpperCase() }] }));
     // Empty, with install_id: every installed file is missing.
     ok('claim_lead', claim({ install_id: 'ins_1', files: [] }));
     const twenty = Array.from({ length: 20 }, (_, i) => ({ key: `skill:s${i}`, sha256: sha }));
@@ -528,18 +525,18 @@ describe('agent file inputs (MCP_SPEC §5.4 instructions, §5.10; decision 30; B
 
   it('get_agent_files needs a project; file is one key', () => {
     ok('get_agent_files', { project: 'RCP' });
-    for (const file of ['agents_block', 'workflow', 'skill:tasklite-worker']) {
+    for (const file of ['agents_block', 'workflow', 'skill:docket-worker']) {
       ok('get_agent_files', { project: 'RCP', file });
     }
     fails('get_agent_files', {});
-    fails('get_agent_files', { project: 'RCP', file: 'tasklite-worker' });
+    fails('get_agent_files', { project: 'RCP', file: 'docket-worker' });
     fails('get_agent_files', { project: 'RCP', idempotency_key: 'k' });
   });
 
   const propose = (extra: Record<string, unknown>) => ({
     project: 'RCP',
-    file: 'skill:tasklite-worker',
-    content: '---\nname: tasklite-worker\n---\n',
+    file: 'skill:docket-worker',
+    content: '---\nname: docket-worker\n---\n',
     reason: 'Run the linter before each commit.',
     based_on_version_id: 'afv_1',
     ...extra,
@@ -557,7 +554,7 @@ describe('agent file inputs (MCP_SPEC §5.4 instructions, §5.10; decision 30; B
     fails('propose_agent_file_change', propose({ reason: 'r'.repeat(501) }));
     fails('propose_agent_file_change', propose({ based_on_version_id: undefined }));
     fails('propose_agent_file_change', propose({ based_on_version_id: null }));
-    fails('propose_agent_file_change', propose({ file: 'skills/tasklite-worker' }));
+    fails('propose_agent_file_change', propose({ file: 'skills/docket-worker' }));
   });
 
   it('Workflow notes need a project, are at most 10,000, may be empty, and may start from none', () => {

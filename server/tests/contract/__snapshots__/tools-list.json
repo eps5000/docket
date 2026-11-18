@@ -1,7 +1,7 @@
 [
   {
     "name": "whoami",
-    "description": "Check your connection to Task Lite. Returns how the server identifies you, server limits and the server time. Call it once at the start of a session.",
+    "description": "Check your connection to Docket. Returns how the server identifies you, server limits and the server time. Call it once at the start of a session.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -4993,7 +4993,7 @@
   },
   {
     "name": "claim_lead",
-    "description": "Claim an item as its lead before you work on it. Works on Ready items (moves them to In progress) and on In progress items with no lead (resuming sent-back or interrupted work). Pass workspace (where the work lives) and, if a coordinator briefed you, the brief, so the work can be restarted after a crash. Pass instructions with the output of the installed tasklite-check script, so the owner knows which instructions you work from. Returns your run_id: pass it on every later call. If someone else holds the claim you get a conflict with who holds it and until when; do not work on the item.",
+    "description": "Claim an item as its lead before you work on it. Works on Ready items (moves them to In progress) and on In progress items with no lead (resuming sent-back or interrupted work). Pass workspace (where the work lives) and, if a coordinator briefed you, the brief, so the work can be restarted after a crash. Pass instructions with the output of the installed docket-check script, so the owner knows which instructions you work from. Returns your run_id: pass it on every later call. If someone else holds the claim you get a conflict with who holds it and until when; do not work on the item.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -5706,7 +5706,7 @@
   },
   {
     "name": "start_run",
-    "description": "Start a child run under your lead run when you delegate to a subagent that has its own Task Lite connection. Pass its workspace and brief as for claim_lead. The subagent passes the child run_id on its calls. For subagents without their own connection, use log_subagent instead.",
+    "description": "Start a child run under your lead run when you delegate to a subagent that has its own Docket connection. Pass its workspace and brief as for claim_lead. The subagent passes the child run_id on its calls. For subagents without their own connection, use log_subagent instead.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -5890,7 +5890,7 @@
   },
   {
     "name": "heartbeat",
-    "description": "Tell Task Lite you are still working, and update what it knows about your run: your current step, your workspace (head and pushed commits, uncommitted changes), and long-lived resources you started or released. Any call with run_id keeps you live, so use this when you have nothing else to record or something changed.",
+    "description": "Tell Docket you are still working, and update what it knows about your run: your current step, your workspace (head and pushed commits, uncommitted changes), and long-lived resources you started or released. Any call with run_id keeps you live, so use this when you have nothing else to record or something changed.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -6266,7 +6266,7 @@
   },
   {
     "name": "park_run",
-    "description": "Park your run when you must wait: on another item, on the coordinator to send you more work, or on a person. A parked run keeps its claim and its workspace stays marked in use, so it is never mistaken for finished or stale. Say what you are waiting on; Task Lite flags it as ready to resume when that clears. Any later call with your run_id resumes it.",
+    "description": "Park your run when you must wait: on another item, on the coordinator to send you more work, or on a person. A parked run keeps its claim and its workspace stays marked in use, so it is never mistaken for finished or stale. Say what you are waiting on; Docket flags it as ready to resume when that clears. Any later call with your run_id resumes it.",
     "inputSchema": {
       "type": "object",
       "properties": {

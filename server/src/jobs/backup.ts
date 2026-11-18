@@ -1,8 +1,8 @@
 /**
  * Backups and restore (BUILD_SPEC §5.13; owner decision 24; FR-103, FR-103a; SC-008).
  *
- * A backup is one `tasklite-YYYYMMDD-HHMM.tar.gz` (local time) holding:
- * - `tasklite.db`: a `VACUUM INTO` snapshot, consistent under WAL;
+ * A backup is one `docket-YYYYMMDD-HHMM.tar.gz` (local time) holding:
+ * - `docket.db`: a `VACUUM INTO` snapshot, consistent under WAL;
  * - `docs/<path>`: every document version the snapshot references, byte for byte.
  *   `docs/.staging` (uploads still arriving) is never archived;
  * - `manifest.json`, last: each file's size and sha256, plus the item, event
@@ -11,13 +11,13 @@
  * Every archive is verified after writing: it is read back, every file is
  * checked against the manifest, the database passes `integrity_check`, and
  * its checksums match. Only then is it renamed into place. Backups go to
- * `/data/backups` and are kept `TASKLITE_BACKUP_KEEP` days. When
- * `TASKLITE_BACKUP_EXTRA_DIR` is set, the verified archive is also copied
+ * `/data/backups` and are kept `DOCKET_BACKUP_KEEP` days. When
+ * `DOCKET_BACKUP_EXTRA_DIR` is set, the verified archive is also copied
  * there (and the copy checked byte for byte), with the same retention. A
  * failed extra copy never fails the backup; it is recorded in
  * `/data/backups/status.json`, which Settings and Problems read.
  *
- * Restore runs offline (`tasklite restore <file>`): it refuses while the
+ * Restore runs offline (`docket restore <file>`): it refuses while the
  * server holds its lock, verifies the whole archive into a staging
  * directory, swaps it in, and checks the restored data's checksums against
  * the manifest before it removes the old data.
@@ -43,6 +43,7 @@ import {
 import { copyFile } from 'node:fs/promises';
 import { hostname } from 'node:os';
 import { basename, dirname, isAbsolute, join, normalize, resolve, sep } from 'node:path';
+import { LEGACY_BACKUP_FORMAT, LEGACY_DB_FILE } from '@docket/shared';
 import Database from 'better-sqlite3';
 import type { Config } from '../config.js';
 import type { BackupLocationStatus, BackupResult } from '../domain/contracts.js';
@@ -52,9 +53,19 @@ import { readTarGz, writeTarGz, type TarFileEntry, type TarSink } from './tar.js
 type Sqlite = Database.Database;
 
 export const MANIFEST = 'manifest.json';
-export const DB_ENTRY = 'tasklite.db';
-const FORMAT = 'tasklite-backup';
-const ARCHIVE = /^tasklite-(\d{8})-(\d{4}|\d{6})(?:-(\d+))?\.tar\.gz$/;
+export const DB_ENTRY = 'docket.db';
+const FORMAT = 'docket-backup';
+/**
+ * Archives are `docket-…`. Those taken before the rename (B28) are named
+ * `tasklite-…`, hold `tasklite.db` and say `tasklite-backup`; they are
+ * listed, pruned, verified and restored the same way.
+ */
+const ARCHIVE = /^(?:docket|tasklite)-(\d{8})-(\d{4}|\d{6})(?:-(\d+))?\.tar\.gz$/;
+/** The database entry an archive of each format holds. */
+const DB_ENTRY_OF: Record<string, string> = {
+  [FORMAT]: DB_ENTRY,
+  [LEGACY_BACKUP_FORMAT]: LEGACY_DB_FILE,
+};
 const DAY_MS = 86_400_000;
 
 // ---- Checksums (SC-008: "a restored backup matches the original exactly") ----
@@ -197,11 +208,11 @@ export function listArchives(dir: string): { name: string; path: string; at: Dat
 function archiveName(now: Date, dirs: string[]): string {
   const hm = `${two(now.getHours())}${two(now.getMinutes())}`;
   const candidates = [
-    `tasklite-${ymd(now)}-${hm}.tar.gz`,
-    `tasklite-${ymd(now)}-${hm}${two(now.getSeconds())}.tar.gz`,
+    `docket-${ymd(now)}-${hm}.tar.gz`,
+    `docket-${ymd(now)}-${hm}${two(now.getSeconds())}.tar.gz`,
   ];
   for (let i = 2; i < 1000; i++) {
-    candidates.push(`tasklite-${ymd(now)}-${hm}${two(now.getSeconds())}-${i}.tar.gz`);
+    candidates.push(`docket-${ymd(now)}-${hm}${two(now.getSeconds())}-${i}.tar.gz`);
   }
   const name = candidates.find((n) => dirs.every((d) => !existsSync(join(d, n))));
   if (!name) throw new Error('Too many backups this second.');
@@ -291,7 +302,8 @@ export function backupStatus(config: Config): BackupLocationStatus[] {
 // ---- Verifying an archive ----
 
 export interface Manifest {
-  format: typeof FORMAT;
+  /** `docket-backup`, or `tasklite-backup` for an archive from before the rename. */
+  format: string;
   version: 1;
   created_at: string;
   app_version: string;
@@ -363,13 +375,13 @@ function fileSink(path: string, hash: ReturnType<typeof sha>): FileSink {
  * Read a whole archive and prove it is sound: every file matches the
  * manifest, the database passes `integrity_check`, and the data checksums
  * match. With `extractTo`, the database and documents are written there
- * (`tasklite.db`, `docs/…`); otherwise only the database goes to a
+ * (`docket.db`, `docs/…`); otherwise only the database goes to a
  * temporary directory, removed afterwards.
  */
 export async function verifyArchive(
   path: string,
   opts: { extractTo?: string; tmpParent?: string } = {},
-): Promise<{ manifest: Manifest; checksums: DataChecksums }> {
+): Promise<{ manifest: Manifest; checksums: DataChecksums; dbEntry: string }> {
   const tmp =
     opts.extractTo ??
     join(opts.tmpParent ?? dirname(path), `.tmp-${randomBytes(6).toString('hex')}`);
@@ -404,7 +416,8 @@ export async function verifyArchive(
           };
         }
         const extract =
-          name === DB_ENTRY || (opts.extractTo !== undefined && name.startsWith('docs/'));
+          Object.values(DB_ENTRY_OF).includes(name) ||
+          (opts.extractTo !== undefined && name.startsWith('docs/'));
         if (extract) {
           const sink = fileSink(join(tmp, ...name.split('/')), hash);
           sinks.push(sink);
@@ -439,11 +452,12 @@ export async function verifyArchive(
       manifest = JSON.parse(manifestText) as Manifest;
     } catch {
       throw new ArchiveError(
-        'The archive has no readable manifest.json; it is not a Task Lite backup.',
+        'The archive has no readable manifest.json; it is not a Docket backup.',
       );
     }
-    if (manifest.format !== FORMAT || manifest.version !== 1) {
-      throw new ArchiveError('The archive is not a Task Lite backup (unknown manifest format).');
+    const dbEntry = DB_ENTRY_OF[manifest.format];
+    if (!dbEntry || manifest.version !== 1) {
+      throw new ArchiveError('The archive is not a Docket backup (unknown manifest format).');
     }
     for (const [name, want] of Object.entries(manifest.files)) {
       const got = seen.get(name);
@@ -457,9 +471,9 @@ export async function verifyArchive(
         throw new ArchiveError(`The archive has a file the manifest doesn't list: ${name}.`);
       }
     }
-    if (!manifest.files[DB_ENTRY]) throw new ArchiveError('The archive has no database.');
+    if (!manifest.files[dbEntry]) throw new ArchiveError('The archive has no database.');
 
-    const sqlite = new Database(join(tmp, DB_ENTRY), { readonly: true, fileMustExist: true });
+    const sqlite = new Database(join(tmp, dbEntry), { readonly: true, fileMustExist: true });
     let checksums: DataChecksums;
     try {
       const integrity = sqlite.pragma('integrity_check', { simple: true });
@@ -475,7 +489,7 @@ export async function verifyArchive(
     if (!sameChecksums(checksums, manifest.checksums)) {
       throw new ArchiveError("The archived data doesn't match the manifest's checksums.");
     }
-    return { manifest, checksums };
+    return { manifest, checksums, dbEntry };
   } finally {
     if (opts.extractTo === undefined) rmSync(tmp, { recursive: true, force: true });
   }
@@ -497,7 +511,7 @@ export function extraCopyReason(err: unknown, dir: string): string {
   switch (code) {
     case 'ENOENT':
     case 'ENOTDIR':
-      return `${dir} doesn't exist. Mount the host folder there, or unset TASKLITE_BACKUP_EXTRA_DIR`;
+      return `${dir} doesn't exist. Mount the host folder there, or unset DOCKET_BACKUP_EXTRA_DIR`;
     case 'EACCES':
     case 'EPERM':
     case 'EROFS':
@@ -743,7 +757,7 @@ export class RestoreRefused extends Error {
 
 /**
  * Find the archive to restore: a path as given, else a name in the volume's
- * backups folder or the extra location (`tasklite restore` takes either).
+ * backups folder or the extra location (`docket restore` takes either).
  */
 export function resolveArchive(config: Config, file: string): string {
   const candidates = [resolve(file)];
@@ -787,7 +801,7 @@ export async function restoreBackup(opts: {
   const running = runningServer(config, clock());
   if (running) {
     throw new RestoreRefused(
-      'Task Lite is running on this data volume. Stop it first (docker compose stop tasklite), then run: docker compose run --rm tasklite tasklite restore <file>',
+      'Docket is running on this data volume. Stop it first (docker compose stop docket), then run: docker compose run --rm docket docket restore <file>',
     );
   }
   const archive = resolveArchive(config, opts.file);
@@ -796,7 +810,7 @@ export async function restoreBackup(opts: {
   const staging = join(config.dataDir, `.restore-${stamp}`);
   const aside = join(config.dataDir, `.pre-restore-${stamp}`);
   log(`Verifying ${archive}…`);
-  let verified: { manifest: Manifest; checksums: DataChecksums };
+  let verified: { manifest: Manifest; checksums: DataChecksums; dbEntry: string };
   try {
     verified = await verifyArchive(archive, { extractTo: staging });
   } catch (err) {
@@ -816,7 +830,7 @@ export async function restoreBackup(opts: {
         moved.push([to, part]);
       }
     }
-    renameSync(join(staging, DB_ENTRY), config.paths.db);
+    renameSync(join(staging, verified.dbEntry), config.paths.db);
     renameSync(join(staging, 'docs'), config.paths.docs);
     const restored = liveChecksums({ db: config.paths.db, docs: config.paths.docs });
     if (!sameChecksums(restored, verified.manifest.checksums)) {
@@ -864,7 +878,7 @@ export function nextBackupAt(now: Date, at: string): Date {
   return next;
 }
 
-/** Run `backup` every night at `TASKLITE_BACKUP_AT`. A failure is logged and retried the next night. */
+/** Run `backup` every night at `DOCKET_BACKUP_AT`. A failure is logged and retried the next night. */
 export function startBackupJob(opts: {
   config: Config;
   backup: () => Promise<unknown>;

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-import type { ForYouRow } from '@tasklite/shared';
+import type { ForYouRow } from '@docket/shared';
 import { Button, Card, CardHeader, EmptyState, Icon } from '../../components/kit';
 import { paths } from '../../lib/paths';
 import { AnswerBox } from '../shared/AnswerBox';

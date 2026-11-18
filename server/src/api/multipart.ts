@@ -8,7 +8,7 @@
  * each chunk as it arrives and backpressure reaches the socket. At most one
  * chunk plus the boundary is held at once.
  */
-import { ToolError } from '@tasklite/shared';
+import { ToolError } from '@docket/shared';
 
 const HEADER_END = Buffer.from('\r\n\r\n');
 const MAX_HEADER_BYTES = 16 * 1024;

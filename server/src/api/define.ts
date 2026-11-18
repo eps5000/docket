@@ -40,7 +40,7 @@ import {
   type RouteParams,
   type RouteQuery,
   type RouteResult,
-} from '@tasklite/shared';
+} from '@docket/shared';
 import type { z } from 'zod';
 import {
   isNotImplemented,

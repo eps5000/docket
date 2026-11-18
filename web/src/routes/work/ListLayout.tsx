@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router';
-import type { WorkItem } from '@tasklite/shared';
+import type { WorkItem } from '@docket/shared';
 import {
   BlockedChip,
   Priority,

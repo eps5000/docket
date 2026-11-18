@@ -17,8 +17,8 @@ beforeEach(async () => {
     body: JSON.stringify({ key: s.runtime.secrets.ownerKey() }),
   });
   const cookies = parseSetCookies(res);
-  csrf = cookies.tl_csrf!.value;
-  cookie = `tl_owner=${cookies.tl_owner!.value}; tl_csrf=${csrf}`;
+  csrf = cookies.docket_csrf!.value;
+  cookie = `docket_owner=${cookies.docket_owner!.value}; docket_csrf=${csrf}`;
 });
 afterEach(async () => {
   await s.cleanup();
@@ -100,7 +100,7 @@ describe('/api/stream', () => {
     setTimeout(() => {
       void s.request(`/api/mutations/${change.mutation_id}/undo`, {
         method: 'POST',
-        headers: { cookie, 'x-tasklite-csrf': csrf },
+        headers: { cookie, 'x-docket-csrf': csrf },
       });
     }, 50);
     const text = await readUntil(res, (t) => messages(t).length >= 1);
@@ -113,7 +113,7 @@ describe('POST /api/mutations/:id/undo', () => {
     const change = emit('item.updated');
     const res = await s.request(`/api/mutations/${change.mutation_id}/undo`, {
       method: 'POST',
-      headers: { cookie, 'x-tasklite-csrf': csrf },
+      headers: { cookie, 'x-docket-csrf': csrf },
     });
     expect(res.status).toBe(200);
     const body = (await res.json()) as { mutation_id: string; undone: string };
@@ -126,7 +126,7 @@ describe('POST /api/mutations/:id/undo', () => {
     const undo = () =>
       s.request(`/api/mutations/${change.mutation_id}/undo`, {
         method: 'POST',
-        headers: { cookie, 'x-tasklite-csrf': csrf },
+        headers: { cookie, 'x-docket-csrf': csrf },
       });
     expect((await undo()).status).toBe(200);
     const again = await undo();
@@ -138,7 +138,7 @@ describe('POST /api/mutations/:id/undo', () => {
     const change = emit('item.updated', { kind: 'agent', client: 'claude', label: null });
     const res = await s.request(`/api/mutations/${change.mutation_id}/undo`, {
       method: 'POST',
-      headers: { cookie, 'x-tasklite-csrf': csrf },
+      headers: { cookie, 'x-docket-csrf': csrf },
     });
     expect(res.status).toBe(403);
   });

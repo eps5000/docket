@@ -372,7 +372,7 @@ const AGENT_FILES_LISTING = {
       content: null,
     },
     {
-      key: 'skill:tasklite-worker',
+      key: 'skill:docket-worker',
       kind: 'skill' as const,
       version_id: 'afv_01JD3B',
       sha256: '5b0e7d2c91aa40f35b0e7d2c91aa40f35b0e7d2c91aa40f35b0e7d2c91aa40f3',
@@ -654,7 +654,7 @@ const SAMPLES: Record<ToolName, { result: unknown; args?: Record<string, unknown
   get_agent_files: { result: AGENT_FILES_LISTING, args: { project: 'RCP' } },
   propose_agent_file_change: {
     result: { proposal_id: 'afp_01JD4K', state: 'pending' },
-    args: { project: 'RCP', file: 'skill:tasklite-worker' },
+    args: { project: 'RCP', file: 'skill:docket-worker' },
   },
 };
 
@@ -687,13 +687,13 @@ describe('agent files (MCP_SPEC §5.10; decision 30)', () => {
     expect(text.split('\n')).toEqual([
       'Agent files for RCP: 3',
       'agents_block · default · afv_01JD3A · sha256 a3f1c9e07b2d',
-      "skill:tasklite-worker · RCP's copy · afv_01JD3B · sha256 5b0e7d2c91aa",
+      "skill:docket-worker · RCP's copy · afv_01JD3B · sha256 5b0e7d2c91aa",
       "workflow · RCP's copy · none yet · sha256 e3b0c44298fc",
     ]);
   });
 
   it("prints one file's full text verbatim, unindented, so an agent can propose from it", () => {
-    const content = '---\nname: tasklite-worker\n---\n\n  Indented line.\n';
+    const content = '---\nname: docket-worker\n---\n\n  Indented line.\n';
     const text = renderResult(
       'get_agent_files',
       { project: 'RCP', files: [{ ...AGENT_FILES_LISTING.files[1]!, content }] },
@@ -702,7 +702,7 @@ describe('agent files (MCP_SPEC §5.10; decision 30)', () => {
     expect(text).toBe(
       [
         'Agent files for RCP: 1',
-        "skill:tasklite-worker · RCP's copy · afv_01JD3B · sha256 5b0e7d2c91aa",
+        "skill:docket-worker · RCP's copy · afv_01JD3B · sha256 5b0e7d2c91aa",
         `content (${content.length} characters, verbatim):`,
         content,
       ].join('\n'),

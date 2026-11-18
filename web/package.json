@@ -1,5 +1,5 @@
 {
-  "name": "@tasklite/web",
+  "name": "@docket/web",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.107.1",
-    "@tasklite/shared": "workspace:^",
+    "@docket/shared": "workspace:^",
     "dompurify": "3.4.17",
     "markdown-it": "15.0.3",
     "react": "^19.3.1",

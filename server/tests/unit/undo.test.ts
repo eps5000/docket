@@ -1,4 +1,4 @@
-import type { ToolError } from '@tasklite/shared';
+import type { ToolError } from '@docket/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { UNDO_WINDOW_MS, undoMutation } from '../../src/domain/undo.js';
 import { OWNER_ACTOR, WritePath, type Actor } from '../../src/domain/write.js';

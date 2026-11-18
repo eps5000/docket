@@ -11,21 +11,23 @@ related:
   - first-look-around
 ---
 
-Agents talk to Task Lite over MCP at `http://127.0.0.1:7420/mcp`. They sign in with the **agent token**, which is different from the owner key you unlock this page with. Agents never get the owner key.
+Agents talk to Docket over MCP at `http://127.0.0.1:7420/mcp`. They sign in with the **agent token**, which is different from the owner key you unlock this page with. Agents never get the owner key.
 
 ## 1. Put the token where your agents start
 
 1. Open **Settings**. Under **Connections**, find the **Client setup** card.
 2. Click *Reveal token*, then *Copy token*. The token hides again after 30 seconds.
-3. Set it as `TASKLITE_TOKEN` in the environment your agents start from:
-   - macOS or Linux: add `export TASKLITE_TOKEN="<token>"` to your shell profile, then open a new terminal.
-   - Windows: run `setx TASKLITE_TOKEN "<token>"`, then open a new terminal.
+3. Set it as `DOCKET_TOKEN` in the environment your agents start from:
+   - macOS or Linux: add `export DOCKET_TOKEN="<token>"` to your shell profile, then open a new terminal.
+   - Windows: run `setx DOCKET_TOKEN "<token>"`, then open a new terminal.
 
 Don't add a trailing space or newline: it breaks sign-in.
 
-## 2. Add Task Lite to the client
+## 2. Add Docket to the client
 
-In **Client setup**, pick **Codex** or **Claude Code** and click *Copy*. The snippet uses `$TASKLITE_TOKEN`, never the token itself.
+In **Client setup**, pick **Codex** or **Claude Code** and click *Copy*. The snippet uses `$DOCKET_TOKEN`, never the token itself.
+
+Set up before the rename? Rename your MCP server entry from tasklite to docket. The URL is unchanged, so the old entry keeps working until you do.
 
 - **Codex:** paste it into `~/.codex/config.toml` (Windows: `%USERPROFILE%\.codex\config.toml`). Codex reads the token from the environment each time it connects.
 - **Claude Code:** run the command in a terminal. Your shell fills in the token, so Claude Code stores it; run the command again if you ever rotate the token.

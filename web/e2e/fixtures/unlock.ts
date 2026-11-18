@@ -7,7 +7,7 @@ import type { BrowserContext, Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 import { ownerKey } from './container';
 
-/** Unlock a context: its cookie jar gets `tl_owner` and `tl_csrf`. */
+/** Unlock a context: its cookie jar gets `docket_owner` and `docket_csrf`. */
 export async function unlock(target: BrowserContext | Page): Promise<void> {
   const request = 'request' in target ? target.request : (target as BrowserContext).request;
   const res = await request.post('/api/session/unlock', { data: { key: ownerKey() } });
@@ -16,7 +16,7 @@ export async function unlock(target: BrowserContext | Page): Promise<void> {
 
 /** Unlock by pasting the owner key into the Unlock screen. */
 export async function unlockViaUi(page: Page): Promise<void> {
-  await expect(page.getByRole('heading', { name: 'Unlock Task Lite' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Unlock Docket' })).toBeVisible();
   await page.getByLabel('Owner key').fill(ownerKey());
   await page.getByRole('button', { name: 'Unlock' }).click();
   await expect(page).not.toHaveURL(/\/unlock/);
@@ -25,6 +25,6 @@ export async function unlockViaUi(page: Page): Promise<void> {
 /** End this context's owner session. */
 export async function lock(target: BrowserContext | Page): Promise<void> {
   const context = 'context' in target ? (target as Page).context() : (target as BrowserContext);
-  const csrf = (await context.cookies()).find((c) => c.name === 'tl_csrf')?.value ?? '';
-  await context.request.post('/api/session/lock', { headers: { 'X-Tasklite-CSRF': csrf } });
+  const csrf = (await context.cookies()).find((c) => c.name === 'docket_csrf')?.value ?? '';
+  await context.request.post('/api/session/lock', { headers: { 'X-Docket-CSRF': csrf } });
 }

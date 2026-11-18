@@ -97,7 +97,7 @@ type ProposalRow = {
 function proposal(db: Db, id: string, fields: Partial<ProposalRow> = {}) {
   const row: ProposalRow = {
     project_key: 'RCP',
-    file_key: 'skill:tasklite-worker',
+    file_key: 'skill:docket-worker',
     content: '# Worker\n',
     reason: 'Run the linter before each commit.',
     based_on_version_id: 'afv_1',
@@ -176,7 +176,7 @@ function drift(db: Db, id: string, fields: Partial<DriftRow> = {}) {
   const row: DriftRow = {
     install_id: 'ins_1',
     project_key: 'RCP',
-    file_key: 'skill:tasklite-worker',
+    file_key: 'skill:docket-worker',
     change: 'edited',
     state: 'open',
     local_sha256: SHA,
@@ -219,7 +219,7 @@ describe('0004_agent_proposals on a fresh database', () => {
   afterEach(() => t.cleanup());
 
   it('applies every migration, with foreign keys on and the check clean', () => {
-    expect(migrationStatus(t.db)).toEqual({ current: true, applied: 5, expected: 5 });
+    expect(migrationStatus(t.db)).toEqual({ current: true, applied: 6, expected: 6 });
     expect(t.db.sqlite.pragma('foreign_keys', { simple: true })).toBe(1);
     expect(t.db.sqlite.pragma('foreign_key_check')).toEqual([]);
   });
@@ -398,11 +398,11 @@ describe('0004_agent_proposals on a main-era database (0000–0003, with data)',
   let db: Db;
 
   beforeEach(() => {
-    tmp = tempDir('tasklite-migrate-');
-    db = openDb(join(tmp.dir, 'tasklite.db'));
+    tmp = tempDir('docket-migrate-');
+    db = openDb(join(tmp.dir, 'docket.db'));
     // What main's migrateDb produced before B26: 0000 to 0003 only.
     migrate(drizzle(db.sqlite), { migrationsFolder: mainEraMigrations(tmp.dir) });
-    expect(migrationStatus(db)).toEqual({ current: false, applied: 4, expected: 5 });
+    expect(migrationStatus(db)).toEqual({ current: false, applied: 4, expected: 6 });
     for (const table of NEW_TABLES) expect(tables(db)).not.toContain(table);
     insertProject(db, 'RCP');
     insertItem(db, { id: 'RCP-1' });
@@ -412,7 +412,7 @@ describe('0004_agent_proposals on a main-era database (0000–0003, with data)',
     run(
       db,
       `INSERT INTO agent_files (id, key, layer, project_key, created_at, updated_at)
-       VALUES ('af_1', 'skill:tasklite-worker', 'project', 'RCP', ?, ?)`,
+       VALUES ('af_1', 'skill:docket-worker', 'project', 'RCP', ?, ?)`,
       ts,
       ts,
     );
@@ -443,9 +443,9 @@ describe('0004_agent_proposals on a main-era database (0000–0003, with data)',
 
   it('migrates to current, and migrating again is a no-op', () => {
     migrateDb(db);
-    expect(migrationStatus(db)).toEqual({ current: true, applied: 5, expected: 5 });
+    expect(migrationStatus(db)).toEqual({ current: true, applied: 6, expected: 6 });
     migrateDb(db);
-    expect(migrationStatus(db).applied).toBe(5);
+    expect(migrationStatus(db).applied).toBe(6);
     expect(tables(db)).toEqual(expect.arrayContaining(NEW_TABLES));
   });
 

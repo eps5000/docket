@@ -1,4 +1,4 @@
-# Implementation Plan: Task Lite V1
+# Implementation Plan: Docket (formerly Task Lite) V1
 
 **Branch**: `001-task-lite-v1` (spec branch `eps5000/speckit-v1`) | **Date**: 2026-11-14 | **Spec**: [spec.md](spec.md)
 
@@ -45,7 +45,7 @@ documents and adds the Spec Kit artifacts the tasks are generated from:
 - React 19, Vite, React Router, TanStack Query;
 - markdown-it with DOMPurify.
 
-**Storage**: SQLite in WAL mode with FTS5 at `/data/tasklite.db`; documents in `/data/docs/<KEY>/<doc>/v<n>/`; backups in `/data/backups`; call logs in `/data/logs`; secrets in `/data/secrets`. All on the named volume `tasklite-data`.
+**Storage**: SQLite in WAL mode with FTS5 at `/data/docket.db`; documents in `/data/docs/<KEY>/<doc>/v<n>/`; backups in `/data/backups`; call logs in `/data/logs`; secrets in `/data/secrets`. All on the named volume `docket-data`.
 
 **Testing**:
 - Vitest for unit tests (every domain rule) and integration tests;
@@ -125,7 +125,7 @@ server/
 │   ├── api/             # Hono routes, owner session/CSRF, SSE stream, diagnostics
 │   ├── jobs/            # sweeper (run state, leases, pings), nightly backup, log rotation
 │   ├── import/          # Jira dry run + import
-│   └── cli/             # tasklite owner-key | agent-token | seed | backup | restore | export
+│   └── cli/             # docket owner-key | agent-token | seed | backup | restore | export
 └── tests/
     ├── unit/            # one file per domain rule area
     ├── contract/        # MCP contract tests (MCP_SPEC §10)

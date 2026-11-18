@@ -1,9 +1,9 @@
 ---
-name: tasklite-planner
-description: Turn a goal into well-shaped Task Lite work. Covers epics and items with testable outcomes and acceptance criteria, dependency links with the right satisfied_when rule, labels, planning documents, early human review, and decision records. Use when asked to plan, break down or shape work in Task Lite, or to prepare items for Ready.
+name: docket-planner
+description: Turn a goal into well-shaped Docket work. Covers epics and items with testable outcomes and acceptance criteria, dependency links with the right satisfied_when rule, labels, planning documents, early human review, and decision records. Use when asked to plan, break down or shape work in Docket, or to prepare items for Ready.
 ---
 
-# Planning work in Task Lite
+# Planning work in Docket
 
 Good planning is what makes `ready_to_start` trustworthy. Workers then pick up items that are unblocked, clear and checkable, with no guessing.
 
@@ -66,7 +66,7 @@ create_item { project: "RCP", type: "Story", title: "Pantry-aware recipe suggest
 
 If the owner must check something by hand, `declare_human_review` during Planning. Use plain instructions they can follow in minutes ("On your phone, drag a recipe between days. Does it feel right?").
 
-**If an epic ships as one PR,** declare it once on the epic, not on each child. See `tasklite-review-packet` for what makes a good item.
+**If an epic ships as one PR,** declare it once on the epic, not on each child. See `docket-review-packet` for what makes a good item.
 
 ## 5. Planning documents and decisions
 

@@ -7,7 +7,7 @@
  * views and Problems. These tests drive it through the link and project
  * services, in the one write path, exactly as the adapters do.
  */
-import type { SatisfiedWhen, Status } from '@tasklite/shared';
+import type { SatisfiedWhen, Status } from '@docket/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Actor } from '../../src/domain/write.js';
 import { OWNER_ACTOR } from '../../src/domain/write.js';

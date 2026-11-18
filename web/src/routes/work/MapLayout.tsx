@@ -1,4 +1,4 @@
-import type { WorkResponse } from '@tasklite/shared';
+import type { WorkResponse } from '@docket/shared';
 import { Callout, EmptyState } from '../../components/kit';
 import { ProgressMap } from '../../components/ProgressMap';
 

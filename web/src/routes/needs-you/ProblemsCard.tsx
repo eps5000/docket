@@ -1,6 +1,6 @@
 import { Fragment } from 'react';
 import { Link } from 'react-router';
-import type { PROBLEM_KINDS, Problem, WorkspaceRow } from '@tasklite/shared';
+import type { PROBLEM_KINDS, Problem, WorkspaceRow } from '@docket/shared';
 import {
   Button,
   Card,
@@ -116,7 +116,7 @@ export const PROBLEM_ROWS: Record<
     actions: [{ label: 'Open', kind: 'link', to: () => paths.settings() }],
   },
   // Decision 30 (UI_SPEC §6.7b-1): → that record in the Agent files page's "Changed
-  // outside Task Lite" (the page follows the project switcher, like Needs you).
+  // outside Docket" (the page follows the project switcher, like Needs you).
   agent_files_drift: {
     help: 'problems.agent_files_drift',
     icon: 'doc',

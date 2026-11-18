@@ -4,7 +4,7 @@
  * (api/session.ts); the blocker rule is in deps.ts.
  */
 import type { Env, Hono } from 'hono';
-import { ToolError } from '@tasklite/shared';
+import { ToolError } from '@docket/shared';
 import { defineRoute, type RouteDeps } from '../define.js';
 
 export function settingsRoutes<E extends Env>(api: Hono<E>, deps: RouteDeps): void {

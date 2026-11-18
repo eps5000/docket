@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link } from 'react-router';
-import type { ItemSummary } from '@tasklite/shared';
+import type { ItemSummary } from '@docket/shared';
 import { Button, Card, CardHeader, EmptyState } from '../../components/kit';
 import { apiClient } from '../../app/queryClient';
 import { queryKeys } from '../../lib/api';
