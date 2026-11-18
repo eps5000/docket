@@ -350,3 +350,9 @@
   min-width: 0;
   overflow-x: auto;
 }
+/* Links inside a line of text are underlined, not told apart by colour alone. */
+.tl .inmethod a,
+.tl .aflede a,
+.tl .afuse a {
+  text-decoration: underline;
+}

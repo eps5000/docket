@@ -298,17 +298,19 @@ test.describe('screenshots: coordination states (B20)', () => {
     await expect(page.getByRole('group', { name: 'Help' })).toBeVisible();
     await shootB22(page, 'palette-help');
     await page.keyboard.press('Escape');
-    // The "?" on Settings → Agent setup (after B23), and its article in the panel.
-    await page.goto('/settings/agent-setup?project=RCP');
+    // The "?" on Agent files (after B25), and its article in the panel.
+    await page.goto('/agent-files?project=RCP');
     await page.waitForLoadState('networkidle');
-    await shootB22(page, 'agent-setup');
+    await shootB22(page, 'agent-files');
     await page
-      .getByRole('button', { name: 'Help: Agent setup: skills and the AGENTS.md block' })
+      .getByRole('button', {
+        name: 'Help: Agent files: skills, the AGENTS.md block and Workflow notes',
+      })
       .first()
       .click();
     const setupPanel = page.getByRole('dialog');
     await expect(setupPanel).toBeVisible();
     await setupPanel.evaluate((el) => Promise.all(el.getAnimations().map((x) => x.finished)));
-    await shootB22(page, 'panel-agent-setup');
+    await shootB22(page, 'panel-agent-files');
   });
 });

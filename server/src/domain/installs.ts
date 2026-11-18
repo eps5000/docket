@@ -114,7 +114,7 @@ export const tokenHash = (token: string): string =>
   createHash('sha256').update(token, 'utf8').digest('hex');
 
 const NOT_FOUND =
-  'This install link is unknown, expired or already used. Make a new install command in Settings → Agent setup.';
+  'This install link is unknown, expired or already used. Make a new install command in Agent files.';
 
 function requireProject(db: Db, key: string): void {
   const p = db.sqlite
@@ -171,7 +171,7 @@ export function manifestJson(meta: {
     target: meta.target_kind,
     project: meta.project,
     installed_at: meta.installed_at,
-    source: 'Task Lite, Settings > Agent setup',
+    source: 'Task Lite, Agent files',
   };
   const headLines = Object.entries(head).map(
     ([k, v]) => `  ${JSON.stringify(k)}: ${JSON.stringify(v)},`,

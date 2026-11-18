@@ -208,7 +208,7 @@ export interface InstallCommandInput {
 }
 
 const REFUSED =
-  'Task Lite refused the download: this command was already used or is more than 10 minutes old. Make a new one in Settings > Agent setup.';
+  'Task Lite refused the download: this command was already used or is more than 10 minutes old. Make a new one in Agent files.';
 
 function bashBase({ target_kind, path }: InstallCommandInput): string {
   if (target_kind === 'user') return '"$HOME"';
@@ -278,7 +278,7 @@ export function checkCommands(input: InstallCommandInput): { powershell: string;
     `if [ ! -f "$f" ]; then st=missing; elif [ "$k" = agents_block ]; then x=$(cat "$f"; printf x); x=\${x%x}; case $x in *"$B"*"$E"*) x=\${x#*"$B"}; x=\${x%%"$E"*}; x=$(printf '%s' "$x" | tr -d '\\r'; printf x); x=\${x%x}; x=\${x#$'\\n'}; x=\${x%$'\\n'}; if [ "$(printf '%s' "$x" | h)" = "$s" ]; then st=ok; else st=edited; fi ;; *) st=missing ;; esac; elif [ "$(h < "$f")" = "$s" ]; then st=ok; else st=edited; fi`,
     `if [ $st != ok ]; then n=$((n+1)); printf '%-8s %s  (sent %s %s)\\n' "$st" "${disp}$p" "$k" "$v"; fi; done < "$m"`,
     `for x in "$d/${layout.skillsDir}"/tasklite-*/; do [ -d "$x" ] || continue; y=\${x%/}; y=\${y##*/}; grep -q "\\"skill:$y\\"" "$m" || { n=$((n+1)); printf '%-8s %s\\n' extra "${disp}${layout.skillsDir}/$y/"; }; done`,
-    `if [ $n = 0 ]; then echo "Up to date: all $c files match what Task Lite sent."; else echo "Differs from what Task Lite sent: $n file(s). The install log in Settings > Agent setup shows each version sent."; fi )`,
+    `if [ $n = 0 ]; then echo "Up to date: all $c files match what Task Lite sent."; else echo "Differs from what Task Lite sent: $n file(s). The install log in Agent files shows each version sent."; fi )`,
   ].join('; ');
   const powershell = [
     `& { $d = ${psBase(input)}; $m = Join-Path $d '${layout.manifest}'`,
@@ -288,7 +288,7 @@ export function checkCommands(input: InstallCommandInput): { powershell: string;
     `$j = Get-Content -Raw -LiteralPath $m | ConvertFrom-Json; "Checking ${disp}${layout.dir} against Task Lite install $($j.install_id)"; $n = 0`,
     `foreach ($r in $j.files) { $f = Join-Path $d $r.path; $st = 'ok'; if (-not (Test-Path -LiteralPath $f -PathType Leaf)) { $st = 'missing' } else { $x = $enc.GetString([IO.File]::ReadAllBytes($f)); if ($r.key -eq 'agents_block') { $i = $x.IndexOf($B, [StringComparison]::Ordinal); $k = $x.IndexOf($E, [StringComparison]::Ordinal); if ($i -lt 0 -or $k -lt $i) { $st = 'missing' } else { $x = $x.Substring($i + $B.Length, $k - $i - $B.Length).Replace("\`r", ''); if ($x.StartsWith("\`n")) { $x = $x.Substring(1) }; if ($x.EndsWith("\`n")) { $x = $x.Substring(0, $x.Length - 1) }; if ((TlHash $x) -ne $r.sha256) { $st = 'edited' } } } elseif ((TlHash $x) -ne $r.sha256) { $st = 'edited' } }; if ($st -ne 'ok') { $n++; '{0,-8} {1}  (sent {2} {3})' -f $st, ('${disp}' + $r.path), $r.key, $r.version_id } }`,
     `$sk = Join-Path $d '${layout.skillsDir}'; if (Test-Path -LiteralPath $sk) { foreach ($x in Get-ChildItem -LiteralPath $sk -Directory -Force -Filter 'tasklite-*') { if (@($j.files | ForEach-Object { $_.key }) -notcontains ('skill:' + $x.Name)) { $n++; '{0,-8} {1}' -f 'extra', ('${disp}${layout.skillsDir}/' + $x.Name + '/') } } }`,
-    `if ($n -eq 0) { "Up to date: all $(@($j.files).Count) files match what Task Lite sent." } else { "Differs from what Task Lite sent: $n file(s). The install log in Settings > Agent setup shows each version sent." } }`,
+    `if ($n -eq 0) { "Up to date: all $(@($j.files).Count) files match what Task Lite sent." } else { "Differs from what Task Lite sent: $n file(s). The install log in Agent files shows each version sent." } }`,
   ].join('; ');
   return { powershell, bash };
 }

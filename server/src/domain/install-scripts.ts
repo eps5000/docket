@@ -28,7 +28,7 @@ const SAFE_RELATIVE = /^[A-Za-z0-9._/-]+$/;
 export function installSh(instructions: string): string {
   if (!SAFE_RELATIVE.test(instructions)) throw new Error(`unsafe path: ${instructions}`);
   return `#!/usr/bin/env bash
-# Task Lite install step (Settings > Agent setup). Copies the agent files into
+# Task Lite install step (Agent files). Copies the agent files into
 # place and merges the Task Lite section of ${instructions} between its markers.
 # Nothing outside the markers changes, and nothing is deleted.
 set -eu
@@ -98,7 +98,7 @@ echo "Done: Task Lite agent files installed in $base"
 
 export function installPs1(instructions: string): string {
   if (!SAFE_RELATIVE.test(instructions)) throw new Error(`unsafe path: ${instructions}`);
-  return `# Task Lite install step (Settings > Agent setup). Copies the agent files into
+  return `# Task Lite install step (Agent files). Copies the agent files into
 # place and merges the Task Lite section of ${instructions} between its markers.
 # Nothing outside the markers changes, and nothing is deleted.
 param([string]$Here, [string]$Base)

@@ -165,6 +165,27 @@ describe('bundled loading (startup)', () => {
     );
   });
 
+  it('ships a generic AGENTS.md block with no {{…}} placeholders (B25)', () => {
+    const { files } = readBundledFiles(DEFAULT_BUNDLED_ROOT);
+    const block = files.find((f) => f.key === 'agents_block')!.content;
+    expect(block).not.toContain('{{');
+    // It points at the worker skill and at the Workflow notes in get_context, and keeps the universal rules.
+    for (const rule of [
+      '`tasklite-worker`',
+      '`get_context`',
+      'claim_lead',
+      '`run_id`',
+      'report_commit',
+      'park_run',
+      'resources_started',
+      'resources_released',
+      'ask_owner',
+      'release_lead',
+    ]) {
+      expect(block).toContain(rule);
+    }
+  });
+
   it('skips folders that are not valid names and reports missing files', () => {
     const tmp = tempDir();
     try {

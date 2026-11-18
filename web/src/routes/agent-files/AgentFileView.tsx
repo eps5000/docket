@@ -550,23 +550,23 @@ function FileBody({
                     <Button
                       size="sm"
                       variant="ghost"
-                      aria-label={`View ${versionLabel(v, pName)}`}
                       onClick={() => {
                         setEditing(null);
                         setDiff(null);
                         setViewing(v.id);
                       }}
                     >
-                      View
+                      View<span className="sr"> {versionLabel(v, pName)}</span>
                     </Button>
                     {prev && (
                       <Button
                         size="sm"
                         variant="ghost"
-                        aria-label={`Compare ${versionLabel(v, pName)} with the one before`}
+
                         onClick={() => openDiff(prev, v)}
                       >
                         Compare with the one before
+                        <span className="sr"> ({versionLabel(v, pName)})</span>
                       </Button>
                     )}
                   </div>

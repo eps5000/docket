@@ -226,7 +226,7 @@ export function InstallDialog({ project, projectName, onClose }: InstallDialogPr
         <div className="inform" data-install-dialog="" data-method={method}>
           <p className="src" style={{ margin: 0 }}>
             {project
-              ? `Installs the skills and the AGENTS.md block ${possessive(name)} agents use (its copies where you customized a file, the defaults elsewhere), into ${client === 'claude' ? 'CLAUDE.md' : 'AGENTS.md'}.`
+              ? `Installs the skills and the AGENTS.md block ${possessive(name)} agents use (its copies where you customized a file, the defaults elsewhere). The block goes into ${client === 'claude' ? 'CLAUDE.md' : 'AGENTS.md'}.`
               : `Installs the default skills and AGENTS.md block into your home folder, for every project on this computer. A project’s own copies aren’t included: install those into its repo.`}
           </p>
           <div className="infield">

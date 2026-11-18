@@ -91,9 +91,14 @@ const ROUTES: { name: string; path: string; ready: (p: Page) => Locator }[] = [
   },
   { name: 'Settings', path: '/settings', ready: (p) => p.getByRole('heading', { level: 1 }) },
   {
-    name: 'Settings → Agent setup: a project, a file and its Workflow notes',
-    path: '/settings/agent-setup?project=RCP&file=skill:tasklite-worker',
+    name: 'Agent files: one project, a file and its Workflow notes',
+    path: '/agent-files?project=RCP&file=skill:tasklite-worker',
     ready: (p) => p.locator('[data-workflow="RCP"] .sectionhead'),
+  },
+  {
+    name: 'Agent files: All projects (the defaults)',
+    path: '/agent-files?project=all',
+    ready: (p) => p.getByRole('table', { name: 'Default agent files' }),
   },
   // B22: Help (US12). The side panel is scanned in us12-help.spec.ts.
   {
