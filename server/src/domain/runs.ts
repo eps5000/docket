@@ -31,6 +31,7 @@ import {
   type In,
   type Out,
   type ReceiptContext,
+  type InstructionReportInput,
   type RunSignalInput,
   type RunsService,
   type ServiceDeps,
@@ -427,7 +428,8 @@ export function createRunsService(deps: ServiceDeps): RunsService {
           ...(input.instructions.install_id ? { install_id: input.instructions.install_id } : {}),
           project: item.project_key,
           ...(input.workspace?.path ? { location: input.workspace.path } : {}),
-          files: input.instructions.files,
+          // The adapter may have withheld secret-looking text (`withheld: 'secret'`).
+          files: input.instructions.files as InstructionReportInput['files'],
         });
       }
       return { run_id: runId, item: summary(w, item.id), lease_expires_at: leaseUntil };

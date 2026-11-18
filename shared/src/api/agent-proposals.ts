@@ -87,6 +87,12 @@ export const driftSchema = z.object({
   sent_sha256: z.string().nullable(),
   /** The installed text when it was reported, for the diff; null when unknown. */
   local_content: z.string().max(LIMITS.agent_file_content).nullable(),
+  /**
+   * Why `local_content` is null although a report carried text (optional;
+   * B27b): `secret`, the text looked like a secret, so it was withheld and
+   * never stored. *Adopt* is then unavailable with that reason.
+   */
+  content_withheld: z.enum(['secret']).nullable().optional(),
   /** How it was found: the scheduled check, or reported by an agent on an item. */
   found_by: z.object({
     source: z.enum(INSTRUCTION_REPORT_SOURCES),

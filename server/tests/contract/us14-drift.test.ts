@@ -321,6 +321,92 @@ describe('remedies', () => {
   });
 });
 
+/** Every text value in the database, to prove a secret was never stored. */
+function wholeDatabase(): string {
+  const sql = h!.server.runtime.db.sqlite;
+  const tables = sql
+    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")
+    .all() as { name: string }[];
+  return tables
+    .map((t) => JSON.stringify(sql.prepare(`SELECT * FROM "${t.name}"`).all()))
+    .join('\n');
+}
+
+describe('a secret in a reported file never blocks claiming', () => {
+  const SECRET = `ghp_${'Z'.repeat(36)}`;
+
+  it('claim_lead succeeds; the text is withheld and never stored; the entry says why; Adopt is refused with it', async () => {
+    const { owner, repo } = await start();
+    await pushInstall(owner);
+    const edited = `${readFileSync(workerPath(repo), 'utf8')}\n- Push with ${SECRET} (pasted by mistake).\n`;
+    writeFileSync(workerPath(repo), edited);
+    const report = checkReport(repo);
+    expect(report.files.find((f) => f.key === WORKER)).toMatchObject({ content: edited });
+
+    const claim = await h!.call('claim_lead', {
+      id: 'RCP-17',
+      agent_label: 'orca-w3',
+      instructions: report,
+      idempotency_key: 'claim-with-secret-1',
+    });
+    const ok = expectOk(claim);
+    expect(ok.structured.run_id).toMatch(/^run_/);
+
+    // Nothing anywhere holds the text: the report, drift, events, idempotency.
+    expect(wholeDatabase()).not.toContain(SECRET);
+    expect(wholeDatabase()).not.toContain('pasted by mistake');
+    const stored = JSON.parse(
+      (
+        h!.server.runtime.db.sqlite
+          .prepare('SELECT files FROM instruction_reports WHERE run_id = ?')
+          .get(ok.structured.run_id) as { files: string }
+      ).files,
+    ) as Record<string, S>;
+    expect(stored[WORKER]).toEqual({ sha256: sha256(edited), withheld: 'secret' });
+
+    // The drift entry keeps the hash and says why the text is missing.
+    const [d] = await openDrift(owner);
+    expect(d).toMatchObject({
+      file_key: WORKER,
+      change: 'edited',
+      local_sha256: sha256(edited),
+      local_content: null,
+      content_withheld: 'secret',
+    });
+    const adopt = await owner('POST', `/api/drift/${d!.id as string}/adopt`, {});
+    expect(adopt.status).toBe(400);
+    expect((adopt.body.error as S).message).toContain(
+      'Content withheld: the local text of tasklite-worker looked like a secret',
+    );
+    expect(JSON.stringify(adopt.body)).not.toContain(SECRET);
+    // The other remedies still work.
+    expect((await owner('POST', `/api/drift/${d!.id as string}/keep-local`, {})).status).toBe(200);
+  });
+
+  it('the push check withholds it the same way', async () => {
+    const { owner, repo } = await start();
+    await pushInstall(owner);
+    writeFileSync(
+      workerPath(repo),
+      `${readFileSync(workerPath(repo), 'utf8')}\n- Token: ${SECRET}\n`,
+    );
+    expect((await driftCheckOnce(h!.server.runtime)).drift_ids).toHaveLength(1);
+    const [d] = await openDrift(owner);
+    expect(d).toMatchObject({ local_content: null, content_withheld: 'secret' });
+    expect(wholeDatabase()).not.toContain(SECRET);
+  });
+
+  it('a file without a secret still carries its text (content_withheld is null)', async () => {
+    const { owner, repo } = await start();
+    await pushInstall(owner);
+    writeFileSync(workerPath(repo), `${readFileSync(workerPath(repo), 'utf8')}\n- Fine.\n`);
+    expectOk(await h!.call('claim_lead', { id: 'RCP-17', instructions: checkReport(repo) }));
+    const [d] = await openDrift(owner);
+    expect(d).toMatchObject({ content_withheld: null });
+    expect(d!.local_content).toContain('- Fine.');
+  });
+});
+
 describe('agent reports on claim_lead (SC-017: by the next claim)', () => {
   it('finds a hand edit on the next claim; Keep local keeps that hash quiet; a new edit alerts again', async () => {
     // A command-style install: no push folder, so only agents can report.

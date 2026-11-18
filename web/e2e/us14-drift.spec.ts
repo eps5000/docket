@@ -107,6 +107,9 @@ const toast = (page: Page, text: string | RegExp) =>
 
 test.describe.configure({ mode: 'serial' });
 
+/** RCP-25's run from test 3, released in test 4 so it can claim again. */
+let lastRun = '';
+
 test.describe('Drift (US14)', () => {
   test('1. a hand edit, found by the scheduled check; Review; Adopt as Recipe App’s copy', async ({
     ownerPage: page,
@@ -243,6 +246,7 @@ test.describe('Drift (US14)', () => {
     try {
       const claim = await agent.call('claim_lead', { id: 'RCP-25', instructions: tasklitecheck() });
       expect(claim.isError, claim.text).toBe(false);
+      lastRun = claim.structured.run_id as string;
     } finally {
       await agent.close();
     }
@@ -259,5 +263,42 @@ test.describe('Drift (US14)', () => {
     expect(now).toContain('Always run pnpm lint first (edited in VS Code).');
     expect(now).not.toContain('One more local rule.');
     expect(now).not.toContain('And squash on merge.');
+  });
+
+  test('4. a secret in a reported file: the claim succeeds, the text is withheld, Adopt says why', async ({
+    ownerPage: page,
+  }) => {
+    const secret = `ghp_${'Q'.repeat(36)}`;
+    sh(`printf -- '- Push with ${secret}\n' >> ${WORKER_FILE}`);
+    const agent = await connectAgent('codex-mcp-client', '0.50.0');
+    try {
+      const report = tasklitecheck();
+      expect(JSON.stringify(report)).toContain(secret);
+      const released = await agent.call('release_lead', {
+        id: 'RCP-25',
+        run_id: lastRun,
+        reason: 'Again',
+      });
+      expect(released.isError, released.text).toBe(false);
+      const claim = await agent.call('claim_lead', { id: 'RCP-25', instructions: report });
+      expect(claim.isError, claim.text).toBe(false);
+    } finally {
+      await agent.close();
+    }
+    await page.goto('/agent-files?project=RCP#drift');
+    const entry = page.locator('[data-drift]');
+    await expect(entry.getByText('Content withheld: it looked like a secret.')).toBeVisible();
+    await expect(entry).not.toContainText(secret);
+    const adopt = entry.getByRole('button', {
+      name: 'Adopt as Recipe App’s copy (tasklite-worker)',
+    });
+    await expect(adopt).toBeDisabled();
+    await expect(
+      entry.getByText('Adopt: Content withheld: the local text looked like a secret.'),
+    ).toBeVisible();
+    await shoot(page, '4-withheld', entry);
+    await expectAxeClean(page, 'Agent files: content withheld');
+    await entry.getByRole('button', { name: 'Keep local (tasklite-worker)' }).click();
+    await expect(page.locator('[data-drift-section]')).toHaveCount(0);
   });
 });

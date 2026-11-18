@@ -89,7 +89,7 @@ interface ReportRow {
 }
 
 /** A report's files: key → the reported hash (lowercase) and, for a file that differs, its text. */
-type ReportFiles = Record<string, { sha256: string; content?: string }>;
+type ReportFiles = Record<string, { sha256: string; content?: string; withheld?: 'secret' }>;
 
 interface Difference {
   key: string;
@@ -151,7 +151,12 @@ function normalise(
     const sha256 = f.sha256.trim().toLowerCase();
     const sent = manifest?.[f.key]?.sha256.toLowerCase();
     const keep = f.content !== undefined && f.content.length <= MAX_CONTENT && sent !== sha256;
-    out[f.key] = keep ? { sha256, content: f.content } : { sha256 };
+    const withheld = f.withheld === 'secret' && sent !== sha256;
+    out[f.key] = keep
+      ? { sha256, content: f.content }
+      : withheld
+        ? { sha256, withheld: 'secret' }
+        : { sha256 };
   }
   return out;
 }
@@ -206,6 +211,26 @@ function localContent(db: Db, row: DriftRow): string | null {
   return null;
 }
 
+/**
+ * Why the local text is missing: `secret` when the latest report of this hash
+ * withheld it because it looked like a secret (it was never stored).
+ */
+function contentWithheld(db: Db, row: DriftRow): 'secret' | null {
+  if (!row.local_sha256) return null;
+  const reports = db.sqlite
+    .prepare(
+      `SELECT * FROM instruction_reports WHERE install_id = ? ORDER BY at DESC, id DESC LIMIT 50`,
+    )
+    .all(row.install_id) as ReportRow[];
+  for (const r of reports) {
+    const f = filesOf(r)[row.file_key];
+    if (f?.sha256 !== row.local_sha256) continue;
+    if (f.content !== undefined) return null;
+    if (f.withheld === 'secret') return 'secret';
+  }
+  return null;
+}
+
 function toDrift(db: Db, row: DriftRow): Drift {
   const install = installById(db, row.install_id)!;
   const report = reportById(db, row.report_id);
@@ -233,6 +258,7 @@ function toDrift(db: Db, row: DriftRow): Drift {
     sent_version_id: sent?.version_id ?? null,
     sent_sha256: sent?.sha256 ?? null,
     local_content: localContent(db, row),
+    content_withheld: contentWithheld(db, row),
     found_by: {
       source: report?.source ?? 'push_check',
       run_id: report?.run_id ?? null,
@@ -548,10 +574,10 @@ export function runInstructions(db: Db, itemId: string): RunInstructions[] {
 
 // ---- The service ----
 
-/** Why a report's text was left out: too long, or it looks like a secret (never stored). */
+/** A report keeps text up to the agent file limit; longer text is left out. */
 function safeText(text: string | null): string | undefined {
   if (text === null || text.length > MAX_CONTENT) return undefined;
-  return findSecret(text) ? undefined : text;
+  return text;
 }
 
 export function createDriftService(deps: ServiceDeps): DriftService {
@@ -601,11 +627,14 @@ export function createDriftService(deps: ServiceDeps): DriftService {
             files: files
               .filter((f) => f.state !== 'missing' && f.sha256 && INSTALLED_FILE_KEY_RE.test(f.key))
               .map((f) => {
-                const content = f.state === 'ok' ? undefined : safeText(f.text);
+                const text = f.state === 'ok' ? null : f.text;
+                const secret = text !== null && findSecret(text, { known: deps.secrets.known() });
+                const content = secret ? undefined : safeText(text);
                 return {
                   key: f.key,
                   sha256: f.sha256!,
                   ...(content !== undefined ? { content } : {}),
+                  ...(secret ? { withheld: 'secret' as const } : {}),
                 };
               }),
           });
@@ -659,6 +688,12 @@ export function createDriftService(deps: ServiceDeps): DriftService {
         );
       }
       const content = localContent(w.db, row);
+      if (content === null && contentWithheld(w.db, row) === 'secret') {
+        throw new ToolError(
+          'validation',
+          `Content withheld: the local text of ${name} looked like a secret, so Task Lite didn't keep it. Remove the secret from the file there; the next tasklite-check report sends the text.`,
+        );
+      }
       if (content === null || content.trim() === '') {
         throw new ToolError(
           'validation',

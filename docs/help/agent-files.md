@@ -113,6 +113,7 @@ Either way, you see:
 Then pick one:
 
 - *Adopt as Recipe App's copy* (or *Adopt as the default*, for a user-wide install): the local text becomes the project's copy, like your own edit, and the toast's *Undo* takes it back. It needs the local text: if Task Lite only has the fingerprint, it says **Run tasklite-check on that machine to send the text**, and the next agent claim there sends it. A missing file can't be adopted.
+- **Content withheld: it looked like a secret:** the local file contains something like a token. Task Lite keeps only its fingerprint, never the text, so there's no diff and no *Adopt*; the agent's claim still goes through. Remove the secret from the file there, and the next report sends the text.
 - *Restore Task Lite's version*: installs again. When Task Lite wrote the files, it writes them back now; for a command install, it gives you a new command to run there. Task Lite never deletes files, so an extra folder can't be restored away: remove it yourself, or keep it.
 - *Keep local*: you meant it. Nothing is changed, and the same file raises nothing again; if it changes again, you're told again.
 

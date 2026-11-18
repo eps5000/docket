@@ -182,14 +182,17 @@ function DriftCard({
     );
 
   const noText = d.change !== 'missing' && d.local_content === null;
+  const withheld = noText && d.content_withheld === 'secret';
   const adoptWhy =
     d.change === 'missing'
       ? 'The file is missing there: nothing to adopt.'
       : !adoptable
         ? 'Only the files Task Lite ships can be adopted.'
-        : noText
-          ? 'Run tasklite-check on that machine to send the text.'
-          : null;
+        : withheld
+          ? 'Content withheld: the local text looked like a secret.'
+          : noText
+            ? 'Run tasklite-check on that machine to send the text.'
+            : null;
   const restoreWhy =
     d.change === 'extra'
       ? 'Task Lite never deletes files: remove the folder yourself, or keep it.'
@@ -264,6 +267,12 @@ function DriftCard({
         {d.change === 'missing' ? (
           <Callout tone="warn">
             {name} was deleted there. Agents there work without it until it’s restored.
+          </Callout>
+        ) : withheld ? (
+          <Callout tone="warn">
+            <b>Content withheld: it looked like a secret.</b> Task Lite kept only the file’s
+            fingerprint, never the text, so it can’t show the change. Remove the secret from the
+            file there; the next tasklite-check report sends the text.
           </Callout>
         ) : noText ? (
           <Callout>

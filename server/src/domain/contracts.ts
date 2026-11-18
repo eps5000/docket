@@ -465,7 +465,12 @@ export interface InstructionReportInput {
   project?: string;
   /** The workspace or install path. */
   location?: string;
-  files: InstructionsInput['files'];
+  /**
+   * The reported files. `withheld: 'secret'` marks a file whose text looked
+   * like a secret: the adapter (or the push check) removed the text before
+   * the write check, so the report still counts and nothing secret is stored.
+   */
+  files: (InstructionsInput['files'][number] & { withheld?: 'secret' })[];
 }
 
 /** A *Restore* ready to record: the reinstall, built (and for push written) outside any transaction. */
