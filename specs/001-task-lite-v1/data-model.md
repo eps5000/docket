@@ -1,4 +1,4 @@
-# Data Model: Task Lite V1
+# Data Model: Docket (formerly Task Lite) V1
 
 Phase 1 output. The columns are authoritative in [BUILD_SPEC §4](../../docs/BUILD_SPEC.md), and the
 MCP shapes in [MCP_SPEC §4](../../docs/MCP_SPEC.md). This file adds what tasks and tests need:

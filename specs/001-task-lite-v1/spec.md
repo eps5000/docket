@@ -1,4 +1,4 @@
-# Feature Specification: Task Lite V1 (local agent coordination with owner supervision)
+# Feature Specification: Docket (formerly Task Lite) V1 (local agent coordination with owner supervision)
 
 **Feature Branch**: `eps5000/speckit-v1`
 
@@ -6,28 +6,28 @@
 
 **Status**: Clarified, planned and tasked. Ready to build (see [tasks.md](tasks.md)).
 
-**Input**: User description: "Flesh out the requirements and spec for Task Lite V1: a local agent coordination service that AI agents work through (find ready work, claim it, plan, record evidence, follow decisions, hand off for human review), with a supervision UI that shows the owner what agents did, what they're doing and what needs the owner. It should cut agents' token use, make dependency tracking automatic, and give the owner visibility." Sources: docs/REQUIREMENTS_DRAFT.md (owner decisions 1–20), docs/BUILD_SPEC.md, docs/MCP_SPEC.md, docs/UI_SPEC.md, design/prototype.html.
+**Input**: User description: "Flesh out the requirements and spec for Docket V1: a local agent coordination service that AI agents work through (find ready work, claim it, plan, record evidence, follow decisions, hand off for human review), with a supervision UI that shows the owner what agents did, what they're doing and what needs the owner. It should cut agents' token use, make dependency tracking automatic, and give the owner visibility." Sources: docs/REQUIREMENTS_DRAFT.md (owner decisions 1–20), docs/BUILD_SPEC.md, docs/MCP_SPEC.md, docs/UI_SPEC.md, design/prototype.html.
 
 ## Overview
 
-One owner runs Task Lite on their own computer. AI agents (installed coding agents, and the same agents launched as workers by an orchestrator) connect to it to find work they may start, claim it, get the context they need, publish their plan, record what they did and verified, follow shared decisions, and hand finished work to the owner for verification. Task Lite enforces the rules (claims, dependencies, review gates), so agents don't have to remember them. The owner uses a browser UI to see what needs them, what agents are doing, where the work is, and what happened, and to decide, nudge and archive. Task Lite never starts agents itself.
+One owner runs Docket on their own computer. AI agents (installed coding agents, and the same agents launched as workers by an orchestrator) connect to it to find work they may start, claim it, get the context they need, publish their plan, record what they did and verified, follow shared decisions, and hand finished work to the owner for verification. Docket enforces the rules (claims, dependencies, review gates), so agents don't have to remember them. The owner uses a browser UI to see what needs them, what agents are doing, where the work is, and what happened, and to decide, nudge and archive. Docket never starts agents itself.
 
 ## Clarifications
 
 ### Session 2026-11-14
 
-- Q: How should the owner find out that something needs them when the Task Lite tab isn't in front of them? → A: Opt-in desktop (browser) notifications for new "for you" items only (handoff ready, question asked), plus the for-you count in the browser tab title. No email or phone; nothing leaves the machine.
+- Q: How should the owner find out that something needs them when the Docket tab isn't in front of them? → A: Opt-in desktop (browser) notifications for new "for you" items only (handoff ready, question asked), plus the for-you count in the browser tab title. No email or phone; nothing leaves the machine.
 - Q: Should the owner be able to edit an item's text in the UI (title, description, outcome, acceptance criteria), especially while shaping it in Planning? → A: Yes. Inline editing of those four fields on the Details view, with conflict detection and Undo. Planned dates, effort and blocker links stay agent-edited in V1.
 - Q: Where should nightly backups be stored? → A: Inside the service's data volume by default. The owner can opt in to also writing each backup to a folder on the host machine, for an extra copy that survives losing the volume.
 - Q: Should the browser UI require an owner key to unlock, so a local agent can't record a human approval through the UI's API? → A: Yes. The owner pastes the key once per browser, and the session lasts 30 days from last use. The owner can lock the browser or rotate the key (which ends every session) in Settings.
 - Q: Should the owner be able to cancel an item themselves in the UI? → A: Yes, any open item, with an optional reason and Undo. Canceled items leave the owner's views like archived ones, and anything they block stays blocked until the link is removed.
-- Owner requirement (2026-11-15, not a clarify question): after an Orca crash pruned worktrees holding in-flight work, Task Lite must record enough to restart interrupted work without guessing (where the work lives, the brief, what was started), must distinguish "parked, waiting on purpose" from "finished", and must surface leftover processes and sessions. Task Lite records; the coordinator acts (owner decision 26; User Story 11).
-- Owner requirement (2026-11-17, not a clarify question): the owner wants in-app help, and wants to view, customize per project, install and verify the agent files Task Lite ships, because projects may combine Task Lite with other workflow tools (for example Spec Kit) (owner decision 29; User Stories 12 and 13).
-- Owner requirement (2026-11-18, not a clarify question): agents often tailor instructions for a project, and people or agents will also edit installed files directly. Agents must be able to propose changes for the owner's approval, and Task Lite must detect and help remedy edits made outside it (owner decision 30; User Story 14).
+- Owner requirement (2026-11-15, not a clarify question): after an Orca crash pruned worktrees holding in-flight work, Docket must record enough to restart interrupted work without guessing (where the work lives, the brief, what was started), must distinguish "parked, waiting on purpose" from "finished", and must surface leftover processes and sessions. Docket records; the coordinator acts (owner decision 26; User Story 11).
+- Owner requirement (2026-11-17, not a clarify question): the owner wants in-app help, and wants to view, customize per project, install and verify the agent files Docket ships, because projects may combine Docket with other workflow tools (for example Spec Kit) (owner decision 29; User Stories 12 and 13).
+- Owner requirement (2026-11-18, not a clarify question): agents often tailor instructions for a project, and people or agents will also edit installed files directly. Agents must be able to propose changes for the owner's approval, and Docket must detect and help remedy edits made outside it (owner decision 30; User Story 14).
 
 ## User Scenarios & Testing *(mandatory)*
 
-### User Story 1 - Agents find, claim and complete work through Task Lite (Priority: P1)
+### User Story 1 - Agents find, claim and complete work through Docket (Priority: P1)
 
 An agent connects, asks for work it may start, claims one item, publishes a short plan, records progress, the checks it ran, and the commits it made, and closes the item. If it stops early, or goes silent, the item becomes available to another agent. Two agents never hold the same item.
 
@@ -50,9 +50,9 @@ An agent connects, asks for work it may start, claims one item, publishes a shor
 
 ### User Story 2 - The owner sees what agents did, are doing, and what needs them (Priority: P1)
 
-The owner opens Task Lite and immediately sees what needs them: handoffs to verify, questions to answer, and problems (stale or failed runs, dependency cycles, date conflicts). They can see what agents are doing right now, see all work on a board, list, map or timeline, and open any item to see its details, plan and checks, dependencies, and full activity history, each with who said what and how it's known.
+The owner opens Docket and immediately sees what needs them: handoffs to verify, questions to answer, and problems (stale or failed runs, dependency cycles, date conflicts). They can see what agents are doing right now, see all work on a board, list, map or timeline, and open any item to see its details, plan and checks, dependencies, and full activity history, each with who said what and how it's known.
 
-**Why this priority**: Visibility is one of the three reasons Task Lite exists, and it's how the owner trusts the agents' work.
+**Why this priority**: Visibility is one of the three reasons Docket exists, and it's how the owner trusts the agents' work.
 
 **Independent Test**: With seeded sample work, the owner can answer "what needs me?", "what are agents doing?", "where is epic RCP-1?" and "what happened on RCP-14?" from the UI alone. Each answer matches the seeded state, and every agent-reported fact is labelled as such.
 
@@ -64,7 +64,7 @@ The owner opens Task Lite and immediately sees what needs them: handoffs to veri
 4. **Given** a checklist that mixes owner-added steps, agent steps, subagent contributions, and checks from CI or from the agent, **When** the owner reads it, **Then** each entry shows its source distinctly, and nothing but an owner decision looks like human approval.
 5. **Given** work across two projects, **When** the owner starts a new visit, **Then** the scope is All projects. Switching to one project scopes every page except Settings.
 6. **Given** agents change data while the owner has a page open, **When** the change happens, **Then** the page updates without a reload and without moving the owner's keyboard focus.
-7. **Given** the owner has turned on desktop notifications and the UI is open in a background tab, **When** a handoff becomes ready or an agent asks a question, **Then** one notification appears naming the item and what's needed. Clicking it opens that item's packet or question, and the tab title shows the for-you count, for example "(3) Task Lite". Nothing else triggers a notification.
+7. **Given** the owner has turned on desktop notifications and the UI is open in a background tab, **When** a handoff becomes ready or an agent asks a question, **Then** one notification appears naming the item and what's needed. Clicking it opens that item's packet or question, and the tab title shows the for-you count, for example "(3) Docket". Nothing else triggers a notification.
 
 ---
 
@@ -72,7 +72,7 @@ The owner opens Task Lite and immediately sees what needs them: handoffs to veri
 
 When an agent finishes work that the owner must check by hand, it hands off a packet: what to verify, exact steps, what the agent already checked, known gaps, and attachments. The owner marks each item Looks good, Needs changes (with a note), or Defer, and the outcome follows: close, send back, or close with the item recorded as not verified. A ticket can't close while any human review item is undecided.
 
-**Why this priority**: Owner verification is the one gate Task Lite always enforces, and it's the main reason the owner opens the UI.
+**Why this priority**: Owner verification is the one gate Docket always enforces, and it's the main reason the owner opens the UI.
 
 **Independent Test**: With seeded packets, the owner can approve one packet (the ticket closes and unblocks its dependents), send one back with one finding as a checklist step and one as a new bug, and defer an item with a follow-up test ticket. The resulting states, links and labels match the rules.
 
@@ -90,9 +90,9 @@ When an agent finishes work that the owner must check by hand, it hands off a pa
 
 ### User Story 4 - Dependencies decide what's ready, automatically (Priority: P2)
 
-Agents and the owner link items so that one blocks another. Task Lite computes what is blocked and what is ready, across projects, and agents only ever see startable work. A project (or a single link) can require a blocker to be merged, or verified by the owner, rather than just done. Cycles are refused when created, and flagged when they arrive in imported data. The owner sees progress and the blocking chain on a map.
+Agents and the owner link items so that one blocks another. Docket computes what is blocked and what is ready, across projects, and agents only ever see startable work. A project (or a single link) can require a blocker to be merged, or verified by the owner, rather than just done. Cycles are refused when created, and flagged when they arrive in imported data. The owner sees progress and the blocking chain on a map.
 
-**Why this priority**: Automatic dependency tracking is one of the three reasons for Task Lite. It builds on the core loop (US1).
+**Why this priority**: Automatic dependency tracking is one of the three reasons for Docket. It builds on the core loop (US1).
 
 **Independent Test**: Link A → B → C. B and C are not startable until their blockers clear. Closing A makes B startable with no other action. Setting the project's rule to "PR merged" makes a done-but-unmerged blocker block again, and reporting the merge clears it. Linking C → A is refused with the cycle path.
 
@@ -181,7 +181,7 @@ The owner sees planned dates (labelled with who set them), actual time worked, b
 
 ### User Story 9 - The owner imports a Jira project after reviewing a dry run (Priority: P3)
 
-Before a pilot, the owner can point Task Lite at a Jira Cloud project, see a dry-run report of what would import, what would be skipped and what would lose detail, and then import. The Jira credential is used only for that import.
+Before a pilot, the owner can point Docket at a Jira Cloud project, see a dry-run report of what would import, what would be skipped and what would lose detail, and then import. The Jira credential is used only for that import.
 
 **Why this priority**: It's needed for the pilot, not for coordination. It depends on US1 to US4.
 
@@ -195,9 +195,9 @@ Before a pilot, the owner can point Task Lite at a Jira Cloud project, see a dry
 
 ---
 
-### User Story 10 - The owner runs Task Lite safely on their machine (Priority: P2)
+### User Story 10 - The owner runs Docket safely on their machine (Priority: P2)
 
-The owner starts Task Lite with one command, connects their agents by following short instructions, unlocks the UI in their browser with an owner key that agents never get, and trusts that data survives restarts and container replacement, that backups restore, and that deleting a project removes its records and documents together.
+The owner starts Docket with one command, connects their agents by following short instructions, unlocks the UI in their browser with an owner key that agents never get, and trusts that data survives restarts and container replacement, that backups restore, and that deleting a project removes its records and documents together.
 
 **Why this priority**: It is a prerequisite for any real use, but it is operational rather than a user journey through the product, so it is P2 behind the P1 slices, which can be demonstrated on a developer machine.
 
@@ -214,7 +214,7 @@ The owner starts Task Lite with one command, connects their agents by following 
 
 ### User Story 11 - Interrupted work restarts cleanly, and nothing is left running (Priority: P1)
 
-The coordinator (an Orca orchestrator, a script or the owner) dispatches workers. A worker crashes, or the orchestrator does, or worktrees get pruned. Task Lite still knows, for every piece of in-flight work: the instructions it was given, the worktree and branch, the last pushed commit, whether anything was unpushed, how far through its checklist it got, and what it left running. Workers that are idle on purpose are recorded as parked, so they're never mistaken for finished. After a crash the coordinator gets one restart list, re-dispatches from it, and cleans up leftovers. The owner sees anything at risk.
+The coordinator (an Orca orchestrator, a script or the owner) dispatches workers. A worker crashes, or the orchestrator does, or worktrees get pruned. Docket still knows, for every piece of in-flight work: the instructions it was given, the worktree and branch, the last pushed commit, whether anything was unpushed, how far through its checklist it got, and what it left running. Workers that are idle on purpose are recorded as parked, so they're never mistaken for finished. After a crash the coordinator gets one restart list, re-dispatches from it, and cleans up leftovers. The owner sees anything at risk.
 
 **Why this priority**: losing in-flight work and rebuilding mandates by guesswork has already happened in practice. Coordination is only trustworthy if it survives crashes.
 
@@ -256,7 +256,7 @@ The owner can see exactly which instructions agents get: the bundled skills and 
 **Why this priority**: different projects run different workflows (some also use Spec Kit), and when an agent misbehaves the owner needs to see which instructions it had.
 
 **Independent Test**:
-1. Edit `tasklite-worker` for one project.
+1. Edit `docket-worker` for one project.
 2. Install it into that project's repo with the copy-paste command.
 3. Edit the installed file by hand.
 4. Run the check.
@@ -270,27 +270,27 @@ The diff shows the local edit, and the install log shows the exact versions sent
 3. **Given** the owner set Workflow notes on a project, **When** an agent calls `get_context` for an item in it, **Then** the bundle includes those notes.
 4. **Given** a mounted push folder, **When** the owner clicks *Install* for a project, **Then** the files are written to the repo, the AGENTS.md block is replaced only between its markers, and the install is logged with every file's version.
 5. **Given** an installed copy was edited locally, **When** the owner runs the check (in the UI with a mount, or by command without one), **Then** each changed file is listed with a diff against what was sent.
-6. **Given** a Task Lite upgrade changes a bundled skill the owner has edited, **When** the owner opens Agent setup, **Then** it says "Bundled version updated" and offers a diff, and the owner's version is not overwritten.
+6. **Given** a Docket upgrade changes a bundled skill the owner has edited, **When** the owner opens Agent setup, **Then** it says "Bundled version updated" and offers a diff, and the owner's version is not overwritten.
 
 ### User Story 14 - Agents propose instruction changes, and drift is caught (Priority: P2)
 
-An agent working on a project can read that project's agent files and Workflow notes, and propose a change with a reason. The owner sees the proposal with a diff and approves, edits then approves, or declines. When anyone edits installed instruction files directly instead (a person in VS Code, or an agent told to), Task Lite notices: from the push folder's scheduled check, or from the hashes agents report when they claim work. The owner sees what changed and can adopt it, restore Task Lite's version, or keep it on purpose. Every run records which instruction versions it worked from.
+An agent working on a project can read that project's agent files and Workflow notes, and propose a change with a reason. The owner sees the proposal with a diff and approves, edits then approves, or declines. When anyone edits installed instruction files directly instead (a person in VS Code, or an agent told to), Docket notices: from the push folder's scheduled check, or from the hashes agents report when they claim work. The owner sees what changed and can adopt it, restore Docket's version, or keep it on purpose. Every run records which instruction versions it worked from.
 
 **Why this priority**: agents commonly do the tailoring, and an unreviewed or accidental edit to instructions silently changes how every later agent behaves. The owner needs both a safe path and a safety net.
 
 **Independent Test**:
-1. An agent proposes a change to `tasklite-worker` for one project; the owner approves it, and it becomes the project's copy, with "proposed by … · approved by owner" in its history.
+1. An agent proposes a change to `docket-worker` for one project; the owner approves it, and it becomes the project's copy, with "proposed by … · approved by owner" in its history.
 2. A person then edits the installed `SKILL.md` by hand.
-3. The next agent claim on that project reports the changed hash; the owner sees "edited outside Task Lite", with the diff, and adopts it.
+3. The next agent claim on that project reports the changed hash; the owner sees "edited outside Docket", with the diff, and adopts it.
 
 **Acceptance Scenarios**:
 
 1. **Given** an agent with a run on a project, **When** it calls `propose_agent_file_change` with new content and a reason, **Then** nothing changes until the owner acts, and the proposal appears on the project's Agent files page and as one line in Needs you.
 2. **Given** a pending proposal, **When** the owner approves it, **Then** it's saved as the project's copy (or the default, if proposed for the default), with the proposer and approver in its history, and the next install or `get_context` uses it.
-3. **Given** a push-folder install, **When** an installed file is edited by hand, **Then** within the scheduled check interval the owner sees "Agent files changed outside Task Lite", with a diff and *Adopt*, *Restore* and *Keep local*.
+3. **Given** a push-folder install, **When** an installed file is edited by hand, **Then** within the scheduled check interval the owner sees "Agent files changed outside Docket", with a diff and *Adopt*, *Restore* and *Keep local*.
 4. **Given** an install without a push folder, **When** an agent claims an item and reports instruction hashes that differ from what was sent, **Then** the owner sees the same problem, and the run shows "instructions edited locally".
 5. **Given** the owner chose *Keep local*, **When** the same content is reported again, **Then** no new alert is raised; **When** it changes again, **Then** a new alert is raised.
-6. **Given** an agent is asked by a user to edit its installed skill files, **When** it follows the shipped skills, **Then** it proposes the change through Task Lite instead, and tells the user so.
+6. **Given** an agent is asked by a user to edit its installed skill files, **When** it follows the shipped skills, **Then** it proposes the change through Docket instead, and tells the user so.
 
 ### Edge Cases
 
@@ -311,14 +311,14 @@ An agent working on a project can read that project's agent files and Workflow n
 - **The owner cancels an item an agent is working on:** the agent's run is interrupted and its claim released, and the agent's next call is refused with the item's canceled state. Items it blocked show "Blocked by canceled X" until the link is removed.
 - **A run belonging to a client that never answers liveness checks:** it shows as reported rather than live, never as live by assumption.
 - **A deleted project's IDs:** agents get "not found".
-- **A worktree was pruned while its run was open:** Task Lite can't see that. The run goes stale, then interrupted, and the restart list points to the last pushed commit, so the coordinator recreates the worktree from it. Anything unpushed is flagged as possibly lost.
+- **A worktree was pruned while its run was open:** Docket can't see that. The run goes stale, then interrupted, and the restart list points to the last pushed commit, so the coordinator recreates the worktree from it. Anything unpushed is flagged as possibly lost.
 - **A worker parks and never resumes:** it keeps its claim. After 24 hours the owner sees it under Problems and can release the claim.
 - **A worker reports nothing about its workspace:** the workspace state is "unknown" and is never treated as safe to prune.
 - **The push folder isn't mounted or isn't writable:** *Install* falls back to showing the command, and says why.
-- **A repo's AGENTS.md has no Task Lite markers:** install appends the block between new markers and changes nothing else.
+- **A repo's AGENTS.md has no Docket markers:** install appends the block between new markers and changes nothing else.
 - **An installed file was deleted locally:** the check reports it missing; reinstalling restores it.
 - **An agent proposes a change to a file the owner edited since the agent read it:** the proposal shows a three-way comparison; approving it doesn't silently drop the owner's edit.
-- **An agent reports hashes for files Task Lite never installed:** they're listed as unknown, and never treated as a problem on their own.
+- **An agent reports hashes for files Docket never installed:** they're listed as unknown, and never treated as a problem on their own.
 - **A secret appears in proposed content:** the write check rejects it, as for any text.
 
 ## Requirements *(mandatory)*
@@ -450,17 +450,17 @@ An agent working on a project can read that project's agent files and Workflow n
 - **FR-121**: The system MUST keep the agent files it ships (each skill and the AGENTS.md block) in three layers: bundled (read-only, updated by upgrades), service-wide edits, and per-project overrides. Each edit is a new version with an author, note, history and diff, and can be reverted to the layer below.
 - **FR-122**: For each project, the system MUST show the effective agent files (which version of each file applies and from which layer), and MUST flag files whose bundled version changed after the owner edited them, without overwriting the owner's version.
 - **FR-123**: Each project MUST be able to hold Workflow notes (Markdown, ≤ 10,000 characters), versioned like the agent files, and `get_context` MUST include them for that project's items.
-- **FR-124**: The system MUST offer installing a project's or the service-wide effective agent files, for Claude Code or Codex, into a repo or user-wide, by a copy-paste command that downloads them from Task Lite with a short-lived single-use link.
-- **FR-125**: The system MUST offer an opt-in push install into a host folder the owner mounts for that purpose. It writes only skill folders and the marked Task Lite section of AGENTS.md/CLAUDE.md, and never deletes other files.
+- **FR-124**: The system MUST offer installing a project's or the service-wide effective agent files, for Claude Code or Codex, into a repo or user-wide, by a copy-paste command that downloads them from Docket with a short-lived single-use link.
+- **FR-125**: The system MUST offer an opt-in push install into a host folder the owner mounts for that purpose. It writes only skill folders and the marked Docket section of AGENTS.md/CLAUDE.md, and never deletes, except folders Docket itself installed and recorded, when unmodified (B28: the `tasklite-*` skill folders an install from before the rename recorded in its manifest, removed only while each still matches the recorded hash; an edited one is kept and reported).
 - **FR-126**: Every install MUST be logged with its time, client, target, method and the exact version of every file, and installed files MUST carry a manifest of those versions.
 - **FR-127**: The system MUST show whether installed copies differ from what was sent: in the UI for pushed installs, and through a copy-paste check command for others.
 - **FR-128** (owner decision 30): Agents MUST be able to read, through MCP, the agent files and Workflow notes in effect for a project, and to propose a change to any of them with a reason. A proposal changes nothing until the owner approves it.
 - **FR-129**: The owner MUST be able to approve, edit then approve, or decline each proposal, seeing a diff against the current version (and a three-way view if the file changed since the agent read it). History MUST record the proposer and the approver.
 - **FR-130**: Agents MUST NOT be able to change agent files or Workflow notes directly. Proposals are the only agent path.
 - **FR-131**: The system MUST detect installed instruction files that differ from what was sent: by checking push-folder installs on a schedule, and from instruction hashes agents report when they claim an item.
-- **FR-132**: For each detected difference, the owner MUST see what changed (a diff, when the content is available) and be offered *Adopt* (save it as the project's copy), *Restore* (reinstall Task Lite's version) or *Keep local* (accept it; no further alerts until it changes again).
+- **FR-132**: For each detected difference, the owner MUST see what changed (a diff, when the content is available) and be offered *Adopt* (save it as the project's copy), *Restore* (reinstall Docket's version) or *Keep local* (accept it; no further alerts until it changes again).
 - **FR-133**: Each run MUST record the instruction versions it reported working from, and the owner MUST see them on the run, flagged when they differ from what was sent.
-- **FR-134**: The shipped skills and AGENTS.md block MUST tell agents to propose instruction changes through Task Lite rather than editing installed files, and to report their instruction hashes when they claim work.
+- **FR-134**: The shipped skills and AGENTS.md block MUST tell agents to propose instruction changes through Docket rather than editing installed files, and to report their instruction hashes when they claim work.
 
 ### Key Entities
 
@@ -501,19 +501,19 @@ An agent working on a project can read that project's agent files and Workflow n
 - **SC-009**: A new owner goes from a clean machine to a connected agent in 10 minutes or less by following the README.
 - **SC-010**: Every owner-facing screen passes automated accessibility checks with no serious or critical issues, in both themes.
 - **SC-011**: A Jira dry run of 500 issues completes in under 2 minutes and accounts for 100% of issues as imported, skipped or lossy.
-- **SC-012**: In the pilot, agents follow the workflow (claim before work, plan in the checklist, hand off through packets) without reminders in at least 90% of items, and the owner checks Task Lite instead of Jira for status.
+- **SC-012**: In the pilot, agents follow the workflow (claim before work, plan in the checklist, hand off through packets) without reminders in at least 90% of items, and the owner checks Docket instead of Jira for status.
 - **SC-013** *(default, not asked)*: At the stated scale, owner views appear in under 1 second, and 95% of agent requests complete in under half a second on the owner's machine.
 - **SC-014**: After a simulated crash with at least three in-flight runs (active, parked, at risk), a coordinator can re-dispatch every interrupted run from the restart list alone (no conversation history, no probing), with 100% of briefs recovered unchanged. 100% of declared resources left running are reported as orphaned within 15 minutes.
 - **SC-015**: A new owner finds and opens the right Help article from the screen they're on in one click, for every state named in the UI (parked, stale, at risk, safe to prune, and so on).
 - **SC-016**: For any installed copy, the owner can tell within one minute which file versions were sent and whether each was edited locally.
-- **SC-017**: An instruction file edited outside Task Lite is surfaced to the owner within 15 minutes for push installs, or by the next agent claim on that project otherwise, in 100% of cases in the drift test suite.
+- **SC-017**: An instruction file edited outside Docket is surfaced to the owner within 15 minutes for push installs, or by the next agent claim on that project otherwise, in 100% of cases in the drift test suite.
 
 ## Assumptions
 
 - One owner, one machine. V1 has no multi-user accounts, and no access from other devices.
 - Agents are installed clients (Codex, Claude Code) and the same clients launched as workers by an orchestrator (Orca). Each connects directly; a client-side bridge is needed only if a specific client can't.
-- The orchestrator, or the owner, starts agents. Task Lite only coordinates them (owner decision 18).
-- The agents' own workflow files (`AGENTS.md`, `CLAUDE.md`) carry project-specific rules: when to declare human review, whether agents may move work to Ready, which planning documents are expected. Task Lite stores and shows these choices but doesn't enforce them (owner decision 11).
+- The orchestrator, or the owner, starts agents. Docket only coordinates them (owner decision 18).
+- The agents' own workflow files (`AGENTS.md`, `CLAUDE.md`) carry project-specific rules: when to declare human review, whether agents may move work to Ready, which planning documents are expected. Docket stores and shows these choices but doesn't enforce them (owner decision 11).
 - "PR merged" is reported by agents in V1. Observing merges and CI directly is out of scope (ROADMAP.md).
 - V1 is built and verified with disposable sample data. A pilot project is chosen afterwards, following ROADMAP.md §1.
 - Effort is measured in points, and dates in the owner's local time zone.

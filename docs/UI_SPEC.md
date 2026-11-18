@@ -1,4 +1,4 @@
-# Task Lite: V1 UI spec (handoff)
+# Docket (formerly Task Lite): V1 UI spec (handoff)
 
 Status: ready to build, 2026-11-07. This is the screen-by-screen contract for the web UI. Read it together with [BUILD_SPEC.md](BUILD_SPEC.md), which covers data, rules and API.
 
@@ -10,7 +10,7 @@ Status: ready to build, 2026-11-07. This is the screen-by-screen contract for th
 
 ## 1. Overview
 
-**Who and why.** One owner, on one machine, supervising AI agents several times a day. Agents coordinate through Task Lite; this UI is how the owner sees and steers that coordination. The UI answers four questions, in this order:
+**Who and why.** One owner, on one machine, supervising AI agents several times a day. Agents coordinate through Docket; this UI is how the owner sees and steers that coordination. The UI answers four questions, in this order:
 1. What needs me?
 2. What are agents doing?
 3. Where is the work?
@@ -595,7 +595,7 @@ h1 "Settings".
 
 ### 6.7b Agent files (`/agent-files`, decision 29; redesigned in B25)
 Its own nav item, after Agents. It isn't under Settings and isn't marked service-wide: like the other pages it follows the project switcher (All projects, or one project). The screen shows **two ideas, not three layers**, and never uses the words bundled, layer, override, effective set or service-wide:
-- **Default:** what every project uses (stored as the bundled version plus the owner's service-wide edit). It reads "Task Lite's version", or "Edited" with a small marker when the owner edited it; *Reset to Task Lite's version* removes the edit (B23's revert of the service layer).
+- **Default:** what every project uses (stored as the bundled version plus the owner's service-wide edit). It reads "Docket's version", or "Edited" with a small marker when the owner edited it; *Reset to Docket's version* removes the edit (B23's revert of the service layer).
 - **<Project>'s copy:** exists only once the owner customizes a file for that project (the project layer). Its presence is the indicator.
 
 **With one project selected** (h1 "Agent files · Recipe App", with *Install into Recipe App's repo* on the right):
@@ -603,34 +603,34 @@ Its own nav item, after Agents. It isn't under Settings and isn't marked service
 Workflow notes   Rules agents get with every Recipe App item (in get_context)      [Edit]
 
 FILE                     USING
-tasklite-worker          Recipe App's copy · edited 2d ago      [Edit] [Use default]
-tasklite-coordinator     Default                                [Customize for Recipe App]
-tasklite-planner         Default (edited)                       [Customize for Recipe App]
+docket-worker          Recipe App's copy · edited 2d ago      [Edit] [Use default]
+docket-coordinator     Default                                [Customize for Recipe App]
+docket-planner         Default (edited)                       [Customize for Recipe App]
 AGENTS.md block          Default                                [Customize for Recipe App]
-⚠ The default tasklite-worker changed since Recipe App's copy was made.   [Compare]
+⚠ The default docket-worker changed since Recipe App's copy was made.   [Compare]
 
 Install log · Recipe App
 ```
 - **Workflow notes** (top): the versioned Markdown editor (optional note, history with diffs, "Saving an empty text clears the notes"). Empty notes show *Start from template*, which loads `docs/templates/WORKFLOW-starter.md` (bundled into the web build) into the editor, unsaved.
 - ***Customize for <project>*** opens the editor on a new copy, starting from the current default; saving (note required) creates it. ***Use default*** removes the copy (B23's revert of the project layer); its versions stay in History, and the toast has Undo.
-- **"The default changed since <project>'s copy was made"** shows when Task Lite shipped a new version since the copy (the server's bundled-updated flag on the project layer) or the default was edited after the copy's current version. *Compare* opens the file on that comparison.
+- **"The default changed since <project>'s copy was made"** shows when Docket shipped a new version since the copy (the server's bundled-updated flag on the project layer) or the default was edited after the copy's current version. *Compare* opens the file on that comparison.
 
 **With All projects selected** (h1 "Agent files · Defaults", with *Install user-wide*):
 ```
 FILE                 DEFAULT                          CUSTOMIZED IN
-tasklite-worker      Task Lite's version              Recipe App
-tasklite-planner     Edited · 1d ago  [Reset]         —
-AGENTS.md block      Task Lite's version              —
+docket-worker      Docket's version              Recipe App
+docket-planner     Edited · 1d ago  [Reset]         —
+AGENTS.md block      Docket's version              —
 ```
-- Opening a file edits **the default**. "Customized in" links to that project's view of the file. A default edited before Task Lite shipped a new version says "Task Lite's version of … changed since you edited the default" with *Compare*. The full install log sits at the bottom.
+- Opening a file edits **the default**. "Customized in" links to that project's view of the file. A default edited before Docket shipped a new version says "Docket's version of … changed since you edited the default" with *Compare*. The full install log sits at the bottom.
 
-**Opening a file** (`?file=`, under the list): the rendered text and a *Raw* toggle; *Edit* (or *Customize for …*) with a required note; *Use default* or *Reset to Task Lite's version*; *History* (the copy's versions, or the default's edits and Task Lite's versions, each with *View* and *Compare with the one before*); and *Compare with*: the default, or any earlier version. A flagged file has a warning callout with the two comparisons (what changed in the default, and the default next to the copy; B23's three-way view, relabelled). Versions are named "Task Lite's version v2", "Edited default v1", "Recipe App's copy v3". With a project selected and no copy, a line links to All projects to edit the default.
+**Opening a file** (`?file=`, under the list): the rendered text and a *Raw* toggle; *Edit* (or *Customize for …*) with a required note; *Use default* or *Reset to Docket's version*; *History* (the copy's versions, or the default's edits and Docket's versions, each with *View* and *Compare with the one before*); and *Compare with*: the default, or any earlier version. A flagged file has a warning callout with the two comparisons (what changed in the default, and the default next to the copy; B23's three-way view, relabelled). Versions are named "Docket's version v2", "Edited default v1", "Recipe App's copy v3". With a project selected and no copy, a line links to All projects to edit the default.
 
 **Install dialog** (*Install into <project>'s repo*, or *Install user-wide* from All projects):
 - *Client* (Claude Code or Codex);
 - *Repo folder*, prefilled from that project's last install that had a path (the install log has it), so it is remembered without new storage;
-- the method is automatic: **push** when the push folder is ready and the folder is inside it ("Task Lite writes the files into this folder itself", with a *Copy a command instead* link), otherwise the command, with a line saying why and, when push isn't set up, *Set up one-click install* (to Settings → General → One-click install). A user-wide install is always a command;
-- **What will be written** is a collapsed disclosure; it says that only the marked Task Lite section of AGENTS.md/CLAUDE.md is touched;
+- the method is automatic: **push** when the push folder is ready and the folder is inside it ("Docket writes the files into this folder itself", with a *Copy a command instead* link), otherwise the command, with a line saying why and, when push isn't set up, *Set up one-click install* (to Settings → General → One-click install). A user-wide install is always a command;
+- **What will be written** is a collapsed disclosure; it says that only the marked Docket section of AGENTS.md/CLAUDE.md is touched;
 - the **placeholder warning** fires only when the block being installed still has a `{{…}}` (the shipped block has none; `{{KEY}}` is filled for a repo install), with *Edit block* and *Install anyway*;
 - the result: what changed (push), or the PowerShell and bash commands, each with *Copy*, and "Run from the repo folder" when no folder was given.
 
@@ -642,9 +642,9 @@ Help anchors: `agent-files.page` (the h1), `agent-files.workflow`, `agent-files.
 
 ### 6.7b-1 Proposals and drift (decision 30)
 - **Proposals:** on the project's Agent files page, a "Proposed changes · n" section above the files. Each shows the file, the proposing agent and run, the reason, and a diff against the current version (three-way if the file changed since), with *Approve*, *Edit, then approve* and *Decline…*. Needs you shows one line: "n agent file changes proposed" → Agent files.
-- **Drift:** a Problems row, "Agent files changed outside Task Lite · <project> · <file>" → the Agent files page's "Changed outside Task Lite" section: where (path, install), how it was found (scheduled check, or reported by <agent> on <item>), a diff when content is known, and *Adopt as <project>'s copy*, *Restore Task Lite's version* and *Keep local*.
+- **Drift:** a Problems row, "Agent files changed outside Docket · <project> · <file>" → the Agent files page's "Changed outside Docket" section: where (path, install), how it was found (scheduled check, or reported by <agent> on <item>), a diff when content is known, and *Adopt as <project>'s copy*, *Restore Docket's version* and *Keep local*.
 - **Runs:** the Lead and runs section and the agent bar show "Instructions: <file> · <source> v<n>", with a ⚠ "edited locally" chip linking to the drift entry.
-- **Files:** a file row shows "1 proposal" and "changed outside Task Lite" chips when they apply.
+- **Files:** a file row shows "1 proposal" and "changed outside Docket" chips when they apply.
 
 ### 6.7c Help (`/help`, `/help/:slug`, decision 29)
 - **`/help`:** a searchable list of articles, each with its title and one-line summary, grouped as Getting started, Working with agents, Recovery, Planning and Operations.
@@ -662,18 +662,18 @@ Spec clarification, 2026-11-14 (FR-068).
   - **question asked:** title "codex asks on DOC-4", body the question, truncated to 120 characters.
 
   Nothing else notifies: no problems, decisions or agent activity.
-- **Click:** focuses the Task Lite tab, or opens one, and goes to the packet or the item's question.
+- **Click:** focuses the Docket tab, or opens one, and goes to the packet or the item's question.
 - **No duplicates:**
   - each event notifies once per browser: event IDs are recorded in `localStorage`, and one tab per browser claims the job;
   - events that were already for-you when the page loaded never notify;
   - a burst notifies per item, not per event.
-- **Tab title:** always `(N) Task Lite`, where N is the for-you count, or `Task Lite` when it's zero. This works even with notifications off.
+- **Tab title:** always `(N) Docket`, where N is the for-you count, or `Docket` when it's zero. This works even with notifications off.
 - **Privacy:** notifications are generated in the browser from the live stream. Nothing is sent to any outside service.
 
 ### 6.8 Unlock (`/unlock`)
 A centred card on the page background:
-- logo, h1 "Unlock Task Lite";
-- the line "Paste the owner key. Get it with: `docker compose exec tasklite tasklite owner-key`";
+- logo, h1 "Unlock Docket";
+- the line "Paste the owner key. Get it with: `docker compose exec docket docket owner-key`";
 - a password input, then *Unlock* (primary);
 - error: "That key didn't match." inline under the input.
 
@@ -755,7 +755,7 @@ A dialog with three steps. A step indicator "1 Connect · 2 Review · 3 Import" 
    - while it runs: a progress line, "Reading 140 of 512 issues…", plus *Cancel*.
 2. **Review report:**
    - **summary tiles:** n issues, n would import, n skipped, n lossy, attachments size;
-   - **mapping table** (Jira → Task Lite, count, lossy count);
+   - **mapping table** (Jira → Docket, count, lossy count);
    - an expandable **Lossy items** list (key, title, reason);
    - **Cycles found** (if any): "Imported as is. They'll show under Problems.";
    - **Fields used:** "Story points → customfield_10016", "Start date → not found";

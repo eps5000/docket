@@ -1,6 +1,6 @@
 ---
 name: docket-review-packet
-description: Hand work to the owner for human review in Task Lite. Covers declaring good human review items, preparing evidence, writing a submit_packet the owner can verify in minutes without asking you anything, and handling later rounds. Use when an item has (or needs) human review items, or when you're about to call submit_packet or get_review.
+description: Hand work to the owner for human review in Docket. Covers declaring good human review items, preparing evidence, writing a submit_packet the owner can verify in minutes without asking you anything, and handling later rounds. Use when an item has (or needs) human review items, or when you're about to call submit_packet or get_review.
 ---
 
 # Review packets the owner can clear in minutes

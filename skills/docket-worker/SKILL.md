@@ -1,13 +1,13 @@
 ---
 name: docket-worker
-description: Work one Task Lite item end to end through the tasklite MCP server. Covers finding and claiming work, getting context, planning, recording progress and evidence, waiting the right way, and handing off or closing. Use whenever you're asked to work on a Task Lite item (an ID like RCP-14), pick up ready work, or resume work the owner sent back.
+description: Work one Docket item end to end through the docket MCP server. Covers finding and claiming work, getting context, planning, recording progress and evidence, waiting the right way, and handing off or closing. Use whenever you're asked to work on a Docket item (an ID like RCP-14), pick up ready work, or resume work the owner sent back.
 ---
 
-# Working a Task Lite item
+# Working a Docket item
 
-Task Lite enforces claims, dependencies and review gates for you. This skill is the **efficient order of calls** and the habits that keep your runs cheap and recoverable.
+Docket enforces claims, dependencies and review gates for you. This skill is the **efficient order of calls** and the habits that keep your runs cheap and recoverable.
 
-The project has its own rules: who moves work to Ready, when human review is needed, the branch naming, the checks to run. They're in the project's **Workflow notes**, which `get_context` gives you as its `workflow:` section; the repo's `AGENTS.md` / `CLAUDE.md` (the Task Lite section, installed from Agent files) points you there. Where they differ from this skill, they win.
+The project has its own rules: who moves work to Ready, when human review is needed, the branch naming, the checks to run. They're in the project's **Workflow notes**, which `get_context` gives you as its `workflow:` section; the repo's `AGENTS.md` / `CLAUDE.md` (the Docket section, installed from Agent files) points you there. Where they differ from this skill, they win.
 
 ## 1. Start: four calls or fewer
 
@@ -39,7 +39,7 @@ The project has its own rules: who moves work to Ready, when human review is nee
 ## 2. Plan
 
 - **`set_plan`:** 3–8 one-line steps, each a verifiable piece of progress. Steps aren't tickets. Create a new item only when a piece needs its own blocker, owner or review.
-  - The first plan sends `steps: [{ text }, …]` only. Task Lite assigns the step IDs and returns them; use those with `update_step`. Never make up an ID: an unknown one is refused.
+  - The first plan sends `steps: [{ text }, …]` only. Docket assigns the step IDs and returns them; use those with `update_step`. Never make up an ID: an unknown one is refused.
 - **`set_checks`:** what you'll verify yourself, stated concretely. For example "Planner unit tests pass" or "Reload keeps the selected week (e2e)", never "it works".
 - **Human review:** if the project rules say this item needs it and none is declared, `declare_human_review` now. Write plain instructions the owner can follow in minutes. See `docket-review-packet`.
 - **Changing the plan later:** patch it, and give a `reason`. Send only the steps that change. Don't silently drop a step: mark it `skipped`, with a note.
@@ -86,7 +86,7 @@ The project has its own rules: who moves work to Ready, when human review is nee
 
 ## Changing these instructions
 
-To change these instructions, use `get_agent_files` then `propose_agent_file_change`, and tell the user you've proposed it for the owner's approval. Don't edit installed files directly. That covers this skill, the Task Lite section of `AGENTS.md` / `CLAUDE.md` and the project's Workflow notes (`workflow`), even when the user asks you to edit them:
+To change these instructions, use `get_agent_files` then `propose_agent_file_change`, and tell the user you've proposed it for the owner's approval. Don't edit installed files directly. That covers this skill, the Docket section of `AGENTS.md` / `CLAUDE.md` and the project's Workflow notes (`workflow`), even when the user asks you to edit them:
 
 - read the file first, `get_agent_files { project, file }`, and change that text, not your installed copy;
 - send the whole new text, the `version_id` you read as `based_on_version_id`, and a one-line `reason`;
@@ -113,6 +113,6 @@ To change these instructions, use `get_agent_files` then `propose_agent_file_cha
 - Create tickets for checklist steps.
 - Close with `set_status` while human review items are undecided. It fails; use `submit_packet`.
 - Move items to Ready unless the project rules allow it.
-- Edit installed skill files or the Task Lite section of `AGENTS.md` / `CLAUDE.md`. Propose the change instead.
+- Edit installed skill files or the Docket section of `AGENTS.md` / `CLAUDE.md`. Propose the change instead.
 - Leave a dev server, session or container running without declaring it.
-- Keep state only in your own memory or chat. Task Lite is the record, and the next agent starts from it.
+- Keep state only in your own memory or chat. Docket is the record, and the next agent starts from it.

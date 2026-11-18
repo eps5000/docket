@@ -1,9 +1,9 @@
-# Task Lite Constitution
+# Docket (formerly Task Lite) Constitution
 
 ## Core Principles
 
 ### I. Coordinator, Not Dispatcher
-Task Lite is the enforced source of truth that agents work through. It is not an agent runner.
+Docket is the enforced source of truth that agents work through. It is not an agent runner.
 - The service MUST NOT launch, schedule or message agents, and MUST NOT call model APIs (owner
   decisions 2 and 18, requirement O08). Orca, or the owner, starts agents.
 - It MUST answer, authoritatively and at any moment: what work exists, what is eligible to start,

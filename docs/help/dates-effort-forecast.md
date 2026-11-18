@@ -42,7 +42,7 @@ The forecast says when the remaining work is likely to finish, as two dates:
 - **P50:** a 50% chance of finishing by then.
 - **P85:** an 85% chance.
 
-It's worked out from how much estimated work was completed each week over the last 4 full weeks: Task Lite replays those weeks at random 10,000 times until the remaining effort reaches zero. The line under the chart states the rate, the number of items it used, and how many unestimated items it left out.
+It's worked out from how much estimated work was completed each week over the last 4 full weeks: Docket replays those weeks at random 10,000 times until the remaining effort reaches zero. The line under the chart states the rate, the number of items it used, and how many unestimated items it left out.
 
 It needs enough history: at least 8 estimated items completed in that window, in at least 2 different weeks. Until then it says "No forecast yet: needs 8 completed items with effort (have n)."
 

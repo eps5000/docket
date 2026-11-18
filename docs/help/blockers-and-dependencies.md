@@ -14,7 +14,7 @@ related:
   - dates-effort-forecast
 ---
 
-When one item **blocks** another, the second can't start until the first is cleared. Task Lite works this out for agents: they only get items that are Ready, not blocked and not claimed. Agents add and remove links; you see them on each ticket's **Dependencies** tab and on the maps.
+When one item **blocks** another, the second can't start until the first is cleared. Docket works this out for agents: they only get items that are Ready, not blocked and not claimed. Agents add and remove links; you see them on each ticket's **Dependencies** tab and on the maps.
 
 ## When a blocker counts as cleared
 
@@ -23,7 +23,7 @@ Each project has a rule. Set it in **Settings → Projects**, with **Blockers cl
 | Rule | A blocker is cleared when it's… |
 |---|---|
 | **Done** (the default) | done. |
-| **PR merged** | done, and its pull request is reported merged. The agent reports this; Task Lite doesn't check GitHub. |
+| **PR merged** | done, and its pull request is reported merged. The agent reports this; Docket doesn't check GitHub. |
 | **Verified by you** | done, and you approved every check in its human review, with none deferred. |
 
 An agent can set a stricter or looser rule on a single link. Changing a project's rule takes effect at once, and the toast says how many items it blocked or unblocked, with *Undo*.
@@ -42,4 +42,4 @@ Parent epics and "relates" links never block. Blocking works across projects.
 - **Blocked by a canceled item:** a canceled blocker never counts as cleared, so its dependents stay blocked. Click *Fix*, then *Remove link*, or reopen the canceled item.
 - **A blocker that needs your verification closed with a deferred check:** under **Verified by you**, a deferred check doesn't count as verified. Click *Open* to see the link, then verify the deferred check or change the rule.
 
-Task Lite never silently unblocks work.
+Docket never silently unblocks work.

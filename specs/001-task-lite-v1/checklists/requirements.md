@@ -1,4 +1,4 @@
-# Specification Quality Checklist: Task Lite V1
+# Specification Quality Checklist: Docket (formerly Task Lite) V1
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-11-14

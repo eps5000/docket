@@ -1,11 +1,11 @@
 ---
 name: docket-coordinator
-description: Coordinate several agents against Task Lite. Covers choosing and dispatching ready work, writing restartable briefs, monitoring through the change feed, handling parked workers, pruning worktrees safely, and recovering after a crash. Use when you're an orchestrator, such as an Orca coordinator, a dispatch script or the owner running workers, deciding which agents work on which Task Lite items.
+description: Coordinate several agents against Docket. Covers choosing and dispatching ready work, writing restartable briefs, monitoring through the change feed, handling parked workers, pruning worktrees safely, and recovering after a crash. Use when you're an orchestrator, such as an Orca coordinator, a dispatch script or the owner running workers, deciding which agents work on which Docket items.
 ---
 
-# Coordinating agents with Task Lite
+# Coordinating agents with Docket
 
-**Task Lite records; you act.** It never launches agents, checks folders or stops processes. It tells you:
+**Docket records; you act.** It never launches agents, checks folders or stops processes. It tells you:
 
 - what's ready;
 - who holds what;
@@ -16,7 +16,7 @@ You dispatch workers, create and prune worktrees, and clean up. Workers follow `
 
 **Agent files.** The owner installs the skills and the project's `AGENTS.md` / `CLAUDE.md` section from Agent files (_Install into <project>'s repo_, by a copy-paste command or into a mounted folder), and the install log shows which versions each repo got. If a worker doesn't have `docket-worker`, ask the owner to install it there; paste the skill into the brief only as a last resort. Each project's **Workflow notes** reach every worker through `get_context`, so don't repeat them, or the `AGENTS.md` rules, in briefs. To change these instructions, use `get_agent_files` then `propose_agent_file_change`, and tell the user you've proposed it for the owner's approval. Don't edit installed files directly, and don't tell workers to.
 
-**Instructions changed outside Task Lite.** Workers pass the `docket-check` output as `instructions` on `claim_lead` (the worker skill says how), and Task Lite also checks folders it installed into. When an installed skill or the Task Lite section was edited, deleted or added by hand, the owner sees "… edited outside Task Lite" under Problems, and the run shows "edited locally". The remedies are the owner's, in Agent files: _Adopt_ (save the local text as the project's copy, or the default), _Restore Task Lite's version_ (reinstall), or _Keep local_ (accept it; a further change alerts again). Mention it to the owner when a worker hits it; don't restore or overwrite the files yourself.
+**Instructions changed outside Docket.** Workers pass the `docket-check` output as `instructions` on `claim_lead` (the worker skill says how), and Docket also checks folders it installed into. When an installed skill or the Docket section was edited, deleted or added by hand, the owner sees "… edited outside Docket" under Problems, and the run shows "edited locally". The remedies are the owner's, in Agent files: _Adopt_ (save the local text as the project's copy, or the default), _Restore Docket's version_ (reinstall), or _Keep local_ (accept it; a further change alerts again). Mention it to the owner when a worker hits it; don't restore or overwrite the files yourself.
 
 ## 1. Every time you start, including after any crash or restart
 
@@ -27,7 +27,7 @@ You dispatch workers, create and prune worktrees, and clean up. Workers follow `
 ## 2. Choosing work
 
 - **Find candidates:** `search_items { project, filter: "ready_to_start" }`. Results are sorted by priority, then by how many items each would unblock, so take them in order.
-- **Ready means unblocked and unclaimed.** Two Ready items never block each other in Task Lite. They can still collide in code, though: same files, same migration. Use your judgement, and keep items from the same epic in one worker when they touch the same area.
+- **Ready means unblocked and unclaimed.** Two Ready items never block each other in Docket. They can still collide in code, though: same files, same migration. Use your judgement, and keep items from the same epic in one worker when they touch the same area.
 - **Mind the owner's review queue.** If `search_items { filter: "waiting_for_review" }` is long, prefer work that doesn't add another packet, such as items with no human review. The owner's attention is the scarcest resource.
 - **Resumable work comes first:** `filter: "resumable"` is work the owner sent back.
 - **Don't dispatch** items in Inbox or Planning, or items claimed by someone else. You'd only get `validation` or `conflict`.
@@ -35,17 +35,17 @@ You dispatch workers, create and prune worktrees, and clean up. Workers follow `
 ## 3. Dispatching a worker
 
 1. **Create the worktree:** a new branch from an up-to-date base. Record the path, branch, base ref and base SHA.
-2. **Write the brief.** It's stored unchanged and re-sent after a crash, so make it self-contained about the _environment_, and leave the _item content_ to Task Lite:
+2. **Write the brief.** It's stored unchanged and re-sent after a crash, so make it self-contained about the _environment_, and leave the _item content_ to Docket:
    ```text
-   Work Task Lite item RCP-17 using the docket-worker skill.
+   Work Docket item RCP-17 using the docket-worker skill.
    Worktree: C:/work/rcp-17 · branch rcp-17-week-reload · base origin/main @ 9a10624
    Claim with claim_lead, passing this workspace, orchestrator {name:"orca", dispatch_id:"<id>"}
    and this brief verbatim. Then get_context; don't ask me for the requirements.
    Constraints: <tests to run, dirs not to touch, PR rules>.
    If you must wait for me, park_run with waiting_on {orchestrator:true}. Don't end silently.
    ```
-   Don't copy the description or acceptance criteria into the brief. They live in Task Lite, and copies go stale.
-3. **The worker claims** with `workspace`, `orchestrator` and `brief`. If a worker can't reach Task Lite, claim on its behalf with the same fields, and give it the `run_id`.
+   Don't copy the description or acceptance criteria into the brief. They live in Docket, and copies go stale.
+3. **The worker claims** with `workspace`, `orchestrator` and `brief`. If a worker can't reach Docket, claim on its behalf with the same fields, and give it the `run_id`.
 
 ## 4. Monitoring: the change feed, not polling
 
@@ -78,7 +78,7 @@ For a detailed look at one worker, use `get_item { id, view: "summary" }`. Don't
 2. **Prune only workspaces in `safe_to_prune`.** Never prune `in_use`, `parked` or `at_risk`, and treat `unknown` as not safe. **Idle is not finished.**
 3. Stop every entry in `orphaned_resources`, using its locator. The resumed run, or the owner, marks it released. (A resource only counts as orphaned 15 minutes after its run ended. Right after a crash, look at the interrupted runs' own unreleased `run.resources` too.)
 
-**After a crash (yours, a worker's or Task Lite's):** call `recovery_report { include_briefs: true }`. Then, for each interrupted or stale entry:
+**After a crash (yours, a worker's or Docket's):** call `recovery_report { include_briefs: true }`. Then, for each interrupted or stale entry:
 
 Skip entries with no workspace and no brief: you didn't dispatch them, so leave them to the owner.
 
@@ -108,6 +108,6 @@ Skip entries with no workspace and no brief: you didn't dispatch them, so leave 
 ## Never
 
 - Treat an idle worktree or terminal as finished. Check its workspace state.
-- Rebuild a brief from memory or chat history when Task Lite has it.
+- Rebuild a brief from memory or chat history when Docket has it.
 - Leave a process, dev server or session running without a declared resource.
 - Run two workers on one item. Use subagents under one lead instead (`docket-lead-subagents`).

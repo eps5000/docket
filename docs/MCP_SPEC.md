@@ -928,7 +928,7 @@ These are part of M2 (BUILD_SPEC §11). Use the official MCP client SDK against 
 The commands below were checked against the clients' current documentation on 2026-11-07. The real-client smoke test (BUILD_SPEC §10) is still the final check.
 
 ### Token
-- **Where it comes from:** Settings → Connections → *Reveal token* (or `docker compose exec tasklite tasklite agent-token`).
+- **Where it comes from:** Settings → Connections → *Reveal token* (or `docker compose exec docket docket agent-token`).
 - **Put it in the environment** the agent clients run in, as `DOCKET_TOKEN`. On Windows: `setx DOCKET_TOKEN "<token>"`, then open a new terminal. Orca workers must see the same variable (BUILD_SPEC §12, V2).
 - **Watch for whitespace:** a trailing newline in the token breaks auth, and Claude Code warns about hidden whitespace.
 

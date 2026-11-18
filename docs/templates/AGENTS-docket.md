@@ -1,13 +1,13 @@
 <!--
-The Task Lite section of a repo's AGENTS.md (Codex) or CLAUDE.md (Claude Code).
-Task Lite installs it between its markers from Agent files. It is the same for every project:
+The Docket section of a repo's AGENTS.md (Codex) or CLAUDE.md (Claude Code).
+Docket installs it between its markers from Agent files. It is the same for every project:
 each project's own rules live in its Workflow notes, which agents get with every item in get_context.
 Keep it short: agents read it at the start of every session.
 -->
 
-## Work tracking: Task Lite
+## Work tracking: Docket
 
-This project's work lives in Task Lite (MCP server `tasklite`). Track all work there; don't keep a separate task list. Follow the `docket-worker` skill for the full workflow.
+This project's work lives in Docket (MCP server `docket`). Track all work there; don't keep a separate task list. Follow the `docket-worker` skill for the full workflow.
 
 **This project's rules** come with each item: `get_context` returns them as `workflow:` (the project's Workflow notes). Read them before you start. Where they differ from this section or the skill, they take precedence.
 

@@ -1,9 +1,9 @@
 ---
 name: docket-planner
-description: Turn a goal into well-shaped Task Lite work. Covers epics and items with testable outcomes and acceptance criteria, dependency links with the right satisfied_when rule, labels, planning documents, early human review, and decision records. Use when asked to plan, break down or shape work in Task Lite, or to prepare items for Ready.
+description: Turn a goal into well-shaped Docket work. Covers epics and items with testable outcomes and acceptance criteria, dependency links with the right satisfied_when rule, labels, planning documents, early human review, and decision records. Use when asked to plan, break down or shape work in Docket, or to prepare items for Ready.
 ---
 
-# Planning work in Task Lite
+# Planning work in Docket
 
 Good planning is what makes `ready_to_start` trustworthy. Workers then pick up items that are unblocked, clear and checkable, with no guessing.
 

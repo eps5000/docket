@@ -1,6 +1,6 @@
 ---
 title: Jira import
-summary: Bring a Jira project into Task Lite in three steps, with a dry run first that shows exactly what will and won't come across.
+summary: Bring a Jira project into Docket in three steps, with a dry run first that shows exactly what will and won't come across.
 group: Planning
 order: 4
 anchors:
@@ -10,7 +10,7 @@ related:
   - backups-restore-export
 ---
 
-You can copy a Jira Cloud project into Task Lite once, to start from your existing work. It's a one-time import, not a sync: later changes in Jira don't come across.
+You can copy a Jira Cloud project into Docket once, to start from your existing work. It's a one-time import, not a sync: later changes in Jira don't come across.
 
 ## 1. Connect
 
@@ -28,7 +28,7 @@ Click *Run dry run*. It reads every issue but changes nothing. You can *Cancel* 
 The dry run shows:
 
 - how many issues it found, would import, would skip, and would import with something lost;
-- **Mapping:** how Jira's types and statuses become Task Lite's;
+- **Mapping:** how Jira's types and statuses become Docket's;
 - **Lossy items:** issues that lose something on the way, and why;
 - **Cycles found:** blocking loops in Jira's links. They're imported as they are and show under Problems, so you can fix them afterwards;
 - **Fields used:** which Jira fields it read story points and dates from.

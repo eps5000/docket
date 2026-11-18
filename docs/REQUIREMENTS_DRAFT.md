@@ -1,5 +1,7 @@
 # Candidate product requirements
 
+> **Docket (formerly Task Lite).** This draft is history: it keeps the name the product had when it was written.
+
 Status: discovery draft, updated 2026-11-07. **Superseded as the requirements of record by [specs/001-task-lite-v1/spec.md](../specs/001-task-lite-v1/spec.md), and for building by [BUILD_SPEC.md](BUILD_SPEC.md), [MCP_SPEC.md](MCP_SPEC.md) and [UI_SPEC.md](UI_SPEC.md);** this file remains the record of owner decisions and the original requirement IDs those documents cite. The confirmed choices below are owner decisions; remaining requirements are proposals to test with real agents. Background: [Jira capability research](JIRA_RESEARCH.md).
 
 ## Confirmed owner decisions
