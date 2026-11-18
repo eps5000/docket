@@ -364,6 +364,12 @@ export type DriftState = (typeof DRIFT_STATES)[number];
 export const DRIFT_CHANGES = ['edited', 'missing', 'extra'] as const;
 export type DriftChange = (typeof DRIFT_CHANGES)[number];
 
+// ---- Onboarding (owner decision 31; BUILD_SPEC §4, §5.20) ----
+
+/** An onboarding session: the agent works, then hands it to the owner, who marks it reviewed. */
+export const ONBOARDING_STATES = ['in_progress', 'ready_for_review', 'reviewed'] as const;
+export type OnboardingState = (typeof ONBOARDING_STATES)[number];
+
 // ---- Events (contracts/events.md; MCP_SPEC §4 EventType) ----
 
 export const ACTOR_KINDS = ['owner', 'agent', 'system'] as const;
@@ -432,13 +438,23 @@ export const EVENT_TYPES = [
   'agent_file.proposal_decided',
   'drift.detected',
   'drift.resolved',
+  // Onboarding (decision 31; BUILD_SPEC §5.20)
+  'project.created',
+  'onboarding.started',
+  'onboarding.finished',
+  'onboarding.reviewed',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 
-/** The only event types that make something "for you" on the stream (owner decision 21). */
+/**
+ * The only event types that make something "for you" on the stream (owner
+ * decision 21), plus an onboarding ready for the owner's review (decision 31;
+ * B29).
+ */
 export const FOR_YOU_EVENT_TYPES = [
   'packet.submitted',
   'question.asked',
+  'onboarding.finished',
 ] as const satisfies readonly EventType[];
 
 /** Kinds of object an event touches, as sent in the stream's `objects[]`. */
@@ -460,6 +476,8 @@ export const OBJECT_KINDS = [
   'agent_file_proposal',
   /** Decision 30: an installed file that differs from what was sent. */
   'drift',
+  /** Decision 31: an onboarding session. */
+  'onboarding',
 ] as const;
 export type ObjectKind = (typeof OBJECT_KINDS)[number];
 

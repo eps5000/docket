@@ -152,6 +152,23 @@ describe('the notifier', () => {
     expect(shown).toEqual([]);
   });
 
+  it('a finished onboarding is for you but not a packet or a question: no notification yet (B29)', async () => {
+    writePref('on');
+    const { n } = notifier([packetRow, questionRow]);
+    const finished = {
+      seq: 25,
+      type: 'onboarding.finished',
+      objects: [
+        { kind: 'onboarding', id: 'onb_1' },
+        { kind: 'project', id: 'GF' },
+      ],
+      for_you: true,
+    } as StreamChange;
+    expect(await n.handle(finished)).toBeNull();
+    expect(shown).toEqual([]);
+    expect(alreadyNotified(25)).toBe(false);
+  });
+
   it('a burst on one item notifies once', async () => {
     writePref('on');
     let now = 1_000_000;

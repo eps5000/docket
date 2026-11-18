@@ -1,0 +1,18 @@
+[
+  {
+    "name": "onboard",
+    "description": "Onboard this repo into Docket: set up or adopt the project, then follow the onboarding guide.",
+    "arguments": [
+      {
+        "name": "project_key",
+        "description": "Project key: 2–5 uppercase letters, like GF.",
+        "required": true
+      },
+      {
+        "name": "project_name",
+        "description": "The project's name, if it is new.",
+        "required": false
+      }
+    ]
+  }
+]

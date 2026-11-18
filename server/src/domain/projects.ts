@@ -28,12 +28,15 @@
  * folder is gone, the tombstone row is revived as the new project. It keeps
  * its `next_seq`, so the new items never reuse an ID an agent may still hold
  * for a deleted item.
+ *
+ * Decision 31 (T163) adds `create` (*New project* in Settings) as a stub;
+ * US15 (T164) fills it in with the same key and tombstone rules.
  */
 import { existsSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { SATISFIED_WHEN_LABELS, ToolError, type Project, type SatisfiedWhen } from '@docket/shared';
 import type { Db } from '../db/client.js';
-import type { ProjectsService, ServiceDeps } from './contracts.js';
+import { notImplemented, type ProjectsService, type ServiceDeps } from './contracts.js';
 import { newId } from './ids.js';
 import { blockDiff } from './links.js';
 import { BlockIndex } from './model.js';
@@ -268,5 +271,8 @@ export function createProjectsService(deps: ServiceDeps): ProjectsService {
       }
       return Promise.resolve(removed);
     },
+
+    // *New project* (decision 31): a stub until US15 (T164) fills it in, here.
+    create: notImplemented('projects.create'),
   };
 }

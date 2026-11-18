@@ -32,9 +32,9 @@ describe('database client', () => {
   });
 
   it('applies every migration, and migrating again is a no-op', () => {
-    expect(migrationStatus(t.db)).toEqual({ current: true, applied: 6, expected: 6 });
+    expect(migrationStatus(t.db)).toEqual({ current: true, applied: 7, expected: 7 });
     migrateDb(t.db);
-    expect(migrationStatus(t.db).applied).toBe(6);
+    expect(migrationStatus(t.db).applied).toBe(7);
   });
 
   it('creates every BUILD_SPEC §4 table', () => {
@@ -71,6 +71,7 @@ describe('database client', () => {
       'agent_file_proposals',
       'instruction_reports',
       'drift',
+      'onboarding_sessions',
       'artifacts',
       'documents',
       'document_versions',

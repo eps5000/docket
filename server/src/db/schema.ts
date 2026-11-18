@@ -26,6 +26,7 @@ import {
   PROPOSAL_STATES,
   DRIFT_CHANGES,
   DRIFT_STATES,
+  ONBOARDING_STATES,
   WORKFLOW_KEY,
   ARTIFACT_KINDS,
   CHECK_STATES,
@@ -136,6 +137,11 @@ export const projects = sqliteTable(
       .notNull()
       .default('done'),
     deleted_at: text('deleted_at'),
+    /**
+     * The agent that created it through onboard_project (`claude · orca-w3`);
+     * null when the owner, the seed or a Jira import did (decision 31; B29).
+     */
+    created_by: text('created_by'),
     version: version(),
     ...timestamps,
   },
@@ -954,6 +960,67 @@ export const drift = sqliteTable(
       ),
     ),
     check('drift_resolved', sql.raw(`("state" = 'open') = ("resolved_at" IS NULL)`)),
+  ],
+);
+
+/**
+ * Onboarding sessions (owner decision 31; BUILD_SPEC §4, §5.20). An agent
+ * starts one with onboard_project and finishes it with finish_onboarding;
+ * the owner marks it reviewed. Events written during a session carry
+ * `data.onboarding_session`, so the review card can count them.
+ */
+export const onboarding_sessions = sqliteTable(
+  'onboarding_sessions',
+  {
+    /** `onb_…` */
+    id: id(),
+    project_key: text('project_key')
+      .notNull()
+      .references(() => projects.key, { onDelete: 'cascade' }),
+    /** The agent that started it, e.g. `claude · orca-w3`. */
+    started_by: text('started_by').notNull(),
+    /** The client that started it: only it may resume or finish the session (B29). */
+    client: text('client').notNull(),
+    /** The run it was started under, if any. */
+    run_id: text('run_id').references((): AnySQLiteColumn => runs.id, { onDelete: 'set null' }),
+    started_at: text('started_at').notNull(),
+    state: text('state', { enum: ONBOARDING_STATES }).notNull().default('in_progress'),
+    summary: text('summary'),
+    /** The agent's open questions: a JSON array of strings. */
+    questions: text('questions', { mode: 'json' })
+      .notNull()
+      .default(sql`'[]'`),
+    finished_at: text('finished_at'),
+    reviewed_at: text('reviewed_at'),
+    ...timestamps,
+  },
+  (t) => [
+    // One session in progress per project (MCP_SPEC §5.11: another's is `forbidden`).
+    uniqueIndex('onboarding_sessions_one_in_progress')
+      .on(t.project_key)
+      .where(sql.raw(`"state" = 'in_progress'`)),
+    index('onboarding_sessions_project_state').on(t.project_key, t.state),
+    check('onboarding_sessions_state', oneOf('state', ONBOARDING_STATES)),
+    check(
+      'onboarding_sessions_summary',
+      sql.raw(
+        `CASE WHEN "state" = 'in_progress' THEN "summary" IS NULL ELSE "summary" IS NOT NULL AND length("summary") BETWEEN 1 AND 4000 END`,
+      ),
+    ),
+    check(
+      'onboarding_sessions_questions',
+      sql.raw(
+        `json_valid("questions") AND json_type("questions") = 'array' AND json_array_length("questions") <= 20`,
+      ),
+    ),
+    check(
+      'onboarding_sessions_finished',
+      sql.raw(`("state" = 'in_progress') = ("finished_at" IS NULL)`),
+    ),
+    check(
+      'onboarding_sessions_reviewed',
+      sql.raw(`("state" = 'reviewed') = ("reviewed_at" IS NOT NULL)`),
+    ),
   ],
 );
 

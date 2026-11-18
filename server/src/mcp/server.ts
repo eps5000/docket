@@ -22,9 +22,10 @@
  *   `structuredContent`, so the model reads the compact text. Every other
  *   session is `structured`.
  *
- * - Capabilities: `tools` with `listChanged: false`; no resources or prompts.
- *   `initialize` returns the server instructions (MCP_SPEC §2). The tools
- *   themselves are registered by `configure` (mcp/register.ts).
+ * - Capabilities: `tools` and `prompts`, each with `listChanged: false`; no
+ *   resources. `initialize` returns the server instructions (MCP_SPEC §2).
+ *   The tools and the `onboard` prompt (decision 31) are registered by
+ *   `configure` (mcp/register.ts, mcp/prompts.ts).
  */
 import { randomUUID } from 'node:crypto';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';

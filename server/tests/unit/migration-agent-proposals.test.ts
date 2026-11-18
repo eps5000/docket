@@ -4,6 +4,8 @@
  *
  * It must apply to a fresh database and to one created by the migrations on
  * `main` before B26 (0000–0003), with data in it, agent setup rows included.
+ * Projects are compared by the columns they had then (0006 later adds
+ * `created_by`).
  * It only adds three tables (`agent_file_proposals`, `instruction_reports`,
  * `drift`), so existing rows must come through untouched; the new tables'
  * limits, enums, uniqueness and cascades are enforced by the schema.
@@ -219,7 +221,7 @@ describe('0004_agent_proposals on a fresh database', () => {
   afterEach(() => t.cleanup());
 
   it('applies every migration, with foreign keys on and the check clean', () => {
-    expect(migrationStatus(t.db)).toEqual({ current: true, applied: 6, expected: 6 });
+    expect(migrationStatus(t.db)).toEqual({ current: true, applied: 7, expected: 7 });
     expect(t.db.sqlite.pragma('foreign_keys', { simple: true })).toBe(1);
     expect(t.db.sqlite.pragma('foreign_key_check')).toEqual([]);
   });
@@ -402,7 +404,7 @@ describe('0004_agent_proposals on a main-era database (0000–0003, with data)',
     db = openDb(join(tmp.dir, 'docket.db'));
     // What main's migrateDb produced before B26: 0000 to 0003 only.
     migrate(drizzle(db.sqlite), { migrationsFolder: mainEraMigrations(tmp.dir) });
-    expect(migrationStatus(db)).toEqual({ current: false, applied: 4, expected: 6 });
+    expect(migrationStatus(db)).toEqual({ current: false, applied: 4, expected: 7 });
     for (const table of NEW_TABLES) expect(tables(db)).not.toContain(table);
     insertProject(db, 'RCP');
     insertItem(db, { id: 'RCP-1' });
@@ -443,15 +445,15 @@ describe('0004_agent_proposals on a main-era database (0000–0003, with data)',
 
   it('migrates to current, and migrating again is a no-op', () => {
     migrateDb(db);
-    expect(migrationStatus(db)).toEqual({ current: true, applied: 6, expected: 6 });
+    expect(migrationStatus(db)).toEqual({ current: true, applied: 7, expected: 7 });
     migrateDb(db);
-    expect(migrationStatus(db).applied).toBe(6);
+    expect(migrationStatus(db).applied).toBe(7);
     expect(tables(db)).toEqual(expect.arrayContaining(NEW_TABLES));
   });
 
   it('keeps every existing row; foreign_key_check stays clean', () => {
     const queries = [
-      'SELECT * FROM projects',
+      'SELECT id, key, name, short_name, color, next_seq, default_satisfied_when, deleted_at, version, created_at, updated_at FROM projects',
       'SELECT * FROM items ORDER BY id',
       'SELECT * FROM runs',
       'SELECT * FROM agent_files',

@@ -25,17 +25,17 @@ const fails = (name: string, args: unknown) => {
 };
 
 describe('the registry', () => {
-  it('has 40 tools with unique names: 11 read, 1 delivering (get_item), 28 mutating', () => {
-    expect(TOOLS).toHaveLength(40);
-    expect(new Set(TOOLS.map((t) => t.name)).size).toBe(40);
+  it('has 42 tools with unique names: 11 read, 1 delivering (get_item), 30 mutating', () => {
+    expect(TOOLS).toHaveLength(42);
+    expect(new Set(TOOLS.map((t) => t.name)).size).toBe(42);
     const kinds = TOOLS.reduce<Record<string, number>>(
       (acc, t) => ({ ...acc, [t.kind]: (acc[t.kind] ?? 0) + 1 }),
       {},
     );
-    expect(kinds).toEqual({ read: 11, delivering: 1, mutating: 28 });
+    expect(kinds).toEqual({ read: 11, delivering: 1, mutating: 30 });
   });
 
-  it('groups tools into the nine server files', () => {
+  it('groups tools into the ten server files', () => {
     const groups = Object.fromEntries(
       [
         'read',
@@ -47,6 +47,7 @@ describe('the registry', () => {
         'decisions',
         'recovery',
         'agent_files',
+        'onboarding',
       ].map((g) => [g, TOOLS.filter((t) => t.group === g).length]),
     );
     expect(groups).toEqual({
@@ -59,6 +60,7 @@ describe('the registry', () => {
       decisions: 3,
       recovery: 1,
       agent_files: 2,
+      onboarding: 2,
     });
   });
 
@@ -581,5 +583,57 @@ describe('agent file inputs (MCP_SPEC §5.4 instructions, §5.10; decision 30; B
       destructiveHint: false,
       idempotentHint: false,
     });
+  });
+});
+
+describe('onboarding (MCP_SPEC §5.11; decision 31; B29)', () => {
+  it('onboard_project: the key follows the project-key rule; name ≤ 100; colour #rrggbb', () => {
+    ok('onboard_project', { key: 'GF' });
+    ok('onboard_project', { key: 'GAME', name: 'Gameflow', color: '#3b5bdb' });
+    ok('onboard_project', { key: 'GF', idempotency_key: 'onb-1', run_id: 'run_A' });
+    expect(ok('onboard_project', { key: ' GF ', name: '  Gameflow ' })).toMatchObject({
+      key: 'GF',
+      name: 'Gameflow',
+    });
+    ok('onboard_project', { key: 'GF', name: 'x'.repeat(100) });
+    fails('onboard_project', { key: 'GF', name: 'x'.repeat(101) });
+    fails('onboard_project', { key: 'GF', name: '   ' });
+    for (const key of ['G', 'gf', 'GAMEFL', 'G1', '']) fails('onboard_project', { key });
+    fails('onboard_project', {});
+    for (const color of ['blue', '#3b5bd', '3b5bdb', '#3b5bdbff'])
+      fails('onboard_project', { key: 'GF', color });
+    const typo = fails('onboard_project', { key: 'GF', nmae: 'Gameflow' });
+    expect(typo.some((i) => i.code === 'unrecognized_keys')).toBe(true);
+  });
+
+  it('finish_onboarding: a summary ≤ 4,000 and up to 20 questions ≤ 500', () => {
+    const finish = (extra: Record<string, unknown>) => ({
+      session_id: 'onb_1',
+      summary: 'Created 12 items in Planning.',
+      ...extra,
+    });
+    ok('finish_onboarding', finish({}));
+    ok('finish_onboarding', finish({ questions: [], idempotency_key: 'f-1' }));
+    ok('finish_onboarding', finish({ summary: 'x'.repeat(4_000) }));
+    fails('finish_onboarding', finish({ summary: 'x'.repeat(4_001) }));
+    fails('finish_onboarding', finish({ summary: ' ' }));
+    fails('finish_onboarding', finish({ summary: undefined }));
+    fails('finish_onboarding', finish({ session_id: undefined }));
+    ok('finish_onboarding', finish({ questions: Array.from({ length: 20 }, () => 'Why?') }));
+    fails('finish_onboarding', finish({ questions: Array.from({ length: 21 }, () => 'Why?') }));
+    ok('finish_onboarding', finish({ questions: ['q'.repeat(500)] }));
+    fails('finish_onboarding', finish({ questions: ['q'.repeat(501)] }));
+    fails('finish_onboarding', finish({ questions: [''] }));
+  });
+
+  it('both are writes that are not retry-safe', () => {
+    for (const name of ['onboard_project', 'finish_onboarding'] as const) {
+      expect(getTool(name).kind).toBe('mutating');
+      expect(toolAnnotations(getTool(name))).toEqual({
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+      });
+    }
   });
 });

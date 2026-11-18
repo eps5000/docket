@@ -390,6 +390,14 @@ const AGENT_FILES_LISTING = {
   ],
 };
 
+/** onboard_project returns the guide; a short stand-in (B30 bundles the real one). */
+const ONBOARD_RESULT = {
+  project: { key: 'GF', name: 'Gameflow', created: false },
+  session_id: 'onb_01JD5A',
+  guide: '# Onboarding GF\n\n1. Survey the repo.\n  - Spec Kit specs\n2. Reconcile first.\n',
+  existing: { items: 40, jira_items: 38, documents: 2 },
+};
+
 /** One representative result per tool, so every renderer is exercised and snapshotted. */
 const SAMPLES: Record<ToolName, { result: unknown; args?: Record<string, unknown> }> = {
   whoami: {
@@ -656,6 +664,14 @@ const SAMPLES: Record<ToolName, { result: unknown; args?: Record<string, unknown
     result: { proposal_id: 'afp_01JD4K', state: 'pending' },
     args: { project: 'RCP', file: 'skill:docket-worker' },
   },
+  onboard_project: { result: ONBOARD_RESULT, args: { key: 'GF', name: 'Gameflow' } },
+  finish_onboarding: {
+    result: {
+      session_id: 'onb_01JD5A',
+      state: 'ready_for_review',
+      changes: { created: 12, enriched: 7, documents: 3, decisions: 2, proposals: 1 },
+    },
+  },
 };
 
 describe('every tool has a renderer', () => {
@@ -673,7 +689,8 @@ describe('every tool has a renderer', () => {
   });
 
   it('mutation results stay within the 60-token budget (characters ÷ 4)', () => {
-    for (const tool of TOOLS.filter((t) => t.kind === 'mutating')) {
+    // onboard_project is exempt: its text carries the whole guide (MCP_SPEC §3.2; B29).
+    for (const tool of TOOLS.filter((t) => t.kind === 'mutating' && t.name !== 'onboard_project')) {
       const sample = SAMPLES[tool.name];
       const text = renderResult(tool.name, sample.result, { args: sample.args, ...opts });
       expect(Math.ceil(text.length / 4), `${tool.name}: ${text}`).toBeLessThanOrEqual(60);
@@ -719,6 +736,30 @@ describe('agent files (MCP_SPEC §5.10; decision 30)', () => {
     expect(
       renderResult('propose_agent_file_change', result, { args: { file: 'agents_block' } }),
     ).toBe('Proposed agents_block change for the default · afp_01JD4K · pending owner approval');
+  });
+});
+
+describe('onboarding (MCP_SPEC §5.11; decision 31)', () => {
+  it('onboard_project prints one header line, then the guide verbatim and unindented', () => {
+    const text = renderResult('onboard_project', ONBOARD_RESULT, opts);
+    expect(text).toBe(
+      [
+        'Onboarding GF Gameflow · adopted · session onb_01JD5A · existing: 40 items, 38 from Jira, 2 documents',
+        ONBOARD_RESULT.guide,
+      ].join('\n'),
+    );
+    const created = renderResult(
+      'onboard_project',
+      { ...ONBOARD_RESULT, project: { ...ONBOARD_RESULT.project, created: true } },
+      opts,
+    );
+    expect(created.split('\n')[0]).toContain(' · created · ');
+  });
+
+  it('finish_onboarding is one line with the counts', () => {
+    expect(renderResult('finish_onboarding', SAMPLES.finish_onboarding.result as never, opts)).toBe(
+      "Onboarding onb_01JD5A ready for the owner's review · 12 created · 7 enriched · 3 documents · 2 decisions · 1 proposals",
+    );
   });
 });
 

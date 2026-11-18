@@ -90,8 +90,29 @@ export const US1_TOOLS: readonly ToolName[] = [
 const STUB_TOOLS = TOOL_NAMES.filter((n) => !US1_TOOLS.includes(n));
 
 describe('stubs', () => {
-  it('no tool is a stub any more (US14, T160, implemented the decision 30 tools)', () => {
-    expect(STUB_TOOLS).toEqual([]);
+  it('only the decision 31 tools are stubs (B29 contracts; US15, T164, implements them)', () => {
+    expect(STUB_TOOLS).toEqual(['onboard_project', 'finish_onboarding']);
+  });
+
+  it.each(STUB_TOOLS)('%s answers unavailable: "Not implemented yet"', async (name) => {
+    h ??= await startHarness();
+    const result = await h.call(name, VALID_ARGS[name]);
+    expect(expectUnavailable(result)).toEqual({
+      code: 'unavailable',
+      message: `Not implemented yet: ${name}`,
+    });
+    expect(textOf(result)).toBe(`unavailable: Not implemented yet: ${name}`);
+  });
+
+  it('onboard_project stores nothing while it is a stub, even with an idempotency_key', async () => {
+    h = await startHarness();
+    const args = { ...VALID_ARGS.onboard_project, idempotency_key: 'onb-stub-1' };
+    expectUnavailable(await h.call('onboard_project', args));
+    const count = (sql: string) =>
+      (h!.server.runtime.db.sqlite.prepare(sql).get() as { n: number }).n;
+    expect(count('SELECT count(*) AS n FROM onboarding_sessions')).toBe(0);
+    expect(count("SELECT count(*) AS n FROM projects WHERE key = 'GF'")).toBe(0);
+    expect(count('SELECT count(*) AS n FROM idempotency')).toBe(0);
   });
 
   it('claim_lead accepts instructions (decision 30) and still claims; a bad report is refused', async () => {
@@ -426,11 +447,13 @@ describe('recovery tools over MCP (B5: park_run, recovery_report and the new fie
       destructiveHint: false,
       idempotentHint: false,
     });
-    // §5.9 recovery_report, then §5.10's two agent file tools (decision 30).
-    expect(tools.map((t) => t.name).slice(-3)).toEqual([
+    // §5.9 recovery_report, then §5.10's two agent file tools (decision 30), then §5.11's two (decision 31).
+    expect(tools.map((t) => t.name).slice(-5)).toEqual([
       'recovery_report',
       'get_agent_files',
       'propose_agent_file_change',
+      'onboard_project',
+      'finish_onboarding',
     ]);
     expect(tools.findIndex((t) => t.name === 'park_run')).toBe(
       tools.findIndex((t) => t.name === 'finish_run') + 1,

@@ -78,6 +78,14 @@ export const LIMITS = {
   proposal_reason: 500,
   /** `claim_lead.instructions.files`: up to 20 reported files. */
   instruction_files_max: 20,
+  // ---- Onboarding (decision 31; MCP_SPEC §5.11; B29 resolutions) ----
+  /** A project's name: `onboard_project.name` and `POST /api/projects`. */
+  project_name: 100,
+  /** `finish_onboarding.summary`. */
+  onboarding_summary: 4_000,
+  /** `finish_onboarding.questions`: up to 20, each at most 500 characters. */
+  onboarding_questions_max: 20,
+  onboarding_question: 500,
   /** Upper bound for opaque identifiers and cursors (not a spec limit; a sanity bound). */
   id: 100,
   /** Lists in compact text truncate long text at this many characters (§3.1). */
@@ -98,6 +106,8 @@ export const SHA256_RE = /^[0-9a-fA-F]{64}$/;
 export const INSTALLED_FILE_KEY_RE = /^(agents_block|skill:[a-z0-9-]{1,60})$/;
 /** An agent file or the Workflow notes, as get_agent_files and propose_agent_file_change name them (B26). */
 export const AGENT_FILE_TARGET_RE = /^(agents_block|workflow|skill:[a-z0-9-]{1,60})$/;
+/** A project colour: `#rrggbb` (B29). */
+export const COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 /** Dates: `YYYY-MM-DD` (§3 Types). */
 export const DATE_RE = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 
@@ -115,4 +125,5 @@ export const ID_PREFIXES = {
   decision: 'dec_',
   resource: 'rsc_',
   agent_file_proposal: 'afp_',
+  onboarding_session: 'onb_',
 } as const;

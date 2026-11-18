@@ -250,9 +250,12 @@ describe('agent files over the owner API (T153)', () => {
     expect(wf.status).toBe(401);
     const tools = (await h.a.listTools()).tools.map((t) => t.name);
     // Decision 30 (FR-130): agents read and propose; no tool writes agent files or Workflow notes.
-    expect(tools.filter((t) => /agent_?file|workflow|skill|install/i.test(t))).toEqual([
+    expect(tools.filter((t) => /agent_?file|workflow|skill|install|project/i.test(t))).toEqual([
+      'list_projects',
       'get_agent_files',
       'propose_agent_file_change',
+      // Decision 31 (FR-140): onboard_project creates or adopts; no tool changes or deletes a project.
+      'onboard_project',
     ]);
   });
 });

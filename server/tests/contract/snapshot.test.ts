@@ -1,11 +1,14 @@
 /**
  * Contract snapshot (MCP_SPEC §10 item 1; tasks.md T042), through the
  * official MCP client SDK against the in-process server:
- * - `initialize` returns the §2 instructions verbatim and advertises only
- *   `tools` (`listChanged: false`);
- * - `tools/list` has exactly the 40 §5 tools, in order, each with its §5
+ * - `initialize` returns the §2 instructions verbatim and advertises
+ *   `tools` and `prompts` (each `listChanged: false`);
+ * - `tools/list` has exactly the 42 §5 tools, in order, each with its §5
  *   description verbatim, its fields, defaults and limits, and the §3
- *   annotations.
+ *   annotations;
+ * - `prompts/list` has exactly the §5.11 `onboard` prompt, with its
+ *   description and arguments verbatim (decision 31; B29), and `prompts/get`
+ *   answers the stub text until B30.
  *
  * - text-only sessions (MCP_SPEC §3 Results; owner decision 28): the same
  *   instructions and the same tools (names, descriptions, input schemas,
@@ -13,26 +16,32 @@
  *
  * Expected copy is extracted from docs/MCP_SPEC.md at test time, never from
  * a copy. The full `tools/list` is also kept as a file snapshot
- * (__snapshots__/tools-list.json), so any schema change shows in review.
+ * (__snapshots__/tools-list.json), and `prompts/list` likewise
+ * (__snapshots__/prompts-list.json), so any change shows in review.
  */
 import { AjvJsonSchemaValidator } from '@modelcontextprotocol/sdk/validation/ajv';
-import type { Tool } from '@modelcontextprotocol/sdk/types.js';
+import { McpError, type Prompt, type Tool } from '@modelcontextprotocol/sdk/types.js';
+import { ONBOARD_PROMPT_STUB } from '@docket/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   SPEC,
   specDescriptions,
   specInstructions,
+  specPromptArguments,
+  specPromptDescription,
   specToolPart,
 } from '../../../shared/tests/spec.js';
 import { PRODUCT_RESULT_MODES, startHarness, type ContractHarness } from './harness.js';
 
 let h: ContractHarness;
 let tools: Tool[];
+let prompts: Prompt[];
 const byName = (name: string) => tools.find((t) => t.name === name)!;
 
 beforeAll(async () => {
   h = await startHarness({ seed: false });
   tools = (await h.a.listTools()).tools;
+  prompts = (await h.a.listPrompts()).prompts;
 });
 afterAll(async () => {
   await h.close();
@@ -57,15 +66,18 @@ describe('initialize', () => {
     expect(h.a.getInstructions()).toBe(specInstructions());
   });
 
-  it('identifies as docket and advertises only tools, with listChanged false (§1)', () => {
+  it('identifies as docket and advertises tools and prompts, each with listChanged false (§1)', () => {
     expect(h.a.getServerVersion()?.name).toBe('docket');
-    expect(h.a.getServerCapabilities()).toEqual({ tools: { listChanged: false } });
+    expect(h.a.getServerCapabilities()).toEqual({
+      tools: { listChanged: false },
+      prompts: { listChanged: false },
+    });
   });
 });
 
 describe('tools/list: names and descriptions (§5)', () => {
-  it('lists exactly 40 tools, in MCP_SPEC §5 order', () => {
-    expect(tools).toHaveLength(40);
+  it('lists exactly 42 tools, in MCP_SPEC §5 order', () => {
+    expect(tools).toHaveLength(42);
     expect(tools.map((t) => t.name)).toEqual(specDescriptions().map(([name]) => name));
   });
 
@@ -111,9 +123,9 @@ describe('tools/list: annotations (§3)', () => {
     expect(byName('get_item').annotations?.readOnlyHint).toBe(false);
   });
 
-  it('the §3 counts hold: 11 read tools, 28 mutating', () => {
+  it('the §3 counts hold: 11 read tools, 30 mutating', () => {
     expect(SPEC).toContain('`true` for the 11 read tools');
-    expect(SPEC).toContain('accepted only by the 28 mutating tools');
+    expect(SPEC).toContain('accepted only by the 30 mutating tools');
     expect(READ_TOOLS).toHaveLength(11);
   });
 });
@@ -255,6 +267,8 @@ const INPUTS: Record<string, [string[], string[]]> = {
   recovery_report: [[], ['project', 'since', 'include_briefs', 'cursor', 'limit']],
   get_agent_files: [['project'], ['file']],
   propose_agent_file_change: [['file', 'content', 'reason', 'based_on_version_id'], ['project']],
+  onboard_project: [['key'], ['name', 'color']],
+  finish_onboarding: [['session_id', 'summary'], ['questions']],
 };
 
 /** Result fields per tool, from the §5 Output lines (all required). */
@@ -315,6 +329,8 @@ const OUTPUTS: Record<string, string[]> = {
   ],
   get_agent_files: ['project', 'files'],
   propose_agent_file_change: ['proposal_id', 'state'],
+  onboard_project: ['project', 'session_id', 'guide', 'existing'],
+  finish_onboarding: ['session_id', 'state', 'changes'],
 };
 
 const MUTATING = specDescriptions()
@@ -353,7 +369,7 @@ describe('tools/list: input schemas (§3, §5)', () => {
   });
 
   it('every mutating tool accepts idempotency_key (≤ 100) and run_id; reads accept run_id only', () => {
-    expect(MUTATING).toHaveLength(28);
+    expect(MUTATING).toHaveLength(30);
     for (const t of tools) {
       const props = input(t.name).properties!;
       expect(props.run_id, t.name).toBeDefined();
@@ -468,6 +484,40 @@ describe('tools/list: input schemas (§3, §5)', () => {
     expect(listed.source!.enum).toEqual(['default', 'project']);
   });
 
+  it('onboarding limits follow MCP_SPEC §5.11 (decision 31; B29)', () => {
+    type Limits = JsonObject & { maxItems?: number; pattern?: string };
+    const onboard = input('onboard_project').properties!;
+    expect(specToolPart('onboard_project', 'Input')).toContain(
+      '`key` (2–5 uppercase letters, the project key rule), `name?` (≤ 100; required when creating), `color?` (`#rrggbb`)',
+    );
+    expect((onboard.key as Limits).pattern).toBe('^[A-Z]{2,5}$');
+    expect(onboard.name!.maxLength).toBe(100);
+    expect((onboard.color as Limits).pattern).toBe('^#[0-9a-fA-F]{6}$');
+    const finish = input('finish_onboarding').properties!;
+    expect(specToolPart('finish_onboarding', 'Input')).toContain(
+      '`summary` (≤ 4,000), `questions?: string[]` (≤ 20, each ≤ 500)',
+    );
+    expect(finish.summary!.maxLength).toBe(4_000);
+    const questions = finish.questions as Limits;
+    expect(questions.maxItems).toBe(20);
+    expect(questions.items!.maxLength).toBe(500);
+    const done = result('finish_onboarding').properties!;
+    expect([...(done.changes!.required ?? [])].sort()).toEqual([
+      'created',
+      'decisions',
+      'documents',
+      'enriched',
+      'proposals',
+    ]);
+    const started = result('onboard_project').properties!;
+    expect([...(started.project!.required ?? [])].sort()).toEqual(['created', 'key', 'name']);
+    expect([...(started.existing!.required ?? [])].sort()).toEqual([
+      'documents',
+      'items',
+      'jira_items',
+    ]);
+  });
+
   it('the run_state and recovery enums match the §3 table', () => {
     const table = (name: string) => {
       const row = new RegExp(`^ *\\| \`${name}\` [^|]*\\| (.*) \\|$`, 'm').exec(SPEC)![1]!;
@@ -563,6 +613,54 @@ describe('the whole contract', () => {
   });
 });
 
+describe('prompts/list and prompts/get (§1, §5.11; decision 31)', () => {
+  it('lists exactly the onboard prompt, with its description and arguments verbatim', () => {
+    expect(prompts.map((p) => p.name)).toEqual(['onboard']);
+    const onboard = prompts[0]!;
+    expect(onboard.description).toBe(specPromptDescription('onboard'));
+    expect(onboard.arguments?.map((a) => [a.name, a.required, a.description])).toEqual(
+      specPromptArguments('onboard'),
+    );
+  });
+
+  it('matches the reviewed prompts/list snapshot', async () => {
+    await expect(JSON.stringify(prompts, null, 2) + '\n').toMatchFileSnapshot(
+      './__snapshots__/prompts-list.json',
+    );
+  });
+
+  it('prompts/get returns one user message: the stub text until B30', async () => {
+    const got = await h.a.getPrompt({
+      name: 'onboard',
+      arguments: { project_key: 'GF', project_name: 'Gameflow' },
+    });
+    expect(got.description).toBe(specPromptDescription('onboard'));
+    expect(got.messages).toEqual([
+      { role: 'user', content: { type: 'text', text: ONBOARD_PROMPT_STUB } },
+    ]);
+    // project_name is optional.
+    const keyOnly = await h.a.getPrompt({ name: 'onboard', arguments: { project_key: 'GF' } });
+    expect(keyOnly.messages).toHaveLength(1);
+  });
+
+  it('a missing or malformed project_key, an unknown argument or prompt is InvalidParams', async () => {
+    const bad: { name: string; arguments: Record<string, string> }[] = [
+      { name: 'onboard', arguments: {} },
+      { name: 'onboard', arguments: { project_key: 'gf' } },
+      { name: 'onboard', arguments: { project_key: 'GF', projectname: 'x' } },
+      { name: 'setup', arguments: { project_key: 'GF' } },
+    ];
+    for (const params of bad) {
+      const err = await h.a.getPrompt(params).then(
+        () => null,
+        (e: unknown) => e,
+      );
+      expect(err, JSON.stringify(params)).toBeInstanceOf(McpError);
+      expect((err as McpError).code, JSON.stringify(params)).toBe(-32602);
+    }
+  });
+});
+
 describe('text-only sessions (§3 Results)', () => {
   let t: ContractHarness;
   let textTools: Tool[];
@@ -580,10 +678,19 @@ describe('text-only sessions (§3 Results)', () => {
 
   it('returns the same server instructions verbatim (§2)', () => {
     expect(t.a.getInstructions()).toBe(specInstructions());
-    expect(t.a.getServerCapabilities()).toEqual({ tools: { listChanged: false } });
+    expect(t.a.getServerCapabilities()).toEqual({
+      tools: { listChanged: false },
+      prompts: { listChanged: false },
+    });
   });
 
-  it('lists the same 40 tools, in order, with the §5 descriptions verbatim', () => {
+  it('lists the same prompts, and prompts/get answers the same (§3: result modes leave prompts alone)', async () => {
+    expect((await t.a.listPrompts()).prompts).toEqual((await t.b.listPrompts()).prompts);
+    const args = { name: 'onboard', arguments: { project_key: 'GF' } };
+    expect(await t.a.getPrompt(args)).toEqual(await t.b.getPrompt(args));
+  });
+
+  it('lists the same 42 tools, in order, with the §5 descriptions verbatim', () => {
     expect(textTools.map((x) => x.name)).toEqual(specDescriptions().map(([name]) => name));
     for (const [name, description] of specDescriptions()) {
       expect(textTools.find((x) => x.name === name)!.description, name).toBe(description);

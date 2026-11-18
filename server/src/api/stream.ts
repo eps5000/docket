@@ -4,7 +4,8 @@
  * - `event: change`, `id: <seq>`, `data: {seq, type, objects, for_you}`.
  * - Resumes after `Last-Event-ID`; without it, starts at the current end.
  * - A `: keep-alive` comment every 25 s.
- * - `for_you` is true only for `packet.submitted` and `question.asked`.
+ * - `for_you` is true only for `packet.submitted`, `question.asked` and
+ *   `onboarding.finished` (decision 31; FOR_YOU_EVENT_TYPES).
  *
  * It reads `events.seq`, the same cursor `get_changes` uses. The write path
  * wakes it after each commit, and the keep-alive tick also re-reads, which

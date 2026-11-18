@@ -292,6 +292,8 @@ export const QUERY_FAMILIES = [
   'proposals',
   /** Agent files changed outside Docket (decision 30). */
   'drift',
+  /** Onboarding sessions: the Needs you review card (decision 31). */
+  'onboarding',
 ] as const;
 export type QueryFamily = (typeof QUERY_FAMILIES)[number];
 
@@ -330,6 +332,9 @@ export const queryKeys = {
   proposals: (query: RouteQueryInput<'proposals.list'> = {}) => [ROOT, 'proposals', query] as const,
   /** "Changed outside Docket" on Agent files (decision 30). */
   drift: (query: RouteQueryInput<'drift.list'> = {}) => [ROOT, 'drift', query] as const,
+  /** Onboarding sessions, for the review card (decision 31). */
+  onboarding: (query: RouteQueryInput<'onboarding.list'> = {}) =>
+    [ROOT, 'onboarding', query] as const,
 };
 
 export type QueryKey = readonly unknown[];
@@ -341,7 +346,7 @@ export interface StreamChange {
   seq: number;
   type: EventType;
   objects: { kind: ObjectKind; id: string }[];
-  /** True only for `packet.submitted` and `question.asked` (decision 21). */
+  /** True only for `packet.submitted`, `question.asked` (decision 21) and `onboarding.finished` (decision 31). */
   for_you: boolean;
 }
 
@@ -414,6 +419,13 @@ export const INVALIDATION: Record<EventType, readonly QueryFamily[]> = {
   'agent_file.proposal_decided': ['proposals', 'agentFiles', 'workflow', 'needsYou'],
   'drift.detected': ['drift', 'agentFiles', 'needsYou', 'bootstrap', 'item'],
   'drift.resolved': ['drift', 'agentFiles', 'needsYou', 'bootstrap', 'item'],
+  // Onboarding (decision 31). A new project shows in the shell, Settings and Needs you;
+  // a finished onboarding is for you (the review card and the badge); reviewing it
+  // clears the "created by <agent> · review" chip in the shell and Settings.
+  'project.created': ['bootstrap', 'settings', 'needsYou'],
+  'onboarding.started': ['onboarding', 'bootstrap'],
+  'onboarding.finished': ['onboarding', 'needsYou', 'bootstrap'],
+  'onboarding.reviewed': ['onboarding', 'needsYou', 'bootstrap', 'settings'],
 };
 
 /** Families narrowed to the event's items when it names any. */
