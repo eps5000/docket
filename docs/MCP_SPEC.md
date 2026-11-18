@@ -18,7 +18,7 @@ Companion template: [templates/AGENTS-docket.md](templates/AGENTS-docket.md) is 
 | Transport | MCP Streamable HTTP, protocol version per the SDK's latest stable. Stateful sessions (`Mcp-Session-Id`). The server accepts `GET` for the server→client stream and `DELETE` to end a session. |
 | Auth | `Authorization: Bearer <DOCKET_TOKEN>`. A missing or wrong token gets HTTP 401 before any MCP handling. |
 | Server info | `name: "docket"`, `version` = the app version |
-| Capabilities | `tools` (with `listChanged: false`). No resources or prompts in V1. Everything an agent needs comes from tools, and the server instructions point to the tools. |
+| Capabilities | `tools` and `prompts`, each with `listChanged: false`. No resources. Everything an agent needs comes from tools, and the server instructions point to the tools. The one prompt, `onboard` (§5.11; decision 31), offers the onboarding guide to clients that support prompts; `onboard_project` returns the same guide to those that don't. |
 | Client identity | `clientInfo.name` from `initialize`, normalised (BUILD_SPEC §3). Agents add `agent_label` on `claim_lead` and `start_run`. |
 | Liveness | The server pings each session that has an open run every 60 s. Answering pings is what lets a run show as *live* (BUILD_SPEC §5.4). |
 
@@ -39,6 +39,7 @@ Workflow: Inbox → Planning → Ready → In progress → Review → Done.
 - Follow active decision records. Owner decisions are authoritative; to challenge one, use ask_owner. Record decisions other agents must follow with publish_decision.
 - Planning belongs to the owner. You may draft planning documents (put_document) and move an item to Ready only when the project's workflow (AGENTS.md / CLAUDE.md) says you may.
 - To change your instructions for a project, propose it with propose_agent_file_change; don't edit installed files directly.
+- To set up a new project or onboard a repo, call onboard_project and follow the guide it returns.
 - Your plan is the item's checklist, not new tickets: set_plan with one-line steps, update_step as you go. Split work into a new Story or Task only when a step needs its own blocker, owner or review.
 - Record what you verify yourself with set_checks. Record subagent work with log_subagent; say whether you observed it or are relaying it.
 - If the owner must verify something by hand, declare it with declare_human_review, ideally during Planning. The item cannot close while any human review item is undecided.
@@ -63,7 +64,7 @@ Errors are structured (code: validation | conflict | not_found | forbidden | una
 |---|---|---|
 | Item | `<PROJECT>-<n>` | `RCP-14` |
 | Project | 2–5 uppercase letters | `RCP` |
-| Work step, check, human review item, run, question, link, document, document version, packet, agent file proposal, event cursor | Prefix + ULID: `wst_`, `chk_`, `hr_`, `run_`, `q_`, `lnk_`, `doc_`, `dv_`, `pkt_`, `afp_`. Cursors are opaque strings. | `hr_01JC9V…` |
+| Work step, check, human review item, run, question, link, document, document version, packet, agent file proposal, onboarding session, event cursor | Prefix + ULID: `wst_`, `chk_`, `hr_`, `run_`, `q_`, `lnk_`, `doc_`, `dv_`, `pkt_`, `afp_`, `onb_`. Cursors are opaque strings. | `hr_01JC9V…` |
 
 ### Types
 - **Time:** ISO-8601 UTC strings. Dates (`planned_start`, `planned_end`) are `YYYY-MM-DD`.
@@ -108,7 +109,7 @@ Every mutating tool accepts `idempotency_key` (≤ 100 characters, unique per lo
 - **Use one** for anything you might retry after a timeout.
 
 ### Runs as signals
-Pass `run_id` on every call you make while working. **Every tool accepts an optional `run_id`**, reads included. `idempotency_key` is accepted only by the 28 mutating tools (B3 resolution 1; 27 before decision 30 added `propose_agent_file_change`).
+Pass `run_id` on every call you make while working. **Every tool accepts an optional `run_id`**, reads included. `idempotency_key` is accepted only by the 30 mutating tools (B3 resolution 1; 27 before decision 30 added `propose_agent_file_change`, and 28 before decision 31 added `onboard_project` and `finish_onboarding`).
 - **What it does:** renews your lead lease and keeps you *live*.
 - **Calls without it** are attributed to your client but don't touch any run.
 
@@ -172,6 +173,8 @@ Every tool returns two things:
 - **Structured**, for every other client: both, as above.
 
 The budgets (§3.2) measure the text block, which is all a text-only client's model sees.
+
+**Prompts** (§5.11) are not affected by the result mode: `prompts/list` and `prompts/get` are the same for both modes, because a prompt's messages are text already (B29).
 
 Results may carry `warnings: string[]` (§3.4). These are rendered as `! …` lines at the end of the text. Every mutating tool's output schema allows an optional `replayed: boolean` and `warnings: string[]` (B3 resolution 5).
 
@@ -239,6 +242,8 @@ RCP-14 Generate shopping list from week plan
 | `get_context` `RCP-14` medium | 3,000 |
 | `get_agent_files` `RCP`, listing (no `file`) | 300 |
 | Any mutation result | 60 |
+
+`onboard_project` is exempt from the mutation budget: its text block carries the whole onboarding guide, verbatim, because a text-only client's model sees nothing else. The guide gets its own budget row in B30, measured on the bundled guide, so it can't grow unnoticed (B29).
 
 ### 3.3 Patches: silence preserves
 Writes change what you send and nothing else. This is the TERSL idea that "what you don't restate, you don't change".
@@ -374,7 +379,8 @@ type EventType =
   | 'link.updated' | 'project.updated'
   | 'decision.published' | 'decision.confirmed' | 'decision.superseded' | 'decision.withdrawn'
   | 'agent_file.updated' | 'agent_file.reverted' | 'workflow.updated' | 'install.recorded'    // decision 29
-  | 'agent_file.proposed' | 'agent_file.proposal_decided' | 'drift.detected' | 'drift.resolved';   // decision 30
+  | 'agent_file.proposed' | 'agent_file.proposal_decided' | 'drift.detected' | 'drift.resolved'   // decision 30
+  | 'project.created' | 'onboarding.started' | 'onboarding.finished' | 'onboarding.reviewed';   // decision 31
 
 type ToolError = { code: 'validation'|'conflict'|'not_found'|'forbidden'|'unavailable'|'internal';
   message: string; details?: Record<string, unknown>; current?: unknown };
@@ -697,22 +703,34 @@ Agents read the agent files and Workflow notes in effect for a project, and chan
 
 ### 5.11 Onboarding (decision 31)
 
-The exact `**Description:**` lines, and the `onboard` prompt's description, are added in the contract batch (tasks Phase 17, B29), in the same PR as the code and the snapshot. That batch also adds a server-instructions bullet: "To set up a new project or onboard a repo, call onboard_project and follow the guide it returns."
+An agent sets up a project, or onboards a repo into one, from a fresh install with no agent files installed: `onboard_project` returns the guide to follow, and `finish_onboarding` hands the result to the owner, who reviews it from one card (BUILD_SPEC §5.20; FR-135–FR-140). Shipped in B29 (tasks T163): the two descriptions below, the `onboard` prompt, and the server-instructions bullet (§2), in MCP_SPEC, `mcp-copy.ts` and the snapshot together. Both tools answer `unavailable`, and the prompt returns "Onboarding guide not available yet", until B30 (T164) implements them.
 
 #### `onboard_project`
-- **Purpose:** create a project (when the key is free) or adopt an existing one, start an onboarding session, and get the onboarding guide.
-- **Input:** `key` (2–5 uppercase letters), `name?` (required when creating), `color?`, plus `run_id?` and `idempotency_key?`.
+**Description:** "Set up a project, or onboard a repo into one. Creates the project when the key is free (pass name) or adopts the existing project with that key, starts an onboarding session, and returns its session_id, what the project already holds, and the onboarding guide. Follow the guide step by step; it works with no agent files installed. Not retry-safe: pass idempotency_key."
+- **Input:** `key` (2–5 uppercase letters, the project key rule), `name?` (≤ 100; required when creating), `color?` (`#rrggbb`), plus `run_id?` and `idempotency_key?`.
+- **Limits** (B29 resolutions): `name` is 1–100 characters, trimmed, and ignored when adopting; whether it is required depends on the key, so the service checks it (`validation`), not the schema.
 - **Output:** `{ project: { key, name, created: boolean }, session_id, guide, existing: { items, jira_items, documents } }`.
+- **Text rendering:** one header line, then the guide verbatim and unindented, so a text-only client's model reads all of it. Exempt from the mutation budget (§3.2).
+- **Calling it again** (B29): when the same client calls it on a project where its own session is in progress, it returns that session: the same `session_id` and guide, with `existing` counted again. It doesn't start a second session. Only another client's session in progress is `forbidden`.
 - **Errors:** `validation` (a bad key, or `name` missing when creating), `conflict` (a deleted project's cleanup hasn't finished), `forbidden` (another agent's session is in progress on this project; `current` names it).
+- **Not retry-safe** (`idempotentHint: false`): pass `idempotency_key` when you might retry.
 
 #### `finish_onboarding`
-- **Purpose:** mark the onboarding session ready for the owner's review.
+**Description:** "Finish an onboarding session and hand it to the owner for review, with a short summary and any open questions. Pass the session_id from onboard_project. The owner reviews everything you set up from one card; stop there and wait for them."
 - **Input:** `session_id`, `summary` (≤ 4,000), `questions?: string[]` (≤ 20, each ≤ 500), plus `run_id?` and `idempotency_key?`.
+- **Limits** (B29 resolutions): `summary` is 1–4,000 characters and each question 1–500, all trimmed. Session IDs are `onb_…`.
 - **Output:** `{ session_id, state: 'ready_for_review', changes: { created, enriched, documents, decisions, proposals } }`.
+- **Errors:** `validation` (limits, a secret), `not_found` (session), `forbidden` (another client's session), `conflict` (the session isn't in progress; `current` is the session).
+- **Not retry-safe** (`idempotentHint: false`): pass `idempotency_key` when you might retry.
 
 #### Prompt `onboard`
-- **Arguments:** `project_key`, `project_name?`.
-- **Returns:** the same guide as `onboard_project`, as a user message.
+**Description:** "Onboard this repo into Docket: set up or adopt the project, then follow the onboarding guide."
+- **Arguments:**
+  - `project_key` (required): "Project key: 2–5 uppercase letters, like GF."
+  - `project_name` (optional): "The project's name, if it is new."
+- **Returns:** the same guide as `onboard_project`, as one user message. Until B30 the text is "Onboarding guide not available yet".
+- **Errors** (B29): `prompts/get` with a missing or malformed `project_key`, or an unknown prompt name, is a JSON-RPC `InvalidParams` error (protocol errors, §6).
+- **Result modes:** the same for text-only and structured sessions (§3 Results).
 
 ## 6. Errors
 

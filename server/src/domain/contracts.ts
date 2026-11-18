@@ -66,6 +66,9 @@ import {
   type JiraImport,
   type LabelPageResponse,
   type NeedsYouResponse,
+  type OnboardingListResponse,
+  type OnboardingSession,
+  type OnboardPromptArgs,
   type Project,
   type PushTargetResponse,
   type PushTargetTestResponse,
@@ -516,6 +519,36 @@ export interface DriftService {
   keepLocal(w: WriteContext, input: RouteParams<'drift.keepLocal'>): Drift;
 }
 
+// ---- Onboarding (owner decision 31; BUILD_SPEC §5.20) ----
+
+/**
+ * Onboarding sessions (FR-135–FR-140). An agent starts one with
+ * `onboard_project` (creating the project when the key is free, with
+ * `created_by` set, or adopting it; events `project.created` and
+ * `onboarding.started`) and finishes it with `finish_onboarding` (event
+ * `onboarding.finished`, for you). The same client calling `onboard_project`
+ * again while its session is in progress gets that session back; another
+ * client's session in progress is `forbidden` (B29). Events written during a
+ * session carry `data.onboarding_session`, so the card can count them. The
+ * owner marks it reviewed (event `onboarding.reviewed`).
+ */
+export interface OnboardingService {
+  /** `onboard_project`: create or adopt, start (or resume) the session, return the guide. */
+  start(w: WriteContext, input: In<'onboard_project'>): Out<'onboard_project'>;
+  /** `finish_onboarding`: ready for review, with the session's change counts. */
+  finish(w: WriteContext, input: In<'finish_onboarding'>): Out<'finish_onboarding'>;
+  /**
+   * The effective onboarding guide for a project (agent file `guide:onboarding`;
+   * default `docs/templates/ONBOARDING-guide.md`), with the key filled in. The
+   * `onboard` prompt returns it as a user message; the project need not exist yet.
+   */
+  guide(r: ReadContext, input: OnboardPromptArgs): string;
+  /** `GET /api/onboarding`: newest first. */
+  list(r: ReadContext, input: RouteQuery<'onboarding.list'>): OnboardingListResponse;
+  /** *Mark reviewed* (event `onboarding.reviewed`). Not undoable. */
+  markReviewed(w: WriteContext, input: RouteParams<'onboarding.reviewed'>): OnboardingSession;
+}
+
 /** Work steps, subagent logs and agent checks (§5.5). */
 export interface ChecklistService {
   setPlan(w: WriteContext, input: In<'set_plan'>): Out<'set_plan'>;
@@ -689,6 +722,11 @@ export interface ProjectsService {
   ): { deleted: true; key: string };
   /** After commit, and at startup from tombstones: remove `/data/docs/<KEY>`. */
   removeDeletedDocs(r: ReadContext): Promise<string[]>;
+  /**
+   * *New project* (Settings; decision 31): the key and tombstone rules of the
+   * Jira import (US9), event `project.created`. Owner only; not undoable.
+   */
+  create(w: WriteContext, input: RouteBody<'projects.create'>): Project;
 }
 
 /**
@@ -755,6 +793,7 @@ export interface Services {
   installs: InstallsService;
   agentProposals: AgentProposalsService;
   drift: DriftService;
+  onboarding: OnboardingService;
   undo: UndoService;
 }
 

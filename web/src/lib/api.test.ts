@@ -221,6 +221,8 @@ describe('event → query-key invalidation (contracts/events.md)', () => {
       if (type.startsWith('decision.')) continue;
       // Agent setup (decision 29) touches no item.
       if (/^(agent_file|workflow|install)\./.test(type)) continue;
+      // Onboarding (decision 31) touches a project and its session, never one item.
+      if (type === 'project.created' || type.startsWith('onboarding.')) continue;
       expect(INVALIDATION[type], type).toContain('item');
     }
   });
@@ -473,6 +475,68 @@ describe('proposals and drift (decision 30; BUILD_SPEC §5.19, §7)', () => {
       ['docket', 'drift'],
     ]);
     expect(INVALIDATION['agent_file.proposed']).toEqual(['proposals', 'needsYou']);
+  });
+});
+
+describe('new project and onboarding (decision 31; BUILD_SPEC §5.20, §7)', () => {
+  it('has typed calls for the three routes; nothing is undoable', async () => {
+    const seen: MutationRecord[] = [];
+    const { fetch, sent } = fakeFetch(200, { mutation_id: 'mut_a' });
+    const client = createApiClient({
+      fetch,
+      cookies: () => COOKIES,
+      onMutation: (m) => seen.push(m),
+    });
+    await client['projects.create']({
+      body: { key: 'GF', name: 'Gameflow', color: '#2b8a3e', default_satisfied_when: 'merged' },
+    });
+    await client['onboarding.list']({ query: { project: 'GF', state: 'ready_for_review' } });
+    await client['onboarding.reviewed']({ params: { id: 'onb_1' } });
+    expect(sent.map((r) => `${r.method} ${r.url}`)).toEqual([
+      'POST /api/projects',
+      'GET /api/onboarding?project=GF&state=ready_for_review',
+      'POST /api/onboarding/onb_1/reviewed',
+    ]);
+    expect(sent[1]!.headers['X-Docket-CSRF']).toBeUndefined();
+    for (const r of sent.filter((x) => x.method === 'POST')) {
+      expect(r.headers['X-Docket-CSRF'], r.url).toBe('abc123-_x');
+    }
+    expect(seen.map((m) => [m.route, m.undoable])).toEqual([
+      ['projects.create', false],
+      ['onboarding.reviewed', false],
+    ]);
+  });
+
+  it('query keys and invalidation: a finished onboarding is for you and raises the badge', () => {
+    expect(queryKeys.onboarding({ state: 'ready_for_review' })).toEqual([
+      'docket',
+      'onboarding',
+      { state: 'ready_for_review' },
+    ]);
+    expect(queryKeys.onboarding()).toEqual(['docket', 'onboarding', {}]);
+    expect(
+      keysForChange({
+        seq: 20,
+        type: 'onboarding.finished',
+        objects: [
+          { kind: 'onboarding', id: 'onb_1' },
+          { kind: 'project', id: 'GF' },
+        ],
+        for_you: true,
+      }),
+    ).toEqual([
+      ['docket', 'bootstrap'],
+      ['docket', 'needsYou'],
+      ['docket', 'onboarding'],
+    ]);
+    expect(INVALIDATION['project.created']).toEqual(['bootstrap', 'settings', 'needsYou']);
+    expect(INVALIDATION['onboarding.started']).toEqual(['onboarding', 'bootstrap']);
+    expect(INVALIDATION['onboarding.reviewed']).toEqual([
+      'onboarding',
+      'needsYou',
+      'bootstrap',
+      'settings',
+    ]);
   });
 });
 

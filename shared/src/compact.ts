@@ -1011,6 +1011,30 @@ const RENDERERS: { [N in ToolName]: Renderer<N> } = {
       target: str(a.project) ?? 'the default',
       proposal_id: r.proposal_id,
     }),
+  // Decision 31 (MCP_SPEC §5.11): the header line, then the guide verbatim and unindented,
+  // so a text-only client's model reads the whole guide (exempt from the mutation budget, §3.2).
+  onboard_project: (r) =>
+    [
+      s('onboard_project', {
+        key: r.project.key,
+        name: r.project.name,
+        how: r.project.created ? 'created' : 'adopted',
+        session_id: r.session_id,
+        items: r.existing.items,
+        jira_items: r.existing.jira_items,
+        documents: r.existing.documents,
+      }),
+      r.guide,
+    ].join('\n'),
+  finish_onboarding: (r) =>
+    s('finish_onboarding', {
+      session_id: r.session_id,
+      created: r.changes.created,
+      enriched: r.changes.enriched,
+      documents: r.changes.documents,
+      decisions: r.changes.decisions,
+      proposals: r.changes.proposals,
+    }),
 };
 
 /** The compact text block for a tool's successful result. */

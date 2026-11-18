@@ -23,6 +23,8 @@ RCP-14 blocks RCP-24
 RCP-24 at risk: planned start 2026-11-08 is before RCP-14 ends 2026-11-10"
 `;
 
+exports[`every tool has a renderer > finish_onboarding 1`] = `"Onboarding onb_01JD5A ready for the owner's review · 12 created · 7 enriched · 3 documents · 2 decisions · 1 proposals"`;
+
 exports[`every tool has a renderer > finish_run 1`] = `
 "Run run_01JA… finished
 ! 1 resource still declared: dev server :5173"
@@ -123,6 +125,16 @@ RCP Recipes · open 12 · ready_to_start 3 · in_progress 2 · review 1 · block
 `;
 
 exports[`every tool has a renderer > log_subagent 1`] = `"Logged relayed explorer on wst_b"`;
+
+exports[`every tool has a renderer > onboard_project 1`] = `
+"Onboarding GF Gameflow · adopted · session onb_01JD5A · existing: 40 items, 38 from Jira, 2 documents
+# Onboarding GF
+
+1. Survey the repo.
+  - Spec Kit specs
+2. Reconcile first.
+"
+`;
 
 exports[`every tool has a renderer > park_run 1`] = `"Parked run run_A · waiting on RCP-12 · resume_ready false"`;
 

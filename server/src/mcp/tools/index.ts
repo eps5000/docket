@@ -1,6 +1,6 @@
 /**
  * Every tool's handler, by group (one file per group; slices fill them in).
- * The type requires all 40: a missing handler fails the typecheck.
+ * The type requires all 42: a missing handler fails the typecheck.
  */
 import type { ToolHandlers } from '../register.js';
 import { readHandlers } from './read.js';
@@ -12,6 +12,7 @@ import { reviewHandlers } from './review.js';
 import { decisionsHandlers } from './decisions.js';
 import { recoveryHandlers } from './recovery.js';
 import { agentFilesHandlers } from './agent-files.js';
+import { onboardingHandlers } from './onboarding.js';
 
 export const TOOL_HANDLERS: ToolHandlers = {
   ...readHandlers,
@@ -23,6 +24,7 @@ export const TOOL_HANDLERS: ToolHandlers = {
   ...decisionsHandlers,
   ...recoveryHandlers,
   ...agentFilesHandlers,
+  ...onboardingHandlers,
 };
 
 /** Which group file each tool's handler lives in. */
@@ -36,4 +38,5 @@ export const HANDLER_GROUPS: Record<string, readonly string[]> = {
   decisions: Object.keys(decisionsHandlers),
   recovery: Object.keys(recoveryHandlers),
   agent_files: Object.keys(agentFilesHandlers),
+  onboarding: Object.keys(onboardingHandlers),
 };

@@ -21,6 +21,7 @@ import { createInstallsService } from './installs.js';
 import { createJiraImportService } from './jira-import.js';
 import { createLinksService } from './links.js';
 import { createMessagesService } from './messages.js';
+import { createOnboardingService } from './onboarding.js';
 import { createPacketsService } from './packets.js';
 import { createProjectsService } from './projects.js';
 import { createRecoveryService } from './recovery.js';
@@ -67,6 +68,7 @@ export function createServices(
     installs: createInstallsService(full),
     agentProposals: createAgentProposalsService(full),
     drift: createDriftService(full),
+    onboarding: createOnboardingService(full),
     undo: createUndoService(full),
   };
   for (const [name, methods] of Object.entries(overrides)) {

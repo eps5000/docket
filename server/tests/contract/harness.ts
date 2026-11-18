@@ -269,4 +269,10 @@ export const VALID_ARGS: Record<ToolName, Record<string, unknown>> = {
     reason: 'Run the linter before each commit.',
     based_on_version_id: 'afv_1',
   },
+  onboard_project: { key: 'GF', name: 'Gameflow', color: '#2b8a3e' },
+  finish_onboarding: {
+    session_id: 'onb_1',
+    summary: 'Created 12 items in Planning from the Spec Kit tasks.',
+    questions: ['Is the level editor in scope for V1?'],
+  },
 };

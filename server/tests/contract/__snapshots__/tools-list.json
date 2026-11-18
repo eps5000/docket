@@ -2279,7 +2279,11 @@
                           "agent_file.proposed",
                           "agent_file.proposal_decided",
                           "drift.detected",
-                          "drift.resolved"
+                          "drift.resolved",
+                          "project.created",
+                          "onboarding.started",
+                          "onboarding.finished",
+                          "onboarding.reviewed"
                         ]
                       },
                       "summary": {
@@ -3397,7 +3401,11 @@
               "agent_file.proposed",
               "agent_file.proposal_decided",
               "drift.detected",
-              "drift.resolved"
+              "drift.resolved",
+              "project.created",
+              "onboarding.started",
+              "onboarding.finished",
+              "onboarding.reviewed"
             ]
           }
         },
@@ -3494,7 +3502,11 @@
                       "agent_file.proposed",
                       "agent_file.proposal_decided",
                       "drift.detected",
-                      "drift.resolved"
+                      "drift.resolved",
+                      "project.created",
+                      "onboarding.started",
+                      "onboarding.finished",
+                      "onboarding.reviewed"
                     ]
                   },
                   "summary": {
@@ -7938,7 +7950,11 @@
                     "agent_file.proposed",
                     "agent_file.proposal_decided",
                     "drift.detected",
-                    "drift.resolved"
+                    "drift.resolved",
+                    "project.created",
+                    "onboarding.started",
+                    "onboarding.finished",
+                    "onboarding.reviewed"
                   ]
                 },
                 "summary": {
@@ -12128,6 +12144,291 @@
           },
           "required": [
             "proposal_id",
+            "state"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string",
+              "enum": [
+                "validation",
+                "conflict",
+                "not_found",
+                "forbidden",
+                "unavailable",
+                "internal"
+              ]
+            },
+            "message": {
+              "type": "string"
+            },
+            "details": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {}
+            },
+            "current": {}
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false
+    }
+  },
+  {
+    "name": "onboard_project",
+    "description": "Set up a project, or onboard a repo into one. Creates the project when the key is free (pass name) or adopts the existing project with that key, starts an onboarding session, and returns its session_id, what the project already holds, and the onboarding guide. Follow the guide step by step; it works with no agent files installed. Not retry-safe: pass idempotency_key.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^[A-Z]{2,5}$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "color": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "run_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "idempotency_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        }
+      },
+      "required": [
+        "key"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "project": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "created": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "key",
+                "name",
+                "created"
+              ],
+              "additionalProperties": false
+            },
+            "session_id": {
+              "type": "string"
+            },
+            "guide": {
+              "type": "string"
+            },
+            "existing": {
+              "type": "object",
+              "properties": {
+                "items": {
+                  "type": "integer"
+                },
+                "jira_items": {
+                  "type": "integer"
+                },
+                "documents": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "items",
+                "jira_items",
+                "documents"
+              ],
+              "additionalProperties": false
+            },
+            "replayed": {
+              "type": "boolean"
+            },
+            "warnings": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "existing",
+            "guide",
+            "project",
+            "session_id"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string",
+              "enum": [
+                "validation",
+                "conflict",
+                "not_found",
+                "forbidden",
+                "unavailable",
+                "internal"
+              ]
+            },
+            "message": {
+              "type": "string"
+            },
+            "details": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {}
+            },
+            "current": {}
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false
+    }
+  },
+  {
+    "name": "finish_onboarding",
+    "description": "Finish an onboarding session and hand it to the owner for review, with a short summary and any open questions. Pass the session_id from onboard_project. The owner reviews everything you set up from one card; stop there and wait for them.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "questions": {
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        },
+        "run_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "idempotency_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        }
+      },
+      "required": [
+        "session_id",
+        "summary"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "session_id": {
+              "type": "string"
+            },
+            "state": {
+              "type": "string",
+              "const": "ready_for_review"
+            },
+            "changes": {
+              "type": "object",
+              "properties": {
+                "created": {
+                  "type": "integer"
+                },
+                "enriched": {
+                  "type": "integer"
+                },
+                "documents": {
+                  "type": "integer"
+                },
+                "decisions": {
+                  "type": "integer"
+                },
+                "proposals": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "created",
+                "enriched",
+                "documents",
+                "decisions",
+                "proposals"
+              ],
+              "additionalProperties": false
+            },
+            "replayed": {
+              "type": "boolean"
+            },
+            "warnings": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "changes",
+            "session_id",
             "state"
           ],
           "additionalProperties": false

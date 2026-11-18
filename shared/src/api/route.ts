@@ -15,7 +15,8 @@ export type ApiMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
  * following contracts/ui-api.md. `session` and `undo` are B2's routes;
  * `upload` is `/agent-upload` (BUILD_SPEC §5.10). `setup` is agent setup
  * (decision 29, BUILD_SPEC §5.17); `install` is `GET /install/:token`, the
- * session-less bundle download.
+ * session-less bundle download. `onboarding` is the onboarding review
+ * (decision 31, BUILD_SPEC §5.20).
  */
 export const API_GROUPS = [
   'session',
@@ -32,6 +33,7 @@ export const API_GROUPS = [
   'recovery',
   'setup',
   'install',
+  'onboarding',
   'undo',
   'upload',
 ] as const;

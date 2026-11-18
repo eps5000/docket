@@ -2,7 +2,8 @@
  * Every UI API route (BUILD_SPEC §7, the 2026-11-14 clarification routes,
  * the recovery routes from owner decision 26, the agent setup routes from
  * owner decision 29 (including the session-less `GET /install/:token`), the
- * proposals and drift routes from owner decision 30, and
+ * proposals and drift routes from owner decision 30, the new project and
+ * onboarding routes from owner decision 31, and
  * `/agent-upload` from §5.10), keyed by a stable route ID. The server, the
  * route contract test and the web client all read this one table.
  *
@@ -15,6 +16,7 @@ import { decisionsRoutes } from './decisions.js';
 import { depsRoutes } from './deps.js';
 import { diagnosticsRoutes, undoRoutes, uploadRoutes } from './diagnostics.js';
 import { importRoutes } from './import.js';
+import { onboardingRoutes } from './onboarding.js';
 import { planningRoutes } from './planning.js';
 import { readRoutes } from './read.js';
 import { recoveryRoutes } from './recovery.js';
@@ -40,6 +42,7 @@ export const API_ROUTES = {
   ...recoveryRoutes,
   ...agentSetupRoutes,
   ...agentProposalsRoutes,
+  ...onboardingRoutes,
   ...undoRoutes,
   ...uploadRoutes,
 } as const;

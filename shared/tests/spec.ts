@@ -59,3 +59,23 @@ export function specToolPart(name: string, part: 'Input' | 'Output'): string {
   const end = rest.search(/\n- \*\*/);
   return end < 0 ? rest : rest.slice(0, end);
 }
+
+/** §5.11: a prompt's `**Description:** "…"` under its `#### Prompt \`name\`` heading. */
+export function specPromptDescription(name: string): string {
+  const heading = `#### Prompt \`${name}\`\n**Description:** "`;
+  const at = SPEC.indexOf(heading);
+  if (at < 0) throw new Error(`MCP_SPEC.md has no prompt ${name} with a description`);
+  const rest = SPEC.slice(at + heading.length);
+  return rest.slice(0, rest.indexOf('"\n'));
+}
+
+/** §5.11: a prompt's arguments, from its `- **Arguments:**` list: [name, required, description]. */
+export function specPromptArguments(name: string): [string, boolean, string][] {
+  const start = SPEC.indexOf(`#### Prompt \`${name}\`\n`);
+  if (start < 0) throw new Error(`MCP_SPEC.md has no prompt ${name}`);
+  const rest = SPEC.slice(start + 1);
+  const end = rest.search(/\n#{2,4} /);
+  const section = end < 0 ? rest : rest.slice(0, end);
+  const re = /^ {2}- `(\w+)` \((required|optional)\): "(.*)"$/gm;
+  return [...section.matchAll(re)].map((m) => [m[1]!, m[2] === 'required', m[3]!]);
+}

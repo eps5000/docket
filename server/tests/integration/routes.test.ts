@@ -276,6 +276,12 @@ const VALID: Record<RouteId, Req> = {
   'drift.adopt': { params: { id: 'dft_1' }, body: {} },
   'drift.restore': { params: { id: 'dft_1' }, body: {} },
   'drift.keepLocal': { params: { id: 'dft_1' }, body: {} },
+  // New project and onboarding (decision 31; B29 placeholders until US15, T164–T165).
+  'projects.create': {
+    body: { key: 'GF', name: 'Gameflow', color: '#2b8a3e', default_satisfied_when: 'merged' },
+  },
+  'onboarding.list': { query: { project: 'RCP', state: 'ready_for_review' } },
+  'onboarding.reviewed': { params: { id: 'onb_1' }, body: {} },
 };
 
 /** A path parameter value that fails its schema: a lower-cased item ID or key, a bad label, or blank. */

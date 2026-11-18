@@ -11,7 +11,11 @@ import {
   ROUTE_IDS,
   agentFileParams,
   approveProposalBody,
+  createProjectBody,
   declineProposalBody,
+  onboardingQuery,
+  onboardingSessionSchema,
+  projectSchema,
   driftQuery,
   itemDetailResponse,
   needsYouResponse,
@@ -112,6 +116,10 @@ const EXPECTED = [
   'POST /api/drift/:id/adopt',
   'POST /api/drift/:id/restore',
   'POST /api/drift/:id/keep-local',
+  // Decision 31 (BUILD_SPEC §7): new project and the onboarding review
+  'POST /api/projects',
+  'GET /api/onboarding',
+  'POST /api/onboarding/:id/reviewed',
   'GET /api/stream',
   'POST /agent-upload',
 ];
@@ -125,11 +133,11 @@ const keysOf = (schema: z.ZodType): string[] => {
 };
 
 describe('the route table', () => {
-  it('has every BUILD_SPEC §7 route, the clarification, recovery, agent setup, proposals and drift routes and /agent-upload, once each', () => {
+  it('has every BUILD_SPEC §7 route, the clarification, recovery, agent setup, proposals and drift, and onboarding routes and /agent-upload, once each', () => {
     const labels = ROUTE_IDS.map((id) => routeLabel(API_ROUTES[id]));
     expect(new Set(labels).size).toBe(labels.length);
     expect([...labels].sort()).toEqual([...EXPECTED].sort());
-    expect(labels).toHaveLength(73);
+    expect(labels).toHaveLength(76);
   });
 
   it('puts each route in a known group, and every group has a route', () => {
@@ -317,6 +325,64 @@ describe('field rules', () => {
         },
       ]).success,
     ).toBe(true);
+  });
+
+  it('new project and onboarding (decision 31): bodies, filters, and nothing undoable', () => {
+    const body = { key: 'GF', name: 'Gameflow' };
+    expect(createProjectBody.safeParse(body).success).toBe(true);
+    expect(
+      createProjectBody.safeParse({ ...body, color: '#2b8a3e', default_satisfied_when: 'merged' })
+        .success,
+    ).toBe(true);
+    expect(createProjectBody.safeParse({ key: 'GF' }).success).toBe(false);
+    expect(createProjectBody.safeParse({ ...body, key: 'gf' }).success).toBe(false);
+    expect(createProjectBody.safeParse({ ...body, name: 'x'.repeat(101) }).success).toBe(false);
+    expect(createProjectBody.safeParse({ ...body, color: 'green' }).success).toBe(false);
+    expect(
+      createProjectBody.safeParse({ ...body, default_satisfied_when: 'shipped' }).success,
+    ).toBe(false);
+    expect(onboardingQuery.safeParse({}).success).toBe(true);
+    expect(onboardingQuery.safeParse({ project: 'GF', state: 'ready_for_review' }).success).toBe(
+      true,
+    );
+    expect(onboardingQuery.safeParse({ state: 'pending' }).success).toBe(false);
+    expect(API_ROUTES['projects.create'].undoable).toBe(false);
+    expect(API_ROUTES['projects.create'].group).toBe('settings');
+    expect(API_ROUTES['onboarding.reviewed'].undoable).toBe(false);
+  });
+
+  it('existing responses gain optional decision 31 fields (onboarding reviews, created_by)', () => {
+    expect(needsYouResponse.shape.onboarding_reviews.safeParse(undefined).success).toBe(true);
+    const session = {
+      id: 'onb_1',
+      project: 'GF',
+      project_name: 'Gameflow',
+      started_by: 'claude · orca-w3',
+      run_id: null,
+      state: 'ready_for_review',
+      summary: 'Created 12 items in Planning.',
+      questions: ['Is the editor in scope?'],
+      changes: { created: 12, enriched: 7, documents: 3, decisions: 2, proposals: 1 },
+      workflow_proposal_id: 'afp_1',
+      started_at: '2026-11-18T10:00:00Z',
+      finished_at: '2026-11-18T10:40:00Z',
+      reviewed_at: null,
+    };
+    expect(onboardingSessionSchema.safeParse(session).success).toBe(true);
+    expect(needsYouResponse.shape.onboarding_reviews.safeParse([session]).success).toBe(true);
+    const project = {
+      key: 'GF',
+      name: 'Gameflow',
+      short_name: 'Gameflow',
+      color: '#2b8a3e',
+      default_satisfied_when: 'done',
+      version: 1,
+    };
+    expect(projectSchema.safeParse(project).success).toBe(true);
+    expect(projectSchema.safeParse({ ...project, created_by: null }).success).toBe(true);
+    expect(projectSchema.safeParse({ ...project, created_by: 'claude · orca-w3' }).success).toBe(
+      true,
+    );
   });
 
   it('recovery: workspaces filter by scope and one state; release takes an optional note ≤ 500', () => {

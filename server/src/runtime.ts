@@ -12,6 +12,7 @@ import type { Services } from './domain/contracts.js';
 import { createServices, type ServiceOverrides } from './domain/services.js';
 import { WritePath } from './domain/write.js';
 import { CallLog } from './jobs/logs.js';
+import { registerPrompts } from './mcp/prompts.js';
 import { registerTools, type ToolHandlers } from './mcp/register.js';
 import { McpHub } from './mcp/server.js';
 import { TOOL_HANDLERS } from './mcp/tools/index.js';
@@ -90,8 +91,12 @@ export function createRuntime(opts: RuntimeOptions = {}): Runtime {
       clock,
       instructions: SERVER_INSTRUCTIONS,
       textOnlyClients: config.textOnlyClients,
-      // Each new MCP session's server gets all 36 tools (MCP_SPEC §5).
-      configure: (server, session) => registerTools(server, { runtime, session, handlers }),
+      // Each new MCP session's server gets all 42 tools (MCP_SPEC §5) and the
+      // onboard prompt (§5.11).
+      configure: (server, session) => {
+        registerTools(server, { runtime, session, handlers });
+        registerPrompts(server, { runtime, session });
+      },
     }),
     callLog,
     clock,

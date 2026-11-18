@@ -25,6 +25,8 @@ export const ID_PREFIXES = {
   resource: 'rsc',
   /** An agent's proposed change to an agent file (decision 30; MCP_SPEC §5.10). */
   agent_file_proposal: 'afp',
+  /** An onboarding session (decision 31; MCP_SPEC §5.11). */
+  onboarding_session: 'onb',
   // Internal.
   mutation: 'mut',
   project: 'prj',

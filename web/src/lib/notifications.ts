@@ -184,6 +184,9 @@ export class Notifier {
 
   async handle(change: StreamChange): Promise<NotificationText | null> {
     if (!change.for_you || !this.claimed) return null;
+    // `onboarding.finished` is for you too (decision 31): it raises the badge, and
+    // its notification comes with the review card (US15, T165), not as a question.
+    if (change.type !== 'packet.submitted' && change.type !== 'question.asked') return null;
     if (readPref() !== 'on' || permission() !== 'granted') return null;
     if (alreadyNotified(change.seq)) return null;
     markNotified(change.seq);

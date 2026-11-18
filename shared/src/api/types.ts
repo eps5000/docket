@@ -24,6 +24,12 @@ export const projectSchema = z.object({
   color: z.string(),
   default_satisfied_when: satisfiedWhenSchema,
   version: z.number().int(),
+  /**
+   * The agent that created it through onboard_project (`claude · orca-w3`); null
+   * when the owner, the seed or a Jira import did. Drives the "created by <agent>
+   * · review" chip (decision 31; UI_SPEC §6.7d; optional; B29).
+   */
+  created_by: z.string().nullable().optional(),
 });
 export type Project = z.infer<typeof projectSchema>;
 

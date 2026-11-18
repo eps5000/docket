@@ -18,6 +18,7 @@ export const SERVER_INSTRUCTIONS = [
   '- Follow active decision records. Owner decisions are authoritative; to challenge one, use ask_owner. Record decisions other agents must follow with publish_decision.',
   "- Planning belongs to the owner. You may draft planning documents (put_document) and move an item to Ready only when the project's workflow (AGENTS.md / CLAUDE.md) says you may.",
   "- To change your instructions for a project, propose it with propose_agent_file_change; don't edit installed files directly.",
+  '- To set up a new project or onboard a repo, call onboard_project and follow the guide it returns.',
   "- Your plan is the item's checklist, not new tickets: set_plan with one-line steps, update_step as you go. Split work into a new Story or Task only when a step needs its own blocker, owner or review.",
   '- Record what you verify yourself with set_checks. Record subagent work with log_subagent; say whether you observed it or are relaying it.',
   '- If the owner must verify something by hand, declare it with declare_human_review, ideally during Planning. The item cannot close while any human review item is undecided.',
@@ -113,6 +114,10 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
     "Read the agent files (skills and the AGENTS.md block) and Workflow notes in effect for a project, with each one's version_id and where it comes from. Pass file to get its full text. Read-only. Call it before propose_agent_file_change, and propose from this text, not your installed copy.",
   propose_agent_file_change:
     "Propose new content for an agent file (a skill or the AGENTS.md block) or a project's Workflow notes, with a short reason. Nothing changes until the owner approves; they may edit or decline it. Send the whole new text and based_on_version_id from get_agent_files. Omit project to propose a change to the default.",
+  onboard_project:
+    'Set up a project, or onboard a repo into one. Creates the project when the key is free (pass name) or adopts the existing project with that key, starts an onboarding session, and returns its session_id, what the project already holds, and the onboarding guide. Follow the guide step by step; it works with no agent files installed. Not retry-safe: pass idempotency_key.',
+  finish_onboarding:
+    'Finish an onboarding session and hand it to the owner for review, with a short summary and any open questions. Pass the session_id from onboard_project. The owner reviews everything you set up from one card; stop there and wait for them.',
 };
 
 /**
@@ -163,7 +168,40 @@ export const TOOL_SUMMARIES: Record<ToolName, string> = {
   get_agent_files: 'Agent files for {project}: {count}',
   propose_agent_file_change:
     'Proposed {file} change for {target} · {proposal_id} · pending owner approval',
+  onboard_project:
+    'Onboarding {key} {name} · {how} · session {session_id} · existing: {items} items, {jira_items} from Jira, {documents} documents',
+  finish_onboarding:
+    "Onboarding {session_id} ready for the owner's review · {created} created · {enriched} enriched · {documents} documents · {decisions} decisions · {proposals} proposals",
 };
+
+/**
+ * MCP_SPEC §5.11: the prompts the server lists (`prompts/list`), with their
+ * descriptions and arguments verbatim. The `onboard` prompt returns the
+ * same guide as onboard_project, as a user message (decision 31).
+ */
+export const PROMPTS = [
+  {
+    name: 'onboard',
+    description:
+      'Onboard this repo into Docket: set up or adopt the project, then follow the onboarding guide.',
+    arguments: [
+      {
+        name: 'project_key',
+        description: 'Project key: 2–5 uppercase letters, like GF.',
+        required: true,
+      },
+      {
+        name: 'project_name',
+        description: "The project's name, if it is new.",
+        required: false,
+      },
+    ],
+  },
+] as const;
+export type PromptName = (typeof PROMPTS)[number]['name'];
+
+/** What the `onboard` prompt returns while the guide service is a stub (B29; B30 fills it). */
+export const ONBOARD_PROMPT_STUB = 'Onboarding guide not available yet';
 
 /** Fill a summary template. A missing (or non-scalar) value renders as `?`, so a gap is visible in tests. */
 export function fillSummary(template: string, values: Record<string, unknown>): string {
