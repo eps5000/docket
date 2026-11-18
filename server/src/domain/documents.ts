@@ -25,7 +25,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import { createWriteStream, mkdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve, isAbsolute } from 'node:path';
-import { AGENT_UPLOAD_MAX_BYTES, LIMITS, ToolError } from '@tasklite/shared';
+import { AGENT_UPLOAD_MAX_BYTES, LIMITS, ToolError } from '@docket/shared';
 import type {
   DocumentContent,
   DocumentsService,

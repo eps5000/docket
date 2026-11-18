@@ -13,7 +13,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { AGENT_UPLOAD_MAX_BYTES } from '@tasklite/shared';
+import { AGENT_UPLOAD_MAX_BYTES } from '@docket/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { loadSampleSeed } from '../../src/db/seed/loader.js';
 import { createTestServer, parseSetCookies, type TestServer } from './harness.js';

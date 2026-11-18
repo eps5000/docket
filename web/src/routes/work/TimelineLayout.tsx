@@ -1,6 +1,6 @@
 import { Fragment, type CSSProperties } from 'react';
 import { Link } from 'react-router';
-import type { Timeline } from '@tasklite/shared';
+import type { Timeline } from '@docket/shared';
 import { Card, EmptyState, TypeIcon } from '../../components/kit';
 import { useBootstrap } from '../../app/useBootstrap';
 import { paths } from '../../lib/paths';

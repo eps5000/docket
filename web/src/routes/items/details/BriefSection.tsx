@@ -1,4 +1,4 @@
-import type { ItemDetailResponse } from '@tasklite/shared';
+import type { ItemDetailResponse } from '@docket/shared';
 import { EmptyState, Section } from '../../../components/kit';
 import { plural } from '../../../lib/format';
 import { Markdown } from '../../shared/Markdown';

@@ -14,7 +14,7 @@
  */
 import type { EventEmitter } from 'node:events';
 import { Hono, type Context } from 'hono';
-import { HTTP_STATUS, isToolError } from '@tasklite/shared';
+import { HTTP_STATUS, isToolError } from '@docket/shared';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import type { Db } from '../db/client.js';
 import type { Services } from '../domain/contracts.js';

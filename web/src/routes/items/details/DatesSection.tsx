@@ -1,4 +1,4 @@
-import type { ItemDetailResponse } from '@tasklite/shared';
+import type { ItemDetailResponse } from '@docket/shared';
 import { Section } from '../../../components/kit';
 import { formatDay } from '../../../lib/format';
 import { HelpLink } from '../../../help/HelpLink';

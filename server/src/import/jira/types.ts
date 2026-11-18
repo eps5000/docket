@@ -5,7 +5,7 @@
  * Jira's responses are typed loosely on purpose: fields can be missing or
  * null on any site, and the mapper treats every value as untrusted.
  */
-import type { ItemType } from '@tasklite/shared';
+import type { ItemType } from '@docket/shared';
 
 // ---- Jira REST v3 (the subset read) ----
 

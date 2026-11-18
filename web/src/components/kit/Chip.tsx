@@ -5,7 +5,7 @@ import {
   type HumanReviewState,
   type Status,
   type WorkspaceState,
-} from '@tasklite/shared';
+} from '@docket/shared';
 import { Icon, type IconName } from './icons';
 
 /** The tone chips (UI_SPEC §4 Chip): always text, never colour alone. */

@@ -6,7 +6,7 @@
  * the shared line schema and rebuilt from its allowed fields only, so even
  * a hand-edited log file can't put arguments or results in the download.
  */
-import { callLogLineSchema } from '@tasklite/shared';
+import { callLogLineSchema } from '@docket/shared';
 import type { DiagnosticsService, ServiceDeps } from './contracts.js';
 
 export function createDiagnosticsService(deps: ServiceDeps): DiagnosticsService {

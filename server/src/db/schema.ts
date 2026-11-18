@@ -51,7 +51,7 @@ import {
   SUBAGENT_PROVENANCES,
   WORK_STEP_STATES,
   ACTOR_KINDS,
-} from '@tasklite/shared';
+} from '@docket/shared';
 import { sql, type SQL } from 'drizzle-orm';
 import {
   check,

@@ -4,7 +4,7 @@
  * seq, once per item in a burst, only when on and allowed, only in the tab
  * that claimed the job; the tab title; the Settings status line.
  */
-import type { NeedsYouResponse } from '@tasklite/shared';
+import type { NeedsYouResponse } from '@docket/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { StreamChange } from './api';
 import {

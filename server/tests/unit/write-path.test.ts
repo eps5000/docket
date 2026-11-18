@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import { ToolError } from '@tasklite/shared';
+import { ToolError } from '@docket/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { openDb } from '../../src/db/client.js';
 import { WritePath, type Actor, type WriteContext } from '../../src/domain/write.js';

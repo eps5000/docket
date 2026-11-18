@@ -17,7 +17,7 @@ import {
   WHOAMI_LIMITS,
   type ItemSummary,
   type ItemSummaryView,
-} from '@tasklite/shared';
+} from '@docket/shared';
 import { APP_VERSION } from '../version.js';
 import { type In, type SearchService, type ServiceDeps } from './contracts.js';
 import {

@@ -2,7 +2,7 @@
  * Status transitions (BUILD_SPEC §5.1; FR-003 to FR-005; tasks.md T064).
  * Every guard runs in the domain layer, inside the mutation's transaction.
  */
-import type { ItemSummary, Status } from '@tasklite/shared';
+import type { ItemSummary, Status } from '@docket/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Actor } from '../../src/domain/write.js';
 import { OWNER_ACTOR } from '../../src/domain/write.js';

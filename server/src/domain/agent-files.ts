@@ -49,7 +49,7 @@ import {
   type AgentFileVersionRef,
   type EditableAgentFileLayer,
   type Workflow,
-} from '@tasklite/shared';
+} from '@docket/shared';
 import type { Db } from '../db/client.js';
 import { APP_VERSION } from '../version.js';
 import type { AgentFilesService, BundledAgentFile, ServiceDeps } from './contracts.js';

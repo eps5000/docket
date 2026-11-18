@@ -4,7 +4,7 @@
  * (imports) are found on read as strongly connected components and shown as
  * Problems; blocking crosses projects.
  */
-import type { ToolError } from '@tasklite/shared';
+import type { ToolError } from '@docket/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Actor } from '../../src/domain/write.js';
 import { OWNER_ACTOR } from '../../src/domain/write.js';

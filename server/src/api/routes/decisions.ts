@@ -5,7 +5,7 @@
  * Placeholders (tasks.md T045): each route is guarded and validated, and
  * calls its service; stubs answer 501 until US5 (T101) implements them.
  */
-import { LIMITS } from '@tasklite/shared';
+import { LIMITS } from '@docket/shared';
 import type { Env, Hono } from 'hono';
 import { defineRoute, type RouteDeps } from '../define.js';
 

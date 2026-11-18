@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { Link, useLocation } from 'react-router';
-import { OPEN_RUN_STATES } from '@tasklite/shared';
+import { OPEN_RUN_STATES } from '@docket/shared';
 import { Icon, isNotBuilt, type IconName } from '../components/kit';
 import { paths } from '../lib/paths';
 import { useShell } from './ShellState';

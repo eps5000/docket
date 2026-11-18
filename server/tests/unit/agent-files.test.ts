@@ -7,7 +7,7 @@
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { AgentFileDetail, ToolError } from '@tasklite/shared';
+import type { AgentFileDetail, ToolError } from '@docket/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { BundledAgentFile, Services } from '../../src/domain/contracts.js';
 import { sha256 } from '../../src/domain/agent-files.js';

@@ -20,7 +20,7 @@
  *   agent an owner note. It is undoable.
  */
 import { createHash } from 'node:crypto';
-import { ToolError, type ReviewResponse } from '@tasklite/shared';
+import { ToolError, type ReviewResponse } from '@docket/shared';
 import type { Db } from '../db/client.js';
 import type { PacketsService, ServiceDeps } from './contracts.js';
 import { hrRows } from './human-review.js';

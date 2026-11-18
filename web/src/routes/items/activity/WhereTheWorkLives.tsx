@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { RESOURCE_KIND_LABELS, type ItemDetailResponse, type Run } from '@tasklite/shared';
+import { RESOURCE_KIND_LABELS, type ItemDetailResponse, type Run } from '@docket/shared';
 import { Button, Chip, IconButton, WorkspaceStateChip } from '../../../components/kit';
 import { apiClient } from '../../../app/queryClient';
 import { queryKeys } from '../../../lib/api';

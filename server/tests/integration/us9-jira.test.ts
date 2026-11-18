@@ -26,7 +26,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
-import type { JiraImport } from '@tasklite/shared';
+import type { JiraImport } from '@docket/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadSampleSeed } from '../../src/db/seed/loader.js';
 import { readContext } from '../../src/domain/contracts.js';

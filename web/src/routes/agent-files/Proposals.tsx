@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useId, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router';
-import { AGENT_SETUP_LIMITS, type Proposal } from '@tasklite/shared';
+import { AGENT_SETUP_LIMITS, type Proposal } from '@docket/shared';
 import { Button, Callout, Card, Chip, Icon, InlineEditor } from '../../components/kit';
 import { apiClient } from '../../app/queryClient';
 import { queryKeys } from '../../lib/api';

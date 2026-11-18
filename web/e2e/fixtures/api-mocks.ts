@@ -13,7 +13,7 @@ import type {
   SettingsResponse,
   WorkResponse,
   WorkspacesResponse,
-} from '@tasklite/shared';
+} from '@docket/shared';
 
 export const bootstrap: BootstrapResponse = {
   server_version: 'e2e',

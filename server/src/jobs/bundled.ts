@@ -12,7 +12,7 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { AGENT_FILE_KEY_RE, AGENT_SETUP_LIMITS } from '@tasklite/shared';
+import { AGENT_FILE_KEY_RE, AGENT_SETUP_LIMITS } from '@docket/shared';
 import type { BundledAgentFile, Services } from '../domain/contracts.js';
 import { SYSTEM_ACTOR, type WritePath } from '../domain/write.js';
 

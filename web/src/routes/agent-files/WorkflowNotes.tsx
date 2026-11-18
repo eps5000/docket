@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useId, useState } from 'react';
-import { AGENT_SETUP_LIMITS, type Workflow } from '@tasklite/shared';
+import { AGENT_SETUP_LIMITS, type Workflow } from '@docket/shared';
 import {
   Button,
   Callout,

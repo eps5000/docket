@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { AgentFileDetail, AgentFileRow, PushTargetResponse } from '@tasklite/shared';
+import type { AgentFileDetail, AgentFileRow, PushTargetResponse } from '@docket/shared';
 import {
   copyOutdated,
   defaultAt,

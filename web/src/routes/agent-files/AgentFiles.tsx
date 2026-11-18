@@ -1,7 +1,7 @@
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
-import { AGENT_FILE_KEY_RE, PROJECT_KEY_RE, type AgentFileRow, type Drift } from '@tasklite/shared';
+import { AGENT_FILE_KEY_RE, PROJECT_KEY_RE, type AgentFileRow, type Drift } from '@docket/shared';
 import { Button, Card, Chip, EmptyState, Icon, Skeleton } from '../../components/kit';
 import { QueryState } from '../../app/QueryState';
 import { apiClient } from '../../app/queryClient';

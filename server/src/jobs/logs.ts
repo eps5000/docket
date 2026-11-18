@@ -10,7 +10,7 @@
  */
 import { appendFileSync, mkdirSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import type { ErrorCode } from '@tasklite/shared';
+import type { ErrorCode } from '@docket/shared';
 
 export interface CallLogEntry {
   /** ISO-8601 UTC; defaults to now. */

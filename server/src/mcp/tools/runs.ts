@@ -7,7 +7,7 @@
  * `unavailable` ("Not implemented yet: <tool>"). The slice that owns a tool
  * implements the service; registration, schemas and copy stay as they are.
  */
-import { findSecret } from '@tasklite/shared';
+import { findSecret } from '@docket/shared';
 import { runSignal, serviceArgs, type ToolContext, type ToolHandlers } from '../register.js';
 
 /** The write context `ctx.mutate` hands a service (adapters import no domain module). */

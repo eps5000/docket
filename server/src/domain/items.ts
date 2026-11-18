@@ -15,7 +15,7 @@ import {
   type ItemText,
   type ItemView,
   type Status,
-} from '@tasklite/shared';
+} from '@docket/shared';
 import {
   type DeliveryReceipt,
   type In,

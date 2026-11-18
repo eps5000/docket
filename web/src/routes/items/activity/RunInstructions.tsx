@@ -1,5 +1,5 @@
 import { Link } from 'react-router';
-import type { ItemDetailResponse, RunInstructions } from '@tasklite/shared';
+import type { ItemDetailResponse, RunInstructions } from '@docket/shared';
 import { Chip } from '../../../components/kit';
 import { useBootstrap } from '../../../app/useBootstrap';
 import { paths } from '../../../lib/paths';

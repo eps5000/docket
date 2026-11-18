@@ -54,7 +54,7 @@ import {
   type WaitingOn,
   type WorkItem,
   type WorkResponse,
-} from '@tasklite/shared';
+} from '@docket/shared';
 import { migrationStatus, type Db } from '../db/client.js';
 import { APP_VERSION } from '../version.js';
 import {

@@ -4,7 +4,7 @@
  * the domain services, the MCP hub and the call log. `index.ts` and the tests both build one.
  */
 import { EventEmitter } from 'node:events';
-import { SERVER_INSTRUCTIONS } from '@tasklite/shared';
+import { SERVER_INSTRUCTIONS } from '@docket/shared';
 import { OwnerSessions } from './api/session.js';
 import { SecretStore, loadConfig, type Config } from './config.js';
 import { migrateDb, openDb, type Db } from './db/client.js';

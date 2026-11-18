@@ -13,7 +13,7 @@
  */
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import { renderError, toolErrorSchema } from '@tasklite/shared';
+import { renderError, toolErrorSchema } from '@docket/shared';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   CLIENT_A,

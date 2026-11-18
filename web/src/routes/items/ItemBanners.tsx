@@ -1,5 +1,5 @@
 import { Link } from 'react-router';
-import type { ItemDetailResponse } from '@tasklite/shared';
+import type { ItemDetailResponse } from '@docket/shared';
 import { Button, Callout, Icon } from '../../components/kit';
 import { useShell } from '../../app/ShellState';
 import { useBootstrap } from '../../app/useBootstrap';

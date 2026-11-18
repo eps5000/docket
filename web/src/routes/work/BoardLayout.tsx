@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link } from 'react-router';
-import { STATUS_LABELS, type Status, type WorkItem } from '@tasklite/shared';
+import { STATUS_LABELS, type Status, type WorkItem } from '@docket/shared';
 import { Button, Icon, TicketCard } from '../../components/kit';
 import { apiClient } from '../../app/queryClient';
 import { queryKeys } from '../../lib/api';

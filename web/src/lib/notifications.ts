@@ -14,7 +14,7 @@
  * - **Privacy:** generated here from the stream and `GET /api/needs-you`.
  *   Nothing leaves the machine.
  */
-import type { ForYouRow, NeedsYouResponse } from '@tasklite/shared';
+import type { ForYouRow, NeedsYouResponse } from '@docket/shared';
 import type { StreamChange } from './api';
 import { paths } from './paths';
 import { readJson, readString, STORAGE_KEYS, writeJson, writeString } from './persistence';

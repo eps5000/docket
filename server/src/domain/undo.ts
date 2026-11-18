@@ -11,7 +11,7 @@
  * Undoing an answer the agent has already read also returns `conflict`
  * (B18): the agent may have acted on it, so the owner leaves a note instead.
  */
-import { ToolError, type EventType } from '@tasklite/shared';
+import { ToolError, type EventType } from '@docket/shared';
 import type { ServiceDeps, UndoService } from './contracts.js';
 import {
   OWNER_ACTOR,

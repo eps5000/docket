@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useId, useRef, useState } from 'react';
-import { LIMITS, type DecisionRecord, type DecisionScopeKind } from '@tasklite/shared';
+import { LIMITS, type DecisionRecord, type DecisionScopeKind } from '@docket/shared';
 import { Button, Callout, DecisionRow, EmptyState, Section } from '../../components/kit';
 import { apiClient } from '../../app/queryClient';
 import { queryKeys } from '../../lib/api';

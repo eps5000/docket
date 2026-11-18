@@ -5,7 +5,7 @@
  * `.codex/`, in the repo or the home folder) by both install methods.
  *
  * It hashes each installed file exactly as B24's check does
- * (`checkCommands` in @tasklite/shared, `inspectPushInstall` on the server):
+ * (`checkCommands` in @docket/shared, `inspectPushInstall` on the server):
  * CR bytes removed, and the AGENTS.md block as the text between the Task
  * Lite markers less one newline at each end. It compares each hash with the
  * manifest and prints one line of JSON, the `instructions` argument of
@@ -27,7 +27,7 @@
  * PowerShell 5.1 reads it the same in any code page, and the PowerShell
  * version prints non-ASCII text as `\uXXXX` for the same reason.
  */
-import { TASKLITE_BEGIN, TASKLITE_END } from '@tasklite/shared';
+import { TASKLITE_BEGIN, TASKLITE_END } from '@docket/shared';
 
 /** The installed script's file names, next to the manifest. */
 export const CHECK_SCRIPT_SH = 'tasklite-check.sh';

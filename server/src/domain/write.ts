@@ -24,7 +24,7 @@ import {
   type ActorKind,
   type EventType,
   type ObjectKind,
-} from '@tasklite/shared';
+} from '@docket/shared';
 import { getTableConfig, SQLiteTable } from 'drizzle-orm/sqlite-core';
 import { is } from 'drizzle-orm';
 import type { Db } from '../db/client.js';

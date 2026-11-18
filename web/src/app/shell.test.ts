@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { PROBLEM_KINDS } from '@tasklite/shared';
+import { PROBLEM_KINDS } from '@docket/shared';
 import { keysForChange, queryKeys } from '../lib/api';
 import { STORAGE_AREA, STORAGE_KEYS } from '../lib/persistence';
 import { PROBLEM_ROWS } from '../routes/needs-you/ProblemsCard';

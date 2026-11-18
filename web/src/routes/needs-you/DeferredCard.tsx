@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link } from 'react-router';
-import { STATUS_LABELS, type DeferredRow } from '@tasklite/shared';
+import { STATUS_LABELS, type DeferredRow } from '@docket/shared';
 import { Button, Card, CardHeader, EmptyState } from '../../components/kit';
 import { apiClient } from '../../app/queryClient';
 import { queryKeys } from '../../lib/api';

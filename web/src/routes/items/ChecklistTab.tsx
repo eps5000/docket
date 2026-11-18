@@ -1,4 +1,4 @@
-import type { ItemDetailResponse } from '@tasklite/shared';
+import type { ItemDetailResponse } from '@docket/shared';
 import type { ItemKind } from './ItemPage';
 import { AgentReviewSection } from './checklist/AgentReviewSection';
 import { HumanReviewSection } from './checklist/HumanReviewSection';

@@ -27,7 +27,7 @@
 import { constants } from 'node:fs';
 import { lstat, mkdir, open, readdir, realpath, stat } from 'node:fs/promises';
 import { isAbsolute, join, relative, sep } from 'node:path';
-import { ToolError, hasControlChars } from '@tasklite/shared';
+import { ToolError, hasControlChars } from '@docket/shared';
 
 const NOFOLLOW = (constants as { O_NOFOLLOW?: number }).O_NOFOLLOW ?? 0;
 

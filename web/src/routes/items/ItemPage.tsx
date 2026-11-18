@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router';
-import type { ItemDetailResponse } from '@tasklite/shared';
+import type { ItemDetailResponse } from '@docket/shared';
 import { Button, ErrorState, Skeleton, ViewTabs, type ViewTab } from '../../components/kit';
 import { cyclesIn } from '../../components/ProgressMap';
 import { apiClient } from '../../app/queryClient';

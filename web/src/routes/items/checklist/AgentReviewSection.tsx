@@ -1,4 +1,4 @@
-import type { Check, ItemDetailResponse } from '@tasklite/shared';
+import type { Check, ItemDetailResponse } from '@docket/shared';
 import { Button, EmptyState, Provenance, Section } from '../../../components/kit';
 import { apiClient } from '../../../app/queryClient';
 import { useSteer } from '../../shared/steer';

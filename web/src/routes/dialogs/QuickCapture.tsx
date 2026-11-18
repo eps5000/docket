@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useId, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { ITEM_TYPES, type ItemType } from '@tasklite/shared';
+import { ITEM_TYPES, type ItemType } from '@docket/shared';
 import { Button, Dialog, DialogCancel, ErrorState } from '../../components/kit';
 import { apiClient } from '../../app/queryClient';
 import { useShell } from '../../app/ShellState';

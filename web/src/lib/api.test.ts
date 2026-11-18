@@ -3,7 +3,7 @@
  * capture, the 409 conflict shape, the query key factory, and the event →
  * query-key invalidation map (contracts/events.md).
  */
-import { EVENT_TYPES, ROUTE_IDS, type EventType } from '@tasklite/shared';
+import { EVENT_TYPES, ROUTE_IDS, type EventType } from '@docket/shared';
 import { describe, expect, it } from 'vitest';
 import {
   ApiError,

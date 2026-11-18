@@ -13,7 +13,7 @@
  * - Planned dates are never changed by any of it.
  * - Scale: the replay reads only the window's events (100,000 events).
  */
-import type { Status } from '@tasklite/shared';
+import type { Status } from '@docket/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   BURNDOWN_DAYS,

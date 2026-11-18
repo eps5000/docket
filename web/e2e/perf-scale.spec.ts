@@ -4,11 +4,11 @@
  * with the scale data set, which no other spec may reset.
  *
  *   # 1. Generate and keep the data set (server/tests/perf/scale.test.ts)
- *   TASKLITE_PERF_KEEP=/tmp/tl-scale pnpm --filter @tasklite/server perf
+ *   TASKLITE_PERF_KEEP=/tmp/tl-scale pnpm --filter @docket/server perf
  *   # 2. Copy it into a throwaway volume, owned by uid 10001, and start the image on it
  *   # 3. Run only this spec against it
  *   TASKLITE_E2E_PERF=1 TASKLITE_E2E_NO_START=1 TASKLITE_E2E_CONTAINER=<name> \
- *     pnpm --filter @tasklite/web exec playwright test e2e/perf-scale.spec.ts
+ *     pnpm --filter @docket/web exec playwright test e2e/perf-scale.spec.ts
  *
  * Each view is timed twice: a cold load (a fresh page: HTML, the bundle, the
  * API calls and the first render) and a switch inside the app (the router

@@ -44,7 +44,7 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.32.2
         version: 1.32.2(zod@4.6.7)
-      '@tasklite/shared':
+      '@docket/shared':
         specifier: workspace:^
         version: link:../shared
       better-sqlite3:
@@ -88,7 +88,7 @@ importers:
       '@tanstack/react-query':
         specifier: ^5.107.1
         version: 5.107.1(@types/react@19.3.0)(react@19.3.1)
-      '@tasklite/shared':
+      '@docket/shared':
         specifier: workspace:^
         version: link:../shared
       dompurify:

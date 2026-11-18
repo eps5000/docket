@@ -16,11 +16,11 @@
  *    parameter expansion), PowerShell decodes and encodes as latin1, which
  *    round-trips every byte.
  *
- * They are the same rules as `mergeMarkedSection` in @tasklite/shared, and
+ * They are the same rules as `mergeMarkedSection` in @docket/shared, and
  * they need nothing beyond the shell itself (no Node, no Python). ASCII
  * only, so PowerShell 5.1 reads them the same in any code page.
  */
-import { TASKLITE_BEGIN, TASKLITE_END } from '@tasklite/shared';
+import { TASKLITE_BEGIN, TASKLITE_END } from '@docket/shared';
 
 /** `CLAUDE.md`, `.codex/AGENTS.md`: only these fixed values are put in the scripts. */
 const SAFE_RELATIVE = /^[A-Za-z0-9._/-]+$/;

@@ -18,7 +18,7 @@
  * The graph helpers here (`cyclePath`, `cyclesOf`, `cycleText`) are shared
  * by the subgraph service and the owner's views.
  */
-import { ToolError, type SatisfiedWhen } from '@tasklite/shared';
+import { ToolError, type SatisfiedWhen } from '@docket/shared';
 import type { LinksService, ServiceDeps } from './contracts.js';
 import { newId } from './ids.js';
 import { assertCallerRun, BlockIndex, callerName, ms, requireItem } from './model.js';

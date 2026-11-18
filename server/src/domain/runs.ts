@@ -26,7 +26,7 @@ import {
   type ResourceKind,
   type SignalKind,
   type WaitingOn,
-} from '@tasklite/shared';
+} from '@docket/shared';
 import {
   type In,
   type Out,

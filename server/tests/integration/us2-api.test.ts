@@ -21,7 +21,7 @@ import {
   type NeedsYouResponse,
   type SearchResponse,
   type WorkResponse,
-} from '@tasklite/shared';
+} from '@docket/shared';
 import type { z } from 'zod';
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { loadSampleSeed } from '../../src/db/seed/loader.js';

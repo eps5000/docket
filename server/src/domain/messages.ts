@@ -20,7 +20,7 @@
  * question's `needs_input` run back to `open`. Only `get_item`'s standard
  * and full views deliver (MCP_SPEC §3.2); summary and `get_context` don't.
  */
-import { ToolError } from '@tasklite/shared';
+import { ToolError } from '@docket/shared';
 import type { MessagesService, ServiceDeps } from './contracts.js';
 import { newId } from './ids.js';
 import { activeLead, assertCallerRun, callerName, ms, requireItem } from './model.js';

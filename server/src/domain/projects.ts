@@ -36,7 +36,7 @@ import {
   ToolError,
   type Project,
   type SatisfiedWhen,
-} from '@tasklite/shared';
+} from '@docket/shared';
 import type { Db } from '../db/client.js';
 import type { ProjectsService, ServiceDeps } from './contracts.js';
 import { newId } from './ids.js';

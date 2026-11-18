@@ -11,7 +11,7 @@ import {
   type Priority as PriorityValue,
   type RunState as RunStateValue,
   type WaitingOn,
-} from '@tasklite/shared';
+} from '@docket/shared';
 import { formatStamp } from '../../lib/format';
 import { Icon, TypeGlyph, type IconName } from './icons';
 

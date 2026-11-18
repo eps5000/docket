@@ -1,6 +1,6 @@
 import { Fragment } from 'react';
 import { Link } from 'react-router';
-import type { PROBLEM_KINDS, Problem, WorkspaceRow } from '@tasklite/shared';
+import type { PROBLEM_KINDS, Problem, WorkspaceRow } from '@docket/shared';
 import {
   Button,
   Card,

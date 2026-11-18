@@ -1,4 +1,4 @@
-import type { ItemSummary, LinkEdge } from '@tasklite/shared';
+import type { ItemSummary, LinkEdge } from '@docket/shared';
 import { ProgressMap } from '../../components/ProgressMap';
 
 /**

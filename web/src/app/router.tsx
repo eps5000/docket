@@ -4,7 +4,7 @@
  */
 import { lazy, Suspense } from 'react';
 import { createBrowserRouter, Navigate, useSearchParams, type RouteObject } from 'react-router';
-import { PROJECT_KEY_RE } from '@tasklite/shared';
+import { PROJECT_KEY_RE } from '@docket/shared';
 import { AgentFiles } from '../routes/agent-files/AgentFiles';
 import { Agents } from '../routes/agents/Agents';
 import { HelpArticlePage, HelpIndex } from '../routes/help/HelpPages';

@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
-import type { JiraImport, JiraReport } from '@tasklite/shared';
+import type { JiraImport, JiraReport } from '@docket/shared';
 import { Button, Callout, Dialog, DialogCancel, SegmentedControl } from '../../components/kit';
 import { apiClient } from '../../app/queryClient';
 import { useShell } from '../../app/ShellState';

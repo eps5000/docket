@@ -1,5 +1,5 @@
 import { useId, useRef, useState } from 'react';
-import { TEXT_LIMITS, type ItemDetailResponse } from '@tasklite/shared';
+import { TEXT_LIMITS, type ItemDetailResponse } from '@docket/shared';
 import { Button, EmptyState, Section } from '../../../components/kit';
 import { apiClient } from '../../../app/queryClient';
 import { formatAge, isoTitle, plural } from '../../../lib/format';

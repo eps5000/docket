@@ -13,7 +13,7 @@
 import type { EventEmitter } from 'node:events';
 import type { Env, Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
-import { FOR_YOU_EVENT_TYPES } from '@tasklite/shared';
+import { FOR_YOU_EVENT_TYPES } from '@docket/shared';
 import type { Db } from '../db/client.js';
 import type { ObjectRef } from '../domain/write.js';
 import { defineRoute, type RouteDeps } from './define.js';

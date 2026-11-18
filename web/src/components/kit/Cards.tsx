@@ -7,7 +7,7 @@ import {
   type EpicCard as EpicCardData,
   type LeadParked,
   type WorkItem,
-} from '@tasklite/shared';
+} from '@docket/shared';
 import { formatAge, isoTitle } from '../../lib/format';
 import { paths } from '../../lib/paths';
 import { Button } from './Button';

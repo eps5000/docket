@@ -33,7 +33,7 @@ import {
   TEXT_LIMITS,
   findSecret,
   type ItemType,
-} from '@tasklite/shared';
+} from '@docket/shared';
 import { adfToMarkdown } from './adf.js';
 import type {
   FieldTally,

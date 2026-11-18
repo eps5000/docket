@@ -9,7 +9,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { ItemSummary } from '@tasklite/shared';
+import type { ItemSummary } from '@docket/shared';
 import { afterEach, describe, expect, it } from 'vitest';
 import { NotImplementedError, type Services } from '../../src/domain/contracts.js';
 import { createServices } from '../../src/domain/services.js';

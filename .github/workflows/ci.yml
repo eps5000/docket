@@ -77,7 +77,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Install Chromium
-        run: pnpm --filter @tasklite/web exec playwright install --with-deps chromium
+        run: pnpm --filter @docket/web exec playwright install --with-deps chromium
 
       # US9 (T141): a synthetic Jira site on the compose network for the import dialog's
       # e2e (docker/compose.jira-fixture.yaml), with a throwaway test CA. No internet.
@@ -97,7 +97,7 @@ jobs:
           TASKLITE_E2E_NO_START: '1'
           # The runner's fresh tasklite-data volume is disposable (fixtures/container.ts).
           TASKLITE_E2E_ALLOW_RESET: '1'
-        run: pnpm --filter @tasklite/web e2e
+        run: pnpm --filter @docket/web e2e
 
       # FR-106 (T145): nothing in the container tried to reach another host during the
       # whole e2e run, and a deliberate probe is caught (so the check can fail).

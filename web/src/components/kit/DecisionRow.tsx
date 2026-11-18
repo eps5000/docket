@@ -1,5 +1,5 @@
 import { useId, useState } from 'react';
-import type { DecisionRecord } from '@tasklite/shared';
+import type { DecisionRecord } from '@docket/shared';
 import { formatDay, isoTitle } from '../../lib/format';
 import { Button } from './Button';
 import { Chip } from './Chip';

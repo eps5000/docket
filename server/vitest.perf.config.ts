@@ -3,12 +3,12 @@ import { defineConfig } from 'vitest/config';
 
 /**
  * On-demand performance check at scale (tasks.md T143; SC-013):
- * `pnpm --filter @tasklite/server perf`. Not part of `pnpm test` or CI.
+ * `pnpm --filter @docket/server perf`. Not part of `pnpm test` or CI.
  */
 export default defineConfig({
   resolve: {
     alias: {
-      '@tasklite/shared': fileURLToPath(new URL('../shared/src/index.ts', import.meta.url)),
+      '@docket/shared': fileURLToPath(new URL('../shared/src/index.ts', import.meta.url)),
     },
   },
   test: {

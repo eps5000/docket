@@ -19,7 +19,7 @@ import {
   type InstallRow,
   type InstallTargetKind,
   type PushTargetResponse,
-} from '@tasklite/shared';
+} from '@docket/shared';
 import {
   Button,
   Callout,

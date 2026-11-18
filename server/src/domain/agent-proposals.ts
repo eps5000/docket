@@ -33,7 +33,7 @@ import {
   type AgentFileInEffect,
   type Proposal,
   type ProposalState,
-} from '@tasklite/shared';
+} from '@docket/shared';
 import type { Db } from '../db/client.js';
 import {
   agentFileName,

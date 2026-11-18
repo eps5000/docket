@@ -23,7 +23,7 @@ import {
   routeLabel,
   type ApiRouteDef,
   type RouteId,
-} from '@tasklite/shared';
+} from '@docket/shared';
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { seedId } from '../../src/db/seed/loader.js';
 import { syncBundledFiles } from '../../src/jobs/bundled.js';

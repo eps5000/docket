@@ -1,4 +1,4 @@
-import type { PlanVersion } from '@tasklite/shared';
+import type { PlanVersion } from '@docket/shared';
 import { Button, Dialog, EmptyState } from '../../components/kit';
 import { formatStamp } from '../../lib/format';
 

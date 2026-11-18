@@ -9,7 +9,7 @@
  * it was, and owner views rendering in under 1 s (SC-013).
  */
 import type { Page } from '@playwright/test';
-import type { SearchResponse } from '@tasklite/shared';
+import type { SearchResponse } from '@docket/shared';
 import { expect, test, unlock, useSeededContainer, connectAgent } from './fixtures/index';
 
 useSeededContainer();

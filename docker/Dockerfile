@@ -31,7 +31,7 @@ RUN pnpm -r build
 
 # A self-contained server with production dependencies only.
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
-    pnpm --filter @tasklite/server deploy --prod --store-dir /pnpm/store /out/server
+    pnpm --filter @docket/server deploy --prod --store-dir /pnpm/store /out/server
 
 # ---- runtime ----
 FROM ${NODE_IMAGE} AS runtime

@@ -1,7 +1,7 @@
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { serve } from '@hono/node-server';
-import { APP_NAME } from '@tasklite/shared';
+import { APP_NAME } from '@docket/shared';
 import { createApp } from './app.js';
 import { describeSeed, isDatabaseEmpty, loadSampleSeed } from './db/seed/loader.js';
 import { readContext } from './domain/contracts.js';

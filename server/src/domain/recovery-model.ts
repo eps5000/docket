@@ -17,7 +17,7 @@ import type {
   WaitingOn,
   Workspace,
   WorkspaceState,
-} from '@tasklite/shared';
+} from '@docket/shared';
 import type { Config } from '../config.js';
 import type { Db } from '../db/client.js';
 import { BlockIndex, ms, runView, type RunRow, type RunWindows } from './model.js';

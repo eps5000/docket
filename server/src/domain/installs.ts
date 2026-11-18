@@ -6,7 +6,7 @@
  *
  * **What is installed** is the effective set for the project (or
  * service-wide), laid out for the client and target (`installLayout` in
- * @tasklite/shared): each skill's `SKILL.md`, the AGENTS.md block merged
+ * @docket/shared): each skill's `SKILL.md`, the AGENTS.md block merged
  * into CLAUDE.md or AGENTS.md between the Task Lite markers, and
  * `.tasklite-manifest.json` with the install ID and each file's key, version
  * ID, path and sha256. The block is rendered for installing: the template's
@@ -60,7 +60,7 @@ import {
   type InstallMethod,
   type InstallRow,
   type InstallTargetKind,
-} from '@tasklite/shared';
+} from '@docket/shared';
 import type { Db } from '../db/client.js';
 import { tarGzBytes, type TarFileEntry } from '../jobs/tar.js';
 import { effectiveAgentFiles } from './agent-files.js';

@@ -7,7 +7,7 @@ export default defineConfig({
   resolve: {
     // Bundle the shared package from source, so the web build needs no prior shared build.
     alias: {
-      '@tasklite/shared': fileURLToPath(new URL('../shared/src/index.ts', import.meta.url)),
+      '@docket/shared': fileURLToPath(new URL('../shared/src/index.ts', import.meta.url)),
     },
   },
   server: {

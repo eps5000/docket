@@ -24,7 +24,7 @@ import {
   TASKLITE_END,
   instructionsInput,
   type InstructionsInput,
-} from '@tasklite/shared';
+} from '@docket/shared';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { syncBundledFiles } from '../../src/jobs/bundled.js';
 import { insertProject, tempDir, type TempDir } from '../helpers.js';

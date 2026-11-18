@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useId, useRef, useState } from 'react';
 import { Link } from 'react-router';
-import { TEXT_LIMITS, type HumanReviewItem, type ItemDetailResponse } from '@tasklite/shared';
+import { TEXT_LIMITS, type HumanReviewItem, type ItemDetailResponse } from '@docket/shared';
 import { Button, HumanReviewChip, Icon, Provenance, Section } from '../../../components/kit';
 import { apiClient } from '../../../app/queryClient';
 import { queryKeys } from '../../../lib/api';

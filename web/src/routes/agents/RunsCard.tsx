@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router';
-import type { AgentRow, RunState as RunStateValue } from '@tasklite/shared';
+import type { AgentRow, RunState as RunStateValue } from '@docket/shared';
 import { Chip, EmptyState, Provenance, RunLine, Section, leadReason } from '../../components/kit';
 import { formatAgo, formatClock, isoTitle } from '../../lib/format';
 import { paths } from '../../lib/paths';

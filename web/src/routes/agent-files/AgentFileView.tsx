@@ -5,7 +5,7 @@ import {
   AGENT_SETUP_LIMITS,
   type AgentFileDetail,
   type EditableAgentFileLayer,
-} from '@tasklite/shared';
+} from '@docket/shared';
 import {
   Button,
   Callout,

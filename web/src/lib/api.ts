@@ -1,6 +1,6 @@
 /**
  * The typed UI API client (tasks.md T049), derived from the shared route
- * table (`@tasklite/shared` API_ROUTES), so a route's path, method, input and
+ * table (`@docket/shared` API_ROUTES), so a route's path, method, input and
  * result types can't drift from the server:
  *
  * - `api['items.patch']({ params: { id }, body })` → the route's typed result;
@@ -30,7 +30,7 @@ import {
   type RouteParamsInput,
   type RouteQueryInput,
   type RouteResult,
-} from '@tasklite/shared';
+} from '@docket/shared';
 
 // ---- CSRF ----
 

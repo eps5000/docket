@@ -45,7 +45,7 @@ import {
   type InstructionReportSource,
   type Problem,
   type RunInstructions,
-} from '@tasklite/shared';
+} from '@docket/shared';
 import type { Db } from '../db/client.js';
 import { agentFileName, isShippedKey, saveAgentFileEdit } from './agent-files.js';
 import type {

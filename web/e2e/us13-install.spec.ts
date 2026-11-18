@@ -34,7 +34,7 @@
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import type { Locator, Page } from '@playwright/test';
-import type { PushTargetResponse } from '@tasklite/shared';
+import type { PushTargetResponse } from '@docket/shared';
 import { baseURL } from './container';
 import {
   expect,

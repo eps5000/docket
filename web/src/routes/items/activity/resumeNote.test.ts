@@ -1,4 +1,4 @@
-import type { Item, Run } from '@tasklite/shared';
+import type { Item, Run } from '@docket/shared';
 import { describe, expect, it } from 'vitest';
 import { checklistProgress, resumeNote, unpushedCommits } from './resumeNote';
 

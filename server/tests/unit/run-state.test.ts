@@ -4,7 +4,7 @@
  * within LIVE_WINDOW (2 m); any signal within STALE_AFTER (30 m) is
  * *reported*; after that, *stale*. Edges are inclusive: "within" the window.
  */
-import type { SignalKind, StoredRunState } from '@tasklite/shared';
+import type { SignalKind, StoredRunState } from '@docket/shared';
 import { afterEach, describe, expect, it } from 'vitest';
 import { displayRunState } from '../../src/domain/model.js';
 import { minutes, startDomain, type Domain } from '../us1-helpers.js';

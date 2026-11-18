@@ -87,7 +87,7 @@ import {
   type WorkspacesResponse,
   type Workflow,
   type WorkStep,
-} from '@tasklite/shared';
+} from '@docket/shared';
 import type { Config, SecretStore } from '../config.js';
 import type { Db } from '../db/client.js';
 import type { CallLog } from '../jobs/logs.js';

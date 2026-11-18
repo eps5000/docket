@@ -7,7 +7,7 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { LinkEdge, Status } from '@tasklite/shared';
+import type { LinkEdge, Status } from '@docket/shared';
 import {
   FIT_MIN,
   ProgressMap,

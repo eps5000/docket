@@ -23,7 +23,7 @@ import {
   type ErrorCode,
   type ToolErrorShape,
   type ToolName,
-} from '@tasklite/shared';
+} from '@docket/shared';
 import { expect } from 'vitest';
 import { loadSampleSeed } from '../../src/db/seed/loader.js';
 import type { ServiceOverrides } from '../../src/domain/services.js';

@@ -4,7 +4,7 @@
  * The race runs through the real MCP tool handler, the real write path and
  * the real database: 100 sessions claim one item at once.
  */
-import { ToolError } from '@tasklite/shared';
+import { ToolError } from '@docket/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { callTool, type RegisterOptions } from '../../src/mcp/register.js';
 import type { McpSessionInfo } from '../../src/mcp/server.js';

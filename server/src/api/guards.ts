@@ -9,7 +9,7 @@
  */
 import { createHash, timingSafeEqual } from 'node:crypto';
 import type { Context, MiddlewareHandler } from 'hono';
-import type { ErrorCode } from '@tasklite/shared';
+import type { ErrorCode } from '@docket/shared';
 
 /** The JSON error body used by guards and the API. */
 export function errorBody(code: ErrorCode, message: string, details?: Record<string, unknown>) {

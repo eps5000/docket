@@ -1,7 +1,7 @@
 import type { UseQueryResult } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
-import type { SettingsResponse } from '@tasklite/shared';
+import type { SettingsResponse } from '@docket/shared';
 import {
   Button,
   Card,

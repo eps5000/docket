@@ -17,7 +17,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type Database from 'better-sqlite3';
-import type { EventType } from '@tasklite/shared';
+import type { EventType } from '@docket/shared';
 import type { Db } from '../client.js';
 
 // ---- The shorthand in sample-data.json ----

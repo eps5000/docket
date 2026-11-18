@@ -15,7 +15,7 @@
  * Undo restores the status (and the packet), never the run. Agents cancel
  * through `set_status` (items.ts), where a reason is required.
  */
-import { ToolError, type ItemSummary } from '@tasklite/shared';
+import { ToolError, type ItemSummary } from '@docket/shared';
 import type { ArchiveService, ServiceDeps } from './contracts.js';
 import { requireItem, summaryOf, windowsOf, type ItemRow } from './model.js';
 import { endLeadForOwner } from './runs.js';

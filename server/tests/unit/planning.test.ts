@@ -17,7 +17,7 @@
  * - The owner's status moves and priority, `upsert_label` and the label page
  *   with *Move N to Ready*.
  */
-import { ToolError, patchItemBody, type ItemText } from '@tasklite/shared';
+import { ToolError, patchItemBody, type ItemText } from '@docket/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { In, Services } from '../../src/domain/contracts.js';
 import { undoMutation } from '../../src/domain/undo.js';

@@ -10,7 +10,7 @@
  * attachments · due date, start date, story points (field detection) ·
  * unmapped fields · secrets · the report's totals.
  */
-import { AGENT_UPLOAD_MAX_BYTES } from '@tasklite/shared';
+import { AGENT_UPLOAD_MAX_BYTES } from '@docket/shared';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { adfToMarkdown } from '../../src/import/jira/adf.js';
 import {

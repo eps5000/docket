@@ -51,7 +51,7 @@ import {
   type ToolInput,
   type ToolName,
   type ToolOutput,
-} from '@tasklite/shared';
+} from '@docket/shared';
 import {
   isNotImplemented,
   readContext,

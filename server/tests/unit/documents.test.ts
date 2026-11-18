@@ -15,7 +15,7 @@
 import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
-import { LIMITS } from '@tasklite/shared';
+import { LIMITS } from '@docket/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { In } from '../../src/domain/contracts.js';
 import { guessMime, previewable, safeFileName } from '../../src/domain/documents.js';

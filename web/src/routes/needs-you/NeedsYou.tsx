@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import type { WorkspaceRow } from '@tasklite/shared';
+import type { WorkspaceRow } from '@docket/shared';
 import { Skeleton } from '../../components/kit';
 import { apiClient } from '../../app/queryClient';
 import { QueryState } from '../../app/QueryState';

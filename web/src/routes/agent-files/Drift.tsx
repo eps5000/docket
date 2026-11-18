@@ -7,7 +7,7 @@ import {
   renderAgentsBlock,
   type CreateInstallResponse,
   type Drift,
-} from '@tasklite/shared';
+} from '@docket/shared';
 import { Button, Callout, Card, Chip, type ChipKind } from '../../components/kit';
 import { apiClient } from '../../app/queryClient';
 import { HelpLink } from '../../help/HelpLink';

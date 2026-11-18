@@ -17,7 +17,7 @@
  */
 import { mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { TOOL_NAMES } from '@tasklite/shared';
+import { TOOL_NAMES } from '@docket/shared';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
 import { syncBundledFiles } from '../../src/jobs/bundled.js';
 import { tempDir } from '../helpers.js';

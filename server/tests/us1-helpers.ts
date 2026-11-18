@@ -4,7 +4,7 @@
  * with a clock the test moves. Mutations go through the one write path,
  * exactly as the MCP adapter sends them.
  */
-import { ToolError, type ErrorCode } from '@tasklite/shared';
+import { ToolError, type ErrorCode } from '@docket/shared';
 import { expect } from 'vitest';
 import { loadSampleSeed } from '../src/db/seed/loader.js';
 import { readContext, type ReadContext, type Services } from '../src/domain/contracts.js';

@@ -9,7 +9,7 @@ import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { RUN_STATES, RUN_STATE_LABELS } from '@tasklite/shared';
+import { RUN_STATES, RUN_STATE_LABELS } from '@docket/shared';
 import { STORAGE_KEYS } from '../../lib/persistence';
 import {
   Button,

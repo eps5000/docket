@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router';
-import { UI_FILTER_KEYS, WORK_LAYOUTS, type WorkResponse } from '@tasklite/shared';
+import { UI_FILTER_KEYS, WORK_LAYOUTS, type WorkResponse } from '@docket/shared';
 import { Callout, SegmentedControl, Skeleton } from '../../components/kit';
 import { useBootstrap } from '../../app/useBootstrap';
 import { apiClient } from '../../app/queryClient';

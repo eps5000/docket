@@ -1,5 +1,5 @@
 import { Link } from 'react-router';
-import type { NeedsYouResponse, RunState as RunStateValue } from '@tasklite/shared';
+import type { NeedsYouResponse, RunState as RunStateValue } from '@docket/shared';
 import { RunState } from '../../components/kit';
 import { plural } from '../../lib/format';
 import { paths } from '../../lib/paths';

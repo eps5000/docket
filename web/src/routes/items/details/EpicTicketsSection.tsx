@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
-import { STATUSES, STATUS_LABELS, type ItemDetailResponse } from '@tasklite/shared';
+import { STATUSES, STATUS_LABELS, type ItemDetailResponse } from '@docket/shared';
 import {
   BlockedChip,
   Button,

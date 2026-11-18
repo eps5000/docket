@@ -4,7 +4,7 @@
  * remembers its own view tab. Closing the active tab moves to its
  * neighbour, or back to the page you came from. Kept in sessionStorage.
  */
-import type { ItemType } from '@tasklite/shared';
+import type { ItemType } from '@docket/shared';
 import type { ItemTab } from '../lib/paths';
 
 export const MAX_OPEN_TABS = 8;

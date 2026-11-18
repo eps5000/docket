@@ -14,7 +14,7 @@ import {
   type DecisionRecord,
   type EpicCard as EpicCardData,
   type WorkItem,
-} from '@tasklite/shared';
+} from '@docket/shared';
 import {
   BlockedChip,
   Button,

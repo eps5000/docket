@@ -5,7 +5,7 @@
  * call it.
  */
 import { useState } from 'react';
-import { OPEN_RUN_STATES, type ItemDetailResponse, type Run } from '@tasklite/shared';
+import { OPEN_RUN_STATES, type ItemDetailResponse, type Run } from '@docket/shared';
 import { Button, Dialog, DialogCancel, leadName } from '../../../components/kit';
 import { apiClient } from '../../../app/queryClient';
 import { plural } from '../../../lib/format';

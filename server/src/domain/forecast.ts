@@ -43,7 +43,7 @@ import {
   type Forecast,
   type Status,
   type Timeline,
-} from '@tasklite/shared';
+} from '@docket/shared';
 import type { ForecastService, ReadContext, ServiceDeps } from './contracts.js';
 import { compareIds } from './links.js';
 import { BlockIndex, dateRiskBlockers, type ItemRow } from './model.js';

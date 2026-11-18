@@ -35,7 +35,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { renderContext, type ContextBundle, type Status } from '@tasklite/shared';
+import { renderContext, type ContextBundle, type Status } from '@docket/shared';
 import type { ContextService, ReadContext, ServiceDeps } from './contracts.js';
 import { currentWorkflow } from './agent-files.js';
 import { inScopeOf, labelsOf } from './decisions.js';

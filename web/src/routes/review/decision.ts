@@ -3,7 +3,7 @@
  * unit-tested: what the primary button says, what the callout promises,
  * and the verdicts the API receives.
  */
-import type { ReviewResponse } from '@tasklite/shared';
+import type { ReviewResponse } from '@docket/shared';
 
 export type VerdictKind = 'approve' | 'changes' | 'defer';
 

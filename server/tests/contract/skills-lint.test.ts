@@ -22,7 +22,7 @@
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import * as shared from '@tasklite/shared';
+import * as shared from '@docket/shared';
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startHarness, type ContractHarness } from './harness.js';
@@ -114,7 +114,7 @@ function schemaProperties(node: unknown, into: Set<string>): void {
   }
 }
 
-/** String arrays exported by `@tasklite/shared` (the enums), and `key`s of the filter lists. */
+/** String arrays exported by `@docket/shared` (the enums), and `key`s of the filter lists. */
 function sharedEnums(into: Set<string>): void {
   for (const value of Object.values(shared)) {
     if (!Array.isArray(value)) continue;

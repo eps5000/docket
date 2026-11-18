@@ -14,7 +14,7 @@ import type {
   AgentFileRow,
   AgentFileVersion,
   PushTargetResponse,
-} from '@tasklite/shared';
+} from '@docket/shared';
 
 export interface Version extends AgentFileVersion {
   layer: AgentFileLayer;

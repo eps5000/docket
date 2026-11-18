@@ -1,5 +1,5 @@
 /**
- * @tasklite/shared: definitions the server, the MCP adapter and the UI must
+ * @docket/shared: definitions the server, the MCP adapter and the UI must
  * agree on byte for byte (BUILD_SPEC §13): enums, errors, write checks, the
  * MCP contract (tool schemas, copy and compact renderers), and the UI API
  * contract (route schemas and the route table).

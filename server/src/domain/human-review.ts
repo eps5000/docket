@@ -15,7 +15,7 @@
  * - An item that was in an earlier packet round can be edited but not
  *   removed: removing it would delete that round's record (FR-054).
  */
-import { ToolError, type HumanReviewItem } from '@tasklite/shared';
+import { ToolError, type HumanReviewItem } from '@docket/shared';
 import type { Db } from '../db/client.js';
 import type { HumanReviewService, ServiceDeps } from './contracts.js';
 import { newId } from './ids.js';

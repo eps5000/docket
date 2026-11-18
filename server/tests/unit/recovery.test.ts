@@ -11,7 +11,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import type { Problem, WorkspaceState } from '@tasklite/shared';
+import type { Problem, WorkspaceState } from '@docket/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { applyUndo } from '../../src/domain/undo.js';
 import { OWNER_ACTOR, SYSTEM_ACTOR, type Actor } from '../../src/domain/write.js';

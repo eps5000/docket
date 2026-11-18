@@ -1,4 +1,4 @@
-import type { ItemDetailResponse } from '@tasklite/shared';
+import type { ItemDetailResponse } from '@docket/shared';
 import { EmptyState, Section } from '../../../components/kit';
 import { Markdown } from '../../shared/Markdown';
 import { AcceptanceEdit, InlineTextEdit } from '../InlineEdit';

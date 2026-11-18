@@ -3,7 +3,7 @@
  * 20 projects, 5,000 items and 100,000 events. Owner views must answer in
  * under 1 s, and agent calls must have a p95 under 500 ms.
  *
- * On demand only (not in every CI run): `pnpm --filter @tasklite/server perf`
+ * On demand only (not in every CI run): `pnpm --filter @docket/server perf`
  * (vitest.perf.config.ts). It prints a timing table for the PR. With
  * TASKLITE_PERF_KEEP=<dir> it also keeps the data set (database, documents,
  * secrets), to load into a throwaway volume and time the screens in a browser.

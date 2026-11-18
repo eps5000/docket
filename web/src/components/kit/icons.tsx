@@ -4,7 +4,7 @@
  * meaning (UI_SPEC §11, never colour or shape alone).
  * Shared contract file (tasks.md, Slice rules).
  */
-import type { ItemType } from '@tasklite/shared';
+import type { ItemType } from '@docket/shared';
 
 const STROKE = {
   attention: '<path d="M3 11V7a5 5 0 0 1 10 0v4l1 2H2z"/><path d="M6.5 14.5a1.5 1.5 0 0 0 3 0"/>',
