@@ -419,7 +419,7 @@ export function createRunsService(deps: ServiceDeps): RunsService {
       if (status === 'ready')
         moveItem(w, item.id, item.project_key, 'ready', 'progress', `claimed by ${who}`);
       else w.update('items', item.id, {});
-      // Decision 30: the installed tasklite-check report, stored on the run in this
+      // Decision 30: the installed docket-check report, stored on the run in this
       // write; it raises or updates drift against its install's manifest.
       if (input.instructions) {
         deps.services().drift.recordReport(w, {

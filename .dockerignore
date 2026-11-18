@@ -18,7 +18,7 @@
 .vscode
 .idea
 docs/*
-!docs/templates/AGENTS-tasklite.md
+!docs/templates/AGENTS-docket.md
 !docs/templates/WORKFLOW-starter.md
 !docs/help
 specs

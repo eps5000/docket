@@ -23,10 +23,10 @@ import { addProject, startDomain, type Domain } from '../us1-helpers.js';
 
 let d: Domain;
 
-const WORKER = 'skill:tasklite-worker';
+const WORKER = 'skill:docket-worker';
 const V1: BundledAgentFile[] = [
   { key: WORKER, content: '# Worker\n\nBundled v1.\n' },
-  { key: 'skill:tasklite-coordinator', content: '# Coordinator\n' },
+  { key: 'skill:docket-coordinator', content: '# Coordinator\n' },
   { key: 'agents_block', content: '## Work tracking: Docket\n' },
 ];
 
@@ -136,14 +136,14 @@ describe('bundled loading (startup)', () => {
     expect(detail.layers.bundled!.versions.map((v) => v.version_no)).toEqual([2, 1]);
     expect(effective()).toContain('Bundled v2.');
     expect(events('agent_file.updated').at(-1)!.summary).toBe(
-      'Bundled tasklite-worker updated: v2',
+      'Bundled docket-worker updated: v2',
     );
   });
 
   it('a file removed from the image keeps its bundled layer', () => {
     sync([V1[0]!]);
     expect(d.services.agentFiles.list(d.read(), {}).files.map((f) => f.key)).toEqual([
-      'skill:tasklite-coordinator',
+      'skill:docket-coordinator',
       WORKER,
       'agents_block',
     ]);
@@ -154,11 +154,11 @@ describe('bundled loading (startup)', () => {
     expect(problems).toEqual([]);
     expect(files.map((f) => f.key).sort()).toEqual([
       'agents_block',
-      'skill:tasklite-coordinator',
-      'skill:tasklite-lead-subagents',
-      'skill:tasklite-planner',
-      'skill:tasklite-review-packet',
-      'skill:tasklite-worker',
+      'skill:docket-coordinator',
+      'skill:docket-lead-subagents',
+      'skill:docket-planner',
+      'skill:docket-review-packet',
+      'skill:docket-worker',
     ]);
     expect(files.find((f) => f.key === 'agents_block')!.content).toContain(
       'Work tracking: Docket',
@@ -171,7 +171,7 @@ describe('bundled loading (startup)', () => {
     expect(block).not.toContain('{{');
     // It points at the worker skill and at the Workflow notes in get_context, and keeps the universal rules.
     for (const rule of [
-      '`tasklite-worker`',
+      '`docket-worker`',
       '`get_context`',
       'claim_lead',
       '`run_id`',
@@ -198,7 +198,7 @@ describe('bundled loading (startup)', () => {
       expect(files.map((f) => f.key)).toEqual(['skill:good-one']);
       expect(problems).toHaveLength(2);
       expect(problems.join('\n')).toMatch(/Bad_Name/);
-      expect(problems.join('\n')).toMatch(/AGENTS-tasklite\.md is missing/);
+      expect(problems.join('\n')).toMatch(/AGENTS-docket\.md is missing/);
     } finally {
       tmp.cleanup();
     }
@@ -244,8 +244,8 @@ describe('layers and resolution', () => {
     const files = d.services.agentFiles.list(d.read(), { project: 'RCP' });
     expect(files.project).toBe('RCP');
     expect(files.files.map((f) => [f.key, f.kind, f.name])).toEqual([
-      ['skill:tasklite-coordinator', 'skill', 'tasklite-coordinator'],
-      [WORKER, 'skill', 'tasklite-worker'],
+      ['skill:docket-coordinator', 'skill', 'docket-coordinator'],
+      [WORKER, 'skill', 'docket-worker'],
       ['agents_block', 'agents_block', 'AGENTS.md block'],
     ]);
   });
@@ -308,7 +308,7 @@ describe('versions', () => {
     const e = events('agent_file.updated').at(-1)!;
     expect(e).toMatchObject({
       actor_kind: 'owner',
-      summary: 'Edited tasklite-worker (RCP): v1',
+      summary: 'Edited docket-worker (RCP): v1',
       project_key: 'RCP',
     });
     expect(e.inverse).not.toBeNull();
@@ -326,7 +326,7 @@ describe('revert', () => {
     expect(result.layers.service!.versions).toHaveLength(1);
     expect(effective()).toContain('Bundled v1.');
     expect(events('agent_file.reverted').at(-1)!.summary).toBe(
-      'Reverted tasklite-worker (service-wide) to bundled',
+      'Reverted docket-worker (service-wide) to bundled',
     );
     // The next edit starts from 0 again and continues the numbering.
     put('Edit 2\n', { expected: 0 });
@@ -340,7 +340,7 @@ describe('revert', () => {
     expect(effective('RCP')).toBe('Service\n');
     expect(row('RCP').effective_layer).toBe('service');
     expect(events('agent_file.reverted').at(-1)!.summary).toBe(
-      'Reverted tasklite-worker (RCP) to service-wide edit',
+      'Reverted docket-worker (RCP) to service-wide edit',
     );
   });
 
@@ -472,7 +472,7 @@ describe('undo', () => {
       d.row<{ n: number }>("SELECT count(*) AS n FROM agent_files WHERE layer = 'project'").n,
     ).toBe(0);
     expect(events('agent_file.updated').at(-1)!.summary).toBe(
-      'Undid: Edited tasklite-worker (RCP): v1',
+      'Undid: Edited docket-worker (RCP): v1',
     );
   });
 

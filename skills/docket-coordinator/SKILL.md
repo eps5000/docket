@@ -1,5 +1,5 @@
 ---
-name: tasklite-coordinator
+name: docket-coordinator
 description: Coordinate several agents against Task Lite. Covers choosing and dispatching ready work, writing restartable briefs, monitoring through the change feed, handling parked workers, pruning worktrees safely, and recovering after a crash. Use when you're an orchestrator, such as an Orca coordinator, a dispatch script or the owner running workers, deciding which agents work on which Task Lite items.
 ---
 
@@ -12,11 +12,11 @@ description: Coordinate several agents against Task Lite. Covers choosing and di
 - what each run was told and where its work lives;
 - what was left running.
 
-You dispatch workers, create and prune worktrees, and clean up. Workers follow `tasklite-worker`; tell them to use it.
+You dispatch workers, create and prune worktrees, and clean up. Workers follow `docket-worker`; tell them to use it.
 
-**Agent files.** The owner installs the skills and the project's `AGENTS.md` / `CLAUDE.md` section from Agent files (_Install into <project>'s repo_, by a copy-paste command or into a mounted folder), and the install log shows which versions each repo got. If a worker doesn't have `tasklite-worker`, ask the owner to install it there; paste the skill into the brief only as a last resort. Each project's **Workflow notes** reach every worker through `get_context`, so don't repeat them, or the `AGENTS.md` rules, in briefs. To change these instructions, use `get_agent_files` then `propose_agent_file_change`, and tell the user you've proposed it for the owner's approval. Don't edit installed files directly, and don't tell workers to.
+**Agent files.** The owner installs the skills and the project's `AGENTS.md` / `CLAUDE.md` section from Agent files (_Install into <project>'s repo_, by a copy-paste command or into a mounted folder), and the install log shows which versions each repo got. If a worker doesn't have `docket-worker`, ask the owner to install it there; paste the skill into the brief only as a last resort. Each project's **Workflow notes** reach every worker through `get_context`, so don't repeat them, or the `AGENTS.md` rules, in briefs. To change these instructions, use `get_agent_files` then `propose_agent_file_change`, and tell the user you've proposed it for the owner's approval. Don't edit installed files directly, and don't tell workers to.
 
-**Instructions changed outside Task Lite.** Workers pass the `tasklite-check` output as `instructions` on `claim_lead` (the worker skill says how), and Task Lite also checks folders it installed into. When an installed skill or the Task Lite section was edited, deleted or added by hand, the owner sees "… edited outside Task Lite" under Problems, and the run shows "edited locally". The remedies are the owner's, in Agent files: _Adopt_ (save the local text as the project's copy, or the default), _Restore Task Lite's version_ (reinstall), or _Keep local_ (accept it; a further change alerts again). Mention it to the owner when a worker hits it; don't restore or overwrite the files yourself.
+**Instructions changed outside Task Lite.** Workers pass the `docket-check` output as `instructions` on `claim_lead` (the worker skill says how), and Task Lite also checks folders it installed into. When an installed skill or the Task Lite section was edited, deleted or added by hand, the owner sees "… edited outside Task Lite" under Problems, and the run shows "edited locally". The remedies are the owner's, in Agent files: _Adopt_ (save the local text as the project's copy, or the default), _Restore Task Lite's version_ (reinstall), or _Keep local_ (accept it; a further change alerts again). Mention it to the owner when a worker hits it; don't restore or overwrite the files yourself.
 
 ## 1. Every time you start, including after any crash or restart
 
@@ -37,7 +37,7 @@ You dispatch workers, create and prune worktrees, and clean up. Workers follow `
 1. **Create the worktree:** a new branch from an up-to-date base. Record the path, branch, base ref and base SHA.
 2. **Write the brief.** It's stored unchanged and re-sent after a crash, so make it self-contained about the _environment_, and leave the _item content_ to Task Lite:
    ```text
-   Work Task Lite item RCP-17 using the tasklite-worker skill.
+   Work Task Lite item RCP-17 using the docket-worker skill.
    Worktree: C:/work/rcp-17 · branch rcp-17-week-reload · base origin/main @ 9a10624
    Claim with claim_lead, passing this workspace, orchestrator {name:"orca", dispatch_id:"<id>"}
    and this brief verbatim. Then get_context; don't ask me for the requirements.
@@ -110,4 +110,4 @@ Skip entries with no workspace and no brief: you didn't dispatch them, so leave 
 - Treat an idle worktree or terminal as finished. Check its workspace state.
 - Rebuild a brief from memory or chat history when Task Lite has it.
 - Leave a process, dev server or session running without a declared resource.
-- Run two workers on one item. Use subagents under one lead instead (`tasklite-lead-subagents`).
+- Run two workers on one item. Use subagents under one lead instead (`docket-lead-subagents`).

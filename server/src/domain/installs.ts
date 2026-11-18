@@ -8,7 +8,7 @@
  * service-wide), laid out for the client and target (`installLayout` in
  * @docket/shared): each skill's `SKILL.md`, the AGENTS.md block merged
  * into CLAUDE.md or AGENTS.md between the Docket markers, and
- * `.tasklite-manifest.json` with the install ID and each file's key, version
+ * `.docket-manifest.json` with the install ID and each file's key, version
  * ID, path and sha256. The block is rendered for installing: the template's
  * leading comment stripped and `{{KEY}}` filled for a project's repo
  * install (`renderAgentsBlock`). The manifest's sha256 is the installed
@@ -31,7 +31,13 @@
  * and the instructions file's markers validated, before anything is written.
  *
  * **The check** (push installs): each manifest file is edited, missing, or
- * fine; `tasklite-*` skill folders the install didn't write are extra.
+ * fine; `docket-*` skill folders the install didn't write are extra, and so
+ * are old `tasklite-*` ones (B28).
+ *
+ * **Old skill folders** (B28): a push install, like the command's install
+ * step, removes the `tasklite-*` skill folders the previous manifest at the
+ * location recorded, but only while each holds nothing but its unmodified
+ * `SKILL.md`; an edited one is kept and listed as `kept_edited`.
  * Edited files carry `local_content` (≤ 50,000 characters) for the diff.
  * Command installs are checked by their check command (`checkCommands`).
  */
@@ -50,6 +56,7 @@ import {
   installLayout,
   installPathOf,
   installedBlock,
+  isLegacySkillName,
   isSafeCommandPath,
   mergeMarkedSection,
   renderAgentsBlock,
@@ -57,6 +64,7 @@ import {
   type CreateInstallResponse,
   type InstallCheckResponse,
   type InstallClient,
+  type InstallFileChange,
   type InstallMethod,
   type InstallRow,
   type InstallTargetKind,
@@ -91,7 +99,17 @@ export interface InstallDbRow {
 }
 
 /** The `installs.manifest` column: key → version and sha256, in install order. */
-export type ManifestMap = Record<string, { version_id: string; sha256: string }>;
+/**
+ * An install's manifest as stored: key → the version sent and its sha256.
+ * `installed_as`: the skill folder's name on disk when it differs from the
+ * key's, for installs from before the rename (B28's migration maps
+ * `skill:tasklite-worker` to `skill:docket-worker`, installed as
+ * `tasklite-worker`).
+ */
+export type ManifestMap = Record<
+  string,
+  { version_id: string; sha256: string; installed_as?: string }
+>;
 
 /** One file as installed. */
 interface InstallFile {
@@ -154,7 +172,7 @@ function filesFor(
 }
 
 /**
- * `.tasklite-manifest.json`: one file per line, so the bash check command can
+ * `.docket-manifest.json`: one file per line, so the bash check command can
  * read it without a JSON parser (each line holds `"key"`, `"path"`,
  * `"version_id"` and `"sha256"` in that order).
  */
@@ -228,7 +246,7 @@ function toRow(r: InstallDbRow): InstallRow {
 
 /** One installed file as the push check read it (B24's check; reused by drift, B27b). */
 export interface InspectedFile {
-  /** The manifest key, or `skill:<name>` for an extra `tasklite-*` skill folder. */
+  /** The manifest key, or `skill:<name>` for an extra `docket-*` skill folder. */
   key: string;
   /** As shown: relative to the base, `~/` for user-wide; an extra folder ends in `/`. */
   path: string;
@@ -247,7 +265,7 @@ export interface InspectedFile {
 /**
  * Read a push install's files through the push-root guard and compare each
  * with the manifest (BUILD_SPEC §5.17 *Check*): edited, missing, or as sent;
- * `tasklite-*` skill folders the install didn't write are extra. Reads only.
+ * `docket-*` skill folders the install didn't write are extra. Reads only.
  */
 export async function inspectPushInstall(
   root: PushRoot,
@@ -259,7 +277,9 @@ export async function inspectPushInstall(
   const files: InspectedFile[] = [];
 
   for (const [key, sent] of Object.entries(manifest)) {
-    const rel = installPathOf(layout, key);
+    const rel = sent.installed_as
+      ? `${layout.skillsDir}/${sent.installed_as}/SKILL.md`
+      : installPathOf(layout, key);
     const path = layout.display + rel;
     let bytes: Buffer | null;
     try {
@@ -298,12 +318,14 @@ export async function inspectPushInstall(
   }
 
   const sentSkills = new Set(
-    Object.keys(manifest)
-      .filter((k) => k.startsWith('skill:'))
-      .map((k) => k.slice('skill:'.length)),
+    Object.entries(manifest)
+      .filter(([k]) => k.startsWith('skill:'))
+      .map(([k, v]) => v.installed_as ?? k.slice('skill:'.length)),
   );
   for (const name of (await root.folders(base, layout.skillsDir)).sort()) {
-    if (!name.startsWith('tasklite-') || sentSkills.has(name)) continue;
+    // An old `tasklite-*` folder the manifest doesn't list is extra too (B28: one an
+    // install kept because it was edited locally); its key keeps the old name.
+    if (!(name.startsWith('docket-') || isLegacySkillName(name)) || sentSkills.has(name)) continue;
     const rel = `${layout.skillsDir}/${name}/SKILL.md`;
     let bytes: Buffer | null = null;
     try {
@@ -322,7 +344,40 @@ export async function inspectPushInstall(
   return files;
 }
 
-/** The installed `tasklite-check` scripts (bash, PowerShell), written next to the manifest. */
+/**
+ * The old `tasklite-*` skill folders the manifest at this location recorded
+ * (`.docket-manifest.json`, else the old `.tasklite-manifest.json`; B28),
+ * with the sha256 each `SKILL.md` was installed with, for those still there.
+ * A manifest that can't be read records nothing.
+ */
+async function recordedLegacySkills(
+  root: PushRoot,
+  base: string,
+  layout: ReturnType<typeof installLayout>,
+): Promise<{ name: string; sha256: string }[]> {
+  const present = new Set(await root.folders(base, layout.skillsDir));
+  const out = new Map<string, string>();
+  for (const rel of [layout.manifest, layout.legacyManifest]) {
+    let parsed: { files?: { key?: unknown; path?: unknown; sha256?: unknown }[] };
+    try {
+      const bytes = await root.read(base, rel);
+      if (bytes === null) continue;
+      parsed = JSON.parse(bytes.toString('utf8')) as typeof parsed;
+    } catch {
+      continue;
+    }
+    for (const f of Array.isArray(parsed.files) ? parsed.files : []) {
+      if (typeof f.key !== 'string' || typeof f.sha256 !== 'string') continue;
+      const m = /^skill:([a-z0-9-]{1,60})$/.exec(f.key);
+      if (!m || !isLegacySkillName(m[1]!) || out.has(m[1]!)) continue;
+      if (f.path !== `${layout.skillsDir}/${m[1]}/SKILL.md` || !present.has(m[1]!)) continue;
+      out.set(m[1]!, f.sha256.toLowerCase());
+    }
+  }
+  return [...out].map(([name, sha256]) => ({ name, sha256 }));
+}
+
+/** The installed `docket-check` scripts (bash, PowerShell), written next to the manifest. */
 const checkScripts = (): [string, string][] => [
   [CHECK_SCRIPT_SH, checkSh()],
   [CHECK_SCRIPT_PS1, checkPs1()],
@@ -356,7 +411,7 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
     install_id: string,
     files: InstallFile[],
     now: string,
-  ): Promise<{ path: string; change: 'created' | 'updated' | 'unchanged' }[]> {
+  ): Promise<{ path: string; change: InstallFileChange }[]> {
     const base = await root.base(input.path!);
     const layout = installLayout(input.client, input.target_kind);
     const writes: { rel: string; bytes: Buffer }[] = [];
@@ -389,20 +444,32 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
       files,
     });
     writes.push({ rel: layout.manifest, bytes: Buffer.from(manifest, 'utf8') });
-    // tasklite-check, next to the manifest (decision 30): what agents run to report on claim.
+    // docket-check, next to the manifest (decision 30): what agents run to report on claim.
     for (const [name, text] of checkScripts()) {
       writes.push({ rel: `${layout.dir}/${name}`, bytes: Buffer.from(text, 'utf8') });
     }
 
     // Check every target first: no symlinks, no folders leading out of the root.
     for (const w of writes) await root.checkWritable(base, w.rel);
+    // Old skill folders the previous manifest there recorded (B28), read before it's replaced.
+    const recorded = await recordedLegacySkills(root, base, layout);
 
-    const out: { path: string; change: 'created' | 'updated' | 'unchanged' }[] = [];
+    const out: { path: string; change: InstallFileChange }[] = [];
     for (const w of writes) {
       const old = await root.read(base, w.rel);
       const change = old === null ? 'created' : old.equals(w.bytes) ? 'unchanged' : 'updated';
       if (change !== 'unchanged') await root.write(base, w.rel, w.bytes);
       out.push({ path: layout.display + w.rel, change });
+    }
+    // The one deletion (BUILD_SPEC §5.17): a recorded old folder, only while unmodified.
+    for (const { name, sha256 } of recorded) {
+      const rel = `${layout.skillsDir}/${name}`;
+      const removed = await root.removeRecordedSkillFolder(
+        base,
+        rel,
+        (bytes) => hashBytes(bytes) === sha256,
+      );
+      out.push({ path: `${layout.display}${rel}/`, change: removed ? 'removed' : 'kept_edited' });
     }
     return out;
   }
@@ -585,7 +652,7 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
       const entry = (name: string, text: string, mode = 0o644): TarFileEntry => {
         const bytes = Buffer.from(text, 'utf8');
         return {
-          name: `tasklite-install/${name}`,
+          name: `docket-install/${name}`,
           size: bytes.length,
           mtime: now,
           mode,
@@ -613,16 +680,16 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
             files,
           }),
         ),
-        // tasklite-check, next to the manifest (decision 30).
+        // docket-check, next to the manifest (decision 30).
         ...scripts.map((x) => entry(`files/${x.path}`, x.text, x.mode)),
         entry('files.txt', `${list.join('\n')}\n`),
         entry('block.md', block?.content ?? ''),
-        entry('install.sh', installSh(layout.instructions), 0o755),
-        entry('install.ps1', installPs1(layout.instructions)),
+        entry('install.sh', installSh(layout.instructions, layout.dir), 0o755),
+        entry('install.ps1', installPs1(layout.instructions, layout.dir)),
       ];
       return {
         install_id: row.id,
-        filename: `tasklite-${row.id}.tar.gz`,
+        filename: `docket-${row.id}.tar.gz`,
         bytes: await tarGzBytes(entries),
       };
     },
@@ -682,7 +749,7 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
       } catch (err) {
         return { ok: false, message: (err as Error).message };
       }
-      const probe = join(root.real, `.tasklite-probe-${randomUUID()}`);
+      const probe = join(root.real, `.docket-probe-${randomUUID()}`);
       const shown = config.pushHostPath ?? config.pushRoot;
       try {
         const fh = await open(probe, 'wx', 0o644);

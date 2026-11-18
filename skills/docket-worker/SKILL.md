@@ -1,5 +1,5 @@
 ---
-name: tasklite-worker
+name: docket-worker
 description: Work one Task Lite item end to end through the tasklite MCP server. Covers finding and claiming work, getting context, planning, recording progress and evidence, waiting the right way, and handing off or closing. Use whenever you're asked to work on a Task Lite item (an ID like RCP-14), pick up ready work, or resume work the owner sent back.
 ---
 
@@ -19,7 +19,7 @@ The project has its own rules: who moves work to Ready, when human review is nee
    - `agent_label`: your worker name, if you have one;
    - `workspace`: `repo`, `path` (your worktree), `branch`, `base_ref`, `base_sha`;
    - `brief` and `orchestrator`: if a coordinator dispatched you, the brief text exactly as you received it, plus its IDs;
-   - `instructions`: the output of the installed `tasklite-check`, so the owner knows which instructions you work from. Run it once per session, before your first claim, in one shell call: `bash .claude/tasklite-check.sh` (`.codex/` for Codex, `~/.claude/` for a user-wide install; on Windows without bash, `powershell -NoProfile -ExecutionPolicy Bypass -File .claude/tasklite-check.ps1`). It prints one line of JSON: pass it as it is, and reuse it for later claims in the session. No script there? Skip it.
+   - `instructions`: the output of the installed `docket-check`, so the owner knows which instructions you work from. Run it once per session, before your first claim, in one shell call: `bash .claude/docket-check.sh` (`.codex/` for Codex, `~/.claude/` for a user-wide install; on Windows without bash, `powershell -NoProfile -ExecutionPolicy Bypass -File .claude/docket-check.ps1`). It prints one line of JSON: pass it as it is, and reuse it for later claims in the session. No script there? Skip it.
 
    Keep the returned `run_id`, and **pass it on every call from now on**. That's what keeps your claim alive.
 
@@ -41,7 +41,7 @@ The project has its own rules: who moves work to Ready, when human review is nee
 - **`set_plan`:** 3–8 one-line steps, each a verifiable piece of progress. Steps aren't tickets. Create a new item only when a piece needs its own blocker, owner or review.
   - The first plan sends `steps: [{ text }, …]` only. Task Lite assigns the step IDs and returns them; use those with `update_step`. Never make up an ID: an unknown one is refused.
 - **`set_checks`:** what you'll verify yourself, stated concretely. For example "Planner unit tests pass" or "Reload keeps the selected week (e2e)", never "it works".
-- **Human review:** if the project rules say this item needs it and none is declared, `declare_human_review` now. Write plain instructions the owner can follow in minutes. See `tasklite-review-packet`.
+- **Human review:** if the project rules say this item needs it and none is declared, `declare_human_review` now. Write plain instructions the owner can follow in minutes. See `docket-review-packet`.
 - **Changing the plan later:** patch it, and give a `reason`. Send only the steps that change. Don't silently drop a step: mark it `skipped`, with a note.
 
 ## 3. The loop, per step
@@ -80,7 +80,7 @@ The project has its own rules: who moves work to Ready, when human review is nee
 2. **Release every resource** you declared: `heartbeat { resources_released: [{ resource_id }] }`.
 3. **Then hand off or close:**
    - **No human review items:** once the checks pass, `set_status { status: "done" }`. That also finishes your run.
-   - **Human review declared:** `submit_packet` (see `tasklite-review-packet`), then `finish_run { result: "finished", summary }`.
+   - **Human review declared:** `submit_packet` (see `docket-review-packet`), then `finish_run { result: "finished", summary }`.
 4. **Treat `finish_run` warnings as mistakes to fix.** For example `! 2 commits not pushed` or `! 1 resource still declared`. Each one leaves your workspace marked at risk.
 5. **A commit after handing off?** Still `report_commit` it. If an open packet was built from an older commit, it's marked out of date for the owner.
 

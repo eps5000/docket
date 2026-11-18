@@ -330,7 +330,7 @@ export interface RecoveryService {
   ): { run_id: string; unpushed_handled_at: string };
 }
 
-/** One agent file as shipped in the image (`skills/<name>/SKILL.md`, `docs/templates/AGENTS-tasklite.md`). */
+/** One agent file as shipped in the image (`skills/<name>/SKILL.md`, `docs/templates/AGENTS-docket.md`). */
 export interface BundledAgentFile {
   /** `skill:<name>` or `agents_block`. */
   key: string;
@@ -378,7 +378,7 @@ export interface AgentFilesService {
 /** An install ready to record: built (and, for push, written) outside any transaction. */
 export interface PreparedInstall {
   input: RouteBody<'installs.create'>;
-  /** The effective files' versions, as in `.tasklite-manifest.json`. */
+  /** The effective files' versions, as in `.docket-manifest.json`. */
   manifest: { key: string; version_id: string; sha256: string }[];
   /** Push only: what was written into the push root. */
   result?: CreateInstallResponse['result'];
@@ -387,7 +387,7 @@ export interface PreparedInstall {
 /** A command install's bundle, ready to stream (`GET /install/:token`). */
 export interface InstallBundle {
   install_id: string;
-  /** For `Content-Disposition`, e.g. `tasklite-<install_id>.tar.gz`. */
+  /** For `Content-Disposition`, e.g. `docket-<install_id>.tar.gz`. */
   filename: string;
   bytes: Uint8Array;
 }

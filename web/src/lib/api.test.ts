@@ -306,7 +306,7 @@ describe('agent setup (decision 29; BUILD_SPEC §5.17, §7)', () => {
     const { fetch, sent } = fakeFetch(200, {});
     const client = createApiClient({ fetch, cookies: () => COOKIES });
     await client['agentFiles.list']({ query: { project: 'RCP' } });
-    await client['agentFiles.get']({ params: { key: 'skill:tasklite-worker' } });
+    await client['agentFiles.get']({ params: { key: 'skill:docket-worker' } });
     await client['agentFiles.put']({
       params: { key: 'agents_block' },
       body: { layer: 'service', content: '# Block\n', expected_version: 2, note: 'Ours.' },
@@ -327,7 +327,7 @@ describe('agent setup (decision 29; BUILD_SPEC §5.17, §7)', () => {
     await client['install.download']({ params: { token: 'A'.repeat(43) } });
     expect(sent.map((r) => `${r.method} ${r.url}`)).toEqual([
       'GET /api/agent-files?project=RCP',
-      'GET /api/agent-files/skill%3Atasklite-worker',
+      'GET /api/agent-files/skill%3Adocket-worker',
       'PUT /api/agent-files/agents_block',
       'POST /api/agent-files/agents_block/revert',
       'PUT /api/projects/RCP/workflow',

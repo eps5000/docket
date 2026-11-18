@@ -298,7 +298,7 @@ export function InstallDialog({ project, projectName, onClose }: InstallDialogPr
             </ul>
             <div className="src">
               Only the marked Docket section of {instructions} is touched (between{' '}
-              <code>{'<!-- tasklite:begin -->'}</code> and <code>{'<!-- tasklite:end -->'}</code>);
+              <code>{'<!-- docket:begin -->'}</code> and <code>{'<!-- docket:end -->'}</code>);
               everything else in it stays as it is. Nothing is ever deleted.
             </div>
           </details>
@@ -346,7 +346,13 @@ export function InstallDialog({ project, projectName, onClose }: InstallDialogPr
   );
 }
 
-const CHANGE_LABEL = { created: 'Created', updated: 'Updated', unchanged: 'Unchanged' } as const;
+const CHANGE_LABEL = {
+  created: 'Created',
+  updated: 'Updated',
+  unchanged: 'Unchanged',
+  removed: 'Removed (old name)',
+  kept_edited: 'Kept (old name, edited locally)',
+} as const;
 
 function InstallResult({
   result,
@@ -366,7 +372,11 @@ function InstallResult({
         <ul className="inchanges" aria-label="What changed">
           {result.result.files.map((f) => (
             <li key={f.path}>
-              <Chip kind={f.change === 'unchanged' ? 'neutral' : 'ok'}>
+              <Chip
+                kind={
+                  f.change === 'unchanged' ? 'neutral' : f.change === 'kept_edited' ? 'warn' : 'ok'
+                }
+              >
                 {CHANGE_LABEL[f.change]}
               </Chip>{' '}
               <span className="mono">{f.path}</span>

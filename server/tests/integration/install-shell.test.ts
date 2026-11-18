@@ -6,7 +6,7 @@
  * 1. installs by the one-liner (download, unpack, the bundle's install step);
  * 2. checks: up to date;
  * 3. after one installed file is edited and another deleted, and an extra
- *    tasklite-* folder added, checks again: edited, missing, extra;
+ *    docket-* folder added, checks again: edited, missing, extra;
  * 4. reinstalls with a new command, which restores them;
  * and the CLAUDE.md text outside the markers stays byte-identical throughout.
  *
@@ -150,22 +150,22 @@ async function run(shell: ShellName, command: string, cwd: string) {
 const sha256 = (text: string) => createHash('sha256').update(text, 'utf8').digest('hex');
 
 function readManifest(repo: string) {
-  return JSON.parse(readFileSync(join(repo, '.claude/.tasklite-manifest.json'), 'utf8')) as {
+  return JSON.parse(readFileSync(join(repo, '.claude/.docket-manifest.json'), 'utf8')) as {
     install_id: string;
     files: { key: string; sha256: string }[];
   };
 }
 
 /**
- * Run the installed tasklite-check as an agent would (one shell call), and
+ * Run the installed docket-check as an agent would (one shell call), and
  * parse its one line of JSON with `claim_lead`'s own `instructions` schema.
  * PowerShell runs it as a script block, so the Restricted policy allows it.
  */
 async function report(shell: ShellName, repo: string): Promise<InstructionsInput> {
   const cmd =
     shell === 'bash'
-      ? 'bash .claude/tasklite-check.sh'
-      : "& ([scriptblock]::Create([IO.File]::ReadAllText((Resolve-Path '.claude/tasklite-check.ps1').ProviderPath))) (Resolve-Path '.claude').ProviderPath";
+      ? 'bash .claude/docket-check.sh'
+      : "& ([scriptblock]::Create([IO.File]::ReadAllText((Resolve-Path '.claude/docket-check.ps1').ProviderPath))) (Resolve-Path '.claude').ProviderPath";
   const r = await run(shell, cmd, repo);
   expect(r.status, r.out).toBe(0);
   // pwsh on Linux, fed commands on stdin, may put terminal escape codes before the line.
@@ -207,7 +207,7 @@ describe.each(Object.keys(SHELLS) as ShellName[])('the %s commands', (shell) => 
       transcript.push(`## ${shell}: install`);
       const i1 = await run(shell, first.install, repo);
       expect(i1.status, i1.out).toBe(0);
-      expect(i1.out).toContain('wrote .claude/skills/tasklite-worker/SKILL.md');
+      expect(i1.out).toContain('wrote .claude/skills/docket-worker/SKILL.md');
       expect(i1.out).toContain('added the Docket section to the end of CLAUDE.md');
       const claude = readFileSync(join(repo, 'CLAUDE.md'));
       expect(claude.subarray(0, Buffer.byteLength(PRE)).equals(Buffer.from(PRE))).toBe(true);
@@ -216,7 +216,7 @@ describe.each(Object.keys(SHELLS) as ShellName[])('the %s commands', (shell) => 
           `^\\n\\n${DOCKET_BEGIN}\\n## Work tracking: Docket[\\s\\S]*\\n${DOCKET_END}\\n$`,
         ),
       );
-      expect(existsSync(join(repo, '.claude/.tasklite-manifest.json'))).toBe(true);
+      expect(existsSync(join(repo, '.claude/.docket-manifest.json'))).toBe(true);
 
       // The same command again: the token is used, and nothing changes.
       const reused = await run(shell, first.install, repo);
@@ -229,49 +229,49 @@ describe.each(Object.keys(SHELLS) as ShellName[])('the %s commands', (shell) => 
       expect(c1.status, c1.out).toBe(0);
       expect(c1.out).toContain('Up to date: all 6 files match what Docket sent.');
 
-      // The installed tasklite-check (decision 30): every file listed by hash, no text.
+      // The installed docket-check (decision 30): every file listed by hash, no text.
       const manifest = readManifest(repo);
-      transcript.push(`## ${shell}: tasklite-check, as installed`);
+      transcript.push(`## ${shell}: docket-check, as installed`);
       const r1 = await report(shell, repo);
       expect(r1.install_id).toBe(manifest.install_id);
       expect(r1.files).toEqual(manifest.files.map((f) => ({ key: f.key, sha256: f.sha256 })));
 
       // 3. Edit one file, delete another, add an extra folder: the check lists them.
-      const worker = join(repo, '.claude/skills/tasklite-worker/SKILL.md');
+      const worker = join(repo, '.claude/skills/docket-worker/SKILL.md');
       const edited = `${readFileSync(worker, 'utf8')}\nLocal tweak: "quotes", \\back\\slashes,\ttabs, Ünïcödé.\r\n`;
       writeFileSync(worker, edited);
-      rmSync(join(repo, '.claude/skills/tasklite-planner/SKILL.md'));
-      mkdirSync(join(repo, '.claude/skills/tasklite-old'));
-      // tasklite-check: the edited file with its text (CRs removed, as hashed), the
+      rmSync(join(repo, '.claude/skills/docket-planner/SKILL.md'));
+      mkdirSync(join(repo, '.claude/skills/docket-old'));
+      // docket-check: the edited file with its text (CRs removed, as hashed), the
       // missing one left out, the extra folder listed.
-      transcript.push(`## ${shell}: tasklite-check after an edit, a delete and an extra folder`);
+      transcript.push(`## ${shell}: docket-check after an edit, a delete and an extra folder`);
       const r2 = await report(shell, repo);
       const noCr = edited.replace(/\r/g, '');
-      expect(r2.files.find((f) => f.key === 'skill:tasklite-worker')).toEqual({
-        key: 'skill:tasklite-worker',
+      expect(r2.files.find((f) => f.key === 'skill:docket-worker')).toEqual({
+        key: 'skill:docket-worker',
         sha256: sha256(noCr),
         content: noCr,
       });
-      expect(r2.files.some((f) => f.key === 'skill:tasklite-planner')).toBe(false);
-      expect(r2.files.find((f) => f.key === 'skill:tasklite-old')).toEqual({
-        key: 'skill:tasklite-old',
+      expect(r2.files.some((f) => f.key === 'skill:docket-planner')).toBe(false);
+      expect(r2.files.find((f) => f.key === 'skill:docket-old')).toEqual({
+        key: 'skill:docket-old',
         sha256: sha256(''),
       });
       // Unchanged files still carry no text.
       expect(r2.files.filter((f) => f.content !== undefined).map((f) => f.key)).toEqual([
-        'skill:tasklite-worker',
+        'skill:docket-worker',
       ]);
 
       transcript.push(`## ${shell}: check after an edit and a delete`);
       const c2 = await run(shell, first.check, repo);
       expect(c2.status, c2.out).toBe(0);
       expect(c2.out).toMatch(
-        /^edited +\.claude\/skills\/tasklite-worker\/SKILL\.md +\(sent skill:tasklite-worker afv_/m,
+        /^edited +\.claude\/skills\/docket-worker\/SKILL\.md +\(sent skill:docket-worker afv_/m,
       );
       expect(c2.out).toMatch(
-        /^missing +\.claude\/skills\/tasklite-planner\/SKILL\.md +\(sent skill:tasklite-planner afv_/m,
+        /^missing +\.claude\/skills\/docket-planner\/SKILL\.md +\(sent skill:docket-planner afv_/m,
       );
-      expect(c2.out).toMatch(/^extra +\.claude\/skills\/tasklite-old\/$/m);
+      expect(c2.out).toMatch(/^extra +\.claude\/skills\/docket-old\/$/m);
       expect(c2.out).not.toMatch(/^edited +CLAUDE\.md/m);
       expect(c2.out).toContain('Differs from what Docket sent: 3 file(s).');
 
@@ -283,7 +283,7 @@ describe.each(Object.keys(SHELLS) as ShellName[])('the %s commands', (shell) => 
       );
       const c3 = await run(shell, first.check, repo);
       expect(c3.out).toMatch(/^edited +CLAUDE\.md +\(sent agents_block afv_/m);
-      // tasklite-check sends the block's text between the markers, as hashed.
+      // docket-check sends the block's text between the markers, as hashed.
       const r3 = await report(shell, repo);
       const block = r3.files.find((f) => f.key === 'agents_block')!;
       expect(block.content).toMatch(/^## Work tracking \(ours\)\n/);
@@ -300,8 +300,8 @@ describe.each(Object.keys(SHELLS) as ShellName[])('the %s commands', (shell) => 
       );
       const c4 = await run(shell, second.check, repo);
       expect(c4.out).not.toMatch(/^(edited|missing) /m);
-      expect(c4.out).toMatch(/^extra +\.claude\/skills\/tasklite-old\/$/m);
-      expect(existsSync(join(repo, '.claude/skills/tasklite-old'))).toBe(true);
+      expect(c4.out).toMatch(/^extra +\.claude\/skills\/docket-old\/$/m);
+      expect(existsSync(join(repo, '.claude/skills/docket-old'))).toBe(true);
       const after = readFileSync(join(repo, 'CLAUDE.md'));
       expect(after.subarray(0, Buffer.byteLength(PRE)).equals(Buffer.from(PRE))).toBe(true);
       expect(after.toString('utf8').endsWith(`${DOCKET_END}\n`)).toBe(true);

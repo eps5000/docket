@@ -97,7 +97,7 @@ type ProposalRow = {
 function proposal(db: Db, id: string, fields: Partial<ProposalRow> = {}) {
   const row: ProposalRow = {
     project_key: 'RCP',
-    file_key: 'skill:tasklite-worker',
+    file_key: 'skill:docket-worker',
     content: '# Worker\n',
     reason: 'Run the linter before each commit.',
     based_on_version_id: 'afv_1',
@@ -176,7 +176,7 @@ function drift(db: Db, id: string, fields: Partial<DriftRow> = {}) {
   const row: DriftRow = {
     install_id: 'ins_1',
     project_key: 'RCP',
-    file_key: 'skill:tasklite-worker',
+    file_key: 'skill:docket-worker',
     change: 'edited',
     state: 'open',
     local_sha256: SHA,
@@ -412,7 +412,7 @@ describe('0004_agent_proposals on a main-era database (0000–0003, with data)',
     run(
       db,
       `INSERT INTO agent_files (id, key, layer, project_key, created_at, updated_at)
-       VALUES ('af_1', 'skill:tasklite-worker', 'project', 'RCP', ?, ?)`,
+       VALUES ('af_1', 'skill:docket-worker', 'project', 'RCP', ?, ?)`,
       ts,
       ts,
     );

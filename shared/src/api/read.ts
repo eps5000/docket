@@ -307,7 +307,7 @@ export const itemDetailResponse = jsonResponse({
   /** Items linked to this item (or, for an epic, its children) that aren't among them: 1-hop and "Outside this epic" cards. */
   outside: z.array(itemSummarySchema),
   /**
-   * "Instructions: tasklite-worker · Recipe App's copy v2" on each run that
+   * "Instructions: docket-worker · Recipe App's copy v2" on each run that
    * reported them on claim_lead (decision 30; UI_SPEC §6.7b-1; optional; B26).
    */
   run_instructions: z.array(runInstructionsSchema).optional(),

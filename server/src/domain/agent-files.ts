@@ -96,7 +96,7 @@ const LAYER_NAMES: Record<AgentFileLayer, string> = {
   project: 'project override',
 };
 
-/** `skill:tasklite-worker` → `tasklite-worker`; `agents_block` → `AGENTS.md block`. */
+/** `skill:docket-worker` → `docket-worker`; `agents_block` → `AGENTS.md block`. */
 export function agentFileName(key: string): string {
   return key.startsWith('skill:') ? key.slice('skill:'.length) : 'AGENTS.md block';
 }
@@ -316,7 +316,7 @@ const nextVersionNo = (db: Db, fileId: string): number =>
       .get(fileId) as { n: number }
   ).n;
 
-/** "tasklite-worker (service-wide)" / "tasklite-worker (RCP)". */
+/** "docket-worker (service-wide)" / "docket-worker (RCP)". */
 const whereOf = (key: string, layer: EditableAgentFileLayer, project: string | null) =>
   `${agentFileName(key)} (${layer === 'project' ? project : 'service-wide'})`;
 

@@ -20,15 +20,15 @@ import {
 
 describe('installLayout (BUILD_SPEC §5.17, V7)', () => {
   it.each([
-    ['claude', 'repo', '.claude/skills/tasklite-worker/SKILL.md', 'CLAUDE.md', ''],
-    ['claude', 'user', '.claude/skills/tasklite-worker/SKILL.md', '.claude/CLAUDE.md', '~/'],
-    ['codex', 'repo', '.codex/skills/tasklite-worker/SKILL.md', 'AGENTS.md', ''],
-    ['codex', 'user', '.codex/skills/tasklite-worker/SKILL.md', '.codex/AGENTS.md', '~/'],
+    ['claude', 'repo', '.claude/skills/docket-worker/SKILL.md', 'CLAUDE.md', ''],
+    ['claude', 'user', '.claude/skills/docket-worker/SKILL.md', '.claude/CLAUDE.md', '~/'],
+    ['codex', 'repo', '.codex/skills/docket-worker/SKILL.md', 'AGENTS.md', ''],
+    ['codex', 'user', '.codex/skills/docket-worker/SKILL.md', '.codex/AGENTS.md', '~/'],
   ] as const)('%s %s', (client, target, skill, instructions, display) => {
     const layout = installLayout(client, target);
-    expect(installPathOf(layout, 'skill:tasklite-worker')).toBe(skill);
+    expect(installPathOf(layout, 'skill:docket-worker')).toBe(skill);
     expect(installPathOf(layout, 'agents_block')).toBe(instructions);
-    expect(layout.manifest).toBe(`${layout.dir}/.tasklite-manifest.json`);
+    expect(layout.manifest).toBe(`${layout.dir}/.docket-manifest.json`);
     expect(layout.display).toBe(display);
   });
 });
@@ -172,8 +172,8 @@ describe('the copy-paste commands', () => {
 
   it('the check commands read the client folder’s manifest and need no token', () => {
     const c = checkCommands({ client: 'claude', target_kind: 'repo' });
-    expect(c.bash).toContain('m="$d/.claude/.tasklite-manifest.json"');
-    expect(c.powershell).toContain("Join-Path $d '.claude/.tasklite-manifest.json'");
+    expect(c.bash).toContain('m="$d/.claude/.docket-manifest.json"');
+    expect(c.powershell).toContain("Join-Path $d '.claude/.docket-manifest.json'");
     expect(c.bash).not.toContain('/install/');
     const u = checkCommands({ client: 'codex', target_kind: 'user' });
     expect(u.bash).toContain('"~/.codex/skills/$y/"');

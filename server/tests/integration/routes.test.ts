@@ -240,9 +240,9 @@ const VALID: Record<RouteId, Req> = {
   'agentUpload.post': { body: { item_id: 'RCP-2', kind: 'planning' } },
   // Agent setup (decision 29): agent files and Workflow notes (B23), installs (B24).
   'agentFiles.list': { query: { project: 'RCP' } },
-  'agentFiles.get': { params: { key: 'skill:tasklite-worker' }, query: { project: 'RCP' } },
+  'agentFiles.get': { params: { key: 'skill:docket-worker' }, query: { project: 'RCP' } },
   'agentFiles.put': {
-    params: { key: 'skill:tasklite-worker' },
+    params: { key: 'skill:docket-worker' },
     body: {
       layer: 'project',
       project: 'RCP',

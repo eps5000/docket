@@ -139,7 +139,7 @@ export const claimLeadInput = mutationInput({
   /** For example `orca-w3`. */
   agent_label: agentLabel.optional(),
   ...recoveryFields,
-  /** Decision 30: the installed `tasklite-check` script's output (MCP_SPEC §5.4; BUILD_SPEC §5.19). */
+  /** Decision 30: the installed `docket-check` script's output (MCP_SPEC §5.4; BUILD_SPEC §5.19). */
   instructions: instructionsInput.optional(),
 }).superRefine(oneBrief);
 export const claimLeadOutput = mutationOutput({

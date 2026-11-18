@@ -4,6 +4,8 @@ import { Link, useLocation } from 'react-router';
 import {
   INSTALL_CLIENT_LABELS,
   fillsProjectKey,
+  isLegacySkillKey,
+  mapLegacySkillKey,
   renderAgentsBlock,
   type CreateInstallResponse,
   type Drift,
@@ -70,6 +72,13 @@ const CHANGE: Record<Drift['change'], { label: string; kind: ChipKind }> = {
 const nameOf = (key: string) => (key.startsWith('skill:') ? key.slice(6) : 'AGENTS.md block');
 
 /**
+ * The file Docket ships for a record: an old `tasklite-*` folder an install
+ * kept because it was edited locally (B28) is compared with, and adopted as,
+ * its `docket-*` file.
+ */
+const fileKeyOf = (d: Drift) => mapLegacySkillKey(d.file_key);
+
+/**
  * "Changed outside Docket · n" (UI_SPEC §6.7b-1; FR-131, FR-132): each
  * installed file that differs from what Docket sent, with where it is,
  * how it was found, a diff when the text is known, and *Adopt as …*,
@@ -121,7 +130,7 @@ export function DriftSection({
           key={d.id}
           d={d}
           projectName={nameOfProject(d.project)}
-          adoptable={shippedKeys.has(d.file_key)}
+          adoptable={shippedKeys.has(mapLegacySkillKey(d.file_key))}
         />
       ))}
     </section>
@@ -132,8 +141,8 @@ export function DriftSection({
 function useSentText(d: Drift): string | undefined | null {
   const q = d.project ? { project: d.project } : {};
   const file = useQuery({
-    queryKey: queryKeys.agentFile(d.file_key, q),
-    queryFn: () => apiClient['agentFiles.get']({ params: { key: d.file_key }, query: q }),
+    queryKey: queryKeys.agentFile(fileKeyOf(d), q),
+    queryFn: () => apiClient['agentFiles.get']({ params: { key: fileKeyOf(d) }, query: q }),
     enabled: d.sent_version_id !== null,
   });
   if (d.sent_version_id === null) return null;
@@ -159,6 +168,7 @@ function DriftCard({
   const [busy, setBusy] = useState(false);
   const [commands, setCommands] = useState<CreateInstallResponse | null>(null);
   const name = nameOf(d.file_key);
+  const legacy = isLegacySkillKey(d.file_key);
   const target = d.project ? `${possessive(projectName ?? d.project)} copy` : 'the default';
   const where = d.install.path ?? 'where it was installed';
   const how =
@@ -191,10 +201,11 @@ function DriftCard({
         : withheld
           ? 'Content withheld: the local text looked like a secret.'
           : noText
-            ? 'Run tasklite-check on that machine to send the text.'
+            ? 'Run docket-check on that machine to send the text.'
             : null;
-  const restoreWhy =
-    d.change === 'extra'
+  const restoreWhy = legacy
+    ? `Docket removes an old-name folder only while it is unmodified, and this one was edited: adopt it as ${nameOf(fileKeyOf(d))}, or keep it.`
+    : d.change === 'extra'
       ? 'Docket never deletes files: remove the folder yourself, or keep it.'
       : null;
 
@@ -244,7 +255,11 @@ function DriftCard({
           <h3 id={`${d.id}-h`} className="mono">
             {name}
           </h3>
-          <Chip kind={CHANGE[d.change].kind}>{CHANGE[d.change].label}</Chip>
+          {legacy ? (
+            <Chip kind="warn">Old name, edited locally</Chip>
+          ) : (
+            <Chip kind={CHANGE[d.change].kind}>{CHANGE[d.change].label}</Chip>
+          )}
           <Chip>{projectName ?? 'User-wide'}</Chip>
           <span className="grow" />
           <span className="src" title={isoTitle(d.detected_at)}>
@@ -272,11 +287,11 @@ function DriftCard({
           <Callout tone="warn">
             <b>Content withheld: it looked like a secret.</b> Docket kept only the file’s
             fingerprint, never the text, so it can’t show the change. Remove the secret from the
-            file there; the next tasklite-check report sends the text.
+            file there; the next docket-check report sends the text.
           </Callout>
         ) : noText ? (
           <Callout>
-            Docket doesn’t have the local text, so it can’t show the change. Run tasklite-check
+            Docket doesn’t have the local text, so it can’t show the change. Run docket-check
             on that machine to send the text: the next agent claim there does it.
           </Callout>
         ) : sent === undefined ? (
@@ -286,8 +301,10 @@ function DriftCard({
             from={sent ?? ''}
             to={d.local_content ?? ''}
             label={
-              d.change === 'extra'
-                ? `${name}: the added file`
+              legacy
+                ? `${nameOf(fileKeyOf(d))}: Docket’s version → the local ${name} (old name)`
+                : d.change === 'extra'
+                  ? `${name}: the added file`
                 : `${name}: Docket’s version → the local file`
             }
           />

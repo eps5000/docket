@@ -50,7 +50,7 @@ export const AGENT_FILE_KEY_RE = /^(agents_block|skill:[a-z0-9-]{1,60})$/;
 export const INSTALL_TOKEN_RE = /^[A-Za-z0-9_-]{43}$/;
 
 export const agentFileKey = z.string().trim().regex(AGENT_FILE_KEY_RE, {
-  error: 'Expected an agent file key: agents_block, or skill:<name> like skill:tasklite-worker.',
+  error: 'Expected an agent file key: agents_block, or skill:<name> like skill:docket-worker.',
 });
 export const installToken = z
   .string()
@@ -168,7 +168,7 @@ export const workflowSchema = z.object({
 });
 export type Workflow = z.infer<typeof workflowSchema>;
 
-/** One file in an install's manifest (FR-126), as written to `.tasklite-manifest.json`. */
+/** One file in an install's manifest (FR-126), as written to `.docket-manifest.json`. */
 export const manifestEntrySchema = z.object({
   key: z.string(),
   version_id: z.string(),

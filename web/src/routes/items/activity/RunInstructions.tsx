@@ -33,7 +33,7 @@ function EditedChip({ f, project }: { f: FileLine; project: string }) {
 }
 
 /**
- * "Instructions: tasklite-worker · Recipe App’s copy v2" (UI_SPEC §6.7b-1;
+ * "Instructions: docket-worker · Recipe App’s copy v2" (UI_SPEC §6.7b-1;
  * FR-133): the instruction versions a run reported working from on
  * `claim_lead`, with ⚠ "edited locally" when the reported file differs from
  * what Docket sent, linking to the drift record.

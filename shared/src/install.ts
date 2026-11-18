@@ -8,8 +8,8 @@
  * - **The AGENTS.md block** as installed: the template's leading HTML comment
  *   stripped, `{{KEY}}` filled for a project's repo install, and the
  *   placeholders still left in it (the Install dialog warns about them).
- * - **The marked section** between `<!-- tasklite:begin -->` and
- *   `<!-- tasklite:end -->`: inserted, replaced, or appended with new markers,
+ * - **The marked section** between `<!-- docket:begin -->` and
+ *   `<!-- docket:end -->`: inserted, replaced, or appended with new markers,
  *   and nothing outside the markers changes. A file with a missing or
  *   repeated marker is refused, never guessed at.
  * - **Hashing for the check:** a file is compared with its CR bytes removed
@@ -24,12 +24,19 @@
  * every byte, and the markers are ASCII.
  */
 import type { InstallClient, InstallTargetKind } from './enums.js';
+import {
+  LEGACY_BEGIN,
+  LEGACY_CHECK_SCRIPTS,
+  LEGACY_END,
+  LEGACY_MANIFEST_NAME,
+  LEGACY_SKILL_PREFIX,
+} from './legacy.js';
 
-export const DOCKET_BEGIN = '<!-- tasklite:begin -->';
-export const DOCKET_END = '<!-- tasklite:end -->';
+export const DOCKET_BEGIN = '<!-- docket:begin -->';
+export const DOCKET_END = '<!-- docket:end -->';
 
 /** The manifest's file name, in the client's folder (`.claude/` or `.codex/`). */
-export const INSTALL_MANIFEST_NAME = '.tasklite-manifest.json';
+export const INSTALL_MANIFEST_NAME = '.docket-manifest.json';
 
 /** Each client's folder, relative to the base (the repo, or home for user-wide). */
 const CLIENT_DIR: Record<InstallClient, string> = { claude: '.claude', codex: '.codex' };
@@ -46,8 +53,12 @@ export interface InstallLayout {
   skillsDir: string;
   /** The instructions file: `CLAUDE.md` in a repo, `.claude/CLAUDE.md` user-wide. */
   instructions: string;
-  /** `.claude/.tasklite-manifest.json`. */
+  /** `.claude/.docket-manifest.json`. */
   manifest: string;
+  /** `.claude/.tasklite-manifest.json`: an install from before the rename (B28), read when there is no new one. */
+  legacyManifest: string;
+  /** The old check scripts next to it, which an install leaves in place (it deletes only skill folders). */
+  legacyCheckScripts: string[];
   /** How paths are shown: `` in a repo, `~/` user-wide. */
   display: string;
 }
@@ -68,11 +79,13 @@ export function installLayout(client: InstallClient, target: InstallTargetKind):
     skillsDir: `${dir}/skills`,
     instructions: target === 'repo' ? file : `${dir}/${file}`,
     manifest: `${dir}/${INSTALL_MANIFEST_NAME}`,
+    legacyManifest: `${dir}/${LEGACY_MANIFEST_NAME}`,
+    legacyCheckScripts: LEGACY_CHECK_SCRIPTS.map((name) => `${dir}/${name}`),
     display: target === 'repo' ? '' : '~/',
   };
 }
 
-/** The path a file is installed at, relative to the base: `.claude/skills/tasklite-worker/SKILL.md`. */
+/** The path a file is installed at, relative to the base: `.claude/skills/docket-worker/SKILL.md`. */
 export function installPathOf(layout: InstallLayout, key: string): string {
   if (key.startsWith('skill:')) return `${layout.skillsDir}/${key.slice('skill:'.length)}/SKILL.md`;
   return layout.instructions;
@@ -110,24 +123,40 @@ export type MarkedSection =
   | { kind: 'absent' }
   /** A missing or repeated marker: refused, never guessed at. */
   | { kind: 'broken' }
-  /** `start` is the begin marker's index; `end` is just after the end marker. */
-  | { kind: 'present'; start: number; end: number; inner: string };
+  /**
+   * `start` is the begin marker's index; `end` is just after the end marker.
+   * `legacy`: the markers are the old `<!-- tasklite:begin/end -->` pair (B28),
+   * a valid section that the next install replaces with the `docket` markers.
+   */
+  | { kind: 'present'; start: number; end: number; inner: string; legacy: boolean };
 
-/** Find the Docket section in a file's text. */
-export function findMarkedSection(text: string): MarkedSection {
-  const b = text.indexOf(DOCKET_BEGIN);
-  const e = text.indexOf(DOCKET_END);
+function findPair(text: string, begin: string, end: string, legacy: boolean): MarkedSection {
+  const b = text.indexOf(begin);
+  const e = text.indexOf(end);
   if (b < 0 && e < 0) return { kind: 'absent' };
   if (b < 0 || e < b) return { kind: 'broken' };
-  if (text.indexOf(DOCKET_BEGIN, b + 1) >= 0 || text.indexOf(DOCKET_END, e + 1) >= 0) {
+  if (text.indexOf(begin, b + 1) >= 0 || text.indexOf(end, e + 1) >= 0) {
     return { kind: 'broken' };
   }
   return {
     kind: 'present',
     start: b,
-    end: e + DOCKET_END.length,
-    inner: text.slice(b + DOCKET_BEGIN.length, e),
+    end: e + end.length,
+    inner: text.slice(b + begin.length, e),
+    legacy,
   };
+}
+
+/**
+ * Find the Docket section in a file's text: the `docket` markers, or else the
+ * old `tasklite` pair (B28). Both kinds in one file is ambiguous, so broken.
+ */
+export function findMarkedSection(text: string): MarkedSection {
+  const current = findPair(text, DOCKET_BEGIN, DOCKET_END, false);
+  const legacy = findPair(text, LEGACY_BEGIN, LEGACY_END, true);
+  if (current.kind === 'absent') return legacy;
+  if (legacy.kind !== 'absent') return { kind: 'broken' };
+  return current;
 }
 
 export class BrokenMarkersError extends Error {
@@ -153,15 +182,17 @@ export function mergeMarkedSection(
   existing: string | null,
   block: string,
   file = 'The instructions file',
-): { text: string; how: 'created' | 'replaced' | 'appended' } {
+): { text: string; how: 'created' | 'replaced' | 'appended'; legacy?: true } {
   const section = markedSection(block);
   if (existing === null) return { text: `${section}\n`, how: 'created' };
   const found = findMarkedSection(existing);
   if (found.kind === 'broken') throw new BrokenMarkersError(file);
   if (found.kind === 'present') {
+    // An old `tasklite` section is replaced the same way, with the new markers.
     return {
       text: existing.slice(0, found.start) + section + existing.slice(found.end),
       how: 'replaced',
+      ...(found.legacy ? { legacy: true as const } : {}),
     };
   }
   if (existing === '') return { text: `${section}\n`, how: 'appended' };
@@ -241,7 +272,7 @@ export function installCommands(input: InstallCommandInput & { url: string }): {
     `t=$(mktemp -d); trap 'rm -rf "$t"' EXIT`,
     `curl -fsS --noproxy '*' -o "$t/b.tgz" ${bashQuote(input.url)} || { echo ${bashQuote(REFUSED)} >&2; exit 1; }`,
     `tar -xzf "$t/b.tgz" -C "$t"`,
-    `bash "$t/tasklite-install/install.sh" "$d" )`,
+    `bash "$t/docket-install/install.sh" "$d" )`,
   ].join('; ');
   const powershell = [
     `& { $ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue'; $d = ${psBase(input)}`,
@@ -250,11 +281,11 @@ export function installCommands(input: InstallCommandInput & { url: string }): {
           `if (-not (Test-Path -LiteralPath (Join-Path $d '.git'))) { throw "Run this from the repo folder: there is no .git in $d" }`,
         ]
       : []),
-    `$t = Join-Path ([IO.Path]::GetTempPath()) ('tasklite-' + [guid]::NewGuid()); New-Item -ItemType Directory -Path $t | Out-Null`,
+    `$t = Join-Path ([IO.Path]::GetTempPath()) ('docket-' + [guid]::NewGuid()); New-Item -ItemType Directory -Path $t | Out-Null`,
     `try { $b = Join-Path $t 'b.tgz'; try { Invoke-WebRequest -UseBasicParsing -Uri ${psQuote(input.url)} -OutFile $b } catch { throw ${psQuote(REFUSED)} }`,
     // Windows' own tar.exe: a GNU tar from Git on the PATH would read `C:` as a remote host.
     `$x = 'tar'; if ($env:SystemRoot) { $w = Join-Path $env:SystemRoot 'System32/tar.exe'; if (Test-Path -LiteralPath $w) { $x = $w } }; & $x -xzf $b -C $t; if ($LASTEXITCODE) { throw 'Could not unpack the download.' }`,
-    `$i = Join-Path (Join-Path $t 'tasklite-install') 'install.ps1'; & ([scriptblock]::Create((Get-Content -Raw -LiteralPath $i))) (Join-Path $t 'tasklite-install') $d } finally { Remove-Item -Recurse -Force -LiteralPath $t } }`,
+    `$i = Join-Path (Join-Path $t 'docket-install') 'install.ps1'; & ([scriptblock]::Create((Get-Content -Raw -LiteralPath $i))) (Join-Path $t 'docket-install') $d } finally { Remove-Item -Recurse -Force -LiteralPath $t } }`,
   ].join('; ');
   return { powershell, bash };
 }
@@ -262,7 +293,7 @@ export function installCommands(input: InstallCommandInput & { url: string }): {
 /**
  * The check one-liners (FR-127, without push): read the manifest the install
  * left, hash each file as the check defines it, and print the files that
- * were edited locally, are missing, or are extra `tasklite-*` skill folders,
+ * were edited locally, are missing, or are extra `docket-*` skill folders,
  * each with the version Docket sent. They download nothing and need no
  * token. Run them where the install ran (the repo folder, for a repo).
  */
@@ -270,24 +301,24 @@ export function checkCommands(input: InstallCommandInput): { powershell: string;
   const layout = installLayout(input.client, input.target_kind);
   const disp = layout.display;
   const bash = [
-    `( d=${bashBase(input)}; m="$d/${layout.manifest}"; B='${DOCKET_BEGIN}'; E='${DOCKET_END}'`,
+    `( d=${bashBase(input)}; m="$d/${layout.manifest}"; [ -f "$m" ] || { [ -f "$d/${layout.legacyManifest}" ] && m="$d/${layout.legacyManifest}"; }; B='${DOCKET_BEGIN}'; E='${DOCKET_END}'; OB='${LEGACY_BEGIN}'; OE='${LEGACY_END}'`,
     `[ -f "$m" ] || { echo "No Docket install found: $m is missing." >&2; exit 1; }`,
     `h() { tr -d '\\r' | { sha256sum 2>/dev/null || shasum -a 256; } | cut -c1-64; }`,
     `echo "Checking ${disp}${layout.dir} against Docket install $(grep -o 'ins_[0-9A-Za-z]*' "$m" | head -n 1)"`,
     `n=0; c=0; while IFS= read -r l; do case $l in *'"key":"'*) ;; *) continue ;; esac; k=\${l#*'"key":"'}; k=\${k%%'"'*}; p=\${l#*'"path":"'}; p=\${p%%'"'*}; v=\${l#*'"version_id":"'}; v=\${v%%'"'*}; s=\${l#*'"sha256":"'}; s=\${s%%'"'*}; c=$((c+1)); f="$d/$p"`,
-    `if [ ! -f "$f" ]; then st=missing; elif [ "$k" = agents_block ]; then x=$(cat "$f"; printf x); x=\${x%x}; case $x in *"$B"*"$E"*) x=\${x#*"$B"}; x=\${x%%"$E"*}; x=$(printf '%s' "$x" | tr -d '\\r'; printf x); x=\${x%x}; x=\${x#$'\\n'}; x=\${x%$'\\n'}; if [ "$(printf '%s' "$x" | h)" = "$s" ]; then st=ok; else st=edited; fi ;; *) st=missing ;; esac; elif [ "$(h < "$f")" = "$s" ]; then st=ok; else st=edited; fi`,
+    `if [ ! -f "$f" ]; then st=missing; elif [ "$k" = agents_block ]; then x=$(cat "$f"; printf x); x=\${x%x}; case $x in *"$B"*) ;; *) B=$OB; E=$OE ;; esac; case $x in *"$B"*"$E"*) x=\${x#*"$B"}; x=\${x%%"$E"*}; x=$(printf '%s' "$x" | tr -d '\\r'; printf x); x=\${x%x}; x=\${x#$'\\n'}; x=\${x%$'\\n'}; if [ "$(printf '%s' "$x" | h)" = "$s" ]; then st=ok; else st=edited; fi ;; *) st=missing ;; esac; elif [ "$(h < "$f")" = "$s" ]; then st=ok; else st=edited; fi`,
     `if [ $st != ok ]; then n=$((n+1)); printf '%-8s %s  (sent %s %s)\\n' "$st" "${disp}$p" "$k" "$v"; fi; done < "$m"`,
-    `for x in "$d/${layout.skillsDir}"/tasklite-*/; do [ -d "$x" ] || continue; y=\${x%/}; y=\${y##*/}; grep -q "\\"skill:$y\\"" "$m" || { n=$((n+1)); printf '%-8s %s\\n' extra "${disp}${layout.skillsDir}/$y/"; }; done`,
+    `for x in "$d/${layout.skillsDir}"/docket-*/ "$d/${layout.skillsDir}"/${LEGACY_SKILL_PREFIX}*/; do [ -d "$x" ] || continue; y=\${x%/}; y=\${y##*/}; o=''; case $y in ${LEGACY_SKILL_PREFIX}*) o='  (old name)' ;; esac; grep -q "\\"skill:$y\\"" "$m" || { n=$((n+1)); printf '%-8s %s%s\\n' extra "${disp}${layout.skillsDir}/$y/" "$o"; }; done`,
     `if [ $n = 0 ]; then echo "Up to date: all $c files match what Docket sent."; else echo "Differs from what Docket sent: $n file(s). The install log in Agent files shows each version sent."; fi )`,
   ].join('; ');
   const powershell = [
-    `& { $d = ${psBase(input)}; $m = Join-Path $d '${layout.manifest}'`,
+    `& { $d = ${psBase(input)}; $m = Join-Path $d '${layout.manifest}'; if (-not (Test-Path -LiteralPath $m)) { $o = Join-Path $d '${layout.legacyManifest}'; if (Test-Path -LiteralPath $o) { $m = $o } }`,
     `if (-not (Test-Path -LiteralPath $m)) { throw "No Docket install found: $m is missing." }`,
-    `$enc = [Text.Encoding]::GetEncoding(28591); $B = '${DOCKET_BEGIN}'; $E = '${DOCKET_END}'; $sha = [Security.Cryptography.SHA256]::Create()`,
+    `$enc = [Text.Encoding]::GetEncoding(28591); $B = '${DOCKET_BEGIN}'; $E = '${DOCKET_END}'; $OB = '${LEGACY_BEGIN}'; $OE = '${LEGACY_END}'; $sha = [Security.Cryptography.SHA256]::Create()`,
     `function TlHash([string]$s) { -join ($sha.ComputeHash($enc.GetBytes($s.Replace("\`r", ''))) | ForEach-Object { $_.ToString('x2') }) }`,
     `$j = Get-Content -Raw -LiteralPath $m | ConvertFrom-Json; "Checking ${disp}${layout.dir} against Docket install $($j.install_id)"; $n = 0`,
-    `foreach ($r in $j.files) { $f = Join-Path $d $r.path; $st = 'ok'; if (-not (Test-Path -LiteralPath $f -PathType Leaf)) { $st = 'missing' } else { $x = $enc.GetString([IO.File]::ReadAllBytes($f)); if ($r.key -eq 'agents_block') { $i = $x.IndexOf($B, [StringComparison]::Ordinal); $k = $x.IndexOf($E, [StringComparison]::Ordinal); if ($i -lt 0 -or $k -lt $i) { $st = 'missing' } else { $x = $x.Substring($i + $B.Length, $k - $i - $B.Length).Replace("\`r", ''); if ($x.StartsWith("\`n")) { $x = $x.Substring(1) }; if ($x.EndsWith("\`n")) { $x = $x.Substring(0, $x.Length - 1) }; if ((TlHash $x) -ne $r.sha256) { $st = 'edited' } } } elseif ((TlHash $x) -ne $r.sha256) { $st = 'edited' } }; if ($st -ne 'ok') { $n++; '{0,-8} {1}  (sent {2} {3})' -f $st, ('${disp}' + $r.path), $r.key, $r.version_id } }`,
-    `$sk = Join-Path $d '${layout.skillsDir}'; if (Test-Path -LiteralPath $sk) { foreach ($x in Get-ChildItem -LiteralPath $sk -Directory -Force -Filter 'tasklite-*') { if (@($j.files | ForEach-Object { $_.key }) -notcontains ('skill:' + $x.Name)) { $n++; '{0,-8} {1}' -f 'extra', ('${disp}${layout.skillsDir}/' + $x.Name + '/') } } }`,
+    `foreach ($r in $j.files) { $f = Join-Path $d $r.path; $st = 'ok'; if (-not (Test-Path -LiteralPath $f -PathType Leaf)) { $st = 'missing' } else { $x = $enc.GetString([IO.File]::ReadAllBytes($f)); if ($r.key -eq 'agents_block') { if ($x.IndexOf($B, [StringComparison]::Ordinal) -lt 0) { $B = $OB; $E = $OE }; $i = $x.IndexOf($B, [StringComparison]::Ordinal); $k = $x.IndexOf($E, [StringComparison]::Ordinal); if ($i -lt 0 -or $k -lt $i) { $st = 'missing' } else { $x = $x.Substring($i + $B.Length, $k - $i - $B.Length).Replace("\`r", ''); if ($x.StartsWith("\`n")) { $x = $x.Substring(1) }; if ($x.EndsWith("\`n")) { $x = $x.Substring(0, $x.Length - 1) }; if ((TlHash $x) -ne $r.sha256) { $st = 'edited' } } } elseif ((TlHash $x) -ne $r.sha256) { $st = 'edited' } }; if ($st -ne 'ok') { $n++; '{0,-8} {1}  (sent {2} {3})' -f $st, ('${disp}' + $r.path), $r.key, $r.version_id } }`,
+    `$sk = Join-Path $d '${layout.skillsDir}'; if (Test-Path -LiteralPath $sk) { foreach ($x in @(Get-ChildItem -LiteralPath $sk -Directory -Force -Filter 'docket-*') + @(Get-ChildItem -LiteralPath $sk -Directory -Force -Filter '${LEGACY_SKILL_PREFIX}*')) { if (@($j.files | ForEach-Object { $_.key }) -notcontains ('skill:' + $x.Name)) { $n++; $o = ''; if ($x.Name.StartsWith('${LEGACY_SKILL_PREFIX}')) { $o = '  (old name)' }; '{0,-8} {1}{2}' -f 'extra', ('${disp}${layout.skillsDir}/' + $x.Name + '/'), $o } } }`,
     `if ($n -eq 0) { "Up to date: all $(@($j.files).Count) files match what Docket sent." } else { "Differs from what Docket sent: $n file(s). The install log in Agent files shows each version sent." } }`,
   ].join('; ');
   return { powershell, bash };

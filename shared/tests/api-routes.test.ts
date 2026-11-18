@@ -214,7 +214,7 @@ describe('field rules', () => {
   it('agent files: a key is agents_block or skill:<name>; a project layer needs a project, service takes none', () => {
     const key = (v: string) => agentFileParams.safeParse({ key: v }).success;
     expect(key('agents_block')).toBe(true);
-    expect(key('skill:tasklite-worker')).toBe(true);
+    expect(key('skill:docket-worker')).toBe(true);
     for (const bad of ['readme', 'skill:', 'skill:Worker', `skill:${'a'.repeat(61)}`]) {
       expect(key(bad), bad).toBe(false);
     }
@@ -306,8 +306,8 @@ describe('field rules', () => {
           install_id: 'ins_1',
           files: [
             {
-              key: 'skill:tasklite-worker',
-              name: 'tasklite-worker',
+              key: 'skill:docket-worker',
+              name: 'docket-worker',
               source: 'project',
               version_no: 2,
               edited_locally: true,

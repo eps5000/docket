@@ -16,16 +16,19 @@
  *   the root. A symlinked *file* is never written or read through, and files
  *   are opened with `O_NOFOLLOW` (where the OS has it), so a link swapped in
  *   after the check still isn't followed.
- * - **Never delete:** this module has no delete. Folders are created one
- *   level at a time, files are written in place. The callers write only the
- *   `tasklite-*` skill files, the manifest and the instructions file (whose
- *   text outside the Docket markers is kept byte for byte).
+ * - **Never delete, with one exception:** folders are created one level at
+ *   a time, files are written in place. The callers write only the
+ *   `docket-*` skill files, the manifest and the instructions file (whose
+ *   text outside the Docket markers is kept byte for byte). The one removal
+ *   (B28) is `removeRecordedSkillFolder`: an old `tasklite-*` skill folder
+ *   an earlier install recorded, only while it holds nothing but its
+ *   unmodified `SKILL.md`.
  *
  * Errors are `validation` ToolErrors with a plain message; none of them
  * quote anything from outside the root.
  */
 import { constants } from 'node:fs';
-import { lstat, mkdir, open, readdir, realpath, stat } from 'node:fs/promises';
+import { lstat, mkdir, open, readdir, realpath, rmdir, stat, unlink } from 'node:fs/promises';
 import { isAbsolute, join, relative, sep } from 'node:path';
 import { ToolError, hasControlChars } from '@docket/shared';
 
@@ -227,6 +230,41 @@ export class PushRoot {
     } finally {
       await fh.close();
     }
+  }
+
+  /**
+   * Remove an old skill folder an earlier install wrote and recorded (B28;
+   * BUILD_SPEC §5.17): `relDir` must be a real folder (not a link) holding
+   * exactly one regular file, `SKILL.md`, for which `unmodified` returns
+   * true. Anything else is left alone and the result is false.
+   */
+  async removeRecordedSkillFolder(
+    base: string,
+    relDir: string,
+    unmodified: (bytes: Buffer) => boolean,
+  ): Promise<boolean> {
+    const { dir, name } = PushRoot.split(relDir);
+    const parent = await this.folder(base, dir, false);
+    if (parent === null) return false;
+    const path = join(parent, name);
+    const info = await lstat(path).catch(() => null);
+    if (!info || info.isSymbolicLink() || !info.isDirectory()) return false;
+    const entries = await readdir(path, { withFileTypes: true });
+    if (entries.length !== 1 || entries[0]!.name !== 'SKILL.md' || !entries[0]!.isFile()) {
+      return false;
+    }
+    const file = join(path, 'SKILL.md');
+    const fh = await open(file, constants.O_RDONLY | NOFOLLOW);
+    let bytes: Buffer;
+    try {
+      bytes = await fh.readFile();
+    } finally {
+      await fh.close();
+    }
+    if (!unmodified(bytes)) return false;
+    await unlink(file);
+    await rmdir(path);
+    return true;
   }
 
   /** The names of the folders (or links to folders) in `relDir`; empty when it doesn't exist. */

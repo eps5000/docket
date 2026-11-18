@@ -381,7 +381,7 @@ describe('§7.13 crash recovery and SC-014 (MCP_SPEC §10 test 19)', () => {
     const third = await h.connect({ name: 'gemini-cli', version: '1.0.0' });
     const briefs = {
       'RCP-17':
-        'Work Docket item RCP-17 using the tasklite-worker skill.\nWorktree: C:/work/rcp-17 · branch rcp-17-week-reload · base origin/main @ 9a10624\nClaim with claim_lead, passing this workspace and this brief verbatim. Then get_context.\r\nConstraints: run `pnpm test`; don’t touch docs/. 🚀  ',
+        'Work Docket item RCP-17 using the docket-worker skill.\nWorktree: C:/work/rcp-17 · branch rcp-17-week-reload · base origin/main @ 9a10624\nClaim with claim_lead, passing this workspace and this brief verbatim. Then get_context.\r\nConstraints: run `pnpm test`; don’t touch docs/. 🚀  ',
       'RCP-25':
         'Work Docket item RCP-25. Worktree C:/work/rcp-25. If you must wait, park_run; don’t end silently.',
       'RCP-18':

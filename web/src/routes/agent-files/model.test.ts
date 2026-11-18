@@ -26,9 +26,9 @@ function detail(
   flag: AgentFileDetail['bundled_updated'] = null,
 ): AgentFileDetail {
   return {
-    key: 'skill:tasklite-worker',
+    key: 'skill:docket-worker',
     kind: 'skill',
-    name: 'tasklite-worker',
+    name: 'docket-worker',
     project: 'RCP',
     effective_layer: over.project ? 'project' : over.service ? 'service' : 'bundled',
     layers: {

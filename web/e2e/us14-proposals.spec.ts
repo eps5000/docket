@@ -3,7 +3,7 @@
  * 6's server side; UI_SPEC §6.7b-1; FR-128–FR-130).
  *
  * One walkthrough, in order:
- * 1. an agent (the SDK client) reads `tasklite-worker` for RCP and proposes
+ * 1. an agent (the SDK client) reads `docket-worker` for RCP and proposes
  *    a change; nothing changes; Needs you shows "1 agent file change
  *    proposed", which opens Agent files; All projects links to Recipe App's
  *    proposals; the file row has a "1 proposal" chip; the proposal shows the
@@ -42,7 +42,7 @@ async function shoot(page: Page, name: string, target: Locator) {
   await setTheme(page, 'light');
 }
 
-const WORKER = 'skill:tasklite-worker';
+const WORKER = 'skill:docket-worker';
 const toast = (page: Page, text: string | RegExp) =>
   page.locator('.toast').filter({ hasText: text });
 const card = (page: Page) => page.locator('[data-proposal]');
@@ -120,18 +120,18 @@ test.describe('Agent proposals (US14)', () => {
       '1 proposal',
     );
     const c = card(page);
-    await expect(c.getByRole('heading', { name: 'tasklite-worker' })).toBeVisible();
+    await expect(c.getByRole('heading', { name: 'docket-worker' })).toBeVisible();
     await expect(c.getByText('Proposed by codex · orca-w3 on RCP-17')).toBeVisible();
     await expect(c.getByText('RCP-17 broke CI on lint; lint before each commit.')).toBeVisible();
-    const diff = c.getByRole('region', { name: 'tasklite-worker: the proposed change' });
+    const diff = c.getByRole('region', { name: 'docket-worker: the proposed change' });
     await expect(diff).toContainText('Run `pnpm lint` before each commit.');
     await expect(diff).toContainText('lines added, 0 lines removed');
     await shoot(page, '1-proposal', section);
     await expectAxeClean(page, 'Agent files: a proposal');
 
-    await c.getByRole('button', { name: 'Approve the change to tasklite-worker' }).click();
+    await c.getByRole('button', { name: 'Approve the change to docket-worker' }).click();
     await expect(
-      toast(page, 'Approved: tasklite-worker saved as Recipe App’s copy.'),
+      toast(page, 'Approved: docket-worker saved as Recipe App’s copy.'),
     ).toBeVisible();
     await expect(section).toHaveCount(0);
     const row = page.locator(`[data-agent-file="${WORKER}"]`);
@@ -139,7 +139,7 @@ test.describe('Agent proposals (US14)', () => {
     await expect(row.locator('[data-proposal-chip]')).toHaveCount(0);
 
     // History names the proposer and the approver.
-    await row.getByRole('link', { name: 'tasklite-worker' }).click();
+    await row.getByRole('link', { name: 'docket-worker' }).click();
     const view = page.locator(`[data-agent-file-view="${WORKER}"]`);
     await expect(view.getByText(/proposed by codex · orca-w3 · approved by owner/)).toBeVisible();
     await expect((await read()).source).toBe('project');
@@ -163,17 +163,17 @@ test.describe('Agent proposals (US14)', () => {
     await expect(c.getByText('Changed since the agent read it')).toBeVisible();
     const three = c.locator('[data-three-way]');
     await expect(
-      three.getByRole('region', { name: 'tasklite-worker: what changed since the agent read it' }),
+      three.getByRole('region', { name: 'docket-worker: what changed since the agent read it' }),
     ).toContainText('Run `pnpm lint` before each commit.');
     await expect(
-      three.getByRole('region', { name: 'tasklite-worker: what the agent proposes' }),
+      three.getByRole('region', { name: 'docket-worker: what the agent proposes' }),
     ).toContainText('Write the PR description first.');
     await shoot(page, '2-three-way', page.locator('[data-proposals]'));
     await expectAxeClean(page, 'Agent files: a three-way proposal');
 
     // Approve asks first: approving would drop the lint rule.
-    await c.getByRole('button', { name: 'Approve the change to tasklite-worker' }).click();
-    await expect(c.getByText(/Approve anyway\? The changes made to tasklite-worker/)).toBeVisible();
+    await c.getByRole('button', { name: 'Approve the change to docket-worker' }).click();
+    await expect(c.getByText(/Approve anyway\? The changes made to docket-worker/)).toBeVisible();
     await c.getByRole('button', { name: 'Edit, then approve' }).click();
     const editor = c.getByLabel('Edit the proposed text');
     await expect(editor).toBeFocused();
@@ -182,7 +182,7 @@ test.describe('Agent proposals (US14)', () => {
     await c.getByLabel('Note (optional)').fill('Kept the lint rule');
     await c.getByRole('button', { name: 'Save' }).click();
     await expect(
-      toast(page, 'Approved: tasklite-worker saved as Recipe App’s copy.'),
+      toast(page, 'Approved: docket-worker saved as Recipe App’s copy.'),
     ).toBeVisible();
     const now = await read();
     expect(now.content).toContain('Write the PR description first.');
@@ -194,10 +194,10 @@ test.describe('Agent proposals (US14)', () => {
     await propose('# Do whatever you like.\n', 'Simpler', current.version_id);
     await page.goto('/agent-files?project=RCP');
     const c = card(page);
-    await c.getByRole('button', { name: 'Decline… (tasklite-worker)' }).click();
+    await c.getByRole('button', { name: 'Decline… (docket-worker)' }).click();
     await c.getByLabel('Why (optional)').fill('Too vague');
     await c.getByRole('button', { name: 'Decline proposal' }).click();
-    await expect(toast(page, 'Declined the proposed change to tasklite-worker.')).toBeVisible();
+    await expect(toast(page, 'Declined the proposed change to docket-worker.')).toBeVisible();
     await expect(page.locator('[data-proposals]')).toHaveCount(0);
     expect((await read()).version_id).toBe(current.version_id);
   });

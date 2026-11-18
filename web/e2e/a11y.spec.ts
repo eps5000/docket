@@ -92,7 +92,7 @@ const ROUTES: { name: string; path: string; ready: (p: Page) => Locator }[] = [
   { name: 'Settings', path: '/settings', ready: (p) => p.getByRole('heading', { level: 1 }) },
   {
     name: 'Agent files: one project, a file and its Workflow notes',
-    path: '/agent-files?project=RCP&file=skill:tasklite-worker',
+    path: '/agent-files?project=RCP&file=skill:docket-worker',
     ready: (p) => p.locator('[data-workflow="RCP"] .sectionhead'),
   },
   {

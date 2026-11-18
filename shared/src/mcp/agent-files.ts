@@ -29,12 +29,12 @@ import { AGENT_FILE_TARGET_RE, INSTALLED_FILE_KEY_RE, LIMITS, SHA256_RE } from '
 
 /** An agent file or the Workflow notes: `agents_block`, `workflow` or `skill:<name>`. */
 export const agentFileTarget = z.string().trim().regex(AGENT_FILE_TARGET_RE, {
-  error: 'Expected agents_block, workflow, or skill:<name> like skill:tasklite-worker.',
+  error: 'Expected agents_block, workflow, or skill:<name> like skill:docket-worker.',
 });
 
 /** An installed agent file: `agents_block` or `skill:<name>` (never `workflow`). */
 export const installedFileKey = z.string().trim().regex(INSTALLED_FILE_KEY_RE, {
-  error: 'Expected agents_block, or skill:<name> like skill:tasklite-worker.',
+  error: 'Expected agents_block, or skill:<name> like skill:docket-worker.',
 });
 
 /** A sha256 in hex; either case (compared lowercased). */
@@ -45,7 +45,7 @@ export const sha256Hex = z
 
 // ---- claim_lead.instructions (MCP_SPEC §5.4) ----
 
-/** One installed file as the `tasklite-check` script reports it. */
+/** One installed file as the `docket-check` script reports it. */
 export const instructionFileInput = z.strictObject({
   key: installedFileKey,
   sha256: sha256Hex,
@@ -53,9 +53,9 @@ export const instructionFileInput = z.strictObject({
   content: z.string().max(LIMITS.agent_file_content).optional(),
 });
 
-/** The output of the installed `tasklite-check` script. */
+/** The output of the installed `docket-check` script. */
 export const instructionsInput = z.strictObject({
-  /** The install's ID, from its `.tasklite-manifest.json`. */
+  /** The install's ID, from its `.docket-manifest.json`. */
   install_id: objectId.optional(),
   /** Empty, with `install_id`, means every installed file is missing. */
   files: z.array(instructionFileInput).max(LIMITS.instruction_files_max),

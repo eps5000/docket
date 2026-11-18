@@ -986,7 +986,7 @@ const RENDERERS: { [N in ToolName]: Renderer<N> } = {
     return lines.join('\n');
   },
   // Decision 30 (MCP_SPEC §5.10): one header line per file; the full text only with `file`.
-  // e.g. `skill:tasklite-worker · RCP's copy · afv_… · sha256 3f2a…`.
+  // e.g. `skill:docket-worker · RCP's copy · afv_… · sha256 3f2a…`.
   get_agent_files: (r) => {
     const lines = [s('get_agent_files', { project: r.project, count: r.files.length })];
     for (const f of r.files) {

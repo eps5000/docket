@@ -30,6 +30,7 @@
 import {
   ToolError,
   WORKFLOW_KEY,
+  mapLegacySkillKey,
   type AgentFileInEffect,
   type Proposal,
   type ProposalState,
@@ -69,12 +70,12 @@ interface ProposalRow {
   created_at: string;
 }
 
-/** "tasklite-worker", "AGENTS.md block", "Workflow notes". */
+/** "docket-worker", "AGENTS.md block", "Workflow notes". */
 export function targetName(key: string): string {
   return key === WORKFLOW_KEY ? 'Workflow notes' : agentFileName(key);
 }
 
-/** "tasklite-worker (RCP's copy)" / "tasklite-worker (the default)". */
+/** "docket-worker (RCP's copy)" / "docket-worker (the default)". */
 function targetWhere(key: string, project: string | null): string {
   if (key === WORKFLOW_KEY) return `the Workflow notes of ${project}`;
   return `${agentFileName(key)} (${project ? `${project}'s copy` : 'the default'})`;
@@ -140,7 +141,8 @@ export function createAgentProposalsService(_deps: ServiceDeps): AgentProposalsS
   return {
     files(r, input) {
       requireProject(r.db, input.project);
-      const want = input.file;
+      // An old `skill:tasklite-*` key still names its renamed file (B28).
+      const want = input.file === undefined ? undefined : mapLegacySkillKey(input.file);
       const files: AgentFileInEffect[] = effectiveAgentFiles(r.db, input.project).map((e) => ({
         key: e.key,
         kind: e.key.startsWith('skill:') ? 'skill' : 'agents_block',
@@ -173,7 +175,8 @@ export function createAgentProposalsService(_deps: ServiceDeps): AgentProposalsS
     propose(w, input) {
       const project = input.project ?? null;
       if (project) requireProject(w.db, project);
-      const key = input.file;
+      // An old `skill:tasklite-*` key still names its renamed file (B28).
+      const key = mapLegacySkillKey(input.file);
       if (key !== WORKFLOW_KEY && !isShippedKey(w.db, key)) {
         throw new ToolError(
           'validation',

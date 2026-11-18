@@ -182,8 +182,8 @@ test.describe('Install and check (US13)', () => {
     const what = d.locator('[data-install-what]');
     await expect(what).not.toHaveAttribute('open', '');
     await what.locator('summary').click();
-    await expect(what).toContainText('.claude/skills/tasklite-worker/SKILL.md');
-    await expect(what).toContainText('.claude/.tasklite-manifest.json');
+    await expect(what).toContainText('.claude/skills/docket-worker/SKILL.md');
+    await expect(what).toContainText('.claude/.docket-manifest.json');
     await expect(what).toContainText('Only the marked Docket section of CLAUDE.md is touched');
     await d.getByLabel('Repo folder').fill(HOST_REPO);
     await expect(method(page)).toHaveAttribute('data-install-method', 'push');
@@ -197,25 +197,25 @@ test.describe('Install and check (US13)', () => {
     );
     await expect(result.locator('li').filter({ hasText: 'CLAUDE.md' })).toContainText('Updated');
     await expect(
-      result.locator('li').filter({ hasText: '.claude/skills/tasklite-worker/SKILL.md' }),
+      result.locator('li').filter({ hasText: '.claude/skills/docket-worker/SKILL.md' }),
     ).toContainText('Created');
     await shoot(page, '2-dialog-push-result', d);
     await expectAxeClean(page, 'Install dialog: push result', { include: '[role="dialog"]' });
 
     // The files are there; CLAUDE.md keeps its own text byte for byte, then the section.
     const claude = sh(`cat ${REPO}/CLAUDE.md`);
-    expect(claude.startsWith(`${PRE}\n<!-- tasklite:begin -->\n## Work tracking: Docket`)).toBe(
+    expect(claude.startsWith(`${PRE}\n<!-- docket:begin -->\n## Work tracking: Docket`)).toBe(
       true,
     );
-    expect(claude).toContain('`tasklite-worker` skill');
+    expect(claude).toContain('`docket-worker` skill');
     expect(claude).not.toContain('{{');
-    expect(claude.endsWith('<!-- tasklite:end -->\n')).toBe(true);
+    expect(claude.endsWith('<!-- docket:end -->\n')).toBe(true);
     expect(sh(`ls ${REPO}/.claude/skills`).trim().split('\n')).toEqual([
-      'tasklite-coordinator',
-      'tasklite-lead-subagents',
-      'tasklite-planner',
-      'tasklite-review-packet',
-      'tasklite-worker',
+      'docket-coordinator',
+      'docket-lead-subagents',
+      'docket-planner',
+      'docket-review-packet',
+      'docket-worker',
     ]);
     await d.getByRole('button', { name: 'Done' }).click();
     await expect(d).toBeHidden();
@@ -232,7 +232,7 @@ test.describe('Install and check (US13)', () => {
     await expect(row).toContainText('Recipe App’s repo');
     await expect(row).toContainText('6 files');
     await row.getByRole('button', { name: 'Versions sent' }).click();
-    await expect(row.locator('[data-sent="skill:tasklite-worker"]')).toContainText(
+    await expect(row.locator('[data-sent="skill:docket-worker"]')).toContainText(
       'Docket’s version v1',
     );
     await row.getByRole('button', { name: 'Check', exact: true }).click();
@@ -240,15 +240,15 @@ test.describe('Install and check (US13)', () => {
 
     // Edit one installed file by hand and delete another.
     sh(
-      `printf '\\nLocal tweak: we squash on merge.\\n' >> ${REPO}/.claude/skills/tasklite-worker/SKILL.md && rm ${REPO}/.claude/skills/tasklite-planner/SKILL.md`,
+      `printf '\\nLocal tweak: we squash on merge.\\n' >> ${REPO}/.claude/skills/docket-worker/SKILL.md && rm ${REPO}/.claude/skills/docket-planner/SKILL.md`,
     );
     await row.getByRole('button', { name: 'Check', exact: true }).click();
     const result = row.locator('[data-check-result="differs"]');
     await expect(result).toContainText('2 files differ from what Docket sent');
-    const edited = result.locator('[data-check-file=".claude/skills/tasklite-worker/SKILL.md"]');
+    const edited = result.locator('[data-check-file=".claude/skills/docket-worker/SKILL.md"]');
     await expect(edited).toContainText('Edited locally');
     await expect(
-      result.locator('[data-check-file=".claude/skills/tasklite-planner/SKILL.md"]'),
+      result.locator('[data-check-file=".claude/skills/docket-planner/SKILL.md"]'),
     ).toContainText('Missing');
     await edited.getByRole('button', { name: 'Show diff' }).click();
     await expect(edited.locator('[data-diff]')).toContainText('Local tweak: we squash on merge.');
@@ -265,7 +265,7 @@ test.describe('Install and check (US13)', () => {
     await expect(method(page)).toHaveAttribute('data-install-method', 'push');
     await d.getByRole('button', { name: 'Install', exact: true }).click();
     await expect(
-      d.locator('[data-install-result="push"] li').filter({ hasText: 'tasklite-planner' }),
+      d.locator('[data-install-result="push"] li').filter({ hasText: 'docket-planner' }),
     ).toContainText('Created');
     await d.getByRole('button', { name: 'Done' }).click();
     const newest = logRows(page).first();
@@ -322,7 +322,7 @@ test.describe('Install and check (US13)', () => {
     await expect(row).toHaveAttribute('data-method', 'command');
     await expect(row).toContainText('Codex');
     await row.getByRole('button', { name: 'Check command' }).click();
-    await expect(row.locator('pre').first()).toContainText('.codex/.tasklite-manifest.json');
+    await expect(row.locator('pre').first()).toContainText('.codex/.docket-manifest.json');
     await expect(row.getByRole('button', { name: 'Copy' })).toHaveCount(2);
     await expectAxeClean(page, 'Install log: check command', { include: '[data-install-log]' });
   });

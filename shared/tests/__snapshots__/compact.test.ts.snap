@@ -31,7 +31,7 @@ exports[`every tool has a renderer > finish_run 1`] = `
 exports[`every tool has a renderer > get_agent_files 1`] = `
 "Agent files for RCP: 3
 agents_block · default · afv_01JD3A · sha256 a3f1c9e07b2d
-skill:tasklite-worker · RCP's copy · afv_01JD3B · sha256 5b0e7d2c91aa
+skill:docket-worker · RCP's copy · afv_01JD3B · sha256 5b0e7d2c91aa
 workflow · RCP's copy · none yet · sha256 e3b0c44298fc"
 `;
 
@@ -126,7 +126,7 @@ exports[`every tool has a renderer > log_subagent 1`] = `"Logged relayed explore
 
 exports[`every tool has a renderer > park_run 1`] = `"Parked run run_A · waiting on RCP-12 · resume_ready false"`;
 
-exports[`every tool has a renderer > propose_agent_file_change 1`] = `"Proposed skill:tasklite-worker change for RCP · afp_01JD4K · pending owner approval"`;
+exports[`every tool has a renderer > propose_agent_file_change 1`] = `"Proposed skill:docket-worker change for RCP · afp_01JD4K · pending owner approval"`;
 
 exports[`every tool has a renderer > publish_decision 1`] = `"Published dec_9 Units are metric internally; convert on display · agent"`;
 

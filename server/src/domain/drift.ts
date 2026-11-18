@@ -4,7 +4,7 @@
  * drift records against each install's manifest, and the remedies (*Adopt*,
  * *Restore*, *Keep local*).
  *
- * **Reports.** An agent's report is the installed `tasklite-check` script's
+ * **Reports.** An agent's report is the installed `docket-check` script's
  * output, passed as `claim_lead.instructions`; it is stored on the run inside
  * the claim's write. The push check reads every push install's location
  * through B24's guarded reader (`inspectPushInstall`) and never writes there.
@@ -15,7 +15,9 @@
  * **Drift.** Against the install's manifest, each file is:
  * - *edited*: reported with another hash;
  * - *missing*: in the manifest but not reported;
- * - *extra*: a `tasklite-*` skill the install didn't write;
+ * - *extra*: a `docket-*` skill the install didn't write, or an old
+ *   `tasklite-*` folder the manifest doesn't list (B28: one an install kept
+ *   because it was edited locally, "old name, edited locally");
  * - otherwise as sent. Any other key the install didn't write is *unknown*:
  *   listed on the run, never a problem on its own.
  * One open record per install and file. A later report updates it when the
@@ -36,6 +38,8 @@ import {
   INSTALLED_FILE_KEY_RE,
   ToolError,
   findSecret,
+  isLegacySkillKey,
+  mapLegacySkillKey,
   type Drift,
   type DriftChange,
   type DriftState,
@@ -117,8 +121,30 @@ function reportById(db: Db, id: string | null): ReportRow | undefined {
 const filesOf = (r: ReportRow | undefined): ReportFiles =>
   r ? (JSON.parse(r.files) as ReportFiles) : {};
 
-/** An extra skill folder the install didn't write, by Docket's naming. */
-const isTaskLiteSkill = (key: string) => key.startsWith('skill:tasklite-');
+/** An extra skill folder the install didn't write, by Docket's naming (old or new). */
+const isDocketSkill = (key: string) => key.startsWith('skill:docket-') || isLegacySkillKey(key);
+
+/**
+ * Old `skill:tasklite-*` keys in a report (B28), from an old check script or a
+ * folder kept under its old name. Mapped to `skill:docket-*` when that is
+ * the file the install wrote under the old name (`installed_as`, from the
+ * migration), or when nothing else reports it; kept as they are when the
+ * install also wrote the new folder, so the old one shows as extra.
+ */
+export function mapReportKeys<T extends { key: string }>(
+  files: readonly T[],
+  manifest: ManifestMap | undefined,
+): T[] {
+  const reported = new Set(files.map((f) => f.key));
+  return files.map((f) => {
+    if (!isLegacySkillKey(f.key)) return f;
+    const mapped = mapLegacySkillKey(f.key);
+    const sent = manifest?.[mapped];
+    const oldName = f.key.slice('skill:'.length);
+    if (sent ? sent.installed_as === oldName : !reported.has(mapped)) return { ...f, key: mapped };
+    return f;
+  });
+}
 
 /**
  * Compare a report with the install's manifest: edited, missing and extra
@@ -134,7 +160,7 @@ export function differences(manifest: ManifestMap, files: ReportFiles): Differen
     }
   }
   for (const [key, got] of Object.entries(files)) {
-    if (!(key in manifest) && isTaskLiteSkill(key)) {
+    if (!(key in manifest) && isDocketSkill(key)) {
       out.push({ key, change: 'extra', local: got.sha256 });
     }
   }
@@ -161,9 +187,10 @@ function normalise(
   return out;
 }
 
-/** "tasklite-worker edited", "AGENTS.md block missing", "tasklite-old added". */
+/** "docket-worker edited", "AGENTS.md block missing", "docket-old added", "tasklite-planner (old name, edited locally)". */
 function changeText(key: string, change: DriftChange): string {
   const name = agentFileName(key);
+  if (change === 'extra' && isLegacySkillKey(key)) return `${name} (old name, edited locally)`;
   if (change === 'missing') return `${name} missing`;
   if (change === 'extra') return `${name} added`;
   return `${name} edited`;
@@ -234,7 +261,8 @@ function contentWithheld(db: Db, row: DriftRow): 'secret' | null {
 function toDrift(db: Db, row: DriftRow): Drift {
   const install = installById(db, row.install_id)!;
   const report = reportById(db, row.report_id);
-  const sent = manifestOf(install)[row.file_key];
+  // A folder kept under its old name compares with the file it was renamed to (B28).
+  const sent = manifestOf(install)[mapLegacySkillKey(row.file_key)];
   const run = report?.run_id
     ? (db.sqlite
         .prepare('SELECT item_id, client, label FROM runs WHERE id = ?')
@@ -338,7 +366,7 @@ function record(
   const db = w.db;
   const install = input.install_id ? installById(db, input.install_id) : undefined;
   const manifest = install ? manifestOf(install) : undefined;
-  const files = normalise(input.files, manifest);
+  const files = normalise(mapReportKeys(input.files, manifest), manifest);
   const runItem = input.run_id
     ? ((
         db.sqlite.prepare('SELECT item_id FROM runs WHERE id = ?').get(input.run_id) as
@@ -510,7 +538,7 @@ export function driftProblems(
 }
 
 /**
- * "Instructions: tasklite-worker · Recipe App's copy v2" for each run of an
+ * "Instructions: docket-worker · Recipe App's copy v2" for each run of an
  * item that reported them (FR-133): which version each file was sent at,
  * and ⚠ "edited locally" when the report differs from it.
  */
@@ -532,7 +560,7 @@ export function runInstructions(db: Db, itemId: string): RunInstructions[] {
     const manifest = install ? manifestOf(install) : {};
     const keys = [...new Set([...Object.keys(manifest), ...Object.keys(files)])].sort(
       (a, b) =>
-        (a === 'skill:tasklite-worker' ? -1 : 0) - (b === 'skill:tasklite-worker' ? -1 : 0) ||
+        (a === 'skill:docket-worker' ? -1 : 0) - (b === 'skill:docket-worker' ? -1 : 0) ||
         (a.startsWith('skill:') ? 0 : 1) - (b.startsWith('skill:') ? 0 : 1) ||
         a.localeCompare(b),
     );
@@ -563,13 +591,27 @@ export function runInstructions(db: Db, itemId: string): RunInstructions[] {
           name: agentFileName(key),
           source: version ? (version.layer === 'project' ? 'project' : 'default') : null,
           version_no: version?.version_no ?? null,
-          edited_locally: edited || (!sent && !!install && isTaskLiteSkill(key)),
+          edited_locally: edited || (!sent && !!install && isDocketSkill(key)),
           drift_id: edited || (!sent && install) ? (drift?.id ?? null) : null,
         };
       }),
     });
   }
   return out;
+}
+
+/**
+ * Adopting a folder kept under its old name (B28): its frontmatter `name:`
+ * line takes the new name, so the adopted file installs as a working skill.
+ * Nothing else in the text changes.
+ */
+function renameSkillFrontmatter(text: string, oldKey: string, newKey: string): string {
+  const from = oldKey.slice('skill:'.length);
+  const to = newKey.slice('skill:'.length);
+  const m = /^---\r?\n[\s\S]*?\r?\n---(\r?\n|$)/.exec(text);
+  if (!m) return text;
+  const head = m[0].replace(new RegExp(`^name:[ \\t]*${from}[ \\t]*$`, 'm'), `name: ${to}`);
+  return head + text.slice(m[0].length);
 }
 
 // ---- The service ----
@@ -681,29 +723,35 @@ export function createDriftService(deps: ServiceDeps): DriftService {
           `${name} is missing there, so there's nothing to adopt. Restore it, or keep it missing with Keep local.`,
         );
       }
-      if (!isShippedKey(w.db, row.file_key)) {
+      if (!isShippedKey(w.db, mapLegacySkillKey(row.file_key))) {
         throw new ToolError(
           'validation',
           `${name} isn't one of the files Docket ships, so it can't be adopted. Keep it local, or remove the folder.`,
         );
       }
-      const content = localContent(w.db, row);
+      // A folder kept under its old name is adopted as the file it was renamed to (B28).
+      const key = mapLegacySkillKey(row.file_key);
+      const local = localContent(w.db, row);
+      const content =
+        local !== null && key !== row.file_key
+          ? renameSkillFrontmatter(local, row.file_key, key)
+          : local;
       if (content === null && contentWithheld(w.db, row) === 'secret') {
         throw new ToolError(
           'validation',
-          `Content withheld: the local text of ${name} looked like a secret, so Docket didn't keep it. Remove the secret from the file there; the next tasklite-check report sends the text.`,
+          `Content withheld: the local text of ${name} looked like a secret, so Docket didn't keep it. Remove the secret from the file there; the next docket-check report sends the text.`,
         );
       }
       if (content === null || content.trim() === '') {
         throw new ToolError(
           'validation',
-          `Docket doesn't have the local text of ${name}. Run tasklite-check on that machine to send the text: the next agent claim there does it.`,
+          `Docket doesn't have the local text of ${name}. Run docket-check on that machine to send the text: the next agent claim there does it.`,
         );
       }
       const install = installById(w.db, row.install_id)!;
       const where = whereOf(install, reportById(w.db, row.report_id));
       const saved = saveAgentFileEdit(w, {
-        key: row.file_key,
+        key,
         project: row.project_key,
         content,
         note: `Adopted the local edit from ${where}`.slice(0, 500),
@@ -723,6 +771,12 @@ export function createDriftService(deps: ServiceDeps): DriftService {
 
     async restorePrepare(r, { id }): Promise<PreparedRestore> {
       const row = requireOpen(r.db, id);
+      if (row.change === 'extra' && isLegacySkillKey(row.file_key)) {
+        throw new ToolError(
+          'validation',
+          `Docket removes an old-name folder only while it is unmodified, and ${agentFileName(row.file_key)} was edited. Adopt it as ${agentFileName(mapLegacySkillKey(row.file_key))}, or Keep local.`,
+        );
+      }
       if (row.change === 'extra') {
         throw new ToolError(
           'validation',

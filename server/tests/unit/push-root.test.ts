@@ -92,15 +92,15 @@ describe('PushRoot: base folders, reads and writes stay inside the root', () => 
     const root = await PushRoot.open(rootDir, null);
     const base = await root.base('recipes');
     expect(isInside(root.real, base)).toBe(true);
-    await root.write(base, '.claude/skills/tasklite-worker/SKILL.md', Buffer.from('hi'));
+    await root.write(base, '.claude/skills/docket-worker/SKILL.md', Buffer.from('hi'));
     expect(
-      readFileSync(join(rootDir, 'recipes/.claude/skills/tasklite-worker/SKILL.md'), 'utf8'),
+      readFileSync(join(rootDir, 'recipes/.claude/skills/docket-worker/SKILL.md'), 'utf8'),
     ).toBe('hi');
-    expect(await root.read(base, '.claude/skills/tasklite-worker/SKILL.md')).toEqual(
+    expect(await root.read(base, '.claude/skills/docket-worker/SKILL.md')).toEqual(
       Buffer.from('hi'),
     );
-    expect(await root.read(base, '.claude/skills/tasklite-nope/SKILL.md')).toBeNull();
-    expect(await root.folders(base, '.claude/skills')).toEqual(['tasklite-worker']);
+    expect(await root.read(base, '.claude/skills/docket-nope/SKILL.md')).toBeNull();
+    expect(await root.folders(base, '.claude/skills')).toEqual(['docket-worker']);
   });
 
   it('refuses a missing root, and a root that is a file', async () => {
@@ -157,12 +157,12 @@ describe('PushRoot: base folders, reads and writes stay inside the root', () => 
     const base = await root.base('recipes');
     await refused(
       'writing through a .claude folder linked outside',
-      () => root.write(base, '.claude/skills/tasklite-worker/SKILL.md', Buffer.from('x')),
+      () => root.write(base, '.claude/skills/docket-worker/SKILL.md', Buffer.from('x')),
       /links outside the push folder/,
     );
     await refused(
       'reading through a .claude folder linked outside',
-      () => root.read(base, '.claude/skills/tasklite-worker/SKILL.md'),
+      () => root.read(base, '.claude/skills/docket-worker/SKILL.md'),
       /links outside the push folder/,
     );
     await refused(

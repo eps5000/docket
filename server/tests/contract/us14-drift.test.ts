@@ -6,7 +6,7 @@
  *   here) finds it within one interval; a check never writes in the folder,
  *   and a quiet check writes nothing to the database;
  * - **agent reports:** install, hand-edit, then `claim_lead` with the
- *   `tasklite-check` report finds it; the run shows "edited locally";
+ *   `docket-check` report finds it; the run shows "edited locally";
  * - **remedies:** *Adopt* (undoable), *Restore* (push rewrites the files; a
  *   command install returns the command), *Keep local* (the same hash stays
  *   quiet, a new hash alerts again);
@@ -34,7 +34,7 @@ afterEach(async () => {
   tmp = undefined;
 });
 
-const WORKER = 'skill:tasklite-worker';
+const WORKER = 'skill:docket-worker';
 const sha256 = (text: string) => createHash('sha256').update(text, 'utf8').digest('hex');
 
 /** A seeded harness with the shipped files, a temporary push folder, and the owner's API. */
@@ -91,7 +91,7 @@ async function pushInstall(owner: Owner): Promise<string> {
 const openDrift = async (owner: Owner) =>
   ((await owner('GET', '/api/drift?state=open')).body.drift as S[]) ?? [];
 
-const workerPath = (repo: string) => join(repo, '.claude/skills/tasklite-worker/SKILL.md');
+const workerPath = (repo: string) => join(repo, '.claude/skills/docket-worker/SKILL.md');
 
 /** Every file under `dir` with its bytes and mtime: a check must leave them all as they were. */
 function snapshot(dir: string): Map<string, string> {
@@ -111,10 +111,10 @@ const eventCount = () =>
   (h!.server.runtime.db.sqlite.prepare('SELECT count(*) AS n FROM events').get() as { n: number })
     .n;
 
-/** The tasklite-check report for `repo`, as the installed script prints it. */
+/** The docket-check report for `repo`, as the installed script prints it. */
 function checkReport(repo: string, opts: { withText?: string[] } = {}) {
   const manifest = JSON.parse(
-    readFileSync(join(repo, '.claude/.tasklite-manifest.json'), 'utf8'),
+    readFileSync(join(repo, '.claude/.docket-manifest.json'), 'utf8'),
   ) as { install_id: string; files: { key: string; path: string; sha256: string }[] };
   const files = manifest.files.flatMap((f) => {
     let text: string;
@@ -124,7 +124,7 @@ function checkReport(repo: string, opts: { withText?: string[] } = {}) {
       return [];
     }
     if (f.key === 'agents_block') {
-      const m = /<!-- tasklite:begin -->\n([\s\S]*?)\n<!-- tasklite:end -->/.exec(text);
+      const m = /<!-- docket:begin -->\n([\s\S]*?)\n<!-- docket:end -->/.exec(text);
       if (!m) return [];
       text = m[1]!;
     }
@@ -211,7 +211,7 @@ describe('the scheduled push check (SC-017: within one interval)', () => {
         item_id: null,
         drift_id: found[0]!.id,
         reason:
-          'tasklite-worker edited outside Docket · Recipe App · recipes · found by the scheduled check',
+          'docket-worker edited outside Docket · Recipe App · recipes · found by the scheduled check',
       });
     } finally {
       job.stop();
@@ -270,18 +270,18 @@ describe('remedies', () => {
     const first = await pushInstall(owner);
     const sent = readFileSync(workerPath(repo), 'utf8');
     writeFileSync(workerPath(repo), `${sent}\n- Restore me.\n`);
-    rmSync(join(repo, '.claude/skills/tasklite-planner/SKILL.md'));
+    rmSync(join(repo, '.claude/skills/docket-planner/SKILL.md'));
     await driftCheckOnce(h!.server.runtime);
     const open = await openDrift(owner);
     expect(open.map((x) => [x.file_key, x.change]).sort()).toEqual([
-      ['skill:tasklite-planner', 'missing'],
+      ['skill:docket-planner', 'missing'],
       [WORKER, 'edited'],
     ]);
     const r = await owner('POST', `/api/drift/${open[0]!.id as string}/restore`, {});
     expect(r.status, JSON.stringify(r.body)).toBe(200);
     expect(r.body.install).toMatchObject({ install_id: expect.not.stringMatching(first) });
     expect(readFileSync(workerPath(repo), 'utf8')).toBe(sent);
-    expect(statSync(join(repo, '.claude/skills/tasklite-planner/SKILL.md')).isFile()).toBe(true);
+    expect(statSync(join(repo, '.claude/skills/docket-planner/SKILL.md')).isFile()).toBe(true);
     expect(await openDrift(owner)).toEqual([]);
     expect((await driftCheckOnce(h!.server.runtime)).drift_ids).toEqual([]);
     // Not undoable.
@@ -292,18 +292,18 @@ describe('remedies', () => {
   it('missing and extra files: Adopt refuses missing, Restore refuses extra, Keep local takes both', async () => {
     const { owner, repo } = await start();
     await pushInstall(owner);
-    rmSync(join(repo, '.claude/skills/tasklite-planner/SKILL.md'));
-    mkdirSync(join(repo, '.claude/skills/tasklite-old'));
-    writeFileSync(join(repo, '.claude/skills/tasklite-old/SKILL.md'), '# Old skill\n');
+    rmSync(join(repo, '.claude/skills/docket-planner/SKILL.md'));
+    mkdirSync(join(repo, '.claude/skills/docket-old'));
+    writeFileSync(join(repo, '.claude/skills/docket-old/SKILL.md'), '# Old skill\n');
     mkdirSync(join(repo, '.claude/skills/my-own-skill'));
     await driftCheckOnce(h!.server.runtime);
     const open = await openDrift(owner);
     const missing = open.find((x) => x.change === 'missing')!;
     const extra = open.find((x) => x.change === 'extra')!;
     expect(open).toHaveLength(2);
-    expect(missing).toMatchObject({ file_key: 'skill:tasklite-planner', local_sha256: null });
+    expect(missing).toMatchObject({ file_key: 'skill:docket-planner', local_sha256: null });
     expect(extra).toMatchObject({
-      file_key: 'skill:tasklite-old',
+      file_key: 'skill:docket-old',
       local_sha256: sha256('# Old skill\n'),
       local_content: '# Old skill\n',
       sent_version_id: null,
@@ -376,7 +376,7 @@ describe('a secret in a reported file never blocks claiming', () => {
     const adopt = await owner('POST', `/api/drift/${d!.id as string}/adopt`, {});
     expect(adopt.status).toBe(400);
     expect((adopt.body.error as S).message).toContain(
-      'Content withheld: the local text of tasklite-worker looked like a secret',
+      'Content withheld: the local text of docket-worker looked like a secret',
     );
     expect(JSON.stringify(adopt.body)).not.toContain(SECRET);
     // The other remedies still work.
@@ -442,7 +442,7 @@ describe('agent reports on claim_lead (SC-017: by the next claim)', () => {
         '|---|---:|---:|',
         `| without instructions | ${sizes.without.length} | ${tokens(sizes.without)} |`,
         `| with instructions, 6 files, none edited (typical) | ${sizes.typical.length} | ${tokens(sizes.typical)} |`,
-        `| with instructions, tasklite-worker edited (its ${edited.length}-character text included) | ${sizes.edited.length} | ${tokens(sizes.edited)} |`,
+        `| with instructions, docket-worker edited (its ${edited.length}-character text included) | ${sizes.edited.length} | ${tokens(sizes.edited)} |`,
       ].join('\n'),
     );
     expect(tokens(sizes.typical) - tokens(sizes.without)).toBeLessThanOrEqual(250);
@@ -467,7 +467,7 @@ describe('agent reports on claim_lead (SC-017: by the next claim)', () => {
     const files = ri.files as S[];
     expect(files[0]).toEqual({
       key: WORKER,
-      name: 'tasklite-worker',
+      name: 'docket-worker',
       source: 'default',
       version_no: 1,
       edited_locally: true,
@@ -477,7 +477,7 @@ describe('agent reports on claim_lead (SC-017: by the next claim)', () => {
     // The problem names who reported it.
     const needs = await owner('GET', '/api/needs-you?scope=all');
     expect((needs.body.problems as S[]).find((p) => p.drift_id === d!.id)?.reason).toBe(
-      'tasklite-worker edited outside Docket · Recipe App · recipes · reported by claude · orca-w3 on RCP-17',
+      'docket-worker edited outside Docket · Recipe App · recipes · reported by claude · orca-w3 on RCP-17',
     );
 
     // Keep local: the same hash, reported again, raises nothing.
@@ -546,7 +546,7 @@ describe('agent reports on claim_lead (SC-017: by the next claim)', () => {
     expect(ri.files).toEqual([
       {
         key: WORKER,
-        name: 'tasklite-worker',
+        name: 'docket-worker',
         source: null,
         version_no: null,
         edited_locally: false,
@@ -599,7 +599,7 @@ describe('agent reports on claim_lead (SC-017: by the next claim)', () => {
     expect(worker.local_content).toBeNull();
     const adopt = await owner('POST', `/api/drift/${worker.id as string}/adopt`, {});
     expect(adopt.status).toBe(400);
-    expect((adopt.body.error as S).message).toContain('Run tasklite-check on that machine');
+    expect((adopt.body.error as S).message).toContain('Run docket-check on that machine');
     const r = await owner('POST', `/api/drift/${worker.id as string}/restore`, {});
     expect(r.status, JSON.stringify(r.body)).toBe(200);
     expect((r.body.install as S).command).toMatchObject({

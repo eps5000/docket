@@ -264,8 +264,8 @@ export const VALID_ARGS: Record<ToolName, Record<string, unknown>> = {
   get_agent_files: { project: 'RCP' },
   propose_agent_file_change: {
     project: 'RCP',
-    file: 'skill:tasklite-worker',
-    content: '---\nname: tasklite-worker\n---\n',
+    file: 'skill:docket-worker',
+    content: '---\nname: docket-worker\n---\n',
     reason: 'Run the linter before each commit.',
     based_on_version_id: 'afv_1',
   },

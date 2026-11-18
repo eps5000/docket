@@ -105,7 +105,7 @@ describe('stubs', () => {
           install_id: 'ins_1',
           files: [
             { key: 'agents_block', sha256: sha },
-            { key: 'skill:tasklite-worker', sha256: sha.toUpperCase(), content: '# edited\n' },
+            { key: 'skill:docket-worker', sha256: sha.toUpperCase(), content: '# edited\n' },
           ],
         },
       }),

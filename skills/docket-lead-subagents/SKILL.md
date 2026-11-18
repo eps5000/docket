@@ -1,5 +1,5 @@
 ---
-name: tasklite-lead-subagents
+name: docket-lead-subagents
 description: Lead a Task Lite item while delegating to subagents. Covers one lead per item, child runs for subagents with their own connection, log_subagent with honest provenance for those without, resources and workspaces per child, and keeping the lead alive while subagents work. Use when you hold the lead on an item and are about to fan work out to subagents or helper agents.
 ---
 

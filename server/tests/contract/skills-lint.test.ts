@@ -174,11 +174,11 @@ const skills = skillFiles();
 describe('skills lint (T148)', () => {
   it('finds the five shipped skills', () => {
     expect(skills.map((s) => s.folder).sort()).toEqual([
-      'tasklite-coordinator',
-      'tasklite-lead-subagents',
-      'tasklite-planner',
-      'tasklite-review-packet',
-      'tasklite-worker',
+      'docket-coordinator',
+      'docket-lead-subagents',
+      'docket-planner',
+      'docket-review-packet',
+      'docket-worker',
     ]);
   });
 

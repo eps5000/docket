@@ -38,8 +38,8 @@ import { CONTAINER } from './fixtures/container';
 
 useSeededContainer();
 
-const SKILL = '/app/skills/tasklite-worker/SKILL.md';
-const BACKUP = '/tmp/tasklite-worker.SKILL.md';
+const SKILL = '/app/skills/docket-worker/SKILL.md';
+const BACKUP = '/tmp/docket-worker.SKILL.md';
 
 function docker(args: string[]): string {
   return execFileSync('docker', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
@@ -92,7 +92,7 @@ async function shoot(page: Page, name: string, target: Locator) {
 const toast = (page: Page, text: string | RegExp) =>
   page.locator('.toast').filter({ hasText: text });
 const fileRow = (page: Page, key: string) => page.locator(`[data-agent-file="${key}"]`);
-const view = (page: Page, key = 'skill:tasklite-worker') =>
+const view = (page: Page, key = 'skill:docket-worker') =>
   page.locator(`[data-agent-file-view="${key}"]`);
 
 /** The internal words the redesign keeps off these screens (B25). */
@@ -149,34 +149,34 @@ test.describe('Agent files (US13)', () => {
     const table = page.getByRole('table', { name: 'Default agent files' });
     await expect(table.getByRole('row')).toHaveCount(7);
     for (const key of [
-      'skill:tasklite-coordinator',
-      'skill:tasklite-lead-subagents',
-      'skill:tasklite-planner',
-      'skill:tasklite-review-packet',
-      'skill:tasklite-worker',
+      'skill:docket-coordinator',
+      'skill:docket-lead-subagents',
+      'skill:docket-planner',
+      'skill:docket-review-packet',
+      'skill:docket-worker',
       'agents_block',
     ]) {
       await expect(fileRow(page, key)).toHaveAttribute('data-default', 'task-lite');
       await expect(fileRow(page, key).getByText('Docket’s version')).toBeVisible();
     }
 
-    await fileRow(page, 'skill:tasklite-worker')
-      .getByRole('link', { name: 'tasklite-worker' })
+    await fileRow(page, 'skill:docket-worker')
+      .getByRole('link', { name: 'docket-worker' })
       .click();
-    await expect(page).toHaveURL(/file=skill%3Atasklite-worker/);
+    await expect(page).toHaveURL(/file=skill%3Adocket-worker/);
     const v = view(page);
-    await expect(v.getByRole('heading', { name: 'tasklite-worker' })).toBeVisible();
+    await expect(v.getByRole('heading', { name: 'docket-worker' })).toBeVisible();
     await expect(
       v.getByText('Every project uses Docket’s version, unless it has its own copy.'),
     ).toBeVisible();
-    await expect(v.getByLabel('Front matter')).toContainText('name: tasklite-worker');
+    await expect(v.getByLabel('Front matter')).toContainText('name: docket-worker');
     await expect(v.locator('[data-markdown] h1').first()).toBeVisible();
     await expectPlainWords(page);
     await shoot(page, '1-all-projects', page.locator('.agent-files'));
     await expectAxeClean(page, 'Agent files: All projects, a file');
 
     await v.getByRole('group', { name: 'Show as' }).getByRole('button', { name: 'Raw' }).click();
-    await expect(v.locator('pre.afraw')).toContainText('name: tasklite-worker');
+    await expect(v.locator('pre.afraw')).toContainText('name: docket-worker');
     await v
       .getByRole('group', { name: 'Show as' })
       .getByRole('button', { name: 'Rendered' })
@@ -186,8 +186,8 @@ test.describe('Agent files (US13)', () => {
   test('2. edit the default (note required), compare, history; Reset to Docket’s version and Undo', async ({
     ownerPage: page,
   }) => {
-    await page.goto('/agent-files?project=all&file=skill:tasklite-worker');
-    await expect(page).toHaveURL(/\/agent-files\?file=skill%3Atasklite-worker$/);
+    await page.goto('/agent-files?project=all&file=skill:docket-worker');
+    await expect(page).toHaveURL(/\/agent-files\?file=skill%3Adocket-worker$/);
     const v = view(page);
     await v.getByRole('button', { name: 'Edit', exact: true }).click();
     const editor = v.getByLabel('Edit file');
@@ -201,13 +201,13 @@ test.describe('Agent files (US13)', () => {
     await expectAxeClean(page, 'Agent files: editing the default');
     await v.getByLabel('Note (required)').fill('Squash on merge.');
     await v.getByRole('button', { name: 'Save' }).click();
-    await expect(toast(page, 'Saved the default tasklite-worker (v1).')).toBeVisible();
+    await expect(toast(page, 'Saved the default docket-worker (v1).')).toBeVisible();
     await expect(v.getByLabel('Edit file')).toHaveCount(0);
 
-    const row = fileRow(page, 'skill:tasklite-worker');
+    const row = fileRow(page, 'skill:docket-worker');
     await expect(row).toHaveAttribute('data-default', 'edited');
     await expect(row.getByText('Edited')).toBeVisible();
-    await expect(row.getByRole('button', { name: /^Reset tasklite-worker/ })).toBeVisible();
+    await expect(row.getByRole('button', { name: /^Reset docket-worker/ })).toBeVisible();
     await expect(v.getByText(/Edited default v1 · owner · .* · “Squash on merge\.”/)).toBeVisible();
 
     // Compare with Docket's version: only the added lines.
@@ -230,24 +230,24 @@ test.describe('Agent files (US13)', () => {
     );
     await expectAxeClean(page, 'Agent files: history');
 
-    // Edit tasklite-planner's default too; Reset it to Docket's version, then Undo.
-    await page.goto('/agent-files?file=skill:tasklite-planner');
-    const pv = view(page, 'skill:tasklite-planner');
+    // Edit docket-planner's default too; Reset it to Docket's version, then Undo.
+    await page.goto('/agent-files?file=skill:docket-planner');
+    const pv = view(page, 'skill:docket-planner');
     await pv.getByRole('button', { name: 'Edit', exact: true }).click();
     const pe = pv.getByLabel('Edit file');
     await pe.fill(`${(await pe.inputValue()).trimEnd()}\n\n- Plans live in specs/.\n`);
     await pv.getByLabel('Note (required)').fill('Plans in specs/.');
     await pv.getByRole('button', { name: 'Save' }).click();
-    await expect(toast(page, 'Saved the default tasklite-planner (v1).')).toBeVisible();
+    await expect(toast(page, 'Saved the default docket-planner (v1).')).toBeVisible();
     await pv.getByRole('button', { name: 'Reset to Docket’s version' }).click();
-    const reset = toast(page, 'The default tasklite-planner is Docket’s version again.');
+    const reset = toast(page, 'The default docket-planner is Docket’s version again.');
     await expect(reset).toBeVisible();
-    await expect(fileRow(page, 'skill:tasklite-planner')).toHaveAttribute(
+    await expect(fileRow(page, 'skill:docket-planner')).toHaveAttribute(
       'data-default',
       'task-lite',
     );
     await reset.getByRole('button', { name: 'Undo' }).click();
-    await expect(fileRow(page, 'skill:tasklite-planner')).toHaveAttribute('data-default', 'edited');
+    await expect(fileRow(page, 'skill:docket-planner')).toHaveAttribute('data-default', 'edited');
   });
 
   test('3. Recipe App: Customize, its copy, Customized in, Use default and Undo, Compare', async ({
@@ -263,10 +263,10 @@ test.describe('Agent files (US13)', () => {
     await expect(
       page.getByRole('button', { name: 'Install into Recipe App’s repo' }),
     ).toBeVisible();
-    const worker = fileRow(page, 'skill:tasklite-worker');
+    const worker = fileRow(page, 'skill:docket-worker');
     await expect(worker).toHaveAttribute('data-using', 'default');
     await expect(worker).toContainText('Default (edited)');
-    await expect(fileRow(page, 'skill:tasklite-coordinator')).toContainText('Default');
+    await expect(fileRow(page, 'skill:docket-coordinator')).toContainText('Default');
 
     // Customize: the editor opens on a new copy, starting from the default.
     await worker.getByRole('button', { name: /^Customize for Recipe App/ }).click();
@@ -280,7 +280,7 @@ test.describe('Agent files (US13)', () => {
     await editor.fill(`${(await editor.inputValue()).trimEnd()}\n${COPY_LINE}\n`);
     await v.getByLabel('Note (required)').fill('RCP uses Spec Kit.');
     await v.getByRole('button', { name: 'Save' }).click();
-    await expect(toast(page, 'Customized tasklite-worker for Recipe App.')).toBeVisible();
+    await expect(toast(page, 'Customized docket-worker for Recipe App.')).toBeVisible();
     await expect(worker).toHaveAttribute('data-using', 'copy');
     await expect(worker).toContainText(/Recipe App’s copy · edited/);
     await expect(worker.getByRole('button', { name: /^Use default/ })).toBeVisible();
@@ -298,10 +298,10 @@ test.describe('Agent files (US13)', () => {
 
     // All projects: "Customized in" links to Recipe App's view of the file.
     await chooseProject(page, 'All projects');
-    const inCell = fileRow(page, 'skill:tasklite-worker').locator('[data-customized-in]');
+    const inCell = fileRow(page, 'skill:docket-worker').locator('[data-customized-in]');
     await expect(inCell.getByRole('link', { name: 'Recipe App' })).toBeVisible();
     await expect(
-      fileRow(page, 'skill:tasklite-coordinator').locator('[data-customized-in]'),
+      fileRow(page, 'skill:docket-coordinator').locator('[data-customized-in]'),
     ).toHaveText('—');
     await inCell.getByRole('link', { name: 'Recipe App' }).click();
     await expect(
@@ -311,22 +311,22 @@ test.describe('Agent files (US13)', () => {
 
     // Docs Site still uses the default.
     await page.goto('/agent-files?project=DOC');
-    await expect(fileRow(page, 'skill:tasklite-worker')).toHaveAttribute('data-using', 'default');
+    await expect(fileRow(page, 'skill:docket-worker')).toHaveAttribute('data-using', 'default');
 
     // Use default, then Undo from the toast.
     await page.goto('/agent-files?project=RCP');
-    await fileRow(page, 'skill:tasklite-worker')
+    await fileRow(page, 'skill:docket-worker')
       .getByRole('button', { name: /^Use default/ })
       .click();
-    const back = toast(page, 'Recipe App uses the default tasklite-worker again.');
+    const back = toast(page, 'Recipe App uses the default docket-worker again.');
     await expect(back).toBeVisible();
-    await expect(fileRow(page, 'skill:tasklite-worker')).toHaveAttribute('data-using', 'default');
+    await expect(fileRow(page, 'skill:docket-worker')).toHaveAttribute('data-using', 'default');
     await back.getByRole('button', { name: 'Undo' }).click();
-    await expect(fileRow(page, 'skill:tasklite-worker')).toHaveAttribute('data-using', 'copy');
+    await expect(fileRow(page, 'skill:docket-worker')).toHaveAttribute('data-using', 'copy');
 
     // The old route with a project and a file lands on that project's view of it.
-    await page.goto('/settings/agent-setup?project=RCP&file=skill:tasklite-worker&layer=project');
-    await expect(page).toHaveURL(/\/agent-files\?file=skill%3Atasklite-worker$/);
+    await page.goto('/settings/agent-setup?project=RCP&file=skill:docket-worker&layer=project');
+    await expect(page).toHaveURL(/\/agent-files\?file=skill%3Adocket-worker$/);
     await expect(view(page).getByText('Recipe App’s agents use Recipe App’s copy.')).toBeVisible();
   });
 
@@ -404,11 +404,11 @@ test.describe('Agent files (US13)', () => {
 
     // All projects: the edited default is flagged.
     await page.goto('/agent-files?project=all');
-    const flag = page.locator('[data-default-changed="skill:tasklite-worker"]');
+    const flag = page.locator('[data-default-changed="skill:docket-worker"]');
     await expect(flag).toContainText(
-      'Docket’s version of tasklite-worker changed since you edited the default.',
+      'Docket’s version of docket-worker changed since you edited the default.',
     );
-    await expect(page.locator('[data-default-changed="skill:tasklite-planner"]')).toHaveCount(0);
+    await expect(page.locator('[data-default-changed="skill:docket-planner"]')).toHaveCount(0);
     await flag.getByRole('button', { name: /^Compare/ }).click();
     const v = view(page);
     await expect(
@@ -426,11 +426,11 @@ test.describe('Agent files (US13)', () => {
 
     // Recipe App: its copy is flagged "the default changed", with Compare.
     await chooseProject(page, 'Recipe App');
-    const rcpFlag = page.locator('[data-default-changed="skill:tasklite-worker"]');
+    const rcpFlag = page.locator('[data-default-changed="skill:docket-worker"]');
     await expect(rcpFlag).toContainText(
-      'The default tasklite-worker changed since Recipe App’s copy was made.',
+      'The default docket-worker changed since Recipe App’s copy was made.',
     );
-    await expect(fileRow(page, 'skill:tasklite-planner')).toContainText('Default (edited)');
+    await expect(fileRow(page, 'skill:docket-planner')).toContainText('Default (edited)');
     await shoot(page, '5-project-default-changed', page.locator('.agent-files'));
     await rcpFlag.getByRole('button', { name: /^Compare/ }).click();
     const rv = view(page);
