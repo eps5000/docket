@@ -219,7 +219,7 @@ describe('0004_agent_proposals on a fresh database', () => {
   afterEach(() => t.cleanup());
 
   it('applies every migration, with foreign keys on and the check clean', () => {
-    expect(migrationStatus(t.db)).toEqual({ current: true, applied: 5, expected: 5 });
+    expect(migrationStatus(t.db)).toEqual({ current: true, applied: 6, expected: 6 });
     expect(t.db.sqlite.pragma('foreign_keys', { simple: true })).toBe(1);
     expect(t.db.sqlite.pragma('foreign_key_check')).toEqual([]);
   });
@@ -402,7 +402,7 @@ describe('0004_agent_proposals on a main-era database (0000–0003, with data)',
     db = openDb(join(tmp.dir, 'docket.db'));
     // What main's migrateDb produced before B26: 0000 to 0003 only.
     migrate(drizzle(db.sqlite), { migrationsFolder: mainEraMigrations(tmp.dir) });
-    expect(migrationStatus(db)).toEqual({ current: false, applied: 4, expected: 5 });
+    expect(migrationStatus(db)).toEqual({ current: false, applied: 4, expected: 6 });
     for (const table of NEW_TABLES) expect(tables(db)).not.toContain(table);
     insertProject(db, 'RCP');
     insertItem(db, { id: 'RCP-1' });
@@ -443,9 +443,9 @@ describe('0004_agent_proposals on a main-era database (0000–0003, with data)',
 
   it('migrates to current, and migrating again is a no-op', () => {
     migrateDb(db);
-    expect(migrationStatus(db)).toEqual({ current: true, applied: 5, expected: 5 });
+    expect(migrationStatus(db)).toEqual({ current: true, applied: 6, expected: 6 });
     migrateDb(db);
-    expect(migrationStatus(db).applied).toBe(5);
+    expect(migrationStatus(db).applied).toBe(6);
     expect(tables(db)).toEqual(expect.arrayContaining(NEW_TABLES));
   });
 
