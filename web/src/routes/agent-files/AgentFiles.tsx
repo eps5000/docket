@@ -1,7 +1,7 @@
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
-import { AGENT_FILE_KEY_RE, PROJECT_KEY_RE, type AgentFileRow } from '@tasklite/shared';
+import { AGENT_FILE_KEY_RE, PROJECT_KEY_RE, type AgentFileRow, type Drift } from '@tasklite/shared';
 import { Button, Card, Chip, EmptyState, Icon, Skeleton } from '../../components/kit';
 import { QueryState } from '../../app/QueryState';
 import { apiClient } from '../../app/queryClient';
@@ -15,6 +15,7 @@ import { AgentFileView, type FileViewMode } from './AgentFileView';
 import { InstallDialog, InstallLog, SetUpPushLink } from './AgentInstall';
 import { usePushTarget } from './install-common';
 import { kindLabel, possessive, rowCopyOutdated, rowDefaultOutdated } from './model';
+import { DriftChip, DriftSection, driftCounts, useOpenDrift } from './Drift';
 import { ProposalChip, ProposalsSection, proposalCounts, usePendingProposals } from './Proposals';
 import { useResetDefault, useSwitchToDefault } from './mutations';
 import { WorkflowNotes } from './WorkflowNotes';
@@ -57,7 +58,12 @@ export function AgentFiles() {
     if (fromUrl !== scope) setScope(fromUrl);
     const next = new URLSearchParams(params);
     next.delete('project');
-    setParams(next, { replace: true, state: location.state as unknown });
+    // Keep the hash (#proposals, #drift-…): links from Needs you and the ticket land on it.
+    const search = next.toString();
+    void navigate(
+      { search: search ? `?${search}` : '', hash: location.hash },
+      { replace: true, state: location.state as unknown },
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fromUrl]);
   const current = fromUrl ?? scope;
@@ -91,6 +97,9 @@ export function AgentFiles() {
   const push = usePushTarget();
   const pending = usePendingProposals(project);
   const counts = proposalCounts(pending.data?.proposals, project);
+  const openDrift = useOpenDrift(project);
+  const drifted = driftCounts(openDrift.data?.drift, project);
+  const shippedKeys = new Set((list.data?.files ?? []).map((f) => f.key));
 
   return (
     <div className="agent-files stack">
@@ -119,6 +128,8 @@ export function AgentFiles() {
         )}
       </p>
 
+      <DriftSection project={project} projects={projects} shippedKeys={shippedKeys} />
+
       <ProposalsSection project={project} projectName={projectName} projects={projects} />
 
       {project && <WorkflowNotes project={project} projectName={projectName!} />}
@@ -143,6 +154,7 @@ export function AgentFiles() {
                 selected={file}
                 onOpen={openFile}
                 proposals={counts}
+                drifted={drifted}
               />
             ) : (
               <DefaultsTable
@@ -151,6 +163,7 @@ export function AgentFiles() {
                 selected={file}
                 onOpen={openFile}
                 proposals={counts}
+                drifted={drifted}
               />
             )
           }
@@ -181,17 +194,17 @@ export function AgentFiles() {
   );
 }
 
-function FileName({ f, proposals }: { f: AgentFileRow; proposals?: number }) {
+function FileName({ f, proposals, drift }: { f: AgentFileRow; proposals?: number; drift?: Drift }) {
   return (
     <>
       <Link className="mono" to={{ search: `?file=${encodeURIComponent(f.key)}` }}>
         {f.name}
       </Link>
       <span className="src"> · {kindLabel(f.kind)}</span>
-      {proposals ? (
+      {proposals || drift ? (
         <span className="afchips">
           {' '}
-          <ProposalChip count={proposals} />
+          <ProposalChip count={proposals} /> <DriftChip drift={drift} />
         </span>
       ) : null}
     </>
@@ -206,6 +219,7 @@ function ProjectTable({
   selected,
   onOpen,
   proposals,
+  drifted,
 }: {
   files: readonly AgentFileRow[];
   project: string;
@@ -214,6 +228,8 @@ function ProjectTable({
   onOpen: (key: string, mode?: FileViewMode) => void;
   /** Pending proposals per file (the "1 proposal" chip). */
   proposals: ReadonlyMap<string, number>;
+  /** Open drift per file (the "changed outside Task Lite" chip). */
+  drifted: ReadonlyMap<string, Drift>;
 }) {
   const switchToDefault = useSwitchToDefault();
   return (
@@ -241,7 +257,7 @@ function ProjectTable({
                 className={outdated ? 'hasflag' : undefined}
               >
                 <td>
-                  <FileName f={f} proposals={proposals.get(f.key)} />
+                  <FileName f={f} proposals={proposals.get(f.key)} drift={drifted.get(f.key)} />
                 </td>
                 <td>
                   {copy ? (
@@ -306,6 +322,7 @@ function DefaultsTable({
   selected,
   onOpen,
   proposals,
+  drifted,
 }: {
   files: readonly AgentFileRow[];
   projects: readonly { key: string; short_name: string }[];
@@ -313,6 +330,8 @@ function DefaultsTable({
   onOpen: (key: string, mode?: FileViewMode) => void;
   /** Pending proposals to the default, per file. */
   proposals: ReadonlyMap<string, number>;
+  /** Open drift of user-wide installs, per file. */
+  drifted: ReadonlyMap<string, Drift>;
 }) {
   const reset = useResetDefault();
   // Which projects have their own copy of each file: one list per project (no new route).
@@ -350,7 +369,7 @@ function DefaultsTable({
                 className={outdated ? 'hasflag' : undefined}
               >
                 <td>
-                  <FileName f={f} proposals={proposals.get(f.key)} />
+                  <FileName f={f} proposals={proposals.get(f.key)} drift={drifted.get(f.key)} />
                 </td>
                 <td>
                   {edit ? (

@@ -16,6 +16,8 @@ You dispatch workers, create and prune worktrees, and clean up. Workers follow `
 
 **Agent files.** The owner installs the skills and the project's `AGENTS.md` / `CLAUDE.md` section from Agent files (_Install into <project>'s repo_, by a copy-paste command or into a mounted folder), and the install log shows which versions each repo got. If a worker doesn't have `tasklite-worker`, ask the owner to install it there; paste the skill into the brief only as a last resort. Each project's **Workflow notes** reach every worker through `get_context`, so don't repeat them, or the `AGENTS.md` rules, in briefs. To change these instructions, use `get_agent_files` then `propose_agent_file_change`, and tell the user you've proposed it for the owner's approval. Don't edit installed files directly, and don't tell workers to.
 
+**Instructions changed outside Task Lite.** Workers pass the `tasklite-check` output as `instructions` on `claim_lead` (the worker skill says how), and Task Lite also checks folders it installed into. When an installed skill or the Task Lite section was edited, deleted or added by hand, the owner sees "… edited outside Task Lite" under Problems, and the run shows "edited locally". The remedies are the owner's, in Agent files: _Adopt_ (save the local text as the project's copy, or the default), _Restore Task Lite's version_ (reinstall), or _Keep local_ (accept it; a further change alerts again). Mention it to the owner when a worker hits it; don't restore or overwrite the files yourself.
+
 ## 1. Every time you start, including after any crash or restart
 
 1. Call `whoami`, then `list_projects`.
@@ -98,7 +100,7 @@ Skip entries with no workspace and no brief: you didn't dispatch them, so leave 
 ## Owner-only (don't do these for the owner)
 
 - Answering `ask_owner` questions, and making review decisions.
-- Approving or declining proposed changes to agent files and Workflow notes.
+- Approving or declining proposed changes to agent files and Workflow notes, and the drift remedies (_Adopt_, _Restore_, _Keep local_).
 - Moving items to Ready, unless the project's `AGENTS.md` says agents may.
 - Confirming or withdrawing owner decisions.
 - Releasing another worker's live claim. Only the owner can release a stale one, from the UI.

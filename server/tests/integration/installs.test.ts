@@ -159,6 +159,9 @@ describe('command install: the bundle and the single-use token (T155)', () => {
       [
         ...SKILLS.map((n) => `tasklite-install/files/.claude/skills/${n}/SKILL.md`),
         'tasklite-install/files/.claude/.tasklite-manifest.json',
+        // tasklite-check, next to the manifest (decision 30, B27b).
+        'tasklite-install/files/.claude/tasklite-check.sh',
+        'tasklite-install/files/.claude/tasklite-check.ps1',
         'tasklite-install/files.txt',
         'tasklite-install/block.md',
         'tasklite-install/install.sh',
@@ -169,6 +172,8 @@ describe('command install: the bundle and the single-use token (T155)', () => {
       [
         ...SKILLS.map((n) => `.claude/skills/${n}/SKILL.md`),
         '.claude/.tasklite-manifest.json',
+        '.claude/tasklite-check.sh',
+        '.claude/tasklite-check.ps1',
         '',
       ].join('\n'),
     );
@@ -413,6 +418,8 @@ describe('push install and check (T156)', () => {
         ...SKILLS.map((n) => ({ path: `.claude/skills/${n}/SKILL.md`, change: 'created' })),
         { path: 'CLAUDE.md', change: 'updated' },
         { path: '.claude/.tasklite-manifest.json', change: 'created' },
+        { path: '.claude/tasklite-check.sh', change: 'created' },
+        { path: '.claude/tasklite-check.ps1', change: 'created' },
       ],
     });
     expect(first.body.command).toBeUndefined();

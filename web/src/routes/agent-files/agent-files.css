@@ -412,3 +412,36 @@
 .tl .afchiplink:hover .chip {
   text-decoration: underline;
 }
+
+/* Changed outside Task Lite (UI_SPEC §6.7b-1; US14; B27b). */
+.tl .afdrift {
+  gap: 10px;
+  scroll-margin-top: 16px;
+}
+.tl .afdrift h2 {
+  margin: 4px 0 0;
+  font-size: 16px;
+}
+.tl .afdriftcard article {
+  display: grid;
+  gap: 8px;
+  scroll-margin-top: 16px;
+}
+.tl .afdriftfacts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 2px 12px;
+  margin: 0;
+}
+.tl .afdriftfacts dt {
+  color: var(--ink-3);
+}
+.tl .afdriftfacts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.tl .afdriftacts,
+.tl .afdrift-cmd {
+  display: grid;
+  gap: 6px;
+}

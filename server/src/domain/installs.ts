@@ -71,13 +71,14 @@ import {
   type ServiceDeps,
 } from './contracts.js';
 import { newId } from './ids.js';
+import { CHECK_SCRIPT_PS1, CHECK_SCRIPT_SH, checkPs1, checkSh } from './check-scripts.js';
 import { installPs1, installSh } from './install-scripts.js';
 import { PushRoot, SymlinkRefused } from './push-root.js';
 import type { WriteContext } from './write.js';
 
 // ---- Rows and helpers ----
 
-interface InstallDbRow {
+export interface InstallDbRow {
   id: string;
   at: string;
   client: InstallClient;
@@ -90,7 +91,7 @@ interface InstallDbRow {
 }
 
 /** The `installs.manifest` column: key → version and sha256, in install order. */
-type ManifestMap = Record<string, { version_id: string; sha256: string }>;
+export type ManifestMap = Record<string, { version_id: string; sha256: string }>;
 
 /** One file as installed. */
 interface InstallFile {
@@ -104,7 +105,7 @@ interface InstallFile {
   sha256: string;
 }
 
-const hashText = (text: string): string =>
+export const hashText = (text: string): string =>
   createHash('sha256')
     .update(Buffer.from(withoutCr(text), 'utf8'))
     .digest('hex');
@@ -225,6 +226,108 @@ function toRow(r: InstallDbRow): InstallRow {
   };
 }
 
+/** One installed file as the push check read it (B24's check; reused by drift, B27b). */
+export interface InspectedFile {
+  /** The manifest key, or `skill:<name>` for an extra `tasklite-*` skill folder. */
+  key: string;
+  /** As shown: relative to the base, `~/` for user-wide; an extra folder ends in `/`. */
+  path: string;
+  state: 'ok' | 'edited' | 'missing' | 'extra';
+  /**
+   * The installed text's sha256 as the check hashes it (CR bytes removed; the
+   * block between its markers); null when missing. A symlink, never followed,
+   * hashes its path, and a damaged section hashes the whole file, so each
+   * reads as edited with no text.
+   */
+  sha256: string | null;
+  /** The installed text, for the diff; null when it can't be read as the file's text. */
+  text: string | null;
+}
+
+/**
+ * Read a push install's files through the push-root guard and compare each
+ * with the manifest (BUILD_SPEC §5.17 *Check*): edited, missing, or as sent;
+ * `tasklite-*` skill folders the install didn't write are extra. Reads only.
+ */
+export async function inspectPushInstall(
+  root: PushRoot,
+  row: Pick<InstallDbRow, 'client' | 'target_kind' | 'path' | 'manifest'>,
+): Promise<InspectedFile[]> {
+  const base = await root.base(row.path!);
+  const layout = installLayout(row.client, row.target_kind);
+  const manifest = JSON.parse(row.manifest) as ManifestMap;
+  const files: InspectedFile[] = [];
+
+  for (const [key, sent] of Object.entries(manifest)) {
+    const rel = installPathOf(layout, key);
+    const path = layout.display + rel;
+    let bytes: Buffer | null;
+    try {
+      bytes = await root.read(base, rel);
+    } catch (err) {
+      if (err instanceof SymlinkRefused) {
+        files.push({ key, path, state: 'edited', sha256: hashText(`symlink:${rel}`), text: null });
+        continue;
+      }
+      throw err;
+    }
+    if (bytes === null) {
+      files.push({ key, path, state: 'missing', sha256: null, text: null });
+      continue;
+    }
+    if (key === AGENTS_BLOCK_KEY) {
+      const block = installedBlock(bytes.toString('latin1'));
+      if (block === null) files.push({ key, path, state: 'missing', sha256: null, text: null });
+      else if (block === 'broken') {
+        files.push({ key, path, state: 'edited', sha256: hashBytes(bytes), text: null });
+      } else {
+        const sha = hashBytes(Buffer.from(block, 'latin1'));
+        const text = Buffer.from(block, 'latin1').toString('utf8');
+        files.push({ key, path, state: sha === sent.sha256 ? 'ok' : 'edited', sha256: sha, text });
+      }
+    } else {
+      const sha = hashBytes(bytes);
+      files.push({
+        key,
+        path,
+        state: sha === sent.sha256 ? 'ok' : 'edited',
+        sha256: sha,
+        text: bytes.toString('utf8'),
+      });
+    }
+  }
+
+  const sentSkills = new Set(
+    Object.keys(manifest)
+      .filter((k) => k.startsWith('skill:'))
+      .map((k) => k.slice('skill:'.length)),
+  );
+  for (const name of (await root.folders(base, layout.skillsDir)).sort()) {
+    if (!name.startsWith('tasklite-') || sentSkills.has(name)) continue;
+    const rel = `${layout.skillsDir}/${name}/SKILL.md`;
+    let bytes: Buffer | null = null;
+    try {
+      bytes = await root.read(base, rel);
+    } catch (err) {
+      if (!(err instanceof SymlinkRefused)) throw err;
+    }
+    files.push({
+      key: `skill:${name}`,
+      path: `${layout.display}${layout.skillsDir}/${name}/`,
+      state: 'extra',
+      sha256: bytes ? hashBytes(bytes) : hashText(''),
+      text: bytes ? bytes.toString('utf8') : null,
+    });
+  }
+  return files;
+}
+
+/** The installed `tasklite-check` scripts (bash, PowerShell), written next to the manifest. */
+const checkScripts = (): [string, string][] => [
+  [CHECK_SCRIPT_SH, checkSh()],
+  [CHECK_SCRIPT_PS1, checkPs1()],
+];
+
 /** What `prepare` hands `record` beyond the contract's fields. */
 interface Prepared extends PreparedInstall {
   install_id: string;
@@ -286,6 +389,10 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
       files,
     });
     writes.push({ rel: layout.manifest, bytes: Buffer.from(manifest, 'utf8') });
+    // tasklite-check, next to the manifest (decision 30): what agents run to report on claim.
+    for (const [name, text] of checkScripts()) {
+      writes.push({ rel: `${layout.dir}/${name}`, bytes: Buffer.from(text, 'utf8') });
+    }
 
     // Check every target first: no symlinks, no folders leading out of the root.
     for (const w of writes) await root.checkWritable(base, w.rel);
@@ -435,60 +542,14 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
           'This install was made by command, so Task Lite can’t see its files. Run its check command where it was installed.',
         );
       }
-      const root = await pushRoot();
-      const base = await root.base(row.path);
-      const layout = installLayout(row.client, row.target_kind);
-      const manifest = JSON.parse(row.manifest) as ManifestMap;
+      const cap = (t: string) => t.slice(0, AGENT_SETUP_LIMITS.agent_file_content);
       const files: InstallCheckResponse['files'] = [];
-      const cap = (s: string) => s.slice(0, AGENT_SETUP_LIMITS.agent_file_content);
-
-      for (const [key, sent] of Object.entries(manifest)) {
-        const rel = installPathOf(layout, key);
-        const path = layout.display + rel;
-        let bytes: Buffer | null;
-        try {
-          bytes = await root.read(base, rel);
-        } catch (err) {
-          if (err instanceof SymlinkRefused) {
-            files.push({ key, path, state: 'edited' });
-            continue;
-          }
-          throw err;
-        }
-        if (bytes === null) {
-          files.push({ key, path, state: 'missing' });
-          continue;
-        }
-        if (key === AGENTS_BLOCK_KEY) {
-          const block = installedBlock(bytes.toString('latin1'));
-          if (block === null) files.push({ key, path, state: 'missing' });
-          else if (block === 'broken') files.push({ key, path, state: 'edited' });
-          else if (hashBytes(Buffer.from(block, 'latin1')) !== sent.sha256) {
-            files.push({
-              key,
-              path,
-              state: 'edited',
-              local_content: cap(Buffer.from(block, 'latin1').toString('utf8')),
-            });
-          }
-        } else if (hashBytes(bytes) !== sent.sha256) {
-          files.push({ key, path, state: 'edited', local_content: cap(bytes.toString('utf8')) });
-        }
-      }
-
-      const sentSkills = new Set(
-        Object.keys(manifest)
-          .filter((k) => k.startsWith('skill:'))
-          .map((k) => k.slice('skill:'.length)),
-      );
-      for (const name of (await root.folders(base, layout.skillsDir)).sort()) {
-        if (name.startsWith('tasklite-') && !sentSkills.has(name)) {
-          files.push({
-            key: null,
-            path: `${layout.display}${layout.skillsDir}/${name}/`,
-            state: 'extra',
-          });
-        }
+      for (const f of await inspectPushInstall(await pushRoot(), row)) {
+        if (f.state === 'ok') continue;
+        if (f.state === 'extra') files.push({ key: null, path: f.path, state: 'extra' });
+        else if (f.state === 'missing') files.push({ key: f.key, path: f.path, state: 'missing' });
+        else if (f.text === null) files.push({ key: f.key, path: f.path, state: 'edited' });
+        else files.push({ key: f.key, path: f.path, state: 'edited', local_content: cap(f.text) });
       }
       return {
         install_id: row.id,
@@ -533,7 +594,12 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
       };
       const copied = files.filter((f) => f.key !== AGENTS_BLOCK_KEY);
       const block = files.find((f) => f.key === AGENTS_BLOCK_KEY);
-      const list = [...copied.map((f) => f.path), layout.manifest];
+      const scripts = checkScripts().map(([name, text]) => ({
+        path: `${layout.dir}/${name}`,
+        text,
+        mode: name === CHECK_SCRIPT_SH ? 0o755 : 0o644,
+      }));
+      const list = [...copied.map((f) => f.path), layout.manifest, ...scripts.map((x) => x.path)];
       const entries: TarFileEntry[] = [
         ...copied.map((f) => entry(`files/${f.path}`, f.content)),
         entry(
@@ -547,6 +613,8 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
             files,
           }),
         ),
+        // tasklite-check, next to the manifest (decision 30).
+        ...scripts.map((x) => entry(`files/${x.path}`, x.text, x.mode)),
         entry('files.txt', `${list.join('\n')}\n`),
         entry('block.md', block?.content ?? ''),
         entry('install.sh', installSh(layout.instructions), 0o755),

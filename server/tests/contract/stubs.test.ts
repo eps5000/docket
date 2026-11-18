@@ -94,7 +94,7 @@ describe('stubs', () => {
     expect(STUB_TOOLS).toEqual([]);
   });
 
-  it('claim_lead accepts instructions (decision 30) and still claims; B27 records them', async () => {
+  it('claim_lead accepts instructions (decision 30) and still claims; a bad report is refused', async () => {
     h = await startHarness();
     const sha = 'b'.repeat(64);
     const ok = expectOk(
