@@ -318,8 +318,8 @@ async function unlock(): Promise<Session> {
   expect(res.status).toBe(200);
   const cookies = parseSetCookies(res);
   return {
-    cookie: `tl_owner=${cookies.tl_owner!.value}; tl_csrf=${cookies.tl_csrf!.value}`,
-    csrf: cookies.tl_csrf!.value,
+    cookie: `docket_owner=${cookies.docket_owner!.value}; docket_csrf=${cookies.docket_csrf!.value}`,
+    csrf: cookies.docket_csrf!.value,
   };
 }
 
@@ -340,7 +340,7 @@ async function send(
   const headers: Record<string, string> = {};
   if (auth.session) {
     headers.cookie = auth.session.cookie;
-    if (auth.csrf !== false) headers['x-tasklite-csrf'] = auth.session.csrf;
+    if (auth.csrf !== false) headers['x-docket-csrf'] = auth.session.csrf;
   }
   if (auth.bearer) headers.authorization = `Bearer ${s.runtime.secrets.agentToken()}`;
   let body: FormData | string | undefined;
@@ -438,7 +438,7 @@ describe.each(ROUTE_IDS)('%s', (id) => {
     const session = await unlock();
     const res = await send(id, VALID[id], { session, csrf: false });
     expect(res.status, label).toBe(403);
-    expect((await errorOf(res)).message).toMatch(/X-Tasklite-CSRF/);
+    expect((await errorOf(res)).message).toMatch(/X-Docket-CSRF/);
     record(id, '403', '403');
   });
 
@@ -558,7 +558,7 @@ describe('the B2 guards cover the new routes', () => {
       method: 'POST',
       headers: {
         cookie: session.cookie,
-        'x-tasklite-csrf': session.csrf,
+        'x-docket-csrf': session.csrf,
         origin: 'http://evil.test',
         'content-type': 'application/json',
       },
@@ -578,7 +578,7 @@ describe('the B2 guards cover the new routes', () => {
       method: 'POST',
       headers: {
         cookie: session.cookie,
-        'x-tasklite-csrf': session.csrf,
+        'x-docket-csrf': session.csrf,
         'content-type': 'application/json',
       },
       body: '{not json',
@@ -593,7 +593,7 @@ describe('the B2 guards cover the new routes', () => {
       method: 'POST',
       headers: {
         cookie: session.cookie,
-        'x-tasklite-csrf': session.csrf,
+        'x-docket-csrf': session.csrf,
         'content-type': 'application/json',
       },
       body: JSON.stringify({ type: 'Task', project: 'RCP' }),

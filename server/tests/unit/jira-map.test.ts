@@ -360,7 +360,7 @@ describe('links', () => {
 });
 
 describe('labels', () => {
-  it('are created as Task Lite names; renamed and unusable ones are listed', () => {
+  it('are created as Docket names; renamed and unusable ones are listed', () => {
     expect(item('TL-1').labels).toEqual(['payments']);
     expect(item('TL-2').labels).toEqual(['frontend', 'tech-debt']);
     expect(reasons('TL-2')).toContain('label “Tech_Debt” imported as tech-debt');

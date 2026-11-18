@@ -22,7 +22,7 @@ let tmp: TempDir;
 let rootDir: string;
 let outside: string;
 beforeEach(() => {
-  tmp = tempDir('tasklite-push-');
+  tmp = tempDir('docket-push-');
   rootDir = join(tmp.dir, 'code');
   outside = join(tmp.dir, 'outside');
   mkdirSync(join(rootDir, 'recipes'), { recursive: true });

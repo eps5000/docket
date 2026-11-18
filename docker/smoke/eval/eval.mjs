@@ -265,7 +265,7 @@ function summarise(stream, log) {
       result = m;
     }
   }
-  const tl = calls.filter((c) => c.name.startsWith('mcp__tasklite__'));
+  const tl = calls.filter((c) => c.name.startsWith('mcp__docket__'));
   const claims = tl
     .filter((c) => c.name.endsWith('__claim_lead') && !c.error)
     .map((c) => c.input?.id);
@@ -278,8 +278,8 @@ function summarise(stream, log) {
     tasklite_calls: tl.length,
     tasklite_errors: tl
       .filter((c) => c.error)
-      .map((c) => `${c.name.replace('mcp__tasklite__', '')}: ${c.text.slice(0, 120)}`),
-    sequence: tl.map((c) => c.name.replace('mcp__tasklite__', '') + (c.error ? '✗' : '')),
+      .map((c) => `${c.name.replace('mcp__docket__', '')}: ${c.text.slice(0, 120)}`),
+    sequence: tl.map((c) => c.name.replace('mcp__docket__', '') + (c.error ? '✗' : '')),
     opening: opening && {
       calls: opening.length,
       tokens: opening.reduce((n, c) => n + c.tokens, 0),
@@ -288,7 +288,7 @@ function summarise(stream, log) {
     skills_invoked: calls
       .filter((c) => c.name === 'Skill')
       .map((c) => c.input?.skill ?? c.input?.command ?? '?'),
-    other_tools: calls.filter((c) => !c.name.startsWith('mcp__tasklite__') && c.name !== 'Skill')
+    other_tools: calls.filter((c) => !c.name.startsWith('mcp__docket__') && c.name !== 'Skill')
       .length,
     model_tokens: {
       input:
@@ -305,7 +305,7 @@ function summarise(stream, log) {
 
 // ---- Scenarios ----
 
-const US1_PROMPT = `You are a coding agent. Task Lite (the MCP server "tasklite") is where this team's work is tracked.
+const US1_PROMPT = `You are a coding agent. Task Lite (the MCP server "docket") is where this team's work is tracked.
 Pick up the best ready item in project RCP and work it end to end.
 The repository is your current folder (remote "origin", base branch "main"). The real work is simulated here: on a new branch named after the item (for example rcp-17), add notes/<ITEM-ID>.md with three lines on how you would implement the item, commit it and push it.
 Then finish the item in Task Lite the way the workflow requires. Don't ask me anything; you are on your own.`;
@@ -424,7 +424,7 @@ async function us11(arm) {
   // Phase C: the coordinator (the real client) recovers.
   const wsC = workspace(`us11-coord-${arm}`, arm === 'with');
   mkdirSync(join(wsC.dir, 'dispatch'), { recursive: true });
-  const promptC = `You coordinate the agents that work through Task Lite (the MCP server "tasklite") on project RCP.
+  const promptC = `You coordinate the agents that work through Task Lite (the MCP server "docket") on project RCP.
 The machine just crashed and restarted. Every worker process is gone; Task Lite is back up.
 Recover: work out what was in flight and get it going again, safely.
 You can't start agents in this exercise. Instead, for each worker you would start now, write dispatch/<ITEM-ID>.md in the current folder containing the exact prompt you'd give that worker. Put anything that needs cleaning up on the machine in dispatch/cleanup.md. Don't do the workers' work yourself, and don't ask me anything.`;

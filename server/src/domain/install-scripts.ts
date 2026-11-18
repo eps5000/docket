@@ -28,8 +28,8 @@ const SAFE_RELATIVE = /^[A-Za-z0-9._/-]+$/;
 export function installSh(instructions: string): string {
   if (!SAFE_RELATIVE.test(instructions)) throw new Error(`unsafe path: ${instructions}`);
   return `#!/usr/bin/env bash
-# Task Lite install step (Agent files). Copies the agent files into
-# place and merges the Task Lite section of ${instructions} between its markers.
+# Docket install step (Agent files). Copies the agent files into
+# place and merges the Docket section of ${instructions} between its markers.
 # Nothing outside the markers changes, and nothing is deleted.
 set -eu
 export LC_ALL=C
@@ -39,7 +39,7 @@ instr="$base/${instructions}"
 B='${DOCKET_BEGIN}'
 E='${DOCKET_END}'
 broken() {
-  echo "Task Lite: $instr has a damaged Task Lite section (a $B or $E line is missing or repeated). Fix the markers, then make a new install command. Nothing was written." >&2
+  echo "Docket: $instr has a damaged Docket section (a $B or $E line is missing or repeated). Fix the markers, then make a new install command. Nothing was written." >&2
   exit 1
 }
 
@@ -77,29 +77,29 @@ $E"
 if [ ! -f "$instr" ]; then
   mkdir -p "$(dirname "$instr")"
   printf '%s\\n' "$sec" > "$instr"
-  echo "  created ${instructions} with the Task Lite section"
+  echo "  created ${instructions} with the Docket section"
 elif [ "$had" = yes ]; then
   printf '%s' "\${old%%"$B"*}$sec$post" > "$instr"
-  echo "  replaced the Task Lite section of ${instructions} (nothing else changed)"
+  echo "  replaced the Docket section of ${instructions} (nothing else changed)"
 elif [ -z "$old" ]; then
   printf '%s\\n' "$sec" > "$instr"
-  echo "  added the Task Lite section to ${instructions}"
+  echo "  added the Docket section to ${instructions}"
 else
   case $old in
     *'
 ') printf '%s\\n%s\\n' "$old" "$sec" > "$instr" ;;
     *) printf '%s\\n\\n%s\\n' "$old" "$sec" > "$instr" ;;
   esac
-  echo "  added the Task Lite section to the end of ${instructions} (nothing else changed)"
+  echo "  added the Docket section to the end of ${instructions} (nothing else changed)"
 fi
-echo "Done: Task Lite agent files installed in $base"
+echo "Done: Docket agent files installed in $base"
 `;
 }
 
 export function installPs1(instructions: string): string {
   if (!SAFE_RELATIVE.test(instructions)) throw new Error(`unsafe path: ${instructions}`);
-  return `# Task Lite install step (Agent files). Copies the agent files into
-# place and merges the Task Lite section of ${instructions} between its markers.
+  return `# Docket install step (Agent files). Copies the agent files into
+# place and merges the Docket section of ${instructions} between its markers.
 # Nothing outside the markers changes, and nothing is deleted.
 param([string]$Here, [string]$Base)
 $ErrorActionPreference = 'Stop'
@@ -123,7 +123,7 @@ if (Test-Path -LiteralPath $instr -PathType Leaf) {
     elseif ($old.IndexOf($Begin, $at + 1, $ord) -ge 0 -or $old.IndexOf($End, $to + 1, $ord) -ge 0) { $bad = $true }
   }
   if ($bad) {
-    throw "Task Lite: $instr has a damaged Task Lite section (a $Begin or $End line is missing or repeated). Fix the markers, then make a new install command. Nothing was written."
+    throw "Docket: $instr has a damaged Docket section (a $Begin or $End line is missing or repeated). Fix the markers, then make a new install command. Nothing was written."
   }
 }
 
@@ -144,19 +144,19 @@ $sec = $Begin + "\`n" + $blk + "\`n" + $End
 if ($null -eq $old) {
   $dir = Split-Path -Parent $instr
   if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
-  $new = $sec + "\`n"; $msg = 'created ${instructions} with the Task Lite section'
+  $new = $sec + "\`n"; $msg = 'created ${instructions} with the Docket section'
 } elseif ($at -ge 0) {
   $new = $old.Substring(0, $at) + $sec + $old.Substring($to + $End.Length)
-  $msg = 'replaced the Task Lite section of ${instructions} (nothing else changed)'
+  $msg = 'replaced the Docket section of ${instructions} (nothing else changed)'
 } elseif ($old.Length -eq 0) {
-  $new = $sec + "\`n"; $msg = 'added the Task Lite section to ${instructions}'
+  $new = $sec + "\`n"; $msg = 'added the Docket section to ${instructions}'
 } elseif ($old.EndsWith("\`n", $ord)) {
-  $new = $old + "\`n" + $sec + "\`n"; $msg = 'added the Task Lite section to the end of ${instructions} (nothing else changed)'
+  $new = $old + "\`n" + $sec + "\`n"; $msg = 'added the Docket section to the end of ${instructions} (nothing else changed)'
 } else {
-  $new = $old + "\`n\`n" + $sec + "\`n"; $msg = 'added the Task Lite section to the end of ${instructions} (nothing else changed)'
+  $new = $old + "\`n\`n" + $sec + "\`n"; $msg = 'added the Docket section to the end of ${instructions} (nothing else changed)'
 }
 [IO.File]::WriteAllBytes($instr, $enc.GetBytes($new))
 "  $msg"
-"Done: Task Lite agent files installed in $Base"
+"Done: Docket agent files installed in $Base"
 `;
 }

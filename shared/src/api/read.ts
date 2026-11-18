@@ -44,7 +44,7 @@ export const bootstrapResponse = jsonResponse({
   server_time: z.string(),
   projects: z.array(projectSchema),
   labels: z.array(labelSchema),
-  /** Sidebar counts. `for_you` also drives the tab title `(N) Task Lite` (UI_SPEC §6.7a). */
+  /** Sidebar counts. `for_you` also drives the tab title `(N) Docket` (UI_SPEC §6.7a). */
   counts: z.object({
     for_you: z.number().int(),
     problems: z.number().int(),
@@ -106,7 +106,7 @@ export const PROBLEM_KINDS = [
   'unpushed_work',
   'parked_too_long',
   'resume_unattended',
-  // Agent files changed outside Task Lite (owner decision 30; BUILD_SPEC §5.19; UI_SPEC §6.7b-1)
+  // Agent files changed outside Docket (owner decision 30; BUILD_SPEC §5.19; UI_SPEC §6.7b-1)
   'agent_files_drift',
 ] as const;
 

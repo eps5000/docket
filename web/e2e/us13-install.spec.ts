@@ -121,7 +121,7 @@ test.describe('Install and check (US13)', () => {
     const c = card(page);
     await expect(c.getByText('Not set up')).toBeVisible();
     await expect(
-      c.getByText('Mount your code folder into Task Lite so it can install files for you.'),
+      c.getByText('Mount your code folder into Docket so it can install files for you.'),
     ).toBeVisible();
     const howto = c.locator('[data-push-howto]');
     await howto
@@ -172,7 +172,7 @@ test.describe('Install and check (US13)', () => {
     await expect(d.getByRole('group', { name: 'Install into' })).toHaveCount(0);
     // The method is chosen: push, with "Copy a command instead".
     await expect(method(page)).toHaveAttribute('data-install-method', 'push');
-    await expect(method(page)).toContainText('Task Lite writes the files into this folder itself.');
+    await expect(method(page)).toContainText('Docket writes the files into this folder itself.');
     await expect(
       method(page).getByRole('button', { name: 'Copy a command instead' }),
     ).toBeVisible();
@@ -184,7 +184,7 @@ test.describe('Install and check (US13)', () => {
     await what.locator('summary').click();
     await expect(what).toContainText('.claude/skills/tasklite-worker/SKILL.md');
     await expect(what).toContainText('.claude/.tasklite-manifest.json');
-    await expect(what).toContainText('Only the marked Task Lite section of CLAUDE.md is touched');
+    await expect(what).toContainText('Only the marked Docket section of CLAUDE.md is touched');
     await d.getByLabel('Repo folder').fill(HOST_REPO);
     await expect(method(page)).toHaveAttribute('data-install-method', 'push');
     await shoot(page, '2-dialog-push', d);
@@ -204,7 +204,7 @@ test.describe('Install and check (US13)', () => {
 
     // The files are there; CLAUDE.md keeps its own text byte for byte, then the section.
     const claude = sh(`cat ${REPO}/CLAUDE.md`);
-    expect(claude.startsWith(`${PRE}\n<!-- tasklite:begin -->\n## Work tracking: Task Lite`)).toBe(
+    expect(claude.startsWith(`${PRE}\n<!-- tasklite:begin -->\n## Work tracking: Docket`)).toBe(
       true,
     );
     expect(claude).toContain('`tasklite-worker` skill');
@@ -233,7 +233,7 @@ test.describe('Install and check (US13)', () => {
     await expect(row).toContainText('6 files');
     await row.getByRole('button', { name: 'Versions sent' }).click();
     await expect(row.locator('[data-sent="skill:tasklite-worker"]')).toContainText(
-      'Task Lite’s version v1',
+      'Docket’s version v1',
     );
     await row.getByRole('button', { name: 'Check', exact: true }).click();
     await expect(row.locator('[data-check-result="up_to_date"]')).toContainText('Up to date');
@@ -244,7 +244,7 @@ test.describe('Install and check (US13)', () => {
     );
     await row.getByRole('button', { name: 'Check', exact: true }).click();
     const result = row.locator('[data-check-result="differs"]');
-    await expect(result).toContainText('2 files differ from what Task Lite sent');
+    await expect(result).toContainText('2 files differ from what Docket sent');
     const edited = result.locator('[data-check-file=".claude/skills/tasklite-worker/SKILL.md"]');
     await expect(edited).toContainText('Edited locally');
     await expect(
@@ -288,7 +288,7 @@ test.describe('Install and check (US13)', () => {
     await method(page).getByRole('button', { name: 'Copy a command instead' }).click();
     await expect(method(page)).toHaveAttribute('data-install-method', 'command');
     await expect(
-      method(page).getByRole('button', { name: 'Let Task Lite write them instead' }),
+      method(page).getByRole('button', { name: 'Let Docket write them instead' }),
     ).toBeVisible();
     await d.getByRole('group', { name: 'Client' }).getByRole('button', { name: 'Codex' }).click();
     await d.locator('[data-install-what] summary').click();
@@ -392,7 +392,7 @@ test.describe('Install and check (US13)', () => {
     await expect(d.getByLabel('Repo folder')).toHaveCount(0);
     await expect(method(page)).toHaveAttribute('data-install-method', 'command');
     await expect(method(page)).toContainText(
-      'With a push folder set up, Task Lite can write the files for you.',
+      'With a push folder set up, Docket can write the files for you.',
     );
     await expect(
       method(page).getByRole('link', { name: 'Set up one-click install' }),

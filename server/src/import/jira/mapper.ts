@@ -1,9 +1,9 @@
 /**
- * The Jira → Task Lite mapping (BUILD_SPEC §9), as a pure function of what
+ * The Jira → Docket mapping (BUILD_SPEC §9), as a pure function of what
  * the dry run read. It builds the import plan in memory and tallies every
  * mapping, skip and loss for the report. Nothing here touches the database.
  *
- * | Jira | Task Lite |
+ * | Jira | Docket |
  * |---|---|
  * | Epic; Story, Task, Bug | the same type |
  * | Sub-task | a work step on its parent (state from the status category); its own comments, assignee, dates and the rest drop out, listed |
@@ -14,7 +14,7 @@
  * | Blocks | `blocks` |
  * | Relates | `relates` |
  * | Duplicate, Cloners, other link types | `relates`, with the link type noted in the description |
- * | labels | labels (Task Lite names are lowercase letters, digits and dashes; renamed ones are listed) |
+ * | labels | labels (Docket names are lowercase letters, digits and dashes; renamed ones are listed) |
  * | description (ADF) | Markdown; unsupported nodes listed |
  * | comments | events: "Imported comment · author · date" |
  * | attachments | documents, up to 500 MB each; larger ones skipped and listed |
@@ -208,7 +208,7 @@ function shorten(text: string, max: number): string {
   return text.length <= max ? text : `${text.slice(0, max - 1).trimEnd()}…`;
 }
 
-/** A label as Task Lite stores it: lowercase letters, digits and dashes, at most 40. */
+/** A label as Docket stores it: lowercase letters, digits and dashes, at most 40. */
 export function labelName(raw: string): string {
   return raw
     .toLowerCase()

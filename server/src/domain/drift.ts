@@ -117,12 +117,12 @@ function reportById(db: Db, id: string | null): ReportRow | undefined {
 const filesOf = (r: ReportRow | undefined): ReportFiles =>
   r ? (JSON.parse(r.files) as ReportFiles) : {};
 
-/** An extra skill folder the install didn't write, by Task Lite's naming. */
+/** An extra skill folder the install didn't write, by Docket's naming. */
 const isTaskLiteSkill = (key: string) => key.startsWith('skill:tasklite-');
 
 /**
  * Compare a report with the install's manifest: edited, missing and extra
- * files. Unknown keys (not Task Lite's) aren't differences.
+ * files. Unknown keys (not Docket's) aren't differences.
  */
 export function differences(manifest: ManifestMap, files: ReportFiles): Difference[] {
   const out: Difference[] = [];
@@ -425,7 +425,7 @@ function record(
     });
     w.event({
       type: 'drift.detected',
-      summary: `${changeText(d.key, d.change)} outside Task Lite · ${pname} · ${where} · ${found}`,
+      summary: `${changeText(d.key, d.change)} outside Docket · ${pname} · ${where} · ${found}`,
       project_key: project,
       item_id: runItem,
       data: { drift_id: id, install_id: install.id, key: d.key, change: d.change },
@@ -445,7 +445,7 @@ function record(
     });
     w.event({
       type: 'drift.detected',
-      summary: `${changeText(d.key, d.change)} outside Task Lite again · ${pname} · ${where} · ${found}`,
+      summary: `${changeText(d.key, d.change)} outside Docket again · ${pname} · ${where} · ${found}`,
       project_key: project,
       item_id: runItem,
       data: { drift_id: row.id, install_id: install.id, key: d.key, change: d.change, again: true },
@@ -458,7 +458,7 @@ function record(
       w,
       row,
       'restored',
-      `${agentFileName(row.file_key)} matches what Task Lite sent again · ${pname} · ${where} · ${found}`,
+      `${agentFileName(row.file_key)} matches what Docket sent again · ${pname} · ${where} · ${found}`,
       { item_id: runItem },
     );
   }
@@ -498,7 +498,7 @@ export function driftProblems(
       kind: 'agent_files_drift',
       item_id: null,
       title: null,
-      reason: `${changeText(row.file_key, row.change)} outside Task Lite · ${projectName(db, row.project_key)} · ${whereOf(install, report)} · ${foundText(db, report)}`,
+      reason: `${changeText(row.file_key, row.change)} outside Docket · ${projectName(db, row.project_key)} · ${whereOf(install, report)} · ${foundText(db, report)}`,
       related: [],
       link_id: null,
       run_id: report?.run_id ?? null,
@@ -684,20 +684,20 @@ export function createDriftService(deps: ServiceDeps): DriftService {
       if (!isShippedKey(w.db, row.file_key)) {
         throw new ToolError(
           'validation',
-          `${name} isn't one of the files Task Lite ships, so it can't be adopted. Keep it local, or remove the folder.`,
+          `${name} isn't one of the files Docket ships, so it can't be adopted. Keep it local, or remove the folder.`,
         );
       }
       const content = localContent(w.db, row);
       if (content === null && contentWithheld(w.db, row) === 'secret') {
         throw new ToolError(
           'validation',
-          `Content withheld: the local text of ${name} looked like a secret, so Task Lite didn't keep it. Remove the secret from the file there; the next tasklite-check report sends the text.`,
+          `Content withheld: the local text of ${name} looked like a secret, so Docket didn't keep it. Remove the secret from the file there; the next tasklite-check report sends the text.`,
         );
       }
       if (content === null || content.trim() === '') {
         throw new ToolError(
           'validation',
-          `Task Lite doesn't have the local text of ${name}. Run tasklite-check on that machine to send the text: the next agent claim there does it.`,
+          `Docket doesn't have the local text of ${name}. Run tasklite-check on that machine to send the text: the next agent claim there does it.`,
         );
       }
       const install = installById(w.db, row.install_id)!;
@@ -726,7 +726,7 @@ export function createDriftService(deps: ServiceDeps): DriftService {
       if (row.change === 'extra') {
         throw new ToolError(
           'validation',
-          `Task Lite never deletes files, so restoring can't remove the extra ${agentFileName(row.file_key)} folder. Remove it yourself, or Keep local.`,
+          `Docket never deletes files, so restoring can't remove the extra ${agentFileName(row.file_key)} folder. Remove it yourself, or Keep local.`,
         );
       }
       const install = installById(r.db, row.install_id)!;
@@ -754,7 +754,7 @@ export function createDriftService(deps: ServiceDeps): DriftService {
           w,
           open,
           'restored',
-          `You restored Task Lite's version of ${agentFileName(open.file_key)} · ${projectName(w.db, open.project_key)} · ${where} · ${how} (${INSTALL_CLIENT_LABELS[old.client]})`,
+          `You restored Docket's version of ${agentFileName(open.file_key)} · ${projectName(w.db, open.project_key)} · ${where} · ${how} (${INSTALL_CLIENT_LABELS[old.client]})`,
         );
       }
       return { drift: toDrift(w.db, driftRow(w.db, p.drift_id)), install: result };

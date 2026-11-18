@@ -16,7 +16,7 @@ Open `http://127.0.0.1:7420`, unlock, and you should land on **Needs you**, show
 ## 2. Connect an agent
 Set `DOCKET_TOKEN` in your environment, then follow [MCP_SPEC §11](../../docs/MCP_SPEC.md):
 - **Codex:** add the TOML block.
-- **Claude Code:** run `claude mcp add --transport http --scope user tasklite http://127.0.0.1:7420/mcp --header "Authorization: Bearer $DOCKET_TOKEN"`.
+- **Claude Code:** run `claude mcp add --transport http --scope user docket http://127.0.0.1:7420/mcp --header "Authorization: Bearer $DOCKET_TOKEN"`.
 
 To check it worked, ask the agent to "call tasklite whoami". The client name should come back, and
 Settings → Connections shows "Last seen: just now".

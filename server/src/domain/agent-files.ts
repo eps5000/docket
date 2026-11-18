@@ -386,7 +386,7 @@ export function saveAgentFileEdit(
   if (!bundled) {
     throw new ToolError(
       'not_found',
-      `No agent file ${input.key}. Only the files Task Lite ships can be edited.`,
+      `No agent file ${input.key}. Only the files Docket ships can be edited.`,
     );
   }
   const row = fileRow(w.db, input.key, layer, input.project);
@@ -454,7 +454,7 @@ export function saveWorkflowEdit(
  * What a change to `key` would replace now (decision 30): the project's
  * effective version (its copy, else the default) or, without a project, the
  * default; for `workflow`, the project's newest Workflow notes version.
- * Null when there is none (no notes yet, or a key Task Lite doesn't ship).
+ * Null when there is none (no notes yet, or a key Docket doesn't ship).
  */
 export function currentTarget(
   db: Db,
@@ -523,7 +523,7 @@ export function versionText(db: Db, versionId: string): string | null {
   return row?.content ?? null;
 }
 
-/** Whether Task Lite ships `key` (a bundled layer exists): only those can be edited. */
+/** Whether Docket ships `key` (a bundled layer exists): only those can be edited. */
 export function isShippedKey(db: Db, key: string): boolean {
   return !!fileRow(db, key, 'bundled', null)?.current_version_id;
 }
@@ -597,7 +597,7 @@ export function createAgentFilesService(_deps: ServiceDeps): AgentFilesService {
           w,
           { row, key: file.key, layer: 'bundled', project: null },
           file.content,
-          `Bundled with Task Lite ${APP_VERSION}`,
+          `Bundled with Docket ${APP_VERSION}`,
         );
         w.event({
           type: 'agent_file.updated',
@@ -632,7 +632,7 @@ export function createAgentFilesService(_deps: ServiceDeps): AgentFilesService {
       if (!bundled) {
         throw new ToolError(
           'not_found',
-          `No agent file ${input.key}. Only the files Task Lite ships can be edited.`,
+          `No agent file ${input.key}. Only the files Docket ships can be edited.`,
         );
       }
       const row = fileRow(w.db, input.key, input.layer, project);

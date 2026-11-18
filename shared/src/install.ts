@@ -113,7 +113,7 @@ export type MarkedSection =
   /** `start` is the begin marker's index; `end` is just after the end marker. */
   | { kind: 'present'; start: number; end: number; inner: string };
 
-/** Find the Task Lite section in a file's text. */
+/** Find the Docket section in a file's text. */
 export function findMarkedSection(text: string): MarkedSection {
   const b = text.indexOf(DOCKET_BEGIN);
   const e = text.indexOf(DOCKET_END);
@@ -133,7 +133,7 @@ export function findMarkedSection(text: string): MarkedSection {
 export class BrokenMarkersError extends Error {
   constructor(file: string) {
     super(
-      `${file} has a damaged Task Lite section: a ${DOCKET_BEGIN} or ${DOCKET_END} line is missing or repeated. Fix the markers, then install again.`,
+      `${file} has a damaged Docket section: a ${DOCKET_BEGIN} or ${DOCKET_END} line is missing or repeated. Fix the markers, then install again.`,
     );
     this.name = 'BrokenMarkersError';
   }
@@ -144,7 +144,7 @@ export const markedSection = (block: string): string =>
   `${DOCKET_BEGIN}\n${block}\n${DOCKET_END}`;
 
 /**
- * Insert or replace the Task Lite section in `existing` (null: no file yet).
+ * Insert or replace the Docket section in `existing` (null: no file yet).
  * Everything before the begin marker and after the end marker stays exactly
  * as it was. Without markers the section is appended after a blank line, so
  * the old text is an exact prefix of the new. Throws `BrokenMarkersError`.
@@ -208,7 +208,7 @@ export interface InstallCommandInput {
 }
 
 const REFUSED =
-  'Task Lite refused the download: this command was already used or is more than 10 minutes old. Make a new one in Agent files.';
+  'Docket refused the download: this command was already used or is more than 10 minutes old. Make a new one in Agent files.';
 
 function bashBase({ target_kind, path }: InstallCommandInput): string {
   if (target_kind === 'user') return '"$HOME"';
@@ -263,7 +263,7 @@ export function installCommands(input: InstallCommandInput & { url: string }): {
  * The check one-liners (FR-127, without push): read the manifest the install
  * left, hash each file as the check defines it, and print the files that
  * were edited locally, are missing, or are extra `tasklite-*` skill folders,
- * each with the version Task Lite sent. They download nothing and need no
+ * each with the version Docket sent. They download nothing and need no
  * token. Run them where the install ran (the repo folder, for a repo).
  */
 export function checkCommands(input: InstallCommandInput): { powershell: string; bash: string } {
@@ -271,24 +271,24 @@ export function checkCommands(input: InstallCommandInput): { powershell: string;
   const disp = layout.display;
   const bash = [
     `( d=${bashBase(input)}; m="$d/${layout.manifest}"; B='${DOCKET_BEGIN}'; E='${DOCKET_END}'`,
-    `[ -f "$m" ] || { echo "No Task Lite install found: $m is missing." >&2; exit 1; }`,
+    `[ -f "$m" ] || { echo "No Docket install found: $m is missing." >&2; exit 1; }`,
     `h() { tr -d '\\r' | { sha256sum 2>/dev/null || shasum -a 256; } | cut -c1-64; }`,
-    `echo "Checking ${disp}${layout.dir} against Task Lite install $(grep -o 'ins_[0-9A-Za-z]*' "$m" | head -n 1)"`,
+    `echo "Checking ${disp}${layout.dir} against Docket install $(grep -o 'ins_[0-9A-Za-z]*' "$m" | head -n 1)"`,
     `n=0; c=0; while IFS= read -r l; do case $l in *'"key":"'*) ;; *) continue ;; esac; k=\${l#*'"key":"'}; k=\${k%%'"'*}; p=\${l#*'"path":"'}; p=\${p%%'"'*}; v=\${l#*'"version_id":"'}; v=\${v%%'"'*}; s=\${l#*'"sha256":"'}; s=\${s%%'"'*}; c=$((c+1)); f="$d/$p"`,
     `if [ ! -f "$f" ]; then st=missing; elif [ "$k" = agents_block ]; then x=$(cat "$f"; printf x); x=\${x%x}; case $x in *"$B"*"$E"*) x=\${x#*"$B"}; x=\${x%%"$E"*}; x=$(printf '%s' "$x" | tr -d '\\r'; printf x); x=\${x%x}; x=\${x#$'\\n'}; x=\${x%$'\\n'}; if [ "$(printf '%s' "$x" | h)" = "$s" ]; then st=ok; else st=edited; fi ;; *) st=missing ;; esac; elif [ "$(h < "$f")" = "$s" ]; then st=ok; else st=edited; fi`,
     `if [ $st != ok ]; then n=$((n+1)); printf '%-8s %s  (sent %s %s)\\n' "$st" "${disp}$p" "$k" "$v"; fi; done < "$m"`,
     `for x in "$d/${layout.skillsDir}"/tasklite-*/; do [ -d "$x" ] || continue; y=\${x%/}; y=\${y##*/}; grep -q "\\"skill:$y\\"" "$m" || { n=$((n+1)); printf '%-8s %s\\n' extra "${disp}${layout.skillsDir}/$y/"; }; done`,
-    `if [ $n = 0 ]; then echo "Up to date: all $c files match what Task Lite sent."; else echo "Differs from what Task Lite sent: $n file(s). The install log in Agent files shows each version sent."; fi )`,
+    `if [ $n = 0 ]; then echo "Up to date: all $c files match what Docket sent."; else echo "Differs from what Docket sent: $n file(s). The install log in Agent files shows each version sent."; fi )`,
   ].join('; ');
   const powershell = [
     `& { $d = ${psBase(input)}; $m = Join-Path $d '${layout.manifest}'`,
-    `if (-not (Test-Path -LiteralPath $m)) { throw "No Task Lite install found: $m is missing." }`,
+    `if (-not (Test-Path -LiteralPath $m)) { throw "No Docket install found: $m is missing." }`,
     `$enc = [Text.Encoding]::GetEncoding(28591); $B = '${DOCKET_BEGIN}'; $E = '${DOCKET_END}'; $sha = [Security.Cryptography.SHA256]::Create()`,
     `function TlHash([string]$s) { -join ($sha.ComputeHash($enc.GetBytes($s.Replace("\`r", ''))) | ForEach-Object { $_.ToString('x2') }) }`,
-    `$j = Get-Content -Raw -LiteralPath $m | ConvertFrom-Json; "Checking ${disp}${layout.dir} against Task Lite install $($j.install_id)"; $n = 0`,
+    `$j = Get-Content -Raw -LiteralPath $m | ConvertFrom-Json; "Checking ${disp}${layout.dir} against Docket install $($j.install_id)"; $n = 0`,
     `foreach ($r in $j.files) { $f = Join-Path $d $r.path; $st = 'ok'; if (-not (Test-Path -LiteralPath $f -PathType Leaf)) { $st = 'missing' } else { $x = $enc.GetString([IO.File]::ReadAllBytes($f)); if ($r.key -eq 'agents_block') { $i = $x.IndexOf($B, [StringComparison]::Ordinal); $k = $x.IndexOf($E, [StringComparison]::Ordinal); if ($i -lt 0 -or $k -lt $i) { $st = 'missing' } else { $x = $x.Substring($i + $B.Length, $k - $i - $B.Length).Replace("\`r", ''); if ($x.StartsWith("\`n")) { $x = $x.Substring(1) }; if ($x.EndsWith("\`n")) { $x = $x.Substring(0, $x.Length - 1) }; if ((TlHash $x) -ne $r.sha256) { $st = 'edited' } } } elseif ((TlHash $x) -ne $r.sha256) { $st = 'edited' } }; if ($st -ne 'ok') { $n++; '{0,-8} {1}  (sent {2} {3})' -f $st, ('${disp}' + $r.path), $r.key, $r.version_id } }`,
     `$sk = Join-Path $d '${layout.skillsDir}'; if (Test-Path -LiteralPath $sk) { foreach ($x in Get-ChildItem -LiteralPath $sk -Directory -Force -Filter 'tasklite-*') { if (@($j.files | ForEach-Object { $_.key }) -notcontains ('skill:' + $x.Name)) { $n++; '{0,-8} {1}' -f 'extra', ('${disp}${layout.skillsDir}/' + $x.Name + '/') } } }`,
-    `if ($n -eq 0) { "Up to date: all $(@($j.files).Count) files match what Task Lite sent." } else { "Differs from what Task Lite sent: $n file(s). The install log in Agent files shows each version sent." } }`,
+    `if ($n -eq 0) { "Up to date: all $(@($j.files).Count) files match what Docket sent." } else { "Differs from what Docket sent: $n file(s). The install log in Agent files shows each version sent." } }`,
   ].join('; ');
   return { powershell, bash };
 }

@@ -171,7 +171,7 @@ test.describe('shell navigation', () => {
     await expect(page).toHaveURL(/\/items\/RCP-14\?tab=activity$/);
     // The open-item tab remembers the view in sessionStorage before we reload.
     await expect
-      .poll(() => page.evaluate(() => sessionStorage.getItem('tl.tabs')))
+      .poll(() => page.evaluate(() => sessionStorage.getItem('docket.tabs')))
       .toContain('"view":"activity"');
 
     await page.goto('/items/RCP-12');

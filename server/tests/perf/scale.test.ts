@@ -229,7 +229,7 @@ afterAll(async () => {
   const keep = process.env.DOCKET_PERF_KEEP;
   if (keep && h) {
     mkdirSync(keep, { recursive: true });
-    sql().prepare('VACUUM INTO ?').run(join(keep, 'tasklite.db'));
+    sql().prepare('VACUUM INTO ?').run(join(keep, 'docket.db'));
     const paths = h.server.runtime.config.paths;
     cpSync(paths.docs, join(keep, 'docs'), { recursive: true });
     cpSync(paths.secrets, join(keep, 'secrets'), { recursive: true });

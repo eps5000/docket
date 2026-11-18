@@ -157,8 +157,8 @@ describe('0002_recovery on a main-era database', () => {
   let db: Db;
 
   beforeEach(() => {
-    tmp = tempDir('tasklite-migrate-');
-    db = openDb(join(tmp.dir, 'tasklite.db'));
+    tmp = tempDir('docket-migrate-');
+    db = openDb(join(tmp.dir, 'docket.db'));
     // Exactly what main's migrateDb did: foreign keys on, 0000 and 0001 only.
     migrate(drizzle(db.sqlite), { migrationsFolder: mainEraMigrations(tmp.dir) });
     expect(migrationStatus(db)).toEqual({ current: false, applied: 2, expected: 5 });

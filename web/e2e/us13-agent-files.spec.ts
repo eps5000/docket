@@ -7,14 +7,14 @@
  * 1. the old `/settings/agent-setup` redirects to Agent files, which has its
  *    own nav item, follows the project switcher, and no longer sits in
  *    Settings; All projects lists the defaults; a file opens rendered and Raw;
- * 2. edit the default (the note is required), compare it with Task Lite's
- *    version, its history; *Reset to Task Lite’s version* and Undo;
+ * 2. edit the default (the note is required), compare it with Docket's
+ *    version, its history; *Reset to Docket’s version* and Undo;
  * 3. pick Recipe App in the switcher: *Customize for Recipe App*, the
  *    project's copy, "Customized in" on All projects, *Use default* and Undo,
  *    and *Compare with* the default;
  * 4. Workflow notes: *Start from template* loads the starter unsaved; then
  *    the notes are saved, and `get_context` for an RCP item delivers them;
- * 5. an upgrade changes Task Lite's version of the file (the image's copy is
+ * 5. an upgrade changes Docket's version of the file (the image's copy is
  *    edited and the container restarted): the edited default and RCP's copy
  *    are both flagged, with their comparisons, and both are kept.
  *
@@ -56,7 +56,7 @@ async function restartAndWait(): Promise<void> {
     }
     await new Promise((r) => setTimeout(r, 500));
   }
-  throw new Error('Task Lite did not come back after the restart');
+  throw new Error('Docket did not come back after the restart');
 }
 
 // The upgrade step edits the image's copy of the skill; put it back, then a fresh seed.
@@ -157,7 +157,7 @@ test.describe('Agent files (US13)', () => {
       'agents_block',
     ]) {
       await expect(fileRow(page, key)).toHaveAttribute('data-default', 'task-lite');
-      await expect(fileRow(page, key).getByText('Task Lite’s version')).toBeVisible();
+      await expect(fileRow(page, key).getByText('Docket’s version')).toBeVisible();
     }
 
     await fileRow(page, 'skill:tasklite-worker')
@@ -167,7 +167,7 @@ test.describe('Agent files (US13)', () => {
     const v = view(page);
     await expect(v.getByRole('heading', { name: 'tasklite-worker' })).toBeVisible();
     await expect(
-      v.getByText('Every project uses Task Lite’s version, unless it has its own copy.'),
+      v.getByText('Every project uses Docket’s version, unless it has its own copy.'),
     ).toBeVisible();
     await expect(v.getByLabel('Front matter')).toContainText('name: tasklite-worker');
     await expect(v.locator('[data-markdown] h1').first()).toBeVisible();
@@ -183,7 +183,7 @@ test.describe('Agent files (US13)', () => {
       .click();
   });
 
-  test('2. edit the default (note required), compare, history; Reset to Task Lite’s version and Undo', async ({
+  test('2. edit the default (note required), compare, history; Reset to Docket’s version and Undo', async ({
     ownerPage: page,
   }) => {
     await page.goto('/agent-files?project=all&file=skill:tasklite-worker');
@@ -210,8 +210,8 @@ test.describe('Agent files (US13)', () => {
     await expect(row.getByRole('button', { name: /^Reset tasklite-worker/ })).toBeVisible();
     await expect(v.getByText(/Edited default v1 · owner · .* · “Squash on merge\.”/)).toBeVisible();
 
-    // Compare with Task Lite's version: only the added lines.
-    await v.getByLabel('Compare with').selectOption({ label: 'Task Lite’s version v1' });
+    // Compare with Docket's version: only the added lines.
+    await v.getByLabel('Compare with').selectOption({ label: 'Docket’s version v1' });
     const diff = v.locator('[data-diff]');
     await expect(diff).toContainText('4 lines added, 0 lines removed');
     await expect(diff.locator('[data-op="add"]').filter({ hasText: '## Our rules' })).toHaveCount(
@@ -226,11 +226,11 @@ test.describe('Agent files (US13)', () => {
     await expect(hist.locator('[data-version="service-1"]')).toContainText('Squash on merge.');
     await expect(hist.locator('[data-version="service-1"]')).toContainText('In use');
     await expect(hist.locator('[data-version="bundled-1"]')).toContainText(
-      'Task Lite’s version v1',
+      'Docket’s version v1',
     );
     await expectAxeClean(page, 'Agent files: history');
 
-    // Edit tasklite-planner's default too; Reset it to Task Lite's version, then Undo.
+    // Edit tasklite-planner's default too; Reset it to Docket's version, then Undo.
     await page.goto('/agent-files?file=skill:tasklite-planner');
     const pv = view(page, 'skill:tasklite-planner');
     await pv.getByRole('button', { name: 'Edit', exact: true }).click();
@@ -239,8 +239,8 @@ test.describe('Agent files (US13)', () => {
     await pv.getByLabel('Note (required)').fill('Plans in specs/.');
     await pv.getByRole('button', { name: 'Save' }).click();
     await expect(toast(page, 'Saved the default tasklite-planner (v1).')).toBeVisible();
-    await pv.getByRole('button', { name: 'Reset to Task Lite’s version' }).click();
-    const reset = toast(page, 'The default tasklite-planner is Task Lite’s version again.');
+    await pv.getByRole('button', { name: 'Reset to Docket’s version' }).click();
+    const reset = toast(page, 'The default tasklite-planner is Docket’s version again.');
     await expect(reset).toBeVisible();
     await expect(fileRow(page, 'skill:tasklite-planner')).toHaveAttribute(
       'data-default',
@@ -387,7 +387,7 @@ test.describe('Agent files (US13)', () => {
     ).toEqual(['get_agent_files', 'propose_agent_file_change']);
   });
 
-  test('5. an upgrade changes Task Lite’s version: the edited default and RCP’s copy are flagged and kept', async ({
+  test('5. an upgrade changes Docket’s version: the edited default and RCP’s copy are flagged and kept', async ({
     ownerPage: page,
   }) => {
     test.setTimeout(120_000);
@@ -406,13 +406,13 @@ test.describe('Agent files (US13)', () => {
     await page.goto('/agent-files?project=all');
     const flag = page.locator('[data-default-changed="skill:tasklite-worker"]');
     await expect(flag).toContainText(
-      'Task Lite’s version of tasklite-worker changed since you edited the default.',
+      'Docket’s version of tasklite-worker changed since you edited the default.',
     );
     await expect(page.locator('[data-default-changed="skill:tasklite-planner"]')).toHaveCount(0);
     await flag.getByRole('button', { name: /^Compare/ }).click();
     const v = view(page);
     await expect(
-      v.getByText('Task Lite’s version changed since the default was edited.'),
+      v.getByText('Docket’s version changed since the default was edited.'),
     ).toBeVisible();
     // The edit is kept and still applies.
     await expect(
@@ -422,7 +422,7 @@ test.describe('Agent files (US13)', () => {
     await expect(
       diff.locator('[data-op="add"]').filter({ hasText: 'New in this release' }),
     ).toHaveCount(1);
-    await expectAxeClean(page, 'Agent files: Task Lite’s version changed');
+    await expectAxeClean(page, 'Agent files: Docket’s version changed');
 
     // Recipe App: its copy is flagged "the default changed", with Compare.
     await chooseProject(page, 'Recipe App');

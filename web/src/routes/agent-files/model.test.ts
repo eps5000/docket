@@ -48,7 +48,7 @@ function detail(
 describe('Agent files model (B25)', () => {
   it('names versions without the words bundled, layer, override or service-wide', () => {
     expect(versionLabel({ layer: 'bundled', version_no: 2 }, 'Recipe App')).toBe(
-      'Task Lite’s version v2',
+      'Docket’s version v2',
     );
     expect(versionLabel({ layer: 'service', version_no: 1 }, 'Recipe App')).toBe(
       'Edited default v1',
@@ -58,7 +58,7 @@ describe('Agent files model (B25)', () => {
     );
   });
 
-  it('the default is the edit when there is one, else Task Lite’s version', () => {
+  it('the default is the edit when there is one, else Docket’s version', () => {
     expect(defaultOf(versionsOf(detail({})))?.id).toBe('b1');
     const edited = detail({
       service: {
@@ -68,7 +68,7 @@ describe('Agent files model (B25)', () => {
       },
     });
     expect(defaultOf(versionsOf(edited))?.id).toBe('s1');
-    // A reset edit (no current version) leaves Task Lite's version as the default.
+    // A reset edit (no current version) leaves Docket's version as the default.
     const reset = detail({
       service: {
         file_id: 's',
@@ -99,7 +99,7 @@ describe('Agent files model (B25)', () => {
     expect(o?.to?.id).toBe('s1');
   });
 
-  it('flags a copy when Task Lite shipped a new version since it (the server flag)', () => {
+  it('flags a copy when Docket shipped a new version since it (the server flag)', () => {
     const d = detail(
       {
         bundled: {

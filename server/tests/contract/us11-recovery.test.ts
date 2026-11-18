@@ -70,13 +70,13 @@ async function ownerApi(app: Hono, ownerKey: string) {
     body: JSON.stringify({ key: ownerKey }),
   });
   const cookies = parseSetCookies(res);
-  const cookie = `tl_owner=${cookies.tl_owner!.value}; tl_csrf=${cookies.tl_csrf!.value}`;
+  const cookie = `docket_owner=${cookies.docket_owner!.value}; docket_csrf=${cookies.docket_csrf!.value}`;
   return async (method: string, path: string, body?: unknown) => {
     const r = await req(path, {
       method,
       headers: {
         cookie,
-        ...(method === 'GET' ? {} : { 'x-tasklite-csrf': cookies.tl_csrf!.value }),
+        ...(method === 'GET' ? {} : { 'x-docket-csrf': cookies.docket_csrf!.value }),
         ...(body === undefined ? {} : { 'content-type': 'application/json' }),
       },
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -381,11 +381,11 @@ describe('§7.13 crash recovery and SC-014 (MCP_SPEC §10 test 19)', () => {
     const third = await h.connect({ name: 'gemini-cli', version: '1.0.0' });
     const briefs = {
       'RCP-17':
-        'Work Task Lite item RCP-17 using the tasklite-worker skill.\nWorktree: C:/work/rcp-17 · branch rcp-17-week-reload · base origin/main @ 9a10624\nClaim with claim_lead, passing this workspace and this brief verbatim. Then get_context.\r\nConstraints: run `pnpm test`; don’t touch docs/. 🚀  ',
+        'Work Docket item RCP-17 using the tasklite-worker skill.\nWorktree: C:/work/rcp-17 · branch rcp-17-week-reload · base origin/main @ 9a10624\nClaim with claim_lead, passing this workspace and this brief verbatim. Then get_context.\r\nConstraints: run `pnpm test`; don’t touch docs/. 🚀  ',
       'RCP-25':
-        'Work Task Lite item RCP-25. Worktree C:/work/rcp-25. If you must wait, park_run; don’t end silently.',
+        'Work Docket item RCP-25. Worktree C:/work/rcp-25. If you must wait, park_run; don’t end silently.',
       'RCP-18':
-        'Work Task Lite item RCP-18 (resume the failed import). Worktree C:/work/rcp-18. Dev server on :5173.',
+        'Work Docket item RCP-18 (resume the failed import). Worktree C:/work/rcp-18. Dev server on :5173.',
     };
 
     // 1. Active: RCP-17, a plan with 2 of 4 steps done, pushed and clean.

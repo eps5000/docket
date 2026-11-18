@@ -74,7 +74,7 @@ export type FileViewMode = 'view' | 'edit' | 'changed';
  * toggle, *Edit* (a required note), *History* and *Compare*. With a project
  * selected it shows what that project uses, its copy or the default, with
  * *Customize for …* or *Use default*; with All projects it edits the default,
- * with *Reset to Task Lite’s version*.
+ * with *Reset to Docket’s version*.
  */
 export function AgentFileView({
   fileKey,
@@ -161,7 +161,7 @@ function FileBody({
   const label = (v: Version) => `${versionLabel(v, pName)}${v === using ? ' (in use)' : ''}`;
   const byId = (id: string) => versions.find((v) => v.id === id);
 
-  /** What changed: a project copy older than the default, or a default older than Task Lite's version. */
+  /** What changed: a project copy older than the default, or a default older than Docket's version. */
   const outdated = useMemo(() => {
     if (project) {
       const o = copyOutdated(d, versions);
@@ -293,7 +293,7 @@ function FileBody({
       : `${possessive(pName)} agents use the default${edited ? ' (edited)' : ''}.`
     : edited
       ? 'Every project uses this default, unless it has its own copy.'
-      : 'Every project uses Task Lite’s version, unless it has its own copy.';
+      : 'Every project uses Docket’s version, unless it has its own copy.';
 
   return (
     <div className="card afv">
@@ -310,7 +310,7 @@ function FileBody({
           )
         ) : (
           <Chip kind={edited ? 'info' : 'neutral'}>
-            {edited ? 'Edited' : 'Task Lite’s version'}
+            {edited ? 'Edited' : 'Docket’s version'}
           </Chip>
         )}
         <span className="grow" />
@@ -329,7 +329,7 @@ function FileBody({
               </>
             ) : (
               <>
-                <b>Task Lite’s version changed since the default was edited.</b> Projects still get
+                <b>Docket’s version changed since the default was edited.</b> Projects still get
                 your edited default. Compare, then edit it to take what you need, or reset it.
               </>
             )}
@@ -337,13 +337,13 @@ function FileBody({
           <div className="row wrap" style={{ gap: 6, marginTop: 6 }}>
             {outdated.from && outdated.to && (
               <Button size="sm" onClick={() => openDiff(outdated.from, outdated.to)}>
-                {project ? 'What changed in the default' : 'What Task Lite changed'}
+                {project ? 'What changed in the default' : 'What Docket changed'}
               </Button>
             )}
             <Button size="sm" onClick={() => openDiff(outdated.theirs, outdated.mine)}>
               {project
                 ? `The default → ${possessive(pName)} copy`
-                : 'Task Lite’s version → the default'}
+                : 'Docket’s version → the default'}
             </Button>
           </div>
         </Callout>
@@ -393,7 +393,7 @@ function FileBody({
               void resetDefault(d);
             }}
           >
-            Reset to Task Lite’s version
+            Reset to Docket’s version
           </Button>
         )}
         <Button
@@ -441,7 +441,7 @@ function FileBody({
                 ? editing.expected === 0
                   ? `A new copy for ${pName}, starting from the default. Only ${possessive(pName)} agents get it; other projects keep the default.`
                   : `Editing ${possessive(pName)} copy (replaces v${editing.expected}). Saving adds a version; older ones stay in History.`
-                : `Editing the default, for every project without its own copy${editing.expected > 0 ? ` (replaces v${editing.expected})` : ', starting from Task Lite’s version'}. Saving adds a version; older ones stay in History.`}
+                : `Editing the default, for every project without its own copy${editing.expected > 0 ? ` (replaces v${editing.expected})` : ', starting from Docket’s version'}. Saving adds a version; older ones stay in History.`}
             </div>
             <div className="afnote">
               <label htmlFor={noteId}>Note (required)</label>

@@ -28,8 +28,8 @@ export interface TestDb extends TempDir {
 
 /** A fresh, migrated database in its own temporary directory. */
 export function createTestDb(): TestDb {
-  const tmp = tempDir('tasklite-db-');
-  const db = openDb(join(tmp.dir, 'tasklite.db'));
+  const tmp = tempDir('docket-db-');
+  const db = openDb(join(tmp.dir, 'docket.db'));
   migrateDb(db);
   return {
     db,

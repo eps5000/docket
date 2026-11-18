@@ -27,7 +27,7 @@ const WORKER = 'skill:tasklite-worker';
 const V1: BundledAgentFile[] = [
   { key: WORKER, content: '# Worker\n\nBundled v1.\n' },
   { key: 'skill:tasklite-coordinator', content: '# Coordinator\n' },
-  { key: 'agents_block', content: '## Work tracking: Task Lite\n' },
+  { key: 'agents_block', content: '## Work tracking: Docket\n' },
 ];
 
 beforeEach(() => {
@@ -161,7 +161,7 @@ describe('bundled loading (startup)', () => {
       'skill:tasklite-worker',
     ]);
     expect(files.find((f) => f.key === 'agents_block')!.content).toContain(
-      'Work tracking: Task Lite',
+      'Work tracking: Docket',
     );
   });
 

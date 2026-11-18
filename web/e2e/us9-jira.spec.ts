@@ -77,7 +77,7 @@ async function shoot(page: Page, name: string, target: Locator) {
 const dialog = (page: Page) => page.getByRole('dialog', { name: 'Import from Jira' });
 
 async function openDialog(page: Page): Promise<Locator> {
-  await page.context().addInitScript(() => localStorage.setItem('tl.notifications', 'off'));
+  await page.context().addInitScript(() => localStorage.setItem('docket.notifications', 'off'));
   await page.goto('/settings');
   await page.getByRole('button', { name: 'Import from Jira…' }).click();
   const d = dialog(page);

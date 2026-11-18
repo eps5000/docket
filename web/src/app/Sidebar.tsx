@@ -216,7 +216,7 @@ export function Sidebar() {
     <nav className="side" aria-label="Primary">
       <div className="logo">
         <i aria-hidden="true">TL</i>
-        <span>Task Lite</span>
+        <span>Docket</span>
       </div>
       <ProjectSwitcher />
       <NavItem

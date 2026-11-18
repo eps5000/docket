@@ -49,13 +49,13 @@ export function driftCounts(
   return out;
 }
 
-/** The "changed outside Task Lite" chip on a file row (UI_SPEC §6.7b-1). */
+/** The "changed outside Docket" chip on a file row (UI_SPEC §6.7b-1). */
 export function DriftChip({ drift }: { drift: Drift | undefined }) {
   if (!drift) return null;
   return (
     <a href={`#drift-${drift.id}`} className="afchiplink" data-drift-chip="">
       <Chip kind="warn" icon="attention">
-        changed outside Task Lite
+        changed outside Docket
       </Chip>
     </a>
   );
@@ -70,10 +70,10 @@ const CHANGE: Record<Drift['change'], { label: string; kind: ChipKind }> = {
 const nameOf = (key: string) => (key.startsWith('skill:') ? key.slice(6) : 'AGENTS.md block');
 
 /**
- * "Changed outside Task Lite · n" (UI_SPEC §6.7b-1; FR-131, FR-132): each
- * installed file that differs from what Task Lite sent, with where it is,
+ * "Changed outside Docket · n" (UI_SPEC §6.7b-1; FR-131, FR-132): each
+ * installed file that differs from what Docket sent, with where it is,
  * how it was found, a diff when the text is known, and *Adopt as …*,
- * *Restore Task Lite's version* and *Keep local*.
+ * *Restore Docket's version* and *Keep local*.
  */
 export function DriftSection({
   project,
@@ -82,7 +82,7 @@ export function DriftSection({
 }: {
   project: string | null;
   projects: readonly { key: string; short_name: string }[];
-  /** The files Task Lite ships: only those can be adopted. */
+  /** The files Docket ships: only those can be adopted. */
   shippedKeys: ReadonlySet<string>;
 }) {
   const list = useOpenDrift(project);
@@ -107,13 +107,13 @@ export function DriftSection({
     >
       <div className="withhelp">
         <h2 id="afd-title">
-          Changed outside Task Lite <span className="muted">· {rows.length}</span>
+          Changed outside Docket <span className="muted">· {rows.length}</span>
         </h2>
         <HelpLink anchor="problems.agent_files_drift" />
       </div>
       <p className="src aflede">
-        These installed files no longer match what Task Lite sent: someone edited, deleted or added
-        them by hand. Every later agent there follows them. Adopt the change, restore Task Lite’s
+        These installed files no longer match what Docket sent: someone edited, deleted or added
+        them by hand. Every later agent there follows them. Adopt the change, restore Docket’s
         version, or keep it on purpose.
       </p>
       {rows.map((d) => (
@@ -128,7 +128,7 @@ export function DriftSection({
   );
 }
 
-/** What Task Lite sent for this record, as installed (the block rendered for the install). */
+/** What Docket sent for this record, as installed (the block rendered for the install). */
 function useSentText(d: Drift): string | undefined | null {
   const q = d.project ? { project: d.project } : {};
   const file = useQuery({
@@ -187,7 +187,7 @@ function DriftCard({
     d.change === 'missing'
       ? 'The file is missing there: nothing to adopt.'
       : !adoptable
-        ? 'Only the files Task Lite ships can be adopted.'
+        ? 'Only the files Docket ships can be adopted.'
         : withheld
           ? 'Content withheld: the local text looked like a secret.'
           : noText
@@ -195,7 +195,7 @@ function DriftCard({
             : null;
   const restoreWhy =
     d.change === 'extra'
-      ? 'Task Lite never deletes files: remove the folder yourself, or keep it.'
+      ? 'Docket never deletes files: remove the folder yourself, or keep it.'
       : null;
 
   async function act(kind: 'adopt' | 'restore' | 'keep') {
@@ -212,8 +212,8 @@ function DriftCard({
           {
             success:
               d.install.method === 'push'
-                ? `Restored: Task Lite reinstalled its version in ${where}.`
-                : 'Run the new install command there to restore Task Lite’s version.',
+                ? `Restored: Docket reinstalled its version in ${where}.`
+                : 'Run the new install command there to restore Docket’s version.',
             refetch: REFRESH,
           },
         );
@@ -255,7 +255,7 @@ function DriftCard({
           <dt>Where</dt>
           <dd>
             <span className="mono">{where}</span> · {INSTALL_CLIENT_LABELS[d.install.client]} ·{' '}
-            {d.install.method === 'push' ? 'written by Task Lite' : 'installed by command'}{' '}
+            {d.install.method === 'push' ? 'written by Docket' : 'installed by command'}{' '}
             <span className="mono src">({d.install_id})</span>
           </dd>
           <dt>How it was found</dt>
@@ -270,13 +270,13 @@ function DriftCard({
           </Callout>
         ) : withheld ? (
           <Callout tone="warn">
-            <b>Content withheld: it looked like a secret.</b> Task Lite kept only the file’s
+            <b>Content withheld: it looked like a secret.</b> Docket kept only the file’s
             fingerprint, never the text, so it can’t show the change. Remove the secret from the
             file there; the next tasklite-check report sends the text.
           </Callout>
         ) : noText ? (
           <Callout>
-            Task Lite doesn’t have the local text, so it can’t show the change. Run tasklite-check
+            Docket doesn’t have the local text, so it can’t show the change. Run tasklite-check
             on that machine to send the text: the next agent claim there does it.
           </Callout>
         ) : sent === undefined ? (
@@ -288,7 +288,7 @@ function DriftCard({
             label={
               d.change === 'extra'
                 ? `${name}: the added file`
-                : `${name}: Task Lite’s version → the local file`
+                : `${name}: Docket’s version → the local file`
             }
           />
         )}
@@ -297,7 +297,7 @@ function DriftCard({
           <div className="afdrift-cmd" role="group" aria-label="Restore by command">
             <div className="src">
               Run one of these {d.install.path ? `in ${d.install.path}` : 'where it was installed'}{' '}
-              to put Task Lite’s version back. Each works once, for 10 minutes.
+              to put Docket’s version back. Each works once, for 10 minutes.
             </div>
             <CopyBlock
               text={commands.command.powershell}
@@ -337,7 +337,7 @@ function DriftCard({
                 aria-describedby={restoreWhy ? `${d.id}-restore` : undefined}
                 onClick={() => void act('restore')}
               >
-                Restore Task Lite’s version<span className="sr"> ({name})</span>
+                Restore Docket’s version<span className="sr"> ({name})</span>
               </Button>
               <Button variant="ghost" disabled={busy} onClick={() => void act('keep')}>
                 Keep local<span className="sr"> ({name})</span>

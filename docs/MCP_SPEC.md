@@ -1,8 +1,8 @@
-# Task Lite: MCP spec
+# Docket: MCP spec
 
 Status: ready to build, 2026-11-07. This is the complete agent-facing contract: connection, conventions, the server instructions, every tool's description text and schemas, errors, and worked flows. [BUILD_SPEC.md](BUILD_SPEC.md) §5 defines the rules these tools enforce. Where the two disagree on a schema, this file wins; on a rule, BUILD_SPEC wins.
 
-**Agents are the primary users of Task Lite.** The tool descriptions and server instructions below are the only manual most agents will ever read, so treat them as product copy:
+**Agents are the primary users of Docket.** The tool descriptions and server instructions below are the only manual most agents will ever read, so treat them as product copy:
 - **Implement them verbatim.**
 - **Change them deliberately:** edit this file first, and keep the contract tests in §10 in step with it.
 
@@ -17,7 +17,7 @@ Companion template: [templates/AGENTS-tasklite.md](templates/AGENTS-tasklite.md)
 | Endpoint | `http://127.0.0.1:7420/mcp` |
 | Transport | MCP Streamable HTTP, protocol version per the SDK's latest stable. Stateful sessions (`Mcp-Session-Id`). The server accepts `GET` for the server→client stream and `DELETE` to end a session. |
 | Auth | `Authorization: Bearer <DOCKET_TOKEN>`. A missing or wrong token gets HTTP 401 before any MCP handling. |
-| Server info | `name: "tasklite"`, `version` = the app version |
+| Server info | `name: "docket"`, `version` = the app version |
 | Capabilities | `tools` (with `listChanged: false`). No resources or prompts in V1. Everything an agent needs comes from tools, and the server instructions point to the tools. |
 | Client identity | `clientInfo.name` from `initialize`, normalised (BUILD_SPEC §3). Agents add `agent_label` on `claim_lead` and `start_run`. |
 | Liveness | The server pings each session that has an open run every 60 s. Answering pings is what lets a run show as *live* (BUILD_SPEC §5.4). |
@@ -31,7 +31,7 @@ Client setup commands are in §11.
 The server returns this text as `instructions` in the `initialize` result. Clients show it to the model as standing guidance. Implement it verbatim, substituting nothing.
 
 ```
-Task Lite coordinates the owner's agent work. Use it to find work you may start, get its context, record your plan and progress, follow and record decisions, and hand finished work to the owner for review. It enforces claims, dependencies and review gates for you. The owner supervises in a web UI; keep entries short and factual.
+Docket coordinates the owner's agent work. Use it to find work you may start, get its context, record your plan and progress, follow and record decisions, and hand finished work to the owner for review. It enforces claims, dependencies and review gates for you. The owner supervises in a web UI; keep entries short and factual.
 
 Workflow: Inbox → Planning → Ready → In progress → Review → Done.
 - Only start work that is Ready (search_items filter "ready_to_start") or was sent back to you (filter "resumable"). Claim it first with claim_lead; if someone else holds it, pick something else.
@@ -116,7 +116,7 @@ Pass `run_id` on every call you make while working. **Every tool accepts an opti
 Unknown input keys are rejected with `validation` (JSON Schema `additionalProperties: false`), so a typo such as `expected_verison` can't silently skip a check. The error names each unknown key and, when one is close, the valid field it probably meant, in both the message and `details.unknown` / `details.fields`. For example: `Unknown field "expected_verison"; did you mean "expected_version"?` (B3 resolution 4).
 
 ### Workspaces, briefs and resources (recovery)
-Task Lite records **where work lives and what was started for it**, so a crashed orchestrator or worker can be restarted without guessing (owner decision 26). It never touches the host: it can't check a folder, stop a process or protect a worktree. The coordinator does those things using what Task Lite records.
+Docket records **where work lives and what was started for it**, so a crashed orchestrator or worker can be restarted without guessing (owner decision 26). It never touches the host: it can't check a folder, stop a process or protect a worktree. The coordinator does those things using what Docket records.
 - **Workspace:** passed to `claim_lead` or `start_run` and updated through `heartbeat`. It holds the host, repo, worktree path, branch, base ref and base SHA, plus `head_sha`, `pushed_sha` and `dirty` (uncommitted changes, as the agent reports them).
 - **Orchestrator reference:** an optional `{ name, dispatch_id, task_id, run_id }`, for example Orca's IDs, so a coordinator can match its own records.
 - **Brief:** the exact instructions the run was given. Pass it as text (stored as an immutable `brief` document on the item) or as a `document_version_id`. On a restart it is re-sent unchanged.
@@ -393,7 +393,7 @@ The format for each tool below:
 ### 5.1 Orientation
 
 #### `whoami`
-**Description:** "Check your connection to Task Lite. Returns how the server identifies you, server limits and the server time. Call it once at the start of a session."
+**Description:** "Check your connection to Docket. Returns how the server identifies you, server limits and the server time. Call it once at the start of a session."
 - **Input:** none.
 - **Output:** `{ client, session_id, server_version, server_time, limits: { page_max: 50, changes_max: 200, document_mcp_bytes: 26214400, text_limits: {...} }, live_window_s, stale_after_s, lease_s }`.
 
@@ -502,13 +502,13 @@ The format for each tool below:
 - **Errors:** `forbidden` (not your run), `not_found`.
 
 #### `start_run`
-**Description:** "Start a child run under your lead run when you delegate to a subagent that has its own Task Lite connection. Pass its workspace and brief as for claim_lead. The subagent passes the child run_id on its calls. For subagents without their own connection, use log_subagent instead."
+**Description:** "Start a child run under your lead run when you delegate to a subagent that has its own Docket connection. Pass its workspace and brief as for claim_lead. The subagent passes the child run_id on its calls. For subagents without their own connection, use log_subagent instead."
 - **Input:** `id`, `parent_run_id`, `agent_label?`, `workspace?`, `orchestrator?`, `brief?` or `brief_document_version_id?`, `external?` (shapes as for `claim_lead`).
 - **Output:** `{ run_id }`.
 - **Errors:** `validation` (the parent isn't an open lead run on this item).
 
 #### `heartbeat`
-**Description:** "Tell Task Lite you are still working, and update what it knows about your run: your current step, your workspace (head and pushed commits, uncommitted changes), and long-lived resources you started or released. Any call with run_id keeps you live, so use this when you have nothing else to record or something changed."
+**Description:** "Tell Docket you are still working, and update what it knows about your run: your current step, your workspace (head and pushed commits, uncommitted changes), and long-lived resources you started or released. Any call with run_id keeps you live, so use this when you have nothing else to record or something changed."
 - **Input:** `run_id`, `current_step_id?`, `note?` (short; shown as the run's "doing" line), `workspace?` (a patch: `head_sha?`, `pushed_sha?`, `dirty?`, `path?`, `branch?`), `resources_started?: [{ kind, label (≤ 120), locator }]` (≤ 10 per call), `resources_released?: [{ resource_id, note? }]`, `external?`.
 - **Output:** `{ run_state, lease_expires_at, resources: [{ id, label }] }`, where the new resources have IDs `rsc_…`.
 - **Note:** A heartbeat on a parked run resumes it.
@@ -522,7 +522,7 @@ The format for each tool below:
 - **Warnings:** finishing with unreleased resources, or with `head_sha` ≠ `pushed_sha`, succeeds but warns (`! 1 resource still declared: dev server :5173`; `! 2 commits not pushed`). The workspace then shows as `at_risk`.
 
 #### `park_run`
-**Description:** "Park your run when you must wait: on another item, on the coordinator to send you more work, or on a person. A parked run keeps its claim and its workspace stays marked in use, so it is never mistaken for finished or stale. Say what you are waiting on; Task Lite flags it as ready to resume when that clears. Any later call with your run_id resumes it."
+**Description:** "Park your run when you must wait: on another item, on the coordinator to send you more work, or on a person. A parked run keeps its claim and its workspace stays marked in use, so it is never mistaken for finished or stale. Say what you are waiting on; Docket flags it as ready to resume when that clears. Any later call with your run_id resumes it."
 - **Input:** `run_id`, `reason` (≤ 500), `waiting_on?: { items?: string[], orchestrator?: boolean, person?: boolean, until? }`.
 - **Output:** `{ run_state: 'parked', resume_ready: boolean }`.
 - **Errors:** `conflict` (the run has ended), `validation` (unknown item in `waiting_on.items`).
@@ -705,7 +705,7 @@ Every error is returned as a tool result: `isError: true`, a `text` block holdin
 | `conflict` | Version mismatch, claim held, run ended | "RCP-15 is led by codex · orca-w1 (lease until 11:13 UTC). Pick another item." | `current` (record or claim) |
 | `not_found` | Unknown ID, or deleted | "No item RCP-99. Check the ID with search_items." | — |
 | `forbidden` | Owner-only operation, someone else's run, owner-added or locked item | "hr_01J… was added by the owner; only the owner can change it." | — |
-| `unavailable` | Database busy past 5 s, disk full, maintenance (restore) | "Task Lite is busy; retry in a few seconds with the same idempotency_key." | `details.retry_after_s` |
+| `unavailable` | Database busy past 5 s, disk full, maintenance (restore) | "Docket is busy; retry in a few seconds with the same idempotency_key." | `details.retry_after_s` |
 | `internal` | Bug | "Unexpected error (ref e_01J…). It has been logged." | `details.ref` |
 
 JSON-RPC protocol errors (malformed requests, unknown tool) follow the MCP spec and are separate from these.
@@ -936,7 +936,7 @@ The commands below were checked against the clients' current documentation on 20
 Source: Codex MCP docs, `learn.chatgpt.com/docs/extend/mcp?surface=cli`.
 - **Where:** add this to `~/.codex/config.toml` (Windows: `%USERPROFILE%\.codex\config.toml`). The token is read from the environment on every connection and never stored in the file:
   ```toml
-  [mcp_servers.tasklite]
+  [mcp_servers.docket]
   url = "http://127.0.0.1:7420/mcp"
   bearer_token_env_var = "DOCKET_TOKEN"
   ```
@@ -948,7 +948,7 @@ Source: Codex MCP docs, `learn.chatgpt.com/docs/extend/mcp?surface=cli`.
 Source: `code.claude.com/docs/en/mcp`. Flags come before the name, and the name before the URL.
 - **For every project (user scope; recommended):**
   ```bash
-  claude mcp add --transport http --scope user tasklite http://127.0.0.1:7420/mcp \
+  claude mcp add --transport http --scope user docket http://127.0.0.1:7420/mcp \
     --header "Authorization: Bearer $DOCKET_TOKEN"
   ```
   PowerShell: `--header "Authorization: Bearer $env:DOCKET_TOKEN"`.
@@ -958,7 +958,7 @@ Source: `code.claude.com/docs/en/mcp`. Flags come before the name, and the name 
   ```json
   {
     "mcpServers": {
-      "tasklite": {
+      "docket": {
         "type": "http",
         "url": "http://127.0.0.1:7420/mcp",
         "headers": { "Authorization": "Bearer ${DOCKET_TOKEN}" }
@@ -967,7 +967,7 @@ Source: `code.claude.com/docs/en/mcp`. Flags come before the name, and the name 
   }
   ```
   Note: `type` must be `http`. An entry with a `url` but no `type` is treated as stdio and skipped.
-- **Check it:** `claude mcp list` should show `tasklite … ✔ Connected`. Inside Claude Code, `/mcp` shows the status.
+- **Check it:** `claude mcp list` should show `docket … ✔ Connected`. Inside Claude Code, `/mcp` shows the status.
 - **Result mode:** text-only (§3 Results). Claude Code sends `clientInfo.name` `claude-code` and gives the model `structuredContent` when there is one (BUILD_SPEC §12, V6), so by default it gets no `outputSchema` and no `structuredContent`, and its model reads the compact text.
 
 ### Orca workers

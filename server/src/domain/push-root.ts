@@ -1,7 +1,7 @@
 /**
  * The push-root guard (owner decision 29; BUILD_SPEC §5.17; FR-117, FR-125).
  *
- * The push install is the one place Task Lite touches host files, and only
+ * The push install is the one place Docket touches host files, and only
  * inside the folder the owner mounted (`DOCKET_PUSH_ROOT`). Every path goes
  * through here, and each escape is blocked as follows:
  *
@@ -19,7 +19,7 @@
  * - **Never delete:** this module has no delete. Folders are created one
  *   level at a time, files are written in place. The callers write only the
  *   `tasklite-*` skill files, the manifest and the instructions file (whose
- *   text outside the Task Lite markers is kept byte for byte).
+ *   text outside the Docket markers is kept byte for byte).
  *
  * Errors are `validation` ToolErrors with a plain message; none of them
  * quote anything from outside the root.
@@ -87,7 +87,7 @@ export function rootSegments(
 
 export class SymlinkRefused extends ToolError {
   constructor(path: string) {
-    super('validation', `${path} is a symbolic link; Task Lite never writes or reads through one.`);
+    super('validation', `${path} is a symbolic link; Docket never writes or reads through one.`);
   }
 }
 
@@ -128,7 +128,7 @@ export class PushRoot {
       throw refuse(`There's no folder at ${input} in the push folder. Check the path.`);
     }
     if (!isInside(this.real, real)) {
-      throw refuse(`${input} links outside the push folder; Task Lite won't follow it.`);
+      throw refuse(`${input} links outside the push folder; Docket won't follow it.`);
     }
     if (!(await stat(real)).isDirectory()) throw refuse(`${input} isn't a folder.`);
     return real;
@@ -157,7 +157,7 @@ export class PushRoot {
       if (info.isSymbolicLink()) {
         const real = await realpath(next).catch(() => null);
         if (!real || !isInside(this.real, real)) {
-          throw refuse(`${relDir} links outside the push folder; Task Lite won't follow it.`);
+          throw refuse(`${relDir} links outside the push folder; Docket won't follow it.`);
         }
         if (!(await stat(real)).isDirectory()) throw refuse(`${relDir} isn't a folder.`);
         cur = real;

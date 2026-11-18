@@ -451,12 +451,12 @@ export async function verifyArchive(
       manifest = JSON.parse(manifestText) as Manifest;
     } catch {
       throw new ArchiveError(
-        'The archive has no readable manifest.json; it is not a Task Lite backup.',
+        'The archive has no readable manifest.json; it is not a Docket backup.',
       );
     }
     const dbEntry = DB_ENTRY_OF[manifest.format];
     if (!dbEntry || manifest.version !== 1) {
-      throw new ArchiveError('The archive is not a Task Lite backup (unknown manifest format).');
+      throw new ArchiveError('The archive is not a Docket backup (unknown manifest format).');
     }
     for (const [name, want] of Object.entries(manifest.files)) {
       const got = seen.get(name);
@@ -800,7 +800,7 @@ export async function restoreBackup(opts: {
   const running = runningServer(config, clock());
   if (running) {
     throw new RestoreRefused(
-      'Task Lite is running on this data volume. Stop it first (docker compose stop tasklite), then run: docker compose run --rm tasklite tasklite restore <file>',
+      'Docket is running on this data volume. Stop it first (docker compose stop docket), then run: docker compose run --rm docket docket restore <file>',
     );
   }
   const archive = resolveArchive(config, opts.file);

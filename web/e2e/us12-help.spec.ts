@@ -14,7 +14,7 @@ useSeededContainer();
 
 test.beforeEach(async ({ page }) => {
   await unlock(page.context());
-  await page.context().addInitScript(() => localStorage.setItem('tl.notifications', 'off'));
+  await page.context().addInitScript(() => localStorage.setItem('docket.notifications', 'off'));
 });
 
 test('the sidebar opens Help; search for "parked" and open the article', async ({ page }) => {

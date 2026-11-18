@@ -63,7 +63,7 @@ export const settingsResponse = jsonResponse({
     /**
      * The data volume mounted at /data, as the compose file names it
      * (DOCKET_DATA_VOLUME; null when not given), and whether its database
-     * file still has its name from before the rename (`tasklite.db`; B28).
+     * file still has its name from before the rename (`docket.db`; B28).
      */
     volume: z.object({ name: z.string().nullable(), legacy_db_file: z.boolean() }),
     backups: z.array(backupLocationSchema),

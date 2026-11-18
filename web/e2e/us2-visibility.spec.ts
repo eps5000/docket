@@ -107,7 +107,7 @@ test.describe('Needs you', () => {
 
   test('the tab title and the sidebar badge show the for-you count', async ({ page }) => {
     await page.goto('/work');
-    await expect(page).toHaveTitle('(3) Task Lite');
+    await expect(page).toHaveTitle('(3) Docket');
     const needsYou = page
       .getByRole('navigation', { name: 'Primary' })
       .getByRole('link', { name: /^Needs you/ });

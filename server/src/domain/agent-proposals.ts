@@ -10,7 +10,7 @@
  * one file with its full text.
  *
  * **Proposing** stores a pending row and changes nothing else. A target is a
- * file Task Lite ships, or `workflow` for a project. `based_on_version_id`
+ * file Docket ships, or `workflow` for a project. `based_on_version_id`
  * must be a version of that file (any layer) or of the project's notes, so
  * the review can show what the agent read. The write path's checks apply
  * (secrets refused, unknown item IDs warned). Two rules the schema can't
@@ -177,7 +177,7 @@ export function createAgentProposalsService(_deps: ServiceDeps): AgentProposalsS
       if (key !== WORKFLOW_KEY && !isShippedKey(w.db, key)) {
         throw new ToolError(
           'validation',
-          `No agent file ${key}: only the files Task Lite ships can be changed. Read the list with get_agent_files.`,
+          `No agent file ${key}: only the files Docket ships can be changed. Read the list with get_agent_files.`,
           { details: { field: 'file' } },
         );
       }

@@ -356,7 +356,7 @@ export function mapDbError(err: unknown): unknown {
   if (code.startsWith('SQLITE_BUSY') || code.startsWith('SQLITE_LOCKED')) {
     return new ToolError(
       'unavailable',
-      'Task Lite is busy; retry in a few seconds with the same idempotency_key.',
+      'Docket is busy; retry in a few seconds with the same idempotency_key.',
       { details: { retry_after_s: BUSY_RETRY_AFTER_S } },
     );
   }

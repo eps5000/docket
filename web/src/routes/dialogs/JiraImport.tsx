@@ -483,7 +483,7 @@ function ReportView({
         <thead>
           <tr>
             <th scope="col">Jira</th>
-            <th scope="col">Task Lite</th>
+            <th scope="col">Docket</th>
             <th scope="col" className="num">
               Count
             </th>

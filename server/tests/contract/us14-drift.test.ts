@@ -39,7 +39,7 @@ const sha256 = (text: string) => createHash('sha256').update(text, 'utf8').diges
 
 /** A seeded harness with the shipped files, a temporary push folder, and the owner's API. */
 async function start(opts: { push?: boolean } = { push: true }) {
-  tmp = tempDir('tasklite-us14-drift-');
+  tmp = tempDir('docket-us14-drift-');
   const root = join(tmp.dir, 'code');
   mkdirSync(join(root, 'recipes'), { recursive: true });
   h = await startHarness({
@@ -56,13 +56,13 @@ async function start(opts: { push?: boolean } = { push: true }) {
     body: JSON.stringify({ key: h.server.runtime.secrets.ownerKey() }),
   });
   const cookies = parseSetCookies(res);
-  const cookie = `tl_owner=${cookies.tl_owner!.value}; tl_csrf=${cookies.tl_csrf!.value}`;
+  const cookie = `docket_owner=${cookies.docket_owner!.value}; docket_csrf=${cookies.docket_csrf!.value}`;
   const owner = async (method: string, path: string, body?: unknown) => {
     const r = await req(path, {
       method,
       headers: {
         cookie,
-        ...(method === 'GET' ? {} : { 'x-tasklite-csrf': cookies.tl_csrf!.value }),
+        ...(method === 'GET' ? {} : { 'x-docket-csrf': cookies.docket_csrf!.value }),
         ...(body === undefined ? {} : { 'content-type': 'application/json' }),
       },
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -211,7 +211,7 @@ describe('the scheduled push check (SC-017: within one interval)', () => {
         item_id: null,
         drift_id: found[0]!.id,
         reason:
-          'tasklite-worker edited outside Task Lite · Recipe App · recipes · found by the scheduled check',
+          'tasklite-worker edited outside Docket · Recipe App · recipes · found by the scheduled check',
       });
     } finally {
       job.stop();
@@ -219,7 +219,7 @@ describe('the scheduled push check (SC-017: within one interval)', () => {
   });
 
   it('is off when the interval is off', async () => {
-    tmp = tempDir('tasklite-us14-drift-');
+    tmp = tempDir('docket-us14-drift-');
     h = await startHarness({
       env: { DOCKET_PUSH_ROOT: tmp.dir, DOCKET_DRIFT_CHECK_INTERVAL: 'off' },
     });
@@ -265,7 +265,7 @@ describe('remedies', () => {
     expect((await openDrift(owner)).map((x) => x.id)).toEqual([d!.id]);
   });
 
-  it('Restore reinstalls by push (the files are Task Lite’s again) and resolves every record of the install', async () => {
+  it('Restore reinstalls by push (the files are Docket’s again) and resolves every record of the install', async () => {
     const { owner, repo } = await start();
     const first = await pushInstall(owner);
     const sent = readFileSync(workerPath(repo), 'utf8');
@@ -312,7 +312,7 @@ describe('remedies', () => {
     expect(adopt.status).toBe(400);
     const restore = await owner('POST', `/api/drift/${extra.id as string}/restore`, {});
     expect(restore.status).toBe(400);
-    expect((restore.body.error as S).message).toContain('Task Lite never deletes files');
+    expect((restore.body.error as S).message).toContain('Docket never deletes files');
     for (const d of open) {
       expect((await owner('POST', `/api/drift/${d.id as string}/keep-local`, {})).status).toBe(200);
     }
@@ -477,7 +477,7 @@ describe('agent reports on claim_lead (SC-017: by the next claim)', () => {
     // The problem names who reported it.
     const needs = await owner('GET', '/api/needs-you?scope=all');
     expect((needs.body.problems as S[]).find((p) => p.drift_id === d!.id)?.reason).toBe(
-      'tasklite-worker edited outside Task Lite · Recipe App · recipes · reported by claude · orca-w3 on RCP-17',
+      'tasklite-worker edited outside Docket · Recipe App · recipes · reported by claude · orca-w3 on RCP-17',
     );
 
     // Keep local: the same hash, reported again, raises nothing.

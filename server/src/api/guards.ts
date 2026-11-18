@@ -70,7 +70,7 @@ export function bearerAuth(expectedToken: () => string): MiddlewareHandler {
     const header = c.req.header('authorization') ?? '';
     const m = /^Bearer[ \t]+(\S+)[ \t]*$/i.exec(header);
     if (!m || !safeEqual(m[1]!, expectedToken())) {
-      c.header('WWW-Authenticate', 'Bearer realm="tasklite"');
+      c.header('WWW-Authenticate', 'Bearer realm="docket"');
       return c.json(
         errorBody(
           'forbidden',

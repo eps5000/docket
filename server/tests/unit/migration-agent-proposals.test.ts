@@ -398,8 +398,8 @@ describe('0004_agent_proposals on a main-era database (0000–0003, with data)',
   let db: Db;
 
   beforeEach(() => {
-    tmp = tempDir('tasklite-migrate-');
-    db = openDb(join(tmp.dir, 'tasklite.db'));
+    tmp = tempDir('docket-migrate-');
+    db = openDb(join(tmp.dir, 'docket.db'));
     // What main's migrateDb produced before B26: 0000 to 0003 only.
     migrate(drizzle(db.sqlite), { migrationsFolder: mainEraMigrations(tmp.dir) });
     expect(migrationStatus(db)).toEqual({ current: false, applied: 4, expected: 5 });

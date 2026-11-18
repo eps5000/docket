@@ -41,7 +41,7 @@ export interface Config {
   /** The same folder's path on the host, so the UI can show and accept host paths. */
   pushHostPath: string | null;
   /**
-   * How often push installs are checked for files edited outside Task Lite
+   * How often push installs are checked for files edited outside Docket
    * (decision 30; BUILD_SPEC §5.19), and once at startup. Null: the check is
    * off (`0` or `off`). At least one minute (B26 resolution 11).
    */

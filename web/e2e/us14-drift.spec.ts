@@ -1,5 +1,5 @@
 /**
- * Drift: agent files changed outside Task Lite (tasks.md T161; spec US14
+ * Drift: agent files changed outside Docket (tasks.md T161; spec US14
  * acceptance scenarios 3–5; UI_SPEC §6.7b-1; FR-131–FR-133; SC-017).
  *
  * Against the container's e2e push folder (docker/compose.push-e2e.yaml:
@@ -7,7 +7,7 @@
  * 1. install into Recipe App's repo by push, then hand-edit the installed
  *    `tasklite-worker`; the scheduled check (it runs at startup: the
  *    container restarts) finds it: a Problems row, *Review* → the "Changed
- *    outside Task Lite" entry with its diff, the row chip; *Adopt as Recipe
+ *    outside Docket" entry with its diff, the row chip; *Adopt as Recipe
  *    App's copy*;
  * 2. hand-edit again; an agent runs the installed `tasklite-check` (in the
  *    container, with its own bash) and claims RCP-17 with the output: the
@@ -15,7 +15,7 @@
  *    "Instructions: tasklite-worker · default v1" with ⚠ "edited locally";
  *    the chip opens the entry; *Keep local*; the same report raises nothing;
  * 3. a further edit is reported on the next claim and alerts again;
- *    *Restore Task Lite's version* rewrites the file.
+ *    *Restore Docket's version* rewrites the file.
  *
  * axe is clean on each screen, both themes. Set DOCKET_E2E_SCREENSHOTS to
  * a folder to capture the PR's screenshots.
@@ -61,7 +61,7 @@ async function restartAndWait(): Promise<void> {
     }
     await new Promise((r) => setTimeout(r, 500));
   }
-  throw new Error('Task Lite did not come back after the restart');
+  throw new Error('Docket did not come back after the restart');
 }
 
 test.afterAll(async () => {
@@ -85,11 +85,11 @@ async function shoot(page: Page, name: string, target: Locator) {
 
 /** The owner's API from the unlocked page's context (cookies and the CSRF header). */
 async function owner(page: Page, method: 'GET' | 'POST', path: string, data?: unknown) {
-  const csrf = (await page.context().cookies()).find((c) => c.name === 'tl_csrf')?.value ?? '';
+  const csrf = (await page.context().cookies()).find((c) => c.name === 'docket_csrf')?.value ?? '';
   const r = await page.request.fetch(path, {
     method,
     data,
-    headers: method === 'GET' ? {} : { 'x-tasklite-csrf': csrf, origin: baseURL },
+    headers: method === 'GET' ? {} : { 'x-docket-csrf': csrf, origin: baseURL },
   });
   expect(r.ok(), `${method} ${path}: ${await r.text()}`).toBe(true);
   return (await r.json()) as Record<string, unknown>;
@@ -133,7 +133,7 @@ test.describe('Drift (US14)', () => {
     const problems = page.locator('[data-card="problems"]');
     const row = problems.locator('[data-problem="agent_files_drift"]');
     await expect(row).toContainText(
-      'tasklite-worker edited outside Task Lite · Recipe App · C:/Users/owner/code/recipes · found by the scheduled check',
+      'tasklite-worker edited outside Docket · Recipe App · C:/Users/owner/code/recipes · found by the scheduled check',
     );
     await shoot(page, '1-problem', problems);
     await row.getByRole('link', { name: 'Review' }).click();
@@ -141,7 +141,7 @@ test.describe('Drift (US14)', () => {
 
     const section = page.locator('[data-drift-section]');
     await expect(
-      section.getByRole('heading', { name: 'Changed outside Task Lite · 1' }),
+      section.getByRole('heading', { name: 'Changed outside Docket · 1' }),
     ).toBeVisible();
     const entry = section.locator('[data-drift]');
     await expect(entry.getByRole('heading', { name: 'tasklite-worker' })).toBeVisible();
@@ -149,17 +149,17 @@ test.describe('Drift (US14)', () => {
     await expect(entry.getByText(HOST_REPO)).toBeVisible();
     await expect(entry.getByText('Found by the scheduled check of the push folder')).toBeVisible();
     const diff = entry.getByRole('region', {
-      name: 'tasklite-worker: Task Lite’s version → the local file',
+      name: 'tasklite-worker: Docket’s version → the local file',
     });
     await expect(diff).toContainText('Always run pnpm lint first (edited in VS Code).');
     await expect(diff).toContainText('2 lines added, 0 lines removed');
     await shoot(page, '1-section', section);
-    await expectAxeClean(page, 'Agent files: changed outside Task Lite');
+    await expectAxeClean(page, 'Agent files: changed outside Docket');
 
     // All projects: the entry's project is named; pick Recipe App to see the row chip.
     await page.goto('/agent-files?project=RCP');
     const fileRow = page.locator(`[data-agent-file="${WORKER}"]`);
-    await expect(fileRow.locator('[data-drift-chip]')).toHaveText('changed outside Task Lite');
+    await expect(fileRow.locator('[data-drift-chip]')).toHaveText('changed outside Docket');
     await page
       .locator('[data-drift]')
       .getByRole('button', { name: 'Adopt as Recipe App’s copy (tasklite-worker)' })
@@ -191,7 +191,7 @@ test.describe('Drift (US14)', () => {
 
       await page.goto('/');
       await expect(page.locator('[data-problem="agent_files_drift"]')).toContainText(
-        'tasklite-worker edited outside Task Lite · Recipe App · C:/Users/owner/code/recipes · reported by codex · orca-w3 on RCP-17',
+        'tasklite-worker edited outside Docket · Recipe App · C:/Users/owner/code/recipes · reported by codex · orca-w3 on RCP-17',
       );
 
       await page.goto('/items/RCP-17');
@@ -238,7 +238,7 @@ test.describe('Drift (US14)', () => {
     }
   });
 
-  test('3. a further edit alerts again; Restore Task Lite’s version rewrites the file', async ({
+  test('3. a further edit alerts again; Restore Docket’s version rewrites the file', async ({
     ownerPage: page,
   }) => {
     sh(`printf -- '- One more local rule.\\n' >> ${WORKER_FILE}`);
@@ -254,9 +254,9 @@ test.describe('Drift (US14)', () => {
     const entry = page.locator('[data-drift]');
     await expect(entry.getByRole('region')).toContainText('One more local rule.');
     await entry
-      .getByRole('button', { name: 'Restore Task Lite’s version (tasklite-worker)' })
+      .getByRole('button', { name: 'Restore Docket’s version (tasklite-worker)' })
       .click();
-    await expect(toast(page, /Restored: Task Lite reinstalled its version in/)).toBeVisible();
+    await expect(toast(page, /Restored: Docket reinstalled its version in/)).toBeVisible();
     await expect(page.locator('[data-drift-section]')).toHaveCount(0);
     // The installed file is Recipe App's copy (the adopted text) again, without the later edits.
     const now = sh(`cat ${WORKER_FILE}`);

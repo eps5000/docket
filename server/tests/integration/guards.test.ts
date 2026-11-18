@@ -128,7 +128,7 @@ describe('bearer token on /mcp', () => {
     const body = (await res.json()) as {
       result: { serverInfo: { name: string; version: string } };
     };
-    expect(body.result.serverInfo.name).toBe('tasklite');
+    expect(body.result.serverInfo.name).toBe('docket');
     expect(body.result.serverInfo.version).toMatch(/^\d+\.\d+\.\d+/);
   });
 

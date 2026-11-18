@@ -52,7 +52,7 @@ const SKILLS = [
 
 /** A server with RCP and the shipped agent files; `push` mounts a temporary push root. */
 async function start(opts: { push?: 'set' | 'missing'; hostPath?: string } = {}) {
-  tmp = tempDir('tasklite-pushroot-');
+  tmp = tempDir('docket-pushroot-');
   const root = join(tmp.dir, 'code');
   mkdirSync(join(root, 'recipes'), { recursive: true });
   const env: Record<string, string> = {};
@@ -67,13 +67,13 @@ async function start(opts: { push?: 'set' | 'missing'; hostPath?: string } = {})
     body: JSON.stringify({ key: s.runtime.secrets.ownerKey() }),
   });
   const cookies = parseSetCookies(res);
-  const cookie = `tl_owner=${cookies.tl_owner!.value}; tl_csrf=${cookies.tl_csrf!.value}`;
+  const cookie = `docket_owner=${cookies.docket_owner!.value}; docket_csrf=${cookies.docket_csrf!.value}`;
   const api = async (method: string, path: string, body?: unknown) => {
     const r = await s!.request(path, {
       method,
       headers: {
         cookie,
-        ...(method === 'GET' ? {} : { 'x-tasklite-csrf': cookies.tl_csrf!.value }),
+        ...(method === 'GET' ? {} : { 'x-docket-csrf': cookies.docket_csrf!.value }),
         ...(body === undefined ? {} : { 'content-type': 'application/json' }),
       },
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -187,7 +187,7 @@ describe('command install: the bundle and the single-use token (T155)', () => {
     );
     // The block: the comment stripped; the shipped block has no placeholders (B25).
     const block = files.get('tasklite-install/block.md')!;
-    expect(block.startsWith('## Work tracking: Task Lite')).toBe(true);
+    expect(block.startsWith('## Work tracking: Docket')).toBe(true);
     expect(block).toContain('`tasklite-worker` skill');
     expect(block).not.toContain('{{');
     expect(block).not.toContain('<!--');
@@ -326,7 +326,7 @@ describe('command install: the bundle and the single-use token (T155)', () => {
     expect(files.has('tasklite-install/files/.codex/skills/tasklite-worker/SKILL.md')).toBe(true);
     expect(files.has('tasklite-install/files/.codex/.tasklite-manifest.json')).toBe(true);
     expect(files.get('tasklite-install/install.sh')).toContain('instr="$base/.codex/AGENTS.md"');
-    expect(files.get('tasklite-install/block.md')).toMatch(/^## Work tracking: Task Lite/);
+    expect(files.get('tasklite-install/block.md')).toMatch(/^## Work tracking: Docket/);
     expect(files.get('tasklite-install/block.md')).not.toContain('{{');
     expect(eventsOf(server).at(-1)!.summary).toBe(
       'Installed by command: Codex, user-wide, 6 files',
@@ -429,7 +429,7 @@ describe('push install and check (T156)', () => {
     const claude = readFileSync(join(repo, 'CLAUDE.md'));
     expect(claude.subarray(0, Buffer.byteLength(PRE)).equals(Buffer.from(PRE))).toBe(true);
     const tail = claude.subarray(Buffer.byteLength(PRE)).toString('utf8');
-    expect(tail.startsWith(`\n${DOCKET_BEGIN}\n## Work tracking: Task Lite`)).toBe(true);
+    expect(tail.startsWith(`\n${DOCKET_BEGIN}\n## Work tracking: Docket`)).toBe(true);
     expect(tail.endsWith(`${DOCKET_END}\n`)).toBe(true);
     expect(readFileSync(join(repo, 'README.md'), 'utf8')).toBe('readme');
     const manifest = JSON.parse(
@@ -554,7 +554,7 @@ describe('push install and check (T156)', () => {
       path: 'recipes',
     });
     expect(res.status).toBe(400);
-    expect((res.body.error as S).message).toMatch(/CLAUDE\.md has a damaged Task Lite section/);
+    expect((res.body.error as S).message).toMatch(/CLAUDE\.md has a damaged Docket section/);
     expect(readdirSync(repo)).toEqual(['CLAUDE.md']);
     expect((await api('GET', '/api/installs')).body).toEqual({ installs: [] });
   });
@@ -606,7 +606,7 @@ describe('the push folder: status and Test', () => {
     expect(test.body).toEqual({
       ok: false,
       message:
-        "Push install is off: DOCKET_PUSH_ROOT isn't set. Mount a folder and set it, then restart Task Lite.",
+        "Push install is off: DOCKET_PUSH_ROOT isn't set. Mount a folder and set it, then restart Docket.",
     });
     const push = await api('POST', '/api/installs', {
       client: 'claude',

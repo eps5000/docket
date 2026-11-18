@@ -50,9 +50,9 @@ export function Unlock() {
       <form className="card" onSubmit={submit} aria-labelledby="unlock-title">
         <div className="logo" style={{ padding: 0 }}>
           <i aria-hidden="true">TL</i>
-          <span>Task Lite</span>
+          <span>Docket</span>
         </div>
-        <h1 id="unlock-title">Unlock Task Lite</h1>
+        <h1 id="unlock-title">Unlock Docket</h1>
         <p className="src" style={{ margin: 0 }}>
           Paste the owner key. Get it with:{' '}
           <code>docker compose exec tasklite tasklite owner-key</code>

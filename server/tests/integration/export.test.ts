@@ -66,7 +66,7 @@ const sha256 = (b: Buffer) => createHash('sha256').update(b).digest('hex');
 describe('tasklite export (T147)', () => {
   it('round-trips the seed: a database rebuilt from the JSON has the same counts and checksums', async () => {
     s = seeded();
-    const out = join(tempDir('tasklite-export-').dir, 'seed-export.tar.gz');
+    const out = join(tempDir('docket-export-').dir, 'seed-export.tar.gz');
     const { archive_path, manifest } = await runExport({
       config: s.runtime.config,
       sqlite: s.runtime.db.sqlite,
@@ -80,15 +80,15 @@ describe('tasklite export (T147)', () => {
     // The manifest in the archive is the one returned, and every file's hash matches it.
     const inArchive = JSON.parse(files.get(EXPORT_MANIFEST)!.toString('utf8')) as ExportManifest;
     expect(inArchive).toEqual(JSON.parse(JSON.stringify(manifest)));
-    expect(inArchive.format).toBe('tasklite-export');
+    expect(inArchive.format).toBe('docket-export');
     for (const [name, f] of Object.entries(inArchive.files)) {
       expect(sha256(files.get(name)!), name).toBe(f.sha256);
     }
 
     // Rebuild: a fresh, migrated database, filled from data/<table>.json only.
-    const rebuilt = tempDir('tasklite-rebuilt-');
+    const rebuilt = tempDir('docket-rebuilt-');
     temps.push(rebuilt);
-    const db = openDb(join(rebuilt.dir, 'tasklite.db'));
+    const db = openDb(join(rebuilt.dir, 'docket.db'));
     migrateDb(db);
     const sql = db.sqlite;
     sql.pragma('foreign_keys = OFF');
@@ -154,7 +154,7 @@ describe('tasklite export (T147)', () => {
       body: JSON.stringify({ key: s.runtime.secrets.ownerKey() }),
     });
     expect(unlock.status).toBe(200);
-    const out = join(tempDir('tasklite-export-').dir, 'x.tar.gz');
+    const out = join(tempDir('docket-export-').dir, 'x.tar.gz');
     await runExport({
       config: s.runtime.config,
       sqlite: s.runtime.db.sqlite,
@@ -178,7 +178,7 @@ describe('tasklite export (T147)', () => {
 
   it('refuses to finish, and leaves no file, if a secret ever reached a table', async () => {
     s = seeded();
-    const dir = tempDir('tasklite-export-').dir;
+    const dir = tempDir('docket-export-').dir;
     // Bypass the write path's guard on purpose, straight into SQLite.
     s.runtime.db.sqlite
       .prepare("UPDATE items SET title = ? WHERE id = 'RCP-14'")
@@ -210,7 +210,7 @@ describe('tasklite export (T147)', () => {
     }
     expect(code).toBe(0);
     const text = lines.join('');
-    expect(text).toMatch(/Export written: .*exports[\\/]tasklite-export-\d{8}-\d{6}\.tar\.gz/);
+    expect(text).toMatch(/Export written: .*exports[\\/]docket-export-\d{8}-\d{6}\.tar\.gz/);
     expect(text).toContain('No keys or tokens.');
     expect(text).toMatch(/items \d+ [0-9a-f]{64}/);
     expect(readdirSync(join(s.dataDir, 'exports'))).toHaveLength(1);

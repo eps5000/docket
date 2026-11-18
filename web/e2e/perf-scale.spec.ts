@@ -79,7 +79,7 @@ test.describe('owner views at scale (T143)', () => {
   test('every owner view is on screen in under 1 s', async ({ browser }) => {
     test.setTimeout(300_000);
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-    await context.addInitScript(() => localStorage.setItem('tl.notifications', 'off'));
+    await context.addInitScript(() => localStorage.setItem('docket.notifications', 'off'));
     await unlock(context);
     const rows: string[] = ['| View | Cold load ms | In-app switch ms |', '|---|---|---|'];
     const slow: string[] = [];

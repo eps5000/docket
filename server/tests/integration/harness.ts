@@ -40,12 +40,12 @@ export function createTestServer(
     dataDir?: string;
   } = {},
 ): TestServer {
-  const tmp = tempDir('tasklite-int-');
+  const tmp = tempDir('docket-int-');
   const dataDir = opts.dataDir ?? join(tmp.dir, 'data');
   const webRoot = join(tmp.dir, 'web');
   mkdirSync(dataDir, { recursive: true });
   mkdirSync(webRoot);
-  writeFileSync(join(webRoot, 'index.html'), '<!doctype html><title>Task Lite</title>');
+  writeFileSync(join(webRoot, 'index.html'), '<!doctype html><title>Docket</title>');
   const clock = opts.clock ?? new TestClock();
   const runtime = createRuntime({
     dataDir,

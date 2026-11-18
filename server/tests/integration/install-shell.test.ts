@@ -1,6 +1,6 @@
 /**
  * The copy-paste install and check commands, run for real (T155, T156):
- * a listening Task Lite, a scratch repo with a `.git` folder and a CLAUDE.md
+ * a listening Docket, a scratch repo with a `.git` folder and a CLAUDE.md
  * of its own, and each shell that is on this machine (bash with curl, tar
  * and sha256sum; PowerShell 7 `pwsh`; Windows PowerShell 5.1). Each shell:
  * 1. installs by the one-liner (download, unpack, the bundle's install step);
@@ -86,7 +86,7 @@ async function freePort(): Promise<number> {
 beforeAll(async () => {
   if (!Object.values(SHELLS).some(Boolean)) return;
   port = await freePort();
-  tmp = tempDir('tasklite-shell-');
+  tmp = tempDir('docket-shell-');
   s = createTestServer({ env: { DOCKET_ALLOWED_HOSTS: `127.0.0.1:${port}` }, log: () => {} });
   insertProject(s.runtime.db, 'RCP');
   syncBundledFiles(s.runtime);
@@ -98,13 +98,13 @@ beforeAll(async () => {
     body: JSON.stringify({ key: s.runtime.secrets.ownerKey() }),
   });
   const cookies = parseSetCookies(unlock);
-  const cookie = `tl_owner=${cookies.tl_owner!.value}; tl_csrf=${cookies.tl_csrf!.value}`;
+  const cookie = `docket_owner=${cookies.docket_owner!.value}; docket_csrf=${cookies.docket_csrf!.value}`;
   request = async (method, path, body) => {
     const r = await fetch(`${origin}${path}`, {
       method,
       headers: {
         cookie,
-        'x-tasklite-csrf': cookies.tl_csrf!.value,
+        'x-docket-csrf': cookies.docket_csrf!.value,
         ...(body === undefined ? {} : { 'content-type': 'application/json' }),
       },
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -208,12 +208,12 @@ describe.each(Object.keys(SHELLS) as ShellName[])('the %s commands', (shell) => 
       const i1 = await run(shell, first.install, repo);
       expect(i1.status, i1.out).toBe(0);
       expect(i1.out).toContain('wrote .claude/skills/tasklite-worker/SKILL.md');
-      expect(i1.out).toContain('added the Task Lite section to the end of CLAUDE.md');
+      expect(i1.out).toContain('added the Docket section to the end of CLAUDE.md');
       const claude = readFileSync(join(repo, 'CLAUDE.md'));
       expect(claude.subarray(0, Buffer.byteLength(PRE)).equals(Buffer.from(PRE))).toBe(true);
       expect(claude.subarray(Buffer.byteLength(PRE)).toString('utf8')).toMatch(
         new RegExp(
-          `^\\n\\n${DOCKET_BEGIN}\\n## Work tracking: Task Lite[\\s\\S]*\\n${DOCKET_END}\\n$`,
+          `^\\n\\n${DOCKET_BEGIN}\\n## Work tracking: Docket[\\s\\S]*\\n${DOCKET_END}\\n$`,
         ),
       );
       expect(existsSync(join(repo, '.claude/.tasklite-manifest.json'))).toBe(true);
@@ -221,13 +221,13 @@ describe.each(Object.keys(SHELLS) as ShellName[])('the %s commands', (shell) => 
       // The same command again: the token is used, and nothing changes.
       const reused = await run(shell, first.install, repo);
       expect(reused.status).not.toBe(0);
-      expect(reused.out).toContain('Task Lite refused the download');
+      expect(reused.out).toContain('Docket refused the download');
 
       // 2. Check: up to date.
       transcript.push(`## ${shell}: check`);
       const c1 = await run(shell, first.check, repo);
       expect(c1.status, c1.out).toBe(0);
-      expect(c1.out).toContain('Up to date: all 6 files match what Task Lite sent.');
+      expect(c1.out).toContain('Up to date: all 6 files match what Docket sent.');
 
       // The installed tasklite-check (decision 30): every file listed by hash, no text.
       const manifest = readManifest(repo);
@@ -273,13 +273,13 @@ describe.each(Object.keys(SHELLS) as ShellName[])('the %s commands', (shell) => 
       );
       expect(c2.out).toMatch(/^extra +\.claude\/skills\/tasklite-old\/$/m);
       expect(c2.out).not.toMatch(/^edited +CLAUDE\.md/m);
-      expect(c2.out).toContain('Differs from what Task Lite sent: 3 file(s).');
+      expect(c2.out).toContain('Differs from what Docket sent: 3 file(s).');
 
       // An edit inside the markers is an edit of the block.
       const text = readFileSync(join(repo, 'CLAUDE.md'), 'utf8');
       writeFileSync(
         join(repo, 'CLAUDE.md'),
-        text.replace('## Work tracking: Task Lite', '## Work tracking (ours)'),
+        text.replace('## Work tracking: Docket', '## Work tracking (ours)'),
       );
       const c3 = await run(shell, first.check, repo);
       expect(c3.out).toMatch(/^edited +CLAUDE\.md +\(sent agents_block afv_/m);
@@ -296,7 +296,7 @@ describe.each(Object.keys(SHELLS) as ShellName[])('the %s commands', (shell) => 
       const i2 = await run(shell, second.install, repo);
       expect(i2.status, i2.out).toBe(0);
       expect(i2.out).toContain(
-        'replaced the Task Lite section of CLAUDE.md (nothing else changed)',
+        'replaced the Docket section of CLAUDE.md (nothing else changed)',
       );
       const c4 = await run(shell, second.check, repo);
       expect(c4.out).not.toMatch(/^(edited|missing) /m);
@@ -343,7 +343,7 @@ describe.each(Object.keys(SHELLS) as ShellName[])('the %s commands', (shell) => 
       const key = shell === 'bash' ? 'bash' : 'powershell';
       const r = await run(shell, (created.command as Record<string, string>)[key]!, repo);
       expect(r.status).not.toBe(0);
-      expect(r.out).toContain('has a damaged Task Lite section');
+      expect(r.out).toContain('has a damaged Docket section');
       expect(readFileSync(join(repo, 'CLAUDE.md'), 'utf8')).toBe(damaged);
       expect(existsSync(join(repo, '.claude'))).toBe(false);
     },

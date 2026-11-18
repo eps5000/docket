@@ -53,14 +53,14 @@ async function unlock(server: TestServer): Promise<string> {
   });
   expect(res.status).toBe(200);
   const c = parseSetCookies(res);
-  return `tl_owner=${c.tl_owner!.value}; tl_csrf=${c.tl_csrf!.value}`;
+  return `docket_owner=${c.docket_owner!.value}; docket_csrf=${c.docket_csrf!.value}`;
 }
 
 async function api(path: string, init: { method?: string; body?: unknown } = {}) {
-  const csrf = /tl_csrf=([^;]+)/.exec(cookie)![1]!;
+  const csrf = /docket_csrf=([^;]+)/.exec(cookie)![1]!;
   const res = await s.request(path, {
     method: init.method ?? 'GET',
-    headers: { cookie, 'x-tasklite-csrf': csrf, 'content-type': 'application/json' },
+    headers: { cookie, 'x-docket-csrf': csrf, 'content-type': 'application/json' },
     body: init.body === undefined ? undefined : JSON.stringify(init.body),
   });
   const text = await res.text();
@@ -159,7 +159,7 @@ function fileChecksums(
 
 const isDbFile = (rel: string) => /^tasklite\.db(-wal|-shm)?$/.test(rel);
 /** SQLite's shared-memory index: every reader updates its read marks there. It holds no data. */
-const isShm = (rel: string) => rel === 'tasklite.db-shm';
+const isShm = (rel: string) => rel === 'docket.db-shm';
 
 /** Every file under `dir` whose bytes contain any needle. */
 function filesContaining(dir: string, needles: string[]): string[] {

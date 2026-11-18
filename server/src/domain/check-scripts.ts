@@ -6,8 +6,7 @@
  *
  * It hashes each installed file exactly as B24's check does
  * (`checkCommands` in @docket/shared, `inspectPushInstall` on the server):
- * CR bytes removed, and the AGENTS.md block as the text between the Task
- * Lite markers less one newline at each end. It compares each hash with the
+ * CR bytes removed, and the AGENTS.md block as the text between the Docket markers less one newline at each end. It compares each hash with the
  * manifest and prints one line of JSON, the `instructions` argument of
  * `claim_lead`:
  *
@@ -17,7 +16,7 @@
  *   a few hundred characters;
  * - a file that differs also carries its text (`content`, up to 50,000
  *   characters; longer text is left out), for the owner's diff and *Adopt*;
- * - a missing file is left out: Task Lite reads its absence as missing;
+ * - a missing file is left out: Docket reads its absence as missing;
  * - an extra `tasklite-*` skill folder is listed as `skill:<name>` with its
  *   `SKILL.md` text;
  * - at most 20 files, and only valid keys, so the report always passes
@@ -35,7 +34,7 @@ export const CHECK_SCRIPT_PS1 = 'tasklite-check.ps1';
 
 export function checkSh(): string {
   return `#!/usr/bin/env bash
-# Task Lite tasklite-check (Agent files). Hashes the installed agent files, compares
+# Docket tasklite-check (Agent files). Hashes the installed agent files, compares
 # them with .tasklite-manifest.json, and prints the report to pass as instructions
 # on claim_lead: one line of JSON, with the text only of files that differ.
 # It reads only: it writes and downloads nothing.
@@ -46,7 +45,7 @@ m="$here/.tasklite-manifest.json"
 B='${DOCKET_BEGIN}'
 E='${DOCKET_END}'
 TAB=$(printf '\\t')
-[ -f "$m" ] || { echo "No Task Lite install found: $m is missing." >&2; exit 1; }
+[ -f "$m" ] || { echo "No Docket install found: $m is missing." >&2; exit 1; }
 h() { tr -d '\\r' | { sha256sum 2>/dev/null || shasum -a 256; } | cut -c1-64; }
 # A JSON string's body from stdin: CRs and other control characters (but tab and
 # newline) dropped, backslash, quote and tab escaped, newlines as \\n. The x keeps
@@ -98,7 +97,7 @@ printf '{"install_id":"%s","files":[%s]}\\n' "$id" "$out"
 }
 
 export function checkPs1(): string {
-  return `# Task Lite tasklite-check (Agent files). Hashes the installed agent files, compares
+  return `# Docket tasklite-check (Agent files). Hashes the installed agent files, compares
 # them with .tasklite-manifest.json, and prints the report to pass as instructions
 # on claim_lead: one line of JSON, with the text only of files that differ.
 # It reads only: it writes and downloads nothing.
@@ -108,7 +107,7 @@ if (-not $Dir) { $Dir = $PSScriptRoot }
 $here = (Resolve-Path -LiteralPath $Dir).ProviderPath
 $base = Split-Path -Parent $here
 $m = Join-Path $here '.tasklite-manifest.json'
-if (-not (Test-Path -LiteralPath $m -PathType Leaf)) { throw "No Task Lite install found: $m is missing." }
+if (-not (Test-Path -LiteralPath $m -PathType Leaf)) { throw "No Docket install found: $m is missing." }
 $enc = [Text.Encoding]::GetEncoding(28591)
 $utf8 = New-Object Text.UTF8Encoding $false
 $B = '${DOCKET_BEGIN}'

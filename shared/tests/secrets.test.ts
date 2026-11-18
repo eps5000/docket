@@ -40,10 +40,10 @@ describe('findSecret', () => {
     const agentToken = 'tl_9f8e7d6c5b4a39281706f5e4d3c2b1a0ffeeddcc';
     const ownerKey = 'MFRGGZDFMZTWQ2LKNNWG23TPOBYXE43UOV3HO6DZPJQWE3DBMRSA';
     const known = [agentToken, ownerKey];
-    expect(findSecret(`token=${agentToken}`, { known })).toEqual({ kind: 'Task Lite token' });
-    expect(findSecret(`key ${ownerKey}`, { known })).toEqual({ kind: 'Task Lite token' });
+    expect(findSecret(`token=${agentToken}`, { known })).toEqual({ kind: 'Docket token' });
+    expect(findSecret(`key ${ownerKey}`, { known })).toEqual({ kind: 'Docket token' });
     // The base32 owner key is case-insensitive.
-    expect(findSecret(ownerKey.toLowerCase(), { known })).toEqual({ kind: 'Task Lite token' });
+    expect(findSecret(ownerKey.toLowerCase(), { known })).toEqual({ kind: 'Docket token' });
   });
 
   it.each([

@@ -7,7 +7,7 @@
  * **What is installed** is the effective set for the project (or
  * service-wide), laid out for the client and target (`installLayout` in
  * @docket/shared): each skill's `SKILL.md`, the AGENTS.md block merged
- * into CLAUDE.md or AGENTS.md between the Task Lite markers, and
+ * into CLAUDE.md or AGENTS.md between the Docket markers, and
  * `.tasklite-manifest.json` with the install ID and each file's key, version
  * ID, path and sha256. The block is rendered for installing: the template's
  * leading comment stripped and `{{KEY}}` filled for a project's repo
@@ -172,7 +172,7 @@ export function manifestJson(meta: {
     target: meta.target_kind,
     project: meta.project,
     installed_at: meta.installed_at,
-    source: 'Task Lite, Agent files',
+    source: 'Docket, Agent files',
   };
   const headLines = Object.entries(head).map(
     ([k, v]) => `  ${JSON.stringify(k)}: ${JSON.stringify(v)},`,
@@ -425,7 +425,7 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
       if (effective.length === 0) {
         throw new ToolError(
           'validation',
-          'No agent files are loaded yet. They load when Task Lite starts; restart it and try again.',
+          'No agent files are loaded yet. They load when Docket starts; restart it and try again.',
         );
       }
       const files = filesFor(
@@ -539,7 +539,7 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
       if (row.method !== 'push' || !row.path) {
         throw new ToolError(
           'validation',
-          'This install was made by command, so Task Lite can’t see its files. Run its check command where it was installed.',
+          'This install was made by command, so Docket can’t see its files. Run its check command where it was installed.',
         );
       }
       const cap = (t: string) => t.slice(0, AGENT_SETUP_LIMITS.agent_file_content);
@@ -673,7 +673,7 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
         return {
           ok: false,
           message:
-            "Push install is off: DOCKET_PUSH_ROOT isn't set. Mount a folder and set it, then restart Task Lite.",
+            "Push install is off: DOCKET_PUSH_ROOT isn't set. Mount a folder and set it, then restart Docket.",
         };
       }
       let root: PushRoot;
@@ -691,7 +691,7 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
         const code = (err as NodeJS.ErrnoException).code ?? 'error';
         return {
           ok: false,
-          message: `Couldn't write a test file in ${shown} (${code}). Make the folder writable by Task Lite (uid 10001), then test again.`,
+          message: `Couldn't write a test file in ${shown} (${code}). Make the folder writable by Docket (uid 10001), then test again.`,
         };
       }
       await rm(probe, { force: true });

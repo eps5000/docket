@@ -46,7 +46,7 @@ async function markReleased(id: string): Promise<void> {
 
 /**
  * "Where the work lives" (owner decision 26; UI_SPEC §6.3.2): one compact
- * block under each run row, from what the agent reported (Task Lite never
+ * block under each run row, from what the agent reported (Docket never
  * looks at the host):
  * - `branch · worktree path` (middle-truncated, full path in `title`, *Copy*)
  *   and the worktree's state;

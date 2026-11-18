@@ -2,12 +2,12 @@
  * Desktop notifications and the tab title (UI_SPEC §6.7a; FR-068; T085).
  *
  * - **Opt-in:** off until the owner turns it on (Needs you callout or the
- *   Settings switch). The choice lives in `localStorage` (`tl.notifications`).
+ *   Settings switch). The choice lives in `localStorage` (`docket.notifications`).
  * - **What notifies:** only new for-you events on the live stream
  *   (`for_you: true`: a packet submitted, a question asked). Nothing else.
  * - **One tab per browser:** the tab holding the Web Locks lock
- *   `tasklite-notifications` notifies; the others stay quiet. Seqs already
- *   notified are recorded in `localStorage` (`tl.notified`), so a seq never
+ *   `docket-notifications` notifies; the others stay quiet. Seqs already
+ *   notified are recorded in `localStorage` (`docket.notified`), so a seq never
  *   notifies twice in this browser, and a burst notifies once per item.
  * - **Already pending:** the stream starts at the current end on page load,
  *   so items that were already for you never notify.
@@ -21,9 +21,9 @@ import { readJson, readString, STORAGE_KEYS, writeJson, writeString } from './pe
 
 // ---- Tab title ----
 
-/** `(N) Task Lite`, or `Task Lite` when nothing is for you. Works with notifications off. */
+/** `(N) Docket`, or `Docket` when nothing is for you. Works with notifications off. */
 export function tabTitle(forYou: number | undefined): string {
-  return forYou && forYou > 0 ? `(${forYou}) Task Lite` : 'Task Lite';
+  return forYou && forYou > 0 ? `(${forYou}) Docket` : 'Docket';
 }
 
 // ---- Preference and permission ----
@@ -116,7 +116,7 @@ export function notificationFor(row: ForYouRow): NotificationText {
 
 // ---- Dedupe ----
 
-/** Seqs kept in `tl.notified` (the newest; older ones can't come back on the stream). */
+/** Seqs kept in `docket.notified` (the newest; older ones can't come back on the stream). */
 const NOTIFIED_KEEP = 200;
 /** A burst on one item notifies once (UI_SPEC §6.7a). */
 export const BURST_MS = 30_000;
@@ -167,7 +167,7 @@ export class Notifier {
       return;
     }
     void locks
-      .request('tasklite-notifications', { mode: 'exclusive' }, () => {
+      .request('docket-notifications', { mode: 'exclusive' }, () => {
         this.claimed = true;
         return new Promise<void>((resolve) => {
           this.release = resolve;
@@ -221,7 +221,7 @@ export class Notifier {
 export function sendTestNotification(): boolean {
   if (permission() !== 'granted') return false;
   try {
-    new window.Notification('Task Lite notifications are on', {
+    new window.Notification('Docket notifications are on', {
       body: 'You’ll see one when a handoff is ready or an agent asks you something.',
       tag: 'tl-test',
     });

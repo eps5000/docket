@@ -76,7 +76,7 @@ function whyCommand(
   if (forced) return { text: 'You’ll get a command to paste in a terminal.', setup: false };
   if (!t?.configured) {
     return {
-      text: 'You’ll get a command to paste in a terminal. With a push folder set up, Task Lite can write the files for you.',
+      text: 'You’ll get a command to paste in a terminal. With a push folder set up, Docket can write the files for you.',
       setup: true,
     };
   }
@@ -267,7 +267,7 @@ export function InstallDialog({ project, projectName, onClose }: InstallDialogPr
           <div className="inmethod" data-install-method={method} role="status">
             {method === 'push' ? (
               <>
-                <span>Task Lite writes the files into this folder itself.</span>{' '}
+                <span>Docket writes the files into this folder itself.</span>{' '}
                 <button type="button" className="linkbtn" onClick={() => setForced(true)}>
                   Copy a command instead
                 </button>
@@ -277,7 +277,7 @@ export function InstallDialog({ project, projectName, onClose }: InstallDialogPr
                 <span>{why.text}</span>{' '}
                 {forced && canPush ? (
                   <button type="button" className="linkbtn" onClick={() => setForced(false)}>
-                    Let Task Lite write them instead
+                    Let Docket write them instead
                   </button>
                 ) : (
                   why.setup && <SetUpPushLink />
@@ -293,11 +293,11 @@ export function InstallDialog({ project, projectName, onClose }: InstallDialogPr
                 <li key={p}>{p}</li>
               ))}
               <li>
-                {instructions} <span className="src">(only its Task Lite section)</span>
+                {instructions} <span className="src">(only its Docket section)</span>
               </li>
             </ul>
             <div className="src">
-              Only the marked Task Lite section of {instructions} is touched (between{' '}
+              Only the marked Docket section of {instructions} is touched (between{' '}
               <code>{'<!-- tasklite:begin -->'}</code> and <code>{'<!-- tasklite:end -->'}</code>);
               everything else in it stays as it is. Nothing is ever deleted.
             </div>
@@ -371,7 +371,7 @@ function InstallResult({
               </Chip>{' '}
               <span className="mono">{f.path}</span>
               {/(^|\/)(CLAUDE|AGENTS)\.md$/.test(f.path) && (
-                <span className="src"> (its Task Lite section only)</span>
+                <span className="src"> (its Docket section only)</span>
               )}
             </li>
           ))}
@@ -535,7 +535,7 @@ function InstallLogRow({ row }: { row: InstallRow }) {
             Run one where the files were installed
             {row.target_kind === 'repo' && !row.path ? ' (the repo folder)' : ''}. It reads{' '}
             <code>{installLayout(row.client, row.target_kind).manifest}</code> there and lists files
-            edited locally, missing or extra, each with the version Task Lite sent. It downloads
+            edited locally, missing or extra, each with the version Docket sent. It downloads
             nothing.
           </div>
           <CopyBlock text={cmds.powershell} label="PowerShell" what="PowerShell check command" />
@@ -552,7 +552,7 @@ function InstallLogRow({ row }: { row: InstallRow }) {
   );
 }
 
-/** Each file's sent version ("Task Lite’s version v1", "RCP’s copy v2"), linked to its view (SC-016). */
+/** Each file's sent version ("Docket’s version v1", "RCP’s copy v2"), linked to its view (SC-016). */
 function SentVersions({ row, projectName }: { row: InstallRow; projectName: string | null }) {
   const q = row.project && row.target_kind === 'repo' ? { project: row.project } : {};
   const details = useQueries({
@@ -599,7 +599,7 @@ function CheckResult({ row, check }: { row: InstallRow; check: InstallCheckRespo
       <div className="indetail" data-check-result="up_to_date">
         <Chip kind="ok">Up to date</Chip>{' '}
         <span className="src">
-          Every file matches what Task Lite sent · checked {formatClock(check.checked_at)}
+          Every file matches what Docket sent · checked {formatClock(check.checked_at)}
         </span>
       </div>
     );
@@ -607,7 +607,7 @@ function CheckResult({ row, check }: { row: InstallRow; check: InstallCheckRespo
   return (
     <div className="indetail" data-check-result="differs">
       <div className="src">
-        {plural(check.files.length, 'file')} differ from what Task Lite sent · checked{' '}
+        {plural(check.files.length, 'file')} differ from what Docket sent · checked{' '}
         {formatClock(check.checked_at)}
       </div>
       <ul className="inchecks" aria-label="Check result">
@@ -648,7 +648,7 @@ function CheckFile({
         <span className="mono">{file.path}</span>
         {file.state === 'missing' && <span className="src">Reinstall to restore it.</span>}
         {file.state === 'extra' && (
-          <span className="src">Not part of this install; Task Lite never deletes it.</span>
+          <span className="src">Not part of this install; Docket never deletes it.</span>
         )}
         {file.local_content !== undefined && (
           <Button size="sm" variant="ghost" aria-expanded={open} onClick={() => setOpen(!open)}>

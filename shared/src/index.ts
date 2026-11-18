@@ -4,7 +4,7 @@
  * MCP contract (tool schemas, copy and compact renderers), and the UI API
  * contract (route schemas and the route table).
  */
-export const APP_NAME = 'Task Lite';
+export const APP_NAME = 'Docket';
 
 export * from './enums.js';
 export * from './errors.js';

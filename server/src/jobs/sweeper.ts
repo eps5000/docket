@@ -211,7 +211,7 @@ export function startDriftCheck(
     driftCheckOnce(runtime)
       .then(({ drift_ids }) => {
         if (drift_ids.length > 0) {
-          runtime.log(`drift check: ${drift_ids.length} agent file change(s) outside Task Lite`);
+          runtime.log(`drift check: ${drift_ids.length} agent file change(s) outside Docket`);
         }
       })
       .catch((err: unknown) =>

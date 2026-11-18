@@ -6,7 +6,7 @@ import { tempDir, type TempDir } from '../helpers.js';
 
 let tmp: TempDir;
 beforeEach(() => {
-  tmp = tempDir('tasklite-config-');
+  tmp = tempDir('docket-config-');
 });
 afterEach(() => tmp.cleanup());
 
@@ -34,7 +34,7 @@ describe('loadConfig', () => {
       tz: null,
       textOnlyClients: ['claude-code'],
     });
-    expect(c.paths.db.replace(/\\/g, '/')).toBe('/data/tasklite.db');
+    expect(c.paths.db.replace(/\\/g, '/')).toBe('/data/docket.db');
     expect(c.paths.ownerKey.replace(/\\/g, '/')).toBe('/data/secrets/owner-key');
   });
 
@@ -42,7 +42,7 @@ describe('loadConfig', () => {
     const c = loadConfig({
       DOCKET_TOKEN: ' tok-1234567890abcdef ',
       DOCKET_PORT: '8080',
-      DOCKET_ALLOWED_HOSTS: 'Tasklite.local:8080, 127.0.0.1:8080',
+      DOCKET_ALLOWED_HOSTS: 'Docket.local:8080, 127.0.0.1:8080',
       DOCKET_LIVE_WINDOW: '90s',
       DOCKET_STALE_AFTER: '1h',
       DOCKET_LEASE: '45m',
@@ -62,7 +62,7 @@ describe('loadConfig', () => {
     expect(c).toMatchObject({
       tokenFromEnv: 'tok-1234567890abcdef',
       port: 8080,
-      allowedHosts: ['tasklite.local:8080', '127.0.0.1:8080'],
+      allowedHosts: ['docket.local:8080', '127.0.0.1:8080'],
       liveWindowMs: 90_000,
       staleAfterMs: 3_600_000,
       leaseMs: 45 * 60_000,

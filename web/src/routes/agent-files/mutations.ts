@@ -44,7 +44,7 @@ export function useSwitchToDefault() {
 }
 
 /**
- * *Reset to Task Lite’s version* (All projects): the owner's edit of the
+ * *Reset to Docket’s version* (All projects): the owner's edit of the
  * default stops applying (B23's revert of the service layer). Its versions
  * stay in History, and the toast has Undo.
  */
@@ -61,7 +61,7 @@ export function useResetDefault() {
               body: { layer: 'service' },
             }),
           {
-            success: `The default ${file.name} is Task Lite’s version again. Your edit stays in History.`,
+            success: `The default ${file.name} is Docket’s version again. Your edit stays in History.`,
             refetch: [key],
           },
         );

@@ -4,7 +4,7 @@
  * - Streamable HTTP at `/mcp` with stateful sessions (`Mcp-Session-Id`):
  *   POST for requests, GET for the server→client stream, DELETE to end.
  * - Bearer auth and the Host/Origin guards run before this (api/guards.ts).
- * - Server info: `name: "tasklite"`, `version` = the app version.
+ * - Server info: `name: "docket"`, `version` = the app version.
  * - Identity: `clientInfo.name` from `initialize`, normalised (contains
  *   codex → `codex`; contains claude → `claude`; else as is). Each session's
  *   ID and client are recorded here, so tools (B3) can bind runs to the
@@ -34,7 +34,7 @@ import { resultMode, type ResultMode } from '../domain/compat.js';
 
 export type { ResultMode };
 
-export const SERVER_NAME = 'tasklite';
+export const SERVER_NAME = 'docket';
 
 /** Normalise `clientInfo.name` (BUILD_SPEC §3). */
 export function normaliseClientName(name: string | null | undefined): string {

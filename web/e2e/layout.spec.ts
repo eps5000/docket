@@ -18,7 +18,7 @@ useSeededContainer();
 
 test.beforeEach(async ({ page }) => {
   await unlock(page.context());
-  await page.context().addInitScript(() => localStorage.setItem('tl.notifications', 'off'));
+  await page.context().addInitScript(() => localStorage.setItem('docket.notifications', 'off'));
 });
 
 const SCREENS: [string, string][] = [

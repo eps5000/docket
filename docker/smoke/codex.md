@@ -6,7 +6,7 @@ Follow [README.md](README.md) "Before you start" first. Commands run from the re
 
 1. [ ] `~/.codex/config.toml` (Windows: `%USERPROFILE%\.codex\config.toml`) has exactly:
    ```toml
-   [mcp_servers.tasklite]
+   [mcp_servers.docket]
    url = "http://127.0.0.1:7420/mcp"
    bearer_token_env_var = "DOCKET_TOKEN"
    ```

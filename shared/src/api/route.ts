@@ -38,7 +38,7 @@ export const API_GROUPS = [
 export type ApiGroup = (typeof API_GROUPS)[number];
 
 /**
- * - `session`: the `tl_owner` cookie (every `/api` route but unlock), plus
+ * - `session`: the `docket_owner` cookie (every `/api` route but unlock), plus
  *   the CSRF header on mutations;
  * - `none`: `POST /api/session/unlock` only;
  * - `bearer`: the agent token (`/agent-upload`), never the owner session;

@@ -44,19 +44,19 @@ Don't include a trailing newline or spaces: they break auth.
 **4. Connect your agents** ([MCP spec §11](docs/MCP_SPEC.md#11-client-setup); Settings → Connections shows the same snippets).
 - **Codex:** add this to `~/.codex/config.toml` (Windows: `%USERPROFILE%\.codex\config.toml`). The token is read from the environment on each connection, never stored in the file:
   ```toml
-  [mcp_servers.tasklite]
+  [mcp_servers.docket]
   url = "http://127.0.0.1:7420/mcp"
   bearer_token_env_var = "DOCKET_TOKEN"
   ```
 - **Claude Code** (user scope, so every project gets it):
   ```bash
-  claude mcp add --transport http --scope user tasklite http://127.0.0.1:7420/mcp \
+  claude mcp add --transport http --scope user docket http://127.0.0.1:7420/mcp \
     --header "Authorization: Bearer $DOCKET_TOKEN"
   ```
   In PowerShell, use `--header "Authorization: Bearer $env:DOCKET_TOKEN"`. Your shell expands the variable, so Claude Code stores the token itself; run the command again if you rotate the token. For one repo only, use a project `.mcp.json` instead (MCP spec §11).
 - **Orca workers** start the installed Codex or Claude Code, so the setup above applies as long as they inherit your user config and environment.
 
-**5. Check it.** `claude mcp list` should show `tasklite … ✔ Connected`, and `/mcp` inside Codex or Claude Code lists its tools. Ask the agent to call the `whoami` tool. Settings → Connections then shows the client as last seen just now. It stays "Not verified" there until someone runs the [smoke kit](docker/smoke/README.md).
+**5. Check it.** `claude mcp list` should show `docket … ✔ Connected`, and `/mcp` inside Codex or Claude Code lists its tools. Ask the agent to call the `whoami` tool. Settings → Connections then shows the client as last seen just now. It stays "Not verified" there until someone runs the [smoke kit](docker/smoke/README.md).
 
 **6. Install the agent files.** Open **Agent files** in the sidebar and pick your project in the project switcher. Write its **Workflow notes** (*Start from template* fills in suggested rules to edit), review the skills and the AGENTS.md block, then click *Install into <project>'s repo* (or, with All projects, *Install user-wide*):
 - **A command:** Task Lite gives you a PowerShell and a bash one-liner. Run it from the repo folder (or anywhere, for a user-wide install). It works once, for 10 minutes, and needs nothing else installed.

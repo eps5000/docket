@@ -62,13 +62,13 @@ async function ownerApi() {
     body: JSON.stringify({ key: h!.server.runtime.secrets.ownerKey() }),
   });
   const cookies = parseSetCookies(res);
-  const cookie = `tl_owner=${cookies.tl_owner!.value}; tl_csrf=${cookies.tl_csrf!.value}`;
+  const cookie = `docket_owner=${cookies.docket_owner!.value}; docket_csrf=${cookies.docket_csrf!.value}`;
   return async (method: string, path: string, body?: unknown) => {
     const r = await req(path, {
       method,
       headers: {
         cookie,
-        ...(method === 'GET' ? {} : { 'x-tasklite-csrf': cookies.tl_csrf!.value }),
+        ...(method === 'GET' ? {} : { 'x-docket-csrf': cookies.docket_csrf!.value }),
         ...(body === undefined ? {} : { 'content-type': 'application/json' }),
       },
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -468,7 +468,7 @@ describe('the owner decides (FR-129)', () => {
   });
 
   it('approve → get_context delivers the Workflow notes, and the next install sends the copy', async () => {
-    const tmp = tempDir('tasklite-us14-push-');
+    const tmp = tempDir('docket-us14-push-');
     const root = join(tmp.dir, 'code');
     mkdirSync(join(root, 'recipes', '.git'), { recursive: true });
     try {

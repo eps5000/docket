@@ -40,7 +40,7 @@ describe('the AGENTS.md block as installed', () => {
     'Then replace every {{…}} placeholder.',
     '-->',
     '',
-    '## Work tracking: Task Lite',
+    '## Work tracking: Docket',
     '',
     'Project key **{{KEY}}**; search with project `{{KEY}}`.',
     '- {{OPTION A: Only the owner moves items to Ready.}}',
@@ -49,7 +49,7 @@ describe('the AGENTS.md block as installed', () => {
 
   it('strips the leading comment and fills {{KEY}} for a project', () => {
     const out = renderAgentsBlock(template, 'RCP');
-    expect(out.startsWith('## Work tracking: Task Lite')).toBe(true);
+    expect(out.startsWith('## Work tracking: Docket')).toBe(true);
     expect(out).toContain('Project key **RCP**; search with project `RCP`.');
     expect(out).not.toContain('<!--');
     expect(out.endsWith('Ready.}}')).toBe(true);
@@ -76,7 +76,7 @@ describe('the AGENTS.md block as installed', () => {
 });
 
 describe('the marked section: insert, replace, append; nothing else changes', () => {
-  const block = '## Work tracking\nUse Task Lite.';
+  const block = '## Work tracking\nUse Docket.';
   const section = `${B}\n${block}\n${E}`;
 
   it('creates the file when there is none', () => {

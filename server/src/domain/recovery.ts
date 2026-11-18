@@ -4,7 +4,7 @@
  * the owner's *Mark released* and *Handled*.
  *
  * US11 (T100). Everything here is derived from what agents reported
- * (recovery-model.ts): Task Lite never checks a folder, a process or a
+ * (recovery-model.ts): Docket never checks a folder, a process or a
  * remote (FR-117). The coordinator acts on the restart list; the owner acts
  * on the Problems rows.
  */

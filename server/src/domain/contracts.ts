@@ -307,7 +307,7 @@ export interface ResourceRef {
 /**
  * Recovery (owner decision 26; BUILD_SPEC §5.16; MCP_SPEC §5.9): workspace
  * state, `Item.resume`, the restart list, and the owner's two Problems
- * actions. Task Lite only records: nothing here touches the host.
+ * actions. Docket only records: nothing here touches the host.
  */
 export interface RecoveryService {
   /** `recovery_report`: read-only. */
@@ -505,7 +505,7 @@ export interface DriftService {
   list(r: ReadContext, input: RouteQuery<'drift.list'>): DriftListResponse;
   /** *Adopt as <project>'s copy* (the default for a user-wide install): an owner edit; undoable. */
   adopt(w: WriteContext, input: RouteParams<'drift.adopt'>): Drift;
-  /** *Restore Task Lite's version*, step 1: rebuild the install (push writes the files). */
+  /** *Restore Docket's version*, step 1: rebuild the install (push writes the files). */
   restorePrepare(r: ReadContext, input: RouteParams<'drift.restore'>): Promise<PreparedRestore>;
   /** Step 2: record the reinstall and resolve the drift. */
   restoreRecord(

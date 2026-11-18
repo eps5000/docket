@@ -4,7 +4,7 @@
  * result types can't drift from the server:
  *
  * - `api['items.patch']({ params: { id }, body })` → the route's typed result;
- * - mutations send `X-Tasklite-CSRF` from the `tl_csrf` cookie (BUILD_SPEC §3);
+ * - mutations send `X-Docket-CSRF` from the `docket_csrf` cookie (BUILD_SPEC §3);
  * - an owner mutation's `mutation_id` is handed to `onMutation`, for the
  *   Undo toast (BUILD_SPEC §5.11);
  * - errors throw `ApiError`; a stale write throws `ConflictError` with the
@@ -50,7 +50,7 @@ export function readCookie(name: string, cookies: string): string | null {
   return null;
 }
 
-/** The CSRF token to echo on mutations: the `tl_csrf` cookie (double submit). */
+/** The CSRF token to echo on mutations: the `docket_csrf` cookie (double submit). */
 export function csrfToken(cookies: string = browserCookies()): string | null {
   return readCookie(CSRF_COOKIE_NAME, cookies);
 }
@@ -145,7 +145,7 @@ export interface ApiClientOptions {
   fetch?: typeof fetch;
   /** Prefix for every path; '' in the browser (same origin). */
   baseUrl?: string;
-  /** The cookie string to read `tl_csrf` from; defaults to `document.cookie`. */
+  /** The cookie string to read `docket_csrf` from; defaults to `document.cookie`. */
   cookies?: () => string;
   /** Called with the `mutation_id` of every successful owner mutation. */
   onMutation?: (m: MutationRecord) => void;
@@ -264,7 +264,7 @@ export const api = createApiClient();
 
 // ---- Query keys ----
 
-/** Query key families; every key starts with `['tl', family]`. */
+/** Query key families; every key starts with `['docket', family]`. */
 export const QUERY_FAMILIES = [
   'bootstrap',
   'needsYou',
@@ -290,12 +290,12 @@ export const QUERY_FAMILIES = [
   'pushTarget',
   /** Agents' proposed changes to agent files (decision 30). */
   'proposals',
-  /** Agent files changed outside Task Lite (decision 30). */
+  /** Agent files changed outside Docket (decision 30). */
   'drift',
 ] as const;
 export type QueryFamily = (typeof QUERY_FAMILIES)[number];
 
-const ROOT = 'tl';
+const ROOT = 'docket';
 
 /** The TanStack Query key factory: one key per screen query (UI_SPEC §6). */
 export const queryKeys = {
@@ -328,7 +328,7 @@ export const queryKeys = {
   pushTarget: () => [ROOT, 'pushTarget'] as const,
   /** "Proposed changes" on Agent files (decision 30). */
   proposals: (query: RouteQueryInput<'proposals.list'> = {}) => [ROOT, 'proposals', query] as const,
-  /** "Changed outside Task Lite" on Agent files (decision 30). */
+  /** "Changed outside Docket" on Agent files (decision 30). */
   drift: (query: RouteQueryInput<'drift.list'> = {}) => [ROOT, 'drift', query] as const,
 };
 

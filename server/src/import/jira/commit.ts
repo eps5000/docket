@@ -50,7 +50,7 @@ export interface CommitInput {
 export interface CommitResult {
   project: string;
   project_name: string;
-  /** Jira key → Task Lite item ID. */
+  /** Jira key → Docket item ID. */
   ids: Map<string, string>;
   report_document_id: string;
   report_name: string;

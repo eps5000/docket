@@ -1,5 +1,5 @@
 /**
- * Running Task Lite safely (tasks.md T128; BUILD_SPEC §3, §5.12, §5.13;
+ * Running Docket safely (tasks.md T128; BUILD_SPEC §3, §5.12, §5.13;
  * FR-101–FR-108; SC-008; constitution Principle VI).
  *
  * - **Backups:** an archive is written to /data/backups and verified, holds
@@ -70,7 +70,7 @@ let servers: TestServer[] = [];
 let logs: string[] = [];
 
 beforeEach(() => {
-  tmp = tempDir('tasklite-us10-');
+  tmp = tempDir('docket-us10-');
   logs = [];
 });
 afterEach(async () => {
@@ -107,7 +107,7 @@ async function readTarGzNames(path: string): Promise<string[]> {
 
 const read = (s: TestServer) => readContext(s.runtime.db, OWNER_ACTOR, s.clock.now());
 const checksumsOf = (dataDir: string): DataChecksums =>
-  liveChecksums({ db: join(dataDir, 'tasklite.db'), docs: join(dataDir, 'docs') });
+  liveChecksums({ db: join(dataDir, 'docket.db'), docs: join(dataDir, 'docs') });
 
 /** Every file under `dir` (relative path → sha256), skipping `.staging`. */
 function fileHashes(dir: string, base = dir, out = new Map<string, string>()) {
@@ -133,12 +133,12 @@ async function unlock(s: TestServer): Promise<string> {
   });
   expect(res.status).toBe(200);
   const c = parseSetCookies(res);
-  return `tl_owner=${c.tl_owner!.value}; tl_csrf=${c.tl_csrf!.value}`;
+  return `docket_owner=${c.docket_owner!.value}; docket_csrf=${c.docket_csrf!.value}`;
 }
 
 function ownerHeaders(cookie: string): Record<string, string> {
-  const csrf = /tl_csrf=([^;]+)/.exec(cookie)![1]!;
-  return { cookie, 'x-tasklite-csrf': csrf, 'content-type': 'application/json' };
+  const csrf = /docket_csrf=([^;]+)/.exec(cookie)![1]!;
+  return { cookie, 'x-docket-csrf': csrf, 'content-type': 'application/json' };
 }
 
 /** A folder the service can't write: read-only where chmod works, else a file in its place. */
@@ -166,7 +166,7 @@ describe('backups (BUILD_SPEC §5.13)', () => {
     expect(result.archive_path).toMatch(/tasklite-\d{8}-\d{4}\.tar\.gz$/);
 
     const names = await readTarGzNames(result.archive_path);
-    expect(names[0]).toBe('tasklite.db');
+    expect(names[0]).toBe('docket.db');
     expect(names.at(-1)).toBe('manifest.json');
     const docNames = names.filter((n) => n.startsWith('docs/'));
     expect(docNames.length).toBe(fileHashes(docs).size);
@@ -815,7 +815,7 @@ describe('container replacement (SC-008)', () => {
     await startupHousekeeping(second.runtime);
     // The restart may append events (open runs end as interrupted); none before it change.
     const after = liveChecksums(
-      { db: join(volume, 'tasklite.db'), docs: join(volume, 'docs') },
+      { db: join(volume, 'docket.db'), docs: join(volume, 'docs') },
       { throughSeq: before.events.max_seq },
     );
     expect(after.items.ids_sha256).toBe(before.items.ids_sha256);

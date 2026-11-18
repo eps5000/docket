@@ -1,5 +1,5 @@
 /**
- * Running Task Lite safely: Settings and Unlock (tasks.md T129; spec US10;
+ * Running Docket safely: Settings and Unlock (tasks.md T129; spec US10;
  * UI_SPEC §6.7, §6.8, §7, §11; MCP_SPEC §11).
  *
  * - Projects: a row per project with counts, labels and the mini status bar.
@@ -57,10 +57,10 @@ const toast = (page: Page, text: string | RegExp) =>
   page.locator('.toast').filter({ hasText: text });
 
 const CODEX = `# ~/.codex/config.toml
-[mcp_servers.tasklite]
+[mcp_servers.docket]
 url = "http://127.0.0.1:7420/mcp"
 bearer_token_env_var = "DOCKET_TOKEN"`;
-const CLAUDE = `claude mcp add --transport http --scope user tasklite \\
+const CLAUDE = `claude mcp add --transport http --scope user docket \\
   http://127.0.0.1:7420/mcp \\
   --header "Authorization: Bearer $DOCKET_TOKEN"`;
 
@@ -260,7 +260,7 @@ test.describe('Unlock', () => {
     const page = await context.newPage();
     await page.goto('/settings');
     await expect(page).toHaveURL(/\/unlock/);
-    await expect(page.getByRole('heading', { name: 'Unlock Task Lite' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Unlock Docket' })).toBeVisible();
     await expect(page.getByText('docker compose exec tasklite tasklite owner-key')).toBeVisible();
     await expect(page.getByLabel('Owner key')).toBeFocused();
     await expectAxeClean(page, 'Unlock');

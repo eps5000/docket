@@ -58,7 +58,7 @@ async function waitReady(timeoutMs = 60_000): Promise<void> {
     }
     await new Promise((r) => setTimeout(r, 500));
   }
-  throw new Error(`Task Lite did not become ready at ${baseURL}: ${last}`);
+  throw new Error(`Docket did not become ready at ${baseURL}: ${last}`);
 }
 
 /** A fresh sample seed in the running container. */
@@ -84,7 +84,7 @@ export async function resetSeededContainer(): Promise<void> {
     `${volumes}:/data`,
     image,
     '-c',
-    'rm -rf /data/tasklite.db /data/tasklite.db-wal /data/tasklite.db-shm /data/docs',
+    'rm -rf /data/docket.db /data/docket.db-wal /data/docket.db-shm /data/docs',
   ]);
   docker(['start', CONTAINER]);
   await waitReady();

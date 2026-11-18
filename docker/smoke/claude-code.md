@@ -6,10 +6,10 @@ Follow [README.md](README.md) "Before you start" first. Commands run from the re
 
 1. [ ] Added at user scope, with your shell expanding the token (PowerShell: `$env:DOCKET_TOKEN`):
    ```bash
-   claude mcp add --transport http --scope user tasklite http://127.0.0.1:7420/mcp \
+   claude mcp add --transport http --scope user docket http://127.0.0.1:7420/mcp \
      --header "Authorization: Bearer $DOCKET_TOKEN"
    ```
-2. [ ] `claude mcp list` shows `tasklite … ✔ Connected`.
+2. [ ] `claude mcp list` shows `docket … ✔ Connected`.
 3. [ ] Start `claude` in any folder. `/mcp` shows `tasklite` connected.
 
 ## Run

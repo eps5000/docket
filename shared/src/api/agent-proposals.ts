@@ -2,7 +2,7 @@
  * Agent proposals and drift (owner decision 30; BUILD_SPEC §4, §5.19, §7;
  * UI_SPEC §6.7b-1; contracts/ui-api.md US14): the owner's review of agents'
  * proposed changes to agent files and Workflow notes, and of installed files
- * that changed outside Task Lite. Shared contract file (tasks.md, Slice rules).
+ * that changed outside Docket. Shared contract file (tasks.md, Slice rules).
  *
  * B26 resolutions (listed in the B26 PR):
  * - `project` omitted lists everything, including proposals to the default;
@@ -63,7 +63,7 @@ export const proposalSchema = z.object({
 });
 export type Proposal = z.infer<typeof proposalSchema>;
 
-/** One drift record (UI_SPEC §6.7b-1 "Changed outside Task Lite"). */
+/** One drift record (UI_SPEC §6.7b-1 "Changed outside Docket"). */
 export const driftSchema = z.object({
   id: z.string(),
   install_id: z.string(),

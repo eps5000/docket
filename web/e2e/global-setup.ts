@@ -1,7 +1,7 @@
 import { E2E_CONTAINER, STARTED_FLAG, baseURL, compose, isHealthy } from './container';
 
 /**
- * Fixture: make sure a seeded Task Lite container answers at baseURL.
+ * Fixture: make sure a seeded Docket container answers at baseURL.
  *
  * If one is already running (CI starts it before Playwright, or a developer
  * started a disposable one), use it. Otherwise build and start the

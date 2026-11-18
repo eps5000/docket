@@ -163,7 +163,7 @@ export interface ImportPlan {
   links: PlannedLink[];
   outcomes: IssueOutcome[];
   fields_used: FieldsUsed;
-  /** "Jira → Task Lite" rows, in display order. */
+  /** "Jira → Docket" rows, in display order. */
   mapping: Map<string, { jira: string; task_lite: string } & Tally>;
   fields: Map<string, FieldTally>;
   attachments_skipped: { key: string; name: string; reason: string }[];

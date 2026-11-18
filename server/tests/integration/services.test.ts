@@ -249,8 +249,8 @@ describe('implementing a service is all a slice needs', () => {
     });
     const c = parseSetCookies(res);
     return {
-      cookie: `tl_owner=${c.tl_owner!.value}; tl_csrf=${c.tl_csrf!.value}`,
-      csrf: c.tl_csrf!.value,
+      cookie: `docket_owner=${c.docket_owner!.value}; docket_csrf=${c.docket_csrf!.value}`,
+      csrf: c.docket_csrf!.value,
     };
   }
 
@@ -270,7 +270,7 @@ describe('implementing a service is all a slice needs', () => {
     const { cookie, csrf } = await unlock(s);
     const res = await s.request('/api/items', {
       method: 'POST',
-      headers: { cookie, 'x-tasklite-csrf': csrf, 'content-type': 'application/json' },
+      headers: { cookie, 'x-docket-csrf': csrf, 'content-type': 'application/json' },
       body: JSON.stringify({ title: 'Pantry inventory schema', type: 'Story', project: 'RCP' }),
     });
     expect(res.status).toBe(200);

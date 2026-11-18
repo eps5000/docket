@@ -30,7 +30,7 @@ test.describe('screenshots', () => {
   test.beforeEach(async ({ page }) => {
     await unlock(page.context());
     // The views as the owner sees them after answering the notifications callout.
-    await page.context().addInitScript(() => localStorage.setItem('tl.notifications', 'off'));
+    await page.context().addInitScript(() => localStorage.setItem('docket.notifications', 'off'));
   });
 
   for (const [name, path] of [
@@ -72,7 +72,7 @@ test.describe('screenshots', () => {
   });
 
   test('needs you with the notifications callout', async ({ page }) => {
-    await page.context().addInitScript(() => localStorage.removeItem('tl.notifications'));
+    await page.context().addInitScript(() => localStorage.removeItem('docket.notifications'));
     await page.goto('/');
     await expect(page.locator('[data-card="notify-optin"]')).toBeVisible();
     await page.waitForLoadState('networkidle');
@@ -83,7 +83,7 @@ test.describe('screenshots', () => {
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     const page = await context.newPage();
     await page.goto('/unlock');
-    await expect(page.getByRole('heading', { name: 'Unlock Task Lite' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Unlock Docket' })).toBeVisible();
     await shoot(page, 'unlock');
     await context.close();
   });
@@ -153,7 +153,7 @@ test.describe('screenshots: coordination states (B20)', () => {
         agent_label: 'orca-w4',
         workspace: { path: 'C:/work/rcp-17', branch: 'rcp-17-week-reload' },
         orchestrator: { name: 'orca', dispatch_id: 'ctx_demo1', task_id: 'task_demo1' },
-        brief: 'Work Task Lite item RCP-17.',
+        brief: 'Work Docket item RCP-17.',
       });
       await ok(claude, 'set_plan', {
         id: 'RCP-17',
@@ -219,7 +219,7 @@ test.describe('screenshots: coordination states (B20)', () => {
 
   test.beforeEach(async ({ page }) => {
     await unlock(page.context());
-    await page.context().addInitScript(() => localStorage.setItem('tl.notifications', 'off'));
+    await page.context().addInitScript(() => localStorage.setItem('docket.notifications', 'off'));
   });
 
   for (const [name, path] of [

@@ -33,7 +33,7 @@ beforeEach(() => {
       calls.push(`${init?.method ?? 'GET'} ${path}`);
       if (path === '/api/session/unlock') return json(200, { unlocked: true });
       if (locked)
-        return json(401, { error: { code: 'forbidden', message: 'Task Lite is locked.' } });
+        return json(401, { error: { code: 'forbidden', message: 'Docket is locked.' } });
       const route = path.split('?')[0];
       return json(501, {
         error: {
@@ -94,7 +94,7 @@ describe('app shell', () => {
     // DOM query right after waiting on the router raced that commit and
     // failed under CI load (PR #22). The router state is settled once the
     // page is on screen, so check it after.
-    expect(await screen.findByRole('heading', { name: 'Unlock Task Lite' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Unlock Docket' })).toBeTruthy();
     expect(router.state.location.pathname).toBe('/unlock');
     expect(router.state.location.search).toBe('?next=%2Fagents');
     locked = false;

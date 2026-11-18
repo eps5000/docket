@@ -14,16 +14,16 @@ test.describe('smoke', () => {
     expect(await ready.json()).toMatchObject({ status: 'ready' });
   });
 
-  test('the served HTML says Task Lite is running before JavaScript runs', async ({ request }) => {
+  test('the served HTML says Docket is running before JavaScript runs', async ({ request }) => {
     const res = await request.get('/');
     expect(res.status()).toBe(200);
-    expect(await res.text()).toContain('Task Lite is running');
+    expect(await res.text()).toContain('Docket is running');
   });
 
   test('a locked browser lands on Unlock, with no serious axe violations', async ({ page }) => {
     await page.goto('/');
     await expect(page).toHaveURL(/\/unlock$/);
-    await expect(page.getByRole('heading', { level: 1, name: 'Unlock Task Lite' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Unlock Docket' })).toBeVisible();
     await expectAxeClean(page, 'Unlock');
   });
 
@@ -46,6 +46,6 @@ test.describe('smoke', () => {
   }) => {
     await page.goto('/work?layout=list');
     await expect(page).toHaveURL(/\/unlock\?next=%2Fwork%3Flayout%3Dlist$/);
-    await expect(page.getByRole('heading', { level: 1, name: 'Unlock Task Lite' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Unlock Docket' })).toBeVisible();
   });
 });

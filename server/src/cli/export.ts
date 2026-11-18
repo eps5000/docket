@@ -1,7 +1,7 @@
 /**
  * `tasklite export` (tasks.md T147; ROADMAP §1 "Have a way out"; O06): a
  * complete, readable copy of the owner's data in one `.tar.gz`, for leaving
- * Task Lite or keeping outside it. Unlike a backup, it is meant to be read
+ * Docket or keeping outside it. Unlike a backup, it is meant to be read
  * by other tools, not restored.
  *
  * The archive holds:
@@ -32,7 +32,7 @@ import { APP_VERSION } from '../version.js';
 
 type Sqlite = Database.Database;
 
-export const EXPORT_FORMAT = 'tasklite-export';
+export const EXPORT_FORMAT = 'docket-export';
 export const EXPORT_MANIFEST = 'manifest.json';
 
 /** Tables that never leave the volume, and why (shown in the manifest). */
@@ -67,7 +67,7 @@ export interface ExportDeps {
   clock: () => Date;
   /** Values that must not appear in the export (the agent token and the owner key). */
   secrets: () => readonly string[];
-  /** Where to write the archive; default `<data>/exports/tasklite-export-<time>.tar.gz`. */
+  /** Where to write the archive; default `<data>/exports/docket-export-<time>.tar.gz`. */
   out?: string;
 }
 
@@ -105,7 +105,7 @@ function stamp(now: Date): string {
 }
 
 export function defaultExportPath(config: Config, now: Date): string {
-  return join(dirname(config.paths.db), 'exports', `tasklite-export-${stamp(now)}.tar.gz`);
+  return join(dirname(config.paths.db), 'exports', `docket-export-${stamp(now)}.tar.gz`);
 }
 
 export async function runExport(deps: ExportDeps): Promise<ExportResult> {

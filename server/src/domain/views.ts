@@ -355,7 +355,7 @@ interface ProblemsInput {
   backupError: string | null;
   /** The recovery thresholds (BUILD_SPEC §5.16). */
   config: RecoveryConfig;
-  /** Agent files changed outside Task Lite (decision 30), already scoped. */
+  /** Agent files changed outside Docket (decision 30), already scoped. */
   drift: Problem[];
 }
 
@@ -541,7 +541,7 @@ function problemsOf({
 
   // Work that may be lost or left running ranks before date and link problems.
   recoveryProblems(s, runs, config, push, base);
-  // Instructions changed outside Task Lite: every later agent follows them (decision 30).
+  // Instructions changed outside Docket: every later agent follows them (decision 30).
   for (const p of drift) push(p);
 
   for (const item of items.values()) {
