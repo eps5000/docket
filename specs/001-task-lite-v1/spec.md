@@ -24,6 +24,7 @@ One owner runs Docket on their own computer. AI agents (installed coding agents,
 - Owner requirement (2026-11-15, not a clarify question): after an Orca crash pruned worktrees holding in-flight work, Docket must record enough to restart interrupted work without guessing (where the work lives, the brief, what was started), must distinguish "parked, waiting on purpose" from "finished", and must surface leftover processes and sessions. Docket records; the coordinator acts (owner decision 26; User Story 11).
 - Owner requirement (2026-11-17, not a clarify question): the owner wants in-app help, and wants to view, customize per project, install and verify the agent files Docket ships, because projects may combine Docket with other workflow tools (for example Spec Kit) (owner decision 29; User Stories 12 and 13).
 - Owner requirement (2026-11-18, not a clarify question): agents often tailor instructions for a project, and people or agents will also edit installed files directly. Agents must be able to propose changes for the owner's approval, and Docket must detect and help remedy edits made outside it (owner decision 30; User Story 14).
+- Owner requirement (2026-11-18, not a clarify question): onboarding a real project (Gameflow: GitHub code, Spec Kit planning, Jira tickets) must work from a fresh install, with no skills installed yet, and must not duplicate work already imported from Jira (owner decision 31; User Story 15).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -292,6 +293,28 @@ An agent working on a project can read that project's agent files and Workflow n
 5. **Given** the owner chose *Keep local*, **When** the same content is reported again, **Then** no new alert is raised; **When** it changes again, **Then** a new alert is raised.
 6. **Given** an agent is asked by a user to edit its installed skill files, **When** it follows the shipped skills, **Then** it proposes the change through Docket instead, and tells the user so.
 
+### User Story 15 - Onboard a project with an agent (Priority: P1)
+
+The owner creates a project (or imports it from Jira), then asks any connected agent to onboard the repo. The agent calls `onboard_project` and follows the guide it returns: it surveys the repo's planning sources, matches them to items already in the project, creates the rest in Planning with acceptance criteria, dependencies, labels, decisions and planning documents, proposes the project's Workflow notes, and finishes with a summary. The owner reviews everything from one card and installs the agent files from there.
+
+**Why this priority**: it's the first thing a real pilot does, and without it Docket starts empty.
+
+**Independent Test**:
+1. On a fresh install, import a fixture Jira project.
+2. Point an agent at a fixture repo with Spec Kit specs and tasks, some matching the Jira items.
+3. Call `onboard_project`, then follow the guide.
+
+The result: the Jira-matched tasks enrich the existing items instead of duplicating them; the rest are new items in Planning; specs are attached as planning documents; Workflow notes are proposed; and the review card lists every change.
+
+**Acceptance Scenarios**:
+
+1. **Given** no skills are installed, **When** an agent calls `onboard_project` for a new key, **Then** the project is created (marked "created by <agent>"), and the result contains the full onboarding guide.
+2. **Given** a project that already has imported Jira items, **When** an agent onboards it, **Then** `onboard_project` adopts the existing project, and the guide tells the agent to match by Jira key and title before creating anything.
+3. **Given** onboarding is in progress, **When** the agent creates items, **Then** every new item is in Inbox or Planning; nothing is Ready.
+4. **Given** the agent calls `finish_onboarding` with a summary, **When** the owner opens Needs you, **Then** one card shows the counts (created, enriched, documents, decisions), the open questions, the proposed Workflow notes, and *Install agent files*.
+5. **Given** a client that supports MCP prompts, **When** the owner runs the onboarding prompt, **Then** the agent receives the same guide.
+6. **Given** an agent, **When** it tries to change a project's settings or delete it, **Then** it can't; those remain owner actions.
+
 ### Edge Cases
 
 - **A lead's lease expires mid-work, and the agent calls again with its old run:** it is refused with the current state. The item has already returned to Ready, with its plan and logs kept.
@@ -320,6 +343,8 @@ An agent working on a project can read that project's agent files and Workflow n
 - **An agent proposes a change to a file the owner edited since the agent read it:** the proposal shows a three-way comparison; approving it doesn't silently drop the owner's edit.
 - **An agent reports hashes for files Docket never installed:** they're listed as unknown, and never treated as a problem on their own.
 - **A secret appears in proposed content:** the write check rejects it, as for any text.
+- **Onboarding is run twice on the same project:** the second run reconciles against what the first created (matching titles and source paths) instead of duplicating it.
+- **An agent tries to onboard with a deleted project's key whose cleanup hasn't finished:** it's refused, as for imports.
 
 ## Requirements *(mandatory)*
 
@@ -461,6 +486,12 @@ An agent working on a project can read that project's agent files and Workflow n
 - **FR-132**: For each detected difference, the owner MUST see what changed (a diff, when the content is available) and be offered *Adopt* (save it as the project's copy), *Restore* (reinstall Docket's version) or *Keep local* (accept it; no further alerts until it changes again).
 - **FR-133**: Each run MUST record the instruction versions it reported working from, and the owner MUST see them on the run, flagged when they differ from what was sent.
 - **FR-134**: The shipped skills and AGENTS.md block MUST tell agents to propose instruction changes through Docket rather than editing installed files, and to report their instruction hashes when they claim work.
+- **FR-135** (owner decision 31): The owner MUST be able to create a project in Settings (key, name, colour, blocker rule).
+- **FR-136**: Agents MUST be able to start onboarding through MCP: create a new project, or adopt an existing one, and receive the onboarding guide in the tool result, so no installed files are needed.
+- **FR-137**: The onboarding guide MUST be bundled, editable by the owner like the other agent files (as the default or per project), and also offered as an MCP prompt.
+- **FR-138**: The guide MUST direct agents to reconcile with items already in the project (Jira keys, titles, source paths) before creating new ones, to create everything in Inbox or Planning, to attach planning sources as documents, to propose Workflow notes, and to finish with a summary.
+- **FR-139**: Finishing onboarding MUST give the owner one review card: what was created and enriched, the documents and decisions added, open questions, the proposed Workflow notes, and *Install agent files*.
+- **FR-140**: Agents MUST NOT change a project's settings or delete a project. Projects an agent created are marked as such until the owner reviews them.
 
 ### Key Entities
 
@@ -485,6 +516,7 @@ An agent working on a project can read that project's agent files and Workflow n
 - **Install**: one install of an effective file set: when, client, target (repo or user-wide, path), method (command or push), and the version of every file sent.
 - **AgentFileProposal**: an agent's proposed new content for a file or Workflow notes, with its reason, the version it was based on, its state (pending, approved, declined) and who decided.
 - **InstructionReport / Drift**: the instruction hashes reported for an installed location (by a scheduled push-folder check or an agent's claim), the differences from what was sent, and the owner's remedy (adopted, restored, kept local).
+- **Onboarding**: a project's onboarding session: who started it, when, its state (in progress, ready for review, reviewed), the agent's summary, and the changes it made.
 
 ## Success Criteria *(mandatory)*
 
@@ -507,6 +539,7 @@ An agent working on a project can read that project's agent files and Workflow n
 - **SC-015**: A new owner finds and opens the right Help article from the screen they're on in one click, for every state named in the UI (parked, stale, at risk, safe to prune, and so on).
 - **SC-016**: For any installed copy, the owner can tell within one minute which file versions were sent and whether each was edited locally.
 - **SC-017**: An instruction file edited outside Docket is surfaced to the owner within 15 minutes for push installs, or by the next agent claim on that project otherwise, in 100% of cases in the drift test suite.
+- **SC-018**: Onboarding the fixture repo after a fixture Jira import creates no duplicate items: 100% of Spec Kit tasks that match an imported Jira item enrich it, and the owner can review the whole onboarding from one card.
 
 ## Assumptions
 
