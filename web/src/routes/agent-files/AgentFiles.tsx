@@ -15,6 +15,7 @@ import { AgentFileView, type FileViewMode } from './AgentFileView';
 import { InstallDialog, InstallLog, SetUpPushLink } from './AgentInstall';
 import { usePushTarget } from './install-common';
 import { kindLabel, possessive, rowCopyOutdated, rowDefaultOutdated } from './model';
+import { ProposalChip, ProposalsSection, proposalCounts, usePendingProposals } from './Proposals';
 import { useResetDefault, useSwitchToDefault } from './mutations';
 import { WorkflowNotes } from './WorkflowNotes';
 import '../screens.css';
@@ -88,6 +89,8 @@ export function AgentFiles() {
     queryFn: () => apiClient['agentFiles.list']({ query: q }),
   });
   const push = usePushTarget();
+  const pending = usePendingProposals(project);
+  const counts = proposalCounts(pending.data?.proposals, project);
 
   return (
     <div className="agent-files stack">
@@ -116,6 +119,8 @@ export function AgentFiles() {
         )}
       </p>
 
+      <ProposalsSection project={project} projectName={projectName} projects={projects} />
+
       {project && <WorkflowNotes project={project} projectName={projectName!} />}
 
       <Card className="aflist">
@@ -137,6 +142,7 @@ export function AgentFiles() {
                 projectName={projectName!}
                 selected={file}
                 onOpen={openFile}
+                proposals={counts}
               />
             ) : (
               <DefaultsTable
@@ -144,6 +150,7 @@ export function AgentFiles() {
                 projects={projects}
                 selected={file}
                 onOpen={openFile}
+                proposals={counts}
               />
             )
           }
@@ -174,13 +181,19 @@ export function AgentFiles() {
   );
 }
 
-function FileName({ f }: { f: AgentFileRow }) {
+function FileName({ f, proposals }: { f: AgentFileRow; proposals?: number }) {
   return (
     <>
       <Link className="mono" to={{ search: `?file=${encodeURIComponent(f.key)}` }}>
         {f.name}
       </Link>
       <span className="src"> · {kindLabel(f.kind)}</span>
+      {proposals ? (
+        <span className="afchips">
+          {' '}
+          <ProposalChip count={proposals} />
+        </span>
+      ) : null}
     </>
   );
 }
@@ -192,12 +205,15 @@ function ProjectTable({
   projectName,
   selected,
   onOpen,
+  proposals,
 }: {
   files: readonly AgentFileRow[];
   project: string;
   projectName: string;
   selected: string | null;
   onOpen: (key: string, mode?: FileViewMode) => void;
+  /** Pending proposals per file (the "1 proposal" chip). */
+  proposals: ReadonlyMap<string, number>;
 }) {
   const switchToDefault = useSwitchToDefault();
   return (
@@ -225,7 +241,7 @@ function ProjectTable({
                 className={outdated ? 'hasflag' : undefined}
               >
                 <td>
-                  <FileName f={f} />
+                  <FileName f={f} proposals={proposals.get(f.key)} />
                 </td>
                 <td>
                   {copy ? (
@@ -289,11 +305,14 @@ function DefaultsTable({
   projects,
   selected,
   onOpen,
+  proposals,
 }: {
   files: readonly AgentFileRow[];
   projects: readonly { key: string; short_name: string }[];
   selected: string | null;
   onOpen: (key: string, mode?: FileViewMode) => void;
+  /** Pending proposals to the default, per file. */
+  proposals: ReadonlyMap<string, number>;
 }) {
   const reset = useResetDefault();
   // Which projects have their own copy of each file: one list per project (no new route).
@@ -331,7 +350,7 @@ function DefaultsTable({
                 className={outdated ? 'hasflag' : undefined}
               >
                 <td>
-                  <FileName f={f} />
+                  <FileName f={f} proposals={proposals.get(f.key)} />
                 </td>
                 <td>
                   {edit ? (

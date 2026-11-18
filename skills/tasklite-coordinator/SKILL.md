@@ -14,7 +14,7 @@ description: Coordinate several agents against Task Lite. Covers choosing and di
 
 You dispatch workers, create and prune worktrees, and clean up. Workers follow `tasklite-worker`; tell them to use it.
 
-**Agent files.** The owner installs the skills and the project's `AGENTS.md` / `CLAUDE.md` section from Agent files (_Install into <project>'s repo_, by a copy-paste command or into a mounted folder), and the install log shows which versions each repo got. If a worker doesn't have `tasklite-worker`, ask the owner to install it there; paste the skill into the brief only as a last resort. Each project's **Workflow notes** reach every worker through `get_context`, so don't repeat them, or the `AGENTS.md` rules, in briefs.
+**Agent files.** The owner installs the skills and the project's `AGENTS.md` / `CLAUDE.md` section from Agent files (_Install into <project>'s repo_, by a copy-paste command or into a mounted folder), and the install log shows which versions each repo got. If a worker doesn't have `tasklite-worker`, ask the owner to install it there; paste the skill into the brief only as a last resort. Each project's **Workflow notes** reach every worker through `get_context`, so don't repeat them, or the `AGENTS.md` rules, in briefs. To change these instructions, use `get_agent_files` then `propose_agent_file_change`, and tell the user you've proposed it for the owner's approval. Don't edit installed files directly, and don't tell workers to.
 
 ## 1. Every time you start, including after any crash or restart
 
@@ -98,6 +98,7 @@ Skip entries with no workspace and no brief: you didn't dispatch them, so leave 
 ## Owner-only (don't do these for the owner)
 
 - Answering `ask_owner` questions, and making review decisions.
+- Approving or declining proposed changes to agent files and Workflow notes.
 - Moving items to Ready, unless the project's `AGENTS.md` says agents may.
 - Confirming or withdrawing owner decisions.
 - Releasing another worker's live claim. Only the owner can release a stale one, from the UI.

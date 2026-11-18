@@ -179,6 +179,8 @@ describe('the service stubs', () => {
       'pushTarget',
       'testPushTarget',
     ],
+    // US14 (B27a, T160): proposals.
+    agentProposals: ['files', 'propose', 'list', 'approve', 'decline'],
   };
 
   it.each(methods)('%s.%s throws NotImplementedError until its slice implements it', (s, m) => {

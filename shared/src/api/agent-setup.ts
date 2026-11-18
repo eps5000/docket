@@ -146,6 +146,11 @@ export type AgentFileDetail = z.infer<typeof agentFileDetailSchema>;
 
 /** One Workflow notes version. */
 export const workflowVersionSchema = z.object({
+  /**
+   * The version's `wf_…` ID, as `get_agent_files` and proposals name it
+   * (optional; B27a: the proposal review finds its three-way base by it).
+   */
+  id: z.string().optional(),
   version_no: z.number().int(),
   content_md: z.string(),
   author: z.string(),

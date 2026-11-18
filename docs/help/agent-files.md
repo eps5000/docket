@@ -79,6 +79,24 @@ They sit at the top of **Agent files** with the project selected:
 - Click *Edit*, write the notes in Markdown (up to 10,000 characters), add an optional note, and save. Each save is a new version, with its history and diffs. Saving them empty clears them.
 - **Start from template** (when the notes are empty) loads suggested rules into the editor, unsaved: who moves work to Ready, the planning documents expected, when human review is required, the blocker rule, branch naming, the checks to run, decisions worth recording, and labels. Each has a suggested answer already written in; change what doesn't fit, then save.
 
+## Changes agents propose
+
+Agents often want to tailor their instructions for a project. They don't edit the files: the shipped skills tell them to read a file with `get_agent_files` and propose a change with `propose_agent_file_change`, with a short reason, and to tell you they did. Nothing changes until you decide.
+
+- **Needs you** shows one line, **n agent file changes proposed**, which opens Agent files.
+- **Proposed changes · n** sits at the top of a project's Agent files, above the files. With **All projects**, it lists changes proposed for the default, and a line for each project that has its own.
+- A file with a proposal waiting shows a **1 proposal** chip.
+
+Each proposal shows the file, which agent proposed it and on which item, its reason, and what would change compared with the version in use. Then:
+
+- *Approve* saves the agent's text as the project's copy (or as the default, for a change proposed to the default, or as the Workflow notes). Its history says **proposed by codex · orca-w3 · approved by owner**. The toast's *Undo* takes it back. The next install, and `get_context` for Workflow notes, use it.
+- *Edit, then approve* opens the agent's text in the editor; your edited text is what's saved.
+- *Decline…* closes it, with an optional note. It can't be undone; the agent can propose again.
+
+**Changed since the agent read it:** you (or another approval) changed the file after the agent read it. The proposal shows both changes, what changed since the agent read it and what the agent proposes, so approving doesn't silently drop your edit. *Approve* asks first; *Edit, then approve* lets you keep both.
+
+At most five proposals wait per file. When an agent proposes again from the same run, its new proposal replaces its earlier one.
+
 ## Install the files
 
 Agents only follow the files once they're in the right folder. With a project selected, **Install into Recipe App's repo** puts that project's files (its copies where you customized a file, the defaults elsewhere) into its repository. With **All projects**, **Install user-wide** puts the defaults in your home folder, for every project on that computer.

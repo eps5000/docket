@@ -39,7 +39,11 @@ export function NeedsYou() {
       <QueryState query={query} skeleton={<NeedsYouSkeleton />}>
         {(data) => (
           <>
-            <AgentsStrip counts={data.agent_counts} atRisk={atRisk} />
+            <AgentsStrip
+              counts={data.agent_counts}
+              atRisk={atRisk}
+              proposals={data.agent_file_proposals}
+            />
             <div className="dash-top">
               <ForYouNow rows={data.for_you_now} />
               <ProblemsCard problems={data.problems} workspaces={workspaces} />

@@ -83,32 +83,15 @@ export const US1_TOOLS: readonly ToolName[] = [
   // US7 (B14, T124).
   'put_document',
   'upsert_label',
+  // US14 (B27a, T160).
+  'get_agent_files',
+  'propose_agent_file_change',
 ];
 const STUB_TOOLS = TOOL_NAMES.filter((n) => !US1_TOOLS.includes(n));
 
 describe('stubs', () => {
-  it('only the decision 30 tools are stubs (B26 contracts; US14, T160, implements them)', () => {
-    expect(STUB_TOOLS).toEqual(['get_agent_files', 'propose_agent_file_change']);
-  });
-
-  it.each(STUB_TOOLS)('%s answers unavailable: "Not implemented yet"', async (name) => {
-    h ??= await startHarness();
-    const result = await h.call(name, VALID_ARGS[name]);
-    expect(expectUnavailable(result)).toEqual({
-      code: 'unavailable',
-      message: `Not implemented yet: ${name}`,
-    });
-    expect(textOf(result)).toBe(`unavailable: Not implemented yet: ${name}`);
-  });
-
-  it('propose_agent_file_change stores nothing while it is a stub, even with an idempotency_key', async () => {
-    h = await startHarness();
-    const args = { ...VALID_ARGS.propose_agent_file_change, idempotency_key: 'afp-stub-1' };
-    expectUnavailable(await h.call('propose_agent_file_change', args));
-    const count = (sql: string) =>
-      (h!.server.runtime.db.sqlite.prepare(sql).get() as { n: number }).n;
-    expect(count('SELECT count(*) AS n FROM agent_file_proposals')).toBe(0);
-    expect(count('SELECT count(*) AS n FROM idempotency')).toBe(0);
+  it('no tool is a stub any more (US14, T160, implemented the decision 30 tools)', () => {
+    expect(STUB_TOOLS).toEqual([]);
   });
 
   it('claim_lead accepts instructions (decision 30) and still claims; B27 records them', async () => {
