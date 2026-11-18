@@ -98,6 +98,7 @@ export const emptySettings: SettingsResponse = {
     database: { state: 'ready', bytes: 1 },
     documents: { state: 'ready', bytes: 1 },
     volume_free_bytes: null,
+    volume: { name: null, legacy_db_file: false },
     backups: [],
     extra_backup_configured: false,
     restarted_at: '2026-11-06T08:00:00Z',

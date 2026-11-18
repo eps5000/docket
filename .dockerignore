@@ -23,7 +23,7 @@ docs/*
 !docs/help
 specs
 # design/ is reference material, except the sample data the seed loader
-# reads (T031, TASKLITE_SEED=sample and `tasklite seed sample`).
+# reads (T031, DOCKET_SEED=sample and `tasklite seed sample`).
 design
 !design/sample-data.json
 docker/.env

@@ -13,7 +13,7 @@
  *   band, and planned dates unchanged.
  * - axe on the Timeline and the burn-down card (and its table), both themes.
  *
- * Set TASKLITE_E2E_SCREENSHOTS to a folder to also capture the PR's light
+ * Set DOCKET_E2E_SCREENSHOTS to a folder to also capture the PR's light
  * and dark screenshots.
  */
 import { execFileSync } from 'node:child_process';
@@ -31,7 +31,7 @@ import {
 
 useSeededContainer();
 
-const out = process.env.TASKLITE_E2E_SCREENSHOTS;
+const out = process.env.DOCKET_E2E_SCREENSHOTS;
 
 async function shoot(page: Page, name: string, target?: Locator) {
   if (!out) return;

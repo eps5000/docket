@@ -20,7 +20,7 @@
  * they need nothing beyond the shell itself (no Node, no Python). ASCII
  * only, so PowerShell 5.1 reads them the same in any code page.
  */
-import { TASKLITE_BEGIN, TASKLITE_END } from '@docket/shared';
+import { DOCKET_BEGIN, DOCKET_END } from '@docket/shared';
 
 /** `CLAUDE.md`, `.codex/AGENTS.md`: only these fixed values are put in the scripts. */
 const SAFE_RELATIVE = /^[A-Za-z0-9._/-]+$/;
@@ -36,8 +36,8 @@ export LC_ALL=C
 here=$(cd "$(dirname "$0")" && pwd)
 base=$1
 instr="$base/${instructions}"
-B='${TASKLITE_BEGIN}'
-E='${TASKLITE_END}'
+B='${DOCKET_BEGIN}'
+E='${DOCKET_END}'
 broken() {
   echo "Task Lite: $instr has a damaged Task Lite section (a $B or $E line is missing or repeated). Fix the markers, then make a new install command. Nothing was written." >&2
   exit 1
@@ -105,8 +105,8 @@ param([string]$Here, [string]$Base)
 $ErrorActionPreference = 'Stop'
 $Base = (Resolve-Path -LiteralPath $Base).ProviderPath
 $enc = [Text.Encoding]::GetEncoding(28591)
-$Begin = '${TASKLITE_BEGIN}'
-$End = '${TASKLITE_END}'
+$Begin = '${DOCKET_BEGIN}'
+$End = '${DOCKET_END}'
 $instr = Join-Path $Base '${instructions}'
 $ord = [StringComparison]::Ordinal
 

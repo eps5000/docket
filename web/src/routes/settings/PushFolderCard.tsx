@@ -36,8 +36,8 @@ export function PushFolderCard() {
   };
   const f = folder.trim() || 'C:/Users/you/code';
   const volume = `      - ${f}:/host-code`;
-  const env = `TASKLITE_PUSH_ROOT=/host-code\nTASKLITE_PUSH_HOST_PATH=${f}`;
-  const override = `services:\n  tasklite:\n    volumes:\n      - ${f}:/host-code\n    environment:\n      TASKLITE_PUSH_ROOT: /host-code\n      TASKLITE_PUSH_HOST_PATH: ${f}`;
+  const env = `DOCKET_PUSH_ROOT=/host-code\nDOCKET_PUSH_HOST_PATH=${f}`;
+  const override = `services:\n  tasklite:\n    volumes:\n      - ${f}:/host-code\n    environment:\n      DOCKET_PUSH_ROOT: /host-code\n      DOCKET_PUSH_HOST_PATH: ${f}`;
 
   return (
     <Card padded data-card="push-folder">
@@ -69,7 +69,7 @@ export function PushFolderCard() {
               <dl className="inpaths">
                 <dt>On your computer</dt>
                 <dd className="mono">
-                  {t.host_path ?? '(not given: set TASKLITE_PUSH_HOST_PATH)'}
+                  {t.host_path ?? '(not given: set DOCKET_PUSH_HOST_PATH)'}
                 </dd>
                 <dt>Inside Task Lite</dt>
                 <dd className="mono">{t.container_path}</dd>

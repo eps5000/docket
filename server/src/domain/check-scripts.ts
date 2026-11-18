@@ -27,7 +27,7 @@
  * PowerShell 5.1 reads it the same in any code page, and the PowerShell
  * version prints non-ASCII text as `\uXXXX` for the same reason.
  */
-import { TASKLITE_BEGIN, TASKLITE_END } from '@docket/shared';
+import { DOCKET_BEGIN, DOCKET_END } from '@docket/shared';
 
 /** The installed script's file names, next to the manifest. */
 export const CHECK_SCRIPT_SH = 'tasklite-check.sh';
@@ -43,8 +43,8 @@ export LC_ALL=C
 here=$(cd "$(dirname "$0")" && pwd)
 base=$(dirname "$here")
 m="$here/.tasklite-manifest.json"
-B='${TASKLITE_BEGIN}'
-E='${TASKLITE_END}'
+B='${DOCKET_BEGIN}'
+E='${DOCKET_END}'
 TAB=$(printf '\\t')
 [ -f "$m" ] || { echo "No Task Lite install found: $m is missing." >&2; exit 1; }
 h() { tr -d '\\r' | { sha256sum 2>/dev/null || shasum -a 256; } | cut -c1-64; }
@@ -111,8 +111,8 @@ $m = Join-Path $here '.tasklite-manifest.json'
 if (-not (Test-Path -LiteralPath $m -PathType Leaf)) { throw "No Task Lite install found: $m is missing." }
 $enc = [Text.Encoding]::GetEncoding(28591)
 $utf8 = New-Object Text.UTF8Encoding $false
-$B = '${TASKLITE_BEGIN}'
-$E = '${TASKLITE_END}'
+$B = '${DOCKET_BEGIN}'
+$E = '${DOCKET_END}'
 $ord = [StringComparison]::Ordinal
 $sha = [Security.Cryptography.SHA256]::Create()
 function TlHash([string]$s) { -join ($sha.ComputeHash($enc.GetBytes($s)) | ForEach-Object { $_.ToString('x2') }) }

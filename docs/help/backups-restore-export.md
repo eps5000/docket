@@ -31,7 +31,7 @@ The volume copy is lost if the volume is. You can have each backup also copied t
 
 1. Create the folder, for example `~/TaskLiteBackups`. On Linux, let the container write to it: `sudo chown 10001:10001 ~/TaskLiteBackups`.
 2. In `docker/compose.yaml`, uncomment the line `- ~/TaskLiteBackups:/backups-extra`.
-3. In `docker/.env` (copy `.env.example`), set `TASKLITE_BACKUP_EXTRA_DIR=/backups-extra`.
+3. In `docker/.env` (copy `.env.example`), set `DOCKET_BACKUP_EXTRA_DIR=/backups-extra`.
 4. Run `docker compose up -d`, then take a backup now. Settings shows both locations.
 
 If the extra copy fails (the folder is missing, full or not writable), the backup in the volume still succeeds, and Problems shows **Extra backup copy failed** until a copy works again. Click *Open* to see the details in Settings.

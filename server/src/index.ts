@@ -34,7 +34,7 @@ if (config.seed === 'sample') {
     const summary = loadSampleSeed(runtime.db, { now: new Date(), docsDir: config.paths.docs });
     console.log(`Loaded the sample seed: ${describeSeed(summary)}`);
   } else {
-    console.log('TASKLITE_SEED=sample ignored: the database already has data.');
+    console.log('DOCKET_SEED=sample ignored: the database already has data.');
   }
 }
 
@@ -55,7 +55,7 @@ if (removed.length > 0) {
 }
 
 const app = createApp(runtime, { webRoot });
-// The nightly backup at TASKLITE_BACKUP_AT (BUILD_SPEC §5.13).
+// The nightly backup at DOCKET_BACKUP_AT (BUILD_SPEC §5.13).
 const backups = startBackupJob({
   config,
   log: runtime.log,
@@ -64,7 +64,7 @@ const backups = startBackupJob({
 });
 // Lease expiry and the 60 s pings to sessions of open runs (BUILD_SPEC §5.3, §5.4).
 const sweeper = startSweeper(runtime);
-// The push folder's drift check, at startup and every TASKLITE_DRIFT_CHECK_INTERVAL (decision 30).
+// The push folder's drift check, at startup and every DOCKET_DRIFT_CHECK_INTERVAL (decision 30).
 const driftCheck = startDriftCheck(runtime);
 
 const server = serve({ fetch: app.fetch, hostname: '0.0.0.0', port: config.port }, (info) => {

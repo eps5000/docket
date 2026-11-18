@@ -101,7 +101,7 @@ At most five proposals wait per file. When an agent proposes again from the same
 
 Sometimes someone edits an installed file directly instead: a person in their editor, or an agent told to. Every later agent there follows the edited file, so Task Lite looks for that in two ways:
 
-- **The scheduled check:** every 15 minutes (and when Task Lite starts), it reads each folder it installed into by push, and compares every file with what it sent. It only reads; it never writes there. Set `TASKLITE_DRIFT_CHECK_INTERVAL` to change how often (at least `1m`), or to `off`.
+- **The scheduled check:** every 15 minutes (and when Task Lite starts), it reads each folder it installed into by push, and compares every file with what it sent. It only reads; it never writes there. Set `DOCKET_DRIFT_CHECK_INTERVAL` to change how often (at least `1m`), or to `off`.
 - **Agents' reports:** each install puts a small `tasklite-check` script next to the manifest (`.claude/tasklite-check.sh` and `.ps1`, or under `.codex/`). The shipped skills tell agents to run it once per session and pass its output when they claim an item. It sends each file's fingerprint, and the text of any file that differs. That covers installs made by command, where Task Lite can't see the files itself: an edit shows up by the next claim there.
 
 Either way, you see:
@@ -182,8 +182,8 @@ To set it up, mount the folder that holds your repos into Task Lite. Type that f
 2. In the same `docker` folder, open `.env` (create it if it isn't there) and add:
 
    ```
-   TASKLITE_PUSH_ROOT=/host-code
-   TASKLITE_PUSH_HOST_PATH=C:/Users/you/code
+   DOCKET_PUSH_ROOT=/host-code
+   DOCKET_PUSH_HOST_PATH=C:/Users/you/code
    ```
 3. Restart Task Lite: `docker compose -f docker/compose.yaml up -d`
 4. Come back to the card and click *Test*.

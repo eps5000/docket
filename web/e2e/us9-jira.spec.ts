@@ -15,7 +15,7 @@
  * - The API token is cleared after step 1 and never on the page again.
  * - axe on every step in both themes.
  *
- * Set TASKLITE_E2E_SCREENSHOTS to a folder to also capture the PR's light
+ * Set DOCKET_E2E_SCREENSHOTS to a folder to also capture the PR's light
  * and dark screenshots.
  */
 import { execFileSync } from 'node:child_process';
@@ -29,7 +29,7 @@ useSeededContainer();
 const SITE = 'https://jira-fixture.test:8443';
 const EMAIL = 'owner@example.test';
 const TOKEN = 'tl-fixture-api-token-0001';
-const out = process.env.TASKLITE_E2E_SCREENSHOTS;
+const out = process.env.DOCKET_E2E_SCREENSHOTS;
 
 /** Is the fixture reachable from the container? (CI always starts it; locally it's opt-in.) */
 function fixtureUp(): boolean {

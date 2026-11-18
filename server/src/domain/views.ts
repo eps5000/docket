@@ -1674,6 +1674,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
           },
           documents: { state: health.docs_dir ?? 'error', bytes: dirBytes(config.paths.docs) },
           volume_free_bytes: volumeFree,
+          volume: { name: config.dataVolume, legacy_db_file: config.legacyDbFile },
           backups,
           extra_backup_configured: config.backupExtraDir !== null,
           restarted_at: restartedAt,

@@ -416,7 +416,7 @@ export interface InstallsService {
   bundleForToken(r: ReadContext, input: RouteParams<'install.download'>): Promise<InstallBundle>;
   /** Step 2: mark the token used and log the install (event `install.recorded`). */
   markDownloaded(w: WriteContext, input: { install_id: string }): void;
-  /** `GET /api/push-target`: whether `TASKLITE_PUSH_ROOT` is set and writable, with both paths. */
+  /** `GET /api/push-target`: whether `DOCKET_PUSH_ROOT` is set and writable, with both paths. */
   pushTarget(r: ReadContext): Promise<PushTargetResponse>;
   /** `POST /api/push-target/test`: write and remove a probe file. Not an event. */
   testPushTarget(r: ReadContext): Promise<PushTargetTestResponse>;
@@ -482,7 +482,7 @@ export interface PreparedRestore {
 /**
  * Drift: installed agent files that differ from what was sent (FR-131–FR-133).
  * Reports come from agents on `claim_lead` and from the scheduled check of
- * push installs (`TASKLITE_DRIFT_CHECK_INTERVAL`, and at startup). A report
+ * push installs (`DOCKET_DRIFT_CHECK_INTERVAL`, and at startup). A report
  * that differs from its install's manifest raises one open record per
  * install and file (event `drift.detected`); a remedy resolves it (event
  * `drift.resolved`). *Keep local* accepts the hash: no new alert until it

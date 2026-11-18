@@ -17,7 +17,7 @@
  *
  * - Result mode (MCP_SPEC §3 Results; owner decision 28): decided once, at
  *   `initialize`. A session whose `clientInfo.name` is in
- *   TASKLITE_TEXT_ONLY_CLIENTS (exact, ignoring case) is `text`: its
+ *   DOCKET_TEXT_ONLY_CLIENTS (exact, ignoring case) is `text`: its
  *   `tools/list` has no `outputSchema` and its results no
  *   `structuredContent`, so the model reads the compact text. Every other
  *   session is `structured`.

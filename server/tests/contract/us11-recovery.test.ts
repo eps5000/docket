@@ -190,7 +190,7 @@ describe('§7.12 parking while you wait (MCP_SPEC §10 test 17)', () => {
     expect(types).toEqual(expect.arrayContaining(['run.parked', 'run.resumed']));
   });
 
-  it('after TASKLITE_PARK_MAX it shows under the owner’s Problems but keeps its claim', async () => {
+  it('after DOCKET_PARK_MAX it shows under the owner’s Problems but keeps its claim', async () => {
     h = await startHarness();
     const api = await ownerApi(h.server.app, h.server.runtime.secrets.ownerKey());
     const { run_id } = expectOk(await call(h.a, 'claim_lead', { id: 'RCP-17' })).structured as {
@@ -501,7 +501,7 @@ describe('§7.13 crash recovery and SC-014 (MCP_SPEC §10 test 19)', () => {
 
     // Crash: the service restarts and nobody sends signals.
     const orphanAfter = '2m';
-    const { runtime, app, interrupted } = await restart(h, { TASKLITE_ORPHAN_AFTER: orphanAfter });
+    const { runtime, app, interrupted } = await restart(h, { DOCKET_ORPHAN_AFTER: orphanAfter });
     expect(interrupted.sort()).toEqual(
       expect.arrayContaining([active.run_id, risky.run_id].sort()),
     );

@@ -3,7 +3,7 @@
  * secret bootstrap (§3).
  *
  * - Every variable has its documented default.
- * - The agent token comes from TASKLITE_TOKEN, else /data/secrets/agent-token
+ * - The agent token comes from DOCKET_TOKEN, else /data/secrets/agent-token
  *   (generated on first boot). The owner key is always /data/secrets/owner-key
  *   (generated on first boot: 32 random bytes, base32). Both files are 0600.
  * - Secrets are never logged: nothing here prints them, and config errors
@@ -12,10 +12,11 @@
 import { randomBytes } from 'node:crypto';
 import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
+import { LEGACY_DB_FILE, withLegacyEnv } from '@docket/shared';
 
 export interface Config {
   dataDir: string;
-  /** TASKLITE_TOKEN, when set. Otherwise the token lives in `paths.agentToken`. */
+  /** DOCKET_TOKEN, when set. Otherwise the token lives in `paths.agentToken`. */
   tokenFromEnv: string | null;
   port: number;
   allowedHosts: string[];
@@ -53,6 +54,17 @@ export interface Config {
    * no `outputSchema`, no `structuredContent` (MCP_SPEC §3 Results; owner decision 28).
    */
   textOnlyClients: string[];
+  /**
+   * The data volume's name as the compose file gives it (DOCKET_DATA_VOLUME),
+   * shown in Settings' service health. Null when not given.
+   */
+  dataVolume: string | null;
+  /**
+   * One warning per old `TASKLITE_*` setting used because its `DOCKET_*` one
+   * is unset (B28): "TASKLITE_PORT is deprecated; use DOCKET_PORT". Never a
+   * value. The server logs them once at startup.
+   */
+  deprecations: string[];
   paths: {
     db: string;
     docs: string;
@@ -62,23 +74,51 @@ export interface Config {
     logs: string;
     backups: string;
   };
+  /** Whether the database file still has its old name (`tasklite.db`, kept as it is). */
+  legacyDbFile: boolean;
 }
 
 export const DEFAULTS = {
-  TASKLITE_PORT: '7420',
-  TASKLITE_ALLOWED_HOSTS: '127.0.0.1:7420,localhost:7420',
-  TASKLITE_LIVE_WINDOW: '2m',
-  TASKLITE_STALE_AFTER: '30m',
-  TASKLITE_LEASE: '60m',
-  TASKLITE_PARK_MAX: '24h',
-  TASKLITE_RESUME_UNATTENDED: '30m',
-  TASKLITE_ORPHAN_AFTER: '15m',
-  TASKLITE_DRIFT_CHECK_INTERVAL: '15m',
-  TASKLITE_BACKUP_AT: '03:00',
-  TASKLITE_BACKUP_KEEP: '14',
+  DOCKET_PORT: '7420',
+  DOCKET_ALLOWED_HOSTS: '127.0.0.1:7420,localhost:7420',
+  DOCKET_LIVE_WINDOW: '2m',
+  DOCKET_STALE_AFTER: '30m',
+  DOCKET_LEASE: '60m',
+  DOCKET_PARK_MAX: '24h',
+  DOCKET_RESUME_UNATTENDED: '30m',
+  DOCKET_ORPHAN_AFTER: '15m',
+  DOCKET_DRIFT_CHECK_INTERVAL: '15m',
+  DOCKET_BACKUP_AT: '03:00',
+  DOCKET_BACKUP_KEEP: '14',
   // Claude Code gives the model `structuredContent`, not the text (BUILD_SPEC §12 V6).
-  TASKLITE_TEXT_ONLY_CLIENTS: 'claude-code',
+  DOCKET_TEXT_ONLY_CLIENTS: 'claude-code',
 } as const;
+
+/** Every setting the server reads; each one's old `TASKLITE_*` name still works (B28). */
+export const SETTING_NAMES = [
+  ...(Object.keys(DEFAULTS) as (keyof typeof DEFAULTS)[]),
+  'DOCKET_TOKEN',
+  'DOCKET_SEED',
+  'DOCKET_PUSH_ROOT',
+  'DOCKET_PUSH_HOST_PATH',
+  'DOCKET_BACKUP_EXTRA_DIR',
+  'DOCKET_DATA_VOLUME',
+] as const;
+
+/** The database file on the data volume. */
+export const DB_FILE = 'docket.db';
+
+/**
+ * The database file to open: `docket.db`, unless the volume still holds only
+ * the old `tasklite.db` (a volume from before the rename). That file is used
+ * where it is, never renamed or moved (B28: existing volumes are never touched).
+ */
+export function databaseFile(dataDir: string): { path: string; legacy: boolean } {
+  const current = join(dataDir, DB_FILE);
+  const legacy = join(dataDir, LEGACY_DB_FILE);
+  if (!existsSync(current) && existsSync(legacy)) return { path: legacy, legacy: true };
+  return { path: current, legacy: false };
+}
 
 /** The shortest drift-check interval (B26 resolution 11). */
 const MIN_DRIFT_CHECK_INTERVAL_MS = 60_000;
@@ -104,42 +144,43 @@ function env(source: Record<string, string | undefined>, name: string): string |
 }
 
 export function loadConfig(
-  source: Record<string, string | undefined> = process.env,
+  rawSource: Record<string, string | undefined> = process.env,
   opts: { dataDir?: string } = {},
 ): Config {
+  const { env: source, warnings: deprecations } = withLegacyEnv(rawSource, SETTING_NAMES);
   const get = (name: keyof typeof DEFAULTS) => env(source, name) ?? DEFAULTS[name];
   const dataDir = opts.dataDir ?? '/data';
 
-  const port = Number(get('TASKLITE_PORT'));
+  const port = Number(get('DOCKET_PORT'));
   if (!Number.isInteger(port) || port < 1 || port > 65_535) {
-    throw new ConfigError('TASKLITE_PORT must be a port number (1–65535)');
+    throw new ConfigError('DOCKET_PORT must be a port number (1–65535)');
   }
 
-  const allowedHosts = get('TASKLITE_ALLOWED_HOSTS')
+  const allowedHosts = get('DOCKET_ALLOWED_HOSTS')
     .split(',')
     .map((h) => h.trim().toLowerCase())
     .filter(Boolean);
   if (allowedHosts.length === 0) {
-    throw new ConfigError('TASKLITE_ALLOWED_HOSTS must list at least one host:port');
+    throw new ConfigError('DOCKET_ALLOWED_HOSTS must list at least one host:port');
   }
 
-  const backupAt = get('TASKLITE_BACKUP_AT');
+  const backupAt = get('DOCKET_BACKUP_AT');
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(backupAt)) {
-    throw new ConfigError(`TASKLITE_BACKUP_AT must be HH:MM (got "${backupAt}")`);
+    throw new ConfigError(`DOCKET_BACKUP_AT must be HH:MM (got "${backupAt}")`);
   }
 
-  const backupKeepDays = Number(get('TASKLITE_BACKUP_KEEP'));
+  const backupKeepDays = Number(get('DOCKET_BACKUP_KEEP'));
   if (!Number.isInteger(backupKeepDays) || backupKeepDays < 1) {
-    throw new ConfigError('TASKLITE_BACKUP_KEEP must be a whole number of days, at least 1');
+    throw new ConfigError('DOCKET_BACKUP_KEEP must be a whole number of days, at least 1');
   }
 
-  const seedValue = env(source, 'TASKLITE_SEED');
+  const seedValue = env(source, 'DOCKET_SEED');
   if (seedValue !== undefined && seedValue !== 'sample') {
-    throw new ConfigError(`TASKLITE_SEED must be "sample" or unset (got "${seedValue}")`);
+    throw new ConfigError(`DOCKET_SEED must be "sample" or unset (got "${seedValue}")`);
   }
 
   // `none` turns text-only results off for every client.
-  const textOnly = get('TASKLITE_TEXT_ONLY_CLIENTS');
+  const textOnly = get('DOCKET_TEXT_ONLY_CLIENTS');
   const textOnlyClients =
     textOnly.toLowerCase() === 'none'
       ? []
@@ -148,57 +189,61 @@ export function loadConfig(
           .map((c) => c.trim().toLowerCase())
           .filter(Boolean);
 
-  // Push install (§5.17): off unless TASKLITE_PUSH_ROOT is set. The host path
+  // Push install (§5.17): off unless DOCKET_PUSH_ROOT is set. The host path
   // only describes the push root, so it means nothing without one.
-  const pushRoot = env(source, 'TASKLITE_PUSH_ROOT') ?? null;
-  const pushHostPath = env(source, 'TASKLITE_PUSH_HOST_PATH') ?? null;
+  const pushRoot = env(source, 'DOCKET_PUSH_ROOT') ?? null;
+  const pushHostPath = env(source, 'DOCKET_PUSH_HOST_PATH') ?? null;
   if (pushRoot !== null && !isAbsolute(pushRoot)) {
     throw new ConfigError(
-      `TASKLITE_PUSH_ROOT must be an absolute path inside the container (got "${pushRoot}")`,
+      `DOCKET_PUSH_ROOT must be an absolute path inside the container (got "${pushRoot}")`,
     );
   }
   if (pushHostPath !== null && pushRoot === null) {
-    throw new ConfigError('TASKLITE_PUSH_HOST_PATH needs TASKLITE_PUSH_ROOT; set both or neither');
+    throw new ConfigError('DOCKET_PUSH_HOST_PATH needs DOCKET_PUSH_ROOT; set both or neither');
   }
 
   // Drift checks (decision 30): `0` or `off` turns them off; otherwise at least a minute.
-  const driftValue = get('TASKLITE_DRIFT_CHECK_INTERVAL');
+  const driftValue = get('DOCKET_DRIFT_CHECK_INTERVAL');
   let driftCheckIntervalMs: number | null = null;
   if (!['0', 'off'].includes(driftValue.toLowerCase())) {
-    driftCheckIntervalMs = parseDuration(driftValue, 'TASKLITE_DRIFT_CHECK_INTERVAL');
+    driftCheckIntervalMs = parseDuration(driftValue, 'DOCKET_DRIFT_CHECK_INTERVAL');
     if (driftCheckIntervalMs < MIN_DRIFT_CHECK_INTERVAL_MS) {
       throw new ConfigError(
-        `TASKLITE_DRIFT_CHECK_INTERVAL must be at least 1m, or 0 / off to turn it off (got "${driftValue}")`,
+        `DOCKET_DRIFT_CHECK_INTERVAL must be at least 1m, or 0 / off to turn it off (got "${driftValue}")`,
       );
     }
   }
 
   const secrets = join(dataDir, 'secrets');
+  const db = databaseFile(dataDir);
   return {
     dataDir,
-    tokenFromEnv: env(source, 'TASKLITE_TOKEN') ?? null,
+    tokenFromEnv: env(source, 'DOCKET_TOKEN') ?? null,
     port,
     allowedHosts,
-    liveWindowMs: parseDuration(get('TASKLITE_LIVE_WINDOW'), 'TASKLITE_LIVE_WINDOW'),
-    staleAfterMs: parseDuration(get('TASKLITE_STALE_AFTER'), 'TASKLITE_STALE_AFTER'),
-    leaseMs: parseDuration(get('TASKLITE_LEASE'), 'TASKLITE_LEASE'),
-    parkMaxMs: parseDuration(get('TASKLITE_PARK_MAX'), 'TASKLITE_PARK_MAX'),
+    liveWindowMs: parseDuration(get('DOCKET_LIVE_WINDOW'), 'DOCKET_LIVE_WINDOW'),
+    staleAfterMs: parseDuration(get('DOCKET_STALE_AFTER'), 'DOCKET_STALE_AFTER'),
+    leaseMs: parseDuration(get('DOCKET_LEASE'), 'DOCKET_LEASE'),
+    parkMaxMs: parseDuration(get('DOCKET_PARK_MAX'), 'DOCKET_PARK_MAX'),
     resumeUnattendedMs: parseDuration(
-      get('TASKLITE_RESUME_UNATTENDED'),
-      'TASKLITE_RESUME_UNATTENDED',
+      get('DOCKET_RESUME_UNATTENDED'),
+      'DOCKET_RESUME_UNATTENDED',
     ),
-    orphanAfterMs: parseDuration(get('TASKLITE_ORPHAN_AFTER'), 'TASKLITE_ORPHAN_AFTER'),
+    orphanAfterMs: parseDuration(get('DOCKET_ORPHAN_AFTER'), 'DOCKET_ORPHAN_AFTER'),
     backupAt,
     backupKeepDays,
-    backupExtraDir: env(source, 'TASKLITE_BACKUP_EXTRA_DIR') ?? null,
+    backupExtraDir: env(source, 'DOCKET_BACKUP_EXTRA_DIR') ?? null,
     pushRoot,
     pushHostPath,
     driftCheckIntervalMs,
     seed: seedValue === 'sample' ? 'sample' : null,
     tz: env(source, 'TZ') ?? null,
     textOnlyClients,
+    dataVolume: env(source, 'DOCKET_DATA_VOLUME') ?? null,
+    deprecations,
+    legacyDbFile: db.legacy,
     paths: {
-      db: join(dataDir, 'tasklite.db'),
+      db: db.path,
       docs: join(dataDir, 'docs'),
       secrets,
       agentToken: join(secrets, 'agent-token'),

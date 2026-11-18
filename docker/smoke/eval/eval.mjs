@@ -19,9 +19,9 @@
  *   used, and nothing is added to the client's configuration;
  * - `--setting-sources project` keeps the user's settings and hooks out;
  * - each run works in a fresh temporary folder with a local bare `origin`;
- * - the container must be a disposable one (TASKLITE_EVAL_CONTAINER,
+ * - the container must be a disposable one (DOCKET_EVAL_CONTAINER,
  *   default `tasklite`) on a throwaway volume, started with
- *   TASKLITE_SEED=sample: before every run its database is deleted and the
+ *   DOCKET_SEED=sample: before every run its database is deleted and the
  *   sample seed reloads (as the e2e fixtures do). Never point it at real data.
  *
  * Output: a Markdown results table, plus each run's stream-json transcript,
@@ -43,7 +43,7 @@ import { fileURLToPath } from 'node:url';
 
 const REPO = resolve(fileURLToPath(new URL('../../..', import.meta.url)));
 const BASE = 'http://127.0.0.1:7420';
-const CONTAINER = process.env.TASKLITE_EVAL_CONTAINER ?? 'tasklite';
+const CONTAINER = process.env.DOCKET_EVAL_CONTAINER ?? 'tasklite';
 const args = process.argv.slice(2);
 const opt = (name, dflt) => {
   const i = args.indexOf(name);
@@ -180,7 +180,7 @@ function workspace(name, withSkills) {
         tasklite: {
           type: 'http',
           url: `${BASE}/mcp`,
-          headers: { Authorization: 'Bearer ${TASKLITE_TOKEN}' },
+          headers: { Authorization: 'Bearer ${DOCKET_TOKEN}' },
         },
       },
     }),
@@ -217,7 +217,7 @@ function claude(dir, prompt, label, token) {
   return new Promise((done, fail) => {
     const child = spawn('claude', argv, {
       cwd: dir,
-      env: { ...process.env, TASKLITE_TOKEN: token },
+      env: { ...process.env, DOCKET_TOKEN: token },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     let out = '';

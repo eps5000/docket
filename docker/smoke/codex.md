@@ -8,9 +8,9 @@ Follow [README.md](README.md) "Before you start" first. Commands run from the re
    ```toml
    [mcp_servers.tasklite]
    url = "http://127.0.0.1:7420/mcp"
-   bearer_token_env_var = "TASKLITE_TOKEN"
+   bearer_token_env_var = "DOCKET_TOKEN"
    ```
-2. [ ] `TASKLITE_TOKEN` is set in the terminal you start Codex from (Windows: `setx`, then a new terminal).
+2. [ ] `DOCKET_TOKEN` is set in the terminal you start Codex from (Windows: `setx`, then a new terminal).
 3. [ ] Start `codex` in any folder. `/mcp` lists `tasklite` with its tools.
 
 ## Run

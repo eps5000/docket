@@ -23,7 +23,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
-import { TASKLITE_BEGIN, TASKLITE_END } from '@docket/shared';
+import { DOCKET_BEGIN, DOCKET_END } from '@docket/shared';
 import { afterEach, describe, expect, it } from 'vitest';
 import { syncBundledFiles } from '../../src/jobs/bundled.js';
 import { insertProject, tempDir, type TempDir } from '../helpers.js';
@@ -56,8 +56,8 @@ async function start(opts: { push?: 'set' | 'missing'; hostPath?: string } = {})
   const root = join(tmp.dir, 'code');
   mkdirSync(join(root, 'recipes'), { recursive: true });
   const env: Record<string, string> = {};
-  if (opts.push) env.TASKLITE_PUSH_ROOT = opts.push === 'set' ? root : join(tmp.dir, 'not-mounted');
-  if (opts.hostPath) env.TASKLITE_PUSH_HOST_PATH = opts.hostPath;
+  if (opts.push) env.DOCKET_PUSH_ROOT = opts.push === 'set' ? root : join(tmp.dir, 'not-mounted');
+  if (opts.hostPath) env.DOCKET_PUSH_HOST_PATH = opts.hostPath;
   s = createTestServer({ env, log: (line) => logs.push(line) });
   insertProject(s.runtime.db, 'RCP');
   syncBundledFiles(s.runtime);
@@ -429,8 +429,8 @@ describe('push install and check (T156)', () => {
     const claude = readFileSync(join(repo, 'CLAUDE.md'));
     expect(claude.subarray(0, Buffer.byteLength(PRE)).equals(Buffer.from(PRE))).toBe(true);
     const tail = claude.subarray(Buffer.byteLength(PRE)).toString('utf8');
-    expect(tail.startsWith(`\n${TASKLITE_BEGIN}\n## Work tracking: Task Lite`)).toBe(true);
-    expect(tail.endsWith(`${TASKLITE_END}\n`)).toBe(true);
+    expect(tail.startsWith(`\n${DOCKET_BEGIN}\n## Work tracking: Task Lite`)).toBe(true);
+    expect(tail.endsWith(`${DOCKET_END}\n`)).toBe(true);
     expect(readFileSync(join(repo, 'README.md'), 'utf8')).toBe('readme');
     const manifest = JSON.parse(
       readFileSync(join(repo, '.claude/.tasklite-manifest.json'), 'utf8'),
@@ -546,7 +546,7 @@ describe('push install and check (T156)', () => {
   it('refuses a damaged section, and writes nothing', async () => {
     const { api, root } = await start({ push: 'set' });
     const repo = join(root, 'recipes');
-    writeFileSync(join(repo, 'CLAUDE.md'), `# Mine\n${TASKLITE_END}\n`);
+    writeFileSync(join(repo, 'CLAUDE.md'), `# Mine\n${DOCKET_END}\n`);
     const res = await api('POST', '/api/installs', {
       client: 'claude',
       target_kind: 'repo',
@@ -606,7 +606,7 @@ describe('the push folder: status and Test', () => {
     expect(test.body).toEqual({
       ok: false,
       message:
-        "Push install is off: TASKLITE_PUSH_ROOT isn't set. Mount a folder and set it, then restart Task Lite.",
+        "Push install is off: DOCKET_PUSH_ROOT isn't set. Mount a folder and set it, then restart Task Lite.",
     });
     const push = await api('POST', '/api/installs', {
       client: 'claude',
@@ -615,7 +615,7 @@ describe('the push folder: status and Test', () => {
       path: 'recipes',
     });
     expect(push.status).toBe(400);
-    expect((push.body.error as S).message).toMatch(/TASKLITE_PUSH_ROOT isn't set/);
+    expect((push.body.error as S).message).toMatch(/DOCKET_PUSH_ROOT isn't set/);
   });
 
   it('set: writable, and Test writes and removes a probe file', async () => {

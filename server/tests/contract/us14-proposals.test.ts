@@ -472,7 +472,7 @@ describe('the owner decides (FR-129)', () => {
     const root = join(tmp.dir, 'code');
     mkdirSync(join(root, 'recipes', '.git'), { recursive: true });
     try {
-      await start({ env: { TASKLITE_PUSH_ROOT: root } });
+      await start({ env: { DOCKET_PUSH_ROOT: root } });
       const owner = await ownerApi();
       const notes = '- Branch per item: `rcp-<n>-<slug>`.';
       const wf = expectOk(

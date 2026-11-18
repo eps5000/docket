@@ -4,7 +4,7 @@
  *
  * - Projects: a row per project with counts, labels and the mini status bar.
  * - Connections: the compatibility matrix (nothing "Verified" before the
- *   smoke test); the Codex and Claude Code snippets with `$TASKLITE_TOKEN`,
+ *   smoke test); the Codex and Claude Code snippets with `$DOCKET_TOKEN`,
  *   never the value; *Reveal token* shows the token and hides it after 30 s.
  * - Service health: the backup locations, before and after
  *   `tasklite backup now`, and the extra-location hint; *Download diagnostic
@@ -15,7 +15,7 @@
  *   one goes to the page that was asked for.
  * - axe on Settings, the delete dialog and Unlock, both themes.
  *
- * Set TASKLITE_E2E_SCREENSHOTS to a folder to also capture the PR's light
+ * Set DOCKET_E2E_SCREENSHOTS to a folder to also capture the PR's light
  * and dark screenshots.
  */
 import { execFileSync } from 'node:child_process';
@@ -41,7 +41,7 @@ test.afterAll(async () => {
   await resetSeededContainer();
 });
 
-const out = process.env.TASKLITE_E2E_SCREENSHOTS;
+const out = process.env.DOCKET_E2E_SCREENSHOTS;
 
 async function shoot(page: Page, name: string, target: Locator) {
   if (!out) return;
@@ -59,10 +59,10 @@ const toast = (page: Page, text: string | RegExp) =>
 const CODEX = `# ~/.codex/config.toml
 [mcp_servers.tasklite]
 url = "http://127.0.0.1:7420/mcp"
-bearer_token_env_var = "TASKLITE_TOKEN"`;
+bearer_token_env_var = "DOCKET_TOKEN"`;
 const CLAUDE = `claude mcp add --transport http --scope user tasklite \\
   http://127.0.0.1:7420/mcp \\
-  --header "Authorization: Bearer $TASKLITE_TOKEN"`;
+  --header "Authorization: Bearer $DOCKET_TOKEN"`;
 
 test.describe('Settings', () => {
   test('projects: counts, labels and the mini status bar; axe is clean', async ({
@@ -88,7 +88,7 @@ test.describe('Settings', () => {
     );
   });
 
-  test('connections: the matrix, the snippets with $TASKLITE_TOKEN, and Reveal token hiding after 30 s', async ({
+  test('connections: the matrix, the snippets with $DOCKET_TOKEN, and Reveal token hiding after 30 s', async ({
     ownerPage: page,
   }) => {
     await page.clock.install();
@@ -110,7 +110,7 @@ test.describe('Settings', () => {
       'Agent in another container (Docker network): not configured. Off by default. Needs an explicit network path (O02).',
     );
     await expect(clients.getByText('✓ Verified')).toHaveCount(0);
-    // Result modes under the default TASKLITE_TEXT_ONLY_CLIENTS (MCP_SPEC §3 Results).
+    // Result modes under the default DOCKET_TEXT_ONLY_CLIENTS (MCP_SPEC §3 Results).
     await expect(clients.getByRole('columnheader', { name: 'Results' })).toBeVisible();
     for (const [name, mode] of [
       ['Codex CLI (host)', 'Structured'],
@@ -162,7 +162,7 @@ test.describe('Settings', () => {
     const health = card(page, 'service-health');
     await expect(health.getByText('✓ ready')).toHaveCount(2);
     await expect(health.locator('[data-backup="extra-help"]')).toHaveText(
-      'Mount a host folder and set TASKLITE_BACKUP_EXTRA_DIR; see the README.',
+      'Mount a host folder and set DOCKET_BACKUP_EXTRA_DIR; see the README.',
     );
     execFileSync('docker', ['exec', CONTAINER, 'tasklite', 'backup', 'now'], { encoding: 'utf8' });
     await page.reload();

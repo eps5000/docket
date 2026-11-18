@@ -5,7 +5,7 @@
  *
  * On demand only (not in every CI run): `pnpm --filter @docket/server perf`
  * (vitest.perf.config.ts). It prints a timing table for the PR. With
- * TASKLITE_PERF_KEEP=<dir> it also keeps the data set (database, documents,
+ * DOCKET_PERF_KEEP=<dir> it also keeps the data set (database, documents,
  * secrets), to load into a throwaway volume and time the screens in a browser.
  *
  * The data: the sample seed (2 projects), plus 18 generated projects built
@@ -225,8 +225,8 @@ afterAll(async () => {
     ),
   ];
   console.log(lines.join('\n'));
-  // TASKLITE_PERF_KEEP=<dir>: keep the data set, to time the screens in a browser against it.
-  const keep = process.env.TASKLITE_PERF_KEEP;
+  // DOCKET_PERF_KEEP=<dir>: keep the data set, to time the screens in a browser against it.
+  const keep = process.env.DOCKET_PERF_KEEP;
   if (keep && h) {
     mkdirSync(keep, { recursive: true });
     sql().prepare('VACUUM INTO ?').run(join(keep, 'tasklite.db'));

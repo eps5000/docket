@@ -23,5 +23,5 @@ Follow [README.md](README.md) "Before you start" first. Commands run from the re
 
 - [ ] PASS or FAIL for each `check` line, and the run state you saw (live or reported).
 - [ ] Anything you had to change from the README to make it connect.
-- [ ] V2: did the worker inherit the user MCP config and `TASKLITE_TOKEN`? If not, note what it needed. If it can't connect at all, it stays "Not verified" with that note.
+- [ ] V2: did the worker inherit the user MCP config and `DOCKET_TOKEN`? If not, note what it needed. If it can't connect at all, it stays "Not verified" with that note.
 - [ ] V7: does the worker see user-wide skills?

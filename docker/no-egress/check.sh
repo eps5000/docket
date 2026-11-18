@@ -32,7 +32,7 @@ fi
 echo "ok    no outbound connection attempts recorded during the run"
 
 # The deliberate probe, with its own log so it never pollutes the run's.
-probe=$("${compose[@]}" exec -T -e TASKLITE_EGRESS_LOG=/tmp/egress-probe.jsonl tasklite node -e '
+probe=$("${compose[@]}" exec -T -e DOCKET_EGRESS_LOG=/tmp/egress-probe.jsonl tasklite node -e '
   const net = require("node:net");
   const tcp = new Promise((done) => {
     const s = net.connect({ host: "1.1.1.1", port: 443, timeout: 3000 });

@@ -1,7 +1,7 @@
 /**
  * Network guards (BUILD_SPEC §3; decision T1; constitution Principle VI).
  * - Host allowlist (DNS-rebinding guard): a Host outside
- *   TASKLITE_ALLOWED_HOSTS gets 421.
+ *   DOCKET_ALLOWED_HOSTS gets 421.
  * - Origin allowlist: a request carrying an Origin that isn't one of ours
  *   gets 403 (the MCP spec requires this check).
  * - Bearer auth for /mcp: a missing or wrong token gets 401 before any MCP
@@ -38,7 +38,7 @@ export function hostGuard(
       return c.json(
         errorBody(
           'forbidden',
-          'This Host is not allowed. Use http://127.0.0.1:7420 or add the host to TASKLITE_ALLOWED_HOSTS.',
+          'This Host is not allowed. Use http://127.0.0.1:7420 or add the host to DOCKET_ALLOWED_HOSTS.',
         ),
         421,
       );
@@ -74,7 +74,7 @@ export function bearerAuth(expectedToken: () => string): MiddlewareHandler {
       return c.json(
         errorBody(
           'forbidden',
-          'Missing or wrong bearer token. Send Authorization: Bearer <TASKLITE_TOKEN>.',
+          'Missing or wrong bearer token. Send Authorization: Bearer <DOCKET_TOKEN>.',
         ),
         401,
       );

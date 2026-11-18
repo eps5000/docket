@@ -1,8 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const baseURL = process.env.TASKLITE_BASE_URL ?? 'http://127.0.0.1:7420';
+const baseURL = process.env.DOCKET_BASE_URL ?? 'http://127.0.0.1:7420';
 /** The kit gallery is dev and test builds only, so its spec runs against a Vite dev server. */
-const kitPort = Number(process.env.TASKLITE_KIT_PORT ?? 5179);
+const kitPort = Number(process.env.DOCKET_KIT_PORT ?? 5179);
 const kitURL = `http://127.0.0.1:${kitPort}`;
 const ci = !!process.env.CI;
 

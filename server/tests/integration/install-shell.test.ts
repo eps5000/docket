@@ -20,8 +20,8 @@ import { createServer, type AddressInfo } from 'node:net';
 import { join } from 'node:path';
 import { serve, type ServerType } from '@hono/node-server';
 import {
-  TASKLITE_BEGIN,
-  TASKLITE_END,
+  DOCKET_BEGIN,
+  DOCKET_END,
   instructionsInput,
   type InstructionsInput,
 } from '@docket/shared';
@@ -44,8 +44,8 @@ function which(cmd: string, probe: string[]): string | null {
 function findBash(): string | null {
   const candidates =
     process.platform === 'win32'
-      ? [process.env.TASKLITE_TEST_BASH, 'C:\\Program Files\\Git\\bin\\bash.exe'].filter(Boolean)
-      : [process.env.TASKLITE_TEST_BASH ?? 'bash'];
+      ? [process.env.DOCKET_TEST_BASH, 'C:\\Program Files\\Git\\bin\\bash.exe'].filter(Boolean)
+      : [process.env.DOCKET_TEST_BASH ?? 'bash'];
   for (const c of candidates as string[]) {
     if (process.platform === 'win32' && !existsSync(c)) continue;
     if (
@@ -87,7 +87,7 @@ beforeAll(async () => {
   if (!Object.values(SHELLS).some(Boolean)) return;
   port = await freePort();
   tmp = tempDir('tasklite-shell-');
-  s = createTestServer({ env: { TASKLITE_ALLOWED_HOSTS: `127.0.0.1:${port}` }, log: () => {} });
+  s = createTestServer({ env: { DOCKET_ALLOWED_HOSTS: `127.0.0.1:${port}` }, log: () => {} });
   insertProject(s.runtime.db, 'RCP');
   syncBundledFiles(s.runtime);
   http = serve({ fetch: s.app.fetch, hostname: '127.0.0.1', port });
@@ -213,7 +213,7 @@ describe.each(Object.keys(SHELLS) as ShellName[])('the %s commands', (shell) => 
       expect(claude.subarray(0, Buffer.byteLength(PRE)).equals(Buffer.from(PRE))).toBe(true);
       expect(claude.subarray(Buffer.byteLength(PRE)).toString('utf8')).toMatch(
         new RegExp(
-          `^\\n\\n${TASKLITE_BEGIN}\\n## Work tracking: Task Lite[\\s\\S]*\\n${TASKLITE_END}\\n$`,
+          `^\\n\\n${DOCKET_BEGIN}\\n## Work tracking: Task Lite[\\s\\S]*\\n${DOCKET_END}\\n$`,
         ),
       );
       expect(existsSync(join(repo, '.claude/.tasklite-manifest.json'))).toBe(true);
@@ -304,7 +304,7 @@ describe.each(Object.keys(SHELLS) as ShellName[])('the %s commands', (shell) => 
       expect(existsSync(join(repo, '.claude/skills/tasklite-old'))).toBe(true);
       const after = readFileSync(join(repo, 'CLAUDE.md'));
       expect(after.subarray(0, Buffer.byteLength(PRE)).equals(Buffer.from(PRE))).toBe(true);
-      expect(after.toString('utf8').endsWith(`${TASKLITE_END}\n`)).toBe(true);
+      expect(after.toString('utf8').endsWith(`${DOCKET_END}\n`)).toBe(true);
     },
   );
 
@@ -325,7 +325,7 @@ describe.each(Object.keys(SHELLS) as ShellName[])('the %s commands', (shell) => 
     const repo = join(tmp.dir, `late-repo-${shell}`);
     mkdirSync(join(repo, '.git'), { recursive: true });
     expect((await run(shell, cmd, repo)).status).toBe(0);
-    expect(readFileSync(join(repo, 'CLAUDE.md'), 'utf8').startsWith(TASKLITE_BEGIN)).toBe(true);
+    expect(readFileSync(join(repo, 'CLAUDE.md'), 'utf8').startsWith(DOCKET_BEGIN)).toBe(true);
   });
 
   it.skipIf(!SHELLS[shell])(
@@ -333,7 +333,7 @@ describe.each(Object.keys(SHELLS) as ShellName[])('the %s commands', (shell) => 
     async () => {
       const repo = join(tmp.dir, `damaged-${shell}`);
       mkdirSync(join(repo, '.git'), { recursive: true });
-      const damaged = `# Mine\n${TASKLITE_BEGIN}\nno end marker\n`;
+      const damaged = `# Mine\n${DOCKET_BEGIN}\nno end marker\n`;
       writeFileSync(join(repo, 'CLAUDE.md'), damaged);
       const created = await request('POST', '/api/installs', {
         client: 'claude',

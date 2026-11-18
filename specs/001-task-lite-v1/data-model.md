@@ -74,7 +74,7 @@ declared ──submit_packet──► ready ──approve──► approved   (c
 
 ### Run (FR-013 to FR-016; displayed state is derived, see BUILD_SPEC §5.4)
 - **Stored state:** `open` → `needs_input` (question asked) → `open` (answer read); then `finished`, `failed` or `interrupted`.
-- **Parked** (FR-112): `open` ──park_run──► `parked` ──any call with its `run_id`──► `open`. While parked the lease is suspended (never stale, claim kept). `resume_ready` is derived when every `waiting_on` item clears. Past `TASKLITE_PARK_MAX` (24 h) it's a Problem, not an expiry.
+- **Parked** (FR-112): `open` ──park_run──► `parked` ──any call with its `run_id`──► `open`. While parked the lease is suspended (never stale, claim kept). `resume_ready` is derived when every `waiting_on` item clears. Past `DOCKET_PARK_MAX` (24 h) it's a Problem, not an expiry.
 - **Interrupted** comes from lease expiry, owner release, or a service restart.
 - **`end_reason`** is set on every terminal transition: `finished`, `failed`, `released`, `lease_expired`, `owner_released`, `service_restart`, `canceled` (FR-114).
 - **Displayed state:**

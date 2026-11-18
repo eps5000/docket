@@ -40,24 +40,24 @@ describe('loadConfig', () => {
 
   it('reads every variable', () => {
     const c = loadConfig({
-      TASKLITE_TOKEN: ' tok-1234567890abcdef ',
-      TASKLITE_PORT: '8080',
-      TASKLITE_ALLOWED_HOSTS: 'Tasklite.local:8080, 127.0.0.1:8080',
-      TASKLITE_LIVE_WINDOW: '90s',
-      TASKLITE_STALE_AFTER: '1h',
-      TASKLITE_LEASE: '45m',
-      TASKLITE_PARK_MAX: '12h',
-      TASKLITE_RESUME_UNATTENDED: '10m',
-      TASKLITE_ORPHAN_AFTER: '5m',
-      TASKLITE_BACKUP_AT: '23:30',
-      TASKLITE_BACKUP_KEEP: '30',
-      TASKLITE_BACKUP_EXTRA_DIR: '/backups-extra',
-      TASKLITE_PUSH_ROOT: ' /host-code ',
-      TASKLITE_PUSH_HOST_PATH: 'C:/Users/me/code',
-      TASKLITE_DRIFT_CHECK_INTERVAL: '1h',
-      TASKLITE_SEED: 'sample',
+      DOCKET_TOKEN: ' tok-1234567890abcdef ',
+      DOCKET_PORT: '8080',
+      DOCKET_ALLOWED_HOSTS: 'Tasklite.local:8080, 127.0.0.1:8080',
+      DOCKET_LIVE_WINDOW: '90s',
+      DOCKET_STALE_AFTER: '1h',
+      DOCKET_LEASE: '45m',
+      DOCKET_PARK_MAX: '12h',
+      DOCKET_RESUME_UNATTENDED: '10m',
+      DOCKET_ORPHAN_AFTER: '5m',
+      DOCKET_BACKUP_AT: '23:30',
+      DOCKET_BACKUP_KEEP: '30',
+      DOCKET_BACKUP_EXTRA_DIR: '/backups-extra',
+      DOCKET_PUSH_ROOT: ' /host-code ',
+      DOCKET_PUSH_HOST_PATH: 'C:/Users/me/code',
+      DOCKET_DRIFT_CHECK_INTERVAL: '1h',
+      DOCKET_SEED: 'sample',
       TZ: 'Europe/London',
-      TASKLITE_TEXT_ONLY_CLIENTS: ' Claude-Code, my-agent ,',
+      DOCKET_TEXT_ONLY_CLIENTS: ' Claude-Code, my-agent ,',
     });
     expect(c).toMatchObject({
       tokenFromEnv: 'tok-1234567890abcdef',
@@ -81,37 +81,37 @@ describe('loadConfig', () => {
     });
   });
 
-  it('TASKLITE_DRIFT_CHECK_INTERVAL: 0 or off turns the check off; otherwise at least 1m', () => {
+  it('DOCKET_DRIFT_CHECK_INTERVAL: 0 or off turns the check off; otherwise at least 1m', () => {
     for (const off of ['0', 'off', 'OFF']) {
       expect(
-        loadConfig({ TASKLITE_DRIFT_CHECK_INTERVAL: off }).driftCheckIntervalMs,
+        loadConfig({ DOCKET_DRIFT_CHECK_INTERVAL: off }).driftCheckIntervalMs,
         off,
       ).toBeNull();
     }
-    expect(loadConfig({ TASKLITE_DRIFT_CHECK_INTERVAL: '1m' }).driftCheckIntervalMs).toBe(60_000);
-    expect(() => loadConfig({ TASKLITE_DRIFT_CHECK_INTERVAL: '30s' })).toThrow(/at least 1m/);
-    expect(() => loadConfig({ TASKLITE_DRIFT_CHECK_INTERVAL: 'hourly' })).toThrow(
-      /TASKLITE_DRIFT_CHECK_INTERVAL/,
+    expect(loadConfig({ DOCKET_DRIFT_CHECK_INTERVAL: '1m' }).driftCheckIntervalMs).toBe(60_000);
+    expect(() => loadConfig({ DOCKET_DRIFT_CHECK_INTERVAL: '30s' })).toThrow(/at least 1m/);
+    expect(() => loadConfig({ DOCKET_DRIFT_CHECK_INTERVAL: 'hourly' })).toThrow(
+      /DOCKET_DRIFT_CHECK_INTERVAL/,
     );
   });
 
-  it('TASKLITE_TEXT_ONLY_CLIENTS=none gives every client structured results', () => {
-    expect(loadConfig({ TASKLITE_TEXT_ONLY_CLIENTS: 'none' }).textOnlyClients).toEqual([]);
-    expect(loadConfig({ TASKLITE_TEXT_ONLY_CLIENTS: 'NONE' }).textOnlyClients).toEqual([]);
+  it('DOCKET_TEXT_ONLY_CLIENTS=none gives every client structured results', () => {
+    expect(loadConfig({ DOCKET_TEXT_ONLY_CLIENTS: 'none' }).textOnlyClients).toEqual([]);
+    expect(loadConfig({ DOCKET_TEXT_ONLY_CLIENTS: 'NONE' }).textOnlyClients).toEqual([]);
   });
 
   it.each([
-    [{ TASKLITE_PORT: 'abc' }, /TASKLITE_PORT/],
-    [{ TASKLITE_ALLOWED_HOSTS: ' , ' }, /TASKLITE_ALLOWED_HOSTS/],
-    [{ TASKLITE_LEASE: '5 minutes' }, /TASKLITE_LEASE/],
-    [{ TASKLITE_PARK_MAX: 'a day' }, /TASKLITE_PARK_MAX/],
-    [{ TASKLITE_RESUME_UNATTENDED: '0m' }, /TASKLITE_RESUME_UNATTENDED/],
-    [{ TASKLITE_ORPHAN_AFTER: '-5m' }, /TASKLITE_ORPHAN_AFTER/],
-    [{ TASKLITE_BACKUP_AT: '3am' }, /TASKLITE_BACKUP_AT/],
-    [{ TASKLITE_BACKUP_KEEP: '0' }, /TASKLITE_BACKUP_KEEP/],
-    [{ TASKLITE_SEED: 'demo' }, /TASKLITE_SEED/],
-    [{ TASKLITE_PUSH_ROOT: 'host-code' }, /TASKLITE_PUSH_ROOT/],
-    [{ TASKLITE_PUSH_HOST_PATH: 'C:/Users/me/code' }, /TASKLITE_PUSH_HOST_PATH needs/],
+    [{ DOCKET_PORT: 'abc' }, /DOCKET_PORT/],
+    [{ DOCKET_ALLOWED_HOSTS: ' , ' }, /DOCKET_ALLOWED_HOSTS/],
+    [{ DOCKET_LEASE: '5 minutes' }, /DOCKET_LEASE/],
+    [{ DOCKET_PARK_MAX: 'a day' }, /DOCKET_PARK_MAX/],
+    [{ DOCKET_RESUME_UNATTENDED: '0m' }, /DOCKET_RESUME_UNATTENDED/],
+    [{ DOCKET_ORPHAN_AFTER: '-5m' }, /DOCKET_ORPHAN_AFTER/],
+    [{ DOCKET_BACKUP_AT: '3am' }, /DOCKET_BACKUP_AT/],
+    [{ DOCKET_BACKUP_KEEP: '0' }, /DOCKET_BACKUP_KEEP/],
+    [{ DOCKET_SEED: 'demo' }, /DOCKET_SEED/],
+    [{ DOCKET_PUSH_ROOT: 'host-code' }, /DOCKET_PUSH_ROOT/],
+    [{ DOCKET_PUSH_HOST_PATH: 'C:/Users/me/code' }, /DOCKET_PUSH_HOST_PATH needs/],
   ])('rejects %j', (env, message) => {
     expect(() => loadConfig(env)).toThrow(message);
   });
@@ -122,13 +122,13 @@ describe('loadConfig', () => {
       expect(example, name).toContain(`# ${name}=${value}`);
     }
     // Opt-in variables with no default are documented with an example value.
-    for (const name of ['TASKLITE_PUSH_ROOT', 'TASKLITE_PUSH_HOST_PATH']) {
+    for (const name of ['DOCKET_PUSH_ROOT', 'DOCKET_PUSH_HOST_PATH']) {
       expect(example, name).toMatch(new RegExp(`^# ${name}=\\S`, 'm'));
     }
   });
 
   it('never puts the token in an error message', () => {
-    expect(() => loadConfig({ TASKLITE_TOKEN: 'secret-token-value', TASKLITE_PORT: 'x' })).toThrow(
+    expect(() => loadConfig({ DOCKET_TOKEN: 'secret-token-value', DOCKET_PORT: 'x' })).toThrow(
       expect.not.objectContaining({ message: expect.stringContaining('secret-token-value') }),
     );
   });
@@ -169,9 +169,9 @@ describe('secret bootstrap', () => {
     expect(second.agentToken()).toBe(first.agentToken());
   });
 
-  it('uses TASKLITE_TOKEN without writing it to disk', () => {
+  it('uses DOCKET_TOKEN without writing it to disk', () => {
     const config = loadConfig(
-      { TASKLITE_TOKEN: 'env-token-0123456789abcdef' },
+      { DOCKET_TOKEN: 'env-token-0123456789abcdef' },
       { dataDir: tmp.dir },
     );
     const store = new SecretStore(config);

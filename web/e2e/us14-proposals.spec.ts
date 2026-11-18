@@ -14,7 +14,7 @@
  *    owner's text;
  * 3. a third proposal is declined with a note.
  *
- * axe is clean on each screen, both themes. Set TASKLITE_E2E_SCREENSHOTS to
+ * axe is clean on each screen, both themes. Set DOCKET_E2E_SCREENSHOTS to
  * a folder to capture the PR's screenshots.
  */
 import { join } from 'node:path';
@@ -31,7 +31,7 @@ import type { McpAgent } from './fixtures/mcp';
 
 useSeededContainer();
 
-const out = process.env.TASKLITE_E2E_SCREENSHOTS;
+const out = process.env.DOCKET_E2E_SCREENSHOTS;
 
 async function shoot(page: Page, name: string, target: Locator) {
   if (!out) return;

@@ -21,7 +21,7 @@ unattended, so you only do the rest.
   `check <surface> <ID>` reads the ticket back and prints PASS or FAIL for each step. It
   never prints the token.
 - `compose.smoke.yaml`: a disposable instance with the sample data on its own volume,
-  using your existing `TASKLITE_TOKEN`.
+  using your existing `DOCKET_TOKEN`.
 - One checklist per surface. Each one ends with what to record.
 - `smoke.mjs pdf`: puts a one-page PDF on RCP-14, for the PDF preview check in Chrome.
 - `eval/eval.mjs`: the skills eval (T148). It runs the US1 and US11 scenarios with installed
@@ -29,7 +29,7 @@ unattended, so you only do the rest.
   instance, and prints calls, tokens and mistakes per run. It uses a temporary `--mcp-config`
   with `--strict-mcp-config` and `--setting-sources project`, so your client configuration is
   never read or changed. It resets the instance's data before each run, so point it only at a
-  disposable one (TASKLITE_EVAL_CONTAINER, default `tasklite`).
+  disposable one (DOCKET_EVAL_CONTAINER, default `tasklite`).
 
 ## Before you start (once)
 1. Set up each client as the [README quick start](../../README.md#quick-start) says

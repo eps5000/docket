@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   BrokenMarkersError,
-  TASKLITE_BEGIN as B,
-  TASKLITE_END as E,
+  DOCKET_BEGIN as B,
+  DOCKET_END as E,
   bashQuote,
   checkCommands,
   fillsProjectKey,

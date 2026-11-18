@@ -6,5 +6,5 @@
 services:
   tasklite:
     environment:
-      TASKLITE_PUSH_ROOT: /tmp/host-code
-      TASKLITE_PUSH_HOST_PATH: C:/Users/owner/code
+      DOCKET_PUSH_ROOT: /tmp/host-code
+      DOCKET_PUSH_HOST_PATH: C:/Users/owner/code

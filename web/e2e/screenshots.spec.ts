@@ -1,6 +1,6 @@
 /**
  * PR evidence: light and dark screenshots of every shell. Skipped unless
- * TASKLITE_E2E_SCREENSHOTS names an output folder.
+ * DOCKET_E2E_SCREENSHOTS names an output folder.
  */
 import { join } from 'node:path';
 import type { Page } from '@playwright/test';
@@ -15,10 +15,10 @@ import {
 } from './fixtures/index';
 import type { McpAgent } from './fixtures/mcp';
 
-const out = process.env.TASKLITE_E2E_SCREENSHOTS;
+const out = process.env.DOCKET_E2E_SCREENSHOTS;
 
 test.describe('screenshots', () => {
-  test.skip(!out, 'Set TASKLITE_E2E_SCREENSHOTS to a folder to capture screenshots.');
+  test.skip(!out, 'Set DOCKET_E2E_SCREENSHOTS to a folder to capture screenshots.');
 
   async function shoot(page: Page, name: string) {
     for (const theme of ['light', 'dark'] as const) {
@@ -125,10 +125,10 @@ test.describe('screenshots', () => {
  * change, so it waits only on what both have.
  */
 test.describe('screenshots: coordination states (B20)', () => {
-  test.skip(!out, 'Set TASKLITE_E2E_SCREENSHOTS to a folder to capture screenshots.');
+  test.skip(!out, 'Set DOCKET_E2E_SCREENSHOTS to a folder to capture screenshots.');
   test.describe.configure({ mode: 'serial' });
 
-  const tag = process.env.TASKLITE_E2E_SCREENSHOTS_TAG ?? 'b20';
+  const tag = process.env.DOCKET_E2E_SCREENSHOTS_TAG ?? 'b20';
   async function shootB20(page: Page, name: string) {
     for (const theme of ['light', 'dark'] as const) {
       await setTheme(page, theme);

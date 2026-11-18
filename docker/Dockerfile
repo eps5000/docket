@@ -36,7 +36,7 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
 # ---- runtime ----
 FROM ${NODE_IMAGE} AS runtime
 ENV NODE_ENV=production \
-    TASKLITE_PORT=7420
+    DOCKET_PORT=7420
 
 RUN groupadd --system --gid 10001 tasklite \
  && useradd --system --uid 10001 --gid tasklite --home-dir /app --no-create-home \
@@ -47,7 +47,7 @@ RUN groupadd --system --gid 10001 tasklite \
 WORKDIR /app
 COPY --from=build --chown=root:root /out/server /app/server
 COPY --from=build --chown=root:root /src/web/dist /app/web/dist
-# The sample seed's data (BUILD_SPEC §8), read by TASKLITE_SEED=sample and
+# The sample seed's data (BUILD_SPEC §8), read by DOCKET_SEED=sample and
 # `tasklite seed sample`. The loader finds it at /app/design.
 COPY --chown=root:root design/sample-data.json /app/design/sample-data.json
 # The agent files (BUILD_SPEC §5.17): loaded into the bundled layer at startup
@@ -65,6 +65,6 @@ VOLUME ["/data"]
 EXPOSE 7420
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD ["node", "-e", "fetch('http://127.0.0.1:'+(process.env.TASKLITE_PORT||7420)+'/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+  CMD ["node", "-e", "fetch('http://127.0.0.1:'+(process.env.DOCKET_PORT||7420)+'/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
 
 CMD ["node", "server/dist/index.js"]

@@ -66,10 +66,10 @@ export interface HarnessOptions {
 }
 
 /**
- * The shipped TASKLITE_TEXT_ONLY_CLIENTS default (BUILD_SPEC §2): an empty
+ * The shipped DOCKET_TEXT_ONLY_CLIENTS default (BUILD_SPEC §2): an empty
  * value counts as unset, so `claude-code` sessions are text-only.
  */
-export const PRODUCT_RESULT_MODES = { TASKLITE_TEXT_ONLY_CLIENTS: '' } as const;
+export const PRODUCT_RESULT_MODES = { DOCKET_TEXT_ONLY_CLIENTS: '' } as const;
 
 export async function startHarness(opts: HarnessOptions = {}): Promise<ContractHarness> {
   const server = createTestServer({

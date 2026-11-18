@@ -13,14 +13,14 @@
  * a worker that doesn't follow that convention shows under the host client.
  *
  * Each surface's result mode (MCP_SPEC §3 Results; owner decision 28) comes
- * from the `clientInfo.name` it sends and TASKLITE_TEXT_ONLY_CLIENTS, as it
+ * from the `clientInfo.name` it sends and DOCKET_TEXT_ONLY_CLIENTS, as it
  * does for a live session (mcp/server.ts `resultMode`).
  */
 /** How a session's tool results are shaped (MCP_SPEC §3 Results). */
 export type ResultMode = 'structured' | 'text';
 
 /**
- * The result mode for a `clientInfo.name`: `text` when TASKLITE_TEXT_ONLY_CLIENTS
+ * The result mode for a `clientInfo.name`: `text` when DOCKET_TEXT_ONLY_CLIENTS
  * (lower-cased, config.ts) lists it exactly, ignoring case; else `structured`.
  */
 export function resultMode(

@@ -26,7 +26,7 @@
  * The token never goes into a row, an event, a log line or the bundle.
  *
  * **Push installs** (`prepare` writes, `record` logs with stage `pushed`):
- * only when `TASKLITE_PUSH_ROOT` is set and the folder is there; every path
+ * only when `DOCKET_PUSH_ROOT` is set and the folder is there; every path
  * goes through the push-root guard (push-root.ts). All targets are checked,
  * and the instructions file's markers validated, before anything is written.
  *
@@ -343,7 +343,7 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
     if (!config.pushRoot) {
       throw new ToolError(
         'validation',
-        "Push install is off: TASKLITE_PUSH_ROOT isn't set. Use the install command instead.",
+        "Push install is off: DOCKET_PUSH_ROOT isn't set. Use the install command instead.",
       );
     }
     return PushRoot.open(config.pushRoot, config.pushHostPath);
@@ -673,7 +673,7 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
         return {
           ok: false,
           message:
-            "Push install is off: TASKLITE_PUSH_ROOT isn't set. Mount a folder and set it, then restart Task Lite.",
+            "Push install is off: DOCKET_PUSH_ROOT isn't set. Mount a folder and set it, then restart Task Lite.",
         };
       }
       let root: PushRoot;

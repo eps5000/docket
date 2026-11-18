@@ -25,8 +25,8 @@
  */
 import type { InstallClient, InstallTargetKind } from './enums.js';
 
-export const TASKLITE_BEGIN = '<!-- tasklite:begin -->';
-export const TASKLITE_END = '<!-- tasklite:end -->';
+export const DOCKET_BEGIN = '<!-- tasklite:begin -->';
+export const DOCKET_END = '<!-- tasklite:end -->';
 
 /** The manifest's file name, in the client's folder (`.claude/` or `.codex/`). */
 export const INSTALL_MANIFEST_NAME = '.tasklite-manifest.json';
@@ -115,25 +115,25 @@ export type MarkedSection =
 
 /** Find the Task Lite section in a file's text. */
 export function findMarkedSection(text: string): MarkedSection {
-  const b = text.indexOf(TASKLITE_BEGIN);
-  const e = text.indexOf(TASKLITE_END);
+  const b = text.indexOf(DOCKET_BEGIN);
+  const e = text.indexOf(DOCKET_END);
   if (b < 0 && e < 0) return { kind: 'absent' };
   if (b < 0 || e < b) return { kind: 'broken' };
-  if (text.indexOf(TASKLITE_BEGIN, b + 1) >= 0 || text.indexOf(TASKLITE_END, e + 1) >= 0) {
+  if (text.indexOf(DOCKET_BEGIN, b + 1) >= 0 || text.indexOf(DOCKET_END, e + 1) >= 0) {
     return { kind: 'broken' };
   }
   return {
     kind: 'present',
     start: b,
-    end: e + TASKLITE_END.length,
-    inner: text.slice(b + TASKLITE_BEGIN.length, e),
+    end: e + DOCKET_END.length,
+    inner: text.slice(b + DOCKET_BEGIN.length, e),
   };
 }
 
 export class BrokenMarkersError extends Error {
   constructor(file: string) {
     super(
-      `${file} has a damaged Task Lite section: a ${TASKLITE_BEGIN} or ${TASKLITE_END} line is missing or repeated. Fix the markers, then install again.`,
+      `${file} has a damaged Task Lite section: a ${DOCKET_BEGIN} or ${DOCKET_END} line is missing or repeated. Fix the markers, then install again.`,
     );
     this.name = 'BrokenMarkersError';
   }
@@ -141,7 +141,7 @@ export class BrokenMarkersError extends Error {
 
 /** The section as written: the markers on their own lines around the block. */
 export const markedSection = (block: string): string =>
-  `${TASKLITE_BEGIN}\n${block}\n${TASKLITE_END}`;
+  `${DOCKET_BEGIN}\n${block}\n${DOCKET_END}`;
 
 /**
  * Insert or replace the Task Lite section in `existing` (null: no file yet).
@@ -270,7 +270,7 @@ export function checkCommands(input: InstallCommandInput): { powershell: string;
   const layout = installLayout(input.client, input.target_kind);
   const disp = layout.display;
   const bash = [
-    `( d=${bashBase(input)}; m="$d/${layout.manifest}"; B='${TASKLITE_BEGIN}'; E='${TASKLITE_END}'`,
+    `( d=${bashBase(input)}; m="$d/${layout.manifest}"; B='${DOCKET_BEGIN}'; E='${DOCKET_END}'`,
     `[ -f "$m" ] || { echo "No Task Lite install found: $m is missing." >&2; exit 1; }`,
     `h() { tr -d '\\r' | { sha256sum 2>/dev/null || shasum -a 256; } | cut -c1-64; }`,
     `echo "Checking ${disp}${layout.dir} against Task Lite install $(grep -o 'ins_[0-9A-Za-z]*' "$m" | head -n 1)"`,
@@ -283,7 +283,7 @@ export function checkCommands(input: InstallCommandInput): { powershell: string;
   const powershell = [
     `& { $d = ${psBase(input)}; $m = Join-Path $d '${layout.manifest}'`,
     `if (-not (Test-Path -LiteralPath $m)) { throw "No Task Lite install found: $m is missing." }`,
-    `$enc = [Text.Encoding]::GetEncoding(28591); $B = '${TASKLITE_BEGIN}'; $E = '${TASKLITE_END}'; $sha = [Security.Cryptography.SHA256]::Create()`,
+    `$enc = [Text.Encoding]::GetEncoding(28591); $B = '${DOCKET_BEGIN}'; $E = '${DOCKET_END}'; $sha = [Security.Cryptography.SHA256]::Create()`,
     `function TlHash([string]$s) { -join ($sha.ComputeHash($enc.GetBytes($s.Replace("\`r", ''))) | ForEach-Object { $_.ToString('x2') }) }`,
     `$j = Get-Content -Raw -LiteralPath $m | ConvertFrom-Json; "Checking ${disp}${layout.dir} against Task Lite install $($j.install_id)"; $n = 0`,
     `foreach ($r in $j.files) { $f = Join-Path $d $r.path; $st = 'ok'; if (-not (Test-Path -LiteralPath $f -PathType Leaf)) { $st = 'missing' } else { $x = $enc.GetString([IO.File]::ReadAllBytes($f)); if ($r.key -eq 'agents_block') { $i = $x.IndexOf($B, [StringComparison]::Ordinal); $k = $x.IndexOf($E, [StringComparison]::Ordinal); if ($i -lt 0 -or $k -lt $i) { $st = 'missing' } else { $x = $x.Substring($i + $B.Length, $k - $i - $B.Length).Replace("\`r", ''); if ($x.StartsWith("\`n")) { $x = $x.Substring(1) }; if ($x.EndsWith("\`n")) { $x = $x.Substring(0, $x.Length - 1) }; if ((TlHash $x) -ne $r.sha256) { $st = 'edited' } } } elseif ((TlHash $x) -ne $r.sha256) { $st = 'edited' } }; if ($st -ne 'ok') { $n++; '{0,-8} {1}  (sent {2} {3})' -f $st, ('${disp}' + $r.path), $r.key, $r.version_id } }`,

@@ -28,7 +28,7 @@
  * 6. All projects without a push folder (stubbed): *Install user-wide* is a
  *    command, says why, and links to the set-up.
  *
- * axe is clean on each screen, both themes. Set TASKLITE_E2E_SCREENSHOTS to
+ * axe is clean on each screen, both themes. Set DOCKET_E2E_SCREENSHOTS to
  * a folder to capture the PR's light and dark screenshots.
  */
 import { execFileSync } from 'node:child_process';
@@ -70,7 +70,7 @@ test.afterAll(async () => {
   }
 });
 
-const out = process.env.TASKLITE_E2E_SCREENSHOTS;
+const out = process.env.DOCKET_E2E_SCREENSHOTS;
 async function shoot(page: Page, name: string, target: Locator) {
   if (!out) return;
   for (const theme of ['light', 'dark'] as const) {
@@ -129,7 +129,7 @@ test.describe('Install and check (US13)', () => {
       .fill('C:/Users/owner/code');
     await expect(howto.locator('pre').first()).toHaveText('      - C:/Users/owner/code:/host-code');
     await expect(howto.locator('pre').nth(1)).toHaveText(
-      'TASKLITE_PUSH_ROOT=/host-code\nTASKLITE_PUSH_HOST_PATH=C:/Users/owner/code',
+      'DOCKET_PUSH_ROOT=/host-code\nDOCKET_PUSH_HOST_PATH=C:/Users/owner/code',
     );
     await expect(howto.getByRole('button', { name: 'Copy' })).toHaveCount(3);
     await shoot(page, '1-push-folder-unset', c);

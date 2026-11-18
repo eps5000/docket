@@ -20,7 +20,7 @@
  *
  * None of these screens says bundled, layer, override, effective set or
  * service-wide. axe is clean on each screen, both themes. Set
- * TASKLITE_E2E_SCREENSHOTS to a folder to capture the PR's screenshots.
+ * DOCKET_E2E_SCREENSHOTS to a folder to capture the PR's screenshots.
  */
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
@@ -78,7 +78,7 @@ test.afterAll(async () => {
   }
 });
 
-const out = process.env.TASKLITE_E2E_SCREENSHOTS;
+const out = process.env.DOCKET_E2E_SCREENSHOTS;
 
 async function shoot(page: Page, name: string, target: Locator) {
   if (!out) return;

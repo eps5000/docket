@@ -16,7 +16,7 @@ Companion template: [templates/AGENTS-tasklite.md](templates/AGENTS-tasklite.md)
 |---|---|
 | Endpoint | `http://127.0.0.1:7420/mcp` |
 | Transport | MCP Streamable HTTP, protocol version per the SDK's latest stable. Stateful sessions (`Mcp-Session-Id`). The server accepts `GET` for the server→client stream and `DELETE` to end a session. |
-| Auth | `Authorization: Bearer <TASKLITE_TOKEN>`. A missing or wrong token gets HTTP 401 before any MCP handling. |
+| Auth | `Authorization: Bearer <DOCKET_TOKEN>`. A missing or wrong token gets HTTP 401 before any MCP handling. |
 | Server info | `name: "tasklite"`, `version` = the app version |
 | Capabilities | `tools` (with `listChanged: false`). No resources or prompts in V1. Everything an agent needs comes from tools, and the server instructions point to the tools. |
 | Client identity | `clientInfo.name` from `initialize`, normalised (BUILD_SPEC §3). Agents add `agent_label` on `claim_lead` and `start_run`. |
@@ -168,7 +168,7 @@ Every tool returns two things:
 - One `text` content block: a **complete compact rendering** of the same result, for the model (§3.1). It is *not* a JSON dump, and *not* just a one-line summary. A client that forwards only the text loses nothing an agent needs.
 
 **Result modes** (owner decision 28). Some clients give the model `structuredContent` rather than the text, which costs about 3.5 times the tokens (BUILD_SPEC §12, V6). So each session gets one of two modes, decided at `initialize` from `clientInfo.name`:
-- **Text-only**, when the name is listed in `TASKLITE_TEXT_ONLY_CLIENTS` (exact, ignoring case; BUILD_SPEC §2). The default lists `claude-code`. `tools/list` has no `outputSchema`, and results carry the text block alone. Errors still set `isError: true`, and their text holds the full ToolError (§6). Everything else is the same: descriptions, input schemas, annotations and behaviour. Long text truncated in lists (§3.1) is in full in `get_item` view `full`.
+- **Text-only**, when the name is listed in `DOCKET_TEXT_ONLY_CLIENTS` (exact, ignoring case; BUILD_SPEC §2). The default lists `claude-code`. `tools/list` has no `outputSchema`, and results carry the text block alone. Errors still set `isError: true`, and their text holds the full ToolError (§6). Everything else is the same: descriptions, input schemas, annotations and behaviour. Long text truncated in lists (§3.1) is in full in `get_item` view `full`.
 - **Structured**, for every other client: both, as above.
 
 The budgets (§3.2) measure the text block, which is all a text-only client's model sees.
@@ -527,7 +527,7 @@ The format for each tool below:
 - **Output:** `{ run_state: 'parked', resume_ready: boolean }`.
 - **Errors:** `conflict` (the run has ended), `validation` (unknown item in `waiting_on.items`).
 - **Rules:**
-  - A parked run doesn't go stale, and its lease is suspended. After `TASKLITE_PARK_MAX` (default 24 h) it shows under the owner's Problems but keeps its claim.
+  - A parked run doesn't go stale, and its lease is suspended. After `DOCKET_PARK_MAX` (default 24 h) it shows under the owner's Problems but keeps its claim.
   - `resume_ready` becomes true when every `waiting_on.items` entry is done or cleared, or `until` passes. A run parked only on the orchestrator or a person stays false until it is resumed.
 
 ### 5.5 Checklist
@@ -916,7 +916,7 @@ These are part of M2 (BUILD_SPEC §11). Use the official MCP client SDK against 
 14. `satisfied_when`: done, merged and verified each gate `ready_to_start` correctly, a link override beats the project default, and verified on a blocker without human review gets `validation`.
 15. Write checks: each secret pattern is rejected and not persisted; references to items that don't exist produce warnings.
 16. `get_context` never marks notes read; `get_item` view `summary` doesn't either.
-17. Parking: a parked run never goes stale and keeps its claim. Its lease is suspended. It shows `resume_ready` when its items clear. A heartbeat resumes it. After `TASKLITE_PARK_MAX` it is flagged but keeps its claim.
+17. Parking: a parked run never goes stale and keeps its claim. Its lease is suspended. It shows `resume_ready` when its items clear. A heartbeat resumes it. After `DOCKET_PARK_MAX` it is flagged but keeps its claim.
 18. Workspace state: in_use, parked, at_risk (dirty, unpushed, unreleased resources) and safe_to_prune are each reached from the right inputs; `report_commit pushed:true` moves `pushed_sha`.
 19. `recovery_report` after a simulated restart lists every interrupted run with its end reason, its brief (with `include_briefs`), its workspace, its checklist progress and its orphaned resources, and the §7.13 flow re-claims and resumes it.
 20. `finish_run` with unreleased resources or unpushed commits warns, and the owner sees the matching Problem.
@@ -929,7 +929,7 @@ The commands below were checked against the clients' current documentation on 20
 
 ### Token
 - **Where it comes from:** Settings → Connections → *Reveal token* (or `docker compose exec tasklite tasklite agent-token`).
-- **Put it in the environment** the agent clients run in, as `TASKLITE_TOKEN`. On Windows: `setx TASKLITE_TOKEN "<token>"`, then open a new terminal. Orca workers must see the same variable (BUILD_SPEC §12, V2).
+- **Put it in the environment** the agent clients run in, as `DOCKET_TOKEN`. On Windows: `setx DOCKET_TOKEN "<token>"`, then open a new terminal. Orca workers must see the same variable (BUILD_SPEC §12, V2).
 - **Watch for whitespace:** a trailing newline in the token breaks auth, and Claude Code warns about hidden whitespace.
 
 ### Codex
@@ -938,30 +938,30 @@ Source: Codex MCP docs, `learn.chatgpt.com/docs/extend/mcp?surface=cli`.
   ```toml
   [mcp_servers.tasklite]
   url = "http://127.0.0.1:7420/mcp"
-  bearer_token_env_var = "TASKLITE_TOKEN"
+  bearer_token_env_var = "DOCKET_TOKEN"
   ```
 - **Flags:** none needed; Streamable HTTP isn't behind an experimental flag.
 - **No CLI form:** `codex mcp add` has no documented bearer-token flag for HTTP servers, so use the config file.
-- **Result mode:** structured (§3 Results). Which part Codex gives the model is still to verify (BUILD_SPEC §12, V6); if it is `structuredContent`, add its `clientInfo.name` to `TASKLITE_TEXT_ONLY_CLIENTS`.
+- **Result mode:** structured (§3 Results). Which part Codex gives the model is still to verify (BUILD_SPEC §12, V6); if it is `structuredContent`, add its `clientInfo.name` to `DOCKET_TEXT_ONLY_CLIENTS`.
 
 ### Claude Code
 Source: `code.claude.com/docs/en/mcp`. Flags come before the name, and the name before the URL.
 - **For every project (user scope; recommended):**
   ```bash
   claude mcp add --transport http --scope user tasklite http://127.0.0.1:7420/mcp \
-    --header "Authorization: Bearer $TASKLITE_TOKEN"
+    --header "Authorization: Bearer $DOCKET_TOKEN"
   ```
-  PowerShell: `--header "Authorization: Bearer $env:TASKLITE_TOKEN"`.
+  PowerShell: `--header "Authorization: Bearer $env:DOCKET_TOKEN"`.
 
   **Caveat:** your shell expands the variable when you run this, so Claude Code stores the token itself in its user config. That's acceptable for a loopback-only service. If you rotate the token, run the command again.
-- **One repo only (project scope):** add `.mcp.json` at the repo root. Claude Code expands `${TASKLITE_TOKEN}` in this file, so the token isn't stored. The first time, it shows as "Pending approval" until you approve it in an interactive `claude` session.
+- **One repo only (project scope):** add `.mcp.json` at the repo root. Claude Code expands `${DOCKET_TOKEN}` in this file, so the token isn't stored. The first time, it shows as "Pending approval" until you approve it in an interactive `claude` session.
   ```json
   {
     "mcpServers": {
       "tasklite": {
         "type": "http",
         "url": "http://127.0.0.1:7420/mcp",
-        "headers": { "Authorization": "Bearer ${TASKLITE_TOKEN}" }
+        "headers": { "Authorization": "Bearer ${DOCKET_TOKEN}" }
       }
     }
   }
@@ -974,4 +974,4 @@ Source: `code.claude.com/docs/en/mcp`. Flags come before the name, and the name 
 Orca launches the installed Codex or Claude, so the configurations above apply as long as the worker inherits your user config and environment. That's verified for Codex workers; Claude workers are still to verify (BUILD_SPEC §12, V2). Settings shows "Not verified" until the smoke test passes. A worker sends its client's `clientInfo.name`, so it gets that client's result mode: text-only for Claude, structured for Codex. Settings shows each surface's mode.
 
 ### Settings snippets
-The Client setup card in Settings (UI_SPEC §6.7) shows exactly the Codex TOML and the user-scope Claude command above, with the token as `$TASKLITE_TOKEN`, never the value.
+The Client setup card in Settings (UI_SPEC §6.7) shows exactly the Codex TOML and the user-scope Claude command above, with the token as `$DOCKET_TOKEN`, never the value.

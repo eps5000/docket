@@ -17,7 +17,7 @@
  *   warning in the save toast.
  * - axe on each, both themes.
  *
- * Set TASKLITE_E2E_SCREENSHOTS to a folder to also capture the PR's light
+ * Set DOCKET_E2E_SCREENSHOTS to a folder to also capture the PR's light
  * and dark screenshots.
  */
 import { join } from 'node:path';
@@ -34,7 +34,7 @@ import type { McpAgent } from './fixtures/mcp';
 
 useSeededContainer();
 
-const out = process.env.TASKLITE_E2E_SCREENSHOTS;
+const out = process.env.DOCKET_E2E_SCREENSHOTS;
 
 async function shoot(page: Page, name: string, target: Locator) {
   if (!out) return;

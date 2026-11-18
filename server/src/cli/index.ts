@@ -92,7 +92,7 @@ export async function main(argv: string[]): Promise<number> {
           err('The backup in the data volume is fine.');
         }
         if (!config.backupExtraDir) {
-          out('No extra location (TASKLITE_BACKUP_EXTRA_DIR is not set).');
+          out('No extra location (DOCKET_BACKUP_EXTRA_DIR is not set).');
         }
         return 0;
       } finally {

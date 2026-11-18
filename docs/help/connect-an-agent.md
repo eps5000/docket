@@ -17,15 +17,15 @@ Agents talk to Task Lite over MCP at `http://127.0.0.1:7420/mcp`. They sign in w
 
 1. Open **Settings**. Under **Connections**, find the **Client setup** card.
 2. Click *Reveal token*, then *Copy token*. The token hides again after 30 seconds.
-3. Set it as `TASKLITE_TOKEN` in the environment your agents start from:
-   - macOS or Linux: add `export TASKLITE_TOKEN="<token>"` to your shell profile, then open a new terminal.
-   - Windows: run `setx TASKLITE_TOKEN "<token>"`, then open a new terminal.
+3. Set it as `DOCKET_TOKEN` in the environment your agents start from:
+   - macOS or Linux: add `export DOCKET_TOKEN="<token>"` to your shell profile, then open a new terminal.
+   - Windows: run `setx DOCKET_TOKEN "<token>"`, then open a new terminal.
 
 Don't add a trailing space or newline: it breaks sign-in.
 
 ## 2. Add Task Lite to the client
 
-In **Client setup**, pick **Codex** or **Claude Code** and click *Copy*. The snippet uses `$TASKLITE_TOKEN`, never the token itself.
+In **Client setup**, pick **Codex** or **Claude Code** and click *Copy*. The snippet uses `$DOCKET_TOKEN`, never the token itself.
 
 - **Codex:** paste it into `~/.codex/config.toml` (Windows: `%USERPROFILE%\.codex\config.toml`). Codex reads the token from the environment each time it connects.
 - **Claude Code:** run the command in a terminal. Your shell fills in the token, so Claude Code stores it; run the command again if you ever rotate the token.

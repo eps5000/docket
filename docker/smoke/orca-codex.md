@@ -23,5 +23,5 @@ Follow [README.md](README.md) "Before you start" first. Commands run from the re
 
 - [ ] PASS or FAIL for each `check` line, and the run state you saw (live or reported).
 - [ ] Anything you had to change from the README to make it connect.
-- [ ] The worker saw `TASKLITE_TOKEN` and the user config without extra setup (verified in discovery; confirm).
+- [ ] The worker saw `DOCKET_TOKEN` and the user config without extra setup (verified in discovery; confirm).
 - [ ] V7: does the worker see user-wide skills?

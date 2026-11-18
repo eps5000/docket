@@ -2,13 +2,13 @@
  * The push-root guard (owner decision 29; BUILD_SPEC §5.17; FR-117, FR-125).
  *
  * The push install is the one place Task Lite touches host files, and only
- * inside the folder the owner mounted (`TASKLITE_PUSH_ROOT`). Every path goes
+ * inside the folder the owner mounted (`DOCKET_PUSH_ROOT`). Every path goes
  * through here, and each escape is blocked as follows:
  *
  * - **`..`**: a path the owner gives may not contain a `..` segment at all,
  *   and the joined path must still be inside the root lexically.
  * - **Absolute paths:** accepted only under the push folder's host path
- *   (`TASKLITE_PUSH_HOST_PATH`) or its container path, which are mapped onto
+ *   (`DOCKET_PUSH_HOST_PATH`) or its container path, which are mapped onto
  *   the root; any other absolute path (or `~`) is refused.
  * - **Symlinks:** the root is resolved with `realpath` once. The base folder
  *   and every folder on the way to a file are checked one at a time with
@@ -57,7 +57,7 @@ function stripPrefix(p: string, prefix: string): string | null {
 
 /**
  * The folder the owner named, as segments under the root. It may be a host
- * path under `TASKLITE_PUSH_HOST_PATH`, a container path under the root, or
+ * path under `DOCKET_PUSH_HOST_PATH`, a container path under the root, or
  * relative to the root.
  */
 export function rootSegments(

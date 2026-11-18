@@ -21,7 +21,7 @@ git clone https://github.com/eps5000/task-lite.git
 cd task-lite/docker
 docker compose up -d --build --wait
 ```
-The first build takes a few minutes. Your data lives in the `tasklite-data` volume, so it survives restarts and container replacement. To try it with sample work first, start it with `TASKLITE_SEED=sample` (bash: `TASKLITE_SEED=sample docker compose up -d --build --wait`). The seed only loads into an empty database.
+The first build takes a few minutes. Your data lives in the `tasklite-data` volume, so it survives restarts and container replacement. To try it with sample work first, start it with `DOCKET_SEED=sample` (bash: `DOCKET_SEED=sample docker compose up -d --build --wait`). The seed only loads into an empty database.
 
 Set `TZ` to your time zone, e.g. `America/Chicago`: copy `.env.example` to `.env` in the `docker/` folder, uncomment `TZ=` and set it, then run the `up` command again. A container's own zone is usually UTC, so without it the burn-down's days and the Timeline's Now line are in UTC. Storage is always UTC.
 
@@ -35,9 +35,9 @@ Agents never get this key. The browser stays unlocked for 30 days from its last 
 ```bash
 docker compose exec tasklite tasklite agent-token
 ```
-Set it as `TASKLITE_TOKEN` in the environment your agent clients start from:
-- macOS or Linux: add `export TASKLITE_TOKEN="<token>"` to your shell profile, then open a new terminal.
-- Windows: `setx TASKLITE_TOKEN "<token>"`, then open a new terminal.
+Set it as `DOCKET_TOKEN` in the environment your agent clients start from:
+- macOS or Linux: add `export DOCKET_TOKEN="<token>"` to your shell profile, then open a new terminal.
+- Windows: `setx DOCKET_TOKEN "<token>"`, then open a new terminal.
 
 Don't include a trailing newline or spaces: they break auth.
 
@@ -46,14 +46,14 @@ Don't include a trailing newline or spaces: they break auth.
   ```toml
   [mcp_servers.tasklite]
   url = "http://127.0.0.1:7420/mcp"
-  bearer_token_env_var = "TASKLITE_TOKEN"
+  bearer_token_env_var = "DOCKET_TOKEN"
   ```
 - **Claude Code** (user scope, so every project gets it):
   ```bash
   claude mcp add --transport http --scope user tasklite http://127.0.0.1:7420/mcp \
-    --header "Authorization: Bearer $TASKLITE_TOKEN"
+    --header "Authorization: Bearer $DOCKET_TOKEN"
   ```
-  In PowerShell, use `--header "Authorization: Bearer $env:TASKLITE_TOKEN"`. Your shell expands the variable, so Claude Code stores the token itself; run the command again if you rotate the token. For one repo only, use a project `.mcp.json` instead (MCP spec §11).
+  In PowerShell, use `--header "Authorization: Bearer $env:DOCKET_TOKEN"`. Your shell expands the variable, so Claude Code stores the token itself; run the command again if you rotate the token. For one repo only, use a project `.mcp.json` instead (MCP spec §11).
 - **Orca workers** start the installed Codex or Claude Code, so the setup above applies as long as they inherit your user config and environment.
 
 **5. Check it.** `claude mcp list` should show `tasklite … ✔ Connected`, and `/mcp` inside Codex or Claude Code lists its tools. Ask the agent to call the `whoami` tool. Settings → Connections then shows the client as last seen just now. It stays "Not verified" there until someone runs the [smoke kit](docker/smoke/README.md).
@@ -62,15 +62,15 @@ Don't include a trailing newline or spaces: they break auth.
 - **A command:** Task Lite gives you a PowerShell and a bash one-liner. Run it from the repo folder (or anywhere, for a user-wide install). It works once, for 10 minutes, and needs nothing else installed.
 - **One-click:** if you've mounted a code folder (**Settings → One-click install** walks you through it, and `docker/compose.yaml` has a commented example), Task Lite writes the files into the repo folder itself.
 
-Either way it installs the skills, puts the AGENTS.md block between `<!-- tasklite:begin -->` and `<!-- tasklite:end -->` in `CLAUDE.md` (Claude Code) or `AGENTS.md` (Codex) without touching the rest of the file, and logs the exact version of every file. The install log's *Check* (or its check command) shows later whether an installed copy was edited by hand. Task Lite also watches for that itself: it checks folders it installed into every 15 minutes (`TASKLITE_DRIFT_CHECK_INTERVAL`), and agents report their installed files' hashes when they claim work (the installed `tasklite-check` script), so an edit made outside Task Lite shows under Problems with a diff and *Adopt*, *Restore* or *Keep local*. Agents that want to change their instructions propose it instead, for your approval in Agent files. See the in-app help article "Agent files", or [skills/README.md](skills/README.md) for the paths.
+Either way it installs the skills, puts the AGENTS.md block between `<!-- tasklite:begin -->` and `<!-- tasklite:end -->` in `CLAUDE.md` (Claude Code) or `AGENTS.md` (Codex) without touching the rest of the file, and logs the exact version of every file. The install log's *Check* (or its check command) shows later whether an installed copy was edited by hand. Task Lite also watches for that itself: it checks folders it installed into every 15 minutes (`DOCKET_DRIFT_CHECK_INTERVAL`), and agents report their installed files' hashes when they claim work (the installed `tasklite-check` script), so an edit made outside Task Lite shows under Problems with a diff and *Adopt*, *Restore* or *Keep local*. Agents that want to change their instructions propose it instead, for your approval in Agent files. See the in-app help article "Agent files", or [skills/README.md](skills/README.md) for the paths.
 
 ### Backups and restore
-- **Nightly**, at 03:00 local time (`TASKLITE_BACKUP_AT`), Task Lite writes a verified backup of the database and documents to `/data/backups` in its volume, and keeps 14 days of them (`TASKLITE_BACKUP_KEEP`). Settings → Connections → Service health shows the last one.
+- **Nightly**, at 03:00 local time (`DOCKET_BACKUP_AT`), Task Lite writes a verified backup of the database and documents to `/data/backups` in its volume, and keeps 14 days of them (`DOCKET_BACKUP_KEEP`). Settings → Connections → Service health shows the last one.
 - **Now:** `docker compose exec tasklite tasklite backup now`.
 - **An extra copy on the host (optional).** The volume copy doesn't survive losing the volume, so you can also have each backup copied to a folder on this machine, kept for the same 14 days:
   1. Create the folder, for example `~/TaskLiteBackups`. On Linux, let the container's user write to it: `sudo chown 10001:10001 ~/TaskLiteBackups`.
   2. In `docker/compose.yaml`, uncomment the line `- ~/TaskLiteBackups:/backups-extra`.
-  3. Create `docker/.env` (copy `.env.example`) with `TASKLITE_BACKUP_EXTRA_DIR=/backups-extra`.
+  3. Create `docker/.env` (copy `.env.example`) with `DOCKET_BACKUP_EXTRA_DIR=/backups-extra`.
   4. `docker compose up -d`, then `docker compose exec tasklite tasklite backup now`. Settings shows both locations. If the extra copy fails (folder missing, full or not writable), the backup in the volume still succeeds, and Needs you shows "Extra backup copy failed" until a copy works.
 - **Restore** a backup (from either location; this replaces the current data, after checking the archive):
   ```bash

@@ -11,8 +11,8 @@ services:
     image: tasklite:smoke
     container_name: tasklite-smoke
     environment:
-      TASKLITE_SEED: sample
-      TASKLITE_TOKEN: ${TASKLITE_TOKEN:?Set TASKLITE_TOKEN first (Settings → Reveal token)}
+      DOCKET_SEED: sample
+      DOCKET_TOKEN: ${DOCKET_TOKEN:?Set DOCKET_TOKEN first (Settings → Reveal token)}
 volumes:
   tasklite-data:
     name: tasklite-smoke-data

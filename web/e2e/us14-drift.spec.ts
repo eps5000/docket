@@ -17,7 +17,7 @@
  * 3. a further edit is reported on the next claim and alerts again;
  *    *Restore Task Lite's version* rewrites the file.
  *
- * axe is clean on each screen, both themes. Set TASKLITE_E2E_SCREENSHOTS to
+ * axe is clean on each screen, both themes. Set DOCKET_E2E_SCREENSHOTS to
  * a folder to capture the PR's screenshots.
  */
 import { execFileSync } from 'node:child_process';
@@ -73,7 +73,7 @@ test.afterAll(async () => {
   }
 });
 
-const out = process.env.TASKLITE_E2E_SCREENSHOTS;
+const out = process.env.DOCKET_E2E_SCREENSHOTS;
 async function shoot(page: Page, name: string, target: Locator) {
   if (!out) return;
   for (const theme of ['light', 'dark'] as const) {

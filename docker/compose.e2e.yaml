@@ -9,7 +9,7 @@ services:
     image: tasklite:e2e
     container_name: tasklite-e2e
     environment:
-      TASKLITE_SEED: sample
+      DOCKET_SEED: sample
 volumes:
   tasklite-data:
     name: tasklite-e2e-data

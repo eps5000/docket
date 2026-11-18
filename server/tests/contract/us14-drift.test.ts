@@ -43,7 +43,7 @@ async function start(opts: { push?: boolean } = { push: true }) {
   const root = join(tmp.dir, 'code');
   mkdirSync(join(root, 'recipes'), { recursive: true });
   h = await startHarness({
-    env: opts.push === false ? {} : { TASKLITE_PUSH_ROOT: root },
+    env: opts.push === false ? {} : { DOCKET_PUSH_ROOT: root },
     log: () => {},
   });
   syncBundledFiles(h.server.runtime);
@@ -221,7 +221,7 @@ describe('the scheduled push check (SC-017: within one interval)', () => {
   it('is off when the interval is off', async () => {
     tmp = tempDir('tasklite-us14-drift-');
     h = await startHarness({
-      env: { TASKLITE_PUSH_ROOT: tmp.dir, TASKLITE_DRIFT_CHECK_INTERVAL: 'off' },
+      env: { DOCKET_PUSH_ROOT: tmp.dir, DOCKET_DRIFT_CHECK_INTERVAL: 'off' },
     });
     expect(h.server.runtime.config.driftCheckIntervalMs).toBeNull();
     let calls = 0;

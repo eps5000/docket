@@ -22,7 +22,7 @@
  * container's database. Task Lite derives the rows on read, so this is the
  * same state the clock would reach.
  *
- * Set TASKLITE_E2E_SCREENSHOTS to a folder to also capture the PR's light
+ * Set DOCKET_E2E_SCREENSHOTS to a folder to also capture the PR's light
  * and dark screenshots.
  */
 import { execFileSync } from 'node:child_process';
@@ -41,7 +41,7 @@ import type { McpAgent } from './fixtures/mcp';
 
 useSeededContainer();
 
-const out = process.env.TASKLITE_E2E_SCREENSHOTS;
+const out = process.env.DOCKET_E2E_SCREENSHOTS;
 
 async function shoot(page: Page, name: string) {
   if (!out) return;

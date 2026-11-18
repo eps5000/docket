@@ -54,7 +54,7 @@ async function refused(name: string, run: () => Promise<unknown>, match: RegExp)
 }
 
 describe('rootSegments: the folder the owner names, mapped onto the root', () => {
-  it('maps a host path under TASKLITE_PUSH_HOST_PATH (any case and slashes on Windows)', () => {
+  it('maps a host path under DOCKET_PUSH_HOST_PATH (any case and slashes on Windows)', () => {
     expect(rootSegments('C:\\Users\\Me\\Code\\recipes', '/host-code', 'C:/Users/me/code')).toEqual([
       'recipes',
     ]);

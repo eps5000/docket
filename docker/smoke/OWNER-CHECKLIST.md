@@ -14,7 +14,7 @@ configuration except the steps that say so (the README's own setup, which you'd 
 | Check                                                     | How                                                                                                                                                    | Result                                                                                                                                                                                                                       |
 | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Claude Code connects and works the smoke ticket           | Installed Claude Code 2.1.318, **headless** (`claude -p`), with a temporary `--mcp-config` file (`--strict-mcp-config`), against a disposable instance | `smoke.mjs check claude`: all 6 PASS (open lead run, client `claude`, label `smoke-claude`, two-step plan, first step done, run `live`)                                                                                      |
-| V3, part: `${TASKLITE_TOKEN}` expansion                   | The same temporary config used `"Authorization": "Bearer ${TASKLITE_TOKEN}"`; Claude Code expanded it from the environment                             | Works in an `--mcp-config` file (the `.mcp.json` format). User-scope expansion is still yours to check (step 2)                                                                                                              |
+| V3, part: `${DOCKET_TOKEN}` expansion                   | The same temporary config used `"Authorization": "Bearer ${DOCKET_TOKEN}"`; Claude Code expanded it from the environment                             | Works in an `--mcp-config` file (the `.mcp.json` format). User-scope expansion is still yours to check (step 2)                                                                                                              |
 | V6 for Claude Code: what reaches the model                | The eval transcripts (stream-json)                                                                                                                     | **Claude Code gives the model `structuredContent` as JSON, not the text block.** About 3.5× the tokens of the compact text on typical reads (a 25-item search: 2,045 vs 325). Recorded in BUILD_SPEC §12; a decision for you |
 | V7 for Claude Code, project path                          | The skills eval put the skills in the run folder's `.claude/skills/`                                                                                   | Claude Code loaded and invoked `tasklite-worker` and `tasklite-coordinator` headless                                                                                                                                         |
 | V5: SQLite WAL on a Docker Desktop named volume (Windows) | A write loop against a disposable container                                                                                                            | Every write tool p50 ≈ 1 ms, p95 ≤ 5 ms in the container's call log                                                                                                                                                          |
@@ -23,7 +23,7 @@ configuration except the steps that say so (the README's own setup, which you'd 
 
 ## 0. Start the disposable instance (2 min)
 
-From the repository root, in a terminal where `TASKLITE_TOKEN` is set (README step 3):
+From the repository root, in a terminal where `DOCKET_TOKEN` is set (README step 3):
 
 ```bash
 cd docker
@@ -57,7 +57,7 @@ Follow [claude-code.md](claude-code.md) with the README's **user-scope** `claude
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
 | [ ] `check claude` lines all PASS                                                                                                                                                                                                            |             |
 | [ ] **V1:** as for Codex: idle 3 minutes in the open session, then reload Agents: _live_ or _reported_? (B18's headless run was _live_ only while it ran; an interactive session is what decides V1)                                         |             |
-| [ ] **V3:** after `claude mcp add --scope user …`, does `~/.claude.json` hold the expanded token or `${TASKLITE_TOKEN}`? (Look, don't paste it anywhere.) The README tells you to re-run the command if you rotate the token; is that right? |             |
+| [ ] **V3:** after `claude mcp add --scope user …`, does `~/.claude.json` hold the expanded token or `${DOCKET_TOKEN}`? (Look, don't paste it anywhere.) The README tells you to re-run the command if you rotate the token; is that right? |             |
 
 ## 3. Orca worker running Claude (3 min): V2, V7
 
@@ -67,7 +67,7 @@ Follow [orca-claude.md](orca-claude.md): start a worker from the same user accou
 | Check                                                                                                                            | Your result |
 | -------------------------------------------------------------------------------------------------------------------------------- | ----------- |
 | [ ] `check orca-claude` lines all PASS                                                                                           |             |
-| [ ] **V2:** it connected with no extra setup (it inherited your user MCP config and `TASKLITE_TOKEN`)? If not, what did it need? |             |
+| [ ] **V2:** it connected with no extra setup (it inherited your user MCP config and `DOCKET_TOKEN`)? If not, what did it need? |             |
 | [ ] **V7:** with the skills in `~/.claude/skills/`, does the worker list `tasklite-worker`?                                      |             |
 
 ## 4. Orca worker running Codex (3 min)

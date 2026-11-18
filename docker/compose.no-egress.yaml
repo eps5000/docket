@@ -4,7 +4,7 @@
 #     -f docker/compose.no-egress.yaml up -d --build --wait
 # - `sealed` is an internal network: no gateway, no NAT, nothing outside it is reachable.
 # - tasklite and jira-fixture are only on `sealed`. The Jira fixture is the one other host
-#   tasklite may reach (TASKLITE_EGRESS_ALLOW).
+#   tasklite may reach (DOCKET_EGRESS_ALLOW).
 # - `gateway` forwards 127.0.0.1:7420 inwards to tasklite (Docker doesn't publish ports
 #   for a container that is only on an internal network).
 # - Every Node process in the tasklite container loads no-egress/egress-audit.mjs, which
@@ -21,8 +21,8 @@ services:
     ports: !reset []
     environment:
       NODE_OPTIONS: --import=/opt/no-egress/egress-audit.mjs
-      TASKLITE_EGRESS_LOG: /data/egress-audit.jsonl
-      TASKLITE_EGRESS_ALLOW: jira-fixture.test
+      DOCKET_EGRESS_LOG: /data/egress-audit.jsonl
+      DOCKET_EGRESS_ALLOW: jira-fixture.test
     volumes:
       - ./no-egress:/opt/no-egress:ro
 

@@ -5,7 +5,7 @@
  * - **Backups:** an archive is written to /data/backups and verified, holds
  *   the database and every document but not `docs/.staging`, and is pruned
  *   after `BACKUP_KEEP` days.
- * - **Extra location:** with `TASKLITE_BACKUP_EXTRA_DIR` set, the archive is
+ * - **Extra location:** with `DOCKET_BACKUP_EXTRA_DIR` set, the archive is
  *   in both places, and the extra copy restores after the data directory is
  *   removed; a missing or unwritable extra folder still lets the default
  *   backup succeed and raises a Problem, which clears after a good copy.
@@ -190,8 +190,8 @@ describe('backups (BUILD_SPEC §5.13)', () => {
     expect(logs.some((l) => l.startsWith('Backup written and verified:'))).toBe(true);
   });
 
-  it(`keeps TASKLITE_BACKUP_KEEP days and clears leftovers of interrupted runs`, async () => {
-    const s = seeded({ TASKLITE_BACKUP_KEEP: '3' });
+  it(`keeps DOCKET_BACKUP_KEEP days and clears leftovers of interrupted runs`, async () => {
+    const s = seeded({ DOCKET_BACKUP_KEEP: '3' });
     const dir = s.runtime.config.paths.backups;
     mkdirSync(dir, { recursive: true });
     const old = new Date(NOW.getTime() - 4 * 86_400_000);
@@ -212,7 +212,7 @@ describe('backups (BUILD_SPEC §5.13)', () => {
     expect(listArchives(dir)).toHaveLength(2);
   });
 
-  it('names archives by local time and schedules the next run at TASKLITE_BACKUP_AT', () => {
+  it('names archives by local time and schedules the next run at DOCKET_BACKUP_AT', () => {
     expect(archiveTime('tasklite-20261106-0300.tar.gz')).toEqual(new Date(2026, 10, 6, 3, 0));
     expect(archiveTime('tasklite-20261106-030015-2.tar.gz')).toEqual(
       new Date(2026, 10, 6, 3, 0, 15),
@@ -236,7 +236,7 @@ describe('the extra backup location (owner decision 24; FR-103a)', () => {
   it('writes the same archive to both places, and the extra copy restores after the data dir is removed', async () => {
     const extra = join(tmp.dir, 'host-backups');
     mkdirSync(extra);
-    const s = seeded({ TASKLITE_BACKUP_EXTRA_DIR: extra });
+    const s = seeded({ DOCKET_BACKUP_EXTRA_DIR: extra });
     const dataDir = s.dataDir;
     const before = checksumsOf(dataDir);
     const docsBefore = fileHashes(join(dataDir, 'docs'));
@@ -266,7 +266,7 @@ describe('the extra backup location (owner decision 24; FR-103a)', () => {
     rmSync(dataDir, { recursive: true, force: true });
     expect(existsSync(dataDir)).toBe(false);
 
-    const config = loadConfig({ TASKLITE_BACKUP_EXTRA_DIR: extra }, { dataDir });
+    const config = loadConfig({ DOCKET_BACKUP_EXTRA_DIR: extra }, { dataDir });
     // `tasklite restore` accepts a bare name from the extra location.
     const restored = await restoreBackup({ config, file: name });
     expect(restored.archive).toBe(copy);
@@ -275,7 +275,7 @@ describe('the extra backup location (owner decision 24; FR-103a)', () => {
     expect(readdirSync(join(dataDir, 'docs', '.staging'))).toEqual([]);
 
     // The restored data starts as a service again.
-    const again = server({ TASKLITE_BACKUP_EXTRA_DIR: extra }, dataDir);
+    const again = server({ DOCKET_BACKUP_EXTRA_DIR: extra }, dataDir);
     const items = again.runtime.db.sqlite.prepare('SELECT count(*) AS n FROM items').get() as {
       n: number;
     };
@@ -285,7 +285,7 @@ describe('the extra backup location (owner decision 24; FR-103a)', () => {
   it('a missing or unwritable extra folder never fails the default backup, and raises a Problem until a copy succeeds', async () => {
     const extra = join(tmp.dir, 'not-mounted');
     unwritableDir(extra);
-    const s = seeded({ TASKLITE_BACKUP_EXTRA_DIR: extra });
+    const s = seeded({ DOCKET_BACKUP_EXTRA_DIR: extra });
 
     const result = await s.runtime.services.backup.runNow(read(s));
     expect(existsSync(result.archive_path)).toBe(true);
@@ -860,7 +860,7 @@ describe('GET /api/settings: connections and health', () => {
     expect(after.health.backups[0]!.last_success_at).toBe(NOW.toISOString());
   });
 
-  it("shows each surface's result mode from TASKLITE_TEXT_ONLY_CLIENTS (MCP_SPEC §3 Results)", async () => {
+  it("shows each surface's result mode from DOCKET_TEXT_ONLY_CLIENTS (MCP_SPEC §3 Results)", async () => {
     const modes = async (env: Record<string, string>) => {
       const s = seeded(env);
       const cookie = await unlock(s);
@@ -870,7 +870,7 @@ describe('GET /api/settings: connections and health', () => {
       return body.connections.clients.map((c) => [c.client, c.result_mode]);
     };
     // The shipped default (an empty value counts as unset): Claude Code is text-only.
-    expect(await modes({ TASKLITE_TEXT_ONLY_CLIENTS: '' })).toEqual([
+    expect(await modes({ DOCKET_TEXT_ONLY_CLIENTS: '' })).toEqual([
       ['Codex CLI (host)', 'structured'],
       ['Claude Code (host)', 'text'],
       ['Orca worker · Codex', 'structured'],
@@ -878,7 +878,7 @@ describe('GET /api/settings: connections and health', () => {
       ['Agent in another container', 'structured'],
     ]);
     expect(
-      (await modes({ TASKLITE_TEXT_ONLY_CLIENTS: 'codex-mcp-client' })).map(([, m]) => m),
+      (await modes({ DOCKET_TEXT_ONLY_CLIENTS: 'codex-mcp-client' })).map(([, m]) => m),
     ).toEqual(['text', 'structured', 'text', 'structured', 'structured']);
   });
 });

@@ -316,7 +316,7 @@ export type InstallCheckResponse = z.infer<typeof installCheckResponse>;
 // ---- GET /api/push-target, POST /api/push-target/test ----
 
 export const pushTargetResponse = jsonResponse({
-  /** `TASKLITE_PUSH_ROOT` is set. */
+  /** `DOCKET_PUSH_ROOT` is set. */
   configured: z.boolean(),
   /** Null when not configured. */
   writable: z.boolean().nullable(),
