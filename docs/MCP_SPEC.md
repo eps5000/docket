@@ -485,7 +485,7 @@ The format for each tool below:
 
 #### `claim_lead`
 **Description:** "Claim an item as its lead before you work on it. Works on Ready items (moves them to In progress) and on In progress items with no lead (resuming sent-back or interrupted work). Pass workspace (where the work lives) and, if a coordinator briefed you, the brief, so the work can be restarted after a crash. Returns your run_id: pass it on every later call. If someone else holds the claim you get a conflict with who holds it and until when; do not work on the item."
-- **Input:** `id`, `agent_label?` (≤ 40, for example `orca-w3`), `workspace?: { host?, repo?, path?, branch?, base_ref?, base_sha? }`, `orchestrator?: { name, dispatch_id?, task_id?, run_id? }`, `brief?` (text, ≤ 20,000) or `brief_document_version_id?`, `external?` (≤ 2 KB JSON).
+- **Input:** `id`, `agent_label?` (≤ 40, for example `orca-w3`), `workspace?: { host?, repo?, path?, branch?, base_ref?, base_sha? }`, `orchestrator?: { name, dispatch_id?, task_id?, run_id? }`, `brief?` (text, ≤ 20,000) or `brief_document_version_id?`, `external?` (≤ 2 KB JSON), `instructions?: { install_id?, files: [{ key, sha256, content? }] }` (decision 30: the output of the installed `tasklite-check` script; `content` ≤ 50,000 only for files that differ from the manifest).
 - **Output:** `{ run_id, item: ItemSummary, lease_expires_at }`.
 - **Errors:**
   - `conflict` with `current: { lead_client, lead_label, run_id, last_signal_at, lease_expires_at }`, recorded as a rejected claim the owner can see;
@@ -669,6 +669,22 @@ The format for each tool below:
 - **Read-only.** It never changes state; the coordinator acts on it.
 
 ---
+
+### 5.10 Agent files (decision 30)
+
+The two tools below are specified here; their exact `**Description:**` lines are added in the contract batch (tasks Phase 16, B26), in the same PR as the code and the snapshot. That batch also extends `claim_lead`'s description to mention `instructions`, and adds one server-instructions bullet: "To change your instructions for a project, propose it with propose_agent_file_change; don't edit installed files directly."
+
+#### `get_agent_files`
+- **Purpose:** read the agent files and Workflow notes in effect for a project, before proposing a change.
+- **Input:** `project`, `file?` (one key; otherwise all).
+- **Output:** `{ project, files: [{ key, kind: 'skill'|'agents_block'|'workflow', version_id, sha256, source: 'default'|'project', content }] }`.
+- **Read-only.**
+
+#### `propose_agent_file_change`
+- **Purpose:** propose new content for a file or the Workflow notes. Changes nothing until the owner approves.
+- **Input:** `project?` (omit to propose a change to the default), `file` (a skill key, `agents_block` or `workflow`), `content` (≤ 50,000; Workflow ≤ 10,000), `reason` (≤ 500), `based_on_version_id`, plus `run_id?` and `idempotency_key?`.
+- **Output:** `{ proposal_id, state: 'pending' }`.
+- **Errors:** `validation` (limits, unknown file, a secret), `not_found` (project).
 
 ## 6. Errors
 

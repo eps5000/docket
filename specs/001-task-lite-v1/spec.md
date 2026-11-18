@@ -23,6 +23,7 @@ One owner runs Task Lite on their own computer. AI agents (installed coding agen
 - Q: Should the owner be able to cancel an item themselves in the UI? → A: Yes, any open item, with an optional reason and Undo. Canceled items leave the owner's views like archived ones, and anything they block stays blocked until the link is removed.
 - Owner requirement (2026-11-15, not a clarify question): after an Orca crash pruned worktrees holding in-flight work, Task Lite must record enough to restart interrupted work without guessing (where the work lives, the brief, what was started), must distinguish "parked, waiting on purpose" from "finished", and must surface leftover processes and sessions. Task Lite records; the coordinator acts (owner decision 26; User Story 11).
 - Owner requirement (2026-11-17, not a clarify question): the owner wants in-app help, and wants to view, customize per project, install and verify the agent files Task Lite ships, because projects may combine Task Lite with other workflow tools (for example Spec Kit) (owner decision 29; User Stories 12 and 13).
+- Owner requirement (2026-11-18, not a clarify question): agents often tailor instructions for a project, and people or agents will also edit installed files directly. Agents must be able to propose changes for the owner's approval, and Task Lite must detect and help remedy edits made outside it (owner decision 30; User Story 14).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -271,6 +272,26 @@ The diff shows the local edit, and the install log shows the exact versions sent
 5. **Given** an installed copy was edited locally, **When** the owner runs the check (in the UI with a mount, or by command without one), **Then** each changed file is listed with a diff against what was sent.
 6. **Given** a Task Lite upgrade changes a bundled skill the owner has edited, **When** the owner opens Agent setup, **Then** it says "Bundled version updated" and offers a diff, and the owner's version is not overwritten.
 
+### User Story 14 - Agents propose instruction changes, and drift is caught (Priority: P2)
+
+An agent working on a project can read that project's agent files and Workflow notes, and propose a change with a reason. The owner sees the proposal with a diff and approves, edits then approves, or declines. When anyone edits installed instruction files directly instead (a person in VS Code, or an agent told to), Task Lite notices: from the push folder's scheduled check, or from the hashes agents report when they claim work. The owner sees what changed and can adopt it, restore Task Lite's version, or keep it on purpose. Every run records which instruction versions it worked from.
+
+**Why this priority**: agents commonly do the tailoring, and an unreviewed or accidental edit to instructions silently changes how every later agent behaves. The owner needs both a safe path and a safety net.
+
+**Independent Test**:
+1. An agent proposes a change to `tasklite-worker` for one project; the owner approves it, and it becomes the project's copy, with "proposed by … · approved by owner" in its history.
+2. A person then edits the installed `SKILL.md` by hand.
+3. The next agent claim on that project reports the changed hash; the owner sees "edited outside Task Lite", with the diff, and adopts it.
+
+**Acceptance Scenarios**:
+
+1. **Given** an agent with a run on a project, **When** it calls `propose_agent_file_change` with new content and a reason, **Then** nothing changes until the owner acts, and the proposal appears on the project's Agent files page and as one line in Needs you.
+2. **Given** a pending proposal, **When** the owner approves it, **Then** it's saved as the project's copy (or the default, if proposed for the default), with the proposer and approver in its history, and the next install or `get_context` uses it.
+3. **Given** a push-folder install, **When** an installed file is edited by hand, **Then** within the scheduled check interval the owner sees "Agent files changed outside Task Lite", with a diff and *Adopt*, *Restore* and *Keep local*.
+4. **Given** an install without a push folder, **When** an agent claims an item and reports instruction hashes that differ from what was sent, **Then** the owner sees the same problem, and the run shows "instructions edited locally".
+5. **Given** the owner chose *Keep local*, **When** the same content is reported again, **Then** no new alert is raised; **When** it changes again, **Then** a new alert is raised.
+6. **Given** an agent is asked by a user to edit its installed skill files, **When** it follows the shipped skills, **Then** it proposes the change through Task Lite instead, and tells the user so.
+
 ### Edge Cases
 
 - **A lead's lease expires mid-work, and the agent calls again with its old run:** it is refused with the current state. The item has already returned to Ready, with its plan and logs kept.
@@ -296,6 +317,9 @@ The diff shows the local edit, and the install log shows the exact versions sent
 - **The push folder isn't mounted or isn't writable:** *Install* falls back to showing the command, and says why.
 - **A repo's AGENTS.md has no Task Lite markers:** install appends the block between new markers and changes nothing else.
 - **An installed file was deleted locally:** the check reports it missing; reinstalling restores it.
+- **An agent proposes a change to a file the owner edited since the agent read it:** the proposal shows a three-way comparison; approving it doesn't silently drop the owner's edit.
+- **An agent reports hashes for files Task Lite never installed:** they're listed as unknown, and never treated as a problem on their own.
+- **A secret appears in proposed content:** the write check rejects it, as for any text.
 
 ## Requirements *(mandatory)*
 
@@ -430,6 +454,13 @@ The diff shows the local edit, and the install log shows the exact versions sent
 - **FR-125**: The system MUST offer an opt-in push install into a host folder the owner mounts for that purpose. It writes only skill folders and the marked Task Lite section of AGENTS.md/CLAUDE.md, and never deletes other files.
 - **FR-126**: Every install MUST be logged with its time, client, target, method and the exact version of every file, and installed files MUST carry a manifest of those versions.
 - **FR-127**: The system MUST show whether installed copies differ from what was sent: in the UI for pushed installs, and through a copy-paste check command for others.
+- **FR-128** (owner decision 30): Agents MUST be able to read, through MCP, the agent files and Workflow notes in effect for a project, and to propose a change to any of them with a reason. A proposal changes nothing until the owner approves it.
+- **FR-129**: The owner MUST be able to approve, edit then approve, or decline each proposal, seeing a diff against the current version (and a three-way view if the file changed since the agent read it). History MUST record the proposer and the approver.
+- **FR-130**: Agents MUST NOT be able to change agent files or Workflow notes directly. Proposals are the only agent path.
+- **FR-131**: The system MUST detect installed instruction files that differ from what was sent: by checking push-folder installs on a schedule, and from instruction hashes agents report when they claim an item.
+- **FR-132**: For each detected difference, the owner MUST see what changed (a diff, when the content is available) and be offered *Adopt* (save it as the project's copy), *Restore* (reinstall Task Lite's version) or *Keep local* (accept it; no further alerts until it changes again).
+- **FR-133**: Each run MUST record the instruction versions it reported working from, and the owner MUST see them on the run, flagged when they differ from what was sent.
+- **FR-134**: The shipped skills and AGENTS.md block MUST tell agents to propose instruction changes through Task Lite rather than editing installed files, and to report their instruction hashes when they claim work.
 
 ### Key Entities
 
@@ -452,6 +483,8 @@ The diff shows the local edit, and the install log shows the exact versions sent
 - **AgentFile / AgentFileVersion**: a skill or the AGENTS.md block, in a layer (bundled, service, or project), with immutable versions, content hash, author and note.
 - **ProjectWorkflow**: a project's Workflow notes, versioned, delivered in `get_context`.
 - **Install**: one install of an effective file set: when, client, target (repo or user-wide, path), method (command or push), and the version of every file sent.
+- **AgentFileProposal**: an agent's proposed new content for a file or Workflow notes, with its reason, the version it was based on, its state (pending, approved, declined) and who decided.
+- **InstructionReport / Drift**: the instruction hashes reported for an installed location (by a scheduled push-folder check or an agent's claim), the differences from what was sent, and the owner's remedy (adopted, restored, kept local).
 
 ## Success Criteria *(mandatory)*
 
@@ -473,6 +506,7 @@ The diff shows the local edit, and the install log shows the exact versions sent
 - **SC-014**: After a simulated crash with at least three in-flight runs (active, parked, at risk), a coordinator can re-dispatch every interrupted run from the restart list alone (no conversation history, no probing), with 100% of briefs recovered unchanged. 100% of declared resources left running are reported as orphaned within 15 minutes.
 - **SC-015**: A new owner finds and opens the right Help article from the screen they're on in one click, for every state named in the UI (parked, stale, at risk, safe to prune, and so on).
 - **SC-016**: For any installed copy, the owner can tell within one minute which file versions were sent and whether each was edited locally.
+- **SC-017**: An instruction file edited outside Task Lite is surfaced to the owner within 15 minutes for push installs, or by the next agent claim on that project otherwise, in 100% of cases in the drift test suite.
 
 ## Assumptions
 
