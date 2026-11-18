@@ -31,12 +31,12 @@ services:
       start_interval: 1s
       retries: 3
 
-  tasklite:
+  docket:
     environment:
       # Trust the throwaway test CA for the fixture's certificate (and nothing else changes).
-      NODE_EXTRA_CA_CERTS: /etc/tasklite-e2e/jira-ca.pem
+      NODE_EXTRA_CA_CERTS: /etc/docket-e2e/jira-ca.pem
     volumes:
-      - ./jira-fixture/certs/ca.pem:/etc/tasklite-e2e/jira-ca.pem:ro
+      - ./jira-fixture/certs/ca.pem:/etc/docket-e2e/jira-ca.pem:ro
     depends_on:
       jira-fixture:
         condition: service_healthy

@@ -55,7 +55,7 @@ export function Unlock() {
         <h1 id="unlock-title">Unlock Docket</h1>
         <p className="src" style={{ margin: 0 }}>
           Paste the owner key. Get it with:{' '}
-          <code>docker compose exec tasklite tasklite owner-key</code>
+          <code>docker compose exec docket docket owner-key</code>
         </p>
         <label className="f" htmlFor={inputId}>
           Owner key

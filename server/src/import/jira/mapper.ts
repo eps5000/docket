@@ -324,15 +324,15 @@ export function mapSnapshot(snapshot: JiraSnapshot, opts: MapOptions = {}): Impo
 
   // ---- Tallies ----
   const groups = {
-    type: new Map<string, { jira: string; task_lite: string } & Tally>(),
-    status: new Map<string, { jira: string; task_lite: string } & Tally>(),
-    priority: new Map<string, { jira: string; task_lite: string } & Tally>(),
-    parent: new Map<string, { jira: string; task_lite: string } & Tally>(),
-    link: new Map<string, { jira: string; task_lite: string } & Tally>(),
+    type: new Map<string, { jira: string; docket: string } & Tally>(),
+    status: new Map<string, { jira: string; docket: string } & Tally>(),
+    priority: new Map<string, { jira: string; docket: string } & Tally>(),
+    parent: new Map<string, { jira: string; docket: string } & Tally>(),
+    link: new Map<string, { jira: string; docket: string } & Tally>(),
   };
-  const row = (group: keyof typeof groups, jira: string, taskLite: string, lossy = false) => {
-    const k = `${jira}→${taskLite}`;
-    const r = groups[group].get(k) ?? { jira, task_lite: taskLite, count: 0, lossy: 0 };
+  const row = (group: keyof typeof groups, jira: string, docket: string, lossy = false) => {
+    const k = `${jira}→${docket}`;
+    const r = groups[group].get(k) ?? { jira, docket: docket, count: 0, lossy: 0 };
     r.count++;
     if (lossy) r.lossy++;
     groups[group].set(k, r);

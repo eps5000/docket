@@ -3,10 +3,10 @@
  * Skills eval (tasks.md T148; owner decision 27; SC-001, SC-012, SC-014).
  *
  * Runs the US1 and US11 scenarios with a real client, installed Claude Code
- * in headless mode (`claude -p`), against a disposable Task Lite with the
+ * in headless mode (`claude -p`), against a disposable Docket with the
  * sample data. Each scenario runs twice: with the two core skills
- * (`tasklite-worker`, `tasklite-coordinator`) in the run folder's
- * `.claude/skills/`, and without them. It records, per run: Task Lite calls,
+ * (`docket-worker`, `docket-coordinator`) in the run folder's
+ * `.claude/skills/`, and without them. It records, per run: Docket calls,
  * errors, the SC-001 opening (calls and result tokens to reach full context),
  * model tokens and cost, whether a skill was invoked, and the scenario's
  * outcome checks (each failed check is a mistake).
@@ -20,7 +20,7 @@
  * - `--setting-sources project` keeps the user's settings and hooks out;
  * - each run works in a fresh temporary folder with a local bare `origin`;
  * - the container must be a disposable one (DOCKET_EVAL_CONTAINER,
- *   default `tasklite`) on a throwaway volume, started with
+ *   default `docket`) on a throwaway volume, started with
  *   DOCKET_SEED=sample: before every run its database is deleted and the
  *   sample seed reloads (as the e2e fixtures do). Never point it at real data.
  *
@@ -43,7 +43,7 @@ import { fileURLToPath } from 'node:url';
 
 const REPO = resolve(fileURLToPath(new URL('../../..', import.meta.url)));
 const BASE = 'http://127.0.0.1:7420';
-const CONTAINER = process.env.DOCKET_EVAL_CONTAINER ?? 'tasklite';
+const CONTAINER = process.env.DOCKET_EVAL_CONTAINER ?? 'docket';
 const args = process.argv.slice(2);
 const opt = (name, dflt) => {
   const i = args.indexOf(name);
@@ -52,7 +52,7 @@ const opt = (name, dflt) => {
 const MODEL = opt('--model', 'sonnet');
 const ONLY = opt('--only', null);
 const ARMS = opt('--arms', 'without,with').split(',');
-const OUT = mkdtempSync(join(tmpdir(), 'tasklite-skills-eval-'));
+const OUT = mkdtempSync(join(tmpdir(), 'docket-skills-eval-'));
 const say = (s = '') => process.stdout.write(`${s}\n`);
 
 const docker = (a) =>
@@ -72,7 +72,7 @@ async function waitReady() {
     if (ok) return;
     await new Promise((r) => setTimeout(r, 500));
   }
-  throw new Error('Task Lite did not become ready');
+  throw new Error('Docket did not become ready');
 }
 
 /** A fresh sample seed: stop, delete the database and documents, start (the seed reloads). */
@@ -83,9 +83,9 @@ async function resetSeed() {
     '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Name}}{{end}}{{end}}',
     CONTAINER,
   ]);
-  if (volume === 'tasklite-data') {
+  if (volume === 'docket-data') {
     throw new Error(
-      `Refusing to reset "${CONTAINER}": it uses the tasklite-data volume, which may hold your real data. Use a disposable instance.`,
+      `Refusing to reset "${CONTAINER}": it uses the docket-data volume, which may hold your real data. Use a disposable instance.`,
     );
   }
   docker(['stop', '--time', '10', CONTAINER]);
@@ -99,7 +99,7 @@ async function resetSeed() {
     `${volume}:/data`,
     image,
     '-c',
-    'rm -rf /data/tasklite.db /data/tasklite.db-wal /data/tasklite.db-shm /data/docs /data/logs',
+    'rm -rf /data/docket.db /data/docket.db-wal /data/docket.db-shm /data/docs /data/logs',
   ]);
   docker(['start', CONTAINER]);
   await waitReady();
@@ -107,7 +107,7 @@ async function resetSeed() {
 
 /** A plain JSON-RPC MCP session (the harness's own scripted actions and checks). */
 async function mcp(clientName) {
-  const token = docker(['exec', CONTAINER, 'tasklite', 'agent-token']);
+  const token = docker(['exec', CONTAINER, 'docket', 'agent-token']);
   const headers = {
     authorization: `Bearer ${token}`,
     'content-type': 'application/json',
@@ -169,7 +169,7 @@ function workspace(name, withSkills) {
   git(dir, ['remote', 'add', 'origin', origin]);
   git(dir, ['push', '-q', '-u', 'origin', 'main']);
   if (withSkills) {
-    for (const s of ['tasklite-worker', 'tasklite-coordinator']) {
+    for (const s of ['docket-worker', 'docket-coordinator']) {
       cpSync(join(REPO, 'skills', s), join(dir, '.claude', 'skills', s), { recursive: true });
     }
   }
@@ -177,7 +177,7 @@ function workspace(name, withSkills) {
     join(dir, '.eval-mcp.json'),
     JSON.stringify({
       mcpServers: {
-        tasklite: {
+        docket: {
           type: 'http',
           url: `${BASE}/mcp`,
           headers: { Authorization: 'Bearer ${DOCKET_TOKEN}' },
@@ -205,7 +205,7 @@ function claude(dir, prompt, label, token) {
     'stream-json',
     '--verbose',
     '--allowedTools',
-    'mcp__tasklite',
+    'mcp__docket',
     'Skill',
     'Read',
     'Write',
@@ -275,8 +275,8 @@ function summarise(stream, log) {
   return {
     log,
     claims,
-    tasklite_calls: tl.length,
-    tasklite_errors: tl
+    docket_calls: tl.length,
+    docket_errors: tl
       .filter((c) => c.error)
       .map((c) => `${c.name.replace('mcp__docket__', '')}: ${c.text.slice(0, 120)}`),
     sequence: tl.map((c) => c.name.replace('mcp__docket__', '') + (c.error ? '✗' : '')),
@@ -305,10 +305,10 @@ function summarise(stream, log) {
 
 // ---- Scenarios ----
 
-const US1_PROMPT = `You are a coding agent. Task Lite (the MCP server "docket") is where this team's work is tracked.
+const US1_PROMPT = `You are a coding agent. Docket (the MCP server "docket") is where this team's work is tracked.
 Pick up the best ready item in project RCP and work it end to end.
 The repository is your current folder (remote "origin", base branch "main"). The real work is simulated here: on a new branch named after the item (for example rcp-17), add notes/<ITEM-ID>.md with three lines on how you would implement the item, commit it and push it.
-Then finish the item in Task Lite the way the workflow requires. Don't ask me anything; you are on your own.`;
+Then finish the item in Docket the way the workflow requires. Don't ask me anything; you are on your own.`;
 
 async function us1(arm) {
   await resetSeed();
@@ -366,7 +366,7 @@ async function us11(arm) {
   // Phase A: a dispatched worker (the real client) hits a dependency and must wait the right way.
   const wsA = workspace(`us11-worker-${arm}`, arm === 'with');
   const briefA = [
-    'Work Task Lite item RCP-17 in project RCP.',
+    'Work Docket item RCP-17 in project RCP.',
     `Worktree: ${wsA.dir.replace(/\\/g, '/')} · branch rcp-17 · base origin/main @ ${wsA.sha}`,
     'Claim with claim_lead, passing this workspace, orchestrator {name:"eval", dispatch_id:"d-rcp17"} and this brief verbatim.',
     'The work is simulated: step 1 is adding notes/RCP-17.md (three lines), committed and pushed on branch rcp-17.',
@@ -382,7 +382,7 @@ async function us11(arm) {
     .map((i) => i.id)
     .filter((id) => id !== 'RCP-17');
   const idB = ready[0];
-  const briefB = `Work Task Lite item ${idB} using the tasklite-worker skill.\nWorktree: /work/${idB.toLowerCase()} · branch ${idB.toLowerCase()} · base origin/main @ ${wsA.sha}\nConstraints: run the unit tests before each push.`;
+  const briefB = `Work Docket item ${idB} using the docket-worker skill.\nWorktree: /work/${idB.toLowerCase()} · branch ${idB.toLowerCase()} · base origin/main @ ${wsA.sha}\nConstraints: run the unit tests before each push.`;
   const worker = await mcp('codex-mcp-client');
   const claimB = await worker.call('claim_lead', {
     id: idB,
@@ -424,8 +424,8 @@ async function us11(arm) {
   // Phase C: the coordinator (the real client) recovers.
   const wsC = workspace(`us11-coord-${arm}`, arm === 'with');
   mkdirSync(join(wsC.dir, 'dispatch'), { recursive: true });
-  const promptC = `You coordinate the agents that work through Task Lite (the MCP server "docket") on project RCP.
-The machine just crashed and restarted. Every worker process is gone; Task Lite is back up.
+  const promptC = `You coordinate the agents that work through Docket (the MCP server "docket") on project RCP.
+The machine just crashed and restarted. Every worker process is gone; Docket is back up.
 Recover: work out what was in flight and get it going again, safely.
 You can't start agents in this exercise. Instead, for each worker you would start now, write dispatch/<ITEM-ID>.md in the current folder containing the exact prompt you'd give that worker. Put anything that needs cleaning up on the machine in dispatch/cleanup.md. Don't do the workers' work yourself, and don't ask me anything.`;
   const runC = await claude(wsC.dir, promptC, `us11-coord-${arm}`, harness.token);
@@ -451,7 +451,7 @@ You can't start agents in this exercise. Instead, for each worker you would star
   const fileB = files.find((f) => f.toUpperCase().startsWith(idB));
   checks.push([`coordinator: re-dispatched the interrupted ${idB}`, !!fileB]);
   // SC-014: the stored brief, unchanged: verbatim in the prompt, or by its stored version
-  // (brief_document_version_id), which tasklite-coordinator §6 prefers.
+  // (brief_document_version_id), which docket-coordinator §6 prefers.
   const storedB = after.interrupted.find((e) => e.item.id === idB)?.run.brief_document_version_id;
   const textB = fileB ? read(fileB).replace(/\r\n/g, '\n') : '';
   checks.push([
@@ -467,7 +467,7 @@ You can't start agents in this exercise. Instead, for each worker you would star
     (s) => s.startsWith('claim_lead') || s.startsWith('release_lead'),
   );
   checks.push(["coordinator: didn't claim or release items itself", !claimedAgain]);
-  // tasklite-coordinator §6: interrupted runs with no workspace and no brief weren't dispatched
+  // docket-coordinator §6: interrupted runs with no workspace and no brief weren't dispatched
   // by this coordinator; they're the owner's to handle, not to re-dispatch.
   const notOurs = after.interrupted
     .filter((e) => !e.run.workspace && !e.run.brief_document_version_id)
@@ -502,8 +502,8 @@ function merge(a, b) {
   return {
     log: `${a.log} + ${b.log}`,
     claims: [...a.claims, ...b.claims],
-    tasklite_calls: a.tasklite_calls + b.tasklite_calls,
-    tasklite_errors: [...a.tasklite_errors, ...b.tasklite_errors],
+    docket_calls: a.docket_calls + b.docket_calls,
+    docket_errors: [...a.docket_errors, ...b.docket_errors],
     sequence: [...a.sequence, '|', ...b.sequence],
     opening: a.opening,
     result_tokens: a.result_tokens + b.result_tokens,
@@ -531,19 +531,19 @@ for (const scenario of [us1, us11]) {
     writeFileSync(join(OUT, `${r.scenario}-${arm}.json`), JSON.stringify(r, null, 2));
     const failed = r.checks.filter(([, ok]) => !ok).length;
     say(
-      `  ${r.run.tasklite_calls} calls, ${r.run.tasklite_errors.length} errors, ${failed} failed checks`,
+      `  ${r.run.docket_calls} calls, ${r.run.docket_errors.length} errors, ${failed} failed checks`,
     );
   }
 }
 
 say(
-  '\n| Scenario | Skills | Task Lite calls | Errors | SC-001 opening (calls / result tokens) | All result tokens | Model tokens in / out | Cost USD | Skill invoked | Mistakes (failed checks) |',
+  '\n| Scenario | Skills | Docket calls | Errors | SC-001 opening (calls / result tokens) | All result tokens | Model tokens in / out | Cost USD | Skill invoked | Mistakes (failed checks) |',
 );
 say('|---|---|---|---|---|---|---|---|---|---|');
 for (const r of results) {
   const failed = r.checks.filter(([, ok]) => !ok).map(([c]) => c);
   say(
-    `| ${r.scenario} | ${r.arm} | ${r.run.tasklite_calls} | ${r.run.tasklite_errors.length} | ${r.run.opening ? `${r.run.opening.calls} / ${r.run.opening.tokens}` : 'never reached get_context'} | ${r.run.result_tokens} | ${r.run.model_tokens.input} / ${r.run.model_tokens.output} | ${r.run.cost_usd?.toFixed(2) ?? '?'} | ${r.run.skills_invoked.join(', ') || '—'} | ${failed.length === 0 ? 'none' : failed.join('; ')} |`,
+    `| ${r.scenario} | ${r.arm} | ${r.run.docket_calls} | ${r.run.docket_errors.length} | ${r.run.opening ? `${r.run.opening.calls} / ${r.run.opening.tokens}` : 'never reached get_context'} | ${r.run.result_tokens} | ${r.run.model_tokens.input} / ${r.run.model_tokens.output} | ${r.run.cost_usd?.toFixed(2) ?? '?'} | ${r.run.skills_invoked.join(', ') || '—'} | ${failed.length === 0 ? 'none' : failed.join('; ')} |`,
   );
 }
 say(`\nTranscripts and per-run JSON: ${OUT}`);

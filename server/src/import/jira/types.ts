@@ -164,7 +164,7 @@ export interface ImportPlan {
   outcomes: IssueOutcome[];
   fields_used: FieldsUsed;
   /** "Jira → Docket" rows, in display order. */
-  mapping: Map<string, { jira: string; task_lite: string } & Tally>;
+  mapping: Map<string, { jira: string; docket: string } & Tally>;
   fields: Map<string, FieldTally>;
   attachments_skipped: { key: string; name: string; reason: string }[];
 }

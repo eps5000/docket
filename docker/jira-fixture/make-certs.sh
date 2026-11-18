@@ -16,7 +16,7 @@ if [ -s ca.pem ] && [ -s server.pem ] && [ -s server.key ] \
   echo "Jira fixture certificates already in $dir"
   exit 0
 fi
-openssl req -x509 -newkey rsa:2048 -nodes -days 30 -subj "/CN=Task Lite e2e test CA" \
+openssl req -x509 -newkey rsa:2048 -nodes -days 30 -subj "/CN=Docket e2e test CA" \
   -keyout ca.key -out ca.pem 2>/dev/null
 openssl req -newkey rsa:2048 -nodes -subj "/CN=jira-fixture.test" \
   -keyout server.key -out server.csr 2>/dev/null
@@ -24,6 +24,6 @@ printf 'subjectAltName=DNS:jira-fixture.test\nextendedKeyUsage=serverAuth\nbasic
 openssl x509 -req -in server.csr -CA ca.pem -CAkey ca.key -CAcreateserial -days 30 \
   -extfile server.ext -out server.pem 2>/dev/null
 rm -f server.csr server.ext ca.srl ca.key
-# Readable by the containers' users (tasklite is uid 10001).
+# Readable by the containers' users (docket is uid 10001).
 chmod 644 ca.pem server.pem server.key
 echo "Jira fixture certificates written to $dir"

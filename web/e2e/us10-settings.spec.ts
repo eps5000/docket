@@ -7,7 +7,7 @@
  *   smoke test); the Codex and Claude Code snippets with `$DOCKET_TOKEN`,
  *   never the value; *Reveal token* shows the token and hides it after 30 s.
  * - Service health: the backup locations, before and after
- *   `tasklite backup now`, and the extra-location hint; *Download diagnostic
+ *   `docket backup now`, and the extra-location hint; *Download diagnostic
  *   log* gives metadata-only JSONL.
  * - The delete dialog: typed key, focus on Cancel, then the delete itself;
  *   agents get not_found for the deleted IDs.
@@ -155,7 +155,7 @@ test.describe('Settings', () => {
     await shoot(page, 'settings-endpoint', card(page, 'endpoint'));
   });
 
-  test('service health: backup locations before and after `tasklite backup now`', async ({
+  test('service health: backup locations before and after `docket backup now`', async ({
     ownerPage: page,
   }) => {
     await page.goto('/settings');
@@ -164,7 +164,7 @@ test.describe('Settings', () => {
     await expect(health.locator('[data-backup="extra-help"]')).toHaveText(
       'Mount a host folder and set DOCKET_BACKUP_EXTRA_DIR; see the README.',
     );
-    execFileSync('docker', ['exec', CONTAINER, 'tasklite', 'backup', 'now'], { encoding: 'utf8' });
+    execFileSync('docker', ['exec', CONTAINER, 'docket', 'backup', 'now'], { encoding: 'utf8' });
     await page.reload();
     await expect(health.locator('[data-backup="volume"]')).toHaveText(
       /^In the data volume · [A-Z][a-z]{2} \d{1,2} \d{2}:\d{2} · kept \d+ days$/,
@@ -261,7 +261,7 @@ test.describe('Unlock', () => {
     await page.goto('/settings');
     await expect(page).toHaveURL(/\/unlock/);
     await expect(page.getByRole('heading', { name: 'Unlock Docket' })).toBeVisible();
-    await expect(page.getByText('docker compose exec tasklite tasklite owner-key')).toBeVisible();
+    await expect(page.getByText('docker compose exec docket docket owner-key')).toBeVisible();
     await expect(page.getByLabel('Owner key')).toBeFocused();
     await expectAxeClean(page, 'Unlock');
     await shoot(page, 'unlock', page.locator('main.unlock'));

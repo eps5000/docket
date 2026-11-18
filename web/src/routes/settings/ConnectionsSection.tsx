@@ -433,7 +433,7 @@ function ServiceHealthCard({ query }: { query: UseQueryResult<SettingsResponse> 
           </p>
           <div className="src">
             Get the new key with:{' '}
-            <span className="mono">docker compose exec tasklite tasklite owner-key</span>
+            <span className="mono">docker compose exec docket docket owner-key</span>
           </div>
         </Dialog>
       )}

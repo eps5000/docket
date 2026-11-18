@@ -53,7 +53,7 @@ export const jiraReportSchema = z.object({
   mapping: z.array(
     z.object({
       jira: z.string(),
-      task_lite: z.string(),
+      docket: z.string(),
       count: z.number().int(),
       lossy: z.number().int(),
     }),

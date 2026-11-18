@@ -29,7 +29,7 @@ unattended, so you only do the rest.
   instance, and prints calls, tokens and mistakes per run. It uses a temporary `--mcp-config`
   with `--strict-mcp-config` and `--setting-sources project`, so your client configuration is
   never read or changed. It resets the instance's data before each run, so point it only at a
-  disposable one (DOCKET_EVAL_CONTAINER, default `tasklite`).
+  disposable one (DOCKET_EVAL_CONTAINER, default `docket`).
 
 ## Before you start (once)
 1. Set up each client as the [README quick start](../../README.md#quick-start) says
@@ -37,8 +37,8 @@ unattended, so you only do the rest.
 2. Start the disposable instance, from the `docker/` folder. It uses the same port, so
    stop your real one first; its data stays in its own volume.
    ```bash
-   docker compose stop tasklite
-   docker compose -p tasklite-smoke -f compose.yaml -f smoke/compose.smoke.yaml up -d --build --wait
+   docker compose stop docket
+   docker compose -p docket-smoke -f compose.yaml -f smoke/compose.smoke.yaml up -d --build --wait
    ```
 3. From the repository root: `node docker/smoke/smoke.mjs preflight`.
 
@@ -46,8 +46,8 @@ Surface names for the script: `codex`, `claude`, `orca-codex`, `orca-claude`.
 
 ## When you're done
 ```bash
-docker compose -p tasklite-smoke -f compose.yaml -f smoke/compose.smoke.yaml down --volumes
-docker compose start tasklite
+docker compose -p docket-smoke -f compose.yaml -f smoke/compose.smoke.yaml down --volumes
+docker compose start docket
 ```
 
 ## Recording the results

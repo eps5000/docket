@@ -1,36 +1,42 @@
-# Task Lite. Start:  docker compose -f docker/compose.yaml up -d --build
-name: tasklite
+# Docket (formerly Task Lite). Start:  docker compose -f docker/compose.yaml up -d --build
+name: docket
 
 services:
-  tasklite:
+  docket:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-    image: tasklite:local
-    container_name: tasklite
+    image: docket:local
+    container_name: docket
     # Optional overrides; copy .env.example to .env to use them.
     env_file:
       - path: .env
         required: false
     environment:
       DOCKET_SEED: ${DOCKET_SEED:-}
+      # Shown in Settings > Service health; keep it equal to the volume's name below.
+      DOCKET_DATA_VOLUME: docket-data
     ports:
       # Loopback only (O02). Never publish on 0.0.0.0.
       - '127.0.0.1:7420:7420'
     volumes:
-      - tasklite-data:/data
+      # The data volume. Before the rename it was tasklite-data, which is never touched
+      # automatically: the README, "Moving from Task Lite", copies it into docket-data
+      # with one command (or keeps using it).
+      - docket-data:/data
       # Opt-in extra backup location (owner decision 24). Uncomment, then set
       # DOCKET_BACKUP_EXTRA_DIR=/backups-extra in .env. The folder must exist and be
-      # writable by uid 10001 (Linux: sudo chown 10001:10001 ~/TaskLiteBackups).
+      # writable by uid 10001 (Linux: sudo chown 10001:10001 ~/DocketBackups).
       # See the README, "Backups and restore".
-      # - ~/TaskLiteBackups:/backups-extra
+      # - ~/DocketBackups:/backups-extra
       # Opt-in push install of agent files (owner decision 29; Settings > Agent setup >
       # Push folder). Uncomment and put your code folder (the one that holds your repos)
       # on the left, then set in .env:
       #   DOCKET_PUSH_ROOT=/host-code
       #   DOCKET_PUSH_HOST_PATH=<the same folder, as on the left>
-      # Task Lite writes there only the skill folders, its manifest and the marked Task Lite
-      # section of AGENTS.md or CLAUDE.md, and never deletes anything. Without it, Install
+      # Docket writes there only the skill folders, its manifest and the marked Docket
+      # section of AGENTS.md or CLAUDE.md, and deletes nothing but the old tasklite-* skill
+      # folders it installed itself, while unmodified. Without it, Install
       # gives you a command to paste instead. On Linux the folder must be writable by uid 10001.
       # - ~/code:/host-code
     restart: unless-stopped
@@ -39,7 +45,7 @@ services:
         - CMD
         - node
         - -e
-        - "fetch('http://127.0.0.1:'+(process.env.DOCKET_PORT||7420)+'/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
+        - "fetch('http://127.0.0.1:'+(process.env.DOCKET_PORT||process.env.TASKLITE_PORT||7420)+'/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
       interval: 30s
       timeout: 5s
       start_period: 10s
@@ -47,5 +53,5 @@ services:
       retries: 3
 
 volumes:
-  tasklite-data:
-    name: tasklite-data
+  docket-data:
+    name: docket-data

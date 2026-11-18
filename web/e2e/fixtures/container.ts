@@ -12,8 +12,8 @@
  * its tests. Files run one at a time (playwright.config.ts `workers: 1`), so
  * a reset never pulls the database out from under another file.
  *
- * DOCKET_E2E_CONTAINER names the container (default `tasklite`, the
- * compose `container_name`; the global setup sets `tasklite-e2e` when it
+ * DOCKET_E2E_CONTAINER names the container (default `docket`, the
+ * compose `container_name`; the global setup sets `docket-e2e` when it
  * starts the disposable instance). DOCKET_E2E_NO_RESET=1 skips resets.
  * Resets refuse a possibly real instance (`assertDisposable`).
  */
@@ -21,7 +21,7 @@ import { execFileSync } from 'node:child_process';
 import { test } from '@playwright/test';
 import { baseURL } from '../container';
 
-export const CONTAINER = process.env.DOCKET_E2E_CONTAINER ?? 'tasklite';
+export const CONTAINER = process.env.DOCKET_E2E_CONTAINER ?? 'docket';
 
 function docker(args: string[]): string {
   return execFileSync('docker', args, {
@@ -33,15 +33,15 @@ function docker(args: string[]): string {
 let cachedOwnerKey: string | null = process.env.DOCKET_OWNER_KEY ?? null;
 let cachedAgentToken: string | null = process.env.DOCKET_TOKEN ?? null;
 
-/** The owner key (`tasklite owner-key`), for the Unlock screen. */
+/** The owner key (`docket owner-key`), for the Unlock screen. */
 export function ownerKey(): string {
-  cachedOwnerKey ??= docker(['exec', CONTAINER, 'tasklite', 'owner-key']);
+  cachedOwnerKey ??= docker(['exec', CONTAINER, 'docket', 'owner-key']);
   return cachedOwnerKey;
 }
 
-/** The agent bearer token (`tasklite agent-token`), for /mcp. */
+/** The agent bearer token (`docket agent-token`), for /mcp. */
 export function agentToken(): string {
-  cachedAgentToken ??= docker(['exec', CONTAINER, 'tasklite', 'agent-token']);
+  cachedAgentToken ??= docker(['exec', CONTAINER, 'docket', 'agent-token']);
   return cachedAgentToken;
 }
 
@@ -92,10 +92,13 @@ export async function resetSeededContainer(): Promise<void> {
 
 /**
  * A reset deletes the container's database and documents, so refuse anything that may
- * be the owner's real instance (B18, T149): the default `tasklite-data` volume, unless
+ * be the owner's real instance (B18, T149): the default `docket-data` volume (or
+ * `tasklite-data`, its name before the rename, B28), unless
  * DOCKET_E2E_ALLOW_RESET=1 says it is disposable (CI's fresh runner), and a container
  * without DOCKET_SEED=sample (its reset would leave an empty database, not the seed).
  */
+const REAL_VOLUMES = ['docket-data', 'tasklite-data'];
+
 function assertDisposable(): void {
   const volume = docker([
     'inspect',
@@ -104,9 +107,9 @@ function assertDisposable(): void {
     CONTAINER,
   ]);
   const env = docker(['inspect', '--format', '{{json .Config.Env}}', CONTAINER]);
-  if (volume === 'tasklite-data' && process.env.DOCKET_E2E_ALLOW_RESET !== '1') {
+  if (REAL_VOLUMES.includes(volume) && process.env.DOCKET_E2E_ALLOW_RESET !== '1') {
     throw new Error(
-      `Refusing to reset "${CONTAINER}": it uses the tasklite-data volume, which may hold your real data. ` +
+      `Refusing to reset "${CONTAINER}": it uses the ${volume} volume, which may hold your real data. ` +
         'Stop it and let the tests start their own disposable instance (docker/compose.e2e.yaml), ' +
         'or set DOCKET_E2E_ALLOW_RESET=1 if this volume is disposable.',
     );

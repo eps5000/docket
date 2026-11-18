@@ -32,7 +32,7 @@ export function itemCount(report: JiraReport): number {
   return report.mapping
     .filter(
       (m) =>
-        m.jira.startsWith('Type: ') && m.task_lite !== 'Work step' && m.task_lite !== 'Skipped',
+        m.jira.startsWith('Type: ') && m.docket !== 'Work step' && m.docket !== 'Skipped',
     )
     .reduce((n, m) => n + m.count, 0);
 }
@@ -494,9 +494,9 @@ function ReportView({
         </thead>
         <tbody>
           {report.mapping.map((m) => (
-            <tr key={`${m.jira}→${m.task_lite}`}>
+            <tr key={`${m.jira}→${m.docket}`}>
               <td>{m.jira}</td>
-              <td>{m.task_lite}</td>
+              <td>{m.docket}</td>
               <td className="num">{m.count}</td>
               <td className="num">{m.lossy > 0 ? m.lossy : '—'}</td>
             </tr>

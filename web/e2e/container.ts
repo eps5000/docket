@@ -11,8 +11,8 @@ export const e2eComposeFile = fileURLToPath(
 export const pushE2eComposeFile = fileURLToPath(
   new URL('../../docker/compose.push-e2e.yaml', import.meta.url),
 );
-export const E2E_PROJECT = 'tasklite-e2e';
-export const E2E_CONTAINER = 'tasklite-e2e';
+export const E2E_PROJECT = 'docket-e2e';
+export const E2E_CONTAINER = 'docket-e2e';
 
 /** Set by the global setup when it started the container, so teardown only stops what it started. */
 export const STARTED_FLAG = 'DOCKET_E2E_STARTED_CONTAINER';

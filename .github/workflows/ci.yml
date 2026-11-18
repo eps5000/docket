@@ -57,7 +57,7 @@ jobs:
           echo "No outbound connection attempts."
 
       - name: Docker build
-        run: docker build -f docker/Dockerfile -t tasklite:ci .
+        run: docker build -f docker/Dockerfile -t docket:ci .
 
   e2e:
     name: e2e
@@ -95,7 +95,7 @@ jobs:
       - name: Playwright
         env:
           DOCKET_E2E_NO_START: '1'
-          # The runner's fresh tasklite-data volume is disposable (fixtures/container.ts).
+          # The runner's fresh docket-data volume is disposable (fixtures/container.ts).
           DOCKET_E2E_ALLOW_RESET: '1'
         run: pnpm --filter @docket/web e2e
 

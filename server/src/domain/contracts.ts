@@ -692,7 +692,7 @@ export interface ProjectsService {
 }
 
 /**
- * Backups (§5.13). `tasklite restore` runs offline with the server stopped,
+ * Backups (§5.13). `docket restore` runs offline with the server stopped,
  * so it has no service method: it lives in the CLI and `jobs/backup.ts`.
  */
 export interface BackupService {

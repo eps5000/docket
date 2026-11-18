@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 /**
- * The `tasklite` command inside the container (BUILD_SPEC §3, §5.13, §8; MCP_SPEC §11):
+ * The `docket` command inside the container (BUILD_SPEC §3, §5.13, §8; MCP_SPEC §11):
  *
- *   tasklite owner-key        print the owner key (for the Unlock screen)
- *   tasklite agent-token      print the agent bearer token
- *   tasklite backup now       take a verified backup now (also the extra copy, if set)
- *   tasklite restore <file>   restore a backup; refuses while the server runs
- *   tasklite checksums        print item, event and document checksums (SC-008 checks)
- *   tasklite export           write every owner table as JSON plus the documents to one
+ *   docket owner-key        print the owner key (for the Unlock screen)
+ *   docket agent-token      print the agent bearer token
+ *   docket backup now       take a verified backup now (also the extra copy, if set)
+ *   docket restore <file>   restore a backup; refuses while the server runs
+ *   docket checksums        print item, event and document checksums (SC-008 checks)
+ *   docket export           write every owner table as JSON plus the documents to one
  *                             .tar.gz (T147; no secrets, like backups)
- *   tasklite seed sample      load the sample data into an empty database
+ *   docket seed sample      load the sample data into an empty database
  *
  * `--data-dir <path>` points at a data directory other than /data, and
  * `seed sample --now <ISO time>` pins the seed's clock (both for local checks).
@@ -30,14 +30,14 @@ import {
 } from '../jobs/backup.js';
 
 const USAGE = `Usage:
-  tasklite owner-key            Print the owner key
-  tasklite agent-token          Print the agent bearer token
-  tasklite backup now           Take a verified backup now
-  tasklite restore <file>       Restore a backup (stop the service first)
-  tasklite checksums            Print item, event and document checksums
-  tasklite export [--out <file>]
+  docket owner-key            Print the owner key
+  docket agent-token          Print the agent bearer token
+  docket backup now           Take a verified backup now
+  docket restore <file>       Restore a backup (stop the service first)
+  docket checksums            Print item, event and document checksums
+  docket export [--out <file>]
                                 Export all your data (JSON plus documents) to one .tar.gz
-  tasklite seed sample          Load the sample data into an empty database
+  docket seed sample          Load the sample data into an empty database
 Options:
   --data-dir <path>             Data directory (default /data)
   --now <ISO time>              Seed clock (default: now)
@@ -158,7 +158,7 @@ export async function main(argv: string[]): Promise<number> {
           err(`${manifest.documents.missing.length} document file(s) were missing on the volume.`);
         }
         if (!outPath) {
-          out(`Copy it out: docker compose cp tasklite:${archive_path} .`);
+          out(`Copy it out: docker compose cp docket:${archive_path} .`);
         }
         return 0;
       } finally {
@@ -195,7 +195,7 @@ export async function main(argv: string[]): Promise<number> {
   return 2;
 }
 
-/** True when this file is the program (`tasklite …`), not a module a test imported. */
+/** True when this file is the program (`docket …`), not a module a test imported. */
 function isMain(): boolean {
   if (!process.argv[1]) return false;
   try {
@@ -211,7 +211,7 @@ if (isMain()) {
       process.exitCode = code;
     },
     (e: unknown) => {
-      err(`tasklite: ${(e as Error).message}`);
+      err(`docket: ${(e as Error).message}`);
       process.exitCode = 1;
     },
   );

@@ -45,7 +45,7 @@ function token() {
   const raw = process.env.DOCKET_TOKEN;
   if (!raw) {
     fail(
-      'DOCKET_TOKEN is not set. Get it from Settings → Reveal token (or `docker compose exec tasklite tasklite agent-token`) and set it where your agents run.',
+      'DOCKET_TOKEN is not set. Get it from Settings → Reveal token (or `docker compose exec docket docket agent-token`) and set it where your agents run.',
     );
   }
   if (raw !== raw.trim()) {
@@ -94,7 +94,7 @@ async function connect() {
   await rpc('initialize', {
     protocolVersion: '2025-06-18',
     capabilities: {},
-    clientInfo: { name: 'tasklite-smoke-kit', version: '1.0.0' },
+    clientInfo: { name: 'docket-smoke-kit', version: '1.0.0' },
   });
   await rpc('notifications/initialized', {}, true);
   return {
@@ -168,7 +168,7 @@ async function prepare(surfaceName) {
     say('-----');
     say(
       [
-        `Use the tasklite MCP server for these steps, one tool call each, and tell me each result:`,
+        `Use the docket MCP server for these steps, one tool call each, and tell me each result:`,
         `1. Call whoami.`,
         `2. Call claim_lead on ${id} with agent_label "${s.label}".`,
         `3. Call set_plan on ${id} with two steps: "Read the ticket" and "Report back".`,
@@ -232,10 +232,10 @@ async function check(surfaceName, id) {
   process.exitCode = failed === 0 ? 0 : 1;
 }
 
-/** A one-page PDF ("Task Lite PDF preview check"), built by hand: no dependencies. */
+/** A one-page PDF ("Docket PDF preview check"), built by hand: no dependencies. */
 function tinyPdf() {
   const NL = String.fromCharCode(10);
-  const text = 'BT /F1 18 Tf 30 110 Td (Task Lite PDF preview check) Tj ET';
+  const text = 'BT /F1 18 Tf 30 110 Td (Docket PDF preview check) Tj ET';
   const objects = [
     '<< /Type /Catalog /Pages 2 0 R >>',
     '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
@@ -277,7 +277,7 @@ async function pdf() {
     if (!put.ok) fail(`put_document failed: ${put.text}`);
     say('Put pdf-preview-check.pdf on RCP-14.');
     say(`Open ${BASE}/items/RCP-14?tab=details in Chrome, then Documents → pdf-preview-check.pdf.`);
-    say('Expect the page "Task Lite PDF preview check" inside the viewer, and Download to work.');
+    say('Expect the page "Docket PDF preview check" inside the viewer, and Download to work.');
   } finally {
     await mcp.close();
   }

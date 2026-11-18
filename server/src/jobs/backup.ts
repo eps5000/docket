@@ -1,8 +1,8 @@
 /**
  * Backups and restore (BUILD_SPEC §5.13; owner decision 24; FR-103, FR-103a; SC-008).
  *
- * A backup is one `tasklite-YYYYMMDD-HHMM.tar.gz` (local time) holding:
- * - `tasklite.db`: a `VACUUM INTO` snapshot, consistent under WAL;
+ * A backup is one `docket-YYYYMMDD-HHMM.tar.gz` (local time) holding:
+ * - `docket.db`: a `VACUUM INTO` snapshot, consistent under WAL;
  * - `docs/<path>`: every document version the snapshot references, byte for byte.
  *   `docs/.staging` (uploads still arriving) is never archived;
  * - `manifest.json`, last: each file's size and sha256, plus the item, event
@@ -17,7 +17,7 @@
  * failed extra copy never fails the backup; it is recorded in
  * `/data/backups/status.json`, which Settings and Problems read.
  *
- * Restore runs offline (`tasklite restore <file>`): it refuses while the
+ * Restore runs offline (`docket restore <file>`): it refuses while the
  * server holds its lock, verifies the whole archive into a staging
  * directory, swaps it in, and checks the restored data's checksums against
  * the manifest before it removes the old data.
@@ -375,7 +375,7 @@ function fileSink(path: string, hash: ReturnType<typeof sha>): FileSink {
  * Read a whole archive and prove it is sound: every file matches the
  * manifest, the database passes `integrity_check`, and the data checksums
  * match. With `extractTo`, the database and documents are written there
- * (`tasklite.db`, `docs/…`); otherwise only the database goes to a
+ * (`docket.db`, `docs/…`); otherwise only the database goes to a
  * temporary directory, removed afterwards.
  */
 export async function verifyArchive(
@@ -756,7 +756,7 @@ export class RestoreRefused extends Error {
 
 /**
  * Find the archive to restore: a path as given, else a name in the volume's
- * backups folder or the extra location (`tasklite restore` takes either).
+ * backups folder or the extra location (`docket restore` takes either).
  */
 export function resolveArchive(config: Config, file: string): string {
   const candidates = [resolve(file)];

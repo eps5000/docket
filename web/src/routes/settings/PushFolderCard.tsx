@@ -37,7 +37,7 @@ export function PushFolderCard() {
   const f = folder.trim() || 'C:/Users/you/code';
   const volume = `      - ${f}:/host-code`;
   const env = `DOCKET_PUSH_ROOT=/host-code\nDOCKET_PUSH_HOST_PATH=${f}`;
-  const override = `services:\n  tasklite:\n    volumes:\n      - ${f}:/host-code\n    environment:\n      DOCKET_PUSH_ROOT: /host-code\n      DOCKET_PUSH_HOST_PATH: ${f}`;
+  const override = `services:\n  docket:\n    volumes:\n      - ${f}:/host-code\n    environment:\n      DOCKET_PUSH_ROOT: /host-code\n      DOCKET_PUSH_HOST_PATH: ${f}`;
 
   return (
     <Card padded data-card="push-folder">
@@ -104,7 +104,7 @@ export function PushFolderCard() {
                 <ol>
                   <li>
                     Open <code>docker/compose.yaml</code> in the folder you installed Docket
-                    from. Under <code>volumes:</code>, below <code>- tasklite-data:/data</code>, add
+                    from. Under <code>volumes:</code>, below <code>- docket-data:/data</code>, add
                     this line (keep the indentation):
                     <CopyBlock text={volume} label="compose.yaml line" what="volume line" />
                   </li>

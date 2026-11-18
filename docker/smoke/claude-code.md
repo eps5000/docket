@@ -10,7 +10,7 @@ Follow [README.md](README.md) "Before you start" first. Commands run from the re
      --header "Authorization: Bearer $DOCKET_TOKEN"
    ```
 2. [ ] `claude mcp list` shows `docket … ✔ Connected`.
-3. [ ] Start `claude` in any folder. `/mcp` shows `tasklite` connected.
+3. [ ] Start `claude` in any folder. `/mcp` shows `docket` connected.
 
 ## Run
 
@@ -18,7 +18,7 @@ Follow [README.md](README.md) "Before you start" first. Commands run from the re
 2. [ ] Paste the prompt into the client. It should call `whoami`, `claim_lead`, `set_plan`,
        `update_step` and `get_item`, and report the plan with the first step done.
 3. [ ] `node docker/smoke/smoke.mjs check claude <ID>`: every line says PASS.
-4. [ ] In the browser (unlock with `docker compose -p tasklite-smoke -f docker/compose.yaml -f docker/smoke/compose.smoke.yaml exec tasklite tasklite owner-key`):
+4. [ ] In the browser (unlock with `docker compose -p docket-smoke -f docker/compose.yaml -f docker/smoke/compose.smoke.yaml exec docket docket owner-key`):
    - [ ] **Agents** shows the client name and label on the ticket, with its run state.
    - [ ] **Settings → Connections** shows this surface last seen just now.
 5. [ ] Tell the client to call `release_lead` on the ticket.

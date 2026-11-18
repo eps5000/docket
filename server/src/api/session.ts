@@ -11,7 +11,7 @@
  * - `POST /api/session/lock` ends this browser's session.
  * - `POST /api/session/rotate-key` writes a new owner key and ends every
  *   session, the caller's included. It never returns the key; the owner
- *   reads it with `tasklite owner-key`.
+ *   reads it with `docket owner-key`.
  * - The signing key is derived from the owner key, so rotation also
  *   invalidates every outstanding signature.
  */
@@ -151,7 +151,7 @@ export function requireSession(sessions: OwnerSessions): MiddlewareHandler<ApiEn
       return c.json(
         errorBody(
           'forbidden',
-          'Docket is locked. Unlock it with the owner key (tasklite owner-key).',
+          'Docket is locked. Unlock it with the owner key (docket owner-key).',
         ),
         401,
       );
@@ -193,7 +193,7 @@ export function sessionRoutes<E extends Env>(
       return c.json(
         errorBody(
           'forbidden',
-          "That isn't the owner key. Print it with: docker compose exec tasklite tasklite owner-key",
+          "That isn't the owner key. Print it with: docker compose exec docket docket owner-key",
         ),
         403,
       );

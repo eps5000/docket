@@ -6,7 +6,7 @@ the first table, so you only do the rest. Tick each box, fill in the **Your resu
 then hand this file to an agent (or edit it yourself) to record the results (step 8).
 
 All of this runs on a **disposable** instance with the sample data (its own container and volume).
-Your real Task Lite and its data are never touched, and nothing here changes your client
+Your real Docket and its data are never touched, and nothing here changes your client
 configuration except the steps that say so (the README's own setup, which you'd do anyway).
 
 ## What B18 already verified (no action)
@@ -16,7 +16,7 @@ configuration except the steps that say so (the README's own setup, which you'd 
 | Claude Code connects and works the smoke ticket           | Installed Claude Code 2.1.318, **headless** (`claude -p`), with a temporary `--mcp-config` file (`--strict-mcp-config`), against a disposable instance | `smoke.mjs check claude`: all 6 PASS (open lead run, client `claude`, label `smoke-claude`, two-step plan, first step done, run `live`)                                                                                      |
 | V3, part: `${DOCKET_TOKEN}` expansion                   | The same temporary config used `"Authorization": "Bearer ${DOCKET_TOKEN}"`; Claude Code expanded it from the environment                             | Works in an `--mcp-config` file (the `.mcp.json` format). User-scope expansion is still yours to check (step 2)                                                                                                              |
 | V6 for Claude Code: what reaches the model                | The eval transcripts (stream-json)                                                                                                                     | **Claude Code gives the model `structuredContent` as JSON, not the text block.** About 3.5× the tokens of the compact text on typical reads (a 25-item search: 2,045 vs 325). Recorded in BUILD_SPEC §12; a decision for you |
-| V7 for Claude Code, project path                          | The skills eval put the skills in the run folder's `.claude/skills/`                                                                                   | Claude Code loaded and invoked `tasklite-worker` and `tasklite-coordinator` headless                                                                                                                                         |
+| V7 for Claude Code, project path                          | The skills eval put the skills in the run folder's `.claude/skills/`                                                                                   | Claude Code loaded and invoked `docket-worker` and `docket-coordinator` headless                                                                                                                                         |
 | V5: SQLite WAL on a Docker Desktop named volume (Windows) | A write loop against a disposable container                                                                                                            | Every write tool p50 ≈ 1 ms, p95 ≤ 5 ms in the container's call log                                                                                                                                                          |
 | PDF preview                                               | Not possible headless                                                                                                                                  | **Yours: step 6**                                                                                                                                                                                                            |
 | NVDA                                                      | Not possible headless                                                                                                                                  | **Yours: step 7**                                                                                                                                                                                                            |
@@ -27,11 +27,11 @@ From the repository root, in a terminal where `DOCKET_TOKEN` is set (README step
 
 ```bash
 cd docker
-docker compose stop tasklite        # your real instance, if it runs; its data stays put
-docker compose -p tasklite-smoke -f compose.yaml -f smoke/compose.smoke.yaml up -d --build --wait
+docker compose stop docket        # your real instance, if it runs; its data stays put
+docker compose -p docket-smoke -f compose.yaml -f smoke/compose.smoke.yaml up -d --build --wait
 cd ..
 node docker/smoke/smoke.mjs preflight
-docker compose -p tasklite-smoke -f docker/compose.yaml -f docker/smoke/compose.smoke.yaml exec tasklite tasklite owner-key
+docker compose -p docket-smoke -f docker/compose.yaml -f docker/smoke/compose.smoke.yaml exec docket docket owner-key
 ```
 
 - [ ] Preflight passed. Open <http://127.0.0.1:7420> in **Chrome** and unlock with the key.
@@ -46,7 +46,7 @@ prompt into `codex`, and `check codex <ID>`.
 | [ ] `check codex` lines all PASS                                                                                                                                                                    |             |
 | [ ] **V1:** in Agents, the run state is _live_. Leave Codex idle for 3 minutes (the live window is 2), then reload: still _live_ (it keeps its session open and answers pings) or _reported_?       |             |
 | [ ] **V6:** ask Codex "Paste exactly what the last tool result gave you." Does it show the plain text (lines like `RCP-31 · Ready · …`) or JSON (`{"item":…}`)?                                     |             |
-| [ ] **V7:** copy `skills/tasklite-worker` to `~/.codex/skills/`, start a new `codex`, and ask "Which skills do you have?" Is `tasklite-worker` listed? (Remove it afterwards if you don't want it.) |             |
+| [ ] **V7:** copy `skills/docket-worker` to `~/.codex/skills/`, start a new `codex`, and ask "Which skills do you have?" Is `docket-worker` listed? (Remove it afterwards if you don't want it.) |             |
 
 ## 2. Installed Claude Code, interactive (4 min): V1, V3
 
@@ -68,7 +68,7 @@ Follow [orca-claude.md](orca-claude.md): start a worker from the same user accou
 | -------------------------------------------------------------------------------------------------------------------------------- | ----------- |
 | [ ] `check orca-claude` lines all PASS                                                                                           |             |
 | [ ] **V2:** it connected with no extra setup (it inherited your user MCP config and `DOCKET_TOKEN`)? If not, what did it need? |             |
-| [ ] **V7:** with the skills in `~/.claude/skills/`, does the worker list `tasklite-worker`?                                      |             |
+| [ ] **V7:** with the skills in `~/.claude/skills/`, does the worker list `docket-worker`?                                      |             |
 
 ## 4. Orca worker running Codex (3 min)
 
@@ -91,7 +91,7 @@ node docker/smoke/smoke.mjs pdf
 ```
 
 - [ ] Open RCP-14 → Details → Documents → **pdf-preview-check.pdf**. The viewer shows one page
-      reading "Task Lite PDF preview check" inside the dialog (Chrome's PDF viewer, sandboxed).
+      reading "Docket PDF preview check" inside the dialog (Chrome's PDF viewer, sandboxed).
 - [ ] **Download** saves the file.
 
 ## 7. NVDA spot check of the packet flow (4 min)
@@ -120,6 +120,6 @@ Hand this file, filled in, to an agent with "record the B18 owner checklist resu
 
 ```bash
 cd docker
-docker compose -p tasklite-smoke -f compose.yaml -f smoke/compose.smoke.yaml down --volumes
-docker compose start tasklite        # your real instance
+docker compose -p docket-smoke -f compose.yaml -f smoke/compose.smoke.yaml down --volumes
+docker compose start docket        # your real instance
 ```

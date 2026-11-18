@@ -43,7 +43,7 @@ if (config.seed === 'sample') {
 const { added } = syncBundledFiles(runtime);
 if (added.length > 0) console.log(`Loaded bundled agent files: ${added.join(', ')}.`);
 
-// `tasklite restore` refuses while this lock is fresh (BUILD_SPEC §5.13).
+// `docket restore` refuses while this lock is fresh (BUILD_SPEC §5.13).
 const lock = holdServerLock(config);
 
 // Housekeeping (BUILD_SPEC §5.10, §5.12): uploads interrupted by the restart, and
@@ -69,7 +69,7 @@ const driftCheck = startDriftCheck(runtime);
 
 const server = serve({ fetch: app.fetch, hostname: '0.0.0.0', port: config.port }, (info) => {
   console.log(`${APP_NAME} ${APP_VERSION} listening on 0.0.0.0:${info.port}`);
-  console.log('Owner key: run `tasklite owner-key` in the container to print it.');
+  console.log('Owner key: run `docket owner-key` in the container to print it.');
 });
 
 // Docker sends SIGTERM on stop; close the listener so the container stops promptly.
