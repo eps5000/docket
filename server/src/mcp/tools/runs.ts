@@ -7,6 +7,7 @@
  * `unavailable` ("Not implemented yet: <tool>"). The slice that owns a tool
  * implements the service; registration, schemas and copy stay as they are.
  */
+import { findSecret } from '@tasklite/shared';
 import { runSignal, serviceArgs, type ToolContext, type ToolHandlers } from '../register.js';
 
 /** The write context `ctx.mutate` hands a service (adapters import no domain module). */
@@ -48,6 +49,17 @@ export const runsHandlers: Pick<
   'claim_lead' | 'release_lead' | 'start_run' | 'heartbeat' | 'finish_run' | 'park_run'
 > = {
   claim_lead: (args, ctx) => {
+    // Reporting instructions must never block claiming (decision 30): a reported file
+    // whose text looks like a secret keeps its key and hash, and loses its text, before
+    // the write check sees the arguments. The text is never stored or logged.
+    if (args.instructions) {
+      const known = ctx.runtime.secrets.known();
+      args.instructions.files = args.instructions.files.map((f) =>
+        f.content !== undefined && findSecret(f.content, { known })
+          ? ({ key: f.key, sha256: f.sha256, withheld: 'secret' } as typeof f)
+          : f,
+      );
+    }
     let out;
     try {
       out = ctx.mutate((w) => ctx.services.runs.claim(w, serviceArgs(args)));

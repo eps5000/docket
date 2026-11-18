@@ -31,6 +31,7 @@ import {
   type In,
   type Out,
   type ReceiptContext,
+  type InstructionReportInput,
   type RunSignalInput,
   type RunsService,
   type ServiceDeps,
@@ -418,6 +419,19 @@ export function createRunsService(deps: ServiceDeps): RunsService {
       if (status === 'ready')
         moveItem(w, item.id, item.project_key, 'ready', 'progress', `claimed by ${who}`);
       else w.update('items', item.id, {});
+      // Decision 30: the installed tasklite-check report, stored on the run in this
+      // write; it raises or updates drift against its install's manifest.
+      if (input.instructions) {
+        deps.services().drift.recordReport(w, {
+          source: 'agent',
+          run_id: runId,
+          ...(input.instructions.install_id ? { install_id: input.instructions.install_id } : {}),
+          project: item.project_key,
+          ...(input.workspace?.path ? { location: input.workspace.path } : {}),
+          // The adapter may have withheld secret-looking text (`withheld: 'secret'`).
+          files: input.instructions.files as InstructionReportInput['files'],
+        });
+      }
       return { run_id: runId, item: summary(w, item.id), lease_expires_at: leaseUntil };
     },
 

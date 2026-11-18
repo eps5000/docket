@@ -16,6 +16,7 @@ import {
   currentStep,
   useReleaseLead,
 } from './activity/leadActions';
+import { RunInstructionsLine } from './activity/RunInstructions';
 import { HelpLink } from '../../help/HelpLink';
 
 /**
@@ -93,6 +94,7 @@ export function AgentBar({ data }: { data: ItemDetailResponse }) {
           <HelpLink anchor="item.agent-bar" />
         </span>
       </div>
+      <RunInstructionsLine data={data} runId={run.run_id} compact />
       {parked && (
         <div className="ab-parked src" data-ab="parked" title={parked.reason || undefined}>
           <span>

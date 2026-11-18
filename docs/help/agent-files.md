@@ -1,6 +1,6 @@
 ---
 title: "Agent files: skills, the AGENTS.md block and Workflow notes"
-summary: See and edit what agents get, customize it for one project, write a project's Workflow notes, then install the files and check them for local edits.
+summary: Edit the skills and Workflow notes agents get, review the changes they propose, install the files, and catch edits made outside Task Lite.
 group: Getting started
 order: 3
 anchors:
@@ -96,6 +96,28 @@ Each proposal shows the file, which agent proposed it and on which item, its rea
 **Changed since the agent read it:** you (or another approval) changed the file after the agent read it. The proposal shows both changes, what changed since the agent read it and what the agent proposes, so approving doesn't silently drop your edit. *Approve* asks first; *Edit, then approve* lets you keep both.
 
 At most five proposals wait per file. When an agent proposes again from the same run, its new proposal replaces its earlier one.
+
+## Changed outside Task Lite
+
+Sometimes someone edits an installed file directly instead: a person in their editor, or an agent told to. Every later agent there follows the edited file, so Task Lite looks for that in two ways:
+
+- **The scheduled check:** every 15 minutes (and when Task Lite starts), it reads each folder it installed into by push, and compares every file with what it sent. It only reads; it never writes there. Set `TASKLITE_DRIFT_CHECK_INTERVAL` to change how often (at least `1m`), or to `off`.
+- **Agents' reports:** each install puts a small `tasklite-check` script next to the manifest (`.claude/tasklite-check.sh` and `.ps1`, or under `.codex/`). The shipped skills tell agents to run it once per session and pass its output when they claim an item. It sends each file's fingerprint, and the text of any file that differs. That covers installs made by command, where Task Lite can't see the files itself: an edit shows up by the next claim there.
+
+Either way, you see:
+
+- **Problems** in Needs you: **"tasklite-worker edited outside Task Lite · Recipe App · C:/code/recipes"**, then how it was found. *Review* opens it in Agent files.
+- **Changed outside Task Lite · n** at the top of Agent files, and a **changed outside Task Lite** chip on the file's row. Each one says where (the folder, the client, and whether Task Lite wrote the files or a command did), how it was found (the scheduled check, or *reported by codex · orca-w3 on RCP-17*), and what changed: a diff of Task Lite's version against the local file. A deleted file shows as **Missing**; a `tasklite-*` skill folder the install didn't write shows as **Extra**.
+- On the ticket, the run says which instructions it worked from: **Instructions: tasklite-worker · Recipe App's copy v2**, with an **edited locally** chip that opens the change.
+
+Then pick one:
+
+- *Adopt as Recipe App's copy* (or *Adopt as the default*, for a user-wide install): the local text becomes the project's copy, like your own edit, and the toast's *Undo* takes it back. It needs the local text: if Task Lite only has the fingerprint, it says **Run tasklite-check on that machine to send the text**, and the next agent claim there sends it. A missing file can't be adopted.
+- **Content withheld: it looked like a secret:** the local file contains something like a token. Task Lite keeps only its fingerprint, never the text, so there's no diff and no *Adopt*; the agent's claim still goes through. Remove the secret from the file there, and the next report sends the text.
+- *Restore Task Lite's version*: installs again. When Task Lite wrote the files, it writes them back now; for a command install, it gives you a new command to run there. Task Lite never deletes files, so an extra folder can't be restored away: remove it yourself, or keep it.
+- *Keep local*: you meant it. Nothing is changed, and the same file raises nothing again; if it changes again, you're told again.
+
+A file that goes back to exactly what Task Lite sent closes its entry by itself. Files Task Lite never installed (your own skills) are listed on the run, but never raised as a problem. Line endings changed by Git on Windows don't count as edits.
 
 ## Install the files
 

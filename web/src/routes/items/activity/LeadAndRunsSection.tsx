@@ -14,6 +14,7 @@ import { formatAge, formatAgo, formatClock, isoTitle } from '../../../lib/format
 import { useSteer } from '../../shared/steer';
 import { canReleaseLead, currentStep, useReleaseLead } from './leadActions';
 import { parkedDetail } from './resumeNote';
+import { RunInstructionsLine } from './RunInstructions';
 import { WhereTheWorkLives } from './WhereTheWorkLives';
 import { HelpLink } from '../../../help/HelpLink';
 
@@ -111,6 +112,7 @@ export function LeadAndRunsSection({ data }: { data: ItemDetailResponse }) {
             {(r.summary || working(data, r)) && (
               <div className="src">{r.summary ?? working(data, r)}</div>
             )}
+            <RunInstructionsLine data={data} runId={r.run_id} />
             {r.error && <pre className="err">{r.error}</pre>}
             {canReleaseLead(data, r) && (
               <div className="leadact">

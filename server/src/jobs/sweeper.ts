@@ -20,6 +20,11 @@
  *   like *stale*, so the owner and `recovery_report` see them whether or
  *   not a sweep has run.
  *
+ * - **The drift check** (owner decision 30; BUILD_SPEC §5.19), at startup and
+ *   every `TASKLITE_DRIFT_CHECK_INTERVAL`: each push install's location is
+ *   read (never written) and compared with its manifest; see
+ *   `startDriftCheck` below.
+ *
  * Displayed run state (live, reported, stale) is derived on every read from
  * the stored signals, so there is nothing to re-derive here beyond keeping
  * those signals and leases current.
@@ -164,6 +169,65 @@ export function startSweeper(
     stop() {
       clearInterval(sweep);
       clearInterval(ping);
+    },
+  };
+}
+
+// ---- The scheduled drift check (owner decision 30; BUILD_SPEC §5.19; T161) ----
+
+/**
+ * One drift check: read every push install's location through B24's guarded
+ * reader (outside any transaction; nothing is written there), then record
+ * what changed in one write. A check that finds nothing new writes nothing.
+ */
+export async function driftCheckOnce(runtime: Runtime): Promise<{ drift_ids: string[] }> {
+  const read = readContext(runtime.db, SYSTEM_ACTOR, runtime.clock());
+  const reports = await runtime.services.drift.checkPushInstalls(read);
+  if (reports.length === 0) return { drift_ids: [] };
+  return runtime.write.run(
+    { actor: SYSTEM_ACTOR, operation: 'drift.check', args: { reports } },
+    (w) => runtime.services.drift.recordChecks(w, { reports }),
+  ).result;
+}
+
+/**
+ * Run the drift check at startup and every `TASKLITE_DRIFT_CHECK_INTERVAL`
+ * (default 15 min); off when the interval is `0` or `off`. Tests pass a
+ * shorter `intervalMs`. A check still running when the next is due is
+ * skipped, not stacked.
+ */
+export function startDriftCheck(
+  runtime: Runtime,
+  opts: { intervalMs?: number | null } = {},
+): Sweeper {
+  const interval =
+    opts.intervalMs === undefined ? runtime.config.driftCheckIntervalMs : opts.intervalMs;
+  if (!interval) return { stop() {} };
+  let running = false;
+  let stopped = false;
+  const tick = () => {
+    if (running || stopped) return;
+    running = true;
+    driftCheckOnce(runtime)
+      .then(({ drift_ids }) => {
+        if (drift_ids.length > 0) {
+          runtime.log(`drift check: ${drift_ids.length} agent file change(s) outside Task Lite`);
+        }
+      })
+      .catch((err: unknown) =>
+        runtime.log(`drift check: failed: ${err instanceof Error ? err.message : String(err)}`),
+      )
+      .finally(() => {
+        running = false;
+      });
+  };
+  tick();
+  const timer = setInterval(tick, interval);
+  timer.unref();
+  return {
+    stop() {
+      stopped = true;
+      clearInterval(timer);
     },
   };
 }
