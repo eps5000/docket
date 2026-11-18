@@ -10,6 +10,12 @@ import {
   API_ROUTES,
   ROUTE_IDS,
   agentFileParams,
+  approveProposalBody,
+  declineProposalBody,
+  driftQuery,
+  itemDetailResponse,
+  needsYouResponse,
+  proposalsQuery,
   createInstallBody,
   installTokenParams,
   putAgentFileBody,
@@ -98,6 +104,14 @@ const EXPECTED = [
   'GET /api/push-target',
   'POST /api/push-target/test',
   'GET /install/:token',
+  // Decision 30 (BUILD_SPEC §7): proposals and drift
+  'GET /api/agent-file-proposals',
+  'POST /api/agent-file-proposals/:id/approve',
+  'POST /api/agent-file-proposals/:id/decline',
+  'GET /api/drift',
+  'POST /api/drift/:id/adopt',
+  'POST /api/drift/:id/restore',
+  'POST /api/drift/:id/keep-local',
   'GET /api/stream',
   'POST /agent-upload',
 ];
@@ -111,11 +125,11 @@ const keysOf = (schema: z.ZodType): string[] => {
 };
 
 describe('the route table', () => {
-  it('has every BUILD_SPEC §7 route, the clarification, recovery and agent setup routes and /agent-upload, once each', () => {
+  it('has every BUILD_SPEC §7 route, the clarification, recovery, agent setup, proposals and drift routes and /agent-upload, once each', () => {
     const labels = ROUTE_IDS.map((id) => routeLabel(API_ROUTES[id]));
     expect(new Set(labels).size).toBe(labels.length);
     expect([...labels].sort()).toEqual([...EXPECTED].sort());
-    expect(labels).toHaveLength(66);
+    expect(labels).toHaveLength(73);
   });
 
   it('puts each route in a known group, and every group has a route', () => {
@@ -257,6 +271,52 @@ describe('field rules', () => {
     }
     expect(API_ROUTES['install.download'].response.kind).toBe('file');
     expect(API_ROUTES['installs.create'].undoable).toBe(false);
+  });
+
+  it('proposals and drift (decision 30): filters, decision bodies, and which actions are undoable', () => {
+    expect(proposalsQuery.safeParse({}).success).toBe(true);
+    expect(proposalsQuery.safeParse({ project: 'RCP', state: 'pending' }).success).toBe(true);
+    expect(proposalsQuery.safeParse({ state: 'open' }).success).toBe(false);
+    expect(driftQuery.safeParse({ project: 'RCP', state: 'kept_local' }).success).toBe(true);
+    expect(driftQuery.safeParse({ state: 'pending' }).success).toBe(false);
+    expect(approveProposalBody.safeParse({}).success).toBe(true);
+    const content = '  edited by the owner\n';
+    expect(approveProposalBody.parse({ content, note: 'Tightened.' }).content).toBe(content);
+    expect(approveProposalBody.safeParse({ content: 'x'.repeat(50_001) }).success).toBe(false);
+    expect(approveProposalBody.safeParse({ note: 'n'.repeat(501) }).success).toBe(false);
+    expect(declineProposalBody.safeParse({ note: 'Not this way.' }).success).toBe(true);
+    expect(declineProposalBody.safeParse({ content: 'x' }).success).toBe(false);
+    const undoable = (id: RouteId) => API_ROUTES[id].undoable;
+    expect(undoable('proposals.approve')).toBe(true);
+    expect(undoable('drift.adopt')).toBe(true);
+    expect(undoable('proposals.decline')).toBe(false);
+    expect(undoable('drift.restore')).toBe(false);
+    expect(undoable('drift.keepLocal')).toBe(false);
+  });
+
+  it('existing responses gain optional decision 30 fields (needs-you count, drift problem, run instructions)', () => {
+    expect(problemSchema.shape.kind.options).toContain('agent_files_drift');
+    expect(problemSchema.shape.drift_id.safeParse(undefined).success).toBe(true);
+    expect(needsYouResponse.shape.agent_file_proposals.safeParse(undefined).success).toBe(true);
+    expect(itemDetailResponse.shape.run_instructions.safeParse(undefined).success).toBe(true);
+    expect(
+      itemDetailResponse.shape.run_instructions.safeParse([
+        {
+          run_id: 'run_1',
+          install_id: 'ins_1',
+          files: [
+            {
+              key: 'skill:tasklite-worker',
+              name: 'tasklite-worker',
+              source: 'project',
+              version_no: 2,
+              edited_locally: true,
+              drift_id: 'dft_1',
+            },
+          ],
+        },
+      ]).success,
+    ).toBe(true);
   });
 
   it('recovery: workspaces filter by scope and one state; release takes an optional note ≤ 500', () => {

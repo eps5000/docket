@@ -22,6 +22,11 @@ import {
   INSTALL_CLIENTS,
   INSTALL_METHODS,
   INSTALL_TARGET_KINDS,
+  INSTRUCTION_REPORT_SOURCES,
+  PROPOSAL_STATES,
+  DRIFT_CHANGES,
+  DRIFT_STATES,
+  WORKFLOW_KEY,
   ARTIFACT_KINDS,
   CHECK_STATES,
   CLOSED_BY,
@@ -812,6 +817,143 @@ export const installs = sqliteTable(
       ),
     ),
     check('installs_push_path', sql.raw(`"method" = 'command' OR "path" IS NOT NULL`)),
+  ],
+);
+
+// ---- Agent proposals and drift (owner decision 30; BUILD_SPEC §4, §5.19) ----
+
+/** `agents_block`, or `skill:<name>` with a name of `a-z0-9-` (as in agent_files). */
+const installedKeyCheck = (column: string) =>
+  `"${column}" = '${AGENTS_BLOCK_KEY}' OR ("${column}" GLOB 'skill:?*' AND length("${column}") <= ${6 + AGENT_SETUP_LIMITS.skill_name} AND substr("${column}", 7) NOT GLOB '*[^a-z0-9-]*')`;
+
+export const agent_file_proposals = sqliteTable(
+  'agent_file_proposals',
+  {
+    /** `afp_…` */
+    id: id(),
+    /** Null: a proposal to the default. */
+    project_key: text('project_key').references(() => projects.key, { onDelete: 'cascade' }),
+    /** `agents_block`, `workflow` or `skill:<name>`. */
+    file_key: text('file_key').notNull(),
+    /** The whole proposed text, as written. */
+    content: text('content').notNull(),
+    reason: text('reason').notNull(),
+    /** The version the agent read (`afv_…` or `wf_…`, so not a foreign key); null for Workflow notes that didn't exist yet. */
+    based_on_version_id: text('based_on_version_id'),
+    run_id: text('run_id').references((): AnySQLiteColumn => runs.id, { onDelete: 'set null' }),
+    /** The proposing agent, e.g. `codex · orca-w3`. */
+    proposed_by: text('proposed_by').notNull(),
+    state: text('state', { enum: PROPOSAL_STATES }).notNull().default('pending'),
+    decided_at: text('decided_at'),
+    decided_note: text('decided_note'),
+    /** The version the approval saved (`afv_…` or `wf_…`). */
+    result_version_id: text('result_version_id'),
+    ...timestamps,
+  },
+  (t) => [
+    index('agent_file_proposals_target').on(t.project_key, t.file_key, t.state),
+    index('agent_file_proposals_run').on(t.run_id),
+    check('agent_file_proposals_state', oneOf('state', PROPOSAL_STATES)),
+    check(
+      'agent_file_proposals_file_key',
+      sql.raw(`"file_key" = '${WORKFLOW_KEY}' OR (${installedKeyCheck('file_key')})`),
+    ),
+    check(
+      'agent_file_proposals_workflow_project',
+      sql.raw(`"file_key" <> '${WORKFLOW_KEY}' OR "project_key" IS NOT NULL`),
+    ),
+    check(
+      'agent_file_proposals_content',
+      sql.raw(
+        `CASE WHEN "file_key" = '${WORKFLOW_KEY}' THEN length("content") <= ${AGENT_SETUP_LIMITS.workflow_md} ELSE length("content") BETWEEN 1 AND ${AGENT_SETUP_LIMITS.agent_file_content} END`,
+      ),
+    ),
+    check('agent_file_proposals_reason', sql.raw(`length("reason") BETWEEN 1 AND 500`)),
+    check(
+      'agent_file_proposals_decided_note',
+      sql.raw(`"decided_note" IS NULL OR length("decided_note") <= 500`),
+    ),
+    check(
+      'agent_file_proposals_decided',
+      sql.raw(`("state" = 'pending') = ("decided_at" IS NULL)`),
+    ),
+  ],
+);
+
+export const instruction_reports = sqliteTable(
+  'instruction_reports',
+  {
+    /** `irp_…` */
+    id: id(),
+    source: text('source', { enum: INSTRUCTION_REPORT_SOURCES }).notNull(),
+    /** The claiming run (source agent). */
+    run_id: text('run_id').references((): AnySQLiteColumn => runs.id, { onDelete: 'cascade' }),
+    /** The install the report was compared with, when known. */
+    install_id: text('install_id').references(() => installs.id, { onDelete: 'set null' }),
+    /** Null for a user-wide install. */
+    project_key: text('project_key').references(() => projects.key, { onDelete: 'cascade' }),
+    /** Where: the workspace or install path, when known. */
+    location: text('location'),
+    /** key → `{sha256, content?}`. */
+    files: text('files', { mode: 'json' }).notNull(),
+    at: text('at').notNull(),
+    ...timestamps,
+  },
+  (t) => [
+    index('instruction_reports_run').on(t.run_id),
+    index('instruction_reports_install').on(t.install_id, t.at),
+    check('instruction_reports_source', oneOf('source', INSTRUCTION_REPORT_SOURCES)),
+    check('instruction_reports_agent_run', sql.raw(`"source" <> 'agent' OR "run_id" IS NOT NULL`)),
+    check(
+      'instruction_reports_location',
+      sql.raw(
+        `"location" IS NULL OR length("location") BETWEEN 1 AND ${AGENT_SETUP_LIMITS.install_path}`,
+      ),
+    ),
+  ],
+);
+
+export const drift = sqliteTable(
+  'drift',
+  {
+    /** `dft_…` */
+    id: id(),
+    /** Drift is always against an install's manifest (B26 resolution 7). */
+    install_id: text('install_id')
+      .notNull()
+      .references(() => installs.id, { onDelete: 'cascade' }),
+    /** Null for a user-wide install: *Adopt* saves to the default. */
+    project_key: text('project_key').references(() => projects.key, { onDelete: 'cascade' }),
+    file_key: text('file_key').notNull(),
+    /** edited, missing or extra (B26 resolution 7). */
+    change: text('change', { enum: DRIFT_CHANGES }).notNull(),
+    state: text('state', { enum: DRIFT_STATES }).notNull().default('open'),
+    /** The installed file's hash; null when missing. *Keep local* keeps it as the accepted hash. */
+    local_sha256: text('local_sha256'),
+    /** The report that found it ("how it was found"; B26 resolution 7). */
+    report_id: text('report_id').references((): AnySQLiteColumn => instruction_reports.id, {
+      onDelete: 'set null',
+    }),
+    detected_at: text('detected_at').notNull(),
+    resolved_at: text('resolved_at'),
+    ...timestamps,
+  },
+  (t) => [
+    // One open row per install and file.
+    uniqueIndex('drift_open_install_file')
+      .on(t.install_id, t.file_key)
+      .where(sql.raw(`"state" = 'open'`)),
+    index('drift_project_state').on(t.project_key, t.state),
+    check('drift_state', oneOf('state', DRIFT_STATES)),
+    check('drift_change', oneOf('change', DRIFT_CHANGES)),
+    check('drift_file_key', sql.raw(installedKeyCheck('file_key'))),
+    check(
+      'drift_local_sha256',
+      sql.raw(
+        `CASE WHEN "change" = 'missing' THEN "local_sha256" IS NULL ELSE "local_sha256" IS NOT NULL AND length("local_sha256") = 64 END`,
+      ),
+    ),
+    check('drift_resolved', sql.raw(`("state" = 'open') = ("resolved_at" IS NULL)`)),
   ],
 );
 

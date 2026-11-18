@@ -23,6 +23,7 @@ export const HELP_ANCHORS = {
   'problems.parked_too_long': 'Problems row: parked for 24 h',
   'problems.resume_unattended': 'Problems row: ready to resume, unattended',
   'problems.extra_backup_failed': 'Problems row: extra backup copy failed',
+  'problems.agent_files_drift': 'Problems row: agent files changed outside Task Lite',
   'agents.active-now': 'Agents → Active now',
   'agents.workspaces': 'Agents → Workspaces',
   'agents.recent': 'Agents → Recent',

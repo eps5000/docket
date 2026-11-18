@@ -39,6 +39,12 @@ export interface Config {
   pushRoot: string | null;
   /** The same folder's path on the host, so the UI can show and accept host paths. */
   pushHostPath: string | null;
+  /**
+   * How often push installs are checked for files edited outside Task Lite
+   * (decision 30; BUILD_SPEC §5.19), and once at startup. Null: the check is
+   * off (`0` or `off`). At least one minute (B26 resolution 11).
+   */
+  driftCheckIntervalMs: number | null;
   seed: 'sample' | null;
   /** Display time zone; storage is always UTC. */
   tz: string | null;
@@ -67,11 +73,15 @@ export const DEFAULTS = {
   TASKLITE_PARK_MAX: '24h',
   TASKLITE_RESUME_UNATTENDED: '30m',
   TASKLITE_ORPHAN_AFTER: '15m',
+  TASKLITE_DRIFT_CHECK_INTERVAL: '15m',
   TASKLITE_BACKUP_AT: '03:00',
   TASKLITE_BACKUP_KEEP: '14',
   // Claude Code gives the model `structuredContent`, not the text (BUILD_SPEC §12 V6).
   TASKLITE_TEXT_ONLY_CLIENTS: 'claude-code',
 } as const;
+
+/** The shortest drift-check interval (B26 resolution 11). */
+const MIN_DRIFT_CHECK_INTERVAL_MS = 60_000;
 
 export class ConfigError extends Error {
   override name = 'ConfigError';
@@ -151,6 +161,18 @@ export function loadConfig(
     throw new ConfigError('TASKLITE_PUSH_HOST_PATH needs TASKLITE_PUSH_ROOT; set both or neither');
   }
 
+  // Drift checks (decision 30): `0` or `off` turns them off; otherwise at least a minute.
+  const driftValue = get('TASKLITE_DRIFT_CHECK_INTERVAL');
+  let driftCheckIntervalMs: number | null = null;
+  if (!['0', 'off'].includes(driftValue.toLowerCase())) {
+    driftCheckIntervalMs = parseDuration(driftValue, 'TASKLITE_DRIFT_CHECK_INTERVAL');
+    if (driftCheckIntervalMs < MIN_DRIFT_CHECK_INTERVAL_MS) {
+      throw new ConfigError(
+        `TASKLITE_DRIFT_CHECK_INTERVAL must be at least 1m, or 0 / off to turn it off (got "${driftValue}")`,
+      );
+    }
+  }
+
   const secrets = join(dataDir, 'secrets');
   return {
     dataDir,
@@ -171,6 +193,7 @@ export function loadConfig(
     backupExtraDir: env(source, 'TASKLITE_BACKUP_EXTRA_DIR') ?? null,
     pushRoot,
     pushHostPath,
+    driftCheckIntervalMs,
     seed: seedValue === 'sample' ? 'sample' : null,
     tz: env(source, 'TZ') ?? null,
     textOnlyClients,

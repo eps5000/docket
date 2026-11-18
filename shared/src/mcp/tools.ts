@@ -1,9 +1,10 @@
 /**
- * The tool registry: all 38 tools in MCP_SPEC §5 order, with their group,
+ * The tool registry: all 40 tools in MCP_SPEC §5 order, with their group,
  * kind, input and output schemas and MCP annotations (§3 Tool annotations).
  * Descriptions live in mcp-copy.ts. Shared contract file (tasks.md, Slice rules).
  */
 import type { z } from 'zod';
+import * as agentFiles from './agent-files.js';
 import * as checklist from './checklist.js';
 import * as items from './items.js';
 import * as read from './read.js';
@@ -13,7 +14,15 @@ import * as runs from './runs.js';
 
 /** Server file each tool's handler lives in (`server/src/mcp/tools/<group>.ts`). */
 export type ToolGroup =
-  'read' | 'items' | 'runs' | 'checklist' | 'evidence' | 'review' | 'decisions' | 'recovery';
+  | 'read'
+  | 'items'
+  | 'runs'
+  | 'checklist'
+  | 'evidence'
+  | 'review'
+  | 'decisions'
+  | 'recovery'
+  | 'agent_files';
 
 /**
  * - `read`: no side effects (`readOnlyHint: true`).
@@ -153,6 +162,21 @@ export const TOOLS = [
     'read',
     recovery.recoveryReportInput,
     recovery.recoveryReportOutput,
+  ),
+  // §5.10 Agent files (decision 30)
+  def(
+    'get_agent_files',
+    'agent_files',
+    'read',
+    agentFiles.getAgentFilesInput,
+    agentFiles.getAgentFilesOutput,
+  ),
+  def(
+    'propose_agent_file_change',
+    'agent_files',
+    'mutating',
+    agentFiles.proposeAgentFileChangeInput,
+    agentFiles.proposeAgentFileChangeOutput,
   ),
 ] as const;
 

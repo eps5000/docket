@@ -2275,7 +2275,11 @@
                           "agent_file.updated",
                           "agent_file.reverted",
                           "workflow.updated",
-                          "install.recorded"
+                          "install.recorded",
+                          "agent_file.proposed",
+                          "agent_file.proposal_decided",
+                          "drift.detected",
+                          "drift.resolved"
                         ]
                       },
                       "summary": {
@@ -3389,7 +3393,11 @@
               "agent_file.updated",
               "agent_file.reverted",
               "workflow.updated",
-              "install.recorded"
+              "install.recorded",
+              "agent_file.proposed",
+              "agent_file.proposal_decided",
+              "drift.detected",
+              "drift.resolved"
             ]
           }
         },
@@ -3482,7 +3490,11 @@
                       "agent_file.updated",
                       "agent_file.reverted",
                       "workflow.updated",
-                      "install.recorded"
+                      "install.recorded",
+                      "agent_file.proposed",
+                      "agent_file.proposal_decided",
+                      "drift.detected",
+                      "drift.resolved"
                     ]
                   },
                   "summary": {
@@ -4981,7 +4993,7 @@
   },
   {
     "name": "claim_lead",
-    "description": "Claim an item as its lead before you work on it. Works on Ready items (moves them to In progress) and on In progress items with no lead (resuming sent-back or interrupted work). Pass workspace (where the work lives) and, if a coordinator briefed you, the brief, so the work can be restarted after a crash. Returns your run_id: pass it on every later call. If someone else holds the claim you get a conflict with who holds it and until when; do not work on the item.",
+    "description": "Claim an item as its lead before you work on it. Works on Ready items (moves them to In progress) and on In progress items with no lead (resuming sent-back or interrupted work). Pass workspace (where the work lives) and, if a coordinator briefed you, the brief, so the work can be restarted after a crash. Pass instructions with the output of the installed tasklite-check script, so the owner knows which instructions you work from. Returns your run_id: pass it on every later call. If someone else holds the claim you get a conflict with who holds it and until when; do not work on the item.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -5076,6 +5088,46 @@
             "maxLength": 40
           },
           "additionalProperties": {}
+        },
+        "instructions": {
+          "type": "object",
+          "properties": {
+            "install_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "files": {
+              "maxItems": 20,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string",
+                    "pattern": "^(agents_block|skill:[a-z0-9-]{1,60})$"
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-fA-F]{64}$"
+                  },
+                  "content": {
+                    "type": "string",
+                    "maxLength": 50000
+                  }
+                },
+                "required": [
+                  "key",
+                  "sha256"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "files"
+          ],
+          "additionalProperties": false
         },
         "run_id": {
           "type": "string",
@@ -7882,7 +7934,11 @@
                     "agent_file.updated",
                     "agent_file.reverted",
                     "workflow.updated",
-                    "install.recorded"
+                    "install.recorded",
+                    "agent_file.proposed",
+                    "agent_file.proposal_decided",
+                    "drift.detected",
+                    "drift.resolved"
                   ]
                 },
                 "summary": {
@@ -11858,6 +11914,260 @@
     },
     "annotations": {
       "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": false
+    }
+  },
+  {
+    "name": "get_agent_files",
+    "description": "Read the agent files (skills and the AGENTS.md block) and Workflow notes in effect for a project, with each one's version_id and where it comes from. Pass file to get its full text. Read-only. Call it before propose_agent_file_change, and propose from this text, not your installed copy.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "project": {
+          "type": "string",
+          "pattern": "^[A-Z]{2,5}$"
+        },
+        "file": {
+          "type": "string",
+          "pattern": "^(agents_block|workflow|skill:[a-z0-9-]{1,60})$"
+        },
+        "run_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        }
+      },
+      "required": [
+        "project"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "project": {
+              "type": "string"
+            },
+            "files": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "skill",
+                      "agents_block",
+                      "workflow"
+                    ]
+                  },
+                  "version_id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "sha256": {
+                    "type": "string"
+                  },
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "default",
+                      "project"
+                    ]
+                  },
+                  "content": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "key",
+                  "kind",
+                  "version_id",
+                  "sha256",
+                  "source",
+                  "content"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "files",
+            "project"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string",
+              "enum": [
+                "validation",
+                "conflict",
+                "not_found",
+                "forbidden",
+                "unavailable",
+                "internal"
+              ]
+            },
+            "message": {
+              "type": "string"
+            },
+            "details": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {}
+            },
+            "current": {}
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": false
+    }
+  },
+  {
+    "name": "propose_agent_file_change",
+    "description": "Propose new content for an agent file (a skill or the AGENTS.md block) or a project's Workflow notes, with a short reason. Nothing changes until the owner approves; they may edit or decline it. Send the whole new text and based_on_version_id from get_agent_files. Omit project to propose a change to the default.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "project": {
+          "type": "string",
+          "pattern": "^[A-Z]{2,5}$"
+        },
+        "file": {
+          "type": "string",
+          "pattern": "^(agents_block|workflow|skill:[a-z0-9-]{1,60})$"
+        },
+        "content": {
+          "type": "string",
+          "maxLength": 50000
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "based_on_version_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "run_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "idempotency_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        }
+      },
+      "required": [
+        "based_on_version_id",
+        "content",
+        "file",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "proposal_id": {
+              "type": "string"
+            },
+            "state": {
+              "type": "string",
+              "const": "pending"
+            },
+            "replayed": {
+              "type": "boolean"
+            },
+            "warnings": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "proposal_id",
+            "state"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string",
+              "enum": [
+                "validation",
+                "conflict",
+                "not_found",
+                "forbidden",
+                "unavailable",
+                "internal"
+              ]
+            },
+            "message": {
+              "type": "string"
+            },
+            "details": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {}
+            },
+            "current": {}
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
       "destructiveHint": false,
       "idempotentHint": false
     }

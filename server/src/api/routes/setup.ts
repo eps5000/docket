@@ -7,6 +7,10 @@
  * on mutations) and strictly validated, and calls its service; stubs answer
  * 501 until US13 (T153–T157) implements them.
  *
+ * Proposals and drift (owner decision 30; BUILD_SPEC §5.19, §7; UI_SPEC
+ * §6.7b-1; tasks.md T159): placeholders the same way, answering 501 until
+ * US14 (T160, T161). *Restore* reinstalls, so it runs in two steps too.
+ *
  * An install touches the host outside any transaction, so it runs in two
  * steps, like `/agent-upload`: `installs.prepare` builds the bundle (and for
  * push writes the files), then one write records it.
@@ -68,4 +72,44 @@ export function setupRoutes<E extends Env>(api: Hono<E>, deps: RouteDeps): void 
   defineRoute(api, 'pushTarget.test', deps, ({ services, read }) =>
     services.installs.testPushTarget(read),
   );
+
+  // ---- Proposals and drift (decision 30) ----
+
+  defineRoute(api, 'proposals.list', deps, ({ services, read, query }) =>
+    services.agentProposals.list(read, query),
+  );
+
+  defineRoute(api, 'proposals.approve', deps, ({ services, mutate, params, body }) => {
+    const { result, mutation_id } = mutate((w) =>
+      services.agentProposals.approve(w, { ...params, ...body }),
+    );
+    return { mutation_id, proposal: result };
+  });
+
+  defineRoute(api, 'proposals.decline', deps, ({ services, mutate, params, body }) => {
+    const { result, mutation_id } = mutate((w) =>
+      services.agentProposals.decline(w, { ...params, ...body }),
+    );
+    return { mutation_id, proposal: result };
+  });
+
+  defineRoute(api, 'drift.list', deps, ({ services, read, query }) =>
+    services.drift.list(read, query),
+  );
+
+  defineRoute(api, 'drift.adopt', deps, ({ services, mutate, params }) => {
+    const { result, mutation_id } = mutate((w) => services.drift.adopt(w, params));
+    return { mutation_id, drift: result };
+  });
+
+  defineRoute(api, 'drift.restore', deps, async ({ services, read, mutate, params }) => {
+    const prepared = await services.drift.restorePrepare(read, params);
+    const { result, mutation_id } = mutate((w) => services.drift.restoreRecord(w, prepared));
+    return { ...result, mutation_id };
+  });
+
+  defineRoute(api, 'drift.keepLocal', deps, ({ services, mutate, params }) => {
+    const { result, mutation_id } = mutate((w) => services.drift.keepLocal(w, params));
+    return { mutation_id, drift: result };
+  });
 }

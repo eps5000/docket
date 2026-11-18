@@ -45,6 +45,13 @@ import {
   type CreateInstallResponse,
   type ContextBundle,
   type DecideResponse,
+  type Drift,
+  type DriftListResponse,
+  type InstructionReportSource,
+  type InstructionsInput,
+  type Proposal,
+  type ProposalsResponse,
+  type RestoreDriftResponse,
   type DecisionRecord,
   type EventRow,
   type Forecast,
@@ -415,6 +422,95 @@ export interface InstallsService {
   testPushTarget(r: ReadContext): Promise<PushTargetTestResponse>;
 }
 
+// ---- Agent proposals and drift (owner decision 30; BUILD_SPEC §5.19) ----
+
+/**
+ * Agents' proposed changes to agent files and Workflow notes (FR-128–FR-130).
+ * A proposal changes nothing until the owner approves it; approval saves a
+ * new version of the target (author "proposed by <client · label> · approved
+ * by owner") and is undoable like any owner edit.
+ */
+export interface AgentProposalsService {
+  /** `get_agent_files`: the files in effect for a project; full content only for `file`. */
+  files(r: ReadContext, input: In<'get_agent_files'>): Out<'get_agent_files'>;
+  /**
+   * `propose_agent_file_change`: store a pending proposal (event
+   * `agent_file.proposed`). At most 5 pending per file and project; a newer
+   * proposal from the same run replaces its own older one. Write checks apply.
+   */
+  propose(
+    w: WriteContext,
+    input: In<'propose_agent_file_change'>,
+  ): Out<'propose_agent_file_change'>;
+  /** `GET /api/agent-file-proposals`: newest first. */
+  list(r: ReadContext, input: RouteQuery<'proposals.list'>): ProposalsResponse;
+  /** *Approve* or *Edit, then approve* (event `agent_file.proposal_decided`). */
+  approve(
+    w: WriteContext,
+    input: RouteParams<'proposals.approve'> & RouteBody<'proposals.approve'>,
+  ): Proposal;
+  /** *Decline…*, with an optional note (event `agent_file.proposal_decided`). */
+  decline(
+    w: WriteContext,
+    input: RouteParams<'proposals.decline'> & RouteBody<'proposals.decline'>,
+  ): Proposal;
+}
+
+/** One instruction report, as `claim_lead` or the push-folder check produced it. */
+export interface InstructionReportInput {
+  source: InstructionReportSource;
+  /** The claiming run (source `agent`). */
+  run_id?: string;
+  install_id?: string;
+  project?: string;
+  /** The workspace or install path. */
+  location?: string;
+  files: InstructionsInput['files'];
+}
+
+/** A *Restore* ready to record: the reinstall, built (and for push written) outside any transaction. */
+export interface PreparedRestore {
+  drift_id: string;
+  install: PreparedInstall;
+}
+
+/**
+ * Drift: installed agent files that differ from what was sent (FR-131–FR-133).
+ * Reports come from agents on `claim_lead` and from the scheduled check of
+ * push installs (`TASKLITE_DRIFT_CHECK_INTERVAL`, and at startup). A report
+ * that differs from its install's manifest raises one open record per
+ * install and file (event `drift.detected`); a remedy resolves it (event
+ * `drift.resolved`). *Keep local* accepts the hash: no new alert until it
+ * changes again.
+ */
+export interface DriftService {
+  /** Store a report and raise or refresh drift against its install's manifest. Runs inside `claim_lead`'s write. */
+  recordReport(
+    w: WriteContext,
+    input: InstructionReportInput,
+  ): { report_id: string; drift_ids: string[] };
+  /** The scheduled check, step 1: read every push install's files (host I/O, outside any transaction). */
+  checkPushInstalls(r: ReadContext): Promise<InstructionReportInput[]>;
+  /** Step 2: record what the check found (`recordReport` for each). */
+  recordChecks(
+    w: WriteContext,
+    input: { reports: InstructionReportInput[] },
+  ): { drift_ids: string[] };
+  /** `GET /api/drift`: open first, newest first. */
+  list(r: ReadContext, input: RouteQuery<'drift.list'>): DriftListResponse;
+  /** *Adopt as <project>'s copy* (the default for a user-wide install): an owner edit; undoable. */
+  adopt(w: WriteContext, input: RouteParams<'drift.adopt'>): Drift;
+  /** *Restore Task Lite's version*, step 1: rebuild the install (push writes the files). */
+  restorePrepare(r: ReadContext, input: RouteParams<'drift.restore'>): Promise<PreparedRestore>;
+  /** Step 2: record the reinstall and resolve the drift. */
+  restoreRecord(
+    w: WriteContext,
+    input: PreparedRestore,
+  ): Omit<OwnerOut<RestoreDriftResponse>, 'warnings'>;
+  /** *Keep local*: accept the local hash. */
+  keepLocal(w: WriteContext, input: RouteParams<'drift.keepLocal'>): Drift;
+}
+
 /** Work steps, subagent logs and agent checks (§5.5). */
 export interface ChecklistService {
   setPlan(w: WriteContext, input: In<'set_plan'>): Out<'set_plan'>;
@@ -652,6 +748,8 @@ export interface Services {
   recovery: RecoveryService;
   agentFiles: AgentFilesService;
   installs: InstallsService;
+  agentProposals: AgentProposalsService;
+  drift: DriftService;
   undo: UndoService;
 }
 

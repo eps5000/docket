@@ -87,8 +87,57 @@ export const US1_TOOLS: readonly ToolName[] = [
 const STUB_TOOLS = TOOL_NAMES.filter((n) => !US1_TOOLS.includes(n));
 
 describe('stubs', () => {
-  it('no tool is a stub any more (US7 implemented the last two)', () => {
-    expect(STUB_TOOLS).toEqual([]);
+  it('only the decision 30 tools are stubs (B26 contracts; US14, T160, implements them)', () => {
+    expect(STUB_TOOLS).toEqual(['get_agent_files', 'propose_agent_file_change']);
+  });
+
+  it.each(STUB_TOOLS)('%s answers unavailable: "Not implemented yet"', async (name) => {
+    h ??= await startHarness();
+    const result = await h.call(name, VALID_ARGS[name]);
+    expect(expectUnavailable(result)).toEqual({
+      code: 'unavailable',
+      message: `Not implemented yet: ${name}`,
+    });
+    expect(textOf(result)).toBe(`unavailable: Not implemented yet: ${name}`);
+  });
+
+  it('propose_agent_file_change stores nothing while it is a stub, even with an idempotency_key', async () => {
+    h = await startHarness();
+    const args = { ...VALID_ARGS.propose_agent_file_change, idempotency_key: 'afp-stub-1' };
+    expectUnavailable(await h.call('propose_agent_file_change', args));
+    const count = (sql: string) =>
+      (h!.server.runtime.db.sqlite.prepare(sql).get() as { n: number }).n;
+    expect(count('SELECT count(*) AS n FROM agent_file_proposals')).toBe(0);
+    expect(count('SELECT count(*) AS n FROM idempotency')).toBe(0);
+  });
+
+  it('claim_lead accepts instructions (decision 30) and still claims; B27 records them', async () => {
+    h = await startHarness();
+    const sha = 'b'.repeat(64);
+    const ok = expectOk(
+      await h.call('claim_lead', {
+        id: 'RCP-17',
+        agent_label: 'orca-w3',
+        instructions: {
+          install_id: 'ins_1',
+          files: [
+            { key: 'agents_block', sha256: sha },
+            { key: 'skill:tasklite-worker', sha256: sha.toUpperCase(), content: '# edited\n' },
+          ],
+        },
+      }),
+    );
+    expect(ok.structured.run_id).toMatch(/^run_/);
+    const bad = expectValidation(
+      await h.call('claim_lead', {
+        id: 'RCP-17',
+        instructions: { files: [{ key: 'workflow', sha256: 'short' }] },
+      }),
+    );
+    expect(Object.keys(bad.details?.fields as object).sort()).toEqual([
+      'instructions.files[0].key',
+      'instructions.files[0].sha256',
+    ]);
   });
 
   it('a service that is still a stub answers unavailable: "Not implemented yet"', async () => {
@@ -394,7 +443,12 @@ describe('recovery tools over MCP (B5: park_run, recovery_report and the new fie
       destructiveHint: false,
       idempotentHint: false,
     });
-    expect(tools.map((t) => t.name).slice(-1)).toEqual(['recovery_report']);
+    // §5.9 recovery_report, then §5.10's two agent file tools (decision 30).
+    expect(tools.map((t) => t.name).slice(-3)).toEqual([
+      'recovery_report',
+      'get_agent_files',
+      'propose_agent_file_change',
+    ]);
     expect(tools.findIndex((t) => t.name === 'park_run')).toBe(
       tools.findIndex((t) => t.name === 'finish_run') + 1,
     );

@@ -70,6 +70,14 @@ export const LIMITS = {
   release_note: 500,
   resources_released_max: 50,
   waiting_on_items_max: 20,
+  // ---- Agent files (decision 30; MCP_SPEC §5.4 claim_lead.instructions, §5.10) ----
+  /** A skill or the AGENTS.md block (BUILD_SPEC §4 agent_file_versions; B21). */
+  agent_file_content: 50_000,
+  /** Workflow notes (BUILD_SPEC §5.17). */
+  workflow_md: 10_000,
+  proposal_reason: 500,
+  /** `claim_lead.instructions.files`: up to 20 reported files. */
+  instruction_files_max: 20,
   /** Upper bound for opaque identifiers and cursors (not a spec limit; a sanity bound). */
   id: 100,
   /** Lists in compact text truncate long text at this many characters (§3.1). */
@@ -84,6 +92,12 @@ export const PROJECT_KEY_RE = /^[A-Z]{2,5}$/;
 export const LABEL_NAME_RE = /^[a-z0-9-]+$/;
 /** Commit SHAs: 7–40 hex (§5.6 report_commit). */
 export const SHA_RE = /^[0-9a-fA-F]{7,40}$/;
+/** A sha256 in hex, either case (PowerShell's Get-FileHash prints uppercase; compared lowercased). */
+export const SHA256_RE = /^[0-9a-fA-F]{64}$/;
+/** An installed agent file: `agents_block` or `skill:<name>` (B21). */
+export const INSTALLED_FILE_KEY_RE = /^(agents_block|skill:[a-z0-9-]{1,60})$/;
+/** An agent file or the Workflow notes, as get_agent_files and propose_agent_file_change name them (B26). */
+export const AGENT_FILE_TARGET_RE = /^(agents_block|workflow|skill:[a-z0-9-]{1,60})$/;
 /** Dates: `YYYY-MM-DD` (§3 Types). */
 export const DATE_RE = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 
@@ -100,4 +114,5 @@ export const ID_PREFIXES = {
   packet: 'pkt_',
   decision: 'dec_',
   resource: 'rsc_',
+  agent_file_proposal: 'afp_',
 } as const;

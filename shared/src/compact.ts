@@ -985,6 +985,32 @@ const RENDERERS: { [N in ToolName]: Renderer<N> } = {
     }
     return lines.join('\n');
   },
+  // Decision 30 (MCP_SPEC §5.10): one header line per file; the full text only with `file`.
+  // e.g. `skill:tasklite-worker · RCP's copy · afv_… · sha256 3f2a…`.
+  get_agent_files: (r) => {
+    const lines = [s('get_agent_files', { project: r.project, count: r.files.length })];
+    for (const f of r.files) {
+      lines.push(
+        join([
+          f.key,
+          f.source === 'project' ? `${r.project}'s copy` : 'default',
+          f.version_id ?? 'none yet',
+          `sha256 ${f.sha256.slice(0, 12)}`,
+        ]),
+      );
+      // Verbatim and unindented, so an agent can propose from exactly this text.
+      if (f.content !== null) {
+        lines.push(`content (${f.content.length} characters, verbatim):`, f.content);
+      }
+    }
+    return lines.join('\n');
+  },
+  propose_agent_file_change: (r, a) =>
+    s('propose_agent_file_change', {
+      file: str(a.file),
+      target: str(a.project) ?? 'the default',
+      proposal_id: r.proposal_id,
+    }),
 };
 
 /** The compact text block for a tool's successful result. */

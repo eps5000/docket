@@ -380,10 +380,11 @@ test.describe('Agent files (US13)', () => {
     });
     // Another project's item doesn't get them.
     expect((await agent.call('get_context', { id: 'DOC-4' })).text).not.toContain('workflow:');
-    // Agents have no tool for agent files or Workflow notes.
+    // Agents can't write agent files or Workflow notes: since decision 30 (B26) they
+    // can only read them and propose a change (FR-130).
     expect(
       (await agent.listTools()).filter((t) => /agent_?file|workflow|skill|install/i.test(t)),
-    ).toEqual([]);
+    ).toEqual(['get_agent_files', 'propose_agent_file_change']);
   });
 
   test('5. an upgrade changes Task Lite’s version: the edited default and RCP’s copy are flagged and kept', async ({

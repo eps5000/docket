@@ -29,6 +29,7 @@ describe('loadConfig', () => {
       backupExtraDir: null,
       pushRoot: null,
       pushHostPath: null,
+      driftCheckIntervalMs: 15 * 60_000,
       seed: null,
       tz: null,
       textOnlyClients: ['claude-code'],
@@ -53,6 +54,7 @@ describe('loadConfig', () => {
       TASKLITE_BACKUP_EXTRA_DIR: '/backups-extra',
       TASKLITE_PUSH_ROOT: ' /host-code ',
       TASKLITE_PUSH_HOST_PATH: 'C:/Users/me/code',
+      TASKLITE_DRIFT_CHECK_INTERVAL: '1h',
       TASKLITE_SEED: 'sample',
       TZ: 'Europe/London',
       TASKLITE_TEXT_ONLY_CLIENTS: ' Claude-Code, my-agent ,',
@@ -72,10 +74,25 @@ describe('loadConfig', () => {
       backupExtraDir: '/backups-extra',
       pushRoot: '/host-code',
       pushHostPath: 'C:/Users/me/code',
+      driftCheckIntervalMs: 3_600_000,
       seed: 'sample',
       tz: 'Europe/London',
       textOnlyClients: ['claude-code', 'my-agent'],
     });
+  });
+
+  it('TASKLITE_DRIFT_CHECK_INTERVAL: 0 or off turns the check off; otherwise at least 1m', () => {
+    for (const off of ['0', 'off', 'OFF']) {
+      expect(
+        loadConfig({ TASKLITE_DRIFT_CHECK_INTERVAL: off }).driftCheckIntervalMs,
+        off,
+      ).toBeNull();
+    }
+    expect(loadConfig({ TASKLITE_DRIFT_CHECK_INTERVAL: '1m' }).driftCheckIntervalMs).toBe(60_000);
+    expect(() => loadConfig({ TASKLITE_DRIFT_CHECK_INTERVAL: '30s' })).toThrow(/at least 1m/);
+    expect(() => loadConfig({ TASKLITE_DRIFT_CHECK_INTERVAL: 'hourly' })).toThrow(
+      /TASKLITE_DRIFT_CHECK_INTERVAL/,
+    );
   });
 
   it('TASKLITE_TEXT_ONLY_CLIENTS=none gives every client structured results', () => {

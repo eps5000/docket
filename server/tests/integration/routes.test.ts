@@ -256,6 +256,17 @@ const VALID: Record<RouteId, Req> = {
   'pushTarget.get': {},
   'pushTarget.test': { body: {} },
   'install.download': { params: { token: TOKEN } },
+  // Proposals and drift (decision 30; B26 placeholders until US14, T160–T161).
+  'proposals.list': { query: { project: 'RCP', state: 'pending' } },
+  'proposals.approve': {
+    params: { id: 'afp_1' },
+    body: { content: '# Worker\n', note: 'Tightened the wording.' },
+  },
+  'proposals.decline': { params: { id: 'afp_1' }, body: { note: 'Not this way.' } },
+  'drift.list': { query: { project: 'RCP', state: 'open' } },
+  'drift.adopt': { params: { id: 'dft_1' }, body: {} },
+  'drift.restore': { params: { id: 'dft_1' }, body: {} },
+  'drift.keepLocal': { params: { id: 'dft_1' }, body: {} },
 };
 
 /** A path parameter value that fails its schema: a lower-cased item ID or key, a bad label, or blank. */

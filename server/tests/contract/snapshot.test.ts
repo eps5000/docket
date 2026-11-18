@@ -3,7 +3,7 @@
  * official MCP client SDK against the in-process server:
  * - `initialize` returns the §2 instructions verbatim and advertises only
  *   `tools` (`listChanged: false`);
- * - `tools/list` has exactly the 38 §5 tools, in order, each with its §5
+ * - `tools/list` has exactly the 40 §5 tools, in order, each with its §5
  *   description verbatim, its fields, defaults and limits, and the §3
  *   annotations.
  *
@@ -64,8 +64,8 @@ describe('initialize', () => {
 });
 
 describe('tools/list: names and descriptions (§5)', () => {
-  it('lists exactly 38 tools, in MCP_SPEC §5 order', () => {
-    expect(tools).toHaveLength(38);
+  it('lists exactly 40 tools, in MCP_SPEC §5 order', () => {
+    expect(tools).toHaveLength(40);
     expect(tools.map((t) => t.name)).toEqual(specDescriptions().map(([name]) => name));
   });
 
@@ -78,9 +78,10 @@ describe('tools/list: names and descriptions (§5)', () => {
 });
 
 /**
- * The §3 annotation table: the 10 read tools, `get_item`, the retry-safe
+ * The §3 annotation table: the 11 read tools, `get_item`, the retry-safe
  * four, nothing destructive. `park_run` is a write and not retry-safe;
- * `recovery_report` is read-only (B5).
+ * `recovery_report` is read-only (B5); `get_agent_files` is read-only and
+ * `propose_agent_file_change` a write that is not retry-safe (B26).
  */
 const READ_TOOLS = [
   'whoami',
@@ -93,6 +94,7 @@ const READ_TOOLS = [
   'get_review',
   'list_decisions',
   'recovery_report',
+  'get_agent_files',
 ];
 const IDEMPOTENT = ['heartbeat', 'report_commit', 'update_step', 'update_check'];
 
@@ -109,10 +111,10 @@ describe('tools/list: annotations (§3)', () => {
     expect(byName('get_item').annotations?.readOnlyHint).toBe(false);
   });
 
-  it('the §3 counts hold: 10 read tools, 27 mutating', () => {
-    expect(SPEC).toContain('`true` for the 10 read tools');
-    expect(SPEC).toContain('accepted only by the 27 mutating tools');
-    expect(READ_TOOLS).toHaveLength(10);
+  it('the §3 counts hold: 11 read tools, 28 mutating', () => {
+    expect(SPEC).toContain('`true` for the 11 read tools');
+    expect(SPEC).toContain('accepted only by the 28 mutating tools');
+    expect(READ_TOOLS).toHaveLength(11);
   });
 });
 
@@ -188,7 +190,15 @@ const INPUTS: Record<string, [string[], string[]]> = {
   upsert_label: [['project', 'name'], ['brief_md']],
   claim_lead: [
     ['id'],
-    ['agent_label', 'workspace', 'orchestrator', 'brief', 'brief_document_version_id', 'external'],
+    [
+      'agent_label',
+      'workspace',
+      'orchestrator',
+      'brief',
+      'brief_document_version_id',
+      'external',
+      'instructions',
+    ],
   ],
   release_lead: [['id', 'run_id', 'reason'], []],
   start_run: [
@@ -243,6 +253,8 @@ const INPUTS: Record<string, [string[], string[]]> = {
   list_decisions: [['project'], ['scope', 'in_scope_of', 'include_inactive', 'cursor', 'limit']],
   withdraw_decision: [['decision_id', 'reason'], []],
   recovery_report: [[], ['project', 'since', 'include_briefs', 'cursor', 'limit']],
+  get_agent_files: [['project'], ['file']],
+  propose_agent_file_change: [['file', 'content', 'reason', 'based_on_version_id'], ['project']],
 };
 
 /** Result fields per tool, from the §5 Output lines (all required). */
@@ -301,6 +313,8 @@ const OUTPUTS: Record<string, string[]> = {
     'orphaned_resources',
     'next_cursor',
   ],
+  get_agent_files: ['project', 'files'],
+  propose_agent_file_change: ['proposal_id', 'state'],
 };
 
 const MUTATING = specDescriptions()
@@ -339,7 +353,7 @@ describe('tools/list: input schemas (§3, §5)', () => {
   });
 
   it('every mutating tool accepts idempotency_key (≤ 100) and run_id; reads accept run_id only', () => {
-    expect(MUTATING).toHaveLength(27);
+    expect(MUTATING).toHaveLength(28);
     for (const t of tools) {
       const props = input(t.name).properties!;
       expect(props.run_id, t.name).toBeDefined();
@@ -416,6 +430,42 @@ describe('tools/list: input schemas (§3, §5)', () => {
         if (obj) expect(obj.additionalProperties, `${tool}.${nested}`).toBe(false);
       }
     }
+  });
+
+  it('agent file limits follow MCP_SPEC §5.4 and §5.10 (decision 30; B26)', () => {
+    type Limits = JsonObject & {
+      maxItems?: number;
+      pattern?: string;
+      minLength?: number;
+    };
+    const claim = input('claim_lead').properties!.instructions as Limits;
+    expect(claim.additionalProperties).toBe(false);
+    expect(claim.required).toEqual(['files']);
+    expect(specToolPart('claim_lead', 'Input')).toContain(
+      '`instructions?: { install_id?, files: [{ key, sha256, content? }] }`',
+    );
+    const files = claim.properties!.files as Limits;
+    expect(files.maxItems).toBe(20);
+    const file = files.items! as Limits;
+    expect(file.additionalProperties).toBe(false);
+    expect(file.required?.sort()).toEqual(['key', 'sha256']);
+    expect((file.properties!.sha256 as Limits).pattern).toBe('^[0-9a-fA-F]{64}$');
+    expect(file.properties!.content!.maxLength).toBe(50_000);
+    expect(input('start_run').properties!.instructions).toBeUndefined();
+
+    const propose = input('propose_agent_file_change').properties!;
+    expect(specToolPart('propose_agent_file_change', 'Input')).toContain(
+      '`content` (≤ 50,000; Workflow ≤ 10,000), `reason` (≤ 500)',
+    );
+    expect(propose.content!.maxLength).toBe(50_000);
+    expect(propose.reason!.maxLength).toBe(500);
+    expect(propose.based_on_version_id!.anyOf?.map((s) => s.type)).toEqual(['string', 'null']);
+    expect((input('get_agent_files').properties!.file as Limits).pattern).toBe(
+      '^(agents_block|workflow|skill:[a-z0-9-]{1,60})$',
+    );
+    const listed = result('get_agent_files').properties!.files!.items!.properties!;
+    expect(listed.kind!.enum).toEqual(['skill', 'agents_block', 'workflow']);
+    expect(listed.source!.enum).toEqual(['default', 'project']);
   });
 
   it('the run_state and recovery enums match the §3 table', () => {
@@ -533,7 +583,7 @@ describe('text-only sessions (§3 Results)', () => {
     expect(t.a.getServerCapabilities()).toEqual({ tools: { listChanged: false } });
   });
 
-  it('lists the same 38 tools, in order, with the §5 descriptions verbatim', () => {
+  it('lists the same 40 tools, in order, with the §5 descriptions verbatim', () => {
     expect(textTools.map((x) => x.name)).toEqual(specDescriptions().map(([name]) => name));
     for (const [name, description] of specDescriptions()) {
       expect(textTools.find((x) => x.name === name)!.description, name).toBe(description);

@@ -7,6 +7,9 @@
  * is measured on the flow MCP_SPEC §7.1 names: whoami → search_items →
  * claim_lead → get_context (US5, tasks.md T112).
  */
+import { createHash } from 'node:crypto';
+import { readdirSync, readFileSync } from 'node:fs';
+import { renderResult, type ToolOutput } from '@tasklite/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   PRODUCT_RESULT_MODES,
@@ -91,6 +94,58 @@ describe('reads', () => {
       'get_context RCP-14 medium',
       textOf(await h.call('get_context', { id: 'RCP-14', budget: 'medium' })),
       3_000,
+    );
+  });
+
+  it('get_agent_files RCP listing ≤ 300 (decision 30; MCP_SPEC §5.10)', async () => {
+    // The tool is a stub until US14 (T160), so this renders the listing the
+    // shipped files would give RCP: every skill in skills/, the AGENTS.md
+    // block and Workflow notes, with real hashes and full-length IDs. T160
+    // replaces it with a real call on the seed data.
+    expect((await h.call('get_agent_files', { project: 'RCP' })).structuredContent).toMatchObject({
+      code: 'unavailable',
+    });
+    const root = new URL('../../../', import.meta.url);
+    const sha = (text: string) => createHash('sha256').update(text).digest('hex');
+    const skills = readdirSync(new URL('skills/', root), { withFileTypes: true })
+      .filter((d) => d.isDirectory())
+      .map((d) => d.name);
+    const block = readFileSync(new URL('docs/templates/AGENTS-tasklite.md', root), 'utf8');
+    const listing: ToolOutput<'get_agent_files'> = {
+      project: 'RCP',
+      files: [
+        {
+          key: 'agents_block',
+          kind: 'agents_block',
+          version_id: 'afv_01JD3A7K9Q2M4N6P8R0S2T4V6X',
+          sha256: sha(block),
+          source: 'default',
+          content: null,
+        },
+        ...skills.map((name, i) => ({
+          key: `skill:${name}`,
+          kind: 'skill' as const,
+          version_id: `afv_01JD3A7K9Q2M4N6P8R0S2T4V${i}Y`,
+          sha256: sha(readFileSync(new URL(`skills/${name}/SKILL.md`, root), 'utf8')),
+          // One project copy, the rest default.
+          source: i === 0 ? ('project' as const) : ('default' as const),
+          content: null,
+        })),
+        {
+          key: 'workflow',
+          kind: 'workflow',
+          version_id: 'wf_01JD3A7K9Q2M4N6P8R0S2T4V6Z',
+          sha256: sha('- Branch per item.'),
+          source: 'project',
+          content: null,
+        },
+      ],
+    };
+    expect(skills.length).toBeGreaterThanOrEqual(5);
+    within(
+      `get_agent_files RCP listing (${listing.files.length} files)`,
+      renderResult('get_agent_files', listing),
+      300,
     );
   });
 
