@@ -20,7 +20,8 @@ test.describe('e2e harness', () => {
   test('the MCP client helper calls whoami through /mcp', async ({ agent }) => {
     const tools = await agent.listTools();
     expect(tools).toContain('whoami');
-    expect(tools.length).toBe(38);
+    // 40 since decision 30 (B26): get_agent_files and propose_agent_file_change.
+    expect(tools.length).toBe(40);
 
     const res = await agent.call('whoami');
     if (res.isError) {

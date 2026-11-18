@@ -318,7 +318,8 @@ test.describe('documents and history', () => {
     const brief = section(page, 'docs').locator(`[data-document="brief-${runId}.md"]`);
     await expect(brief).toContainText('Run brief');
     await brief.getByRole('button').click();
-    await expect(dialog(page).getByRole('heading', { name: 'Brief' })).toBeVisible();
+    // exact: the dialog title, brief-<run>.md, also contains 'brief'.
+    await expect(dialog(page).getByRole('heading', { name: 'Brief', exact: true })).toBeVisible();
     await expect(dialog(page)).toContainText('reload keeps the week');
     await shoot(page, 'document-viewer-brief', dialog(page));
     await expectAxeClean(page, 'document viewer (brief)', { include: '[role="dialog"]' });
