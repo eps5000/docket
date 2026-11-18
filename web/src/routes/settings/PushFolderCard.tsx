@@ -140,7 +140,8 @@ export function PushFolderCard() {
                 </details>
                 <p className="src">
                   Docket writes there only the skill folders, its manifest and the marked Docket
-                  section of AGENTS.md or CLAUDE.md, and never deletes anything. On Linux, the
+                  section of AGENTS.md or CLAUDE.md. The only thing it deletes is an old-name skill
+                  folder it installed itself before the rename, while unmodified. On Linux, the
                   folder must be writable by Docket’s user (uid 10001), for example{' '}
                   <code>sudo setfacl -R -m u:10001:rwX ~/code</code>.
                 </p>

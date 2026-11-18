@@ -361,10 +361,18 @@ function ServiceHealthCard({ query }: { query: UseQueryResult<SettingsResponse> 
             </dd>
             <dt>Volume</dt>
             <dd>
-              <span className="mono" data-volume>
-                {d.health.volume.name ?? '/data'}
-              </span>{' '}
-              mounted at <span className="mono">/data</span>
+              {d.health.volume.name ? (
+                <>
+                  <span className="mono" data-volume>
+                    {d.health.volume.name}
+                  </span>{' '}
+                  mounted at <span className="mono">/data</span>
+                </>
+              ) : (
+                <>
+                  The volume at <span className="mono">/data</span>
+                </>
+              )}
               {d.health.volume_free_bytes !== null && (
                 <span className="src"> · {bytes(d.health.volume_free_bytes)} free</span>
               )}
