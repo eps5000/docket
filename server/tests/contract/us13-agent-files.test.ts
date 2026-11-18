@@ -5,7 +5,7 @@
  * Workflow notes within the budgets (FR-123, acceptance scenario 3).
  *
  * Agents can't change agent files: the routes need the owner session (the
- * agent's bearer token gets 401), and no MCP tool touches them.
+ * agent's bearer token gets 401), and the only MCP tools read or propose (decision 30, FR-130).
  *
  * The compact `get_context` text at each budget is printed (PR evidence).
  */
@@ -233,7 +233,7 @@ describe('agent files over the owner API (T153)', () => {
     expect((await owner('GET', '/api/agent-files/skill%3Anope')).status).toBe(404);
   });
 
-  it('agents can’t change agent files: owner session only, and no MCP tool touches them', async () => {
+  it('agents can’t change agent files: owner session only, and the only MCP tools read or propose', async () => {
     h = await startHarness();
     const token = h.server.runtime.secrets.agentToken();
     const res = await h.server.app.request(`${ORIGIN}/api/agent-files/${WORKER}`, {
@@ -249,6 +249,10 @@ describe('agent files over the owner API (T153)', () => {
     });
     expect(wf.status).toBe(401);
     const tools = (await h.a.listTools()).tools.map((t) => t.name);
-    expect(tools.filter((t) => /agent_?file|workflow|skill|install/i.test(t))).toEqual([]);
+    // Decision 30 (FR-130): agents read and propose; no tool writes agent files or Workflow notes.
+    expect(tools.filter((t) => /agent_?file|workflow|skill|install/i.test(t))).toEqual([
+      'get_agent_files',
+      'propose_agent_file_change',
+    ]);
   });
 });

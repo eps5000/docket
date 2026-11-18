@@ -288,6 +288,10 @@ export const QUERY_FAMILIES = [
   'installs',
   /** The push folder card (decision 29). */
   'pushTarget',
+  /** Agents' proposed changes to agent files (decision 30). */
+  'proposals',
+  /** Agent files changed outside Task Lite (decision 30). */
+  'drift',
 ] as const;
 export type QueryFamily = (typeof QUERY_FAMILIES)[number];
 
@@ -322,6 +326,10 @@ export const queryKeys = {
   workflow: (project: string) => [ROOT, 'workflow', project] as const,
   installs: (query: RouteQueryInput<'installs.list'> = {}) => [ROOT, 'installs', query] as const,
   pushTarget: () => [ROOT, 'pushTarget'] as const,
+  /** "Proposed changes" on Agent files (decision 30). */
+  proposals: (query: RouteQueryInput<'proposals.list'> = {}) => [ROOT, 'proposals', query] as const,
+  /** "Changed outside Task Lite" on Agent files (decision 30). */
+  drift: (query: RouteQueryInput<'drift.list'> = {}) => [ROOT, 'drift', query] as const,
 };
 
 export type QueryKey = readonly unknown[];
@@ -399,6 +407,13 @@ export const INVALIDATION: Record<EventType, readonly QueryFamily[]> = {
   'agent_file.reverted': ['agentFiles'],
   'workflow.updated': ['workflow'],
   'install.recorded': ['installs'],
+  // Proposals and drift (decision 30). A proposal shows on Agent files and as the
+  // Needs you line; deciding one changes the file or the Workflow notes. Drift is
+  // a Problems row (counted in the sidebar) and a run's "edited locally" chip.
+  'agent_file.proposed': ['proposals', 'needsYou'],
+  'agent_file.proposal_decided': ['proposals', 'agentFiles', 'workflow', 'needsYou'],
+  'drift.detected': ['drift', 'agentFiles', 'needsYou', 'bootstrap', 'item'],
+  'drift.resolved': ['drift', 'agentFiles', 'needsYou', 'bootstrap', 'item'],
 };
 
 /** Families narrowed to the event's items when it names any. */

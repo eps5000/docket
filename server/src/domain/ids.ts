@@ -23,6 +23,8 @@ export const ID_PREFIXES = {
   decision: 'dec',
   /** A run's declared resource (MCP_SPEC §4 Resource; BUILD_SPEC §4 `run_resources`). */
   resource: 'rsc',
+  /** An agent's proposed change to an agent file (decision 30; MCP_SPEC §5.10). */
+  agent_file_proposal: 'afp',
   // Internal.
   mutation: 'mut',
   project: 'prj',
@@ -43,6 +45,9 @@ export const ID_PREFIXES = {
   agent_file_version: 'afv',
   project_workflow: 'wf',
   install: 'ins',
+  /** Decision 30 (BUILD_SPEC §4, §5.19): instruction reports and drift records. */
+  instruction_report: 'irp',
+  drift: 'dft',
   /** A Jira import session (memory only; US9). */
   jira_import: 'imp',
   /** Reference for an `internal` error, quoted in its message (MCP_SPEC §6). */

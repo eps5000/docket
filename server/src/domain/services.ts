@@ -3,6 +3,7 @@
  * builds one `Services` and hands it to both adapters, MCP and the UI API.
  */
 import { createAgentFilesService } from './agent-files.js';
+import { createAgentProposalsService } from './agent-proposals.js';
 import { createArchiveService } from './archive.js';
 import { createBackupService } from './backup.js';
 import { createChecklistService } from './checklist.js';
@@ -11,6 +12,7 @@ import type { ServiceDeps, Services } from './contracts.js';
 import { createDecisionsService } from './decisions.js';
 import { createDiagnosticsService } from './diagnostics.js';
 import { createDocumentsService } from './documents.js';
+import { createDriftService } from './drift.js';
 import { createEvidenceService } from './evidence.js';
 import { createForecastService } from './forecast.js';
 import { createHumanReviewService } from './human-review.js';
@@ -63,6 +65,8 @@ export function createServices(
     recovery: createRecoveryService(full),
     agentFiles: createAgentFilesService(full),
     installs: createInstallsService(full),
+    agentProposals: createAgentProposalsService(full),
+    drift: createDriftService(full),
     undo: createUndoService(full),
   };
   for (const [name, methods] of Object.entries(overrides)) {

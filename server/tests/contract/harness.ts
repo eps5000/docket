@@ -261,4 +261,12 @@ export const VALID_ARGS: Record<ToolName, Record<string, unknown>> = {
   list_decisions: { project: 'RCP' },
   withdraw_decision: { decision_id: 'dec_9', reason: 'No longer applies.' },
   recovery_report: { include_briefs: true },
+  get_agent_files: { project: 'RCP' },
+  propose_agent_file_change: {
+    project: 'RCP',
+    file: 'skill:tasklite-worker',
+    content: '---\nname: tasklite-worker\n---\n',
+    reason: 'Run the linter before each commit.',
+    based_on_version_id: 'afv_1',
+  },
 };

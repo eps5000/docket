@@ -359,6 +359,37 @@ describe('errors', () => {
   });
 });
 
+/** RCP's agent files in effect (decision 30): a listing, so no content. */
+const AGENT_FILES_LISTING = {
+  project: 'RCP',
+  files: [
+    {
+      key: 'agents_block',
+      kind: 'agents_block' as const,
+      version_id: 'afv_01JD3A',
+      sha256: 'a3f1c9e07b2d44e1a3f1c9e07b2d44e1a3f1c9e07b2d44e1a3f1c9e07b2d44e1',
+      source: 'default' as const,
+      content: null,
+    },
+    {
+      key: 'skill:tasklite-worker',
+      kind: 'skill' as const,
+      version_id: 'afv_01JD3B',
+      sha256: '5b0e7d2c91aa40f35b0e7d2c91aa40f35b0e7d2c91aa40f35b0e7d2c91aa40f3',
+      source: 'project' as const,
+      content: null,
+    },
+    {
+      key: 'workflow',
+      kind: 'workflow' as const,
+      version_id: null,
+      sha256: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+      source: 'project' as const,
+      content: null,
+    },
+  ],
+};
+
 /** One representative result per tool, so every renderer is exercised and snapshotted. */
 const SAMPLES: Record<ToolName, { result: unknown; args?: Record<string, unknown> }> = {
   whoami: {
@@ -620,6 +651,11 @@ const SAMPLES: Record<ToolName, { result: unknown; args?: Record<string, unknown
     result: { decision: { ...DEC_1, id: 'dec_9', authority: 'agent', status: 'withdrawn' } },
   },
   recovery_report: { result: RECOVERY_REPORT, args: { include_briefs: true } },
+  get_agent_files: { result: AGENT_FILES_LISTING, args: { project: 'RCP' } },
+  propose_agent_file_change: {
+    result: { proposal_id: 'afp_01JD4K', state: 'pending' },
+    args: { project: 'RCP', file: 'skill:tasklite-worker' },
+  },
 };
 
 describe('every tool has a renderer', () => {
@@ -642,6 +678,47 @@ describe('every tool has a renderer', () => {
       const text = renderResult(tool.name, sample.result, { args: sample.args, ...opts });
       expect(Math.ceil(text.length / 4), `${tool.name}: ${text}`).toBeLessThanOrEqual(60);
     }
+  });
+});
+
+describe('agent files (MCP_SPEC §5.10; decision 30)', () => {
+  it('lists one header line per file, with no content', () => {
+    const text = renderResult('get_agent_files', AGENT_FILES_LISTING, opts);
+    expect(text.split('\n')).toEqual([
+      'Agent files for RCP: 3',
+      'agents_block · default · afv_01JD3A · sha256 a3f1c9e07b2d',
+      "skill:tasklite-worker · RCP's copy · afv_01JD3B · sha256 5b0e7d2c91aa",
+      "workflow · RCP's copy · none yet · sha256 e3b0c44298fc",
+    ]);
+  });
+
+  it("prints one file's full text verbatim, unindented, so an agent can propose from it", () => {
+    const content = '---\nname: tasklite-worker\n---\n\n  Indented line.\n';
+    const text = renderResult(
+      'get_agent_files',
+      { project: 'RCP', files: [{ ...AGENT_FILES_LISTING.files[1]!, content }] },
+      opts,
+    );
+    expect(text).toBe(
+      [
+        'Agent files for RCP: 1',
+        "skill:tasklite-worker · RCP's copy · afv_01JD3B · sha256 5b0e7d2c91aa",
+        `content (${content.length} characters, verbatim):`,
+        content,
+      ].join('\n'),
+    );
+  });
+
+  it('a proposal is one line that says nothing changed yet', () => {
+    const result = { proposal_id: 'afp_01JD4K', state: 'pending' as const };
+    expect(
+      renderResult('propose_agent_file_change', result, {
+        args: { project: 'RCP', file: 'workflow' },
+      }),
+    ).toBe('Proposed workflow change for RCP · afp_01JD4K · pending owner approval');
+    expect(
+      renderResult('propose_agent_file_change', result, { args: { file: 'agents_block' } }),
+    ).toBe('Proposed agents_block change for the default · afp_01JD4K · pending owner approval');
   });
 });
 

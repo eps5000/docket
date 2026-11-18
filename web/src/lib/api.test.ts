@@ -378,6 +378,99 @@ describe('agent setup (decision 29; BUILD_SPEC §5.17, §7)', () => {
   });
 });
 
+describe('proposals and drift (decision 30; BUILD_SPEC §5.19, §7)', () => {
+  it('has typed calls for the seven routes', async () => {
+    const { fetch, sent } = fakeFetch(200, {});
+    const client = createApiClient({ fetch, cookies: () => COOKIES });
+    await client['proposals.list']({ query: { project: 'RCP', state: 'pending' } });
+    await client['proposals.approve']({
+      params: { id: 'afp_1' },
+      body: { content: '# Worker\n', note: 'Tightened.' },
+    });
+    await client['proposals.decline']({ params: { id: 'afp_2' }, body: { note: 'Not now.' } });
+    await client['drift.list']({ query: { state: 'open' } });
+    await client['drift.adopt']({ params: { id: 'dft_1' } });
+    await client['drift.restore']({ params: { id: 'dft_1' } });
+    await client['drift.keepLocal']({ params: { id: 'dft_1' } });
+    expect(sent.map((r) => `${r.method} ${r.url}`)).toEqual([
+      'GET /api/agent-file-proposals?project=RCP&state=pending',
+      'POST /api/agent-file-proposals/afp_1/approve',
+      'POST /api/agent-file-proposals/afp_2/decline',
+      'GET /api/drift?state=open',
+      'POST /api/drift/dft_1/adopt',
+      'POST /api/drift/dft_1/restore',
+      'POST /api/drift/dft_1/keep-local',
+    ]);
+    expect(sent[0]!.headers['X-Tasklite-CSRF']).toBeUndefined();
+    for (const r of sent.slice(1).filter((x) => x.method === 'POST')) {
+      expect(r.headers['X-Tasklite-CSRF'], r.url).toBe('abc123-_x');
+    }
+  });
+
+  it('approve and adopt hand their mutation_id to Undo; decline, restore and keep local do not', async () => {
+    const seen: MutationRecord[] = [];
+    const { fetch } = fakeFetch(200, { mutation_id: 'mut_a' });
+    const client = createApiClient({
+      fetch,
+      cookies: () => COOKIES,
+      onMutation: (m) => seen.push(m),
+    });
+    await client['proposals.approve']({ params: { id: 'afp_1' }, body: {} });
+    await client['drift.adopt']({ params: { id: 'dft_1' } });
+    await client['proposals.decline']({ params: { id: 'afp_2' }, body: {} });
+    await client['drift.keepLocal']({ params: { id: 'dft_2' } });
+    expect(seen.map((m) => [m.route, m.undoable])).toEqual([
+      ['proposals.approve', true],
+      ['drift.adopt', true],
+      ['proposals.decline', false],
+      ['drift.keepLocal', false],
+    ]);
+  });
+
+  it('query keys and invalidation: proposals, drift and the screens that show them', () => {
+    expect(queryKeys.proposals({ project: 'RCP' })).toEqual([
+      'tl',
+      'proposals',
+      { project: 'RCP' },
+    ]);
+    expect(queryKeys.drift()).toEqual(['tl', 'drift', {}]);
+    expect(
+      keysForChange({
+        seq: 12,
+        type: 'agent_file.proposal_decided',
+        objects: [
+          { kind: 'agent_file_proposal', id: 'afp_1' },
+          { kind: 'project', id: 'RCP' },
+        ],
+        for_you: false,
+      }),
+    ).toEqual([
+      ['tl', 'needsYou'],
+      ['tl', 'agentFiles'],
+      ['tl', 'workflow'],
+      ['tl', 'proposals'],
+    ]);
+    expect(
+      keysForChange({
+        seq: 13,
+        type: 'drift.detected',
+        objects: [
+          { kind: 'drift', id: 'dft_1' },
+          { kind: 'item', id: 'RCP-14' },
+        ],
+        for_you: false,
+      }),
+    ).toEqual([
+      ['tl', 'bootstrap'],
+      ['tl', 'needsYou'],
+      ['tl', 'item', 'RCP-14'],
+      ['tl', 'agentFiles'],
+      ['tl', 'drift'],
+    ]);
+    expect(INVALIDATION['agent_file.proposed']).toEqual(['proposals', 'needsYou']);
+  });
+});
+
 describe('recovery (US11; contracts/events.md, BUILD_SPEC §7)', () => {
   it('has typed calls for the three recovery routes', async () => {
     const { fetch, sent } = fakeFetch(200, { rows: [] });

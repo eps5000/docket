@@ -325,6 +325,34 @@ export const INSTALL_CHECK_STATE_LABELS: Record<InstallCheckState, string> = {
   extra: 'Extra',
 };
 
+// ---- Agent proposals and drift (owner decision 30; BUILD_SPEC §4, §5.19) ----
+
+/** The Workflow notes' key in get_agent_files and propose_agent_file_change (MCP_SPEC §5.10). */
+export const WORKFLOW_KEY = 'workflow';
+
+/** What get_agent_files lists: a skill, the AGENTS.md block, or the project's Workflow notes. */
+export const AGENT_FILE_KINDS = ['skill', 'agents_block', 'workflow'] as const;
+export type AgentFileKind = (typeof AGENT_FILE_KINDS)[number];
+
+/** Where a file in effect comes from: the default every project uses, or the project's copy. */
+export const AGENT_FILE_SOURCES = ['default', 'project'] as const;
+export type AgentFileSource = (typeof AGENT_FILE_SOURCES)[number];
+
+export const PROPOSAL_STATES = ['pending', 'approved', 'declined'] as const;
+export type ProposalState = (typeof PROPOSAL_STATES)[number];
+
+/** Who sent an instruction report: an agent on `claim_lead`, or the scheduled push-folder check. */
+export const INSTRUCTION_REPORT_SOURCES = ['agent', 'push_check'] as const;
+export type InstructionReportSource = (typeof INSTRUCTION_REPORT_SOURCES)[number];
+
+/** A drift record: open until the owner adopts, restores or keeps the local file. */
+export const DRIFT_STATES = ['open', 'adopted', 'restored', 'kept_local'] as const;
+export type DriftState = (typeof DRIFT_STATES)[number];
+
+/** How an installed file differs from what was sent (B26 resolution 7). */
+export const DRIFT_CHANGES = ['edited', 'missing', 'extra'] as const;
+export type DriftChange = (typeof DRIFT_CHANGES)[number];
+
 // ---- Events (contracts/events.md; MCP_SPEC §4 EventType) ----
 
 export const ACTOR_KINDS = ['owner', 'agent', 'system'] as const;
@@ -388,6 +416,11 @@ export const EVENT_TYPES = [
   'agent_file.reverted',
   'workflow.updated',
   'install.recorded',
+  // Agent proposals and drift (decision 30; BUILD_SPEC §5.19)
+  'agent_file.proposed',
+  'agent_file.proposal_decided',
+  'drift.detected',
+  'drift.resolved',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 
@@ -412,6 +445,10 @@ export const OBJECT_KINDS = [
   'agent_file',
   /** Decision 29: an install of agent files. */
   'install',
+  /** Decision 30: an agent's proposed change to an agent file or Workflow notes. */
+  'agent_file_proposal',
+  /** Decision 30: an installed file that differs from what was sent. */
+  'drift',
 ] as const;
 export type ObjectKind = (typeof OBJECT_KINDS)[number];
 

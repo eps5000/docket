@@ -55,10 +55,11 @@ describe('the service stubs', () => {
     Object.keys(impl as object).map((method) => [service, method] as const),
   );
 
-  it('cover every service T047 lists, plus diagnostics, recovery (T055), agent files and installs (T150), and undo', () => {
+  it('cover every service T047 lists, plus diagnostics, recovery (T055), agent files and installs (T150), proposals and drift (T159), and undo', () => {
     expect(Object.keys(services).sort()).toEqual(
       [
         'agentFiles',
+        'agentProposals',
         'archive',
         'backup',
         'checklist',
@@ -66,6 +67,7 @@ describe('the service stubs', () => {
         'decisions',
         'diagnostics',
         'documents',
+        'drift',
         'evidence',
         'forecast',
         'humanReview',

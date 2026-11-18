@@ -38,6 +38,7 @@ Workflow: Inbox → Planning → Ready → In progress → Review → Done.
 - Then call get_context: one call that gathers the item, the decisions you must follow, the epic and label briefs, blockers and planning docs.
 - Follow active decision records. Owner decisions are authoritative; to challenge one, use ask_owner. Record decisions other agents must follow with publish_decision.
 - Planning belongs to the owner. You may draft planning documents (put_document) and move an item to Ready only when the project's workflow (AGENTS.md / CLAUDE.md) says you may.
+- To change your instructions for a project, propose it with propose_agent_file_change; don't edit installed files directly.
 - Your plan is the item's checklist, not new tickets: set_plan with one-line steps, update_step as you go. Split work into a new Story or Task only when a step needs its own blocker, owner or review.
 - Record what you verify yourself with set_checks. Record subagent work with log_subagent; say whether you observed it or are relaying it.
 - If the owner must verify something by hand, declare it with declare_human_review, ideally during Planning. The item cannot close while any human review item is undecided.
@@ -62,7 +63,7 @@ Errors are structured (code: validation | conflict | not_found | forbidden | una
 |---|---|---|
 | Item | `<PROJECT>-<n>` | `RCP-14` |
 | Project | 2–5 uppercase letters | `RCP` |
-| Work step, check, human review item, run, question, link, document, document version, packet, event cursor | Prefix + ULID: `wst_`, `chk_`, `hr_`, `run_`, `q_`, `lnk_`, `doc_`, `dv_`, `pkt_`. Cursors are opaque strings. | `hr_01JC9V…` |
+| Work step, check, human review item, run, question, link, document, document version, packet, agent file proposal, event cursor | Prefix + ULID: `wst_`, `chk_`, `hr_`, `run_`, `q_`, `lnk_`, `doc_`, `dv_`, `pkt_`, `afp_`. Cursors are opaque strings. | `hr_01JC9V…` |
 
 ### Types
 - **Time:** ISO-8601 UTC strings. Dates (`planned_start`, `planned_end`) are `YYYY-MM-DD`.
@@ -107,7 +108,7 @@ Every mutating tool accepts `idempotency_key` (≤ 100 characters, unique per lo
 - **Use one** for anything you might retry after a timeout.
 
 ### Runs as signals
-Pass `run_id` on every call you make while working. **Every tool accepts an optional `run_id`**, reads included. `idempotency_key` is accepted only by the 27 mutating tools (B3 resolution 1).
+Pass `run_id` on every call you make while working. **Every tool accepts an optional `run_id`**, reads included. `idempotency_key` is accepted only by the 28 mutating tools (B3 resolution 1; 27 before decision 30 added `propose_agent_file_change`).
 - **What it does:** renews your lead lease and keeps you *live*.
 - **Calls without it** are attributed to your client but don't touch any run.
 
@@ -159,7 +160,7 @@ These are MCP hints:
 | Retry-safe mutating tools: `heartbeat`, `report_commit`, `update_step`, `update_check` | `idempotentHint: true` (and `false` on every other tool) |
 | All tools | `destructiveHint: false`, set explicitly, because MCP defaults it to true for tools that aren't read-only and agents can't delete |
 
-`readOnlyHint` is set explicitly on every tool: `true` for the 10 read tools, `false` for `get_item` and all mutations. No tool sets `openWorldHint` (B3 resolution 6).
+`readOnlyHint` is set explicitly on every tool: `true` for the 11 read tools (10 before decision 30 added `get_agent_files`), `false` for `get_item` and all mutations. No tool sets `openWorldHint` (B3 resolution 6).
 
 ### Results
 Every tool returns two things:
@@ -236,6 +237,7 @@ RCP-14 Generate shopping list from week plan
 | `get_item` any item, summary | 300 |
 | `search_items` with 25 results | 1,000 |
 | `get_context` `RCP-14` medium | 3,000 |
+| `get_agent_files` `RCP`, listing (no `file`) | 300 |
 | Any mutation result | 60 |
 
 ### 3.3 Patches: silence preserves
@@ -371,7 +373,8 @@ type EventType =
   | 'document.added' | 'commit.reported' | 'artifact.linked'
   | 'link.updated' | 'project.updated'
   | 'decision.published' | 'decision.confirmed' | 'decision.superseded' | 'decision.withdrawn'
-  | 'agent_file.updated' | 'agent_file.reverted' | 'workflow.updated' | 'install.recorded';   // decision 29
+  | 'agent_file.updated' | 'agent_file.reverted' | 'workflow.updated' | 'install.recorded'    // decision 29
+  | 'agent_file.proposed' | 'agent_file.proposal_decided' | 'drift.detected' | 'drift.resolved';   // decision 30
 
 type ToolError = { code: 'validation'|'conflict'|'not_found'|'forbidden'|'unavailable'|'internal';
   message: string; details?: Record<string, unknown>; current?: unknown };
@@ -484,8 +487,9 @@ The format for each tool below:
 ### 5.4 Claiming and runs
 
 #### `claim_lead`
-**Description:** "Claim an item as its lead before you work on it. Works on Ready items (moves them to In progress) and on In progress items with no lead (resuming sent-back or interrupted work). Pass workspace (where the work lives) and, if a coordinator briefed you, the brief, so the work can be restarted after a crash. Returns your run_id: pass it on every later call. If someone else holds the claim you get a conflict with who holds it and until when; do not work on the item."
+**Description:** "Claim an item as its lead before you work on it. Works on Ready items (moves them to In progress) and on In progress items with no lead (resuming sent-back or interrupted work). Pass workspace (where the work lives) and, if a coordinator briefed you, the brief, so the work can be restarted after a crash. Pass instructions with the output of the installed tasklite-check script, so the owner knows which instructions you work from. Returns your run_id: pass it on every later call. If someone else holds the claim you get a conflict with who holds it and until when; do not work on the item."
 - **Input:** `id`, `agent_label?` (≤ 40, for example `orca-w3`), `workspace?: { host?, repo?, path?, branch?, base_ref?, base_sha? }`, `orchestrator?: { name, dispatch_id?, task_id?, run_id? }`, `brief?` (text, ≤ 20,000) or `brief_document_version_id?`, `external?` (≤ 2 KB JSON), `instructions?: { install_id?, files: [{ key, sha256, content? }] }` (decision 30: the output of the installed `tasklite-check` script; `content` ≤ 50,000 only for files that differ from the manifest).
+- **`instructions` limits** (B26 resolutions): strict; `files` holds 0–20 entries (empty, with `install_id`, means every installed file is missing); `key` is `agents_block` or `skill:<name>`; `sha256` is 64 hex characters, either case (compared lowercased); `content` is 0–50,000 characters, not trimmed. `start_run` doesn't take it.
 - **Output:** `{ run_id, item: ItemSummary, lease_expires_at }`.
 - **Errors:**
   - `conflict` with `current: { lead_client, lead_label, run_id, last_signal_at, lease_expires_at }`, recorded as a rejected claim the owner can see;
@@ -672,19 +676,24 @@ The format for each tool below:
 
 ### 5.10 Agent files (decision 30)
 
-The two tools below are specified here; their exact `**Description:**` lines are added in the contract batch (tasks Phase 16, B26), in the same PR as the code and the snapshot. That batch also extends `claim_lead`'s description to mention `instructions`, and adds one server-instructions bullet: "To change your instructions for a project, propose it with propose_agent_file_change; don't edit installed files directly."
+Agents read the agent files and Workflow notes in effect for a project, and change them only by proposing (BUILD_SPEC §5.19; FR-128–FR-130). Shipped in B26 (tasks T159): the two descriptions below, `claim_lead`'s `instructions` (§5.4, with its description), and the server-instructions bullet (§2), in MCP_SPEC, `mcp-copy.ts` and the snapshot together. Both tools answer `unavailable` until B27 (T160) implements them.
 
 #### `get_agent_files`
-- **Purpose:** read the agent files and Workflow notes in effect for a project, before proposing a change.
-- **Input:** `project`, `file?` (one key; otherwise all).
-- **Output:** `{ project, files: [{ key, kind: 'skill'|'agents_block'|'workflow', version_id, sha256, source: 'default'|'project', content }] }`.
+**Description:** "Read the agent files (skills and the AGENTS.md block) and Workflow notes in effect for a project, with each one's version_id and where it comes from. Pass file to get its full text. Read-only. Call it before propose_agent_file_change, and propose from this text, not your installed copy."
+- **Input:** `project`, `file?` (one key: `agents_block`, `workflow` or `skill:<name>`; otherwise all).
+- **Output:** `{ project, files: [{ key, kind: 'skill'|'agents_block'|'workflow', version_id: string|null, sha256, source: 'default'|'project', content: string|null }] }`.
+- **Listing and full text** (B26, for token cost): without `file`, every file is listed with `content: null`, and the text block prints one header line per file. With `file`, only that file is returned, and its full `content` is printed after its header line.
+- **Workflow notes** are always listed. A project with no notes yet has `version_id: null`, `content: ""` and the sha256 of the empty string. Their `source` is `project`.
 - **Read-only.**
+- **Errors:** `validation` (unknown file), `not_found` (project).
 
 #### `propose_agent_file_change`
-- **Purpose:** propose new content for a file or the Workflow notes. Changes nothing until the owner approves.
-- **Input:** `project?` (omit to propose a change to the default), `file` (a skill key, `agents_block` or `workflow`), `content` (≤ 50,000; Workflow ≤ 10,000), `reason` (≤ 500), `based_on_version_id`, plus `run_id?` and `idempotency_key?`.
+**Description:** "Propose new content for an agent file (a skill or the AGENTS.md block) or a project's Workflow notes, with a short reason. Nothing changes until the owner approves; they may edit or decline it. Send the whole new text and based_on_version_id from get_agent_files. Omit project to propose a change to the default."
+- **Input:** `project?` (omit to propose a change to the default), `file` (a skill key, `agents_block` or `workflow`), `content` (≤ 50,000; Workflow ≤ 10,000), `reason` (≤ 500), `based_on_version_id` (the `version_id` you read; `null` for Workflow notes that don't exist yet), plus `run_id?` and `idempotency_key?`.
+- **Limits** (B26 resolutions): `content` is not trimmed. A skill or the block is 1–50,000 characters; Workflow notes are 0–10,000, where empty clears them. `reason` is 1–500, trimmed. `workflow` needs `project`. Proposal IDs are `afp_…`.
 - **Output:** `{ proposal_id, state: 'pending' }`.
 - **Errors:** `validation` (limits, unknown file, a secret), `not_found` (project).
+- **Not retry-safe** (`idempotentHint: false`): pass `idempotency_key` when you might retry.
 
 ## 6. Errors
 

@@ -8,6 +8,7 @@ anchors:
   - agent-files.workflow
   - agent-files.install-log
   - settings.push-folder
+  - problems.agent_files_drift
 related:
   - connect-an-agent
   - crash-recovery

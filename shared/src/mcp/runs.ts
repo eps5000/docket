@@ -16,6 +16,7 @@ import {
   runIdField,
   text,
 } from './common.js';
+import { instructionsInput } from './agent-files.js';
 import { LIMITS, TEXT_LIMITS } from './limits.js';
 import { itemSummarySchema, runStateSchema } from './types.js';
 
@@ -138,6 +139,8 @@ export const claimLeadInput = mutationInput({
   /** For example `orca-w3`. */
   agent_label: agentLabel.optional(),
   ...recoveryFields,
+  /** Decision 30: the installed `tasklite-check` script's output (MCP_SPEC §5.4; BUILD_SPEC §5.19). */
+  instructions: instructionsInput.optional(),
 }).superRefine(oneBrief);
 export const claimLeadOutput = mutationOutput({
   run_id: z.string(),

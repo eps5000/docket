@@ -8,6 +8,7 @@ export * from './runs.js';
 export * from './checklist.js';
 export * from './review.js';
 export * from './recovery.js';
+export * from './agent-files.js';
 export * from './tools.js';
 export * from './json-schema.js';
 export * from './validation.js';

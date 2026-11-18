@@ -17,6 +17,7 @@ export const SERVER_INSTRUCTIONS = [
   '- Then call get_context: one call that gathers the item, the decisions you must follow, the epic and label briefs, blockers and planning docs.',
   '- Follow active decision records. Owner decisions are authoritative; to challenge one, use ask_owner. Record decisions other agents must follow with publish_decision.',
   "- Planning belongs to the owner. You may draft planning documents (put_document) and move an item to Ready only when the project's workflow (AGENTS.md / CLAUDE.md) says you may.",
+  "- To change your instructions for a project, propose it with propose_agent_file_change; don't edit installed files directly.",
   "- Your plan is the item's checklist, not new tickets: set_plan with one-line steps, update_step as you go. Split work into a new Story or Task only when a step needs its own blocker, owner or review.",
   '- Record what you verify yourself with set_checks. Record subagent work with log_subagent; say whether you observed it or are relaying it.',
   '- If the owner must verify something by hand, declare it with declare_human_review, ideally during Planning. The item cannot close while any human review item is undecided.',
@@ -62,7 +63,7 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   upsert_label:
     'Create a label or update its brief. Use a label for an initiative that spans several epics; the brief holds the shared decisions.',
   claim_lead:
-    'Claim an item as its lead before you work on it. Works on Ready items (moves them to In progress) and on In progress items with no lead (resuming sent-back or interrupted work). Pass workspace (where the work lives) and, if a coordinator briefed you, the brief, so the work can be restarted after a crash. Returns your run_id: pass it on every later call. If someone else holds the claim you get a conflict with who holds it and until when; do not work on the item.',
+    'Claim an item as its lead before you work on it. Works on Ready items (moves them to In progress) and on In progress items with no lead (resuming sent-back or interrupted work). Pass workspace (where the work lives) and, if a coordinator briefed you, the brief, so the work can be restarted after a crash. Pass instructions with the output of the installed tasklite-check script, so the owner knows which instructions you work from. Returns your run_id: pass it on every later call. If someone else holds the claim you get a conflict with who holds it and until when; do not work on the item.',
   release_lead:
     'Give up the lead claim without finishing, for example when you are stopping before the work is done. The item returns to Ready so another agent can pick it up; your plan and notes stay.',
   start_run:
@@ -108,6 +109,10 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
     "Withdraw a decision you or another agent recorded when it no longer applies. Owner decisions can't be withdrawn by agents.",
   recovery_report:
     'After a crash or restart, or before pruning worktrees, get the restart list: runs that were interrupted, went stale or are parked, each with its brief, workspace, last pushed commit, checklist progress and any open question; every workspace with whether it is in use, at risk or safe to prune; and resources left running. Re-dispatch from this instead of guessing, and never prune a workspace marked in use or at risk.',
+  get_agent_files:
+    "Read the agent files (skills and the AGENTS.md block) and Workflow notes in effect for a project, with each one's version_id and where it comes from. Pass file to get its full text. Read-only. Call it before propose_agent_file_change, and propose from this text, not your installed copy.",
+  propose_agent_file_change:
+    "Propose new content for an agent file (a skill or the AGENTS.md block) or a project's Workflow notes, with a short reason. Nothing changes until the owner approves; they may edit or decline it. Send the whole new text and based_on_version_id from get_agent_files. Omit project to propose a change to the default.",
 };
 
 /**
@@ -156,6 +161,9 @@ export const TOOL_SUMMARIES: Record<ToolName, string> = {
   withdraw_decision: 'Withdrew {decision_id} {title}',
   recovery_report:
     'Recovery: {interrupted} interrupted · {stale} stale · {parked} parked · {workspaces} workspaces · {orphaned} orphaned resources{more}',
+  get_agent_files: 'Agent files for {project}: {count}',
+  propose_agent_file_change:
+    'Proposed {file} change for {target} · {proposal_id} · pending owner approval',
 };
 
 /** Fill a summary template. A missing (or non-scalar) value renders as `?`, so a gap is visible in tests. */

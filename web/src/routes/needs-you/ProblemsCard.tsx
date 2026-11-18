@@ -115,6 +115,14 @@ export const PROBLEM_ROWS: Record<
     tone: 'bad',
     actions: [{ label: 'Open', kind: 'link', to: () => paths.settings() }],
   },
+  // Decision 30 (UI_SPEC §6.7b-1): → the Agent files page's "Changed outside Task Lite".
+  // The server raises none until US14 (T161), which may refine the link.
+  agent_files_drift: {
+    help: 'problems.agent_files_drift',
+    icon: 'doc',
+    tone: 'warn',
+    actions: [{ label: 'Review', kind: 'link', to: () => paths.agentFiles() }],
+  },
 };
 
 /** The recovery rows, which show the worktree's state chip (B20). */

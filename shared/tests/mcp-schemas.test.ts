@@ -25,21 +25,29 @@ const fails = (name: string, args: unknown) => {
 };
 
 describe('the registry', () => {
-  it('has 38 tools with unique names: 10 read, 1 delivering (get_item), 27 mutating', () => {
-    expect(TOOLS).toHaveLength(38);
-    expect(new Set(TOOLS.map((t) => t.name)).size).toBe(38);
+  it('has 40 tools with unique names: 11 read, 1 delivering (get_item), 28 mutating', () => {
+    expect(TOOLS).toHaveLength(40);
+    expect(new Set(TOOLS.map((t) => t.name)).size).toBe(40);
     const kinds = TOOLS.reduce<Record<string, number>>(
       (acc, t) => ({ ...acc, [t.kind]: (acc[t.kind] ?? 0) + 1 }),
       {},
     );
-    expect(kinds).toEqual({ read: 10, delivering: 1, mutating: 27 });
+    expect(kinds).toEqual({ read: 11, delivering: 1, mutating: 28 });
   });
 
-  it('groups tools into the eight server files', () => {
+  it('groups tools into the nine server files', () => {
     const groups = Object.fromEntries(
-      ['read', 'items', 'runs', 'checklist', 'evidence', 'review', 'decisions', 'recovery'].map(
-        (g) => [g, TOOLS.filter((t) => t.group === g).length],
-      ),
+      [
+        'read',
+        'items',
+        'runs',
+        'checklist',
+        'evidence',
+        'review',
+        'decisions',
+        'recovery',
+        'agent_files',
+      ].map((g) => [g, TOOLS.filter((t) => t.group === g).length]),
     );
     expect(groups).toEqual({
       read: 8,
@@ -50,6 +58,7 @@ describe('the registry', () => {
       review: 3,
       decisions: 3,
       recovery: 1,
+      agent_files: 2,
     });
   });
 
@@ -473,5 +482,107 @@ describe('recovery inputs (MCP_SPEC §3 "Workspaces, briefs and resources", §5.
     fails('recovery_report', { since: '2026-11-08' });
     fails('recovery_report', { limit: 51 });
     fails('recovery_report', { include_brief: true });
+  });
+});
+
+describe('agent file inputs (MCP_SPEC §5.4 instructions, §5.10; decision 30; B26)', () => {
+  const sha = 'a'.repeat(64);
+  const claim = (instructions: unknown) => ({ id: 'RCP-23', instructions });
+
+  it('claim_lead takes the tasklite-check report: install_id, and up to 20 files', () => {
+    ok('claim_lead', claim({ install_id: 'ins_1', files: [{ key: 'agents_block', sha256: sha }] }));
+    ok(
+      'claim_lead',
+      claim({ files: [{ key: 'skill:tasklite-worker', sha256: sha.toUpperCase() }] }),
+    );
+    // Empty, with install_id: every installed file is missing.
+    ok('claim_lead', claim({ install_id: 'ins_1', files: [] }));
+    const twenty = Array.from({ length: 20 }, (_, i) => ({ key: `skill:s${i}`, sha256: sha }));
+    ok('claim_lead', claim({ files: twenty }));
+    fails('claim_lead', claim({ files: [...twenty, { key: 'skill:s20', sha256: sha }] }));
+    fails('claim_lead', claim({ install_id: 'ins_1' }));
+  });
+
+  it('a reported file has an installed key, a 64-hex sha256 and content ≤ 50,000, kept as is', () => {
+    const file = (f: Record<string, unknown>) =>
+      claim({ files: [{ key: 'agents_block', sha256: sha, ...f }] });
+    fails('claim_lead', file({ key: 'workflow' }));
+    fails('claim_lead', file({ key: 'skill:Bad_Name' }));
+    fails('claim_lead', file({ sha256: 'a'.repeat(63) }));
+    fails('claim_lead', file({ sha256: 'g'.repeat(64) }));
+    ok('claim_lead', file({ content: '' }));
+    ok('claim_lead', file({ content: 'x'.repeat(50_000) }));
+    fails('claim_lead', file({ content: 'x'.repeat(50_001) }));
+    const content = '  indented\n';
+    const parsed = ok('claim_lead', file({ content })) as {
+      instructions: { files: { content: string }[] };
+    };
+    expect(parsed.instructions.files[0]!.content).toBe(content);
+    const typo = fails('claim_lead', file({ contnet: 'x' }));
+    expect(typo.some((i) => i.code === 'unrecognized_keys')).toBe(true);
+  });
+
+  it('start_run does not take instructions', () => {
+    fails('start_run', { id: 'RCP-23', parent_run_id: 'run_A', instructions: { files: [] } });
+  });
+
+  it('get_agent_files needs a project; file is one key', () => {
+    ok('get_agent_files', { project: 'RCP' });
+    for (const file of ['agents_block', 'workflow', 'skill:tasklite-worker']) {
+      ok('get_agent_files', { project: 'RCP', file });
+    }
+    fails('get_agent_files', {});
+    fails('get_agent_files', { project: 'RCP', file: 'tasklite-worker' });
+    fails('get_agent_files', { project: 'RCP', idempotency_key: 'k' });
+  });
+
+  const propose = (extra: Record<string, unknown>) => ({
+    project: 'RCP',
+    file: 'skill:tasklite-worker',
+    content: '---\nname: tasklite-worker\n---\n',
+    reason: 'Run the linter before each commit.',
+    based_on_version_id: 'afv_1',
+    ...extra,
+  });
+
+  it('propose_agent_file_change: the whole text, kept as is, with a reason and the version read', () => {
+    const content = '  starts indented\n';
+    expect(ok('propose_agent_file_change', propose({ content })).content).toBe(content);
+    ok('propose_agent_file_change', propose({ project: undefined }));
+    ok('propose_agent_file_change', propose({ idempotency_key: 'p-1', run_id: 'run_A' }));
+    ok('propose_agent_file_change', propose({ content: 'x'.repeat(50_000) }));
+    fails('propose_agent_file_change', propose({ content: 'x'.repeat(50_001) }));
+    fails('propose_agent_file_change', propose({ content: '  \n' }));
+    fails('propose_agent_file_change', propose({ reason: '' }));
+    fails('propose_agent_file_change', propose({ reason: 'r'.repeat(501) }));
+    fails('propose_agent_file_change', propose({ based_on_version_id: undefined }));
+    fails('propose_agent_file_change', propose({ based_on_version_id: null }));
+    fails('propose_agent_file_change', propose({ file: 'skills/tasklite-worker' }));
+  });
+
+  it('Workflow notes need a project, are at most 10,000, may be empty, and may start from none', () => {
+    const wf = (extra: Record<string, unknown>) => propose({ file: 'workflow', ...extra });
+    ok('propose_agent_file_change', wf({ content: '', based_on_version_id: null }));
+    ok(
+      'propose_agent_file_change',
+      wf({ content: 'x'.repeat(10_000), based_on_version_id: 'wf_1' }),
+    );
+    const long = fails('propose_agent_file_change', wf({ content: 'x'.repeat(10_001) }));
+    expect(long[0]!.path).toEqual(['content']);
+    const noProject = fails('propose_agent_file_change', wf({ project: undefined }));
+    expect(noProject[0]!.path).toEqual(['project']);
+  });
+
+  it('get_agent_files is read-only; propose is a write that is not retry-safe', () => {
+    expect(toolAnnotations(getTool('get_agent_files'))).toEqual({
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: false,
+    });
+    expect(toolAnnotations(getTool('propose_agent_file_change'))).toEqual({
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+    });
   });
 });

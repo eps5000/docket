@@ -4,7 +4,13 @@
  * Shared contract file (tasks.md, Slice rules).
  */
 import { z } from 'zod';
-import { FILTERS, PROVENANCES, SIGNAL_KINDS, SUBAGENT_PROVENANCES } from '../enums.js';
+import {
+  AGENT_FILE_SOURCES,
+  FILTERS,
+  PROVENANCES,
+  SIGNAL_KINDS,
+  SUBAGENT_PROVENANCES,
+} from '../enums.js';
 import { itemId, longText } from '../mcp/common.js';
 import { labelNameSchema } from '../mcp/items.js';
 import { deferredReviewsOutput } from '../mcp/read.js';
@@ -100,6 +106,8 @@ export const PROBLEM_KINDS = [
   'unpushed_work',
   'parked_too_long',
   'resume_unattended',
+  // Agent files changed outside Task Lite (owner decision 30; BUILD_SPEC §5.19; UI_SPEC §6.7b-1)
+  'agent_files_drift',
 ] as const;
 
 export const problemSchema = z.object({
@@ -117,6 +125,8 @@ export const problemSchema = z.object({
   run_id: z.string().nullable(),
   /** Orphaned resources: what *Mark released* sends, one call each. */
   resource_ids: z.array(z.string()),
+  /** Agent files drift (decision 30): the drift record the row opens (optional; B26). */
+  drift_id: z.string().optional(),
 });
 export type Problem = z.infer<typeof problemSchema>;
 
@@ -130,6 +140,8 @@ export const needsYouResponse = jsonResponse({
   deferred: z.array(deferredRowSchema),
   planning_queue: z.array(itemSummarySchema),
   agent_counts: runStateCountsSchema,
+  /** "n agent file changes proposed" (decision 30; UI_SPEC §6.7b-1): pending proposals in scope (optional; B26). */
+  agent_file_proposals: z.number().int().optional(),
 });
 export type NeedsYouResponse = z.infer<typeof needsYouResponse>;
 
@@ -230,6 +242,27 @@ export const planVersionSchema = z.object({
 });
 export type PlanVersion = z.infer<typeof planVersionSchema>;
 
+/** The instruction versions a run reported working from (decision 30; BUILD_SPEC §5.19). */
+export const runInstructionsSchema = z.object({
+  run_id: z.string(),
+  install_id: z.string().nullable(),
+  files: z.array(
+    z.object({
+      key: z.string(),
+      /** The skill's name or "AGENTS.md block". */
+      name: z.string(),
+      /** Which version was sent: the default or the project's copy; null when it isn't known. */
+      source: z.enum(AGENT_FILE_SOURCES).nullable(),
+      version_no: z.number().int().nullable(),
+      /** The reported hash differs from what was sent: the ⚠ "edited locally" chip. */
+      edited_locally: z.boolean(),
+      /** The drift record the chip links to. */
+      drift_id: z.string().nullable(),
+    }),
+  ),
+});
+export type RunInstructions = z.infer<typeof runInstructionsSchema>;
+
 export const itemDetailResponse = jsonResponse({
   item: itemSchema,
   /** For an epic: its children, each with whether it's for you ("n for you", UI_SPEC §6.3). Empty otherwise. */
@@ -273,6 +306,11 @@ export const itemDetailResponse = jsonResponse({
   links: z.array(linkEdgeSchema),
   /** Items linked to this item (or, for an epic, its children) that aren't among them: 1-hop and "Outside this epic" cards. */
   outside: z.array(itemSummarySchema),
+  /**
+   * "Instructions: tasklite-worker · Recipe App's copy v2" on each run that
+   * reported them on claim_lead (decision 30; UI_SPEC §6.7b-1; optional; B26).
+   */
+  run_instructions: z.array(runInstructionsSchema).optional(),
 });
 export type ItemDetailResponse = z.infer<typeof itemDetailResponse>;
 
