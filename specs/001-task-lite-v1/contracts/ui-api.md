@@ -1,7 +1,7 @@
 # Contract index: UI API
 
 **Authoritative**: [BUILD_SPEC §7](../../../docs/BUILD_SPEC.md). Every route needs the owner session,
-and mutations also need the `X-Tasklite-CSRF` header, except `POST /api/session/unlock`,
+and mutations also need the `X-Docket-CSRF` header, except `POST /api/session/unlock`,
 `/agent-upload` (the agent bearer token) and `GET /install/:token` (its single-use token; decision 29).
 This index groups the routes by user story.
 

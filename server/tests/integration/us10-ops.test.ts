@@ -52,7 +52,7 @@ import {
 } from '../../src/jobs/backup.js';
 import { startupHousekeeping } from '../../src/jobs/startup.js';
 import { restartSweep } from '../../src/jobs/sweeper.js';
-import { readTarGz } from '../../src/jobs/tar.js';
+import { readTarGz, writeTarGz } from '../../src/jobs/tar.js';
 import {
   expectNotFound,
   expectOk,
@@ -163,7 +163,7 @@ describe('backups (BUILD_SPEC §5.13)', () => {
     const result = await s.runtime.services.backup.runNow(read(s));
     expect(result.extra_copy).toBeNull();
     expect(result.archive_path.startsWith(s.runtime.config.paths.backups)).toBe(true);
-    expect(result.archive_path).toMatch(/tasklite-\d{8}-\d{4}\.tar\.gz$/);
+    expect(result.archive_path).toMatch(/docket-\d{8}-\d{4}\.tar\.gz$/);
 
     const names = await readTarGzNames(result.archive_path);
     expect(names[0]).toBe('docket.db');
@@ -197,10 +197,10 @@ describe('backups (BUILD_SPEC §5.13)', () => {
     const old = new Date(NOW.getTime() - 4 * 86_400_000);
     const recent = new Date(NOW.getTime() - 2 * 86_400_000);
     const nameAt = (d: Date) =>
-      `tasklite-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}-0300.tar.gz`;
+      `docket-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}-0300.tar.gz`;
     writeFileSync(join(dir, nameAt(old)), 'old');
     writeFileSync(join(dir, nameAt(recent)), 'recent');
-    writeFileSync(join(dir, 'tasklite-20261101-0300.tar.gz.partial'), 'interrupted');
+    writeFileSync(join(dir, 'docket-20261101-0300.tar.gz.partial'), 'interrupted');
     writeFileSync(join(dir, 'notes.txt'), 'the owner’s own file');
 
     await s.runtime.services.backup.runNow(read(s));
@@ -213,10 +213,8 @@ describe('backups (BUILD_SPEC §5.13)', () => {
   });
 
   it('names archives by local time and schedules the next run at DOCKET_BACKUP_AT', () => {
-    expect(archiveTime('tasklite-20261106-0300.tar.gz')).toEqual(new Date(2026, 10, 6, 3, 0));
-    expect(archiveTime('tasklite-20261106-030015-2.tar.gz')).toEqual(
-      new Date(2026, 10, 6, 3, 0, 15),
-    );
+    expect(archiveTime('docket-20261106-0300.tar.gz')).toEqual(new Date(2026, 10, 6, 3, 0));
+    expect(archiveTime('docket-20261106-030015-2.tar.gz')).toEqual(new Date(2026, 10, 6, 3, 0, 15));
     expect(archiveTime('status.json')).toBeNull();
     const before = new Date(2026, 10, 6, 2, 59);
     expect(nextBackupAt(before, '03:00')).toEqual(new Date(2026, 10, 6, 3, 0));
@@ -267,7 +265,7 @@ describe('the extra backup location (owner decision 24; FR-103a)', () => {
     expect(existsSync(dataDir)).toBe(false);
 
     const config = loadConfig({ DOCKET_BACKUP_EXTRA_DIR: extra }, { dataDir });
-    // `tasklite restore` accepts a bare name from the extra location.
+    // `docket restore` accepts a bare name from the extra location.
     const restored = await restoreBackup({ config, file: name });
     expect(restored.archive).toBe(copy);
     expect(checksumsOf(dataDir)).toEqual(before);
@@ -426,6 +424,54 @@ describe('restore (BUILD_SPEC §5.13; SC-008)', () => {
     expect(checksumsOf(s.dataDir)).toEqual(before);
   });
 
+  it('restores a backup taken before the rename (B28: tasklite-*.tar.gz, tasklite-backup, tasklite.db)', async () => {
+    const s = seeded();
+    const archive = await backupOf(s);
+    const before = checksumsOf(s.dataDir);
+    // Rewrite the archive as Task Lite wrote it: old name, old format, old database entry.
+    const entries: { name: string; bytes: Buffer }[] = [];
+    await readTarGz(archive, (e) => {
+      const parts: Buffer[] = [];
+      return {
+        write: (c) => {
+          parts.push(Buffer.from(c));
+        },
+        end: () => {
+          entries.push({ name: e.name, bytes: Buffer.concat(parts) });
+        },
+      };
+    });
+    const old = entries.map((e) => {
+      if (e.name === 'docket.db') return { ...e, name: 'tasklite.db' };
+      if (e.name !== 'manifest.json') return e;
+      const m = JSON.parse(e.bytes.toString('utf8')) as {
+        format: string;
+        files: Record<string, unknown>;
+      };
+      m.format = 'tasklite-backup';
+      m.files['tasklite.db'] = m.files['docket.db'];
+      delete m.files['docket.db'];
+      return { ...e, bytes: Buffer.from(JSON.stringify(m)) };
+    });
+    const backups = s.runtime.config.paths.backups;
+    const legacy = join(backups, 'tasklite-20261101-0300.tar.gz');
+    await writeTarGz(
+      legacy,
+      old.map((e) => ({ name: e.name, size: e.bytes.length, source: { bytes: e.bytes } })),
+    );
+    // Listed and kept with the new ones.
+    expect(listArchives(backups).map((a) => a.name)).toContain('tasklite-20261101-0300.tar.gz');
+    expect(archiveTime('tasklite-20261101-0300.tar.gz')).toEqual(new Date(2026, 10, 1, 3, 0));
+    const scratch = join(tmp.dir, 'scratch-old');
+    const result = await restoreBackup({
+      config: loadConfig({}, { dataDir: scratch }),
+      file: legacy,
+    });
+    expect(result.checksums).toEqual(before);
+    // Restored into a fresh volume, the database takes the new name.
+    expect(checksumsOf(scratch)).toEqual(before);
+  });
+
   it('verifies the archive first: a damaged or foreign archive is refused and nothing changes', async () => {
     const s = seeded();
     const archive = await backupOf(s);
@@ -449,7 +495,7 @@ describe('restore (BUILD_SPEC §5.13; SC-008)', () => {
     const foreign = join(tmp.dir, 'foreign.tar.gz');
     writeFileSync(foreign, 'not an archive');
     await expect(restoreBackup({ config, file: foreign })).rejects.toThrow();
-    await expect(restoreBackup({ config, file: 'tasklite-19990101-0300.tar.gz' })).rejects.toThrow(
+    await expect(restoreBackup({ config, file: 'docket-19990101-0300.tar.gz' })).rejects.toThrow(
       /No backup at/,
     );
 

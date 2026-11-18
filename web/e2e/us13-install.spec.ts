@@ -204,9 +204,7 @@ test.describe('Install and check (US13)', () => {
 
     // The files are there; CLAUDE.md keeps its own text byte for byte, then the section.
     const claude = sh(`cat ${REPO}/CLAUDE.md`);
-    expect(claude.startsWith(`${PRE}\n<!-- docket:begin -->\n## Work tracking: Docket`)).toBe(
-      true,
-    );
+    expect(claude.startsWith(`${PRE}\n<!-- docket:begin -->\n## Work tracking: Docket`)).toBe(true);
     expect(claude).toContain('`docket-worker` skill');
     expect(claude).not.toContain('{{');
     expect(claude.endsWith('<!-- docket:end -->\n')).toBe(true);

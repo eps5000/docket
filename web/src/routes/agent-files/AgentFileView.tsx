@@ -309,9 +309,7 @@ function FileBody({
             <Chip>Default{edited ? ' (edited)' : ''}</Chip>
           )
         ) : (
-          <Chip kind={edited ? 'info' : 'neutral'}>
-            {edited ? 'Edited' : 'Docket’s version'}
-          </Chip>
+          <Chip kind={edited ? 'info' : 'neutral'}>{edited ? 'Edited' : 'Docket’s version'}</Chip>
         )}
         <span className="grow" />
         <IconButton icon="x" aria-label={`Close ${d.name}`} bare onClick={onClose} />

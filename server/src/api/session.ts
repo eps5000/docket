@@ -171,10 +171,7 @@ export function requireCsrf(): MiddlewareHandler<ApiEnv> {
     const cookie = getCookie(c, CSRF_COOKIE) ?? '';
     if (!header || !safeEqual(header, cookie) || !safeEqual(header, session.csrf)) {
       return c.json(
-        errorBody(
-          'forbidden',
-          'Missing or wrong X-Docket-CSRF header. Reload the page and retry.',
-        ),
+        errorBody('forbidden', 'Missing or wrong X-Docket-CSRF header. Reload the page and retry.'),
         403,
       );
     }

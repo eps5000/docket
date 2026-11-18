@@ -1,11 +1,11 @@
 /**
- * `tasklite export` (tasks.md T147; ROADMAP §1 "Have a way out"; O06).
+ * `docket export` (tasks.md T147; ROADMAP §1 "Have a way out"; O06).
  *
  * The round trip: export the sample seed (plus a document and a Jira-style
  * attachment-free project), rebuild a fresh database from nothing but the
  * archive's JSON, put the archive's document files back, and compare:
  * every table's row count, and the item, event and document checksums
- * `tasklite checksums` prints. They must be identical.
+ * `docket checksums` prints. They must be identical.
  *
  * Also: no key, token or browser session is in the archive, the excluded
  * tables are absent, the CLI writes the file and prints the counts, and an
@@ -63,7 +63,7 @@ async function readAll(path: string): Promise<Map<string, Buffer>> {
 
 const sha256 = (b: Buffer) => createHash('sha256').update(b).digest('hex');
 
-describe('tasklite export (T147)', () => {
+describe('docket export (T147)', () => {
   it('round-trips the seed: a database rebuilt from the JSON has the same counts and checksums', async () => {
     s = seeded();
     const out = join(tempDir('docket-export-').dir, 'seed-export.tar.gz');

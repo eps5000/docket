@@ -291,8 +291,8 @@ function DriftCard({
           </Callout>
         ) : noText ? (
           <Callout>
-            Docket doesn’t have the local text, so it can’t show the change. Run docket-check
-            on that machine to send the text: the next agent claim there does it.
+            Docket doesn’t have the local text, so it can’t show the change. Run docket-check on
+            that machine to send the text: the next agent claim there does it.
           </Callout>
         ) : sent === undefined ? (
           <div className="src">Loading the comparison…</div>
@@ -305,7 +305,7 @@ function DriftCard({
                 ? `${nameOf(fileKeyOf(d))}: Docket’s version → the local ${name} (old name)`
                 : d.change === 'extra'
                   ? `${name}: the added file`
-                : `${name}: Docket’s version → the local file`
+                  : `${name}: Docket’s version → the local file`
             }
           />
         )}

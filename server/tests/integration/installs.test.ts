@@ -151,7 +151,7 @@ describe('command install: the bundle and the single-use token (T155)', () => {
     expect(res.headers.get('content-type')).toBe('application/gzip');
     expect(res.headers.get('cache-control')).toBe('no-store');
     expect(res.headers.get('content-disposition')).toBe(
-      `attachment; filename="tasklite-${body.install_id}.tar.gz"`,
+      `attachment; filename="docket-${body.install_id}.tar.gz"`,
     );
     const bundle = Buffer.from(await res.arrayBuffer());
     const files = untar(bundle);
@@ -178,13 +178,8 @@ describe('command install: the bundle and the single-use token (T155)', () => {
       ].join('\n'),
     );
     // Each skill is the effective version's text, byte for byte.
-    const worker = readFileSync(
-      join(__dirname, '../../../skills/docket-worker/SKILL.md'),
-      'utf8',
-    );
-    expect(files.get('docket-install/files/.claude/skills/docket-worker/SKILL.md')).toBe(
-      worker,
-    );
+    const worker = readFileSync(join(__dirname, '../../../skills/docket-worker/SKILL.md'), 'utf8');
+    expect(files.get('docket-install/files/.claude/skills/docket-worker/SKILL.md')).toBe(worker);
     // The block: the comment stripped; the shipped block has no placeholders (B25).
     const block = files.get('docket-install/block.md')!;
     expect(block.startsWith('## Work tracking: Docket')).toBe(true);
@@ -335,17 +330,13 @@ describe('command install: the bundle and the single-use token (T155)', () => {
 
   it('sends a project override as that project’s effective version', async () => {
     const { api, server } = await start();
-    const put = await api(
-      'PUT',
-      `/api/agent-files/${encodeURIComponent('skill:docket-worker')}`,
-      {
-        layer: 'project',
-        project: 'RCP',
-        content: '# RCP worker\n',
-        expected_version: 0,
-        note: 'Ours.',
-      },
-    );
+    const put = await api('PUT', `/api/agent-files/${encodeURIComponent('skill:docket-worker')}`, {
+      layer: 'project',
+      project: 'RCP',
+      content: '# RCP worker\n',
+      expected_version: 0,
+      note: 'Ours.',
+    });
     expect(put.status).toBe(200);
     const created = await api('POST', '/api/installs', {
       client: 'claude',

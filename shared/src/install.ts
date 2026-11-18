@@ -169,8 +169,7 @@ export class BrokenMarkersError extends Error {
 }
 
 /** The section as written: the markers on their own lines around the block. */
-export const markedSection = (block: string): string =>
-  `${DOCKET_BEGIN}\n${block}\n${DOCKET_END}`;
+export const markedSection = (block: string): string => `${DOCKET_BEGIN}\n${block}\n${DOCKET_END}`;
 
 /**
  * Insert or replace the Docket section in `existing` (null: no file yet).

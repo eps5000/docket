@@ -9,19 +9,19 @@ One item has **one lead**: you. Subagents never call `claim_lead` on your item. 
 
 ## 1. Choose how each subagent reports
 
-| The subagent                                                          | Use                                                                                                                      | It records                                                                            |
-| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| The subagent                                                       | Use                                                                                                                      | It records                                                                            |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
 | Has its own Docket connection (a separate agent process or worker) | `start_run { id, parent_run_id: <your run>, agent_label, workspace?, brief? }`, then give it the returned child `run_id` | Its own updates (checks, steps, notes), passing the child `run_id`, then `finish_run` |
-| Has no connection (an in-process subagent or tool call)               | `log_subagent` when it reports back                                                                                      | Nothing. You record it.                                                               |
+| Has no connection (an in-process subagent or tool call)            | `log_subagent` when it reports back                                                                                      | Nothing. You record it.                                                               |
 
 **Give a connected subagent's child run** its own `workspace` (if it has its own worktree) and its `brief` (the exact instructions you gave it), so a crash leaves it restartable too.
 
 ## 2. Provenance: be honest
 
-| Value      | When to use it                                                                                       |
-| ---------- | ---------------------------------------------------------------------------------------------------- |
+| Value      | When to use it                                                                                    |
+| ---------- | ------------------------------------------------------------------------------------------------- |
 | `observed` | You saw the subagent's run or output yourself: its test output, its diff, its child run in Docket |
-| `relayed`  | You're passing on what it told you, without checking                                                 |
+| `relayed`  | You're passing on what it told you, without checking                                              |
 
 The owner sees the difference. Never mark relayed work as observed. Checks a connected subagent records itself carry its own provenance (see MCP_SPEC flow §7.7).
 

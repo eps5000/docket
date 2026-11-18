@@ -17,7 +17,7 @@ export interface TempDir {
   cleanup(): void;
 }
 
-export function tempDir(prefix = 'tasklite-test-'): TempDir {
+export function tempDir(prefix = 'docket-test-'): TempDir {
   const dir = mkdtempSync(join(tmpdir(), prefix));
   return { dir, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
 }

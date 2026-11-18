@@ -194,13 +194,13 @@ describe('0005_docket_rename on a database from before the rename', () => {
   it('renames the agent files and keeps their ids, versions and current version', () => {
     const versionsBefore = all(db, 'SELECT * FROM agent_file_versions ORDER BY id');
     migrateDb(db);
-    expect(all(db, 'SELECT id, key, layer, current_version_id FROM agent_files ORDER BY id')).toEqual(
-      [
-        { id: 'af_1', key: NEW, layer: 'bundled', current_version_id: 'afv_2' },
-        { id: 'af_2', key: NEW, layer: 'project', current_version_id: 'afv_3' },
-        { id: 'af_3', key: 'agents_block', layer: 'bundled', current_version_id: 'afv_4' },
-      ],
-    );
+    expect(
+      all(db, 'SELECT id, key, layer, current_version_id FROM agent_files ORDER BY id'),
+    ).toEqual([
+      { id: 'af_1', key: NEW, layer: 'bundled', current_version_id: 'afv_2' },
+      { id: 'af_2', key: NEW, layer: 'project', current_version_id: 'afv_3' },
+      { id: 'af_3', key: 'agents_block', layer: 'bundled', current_version_id: 'afv_4' },
+    ]);
     expect(all(db, 'SELECT * FROM agent_file_versions ORDER BY id')).toEqual(versionsBefore);
   });
 

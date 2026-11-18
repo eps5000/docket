@@ -225,10 +225,7 @@ export function loadConfig(
     staleAfterMs: parseDuration(get('DOCKET_STALE_AFTER'), 'DOCKET_STALE_AFTER'),
     leaseMs: parseDuration(get('DOCKET_LEASE'), 'DOCKET_LEASE'),
     parkMaxMs: parseDuration(get('DOCKET_PARK_MAX'), 'DOCKET_PARK_MAX'),
-    resumeUnattendedMs: parseDuration(
-      get('DOCKET_RESUME_UNATTENDED'),
-      'DOCKET_RESUME_UNATTENDED',
-    ),
+    resumeUnattendedMs: parseDuration(get('DOCKET_RESUME_UNATTENDED'), 'DOCKET_RESUME_UNATTENDED'),
     orphanAfterMs: parseDuration(get('DOCKET_ORPHAN_AFTER'), 'DOCKET_ORPHAN_AFTER'),
     backupAt,
     backupKeepDays,

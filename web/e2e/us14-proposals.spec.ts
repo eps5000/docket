@@ -130,9 +130,7 @@ test.describe('Agent proposals (US14)', () => {
     await expectAxeClean(page, 'Agent files: a proposal');
 
     await c.getByRole('button', { name: 'Approve the change to docket-worker' }).click();
-    await expect(
-      toast(page, 'Approved: docket-worker saved as Recipe App’s copy.'),
-    ).toBeVisible();
+    await expect(toast(page, 'Approved: docket-worker saved as Recipe App’s copy.')).toBeVisible();
     await expect(section).toHaveCount(0);
     const row = page.locator(`[data-agent-file="${WORKER}"]`);
     await expect(row).toHaveAttribute('data-using', 'copy');
@@ -181,9 +179,7 @@ test.describe('Agent proposals (US14)', () => {
     await editor.fill(merged);
     await c.getByLabel('Note (optional)').fill('Kept the lint rule');
     await c.getByRole('button', { name: 'Save' }).click();
-    await expect(
-      toast(page, 'Approved: docket-worker saved as Recipe App’s copy.'),
-    ).toBeVisible();
+    await expect(toast(page, 'Approved: docket-worker saved as Recipe App’s copy.')).toBeVisible();
     const now = await read();
     expect(now.content).toContain('Write the PR description first.');
     expect(now.content).toContain('Run `pnpm lint` before each commit.');

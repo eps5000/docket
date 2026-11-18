@@ -31,8 +31,7 @@ export function formatBytes(bytes: number): string {
 export function itemCount(report: JiraReport): number {
   return report.mapping
     .filter(
-      (m) =>
-        m.jira.startsWith('Type: ') && m.docket !== 'Work step' && m.docket !== 'Skipped',
+      (m) => m.jira.startsWith('Type: ') && m.docket !== 'Work step' && m.docket !== 'Skipped',
     )
     .reduce((n, m) => n + m.count, 0);
 }

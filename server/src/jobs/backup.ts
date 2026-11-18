@@ -416,7 +416,8 @@ export async function verifyArchive(
           };
         }
         const extract =
-          Object.values(DB_ENTRY_OF).includes(name) || (opts.extractTo !== undefined && name.startsWith('docs/'));
+          Object.values(DB_ENTRY_OF).includes(name) ||
+          (opts.extractTo !== undefined && name.startsWith('docs/'));
         if (extract) {
           const sink = fileSink(join(tmp, ...name.split('/')), hash);
           sinks.push(sink);

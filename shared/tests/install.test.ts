@@ -17,6 +17,14 @@ import {
   renderAgentsBlock,
   withoutCr,
 } from '../src/install.js';
+import {
+  LEGACY_BEGIN,
+  LEGACY_END,
+  isLegacySkillKey,
+  mapLegacySkillKey,
+  mapLegacySkillName,
+  withLegacyEnv,
+} from '../src/legacy.js';
 
 describe('installLayout (BUILD_SPEC §5.17, V7)', () => {
   it.each([
@@ -177,5 +185,64 @@ describe('the copy-paste commands', () => {
     expect(c.bash).not.toContain('/install/');
     const u = checkCommands({ client: 'codex', target_kind: 'user' });
     expect(u.bash).toContain('"~/.codex/skills/$y/"');
+  });
+});
+
+describe('the old markers and names from before the rename (B28)', () => {
+  const OB = LEGACY_BEGIN;
+  const OE = LEGACY_END;
+  const block = '## Work tracking\nUse Docket.';
+
+  it('the old pair is a valid section, not damaged markers', () => {
+    const text = `# Mine\n${OB}\nold block\n${OE}\nAfter.\n`;
+    expect(findMarkedSection(text)).toMatchObject({ kind: 'present', legacy: true });
+    expect(installedBlock(text)).toBe('old block');
+  });
+
+  it('an install replaces the old section with the docket markers, keeping every byte outside', () => {
+    const pre = '# Mine\r\nÜnïcödé rules.\r\n';
+    const post = '\r\nAfter: ours too.\r\n';
+    const merged = mergeMarkedSection(`${pre}${OB}\nold block\n${OE}${post}`, block);
+    expect(merged).toEqual({
+      text: `${pre}${B}\n${block}\n${E}${post}`,
+      how: 'replaced',
+      legacy: true,
+    });
+    expect(findMarkedSection(merged.text)).toMatchObject({ kind: 'present', legacy: false });
+  });
+
+  it('a damaged old pair, or old and new markers together, is refused', () => {
+    expect(findMarkedSection(`${OB}\nno end\n`)).toEqual({ kind: 'broken' });
+    expect(findMarkedSection(`${OE}\n${OB}\n`)).toEqual({ kind: 'broken' });
+    const both = `${B}\na\n${E}\n${OB}\nb\n${OE}\n`;
+    expect(findMarkedSection(both)).toEqual({ kind: 'broken' });
+    expect(() => mergeMarkedSection(both, block)).toThrow(BrokenMarkersError);
+  });
+
+  it('the layout knows the old manifest and check scripts', () => {
+    const layout = installLayout('claude', 'repo');
+    expect(layout.legacyManifest).toBe('.claude/.tasklite-manifest.json');
+    expect(layout.legacyCheckScripts).toEqual([
+      '.claude/tasklite-check.sh',
+      '.claude/tasklite-check.ps1',
+    ]);
+  });
+
+  it('maps old skill keys and names, and leaves everything else', () => {
+    expect(mapLegacySkillKey('skill:tasklite-worker')).toBe('skill:docket-worker');
+    expect(mapLegacySkillKey('skill:docket-worker')).toBe('skill:docket-worker');
+    expect(mapLegacySkillKey('agents_block')).toBe('agents_block');
+    expect(mapLegacySkillName('tasklite-planner')).toBe('docket-planner');
+    expect(isLegacySkillKey('skill:my-tasklite-thing')).toBe(false);
+  });
+
+  it('reads old settings only where the new ones are unset, warning without values', () => {
+    const { env, warnings } = withLegacyEnv(
+      { TASKLITE_PORT: '1', DOCKET_SEED: 'sample', TASKLITE_SEED: 'x', TASKLITE_OTHER: 'y' },
+      ['DOCKET_PORT', 'DOCKET_SEED', 'DOCKET_TOKEN'],
+    );
+    expect(env).toMatchObject({ DOCKET_PORT: '1', DOCKET_SEED: 'sample' });
+    expect(env.DOCKET_TOKEN).toBeUndefined();
+    expect(warnings).toEqual(['TASKLITE_PORT is deprecated; use DOCKET_PORT']);
   });
 });

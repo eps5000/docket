@@ -121,8 +121,7 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
  * mutation this is the whole result: what changed and the new version.
  */
 export const TOOL_SUMMARIES: Record<ToolName, string> = {
-  whoami:
-    'Connected as {client} · session {session_id} · Docket {server_version} · {server_time}',
+  whoami: 'Connected as {client} · session {session_id} · Docket {server_version} · {server_time}',
   list_projects: 'Projects: {count}',
   search_items: 'Items: {count}{more}',
   get_item: '{id} {title}',

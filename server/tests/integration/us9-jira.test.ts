@@ -157,7 +157,7 @@ function fileChecksums(
   return out;
 }
 
-const isDbFile = (rel: string) => /^tasklite\.db(-wal|-shm)?$/.test(rel);
+const isDbFile = (rel: string) => /^docket\.db(-wal|-shm)?$/.test(rel);
 /** SQLite's shared-memory index: every reader updates its read marks there. It holds no data. */
 const isShm = (rel: string) => rel === 'docket.db-shm';
 
@@ -249,10 +249,10 @@ describe('SC-011: a 500-issue project', () => {
     expect(r.totals.would_import + r.totals.skipped).toBe(500);
     expect(r.lossy_items).toHaveLength(r.totals.lossy + r.totals.skipped);
     const steps = r.mapping
-      .filter((m) => m.task_lite === 'Work step')
+      .filter((m) => m.docket === 'Work step')
       .reduce((n, m) => n + m.count, 0);
     const items = r.mapping
-      .filter((m) => m.jira.startsWith('Type: ') && !['Work step', 'Skipped'].includes(m.task_lite))
+      .filter((m) => m.jira.startsWith('Type: ') && !['Work step', 'Skipped'].includes(m.docket))
       .reduce((n, m) => n + m.count, 0);
     expect(items + steps + r.totals.skipped).toBe(500);
     // Evidence for the PR: the timing (it includes one real 1 s Retry-After wait) and the summary.

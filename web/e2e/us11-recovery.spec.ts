@@ -151,8 +151,7 @@ test.describe.serial('US11 recovery', () => {
         base_ref: 'origin/main',
       },
       orchestrator: { name: 'orca', dispatch_id: 'ctx_6f2d91', task_id: 'task_25' },
-      brief:
-        'Work Docket item RCP-25 using the docket-worker skill.\nWorktree: C:/work/rcp-25.',
+      brief: 'Work Docket item RCP-25 using the docket-worker skill.\nWorktree: C:/work/rcp-25.',
     });
     const run_id = (runs.unpushed = claim.structured.run_id as string);
     await ok(agent, 'set_plan', {

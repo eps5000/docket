@@ -126,10 +126,11 @@ const isDocketSkill = (key: string) => key.startsWith('skill:docket-') || isLega
 
 /**
  * Old `skill:tasklite-*` keys in a report (B28), from an old check script or a
- * folder kept under its old name. Mapped to `skill:docket-*` when that is
- * the file the install wrote under the old name (`installed_as`, from the
- * migration), or when nothing else reports it; kept as they are when the
- * install also wrote the new folder, so the old one shows as extra.
+ * folder kept under its old name. With a known install, mapped to
+ * `skill:docket-*` only when that is the file the install wrote under the
+ * old name (`installed_as`, from the migration); any other old folder stays
+ * itself, so it shows as extra. Without one, mapped unless the report also
+ * has the new key.
  */
 export function mapReportKeys<T extends { key: string }>(
   files: readonly T[],
@@ -141,7 +142,8 @@ export function mapReportKeys<T extends { key: string }>(
     const mapped = mapLegacySkillKey(f.key);
     const sent = manifest?.[mapped];
     const oldName = f.key.slice('skill:'.length);
-    if (sent ? sent.installed_as === oldName : !reported.has(mapped)) return { ...f, key: mapped };
+    if (manifest ? sent?.installed_as === oldName : !reported.has(mapped))
+      return { ...f, key: mapped };
     return f;
   });
 }

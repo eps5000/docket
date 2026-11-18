@@ -22,6 +22,8 @@ import { serve, type ServerType } from '@hono/node-server';
 import {
   DOCKET_BEGIN,
   DOCKET_END,
+  LEGACY_BEGIN,
+  LEGACY_END,
   instructionsInput,
   type InstructionsInput,
 } from '@docket/shared';
@@ -295,9 +297,7 @@ describe.each(Object.keys(SHELLS) as ShellName[])('the %s commands', (shell) => 
       transcript.push(`## ${shell}: reinstall`);
       const i2 = await run(shell, second.install, repo);
       expect(i2.status, i2.out).toBe(0);
-      expect(i2.out).toContain(
-        'replaced the Docket section of CLAUDE.md (nothing else changed)',
-      );
+      expect(i2.out).toContain('replaced the Docket section of CLAUDE.md (nothing else changed)');
       const c4 = await run(shell, second.check, repo);
       expect(c4.out).not.toMatch(/^(edited|missing) /m);
       expect(c4.out).toMatch(/^extra +\.claude\/skills\/docket-old\/$/m);
@@ -305,6 +305,119 @@ describe.each(Object.keys(SHELLS) as ShellName[])('the %s commands', (shell) => 
       const after = readFileSync(join(repo, 'CLAUDE.md'));
       expect(after.subarray(0, Buffer.byteLength(PRE)).equals(Buffer.from(PRE))).toBe(true);
       expect(after.toString('utf8').endsWith(`${DOCKET_END}\n`)).toBe(true);
+    },
+  );
+
+  it.skipIf(!SHELLS[shell])(
+    'an install from before the rename: old section replaced, unmodified old folders removed, the edited one kept and reported',
+    async () => {
+      const repo = join(tmp.dir, `old-${shell}`);
+      mkdirSync(join(repo, '.git'), { recursive: true });
+      const OLD_WORKER = '---\nname: tasklite-worker\n---\n# Worker\n';
+      const OLD_PLANNER = '---\nname: tasklite-planner\n---\n# Planner\n';
+      const OLD_BLOCK = '## Work tracking: the old name';
+      for (const [name, text] of [
+        ['tasklite-worker', OLD_WORKER],
+        ['tasklite-planner', OLD_PLANNER],
+        ['tasklite-mine', '# Never installed by Docket\n'],
+      ] as const) {
+        mkdirSync(join(repo, '.claude/skills', name), { recursive: true });
+        writeFileSync(join(repo, '.claude/skills', name, 'SKILL.md'), text);
+      }
+      const line = (key: string, path: string, text: string) =>
+        `    ${JSON.stringify({ key, path, version_id: 'afv_old', sha256: sha256(text) })}`;
+      writeFileSync(
+        join(repo, '.claude/.tasklite-manifest.json'),
+        [
+          '{',
+          '  "install_id": "ins_old",',
+          '  "files": [',
+          `${line('skill:tasklite-worker', '.claude/skills/tasklite-worker/SKILL.md', OLD_WORKER)},`,
+          `${line('skill:tasklite-planner', '.claude/skills/tasklite-planner/SKILL.md', OLD_PLANNER)},`,
+          line('agents_block', 'CLAUDE.md', OLD_BLOCK),
+          '  ]',
+          '}',
+          '',
+        ].join('\n'),
+      );
+      writeFileSync(join(repo, '.claude/tasklite-check.sh'), '# the old check\n');
+      const POST = '\r\nAfter the section: ours. Ünïcödé.\r\n';
+      writeFileSync(
+        join(repo, 'CLAUDE.md'),
+        `${PRE}\r\n\r\n${LEGACY_BEGIN}\n${OLD_BLOCK}\n${LEGACY_END}${POST}`,
+      );
+      // Edited after the old install.
+      const editedPlanner = `${OLD_PLANNER}- Our own rule.\n`;
+      writeFileSync(join(repo, '.claude/skills/tasklite-planner/SKILL.md'), editedPlanner);
+
+      const key = shell === 'bash' ? 'bash' : 'powershell';
+      const created = await request('POST', '/api/installs', {
+        client: 'claude',
+        target_kind: 'repo',
+        project: 'RCP',
+        method: 'command',
+      });
+      const check = (created.check_command as Record<string, string>)[key]!;
+
+      // Before reinstalling, the check command reads the old manifest and markers.
+      transcript.push(`## ${shell}: check an install from before the rename`);
+      const c0 = await run(shell, check, repo);
+      expect(c0.status, c0.out).toBe(0);
+      expect(c0.out).toContain('against Docket install ins_old');
+      expect(c0.out).toMatch(/^edited +\.claude\/skills\/tasklite-planner\/SKILL\.md/m);
+      expect(c0.out).not.toMatch(/CLAUDE\.md/);
+      expect(c0.out).toMatch(/^extra +\.claude\/skills\/tasklite-mine\/ +\(old name\)$/m);
+
+      transcript.push(`## ${shell}: install over it`);
+      const i = await run(shell, (created.command as Record<string, string>)[key]!, repo);
+      expect(i.status, i.out).toBe(0);
+      expect(i.out).toContain('removed .claude/skills/tasklite-worker/ (the old name, unmodified)');
+      expect(i.out).toContain('kept .claude/skills/tasklite-planner/ (old name, edited locally)');
+      expect(i.out).toContain(
+        'replaced the old tasklite section of CLAUDE.md with the Docket section (nothing else changed)',
+      );
+      expect(i.out).toContain(
+        'left .claude/.tasklite-manifest.json .claude/tasklite-check.sh from before the rename',
+      );
+      expect(existsSync(join(repo, '.claude/skills/tasklite-worker'))).toBe(false);
+      expect(readFileSync(join(repo, '.claude/skills/tasklite-planner/SKILL.md'), 'utf8')).toBe(
+        editedPlanner,
+      );
+      expect(existsSync(join(repo, '.claude/skills/tasklite-mine/SKILL.md'))).toBe(true);
+      expect(existsSync(join(repo, '.claude/.tasklite-manifest.json'))).toBe(true);
+      const claude = readFileSync(join(repo, 'CLAUDE.md'));
+      const pre = Buffer.from(`${PRE}\r\n\r\n`);
+      expect(claude.subarray(0, pre.length).equals(pre)).toBe(true);
+      expect(claude.subarray(claude.length - Buffer.byteLength(POST)).toString('utf8')).toBe(POST);
+      const text = claude.toString('utf8');
+      expect(text).toContain(`${DOCKET_BEGIN}\n## Work tracking: Docket`);
+      expect(text).not.toContain(LEGACY_BEGIN);
+      expect(text).not.toContain(OLD_BLOCK);
+
+      // docket-check reports the old folders the new manifest doesn't list, with their text.
+      transcript.push(`## ${shell}: docket-check after the install`);
+      const r = await report(shell, repo);
+      expect(r.files.find((f) => f.key === 'skill:tasklite-planner')).toEqual({
+        key: 'skill:tasklite-planner',
+        sha256: sha256(editedPlanner),
+        content: editedPlanner,
+      });
+      expect(r.files.some((f) => f.key === 'skill:tasklite-mine')).toBe(true);
+      expect(r.files.some((f) => f.key === 'skill:tasklite-worker')).toBe(false);
+      const c1 = await run(shell, check, repo);
+      expect(c1.out).toMatch(/^extra +\.claude\/skills\/tasklite-planner\/ +\(old name\)$/m);
+      expect(c1.out).not.toMatch(/^(edited|missing) /m);
+
+      // A second install removes nothing more: the edited folder isn't recorded by the new manifest.
+      const again = await request('POST', '/api/installs', {
+        client: 'claude',
+        target_kind: 'repo',
+        project: 'RCP',
+        method: 'command',
+      });
+      const i2 = await run(shell, (again.command as Record<string, string>)[key]!, repo);
+      expect(i2.status, i2.out).toBe(0);
+      expect(existsSync(join(repo, '.claude/skills/tasklite-planner/SKILL.md'))).toBe(true);
     },
   );
 

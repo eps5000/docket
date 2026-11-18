@@ -885,7 +885,7 @@
       "id": "11016",
       "key": "TL-16",
       "fields": {
-        "summary": "A deliberately long summary that keeps going past the two hundred character limit Docket places on titles, so the importer has to shorten it and say so in the dry-run report, rather than failing the whole import over one wordy ticket",
+        "summary": "A deliberately long summary that keeps going past the two hundred character limit that Docket places on titles, so the importer has to shorten it and say so in the dry-run report, rather than failing the whole import over one wordy ticket",
         "issuetype": { "id": "10002", "name": "Task", "subtask": false, "hierarchyLevel": 0 },
         "status": { "name": "To Do", "statusCategory": { "id": 2, "key": "new", "name": "To Do" } },
         "priority": { "id": "3", "name": "Medium" },

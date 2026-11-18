@@ -59,8 +59,8 @@ const item = (key: string): PlannedItem => {
 };
 const outcome = (key: string) => plan.outcomes.find((o) => o.key === key)!;
 const reasons = (key: string) => outcome(key).reasons.join('; ');
-const row = (jira: string, taskLite: string) =>
-  report.mapping.find((r) => r.jira === jira && r.task_lite === taskLite);
+const row = (jira: string, docket: string) =>
+  report.mapping.find((r) => r.jira === jira && r.docket === docket);
 const fieldRow = (name: string) => report.fields.find((f) => f.field === name);
 
 beforeAll(async () => {

@@ -253,9 +253,7 @@ test.describe('Drift (US14)', () => {
     await page.goto('/agent-files?project=RCP#drift');
     const entry = page.locator('[data-drift]');
     await expect(entry.getByRole('region')).toContainText('One more local rule.');
-    await entry
-      .getByRole('button', { name: 'Restore Docket’s version (docket-worker)' })
-      .click();
+    await entry.getByRole('button', { name: 'Restore Docket’s version (docket-worker)' }).click();
     await expect(toast(page, /Restored: Docket reinstalled its version in/)).toBeVisible();
     await expect(page.locator('[data-drift-section]')).toHaveCount(0);
     // The installed file is Recipe App's copy (the adopted text) again, without the later edits.

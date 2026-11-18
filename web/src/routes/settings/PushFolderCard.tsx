@@ -68,9 +68,7 @@ export function PushFolderCard() {
             {t.configured && (
               <dl className="inpaths">
                 <dt>On your computer</dt>
-                <dd className="mono">
-                  {t.host_path ?? '(not given: set DOCKET_PUSH_HOST_PATH)'}
-                </dd>
+                <dd className="mono">{t.host_path ?? '(not given: set DOCKET_PUSH_HOST_PATH)'}</dd>
                 <dt>Inside Docket</dt>
                 <dd className="mono">{t.container_path}</dd>
               </dl>
@@ -103,9 +101,9 @@ export function PushFolderCard() {
                 </div>
                 <ol>
                   <li>
-                    Open <code>docker/compose.yaml</code> in the folder you installed Docket
-                    from. Under <code>volumes:</code>, below <code>- docket-data:/data</code>, add
-                    this line (keep the indentation):
+                    Open <code>docker/compose.yaml</code> in the folder you installed Docket from.
+                    Under <code>volumes:</code>, below <code>- docket-data:/data</code>, add this
+                    line (keep the indentation):
                     <CopyBlock text={volume} label="compose.yaml line" what="volume line" />
                   </li>
                   <li>
@@ -126,8 +124,8 @@ export function PushFolderCard() {
                 <details>
                   <summary>Rather not edit compose.yaml? Use an override file instead</summary>
                   <p className="src">
-                    Save this as <code>docker/compose.push.yaml</code>, then start Docket with
-                    both files. Upgrades never touch it.
+                    Save this as <code>docker/compose.push.yaml</code>, then start Docket with both
+                    files. Upgrades never touch it.
                   </p>
                   <CopyBlock
                     text={override}
@@ -141,7 +139,8 @@ export function PushFolderCard() {
                   />
                 </details>
                 <p className="src">
-                  Docket writes there only the skill folders, its manifest and the marked Docket section of AGENTS.md or CLAUDE.md, and never deletes anything. On Linux, the
+                  Docket writes there only the skill folders, its manifest and the marked Docket
+                  section of AGENTS.md or CLAUDE.md, and never deletes anything. On Linux, the
                   folder must be writable by Docket’s user (uid 10001), for example{' '}
                   <code>sudo setfacl -R -m u:10001:rwX ~/code</code>.
                 </p>

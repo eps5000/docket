@@ -491,10 +491,7 @@ describe('agent file inputs (MCP_SPEC §5.4 instructions, §5.10; decision 30; B
 
   it('claim_lead takes the docket-check report: install_id, and up to 20 files', () => {
     ok('claim_lead', claim({ install_id: 'ins_1', files: [{ key: 'agents_block', sha256: sha }] }));
-    ok(
-      'claim_lead',
-      claim({ files: [{ key: 'skill:docket-worker', sha256: sha.toUpperCase() }] }),
-    );
+    ok('claim_lead', claim({ files: [{ key: 'skill:docket-worker', sha256: sha.toUpperCase() }] }));
     // Empty, with install_id: every installed file is missing.
     ok('claim_lead', claim({ install_id: 'ins_1', files: [] }));
     const twenty = Array.from({ length: 20 }, (_, i) => ({ key: `skill:s${i}`, sha256: sha }));

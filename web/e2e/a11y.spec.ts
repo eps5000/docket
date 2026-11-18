@@ -134,7 +134,8 @@ test.describe('axe on every route, both themes (T142)', () => {
   });
 
   test('archived cards keep full contrast (the kit fix)', async ({ page }) => {
-    const csrf = (await page.context().cookies()).find((c) => c.name === 'docket_csrf')?.value ?? '';
+    const csrf =
+      (await page.context().cookies()).find((c) => c.name === 'docket_csrf')?.value ?? '';
     const res = await page.request.post('/api/items/RCP-11/archive', {
       headers: { 'X-Docket-CSRF': csrf },
       data: {},

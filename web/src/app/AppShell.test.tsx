@@ -32,8 +32,7 @@ beforeEach(() => {
       const path = String(url);
       calls.push(`${init?.method ?? 'GET'} ${path}`);
       if (path === '/api/session/unlock') return json(200, { unlocked: true });
-      if (locked)
-        return json(401, { error: { code: 'forbidden', message: 'Docket is locked.' } });
+      if (locked) return json(401, { error: { code: 'forbidden', message: 'Docket is locked.' } });
       const route = path.split('?')[0];
       return json(501, {
         error: {

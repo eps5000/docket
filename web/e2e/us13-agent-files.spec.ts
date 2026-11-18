@@ -160,9 +160,7 @@ test.describe('Agent files (US13)', () => {
       await expect(fileRow(page, key).getByText('Docket’s version')).toBeVisible();
     }
 
-    await fileRow(page, 'skill:docket-worker')
-      .getByRole('link', { name: 'docket-worker' })
-      .click();
+    await fileRow(page, 'skill:docket-worker').getByRole('link', { name: 'docket-worker' }).click();
     await expect(page).toHaveURL(/file=skill%3Adocket-worker/);
     const v = view(page);
     await expect(v.getByRole('heading', { name: 'docket-worker' })).toBeVisible();
@@ -225,9 +223,7 @@ test.describe('Agent files (US13)', () => {
     const hist = v.getByRole('region', { name: 'Default history' });
     await expect(hist.locator('[data-version="service-1"]')).toContainText('Squash on merge.');
     await expect(hist.locator('[data-version="service-1"]')).toContainText('In use');
-    await expect(hist.locator('[data-version="bundled-1"]')).toContainText(
-      'Docket’s version v1',
-    );
+    await expect(hist.locator('[data-version="bundled-1"]')).toContainText('Docket’s version v1');
     await expectAxeClean(page, 'Agent files: history');
 
     // Edit docket-planner's default too; Reset it to Docket's version, then Undo.

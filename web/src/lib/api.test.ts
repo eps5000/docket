@@ -189,7 +189,7 @@ describe('typed inputs (compile-time)', () => {
 });
 
 describe('query keys', () => {
-  it('every key starts with tl and its family', () => {
+  it('every key starts with docket and its family', () => {
     expect(queryKeys.item('RCP-14')).toEqual(['docket', 'item', 'RCP-14']);
     expect(queryKeys.review('RCP-12')).toEqual(['docket', 'review', 'RCP-12']);
     expect(queryKeys.review('RCP-12', 2)).toEqual(['docket', 'review', 'RCP-12', 2]);
@@ -199,7 +199,7 @@ describe('query keys', () => {
     expect(queryKeys.family('settings')).toEqual(queryKeys.settings());
     expect(queryKeys.workspaces()).toEqual(['docket', 'workspaces', {}]);
     expect(queryKeys.workspaces({ scope: 'RCP', state: 'at_risk' })).toEqual([
-      'tl',
+      'docket',
       'workspaces',
       { scope: 'RCP', state: 'at_risk' },
     ]);
@@ -357,11 +357,16 @@ describe('agent setup (decision 29; BUILD_SPEC §5.17, §7)', () => {
 
   it('query keys share a family per screen, so one event refreshes list and view', () => {
     expect(queryKeys.agentFiles({ project: 'RCP' })).toEqual([
-      'tl',
+      'docket',
       'agentFiles',
       { project: 'RCP' },
     ]);
-    expect(queryKeys.agentFile('agents_block')).toEqual(['docket', 'agentFiles', 'agents_block', {}]);
+    expect(queryKeys.agentFile('agents_block')).toEqual([
+      'docket',
+      'agentFiles',
+      'agents_block',
+      {},
+    ]);
     expect(queryKeys.workflow('RCP')).toEqual(['docket', 'workflow', 'RCP']);
     expect(queryKeys.installs()).toEqual(['docket', 'installs', {}]);
     expect(queryKeys.pushTarget()).toEqual(['docket', 'pushTarget']);
@@ -429,7 +434,7 @@ describe('proposals and drift (decision 30; BUILD_SPEC §5.19, §7)', () => {
 
   it('query keys and invalidation: proposals, drift and the screens that show them', () => {
     expect(queryKeys.proposals({ project: 'RCP' })).toEqual([
-      'tl',
+      'docket',
       'proposals',
       { project: 'RCP' },
     ]);

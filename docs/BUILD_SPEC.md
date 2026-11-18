@@ -142,8 +142,8 @@ Environment variables, with defaults:
 - **Owner.** The browser gets an **owner session**, and agents never get its credential. Without this, any local agent could `curl` the API and record a human approval, which breaks H06. How it works:
   - On first boot the server writes `/data/secrets/owner-key`: 32 random bytes, base32-encoded.
   - The first visit in a browser shows a one-field "Unlock Docket" screen. The owner pastes the key, printed by `docker compose exec docket docket owner-key`.
-  - The server then sets the `tl_owner` cookie: HttpOnly, SameSite=Strict, Path=/, 30-day sliding expiry. It's a signed session ID, and sessions are stored in the database.
-  - `/api/*` requires that cookie. Mutating API calls also need the header `X-Tasklite-CSRF`, which must match the `tl_csrf` cookie (double submit).
+  - The server then sets the `docket_owner` cookie: HttpOnly, SameSite=Strict, Path=/, 30-day sliding expiry. It's a signed session ID, and sessions are stored in the database.
+  - `/api/*` requires that cookie. Mutating API calls also need the header `X-Docket-CSRF`, which must match the `docket_csrf` cookie (double submit).
   - Settings → Connections has *Lock this browser* (ends the session) and *Rotate owner key* (ends all sessions).
 - **Secrets.** Tokens, keys and Jira API tokens are never written to task content, events or logs, and logs redact `Authorization` headers. The Jira API token lives only in memory for the import session (§9).
 - **What agents cannot do through MCP:** record review decisions, answer their own questions as the owner, write owner notes, archive or unarchive, delete projects, or release another agent's claim. Those are owner actions, available only through `/api`.

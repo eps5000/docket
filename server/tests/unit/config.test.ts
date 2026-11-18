@@ -2,6 +2,7 @@ import { readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DEFAULTS, SecretStore, base32, loadConfig, parseDuration } from '../../src/config.js';
+import { createRuntime } from '../../src/runtime.js';
 import { tempDir, type TempDir } from '../helpers.js';
 
 let tmp: TempDir;
@@ -83,10 +84,7 @@ describe('loadConfig', () => {
 
   it('DOCKET_DRIFT_CHECK_INTERVAL: 0 or off turns the check off; otherwise at least 1m', () => {
     for (const off of ['0', 'off', 'OFF']) {
-      expect(
-        loadConfig({ DOCKET_DRIFT_CHECK_INTERVAL: off }).driftCheckIntervalMs,
-        off,
-      ).toBeNull();
+      expect(loadConfig({ DOCKET_DRIFT_CHECK_INTERVAL: off }).driftCheckIntervalMs, off).toBeNull();
     }
     expect(loadConfig({ DOCKET_DRIFT_CHECK_INTERVAL: '1m' }).driftCheckIntervalMs).toBe(60_000);
     expect(() => loadConfig({ DOCKET_DRIFT_CHECK_INTERVAL: '30s' })).toThrow(/at least 1m/);
@@ -170,10 +168,7 @@ describe('secret bootstrap', () => {
   });
 
   it('uses DOCKET_TOKEN without writing it to disk', () => {
-    const config = loadConfig(
-      { DOCKET_TOKEN: 'env-token-0123456789abcdef' },
-      { dataDir: tmp.dir },
-    );
+    const config = loadConfig({ DOCKET_TOKEN: 'env-token-0123456789abcdef' }, { dataDir: tmp.dir });
     const store = new SecretStore(config);
     expect(store.agentToken()).toBe('env-token-0123456789abcdef');
     expect(() => readFileSync(config.paths.agentToken)).toThrow();
@@ -199,5 +194,77 @@ describe('secret bootstrap', () => {
       store.ownerKey(),
     );
     expect(store.known()).toEqual([store.agentToken(), store.ownerKey()]);
+  });
+});
+
+describe('settings and data from before the rename (B28)', () => {
+  it('reads TASKLITE_* when DOCKET_* is unset, with one warning per key and never the value', () => {
+    const c = loadConfig({
+      TASKLITE_PORT: '7431',
+      TASKLITE_ALLOWED_HOSTS: '127.0.0.1:7431',
+      TASKLITE_TOKEN: 'tl_secret-token-value',
+      TASKLITE_SEED: 'sample',
+      DOCKET_LEASE: '90m',
+      TASKLITE_LEASE: '5m',
+    });
+    expect(c).toMatchObject({
+      port: 7431,
+      allowedHosts: ['127.0.0.1:7431'],
+      tokenFromEnv: 'tl_secret-token-value',
+      seed: 'sample',
+      // DOCKET_* always wins.
+      leaseMs: 90 * 60_000,
+    });
+    expect(c.deprecations.sort()).toEqual([
+      'TASKLITE_ALLOWED_HOSTS is deprecated; use DOCKET_ALLOWED_HOSTS',
+      'TASKLITE_PORT is deprecated; use DOCKET_PORT',
+      'TASKLITE_SEED is deprecated; use DOCKET_SEED',
+      'TASKLITE_TOKEN is deprecated; use DOCKET_TOKEN',
+    ]);
+    expect(c.deprecations.join('\n')).not.toContain('secret-token-value');
+    expect(c.deprecations.join('\n')).not.toContain('7431');
+  });
+
+  it('names an old setting in its errors as the new one', () => {
+    expect(() => loadConfig({ TASKLITE_PORT: 'nope' })).toThrow(/DOCKET_PORT/);
+  });
+
+  it('warns about nothing when only DOCKET_* is set', () => {
+    expect(loadConfig({ DOCKET_PORT: '7431' }).deprecations).toEqual([]);
+  });
+
+  it('logs each warning once at startup', async () => {
+    const lines: string[] = [];
+    const runtime = createRuntime({
+      dataDir: join(tmp.dir, 'data'),
+      env: { TASKLITE_BACKUP_KEEP: '7', TASKLITE_TOKEN: 'tl_never-logged' },
+      log: (line) => lines.push(line),
+    });
+    try {
+      expect(runtime.config.backupKeepDays).toBe(7);
+      expect(lines).toEqual([
+        'Warning: TASKLITE_BACKUP_KEEP is deprecated; use DOCKET_BACKUP_KEEP',
+        'Warning: TASKLITE_TOKEN is deprecated; use DOCKET_TOKEN',
+      ]);
+      expect(lines.join('\n')).not.toContain('never-logged');
+    } finally {
+      await runtime.close();
+    }
+  });
+
+  it('opens docket.db, or a volume’s old tasklite.db where it is, never renaming it', () => {
+    expect(loadConfig({}, { dataDir: tmp.dir })).toMatchObject({ legacyDbFile: false });
+    writeFileSync(join(tmp.dir, 'tasklite.db'), '');
+    const old = loadConfig({}, { dataDir: tmp.dir });
+    expect(old.legacyDbFile).toBe(true);
+    expect(old.paths.db).toBe(join(tmp.dir, 'tasklite.db'));
+    // Once docket.db exists (a restored or copied volume), it wins.
+    writeFileSync(join(tmp.dir, 'docket.db'), '');
+    expect(loadConfig({}, { dataDir: tmp.dir }).paths.db).toBe(join(tmp.dir, 'docket.db'));
+  });
+
+  it('names the data volume for Settings', () => {
+    expect(loadConfig({ DOCKET_DATA_VOLUME: 'docket-data' }).dataVolume).toBe('docket-data');
+    expect(loadConfig({}).dataVolume).toBeNull();
   });
 });

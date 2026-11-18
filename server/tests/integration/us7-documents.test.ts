@@ -28,7 +28,7 @@ afterEach(async () => {
 });
 
 const MB = 1024 * 1024;
-const BOUNDARY = '----tasklite-test-boundary-7f3a';
+const BOUNDARY = '----docket-test-boundary-7f3a';
 const docs = () => s.runtime.config.paths.docs;
 const staged = () => {
   const dir = join(docs(), '.staging');

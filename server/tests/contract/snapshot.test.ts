@@ -57,7 +57,7 @@ describe('initialize', () => {
     expect(h.a.getInstructions()).toBe(specInstructions());
   });
 
-  it('identifies as tasklite and advertises only tools, with listChanged false (§1)', () => {
+  it('identifies as docket and advertises only tools, with listChanged false (§1)', () => {
     expect(h.a.getServerVersion()?.name).toBe('docket');
     expect(h.a.getServerCapabilities()).toEqual({ tools: { listChanged: false } });
   });

@@ -242,8 +242,8 @@ function ClientSetupCard() {
         </span>
       </div>
       <p className="src" data-rename-note="">
-        Set up before the rename? Rename your MCP server entry from tasklite to docket; the URL
-        is unchanged, so the old entry keeps working until you do.
+        Set up before the rename? Rename your MCP server entry from tasklite to docket; the URL is
+        unchanged, so the old entry keeps working until you do.
       </p>
       {token !== null && (
         <div className="reveal" data-token-revealed="">
@@ -370,8 +370,8 @@ function ServiceHealthCard({ query }: { query: UseQueryResult<SettingsResponse> 
               )}
               {d.health.volume.name === LEGACY_VOLUME && (
                 <div className="src">
-                  The volume from before the rename to Docket. It keeps working; the README
-                  says how to move it to docket-data.
+                  The volume from before the rename to Docket. It keeps working; the README says how
+                  to move it to docket-data.
                 </div>
               )}
               {d.health.volume.legacy_db_file && (

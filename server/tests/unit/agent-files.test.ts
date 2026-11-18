@@ -135,9 +135,7 @@ describe('bundled loading (startup)', () => {
     expect(detail.layers.bundled!.current_version_no).toBe(2);
     expect(detail.layers.bundled!.versions.map((v) => v.version_no)).toEqual([2, 1]);
     expect(effective()).toContain('Bundled v2.');
-    expect(events('agent_file.updated').at(-1)!.summary).toBe(
-      'Bundled docket-worker updated: v2',
-    );
+    expect(events('agent_file.updated').at(-1)!.summary).toBe('Bundled docket-worker updated: v2');
   });
 
   it('a file removed from the image keeps its bundled layer', () => {
@@ -160,9 +158,7 @@ describe('bundled loading (startup)', () => {
       'skill:docket-review-packet',
       'skill:docket-worker',
     ]);
-    expect(files.find((f) => f.key === 'agents_block')!.content).toContain(
-      'Work tracking: Docket',
-    );
+    expect(files.find((f) => f.key === 'agents_block')!.content).toContain('Work tracking: Docket');
   });
 
   it('ships a generic AGENTS.md block with no {{…}} placeholders (B25)', () => {
