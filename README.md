@@ -19,8 +19,8 @@ From a clean machine to a connected agent in about 10 minutes. You need [Docker]
 
 **1. Start it.** Run every `docker compose` command in this guide from the `docker/` folder.
 ```bash
-git clone https://github.com/eps5000/task-lite.git
-cd task-lite/docker
+git clone https://github.com/eps5000/docket.git
+cd docket/docker
 docker compose up -d --build --wait
 ```
 The first build takes a few minutes. Your data lives in the `docket-data` volume, so it survives restarts and container replacement. To try it with sample work first, start it with `DOCKET_SEED=sample` (bash: `DOCKET_SEED=sample docker compose up -d --build --wait`). The seed only loads into an empty database.

@@ -10,7 +10,7 @@
  *   code (old settings, markers, manifest, skill keys, database file and
  *   backups), its tests, the docs that explain it, and history.
  *
- * Paths such as `specs/001-task-lite-v1/` and `github.com/eps5000/task-lite`
+ * Paths such as `specs/001-task-lite-v1/` (the repo was renamed eps5000/docket; GitHub redirects the old URL)
  * don't match: the repo and the Spec Kit folder keep their names.
  *
  * A new match fails with its file and line. When a compatibility file gains a
