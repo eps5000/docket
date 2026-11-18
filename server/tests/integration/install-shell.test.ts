@@ -14,11 +14,17 @@
  * no curl; the GitHub runner has bash and pwsh). The transcripts are printed.
  */
 import { spawn, spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, type AddressInfo } from 'node:net';
 import { join } from 'node:path';
 import { serve, type ServerType } from '@hono/node-server';
-import { TASKLITE_BEGIN, TASKLITE_END } from '@tasklite/shared';
+import {
+  TASKLITE_BEGIN,
+  TASKLITE_END,
+  instructionsInput,
+  type InstructionsInput,
+} from '@tasklite/shared';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { syncBundledFiles } from '../../src/jobs/bundled.js';
 import { insertProject, tempDir, type TempDir } from '../helpers.js';
@@ -141,6 +147,36 @@ async function run(shell: ShellName, command: string, cwd: string) {
   return { status: r.status, out };
 }
 
+const sha256 = (text: string) => createHash('sha256').update(text, 'utf8').digest('hex');
+
+function readManifest(repo: string) {
+  return JSON.parse(readFileSync(join(repo, '.claude/.tasklite-manifest.json'), 'utf8')) as {
+    install_id: string;
+    files: { key: string; sha256: string }[];
+  };
+}
+
+/**
+ * Run the installed tasklite-check as an agent would (one shell call), and
+ * parse its one line of JSON with `claim_lead`'s own `instructions` schema.
+ * PowerShell runs it as a script block, so the Restricted policy allows it.
+ */
+async function report(shell: ShellName, repo: string): Promise<InstructionsInput> {
+  const cmd =
+    shell === 'bash'
+      ? 'bash .claude/tasklite-check.sh'
+      : "& ([scriptblock]::Create([IO.File]::ReadAllText((Resolve-Path '.claude/tasklite-check.ps1').ProviderPath))) (Resolve-Path '.claude').ProviderPath";
+  const r = await run(shell, cmd, repo);
+  expect(r.status, r.out).toBe(0);
+  // pwsh on Linux, fed commands on stdin, may put terminal escape codes before the line.
+  const lines = r.out
+    .split('\n')
+    .filter((l) => l.includes('{"install_id"'))
+    .map((l) => l.slice(l.indexOf('{"install_id"')));
+  expect(lines, r.out).toHaveLength(1);
+  return instructionsInput.parse(JSON.parse(lines[0]!));
+}
+
 const PRE =
   '# Recipes\r\n\r\nOur own rules — keep them exactly. Ünïcödé.\r\n\r\n## Build\r\n`pnpm build`';
 
@@ -193,11 +229,39 @@ describe.each(Object.keys(SHELLS) as ShellName[])('the %s commands', (shell) => 
       expect(c1.status, c1.out).toBe(0);
       expect(c1.out).toContain('Up to date: all 6 files match what Task Lite sent.');
 
+      // The installed tasklite-check (decision 30): every file listed by hash, no text.
+      const manifest = readManifest(repo);
+      transcript.push(`## ${shell}: tasklite-check, as installed`);
+      const r1 = await report(shell, repo);
+      expect(r1.install_id).toBe(manifest.install_id);
+      expect(r1.files).toEqual(manifest.files.map((f) => ({ key: f.key, sha256: f.sha256 })));
+
       // 3. Edit one file, delete another, add an extra folder: the check lists them.
       const worker = join(repo, '.claude/skills/tasklite-worker/SKILL.md');
-      writeFileSync(worker, `${readFileSync(worker, 'utf8')}\nLocal tweak.\n`);
+      const edited = `${readFileSync(worker, 'utf8')}\nLocal tweak: "quotes", \\back\\slashes,\ttabs, Ünïcödé.\r\n`;
+      writeFileSync(worker, edited);
       rmSync(join(repo, '.claude/skills/tasklite-planner/SKILL.md'));
       mkdirSync(join(repo, '.claude/skills/tasklite-old'));
+      // tasklite-check: the edited file with its text (CRs removed, as hashed), the
+      // missing one left out, the extra folder listed.
+      transcript.push(`## ${shell}: tasklite-check after an edit, a delete and an extra folder`);
+      const r2 = await report(shell, repo);
+      const noCr = edited.replace(/\r/g, '');
+      expect(r2.files.find((f) => f.key === 'skill:tasklite-worker')).toEqual({
+        key: 'skill:tasklite-worker',
+        sha256: sha256(noCr),
+        content: noCr,
+      });
+      expect(r2.files.some((f) => f.key === 'skill:tasklite-planner')).toBe(false);
+      expect(r2.files.find((f) => f.key === 'skill:tasklite-old')).toEqual({
+        key: 'skill:tasklite-old',
+        sha256: sha256(''),
+      });
+      // Unchanged files still carry no text.
+      expect(r2.files.filter((f) => f.content !== undefined).map((f) => f.key)).toEqual([
+        'skill:tasklite-worker',
+      ]);
+
       transcript.push(`## ${shell}: check after an edit and a delete`);
       const c2 = await run(shell, first.check, repo);
       expect(c2.status, c2.out).toBe(0);
@@ -219,6 +283,12 @@ describe.each(Object.keys(SHELLS) as ShellName[])('the %s commands', (shell) => 
       );
       const c3 = await run(shell, first.check, repo);
       expect(c3.out).toMatch(/^edited +CLAUDE\.md +\(sent agents_block afv_/m);
+      // tasklite-check sends the block's text between the markers, as hashed.
+      const r3 = await report(shell, repo);
+      const block = r3.files.find((f) => f.key === 'agents_block')!;
+      expect(block.content).toMatch(/^## Work tracking \(ours\)\n/);
+      expect(block.sha256).toBe(sha256(block.content!));
+      expect(block.sha256).not.toBe(manifest.files.find((f) => f.key === 'agents_block')!.sha256);
 
       // 4. Reinstall with a new command: restored; the extra folder is kept (never deleted).
       const second = await install();

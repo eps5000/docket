@@ -126,6 +126,11 @@ const B2_ROUTES: readonly RouteId[] = [
   'proposals.list',
   'proposals.approve',
   'proposals.decline',
+  // US14 (B27b, T161): drift (content in us14-drift.test.ts).
+  'drift.list',
+  'drift.adopt',
+  'drift.restore',
+  'drift.keepLocal',
 ];
 
 interface Req {

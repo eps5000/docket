@@ -18,7 +18,8 @@ The project has its own rules: who moves work to Ready, when human review is nee
 2. **Claim it:** `claim_lead`, with:
    - `agent_label`: your worker name, if you have one;
    - `workspace`: `repo`, `path` (your worktree), `branch`, `base_ref`, `base_sha`;
-   - `brief` and `orchestrator`: if a coordinator dispatched you, the brief text exactly as you received it, plus its IDs.
+   - `brief` and `orchestrator`: if a coordinator dispatched you, the brief text exactly as you received it, plus its IDs;
+   - `instructions`: the output of the installed `tasklite-check`, so the owner knows which instructions you work from. Run it once per session, before your first claim, in one shell call: `bash .claude/tasklite-check.sh` (`.codex/` for Codex, `~/.claude/` for a user-wide install; on Windows without bash, `powershell -NoProfile -ExecutionPolicy Bypass -File .claude/tasklite-check.ps1`). It prints one line of JSON: pass it as it is, and reuse it for later claims in the session. No script there? Skip it.
 
    Keep the returned `run_id`, and **pass it on every call from now on**. That's what keeps your claim alive.
 

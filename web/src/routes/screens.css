@@ -1173,6 +1173,21 @@
   gap: 8px;
   color: var(--ink-2);
 }
+/* Run instructions (decision 30; UI_SPEC §6.7b-1): "Instructions: tasklite-worker · … v2" ⚠. */
+.tl .agentbar .ab-instr {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-2);
+}
+.tl .runinstr {
+  margin-top: 2px;
+}
+.tl .runinstr .afchiplink,
+.tl .agentbar .afchiplink {
+  text-decoration: none;
+}
 
 /* ---------- B20: Agents in three sections; tables run edge to edge ---------- */
 .tl .agents .secbody {

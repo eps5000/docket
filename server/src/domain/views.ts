@@ -65,6 +65,7 @@ import {
 } from './contracts.js';
 import { compareIds, cycleText, cyclesOf } from './links.js';
 import { pendingProposalCount } from './agent-proposals.js';
+import { driftProblems, runInstructions } from './drift.js';
 import { inScopeOf, ofScope } from './decisions.js';
 import {
   BlockIndex,
@@ -354,6 +355,8 @@ interface ProblemsInput {
   backupError: string | null;
   /** The recovery thresholds (BUILD_SPEC §5.16). */
   config: RecoveryConfig;
+  /** Agent files changed outside Task Lite (decision 30), already scoped. */
+  drift: Problem[];
 }
 
 /** `RCP-12, RCP-13`, `the coordinator`, `a person`: what a parked run waits on. */
@@ -471,7 +474,14 @@ function recoveryProblems(
   }
 }
 
-function problemsOf({ s, runs, deferredCounts, backupError, config }: ProblemsInput): Problem[] {
+function problemsOf({
+  s,
+  runs,
+  deferredCounts,
+  backupError,
+  config,
+  drift,
+}: ProblemsInput): Problem[] {
   const { index, items, now } = s;
   const base = { related: [] as string[], link_id: null, run_id: null, resource_ids: [] };
   const list: { p: Problem; holds: number }[] = [];
@@ -531,6 +541,8 @@ function problemsOf({ s, runs, deferredCounts, backupError, config }: ProblemsIn
 
   // Work that may be lost or left running ranks before date and link problems.
   recoveryProblems(s, runs, config, push, base);
+  // Instructions changed outside Task Lite: every later agent follows them (decision 30).
+  for (const p of drift) push(p);
 
   for (const item of items.values()) {
     if (!isOpenStatus(item.status)) continue;
@@ -909,6 +921,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         deferredCounts: deferred.counts,
         backupError: backupError(r),
         config: deps.config,
+        drift: driftProblems(r.db, s.inScope, scope === 'all'),
       }),
       deferred: deferred.rows,
       planning_queue: summarize(
@@ -1279,6 +1292,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         label_briefs,
         links,
         outside,
+        run_instructions: runInstructions(r.db, row.id),
       };
     },
 

@@ -181,6 +181,17 @@ describe('the service stubs', () => {
     ],
     // US14 (B27a, T160): proposals.
     agentProposals: ['files', 'propose', 'list', 'approve', 'decline'],
+    // US14 (B27b, T161): drift.
+    drift: [
+      'recordReport',
+      'checkPushInstalls',
+      'recordChecks',
+      'list',
+      'adopt',
+      'restorePrepare',
+      'restoreRecord',
+      'keepLocal',
+    ],
   };
 
   it.each(methods)('%s.%s throws NotImplementedError until its slice implements it', (s, m) => {
