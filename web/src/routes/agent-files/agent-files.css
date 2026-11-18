@@ -356,3 +356,59 @@
 .tl .afuse a {
   text-decoration: underline;
 }
+
+/* Proposed changes (UI_SPEC §6.7b-1; US14; B27a). */
+.tl .afproposals {
+  gap: 10px;
+  scroll-margin-top: 16px;
+}
+.tl .afproposals > h2 {
+  margin: 4px 0 0;
+  font-size: 16px;
+}
+.tl .afproposal article {
+  display: grid;
+  gap: 8px;
+}
+.tl .afphead {
+  gap: 8px;
+  align-items: center;
+}
+.tl .afphead h3 {
+  margin: 0;
+  font-size: 14.5px;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--ink);
+}
+.tl .afpreason {
+  margin: 0;
+  padding: 4px 10px;
+  border-left: 3px solid var(--line-2);
+  color: var(--ink);
+  max-width: 80ch;
+}
+.tl .afpthree {
+  display: grid;
+  gap: 6px;
+}
+.tl .afpthree h4 {
+  margin: 4px 0 0;
+  font-size: 13px;
+}
+.tl .afpedit,
+.tl .afpdecline,
+.tl .afpconfirm {
+  display: grid;
+  gap: 8px;
+}
+.tl .afpelse {
+  margin: 0;
+  padding-left: 18px;
+}
+.tl .afchiplink {
+  text-decoration: none;
+}
+.tl .afchiplink:hover .chip {
+  text-decoration: underline;
+}

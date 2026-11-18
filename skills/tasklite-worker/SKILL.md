@@ -83,6 +83,14 @@ The project has its own rules: who moves work to Ready, when human review is nee
 4. **Treat `finish_run` warnings as mistakes to fix.** For example `! 2 commits not pushed` or `! 1 resource still declared`. Each one leaves your workspace marked at risk.
 5. **A commit after handing off?** Still `report_commit` it. If an open packet was built from an older commit, it's marked out of date for the owner.
 
+## Changing these instructions
+
+To change these instructions, use `get_agent_files` then `propose_agent_file_change`, and tell the user you've proposed it for the owner's approval. Don't edit installed files directly. That covers this skill, the Task Lite section of `AGENTS.md` / `CLAUDE.md` and the project's Workflow notes (`workflow`), even when the user asks you to edit them:
+
+- read the file first, `get_agent_files { project, file }`, and change that text, not your installed copy;
+- send the whole new text, the `version_id` you read as `based_on_version_id`, and a one-line `reason`;
+- nothing changes until the owner approves; carry on with the current instructions.
+
 ## Token habits
 
 - **Read once.** Call `get_context` once per item. Don't re-read the item after each write: mutation results already carry the new version.
@@ -104,5 +112,6 @@ The project has its own rules: who moves work to Ready, when human review is nee
 - Create tickets for checklist steps.
 - Close with `set_status` while human review items are undecided. It fails; use `submit_packet`.
 - Move items to Ready unless the project rules allow it.
+- Edit installed skill files or the Task Lite section of `AGENTS.md` / `CLAUDE.md`. Propose the change instead.
 - Leave a dev server, session or container running without declaring it.
 - Keep state only in your own memory or chat. Task Lite is the record, and the next agent starts from it.

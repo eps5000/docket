@@ -17,4 +17,5 @@ This project's work lives in Task Lite (MCP server `tasklite`). Track all work t
 - **Park instead of going quiet:** waiting on another item, the coordinator or a person? `park_run` with what you're waiting on. A silent run looks stale and loses its claim.
 - **Declare and release resources:** started a dev server, a session or a container? Declare it with `heartbeat resources_started`, and release it (`resources_released`) before you finish.
 - **Ask, don't guess, on product decisions:** `ask_owner` with your recommendation, then stop the work that depends on it.
+- **Propose instruction changes:** to change these instructions, use `get_agent_files` then `propose_agent_file_change`, and tell the user you've proposed it for the owner's approval. Don't edit installed files directly.
 - **Close or hand off correctly:** when the work is done, `submit_packet` if it needs human review, otherwise `set_status` "done", then `finish_run`. Stopping before it's done? `release_lead` with a reason, so another agent can pick it up.

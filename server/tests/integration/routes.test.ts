@@ -122,6 +122,10 @@ const B2_ROUTES: readonly RouteId[] = [
   'pushTarget.get',
   'pushTarget.test',
   'install.download',
+  // US14 (B27a, T160): proposals (content in us14-proposals.test.ts).
+  'proposals.list',
+  'proposals.approve',
+  'proposals.decline',
 ];
 
 interface Req {

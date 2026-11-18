@@ -64,6 +64,7 @@ import {
   type ViewsService,
 } from './contracts.js';
 import { compareIds, cycleText, cyclesOf } from './links.js';
+import { pendingProposalCount } from './agent-proposals.js';
 import { inScopeOf, ofScope } from './decisions.js';
 import {
   BlockIndex,
@@ -915,6 +916,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         planning,
       ),
       agent_counts: runCounts(s, runs),
+      agent_file_proposals: pendingProposalCount(r.db, scope),
     };
   }
 

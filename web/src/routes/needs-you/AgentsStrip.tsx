@@ -4,6 +4,7 @@ import { RunState } from '../../components/kit';
 import { plural } from '../../lib/format';
 import { paths } from '../../lib/paths';
 import { HelpLink } from '../../help/HelpLink';
+import { ProposalsLine } from '../agent-files/Proposals';
 
 /**
  * The states the strip counts, in order (UI_SPEC §6.1), plus parked (US11):
@@ -28,10 +29,13 @@ export const STRIP_STATES: readonly RunStateValue[] = [
 export function AgentsStrip({
   counts,
   atRisk = 0,
+  proposals,
 }: {
   counts: NeedsYouResponse['agent_counts'];
   /** Workspaces at risk (unpushed or uncommitted work), from `/api/workspaces`. */
   atRisk?: number;
+  /** Pending agent file proposals (decision 30): "n agent file changes proposed" → Agent files. */
+  proposals?: number;
 }) {
   const shown = STRIP_STATES.filter((s) => (counts[s] ?? 0) > 0);
   return (
@@ -63,6 +67,7 @@ export function AgentsStrip({
           {plural(atRisk, 'workspace')} at risk
         </Link>
       )}
+      <ProposalsLine count={proposals} />
       <Link to={paths.agents()} style={{ marginLeft: 'auto' }}>
         All runs →
       </Link>

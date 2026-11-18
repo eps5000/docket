@@ -327,6 +327,7 @@ function addVersion(
   content: string,
   note: string | null,
   set: { bundled_hash_at_edit?: string | null } = {},
+  author: string = authorOf(w.actor),
 ): { file_id: string; version: VersionRow; inverse: InverseOp[] } {
   const inverse: InverseOp[] = [];
   let fileId = target.row?.id;
@@ -349,13 +350,182 @@ function addVersion(
     version_no: nextVersionNo(w.db, fileId),
     content,
     sha256: sha256(content),
-    author: authorOf(w.actor),
+    author,
     note,
     created_at: w.now,
   };
   inverse.push(w.insert('agent_file_versions', { ...version }));
   inverse.push(w.update('agent_files', fileId, { current_version_id: version.id, ...set }));
   return { file_id: fileId, version, inverse };
+}
+
+/**
+ * Save `content` as a new version of the default (the service-wide edit) or
+ * of a project's copy, as an owner edit with undo: *Approve* on a proposal
+ * and *Adopt* on drift (decision 30; BUILD_SPEC §5.19). It is `put` without
+ * the version check (the caller decided on what it showed), with the author
+ * given ("proposed by codex · orca-w3 · approved by owner"). It appends
+ * `agent_file.updated` with its inverse.
+ */
+export function saveAgentFileEdit(
+  w: WriteContext,
+  input: {
+    key: string;
+    project: string | null;
+    content: string;
+    note: string | null;
+    author: string;
+    /** How the event says it: "Approved a proposed change to", "Adopted the local". */
+    how: string;
+  },
+): { file_id: string; version: AgentFileVersion; inverse: InverseOp[] } {
+  const layer: EditableAgentFileLayer = input.project ? 'project' : 'service';
+  if (input.project) requireProject(w.db, input.project);
+  const bundledRow = fileRow(w.db, input.key, 'bundled', null);
+  const bundled = versionById(w.db, bundledRow?.current_version_id ?? null);
+  if (!bundled) {
+    throw new ToolError(
+      'not_found',
+      `No agent file ${input.key}. Only the files Task Lite ships can be edited.`,
+    );
+  }
+  const row = fileRow(w.db, input.key, layer, input.project);
+  const current = versionById(w.db, row?.current_version_id ?? null);
+  const { file_id, version, inverse } = addVersion(
+    w,
+    { row, key: input.key, layer, project: input.project },
+    input.content,
+    input.note,
+    { bundled_hash_at_edit: bundled.sha256 },
+    input.author,
+  );
+  w.event({
+    type: 'agent_file.updated',
+    summary: `${input.how} ${whereOf(input.key, layer, input.project)}: v${version.version_no}`,
+    project_key: input.project,
+    data: {
+      key: input.key,
+      layer,
+      project: input.project,
+      version_no: { old: current?.version_no ?? 0, new: version.version_no },
+      note: input.note,
+      author: input.author,
+    },
+    objects: [{ kind: 'agent_file', id: file_id }],
+    inverse,
+  });
+  return { file_id, version: toVersion(version), inverse };
+}
+
+/** Save new Workflow notes as an owner edit with undo (*Approve* on a Workflow proposal). */
+export function saveWorkflowEdit(
+  w: WriteContext,
+  input: { project: string; content_md: string; note: string | null; author: string; how: string },
+): { id: string; version_no: number } {
+  requireProject(w.db, input.project);
+  const before = workflowOf(w.db, input.project);
+  const versionNo = before.version_no + 1;
+  const id = newId('wf', Date.parse(w.now));
+  const inverse = w.insert('project_workflows', {
+    id,
+    project_key: input.project,
+    version_no: versionNo,
+    content_md: input.content_md,
+    author: input.author,
+    note: input.note,
+  });
+  w.event({
+    type: 'workflow.updated',
+    summary: `${input.how} the Workflow notes of ${input.project}: v${versionNo}`,
+    project_key: input.project,
+    data: {
+      project: input.project,
+      version_no: { old: before.version_no, new: versionNo },
+      note: input.note,
+      author: input.author,
+    },
+    objects: [{ kind: 'project', id: input.project }],
+    inverse: [inverse],
+  });
+  return { id, version_no: versionNo };
+}
+
+/**
+ * What a change to `key` would replace now (decision 30): the project's
+ * effective version (its copy, else the default) or, without a project, the
+ * default; for `workflow`, the project's newest Workflow notes version.
+ * Null when there is none (no notes yet, or a key Task Lite doesn't ship).
+ */
+export function currentTarget(
+  db: Db,
+  key: string,
+  project: string | null,
+): {
+  id: string;
+  content: string;
+  sha256: string;
+  version_no: number;
+  source: 'default' | 'project';
+} | null {
+  if (key === 'workflow') {
+    if (!project) return null;
+    const row = workflowRows(db, project)[0];
+    if (!row) return null;
+    return {
+      id: row.id,
+      content: row.content_md,
+      sha256: sha256(row.content_md),
+      version_no: row.version_no,
+      source: 'project',
+    };
+  }
+  const layers = layersOf(db, key, project);
+  const layer = effectiveLayer(layers);
+  const v = layer ? versionById(db, layers[layer]!.current_version_id) : undefined;
+  if (!layer || !v) return null;
+  return {
+    id: v.id,
+    content: v.content,
+    sha256: v.sha256,
+    version_no: v.version_no,
+    source: layer === 'project' ? 'project' : 'default',
+  };
+}
+
+/** Whether `versionId` is a version of `key` (any layer) or, for `workflow`, of the project's notes. */
+export function isVersionOf(
+  db: Db,
+  versionId: string,
+  key: string,
+  project: string | null,
+): boolean {
+  if (key === 'workflow') {
+    return !!db.sqlite
+      .prepare('SELECT 1 FROM project_workflows WHERE id = ? AND project_key IS ?')
+      .get(versionId, project);
+  }
+  return !!db.sqlite
+    .prepare(
+      `SELECT 1 FROM agent_file_versions v JOIN agent_files f ON f.id = v.file_id
+       WHERE v.id = ? AND f.key = ?`,
+    )
+    .get(versionId, key);
+}
+
+/** A version's text by ID: an agent file version or a Workflow notes version. */
+export function versionText(db: Db, versionId: string): string | null {
+  const row = (db.sqlite
+    .prepare('SELECT content FROM agent_file_versions WHERE id = ?')
+    .get(versionId) ??
+    db.sqlite
+      .prepare('SELECT content_md AS content FROM project_workflows WHERE id = ?')
+      .get(versionId)) as { content: string } | undefined;
+  return row?.content ?? null;
+}
+
+/** Whether Task Lite ships `key` (a bundled layer exists): only those can be edited. */
+export function isShippedKey(db: Db, key: string): boolean {
+  return !!fileRow(db, key, 'bundled', null)?.current_version_id;
 }
 
 // ---- Workflow notes ----
@@ -377,6 +547,7 @@ function workflowOf(db: Db, project: string): Workflow {
     version_no: current?.version_no ?? 0,
     content_md: current?.content_md ?? '',
     versions: rows.map((r) => ({
+      id: r.id,
       version_no: r.version_no,
       content_md: r.content_md,
       author: r.author,
