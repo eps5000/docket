@@ -168,7 +168,11 @@ async function report(shell: ShellName, repo: string): Promise<InstructionsInput
       : "& ([scriptblock]::Create([IO.File]::ReadAllText((Resolve-Path '.claude/tasklite-check.ps1').ProviderPath))) (Resolve-Path '.claude').ProviderPath";
   const r = await run(shell, cmd, repo);
   expect(r.status, r.out).toBe(0);
-  const lines = r.out.split('\n').filter((l) => l.startsWith('{'));
+  // pwsh on Linux, fed commands on stdin, may put terminal escape codes before the line.
+  const lines = r.out
+    .split('\n')
+    .filter((l) => l.includes('{"install_id"'))
+    .map((l) => l.slice(l.indexOf('{"install_id"')));
   expect(lines, r.out).toHaveLength(1);
   return instructionsInput.parse(JSON.parse(lines[0]!));
 }
