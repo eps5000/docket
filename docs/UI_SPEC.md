@@ -640,6 +640,12 @@ AGENTS.md block      Task Lite's version              —
 
 Help anchors: `agent-files.page` (the h1), `agent-files.workflow`, `agent-files.install-log`, `settings.push-folder`, all claimed by the "Agent files" article.
 
+### 6.7b-1 Proposals and drift (decision 30)
+- **Proposals:** on the project's Agent files page, a "Proposed changes · n" section above the files. Each shows the file, the proposing agent and run, the reason, and a diff against the current version (three-way if the file changed since), with *Approve*, *Edit, then approve* and *Decline…*. Needs you shows one line: "n agent file changes proposed" → Agent files.
+- **Drift:** a Problems row, "Agent files changed outside Task Lite · <project> · <file>" → the Agent files page's "Changed outside Task Lite" section: where (path, install), how it was found (scheduled check, or reported by <agent> on <item>), a diff when content is known, and *Adopt as <project>'s copy*, *Restore Task Lite's version* and *Keep local*.
+- **Runs:** the Lead and runs section and the agent bar show "Instructions: <file> · <source> v<n>", with a ⚠ "edited locally" chip linking to the drift entry.
+- **Files:** a file row shows "1 proposal" and "changed outside Task Lite" chips when they apply.
+
 ### 6.7c Help (`/help`, `/help/:slug`, decision 29)
 - **`/help`:** a searchable list of articles, each with its title and one-line summary, grouped as Getting started, Working with agents, Recovery, Planning and Operations.
 - **An article:** the rendered Markdown, with "Related" links.

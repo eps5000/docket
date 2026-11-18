@@ -465,7 +465,14 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [X] T157 [US13] Fill `workflow` in the context bundle (truncated last among sections 1–5) and the Workflow notes routes; a contract test that `get_context` for a project's item includes its notes.
 - [X] T158 Update the `tasklite-coordinator` and `tasklite-worker` skills (and `skills/README.md`) to mention Workflow notes and Agent setup installs; update the README's install section to point at Agent setup. Keep the skills lint green.
 
-## How to run the build
+## Phase 16: Agent proposals and drift (owner decision 30)
+
+- [ ] T159 [contract] Spec plus code in one PR (the snapshot reads MCP_SPEC): migration (`agent_file_proposals`, `instruction_reports`, `drift`); the MCP tools `get_agent_files` and `propose_agent_file_change` with exact descriptions; `claim_lead.instructions` with its description update; the new server-instructions bullet; route schemas and placeholders for proposals and drift; config `TASKLITE_DRIFT_CHECK_INTERVAL`; events (`agent_file.proposed`, `agent_file.proposal_decided`, `drift.detected`, `drift.resolved`); client entries. Snapshot 38 → 40 tools.
+- [ ] T160 [US14] Proposals: the service (read, propose, approve, edit then approve, decline, three-way basis, limits, write checks); the tools; the owner routes; and the UI per UI_SPEC §6.7b-1, including the Needs you line. Tests, e2e and axe.
+- [ ] T161 [US14] Drift: the scheduled push-folder check; instruction reports from `claim_lead`; drift records and remedies (*Adopt*, *Restore*, *Keep local*, with the accepted hash); the Problems row; run instruction display; and the installed `tasklite-check` script that produces the report (PowerShell and bash, with content only for differing files). Tests, including the SC-017 drift suite.
+- [ ] T162 [US14] Update the skills (worker: report instructions on claim, and propose instead of editing; coordinator: drift remedies), the AGENTS.md block, `skills/README.md`, the README, and the Agent files help article. The skills lint stays green.
+
+## How to run the build## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.
 
@@ -493,6 +500,8 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 | B22 | 15 Help center (US12) | T152 | |
 | B23 | 15 Agent files and workflow (US13) | T153–T154, T157 | |
 | B24 | 15 Install and check (US13) | T155–T156, T158 | Needs B23 |
+| B26 | 16 Contracts for proposals and drift | T159 | Builds on the spec branch; snapshot 38 → 40 |
+| B27 | 16 Proposals, drift and skill updates (US14) | T160–T162 | Split into two PRs if large |
 
 **Slices after B6 may run in any order that respects** the dependency table below. Don't run two slices at once: they share route and screen groups.
 
@@ -537,6 +546,7 @@ Open a PR titled "<Bn>: <phase name>" with the checkpoint evidence. Do not queue
 | 13 US9 | US1, US4, US7 (documents) |
 | 14 Polish | the stories being shipped |
 | 15 Help and agent setup | B21 first; B22 any time after; B23 then B24 |
+| 16 Proposals and drift | B26 then B27 |
 
 **Within a phase:** tests (failing) → services → replace stubs or fill handlers → fill screens → checkpoint.
 

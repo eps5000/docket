@@ -110,6 +110,7 @@ Environment variables, with defaults:
 | `TASKLITE_ORPHAN_AFTER` | `15m` | How long a resource may stay unreleased after its run ends before it shows as an orphaned resource. |
 | `TASKLITE_PUSH_ROOT` | unset | Opt-in push install (decision 29): the container path of a host folder the owner mounts, for example `/host-code`. Unset means push install is off. |
 | `TASKLITE_PUSH_HOST_PATH` | unset | The same folder's path on the host, for example `C:/Users/me/code`, so the UI can show and accept host paths. |
+| `TASKLITE_DRIFT_CHECK_INTERVAL` | `15m` | How often push-folder installs are checked for files edited outside Task Lite (decision 30). |
 | `TASKLITE_BACKUP_AT` | `03:00` | Local time for the nightly backup. |
 | `TASKLITE_BACKUP_KEEP` | `14` | Days of backups kept, in every location. |
 | `TASKLITE_BACKUP_EXTRA_DIR` | (unset) | Opt-in extra backup location: the path *inside the container* of a host folder bind-mounted by the owner (e.g. `/backups-extra`). When it's set and writable, each nightly backup is also copied there (owner decision 24). |
@@ -179,6 +180,9 @@ SQLite tables. Every row has `id`, `created_at` and `updated_at`; all timestamps
 | `agent_file_versions` | `id` (`afv_…`), `file_id`, `version_no`, `content` (≤ 50,000, B21), `sha256`, `author`, `note`, `created_at` | Immutable. |
 | `project_workflows` | `project_key`, `version_no`, `content_md` (≤ 10,000), `author`, `note`, `created_at` | Versioned; the newest is current. Delivered in `get_context` (§5.15). |
 | `installs` | `id` (`ins_…`), `at`, `client` (claude\|codex), `target_kind` (repo\|user), `project_key` (nullable), `path` (nullable; required for push), `method` (command\|push), `manifest` (JSON: key → `{version_id, sha256}`), `token_sha256`, `token_expires_at`, `token_used_at` | §5.17. A command install keeps only its token's sha256 and expiry, never the token (B21). |
+| `agent_file_proposals` | `id` (`afp_…`), `project_key` (nullable), `file_key`, `content`, `reason`, `based_on_version_id`, `run_id`, `proposed_by`, `state` (pending\|approved\|declined), `decided_at`, `decided_note`, `result_version_id` | §5.19. |
+| `instruction_reports` | `id` (`irp_…`), `source` (agent\|push_check), `run_id` (nullable), `install_id` (nullable), `project_key`, `location`, `files` (JSON: key → `{sha256, content?}`), `at` | §5.19. |
+| `drift` | `id` (`dft_…`), `install_id`, `project_key`, `file_key`, `state` (open\|adopted\|restored\|kept_local), `local_sha256`, `detected_at`, `resolved_at` | One open row per install and file; *Keep local* stores the accepted hash. |
 | `artifacts` | `item_id`, `kind` (url\|pr\|ci\|deploy\|test), `label`, `url`, `state`, `provenance` | A08 evidence links. |
 | `documents` | `project_key`, `item_id` (nullable), `name`, `kind` (planning\|packet_attachment\|import_report\|brief\|other; `brief` is written only through `claim_lead`/`start_run`) | Unique `(item_id, name)`. |
 | `document_versions` | `document_id`, `version_no`, `mime`, `size`, `sha256`, `path`, `created_by` | Immutable. |
@@ -459,9 +463,23 @@ Articles are Markdown files in `docs/help/<slug>.md`, with front matter `title`,
 
 ---
 
+### 5.19 Agent proposals and drift (decision 30)
+- **Reading.** `get_agent_files {project}` returns the files and Workflow notes in effect for that project (content, version ID, sha256, and where each comes from), so an agent edits the current text.
+- **Proposing.** `propose_agent_file_change {project?, file, content, reason, based_on_version_id}` stores a **pending proposal**. `file` is a skill key, `agents_block` or `workflow`. With `project`, it targets that project's copy; without it, the default. It changes nothing. The write checks (secrets, item references) apply. At most 5 pending proposals per file and project; a newer proposal from the same run replaces its own older one.
+- **Deciding.** The owner approves (saved as a new version of the target, author "proposed by <client · label> · approved by owner"), edits then approves, or declines with an optional note. If the target changed since `based_on_version_id`, the review shows a three-way view. Every decision is an event, and approval is undoable like any owner edit.
+- **Agents can't write agent files directly** (FR-130). The owner routes stay owner-only.
+- **Instruction reports.**
+  - **From agents:** `claim_lead` accepts `instructions?: { install_id?, files: [{ key, sha256, content? }] }`. The installed `tasklite-check` script produces it, and includes `content` (≤ 50,000 characters) only for files whose hash differs from the manifest. The report is stored on the run.
+  - **From the push folder:** a scheduled check (`TASKLITE_DRIFT_CHECK_INTERVAL`, default 15 min, and at startup) runs the B24 check on every push install's location.
+- **Drift.** A report that differs from the install's manifest raises a drift record per location: changed, missing and extra files. The owner sees a Problems row, "Agent files changed outside Task Lite · <project> · <file>", with the diff when content is available, and three remedies:
+  - *Adopt*: save the local content as the project's copy, as an owner edit;
+  - *Restore*: reinstall Task Lite's version (push, or show the command);
+  - *Keep local*: accept it; no new alert until the content hash changes again.
+- **Runs** show "Instructions: tasklite-worker · Recipe App's copy v2", with ⚠ "edited locally" when the reported hash differs from what was sent.
+
 ## 6. MCP tool contract
 
-**Overview only.** [MCP_SPEC.md](MCP_SPEC.md) is authoritative for the server instructions, every tool's description text, input and output schemas, error messages and worked flows. It defines 38 tools, including `unlink_items`, `update_check` and `update_human_review`, which are paired with their siblings below.
+**Overview only.** [MCP_SPEC.md](MCP_SPEC.md) is authoritative for the server instructions, every tool's description text, input and output schemas, error messages and worked flows. It defines 40 tools (38, plus `get_agent_files` and `propose_agent_file_change` from decision 30), including `unlink_items`, `update_check` and `update_human_review`, which are paired with their siblings below.
 
 Tools are snake_case, with input and output schemas defined in `shared/` with zod, and every result returns `structuredContent`. Lists are paginated with `cursor` and `limit` (default 25, max 50) (A02).
 
@@ -561,6 +579,8 @@ Every route requires the owner session (§3). JSON bodies **and query strings** 
 | `GET /api/projects/:key/workflow` · `PUT /api/projects/:key/workflow` `{content_md, expected_version, note?}` | The project's Workflow notes |
 | `POST /api/installs` `{client, target_kind, project?, path?, method}` → `{install_id, command?, check_command?, result?}` · `GET /api/installs?project` · `POST /api/installs/:id/check` · `GET /api/push-target` · `POST /api/push-target/test` | Install, the install log, local-edit checks, the push folder status |
 | `GET /install/:token` (no session; single-use, 10 min, loopback) | The install bundle the copy-paste command downloads. No session, CSRF or bearer: the token (32 random bytes, base64url) is the credential, behind the Host and Origin guards; unknown, expired and used tokens all answer `404` (B21) |
+| `GET /api/agent-file-proposals?project&state` · `POST /api/agent-file-proposals/:id/approve` `{content?, note?}` · `POST /api/agent-file-proposals/:id/decline` `{note?}` | Proposals on Agent files and in Needs you (decision 30) |
+| `GET /api/drift?project&state` · `POST /api/drift/:id/adopt` · `POST /api/drift/:id/restore` · `POST /api/drift/:id/keep-local` | Drift review and remedies (decision 30) |
 | `POST /api/resources/:id/release` `{note?}` · `POST /api/runs/:runId/unpushed-handled` | Problems actions: *Mark released* on an orphaned resource; *Handled* on "Unpushed work may be lost" |
 | `GET /api/stream` | SSE: `event: change`, `id: <seq>`, `data: {seq, type, objects:[{kind, id}], for_you}`, where `for_you` is true only for `packet.submitted` and `question.asked` (used for desktop notifications; specs/001-task-lite-v1/contracts/events.md). The client invalidates matching TanStack Query keys. Supports `Last-Event-ID`. Sends a heartbeat comment every 25 s. |
 | `GET /healthz` (process up) · `GET /readyz` (database writable, docs dir writable, migrations current) | Compose healthcheck, sidebar health line |
@@ -753,7 +773,7 @@ The milestones below group *capabilities*. The **execution order** is the batch 
 |---|---|---|
 | M0 | Workspace scaffold, lint, typecheck, Vitest, Dockerfile, compose, `/healthz` and `/readyz`, and the GitHub Actions CI workflow (§2 Stack) | `docker compose up` serves "Task Lite is running"; the CI check is green on the M0 PR, and Mergify waits for it |
 | M1 | Schema and migrations, domain services for §5 (including `satisfied_when`, decision records and the context bundle), event log, idempotency, undo, seed loader | Unit tests for every §5 rule pass; the seed loads deterministically |
-| M2 | MCP server per [MCP_SPEC.md](MCP_SPEC.md): auth, Host/Origin guards, identity, server instructions, all 38 tools with the exact description text, compact text rendering, structured errors, sweeper, restart handling | The MCP_SPEC §10 contract tests pass, including the description snapshot and token budgets; two simultaneous SDK clients work |
+| M2 | MCP server per [MCP_SPEC.md](MCP_SPEC.md): auth, Host/Origin guards, identity, server instructions, all 40 tools with the exact description text, compact text rendering, structured errors, sweeper, restart handling | The MCP_SPEC §10 contract tests pass, including the description snapshot and token budgets; two simultaneous SDK clients work |
 | M3 | Owner session and CSRF, UI API (§7, including owner text edits and the diagnostic log), SSE stream | API contract tests pass; the unlock flow works |
 | M4 | Web shell, tokens, Needs you, Work board and list, ticket and epic pages (four tabs, checklist editing, Decisions sections), open-item tabs, palette, quick capture | The e2e groups for Needs you, Tickets and epics, and Shell pass |
 | M5 | Packet screen and decisions, deferrals, questions and notes, archive, undo toasts, inline editing, desktop notifications and the tab-title count | The e2e groups for Packets and Work (archive) pass |
@@ -835,6 +855,7 @@ Owner decisions are marked **(owner)**. Every other entry is a technical choice 
 | 27 **(owner)** | Ship five agent skills as plain files in `skills/`: `tasklite-worker` and `tasklite-coordinator` (core), `tasklite-planner`, `tasklite-review-packet` and `tasklite-lead-subagents` (optional). They teach workflow, never restate schemas, and are lint-checked against the tool contract in CI. Owners may edit them. Serving them as MCP prompts is on the roadmap. | `skills/README.md`, ROADMAP §2 |
 | 28 **(owner)** | Per-client result modes: clients known to give the model `structuredContent` (by default Claude Code, `clientInfo.name` `claude-code`) get text-only results, with no `outputSchema` and no `structuredContent`, so the model reads the complete compact text; every other client keeps structured output. Configured by `TASKLITE_TEXT_ONLY_CLIENTS`. Resolves V6. | §2 Configuration, §12 V6, MCP_SPEC §3 Results and §11 |
 | 29 **(owner)** | Help center and agent setup: Help articles in the app; the agent files (skills and AGENTS.md block) viewable and editable in three layers (bundled, service-wide, per project) with history; per-project Workflow notes in `get_context`; install by copy-paste command or opt-in push into a mounted host folder; every install logged with exact versions, and installed copies checked for local edits. Serving the files over MCP stays on the roadmap. | §5.17, §5.18, §7, UI_SPEC §6.10–6.11 |
+| 30 **(owner)** | Agents change agent files only by proposing (`get_agent_files`, `propose_agent_file_change`); the owner approves, edits or declines, with proposer and approver recorded. Drift detection for edits made outside Task Lite: scheduled checks of push installs, and instruction hashes agents report on `claim_lead`; drift shows as a Problem with *Adopt*, *Restore* and *Keep local*; runs record their instruction versions. | §5.19, MCP_SPEC §5.10, UI_SPEC §6.7b |
 | T22 | Parked runs keep their claim indefinitely and are only flagged after `PARK_MAX` (24 h); they are never auto-released. | §5.16 |
 | T23 | Workspace state is derived per worktree path from reported data (`dirty`, `head_sha`, `pushed_sha`, resources), never by inspecting the host. | §5.16 |
 | T24 | API errors use the envelope `{error:{code,message,details?}}`; queries are strict; `shared/src/api` holds the authoritative request and response shapes (from B4). | §7 |
