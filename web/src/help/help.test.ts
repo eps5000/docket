@@ -50,7 +50,7 @@ describe('Help articles', () => {
   it('has the articles T152 asks for', () => {
     expect(fromDisk.map((a) => a.slug).sort()).toEqual(
       expect.arrayContaining([
-        'agent-setup',
+        'agent-files',
         'backups-restore-export',
         'blockers-and-dependencies',
         'connect-an-agent',
@@ -163,7 +163,9 @@ describe('"?" anchors', () => {
       ['review.packet', 'review-a-packet'],
       ['settings.service-health', 'backups-restore-export'],
       ['jira.import', 'jira-import'],
-      ['settings.agent-setup', 'agent-setup'],
+      ['agent-files.page', 'agent-files'],
+      ['agent-files.workflow', 'agent-files'],
+      ['settings.push-folder', 'agent-files'],
     ] as const) {
       expect(articleForAnchor(anchor)?.slug, anchor).toBe(slug);
     }

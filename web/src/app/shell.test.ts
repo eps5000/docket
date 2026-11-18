@@ -83,6 +83,7 @@ describe('navigation', () => {
     expect(navSection('/items/RCP-14')).toBe('work');
     expect(navSection('/labels/RCP/ui-refresh')).toBe('work');
     expect(navSection('/agents')).toBe('agents');
+    expect(navSection('/agent-files')).toBe('agent-files');
     expect(navSection('/settings')).toBe('settings');
     expect(navSection('/nope')).toBeNull();
   });

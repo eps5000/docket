@@ -14,6 +14,7 @@ export const GO_TO_VIEWS = [
   { key: 'work', label: 'Work', path: paths.work() },
   { key: 'timeline', label: 'Timeline (Work)', path: paths.work({ layout: 'timeline' }) },
   { key: 'agents', label: 'Agents', path: paths.agents() },
+  { key: 'agent-files', label: 'Agent files and Workflow notes', path: paths.agentFiles() },
   { key: 'settings', label: 'Settings: projects and connections', path: paths.settings() },
   { key: 'help', label: 'Help', path: paths.help() },
 ] as const;

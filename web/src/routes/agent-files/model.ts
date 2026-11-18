@@ -1,0 +1,142 @@
+/**
+ * How Agent files presents the stored layers (UI_SPEC §6.7b; BUILD_SPEC
+ * §5.17, B25). The storage model is unchanged: bundled, the service-wide
+ * edit and the project override. The UI shows two ideas instead:
+ * - **the default**: the service-wide edit if there is one, else Task Lite's
+ *   (bundled) version. "Reset to Task Lite's version" reverts the edit;
+ * - **<Project>'s copy**: the project override, which exists only once the
+ *   owner customizes a file for that project. "Use default" reverts it.
+ * The words bundled, layer, override and service-wide never reach the screen.
+ */
+import type {
+  AgentFileDetail,
+  AgentFileLayer,
+  AgentFileRow,
+  AgentFileVersion,
+  PushTargetResponse,
+} from '@tasklite/shared';
+
+export interface Version extends AgentFileVersion {
+  layer: AgentFileLayer;
+  /** The layer's current version (a reverted layer has none). */
+  current: boolean;
+}
+
+/** `Gameflow’s` (a possessive that reads well after a project name). */
+export const possessive = (name: string) => `${name}’s`;
+
+/** A version's name on screen: "Task Lite’s version v2", "Edited default v1", "Gameflow’s copy v3". */
+export function versionLabel(
+  v: Pick<Version, 'layer' | 'version_no'>,
+  projectName: string | null,
+): string {
+  if (v.layer === 'bundled') return `Task Lite’s version v${v.version_no}`;
+  if (v.layer === 'service') return `Edited default v${v.version_no}`;
+  return `${possessive(projectName ?? 'Project')} copy v${v.version_no}`;
+}
+
+/** Every version of every layer of a file, newest first within each layer. */
+export function versionsOf(d: AgentFileDetail): Version[] {
+  const all: Version[] = [];
+  for (const l of ['project', 'service', 'bundled'] as const) {
+    const ld = d.layers[l];
+    for (const v of ld?.versions ?? []) {
+      all.push({ ...v, layer: l, current: v.version_no === ld!.current_version_no });
+    }
+  }
+  return all;
+}
+
+export const currentOf = (versions: readonly Version[], l: AgentFileLayer) =>
+  versions.find((v) => v.layer === l && v.current);
+
+/** The default's current version: the edited default, else Task Lite's version. */
+export const defaultOf = (versions: readonly Version[]) =>
+  currentOf(versions, 'service') ?? currentOf(versions, 'bundled');
+
+/** The default's history: its edits and Task Lite's versions, newest first. */
+export const defaultHistory = (versions: readonly Version[]) =>
+  versions
+    .filter((v) => v.layer !== 'project')
+    .sort((a, b) => b.created_at.localeCompare(a.created_at) || b.version_no - a.version_no);
+
+/**
+ * The default as it was at `at`: the latest edit made by then, else the
+ * latest Task Lite version by then. (A reset isn't a version, so a default
+ * that was edited and reset before `at` reads as the edit.)
+ */
+export function defaultAt(versions: readonly Version[], at: string): Version | undefined {
+  const by = (l: AgentFileLayer) =>
+    versions
+      .filter((v) => v.layer === l && v.created_at <= at)
+      .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+  return by('service') ?? by('bundled');
+}
+
+/**
+ * Why a project's copy is flagged "The default changed since <P>’s copy was
+ * made", with the two versions to compare (what changed in the default), or
+ * null. Either Task Lite shipped a new version since the copy (the server's
+ * bundled-updated flag on the project layer), or the default was edited
+ * after the copy's current version.
+ */
+export function copyOutdated(
+  d: AgentFileDetail,
+  versions: readonly Version[],
+): { from: Version | undefined; to: Version | undefined } | null {
+  const copy = currentOf(versions, 'project');
+  if (!copy) return null;
+  const flag = d.bundled_updated;
+  if (flag && flag.edited_layer === 'project') {
+    return {
+      from: flag.from_version_id ? versions.find((v) => v.id === flag.from_version_id) : undefined,
+      to: versions.find((v) => v.id === flag.to_version_id),
+    };
+  }
+  const edit = currentOf(versions, 'service');
+  if (edit && edit.created_at > copy.created_at) {
+    return { from: defaultAt(versions, copy.created_at), to: edit };
+  }
+  return null;
+}
+
+/** The same test on a list row (no history needed). */
+export function rowCopyOutdated(row: AgentFileRow): boolean {
+  if (row.effective_layer !== 'project' || !row.layers.project) return false;
+  if (row.bundled_updated) return true;
+  return !!row.layers.service && row.layers.service.created_at > row.layers.project.created_at;
+}
+
+/** All projects: Task Lite shipped a new version since the default was edited. */
+export const rowDefaultOutdated = (row: AgentFileRow) =>
+  row.effective_layer === 'service' && row.bundled_updated;
+
+export const kindLabel = (kind: AgentFileRow['kind']) =>
+  kind === 'skill' ? 'skill' : 'AGENTS.md / CLAUDE.md';
+
+const norm = (p: string) => p.trim().replace(/\\/g, '/').replace(/\/+$/, '');
+
+/**
+ * Whether a folder is inside the push folder, as the server maps it
+ * (`push-root.ts`): under the host path (any case and slashes for a Windows
+ * path), under the container path, or relative to the root. The server
+ * checks again; this only picks the install method.
+ */
+export function insidePushFolder(path: string, target: PushTargetResponse | undefined): boolean {
+  if (!target?.configured) return false;
+  const p = norm(path);
+  if (p === '') return false;
+  const under = (root: string | null, ci: boolean) => {
+    if (!root) return false;
+    const r = norm(root);
+    const [a, b] = ci ? [p.toLowerCase(), r.toLowerCase()] : [p, r];
+    return a === b || a.startsWith(`${b}/`);
+  };
+  if (under(target.host_path, /^[a-z]:/i.test(target.host_path ?? ''))) return true;
+  if (under(target.container_path, false)) return true;
+  const absolute = p.startsWith('/') || p.startsWith('~') || /^[a-z]:/i.test(p);
+  return !absolute && !p.split('/').includes('..');
+}
+
+/** Push is usable: configured, mounted and writable. */
+export const pushReady = (t: PushTargetResponse | undefined) => !!t?.configured && !!t.writable;

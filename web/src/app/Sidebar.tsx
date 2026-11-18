@@ -9,7 +9,7 @@ import { useBootstrap } from './useBootstrap';
 /** Which nav item a path belongs to (UI_SPEC §2, §6.4: the packet keeps Needs you active). */
 export function navSection(
   pathname: string,
-): 'needs-you' | 'work' | 'agents' | 'settings' | 'help' | null {
+): 'needs-you' | 'work' | 'agents' | 'agent-files' | 'settings' | 'help' | null {
   if (pathname === '/' || pathname.startsWith('/review/')) return 'needs-you';
   if (
     pathname.startsWith('/work') ||
@@ -18,6 +18,7 @@ export function navSection(
   )
     return 'work';
   if (pathname.startsWith('/agents')) return 'agents';
+  if (pathname.startsWith('/agent-files')) return 'agent-files';
   if (pathname.startsWith('/settings')) return 'settings';
   if (pathname === '/help' || pathname.startsWith('/help/')) return 'help';
   return null;
@@ -233,6 +234,7 @@ export function Sidebar() {
         section="agents"
         badge={{ n: activeRuns, tone: 'gray', sr: 'active runs' }}
       />
+      <NavItem to={paths.agentFiles()} icon="doc" label="Agent files" section="agent-files" />
       <div className="navsec" aria-hidden="true">
         Service-wide
       </div>

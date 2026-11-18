@@ -30,9 +30,12 @@ export const paths = {
   agents: (q: { state?: string; section?: 'workspaces' } = {}) =>
     `${withQuery('/agents', { state: q.state })}${q.section ? `#${q.section}` : ''}`,
   settings: () => '/settings',
-  /** Settings → Agent setup (UI_SPEC §6.7b): a project's view and one file's view. */
-  agentSetup: (q: { project?: string; file?: string; layer?: string } = {}) =>
-    withQuery('/settings/agent-setup', q),
+  /**
+   * Agent files (UI_SPEC §6.7b) follows the project switcher. `project` (a
+   * key, or `all`) switches the scope first, so a link can open one
+   * project's view of a file; `file` opens that file.
+   */
+  agentFiles: (q: { project?: string; file?: string } = {}) => withQuery('/agent-files', q),
   /** `/help` (`?q=` searches) or one article, `/help/run-states` (UI_SPEC §6.7c). */
   help: (slug?: string, q?: string) =>
     slug ? `/help/${encodeURIComponent(slug)}` : withQuery('/help', { q }),

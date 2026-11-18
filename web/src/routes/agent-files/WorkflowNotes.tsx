@@ -1,9 +1,9 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useId, useState } from 'react';
-import { Link } from 'react-router';
 import { AGENT_SETUP_LIMITS, type Workflow } from '@tasklite/shared';
 import {
   Button,
+  Callout,
   Card,
   CardHeader,
   Chip,
@@ -11,51 +11,31 @@ import {
   InlineEditor,
   Skeleton,
 } from '../../components/kit';
-import { Callout } from '../../components/kit';
 import { QueryState } from '../../app/QueryState';
 import { apiClient } from '../../app/queryClient';
+import { HelpLink } from '../../help/HelpLink';
 import { queryKeys } from '../../lib/api';
 import { formatDay, formatStamp, isoTitle } from '../../lib/format';
-import { paths } from '../../lib/paths';
 import { runOwnerMutation, showToast } from '../../lib/undo';
 import { Markdown } from '../shared/Markdown';
-import { BundledUpdatedChip, LayerChip } from './AgentChips';
-import { InstallDialog } from './AgentInstall';
 import { DiffView } from './DiffView';
-import { HelpLink } from '../../help/HelpLink';
+import WORKFLOW_STARTER from '../../../../docs/templates/WORKFLOW-starter.md?raw';
 
 /**
- * A project's *Agent files & workflow* (UI_SPEC §6.7b "Project section";
- * FR-122, FR-123): the Workflow notes, a versioned Markdown editor that
- * agents get in `get_context`, and the effective set, each file with the
- * layer it comes from and a link to its view, with *Install…* for this
- * project's files (B24).
+ * The Workflow notes starter (`docs/templates/WORKFLOW-starter.md`, bundled
+ * into the web build): the project questions the old AGENTS.md block asked,
+ * each with a suggested answer for the owner to edit.
  */
-export function ProjectAgentSection({
-  project,
-  projectName,
-}: {
-  project: string;
-  projectName: string;
-}) {
-  return (
-    <section
-      aria-labelledby="as-project"
-      className="settings-sec"
-      id="agent-files-and-workflow"
-      data-project-agent-section={project}
-    >
-      <div className="withhelp">
-        <h2 id="as-project">{projectName} · Agent files &amp; workflow</h2>
-        <HelpLink anchor="settings.agent-setup" />
-      </div>
-      <WorkflowCard project={project} projectName={projectName} />
-      <EffectiveSet project={project} projectName={projectName} />
-    </section>
-  );
-}
+export { WORKFLOW_STARTER };
 
-function WorkflowCard({ project, projectName }: { project: string; projectName: string }) {
+/**
+ * A project's **Workflow notes** (UI_SPEC §6.7b; FR-123), the top section of
+ * Agent files with one project selected: a versioned Markdown editor whose
+ * text agents get in `get_context` for every item in the project. Empty
+ * notes offer *Start from template*, which loads the starter into the editor
+ * unsaved.
+ */
+export function WorkflowNotes({ project, projectName }: { project: string; projectName: string }) {
   const query = useQuery({
     queryKey: queryKeys.workflow(project),
     queryFn: () => apiClient['workflow.get']({ params: { key: project } }),
@@ -79,9 +59,11 @@ function WorkflowCard({ project, projectName }: { project: string; projectName: 
 function WorkflowBody({ wf, projectName }: { wf: Workflow; projectName: string }) {
   const qc = useQueryClient();
   const noteId = useId();
-  const [editing, setEditing] = useState<{ expected: number; conflict: string | null } | null>(
-    null,
-  );
+  const [editing, setEditing] = useState<{
+    expected: number;
+    initial: string;
+    conflict: string | null;
+  } | null>(null);
   const [note, setNote] = useState('');
   const [history, setHistory] = useState(false);
   const [diffAt, setDiffAt] = useState<number | null>(null);
@@ -113,6 +95,7 @@ function WorkflowBody({ wf, projectName }: { wf: Workflow; projectName: string }
         const now = fresh?.version_no ?? 0;
         setEditing({
           expected: now,
+          initial: editing.initial,
           conflict: `The Workflow notes changed since you opened them (now v${now}). Save again to replace them with your text, or cancel to see the latest.`,
         });
         return false;
@@ -129,7 +112,12 @@ function WorkflowBody({ wf, projectName }: { wf: Workflow; projectName: string }
   return (
     <>
       <CardHeader
-        title="Workflow notes"
+        title={
+          <span className="withhelp">
+            Workflow notes
+            <HelpLink anchor="agent-files.workflow" />
+          </span>
+        }
         extra={
           <div className="row" style={{ gap: 6 }}>
             {current && (
@@ -143,7 +131,7 @@ function WorkflowBody({ wf, projectName }: { wf: Workflow; projectName: string }
                 icon="pencil"
                 onClick={() => {
                   setNote('');
-                  setEditing({ expected: wf.version_no, conflict: null });
+                  setEditing({ expected: wf.version_no, initial: wf.content_md, conflict: null });
                 }}
               >
                 Edit
@@ -154,15 +142,15 @@ function WorkflowBody({ wf, projectName }: { wf: Workflow; projectName: string }
       />
       <div className="pad afwfbody">
         <div className="src afwfline">
-          <Chip kind="info">get_context</Chip> Agents get this in get_context for every{' '}
-          {projectName} item.
+          <Chip kind="info">get_context</Chip> Rules agents get with every {projectName} item (in
+          get_context). They take precedence over the skills and the AGENTS.md block.
         </div>
         {editing ? (
           <div className="afedit" data-workflow-editor="">
             <InlineEditor
               field="Workflow notes"
               multiline
-              initial={wf.content_md}
+              initial={editing.initial}
               maxLength={AGENT_SETUP_LIMITS.workflow_md}
               onSave={save}
               onCancel={() => setEditing(null)}
@@ -191,13 +179,34 @@ function WorkflowBody({ wf, projectName }: { wf: Workflow; projectName: string }
             </div>
           </div>
         ) : wf.content_md.trim() === '' ? (
-          <EmptyState
-            text={
-              wf.version_no === 0
-                ? 'No Workflow notes yet. Add this project’s rules for agents: branches, reviews, what “ready” means.'
-                : 'The Workflow notes are cleared. Agents get none.'
-            }
-          />
+          <div className="afwfempty" data-workflow-empty="">
+            <EmptyState
+              text={
+                wf.version_no === 0
+                  ? 'No Workflow notes yet. Add this project’s rules for agents: who moves work to Ready, reviews, branches, the checks to run.'
+                  : 'The Workflow notes are cleared. Agents get none.'
+              }
+            />
+            <div className="row wrap" style={{ gap: 8 }}>
+              <Button
+                size="sm"
+                variant="primary"
+                onClick={() => {
+                  setNote('');
+                  setEditing({
+                    expected: wf.version_no,
+                    initial: WORKFLOW_STARTER,
+                    conflict: null,
+                  });
+                }}
+              >
+                Start from template
+              </Button>
+              <span className="src">
+                Loads suggested rules into the editor, for you to change before saving.
+              </span>
+            </div>
+          </div>
         ) : (
           <Markdown text={wf.content_md} label={`${projectName} Workflow notes`} />
         )}
@@ -251,61 +260,5 @@ function WorkflowBody({ wf, projectName }: { wf: Workflow; projectName: string }
         )}
       </div>
     </>
-  );
-}
-
-function EffectiveSet({ project, projectName }: { project: string; projectName: string }) {
-  const [installing, setInstalling] = useState(false);
-  const q = { project };
-  const query = useQuery({
-    queryKey: queryKeys.agentFiles(q),
-    queryFn: () => apiClient['agentFiles.list']({ query: q }),
-  });
-  return (
-    <Card className="afset">
-      <CardHeader
-        title="Effective agent files"
-        extra={
-          <Button size="sm" onClick={() => setInstalling(true)} data-project-install="">
-            Install…
-          </Button>
-        }
-      />
-      {installing && (
-        <InstallDialog
-          project={project}
-          projectName={projectName}
-          onClose={() => setInstalling(false)}
-        />
-      )}
-      <QueryState
-        query={query}
-        skeleton={
-          <div className="pad">
-            <Skeleton lines={3} label="Loading the effective files" />
-          </div>
-        }
-      >
-        {(d) =>
-          d.files.length === 0 ? (
-            <EmptyState text="No agent files loaded yet." />
-          ) : (
-            <ul className="afsetlist" aria-label="Effective agent files">
-              {d.files.map((f) => (
-                <li key={f.key} data-effective-file={f.key}>
-                  <Link className="mono" to={paths.agentSetup({ project, file: f.key })}>
-                    {f.name}
-                  </Link>
-                  <span className="src">comes from</span>
-                  <LayerChip layer={f.effective_layer} />
-                  <span className="src">v{f.effective.version_no}</span>
-                  {f.bundled_updated && <BundledUpdatedChip />}
-                </li>
-              ))}
-            </ul>
-          )
-        }
-      </QueryState>
-    </Card>
   );
 }

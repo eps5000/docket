@@ -1,7 +1,48 @@
-/* Settings → Agent setup (UI_SPEC §6.7b; US13). Tokens only. */
-.tl .agent-setup .as-lede {
+/* Agent files (UI_SPEC §6.7b; US13; B25). Tokens only. */
+.tl .afpagehead {
+  gap: 10px;
+  align-items: center;
+}
+.tl .afpagehead h1 {
+  margin: 0;
+}
+.tl .afscope {
+  color: var(--ink-2);
+  font-weight: 500;
+}
+.tl .aflede {
   margin: -4px 0 10px;
-  max-width: 72ch;
+  max-width: 80ch;
+}
+.tl .agent-files > .settings-sec,
+.tl .agent-files > .card {
+  margin-bottom: 0;
+}
+.tl .aftable .afacts {
+  text-align: right;
+  white-space: nowrap;
+}
+.tl .aftable .afacts .btn + .btn {
+  margin-left: 6px;
+}
+.tl .aftable tr.hasflag td {
+  border-bottom: 0;
+}
+.tl .aftable tr.afflagrow td {
+  padding-top: 0;
+  color: var(--warn);
+}
+.tl .afflagtext {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.tl .afflagtext .ic {
+  color: var(--warn);
+}
+.tl .afvhead {
+  gap: 8px;
+  align-items: center;
 }
 .tl .aftable td {
   vertical-align: middle;
@@ -144,10 +185,10 @@
   padding: 6px 0;
 }
 
-/* The project section: Workflow notes and the effective set. */
-.tl .afwf,
-.tl .afset {
-  margin-bottom: 12px;
+/* Workflow notes. */
+.tl .afwfempty {
+  display: grid;
+  gap: 8px;
 }
 .tl .afwfline {
   display: flex;
@@ -157,22 +198,6 @@
 }
 .tl .afwfhist {
   margin-top: 10px;
-}
-.tl .afsetlist {
-  list-style: none;
-  margin: 0;
-  padding: 4px 14px 10px;
-}
-.tl .afsetlist li {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 0;
-  border-top: 1px solid var(--line);
-}
-.tl .afsetlist li:first-child {
-  border-top: 0;
 }
 
 /* Install and check (B24; UI_SPEC §6.7b): the dialog, the install log, the push folder. */
@@ -210,6 +235,18 @@
   border: 1px solid var(--line);
   border-radius: 6px;
   background: var(--panel-2);
+}
+.tl .inwhat summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.tl .inwhat[open] summary {
+  margin-bottom: 6px;
+}
+.tl .inmethod {
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--brand-soft);
 }
 .tl .inwhat ul {
   margin: 6px 0;

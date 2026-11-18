@@ -34,18 +34,20 @@ import {
 } from '../../components/kit';
 import { QueryState } from '../../app/QueryState';
 import { apiClient } from '../../app/queryClient';
+import { useBootstrap } from '../../app/useBootstrap';
 import { HelpLink } from '../../help/HelpLink';
 import { ApiError, queryKeys } from '../../lib/api';
 import { formatClock, formatStamp, isoTitle, plural } from '../../lib/format';
 import { paths } from '../../lib/paths';
 import { showToast } from '../../lib/undo';
-import { AGENT_FILE_LAYER_LABELS } from '@tasklite/shared';
 import { DiffView } from './DiffView';
+import { CopyBlock, errorText, usePushTarget } from './install-common';
+import { insidePushFolder, possessive, pushReady, versionLabel } from './model';
 
 /*
  * Install and check (UI_SPEC §6.7b; FR-124 to FR-127; US13 scenarios 4–5):
- * the Install dialog, the install log with *Check* or the check command, and
- * the push folder card with its plain-language set-up.
+ * the Install dialog and the install log with *Check* or the check command.
+ * The push folder card is on Settings → General (PushFolderCard.tsx).
  */
 
 const CLIENTS: readonly { key: InstallClient; label: string }[] = [
@@ -53,84 +55,91 @@ const CLIENTS: readonly { key: InstallClient; label: string }[] = [
   { key: 'codex', label: INSTALL_CLIENT_LABELS.codex },
 ];
 
-function copy(text: string, what: string) {
-  void navigator.clipboard?.writeText(text).then(
-    () => showToast(`Copied the ${what}.`),
-    () => showToast('Couldn’t copy. Select the text instead.'),
-  );
-}
+/** Settings → General, where the push folder card is. */
+export const PUSH_SETUP_PATH = `${paths.settings()}#push-folder`;
 
-/** A command or snippet with its *Copy* button. */
-function CopyBlock({ text, label, what }: { text: string; label: string; what: string }) {
-  const id = useId();
+/** The link to the push folder card, while push isn't configured. */
+export function SetUpPushLink() {
   return (
-    <div className="incopy">
-      <div className="row" style={{ justifyContent: 'space-between' }}>
-        <span id={id} className="src">
-          {label}
-        </span>
-        <Button size="sm" icon="copy" onClick={() => copy(text, what)} aria-describedby={id}>
-          Copy
-        </Button>
-      </div>
-      <pre className="code incode" aria-labelledby={id} tabIndex={0}>
-        {text}
-      </pre>
-    </div>
+    <Link to={PUSH_SETUP_PATH} data-push-setup-link="">
+      Set up one-click install
+    </Link>
   );
 }
 
-const errorText = (err: unknown) =>
-  err instanceof Error ? err.message : 'Something went wrong. Try again.';
-
-function usePushTarget() {
-  return useQuery({
-    queryKey: queryKeys.pushTarget(),
-    queryFn: () => apiClient['pushTarget.get']({}),
-  });
-}
-
-/** Why push isn't offered, in plain words; null when it is. */
-function pushUnavailable(t: PushTargetResponse | undefined): string | null {
-  if (!t) return 'Checking the push folder…';
-  if (!t.configured) {
-    return 'No push folder is set up, so Task Lite can’t write the files itself. Use the command below, or set up a push folder (Settings → Agent setup → Push folder).';
+/** Why the install will be a command, in plain words. */
+function whyCommand(
+  t: PushTargetResponse | undefined,
+  path: string,
+  forced: boolean,
+): { text: string; setup: boolean } {
+  if (forced) return { text: 'You’ll get a command to paste in a terminal.', setup: false };
+  if (!t?.configured) {
+    return {
+      text: 'You’ll get a command to paste in a terminal. With a push folder set up, Task Lite can write the files for you.',
+      setup: true,
+    };
   }
   if (!t.writable) {
-    return `The push folder (${t.host_path ?? t.container_path}) isn’t mounted or isn’t writable, so Task Lite can’t write the files itself. Use the command below, or fix it under Push folder and click Test.`;
+    return {
+      text: `The push folder (${t.host_path ?? t.container_path}) isn’t mounted or isn’t writable, so you’ll get a command to paste in a terminal.`,
+      setup: true,
+    };
   }
-  return null;
+  return {
+    text: path
+      ? `This folder isn’t inside the push folder (${t.host_path ?? t.container_path}), so you’ll get a command to paste in a terminal.`
+      : 'You’ll get a command to paste in a terminal.',
+    setup: false,
+  };
 }
 
 // ---- The Install dialog ----
 
 export interface InstallDialogProps {
-  /** The project whose effective files to install; null for the service-wide set. */
+  /** The project whose files to install into its repo; null installs the defaults user-wide. */
   project: string | null;
   projectName: string | null;
   onClose: () => void;
 }
 
+/**
+ * *Install into <project>’s repo* (one project selected) or *Install
+ * user-wide* (All projects). The repo folder is prefilled from that
+ * project's last install (the install log has the path). The method is
+ * automatic: push when the push folder is ready and the folder is inside
+ * it, otherwise a command; *Copy a command instead* is always there.
+ */
 export function InstallDialog({ project, projectName, onClose }: InstallDialogProps) {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const pathId = useId();
+  const target: InstallTargetKind = project ? 'repo' : 'user';
+  const name = projectName ?? project ?? '';
   const [client, setClient] = useState<InstallClient>('claude');
-  const [target, setTarget] = useState<InstallTargetKind>('repo');
-  const [method, setMethod] = useState<'push' | 'command' | null>(null);
-  const [path, setPath] = useState('');
+  /** Null until the owner types: the remembered folder shows meanwhile. */
+  const [typed, setTyped] = useState<string | null>(null);
+  const [forced, setForced] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CreateInstallResponse | null>(null);
 
-  const pushTarget = usePushTarget();
-  const noPush = pushUnavailable(pushTarget.data);
-  const chosen: 'push' | 'command' = method ?? (noPush ? 'command' : 'push');
-  const effectiveMethod: 'push' | 'command' = noPush ? 'command' : chosen;
+  const installs = useQuery({
+    queryKey: queryKeys.installs(project ? { project } : {}),
+    queryFn: () => apiClient['installs.list']({ query: project ? { project } : {} }),
+    enabled: project !== null,
+  });
+  const remembered =
+    installs.data?.installs.find((r) => r.target_kind === 'repo' && r.path)?.path ?? '';
+  const path = (typed ?? remembered).trim();
 
-  // User-wide installs have no project: they get the service-wide files.
-  const installProject = target === 'repo' ? project : null;
-  const filesQuery = { ...(installProject ? { project: installProject } : {}) };
+  const pushTarget = usePushTarget();
+  const pt = pushTarget.data;
+  const canPush = target === 'repo' && pushReady(pt) && (path === '' || insidePushFolder(path, pt));
+  const method: 'push' | 'command' = canPush && !forced ? 'push' : 'command';
+  const why = whyCommand(pt, path, forced && canPush);
+
+  const filesQuery = project ? { project } : {};
   const files = useQuery({
     queryKey: queryKeys.agentFiles(filesQuery),
     queryFn: () => apiClient['agentFiles.list']({ query: filesQuery }),
@@ -140,20 +149,23 @@ export function InstallDialog({ project, projectName, onClose }: InstallDialogPr
     queryFn: () =>
       apiClient['agentFiles.get']({ params: { key: AGENTS_BLOCK_KEY }, query: filesQuery }),
   });
+  // The warning fires only when a `{{…}}` is actually left; `{{KEY}}` is filled for a repo install.
   const placeholders = useMemo(() => {
     const d = block.data;
     if (!d) return [];
     const content = d.layers[d.effective_layer]?.versions[0]?.content ?? '';
-    return placeholdersIn(renderAgentsBlock(content, fillsProjectKey(target, installProject)));
-  }, [block.data, target, installProject]);
+    return placeholdersIn(renderAgentsBlock(content, fillsProjectKey(target, project)));
+  }, [block.data, target, project]);
 
   const layout = installLayout(client, target);
   const where =
     target === 'user'
       ? 'your home folder'
-      : effectiveMethod === 'push'
-        ? 'the repo folder below'
-        : 'the repo folder you run it in';
+      : method === 'push'
+        ? 'the repo folder'
+        : path
+          ? 'the repo folder'
+          : 'the folder you run it in';
   const written = (files.data?.files ?? [])
     .filter((f) => f.key !== AGENTS_BLOCK_KEY)
     .map((f) => layout.display + installPathOf(layout, f.key));
@@ -162,8 +174,8 @@ export function InstallDialog({ project, projectName, onClose }: InstallDialogPr
 
   const install = async () => {
     setError(null);
-    if (effectiveMethod === 'push' && path.trim() === '') {
-      setError('Give the repo folder to install into, inside the push folder.');
+    if (method === 'push' && path === '') {
+      setError(`Give the folder of ${possessive(name)} repo.`);
       document.getElementById(pathId)?.focus();
       return;
     }
@@ -173,9 +185,9 @@ export function InstallDialog({ project, projectName, onClose }: InstallDialogPr
         body: {
           client,
           target_kind: target,
-          method: effectiveMethod,
-          ...(installProject ? { project: installProject } : {}),
-          ...(path.trim() ? { path: path.trim() } : {}),
+          method,
+          ...(project ? { project } : {}),
+          ...(target === 'repo' && path ? { path } : {}),
         },
       });
       setResult(out);
@@ -188,8 +200,8 @@ export function InstallDialog({ project, projectName, onClose }: InstallDialogPr
     }
   };
 
-  const scope = installProject ? `${projectName ?? installProject}’s` : 'the service-wide';
-  const actionLabel = effectiveMethod === 'push' ? 'Install' : 'Create the command';
+  const title = project ? `Install into ${possessive(name)} repo` : 'Install user-wide';
+  const actionLabel = method === 'push' ? 'Install' : 'Create the command';
 
   const footer = result ? (
     <Button variant="primary" onClick={onClose}>
@@ -207,14 +219,15 @@ export function InstallDialog({ project, projectName, onClose }: InstallDialogPr
   );
 
   return (
-    <Dialog title="Install agent files" onClose={onClose} footer={footer} className="indlg">
+    <Dialog title={title} onClose={onClose} footer={footer} className="indlg">
       {result ? (
-        <InstallResult result={result} target={target} path={path.trim()} />
+        <InstallResult result={result} target={target} path={path} />
       ) : (
-        <div className="inform" data-install-dialog="">
+        <div className="inform" data-install-dialog="" data-method={method}>
           <p className="src" style={{ margin: 0 }}>
-            Installs {scope} effective agent files: the skills, and the AGENTS.md block in{' '}
-            {client === 'claude' ? 'CLAUDE.md' : 'AGENTS.md'}.
+            {project
+              ? `Installs the skills and the AGENTS.md block ${possessive(name)} agents use (its copies where you customized a file, the defaults elsewhere), into ${client === 'claude' ? 'CLAUDE.md' : 'AGENTS.md'}.`
+              : `Installs the default skills and AGENTS.md block into your home folder, for every project on this computer. A project’s own copies aren’t included: install those into its repo.`}
           </p>
           <div className="infield">
             <span className="inlabel">Client</span>
@@ -225,68 +238,56 @@ export function InstallDialog({ project, projectName, onClose }: InstallDialogPr
               onChange={setClient}
             />
           </div>
-          <div className="infield">
-            <span className="inlabel">Install into</span>
-            <SegmentedControl
-              label="Install into"
-              options={[
-                { key: 'repo', label: project ? `${project}’s repo` : 'A repo' },
-                { key: 'user', label: 'User-wide' },
-              ]}
-              value={target}
-              onChange={setTarget}
-            />
-          </div>
-          {target === 'user' && project && (
-            <div className="src">
-              User-wide applies to every project, so it gets the service-wide files, without{' '}
-              {project}’s overrides.
-            </div>
-          )}
-          <div className="infield">
-            <span className="inlabel">How</span>
-            <SegmentedControl
-              label="How"
-              options={[
-                { key: 'push', label: 'Push (Task Lite writes the files)' },
-                { key: 'command', label: 'Copy a command' },
-              ]}
-              value={effectiveMethod}
-              onChange={(k) => setMethod(k)}
-            />
-          </div>
-          {noPush && pushTarget.data && (
-            <Callout tone="info" role="status">
-              {noPush}
-            </Callout>
-          )}
-          {(effectiveMethod === 'push' || target === 'repo') && (
+          {target === 'repo' && (
             <div className="infield instack">
               <label htmlFor={pathId} className="inlabel">
-                {target === 'repo' ? 'Repo folder' : 'Home folder'}
-                {effectiveMethod === 'command' && ' (optional)'}
+                Repo folder{method === 'command' && ' (optional)'}
               </label>
               <input
                 id={pathId}
                 className="input mono"
-                value={path}
+                value={typed ?? remembered}
                 maxLength={1000}
                 placeholder={
-                  effectiveMethod === 'push'
-                    ? `${pushTarget.data?.host_path ?? pushTarget.data?.container_path ?? ''}/my-repo`
-                    : 'Leave empty to install where you run the command'
+                  pt?.host_path || pt?.container_path
+                    ? `${pt.host_path ?? pt.container_path}/my-repo`
+                    : 'C:/Users/you/code/my-repo'
                 }
-                onChange={(e) => setPath(e.target.value)}
+                onChange={(e) => setTyped(e.target.value)}
               />
               <span className="src">
-                {effectiveMethod === 'push'
-                  ? `A folder inside the push folder (${pushTarget.data?.host_path ?? pushTarget.data?.container_path}).`
-                  : 'Run the command from the repo folder, or give the folder here.'}
+                {typed === null && remembered
+                  ? `From ${possessive(name)} last install.`
+                  : method === 'command'
+                    ? 'Leave it empty to install wherever you run the command.'
+                    : `The repo’s folder on this computer, inside the push folder (${pt?.host_path ?? pt?.container_path}).`}
               </span>
             </div>
           )}
-          <div className="inwhat" data-install-what="">
-            <div className="inlabel">What will be written, in {where}</div>
+          <div className="inmethod" data-install-method={method} role="status">
+            {method === 'push' ? (
+              <>
+                <span>Task Lite writes the files into this folder itself.</span>{' '}
+                <button type="button" className="linkbtn" onClick={() => setForced(true)}>
+                  Copy a command instead
+                </button>
+              </>
+            ) : (
+              <>
+                <span>{why.text}</span>{' '}
+                {forced && canPush ? (
+                  <button type="button" className="linkbtn" onClick={() => setForced(false)}>
+                    Let Task Lite write them instead
+                  </button>
+                ) : (
+                  why.setup && <SetUpPushLink />
+                )}
+              </>
+            )}
+          </div>
+          <details className="inwhat" data-install-what="">
+            <summary>What will be written</summary>
+            <div className="src">In {where}:</div>
             <ul className="mono">
               {written.map((p) => (
                 <li key={p}>{p}</li>
@@ -300,7 +301,7 @@ export function InstallDialog({ project, projectName, onClose }: InstallDialogPr
               <code>{'<!-- tasklite:begin -->'}</code> and <code>{'<!-- tasklite:end -->'}</code>);
               everything else in it stays as it is. Nothing is ever deleted.
             </div>
-          </div>
+          </details>
           {placeholders.length > 0 && (
             <Callout tone="warn" role="status">
               <div data-placeholder-warning="">
@@ -311,8 +312,9 @@ export function InstallDialog({ project, projectName, onClose }: InstallDialogPr
                     <code>{p.length > 48 ? `${p.slice(0, 46)}…}}` : p}</code>
                   </span>
                 ))}
-                {placeholders.length > 3 && ` and ${placeholders.length - 3} more`}. Edit{' '}
-                {installProject ? 'this project’s' : 'the service-wide'} AGENTS.md block first.
+                {placeholders.length > 3 && ` and ${placeholders.length - 3} more`}. Fill{' '}
+                {placeholders.length === 1 ? 'it' : 'them'} in first, in{' '}
+                {project ? `${possessive(name)} AGENTS.md block` : 'the default AGENTS.md block'}.
               </div>
               <div className="row" style={{ gap: 8, marginTop: 8 }}>
                 <Button
@@ -320,11 +322,8 @@ export function InstallDialog({ project, projectName, onClose }: InstallDialogPr
                   onClick={() => {
                     onClose();
                     void navigate(
-                      paths.agentSetup({
-                        ...(installProject ? { project: installProject } : {}),
-                        file: AGENTS_BLOCK_KEY,
-                        layer: installProject ? 'project' : 'service',
-                      }),
+                      paths.agentFiles({ project: project ?? 'all', file: AGENTS_BLOCK_KEY }),
+                      { state: { mode: 'edit', n: Date.now() } },
                     );
                   }}
                 >
@@ -415,10 +414,26 @@ function InstallResult({
 
 // ---- The install log ----
 
-const targetLabel = (r: InstallRow) =>
-  r.target_kind === 'user' ? 'User-wide' : r.project ? `${r.project}’s repo` : 'A repo';
+function useProjectName() {
+  const boot = useBootstrap();
+  return (key: string | null) =>
+    key ? (boot.data?.projects.find((p) => p.key === key)?.short_name ?? key) : null;
+}
 
-export function InstallLog({ project }: { project: string | null }) {
+const targetLabel = (r: InstallRow, name: string | null) =>
+  r.target_kind === 'user' ? 'User-wide' : name ? `${possessive(name)} repo` : 'A repo';
+
+/**
+ * The install log (UI_SPEC §6.7b): one project's installs with a project
+ * selected, every install with All projects.
+ */
+export function InstallLog({
+  project,
+  projectName,
+}: {
+  project: string | null;
+  projectName: string | null;
+}) {
   const q = project ? { project } : {};
   const query = useQuery({
     queryKey: queryKeys.installs(q),
@@ -429,8 +444,8 @@ export function InstallLog({ project }: { project: string | null }) {
       <CardHeader
         title={
           <span className="withhelp">
-            Install log{project ? ` · ${project}` : ''}
-            <HelpLink anchor="settings.install-log" />
+            Install log{project ? ` · ${projectName ?? project}` : ''}
+            <HelpLink anchor="agent-files.install-log" />
           </span>
         }
       />
@@ -444,7 +459,9 @@ export function InstallLog({ project }: { project: string | null }) {
       >
         {(d) =>
           d.installs.length === 0 ? (
-            <EmptyState text="Nothing installed yet. Installs show here with every file’s version once they’re written or downloaded." />
+            <EmptyState
+              text={`Nothing installed${project ? ` into ${possessive(projectName ?? project)} repo` : ''} yet. Installs show here with every file’s version once they’re written or downloaded.`}
+            />
           ) : (
             <ul className="inlog" aria-label="Install log">
               {d.installs.map((r) => (
@@ -459,6 +476,7 @@ export function InstallLog({ project }: { project: string | null }) {
 }
 
 function InstallLogRow({ row }: { row: InstallRow }) {
+  const nameOf = useProjectName();
   const [check, setCheck] = useState<InstallCheckResponse | null>(null);
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -486,7 +504,7 @@ function InstallLogRow({ row }: { row: InstallRow }) {
         <span title={isoTitle(at)}>{formatStamp(at)}</span>
         <span>{INSTALL_CLIENT_LABELS[row.client]}</span>
         <span>
-          {targetLabel(row)}
+          {targetLabel(row, nameOf(row.project))}
           {row.path && <span className="mono src"> {row.path}</span>}
         </span>
         <Chip kind="neutral">{row.method === 'push' ? 'Push' : 'Command'}</Chip>
@@ -510,7 +528,7 @@ function InstallLogRow({ row }: { row: InstallRow }) {
           </Button>
         )}
       </div>
-      {showSent && <SentVersions row={row} />}
+      {showSent && <SentVersions row={row} projectName={nameOf(row.project)} />}
       {showCmd && (
         <div className="indetail">
           <div className="src">
@@ -534,8 +552,8 @@ function InstallLogRow({ row }: { row: InstallRow }) {
   );
 }
 
-/** Each file's sent version, with its layer and number, linked to its view (SC-016). */
-function SentVersions({ row }: { row: InstallRow }) {
+/** Each file's sent version ("Task Lite’s version v1", "RCP’s copy v2"), linked to its view (SC-016). */
+function SentVersions({ row, projectName }: { row: InstallRow; projectName: string | null }) {
   const q = row.project && row.target_kind === 'repo' ? { project: row.project } : {};
   const details = useQueries({
     queries: row.manifest.map((m) => ({
@@ -551,19 +569,11 @@ function SentVersions({ row }: { row: InstallRow }) {
           <li key={m.key} data-sent={m.key}>
             <Link
               className="mono"
-              to={paths.agentSetup({
-                ...(q.project ? { project: q.project } : {}),
-                file: m.key,
-                ...(found ? { layer: found.layer } : {}),
-              })}
+              to={paths.agentFiles({ project: q.project ?? 'all', file: m.key })}
             >
               {m.key.startsWith('skill:') ? m.key.slice(6) : 'AGENTS.md block'}
             </Link>{' '}
-            <span className="src">
-              {found
-                ? `${AGENT_FILE_LAYER_LABELS[found.layer]} v${found.version_no}`
-                : m.version_id}
-            </span>
+            <span className="src">{found ? versionLabel(found, projectName) : m.version_id}</span>
           </li>
         );
       })}
@@ -660,168 +670,5 @@ function CheckFile({
         </div>
       )}
     </li>
-  );
-}
-
-// ---- The push folder card ----
-
-const looksWindows = () =>
-  typeof navigator !== 'undefined' && /win/i.test(navigator.platform || navigator.userAgent);
-
-export function PushFolderCard() {
-  const query = usePushTarget();
-  const qc = useQueryClient();
-  const folderId = useId();
-  const [folder, setFolder] = useState(looksWindows() ? 'C:/Users/you/code' : '~/code');
-  const [test, setTest] = useState<{ ok: boolean; message: string } | null>(null);
-  const [testing, setTesting] = useState(false);
-  const runTest = async () => {
-    setTesting(true);
-    try {
-      setTest(await apiClient['pushTarget.test']({}));
-      void qc.invalidateQueries({ queryKey: queryKeys.pushTarget() });
-    } catch (err) {
-      setTest({ ok: false, message: errorText(err) });
-    } finally {
-      setTesting(false);
-    }
-  };
-  const f = folder.trim() || 'C:/Users/you/code';
-  const volume = `      - ${f}:/host-code`;
-  const env = `TASKLITE_PUSH_ROOT=/host-code\nTASKLITE_PUSH_HOST_PATH=${f}`;
-  const override = `services:\n  tasklite:\n    volumes:\n      - ${f}:/host-code\n    environment:\n      TASKLITE_PUSH_ROOT: /host-code\n      TASKLITE_PUSH_HOST_PATH: ${f}`;
-
-  return (
-    <Card padded data-card="push-folder">
-      <div className="row" style={{ justifyContent: 'space-between' }}>
-        <div className="withhelp">
-          <h3 style={{ margin: 0 }}>Push folder</h3>
-          <HelpLink anchor="settings.push-folder" />
-        </div>
-        <QueryState query={query} skeleton={<span />}>
-          {(t) =>
-            !t.configured ? (
-              <Chip kind="neutral">Not set up</Chip>
-            ) : t.writable ? (
-              <Chip kind="ok">Ready</Chip>
-            ) : (
-              <Chip kind="bad">Not writable</Chip>
-            )
-          }
-        </QueryState>
-      </div>
-      <p className="src" style={{ margin: '6px 0 10px' }}>
-        Mount your code folder into Task Lite so it can install files for you. Without it, Install
-        gives you a command to paste instead; both work.
-      </p>
-      <QueryState query={query} skeleton={<Skeleton lines={2} label="Loading the push folder" />}>
-        {(t) => (
-          <div className="inform">
-            {t.configured && (
-              <dl className="inpaths">
-                <dt>On your computer</dt>
-                <dd className="mono">
-                  {t.host_path ?? '(not given: set TASKLITE_PUSH_HOST_PATH)'}
-                </dd>
-                <dt>Inside Task Lite</dt>
-                <dd className="mono">{t.container_path}</dd>
-              </dl>
-            )}
-            <div className="row" style={{ gap: 8 }}>
-              <Button size="sm" onClick={() => void runTest()} disabled={testing}>
-                {testing ? 'Testing…' : 'Test'}
-              </Button>
-              <span className="src">Writes a small test file there and removes it.</span>
-            </div>
-            {test && (
-              <Callout tone={test.ok ? 'ok' : 'bad'} role="status">
-                {test.message}
-              </Callout>
-            )}
-            {!t.configured && (
-              <div className="inhow" data-push-howto="">
-                <h4>Set it up (about 2 minutes)</h4>
-                <div className="infield instack">
-                  <label htmlFor={folderId} className="inlabel">
-                    Your code folder (the one that holds your repos)
-                  </label>
-                  <input
-                    id={folderId}
-                    className="input mono"
-                    value={folder}
-                    onChange={(e) => setFolder(e.target.value)}
-                  />
-                  <span className="src">The steps below update as you type.</span>
-                </div>
-                <ol>
-                  <li>
-                    Open <code>docker/compose.yaml</code> in the folder you installed Task Lite
-                    from. Under <code>volumes:</code>, below <code>- tasklite-data:/data</code>, add
-                    this line (keep the indentation):
-                    <CopyBlock text={volume} label="compose.yaml line" what="volume line" />
-                  </li>
-                  <li>
-                    In the same <code>docker</code> folder, open <code>.env</code> (create it if it
-                    isn’t there) and add:
-                    <CopyBlock text={env} label=".env lines" what=".env lines" />
-                  </li>
-                  <li>
-                    Restart Task Lite:
-                    <CopyBlock
-                      text="docker compose -f docker/compose.yaml up -d"
-                      label="Terminal, in the Task Lite folder"
-                      what="restart command"
-                    />
-                  </li>
-                  <li>Come back here and click Test.</li>
-                </ol>
-                <details>
-                  <summary>Rather not edit compose.yaml? Use an override file instead</summary>
-                  <p className="src">
-                    Save this as <code>docker/compose.push.yaml</code>, then start Task Lite with
-                    both files. Upgrades never touch it.
-                  </p>
-                  <CopyBlock
-                    text={override}
-                    label="docker/compose.push.yaml"
-                    what="override file"
-                  />
-                  <CopyBlock
-                    text="docker compose -f docker/compose.yaml -f docker/compose.push.yaml up -d"
-                    label="Start command"
-                    what="start command"
-                  />
-                </details>
-                <p className="src">
-                  Task Lite writes there only the skill folders, its manifest and the marked Task
-                  Lite section of AGENTS.md or CLAUDE.md, and never deletes anything. On Linux, the
-                  folder must be writable by Task Lite’s user (uid 10001), for example{' '}
-                  <code>sudo setfacl -R -m u:10001:rwX ~/code</code>.
-                </p>
-              </div>
-            )}
-          </div>
-        )}
-      </QueryState>
-    </Card>
-  );
-}
-
-// ---- The section on Settings → Agent setup ----
-
-/** *Install and check*: the install log and the push folder card. */
-export function InstallSection({ project }: { project: string | null }) {
-  return (
-    <section aria-labelledby="as-install" className="settings-sec" data-install-section="">
-      <h2 id="as-install">Install and check</h2>
-      <p className="src as-lede">
-        Install the agent files into a repo or user-wide, see every install with the exact versions
-        sent, and check whether an installed copy was edited by hand.
-      </p>
-      <div className="ingrid">
-        <InstallLog project={project} />
-        <PushFolderCard />
-      </div>
-    </section>
   );
 }

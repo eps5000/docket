@@ -3,7 +3,9 @@
  * them in. `/unlock` and the dev-only `/dev/kit` live outside the shell.
  */
 import { lazy, Suspense } from 'react';
-import { createBrowserRouter, type RouteObject } from 'react-router';
+import { createBrowserRouter, Navigate, useSearchParams, type RouteObject } from 'react-router';
+import { PROJECT_KEY_RE } from '@tasklite/shared';
+import { AgentFiles } from '../routes/agent-files/AgentFiles';
 import { Agents } from '../routes/agents/Agents';
 import { HelpArticlePage, HelpIndex } from '../routes/help/HelpPages';
 import { ItemPage } from '../routes/items/ItemPage';
@@ -14,6 +16,7 @@ import { PacketScreen } from '../routes/review/PacketScreen';
 import { Settings } from '../routes/settings/Settings';
 import { Unlock } from '../routes/unlock/Unlock';
 import { Work } from '../routes/work/Work';
+import { paths } from '../lib/paths';
 import { AppShell } from './AppShell';
 
 /**
@@ -33,11 +36,32 @@ export const shellRoutes: RouteObject[] = [
   { path: 'labels/:project/:name', element: <LabelPage /> },
   { path: 'agents', element: <Agents /> },
   { path: 'settings', element: <Settings /> },
-  { path: 'settings/agent-setup', element: <Settings /> },
+  { path: 'agent-files', element: <AgentFiles /> },
+  { path: 'settings/agent-setup', element: <LegacyAgentSetup /> },
   { path: 'help', element: <HelpIndex /> },
   { path: 'help/:slug', element: <HelpArticlePage /> },
   { path: '*', element: <NotFound /> },
 ];
+
+/**
+ * The old Settings → Agent setup route (B21–B24) redirects to Agent files
+ * (B25). Its `project` and `file` carry over; without a project it showed
+ * the service-wide files, which are All projects' defaults now.
+ */
+function LegacyAgentSetup() {
+  const [params] = useSearchParams();
+  const project = params.get('project');
+  const file = params.get('file');
+  return (
+    <Navigate
+      replace
+      to={paths.agentFiles({
+        project: project && PROJECT_KEY_RE.test(project) ? project : 'all',
+        file: file ?? undefined,
+      })}
+    />
+  );
+}
 
 export function appRoutes(): RouteObject[] {
   const routes: RouteObject[] = [{ path: '/unlock', element: <Unlock /> }];
