@@ -8,6 +8,7 @@ const PAGE_TITLES = {
   'needs-you': 'Needs you',
   work: 'Work',
   agents: 'Agents',
+  'agent-files': 'Agent files',
   settings: 'Settings',
   help: 'Help',
 } as const;

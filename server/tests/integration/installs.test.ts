@@ -180,12 +180,12 @@ describe('command install: the bundle and the single-use token (T155)', () => {
     expect(files.get('tasklite-install/files/.claude/skills/tasklite-worker/SKILL.md')).toBe(
       worker,
     );
-    // The block: the comment stripped, {{KEY}} filled, other placeholders kept.
+    // The block: the comment stripped; the shipped block has no placeholders (B25).
     const block = files.get('tasklite-install/block.md')!;
     expect(block.startsWith('## Work tracking: Task Lite')).toBe(true);
-    expect(block).toContain('project key **RCP**');
-    expect(block).not.toContain('{{KEY}}');
-    expect(block).toContain('{{OPTION A:');
+    expect(block).toContain('`tasklite-worker` skill');
+    expect(block).not.toContain('{{');
+    expect(block).not.toContain('<!--');
     // The scripts write CLAUDE.md, in the repo's root.
     expect(files.get('tasklite-install/install.sh')).toContain('instr="$base/CLAUDE.md"');
     expect(files.get('tasklite-install/install.ps1')).toContain("Join-Path $Base 'CLAUDE.md'");
@@ -268,7 +268,7 @@ describe('command install: the bundle and the single-use token (T155)', () => {
       error: {
         code: 'not_found',
         message:
-          'This install link is unknown, expired or already used. Make a new install command in Settings → Agent setup.',
+          'This install link is unknown, expired or already used. Make a new install command in Agent files.',
       },
     });
     expect(eventsOf(server)).toHaveLength(2);
@@ -306,7 +306,7 @@ describe('command install: the bundle and the single-use token (T155)', () => {
     expect(eventsOf(server)).toHaveLength(1);
   });
 
-  it('lays out a user-wide Codex install, leaving {{KEY}} (no project)', async () => {
+  it('lays out a user-wide Codex install (no project)', async () => {
     const { api, server } = await start();
     const created = await api('POST', '/api/installs', {
       client: 'codex',
@@ -321,7 +321,8 @@ describe('command install: the bundle and the single-use token (T155)', () => {
     expect(files.has('tasklite-install/files/.codex/skills/tasklite-worker/SKILL.md')).toBe(true);
     expect(files.has('tasklite-install/files/.codex/.tasklite-manifest.json')).toBe(true);
     expect(files.get('tasklite-install/install.sh')).toContain('instr="$base/.codex/AGENTS.md"');
-    expect(files.get('tasklite-install/block.md')).toContain('{{KEY}}');
+    expect(files.get('tasklite-install/block.md')).toMatch(/^## Work tracking: Task Lite/);
+    expect(files.get('tasklite-install/block.md')).not.toContain('{{');
     expect(eventsOf(server).at(-1)!.summary).toBe(
       'Installed by command: Codex, user-wide, 6 files',
     );

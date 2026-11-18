@@ -7,7 +7,7 @@ description: Work one Task Lite item end to end through the tasklite MCP server.
 
 Task Lite enforces claims, dependencies and review gates for you. This skill is the **efficient order of calls** and the habits that keep your runs cheap and recoverable.
 
-The project has its own rules: who moves work to Ready, when human review is needed, the branch naming. They're in the repo's `AGENTS.md` / `CLAUDE.md` (the Task Lite section, installed from Settings → Agent setup) and in the project's **Workflow notes**, which `get_context` gives you as its `workflow:` section. Where they differ from this skill, they win.
+The project has its own rules: who moves work to Ready, when human review is needed, the branch naming, the checks to run. They're in the project's **Workflow notes**, which `get_context` gives you as its `workflow:` section; the repo's `AGENTS.md` / `CLAUDE.md` (the Task Lite section, installed from Agent files) points you there. Where they differ from this skill, they win.
 
 ## 1. Start: four calls or fewer
 

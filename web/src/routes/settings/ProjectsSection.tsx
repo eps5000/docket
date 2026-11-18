@@ -131,10 +131,10 @@ function ProjectRow({ project: p, onDelete }: { project: Project; onDelete: () =
         <ProjectDecisionsLink project={p} />
         <Link
           className="btn ghost sm"
-          to={paths.agentSetup({ project: p.key })}
+          to={paths.agentFiles({ project: p.key })}
           data-project-agent-files={p.key}
         >
-          Agent files &amp; workflow
+          Agent files
         </Link>
       </div>
       <div className="row" style={{ gap: 6 }}>

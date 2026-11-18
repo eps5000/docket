@@ -40,10 +40,10 @@ export const HELP_ANCHORS = {
   'settings.client-setup': 'Settings → Connections → Client setup',
   'settings.service-health': 'Settings → Connections → Service health',
   'settings.blocker-rule': 'Settings → Projects → Blockers clear when',
-  'settings.agent-setup':
-    'Settings → Agent setup: Agent files, and a project’s Agent files & workflow',
-  'settings.install-log': 'Settings → Agent setup → Install and check: the install log',
-  'settings.push-folder': 'Settings → Agent setup → Install and check: the push folder card',
+  'agent-files.page': 'Agent files: next to the h1',
+  'agent-files.workflow': 'Agent files (one project): the Workflow notes card',
+  'agent-files.install-log': 'Agent files: the install log',
+  'settings.push-folder': 'Settings → One-click install: the push folder card',
   'jira.import': 'Settings → Projects → Import from Jira (the dialog)',
 } as const;
 

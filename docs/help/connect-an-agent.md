@@ -7,7 +7,7 @@ anchors:
   - settings.clients
   - settings.client-setup
 related:
-  - agent-setup
+  - agent-files
   - first-look-around
 ---
 
@@ -39,5 +39,5 @@ The **Status** column says *Not verified* until someone runs the smoke test (cla
 
 ## Next
 
-- Give your agents the skills and the AGENTS.md block: [Agent setup](/help/agent-setup).
+- Give your agents the skills and the AGENTS.md block: [Agent files](/help/agent-files).
 - See what to look at once they start: [Your first look around](/help/first-look-around).

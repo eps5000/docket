@@ -38,6 +38,7 @@ Agents do almost all the writing. The owner verifies, decides, nudges and archiv
 │  Needs you ③ ├────────────────────────────────────────────────────────────────┤
 │  Work        │ View: padding 18px 20px 28px                                    │
 │  Agents ⑤    │                                                                 │
+│  Agent files │                                                                 │
 │  SERVICE-WIDE│                                                                 │
 │  Settings    │                                                                 │
 │  ● Healthy·3 │                                                                 │
@@ -47,7 +48,7 @@ Agents do almost all the writing. The owner verifies, decides, nudges and archiv
 - **Grid:** `220px minmax(0,1fr)`. Every grid child needs `min-width:0`. (Without it, wide maps and tables push the layout wider than the window.)
 - **Sidebar:**
   - **Project switcher** (*All projects* or one project): a menu of radio items, each with its for-you count. It scopes every page except Settings.
-  - **Nav items:** Needs you (red badge = for-you count), Work, Agents (gray badge = active runs), then the "Service-wide" divider, Settings and **Help** (decision 29).
+  - **Nav items:** Needs you (red badge = for-you count), Work, Agents (gray badge = active runs), **Agent files** (B25: project-scoped like the others, so not under the divider), then the "Service-wide" divider, Settings and **Help** (decision 29).
   - **Health line** at the bottom: "Healthy · N clients", linking to Settings. When unhealthy, it shows "Service problem" in `--bad` with the same link.
 - **Header:**
   - **Breadcrumb:**
@@ -86,6 +87,7 @@ Agents do almost all the writing. The owner verifies, decides, nudges and archiv
 - `/review/:id?round=`
 - `/labels/:project/:name`
 - `/agents?state=` (Active now filtered to one run state, from the Needs you strip) and `/agents#workspaces`
+- `/agent-files?file=` (§6.7b); `?project=<KEY|all>` switches the scope, then drops out of the URL. `/settings/agent-setup` (B23–B24) redirects here
 - `/settings`
 - `/unlock`
 
@@ -591,25 +593,52 @@ h1 "Settings".
   - **Service health card:** Database and Documents with ready chips and sizes, Volume, Backups: one row per location, "In the data volume · Nov 6 03:00 · kept 14 days", and, if configured, "Extra copy: /backups-extra · Nov 6 03:01". When the extra location isn't configured, a muted line explains how to add it ("Mount a host folder and set TASKLITE_BACKUP_EXTRA_DIR; see the README"), Restarted (with "0 runs were active…"), *Download diagnostic log* (the last 7 days of agent calls, without contents), and *Lock this browser* / *Rotate owner key*.
   - **This browser card:** "Desktop notifications" with a switch, a status line ("On", "Off", "Blocked by the browser. Allow notifications for 127.0.0.1:7420 in your browser settings.") and *Send a test notification*. Theme is also set here.
 
-### 6.7b Agent setup (`/settings/agent-setup`, decision 29)
-A tab on Settings, plus a section on each project's Settings row (*Agent files & workflow*).
-- **File list:** one row per agent file (each skill, and the AGENTS.md block), with its effective layer chip ("Bundled", "Your edit", "Project override"), the version, and a "Bundled version updated" chip when it applies.
-- **File view:**
-  - the rendered text and a *Raw* toggle;
-  - a layer switcher (Bundled · Service-wide · this project);
-  - *Edit* (the inline editor, with a required note), *Revert to …*, *History* (versions with author and note);
-  - *Diff* against any other version or layer.
-- **Project section:**
-  - **Workflow notes:** a Markdown editor, versioned, with a line saying "Agents get this in get_context";
-  - **Effective set:** each file, with which layer it comes from and links to its view.
-- **Install dialog:**
-  - choose the client (Claude Code or Codex), then the target (*This project's repo*, with a path field, or *User-wide*);
-  - with push configured: *Install* writes the files and shows what changed;
-  - otherwise, or always as an alternative: the PowerShell and bash commands, each with *Copy*, and a note "Run from the repo folder" for repo installs;
-  - the dialog says plainly what will be written, and that only the marked Task Lite section of AGENTS.md/CLAUDE.md is touched.
-- **Install log:** each install with time, client, target, method and file count. *Check* (with push), or the check command (without), shows "Up to date" or a per-file diff marked "edited locally", "missing" or "extra".
-- **Push folder card:** whether it's configured, the host and container paths, a *Test* button, and a plain-language how-to ("Mount your code folder into Task Lite so it can install files for you").
-- **As built (B24):** *Install…* sits in the Agent files card's footer and on a project's Effective agent files card. The dialog's *How* is *Push (Task Lite writes the files)* or *Copy a command*; without a usable push folder, it shows the command and an info callout saying why. A placeholder warning ("This block still has n placeholders: …. Edit this project's AGENTS.md block first") replaces the primary button with *Edit block* and *Install anyway*. *Install and check* (below the file list) holds the install log and the push folder card. Each log row has *Versions sent* (layer and version, linked to the file's view) and *Check* (push) or *Check command* (command). An edited file in a check result has *Show diff* (the version sent → the local copy). The push folder card's how-to takes the owner's code folder and fills the `compose.yaml` line, the `.env` lines and the restart command, each with *Copy*, with an override-file alternative. Help anchors: `settings.install-log`, `settings.push-folder`.
+### 6.7b Agent files (`/agent-files`, decision 29; redesigned in B25)
+Its own nav item, after Agents. It isn't under Settings and isn't marked service-wide: like the other pages it follows the project switcher (All projects, or one project). The screen shows **two ideas, not three layers**, and never uses the words bundled, layer, override, effective set or service-wide:
+- **Default:** what every project uses (stored as the bundled version plus the owner's service-wide edit). It reads "Task Lite's version", or "Edited" with a small marker when the owner edited it; *Reset to Task Lite's version* removes the edit (B23's revert of the service layer).
+- **<Project>'s copy:** exists only once the owner customizes a file for that project (the project layer). Its presence is the indicator.
+
+**With one project selected** (h1 "Agent files · Recipe App", with *Install into Recipe App's repo* on the right):
+```
+Workflow notes   Rules agents get with every Recipe App item (in get_context)      [Edit]
+
+FILE                     USING
+tasklite-worker          Recipe App's copy · edited 2d ago      [Edit] [Use default]
+tasklite-coordinator     Default                                [Customize for Recipe App]
+tasklite-planner         Default (edited)                       [Customize for Recipe App]
+AGENTS.md block          Default                                [Customize for Recipe App]
+⚠ The default tasklite-worker changed since Recipe App's copy was made.   [Compare]
+
+Install log · Recipe App
+```
+- **Workflow notes** (top): the versioned Markdown editor (optional note, history with diffs, "Saving an empty text clears the notes"). Empty notes show *Start from template*, which loads `docs/templates/WORKFLOW-starter.md` (bundled into the web build) into the editor, unsaved.
+- ***Customize for <project>*** opens the editor on a new copy, starting from the current default; saving (note required) creates it. ***Use default*** removes the copy (B23's revert of the project layer); its versions stay in History, and the toast has Undo.
+- **"The default changed since <project>'s copy was made"** shows when Task Lite shipped a new version since the copy (the server's bundled-updated flag on the project layer) or the default was edited after the copy's current version. *Compare* opens the file on that comparison.
+
+**With All projects selected** (h1 "Agent files · Defaults", with *Install user-wide*):
+```
+FILE                 DEFAULT                          CUSTOMIZED IN
+tasklite-worker      Task Lite's version              Recipe App
+tasklite-planner     Edited · 1d ago  [Reset]         —
+AGENTS.md block      Task Lite's version              —
+```
+- Opening a file edits **the default**. "Customized in" links to that project's view of the file. A default edited before Task Lite shipped a new version says "Task Lite's version of … changed since you edited the default" with *Compare*. The full install log sits at the bottom.
+
+**Opening a file** (`?file=`, under the list): the rendered text and a *Raw* toggle; *Edit* (or *Customize for …*) with a required note; *Use default* or *Reset to Task Lite's version*; *History* (the copy's versions, or the default's edits and Task Lite's versions, each with *View* and *Compare with the one before*); and *Compare with*: the default, or any earlier version. A flagged file has a warning callout with the two comparisons (what changed in the default, and the default next to the copy; B23's three-way view, relabelled). Versions are named "Task Lite's version v2", "Edited default v1", "Recipe App's copy v3". With a project selected and no copy, a line links to All projects to edit the default.
+
+**Install dialog** (*Install into <project>'s repo*, or *Install user-wide* from All projects):
+- *Client* (Claude Code or Codex);
+- *Repo folder*, prefilled from that project's last install that had a path (the install log has it), so it is remembered without new storage;
+- the method is automatic: **push** when the push folder is ready and the folder is inside it ("Task Lite writes the files into this folder itself", with a *Copy a command instead* link), otherwise the command, with a line saying why and, when push isn't set up, *Set up one-click install* (to Settings → General → One-click install). A user-wide install is always a command;
+- **What will be written** is a collapsed disclosure; it says that only the marked Task Lite section of AGENTS.md/CLAUDE.md is touched;
+- the **placeholder warning** fires only when the block being installed still has a `{{…}}` (the shipped block has none; `{{KEY}}` is filled for a repo install), with *Edit block* and *Install anyway*;
+- the result: what changed (push), or the PowerShell and bash commands, each with *Copy*, and "Run from the repo folder" when no folder was given.
+
+**Install log** (bottom): one project's installs with a project selected, every install with All projects. Each row has the time, client, target, method and file count, *Versions sent* (linked to each file), and *Check* (push) or *Check command* (command); an edited file in a check result has *Show diff*.
+
+**The push folder card** stays in Settings → General, under "One-click install" (`/settings#push-folder`), because it's service setup: the status (*Not set up*, *Ready*, *Not writable*), the host and container paths, *Test*, and the plain-language how-to that fills in the `compose.yaml` line, the `.env` lines and the restart command. Settings has no tabs any more.
+
+Help anchors: `agent-files.page` (the h1), `agent-files.workflow`, `agent-files.install-log`, `settings.push-folder`, all claimed by the "Agent files" article.
 
 ### 6.7c Help (`/help`, `/help/:slug`, decision 29)
 - **`/help`:** a searchable list of articles, each with its title and one-line summary, grouped as Getting started, Working with agents, Recovery, Planning and Operations.

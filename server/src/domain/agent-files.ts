@@ -262,10 +262,7 @@ export function agentFileDetail(db: Db, key: string, project: string | null): Ag
   const layers = layersOf(db, key, project);
   const effective = effectiveLayer(layers);
   if (!effective) {
-    throw new ToolError(
-      'not_found',
-      `No agent file ${key}. Check the key in Settings → Agent setup.`,
-    );
+    throw new ToolError('not_found', `No agent file ${key}. Check the key in Agent files.`);
   }
   const detail = (row: FileRow | undefined) => {
     if (!row) return null;
