@@ -472,7 +472,14 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T161 [US14] Drift: the scheduled push-folder check; instruction reports from `claim_lead`; drift records and remedies (*Adopt*, *Restore*, *Keep local*, with the accepted hash); the Problems row; run instruction display; and the installed `docket-check` script that produces the report (PowerShell and bash, with content only for differing files). Tests, including the SC-017 drift suite.
 - [x] T162 [US14] Update the skills (worker: report instructions on claim, and propose instead of editing; coordinator: drift remedies), the AGENTS.md block, `skills/README.md`, the README, and the Agent files help article. The skills lint stays green.
 
-## How to run the build## How to run the build
+## Phase 17: Onboarding (owner decision 31)
+
+- [ ] T163 [contract] Migration (`onboarding_sessions`, `projects.created_by`); the MCP tools `onboard_project` and `finish_onboarding`, with exact descriptions; the `onboard` prompt (the server's prompts capability); the server-instructions bullet; route schemas and placeholders (`POST /api/projects`, onboarding list and review); events (`project.created`, `onboarding.started`, `onboarding.finished`, `onboarding.reviewed`); client entries. Snapshot 40 → 42 tools plus 1 prompt.
+- [ ] T164 [US15] New project (the owner route and the Settings dialog), `onboard_project` (create or adopt, session, existing counts, the guide), `finish_onboarding`, session tagging of changes, the `onboard` prompt, and the bundled `docs/templates/ONBOARDING-guide.md` as agent file `guide:onboarding` (editable, per project too). Owner-only project settings and delete stay enforced. Tests.
+- [ ] T165 [US15] The onboarding review card on Needs you, the "created by agent" chip, and *Install agent files* from the card. E2E, plus the SC-018 fixture: a Jira fixture import followed by onboarding a fixture Spec Kit repo, with no duplicates.
+- [ ] T166 [US15] The Help article "Onboard a project", the README quick start for a new project, and the skills (the coordinator can onboard; the worker points to it). The skills lint stays green.
+
+## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.
 
@@ -502,6 +509,8 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 | B24 | 15 Install and check (US13) | T155–T156, T158 | Needs B23 |
 | B26 | 16 Contracts for proposals and drift | T159 | Builds on the spec branch; snapshot 38 → 40 |
 | B27 | 16 Proposals, drift and skill updates (US14) | T160–T162 | Split into two PRs if large |
+| B29 | 17 Contracts for onboarding | T163 | Snapshot 40 → 42 plus a prompt |
+| B30 | 17 Onboarding (US15) | T164–T166 | Before the Gameflow pilot |
 
 **Slices after B6 may run in any order that respects** the dependency table below. Don't run two slices at once: they share route and screen groups.
 
@@ -547,6 +556,7 @@ Open a PR titled "<Bn>: <phase name>" with the checkpoint evidence. Do not queue
 | 14 Polish | the stories being shipped |
 | 15 Help and agent setup | B21 first; B22 any time after; B23 then B24 |
 | 16 Proposals and drift | B26 then B27 |
+| 17 Onboarding | B29 then B30 |
 
 **Within a phase:** tests (failing) → services → replace stubs or fill handlers → fill screens → checkpoint.
 

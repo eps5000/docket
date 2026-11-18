@@ -646,6 +646,11 @@ Help anchors: `agent-files.page` (the h1), `agent-files.workflow`, `agent-files.
 - **Runs:** the Lead and runs section and the agent bar show "Instructions: <file> · <source> v<n>", with a ⚠ "edited locally" chip linking to the drift entry.
 - **Files:** a file row shows "1 proposal" and "changed outside Docket" chips when they apply.
 
+### 6.7d New project and onboarding review (decision 31)
+- **Settings → *New project*:** a dialog with key (2–5 letters, uppercase as you type, checked for uniqueness), name, colour and *Blockers clear when*. After creating, it offers "Onboard it with an agent". That shows the line to give an agent ("Onboard this repo into Docket as project GF, using onboard_project"), the prompt name for clients that support prompts, and *Import from Jira…*.
+- **The Needs you card,** when an onboarding is ready for review: "<Project> was set up by <agent> · review". It shows the counts (created, enriched, documents, decisions, proposals) linking to filtered views, the agent's summary and questions, the proposed Workflow notes (linking to the proposal), *Install agent files*, and *Mark reviewed*.
+- **Agent-created projects** show a "created by <agent> · review" chip in Settings and in the project switcher until reviewed.
+
 ### 6.7c Help (`/help`, `/help/:slug`, decision 29)
 - **`/help`:** a searchable list of articles, each with its title and one-line summary, grouped as Getting started, Working with agents, Recovery, Planning and Operations.
 - **An article:** the rendered Markdown, with "Related" links.

@@ -695,6 +695,25 @@ Agents read the agent files and Workflow notes in effect for a project, and chan
 - **Errors:** `validation` (limits, unknown file, a secret), `not_found` (project).
 - **Not retry-safe** (`idempotentHint: false`): pass `idempotency_key` when you might retry.
 
+### 5.11 Onboarding (decision 31)
+
+The exact `**Description:**` lines, and the `onboard` prompt's description, are added in the contract batch (tasks Phase 17, B29), in the same PR as the code and the snapshot. That batch also adds a server-instructions bullet: "To set up a new project or onboard a repo, call onboard_project and follow the guide it returns."
+
+#### `onboard_project`
+- **Purpose:** create a project (when the key is free) or adopt an existing one, start an onboarding session, and get the onboarding guide.
+- **Input:** `key` (2–5 uppercase letters), `name?` (required when creating), `color?`, plus `run_id?` and `idempotency_key?`.
+- **Output:** `{ project: { key, name, created: boolean }, session_id, guide, existing: { items, jira_items, documents } }`.
+- **Errors:** `validation` (a bad key, or `name` missing when creating), `conflict` (a deleted project's cleanup hasn't finished), `forbidden` (another agent's session is in progress on this project; `current` names it).
+
+#### `finish_onboarding`
+- **Purpose:** mark the onboarding session ready for the owner's review.
+- **Input:** `session_id`, `summary` (≤ 4,000), `questions?: string[]` (≤ 20, each ≤ 500), plus `run_id?` and `idempotency_key?`.
+- **Output:** `{ session_id, state: 'ready_for_review', changes: { created, enriched, documents, decisions, proposals } }`.
+
+#### Prompt `onboard`
+- **Arguments:** `project_key`, `project_name?`.
+- **Returns:** the same guide as `onboard_project`, as a user message.
+
 ## 6. Errors
 
 Every error is returned as a tool result: `isError: true`, a `text` block holding the message, and `structuredContent: ToolError`. Messages are one or two sentences: what happened, then what to do.
