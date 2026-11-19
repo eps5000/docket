@@ -2787,6 +2787,62 @@
                     "additionalProperties": false
                   }
                 },
+                "current_step": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "text": {
+                          "type": "string"
+                        },
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "todo",
+                            "current",
+                            "done",
+                            "blocked",
+                            "skipped"
+                          ]
+                        },
+                        "source": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "details_md": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "details_version": {
+                          "type": "integer"
+                        },
+                        "truncated": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "text",
+                        "state",
+                        "source",
+                        "details_md",
+                        "details_version",
+                        "truncated"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
                 "workflow": {
                   "anyOf": [
                     {

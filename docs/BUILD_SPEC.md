@@ -403,6 +403,7 @@ Shared knowledge that agents must respect: "Nutrition is per serving", "Use the 
 2. active decision records in scope, owner records first;
 3. the epic's outcome/brief, and the briefs of the item's labels;
 4. blockers and dependents: ID, title, status, cleared or not, and the first line of each one's outcome;
+   - 4b. the **current step** (decision 33; B34): the step in state `current`, else the first `todo`, with its source and details. The details count in the budget and are cut inline with "…truncated; read it with get_step RCP-14 wst_…"; when not even its header line fits, it's left out with a marker naming `get_step`;
 5. the project's **Workflow** notes (decision 29), current version, truncated last among sections 1–5;
 6. for Markdown planning documents on the item and its epic, the newest version of each. Text is included until the budget runs out; after that, only names and versions;
 7. the latest review round's decisions and notes, if any.
@@ -625,6 +626,7 @@ Every route requires the owner session (§3). JSON bodies **and query strings** 
 | `POST /api/items/:id/archive` · `/unarchive` · `POST /api/archive` `{ids[]}` | Archive, Archive all |
 | `POST /api/items/:id/cancel` `{expected_version, reason?}` | *Cancel item…* (owner decision 23); returns a `mutation_id` for Undo |
 | `POST /api/items/:id/work` · `DELETE …/work/:stepId` · `PATCH …/work/:stepId/details` `{details, expected_version}` | Owner work steps, and the step dialog's *Edit details* (decision 33): `expected_version` is the step's `details_version`, a stale one is `409` with `current`, and the edit is undoable |
+| `GET /api/items/:id/work/:stepId` → `{step, history, jira_site}` | The step dialog's contents (decision 33; B34): the step with its details and its history, read by the same code as `get_step` (any step on the item, a removed one included; `404` otherwise), plus `jira_site`, the normalised origin (`https://host`, nothing else) that the project's latest Jira import recorded, or null, so a Jira key in `source` links to its issue. Read-only |
 | `POST /api/items/:id/checks` · `DELETE …/checks/:checkId` | Owner agent-review items |
 | `POST /api/items/:id/human-review` · `PATCH`/`DELETE …/human-review/:hrId` | Human review items |
 | `POST /api/items/:id/notes` `{text}` | Note for the agent |

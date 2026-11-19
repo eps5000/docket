@@ -49,6 +49,10 @@ export function steerRoutes<E extends Env>(api: Hono<E>, deps: RouteDeps): void 
     return { mutation_id, removed: true as const };
   });
 
+  defineRoute(api, 'steps.get', deps, ({ services, read, params }) =>
+    services.checklist.ownerGetStep(read, params),
+  );
+
   defineRoute(api, 'steps.details', deps, ({ services, mutate, params, body }) => {
     const { result, mutation_id } = mutate((w) =>
       services.checklist.ownerSetStepDetails(w, { ...params, ...body }),

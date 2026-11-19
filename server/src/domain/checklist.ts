@@ -29,7 +29,13 @@
  */
 import { LIMITS, ToolError, type StepHistoryEntry, type WorkStep } from '@docket/shared';
 import type { Db } from '../db/client.js';
-import { type ChecklistService, type In, type Out, type ServiceDeps } from './contracts.js';
+import {
+  type ChecklistService,
+  type In,
+  type Out,
+  type ReadContext,
+  type ServiceDeps,
+} from './contracts.js';
 import { newId } from './ids.js';
 import {
   assertCallerRun,
@@ -51,6 +57,7 @@ import {
   type StoredEvent,
 } from './model.js';
 import type { InverseOp, WriteContext } from './write.js';
+import { siteOrigin } from '../import/jira/client.js';
 
 const isOwner = (addedBy: string) => addedBy === 'owner';
 
@@ -209,6 +216,61 @@ function stepHistory(db: Db, row: StepRow): StepHistoryEntry[] {
     }
   }
   return history;
+}
+
+/**
+ * The project's Jira site (decision 33; B34): the site origin its latest Jira
+ * import recorded on its `project.updated` event, normalised again so only
+ * `https://host` ever leaves (no path, no account). Null when the project
+ * wasn't imported from Jira, or the recorded value doesn't parse.
+ */
+export function projectJiraSite(db: Db, projectKey: string): string | null {
+  const row = db.sqlite
+    .prepare(
+      `SELECT json_extract(e.data, '$.site') AS site FROM events e
+       JOIN projects p ON p.key = e.project_key AND p.deleted_at IS NULL
+       WHERE e.project_key = ? AND e.type = 'project.updated'
+         AND json_extract(e.data, '$.import_id') IS NOT NULL
+         AND json_extract(e.data, '$.site') IS NOT NULL
+         AND e.at >= p.created_at
+       ORDER BY e.seq DESC LIMIT 1`,
+    )
+    .get(projectKey) as { site: unknown } | undefined;
+  if (!row || typeof row.site !== 'string') return null;
+  try {
+    return siteOrigin(row.site);
+  } catch {
+    return null;
+  }
+}
+
+/** One step on the item in full, with its history (get_step and the step dialog). */
+function readStepOf(r: ReadContext, id: string, stepId: string) {
+  const item = requireItem(r.db, id);
+  // Any step on the item: a step a revision removed keeps its ID and history (§5.12, B33).
+  const row = r.db.sqlite
+    .prepare('SELECT * FROM work_steps WHERE id = ? AND item_id = ?')
+    .get(stepId, item.id) as StepRow | undefined;
+  if (!row) {
+    throw new ToolError(
+      'not_found',
+      `No work step ${stepId} on ${item.id}. Use a step id from get_item.`,
+    );
+  }
+  return {
+    item,
+    step: {
+      ...detailedStep(r.db, row),
+      details_md: row.details_md,
+      details_version: row.details_version,
+    },
+    history: stepHistory(r.db, row),
+  };
+}
+
+function readStep(r: ReadContext, id: string, stepId: string): Out<'get_step'> {
+  const { step, history } = readStepOf(r, id, stepId);
+  return { step, history };
 }
 
 const quote = (text: string) => `“${text.length > 60 ? `${text.slice(0, 59)}…` : text}”`;
@@ -736,25 +798,12 @@ export function createChecklistService(_deps: ServiceDeps): ChecklistService {
     },
 
     getStep(r, input) {
-      const item = requireItem(r.db, input.id);
-      // Any step on the item: a step a revision removed keeps its ID and history (§5.12, B33).
-      const row = r.db.sqlite
-        .prepare('SELECT * FROM work_steps WHERE id = ? AND item_id = ?')
-        .get(input.step_id, item.id) as StepRow | undefined;
-      if (!row) {
-        throw new ToolError(
-          'not_found',
-          `No work step ${input.step_id} on ${item.id}. Use a step id from get_item.`,
-        );
-      }
-      return {
-        step: {
-          ...detailedStep(r.db, row),
-          details_md: row.details_md,
-          details_version: row.details_version,
-        },
-        history: stepHistory(r.db, row),
-      };
+      return readStep(r, input.id, input.step_id);
+    },
+
+    ownerGetStep(r, input) {
+      const { item, ...read } = readStepOf(r, input.id, input.stepId);
+      return { ...read, jira_site: projectJiraSite(r.db, item.project_key) };
     },
 
     ownerSetStepDetails(w, input) {

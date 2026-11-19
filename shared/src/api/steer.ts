@@ -6,7 +6,7 @@
 import { z } from 'zod';
 import { itemId, objectId, text } from '../mcp/common.js';
 import { TEXT_LIMITS } from '../mcp/limits.js';
-import { stepDetails } from '../mcp/checklist.js';
+import { getStepOutput, stepDetails } from '../mcp/checklist.js';
 import {
   checkSchema,
   humanReviewItemSchema,
@@ -14,7 +14,7 @@ import {
   questionSchema,
   workStepSchema,
 } from '../mcp/types.js';
-import { expectedVersion, input, noInput, ownerMutationOutput } from './common.js';
+import { expectedVersion, input, jsonResponse, noInput, ownerMutationOutput } from './common.js';
 import { json, route } from './route.js';
 
 const itemParams = input({ id: itemId });
@@ -60,6 +60,20 @@ export const stepDetailsBody = input({
 });
 /** The step with its details (`details_md`, `details_version`). */
 export const stepDetailsResponse = ownerMutationOutput({ step: workStepSchema });
+
+/**
+ * The step dialog's contents (decision 33; UI_SPEC §6.3.1a; B34): the step
+ * with its details and its history, exactly as `get_step` reads them, plus
+ * the project's Jira site, the normalised origin its latest Jira import
+ * recorded (`https://example.atlassian.net`), so a Jira key in `source`
+ * links to the issue. Null when the project wasn't imported from Jira.
+ */
+export const stepResponse = jsonResponse({
+  step: getStepOutput.shape.step,
+  history: getStepOutput.shape.history,
+  jira_site: z.string().nullable(),
+});
+export type StepResponse = z.infer<typeof stepResponse>;
 
 export const addCheckBody = input({ text: text(TEXT_LIMITS.step) });
 export const addCheckResponse = ownerMutationOutput({ check: checkSchema });
@@ -126,6 +140,16 @@ export const steerRoutes = {
     body: addStepBody,
     response: json(addStepResponse),
     undoable: true,
+  }),
+  /** The step dialog: one step in full, with its history and the project's Jira site (decision 33; B34). */
+  'steps.get': route({
+    method: 'GET',
+    path: '/api/items/:id/work/:stepId',
+    group: 'steer',
+    params: stepParams,
+    query: noInput,
+    body: null,
+    response: json(stepResponse),
   }),
   /** The owner's own undone steps only (BUILD_SPEC §5.5). */
   'steps.remove': route({

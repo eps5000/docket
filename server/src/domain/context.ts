@@ -14,6 +14,9 @@
  *    and dependents. `blocked_by` is a safety fact (MCP_SPEC §3.1: the
  *    text says "none" when it is empty), so unresolved blockers are kept
  *    with the essentials; only cleared ones and dependents can be cut;
+ * 4b. the current step (decision 33): the step in state `current`, else the
+ *    first `todo`, with its details, cut inline with a marker that points
+ *    at `get_step`, or left out with one when nothing of it fits;
  * 5. the project's Workflow notes (decision 29; agent-files.ts), the
  *    current non-empty version: placed after sections 1–4, so it is the
  *    first of 1–5 to be cut; a cut is marked inline (`…truncated`), and
@@ -39,7 +42,7 @@ import { renderContext, type ContextBundle, type Status } from '@docket/shared';
 import type { ContextService, ReadContext, ServiceDeps } from './contracts.js';
 import { currentWorkflow } from './agent-files.js';
 import { inScopeOf, labelsOf } from './decisions.js';
-import { BlockIndex, requireItem } from './model.js';
+import { BlockIndex, currentSteps, requireItem } from './model.js';
 
 /** Approximate tokens per budget (BUILD_SPEC §5.15). */
 export const CONTEXT_BUDGETS = { small: 1_000, medium: 3_000, large: 8_000 } as const;
@@ -50,6 +53,7 @@ const MIN_CUT = 40;
 type Bundle = ContextBundle;
 type Decision = Bundle['decisions'][number];
 type Doc = Bundle['planning_docs'][number];
+type Step = NonNullable<Bundle['current_step']>;
 
 /** `text` cut to at most `n` characters, at a word boundary when one is near, ending in `…`. */
 export function cutText(text: string, n: number): string {
@@ -105,6 +109,7 @@ interface Full {
   labels: Bundle['labels'];
   blockers: Bundle['blockers'];
   dependents: Bundle['dependents'];
+  step: Step | null;
   workflow: Bundle['workflow'];
   docs: (Doc & { full: string | null })[];
   last_review: Bundle['last_review'];
@@ -177,6 +182,21 @@ function gather(r: ReadContext, deps: ServiceDeps, id: string): Full {
     const d = core(link.to_id);
     return { id: d.id, title: d.title, status: d.status };
   });
+
+  // The step to work on (decision 33): the one in state `current`, else the first `todo`.
+  const steps = currentSteps(db, row.id);
+  const open = steps.find((s) => s.state === 'current') ?? steps.find((s) => s.state === 'todo');
+  const step: Step | null = open
+    ? {
+        id: open.id,
+        text: open.text,
+        state: open.state,
+        source: open.source,
+        details_md: open.details_md,
+        details_version: open.details_version,
+        truncated: false,
+      }
+    : null;
 
   // Markdown planning documents on the item, then its epic: the newest version of each.
   const docRows = sql
@@ -256,6 +276,7 @@ function gather(r: ReadContext, deps: ServiceDeps, id: string): Full {
     labels: labelRows.map((l) => ({ name: l.name, brief_md: l.brief_md })),
     blockers,
     dependents,
+    step,
     workflow: (() => {
       const wf = currentWorkflow(db, row.project_key);
       return wf ? { ...wf, truncated: false } : null;
@@ -287,6 +308,7 @@ export function assemble(
     labels: [],
     blockers: [...unresolved],
     dependents: [],
+    current_step: null,
     workflow: null,
     planning_docs: [],
     last_review: null,
@@ -315,6 +337,9 @@ export function assemble(
       .join(' and ')}; read them with get_item ${id}`;
   if (cleared.length + full.dependents.length > 0)
     pending.set('links', linksLeft(cleared.length, full.dependents.length));
+  const stepMarker = (st: Step) =>
+    `current step ${st.id}${st.details_md ? ` and its details` : ''}; read it with get_step ${id} ${st.id}`;
+  if (full.step) pending.set('step', stepMarker(full.step));
   if (full.workflow)
     pending.set(
       'workflow',
@@ -456,6 +481,32 @@ export function assemble(
       if (!fits()) {
         b.dependents = [];
         done('links', linksLeft(0, full.dependents.length));
+      }
+    }
+  }
+
+  // 4b. The current step: whole while it fits, else its details cut inline (the renderer
+  // marks the cut and points at get_step), else left out with a marker.
+  if (room && full.step) {
+    pending.delete('step');
+    const source = full.step;
+    const st = { ...source };
+    b.current_step = st;
+    if (!fits()) {
+      // The details cut inline; failing that, the header line with the marker; failing that,
+      // left out with a marker. Either way, every lower section is left out.
+      if (source.details_md !== null) {
+        st.truncated = true;
+        st.details_md =
+          longestFit(source.details_md, (text) => {
+            st.details_md = text;
+            return fits();
+          }) ?? null;
+      }
+      if (fits()) room = false;
+      else {
+        b.current_step = null;
+        done('step', stepMarker(source));
       }
     }
   }
