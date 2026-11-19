@@ -60,8 +60,12 @@ The UI exists so the owner can supervise without wading.
 Rationale: a supervision UI that needs supervising has failed.
 
 ### VI. Local, Private and Safe by Default
-- Published on `127.0.0.1` only, with Host and Origin allowlists (O02). Agents authenticate with a
-  bearer token. Owner actions require a separate owner session that agents never hold.
+- Published on `127.0.0.1` only, with Host and Origin allowlists (O02), so nothing off the machine and
+  no website can reach it.
+- **Local trust by default** (owner decision 32): processes on the owner's machine are trusted. There is
+  no owner unlock and no agent token, and every owner action records what made it (browser or script),
+  so tampering is visible. **Protected mode** (an opt-in setting) restores the owner session and the agent
+  bearer token for anyone who wants a hard boundary between agents and owner actions.
 - Secrets MUST NOT be stored in task content, events or logs, and writes containing secret-like text
   MUST be rejected.
 - Data MUST survive container replacement. Deleting a project MUST remove its records and documents
@@ -155,4 +159,4 @@ with a principle, the principle wins until the document is fixed or the constitu
   constitution conflicts as CRITICAL. Complexity that bends a principle MUST be justified in the
   plan's Complexity Tracking table.
 
-**Version**: 1.1.0 | **Ratified**: 2026-11-14 | **Last Amended**: 2026-11-15
+**Version**: 1.2.0 | **Ratified**: 2026-11-14 | **Last Amended**: 2026-11-18 (Principle VI: local trust by default, decision 32)

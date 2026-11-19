@@ -25,6 +25,7 @@ One owner runs Docket on their own computer. AI agents (installed coding agents,
 - Owner requirement (2026-11-17, not a clarify question): the owner wants in-app help, and wants to view, customize per project, install and verify the agent files Docket ships, because projects may combine Docket with other workflow tools (for example Spec Kit) (owner decision 29; User Stories 12 and 13).
 - Owner requirement (2026-11-18, not a clarify question): agents often tailor instructions for a project, and people or agents will also edit installed files directly. Agents must be able to propose changes for the owner's approval, and Docket must detect and help remedy edits made outside it (owner decision 30; User Story 14).
 - Owner requirement (2026-11-18, not a clarify question): onboarding a real project (Gameflow: GitHub code, Spec Kit planning, Jira tickets) must work from a fresh install, with no skills installed yet, and must not duplicate work already imported from Jira (owner decision 31; User Story 15).
+- Owner requirement (2026-11-18, not a clarify question): no unlock step and no commands to connect agents; Docket is a local tool, so local processes are trusted by default, with an opt-in protected mode (owner decision 32).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -454,7 +455,7 @@ The result: the Jira-matched tasks enrich the existing items instead of duplicat
 **Operation and safety**
 
 - **FR-100**: The service MUST start with one command, and MUST be reachable only from the local machine by default. Requests with a disallowed Host or Origin MUST be refused.
-- **FR-101**: Owner actions MUST require an owner session established with an owner key that agents never receive. The session lasts 30 days from last use in that browser. The owner MUST be able to lock a browser (ending its session) and rotate the key (ending every session). An agent's credential MUST NOT be accepted for any owner action.
+- **FR-101** *(amended by owner decision 32)*: **In protected mode**, owner actions MUST require an owner session established with an owner key that agents never receive. The session lasts 30 days from last use in that browser. The owner MUST be able to lock a browser (ending its session) and rotate the key (ending every session). An agent's credential MUST NOT be accepted for any owner action.
 - **FR-102**: Data and documents MUST survive container replacement. Health and readiness checks MUST identify storage problems.
 - **FR-103**: Nightly backups MUST include records and documents, MUST be kept for a stated period, and MUST be restorable with a documented command. By default, backups are stored with the service's data.
 - **FR-103a**: The owner MUST be able to opt in to an extra backup location: a folder on the host machine. When it's enabled, each nightly backup is also written there, with the same retention. Settings MUST show each backup location with its last successful backup time. A failed copy to the extra location MUST appear as a problem, and MUST NOT affect the default backup.
@@ -492,6 +493,10 @@ The result: the Jira-matched tasks enrich the existing items instead of duplicat
 - **FR-138**: The guide MUST direct agents to reconcile with items already in the project (Jira keys, titles, source paths) before creating new ones, to create everything in Inbox or Planning, to attach planning sources as documents, to propose Workflow notes, and to finish with a summary.
 - **FR-139**: Finishing onboarding MUST give the owner one review card: what was created and enriched, the documents and decisions added, open questions, the proposed Workflow notes, and *Install agent files*.
 - **FR-140**: Agents MUST NOT change a project's settings or delete a project. Projects an agent created are marked as such until the owner reviews them.
+- **FR-141** (owner decision 32): By default (local trust), the UI MUST open without an unlock step, and agents MUST connect from the local machine without a token. The Host and Origin guards (FR-100) MUST still apply in every mode.
+- **FR-142**: Every owner action MUST record how it was made (the browser UI, or another client such as a script, identified by its user agent), and Activity MUST show it.
+- **FR-143**: A **protected mode** setting MUST restore the owner session (FR-101) and the agent bearer token. Turning it on or off MUST be an explicit configuration change, never done from the UI by an agent.
+- **FR-144**: The agent-files install MUST also write each client's project connection file into the repo (`.mcp.json` for Claude Code, `.codex/config.toml` for Codex), containing no secret. In protected mode it references the token through an environment variable. *Check* and drift MUST cover these files.
 
 ### Key Entities
 
@@ -540,6 +545,7 @@ The result: the Jira-matched tasks enrich the existing items instead of duplicat
 - **SC-016**: For any installed copy, the owner can tell within one minute which file versions were sent and whether each was edited locally.
 - **SC-017**: An instruction file edited outside Docket is surfaced to the owner within 15 minutes for push installs, or by the next agent claim on that project otherwise, in 100% of cases in the drift test suite.
 - **SC-018**: Onboarding the fixture repo after a fixture Jira import creates no duplicate items: 100% of Spec Kit tasks that match an imported Jira item enrich it, and the owner can review the whole onboarding from one card.
+- **SC-019**: From a fresh install to a connected agent in a repo takes no typed commands beyond starting Docket: open the UI, create or import a project, click *Install*, and approve the client's one-time prompt.
 
 ## Assumptions
 

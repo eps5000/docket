@@ -656,6 +656,11 @@ Help anchors: `agent-files.page` (the h1), `agent-files.workflow`, `agent-files.
   - Each card counts toward the for-you badge and the tab title. `onboarding.finished` notifies (§6.7a).
   - Agent files lists the guide as "Onboarding guide", after the AGENTS.md block, editable as the default or per project like the others.
 
+### 6.7e Trust mode and connecting (decision 32)
+- **Settings → Connections:** a "Security" line says "Local trust: anything on this computer can use Docket. Turn on protected mode to require an unlock and an agent token", with how to turn it on (the setting, then restart). *Lock this browser*, *Rotate owner key* and *Reveal token* appear only in protected mode.
+- **The Install dialog** lists the connection files it will write, and says "Then open Claude Code (or Codex) in this repo and approve Docket when it asks."
+- **Activity** shows owner actions made by a script as "owner (script: <user agent>)".
+
 ### 6.7c Help (`/help`, `/help/:slug`, decision 29)
 - **`/help`:** a searchable list of articles, each with its title and one-line summary, grouped as Getting started, Working with agents, Recovery, Planning and Operations.
 - **An article:** the rendered Markdown, with "Related" links.
@@ -681,7 +686,7 @@ Spec clarification, 2026-11-14 (FR-068).
 - **Tab title:** always `(N) Docket`, where N is the for-you count, or `Docket` when it's zero. This works even with notifications off.
 - **Privacy:** notifications are generated in the browser from the live stream. Nothing is sent to any outside service.
 
-### 6.8 Unlock (`/unlock`)
+### 6.8 Unlock (`/unlock`, protected mode only; decision 32)
 A centred card on the page background:
 - logo, h1 "Unlock Docket";
 - the line "Paste the owner key. Get it with: `docker compose exec docket docket owner-key`";

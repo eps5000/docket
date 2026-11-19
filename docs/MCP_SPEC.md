@@ -16,7 +16,7 @@ Companion template: [templates/AGENTS-docket.md](templates/AGENTS-docket.md) is 
 |---|---|
 | Endpoint | `http://127.0.0.1:7420/mcp` |
 | Transport | MCP Streamable HTTP, protocol version per the SDK's latest stable. Stateful sessions (`Mcp-Session-Id`). The server accepts `GET` for the server→client stream and `DELETE` to end a session. |
-| Auth | `Authorization: Bearer <DOCKET_TOKEN>`. A missing or wrong token gets HTTP 401 before any MCP handling. |
+| Auth | Decision 32. **Local trust (default):** none; any process on this machine may connect (the Host and Origin guards still apply). **Protected mode:** `Authorization: Bearer <DOCKET_TOKEN>`, and a missing or wrong token gets HTTP 401 before any MCP handling. |
 | Server info | `name: "docket"`, `version` = the app version |
 | Capabilities | `tools` and `prompts`, each with `listChanged: false`. No resources. Everything an agent needs comes from tools, and the server instructions point to the tools. The one prompt, `onboard` (§5.11; decision 31), offers the onboarding guide to clients that support prompts; `onboard_project` returns the same guide to those that don't. |
 | Client identity | `clientInfo.name` from `initialize`, normalised (BUILD_SPEC §3). Agents add `agent_label` on `claim_lead` and `start_run`. |
@@ -967,6 +967,8 @@ These are part of M2 (BUILD_SPEC §11). Use the official MCP client SDK against 
 ---
 
 ## 11. Client setup
+
+**Default (decision 32):** no commands. Installing the agent files into a repo (Agent files → *Install*) writes `.mcp.json` (Claude Code) and `.codex/config.toml` (Codex) there; open the client in that repo and approve the one-time prompt. The commands below remain for a user-wide connection, and for protected mode, which needs the token.
 
 The commands below were checked against the clients' current documentation on 2026-11-07. The real-client smoke test (BUILD_SPEC §10) is still the final check.
 
