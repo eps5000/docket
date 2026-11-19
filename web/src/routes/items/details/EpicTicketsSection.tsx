@@ -10,6 +10,7 @@ import {
   RunLine,
   Section,
   TypeIcon,
+  epicEmptyText,
   leadName,
   leadReason,
 } from '../../../components/kit';
@@ -17,7 +18,7 @@ import { paths } from '../../../lib/paths';
 
 /**
  * Tickets in this epic (summary "n/N done · n ready but blocked · n for
- * you"), grouped by status; archived tickets fold into "+ N archived · Show"
+ * you", or "No tickets yet · Status" with none, as on its card), grouped by status; archived tickets fold into "+ N archived · Show"
  * (US7, T127). US2 fills it. Each row carries the coordination state the
  * Board cards show (B20): the blocked chip, *For you*, and the lead's run line.
  */
@@ -33,10 +34,14 @@ export function EpicTicketsSection({ data }: { data: ItemDetailResponse }) {
     <Section
       sectionKey="tickets"
       title="Tickets in this epic"
-      summary={`${done}/${kids.length} done · ${blocked} ready but blocked · ${forYou} for you`}
+      summary={
+        kids.length === 0
+          ? epicEmptyText(data.item.status)
+          : `${done}/${kids.length} done · ${blocked} ready but blocked · ${forYou} for you`
+      }
     >
       {kids.length === 0 ? (
-        <EmptyState text="No items yet." />
+        <EmptyState text="No tickets yet. Add one with + New item in this epic." />
       ) : (
         STATUSES.map((s) => {
           const group = live.filter((k) => k.status === s);

@@ -159,7 +159,15 @@ export function TicketCard({
   );
 }
 
-/** 4px `--t-epic` left edge; title + ID; mini progress bar; "n/N done · Status · N for you". */
+/** An epic with no tickets (B35): "No tickets yet · In progress", on its card and its page. */
+export function epicEmptyText(status: EpicCardData['status']): string {
+  return `No tickets yet · ${STATUS_LABELS[status]}`;
+}
+
+/**
+ * 4px `--t-epic` left edge; title + ID; mini progress bar; "n/N done · Status · N for you".
+ * With no tickets: no bar, and "No tickets yet · Status".
+ */
 export function EpicCard({
   epic,
   forYou = 0,
@@ -173,7 +181,11 @@ export function EpicCard({
   const active = (by_status.progress ?? 0) + (by_status.review ?? 0);
   const pct = (n: number) => (total ? `${(n / total) * 100}%` : '0%');
   return (
-    <Link className="epiccard" to={paths.item(epic.id)} aria-current={current || undefined}>
+    <Link
+      className={total === 0 ? 'epiccard empty' : 'epiccard'}
+      to={paths.item(epic.id)}
+      aria-current={current || undefined}
+    >
       <span className="row" style={{ gap: 6, minWidth: 0 }}>
         <TypeIcon type="Epic" />
         <span className="et" title={epic.title}>
@@ -183,12 +195,17 @@ export function EpicCard({
           {epic.id}
         </span>
       </span>
-      <span className="pbar mini" role="img" aria-label={`${done} of ${total} done`}>
-        <i className="done" style={{ width: pct(done) }} />
-        <i className="active" style={{ width: pct(active) }} />
-      </span>
+      {/* An epic with no tickets has no bar (B35): "0/0 done" over an empty bar read as broken. */}
+      {total > 0 && (
+        <span className="pbar mini" role="img" aria-label={`${done} of ${total} done`}>
+          <i className="done" style={{ width: pct(done) }} />
+          <i className="active" style={{ width: pct(active) }} />
+        </span>
+      )}
       <span className="src">
-        {done}/{total} done · {STATUS_LABELS[epic.status]}
+        {total === 0
+          ? epicEmptyText(epic.status)
+          : `${done}/${total} done · ${STATUS_LABELS[epic.status]}`}
         {forYou > 0 && (
           <>
             {' · '}

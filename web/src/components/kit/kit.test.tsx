@@ -15,6 +15,7 @@ import {
   Button,
   Dialog,
   DialogCancel,
+  EpicCard,
   DecisionAuthorityBadge,
   EditableText,
   ErrorState,
@@ -618,6 +619,41 @@ describe('TicketCard', () => {
     expect(container.querySelector('a.tcard')!.contains(btn)).toBe(false);
     fireEvent.click(btn);
     expect(onArchive).toHaveBeenCalled();
+  });
+});
+
+describe('EpicCard (B35: empty epics)', () => {
+  const epic = (total: number, done = 0) => ({
+    ...baseItem,
+    id: 'STR-1',
+    type: 'Epic' as const,
+    epic: null,
+    epic_title: null,
+    children: { total, done, by_status: total ? { done, progress: total - done } : {}, for_you: 0 },
+  });
+
+  it('says "No tickets yet · Status" and draws no bar when the epic has no tickets', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <EpicCard epic={epic(0)} />
+      </MemoryRouter>,
+    );
+    expect(container.querySelector('a.epiccard')!.textContent).toContain(
+      'No tickets yet · In progress',
+    );
+    expect(container.textContent).not.toContain('0/0');
+    expect(container.querySelector('.pbar')).toBeNull();
+    expect(screen.queryByRole('img')).toBeNull();
+  });
+
+  it('keeps the bar and "n/N done" when it has tickets', () => {
+    render(
+      <MemoryRouter>
+        <EpicCard epic={epic(4, 1)} />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole('img', { name: '1 of 4 done' })).toBeTruthy();
+    expect(screen.getByText('1/4 done · In progress', { exact: false })).toBeTruthy();
   });
 });
 
