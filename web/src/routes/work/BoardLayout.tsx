@@ -77,7 +77,7 @@ export function BoardLayout({ items }: { items: readonly WorkItem[] }) {
                   {showWaiting ? (
                     wait.slice(0, limit).map((i) => <TicketCard key={i.id} item={i} />)
                   ) : (
-                    <div className="mini">
+                    <div className="colmini">
                       {wait.slice(0, limit).map((i) => (
                         <Link
                           key={i.id}

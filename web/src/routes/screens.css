@@ -266,7 +266,7 @@
   border-top: 1px dashed var(--ctl);
   margin-top: 4px;
 }
-.tl .mini {
+.tl .colmini {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
