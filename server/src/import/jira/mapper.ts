@@ -6,7 +6,7 @@
  * | Jira | Docket |
  * |---|---|
  * | Epic; Story, Task, Bug | the same type |
- * | Sub-task | a work step on its parent (state from the status category); its own comments, assignee, dates and the rest drop out, listed |
+ * | Sub-task | a work step on its parent (state from the status category), source = its key, details = a header line (key, assignee, start and due dates, story points) plus its description as Markdown; its comments go into "Comments from Jira sub-tasks" owner notes on the parent; its attachments, labels and links drop out, listed |
  * | other issue types | Task, with the original type noted in the description |
  * | status category To Do / In Progress / Done | Inbox / In progress (no lead, no run) / Done (`closed_by=imported`); other status names noted |
  * | priority Highest, High / Medium / Low, Lowest | P1 / P2 / P3; anything else P2, noted |
@@ -151,6 +151,80 @@ export const STEP_REASON_PREFIX = 'Became a checklist step on';
 
 const LABEL_MAX = LIMITS.label_name;
 const COMMENT_MAX = TEXT_LIMITS.note;
+const NOTE_MAX = TEXT_LIMITS.note;
+const DETAILS_MAX = LIMITS.step_details;
+
+/** The first line of each "Comments from Jira sub-tasks" note. */
+export const SUBTASK_NOTES_TITLE = 'Comments from Jira sub-tasks';
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/** `2026-11-02` → `Nov 2, 2026` (the step header's dates). */
+export function headerDate(date: string): string {
+  const [y, m, d] = date.split('-').map(Number) as [number, number, number];
+  return `${MONTHS[m - 1]} ${d}, ${y}`;
+}
+
+/**
+ * Split `text` into pieces of at most `size` characters, at a line break
+ * when one is in the second half of the piece, else at a space, else hard.
+ */
+function splitText(text: string, size: number): string[] {
+  const out: string[] = [];
+  let rest = text;
+  while (rest.length > size) {
+    const head = rest.slice(0, size);
+    let at = head.lastIndexOf('\n');
+    if (at < size / 2) at = head.lastIndexOf(' ');
+    if (at < size / 2) at = size;
+    out.push(rest.slice(0, at).trimEnd());
+    rest = rest.slice(at).replace(/^\s+/, '');
+  }
+  if (rest) out.push(rest);
+  return out;
+}
+
+/**
+ * The "Comments from Jira sub-tasks" notes for one parent (decision 33):
+ * one section per sub-task ("GF-123 Title"), each comment as "author ·
+ * date" and its text. Packed into notes of at most the note limit; when
+ * there's more than one, each title is numbered "(2 of 3)", and a section
+ * carried over repeats its heading with "(continued)". Nothing is cut: a
+ * comment too long for one note continues in the next.
+ */
+export function packSubtaskNotes(
+  sections: { heading: string; comments: string[] }[],
+  max = NOTE_MAX,
+): string[] {
+  const reserve = `${SUBTASK_NOTES_TITLE} (99 of 99)\n\n`.length;
+  const room = max - reserve;
+  const bodies: string[] = [];
+  let cur = '';
+  let curSection = -1;
+  const started = new Set<number>();
+  for (const [i, section] of sections.entries()) {
+    const longHead = `${section.heading} (continued)`;
+    for (const comment of section.comments) {
+      for (const piece of splitText(comment, room - longHead.length - 2)) {
+        const head = started.has(i) ? longHead : section.heading;
+        const add = curSection === i ? `\n\n${piece}` : `${cur ? '\n\n' : ''}${head}\n\n${piece}`;
+        if (cur && cur.length + add.length > room) {
+          bodies.push(cur);
+          cur = `${longHead}\n\n${piece}`;
+        } else {
+          cur += add;
+        }
+        curSection = i;
+        started.add(i);
+      }
+    }
+  }
+  if (cur) bodies.push(cur);
+  return bodies.map((body, i) =>
+    bodies.length === 1
+      ? `${SUBTASK_NOTES_TITLE}\n\n${body}`
+      : `${SUBTASK_NOTES_TITLE} (${i + 1} of ${bodies.length})\n\n${body}`,
+  );
+}
 
 // ---- Field detection (BUILD_SPEC §12 V4) ----
 
@@ -198,6 +272,7 @@ const present = (v: unknown): boolean =>
   v !== '' &&
   !(Array.isArray(v) && v.length === 0) &&
   !(obj(v) !== null && Object.keys(obj(v)!).length === 0);
+const SEP = ' · ';
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const keyNumber = (key: string) => Number(key.slice(key.lastIndexOf('-') + 1)) || 0;
 export const compareKeys = (a: string, b: string) => {
@@ -400,6 +475,52 @@ export function mapSnapshot(snapshot: JiraSnapshot, opts: MapOptions = {}): Impo
     return Array.isArray(embedded) ? (embedded as JiraComment[]) : [];
   };
 
+  /**
+   * An issue's comments as Markdown, under the rules for every imported
+   * comment: secret-looking ones (or authors) are dropped, conversion losses
+   * are noted, comments over the note limit are shortened, and unreadable
+   * ones counted; each is noted on the issue.
+   */
+  const readComments = (issue: JiraIssue): { comments: PlannedComment[]; lossy: boolean } => {
+    let lossy = false;
+    const comments: PlannedComment[] = [];
+    const list = commentsOf(issue);
+    for (const c of list) {
+      const author = str(c.author?.displayName) || 'Unknown';
+      const { markdown, losses } = adfToMarkdown(c.body);
+      const authorHit = secret(author);
+      const hit = secret(markdown) ?? authorHit;
+      if (hit) {
+        lossy = true;
+        note(
+          issue.key,
+          `comment by ${authorHit ? 'someone' : author} dropped: it looks like a secret (${hit.kind})`,
+        );
+        continue;
+      }
+      if (losses.length > 0) {
+        lossy = true;
+        note(issue.key, `comment by ${author}: ${losses.join(', ')} simplified or dropped`);
+      }
+      let text = markdown || '(empty comment)';
+      if (text.length > COMMENT_MAX) {
+        lossy = true;
+        text = shorten(text, COMMENT_MAX);
+        note(
+          issue.key,
+          `comment by ${author} shortened to ${COMMENT_MAX.toLocaleString('en-US')} characters`,
+        );
+      }
+      comments.push({ jira_id: String(c.id), author, created: str(c.created) || null, text });
+    }
+    const total = Number(obj(issue.fields.comment)?.total ?? list.length);
+    if (total > list.length) {
+      lossy = true;
+      note(issue.key, `${plural(total - list.length, 'comment')} couldn't be read`);
+    }
+    return { comments, lossy };
+  };
+
   // ---- Links (each appears on both issues; deduped by id) ----
   const seenLinks = new Set<string>();
   const planned = new Map<string, PlannedLink>();
@@ -463,6 +584,11 @@ export function mapSnapshot(snapshot: JiraSnapshot, opts: MapOptions = {}): Impo
   // ---- Issues ----
   const items: PlannedItem[] = [];
   const stepsOf = new Map<string, PlannedStep[]>();
+  /** Parent key → its sub-tasks' comments, in key order (decision 33). */
+  const subtaskComments = new Map<
+    string,
+    { key: string; title: string; comments: PlannedComment[] }[]
+  >();
   const itemByKey = new Map<string, PlannedItem>();
   const outcomes: IssueOutcome[] = [];
 
@@ -489,32 +615,123 @@ export function mapSnapshot(snapshot: JiraSnapshot, opts: MapOptions = {}): Impo
     const category = str(obj(status?.statusCategory)?.key);
 
     if (isSubtask(issue)) {
-      // A work step on its parent; everything else about it drops out, listed.
+      // A work step on its parent (decision 33): source = its key; details = a header line
+      // and its description; its comments go into a note on the parent. Attachments,
+      // labels and links drop out, listed.
       const state = STEP_STATE_OF[category] ?? 'todo';
+      const parent = parentKey(issue)!;
       field('Summary', 'mapped');
       if (has.has('Status')) field('Status', STEP_STATE_OF[category] ? 'mapped' : 'lossy');
       field('Parent', 'mapped');
-      const dropped: string[] = [];
-      for (const name of has) {
-        if (name === 'Summary' || name === 'Status' || name === 'Parent') continue;
-        field(name, 'skipped');
+
+      // The header line: "Jira GF-123 · assignee Sam Lee · start Nov 2, 2026 · due Dec 4, 2026 · 3 pts".
+      const header = [`Jira ${issue.key}`];
+      if (has.has('Assignee')) {
+        const name = str(obj(f.assignee)?.displayName).trim();
+        const hit = name ? secret(name) : null;
+        if (!name || hit) {
+          field('Assignee', 'skipped');
+          note(
+            issue.key,
+            hit
+              ? `assignee dropped: the name looks like a secret (${hit.kind})`
+              : 'assignee dropped: no name',
+          );
+        } else {
+          header.push(`assignee ${name}`);
+          field('Assignee', 'mapped');
+        }
       }
-      if (has.has('Assignee')) dropped.push('assignee');
-      const nComments = commentsOf(issue).length || Number(obj(f.comment)?.total ?? 0);
-      if (nComments > 0) dropped.push(plural(nComments, 'comment'));
-      if (has.has('Due date')) dropped.push('due date');
-      if (has.has('Start date')) dropped.push('start date');
-      if (has.has('Story points')) dropped.push('story points');
-      if (has.has('Description')) dropped.push('description');
+      if (has.has('Start date') && fieldsUsed.start_date) {
+        const start = dateOf(f[fieldsUsed.start_date]);
+        field('Start date', start ? 'mapped' : 'skipped');
+        if (start) header.push(`start ${headerDate(start)}`);
+        else note(issue.key, 'start date dropped: not a date');
+      }
+      if (has.has('Due date')) {
+        const due = dateOf(f.duedate);
+        field('Due date', due ? 'mapped' : 'skipped');
+        if (due) header.push(`due ${headerDate(due)}`);
+        else note(issue.key, 'due date dropped: not a date');
+      }
+      if (has.has('Story points') && fieldsUsed.story_points) {
+        const raw = f[fieldsUsed.story_points];
+        if (typeof raw === 'number' && Number.isFinite(raw) && raw >= 0) {
+          header.push(`${raw} ${raw === 1 ? 'pt' : 'pts'}`);
+          field('Story points', 'mapped');
+        } else {
+          field('Story points', 'skipped');
+          note(issue.key, `story points ${String(raw)} dropped: not a number ≥ 0`);
+        }
+      }
+
+      // The description, under the item rules (secrets dropped, losses noted), sized to the
+      // details limit; what the conversion simplified is also noted inline.
+      let description = '';
+      let tail = '';
+      if (has.has('Description')) {
+        const { markdown, losses } = adfToMarkdown(f.description);
+        const hit = secret(markdown);
+        if (hit) {
+          field('Description', 'skipped');
+          note(issue.key, `description dropped: it looks like a secret (${hit.kind})`);
+        } else {
+          description = markdown;
+          if (losses.length > 0) {
+            note(issue.key, `description: ${losses.join(', ')} simplified or dropped`);
+            tail = `---\nFrom Jira: ${losses.join(', ')} simplified or dropped in the description`;
+          }
+          const fixed = header.join(SEP).length + 2 + (tail ? tail.length + 2 : 0);
+          if (fixed + description.length > DETAILS_MAX) {
+            description = shorten(description, DETAILS_MAX - fixed);
+            note(
+              issue.key,
+              `description shortened to ${DETAILS_MAX.toLocaleString('en-US')} characters (with the header line)`,
+            );
+            field('Description', 'lossy');
+          } else {
+            field('Description', losses.length > 0 ? 'lossy' : 'mapped');
+          }
+        }
+      }
+      const details =
+        header.length > 1 || description || tail
+          ? [header.join(SEP), description, tail].filter(Boolean).join('\n\n')
+          : null;
+
+      // Comments: kept on the parent, in its "Comments from Jira sub-tasks" note.
+      let comments: PlannedComment[] = [];
+      if (has.has('Comments')) {
+        const read = readComments(issue);
+        comments = read.comments;
+        field('Comments', read.lossy ? 'lossy' : 'mapped');
+      }
+
+      // What drops out: listed on the sub-task.
+      const dropped: string[] = [];
       const nAttachments = Array.isArray(f.attachment) ? f.attachment.length : 0;
       if (nAttachments > 0) dropped.push(plural(nAttachments, 'attachment'));
       if (has.has('Labels')) dropped.push('labels');
       if (!STEP_STATE_OF[category])
         dropped.push(`status “${statusName}” (no category; the step is to do)`);
-      const parent = parentKey(issue)!;
-      const text = shorten(title, TEXT_LIMITS.step);
-      const parentSteps = (stepsOf.get(parent) ?? []).concat({ jira_key: issue.key, text, state });
-      stepsOf.set(parent, parentSteps);
+      for (const name of ['Attachments', 'Labels', 'Links', ...UNMAPPED] as FieldRow[]) {
+        if (name !== 'Assignee' && has.has(name)) field(name, 'skipped');
+      }
+
+      const step: PlannedStep = {
+        jira_key: issue.key,
+        text: shorten(title, TEXT_LIMITS.step),
+        state,
+        source: issue.key,
+        details_md: details,
+      };
+      stepsOf.set(parent, (stepsOf.get(parent) ?? []).concat(step));
+      if (comments.length > 0) {
+        subtaskComments.set(parent, [
+          ...(subtaskComments.get(parent) ?? []),
+          { key: issue.key, title, comments },
+        ]);
+      }
       const own = reasons.get(issue.key)!;
       const lost = [...dropped, ...(own.some((r) => r.startsWith('link')) ? ['links'] : [])];
       // Becoming a checklist step is always a change (B32): the report says so for every one.
@@ -525,6 +742,8 @@ export function mapSnapshot(snapshot: JiraSnapshot, opts: MapOptions = {}): Impo
         outcome: 'step',
         reasons: [
           `${STEP_REASON_PREFIX} ${parent}${lost.length > 0 ? `; not kept: ${lost.join(', ')}` : ''}`,
+          // Its own notes on the description, comments and dates, after the step line.
+          ...own.filter((r) => !r.startsWith('link')),
         ],
       });
       continue;
@@ -681,42 +900,9 @@ export function mapSnapshot(snapshot: JiraSnapshot, opts: MapOptions = {}): Impo
     // Comments.
     const comments: PlannedComment[] = [];
     if (has.has('Comments')) {
-      let lossy = false;
-      const list = commentsOf(issue);
-      for (const c of list) {
-        const author = str(c.author?.displayName) || 'Unknown';
-        const { markdown, losses } = adfToMarkdown(c.body);
-        const authorHit = secret(author);
-        const hit = secret(markdown) ?? authorHit;
-        if (hit) {
-          lossy = true;
-          note(
-            issue.key,
-            `comment by ${authorHit ? 'someone' : author} dropped: it looks like a secret (${hit.kind})`,
-          );
-          continue;
-        }
-        if (losses.length > 0) {
-          lossy = true;
-          note(issue.key, `comment by ${author}: ${losses.join(', ')} simplified or dropped`);
-        }
-        let text = markdown || '(empty comment)';
-        if (text.length > COMMENT_MAX) {
-          lossy = true;
-          text = shorten(text, COMMENT_MAX);
-          note(
-            issue.key,
-            `comment by ${author} shortened to ${COMMENT_MAX.toLocaleString('en-US')} characters`,
-          );
-        }
-        comments.push({ jira_id: String(c.id), author, created: str(c.created) || null, text });
-      }
-      const total = Number(obj(f.comment)?.total ?? list.length);
-      if (total > list.length) {
-        lossy = true;
-        note(issue.key, `${plural(total - list.length, 'comment')} couldn't be read`);
-      }
-      field('Comments', lossy ? 'lossy' : 'mapped');
+      const read = readComments(issue);
+      comments.push(...read.comments);
+      field('Comments', read.lossy ? 'lossy' : 'mapped');
     }
 
     // Attachments.
@@ -786,6 +972,7 @@ export function mapSnapshot(snapshot: JiraSnapshot, opts: MapOptions = {}): Impo
       effort,
       steps: [],
       comments,
+      subtask_notes: [],
       attachments,
       jira: {
         type: jiraType,
@@ -808,6 +995,16 @@ export function mapSnapshot(snapshot: JiraSnapshot, opts: MapOptions = {}): Impo
 
   // Steps onto their parents, and the "From Jira" notes into descriptions.
   for (const [parent, steps] of stepsOf) itemByKey.get(parent)!.steps = steps;
+  for (const [parent, subtasks] of subtaskComments) {
+    itemByKey.get(parent)!.subtask_notes = packSubtaskNotes(
+      subtasks.map((st) => ({
+        heading: `${st.key} ${st.title}`,
+        comments: st.comments.map(
+          (c) => `${c.author}${SEP}${c.created ? c.created.slice(0, 10) : 'undated'}\n${c.text}`,
+        ),
+      })),
+    );
+  }
   for (const item of items) {
     const notes = footers.get(item.jira_key);
     const tail = notes

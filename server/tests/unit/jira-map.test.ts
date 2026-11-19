@@ -28,9 +28,12 @@ import {
   wrongCredentialsMessage,
 } from '../../src/import/jira/client.js';
 import {
+  SUBTASK_NOTES_TITLE,
   detectFields,
+  headerDate,
   labelName,
   mapSnapshot,
+  packSubtaskNotes,
   searchFields,
 } from '../../src/import/jira/mapper.js';
 import { buildReport, findCycles } from '../../src/import/jira/report.js';
@@ -386,27 +389,134 @@ describe('types', () => {
 });
 
 describe('sub-tasks become work steps on the parent', () => {
-  it('in key order, with the state from the status category', () => {
-    expect(item('TL-2').steps).toEqual([
-      { jira_key: 'TL-7', text: 'Add Luhn check', state: 'done' },
-      { jira_key: 'TL-8', text: 'Show inline errors', state: 'current' },
-      { jira_key: 'TL-9', text: 'Copy review', state: 'todo' },
+  it('in key order, with the state from the status category, the key as source', () => {
+    expect(item('TL-2').steps.map(({ details_md: _d, ...s }) => s)).toEqual([
+      { jira_key: 'TL-7', text: 'Add Luhn check', state: 'done', source: 'TL-7' },
+      { jira_key: 'TL-8', text: 'Show inline errors', state: 'current', source: 'TL-8' },
+      { jira_key: 'TL-9', text: 'Copy review', state: 'todo', source: 'TL-9' },
     ]);
     expect(plan.items.some((i) => ['TL-7', 'TL-8', 'TL-9'].includes(i.jira_key))).toBe(false);
   });
 
-  it("is always a change, listing what isn't kept: comments, assignee, dates, description, attachments, links", () => {
-    expect(outcome('TL-7')).toMatchObject({ outcome: 'step' });
-    expect(reasons('TL-7')).toBe(
-      'Became a checklist step on TL-2; not kept: assignee, 1 comment, due date, description, 1 attachment',
+  it('details: a header line (key, assignee, dates, points; missing parts left out), then the description (decision 33)', () => {
+    const [tl7, tl8, tl9] = item('TL-2').steps;
+    expect(tl7!.details_md).toBe(
+      'Jira TL-7 · assignee Sam Placeholder · due Nov 25, 2026\n\nUse the standard algorithm.',
     );
+    const tl8Details = tl8!.details_md!;
+    expect(tl8Details.split('\n')[0]).toBe(
+      'Jira TL-8 · assignee Jo Sample · start Nov 2, 2026 · due Dec 4, 2026 · 3 pts',
+    );
+    expect(tl8Details).toContain('\n\n## What to show\n\nInline errors appear under each field');
+    expect(tl8Details.length).toBeGreaterThan(5_000);
+    expect(tl8Details.length).toBeLessThanOrEqual(10_000);
+    // The conversion's losses are noted inline, and in the report.
+    expect(tl8Details).toMatch(
+      /\n\n---\nFrom Jira: panel simplified or dropped in the description$/,
+    );
+    // Nothing beyond the key: no details.
+    expect(tl9!.details_md).toBeNull();
+    expect(headerDate('2026-01-09')).toBe('Jan 9, 2026');
+  });
+
+  it("is always a change, listing only what isn't kept: attachments, labels, links", () => {
+    expect(outcome('TL-7')).toMatchObject({ outcome: 'step' });
+    expect(reasons('TL-7')).toBe('Became a checklist step on TL-2; not kept: 1 attachment');
     expect(reasons('TL-9')).toBe('Became a checklist step on TL-2; not kept: links');
-    // Nothing lost, but still a change (B32): it's a step now, not an item.
+    // Nothing lost but what the conversion simplified; still a change (B32): it's a step now.
     expect(outcome('TL-8')).toMatchObject({
       outcome: 'step',
-      reasons: ['Became a checklist step on TL-2'],
+      reasons: ['Became a checklist step on TL-2', 'description: panel simplified or dropped'],
     });
     expect(row('Type: Subtask', 'Work step')).toMatchObject({ count: 3, lossy: 3 });
+  });
+
+  it('comments go into the parent’s "Comments from Jira sub-tasks" notes, grouped by sub-task, split when long', () => {
+    const notes = item('TL-2').subtask_notes;
+    expect(notes).toHaveLength(2);
+    expect(notes.map((n) => n.split('\n')[0])).toEqual([
+      'Comments from Jira sub-tasks (1 of 2)',
+      'Comments from Jira sub-tasks (2 of 2)',
+    ]);
+    expect(notes.every((n) => n.length <= 4_000)).toBe(true);
+    expect(notes[0]).toMatch(
+      /^Comments from Jira sub-tasks \(1 of 2\)\n\nTL-7 Add Luhn check\n\nSam Placeholder · 2026-03-06\nDone, see the unit test\.\n\nTL-8 Show inline errors\n\nJo Sample · 2026-03-07\nStarted on the card number field\./,
+    );
+    expect(notes[1]).toMatch(
+      /^Comments from Jira sub-tasks \(2 of 2\)\n\nTL-8 Show inline errors \(continued\)\n\n/,
+    );
+    expect(notes[1]).toContain('Jo Sample · 2026-03-10\nDone apart from the security code copy.');
+    // The parent's own comments stay Activity notes; items without sub-task comments get none.
+    expect(item('TL-2').comments.map((c) => c.jira_id)).toEqual(['40001', '40003']);
+    expect(plan.items.filter((i) => i.subtask_notes.length > 0).map((i) => i.jira_key)).toEqual([
+      'TL-2',
+    ]);
+  });
+
+  it('sub-task text follows the item rules: secrets dropped, long descriptions shortened, all listed', () => {
+    const subtask = (fields: Record<string, unknown>) => ({
+      id: '9',
+      key: 'TL-9',
+      fields: {
+        summary: 'Copy review',
+        issuetype: { name: 'Subtask', subtask: true },
+        parent: { key: 'TL-2' },
+        status: { name: 'To Do', statusCategory: { key: 'new' } },
+        ...fields,
+      },
+    });
+    const withSubtask = (fields: Record<string, unknown>, comments: unknown[] = []) =>
+      mapSnapshot({
+        ...snapshot,
+        issues: snapshot.issues.map((i) => (i.key === 'TL-9' ? subtask(fields) : i)),
+        comments: { ...snapshot.comments, 'TL-9': comments as never },
+      });
+    const doc = (text: string) => ({
+      type: 'doc',
+      version: 1,
+      content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
+    });
+    const stepOf = (p: ImportPlan) =>
+      p.items.find((i) => i.jira_key === 'TL-2')!.steps.find((x) => x.jira_key === 'TL-9')!;
+    const reasonsOf = (p: ImportPlan) =>
+      p.outcomes.find((o) => o.key === 'TL-9')!.reasons.join('; ');
+
+    const secret = withSubtask({
+      description: doc('token ghp_abcdefghijklmnopqrstuvwxyz0123456789'),
+    });
+    expect(stepOf(secret).details_md).toBeNull();
+    expect(reasonsOf(secret)).toContain(
+      'description dropped: it looks like a secret (GitHub token)',
+    );
+
+    const long = withSubtask({ description: doc('word '.repeat(3_000)), duedate: '2026-12-04' });
+    expect(stepOf(long).details_md!.length).toBeLessThanOrEqual(10_000);
+    expect(stepOf(long).details_md).toMatch(/^Jira TL-9 · due Dec 4, 2026\n\nword word/);
+    expect(stepOf(long).details_md).toMatch(/…$/);
+    expect(reasonsOf(long)).toContain(
+      'description shortened to 10,000 characters (with the header line)',
+    );
+
+    const comments = withSubtask({ comment: { total: 2, comments: [] } }, [
+      {
+        id: '1',
+        author: { displayName: 'Riley Example' },
+        created: '2026-03-01T00:00:00Z',
+        body: doc('Fine.'),
+      },
+      {
+        id: '2',
+        author: { displayName: 'Sam Placeholder' },
+        created: '2026-03-02T00:00:00Z',
+        body: doc('Use Bearer abcdefghijklmnopqrstuvwxyz'),
+      },
+    ]);
+    const note = comments.items.find((i) => i.jira_key === 'TL-2')!.subtask_notes.join('\n');
+    expect(note).toContain('TL-9 Copy review\n\nRiley Example · 2026-03-01\nFine.');
+    expect(note).not.toContain('Bearer');
+    expect(reasonsOf(comments)).toContain(
+      'comment by Sam Placeholder dropped: it looks like a secret (Bearer token)',
+    );
   });
 
   it('skips a sub-task whose parent is not imported, with the reason', () => {
@@ -653,7 +763,8 @@ describe('due date, start date and story points', () => {
 
 describe('fields that are not mapped', () => {
   it('assignee, reporter, sprint, fix versions, components and other custom fields are counted', () => {
-    expect(fieldRow('Assignee')).toEqual({ field: 'Assignee', mapped: 0, skipped: 2, lossy: 0 });
+    // TL-2's assignee isn't mapped; TL-7's and TL-8's are kept in their steps' header lines.
+    expect(fieldRow('Assignee')).toEqual({ field: 'Assignee', mapped: 2, skipped: 1, lossy: 0 });
     expect(fieldRow('Reporter')).toMatchObject({ mapped: 0, skipped: 21 });
     expect(fieldRow('Sprint')).toMatchObject({ mapped: 0, skipped: 1 });
     expect(fieldRow('Fix versions')).toMatchObject({ mapped: 0, skipped: 1 });
@@ -696,6 +807,31 @@ describe('secrets (constitution Principle VI)', () => {
   });
 });
 
+describe('packSubtaskNotes (decision 33)', () => {
+  it('one note when it fits; numbered parts, continued headings and nothing cut when it does not', () => {
+    expect(packSubtaskNotes([{ heading: 'GF-1 A', comments: ['Sam · 2026-01-01\nHi'] }])).toEqual([
+      `${SUBTASK_NOTES_TITLE}\n\nGF-1 A\n\nSam · 2026-01-01\nHi`,
+    ]);
+    const long = 'x '.repeat(1_500).trim();
+    const notes = packSubtaskNotes(
+      [
+        { heading: 'GF-1 A', comments: [long, long] },
+        { heading: 'GF-2 B', comments: ['short'] },
+      ],
+      2_000,
+    );
+    expect(notes.length).toBeGreaterThan(2);
+    expect(notes.every((n) => n.length <= 2_000)).toBe(true);
+    expect(notes.map((n) => n.split('\n')[0])).toEqual(
+      notes.map((_, i) => `${SUBTASK_NOTES_TITLE} (${i + 1} of ${notes.length})`),
+    );
+    expect(notes[1]).toMatch(/^.*\n\nGF-1 A \(continued\)\n\n/);
+    const words = notes.join(' ').match(/\bx\b/g)!.length;
+    expect(words).toBe(3_000);
+    expect(notes.at(-1)).toContain('GF-2 B\n\nshort');
+  });
+});
+
 describe('the report accounts for every issue (SC-011)', () => {
   it('issues = would import + skipped; lossy items and skipped ones are listed once each', () => {
     expect(report.totals).toEqual({ issues: 22, would_import: 20, skipped: 2, lossy: 16 });
@@ -712,9 +848,9 @@ describe('the report accounts for every issue (SC-011)', () => {
       outcome: 'changed',
       reason: 'subtask',
       summary: '3 sub-tasks → checklist steps on their parent',
-      kept: 'Kept: title, done or not done.',
+      kept: 'Kept: title, done or not done, description and dates (in the step’s details), comments (in a note on the parent).',
       not_kept:
-        'Not kept yet: description, comments, assignee, dates (a later update keeps the description and comments).',
+        'Not kept: attachments, labels and links on sub-tasks (each one lists what it had).',
       count: 3,
       items: [
         expect.objectContaining({ key: 'TL-7' }),
@@ -722,6 +858,10 @@ describe('the report accounts for every issue (SC-011)', () => {
         expect.objectContaining({ key: 'TL-9' }),
       ],
     });
+    // TL-8's conversion loss is listed with the other simplified descriptions.
+    expect(g('description')!.items).toContainEqual(
+      expect.objectContaining({ key: 'TL-8', detail: 'description: panel simplified or dropped' }),
+    );
     // Sub-tasks whose parent isn't imported stay under Skipped, with the reason.
     expect(g('skip_subtask')).toMatchObject({
       outcome: 'skipped',

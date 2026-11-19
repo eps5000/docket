@@ -101,9 +101,8 @@ const n = (count: number, one: string, many: string) => `${count} ${count === 1 
 export const CHANGE_REASONS = {
   subtask: {
     summary: (c) => `${n(c, 'sub-task', 'sub-tasks')} → checklist steps on their parent`,
-    kept: 'Kept: title, done or not done.',
-    not_kept:
-      'Not kept yet: description, comments, assignee, dates (a later update keeps the description and comments).',
+    kept: 'Kept: title, done or not done, description and dates (in the step’s details), comments (in a note on the parent).',
+    not_kept: 'Not kept: attachments, labels and links on sub-tasks (each one lists what it had).',
   },
   other_type: {
     summary: (c) => `${n(c, 'issue', 'issues')} of other types → Tasks`,
@@ -154,7 +153,7 @@ export const CHANGE_REASONS = {
   },
   comments: {
     summary: (c) => `${n(c, 'issue', 'issues')} with comments simplified or dropped`,
-    kept: 'Kept: comments as Activity notes (author, date, text).',
+    kept: 'Kept: comments as Activity notes (author, date, text); a sub-task’s in a note on its parent.',
     not_kept:
       'Not kept: formatting Markdown can’t show, the end of very long comments, and secret-looking comments.',
   },

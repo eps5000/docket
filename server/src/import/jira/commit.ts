@@ -9,10 +9,15 @@
  *   get `closed_by = imported`. In-progress items get no lead claim and no
  *   run. Epics are inserted before the items that point at them.
  * - Labels, the epic, planned dates and effort (`dates_set_by = Jira
- *   import`), the sub-tasks as plan version 1 of the parent's work steps,
- *   links as they were in Jira (cycles included: they show under Problems),
- *   and each comment as a `note.added` event "Imported comment · author ·
- *   date: text".
+ *   import`), the sub-tasks as plan version 1 of the parent's work steps
+ *   (each with `source` = its key and its details, decision 33), links as
+ *   they were in Jira (cycles included: they show under Problems), and each
+ *   comment as a `note.added` event "Imported comment · author · date: text".
+ * - The sub-tasks' comments as the parent's "Comments from Jira sub-tasks"
+ *   owner notes (decision 33; numbered when split), unread, so the agent
+ *   that next reads the parent gets them, like any owner note. An import
+ *   always targets a new or empty project, so a second import can't add
+ *   them twice.
  * - **Event times:** every event is stamped at import time, by the write
  *   path, so burn-down and the timeline (which replay events in time order)
  *   see the import as one moment. Jira's own dates (created, updated,
@@ -127,7 +132,8 @@ export function commitPlan(w: WriteContext, input: CommitInput): CommitResult {
       i.title,
       i.description_md,
       i.labels,
-      i.steps.map((s) => s.text),
+      i.steps.map((s) => [s.text, s.source, s.details_md]),
+      i.subtask_notes,
       i.comments.map((c) => [c.author, c.text]),
       i.attachments.map((a) => a.name),
     ]),
@@ -318,6 +324,9 @@ function insertItem(
         added_by: 'owner',
         state_by: 'owner',
         state_at: w.now,
+        source: step.source,
+        details_md: step.details_md,
+        details_version: step.details_md ? 1 : 0,
       });
     });
     w.event({
@@ -328,10 +337,37 @@ function insertItem(
       data: {
         plan_version: 1,
         reason: 'Imported from Jira sub-tasks',
-        steps: item.steps.map((s) => ({ jira_key: s.jira_key, text: s.text, state: s.state })),
+        // Versions, never the details text (MCP_SPEC §5.12).
+        steps: item.steps.map((s) => ({
+          jira_key: s.jira_key,
+          text: s.text,
+          state: s.state,
+          source: s.source,
+          details_version: s.details_md ? 1 : 0,
+        })),
       },
     });
   }
+
+  // The sub-tasks' comments: one owner note per part, unread, for the agent's next get_item.
+  item.subtask_notes.forEach((text, i) => {
+    const noteId = newId('note', ms(w.now));
+    w.insert('owner_notes', { id: noteId, item_id: id, text });
+    w.event({
+      type: 'owner_note.added',
+      summary: `Note imported from Jira: ${text}`,
+      item_id: id,
+      project_key: projectKey,
+      data: {
+        note_id: noteId,
+        text,
+        imported: true,
+        part: i + 1,
+        parts: item.subtask_notes.length,
+        jira_subtasks: item.steps.map((s) => s.jira_key),
+      },
+    });
+  });
 
   for (const c of item.comments) {
     const date = c.created ? c.created.slice(0, 10) : 'undated';

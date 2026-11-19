@@ -134,6 +134,7 @@ describe('the service stubs', () => {
       'ownerRemoveCheck',
       // Decision 33 (B33, T170): get_step and the step dialog's details editor.
       'getStep',
+      'ownerGetStep',
       'ownerSetStepDetails',
     ],
     evidence: ['addNote', 'linkArtifact', 'reportCommit'],

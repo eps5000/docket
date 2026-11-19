@@ -288,6 +288,57 @@ function longDescription() {
   return { type: 'doc', version: 1, content };
 }
 
+/**
+ * TL-8's description (decision 33; SC-020): a sub-task with a long
+ * description (about 6,000 characters as Markdown: a heading, a list, code
+ * and a panel, which the conversion simplifies), fitting the 10,000
+ * character step details with its header line.
+ */
+function subtaskDescription() {
+  const content = [
+    { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'What to show' }] },
+    para('Inline errors appear under each field as soon as it loses focus.'),
+    {
+      type: 'bulletList',
+      content: ['Card number', 'Expiry', 'Security code'].map((text) => ({
+        type: 'listItem',
+        content: [para(`${text}: say what is wrong and how to fix it.`)],
+      })),
+    },
+    {
+      type: 'codeBlock',
+      attrs: { language: 'ts' },
+      content: [{ type: 'text', text: "showError(field, 'Check the expiry date');" }],
+    },
+    {
+      type: 'panel',
+      attrs: { panelType: 'info' },
+      content: [para('Errors are announced to screen readers.')],
+    },
+  ];
+  for (let i = 1; i <= 40; i++) {
+    content.push(para(`Detail ${i}: ${'keep the message short and specific '.repeat(4)}`));
+  }
+  return { type: 'doc', version: 1, content };
+}
+
+/** TL-8's comments (decision 33; SC-020): four, two of them long, so the parent's note splits. */
+function subtaskComments() {
+  const people = [PEOPLE[2], PEOPLE[0], PEOPLE[3], PEOPLE[2]];
+  const bodies = [
+    'Started on the card number field.',
+    `Review notes: ${'the expiry message should name the format MM/YY. '.repeat(45)}`,
+    `Design pass: ${'error text uses the warning colour and an icon, never colour alone. '.repeat(40)}`,
+    'Done apart from the security code copy.',
+  ];
+  return bodies.map((text, i) => ({
+    id: String(40020 + i),
+    author: people[i],
+    created: `2026-03-${String(7 + i).padStart(2, '0')}T10:00:00.000+0000`,
+    body: { type: 'doc', version: 1, content: [para(text)] },
+  }));
+}
+
 /** @returns {import('./site.d.mts').FixtureProject} */
 function edgeProject() {
   const tl = read('tl-issues.json');
@@ -295,6 +346,18 @@ function edgeProject() {
   issues.find((/** @type {any} */ i) => i.key === 'TL-22').fields.description = longDescription();
   const { _comment, ...comments } = read('tl-comments.json');
   void _comment;
+  // TL-8 (decision 33): a sub-task with a header line's worth of fields, a long description
+  // and several comments.
+  const tl8 = issues.find((/** @type {any} */ i) => i.key === 'TL-8').fields;
+  Object.assign(tl8, {
+    description: subtaskDescription(),
+    assignee: PEOPLE[2],
+    customfield_10015: '2026-11-02',
+    duedate: '2026-12-04',
+    customfield_10016: 3,
+  });
+  tl8.comment = { comments: [], maxResults: 2, total: 4, startAt: 0 };
+  comments['TL-8'] = subtaskComments();
   return {
     key: 'TL',
     name: tl.project.name,
