@@ -24,7 +24,10 @@ export function ListLayout({ items }: { items: readonly WorkItem[] }) {
   // Thousands of rows render progressively: the first screenful at once (lib/progressive.ts).
   const limit = useRenderLimit(items.length);
   return (
-    <div className="card" style={{ overflow: 'auto' }} data-layout="list">
+    // position: relative makes the card the containing block of the screen-reader-only text
+    // (position: absolute) in its cells, so its scroll box clips that too; otherwise a wide
+    // table (long blocker chips) pushed it past the page's right edge at 1024 px (B35).
+    <div className="card" style={{ overflow: 'auto', position: 'relative' }} data-layout="list">
       <table>
         <thead>
           <tr>
@@ -55,7 +58,7 @@ export function ListLayout({ items }: { items: readonly WorkItem[] }) {
                 <td>
                   <div className="row wrap" style={{ gap: 6 }}>
                     <TypeIcon type={i.type} />
-                    <span>{i.title}</span>
+                    <span className="ltitle">{i.title}</span>
                   </div>
                   {i.epic_title && <div className="ptag">◆ {i.epic_title}</div>}
                 </td>

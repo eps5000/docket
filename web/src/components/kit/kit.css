@@ -504,6 +504,7 @@
    before it). */
 .tl .runline {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   gap: 5px;
   font-size: 12px;
@@ -514,8 +515,10 @@
 .tl .runline .ri {
   margin-top: 2px;
 }
+/* B35: never narrower than the agent name (it doesn't break), so a narrow card at 1024 px
+   wraps the age onto its own line instead of letting the name spill out. */
 .tl .runline .rl {
-  min-width: 0;
+  min-width: min-content;
   overflow-wrap: break-word;
 }
 /* The state and the agent never break inside ("orca-" / "w3"); the reason may wrap. */

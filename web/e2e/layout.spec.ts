@@ -10,8 +10,14 @@
  * - At 1024×900, no screen scrolls sideways (the board and the map scroll
  *   inside their own boxes), and the packet's decision panel sits under the
  *   queue.
+ * - B35: at 1024×900, no element is wider than its container unless something
+ *   between them scrolls or clips (the UI sweep's check, docker/smoke/ui-sweep.mjs),
+ *   on the sample screens and on the stress project's (STR: long titles, many
+ *   labels, big and empty epics). Board cards keep their text inside, and
+ *   progress fills have height, in both.
  */
 import type { Page } from '@playwright/test';
+import { layoutReport } from '../../docker/smoke/ui-sweep.mjs';
 import { expect, test, unlock, useSeededContainer } from './fixtures';
 
 useSeededContainer();
@@ -35,6 +41,42 @@ const SCREENS: [string, string][] = [
   ['Agents', '/agents'],
   ['Settings', '/settings'],
 ];
+
+/** The stress project's screens (B35), opened in its scope. */
+const STRESS_SCREENS: [string, string][] = [
+  ['Needs you', '/'],
+  ['Work board', '/work'],
+  ['Work list', '/work?layout=list'],
+  ['Work map', '/work?layout=map'],
+  ['Work timeline', '/work?layout=timeline'],
+  ['Big epic (36 tickets)', '/items/STR-3'],
+  ['Big epic checklist', '/items/STR-3?tab=checklist'],
+  ['Empty epic', '/items/STR-1'],
+  ['Many labels', '/items/STR-14'],
+  ['Imported ticket checklist', '/items/STR-203?tab=checklist'],
+  ['Blocked chain', '/items/STR-164?tab=deps'],
+  ['Label page', '/labels/STR/accessibility-and-keyboard-navigation'],
+  ['Agents', '/agents'],
+  ['Settings', '/settings'],
+];
+
+/** Switch to the STR project before the app reads its scope (sessionStorage). */
+async function stressScope(page: Page): Promise<void> {
+  await page.addInitScript(() => sessionStorage.setItem('docket.scope', 'STR'));
+}
+
+async function expectNoSpill(page: Page): Promise<void> {
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+  expect(overflow, 'the page scrolls sideways').toBeLessThanOrEqual(0);
+  const report = await layoutReport(page);
+  expect(
+    report.overflow,
+    `${report.overflowCount} elements outside their container, with nothing that scrolls or clips`,
+  ).toEqual([]);
+  expect(report.flat, 'progress fills with no height').toEqual([]);
+}
 
 async function open(page: Page, path: string): Promise<void> {
   await page.goto(path);
@@ -101,13 +143,30 @@ test.describe('1024×900 (T144)', () => {
   for (const [name, path] of SCREENS) {
     test(`${name}: no sideways page scroll`, async ({ page }) => {
       await open(page, path);
-      const overflow = await page.evaluate(
-        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-      );
-      expect(overflow, 'the page scrolls sideways').toBeLessThanOrEqual(0);
+      await expectNoSpill(page);
       await expect(page.locator('#main')).toBeInViewport();
     });
   }
+
+  for (const [name, path] of STRESS_SCREENS) {
+    test(`stress project, ${name}: no sideways scroll, nothing spills`, async ({ page }) => {
+      await stressScope(page);
+      await open(page, path);
+      await expectNoSpill(page);
+    });
+  }
+
+  test('six open items with long titles: the tab strip scrolls, the page does not', async ({
+    page,
+  }) => {
+    // B35 (found by the UI sweep): the tabs' screen-reader-only text escaped the strip's
+    // scroll box and widened the page by about 90 px.
+    for (const id of ['STR-40', 'STR-35', 'STR-3', 'STR-1', 'STR-206', 'RCP-12']) {
+      await open(page, `/items/${id}`);
+    }
+    await expect(page.locator('[data-open-tab]')).toHaveCount(6);
+    await expectNoSpill(page);
+  });
 
   test('the packet: the decision panel sits under the queue', async ({ page }) => {
     await open(page, '/review/RCP-12');
@@ -121,29 +180,34 @@ test.describe('1024×900 (T144)', () => {
     expect(packet.x).toBeGreaterThan(queue.x + queue.width - 1);
     expect(decision.x + decision.width).toBeLessThanOrEqual(1024);
   });
-  test('the board: cards keep their text inside, and progress bars fill', async ({ page }) => {
-    await open(page, '/work');
-    await expect(page.locator('a.tcard').first()).toBeVisible();
-    // Gameflow pilot: long titles and chips spilled past the card, because the
-    // card's auto grid track grew to its widest child.
-    const spills = await page.$$eval('a.tcard, a.epiccard', (cards) =>
-      cards.flatMap((card) => {
-        const c = card.getBoundingClientRect();
-        return [...card.querySelectorAll('*')]
-          .map((el) => ({ el, r: el.getBoundingClientRect() }))
-          .filter(({ r }) => r.width > 0 && r.right > c.right + 1)
-          .map(({ el }) => `${card.getAttribute('href')}: ${el.className || el.tagName}`);
-      }),
-    );
-    expect(spills, 'children wider than their card').toEqual([]);
-    // Gameflow pilot: a board class named "mini" padded the epic bars, so the
-    // fills had no height and every bar looked empty.
-    const bars = page.locator('.epiccard .pbar');
-    expect(await bars.count()).toBeGreaterThan(0);
-    const flat = await page.$$eval(
-      '.pbar i',
-      (fills) => fills.filter((i) => i.getBoundingClientRect().height < 2).length,
-    );
-    expect(flat, 'progress fills with no height').toBe(0);
-  });
+  for (const project of ['all', 'STR']) {
+    test(`the board (${project}): cards keep their text inside, and progress bars fill`, async ({
+      page,
+    }) => {
+      if (project === 'STR') await stressScope(page);
+      await open(page, '/work');
+      await expect(page.locator('a.tcard').first()).toBeVisible();
+      // Gameflow pilot: long titles and chips spilled past the card, because the
+      // card's auto grid track grew to its widest child.
+      const spills = await page.$$eval('a.tcard, a.epiccard', (cards) =>
+        cards.flatMap((card) => {
+          const c = card.getBoundingClientRect();
+          return [...card.querySelectorAll('*')]
+            .map((el) => ({ el, r: el.getBoundingClientRect() }))
+            .filter(({ r }) => r.width > 0 && r.right > c.right + 1)
+            .map(({ el }) => `${card.getAttribute('href')}: ${el.className || el.tagName}`);
+        }),
+      );
+      expect(spills, 'children wider than their card').toEqual([]);
+      // Gameflow pilot: a board class named "mini" padded the epic bars, so the
+      // fills had no height and every bar looked empty.
+      const bars = page.locator('.epiccard .pbar');
+      expect(await bars.count()).toBeGreaterThan(0);
+      const flat = await page.$$eval(
+        '.pbar i',
+        (fills) => fills.filter((i) => i.getBoundingClientRect().height < 2).length,
+      );
+      expect(flat, 'progress fills with no height').toBe(0);
+    });
+  }
 });

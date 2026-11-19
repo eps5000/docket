@@ -61,6 +61,12 @@
 .tl tr.clickrow {
   cursor: pointer;
 }
+/* B35: a title holding a long URL or path breaks inside it, so the Work list never
+   widens the page at 1024 px (Gameflow pilot titles). */
+.tl .ltitle {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
 .tl .kv {
   display: grid;
   /* minmax(0, …): a long URL wraps instead of widening the page at 1024 px (B18, T144). */
