@@ -1,6 +1,6 @@
 /**
  * Every tool's handler, by group (one file per group; slices fill them in).
- * The type requires all 42: a missing handler fails the typecheck.
+ * The type requires all 43: a missing handler fails the typecheck.
  */
 import type { ToolHandlers } from '../register.js';
 import { readHandlers } from './read.js';

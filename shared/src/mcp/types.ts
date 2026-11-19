@@ -125,8 +125,28 @@ export const workStepSchema = z.object({
   subagents: z.array(subagentEntrySchema),
   state_by: z.string().nullable(),
   state_at: z.string().nullable(),
+  /** Where the step came from, for example a Jira key (decision 33). */
+  source: z.string().nullable(),
+  /** True when the step carries details; ordinary reads show a `· details` marker. */
+  has_details: z.boolean(),
+  /** Only in get_step, get_item view 'full', and get_context's current step (MCP_SPEC §4). */
+  details_md: z.string().nullable().optional(),
+  /** Counts edits to the details; 0 before the first. The owner's edits check it. */
+  details_version: z.number().int().optional(),
 });
 export type WorkStep = z.infer<typeof workStepSchema>;
+
+/** One entry of a step's history (get_step; MCP_SPEC §5.12, B33 resolutions). */
+export const stepHistoryEntrySchema = z.object({
+  at: z.string(),
+  by: z.string(),
+  change: z.enum(['added', 'text', 'state', 'details', 'source']),
+  from: z.string().nullable().optional(),
+  to: z.string().nullable().optional(),
+  /** The reason for a wording change, or the note on a state change. */
+  note: z.string().nullable().optional(),
+});
+export type StepHistoryEntry = z.infer<typeof stepHistoryEntrySchema>;
 
 export const checkSchema = z.object({
   id: z.string(),

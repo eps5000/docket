@@ -18,6 +18,7 @@ export const checklistHandlers: Pick<
   | 'update_check'
   | 'declare_human_review'
   | 'update_human_review'
+  | 'get_step'
 > = {
   set_plan: (args, ctx) => ctx.mutate((w) => ctx.services.checklist.setPlan(w, serviceArgs(args))),
   update_step: (args, ctx) =>
@@ -34,4 +35,6 @@ export const checklistHandlers: Pick<
   update_human_review: (args, ctx) => ({
     human_review: ctx.mutate((w) => ctx.services.humanReview.update(w, serviceArgs(args))),
   }),
+  // Decision 33 (MCP_SPEC §5.12): a read.
+  get_step: (args, ctx) => ctx.services.checklist.getStep(ctx.read, args),
 };

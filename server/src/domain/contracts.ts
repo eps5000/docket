@@ -562,6 +562,13 @@ export interface ChecklistService {
   ownerAddCheck(w: WriteContext, input: { id: string } & RouteBody<'checks.add'>): Check;
   /** The owner's own checks while still todo. */
   ownerRemoveCheck(w: WriteContext, input: RouteParams<'checks.remove'>): void;
+  /** `get_step` (decision 33; MCP_SPEC §5.12): one step in full, with its history. */
+  getStep(r: ReadContext, input: In<'get_step'>): Out<'get_step'>;
+  /** The step dialog's *Edit details*, checked against `details_version` (decision 33). */
+  ownerSetStepDetails(
+    w: WriteContext,
+    input: RouteParams<'steps.details'> & RouteBody<'steps.details'>,
+  ): WorkStep;
 }
 
 /** Human review items (§5.5): author edits, locked while `ready`, owner-added items are owner-only. */

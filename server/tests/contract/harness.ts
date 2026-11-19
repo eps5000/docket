@@ -275,4 +275,5 @@ export const VALID_ARGS: Record<ToolName, Record<string, unknown>> = {
     summary: 'Created 12 items in Planning from the Spec Kit tasks.',
     questions: ['Is the level editor in scope for V1?'],
   },
+  get_step: { id: 'RCP-14', step_id: 'wst_a' },
 };

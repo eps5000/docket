@@ -73,6 +73,62 @@ const ITEM_IDS = [
   'DOC-10',
 ];
 
+/**
+ * Step details (decision 33; SC-020; MCP_SPEC §5.12): get_item standard never
+ * carries the details text, only a `· details` marker per step, so an item
+ * with 10 steps of 10,000 characters each stays within the RCP-14 standard
+ * budget. Measured on RCP-14 brought to 10 steps, before and after the
+ * details are added, on its own harness so the seed reads above are untouched.
+ */
+describe('step details keep get_item standard within budget (decision 33; SC-020)', () => {
+  it('RCP-14 with 10 steps of 10,000 characters each ≤ 1,200, and only the markers are added', async () => {
+    const own = await startHarness();
+    try {
+      const paragraph = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. ';
+      const details = `## Context\n\n${paragraph.repeat(200)}`.slice(0, 10_000);
+      expect(details).toHaveLength(10_000);
+      const item = (await own.call('get_item', { id: 'RCP-14', view: 'full' })) as never;
+      const current = (expectOk(item).structured.item as { checklist: { work: { id: string }[] } })
+        .checklist.work;
+      const extra = 10 - current.length;
+      expectOk(
+        await own.call('set_plan', {
+          id: 'RCP-14',
+          reason: 'Budget check: ten steps',
+          steps: Array.from({ length: extra }, (_, i) => ({ text: `Budget step ${i + 1}` })),
+        }),
+      );
+      const before = expectOk(await own.call('get_item', { id: 'RCP-14' }));
+      const steps = (before.structured.item as { checklist: { work: { id: string }[] } }).checklist
+        .work;
+      expect(steps).toHaveLength(10);
+      expectOk(
+        await own.call('set_plan', {
+          id: 'RCP-14',
+          reason: 'Budget check: details',
+          steps: steps.map((s) => ({ id: s.id, details })),
+        }),
+      );
+      const after = expectOk(await own.call('get_item', { id: 'RCP-14' }));
+      const work = (after.structured.item as { checklist: { work: { has_details: boolean }[] } })
+        .checklist.work;
+      expect(work.every((s) => s.has_details && !('details_md' in s))).toBe(true);
+      expect(after.text).not.toContain('Lorem ipsum');
+      // Each step line gains exactly the marker; the rest differs only by the new plan version and event.
+      const stepLines = (t: string) => t.split('\n').filter((l) => /^ {2}- \[.\] wst_/.test(l));
+      expect(stepLines(before.text)).toHaveLength(10);
+      expect(stepLines(after.text)).toEqual(stepLines(before.text).map((l) => `${l} · details`));
+      within('get_item RCP-14 standard, 10 steps, no details', before.text, 1_200);
+      within('get_item RCP-14 standard, 10 steps × 10,000-character details', after.text, 1_200);
+      // The full view carries all 100,000 characters; get_step reads one step.
+      const full = expectOk(await own.call('get_item', { id: 'RCP-14', view: 'full' }));
+      expect(full.text.length).toBeGreaterThan(100_000);
+    } finally {
+      await own.close();
+    }
+  });
+});
+
 describe('reads', () => {
   it('get_item RCP-14 standard ≤ 1,200', async () => {
     within('get_item RCP-14 standard', textOf(await h.call('get_item', { id: 'RCP-14' })), 1_200);

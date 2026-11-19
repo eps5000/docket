@@ -25,14 +25,14 @@ const fails = (name: string, args: unknown) => {
 };
 
 describe('the registry', () => {
-  it('has 42 tools with unique names: 11 read, 1 delivering (get_item), 30 mutating', () => {
-    expect(TOOLS).toHaveLength(42);
-    expect(new Set(TOOLS.map((t) => t.name)).size).toBe(42);
+  it('has 43 tools with unique names: 12 read, 1 delivering (get_item), 30 mutating', () => {
+    expect(TOOLS).toHaveLength(43);
+    expect(new Set(TOOLS.map((t) => t.name)).size).toBe(43);
     const kinds = TOOLS.reduce<Record<string, number>>(
       (acc, t) => ({ ...acc, [t.kind]: (acc[t.kind] ?? 0) + 1 }),
       {},
     );
-    expect(kinds).toEqual({ read: 11, delivering: 1, mutating: 30 });
+    expect(kinds).toEqual({ read: 12, delivering: 1, mutating: 30 });
   });
 
   it('groups tools into the ten server files', () => {
@@ -54,7 +54,7 @@ describe('the registry', () => {
       read: 8,
       items: 6,
       runs: 6,
-      checklist: 7,
+      checklist: 8,
       evidence: 4,
       review: 3,
       decisions: 3,
@@ -635,5 +635,59 @@ describe('onboarding (MCP_SPEC §5.11; decision 31; B29)', () => {
         idempotentHint: false,
       });
     }
+  });
+});
+
+describe('step details (MCP_SPEC §5.12; decision 33; B33)', () => {
+  it('set_plan steps take details (≤ 10,000; null clears) and source (≤ 100; null clears)', () => {
+    const plan = (step: Record<string, unknown>) => ({ id: 'RCP-14', steps: [step] });
+    ok('set_plan', plan({ text: 'Merge units', details: '## Why\n\nBecause.', source: 'GF-123' }));
+    ok('set_plan', plan({ id: 'wst_a', details: null, source: null }));
+    ok('set_plan', plan({ id: 'wst_a', details: 'x'.repeat(10_000) }));
+    fails('set_plan', plan({ id: 'wst_a', details: 'x'.repeat(10_001) }));
+    ok('set_plan', plan({ id: 'wst_a', source: 's'.repeat(100) }));
+    fails('set_plan', plan({ id: 'wst_a', source: 's'.repeat(101) }));
+    fails('set_plan', plan({ id: 'wst_a', source: '  ' }));
+    // Empty details are allowed (they clear, like null); trimmed.
+    expect(
+      (
+        ok('set_plan', plan({ id: 'wst_a', details: '  body  ' })).steps as { details: string }[]
+      )[0]!.details,
+    ).toBe('body');
+    const typo = fails('set_plan', plan({ id: 'wst_a', detail: 'x' }));
+    expect(typo.some((i) => i.code === 'unrecognized_keys')).toBe(true);
+  });
+
+  it('update_step takes details and expected_details_version; state stays required', () => {
+    const base = { id: 'RCP-14', step_id: 'wst_a', state: 'current' };
+    ok('update_step', { ...base, details: 'Notes', expected_details_version: 0 });
+    ok('update_step', { ...base, details: null });
+    fails('update_step', { ...base, details: 'x'.repeat(10_001) });
+    fails('update_step', { ...base, expected_details_version: -1 });
+    fails('update_step', { ...base, expected_details_version: 1.5 });
+    fails('update_step', { id: 'RCP-14', step_id: 'wst_a', details: 'Notes' });
+  });
+
+  it('get_step is a read: id and step_id, plus run_id; no idempotency_key', () => {
+    expect(getTool('get_step').kind).toBe('read');
+    expect(toolAnnotations(getTool('get_step'))).toEqual({
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: false,
+    });
+    ok('get_step', { id: 'RCP-14', step_id: 'wst_a' });
+    ok('get_step', { id: 'RCP-14', step_id: 'wst_a', run_id: 'run_A' });
+    fails('get_step', { id: 'RCP-14' });
+    fails('get_step', { id: 'RCP-14', step_id: 'wst_a', idempotency_key: 'k' });
+  });
+
+  it('get_step output: the step always carries details_md and details_version', () => {
+    const out = outputJsonSchema(getTool('get_step')) as {
+      anyOf: { properties: Record<string, { required?: string[] }> }[];
+    };
+    const step = out.anyOf[0]!.properties.step!;
+    expect(step.required).toEqual(
+      expect.arrayContaining(['details_md', 'details_version', 'source', 'has_details']),
+    );
   });
 });
