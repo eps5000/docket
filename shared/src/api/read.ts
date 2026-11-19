@@ -369,6 +369,12 @@ export const searchResponse = jsonResponse({
       project: z.string(),
       jira_key: z.string().nullable(),
       archived: z.boolean(),
+      /**
+       * B35: why it matched, when not by ID, Jira key or text: `step_source` is a work step
+       * whose `source` holds the query (a Jira sub-task's key), named in `step`.
+       */
+      matched: z.enum(['step_source']).optional(),
+      step: z.object({ id: z.string(), text: z.string(), source: z.string() }).optional(),
     }),
   ),
   labels: z.array(z.object({ project: z.string(), name: z.string() })),

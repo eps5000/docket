@@ -47,7 +47,15 @@ export { Section } from './Section';
 export type { SectionProps } from './Section';
 export { ViewTabs } from './ViewTabs';
 export type { ViewTab } from './ViewTabs';
-export { TicketCard, EpicCard, ReviewChip, ForYouChip, leadName, leadReason } from './Cards';
+export {
+  TicketCard,
+  EpicCard,
+  ReviewChip,
+  ForYouChip,
+  leadName,
+  leadReason,
+  epicEmptyText,
+} from './Cards';
 export { DecisionRow } from './DecisionRow';
 export { Toast, ToastRegion, TOAST_MS, TOAST_UNDO_MS } from './Toast';
 export type { ToastData } from './Toast';

@@ -19,6 +19,7 @@ import { fileURLToPath } from 'node:url';
 import type Database from 'better-sqlite3';
 import type { EventType } from '@docket/shared';
 import type { Db } from '../client.js';
+import { withStress } from './stress.js';
 
 // ---- The shorthand in sample-data.json ----
 
@@ -53,6 +54,8 @@ interface SampleItem {
   pts?: number;
   closedBy?: 'owner' | 'agent' | 'imported';
   imported?: boolean;
+  /** The Jira key of an imported item (default: DOCS-1xx for the sample's imported items). */
+  jira?: string;
   round?: number;
   head?: string;
   headNote?: string;
@@ -68,6 +71,9 @@ interface SampleWork {
   why?: string;
   from?: string;
   contrib?: [string, string, string, string][];
+  /** Step details (decision 33): Markdown, and where the step came from (a Jira sub-task key). */
+  details?: string;
+  source?: string;
 }
 interface SampleDetail {
   outcome?: string;
@@ -277,6 +283,8 @@ export interface SeedOptions {
   /** `/data/docs`: generated document bytes are written here. */
   docsDir: string;
   data?: SampleData;
+  /** Add the stress project, STR (B35; DOCKET_SEED_STRESS=1). Ignored when `data` is given. */
+  stress?: boolean;
 }
 
 export type SeedSummary = Record<string, number>;
@@ -362,7 +370,7 @@ const DECISIONS = [
 const LINK_OVERRIDES: Record<string, 'merged'> = { 'RCP-19>RCP-16': 'merged' };
 
 export function loadSampleSeed(db: Db, opts: SeedOptions): SeedSummary {
-  const data = opts.data ?? readSampleData();
+  const data = opts.data ?? (opts.stress ? withStress(readSampleData()) : readSampleData());
   const clock = new Clock(opts.now);
   const sqlite = db.sqlite;
 
@@ -501,8 +509,8 @@ export function loadSampleSeed(db: Db, opts: SeedOptions): SeedSummary {
       closed_by: item.status === 'done' ? (item.closedBy ?? null) : null,
       closed_at: closedAt === null ? null : clock.iso(closedAt),
       archived_at: null,
-      jira_key: item.imported ? `DOCS-${100 + Number(item.id.split('-')[1])}` : null,
-      imported: item.imported ? 1 : 0,
+      jira_key: item.jira ?? (item.imported ? `DOCS-${100 + Number(item.id.split('-')[1])}` : null),
+      imported: item.imported || item.jira ? 1 : 0,
       from_review: fromReviewOf(item.id),
       version: 1,
       created_at: clock.iso(created),
@@ -727,6 +735,9 @@ export function loadSampleSeed(db: Db, opts: SeedOptions): SeedSummary {
         added_by: w.who ?? leadClient ?? 'agent',
         state_by: w.who ?? null,
         state_at: w.when ? at : null,
+        details_md: w.details ?? null,
+        source: w.source ?? null,
+        details_version: w.details ? 1 : 0,
         version: 1,
         created_at: at,
         updated_at: at,

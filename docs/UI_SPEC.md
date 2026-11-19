@@ -156,7 +156,7 @@ Copy the prototype's `.tl` token block. Light and dark values below; the prototy
 | `ViewTabs` | ticket, epic | `tabs[{key, label, count?, dot?}], active` | ARIA tablist. A count is muted text after the label. A dot is 7px, amber or red, with sr-only text. |
 | `TicketCard` | default, blocked (red left edge), for-you (amber left edge), done (+ Archive) | `item` | Shows ID + type icon + priority; title (2–3 lines); epic and labels; chips; the lead's `RunLine` with its age. A parked lead's line says what it waits on: "parked · waiting on the coordinator · claude · orca-w4", or "parked · ready to resume · …". **Unclaimed cards show no run line.** |
 | `ForYouChip` | — | | Amber "For you" with the attention icon: a packet is ready or an agent asked you something. On list rows that have no amber card edge (the epic's Tickets list). |
-| `EpicCard` | — | `epic` | 4px `--t-epic` left edge; title + ID; mini progress bar (done green, active violet); "n/N done · Status · N for you". |
+| `EpicCard` | default, empty | `epic` | 4px `--t-epic` left edge; title + ID; mini progress bar (done green, active violet); "n/N done · Status · N for you". **Empty** (no tickets; B35): no bar, and "No tickets yet · Status" (for example "No tickets yet · In progress"), never "0/0 done". |
 | `ProgressMap` | epic, label, work | `items, scopeTitle` | §6.3.4. |
 | `HandoffPacket` | live round, past round | `packet, verdicts` | §6.4. |
 | `Toast` | info, with Undo | `message, onUndo?` | Bottom right. 3.2 s, or 6 s with Undo. `role=status`. |
@@ -390,7 +390,7 @@ A `ProgressMap` of the filtered set, titled "Outside this view". When no epic or
 
 | Tab | Ticket | Epic | Label extras |
 |---|---|---|---|
-| **Details** (default) | Outcome (summary "n acceptance criteria"); Decisions (summary "n in scope · n by agents"; hidden when there are none); Documents (summary count); Dates and effort (summary "Nov 4 → Nov 11" or "not set") | Brief and documents; Decisions (this epic's own, plus a link "n project decisions"); Tickets in this epic (summary "n/N done · n ready but blocked · n for you"), grouped by status. Each row: type icon, ID, title, then the same pieces a Board card uses: the `BlockedChip`, a `ForYouChip`, and the lead's `RunLine`. Archived tickets fold into "+ N archived · Show". | — |
+| **Details** (default) | Outcome (summary "n acceptance criteria"); Decisions (summary "n in scope · n by agents"; hidden when there are none); Documents (summary count); Dates and effort (summary "Nov 4 → Nov 11" or "not set") | Brief and documents; Decisions (this epic's own, plus a link "n project decisions"); Tickets in this epic (summary "n/N done · n ready but blocked · n for you"; with no tickets, "No tickets yet · Status", the same as its card, and the empty text "No tickets yet. Add one with + New item in this epic."), grouped by status. Each row: type icon, ID, title, then the same pieces a Board card uses: the `BlockedChip`, a `ForYouChip`, and the lead's `RunLine`. Archived tickets fold into "+ N archived · Show". | — |
 | **Checklist** | Work (summary "n/N done · the agent's plan"; *Checklist history* in the header when there are revisions); Agent review ("n/N passed · what the agent verifies itself"); Human review ("n items · packet ready · what you verify yourself"; *Open packet* in the header when ready) | Same three sections, at epic level | Count: work done/total on tickets; total item count on epics; amber dot when a packet is ready |
 | **Dependencies** (ticket) | A plain card. h3 "Waits on n · unblocks n"; the 1-hop view (§6.3.3); a cycle callout with a *Remove "A blocks B"* button per cycle link; "Relates to (doesn't block): …"; *See it on the epic map →* | — | Count = links; red dot when in a cycle |
 | **Map** (epic) | — | Epic-level review strip (when the epic has human review), then a `ProgressMap` of its children | Count "done/total" |
@@ -430,7 +430,7 @@ A `ProgressMap` of the filtered set, titled "Outside this view". When no epic or
   - "New items aren't in the current packet; the agent includes them next round." (packet open).
 
 #### 6.3.1a Step dialog (decision 33)
-- **Opening it:** clicking a step's title, or its details icon (shown when the step has details, with an accessible name of "Details for <step>"), opens a dialog. There's no inline expansion. The row also shows the step's source, muted, after the icon (B34).
+- **Opening it:** clicking a step's title, or its details icon (shown when the step has details, with an accessible name of "Details for <step>"), opens a dialog. There's no inline expansion. The row also shows the step's source, muted, after the icon (B34). A link with `?step=<id>` (B35; the palette's sub-task key hits) opens that step's dialog, and the parameter then leaves the URL; moving and closing are local, as before.
 - **Contents:**
   - the title, status chip and source (a Jira key linking to the Jira issue when the project has a Jira site);
   - the rendered details (Markdown, sanitized);
@@ -733,6 +733,7 @@ On success, go to the page that was requested.
   - *Create* puts the item in Inbox and opens it. From an epic, you stay on the epic and get a toast "RCP-31 added to Pantry";
   - empty title: toast "Give it a title" and focus the title.
 - **Command palette:** an input "Search items, IDs, labels or views…", then grouped results. The "Go to" views are Needs you, Work, Timeline (Work), Agents, and Settings: projects and connections.
+  - **Sub-task keys** (B35): a key held in a work step's source (a Jira sub-task imported as a step) finds the parent item, with the step named: "STR-203 · step: Prove SVG admission… · <item title>", the key in the row's meta. Choosing it opens the item's Checklist with that step's dialog (`/items/STR-203?tab=checklist&step=<id>`). An item whose own ID or Jira key matches exactly still ranks first; step hits come next, then text matches.
 - **Document viewer:** title + version + "by · when", the preview (BUILD_SPEC §5.10), and *Download*.
 - **Checklist history:** each plan version, with its reason, author and time, and the steps added, removed or changed.
 

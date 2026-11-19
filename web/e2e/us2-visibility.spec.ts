@@ -154,7 +154,8 @@ test.describe('Work', () => {
   test('the Epics row opens an epic; a filter chip narrows the board', async ({ page }) => {
     await page.goto('/work');
     const epics = page.locator('[data-card="epics"]');
-    await expect(epics.getByRole('heading', { name: 'Epics · 3' })).toBeVisible();
+    // 3 sample epics and the stress project's 10 (B35).
+    await expect(epics.getByRole('heading', { name: 'Epics · 13' })).toBeVisible();
     await page.getByRole('button', { name: /^For you/ }).click();
     await expect(page).toHaveURL(/filter=for_you/);
     await expect(page.locator('.tcard')).toHaveCount(3);

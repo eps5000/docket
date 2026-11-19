@@ -117,6 +117,11 @@ const ROUTES: { name: string; path: string; ready: (p: Page) => Locator }[] = [
 test.describe('axe on every route, both themes (T142)', () => {
   for (const r of ROUTES) {
     test(r.name, async ({ page }) => {
+      // Work in the Recipe App: All projects also holds the 300-item stress project, whose
+      // Work views the UI sweep scans in both themes (ui-sweep.spec.ts; B35).
+      if (r.path.startsWith('/work')) {
+        await page.addInitScript(() => sessionStorage.setItem('docket.scope', 'RCP'));
+      }
       await page.goto(r.path);
       await expect(r.ready(page)).toBeVisible();
       await page.waitForLoadState('networkidle');

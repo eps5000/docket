@@ -278,6 +278,9 @@
   min-width: 0;
   scrollbar-width: thin;
   contain: inline-size;
+  /* B35: the containing block of the tabs' screen-reader-only text (position: absolute),
+     so the strip clips it too; with six long-titled tabs it widened the page at 1024 px. */
+  position: relative;
 }
 .tl .otab {
   flex: 0 0 200px;

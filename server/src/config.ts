@@ -47,6 +47,8 @@ export interface Config {
    */
   driftCheckIntervalMs: number | null;
   seed: 'sample' | null;
+  /** B35: the sample seed also loads the stress project, STR (DOCKET_SEED_STRESS=1; e2e and CI). */
+  seedStress: boolean;
   /** Display time zone; storage is always UTC. */
   tz: string | null;
   /**
@@ -108,6 +110,7 @@ export const SETTING_NAMES = [
   ...(Object.keys(DEFAULTS) as (keyof typeof DEFAULTS)[]),
   'DOCKET_TOKEN',
   'DOCKET_SEED',
+  'DOCKET_SEED_STRESS',
   'DOCKET_PUSH_ROOT',
   'DOCKET_PUSH_HOST_PATH',
   'DOCKET_BACKUP_EXTRA_DIR',
@@ -188,6 +191,11 @@ export function loadConfig(
     throw new ConfigError(`DOCKET_SEED must be "sample" or unset (got "${seedValue}")`);
   }
 
+  const stressValue = (env(source, 'DOCKET_SEED_STRESS') ?? '0').toLowerCase();
+  if (!['1', '0', 'on', 'off', 'true', 'false'].includes(stressValue)) {
+    throw new ConfigError(`DOCKET_SEED_STRESS must be 1 or 0 (got "${stressValue}")`);
+  }
+
   // `none` turns text-only results off for every client.
   const textOnly = get('DOCKET_TEXT_ONLY_CLIENTS');
   const textOnlyClients =
@@ -250,6 +258,7 @@ export function loadConfig(
     pushHostPath,
     driftCheckIntervalMs,
     seed: seedValue === 'sample' ? 'sample' : null,
+    seedStress: ['1', 'on', 'true'].includes(stressValue),
     tz: env(source, 'TZ') ?? null,
     protectedMode: protectedValue === 'on' || protectedValue === 'true',
     textOnlyClients,

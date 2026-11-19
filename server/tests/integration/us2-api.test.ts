@@ -446,6 +446,42 @@ describe('GET /api/search', () => {
     expect(jira.items[0]).toMatchObject({ id: 'DOC-7', jira_key: key });
   });
 
+  it('finds a sub-task key held in a step source: the parent item, with the step named (B35)', async () => {
+    const steps = sql()
+      .prepare(
+        "SELECT id, text, item_id FROM work_steps WHERE item_id IN ('RCP-14', 'RCP-15') ORDER BY item_id, position",
+      )
+      .all() as { id: string; text: string; item_id: string }[];
+    const mine = steps.find((x) => x.item_id === 'RCP-14')!;
+    const other = steps.find((x) => x.item_id === 'RCP-15')!;
+    const setSource = sql().prepare('UPDATE work_steps SET source = ? WHERE id = ?');
+    setSource.run('GAMEFLOW-227', mine.id);
+    // A longer key that only starts with the query doesn't match.
+    setSource.run('Jira GAMEFLOW-2270', other.id);
+    const r = await get(
+      '/api/search?q=gameflow-227',
+      searchResponse,
+      'GET /api/search?q=<sub-task key>',
+    );
+    expect(r.items[0]).toMatchObject({
+      id: 'RCP-14',
+      matched: 'step_source',
+      step: { id: mine.id, text: mine.text, source: 'GAMEFLOW-227' },
+    });
+    expect(r.items.map((i) => i.id)).not.toContain('RCP-15');
+    // Inside a longer source, as a whole word.
+    setSource.run('from Jira GAMEFLOW-2270 (sub-task)', other.id);
+    const longer = await get('/api/search?q=GAMEFLOW-2270', searchResponse);
+    expect(longer.items[0]).toMatchObject({ id: 'RCP-15', matched: 'step_source' });
+
+    // An exact item Jira key still ranks first, with no step.
+    sql().prepare("UPDATE items SET jira_key = 'GAMEFLOW-227' WHERE id = 'DOC-7'").run();
+    const both = await get('/api/search?q=GAMEFLOW-227', searchResponse);
+    expect(both.items.map((i) => i.id).slice(0, 2)).toEqual(['DOC-7', 'RCP-14']);
+    expect(both.items[0]!.matched).toBeUndefined();
+    expect(both.items[1]!.matched).toBe('step_source');
+  });
+
   it('answers nothing for punctuation alone', async () => {
     const r = await get('/api/search?q=%22%2A', searchResponse, 'GET /api/search?q="*');
     expect(r.items).toEqual([]);

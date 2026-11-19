@@ -31,7 +31,9 @@ export const paths = {
       onboarding_change?: 'created' | 'enriched';
     } = {},
   ) => withQuery('/work', q),
-  item: (id: string, tab?: ItemTab) => withQuery(`/items/${encodeURIComponent(id)}`, { tab }),
+  /** `step` (B35) opens that work step's dialog on the Checklist tab. */
+  item: (id: string, tab?: ItemTab, step?: string) =>
+    withQuery(`/items/${encodeURIComponent(id)}`, { tab, step }),
   review: (id: string, round?: number) => withQuery(`/review/${encodeURIComponent(id)}`, { round }),
   label: (project: string, name: string) =>
     `/labels/${encodeURIComponent(project)}/${encodeURIComponent(name)}`,

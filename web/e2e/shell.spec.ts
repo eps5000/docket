@@ -296,6 +296,11 @@ test.describe('axe: every shell in both themes', () => {
     ['Not found', '/nope'],
   ] as const) {
     test(label, async ({ page }) => {
+      // Work in the Recipe App: All projects also holds the 300-item stress project, whose
+      // Work views the UI sweep scans in both themes (ui-sweep.spec.ts; B35).
+      if (path.startsWith('/work')) {
+        await page.addInitScript(() => sessionStorage.setItem('docket.scope', 'RCP'));
+      }
       await page.goto(path);
       await expect(h1(page)).toBeVisible();
       await page.waitForLoadState('networkidle');

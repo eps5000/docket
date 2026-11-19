@@ -18,6 +18,7 @@ import {
   type ItemSummary,
   type ItemSummaryView,
 } from '@docket/shared';
+import type { Db } from '../db/client.js';
 import { APP_VERSION } from '../version.js';
 import { type In, type SearchService, type ServiceDeps } from './contracts.js';
 import {
@@ -83,6 +84,50 @@ function ftsQuery(text: string): string | null {
     .map((w) => w.replace(/"/g, '').trim())
     .filter(Boolean);
   return words.length > 0 ? words.map((w) => `"${w}"*`).join(' ') : null;
+}
+
+interface StepSourceHit {
+  id: string;
+  title: string;
+  type: ItemSummary['type'];
+  status: ItemSummary['status'];
+  project_key: string;
+  jira_key: string | null;
+  archived_at: string | null;
+  step_id: string;
+  step_text: string;
+  source: string;
+}
+
+/**
+ * Current-plan steps whose `source` contains `text` as a whole token, ignoring case:
+ * "GAMEFLOW-227" finds a step from "GAMEFLOW-227" or "Jira GAMEFLOW-227", not from
+ * "GAMEFLOW-2270". One word only (a key, not a phrase); best match first.
+ */
+export function stepSourceHits(sql: Db['sqlite'], text: string): StepSourceHit[] {
+  if (text.length < 2 || /\s/.test(text)) return [];
+  const rows = sql
+    .prepare(
+      `SELECT i.id, i.title, i.type, i.status, i.project_key, i.jira_key, i.archived_at,
+              ws.id AS step_id, ws.text AS step_text, ws.source
+       FROM work_steps ws
+       JOIN items i ON i.id = ws.item_id
+       JOIN projects p ON p.key = i.project_key
+       WHERE p.deleted_at IS NULL AND ws.source IS NOT NULL
+         AND instr(upper(ws.source), upper(@text)) > 0
+         AND ws.plan_version_no = (SELECT coalesce(max(pv.version_no), 0) FROM plan_versions pv
+                                   WHERE pv.item_id = ws.item_id)
+       ORDER BY ws.item_id, ws.position
+       LIMIT 200`,
+    )
+    .all({ text }) as StepSourceHit[];
+  const escaped = text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const token = new RegExp(`(^|[^\\p{L}\\p{N}])${escaped}($|[^\\p{L}\\p{N}])`, 'iu');
+  const exact = (h: StepSourceHit) =>
+    h.source.trim().toLowerCase() === text.toLowerCase() ? 0 : 1;
+  return rows
+    .filter((h) => token.test(h.source))
+    .sort((a, b) => exact(a) - exact(b) || compareIds(a.id, b.id));
 }
 
 export function createSearchService(deps: ServiceDeps): SearchService {
@@ -318,25 +363,47 @@ export function createSearchService(deps: ServiceDeps): SearchService {
         jira_key: string | null;
         archived_at: string | null;
       }[];
-      const exact = (x: (typeof rows)[number]) =>
-        x.id.toLowerCase() === lower || x.jira_key?.toLowerCase() === lower ? 0 : 1;
+      // Work steps whose `source` holds the query as a whole token, such as a Jira sub-task's
+      // key (B35): the parent item, with the step named. The current plan's steps only.
+      const steps = stepSourceHits(sql, text);
+      const stepOf = new Map<string, StepSourceHit>();
+      for (const s of steps) if (!stepOf.has(s.id)) stepOf.set(s.id, s);
+      for (const s of stepOf.values()) {
+        if (!rows.some((x) => x.id === s.id)) rows.push(s);
+      }
+      // An exact ID or Jira key first, then a step-source match, then the rest.
+      const rank = (x: (typeof rows)[number]) =>
+        x.id.toLowerCase() === lower || x.jira_key?.toLowerCase() === lower
+          ? 0
+          : stepOf.has(x.id)
+            ? 1
+            : 2;
       const items = rows
         .sort(
           (a, b) =>
-            exact(a) - exact(b) ||
+            rank(a) - rank(b) ||
             Number(a.archived_at !== null) - Number(b.archived_at !== null) ||
             compareIds(a.id, b.id),
         )
         .slice(0, PALETTE_ITEMS)
-        .map((x) => ({
-          id: x.id,
-          title: x.title,
-          type: x.type,
-          status: x.status,
-          project: x.project_key,
-          jira_key: x.jira_key,
-          archived: x.archived_at !== null,
-        }));
+        .map((x) => {
+          const step = rank(x) === 0 ? undefined : stepOf.get(x.id);
+          return {
+            id: x.id,
+            title: x.title,
+            type: x.type,
+            status: x.status,
+            project: x.project_key,
+            jira_key: x.jira_key,
+            archived: x.archived_at !== null,
+            ...(step
+              ? {
+                  matched: 'step_source' as const,
+                  step: { id: step.step_id, text: step.step_text, source: step.source },
+                }
+              : {}),
+          };
+        });
       const labels = (
         sql
           .prepare(

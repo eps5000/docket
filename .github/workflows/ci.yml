@@ -90,6 +90,7 @@ jobs:
       - name: Build and start the container (sealed, no egress)
         env:
           DOCKET_SEED: sample
+          DOCKET_SEED_STRESS: '1'
         run: docker compose -f docker/compose.yaml -f docker/compose.jira-fixture.yaml -f docker/compose.push-e2e.yaml -f docker/compose.no-egress.yaml up -d --build --wait --wait-timeout 120
 
       - name: Playwright
@@ -104,6 +105,7 @@ jobs:
       - name: Playwright, protected mode (decision 32)
         env:
           DOCKET_SEED: sample
+          DOCKET_SEED_STRESS: '1'
           DOCKET_PROTECTED_MODE: 'on'
           DOCKET_E2E_NO_START: '1'
           DOCKET_E2E_ALLOW_RESET: '1'
@@ -115,6 +117,7 @@ jobs:
       - name: Back to local trust
         env:
           DOCKET_SEED: sample
+          DOCKET_SEED_STRESS: '1'
         run: docker compose -f docker/compose.yaml -f docker/compose.jira-fixture.yaml -f docker/compose.push-e2e.yaml -f docker/compose.no-egress.yaml up -d --wait --wait-timeout 120
 
       # FR-106 (T145): nothing in the container tried to reach another host during the

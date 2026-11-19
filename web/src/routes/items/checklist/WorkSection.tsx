@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router';
 import type { ItemDetailResponse, WorkStep } from '@docket/shared';
 import { Button, EmptyState, Icon, IconButton, Provenance, Section } from '../../../components/kit';
 import { apiClient } from '../../../app/queryClient';
@@ -106,7 +107,30 @@ function StepRow({
  */
 export function WorkSection({ kind, data }: { kind: ItemKind; data: ItemDetailResponse }) {
   const [history, setHistory] = useState(false);
+  const work = data.item.checklist.work;
   const [openStep, setOpenStep] = useState<string | null>(null);
+  // A link to one step (`?step=`, B35: a palette hit on a step's source) opens its dialog,
+  // and the parameter then leaves the URL. Moving and closing stay local state: a
+  // navigation there runs in a transition and raced Esc's focus return on CI. A step that
+  // isn't in the current plan opens nothing.
+  const [params, setParams] = useSearchParams();
+  const stepParam = params.get('step');
+  const [adopted, setAdopted] = useState<string | null>(null);
+  if (stepParam !== adopted) {
+    setAdopted(stepParam);
+    if (stepParam && work.some((w) => w.id === stepParam)) setOpenStep(stepParam);
+  }
+  useEffect(() => {
+    if (!stepParam) return;
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete('step');
+        return next;
+      },
+      { replace: true },
+    );
+  }, [stepParam, setParams]);
   // Esc or Close returns focus to the row of the step last shown (UI_SPEC §6.3.1a).
   const returnTo = useRef<string | null>(null);
   useEffect(() => {
@@ -116,7 +140,6 @@ export function WorkSection({ kind, data }: { kind: ItemKind; data: ItemDetailRe
     document.querySelector<HTMLElement>(`[data-step-open="${CSS.escape(id)}"]`)?.focus();
   }, [openStep]);
   const steer = useSteer(data.item.id);
-  const work = data.item.checklist.work;
   const done = work.filter((w) => w.state === 'done').length;
   const open = !['done', 'canceled'].includes(data.item.status);
   const add = (text: string) =>

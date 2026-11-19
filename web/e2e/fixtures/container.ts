@@ -99,7 +99,7 @@ export async function resetSeededContainer(): Promise<void> {
  */
 const REAL_VOLUMES = ['docket-data', 'tasklite-data'];
 
-function assertDisposable(): void {
+export function assertDisposable(): void {
   const volume = docker([
     'inspect',
     '--format',

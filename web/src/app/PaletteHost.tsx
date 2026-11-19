@@ -61,18 +61,31 @@ function Palette({ onClose }: { onClose: () => void }) {
             <span className="mono muted" style={{ width: 64 }}>
               {i.id}
             </span>
-            <span className="grow one">{i.title}</span>
+            {i.step ? (
+              // A step whose source holds the query, such as a Jira sub-task key (B35).
+              <span className="grow one" title={`${i.step.text} · in ${i.title}`}>
+                step: {i.step.text} <span className="muted">· {i.title}</span>
+              </span>
+            ) : (
+              <span className="grow one">{i.title}</span>
+            )}
           </span>
         ),
         meta: (
           <>
-            {i.jira_key && <span className="src mono">{i.jira_key}</span>}
+            {i.step ? (
+              <span className="src mono">{i.step.source}</span>
+            ) : (
+              i.jira_key && <span className="src mono">{i.jira_key}</span>
+            )}
             <span className="src">{i.project}</span>
             <StatusChip status={i.status} />
           </>
         ),
         archived: i.archived,
-        onSelect: () => navigate(paths.item(i.id)),
+        // A step hit lands on the item's checklist with that step's dialog open.
+        onSelect: () =>
+          navigate(i.step ? paths.item(i.id, 'checklist', i.step.id) : paths.item(i.id)),
       })),
     },
     {
