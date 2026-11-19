@@ -479,6 +479,12 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T165 [US15] The onboarding review card on Needs you, the "created by agent" chip, and *Install agent files* from the card. E2E, plus the SC-018 fixture: a Jira fixture import followed by onboarding a fixture Spec Kit repo, with no duplicates.
 - [x] T166 [US15] The Help article "Onboard a project", the README quick start for a new project, and the skills (the coordinator can onboard; the worker points to it). The skills lint stays green.
 
+## Phase 18: Local trust and connection files (owner decision 32)
+
+- [ ] T167 Trust mode: `DOCKET_PROTECTED_MODE` (default off). In local trust, the owner API needs no session (CSRF still applies to browser requests), `/mcp` needs no token, and the Unlock route redirects home. Owner actions record `via` (browser or script plus user agent), shown in Activity. Protected mode keeps today's behaviour exactly. The Settings Security line and protected-only controls. Tests for both modes, including that the Host and Origin guards still refuse in local trust.
+- [ ] T168 Connection files in the install bundle and push install: write and merge `.mcp.json` and `.codex/config.toml` (only the `docket` entry; refuse invalid files; never a secret; the env-var token in protected mode); manifest, *Check* and drift coverage; the Install dialog text. Tests for merging into existing files, and a real check that Claude Code and Codex pick them up (headless, with temporary config).
+- [ ] T169 Docs: the README quick start (no commands beyond starting Docket), Help ("Connect an agent", "Security and protected mode"), the skills' setup notes, the smoke checklist, and the Settings compatibility notes. Remove the token from the default quick start.
+
 ## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.
@@ -511,6 +517,7 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 | B27 | 16 Proposals, drift and skill updates (US14) | T160–T162 | Split into two PRs if large |
 | B29 | 17 Contracts for onboarding | T163 | Snapshot 40 → 42 plus a prompt |
 | B30 | 17 Onboarding (US15) | T164–T166 | Before the Gameflow pilot |
+| B31 | 18 Local trust and connection files | T167–T169 | Before the Gameflow pilot |
 
 **Slices after B6 may run in any order that respects** the dependency table below. Don't run two slices at once: they share route and screen groups.
 
@@ -557,6 +564,7 @@ Open a PR titled "<Bn>: <phase name>" with the checkpoint evidence. Do not queue
 | 15 Help and agent setup | B21 first; B22 any time after; B23 then B24 |
 | 16 Proposals and drift | B26 then B27 |
 | 17 Onboarding | B29 then B30 |
+| 18 Local trust | B31 |
 
 **Within a phase:** tests (failing) → services → replace stubs or fill handlers → fill screens → checkpoint.
 
