@@ -4,7 +4,8 @@
 #     -f docker/compose.no-egress.yaml up -d --build --wait
 # - `sealed` is an internal network: no gateway, no NAT, nothing outside it is reachable.
 # - docket and jira-fixture are only on `sealed`. The Jira fixture is the one other host
-#   docket may reach (DOCKET_EGRESS_ALLOW).
+#   docket may reach (DOCKET_EGRESS_ALLOW), under its own name and as api.atlassian.com
+#   (the gateway scoped tokens use; B32). On the sealed network that name is the fixture.
 # - `gateway` forwards 127.0.0.1:7420 inwards to docket (Docker doesn't publish ports
 #   for a container that is only on an internal network).
 # - Every Node process in the docket container loads no-egress/egress-audit.mjs, which
@@ -22,7 +23,7 @@ services:
     environment:
       NODE_OPTIONS: --import=/opt/no-egress/egress-audit.mjs
       DOCKET_EGRESS_LOG: /data/egress-audit.jsonl
-      DOCKET_EGRESS_ALLOW: jira-fixture.test
+      DOCKET_EGRESS_ALLOW: jira-fixture.test,api.atlassian.com
     volumes:
       - ./no-egress:/opt/no-egress:ro
 
@@ -31,6 +32,7 @@ services:
       sealed:
         aliases:
           - jira-fixture.test
+          - api.atlassian.com
 
   gateway:
     image: node:22-bookworm-slim

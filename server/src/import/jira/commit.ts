@@ -32,6 +32,7 @@ import { ms } from '../../domain/model.js';
 import { openProject } from '../../domain/projects.js';
 import type { WriteContext } from '../../domain/write.js';
 import type { ImportPlan, PlannedItem } from './types.js';
+import { REPORT_LEGEND } from './report.js';
 
 export const DATES_SET_BY = 'Jira import';
 
@@ -74,6 +75,8 @@ export function reportDocument(input: {
   return `${JSON.stringify(
     {
       kind: 'jira_import_report',
+      // The words for the report's outcomes (B32); `lossy` fields count "Imported with changes".
+      legend: REPORT_LEGEND,
       import_id: input.import_id,
       site: input.site,
       jira_project: input.jira_project,

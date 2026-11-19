@@ -31,13 +31,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadSampleSeed } from '../../src/db/seed/loader.js';
 import { readContext } from '../../src/domain/contracts.js';
 import { OWNER_ACTOR } from '../../src/domain/write.js';
-import { createJiraSite, type JiraSite } from '../fixtures/jira/site.mjs';
+import {
+  FIXTURE_LIMITED_TOKEN,
+  FIXTURE_ORG_KEY,
+  createJiraSite,
+  type JiraSite,
+} from '../fixtures/jira/site.mjs';
 import { insertProject } from '../helpers.js';
 import { createTestServer, parseSetCookies, type TestServer } from './harness.js';
 
 /** Unique per run, and nothing like a known token format: only a by-value search finds it. */
 const TOKEN = `jira-int-${randomBytes(12).toString('hex')}`;
 const EMAIL = 'owner@example.test';
+/** A scoped token (B32): the site refuses it, the gateway takes it. Also unique per run. */
+const SCOPED = `jira-scoped-${randomBytes(12).toString('hex')}`;
 
 let site: JiraSite;
 let s: TestServer;
@@ -208,7 +215,7 @@ describe('the dry run writes nothing (FR-090)', () => {
       target: { kind: 'new', key: 'TLI' },
     });
     const ready = await waitFor(started.import_id, ['ready']);
-    expect(ready.report!.totals).toEqual({ issues: 22, would_import: 20, skipped: 2, lossy: 15 });
+    expect(ready.report!.totals).toEqual({ issues: 22, would_import: 20, skipped: 2, lossy: 16 });
     expect(tableChecksums(s, ['owner_sessions'])).toEqual(tables);
     expect(fileChecksums(s.dataDir, isDbFile)).toEqual(files);
     expect(count("SELECT count(*) AS n FROM projects WHERE key = 'TLI'")).toBe(0);
@@ -401,6 +408,11 @@ describe('the commit (FR-091)', () => {
     const stored = JSON.parse(readFileSync(join(s.runtime.config.paths.docs, v2.path), 'utf8'));
     expect(stored).toMatchObject({
       kind: 'jira_import_report',
+      legend: {
+        as_is: 'Imported as is',
+        changed: 'Imported with changes',
+        skipped: 'Skipped (not imported, with the reason)',
+      },
       jira_project: 'TL',
       project: 'TLI',
       items: { 'TL-1': 'TLI-1', 'TL-2': 'TLI-2' },
@@ -409,7 +421,7 @@ describe('the commit (FR-091)', () => {
         failed: [{ name: 'trace.log (TL-2)', reason: 'Jira answered 500' }],
       },
     });
-    expect(stored.report.totals).toEqual({ issues: 22, would_import: 20, skipped: 2, lossy: 15 });
+    expect(stored.report.totals).toEqual({ issues: 22, would_import: 20, skipped: 2, lossy: 16 });
 
     // A second commit is refused; the session is done.
     const again = await api(`/api/import/jira/${import_id}/commit`, { method: 'POST' });
@@ -487,7 +499,9 @@ describe('the token appears nowhere (FR-092; Principle VI)', () => {
       target: { kind: 'new', key: 'BAD', name: 'Bad' },
     });
     const failed = await waitFor(bad.import_id, ['failed']);
-    expect(failed.error).toBe("Couldn't sign in to Jira. Check the email and API token.");
+    expect(failed.error).toBe(
+      "Wrong email or API token. The token must belong to owner@example.test's Atlassian account.",
+    );
     // A validation error with the token in the body.
     const invalid = await api('/api/import/jira/dry-run', {
       method: 'POST',
@@ -501,6 +515,90 @@ describe('the token appears nowhere (FR-092; Principle VI)', () => {
     expect(responses.filter((r) => needles.some((n) => r.includes(n)))).toEqual([]);
     // Jira itself saw the credential only in the Authorization header (the request log keeps none).
     expect(site.requests.some((r) => r.path.includes(TOKEN))).toBe(false);
+  });
+});
+
+describe('scoped tokens go through the gateway, for the whole import (B32)', () => {
+  it('signs in through the gateway, dry-runs, imports and downloads attachments there; the token appears nowhere', async () => {
+    await s.cleanup();
+    vi.unstubAllGlobals();
+    site = createJiraSite({ email: EMAIL, token: TOKEN, scopedToken: SCOPED });
+    vi.stubGlobal('fetch', site.fetch);
+    logs = [];
+    responses = [];
+    s = createTestServer({ log: (l) => logs.push(l) });
+    cookie = await unlock(s);
+
+    const { import_id } = await dryRun({ api_token: SCOPED });
+    const ready = await waitFor(import_id, ['ready']);
+    expect(ready.report!.totals).toEqual({ issues: 22, would_import: 20, skipped: 2, lossy: 16 });
+    await api(`/api/import/jira/${import_id}/commit`, { method: 'POST' });
+    const done = await waitFor(import_id, ['committed']);
+    expect(done.result).toMatchObject({
+      imported: 17,
+      project: 'TLI',
+      failed_attachments: [{ name: 'trace.log (TL-2)', reason: 'Jira answered 500' }],
+    });
+    // The two attachments that exist were stored, read through the gateway.
+    expect(
+      count(
+        "SELECT count(*) AS n FROM documents d JOIN items i ON i.id = d.item_id WHERE i.project_key = 'TLI'",
+      ),
+    ).toBe(2);
+    const sequence = site.requests.map((r) => `${r.via} ${r.path.split('?')[0]}`);
+    expect(sequence.slice(0, 3)).toEqual([
+      'site /_edge/tenant_info',
+      'site /rest/api/3/myself',
+      'gateway /rest/api/3/myself',
+    ]);
+    // After the 401 on the site, every call (reads, comments, attachments) used the gateway.
+    expect(site.requests.slice(2).every((r) => r.via === 'gateway')).toBe(true);
+    expect(sequence).toContain('gateway /rest/api/3/search/jql');
+    expect(sequence).toContain('gateway /rest/api/3/issue/TL-2/comment');
+    expect(
+      sequence.filter((r) => r === 'gateway /rest/api/3/attachment/content/20001'),
+    ).toHaveLength(1);
+
+    const basic = Buffer.from(`${EMAIL}:${SCOPED}`).toString('base64');
+    const needles = [SCOPED, basic, Buffer.from(SCOPED).toString('base64')];
+    s.runtime.db.sqlite.pragma('wal_checkpoint(PASSIVE)');
+    expect(filesContaining(s.dataDir, needles)).toEqual([]);
+    expect(logs.filter((l) => needles.some((n) => l.includes(n)))).toEqual([]);
+    expect(responses.filter((r) => needles.some((n) => r.includes(n)))).toEqual([]);
+    expect(site.requests.some((r) => r.path.includes(SCOPED))).toBe(false);
+  });
+
+  it('reports each sign-in failure in the dialog words, over the API', async () => {
+    const failure = async (over: Record<string, unknown>, key: string) => {
+      const started = await dryRun({ ...over, target: { kind: 'new', key, name: key } });
+      return (await waitFor(started.import_id, ['failed'])).error;
+    };
+    expect(await failure({ api_token: FIXTURE_ORG_KEY }, 'ORG')).toBe(
+      "That looks like an organization API key from admin.atlassian.com. Those can't read Jira. Create a personal API token at id.atlassian.com instead.",
+    );
+    expect(await failure({ api_token: 'not-it' }, 'WRO')).toBe(
+      "Wrong email or API token. The token must belong to owner@example.test's Atlassian account.",
+    );
+    expect(await failure({ jira_project: 'LOCKED' }, 'LOC')).toBe(
+      "Signed in, but this account can't browse that project (or the token's scopes don't include reading Jira work items).",
+    );
+    expect(await failure({ api_token: FIXTURE_LIMITED_TOKEN }, 'LIM')).toBe(
+      "Signed in, but this account can't browse that project (or the token's scopes don't include reading Jira work items). A scoped token needs the read:jira-work and read:jira-user scopes.",
+    );
+    expect(await failure({ site_url: 'https://nowhere.example.test/jira/' }, 'NOW')).toBe(
+      'Site not found: check the URL (https://yoursite.atlassian.net).',
+    );
+    // A pasted URL with a path is normalised, and works.
+    const pasted = await dryRun({
+      site_url: `${site.origin}/jira/software/projects/TL/boards/1`,
+      target: { kind: 'new', key: 'PAS', name: 'Pasted' },
+    });
+    expect((await waitFor(pasted.import_id, ['ready'])).state).toBe('ready');
+    const logged = logs.join('\n');
+    for (const secret of [TOKEN, FIXTURE_ORG_KEY, FIXTURE_LIMITED_TOKEN, 'not-it']) {
+      expect(logged).not.toContain(secret);
+      expect(responses.some((r) => r.includes(secret))).toBe(false);
+    }
   });
 });
 
@@ -558,7 +656,7 @@ describe('sessions: cancel, expiry, errors', () => {
       target: { kind: 'new', key: 'OTH', name: 'Other' },
     });
     expect((await waitFor(unreachable.import_id, ['failed'])).error).toBe(
-      "Couldn't reach https://other.example.test. Check the Jira site address.",
+      'Site not found: check the URL (https://yoursite.atlassian.net).',
     );
   });
 });

@@ -43,6 +43,24 @@ export const JIRA_IMPORT_STATES = [
 ] as const;
 
 export const jiraReportSchema = z.object({
+  /**
+   * B32 (additive): the changed and skipped issues grouped by reason, in
+   * display order. `summary` is "42 sub-tasks → checklist steps on their
+   * parent"; `kept` / `not_kept` are whole sentences ("Kept: title, done or
+   * not done."), null for skips. `outcome: changed` is what the UI calls
+   * "Imported with changes" (the `lossy` fields below count the same issues).
+   */
+  groups: z.array(
+    z.object({
+      outcome: z.enum(['changed', 'skipped']),
+      reason: z.string(),
+      summary: z.string(),
+      kept: z.string().nullable(),
+      not_kept: z.string().nullable(),
+      count: z.number().int(),
+      items: z.array(z.object({ key: z.string(), title: z.string(), detail: z.string() })),
+    }),
+  ),
   totals: z.object({
     issues: z.number().int(),
     would_import: z.number().int(),

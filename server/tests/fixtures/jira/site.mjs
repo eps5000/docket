@@ -19,8 +19,17 @@
  * - `SLOW`: 120 generated issues in pages of 20, each page delayed (the e2e
  *   uses it to see the progress line and Cancel).
  *
- * `site.fetch` is a drop-in `fetch` for tests: any other origin throws, as a
- * machine with no network would. `site.handle` takes a `Request`.
+ * Signing in (B32): `/_edge/tenant_info` answers the cloudId without
+ * credentials (or 404 with `tenantInfo: false`). The site itself takes only
+ * the classic token; `https://api.atlassian.com/ex/jira/<cloudId>/…` (the
+ * gateway) takes only the scoped token, and the "no read scopes" token
+ * there gets `myself` and then "Unauthorized; scope does not match". An
+ * organization-key-shaped value is refused everywhere, and project `LOCKED`
+ * answers 403 to every account.
+ *
+ * `site.fetch` is a drop-in `fetch` for tests: any origin but the site and
+ * the gateway throws, as a machine with no network would. `site.handle`
+ * takes a `Request`.
  */
 import { readFileSync } from 'node:fs';
 
@@ -30,6 +39,17 @@ const read = (name) => JSON.parse(readFileSync(new URL(`./${name}`, import.meta.
 export const FIXTURE_ORIGIN = 'https://jira-fixture.test:8443';
 export const FIXTURE_EMAIL = 'owner@example.test';
 export const FIXTURE_TOKEN = 'tl-fixture-api-token-0001';
+/** The gateway scoped tokens go through (B32). In the e2e it's this fixture under that name. */
+export const GATEWAY_ORIGIN = 'https://api.atlassian.com';
+export const FIXTURE_CLOUD_ID = '0f1e2d3c-fixture-cloud-0000-000000000001';
+/** A scoped personal token: refused by the site, accepted by the gateway. */
+export const FIXTURE_SCOPED_TOKEN = 'tl-fixture-scoped-token-0001';
+/** A scoped token without the read scopes: `myself` works, everything else is "scope does not match". */
+export const FIXTURE_LIMITED_TOKEN = 'tl-fixture-scoped-noread-0001';
+/** Shaped like an organization API key (the ATCTT prefix); invented, refused everywhere. */
+export const FIXTURE_ORG_KEY = 'ATCTT3xFfGN0-fixture-org-key-not-real-0001';
+/** A project every account is refused (403). */
+export const LOCKED_PROJECT = 'LOCKED';
 
 /** @type {import('./site.d.mts').JiraFieldFixture[]} */
 export const FIELDS = read('fields.json');
@@ -324,7 +344,13 @@ export function createJiraSite(opts = {}) {
   const origin = new URL(opts.origin ?? FIXTURE_ORIGIN).origin;
   const email = opts.email ?? FIXTURE_EMAIL;
   const token = opts.token ?? FIXTURE_TOKEN;
-  const expected = `Basic ${Buffer.from(`${email}:${token}`).toString('base64')}`;
+  const basic = (/** @type {string} */ t) =>
+    `Basic ${Buffer.from(`${email}:${t}`).toString('base64')}`;
+  const expected = basic(token);
+  const scoped = basic(opts.scopedToken ?? FIXTURE_SCOPED_TOKEN);
+  const limited = basic(opts.limitedToken ?? FIXTURE_LIMITED_TOKEN);
+  const cloudId = opts.cloudId ?? FIXTURE_CLOUD_ID;
+  const gatewayPrefix = `/ex/jira/${cloudId}`;
   const big = generateProject('BIG', 500);
   big.throttle = { 200: [{ status: 429, retryAfter: '1' }] };
   const rate = generateProject('RATE', 30, 5);
@@ -340,8 +366,18 @@ export function createJiraSite(opts = {}) {
     ['SLOW', slow],
   ]);
   for (const p of opts.projects ?? []) projects.set(p.key, p);
-  /** @type {{ method: string; path: string }[]} */
+  /** @type {{ method: string; path: string; via: 'site' | 'gateway' }[]} */
   const requests = [];
+  const unauthorized = () =>
+    new Response(
+      JSON.stringify({
+        errorMessages: ['Client must be authenticated to access this resource.'],
+      }),
+      {
+        status: 401,
+        headers: { 'content-type': 'application/json', 'www-authenticate': 'Basic' },
+      },
+    );
 
   /** @param {any} issue @param {string[] | undefined} wanted @param {import('./site.d.mts').FixtureProject} project */
   function shape(issue, wanted, project) {
@@ -366,20 +402,34 @@ export function createJiraSite(opts = {}) {
   /** @param {Request} request */
   async function handle(request) {
     const url = new URL(request.url);
-    requests.push({ method: request.method, path: url.pathname + url.search });
-    if (url.pathname === '/__health') return json({ ok: true });
-    if (request.headers.get('authorization') !== expected) {
-      return new Response(
-        JSON.stringify({
-          errorMessages: ['Client must be authenticated to access this resource.'],
-        }),
-        {
-          status: 401,
-          headers: { 'content-type': 'application/json', 'www-authenticate': 'Basic' },
-        },
-      );
+    const via = url.origin === GATEWAY_ORIGIN ? 'gateway' : 'site';
+    let path = url.pathname;
+    if (via === 'gateway') {
+      // Scoped tokens: https://api.atlassian.com/ex/jira/<cloudId>/rest/api/3/…
+      if (!path.startsWith(`${gatewayPrefix}/`)) {
+        requests.push({ method: request.method, path: url.pathname + url.search, via });
+        return errors(404, 'Not Found');
+      }
+      path = path.slice(gatewayPrefix.length);
     }
-    const path = url.pathname;
+    requests.push({ method: request.method, path: path + url.search, via });
+    if (via === 'site' && path === '/__health') return json({ ok: true });
+    // Public, no credentials: what the importer reads the cloudId from.
+    if (via === 'site' && request.method === 'GET' && path === '/_edge/tenant_info') {
+      if (opts.tenantInfo === false) return errors(404, 'Not Found');
+      return json({ cloudId });
+    }
+    const auth = request.headers.get('authorization');
+    if (via === 'site' && auth !== expected) return unauthorized();
+    if (via === 'gateway') {
+      if (auth === limited) {
+        if (!(request.method === 'GET' && path === '/rest/api/3/myself')) {
+          return json({ code: 401, message: 'Unauthorized; scope does not match' }, 401);
+        }
+      } else if (auth !== scoped) {
+        return unauthorized();
+      }
+    }
     let m;
     if (request.method === 'GET' && path === '/rest/api/3/myself') {
       return json({
@@ -389,7 +439,11 @@ export function createJiraSite(opts = {}) {
       });
     }
     if (request.method === 'GET' && (m = /^\/rest\/api\/3\/project\/([^/]+)$/.exec(path))) {
-      const project = projects.get(decodeURIComponent(m[1]).toUpperCase());
+      const wantedKey = decodeURIComponent(m[1]).toUpperCase();
+      if (wantedKey === LOCKED_PROJECT) {
+        return errors(403, 'You do not have permission to browse this project.');
+      }
+      const project = projects.get(wantedKey);
       if (!project) return errors(404, `No project could be found with key '${m[1]}'.`);
       return json({ id: '10100', key: project.key, name: project.name });
     }
@@ -478,12 +532,14 @@ export function createJiraSite(opts = {}) {
     origin,
     email,
     token,
+    cloudId,
     projects,
     requests,
     handle,
     fetch(input, init) {
       const request = new Request(input, init);
-      if (new URL(request.url).origin !== origin) {
+      const target = new URL(request.url).origin;
+      if (target !== origin && target !== GATEWAY_ORIGIN) {
         return Promise.reject(
           new TypeError(`fetch failed: no network in tests (${new URL(request.url).host})`),
         );

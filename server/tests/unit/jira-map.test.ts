@@ -13,13 +13,19 @@
 import { AGENT_UPLOAD_MAX_BYTES } from '@docket/shared';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { adfToMarkdown } from '../../src/import/jira/adf.js';
+import { normaliseJiraSite } from '@docket/shared';
 import {
   JiraClient,
   JiraError,
-  SIGN_IN_FAILED,
+  NO_ACCESS_MESSAGE,
+  ORG_KEY_MESSAGE,
+  SCOPED_NO_ACCESS_MESSAGE,
+  SITE_NOT_FOUND,
+  looksLikeOrgKey,
   readJiraProject,
   retryAfterMs,
   siteOrigin,
+  wrongCredentialsMessage,
 } from '../../src/import/jira/client.js';
 import {
   detectFields,
@@ -29,7 +35,16 @@ import {
 } from '../../src/import/jira/mapper.js';
 import { buildReport, findCycles } from '../../src/import/jira/report.js';
 import type { ImportPlan, JiraSnapshot, PlannedItem } from '../../src/import/jira/types.js';
-import { FIELDS, createJiraSite, generateProject, type JiraSite } from '../fixtures/jira/site.mjs';
+import {
+  FIELDS,
+  FIXTURE_LIMITED_TOKEN,
+  FIXTURE_ORG_KEY,
+  FIXTURE_SCOPED_TOKEN,
+  GATEWAY_ORIGIN,
+  createJiraSite,
+  generateProject,
+  type JiraSite,
+} from '../fixtures/jira/site.mjs';
 
 function clientFor(site: JiraSite, waits: number[] = [], token = site.token) {
   return new JiraClient({
@@ -71,8 +86,21 @@ beforeAll(async () => {
 });
 
 describe('the client (REST v3, recorded responses)', () => {
-  it('accepts only an https site, as its origin', () => {
+  it('accepts only an https site, as its origin, normalised (B32)', () => {
     expect(siteOrigin('https://acme.example.test/jira/')).toBe('https://acme.example.test');
+    expect(siteOrigin('acme.atlassian.net')).toBe('https://acme.atlassian.net');
+    expect(siteOrigin('  https://acme.atlassian.net/jira/software/projects/ABC/boards/1  ')).toBe(
+      'https://acme.atlassian.net',
+    );
+    expect(siteOrigin('acme.atlassian.net/browse/ABC-12?focused=1#x')).toBe(
+      'https://acme.atlassian.net',
+    );
+    expect(siteOrigin('https://acme.atlassian.net///')).toBe('https://acme.atlassian.net');
+    expect(normaliseJiraSite('ACME.atlassian.net/jira')).toBe('https://acme.atlassian.net');
+    expect(normaliseJiraSite('http://acme.atlassian.net/jira')).toBe(
+      'http://acme.atlassian.net/jira',
+    );
+    expect(normaliseJiraSite('')).toBe('');
     expect(() => siteOrigin('http://acme.example.test')).toThrow(/https/);
     expect(() => siteOrigin('https://user:pw@acme.example.test')).toThrow(/without a user/);
     expect(() => siteOrigin('acme')).toThrow(JiraError);
@@ -80,7 +108,8 @@ describe('the client (REST v3, recorded responses)', () => {
 
   it('signs in, then reads the project, the fields, a count and every page, all on the site', async () => {
     const paths = site.requests.map((r) => `${r.method} ${r.path.split('?')[0]}`);
-    expect(paths.slice(0, 5)).toEqual([
+    expect(paths.slice(0, 6)).toEqual([
+      'GET /_edge/tenant_info',
       'GET /rest/api/3/myself',
       'GET /rest/api/3/project/TL',
       'GET /rest/api/3/field',
@@ -91,6 +120,7 @@ describe('the client (REST v3, recorded responses)', () => {
     expect(paths).toContain('GET /rest/api/3/issue/TL-2/comment');
     expect(snapshot.comments['TL-2']).toHaveLength(3);
     expect(snapshot.issues).toHaveLength(22);
+    expect(site.requests.every((r) => r.via === 'site')).toBe(true);
   });
 
   it('asks for every custom field by ID (field IDs vary by site)', () => {
@@ -110,11 +140,127 @@ describe('the client (REST v3, recorded responses)', () => {
     const bad = createJiraSite();
     await expect(readJiraProject(clientFor(bad, [], 'wrong-token'), 'TL')).rejects.toMatchObject({
       kind: 'auth',
-      message: SIGN_IN_FAILED,
+      message: wrongCredentialsMessage(bad.email),
     });
     await expect(readJiraProject(clientFor(bad), 'ABC')).rejects.toMatchObject({
       kind: 'not_found',
       message: 'Project ABC not found or not visible to this account.',
+    });
+  });
+
+  describe('signing in: the credential matrix (B32; BUILD_SPEC §9 "Signing in")', () => {
+    const signIn = async (s: JiraSite, token: string, key = 'TL', siteUrl = s.origin) => {
+      const client = new JiraClient({
+        site: siteUrl,
+        email: s.email,
+        token,
+        fetch: s.fetch,
+        sleep: () => Promise.resolve(),
+      });
+      try {
+        const snap = await readJiraProject(client, key);
+        return { ok: true as const, route: client.route, issues: snap.issues.length, client };
+      } catch (err) {
+        return { ok: false as const, route: client.route, error: err as JiraError, client };
+      }
+    };
+
+    it('a classic personal token works on the site, and never touches the gateway', async () => {
+      const s = createJiraSite();
+      const r = await signIn(s, s.token);
+      expect(r).toMatchObject({ ok: true, route: 'site', issues: 22 });
+      expect(s.requests.some((q) => q.via === 'gateway')).toBe(false);
+    });
+
+    it('a scoped token: 401 on the site, then 200 through the gateway, which the whole read uses', async () => {
+      const s = createJiraSite();
+      const r = await signIn(s, FIXTURE_SCOPED_TOKEN);
+      expect(r).toMatchObject({ ok: true, route: 'gateway', issues: 22 });
+      expect(r.client.base).toBe(`${GATEWAY_ORIGIN}/ex/jira/${s.cloudId}`);
+      const order = s.requests.map((q) => `${q.via} ${q.method} ${q.path.split('?')[0]}`);
+      expect(order.slice(0, 4)).toEqual([
+        'site GET /_edge/tenant_info',
+        'site GET /rest/api/3/myself',
+        'gateway GET /rest/api/3/myself',
+        'gateway GET /rest/api/3/project/TL',
+      ]);
+      // After sign-in nothing goes to the site: search, comments, all through the gateway.
+      expect(s.requests.slice(2).every((q) => q.via === 'gateway')).toBe(true);
+      expect(order).toContain('gateway GET /rest/api/3/issue/TL-2/comment');
+      // Attachments too, with the same credentials.
+      const before = s.requests.length;
+      const res = await r.client.attachment('20001');
+      expect((await res.arrayBuffer()).byteLength).toBe(120);
+      expect(s.requests.slice(before)).toEqual([
+        {
+          method: 'GET',
+          path: '/rest/api/3/attachment/content/20001?redirect=false',
+          via: 'gateway',
+        },
+      ]);
+      // A full attachment URL on the site is refused for a gateway session: nothing reaches it.
+      await expect(
+        r.client.request(`${s.origin}/rest/api/3/attachment/content/20001`),
+      ).rejects.toMatchObject({ kind: 'protocol' });
+      expect(s.requests).toHaveLength(before + 1);
+    });
+
+    it('an organization API key: 401 on both, named as such', async () => {
+      const s = createJiraSite();
+      const r = await signIn(s, FIXTURE_ORG_KEY);
+      expect(r.ok).toBe(false);
+      expect(r.error).toMatchObject({ kind: 'auth', message: ORG_KEY_MESSAGE });
+      expect((await signIn(s, `Bearer ${s.token}`)).error).toMatchObject({
+        message: ORG_KEY_MESSAGE,
+      });
+      expect(looksLikeOrgKey('ATATT3xFfGF0-personal')).toBe(false);
+      expect(looksLikeOrgKey('ATCTT3xFfGN0-admin')).toBe(true);
+      expect(looksLikeOrgKey(' bearer abc')).toBe(true);
+    });
+
+    it('a wrong token: 401 on both, naming the email the token must belong to', async () => {
+      const s = createJiraSite();
+      const r = await signIn(s, 'not-the-token');
+      expect(r.error).toMatchObject({
+        kind: 'auth',
+        message:
+          "Wrong email or API token. The token must belong to owner@example.test's Atlassian account.",
+      });
+    });
+
+    it("a 403: signed in, but the project can't be browsed; scoped tokens are told the scopes", async () => {
+      const s = createJiraSite();
+      expect((await signIn(s, s.token, 'LOCKED')).error).toMatchObject({
+        kind: 'auth',
+        message: NO_ACCESS_MESSAGE,
+      });
+      const scoped = await signIn(s, FIXTURE_SCOPED_TOKEN, 'LOCKED');
+      expect(scoped.error).toMatchObject({ kind: 'auth', message: SCOPED_NO_ACCESS_MESSAGE });
+      expect(SCOPED_NO_ACCESS_MESSAGE).toContain('read:jira-work and read:jira-user');
+      // A scoped token without the read scopes: the gateway's "scope does not match".
+      const limited = await signIn(s, FIXTURE_LIMITED_TOKEN);
+      expect(limited).toMatchObject({ ok: false, route: 'gateway' });
+      expect(limited.error).toMatchObject({ kind: 'auth', message: SCOPED_NO_ACCESS_MESSAGE });
+    });
+
+    it('site not found: unreachable, or no tenant info (not an Atlassian site)', async () => {
+      const s = createJiraSite();
+      const away = await signIn(s, s.token, 'TL', 'https://nowhere.example.test');
+      expect(away.error).toMatchObject({ kind: 'not_found', message: SITE_NOT_FOUND });
+      expect(SITE_NOT_FOUND).toBe(
+        'Site not found: check the URL (https://yoursite.atlassian.net).',
+      );
+      const plain = createJiraSite({ tenantInfo: false });
+      const r = await signIn(plain, plain.token);
+      expect(r.error).toMatchObject({ kind: 'not_found', message: SITE_NOT_FOUND });
+      // It stopped at the tenant info: the credentials were never sent anywhere.
+      expect(plain.requests.map((q) => q.path)).toEqual(['/_edge/tenant_info']);
+    });
+
+    it('a pasted site URL with a path still signs in', async () => {
+      const s = createJiraSite();
+      const r = await signIn(s, s.token, 'TL', `${s.origin}/jira/software/projects/TL/boards/1/`);
+      expect(r).toMatchObject({ ok: true, route: 'site' });
     });
   });
 
@@ -184,8 +330,11 @@ describe('the client (REST v3, recorded responses)', () => {
       token: 'secret-value-123',
       fetch: () => Promise.reject(new TypeError('fetch failed')),
     });
+    // Unreachable at sign-in: "Site not found". Later in the session: "Couldn't reach".
     const down = await unreachable.myself().catch((e: unknown) => e as JiraError);
-    expect((down as JiraError).message).toBe(
+    expect((down as JiraError).message).toBe(SITE_NOT_FOUND);
+    const later = await unreachable.fields().catch((e: unknown) => e as JiraError);
+    expect((later as JiraError).message).toBe(
       "Couldn't reach https://down.example.test. Check the Jira site address.",
     );
   });
@@ -246,14 +395,18 @@ describe('sub-tasks become work steps on the parent', () => {
     expect(plan.items.some((i) => ['TL-7', 'TL-8', 'TL-9'].includes(i.jira_key))).toBe(false);
   });
 
-  it("lists what drops out: the sub-task's comments, assignee, dates, description, attachments, links", () => {
+  it("is always a change, listing what isn't kept: comments, assignee, dates, description, attachments, links", () => {
     expect(outcome('TL-7')).toMatchObject({ outcome: 'step' });
     expect(reasons('TL-7')).toBe(
-      'Imported as a work step on TL-2; dropped: assignee, 1 comment, due date, description, 1 attachment',
+      'Became a checklist step on TL-2; not kept: assignee, 1 comment, due date, description, 1 attachment',
     );
-    expect(reasons('TL-9')).toBe('Imported as a work step on TL-2; dropped: links');
-    expect(outcome('TL-8')).toMatchObject({ outcome: 'step', reasons: [] });
-    expect(row('Type: Subtask', 'Work step')).toMatchObject({ count: 3, lossy: 2 });
+    expect(reasons('TL-9')).toBe('Became a checklist step on TL-2; not kept: links');
+    // Nothing lost, but still a change (B32): it's a step now, not an item.
+    expect(outcome('TL-8')).toMatchObject({
+      outcome: 'step',
+      reasons: ['Became a checklist step on TL-2'],
+    });
+    expect(row('Type: Subtask', 'Work step')).toMatchObject({ count: 3, lossy: 3 });
   });
 
   it('skips a sub-task whose parent is not imported, with the reason', () => {
@@ -545,12 +698,57 @@ describe('secrets (constitution Principle VI)', () => {
 
 describe('the report accounts for every issue (SC-011)', () => {
   it('issues = would import + skipped; lossy items and skipped ones are listed once each', () => {
-    expect(report.totals).toEqual({ issues: 22, would_import: 20, skipped: 2, lossy: 15 });
+    expect(report.totals).toEqual({ issues: 22, would_import: 20, skipped: 2, lossy: 16 });
     const listed = report.lossy_items.map((l) => l.key);
     expect(new Set(listed).size).toBe(listed.length);
     expect(listed).toHaveLength(report.totals.lossy + report.totals.skipped);
     const clean = plan.outcomes.filter((o) => o.reasons.length === 0).map((o) => o.key);
     expect(clean.length + listed.length).toBe(22);
+  });
+
+  it('groups the changed and skipped issues by reason, with kept and not kept (B32)', () => {
+    const g = (reason: string) => report.groups.find((x) => x.reason === reason);
+    expect(g('subtask')).toEqual({
+      outcome: 'changed',
+      reason: 'subtask',
+      summary: '3 sub-tasks → checklist steps on their parent',
+      kept: 'Kept: title, done or not done.',
+      not_kept:
+        'Not kept yet: description, comments, assignee, dates (a later update keeps the description and comments).',
+      count: 3,
+      items: [
+        expect.objectContaining({ key: 'TL-7' }),
+        expect.objectContaining({ key: 'TL-8', detail: 'Became a checklist step on TL-2' }),
+        expect.objectContaining({ key: 'TL-9' }),
+      ],
+    });
+    // Sub-tasks whose parent isn't imported stay under Skipped, with the reason.
+    expect(g('skip_subtask')).toMatchObject({
+      outcome: 'skipped',
+      summary: '1 sub-task whose parent isn’t in this import',
+      kept: null,
+      items: [
+        expect.objectContaining({
+          key: 'TL-10',
+          detail: "Skipped: sub-task of TL-99, which isn't in this import",
+        }),
+      ],
+    });
+    // Every reason the mapper writes for the fixture has a group of its own (no "other").
+    expect(report.groups.map((x) => x.reason)).not.toContain('other');
+    expect(report.groups.map((x) => x.reason)).not.toContain('skip_other');
+    // Every changed issue is in at least one group, every skipped one in exactly one.
+    const changed = new Set(
+      report.groups
+        .filter((x) => x.outcome === 'changed')
+        .flatMap((x) => x.items.map((i) => i.key)),
+    );
+    expect(changed.size).toBe(report.totals.lossy);
+    const skipped = report.groups
+      .filter((x) => x.outcome === 'skipped')
+      .flatMap((x) => x.items.map((i) => i.key));
+    expect(skipped).toHaveLength(report.totals.skipped);
+    for (const x of report.groups) expect(x.count).toBe(x.items.length);
   });
 
   it('the generated 500-issue project is accounted for in full', async () => {
