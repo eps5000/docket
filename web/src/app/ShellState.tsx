@@ -5,7 +5,8 @@
  *   the `.tl` body;
  * - open-item tabs and each tab's view (sessionStorage);
  * - the breadcrumb each screen sets;
- * - the command palette and Quick capture.
+ * - the command palette and Quick capture;
+ * - the project dialogs (New project, Import from Jira; B32).
  */
 import {
   createContext,
@@ -90,6 +91,13 @@ interface ShellState {
   /** Quick capture; `epic` when opened from *+ New item in this epic*. */
   capture: { epic?: { id: string; title: string; project: string } } | null;
   setCapture: (c: ShellState['capture']) => void;
+  /**
+   * The project dialogs, opened from anywhere (B32): the Welcome page, the
+   * header's *+ New* menu, the project switcher and Settings. `jira.target`
+   * preselects an empty project to import into; without it, *New project*.
+   */
+  projectDialog: { kind: 'new' } | { kind: 'jira'; target?: string } | null;
+  setProjectDialog: (d: ShellState['projectDialog']) => void;
 }
 
 const Ctx = createContext<ShellState | null>(null);
@@ -103,6 +111,7 @@ export function ShellStateProvider({ children }: { children: ReactNode }) {
   const [breadcrumb, setBreadcrumb] = useState<BreadcrumbSpec | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [capture, setCapture] = useState<ShellState['capture']>(null);
+  const [projectDialog, setProjectDialog] = useState<ShellState['projectDialog']>(null);
 
   useEffect(() => applyTheme(theme), [theme]);
   useEffect(() => writeJson(STORAGE_KEYS.openTabs, tabs), [tabs]);
@@ -148,6 +157,8 @@ export function ShellStateProvider({ children }: { children: ReactNode }) {
       setPaletteOpen,
       capture,
       setCapture,
+      projectDialog,
+      setProjectDialog,
     }),
     [
       scope,
@@ -162,6 +173,7 @@ export function ShellStateProvider({ children }: { children: ReactNode }) {
       breadcrumb,
       paletteOpen,
       capture,
+      projectDialog,
     ],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

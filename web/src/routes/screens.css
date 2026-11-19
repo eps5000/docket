@@ -804,6 +804,94 @@
 .tl .jira-lossy li {
   margin: 4px 0;
 }
+/* B32: "Which token?", the legend and the reason groups. */
+.tl .jira-which {
+  margin: 6px 0 4px;
+  font-size: 12.5px;
+}
+.tl .jira-which summary {
+  cursor: pointer;
+  font-weight: 650;
+  color: var(--ink);
+}
+.tl .jira-which ul {
+  margin: 6px 0 4px;
+  padding-left: 18px;
+  color: var(--ink-2);
+}
+.tl .jira-which li {
+  margin: 4px 0;
+}
+.tl .jira-which a {
+  text-decoration: underline;
+}
+.tl .jira-legend {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 12.5px;
+}
+.tl .jira-legend > div {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+}
+.tl .jira-legend dt {
+  font-weight: 650;
+  white-space: nowrap;
+}
+.tl .jira-legend dt::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  margin-right: 6px;
+  background: var(--ok);
+}
+.tl .jira-legend .jl-changed dt::before {
+  background: var(--warn);
+}
+.tl .jira-legend .jl-skipped dt::before {
+  background: var(--ink-3);
+}
+.tl .jira-legend dd {
+  margin: 0;
+  color: var(--ink-2);
+}
+.tl .jira-summary {
+  margin: 8px 0 0;
+  font-size: 13px;
+}
+.tl .jira-groups {
+  list-style: none;
+  margin: 4px 0 8px;
+  padding: 0;
+  font-size: 12.5px;
+}
+.tl .jira-groups > li {
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+}
+.tl .jira-groups > li:first-child {
+  border-top: 0;
+}
+.tl .jira-groups summary {
+  cursor: pointer;
+}
+.tl .jira-group-items {
+  margin: 6px 0 4px;
+  padding-left: 18px;
+}
+.tl .jira-group-items li {
+  margin: 4px 0;
+}
+.tl .jira-kept {
+  margin: 2px 0 0 14px;
+}
 
 /* ---------- Needs you: notifications opt-in, new For-you rows (UI_SPEC §6.7a, §7, §8) ---------- */
 .tl .notifycallout {
@@ -1294,4 +1382,68 @@
 }
 .tl .onb-card + .onb-card {
   margin-top: 12px;
+}
+
+/* ---------- First run (UI_SPEC §6.0; B32) ---------- */
+.tl .welcome {
+  max-width: 980px;
+}
+.tl .welcome-lede {
+  margin: 2px 0 14px;
+  font-size: 15px;
+  color: var(--ink-2);
+}
+.tl .welcome-starts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+@media (max-width: 1000px) {
+  .tl .welcome-starts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.tl .welcome-starts h2 {
+  font-size: 15px;
+  margin: 0 0 6px;
+}
+.tl .welcome-starts .src {
+  margin: 0 0 10px;
+}
+.tl .welcome-starts .incopy {
+  margin-bottom: 8px;
+}
+.tl .welcome-note {
+  margin-top: 4px;
+  font-size: 12.5px;
+}
+.tl .welcome-how {
+  margin: 16px 0 0;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.tl .noprojects {
+  margin: 10px 0 0;
+  color: var(--ink-2);
+}
+.tl .whatnext {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+}
+.tl .whatnext > li {
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+.tl .whatnext > li:first-child {
+  border-top: 0;
+  padding-top: 4px;
+}
+.tl .whatnext h4 {
+  margin: 0 0 6px;
+  font-size: 13px;
 }

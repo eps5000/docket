@@ -19,9 +19,21 @@ const json = (status: number, body: unknown) =>
 
 let locked = false;
 const calls: string[] = [];
+/** When set, `GET /api/bootstrap` answers with these projects (B32's first run). */
+let bootProjects: unknown[] | null = null;
+const bootstrap = () => ({
+  server_version: '0.0.0',
+  server_time: '2026-11-18T10:00:00.000Z',
+  projects: bootProjects,
+  labels: [],
+  counts: { for_you: 0, problems: 0, planning: 0, runs: {} },
+  settings: { live_window_s: 180, stale_after_s: 900, lease_s: 1800, undo_window_s: 30 },
+  health: { status: 'ready', checks: {} },
+});
 
 beforeEach(() => {
   locked = false;
+  bootProjects = null;
   calls.length = 0;
   sessionStorage.clear();
   localStorage.clear();
@@ -34,6 +46,7 @@ beforeEach(() => {
       if (path === '/api/session/unlock') return json(200, { unlocked: true });
       if (locked) return json(401, { error: { code: 'forbidden', message: 'Docket is locked.' } });
       const route = path.split('?')[0];
+      if (route === '/api/bootstrap' && bootProjects) return json(200, bootstrap());
       return json(501, {
         error: {
           code: 'unavailable',
@@ -153,12 +166,78 @@ describe('app shell', () => {
   it('Quick capture: an empty title toasts "Give it a title" and focuses the title', async () => {
     const user = userEvent.setup();
     renderAt('/');
-    await user.click(screen.getByRole('button', { name: '+ New' }));
+    await user.click(screen.getByRole('button', { name: '+ New item' }));
     const title = screen.getByLabelText(/^Title/);
     expect(document.activeElement).toBe(title);
     await user.click(screen.getByRole('button', { name: 'Create' }));
     expect(toasts.snapshot().map((t) => t.message)).toContain('Give it a title');
     expect(document.activeElement).toBe(title);
+  });
+
+  it('first run (B32): no projects → the Welcome page, + New project, pointers on Work', async () => {
+    bootProjects = [];
+    const user = userEvent.setup();
+    const router = renderAt('/');
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Welcome to Docket' }),
+    ).toBeTruthy();
+    expect(screen.getByText('The shared record your AI agents work from.')).toBeTruthy();
+    for (const name of ['Create a project', 'Import from Jira', 'Onboard a repo with an agent'])
+      expect(screen.getByRole('heading', { level: 2, name })).toBeTruthy();
+    expect(
+      screen.getByText('Onboard this repo into Docket as project <KEY>, using onboard_project.'),
+    ).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Connect an agent' }).getAttribute('href')).toBe(
+      '/help/connect-an-agent',
+    );
+    expect(screen.getByRole('button', { name: 'Help: Your first look around' })).toBeTruthy();
+    // The header button says what it creates: with no projects, a project.
+    expect(screen.queryByRole('button', { name: '+ New item' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: '+ New project' }));
+    expect(screen.getByRole('dialog', { name: 'New project' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    await user.click(screen.getByRole('button', { name: 'New project' }));
+    expect(screen.getByRole('dialog', { name: 'New project' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    // The switcher ends with + New project.
+    await user.click(screen.getByRole('button', { name: /^Project/ }));
+    const menu = screen.getByRole('menu', { name: 'Choose project' });
+    const items = menu.querySelectorAll('[role="menuitemradio"], [role="menuitem"]');
+    expect(items[items.length - 1]!.textContent).toBe('New project');
+    expect(menu.querySelector('[role="separator"]')).toBeTruthy();
+    await user.keyboard('{Escape}');
+    // Work shows a pointer back to the Welcome page.
+    await act(() => router.navigate('/work'));
+    expect(await screen.findByText(/No projects yet\./)).toBeTruthy();
+    expect(
+      screen.getByRole('link', { name: 'Start on the Welcome page' }).getAttribute('href'),
+    ).toBe('/');
+  });
+
+  it('with projects (B32): + New item stays one click, its caret offers item or project', async () => {
+    bootProjects = [
+      {
+        key: 'RCP',
+        name: 'Recipes',
+        short_name: 'Recipes',
+        color: '#3b5bdb',
+        default_satisfied_when: 'done',
+        version: 1,
+      },
+    ];
+    const user = userEvent.setup();
+    renderAt('/settings');
+    const caret = await screen.findByRole('button', { name: 'More to create' });
+    expect(screen.getByRole('button', { name: '+ New item' }).getAttribute('title')).toBe(
+      'New item: capture it in Inbox',
+    );
+    await user.click(caret);
+    const menu = screen.getByRole('menu', { name: 'Create' });
+    expect(
+      Array.from(menu.querySelectorAll('[role="menuitem"]')).map((b) => b.firstChild?.textContent),
+    ).toEqual(['New item', 'New project']);
+    await user.keyboard('{ArrowDown}{Enter}');
+    expect(screen.getByRole('dialog', { name: 'New project' })).toBeTruthy();
   });
 
   it('keeps scope in sessionStorage and resets to All projects in a new session', () => {

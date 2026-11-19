@@ -1,4 +1,5 @@
 import { useId, useState, type FormEvent } from 'react';
+import { Link } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   PROJECT_KEY_RE,
@@ -11,6 +12,7 @@ import { Button, Callout, Dialog, DialogCancel } from '../../components/kit';
 import { apiClient } from '../../app/queryClient';
 import { useShell } from '../../app/ShellState';
 import { queryKeys } from '../../lib/api';
+import { paths } from '../../lib/paths';
 import { HelpLink } from '../../help/HelpLink';
 import { CopyBlock } from '../agent-files/install-common';
 
@@ -26,10 +28,12 @@ export const onboardLine = (key: string) =>
 /**
  * *New project* (Settings; UI_SPEC §6.7d; FR-135; decision 31): key (2–5
  * letters, uppercased as you type, checked against the existing keys),
- * name, colour and *Blockers clear when*. After creating, the dialog offers
- * "Onboard it with an agent": the line to give an agent, the prompt for
- * clients that support prompts, and *Import from Jira…* (so the agent
- * enriches the imported tickets instead of duplicating them).
+ * name, colour and *Blockers clear when*. After creating, the dialog lands
+ * on the project's "What next" choices (B32): *Import from Jira…* (first, so
+ * an agent enriches the imported tickets instead of duplicating them),
+ * "Onboard it with an agent" (the line to give an agent, and the prompt for
+ * clients that support prompts) and *Install agent files*. Creating the
+ * first project also switches the scope to it.
  */
 export function NewProjectDialog({
   existingKeys,
@@ -51,6 +55,8 @@ export function NewProjectDialog({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [created, setCreated] = useState<Project | null>(null);
+  // The first project ever (B32): switch to it once it's created.
+  const [first] = useState(existingKeys.length === 0);
 
   const taken = existingKeys.includes(key);
   const keyProblem =
@@ -74,6 +80,7 @@ export function NewProjectDialog({
         body: { key, name: name.trim(), color: shownColor, default_satisfied_when: rule },
       });
       setCreated(res.project);
+      if (first) setScope(res.project.key);
       await qc.invalidateQueries({ queryKey: queryKeys.all });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Couldn’t create the project. Try again.');
@@ -90,14 +97,16 @@ export function NewProjectDialog({
         className="newproj"
         footer={
           <>
-            <Button
-              onClick={() => {
-                setScope(created.key);
-                onClose();
-              }}
-            >
-              Switch to {created.key}
-            </Button>
+            {!first && (
+              <Button
+                onClick={() => {
+                  setScope(created.key);
+                  onClose();
+                }}
+              >
+                Switch to {created.key}
+              </Button>
+            )}
             <Button variant="primary" onClick={onClose}>
               Done
             </Button>
@@ -105,34 +114,56 @@ export function NewProjectDialog({
         }
       >
         <div className="row withhelp" style={{ gap: 6 }}>
-          <h3 style={{ margin: 0 }}>Onboard it with an agent</h3>
+          <h3 style={{ margin: 0 }}>What next</h3>
           <HelpLink anchor="settings.new-project" />
         </div>
-        <p className="src" style={{ marginTop: 4 }}>
-          An agent reads the repo’s specs, plans, tasks and docs, and sets up {created.key} in
-          Planning. Nothing is made Ready, and you review it all from one card on Needs you.
-        </p>
-        <CopyBlock
-          text={onboardLine(created.key)}
-          label="Give any connected agent this line, in the repo’s folder"
-          what="line"
-        />
-        <CopyBlock
-          text={`/mcp__docket__onboard ${created.key}`}
-          label="Or run the onboard prompt (Claude Code shown; other clients name it onboard)"
-          what="prompt"
-        />
-        <Callout className="mt">
-          <div className="row" style={{ justifyContent: 'space-between', gap: 8 }}>
-            <span>
-              Tickets in Jira? Import them first, so the agent enriches them instead of duplicating
-              them.
-            </span>
-            <Button size="sm" onClick={() => onImport(created.key)}>
-              Import from Jira…
-            </Button>
-          </div>
-        </Callout>
+        <ol className="whatnext">
+          <li>
+            <h4>Import from Jira</h4>
+            <div className="row" style={{ justifyContent: 'space-between', gap: 8 }}>
+              <span className="src">
+                Tickets in Jira? Import them first, so an agent enriches them instead of duplicating
+                them.
+              </span>
+              <Button size="sm" onClick={() => onImport(created.key)}>
+                Import from Jira…
+              </Button>
+            </div>
+          </li>
+          <li>
+            <h4>Onboard it with an agent</h4>
+            <p className="src" style={{ marginTop: 0 }}>
+              An agent reads the repo’s specs, plans, tasks and docs, and sets up {created.key} in
+              Planning. Nothing is made Ready, and you review it all from one card on Needs you.
+            </p>
+            <CopyBlock
+              text={onboardLine(created.key)}
+              label="Give any connected agent this line, in the repo’s folder"
+              what="line"
+            />
+            <CopyBlock
+              text={`/mcp__docket__onboard ${created.key}`}
+              label="Or run the onboard prompt (Claude Code shown; other clients name it onboard)"
+              what="prompt"
+            />
+          </li>
+          <li>
+            <h4>Install agent files</h4>
+            <div className="row" style={{ justifyContent: 'space-between', gap: 8 }}>
+              <span className="src">
+                Put Docket’s AGENTS.md block, skills and connection file into the repo, so agents
+                there find Docket.
+              </span>
+              <Link
+                className="btn sm"
+                to={paths.agentFiles({ project: created.key })}
+                onClick={onClose}
+              >
+                Install agent files
+              </Link>
+            </div>
+          </li>
+        </ol>
       </Dialog>
     );
   }

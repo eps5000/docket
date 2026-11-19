@@ -146,6 +146,9 @@ const UNMAPPED: FieldRow[] = [
   'Other custom fields',
 ];
 
+/** A sub-task's report reason starts with this; report.ts groups on it. */
+export const STEP_REASON_PREFIX = 'Became a checklist step on';
+
 const LABEL_MAX = LIMITS.label_name;
 const COMMENT_MAX = TEXT_LIMITS.note;
 
@@ -513,21 +516,16 @@ export function mapSnapshot(snapshot: JiraSnapshot, opts: MapOptions = {}): Impo
       const parentSteps = (stepsOf.get(parent) ?? []).concat({ jira_key: issue.key, text, state });
       stepsOf.set(parent, parentSteps);
       const own = reasons.get(issue.key)!;
-      const lost = [...dropped, ...own.filter((r) => r.startsWith('link'))];
-      const lossy = lost.length > 0;
-      row('type', `Type: ${jiraType}`, 'Work step', lossy);
+      const lost = [...dropped, ...(own.some((r) => r.startsWith('link')) ? ['links'] : [])];
+      // Becoming a checklist step is always a change (B32): the report says so for every one.
+      row('type', `Type: ${jiraType}`, 'Work step', true);
       outcomes.push({
         key: issue.key,
         title: shorten(title, 200),
         outcome: 'step',
-        reasons: lossy
-          ? [
-              `Imported as a work step on ${parent}; dropped: ${[
-                ...dropped,
-                ...(own.some((r) => r.startsWith('link')) ? ['links'] : []),
-              ].join(', ')}`,
-            ]
-          : [],
+        reasons: [
+          `${STEP_REASON_PREFIX} ${parent}${lost.length > 0 ? `; not kept: ${lost.join(', ')}` : ''}`,
+        ],
       });
       continue;
     }

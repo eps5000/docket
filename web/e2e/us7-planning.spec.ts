@@ -150,7 +150,7 @@ test.describe('Cancel item…', () => {
 test.describe('quick capture', () => {
   test('the title is required; the item lands in Inbox and opens', async ({ ownerPage: page }) => {
     await page.goto('/');
-    await page.getByRole('button', { name: '+ New' }).click();
+    await page.getByRole('button', { name: '+ New item' }).click();
     const dlg = dialog(page);
     await expect(dlg).toContainText('New item in Inbox');
     const title = dlg.getByLabel(/^Title/);

@@ -702,13 +702,36 @@ O05; owner decision 17 puts it in V1.
 3. The owner reviews the report, then *Import* commits everything in one transaction. Attachment bytes download after the commit, and failures are reported per file.
 4. The API token is held in memory for the import session only (expires after 1 hour or on cancel). It's never stored, logged or written into the report.
 
-**Mapping** (anything lossy appears in the report):
+**Signing in** (B32). Atlassian has three kinds of credential: a personal API token (id.atlassian.com → *Create API token*), a personal API token with scopes (*Create API token with scopes*), and an organization API key (admin.atlassian.com → organization → API keys). Only the first two can read Jira. Scoped tokens are refused (401) on the site itself and must go through Atlassian's gateway, `https://api.atlassian.com/ex/jira/<cloudId>/rest/api/3/…`, with the same Basic credentials. Organization keys are for the admin APIs only and never work for the Jira REST API.
 
-| Jira | Docket | Lossy? |
+- **The site address** is normalised first, in the dialog and again on the server: `https://` is added when missing, and any path (`/jira/…`, `/browse/…`), query, fragment and trailing slash is dropped, leaving the origin. It must then be `https`, with no user name and a dotted host name.
+- **The probe,** in this order, before anything is read:
+  1. `GET <site>/_edge/tenant_info`, **without credentials**, for the site's `cloudId`. Unreachable, not JSON, or no `cloudId` → "Site not found: check the URL (https://yoursite.atlassian.net)." Nothing else is sent anywhere.
+  2. `GET <site>/rest/api/3/myself` with Basic auth. **200** → a classic personal token; the session stays on the site.
+  3. On a **401**, the same request through the gateway: `GET https://api.atlassian.com/ex/jira/<cloudId>/rest/api/3/myself`. **200** → a scoped token, and the session's base URL becomes the gateway for **every** later call: the project, fields, count, search, comments and attachment downloads (`/rest/api/3/attachment/content/<id>?redirect=false`, built from the attachment's ID under the base, so the bytes come with the same credentials). A full URL that isn't under the session's base is refused.
+- **The error mapping:**
+
+  | Result | Message |
+  |---|---|
+  | tenant info fails or has no `cloudId` | Site not found: check the URL (https://yoursite.atlassian.net). |
+  | 200 on the site | (signed in: classic token, site base) |
+  | 401 on the site, 200 on the gateway | (signed in: scoped token, gateway base) |
+  | 401 on both, and the token looks like an organization key | That looks like an organization API key from admin.atlassian.com. Those can't read Jira. Create a personal API token at id.atlassian.com instead. |
+  | 401 on both, otherwise | Wrong email or API token. The token must belong to <email>'s Atlassian account. |
+  | 403 (sign-in, the project or a later read), or the gateway's 401 "Unauthorized; scope does not match" | Signed in, but this account can't browse that project (or the token's scopes don't include reading Jira work items). Through the gateway it adds: A scoped token needs the read:jira-work and read:jira-user scopes. |
+  | 404 on the project | Project ABC not found or not visible to this account. |
+
+  "Looks like an organization key" uses only what can be checked: a value starting `Bearer ` (organization keys are Bearer tokens), or the `ATCTT` prefix (Atlassian's admin and access keys; personal API tokens, scoped or not, start `ATATT`). Length alone doesn't tell them apart, since current personal tokens are long too.
+- **Egress:** only the owner-entered site and `api.atlassian.com`. The e2e fixture answers under both names on the test network (its certificate covers both), and the no-egress allowance lists both (`jira-fixture.test,api.atlassian.com`).
+- **The token** is still never logged, stored or echoed: messages name the email, never the token; the log line for a failed dry run gives only the error kind and status.
+
+**Mapping** (what changes appears in the report as "Imported with changes", grouped by these rows):
+
+| Jira | Docket | Changes |
 |---|---|---|
 | Epic | Epic | — |
 | Story, Task, Bug | same type | — |
-| Sub-task | Work step on the parent (state from status category), `source` = its key, `details_md` = a header line (Jira key, assignee, start and due dates, story points) plus its description converted to Markdown | Comments are collected into one owner note on the parent, "Comments from Jira sub-tasks", grouped by sub-task with author and date (decision 33). Nothing else drops out, except ADF conversion losses, which are noted inline |
+| Sub-task | Checklist (work) step on the parent: text = the title, state from status category. **Decision 33 (specified, not built yet):** Work step on the parent (state from status category), `source` = its key, `details_md` = a header line (Jira key, assignee, start and due dates, story points) plus its description converted to Markdown | Today (B32): Always "Imported with changes": "n sub-tasks → checklist steps on their parent. Kept: title, done or not done. Not kept yet: description, comments, assignee, dates (a later update keeps the description and comments)." Each sub-task lists what it actually had. A sub-task whose parent isn't imported is **skipped**, with the reason. **Decision 33:** Comments are collected into one owner note on the parent, "Comments from Jira sub-tasks", grouped by sub-task with author and date (decision 33). Nothing else drops out, except ADF conversion losses, which are noted inline |
 | Other issue types | Task | Yes: the original type is noted in the description |
 | Status category To Do / In Progress / Done | Inbox / In progress (no lead claim, no run) / Done (`closed_by=imported`) | Status names are noted when not standard |
 | Priority Highest, High / Medium / Low, Lowest | P1 / P2 / P3 | — |
@@ -728,7 +751,10 @@ Every imported item keeps `jira_key`, which search finds, and has `imported = tr
 - counts by type, mapped, skipped and lossy, per field;
 - the list of lossy items with reasons;
 - detected cycles;
-- the attachments total size.
+- the attachments total size;
+- **B32:** `groups`, the changed and skipped issues grouped by reason, in the mapping table's order. Each has `outcome` (`changed` | `skipped`), `reason` (`subtask`, `other_type`, `status`, `priority`, `parent`, `link_type`, `link_dropped`, `title`, `labels`, `description`, `comments`, `attachments`, `dates`; `skip_subtask`, `skip_secret`, `skip_no_summary`), `summary` ("42 sub-tasks → checklist steps on their parent"), `kept` and `not_kept` (whole sentences; null for skips), `count` and the `items` (key, title, that issue's details).
+
+The UI never says "lossy" (B32): it shows a legend, **Imported as is**, **Imported with changes** and **Skipped (not imported, with the reason)**. The JSON keeps its field names: `totals.lossy`, `lossy_items` and the `lossy` columns count "Imported with changes", every sub-task included. The stored report adds `legend` with those three phrases. The commit button and the summary name both what is created: "Import 328 items and 57 checklist steps".
 
 After import, the report is stored as an `import_report` document on the project.
 

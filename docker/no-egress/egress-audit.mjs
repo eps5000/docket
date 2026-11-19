@@ -12,7 +12,8 @@
  *
  * Loopback (localhost, 127.0.0.0/8, ::1) and Unix sockets are local and never
  * recorded. DOCKET_EGRESS_ALLOW is a comma-separated list of host names
- * that may be reached (CI allows only `jira-fixture.test`). Everything else
+ * that may be reached (CI allows only `jira-fixture.test` and `api.atlassian.com`,
+ * the fixture under both names). Everything else
  * is appended to the log as one JSON line and echoed to stderr as
  * "EGRESS ATTEMPT …". The attempt itself still runs, so behaviour is
  * unchanged; on an internal network it simply fails.

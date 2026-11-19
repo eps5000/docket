@@ -340,7 +340,9 @@ export function createJiraImportService(
           sleep: opts.sleep,
           signal: abort.signal,
         }),
-        known: [...deps.secrets.known(), input.api_token],
+        known: [...deps.secrets.known(), input.api_token, input.api_token.trim()].filter(
+          (v, i, all) => v !== '' && all.indexOf(v) === i,
+        ),
         abort,
         timer: null,
       };

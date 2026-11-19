@@ -5,6 +5,7 @@ group: Getting started
 order: 2
 anchors:
   - needs-you.page
+  - needs-you.welcome
 related:
   - review-a-packet
   - questions-and-notes
@@ -12,6 +13,16 @@ related:
 ---
 
 Docket doesn't start agents. You (or Orca) start them, and they report here: what they claimed, what they're doing, and what they need from you. The sidebar has three places to look.
+
+## First run: the Welcome page
+
+Until you have a project, **Needs you** is the Welcome page. Work, Agents and Agent files point back to it. It offers three ways to start:
+
+- **Create a project:** a key (2–5 letters, like `GF`) and a name. Then Docket shows what to do next: *Import from Jira*, *Onboard it with an agent*, or *Install agent files*.
+- **Import from Jira:** copies a Jira Cloud project into a new Docket project, after a dry run. See [Jira import](/help/jira-import).
+- **Onboard a repo with an agent:** give a connected agent the line "Onboard this repo into Docket as project KEY, using onboard_project" in the repo's folder, or run the `onboard` prompt. The agent sets the project up in Planning, and you review it on Needs you. [Connect the agent](/help/connect-an-agent) first.
+
+Later you can make another project from the project switcher (*+ New project* at the bottom), from the header (the caret next to *+ New item*), or in **Settings → Projects**.
 
 ## Needs you
 

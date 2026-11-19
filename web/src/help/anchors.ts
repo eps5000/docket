@@ -49,6 +49,7 @@ export const HELP_ANCHORS = {
   'jira.import': 'Settings → Projects → Import from Jira (the dialog)',
   'settings.new-project': 'Settings → Projects → New project: "Onboard it with an agent"',
   'needs-you.onboarding': 'Needs you: the onboarding review card',
+  'needs-you.welcome': 'Needs you with no projects: the Welcome page (B32)',
 } as const;
 
 export type HelpAnchor = keyof typeof HELP_ANCHORS;

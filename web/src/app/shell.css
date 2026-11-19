@@ -415,3 +415,67 @@
   width: fit-content;
   margin-top: 3px;
 }
+
+/* ---------- B32: + New item (with a caret menu), the switcher's + New project ---------- */
+.tl .newsplit {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+.tl .newsplit .newbtn {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.tl .newsplit .newcaret {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-left: 1px solid color-mix(in srgb, var(--on-fill) 45%, transparent);
+  padding-left: 6px;
+  padding-right: 6px;
+}
+.tl .newmenu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  width: 230px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 6px;
+  z-index: 15;
+}
+.tl .newmenu [role='menuitem'],
+.tl .scopemenu [role='menuitem'] {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  width: 100%;
+  border: 0;
+  background: none;
+  border-radius: 7px;
+  padding: 7px 9px;
+  text-align: left;
+  min-height: 34px;
+  color: var(--ink);
+}
+.tl .newmenu [role='menuitem']:hover,
+.tl .newmenu [role='menuitem']:focus,
+.tl .scopemenu [role='menuitem']:hover,
+.tl .scopemenu [role='menuitem']:focus {
+  background: var(--brand-soft);
+}
+.tl .scopemenu .scopenew {
+  flex-direction: row;
+  align-items: center;
+  gap: 9px;
+  font-weight: 600;
+}
+.tl .scopemenu .scopesep {
+  border-top: 1px solid var(--line);
+  margin: 4px 0;
+}
+.tl .scopemenu .scopesep + .scopenew {
+  margin-top: 0;
+}

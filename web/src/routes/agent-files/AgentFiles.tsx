@@ -1,3 +1,4 @@
+import { NoProjectsPointer } from '../needs-you/Welcome';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
@@ -115,6 +116,8 @@ export function AgentFiles() {
           {project ? `Install into ${possessive(projectName!)} repo` : 'Install user-wide'}
         </Button>
       </div>
+      {/* First run (B32): the defaults still show, with a pointer to the Welcome page. */}
+      {boot.isSuccess && projects.length === 0 && <NoProjectsPointer />}
       <p className="src aflede">
         {project
           ? `The skills and the AGENTS.md block ${possessive(projectName!)} agents work from. Each file is the default unless you customize it for ${projectName}.`

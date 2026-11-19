@@ -3,6 +3,8 @@
 #   docker compose -f docker/compose.yaml -f docker/compose.jira-fixture.yaml up -d --build --wait
 # The site is https://jira-fixture.test:8443 (email owner@example.test, token
 # tl-fixture-api-token-0001; all invented). It is the only host the container reaches (FR-106).
+# It also answers as api.atlassian.com on 443 (B32: the gateway scoped tokens go through), so
+# the scoped-token e2e never leaves the network; the name only resolves on this network.
 services:
   jira-fixture:
     image: node:22-bookworm-slim
@@ -19,6 +21,7 @@ services:
       default:
         aliases:
           - jira-fixture.test
+          - api.atlassian.com
     healthcheck:
       test:
         - CMD

@@ -1,7 +1,12 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
-import type { JiraImport, JiraReport } from '@docket/shared';
+import {
+  JIRA_SITE_EXAMPLE,
+  normaliseJiraSite,
+  type JiraImport,
+  type JiraReport,
+} from '@docket/shared';
 import { Button, Callout, Dialog, DialogCancel, SegmentedControl } from '../../components/kit';
 import { apiClient } from '../../app/queryClient';
 import { useShell } from '../../app/ShellState';
@@ -36,6 +41,23 @@ export function itemCount(report: JiraReport): number {
     .reduce((n, m) => n + m.count, 0);
 }
 
+/** Checklist steps the import creates: one per sub-task whose parent is imported. */
+export function stepCount(report: JiraReport): number {
+  return report.mapping
+    .filter((m) => m.jira.startsWith('Type: ') && m.docket === 'Work step')
+    .reduce((n, m) => n + m.count, 0);
+}
+
+/** "328 items and 57 checklist steps", or "328 items" when there are no steps (B32). */
+export function importWhat(report: JiraReport): string {
+  const steps = stepCount(report);
+  const items = plural(itemCount(report), 'item');
+  return steps > 0 ? `${items} and ${plural(steps, 'checklist step')}` : items;
+}
+
+/** Where to create the token the dialog asks for (B32). */
+export const ATLASSIAN_TOKEN_URL = 'https://id.atlassian.com/manage-profile/security/api-tokens';
+
 function progressLine(i: JiraImport): string {
   const p = i.progress;
   if (!p) return i.state === 'committing' ? 'Importing…' : 'Starting…';
@@ -67,9 +89,16 @@ function errorText(err: unknown): string {
  *    (a new project, or an existing empty one). *Run dry run* starts the
  *    server's read; the dialog polls it ("Reading 140 of 512 issues…") and
  *    offers *Cancel*. Errors show inline.
- * 2. **Review report:** summary tiles, the mapping table, the lossy items,
- *    cycles, the fields used, *Download report (JSON)*, and *Import n items*.
+ * 2. **Review report:** the legend (as is · with changes · skipped), summary
+ *    tiles, the mapping table, the changed and skipped issues grouped by
+ *    reason with what is kept, cycles, the fields used, *Download report
+ *    (JSON)*, and *Import n items and m checklist steps* (B32).
  * 3. **Import:** progress, then the result and *Open project*.
+ *
+ * Step 1 explains which token works ("Which token?", B32) and normalises the
+ * site address as the owner leaves the field. The server maps a failed
+ * sign-in to a specific message (site not found, organization key, wrong
+ * email or token, no access), shown inline.
  *
  * The API token is cleared from the form as soon as the dry run is sent and
  * never shown again; the server holds it for the session only. Closing the
@@ -93,7 +122,8 @@ export function JiraImportDialog({
     newKey: useId(),
     newName: useId(),
     existing: useId(),
-    lossy: useId(),
+    siteHint: useId(),
+    tokenHint: useId(),
   };
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -170,7 +200,7 @@ export function JiraImportDialog({
     try {
       const res = await apiClient['jira.dryRun']({
         body: {
-          site_url: site.trim(),
+          site_url: normaliseJiraSite(site),
           email: email.trim(),
           api_token: apiToken,
           jira_project: jiraKey.trim().toUpperCase(),
@@ -282,7 +312,7 @@ export function JiraImportDialog({
           )}
           {step === 2 && report && (
             <Button variant="primary" disabled={busy} onClick={() => void runImport()}>
-              Import {plural(itemCount(report), 'item')}
+              Import {importWhat(report)}
             </Button>
           )}
         </>
@@ -312,11 +342,18 @@ export function JiraImportDialog({
             <input
               id={ids.site}
               className="input"
-              placeholder="https://yoursite.atlassian.net"
+              placeholder={JIRA_SITE_EXAMPLE}
               autoComplete="off"
+              spellCheck={false}
+              aria-describedby={ids.siteHint}
               value={site}
               onChange={(e) => setSite(e.target.value)}
+              onBlur={() => setSite((v) => normaliseJiraSite(v))}
             />
+            <div id={ids.siteHint} className="src">
+              Just the site: <span className="mono">https://&lt;yoursite&gt;.atlassian.net</span>,
+              with no <span className="mono">/jira</span> and no path.
+            </div>
             <label className="f" htmlFor={ids.email}>
               Email
             </label>
@@ -336,10 +373,14 @@ export function JiraImportDialog({
               className="input"
               type="password"
               autoComplete="off"
+              aria-describedby={ids.tokenHint}
               value={token}
               onChange={(e) => setToken(e.target.value)}
             />
-            <div className="src">Used for this import only. Not saved.</div>
+            <div id={ids.tokenHint} className="src">
+              Used for this import only. Not saved.
+            </div>
+            <WhichToken />
             <label className="f" htmlFor={ids.key}>
               Jira project key
             </label>
@@ -429,9 +470,7 @@ export function JiraImportDialog({
         </form>
       )}
 
-      {step === 2 && report && (
-        <ReportView report={report} lossyId={ids.lossy} onDownload={download} />
-      )}
+      {step === 2 && report && <ReportView report={report} onDownload={download} />}
       {step === 2 && error && (
         <Callout tone="bad" role="alert" className="jira-error">
           {error}
@@ -453,25 +492,77 @@ export function JiraImportDialog({
   );
 }
 
-function ReportView({
-  report,
-  lossyId,
-  onDownload,
-}: {
-  report: JiraReport;
-  lossyId: string;
-  onDownload: () => void;
-}) {
+/**
+ * "Which token?" (B32): Atlassian has three kinds of credential and only
+ * personal API tokens (scoped or not) can read Jira.
+ */
+function WhichToken() {
+  return (
+    <details className="jira-which">
+      <summary>Which token?</summary>
+      <ul>
+        <li>
+          <b>Use a personal API token</b>: on{' '}
+          <a href={ATLASSIAN_TOKEN_URL} target="_blank" rel="noreferrer">
+            id.atlassian.com → Security → API tokens
+          </a>
+          , choose <i>Create API token</i>. It must belong to the email above.
+        </li>
+        <li>
+          <b>Tokens with scopes work too</b> (<i>Create API token with scopes</i>): give them{' '}
+          <span className="mono">read:jira-work</span> and{' '}
+          <span className="mono">read:jira-user</span>. Docket reaches Jira through{' '}
+          <span className="mono">api.atlassian.com</span> for them.
+        </li>
+        <li>
+          <b>Organization API keys don’t work.</b> The keys from admin.atlassian.com are for
+          Atlassian’s admin APIs only (users, policies): they can’t read Jira projects or work
+          items.
+        </li>
+      </ul>
+    </details>
+  );
+}
+
+/** What each outcome means, at the top of the report (B32). */
+const LEGEND = [
+  { key: 'as-is', label: 'Imported as is', text: 'comes across unchanged.' },
+  {
+    key: 'changed',
+    label: 'Imported with changes',
+    text: 'comes across; what changes, and what isn’t kept, is listed by reason below.',
+  },
+  {
+    key: 'skipped',
+    label: 'Skipped',
+    text: 'not imported, with the reason.',
+  },
+] as const;
+
+function ReportView({ report, onDownload }: { report: JiraReport; onDownload: () => void }) {
   const { totals } = report;
+  const asIs = totals.would_import - totals.lossy;
+  const steps = stepCount(report);
+  const changed = report.groups.filter((g) => g.outcome === 'changed');
+  const skipped = report.groups.filter((g) => g.outcome === 'skipped');
   const tiles: [string, string][] = [
     [String(totals.issues), totals.issues === 1 ? 'issue' : 'issues'],
-    [String(totals.would_import), 'would import'],
+    [String(Math.max(0, asIs)), 'as is'],
+    [String(totals.lossy), 'with changes'],
     [String(totals.skipped), 'skipped'],
-    [String(totals.lossy), 'lossy'],
     [formatBytes(report.attachments.bytes), plural(report.attachments.count, 'attachment')],
   ];
   return (
     <div className="jira-report">
+      <dl className="jira-legend" aria-label="What the report means">
+        {LEGEND.map((l) => (
+          <div key={l.key} className={`jl-${l.key}`}>
+            <dt>{l.label}</dt>
+            <dd>{l.text}</dd>
+          </div>
+        ))}
+      </dl>
+
       <ul className="jira-tiles" aria-label="Dry-run summary">
         {tiles.map(([n, label]) => (
           <li key={label}>
@@ -480,6 +571,27 @@ function ReportView({
           </li>
         ))}
       </ul>
+      <p className="jira-summary">
+        Imports {importWhat(report)}.
+        {steps > 0 && ' Sub-tasks become checklist steps on their parent.'}
+      </p>
+
+      {changed.length > 0 && (
+        <>
+          <h3>Imported with changes</h3>
+          <ReasonGroups groups={changed} />
+          <p className="src">
+            Fields Docket doesn’t have (assignee, reporter, sprint, fix versions, components, other
+            custom fields) aren’t imported for any issue; <i>By field</i> counts them.
+          </p>
+        </>
+      )}
+      {skipped.length > 0 && (
+        <>
+          <h3>Skipped</h3>
+          <ReasonGroups groups={skipped} />
+        </>
+      )}
 
       <h3>Mapping</h3>
       <table className="jira-mapping">
@@ -491,7 +603,7 @@ function ReportView({
               Count
             </th>
             <th scope="col" className="num">
-              Lossy
+              With changes
             </th>
           </tr>
         </thead>
@@ -499,7 +611,7 @@ function ReportView({
           {report.mapping.map((m) => (
             <tr key={`${m.jira}→${m.docket}`}>
               <td>{m.jira}</td>
-              <td>{m.docket}</td>
+              <td>{m.docket === 'Work step' ? 'Checklist step on the parent' : m.docket}</td>
               <td className="num">{m.count}</td>
               <td className="num">{m.lossy > 0 ? m.lossy : '—'}</td>
             </tr>
@@ -520,7 +632,7 @@ function ReportView({
                 Skipped
               </th>
               <th scope="col" className="num">
-                Lossy
+                With changes
               </th>
             </tr>
           </thead>
@@ -536,20 +648,6 @@ function ReportView({
           </tbody>
         </table>
       </details>
-
-      {report.lossy_items.length > 0 && (
-        <details className="jira-lossy">
-          <summary id={lossyId}>Lossy items ({report.lossy_items.length})</summary>
-          <ul aria-labelledby={lossyId}>
-            {report.lossy_items.map((l) => (
-              <li key={l.key}>
-                <span className="mono">{l.key}</span> <b>{l.title}</b>
-                <div className="src">{l.reason}</div>
-              </li>
-            ))}
-          </ul>
-        </details>
-      )}
 
       {report.attachments.skipped.length > 0 && (
         <>
@@ -592,6 +690,38 @@ function ReportView({
         Download report (JSON)
       </Button>
     </div>
+  );
+}
+
+/** One line per reason: the count and what happens, what is kept and not; the issues inside. */
+function ReasonGroups({ groups }: { groups: JiraReport['groups'] }) {
+  return (
+    <ul className="jira-groups">
+      {groups.map((g) => (
+        <li key={g.reason} data-reason={g.reason}>
+          <details>
+            <summary>
+              <b>{g.summary}</b>
+            </summary>
+            <ul className="jira-group-items">
+              {g.items.map((i) => (
+                <li key={i.key}>
+                  <span className="mono">{i.key}</span> {i.title}
+                  <div className="src">{i.detail}</div>
+                </li>
+              ))}
+            </ul>
+          </details>
+          {(g.kept || g.not_kept) && (
+            <div className="src jira-kept">
+              {g.kept}
+              {g.kept && g.not_kept && ' '}
+              {g.not_kept}
+            </div>
+          )}
+        </li>
+      ))}
+    </ul>
   );
 }
 
