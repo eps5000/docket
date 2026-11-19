@@ -322,6 +322,108 @@ describe('sample seed', () => {
   });
 });
 
+describe('the stress project (B35, DOCKET_SEED_STRESS=1)', () => {
+  const stress = (t: TestDb, now = NOW) =>
+    loadSampleSeed(t.db, { now, docsDir: join(t.dir, 'docs'), stress: true });
+  const children = (t: TestDb, epic: string) =>
+    all<{ status: string }>(t, 'SELECT status FROM items WHERE epic_id = ?', epic);
+
+  it('adds STR beside the sample projects and keeps the sample rows identical', () => {
+    const counts = stress(a);
+    seed(b);
+    expect(counts).toMatchObject({ projects: 3, items: 25 + 300 });
+    const sampleRows = (t: TestDb) =>
+      all(t, "SELECT * FROM items WHERE project_key <> 'STR' ORDER BY id").concat(
+        all(t, "SELECT * FROM work_steps WHERE item_id NOT LIKE 'STR-%' ORDER BY id"),
+      );
+    expect(sampleRows(a)).toEqual(sampleRows(b));
+    // Deterministic, like the sample.
+    const c = createTestDb();
+    try {
+      stress(c);
+      expect(dumpHash(c.db, SEED_TABLES)).toBe(dumpHash(a.db, SEED_TABLES));
+    } finally {
+      c.cleanup();
+    }
+  });
+
+  it('has the shapes the Gameflow pilot hit: long titles, many labels, big and empty epics', () => {
+    stress(a);
+    const titles = all<{ title: string }>(a, "SELECT title FROM items WHERE project_key = 'STR'");
+    expect(titles.filter((t) => t.title.length >= 110).length).toBeGreaterThan(100);
+    expect(titles.some((t) => /\S{60,}/.test(t.title))).toBe(true);
+    const labelled = all<{ n: number; longest: number }>(
+      a,
+      `SELECT count(*) AS n, max(length(l.name)) AS longest FROM item_labels il
+       JOIN labels l ON l.id = il.label_id JOIN items i ON i.id = il.item_id
+       WHERE i.project_key = 'STR' GROUP BY il.item_id HAVING count(*) >= 6`,
+    );
+    expect(labelled.length).toBeGreaterThan(20);
+    expect(Math.max(...labelled.map((l) => l.longest))).toBeGreaterThanOrEqual(35);
+    expect(children(a, 'STR-1')).toEqual([]);
+    expect(children(a, 'STR-2')).toHaveLength(1);
+    const big = children(a, 'STR-3');
+    expect(big.length).toBeGreaterThanOrEqual(30);
+    expect(new Set(big.map((c) => c.status)).size).toBeGreaterThanOrEqual(4);
+    expect(one<{ status: string }>(a, "SELECT status FROM items WHERE id = 'STR-4'").status).toBe(
+      'progress',
+    );
+    expect(children(a, 'STR-4').every((c) => ['inbox', 'ready'].includes(c.status))).toBe(true);
+    // A blocked chain four links long.
+    expect(
+      all(
+        a,
+        "SELECT from_id, to_id FROM links WHERE type = 'blocks' AND to_id IN ('STR-161','STR-162','STR-163','STR-164') ORDER BY to_id",
+      ),
+    ).toEqual([
+      { from_id: 'STR-160', to_id: 'STR-161' },
+      { from_id: 'STR-161', to_id: 'STR-162' },
+      { from_id: 'STR-162', to_id: 'STR-163' },
+      { from_id: 'STR-163', to_id: 'STR-164' },
+    ]);
+  });
+
+  it('has an imported item whose sub-task steps carry their Jira keys, and long step details', () => {
+    stress(a);
+    expect(
+      one<{ jira_key: string; imported: number }>(
+        a,
+        "SELECT jira_key, imported FROM items WHERE id = 'STR-203'",
+      ),
+    ).toEqual({ jira_key: 'STRESS-103', imported: 1 });
+    const step = one<{ text: string; source: string; details_md: string; details_version: number }>(
+      a,
+      "SELECT text, source, details_md, details_version FROM work_steps WHERE source = 'STRESS-227'",
+    );
+    expect(step.text).toMatch(/^Prove SVG admission/);
+    expect(step.details_md.length).toBeGreaterThan(2_000);
+    expect(step.details_version).toBe(1);
+    // The sample's own steps have no details or source.
+    expect(
+      one<{ n: number }>(
+        a,
+        "SELECT count(*) AS n FROM work_steps WHERE item_id NOT LIKE 'STR-%' AND (details_md IS NOT NULL OR source IS NOT NULL)",
+      ).n,
+    ).toBe(0);
+  });
+
+  it('asks nothing of the owner: no runs, questions, packets, planning items or canceled blockers', () => {
+    stress(a);
+    const n = (sql: string) => one<{ n: number }>(a, sql).n;
+    expect(n("SELECT count(*) AS n FROM runs WHERE item_id LIKE 'STR-%'")).toBe(0);
+    expect(n("SELECT count(*) AS n FROM questions WHERE item_id LIKE 'STR-%'")).toBe(0);
+    expect(n("SELECT count(*) AS n FROM packets WHERE item_id LIKE 'STR-%'")).toBe(0);
+    expect(
+      n("SELECT count(*) AS n FROM items WHERE project_key = 'STR' AND status = 'planning'"),
+    ).toBe(0);
+    expect(
+      n(
+        "SELECT count(*) AS n FROM links l JOIN items b ON b.id = l.from_id WHERE b.project_key = 'STR' AND b.status = 'canceled'",
+      ),
+    ).toBe(0);
+  });
+});
+
 describe('protoInstant', () => {
   it.each([
     ['40s', Date.UTC(2026, 10, 6, 10, 59, 20)],

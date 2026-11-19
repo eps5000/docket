@@ -204,6 +204,8 @@ test.describe('archive', () => {
   test('Archive and Archive all with Undo, the Archived filter, the epic’s fold', async ({
     ownerPage: page,
   }) => {
+    // The Recipe App's board: All projects also holds the stress project's done items (B35).
+    await page.addInitScript(() => sessionStorage.setItem('docket.scope', 'RCP'));
     await page.goto('/work');
     const done = page.locator('section.col[aria-label="Done"]');
     await expect(done.locator('[data-item="RCP-11"]')).toBeVisible();
@@ -222,22 +224,22 @@ test.describe('archive', () => {
 
     // Archive all, Undo, then Archive all again.
     await done.getByRole('button', { name: 'Archive all' }).click();
-    await expect(toast(page, /^Archived 2 done items\./)).toBeVisible();
+    await expect(toast(page, /^Archived 1 done item\./)).toBeVisible();
     await expect(done.locator('.tcard')).toHaveCount(0);
-    await toast(page, /^Archived 2 done items\./)
+    await toast(page, /^Archived 1 done item\./)
       .getByRole('button', { name: 'Undo' })
       .click();
-    await expect(done.locator('.tcard')).toHaveCount(2);
+    await expect(done.locator('.tcard')).toHaveCount(1);
     await done.getByRole('button', { name: 'Archive all' }).click();
     await expect(done.locator('.tcard')).toHaveCount(0);
 
     // The Archived filter shows them, each with Unarchive.
     const chip = page.locator('.fchip').filter({ hasText: 'Archived' });
-    await expect(chip).toContainText('2');
+    await expect(chip).toContainText('1');
     await chip.click();
     await expect(page).toHaveURL(/filter=archived/);
-    await expect(done.locator('.tcard.archived')).toHaveCount(2);
-    await expect(done.getByRole('button', { name: 'Unarchive' })).toHaveCount(2);
+    await expect(done.locator('.tcard.archived')).toHaveCount(1);
+    await expect(done.getByRole('button', { name: 'Unarchive' })).toHaveCount(1);
     await expectAxeClean(page, 'Archived filter', { include: '[data-layout="board"]' });
 
     // The epic folds its archived ticket away.

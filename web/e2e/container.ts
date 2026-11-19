@@ -43,7 +43,11 @@ export function compose(...args: string[]): void {
     ],
     {
       stdio: 'inherit',
-      env: { ...process.env, DOCKET_SEED: process.env.DOCKET_SEED ?? 'sample' },
+      env: {
+        ...process.env,
+        DOCKET_SEED: process.env.DOCKET_SEED ?? 'sample',
+        DOCKET_SEED_STRESS: process.env.DOCKET_SEED_STRESS ?? '1',
+      },
     },
   );
 }

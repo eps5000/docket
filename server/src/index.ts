@@ -31,7 +31,11 @@ if (interrupted.length > 0) {
 
 if (config.seed === 'sample') {
   if (isDatabaseEmpty(runtime.db)) {
-    const summary = loadSampleSeed(runtime.db, { now: new Date(), docsDir: config.paths.docs });
+    const summary = loadSampleSeed(runtime.db, {
+      now: new Date(),
+      docsDir: config.paths.docs,
+      stress: config.seedStress,
+    });
     console.log(`Loaded the sample seed: ${describeSeed(summary)}`);
   } else {
     console.log('DOCKET_SEED=sample ignored: the database already has data.');

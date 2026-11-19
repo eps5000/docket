@@ -178,7 +178,11 @@ export async function main(argv: string[]): Promise<number> {
           err('The database already has data; the sample seed only loads into an empty one.');
           return 1;
         }
-        const summary = loadSampleSeed(db, { now, docsDir: config.paths.docs });
+        const summary = loadSampleSeed(db, {
+          now,
+          docsDir: config.paths.docs,
+          stress: config.seedStress,
+        });
         out(`Loaded the sample seed: ${describeSeed(summary)}`);
         return 0;
       } finally {

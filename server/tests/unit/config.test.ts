@@ -32,6 +32,7 @@ describe('loadConfig', () => {
       pushHostPath: null,
       driftCheckIntervalMs: 15 * 60_000,
       seed: null,
+      seedStress: false,
       tz: null,
       textOnlyClients: ['claude-code'],
     });
@@ -57,6 +58,7 @@ describe('loadConfig', () => {
       DOCKET_PUSH_HOST_PATH: 'C:/Users/me/code',
       DOCKET_DRIFT_CHECK_INTERVAL: '1h',
       DOCKET_SEED: 'sample',
+      DOCKET_SEED_STRESS: '1',
       TZ: 'Europe/London',
       DOCKET_TEXT_ONLY_CLIENTS: ' Claude-Code, my-agent ,',
     });
@@ -77,6 +79,7 @@ describe('loadConfig', () => {
       pushHostPath: 'C:/Users/me/code',
       driftCheckIntervalMs: 3_600_000,
       seed: 'sample',
+      seedStress: true,
       tz: 'Europe/London',
       textOnlyClients: ['claude-code', 'my-agent'],
     });

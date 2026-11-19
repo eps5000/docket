@@ -1,5 +1,5 @@
 # A disposable Docket for the end-to-end tests (web/e2e): its own container, image and
-# volume, with the sample seed. The tests reset its database before each spec file, so it
+# volume, with the sample seed and the stress project. The tests reset its database before each spec file, so it
 # must never be your real instance. web/e2e/global-setup.ts starts it when nothing answers
 # on 127.0.0.1:7420:
 #   docker compose -p docket-e2e -f docker/compose.yaml -f docker/compose.e2e.yaml up -d --build --wait
@@ -10,6 +10,8 @@ services:
     container_name: docket-e2e
     environment:
       DOCKET_SEED: sample
+      # B35: the stress project (STR) too, so layout checks see realistic data.
+      DOCKET_SEED_STRESS: '1'
 volumes:
   docket-data:
     name: docket-e2e-data

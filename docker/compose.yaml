@@ -14,6 +14,8 @@ services:
         required: false
     environment:
       DOCKET_SEED: ${DOCKET_SEED:-}
+      # Tests only: 1 adds the 300-item stress project (STR) to the sample seed.
+      DOCKET_SEED_STRESS: ${DOCKET_SEED_STRESS:-}
       # Decision 32: empty or off is local trust (no unlock, no agent token); on is protected
       # mode. Set it in .env (DOCKET_PROTECTED_MODE=on), then restart.
       DOCKET_PROTECTED_MODE: ${DOCKET_PROTECTED_MODE:-}
