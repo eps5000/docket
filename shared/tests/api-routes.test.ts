@@ -124,6 +124,8 @@ const EXPECTED = [
   'POST /api/onboarding/:id/reviewed',
   // Decision 33 (BUILD_SPEC §7; UI_SPEC §6.3.1a): the step dialog's details editor
   'PATCH /api/items/:id/work/:stepId/details',
+  // Decision 33 (B34): the step dialog's contents
+  'GET /api/items/:id/work/:stepId',
   'GET /api/stream',
   'POST /agent-upload',
 ];
@@ -141,7 +143,7 @@ describe('the route table', () => {
     const labels = ROUTE_IDS.map((id) => routeLabel(API_ROUTES[id]));
     expect(new Set(labels).size).toBe(labels.length);
     expect([...labels].sort()).toEqual([...EXPECTED].sort());
-    expect(labels).toHaveLength(77);
+    expect(labels).toHaveLength(78);
   });
 
   it('puts each route in a known group, and every group has a route', () => {

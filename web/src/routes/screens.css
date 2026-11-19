@@ -1447,3 +1447,117 @@
   margin: 0 0 6px;
   font-size: 13px;
 }
+
+/* ---------- Step dialog (decision 33; UI_SPEC §6.3.1a) ---------- */
+.tl .step-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+}
+.tl .step-open {
+  border: 0;
+  background: none;
+  padding: 0;
+  margin: 0;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+.tl .step-open:hover b {
+  text-decoration: underline;
+}
+.tl .step-details-btn {
+  color: var(--ink-2);
+}
+.tl .step-source {
+  font-size: 11.5px;
+}
+.tl .ov:has(> .step-dlg) {
+  padding-top: 6vh;
+}
+.tl .dlg.step-dlg {
+  width: min(960px, 100%);
+  max-height: min(85vh, calc(100vh - 7vh));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.tl .dlg.step-dlg > header h2 {
+  font-size: 16px;
+  overflow-wrap: anywhere;
+}
+.tl .dlg.step-dlg .body {
+  overflow: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.tl .dlg.step-dlg > footer {
+  align-items: center;
+  flex-wrap: wrap;
+}
+.tl .step-meta {
+  gap: 6px 12px;
+  margin-bottom: 6px;
+}
+.tl .step-sec {
+  margin-top: 16px;
+}
+.tl .step-sec h3 {
+  margin: 0 0 6px;
+  font-size: 13px;
+}
+.tl .step-details {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 14px;
+  overflow-wrap: anywhere;
+}
+.tl .step-history {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.tl .step-history li {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 8px;
+  padding: 5px 0;
+  font-size: 12.5px;
+  border-top: 1px dashed var(--line);
+}
+.tl .step-history li:first-child {
+  border-top: 0;
+}
+@media (max-width: 640px) {
+  .tl .dlg.step-dlg .hint {
+    display: none;
+  }
+}
+
+/* History rows keep a note's line breaks (imported Jira comments and sub-task notes, B34). */
+.tl .act > .act-body {
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+/* The Jira import's "Comments from Jira sub-tasks" notes in History (decision 33, B34). */
+.tl .jira-note {
+  white-space: normal;
+}
+.tl .jira-note .jn-title {
+  font-weight: 600;
+}
+.tl .jira-note .jn-head {
+  margin: 10px 0 2px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.tl .jira-note .jn-by {
+  margin-top: 6px;
+}
+.tl .jira-note .jn-text {
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}

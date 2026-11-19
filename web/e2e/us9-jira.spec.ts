@@ -18,6 +18,10 @@
  *   as api.atlassian.com on the test network) and imports everything there.
  * - Step 3 (Import): the result with the failed attachment listed, and
  *   *Open project*; the imported items show "Imported from Jira".
+ * - Decision 33 (B34): a sub-task's step carries its details (header line
+ *   and description) and its Jira key as a source that links to the issue in
+ *   the step dialog; the parent's History shows the "Comments from Jira
+ *   sub-tasks" notes.
  * - The API token is cleared after step 1 and never on the page again.
  * - axe on every step in both themes.
  *
@@ -82,6 +86,16 @@ async function shoot(page: Page, name: string, target: Locator) {
     (el as HTMLElement).style.maxHeight = '';
     (el.parentElement as HTMLElement).style.position = '';
   });
+}
+
+/** A part of the page (not a whole dialog): shot as it is. */
+async function shootPart(page: Page, name: string, target: Locator) {
+  if (!out) return;
+  for (const theme of ['light', 'dark'] as const) {
+    await setTheme(page, theme);
+    await target.screenshot({ path: join(out, `us9-${name}-${theme}.png`) });
+  }
+  await setTheme(page, 'light');
 }
 
 const dialog = (page: Page) => page.getByRole('dialog', { name: 'Import from Jira' });
@@ -224,7 +238,7 @@ test.describe('Import from Jira (UI_SPEC §9.2)', () => {
     const subtasks = d.locator('[data-reason="subtask"]');
     await expect(subtasks).toContainText('3 sub-tasks → checklist steps on their parent');
     await expect(subtasks).toContainText(
-      'Kept: title, done or not done. Not kept yet: description, comments, assignee, dates (a later update keeps the description and comments).',
+      'Kept: title, done or not done, description and dates (in the step’s details), comments (in a note on the parent). Not kept: attachments, labels and links on sub-tasks (each one lists what it had).',
     );
     await expect(d.locator('[data-reason="skip_subtask"]')).toContainText(
       '1 sub-task whose parent isn’t in this import',
@@ -241,13 +255,13 @@ test.describe('Import from Jira (UI_SPEC §9.2)', () => {
     await shoot(page, 'review', d);
     await d.getByText('By field (18)').click();
     await expect(d.getByRole('row', { name: 'Reporter 0 21 —' })).toBeVisible();
-    await expect(d.getByRole('row', { name: 'Description 6 2 3' })).toBeVisible();
+    await expect(d.getByRole('row', { name: 'Description 8 1 4' })).toBeVisible();
+    await expect(d.getByRole('row', { name: 'Assignee 2 1 —' })).toBeVisible();
     await d.locator('[data-reason="subtask"] summary').click();
     await expect(
-      d.getByText(
-        'Became a checklist step on TL-2; not kept: assignee, 1 comment, due date, description, 1 attachment',
-      ),
+      d.getByText('Became a checklist step on TL-2; not kept: 1 attachment', { exact: true }),
     ).toBeVisible();
+    await shootPart(page, 'subtask-group', subtasks);
     await d.locator('[data-reason="other_type"] summary').click();
     await expect(d.getByText('Jira type Spike imported as Task', { exact: false })).toBeVisible();
     await d.locator('[data-reason="skip_secret"] summary').click();
@@ -289,6 +303,65 @@ test.describe('Import from Jira (UI_SPEC §9.2)', () => {
     await page.goto('/items/TILL-2');
     await expect(page.getByText('Imported from Jira')).toBeVisible();
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Card form validation');
+
+    // Decision 33: the sub-tasks' steps carry their details and link to Jira.
+    await page.getByRole('tab', { name: /^Checklist/ }).click();
+    const work = page.locator('section[data-section="work"]');
+    await expect(
+      work.getByRole('button', { name: 'Details for Show inline errors' }),
+    ).toBeVisible();
+    await expect(work.getByRole('button', { name: 'Details for Copy review' })).toHaveCount(0);
+    await work.getByRole('button', { name: 'Details for Show inline errors' }).click();
+    const step = page.getByRole('dialog', { name: 'Show inline errors' });
+    await expect(step.getByRole('link', { name: 'TL-8 (opens in Jira)' })).toHaveAttribute(
+      'href',
+      `${SITE}/browse/TL-8`,
+    );
+    await expect(step.locator('.step-details')).toContainText(
+      'Jira TL-8 · assignee Jo Sample · start Nov 2, 2026 · due Dec 4, 2026 · 3 pts',
+    );
+    await expect(step.locator('.step-meta')).toContainText('Imported from Jira (TL-8)');
+    // History names Jira, not "you" (the import adds steps as the owner).
+    await expect(step.locator('.step-history [data-change="added"]')).toContainText(
+      'Imported from Jira (TL-8)',
+    );
+    await expect(step.locator('.step-history')).not.toContainText('Added by you');
+    await expect(step.getByRole('heading', { name: 'What to show' })).toBeVisible();
+    await expect(step.locator('.step-details')).toContainText(
+      'From Jira: panel simplified or dropped in the description',
+    );
+    await expectAxeClean(page, 'Step dialog · imported sub-task', { include: '.dlg' });
+    await shoot(page, 'step-dialog', step);
+    await page.keyboard.press('Escape');
+
+    // The parent's "Comments from Jira sub-tasks" notes, in History, unread by agents.
+    await page.getByRole('tab', { name: /^Activity/ }).click();
+    const history = page.locator('section[data-section="history"]');
+    const note = history
+      .locator('.act')
+      .filter({ hasText: 'Comments from Jira sub-tasks (1 of 2)' });
+    // Each sub-task is a heading; each comment's author and date is a muted line.
+    await expect(note.getByRole('heading', { level: 4 })).toHaveText([
+      'TL-7 Add Luhn check',
+      'TL-8 Show inline errors',
+    ]);
+    const by = note.locator('.jn-by').first();
+    await expect(by).toHaveText('Sam Placeholder · 2026-03-06');
+    await expect(by).toHaveClass(/\bsrc\b/);
+    await expect(
+      history.locator('.act').filter({ hasText: 'Comments from Jira sub-tasks (2 of 2)' }),
+    ).toContainText('TL-8 Show inline errors (continued)');
+    await expect(
+      history
+        .locator('.act')
+        .filter({ hasText: 'Comments from Jira sub-tasks (2 of 2)' })
+        .getByRole('heading', { level: 4 }),
+    ).toHaveText(['TL-8 Show inline errors (continued)']);
+    await expect(history.locator('[data-notes-unread]')).toHaveText('2 notes not read yet');
+    await expectAxeClean(page, 'Imported parent · History', {
+      include: '[data-section="history"]',
+    });
+    await shootPart(page, 'subtask-note', note);
   });
 
   test('a scoped token signs in through the gateway and imports everything there (B32)', async ({

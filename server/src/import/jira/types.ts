@@ -77,6 +77,15 @@ export interface PlannedStep {
   jira_key: string;
   text: string;
   state: 'todo' | 'current' | 'done';
+  /** The step's source: the sub-task's Jira key (decision 33). */
+  source: string;
+  /**
+   * The step's details (decision 33): a header line (Jira key, assignee,
+   * dates, story points), then the description as Markdown, then a "From
+   * Jira" line naming what the conversion simplified. Null when the
+   * sub-task had nothing beyond its key.
+   */
+  details_md: string | null;
 }
 
 export interface PlannedComment {
@@ -109,6 +118,12 @@ export interface PlannedItem {
   effort: number | null;
   steps: PlannedStep[];
   comments: PlannedComment[];
+  /**
+   * The "Comments from Jira sub-tasks" owner notes (decision 33): its
+   * sub-tasks' comments, grouped by sub-task, split into numbered notes
+   * when they exceed the note limit. Empty when none had comments.
+   */
+  subtask_notes: string[];
   attachments: PlannedAttachment[];
   /** Jira's own facts, carried as event data (never as event times). */
   jira: {

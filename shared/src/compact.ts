@@ -595,6 +595,26 @@ export function renderContext(ctx: ContextBundle, opts: RenderOptions = {}): str
   if (ctx.dependents.length > 0) {
     lines.push(`blocks: ${ctx.dependents.map((d) => `${d.id} ${d.status}`).join(', ')}`);
   }
+  // Section 4b (decision 33): the step to work on, with its details.
+  const st = ctx.current_step;
+  if (st) {
+    lines.push(
+      `step: ${join([
+        `${st.id} ${st.text}`,
+        st.state,
+        st.source ? `source ${st.source}` : null,
+        st.details_md !== null || st.truncated ? `details v${st.details_version}` : null,
+      ])}`,
+    );
+    if (st.details_md?.trim())
+      lines.push(
+        ...st.details_md
+          .trimEnd()
+          .split(/\r?\n/)
+          .map((l) => `${I1}${l}`),
+      );
+    if (st.truncated) lines.push(`${I1}…truncated; read it with get_step ${it.id} ${st.id}`);
+  }
   // Section 5 (decision 29): the project's Workflow notes, after the briefs and links.
   const wf = ctx.workflow;
   if (wf) {

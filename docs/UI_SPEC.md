@@ -430,14 +430,15 @@ A `ProgressMap` of the filtered set, titled "Outside this view". When no epic or
   - "New items aren't in the current packet; the agent includes them next round." (packet open).
 
 #### 6.3.1a Step dialog (decision 33)
-- **Opening it:** clicking a step's title, or its details icon (shown when the step has details, with an accessible name of "Details for <step>"), opens a dialog. There's no inline expansion.
+- **Opening it:** clicking a step's title, or its details icon (shown when the step has details, with an accessible name of "Details for <step>"), opens a dialog. There's no inline expansion. The row also shows the step's source, muted, after the icon (B34).
 - **Contents:**
   - the title, status chip and source (a Jira key linking to the Jira issue when the project has a Jira site);
   - the rendered details (Markdown, sanitized);
   - the history (wording changes with reasons, state changes by whom and when);
   - subagent notes with their provenance.
 - **Editing:** *Edit details* opens the inline editor in the dialog, with `expected_version`, the conflict callout, *Ctrl+Enter* to save and Esc to cancel.
-- **Moving around:** *Previous* and *Next* step buttons (and the arrow keys when focus isn't in the editor). Esc closes, and focus returns to the row.
+- **Moving around:** *Previous* and *Next* step buttons, with "Step 2 of 5" (and ← → when focus isn't in a field or the editor; both are off while editing). Esc closes, and focus returns to the row of the step last shown. Esc inside the editor cancels the edit, not the dialog.
+- **Data** (B34): `GET /api/items/:id/work/:stepId` gives the step, its history (the same as `get_step`'s) and the project's Jira site; the dialog opens on the row's data and fills the history when it arrives.
 - **Size:** it's sized for long text (up to 960 px wide and 85 vh tall, with the body scrolling), and works at 1024 px.
 
 #### 6.3.2 Lead and runs
@@ -812,7 +813,7 @@ A dialog with three steps. A step indicator "1 Connect · 2 Review · 3 Import" 
    - **a legend** at the top: **Imported as is** (comes across unchanged), **Imported with changes** (what changes, and what isn't kept, is listed by reason below), **Skipped** (not imported, with the reason). The word "lossy" is never shown;
    - **summary tiles:** n issues, n as is, n with changes, n skipped, attachments size;
    - **the summary line:** "Imports 328 items and 57 checklist steps. Sub-tasks become checklist steps on their parent." (no steps part when there are none);
-   - **Imported with changes,** grouped by reason, one row each: the count and what happens in bold ("42 sub-tasks → checklist steps on their parent"), opening to the issues (key, title, that issue's details), and under it what is kept and not ("Kept: title, done or not done. Not kept yet: description, comments, assignee, dates (a later update keeps the description and comments)."). The reasons and their lines come from BUILD_SPEC §9's mapping table. Then one line: fields Docket doesn't have (assignee, reporter, sprint, fix versions, components, other custom fields) aren't imported for any issue, and *By field* counts them;
+   - **Imported with changes,** grouped by reason, one row each: the count and what happens in bold ("42 sub-tasks → checklist steps on their parent"), opening to the issues (key, title, that issue's details), and under it what is kept and not ("Kept: title, done or not done, description and dates (in the step’s details), comments (in a note on the parent). Not kept: attachments, labels and links on sub-tasks (each one lists what it had)."; B34). The reasons and their lines come from BUILD_SPEC §9's mapping table. Then one line: fields Docket doesn't have (assignee, reporter, sprint, fix versions, components, other custom fields) aren't imported as fields, a sub-task's assignee is kept in its step's details, and *By field* counts them;
    - **Skipped,** grouped the same way (for example "1 sub-task whose parent isn't in this import");
    - **mapping table** (Jira → Docket, count, with-changes count; sub-task rows read "Checklist step on the parent"), and *By field* (mapped, skipped, with changes);
    - **Cycles found** (if any): "Imported as is. They'll show under Problems.";

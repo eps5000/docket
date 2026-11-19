@@ -326,6 +326,47 @@ describe('get_context: Workflow notes (decision 29; MCP_SPEC §5.2)', () => {
   });
 });
 
+describe('get_context: the current step (decision 33; MCP_SPEC §5.12)', () => {
+  const lines = (ctx: typeof RCP14_CONTEXT) => renderContext(ctx, opts).split('\n');
+  const step = {
+    id: 'wst_01',
+    text: 'Keep the week in the URL',
+    state: 'current' as const,
+    source: 'GF-123',
+    details_md: '## Steps\n\n1. Open the planner',
+    details_version: 2,
+    truncated: false,
+  };
+
+  it('renders a step: section after the links, before the workflow notes, details indented', () => {
+    const out = lines({ ...RCP14_CONTEXT, current_step: step });
+    const at = (prefix: string) => out.findIndex((l) => l.startsWith(prefix));
+    expect(out.slice(at('step:'), at('step:') + 4)).toEqual([
+      'step: wst_01 Keep the week in the URL · current · source GF-123 · details v2',
+      '  ## Steps',
+      '  ',
+      '  1. Open the planner',
+    ]);
+    expect(at('blocks:')).toBeLessThan(at('step:'));
+    expect(at('step:')).toBeLessThan(at('workflow:'));
+  });
+
+  it('marks cut details with a line that points at get_step', () => {
+    const out = lines({ ...RCP14_CONTEXT, current_step: { ...step, truncated: true } });
+    expect(out).toContain('  …truncated; read it with get_step RCP-14 wst_01');
+  });
+
+  it('a step without details is its header only; none (null or absent) is no section', () => {
+    const bare = { ...step, source: null, details_md: null, details_version: 0 };
+    const out = lines({ ...RCP14_CONTEXT, current_step: bare });
+    expect(out).toContain('step: wst_01 Keep the week in the URL · current');
+    expect(lines({ ...RCP14_CONTEXT, current_step: null }).some((l) => l.startsWith('step:'))).toBe(
+      false,
+    );
+    expect(lines(RCP14_CONTEXT).some((l) => l.startsWith('step:'))).toBe(false);
+  });
+});
+
 describe('errors', () => {
   it('renders the code and message, then details', () => {
     expect(

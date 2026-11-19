@@ -80,6 +80,7 @@ import {
   type RouteQuery,
   type SearchResponse,
   type SettingsResponse,
+  type StepResponse,
   type SignalKind,
   type Timeline,
   type ToolInput,
@@ -564,6 +565,11 @@ export interface ChecklistService {
   ownerRemoveCheck(w: WriteContext, input: RouteParams<'checks.remove'>): void;
   /** `get_step` (decision 33; MCP_SPEC §5.12): one step in full, with its history. */
   getStep(r: ReadContext, input: In<'get_step'>): Out<'get_step'>;
+  /**
+   * The step dialog (decision 33; B34): `get_step`'s step and history, plus the
+   * project's Jira site (the origin its latest Jira import recorded; null otherwise).
+   */
+  ownerGetStep(r: ReadContext, input: RouteParams<'steps.get'>): StepResponse;
   /** The step dialog's *Edit details*, checked against `details_version` (decision 33). */
   ownerSetStepDetails(
     w: WriteContext,

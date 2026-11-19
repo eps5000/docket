@@ -329,6 +329,8 @@ type ContextBundle = {
   labels: { name: string; brief_md: string }[];
   blockers: { id: string; title: string; status: Status; cleared: boolean; waiting_for: string|null; outcome_first_line: string }[];
   dependents: { id: string; title: string; status: Status }[];
+  current_step?: { id: string; text: string; state: WorkStep['state']; source: string|null;
+    details_md: string|null; details_version: number; truncated: boolean } | null;   // the step to work on, with its details (decision 33; B34)
   workflow: { project: string; version_no: number; content_md: string; truncated: boolean } | null;   // the project's Workflow notes (decision 29)
   planning_docs: { name: string; version_no: number; content_md: string|null; truncated: boolean }[];
   last_review: { round: number; items: { text: string; kind: 'approve'|'changes'|'defer'; note: string|null }[] } | null;
@@ -434,6 +436,7 @@ The format for each tool below:
 - **Input:** `id`, `budget?: 'small'|'medium'|'large' = 'medium'` (about 1k, 3k and 8k tokens).
 - **Output:** `{ context: ContextBundle }`. The text block renders the bundle in the compact format, in the BUILD_SPEC §5.15 priority order, with `…truncated; …` lines where it was cut.
 - **Note (decision 29):** the bundle includes the project's Workflow notes (`ContextBundle.workflow`, §4; BUILD_SPEC §5.15 section 5), rendered as a `workflow:` section after the blockers and dependents, before the planning documents (the §5.15 order), with a `…truncated` line when cut. Shipped in B21 (tasks T151): the description above names "the project's workflow notes", in `mcp-copy.ts` and the snapshot too. The server returns `workflow: null` until T157 fills it.
+- **Note (decision 33; B34):** the bundle includes the step to work on (`ContextBundle.current_step`: the step in state `current`, else the first `todo`; null when none is open) with its details, rendered as a `step:` section after the blockers and dependents, before the workflow notes (BUILD_SPEC §5.15 section 4b): a header line `step: wst_… <text> · <state> · source GF-123 · details v2`, then the details indented. They count in the budget; when they don't fit they're cut inline, followed by `…truncated; read it with get_step RCP-14 wst_…`, and when not even the header fits, a `…truncated; current step wst_… and its details; read it with get_step RCP-14 wst_…` line takes its place. The description is unchanged; the output schema gains the optional field (snapshot, B34).
 - **Errors:** `not_found`.
 
 #### `dependency_subgraph`
@@ -750,7 +753,7 @@ A checklist step can carry details (Markdown) and a source, such as a Jira key (
 - **`get_item`:** says details show as a marker unless view is full;
 - **the new `get_step`.**
 
-B33 also stores details and source through `set_plan`, `update_step` and the owner's step dialog route (UI_SPEC §6.3.1a), and implements `get_step`. B34 (T171) adds the current step's details to `get_context`.
+B33 also stores details and source through `set_plan`, `update_step` and the owner's step dialog route (UI_SPEC §6.3.1a), and implements `get_step`. B34 (T171) adds the current step's details to `get_context`, as the optional `ContextBundle.current_step` (§4; the `get_context` note in §5.2).
 
 #### Changes to existing tools
 - **`set_plan`:** `steps[]` entries accept `details?` (≤ 10,000; `null` clears it) and `source?` (≤ 100). Patch semantics: omitted means unchanged.

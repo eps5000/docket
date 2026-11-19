@@ -1,26 +1,54 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ItemDetailResponse, WorkStep } from '@docket/shared';
-import { Button, EmptyState, Icon, Provenance, Section } from '../../../components/kit';
+import { Button, EmptyState, Icon, IconButton, Provenance, Section } from '../../../components/kit';
 import { apiClient } from '../../../app/queryClient';
 import { formatAge, isoTitle } from '../../../lib/format';
 import { useSteer } from '../../shared/steer';
 import { ChecklistHistory } from '../../dialogs/ChecklistHistory';
 import type { ItemKind } from '../ItemPage';
+import { HelpLink } from '../../../help/HelpLink';
 import { AddRow } from './AddRow';
+import { StepDialog } from './StepDialog';
 
 const GLYPH: Partial<Record<WorkStep['state'], string>> = { done: '✓', blocked: '!' };
 
-/** One work step (UI_SPEC §6.3.1); the owner's own show *Remove* while not done. */
-function StepRow({ step, onRemove }: { step: WorkStep; onRemove?: () => void }) {
+/**
+ * One work step (UI_SPEC §6.3.1); the owner's own show *Remove* while not
+ * done. The title opens the step dialog (§6.3.1a), and so does the details
+ * icon on steps with details; the row itself never expands.
+ */
+function StepRow({
+  step,
+  onOpen,
+  onRemove,
+}: {
+  step: WorkStep;
+  onOpen: () => void;
+  onRemove?: () => void;
+}) {
   return (
     <div className="ck" data-step={step.id}>
       <span className={`sicon s-${step.state}`} aria-hidden="true">
         {GLYPH[step.state] ?? ''}
       </span>
       <div style={{ minWidth: 0 }}>
-        <div>
-          <b>{step.text}</b> {step.was_text && <s className="muted">{step.was_text}</s>}
-          <span className="sr"> ({step.state})</span>
+        <div className="step-head">
+          <button type="button" className="step-open" data-step-open={step.id} onClick={onOpen}>
+            <b>{step.text}</b>
+            <span className="sr"> ({step.state})</span>
+          </button>
+          {step.has_details && (
+            <IconButton
+              icon="doc"
+              className="step-details-btn"
+              aria-label={`Details for ${step.text}`}
+              bare
+              data-step-details={step.id}
+              onClick={onOpen}
+            />
+          )}
+          {step.source && <span className="src mono step-source">{step.source}</span>}{' '}
+          {step.was_text && <s className="muted">{step.was_text}</s>}
         </div>
         {step.change_reason && <div className="changed">Changed: {step.change_reason}</div>}
         {step.from_review && (
@@ -78,6 +106,15 @@ function StepRow({ step, onRemove }: { step: WorkStep; onRemove?: () => void }) 
  */
 export function WorkSection({ kind, data }: { kind: ItemKind; data: ItemDetailResponse }) {
   const [history, setHistory] = useState(false);
+  const [openStep, setOpenStep] = useState<string | null>(null);
+  // Esc or Close returns focus to the row of the step last shown (UI_SPEC §6.3.1a).
+  const returnTo = useRef<string | null>(null);
+  useEffect(() => {
+    if (openStep !== null || !returnTo.current) return;
+    const id = returnTo.current;
+    returnTo.current = null;
+    document.querySelector<HTMLElement>(`[data-step-open="${CSS.escape(id)}"]`)?.focus();
+  }, [openStep]);
   const steer = useSteer(data.item.id);
   const work = data.item.checklist.work;
   const done = work.filter((w) => w.state === 'done').length;
@@ -98,11 +135,14 @@ export function WorkSection({ kind, data }: { kind: ItemKind; data: ItemDetailRe
       title="Work"
       summary={`${done}/${work.length} done · the agent’s plan`}
       extraHead={
-        data.plan_history.length > 1 ? (
-          <Button variant="ghost" size="sm" onClick={() => setHistory(true)}>
-            Checklist history
-          </Button>
-        ) : undefined
+        <>
+          {data.plan_history.length > 1 && (
+            <Button variant="ghost" size="sm" onClick={() => setHistory(true)}>
+              Checklist history
+            </Button>
+          )}
+          <HelpLink anchor="item.work" />
+        </>
       }
     >
       {work.length === 0 ? (
@@ -120,6 +160,7 @@ export function WorkSection({ kind, data }: { kind: ItemKind; data: ItemDetailRe
           <StepRow
             key={w.id}
             step={w}
+            onOpen={() => setOpenStep(w.id)}
             onRemove={
               open && w.added_by === 'owner' && w.state !== 'done' ? () => remove(w) : undefined
             }
@@ -135,6 +176,19 @@ export function WorkSection({ kind, data }: { kind: ItemKind; data: ItemDetailRe
               : 'Add a step for the agent, e.g. Handle an empty week plan'
           }
           onAdd={add}
+        />
+      )}
+      {openStep && (
+        <StepDialog
+          itemId={data.item.id}
+          steps={work}
+          stepId={openStep}
+          itemImported={data.item.jira_key !== null}
+          onMove={setOpenStep}
+          onClose={() => {
+            returnTo.current = openStep;
+            setOpenStep(null);
+          }}
         />
       )}
       {history && (

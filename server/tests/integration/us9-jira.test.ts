@@ -29,6 +29,7 @@ import { join, relative } from 'node:path';
 import type { JiraImport } from '@docket/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadSampleSeed } from '../../src/db/seed/loader.js';
+import { adfToMarkdown } from '../../src/import/jira/adf.js';
 import { readContext } from '../../src/domain/contracts.js';
 import { OWNER_ACTOR } from '../../src/domain/write.js';
 import {
@@ -718,5 +719,121 @@ describe("a deleted project's key (B15 tombstones)", () => {
     expect(first.id).toBe(`RCP-${nextSeq}`);
     const settings = await api('/api/settings');
     expect(JSON.stringify(settings.body)).toContain('Recipes again');
+  });
+});
+
+/**
+ * SC-020 (decision 33; FR-148; B34): after the import, 100% of the fixture's
+ * sub-task descriptions and comments are readable in Docket, the
+ * descriptions in their steps' details (through get_step, as an agent reads
+ * them, and the owner's step dialog route) and the comments in the parent's
+ * "Comments from Jira sub-tasks" notes. Checked against the fixture's own
+ * raw issues, converted with the same ADF converter; whitespace is
+ * normalised, since a comment too long for one note continues in the next.
+ */
+describe('SC-020: sub-task descriptions and comments are readable after the import', () => {
+  it('every description is in its step details, every comment in the parent notes', async () => {
+    const { import_id } = await dryRun();
+    await waitFor(import_id, ['ready']);
+    expect((await api(`/api/import/jira/${import_id}/commit`, { method: 'POST' })).status).toBe(
+      200,
+    );
+    await waitFor(import_id, ['committed']);
+
+    const raw = site.projects.get('TL')!;
+    const issues = raw.issues as { key: string; fields: Record<string, unknown> }[];
+    const parentOf = (i: { fields: Record<string, unknown> }) =>
+      (i.fields.parent as { key?: string } | undefined)?.key;
+    const imported = new Map(
+      (
+        s.runtime.db.sqlite
+          .prepare("SELECT id, jira_key FROM items WHERE project_key = 'TLI'")
+          .all() as { id: string; jira_key: string }[]
+      ).map((r) => [r.jira_key, r.id]),
+    );
+    const subtasks = issues.filter(
+      (i) =>
+        (i.fields.issuetype as { subtask?: boolean }).subtask === true &&
+        imported.has(parentOf(i) ?? ''),
+    );
+    expect(subtasks.map((i) => i.key)).toEqual(['TL-7', 'TL-8', 'TL-9']);
+    const flat = (t: string) => t.replace(/\s+/g, ' ').trim();
+    const r = () => readContext(s.runtime.db, OWNER_ACTOR, s.clock.now());
+
+    let descriptions = 0;
+    let comments = 0;
+    let found = 0;
+    for (const issue of subtasks) {
+      const parent = imported.get(parentOf(issue)!)!;
+      const row = s.runtime.db.sqlite
+        .prepare('SELECT id FROM work_steps WHERE item_id = ? AND source = ?')
+        .get(parent, issue.key) as { id: string };
+      const { step } = s.runtime.services.checklist.getStep(r(), { id: parent, step_id: row.id });
+      const dialog = await api(`/api/items/${parent}/work/${row.id}`);
+      expect(dialog.status).toBe(200);
+      expect(dialog.body.step).toEqual(step);
+      expect(dialog.body.jira_site).toBe(site.origin);
+      expect(step.source).toBe(issue.key);
+      if (issue.fields.description) {
+        descriptions++;
+        const md = adfToMarkdown(issue.fields.description).markdown;
+        expect(step.details_md, `${issue.key}'s description`).toContain(md);
+        found++;
+      }
+      const notes = (
+        s.runtime.db.sqlite
+          .prepare('SELECT text FROM owner_notes WHERE item_id = ? ORDER BY created_at, id')
+          .all(parent) as { text: string }[]
+      )
+        .map((n) =>
+          n.text
+            .split('\n')
+            .filter(
+              (l) => !l.startsWith('Comments from Jira sub-tasks') && !/\(continued\)$/.test(l),
+            )
+            .join('\n'),
+        )
+        .join('\n');
+      for (const c of raw.comments[issue.key] ?? []) {
+        comments++;
+        const md = adfToMarkdown(c.body).markdown;
+        expect(flat(notes), `${issue.key} comment ${String(c.id)}`).toContain(flat(md));
+        found++;
+      }
+    }
+    // TL-7: a description and one comment; TL-8: a long description and four comments.
+    expect([descriptions, comments]).toEqual([2, 5]);
+    expect(found).toBe(descriptions + comments);
+    console.log(
+      `SC-020: ${found} of ${descriptions + comments} sub-task descriptions and comments readable in Docket ` +
+        `(${descriptions} descriptions in step details, ${comments} comments in parent notes)`,
+    );
+
+    // The parent's notes: numbered when split, unread (the agent's next get_item delivers them).
+    const notes = s.runtime.db.sqlite
+      .prepare(
+        "SELECT text, read_by_agent_at FROM owner_notes WHERE item_id = 'TLI-2' ORDER BY created_at, id",
+      )
+      .all() as { text: string; read_by_agent_at: string | null }[];
+    expect(notes.map((n) => n.text.split('\n')[0])).toEqual([
+      'Comments from Jira sub-tasks (1 of 2)',
+      'Comments from Jira sub-tasks (2 of 2)',
+    ]);
+    expect(notes.every((n) => n.text.length <= 4_000 && n.read_by_agent_at === null)).toBe(true);
+    expect(notes[0]!.text).toContain('TL-7 Add Luhn check\n\nSam Placeholder · 2026-03-06\n');
+    expect(notes[1]!.text).toContain('TL-8 Show inline errors (continued)');
+    // The step header line, and the conversion loss noted inline.
+    const tl8 = s.runtime.db.sqlite
+      .prepare("SELECT details_md, details_version FROM work_steps WHERE source = 'TL-8'")
+      .get() as { details_md: string; details_version: number };
+    expect(tl8.details_md.split('\n')[0]).toBe(
+      'Jira TL-8 · assignee Jo Sample · start Nov 2, 2026 · due Dec 4, 2026 · 3 pts',
+    );
+    expect(tl8.details_md).toMatch(/From Jira: panel simplified or dropped in the description$/);
+    expect(tl8.details_version).toBe(1);
+    // A sub-task with nothing beyond its key has no details.
+    expect(
+      s.runtime.db.sqlite.prepare("SELECT details_md FROM work_steps WHERE source = 'TL-9'").get(),
+    ).toEqual({ details_md: null });
   });
 });

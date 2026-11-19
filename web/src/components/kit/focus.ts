@@ -35,6 +35,9 @@ export function useFocusTrap(
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        // An inline editor inside the trap (the step dialog's) handles its own Esc:
+        // cancel, or ask before discarding. Only an Esc outside it closes.
+        if ((e.target as Element | null)?.closest?.('[data-inline-editor]')) return;
         e.preventDefault();
         e.stopPropagation();
         onEscape.current();

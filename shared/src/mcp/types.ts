@@ -465,6 +465,24 @@ export const contextBundleSchema = z.object({
   ),
   dependents: z.array(z.object({ id: z.string(), title: z.string(), status: statusSchema })),
   /**
+   * The step to work on next (decision 33; MCP_SPEC §5.12): the one in state
+   * `current`, else the first `todo`, with its details, placed after the
+   * blockers and dependents (BUILD_SPEC §5.15 section 4b). `truncated` when its
+   * details were cut; get_step reads them in full. Null when no step is open.
+   */
+  current_step: z
+    .object({
+      id: z.string(),
+      text: z.string(),
+      state: workStepStateSchema,
+      source: z.string().nullable(),
+      details_md: z.string().nullable(),
+      details_version: z.number().int(),
+      truncated: z.boolean(),
+    })
+    .nullable()
+    .optional(),
+  /**
    * The project's Workflow notes, current version (decision 29; BUILD_SPEC
    * §5.15 section 5, §5.17). Null when the project has none.
    */

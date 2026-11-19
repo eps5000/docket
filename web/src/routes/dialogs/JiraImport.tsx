@@ -582,7 +582,8 @@ function ReportView({ report, onDownload }: { report: JiraReport; onDownload: ()
           <ReasonGroups groups={changed} />
           <p className="src">
             Fields Docket doesn’t have (assignee, reporter, sprint, fix versions, components, other
-            custom fields) aren’t imported for any issue; <i>By field</i> counts them.
+            custom fields) aren’t imported as fields; a sub-task’s assignee is kept in its step’s
+            details. <i>By field</i> counts them.
           </p>
         </>
       )}
