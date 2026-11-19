@@ -132,6 +132,9 @@ describe('the service stubs', () => {
       'ownerRemoveStep',
       'ownerAddCheck',
       'ownerRemoveCheck',
+      // Decision 33 (B33, T170): get_step and the step dialog's details editor.
+      'getStep',
+      'ownerSetStepDetails',
     ],
     evidence: ['addNote', 'linkArtifact', 'reportCommit'],
     search: ['whoami', 'listProjects', 'searchItems', 'getChanges', 'palette'],

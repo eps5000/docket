@@ -679,6 +679,11 @@ export interface StepRow {
   from_review: string | null;
   state_by: string | null;
   state_at: string | null;
+  /** Decision 33 (BUILD_SPEC §5.5). */
+  details_md: string | null;
+  source: string | null;
+  details_version: number;
+  created_at: string;
 }
 
 /** The current plan's steps, in order. */
@@ -690,7 +695,13 @@ export function currentSteps(db: Db, itemId: string): StepRow[] {
     .all(itemId, planVersion(db, itemId)) as StepRow[];
 }
 
-export function stepView(db: Db, steps: StepRow[]): WorkStep[] {
+/**
+ * Steps as agents and the owner read them. Each carries `source` and
+ * `has_details`; `details: true` adds `details_md` and `details_version`
+ * (get_step, get_item view 'full', the owner's item page; decision 33). Without
+ * it the details text never leaves the server, so ordinary reads stay lean.
+ */
+export function stepView(db: Db, steps: StepRow[], opts: { details?: boolean } = {}): WorkStep[] {
   if (steps.length === 0) return [];
   const ids = steps.map((s) => s.id);
   const logs = db.sqlite
@@ -731,12 +742,22 @@ export function stepView(db: Db, steps: StepRow[]): WorkStep[] {
         })),
       state_by: s.state_by,
       state_at: s.state_at,
+      source: s.source,
+      has_details: s.details_md !== null,
+      ...(opts.details ? { details_md: s.details_md, details_version: s.details_version } : {}),
     };
   });
 }
 
-export function workStepsOf(db: Db, itemId: string): { version: number; steps: WorkStep[] } {
-  return { version: planVersion(db, itemId), steps: stepView(db, currentSteps(db, itemId)) };
+export function workStepsOf(
+  db: Db,
+  itemId: string,
+  opts: { details?: boolean } = {},
+): { version: number; steps: WorkStep[] } {
+  return {
+    version: planVersion(db, itemId),
+    steps: stepView(db, currentSteps(db, itemId), opts),
+  };
 }
 
 export interface CheckRow {

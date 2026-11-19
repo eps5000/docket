@@ -3,7 +3,7 @@
  * official MCP client SDK against the in-process server:
  * - `initialize` returns the §2 instructions verbatim and advertises
  *   `tools` and `prompts` (each `listChanged: false`);
- * - `tools/list` has exactly the 42 §5 tools, in order, each with its §5
+ * - `tools/list` has exactly the 43 §5 tools, in order, each with its §5
  *   description verbatim, its fields, defaults and limits, and the §3
  *   annotations;
  * - `prompts/list` has exactly the §5.11 `onboard` prompt, with its
@@ -82,8 +82,8 @@ describe('initialize', () => {
 });
 
 describe('tools/list: names and descriptions (§5)', () => {
-  it('lists exactly 42 tools, in MCP_SPEC §5 order', () => {
-    expect(tools).toHaveLength(42);
+  it('lists exactly 43 tools, in MCP_SPEC §5 order', () => {
+    expect(tools).toHaveLength(43);
     expect(tools.map((t) => t.name)).toEqual(specDescriptions().map(([name]) => name));
   });
 
@@ -96,10 +96,11 @@ describe('tools/list: names and descriptions (§5)', () => {
 });
 
 /**
- * The §3 annotation table: the 11 read tools, `get_item`, the retry-safe
+ * The §3 annotation table: the 12 read tools, `get_item`, the retry-safe
  * four, nothing destructive. `park_run` is a write and not retry-safe;
  * `recovery_report` is read-only (B5); `get_agent_files` is read-only and
- * `propose_agent_file_change` a write that is not retry-safe (B26).
+ * `propose_agent_file_change` a write that is not retry-safe (B26); `get_step`
+ * is read-only (B33).
  */
 const READ_TOOLS = [
   'whoami',
@@ -113,6 +114,7 @@ const READ_TOOLS = [
   'list_decisions',
   'recovery_report',
   'get_agent_files',
+  'get_step',
 ];
 const IDEMPOTENT = ['heartbeat', 'report_commit', 'update_step', 'update_check'];
 
@@ -129,10 +131,10 @@ describe('tools/list: annotations (§3)', () => {
     expect(byName('get_item').annotations?.readOnlyHint).toBe(false);
   });
 
-  it('the §3 counts hold: 11 read tools, 30 mutating', () => {
-    expect(SPEC).toContain('`true` for the 11 read tools');
+  it('the §3 counts hold: 12 read tools, 30 mutating', () => {
+    expect(SPEC).toContain('`true` for the 12 read tools');
     expect(SPEC).toContain('accepted only by the 30 mutating tools');
-    expect(READ_TOOLS).toHaveLength(11);
+    expect(READ_TOOLS).toHaveLength(12);
   });
 });
 
@@ -230,7 +232,10 @@ const INPUTS: Record<string, [string[], string[]]> = {
   finish_run: [['run_id', 'result', 'summary'], ['error']],
   park_run: [['run_id', 'reason'], ['waiting_on']],
   set_plan: [['id'], ['reason', 'mode', 'steps', 'remove']],
-  update_step: [['id', 'step_id', 'state'], ['note']],
+  update_step: [
+    ['id', 'step_id', 'state'],
+    ['note', 'details', 'expected_details_version'],
+  ],
   log_subagent: [
     ['id', 'name', 'outcome', 'provenance'],
     ['step_id', 'evidence', 'child_run_id'],
@@ -275,6 +280,7 @@ const INPUTS: Record<string, [string[], string[]]> = {
   propose_agent_file_change: [['file', 'content', 'reason', 'based_on_version_id'], ['project']],
   onboard_project: [['key'], ['name', 'color']],
   finish_onboarding: [['session_id', 'summary'], ['questions']],
+  get_step: [['id', 'step_id'], []],
 };
 
 /** Result fields per tool, from the §5 Output lines (all required). */
@@ -337,6 +343,7 @@ const OUTPUTS: Record<string, string[]> = {
   propose_agent_file_change: ['proposal_id', 'state'],
   onboard_project: ['project', 'session_id', 'guide', 'existing'],
   finish_onboarding: ['session_id', 'state', 'changes'],
+  get_step: ['step', 'history'],
 };
 
 const MUTATING = specDescriptions()
@@ -699,7 +706,7 @@ describe('text-only sessions (§3 Results)', () => {
     expect(await t.a.getPrompt(args)).toEqual(await t.b.getPrompt(args));
   });
 
-  it('lists the same 42 tools, in order, with the §5 descriptions verbatim', () => {
+  it('lists the same 43 tools, in order, with the §5 descriptions verbatim', () => {
     expect(textTools.map((x) => x.name)).toEqual(specDescriptions().map(([name]) => name));
     for (const [name, description] of specDescriptions()) {
       expect(textTools.find((x) => x.name === name)!.description, name).toBe(description);
@@ -721,5 +728,47 @@ describe('text-only sessions (§3 Results)', () => {
   it('is the structured tools/list without outputSchema, and nothing else', () => {
     // The structured list itself is the reviewed file snapshot (above).
     expect(textTools).toEqual(structuredTools.map(({ outputSchema: _, ...rest }) => rest));
+  });
+});
+
+describe('step details follow MCP_SPEC §5.12 (decision 33; B33)', () => {
+  type Limits = JsonObject & { minimum?: number };
+  it('set_plan steps take details (≤ 10,000, nullable) and source (≤ 100, nullable)', () => {
+    expect(specToolPart('set_plan', 'Input')).toContain('after?: step_id, details?, source? }]');
+    const step = input('set_plan').properties!.steps!.items!;
+    expect(step.additionalProperties).toBe(false);
+    const details = step.properties!.details!;
+    expect(details.anyOf?.map((s) => [s.type, s.maxLength])).toEqual([
+      ['string', 10_000],
+      ['null', undefined],
+    ]);
+    const source = step.properties!.source!;
+    expect(source.anyOf?.map((s) => [s.type, s.maxLength])).toEqual([
+      ['string', 100],
+      ['null', undefined],
+    ]);
+  });
+
+  it('update_step takes details and expected_details_version', () => {
+    expect(specToolPart('update_step', 'Input')).toContain(
+      '`details?` (≤ 10,000; replaces them, and `null` clears them), `expected_details_version?`',
+    );
+    const props = input('update_step').properties!;
+    expect(props.details!.anyOf?.map((s) => s.maxLength)).toEqual([10_000, undefined]);
+    expect((props.expected_details_version as Limits).minimum).toBe(0);
+  });
+
+  it('get_step returns the step with its details and the history', () => {
+    const out = result('get_step').properties!;
+    expect([...(out.step!.required ?? [])]).toEqual(
+      expect.arrayContaining(['source', 'has_details', 'details_md', 'details_version']),
+    );
+    const entry = out.history!.items!;
+    expect([...(entry.required ?? [])].sort()).toEqual(['at', 'by', 'change']);
+    expect(entry.properties!.change!.enum).toEqual(['added', 'text', 'state', 'details', 'source']);
+    // Elsewhere a WorkStep carries source and has_details, and details only optionally.
+    const work = result('set_plan').properties!.work!.items!;
+    expect(work.required).toEqual(expect.arrayContaining(['source', 'has_details']));
+    expect(work.required).not.toContain('details_md');
   });
 });

@@ -31,7 +31,9 @@ export const NO_RECOVERY: Pick<
   resources: [],
 };
 
-const step = (over: Partial<WorkStep> & Pick<WorkStep, 'id' | 'text' | 'state'>): WorkStep => ({
+export const step = (
+  over: Partial<WorkStep> & Pick<WorkStep, 'id' | 'text' | 'state'>,
+): WorkStep => ({
   was_text: null,
   change_reason: null,
   added_by: 'agent',
@@ -39,6 +41,8 @@ const step = (over: Partial<WorkStep> & Pick<WorkStep, 'id' | 'text' | 'state'>)
   subagents: [],
   state_by: null,
   state_at: null,
+  source: null,
+  has_details: false,
   ...over,
 });
 

@@ -602,7 +602,7 @@
   },
   {
     "name": "get_item",
-    "description": "Get one item: description, acceptance criteria, blockers, checklist (your plan, your checks, human review), runs, the open question and its answer, the owner's unread notes, documents, packets and recent activity. Owner notes and answers are returned once and then marked as delivered, so read them now. Use view 'summary' when you only need status, and get_context when starting work.",
+    "description": "Get one item: description, acceptance criteria, blockers, checklist (your plan, your checks, human review), runs, the open question and its answer, the owner's unread notes, documents, packets and recent activity. Owner notes and answers are returned once and then marked as delivered, so read them now. Use view 'summary' when you only need status, and get_context when starting work. Step details show as a '· details' marker unless view is 'full'; read one step in full with get_step.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1206,6 +1206,24 @@
                               "string",
                               "null"
                             ]
+                          },
+                          "source": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "has_details": {
+                            "type": "boolean"
+                          },
+                          "details_md": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "details_version": {
+                            "type": "integer"
                           }
                         },
                         "required": [
@@ -1218,7 +1236,9 @@
                           "from_review",
                           "subagents",
                           "state_by",
-                          "state_at"
+                          "state_at",
+                          "source",
+                          "has_details"
                         ],
                         "additionalProperties": false
                       }
@@ -6401,7 +6421,7 @@
   },
   {
     "name": "set_plan",
-    "description": "Publish or revise your plan as one-line work steps. By default this patches: steps with an id are updated (changing text records the old text and your reason), steps without an id are added, and nothing is removed unless you list it in remove. Use mode 'replace' to restate the whole plan. Owner-added steps are always kept. Every revision is kept as history.",
+    "description": "Publish or revise your plan as one-line work steps; steps may carry details (Markdown) and a source, such as a Jira key. By default this patches: steps with an id are updated (changing text records the old text and your reason), steps without an id are added, and nothing is removed unless you list it in remove. Use mode 'replace' to restate the whole plan. Owner-added steps are always kept. Every revision is kept as history.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -6457,6 +6477,29 @@
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 100
+              },
+              "details": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 10000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "source": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               }
             },
             "additionalProperties": false
@@ -6614,6 +6657,24 @@
                       "string",
                       "null"
                     ]
+                  },
+                  "source": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "has_details": {
+                    "type": "boolean"
+                  },
+                  "details_md": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "details_version": {
+                    "type": "integer"
                   }
                 },
                 "required": [
@@ -6626,7 +6687,9 @@
                   "from_review",
                   "subagents",
                   "state_by",
-                  "state_at"
+                  "state_at",
+                  "source",
+                  "has_details"
                 ],
                 "additionalProperties": false
               }
@@ -6689,7 +6752,7 @@
   },
   {
     "name": "update_step",
-    "description": "Update one work step's state as you go: current when you start it, done when finished, blocked or skipped with a note.",
+    "description": "Update one work step's state as you go: current when you start it, done when finished, blocked or skipped with a note. Pass details to replace the step's details (null clears them), with expected_details_version from get_step.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -6716,6 +6779,21 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 4000
+        },
+        "details": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 10000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "expected_details_version": {
+          "type": "integer",
+          "minimum": 0
         },
         "run_id": {
           "type": "string",
@@ -6858,6 +6936,24 @@
                     "string",
                     "null"
                   ]
+                },
+                "source": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "has_details": {
+                  "type": "boolean"
+                },
+                "details_md": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "details_version": {
+                  "type": "integer"
                 }
               },
               "required": [
@@ -6870,7 +6966,9 @@
                 "from_review",
                 "subagents",
                 "state_by",
-                "state_at"
+                "state_at",
+                "source",
+                "has_details"
               ],
               "additionalProperties": false
             },
@@ -12469,6 +12567,289 @@
     },
     "annotations": {
       "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false
+    }
+  },
+  {
+    "name": "get_step",
+    "description": "Read one checklist step in full: its text, state, source, details (Markdown), history and subagent notes. Call it before you work on a step that get_item shows with '· details'. Read-only.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Z]{2,5}-[1-9][0-9]*$"
+        },
+        "step_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "run_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        }
+      },
+      "required": [
+        "id",
+        "step_id"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "step": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "todo",
+                    "current",
+                    "done",
+                    "blocked",
+                    "skipped"
+                  ]
+                },
+                "was_text": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "change_reason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "added_by": {
+                  "type": "string",
+                  "enum": [
+                    "owner",
+                    "agent"
+                  ]
+                },
+                "from_review": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "round": {
+                          "type": "integer"
+                        },
+                        "hr_item_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "round",
+                        "hr_item_id"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "subagents": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "outcome": {
+                        "type": "string"
+                      },
+                      "evidence": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "provenance": {
+                        "type": "string",
+                        "enum": [
+                          "observed",
+                          "relayed"
+                        ]
+                      },
+                      "child_run_id": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "at": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "outcome",
+                      "evidence",
+                      "provenance",
+                      "child_run_id",
+                      "at"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "state_by": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "state_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "source": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "has_details": {
+                  "type": "boolean"
+                },
+                "details_md": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "details_version": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "id",
+                "text",
+                "state",
+                "was_text",
+                "change_reason",
+                "added_by",
+                "from_review",
+                "subagents",
+                "state_by",
+                "state_at",
+                "source",
+                "has_details",
+                "details_md",
+                "details_version"
+              ],
+              "additionalProperties": false
+            },
+            "history": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "at": {
+                    "type": "string"
+                  },
+                  "by": {
+                    "type": "string"
+                  },
+                  "change": {
+                    "type": "string",
+                    "enum": [
+                      "added",
+                      "text",
+                      "state",
+                      "details",
+                      "source"
+                    ]
+                  },
+                  "from": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "to": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "note": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "at",
+                  "by",
+                  "change"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "history",
+            "step"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string",
+              "enum": [
+                "validation",
+                "conflict",
+                "not_found",
+                "forbidden",
+                "unavailable",
+                "internal"
+              ]
+            },
+            "message": {
+              "type": "string"
+            },
+            "details": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {}
+            },
+            "current": {}
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": false
     }

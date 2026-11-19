@@ -24,6 +24,7 @@ import {
   RECOVERY_REPORT,
   RUN_AT_RISK,
   RUN_PARKED,
+  step,
 } from './fixtures.js';
 import { specBlock, specInline } from './spec.js';
 
@@ -398,6 +399,51 @@ const ONBOARD_RESULT = {
   existing: { items: 40, jira_items: 38, documents: 2 },
 };
 
+/** get_step (decision 33; MCP_SPEC §5.12): a step with details, history and a subagent note. */
+const STEP_DETAILS = '## Rules\n\n- Merge g/kg and ml/l\n  - cups stay cups\n\nSee `units.ts`.';
+const GET_STEP_RESULT = {
+  step: {
+    ...step({
+      id: 'wst_b',
+      text: 'Implement unit merging (g/kg, ml/l, cups)',
+      state: 'current',
+      state_by: 'claude',
+      state_at: '2026-11-06T10:52:00.000Z',
+      subagents: [
+        {
+          name: 'units-worker',
+          outcome: 'Added conversion table and 31 tests',
+          evidence: null,
+          provenance: 'observed' as const,
+          child_run_id: 'run_r77',
+          at: '2026-11-06T10:40:00.000Z',
+        },
+      ],
+    }),
+    source: 'GF-123',
+    has_details: true,
+    details_md: STEP_DETAILS,
+    details_version: 2,
+  },
+  history: [
+    { at: '2026-11-05T09:00:00.000Z', by: 'claude', change: 'added' as const },
+    {
+      at: '2026-11-06T10:52:00.000Z',
+      by: 'claude',
+      change: 'state' as const,
+      from: 'todo',
+      to: 'current',
+    },
+    {
+      at: '2026-11-06T10:55:00.000Z',
+      by: 'owner',
+      change: 'details' as const,
+      from: 'v1',
+      to: 'v2',
+    },
+  ],
+};
+
 /** One representative result per tool, so every renderer is exercised and snapshotted. */
 const SAMPLES: Record<ToolName, { result: unknown; args?: Record<string, unknown> }> = {
   whoami: {
@@ -672,6 +718,7 @@ const SAMPLES: Record<ToolName, { result: unknown; args?: Record<string, unknown
       changes: { created: 12, enriched: 7, documents: 3, decisions: 2, proposals: 1 },
     },
   },
+  get_step: { result: GET_STEP_RESULT, args: { id: 'RCP-14', step_id: 'wst_b' } },
 };
 
 describe('every tool has a renderer', () => {
@@ -931,6 +978,86 @@ describe('recovery (MCP_SPEC §3 "Workspaces, briefs and resources", §5.4, §5.
       ),
     ).toBe(
       'Run run_A finished\n! 1 resource still declared: dev server :5173\n! 2 commits not pushed',
+    );
+  });
+});
+
+describe('step details (MCP_SPEC §5.12; decision 33)', () => {
+  const detailed = {
+    ...RCP14,
+    checklist: {
+      ...RCP14.checklist!,
+      work: RCP14.checklist!.work.map((w) =>
+        w.id === 'wst_c' ? { ...w, source: 'GF-123', has_details: true } : w,
+      ),
+    },
+  };
+
+  it('get_item standard shows a "· details" marker and the source, never the text', () => {
+    const text = renderItem(detailed, { view: 'standard', ...opts });
+    expect(text).toContain(
+      '  - [ ] wst_c Export as a Markdown checklist · was: Export to Reminders app · why: Reminders API not reachable from the container · source GF-123 · details',
+    );
+    expect(text).not.toContain('details:');
+  });
+
+  it('get_item full prints the details under the step', () => {
+    const full = {
+      ...detailed,
+      checklist: {
+        ...detailed.checklist,
+        work: detailed.checklist.work.map((w) =>
+          w.id === 'wst_c'
+            ? { ...w, details_md: 'First line\n\n- a point', details_version: 1 }
+            : w,
+        ),
+      },
+    };
+    const lines = renderItem(full, { view: 'full', ...opts }).split('\n');
+    const at = lines.findIndex((l) => l.includes('wst_c'));
+    expect(lines[at]).not.toMatch(/ · details$/);
+    expect(lines.slice(at + 1, at + 5)).toEqual([
+      '      details:',
+      '        First line',
+      '',
+      '        - a point',
+    ]);
+  });
+
+  it('get_step prints the header, history and subagents, then the details verbatim', () => {
+    const text = renderResult('get_step', GET_STEP_RESULT, {
+      args: { id: 'RCP-14', step_id: 'wst_b' },
+      ...opts,
+    });
+    expect(text).toBe(
+      [
+        'wst_b Implement unit merging (g/kg, ml/l, cups) · current · on RCP-14 · source GF-123 · details v2',
+        '  history:',
+        '  - 11-05 claude added',
+        '  - 10:52Z claude state: todo → current',
+        '  - 10:55Z owner details: v1 → v2',
+        '  subagents:',
+        '    observed units-worker: Added conversion table and 31 tests',
+        `details (${STEP_DETAILS.length} characters, verbatim):`,
+        STEP_DETAILS,
+      ].join('\n'),
+    );
+  });
+
+  it('get_step on a step without details says so', () => {
+    const bare = {
+      step: {
+        ...GET_STEP_RESULT.step,
+        source: null,
+        has_details: false,
+        details_md: null,
+        details_version: 0,
+        subagents: [],
+      },
+      history: [],
+    };
+    expect(renderResult('get_step', bare, { args: { id: 'RCP-14' }, ...opts })).toBe(
+      'wst_b Implement unit merging (g/kg, ml/l, cups) · current · on RCP-14 · no details',
     );
   });
 });

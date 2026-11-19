@@ -91,7 +91,7 @@ export function createRuntime(opts: RuntimeOptions = {}): Runtime {
       clock,
       instructions: SERVER_INSTRUCTIONS,
       textOnlyClients: config.textOnlyClients,
-      // Each new MCP session's server gets all 42 tools (MCP_SPEC §5) and the
+      // Each new MCP session's server gets all 43 tools (MCP_SPEC §5) and the
       // onboard prompt (§5.11).
       configure: (server, session) => {
         registerTools(server, { runtime, session, handlers });

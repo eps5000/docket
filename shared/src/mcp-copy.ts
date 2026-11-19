@@ -43,7 +43,7 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   search_items:
     "Find items. Filters: ready_to_start (Ready, unblocked, unclaimed: what you may start), resumable (In progress with no lead, usually sent back by the owner's review: resume it), blocked, waiting_for_review (handed off, waiting on the owner), mine (items you lead), deferred_review (owner deferred a check; cleanup). Combine with project, status, type, label, epic or text. Results are summaries; call get_item for details.",
   get_item:
-    "Get one item: description, acceptance criteria, blockers, checklist (your plan, your checks, human review), runs, the open question and its answer, the owner's unread notes, documents, packets and recent activity. Owner notes and answers are returned once and then marked as delivered, so read them now. Use view 'summary' when you only need status, and get_context when starting work.",
+    "Get one item: description, acceptance criteria, blockers, checklist (your plan, your checks, human review), runs, the open question and its answer, the owner's unread notes, documents, packets and recent activity. Owner notes and answers are returned once and then marked as delivered, so read them now. Use view 'summary' when you only need status, and get_context when starting work. Step details show as a '· details' marker unless view is 'full'; read one step in full with get_step.",
   get_context:
     "Get everything you need to work on an item in one call: its outcome and acceptance, the decisions you must follow (owner decisions first), the epic and label briefs, blockers and what they are waiting for, the project's workflow notes, planning documents, and the last review's notes. Sized to a budget; anything cut is marked. Read-only: owner notes are counted here but delivered by get_item.",
   dependency_subgraph:
@@ -76,9 +76,9 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   park_run:
     'Park your run when you must wait: on another item, on the coordinator to send you more work, or on a person. A parked run keeps its claim and its workspace stays marked in use, so it is never mistaken for finished or stale. Say what you are waiting on; Docket flags it as ready to resume when that clears. Any later call with your run_id resumes it.',
   set_plan:
-    "Publish or revise your plan as one-line work steps. By default this patches: steps with an id are updated (changing text records the old text and your reason), steps without an id are added, and nothing is removed unless you list it in remove. Use mode 'replace' to restate the whole plan. Owner-added steps are always kept. Every revision is kept as history.",
+    "Publish or revise your plan as one-line work steps; steps may carry details (Markdown) and a source, such as a Jira key. By default this patches: steps with an id are updated (changing text records the old text and your reason), steps without an id are added, and nothing is removed unless you list it in remove. Use mode 'replace' to restate the whole plan. Owner-added steps are always kept. Every revision is kept as history.",
   update_step:
-    "Update one work step's state as you go: current when you start it, done when finished, blocked or skipped with a note.",
+    "Update one work step's state as you go: current when you start it, done when finished, blocked or skipped with a note. Pass details to replace the step's details (null clears them), with expected_details_version from get_step.",
   log_subagent:
     "Record what a subagent contributed, as a short line under the step it worked on. provenance 'observed' if you saw its run or output directly, 'relayed' if you are passing on its report. This never creates a ticket.",
   set_checks:
@@ -118,6 +118,8 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
     'Set up a project, or onboard a repo into one. Creates the project when the key is free (pass name) or adopts the existing project with that key, starts an onboarding session, and returns its session_id, what the project already holds, and the onboarding guide. Follow the guide step by step; it works with no agent files installed. Not retry-safe: pass idempotency_key.',
   finish_onboarding:
     'Finish an onboarding session and hand it to the owner for review, with a short summary and any open questions. Pass the session_id from onboard_project. The owner reviews everything you set up from one card; stop there and wait for them.',
+  get_step:
+    "Read one checklist step in full: its text, state, source, details (Markdown), history and subagent notes. Call it before you work on a step that get_item shows with '· details'. Read-only.",
 };
 
 /**
@@ -172,6 +174,7 @@ export const TOOL_SUMMARIES: Record<ToolName, string> = {
     'Onboarding {key} {name} · {how} · session {session_id} · existing: {items} items, {jira_items} from Jira, {documents} documents',
   finish_onboarding:
     "Onboarding {session_id} ready for the owner's review · {created} created · {enriched} enriched · {documents} documents · {decisions} decisions · {proposals} proposals",
+  get_step: '{step_id} {text} · {state} · on {id}{facts}',
 };
 
 /**

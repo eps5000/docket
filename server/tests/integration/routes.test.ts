@@ -93,6 +93,8 @@ const B2_ROUTES: readonly RouteId[] = [
   'steps.remove',
   'checks.add',
   'checks.remove',
+  // Decision 33 (B33, T170): the step dialog's details editor (content in checklist-details.test.ts).
+  'steps.details',
   // US7 (B14, T124–T125): planning, archive, cancel, the label page and documents
   // (content in us7-planning.test.ts and us7-documents.test.ts).
   'items.patch',
@@ -206,6 +208,10 @@ const VALID: Record<RouteId, Req> = {
   'items.returnToReady': { params: { id: 'RCP-14' }, body: { reason: 'Re-plan first.' } },
   'steps.add': { params: { id: 'RCP-14' }, body: { text: 'Test with a 3-week plan' } },
   'steps.remove': { params: { id: 'RCP-14', stepId: 'wst_a' }, body: {} },
+  'steps.details': {
+    params: { id: 'RCP-14', stepId: 'wst_a' },
+    body: { details: '## Notes', expected_version: 0 },
+  },
   'checks.add': { params: { id: 'RCP-14' }, body: { text: 'Export opens in Notes' } },
   'checks.remove': { params: { id: 'RCP-14', checkId: 'chk_a' }, body: {} },
   'humanReview.add': { params: { id: 'RCP-14' }, body: { text: 'Read the export on a phone.' } },

@@ -3,7 +3,7 @@
  * capture, the 409 conflict shape, the query key factory, and the event →
  * query-key invalidation map (contracts/events.md).
  */
-import { EVENT_TYPES, ROUTE_IDS, type EventType } from '@docket/shared';
+import { EVENT_TYPES, ROUTE_IDS, type EventType, type RouteResult } from '@docket/shared';
 import { describe, expect, it } from 'vitest';
 import {
   ApiError,
@@ -613,5 +613,48 @@ describe('recovery (US11; contracts/events.md, BUILD_SPEC §7)', () => {
     ] as const) {
       expect(INVALIDATION[type], type).toContain('workspaces');
     }
+  });
+});
+
+describe('step details (decision 33; UI_SPEC §6.3.1a)', () => {
+  it('has a typed call for the details editor: PATCH with CSRF, undoable, and the new step fields', async () => {
+    const seen: MutationRecord[] = [];
+    const step = {
+      id: 'wst_a',
+      text: 'Reproduce the jump',
+      state: 'todo',
+      was_text: null,
+      change_reason: null,
+      added_by: 'agent',
+      from_review: null,
+      subagents: [],
+      state_by: null,
+      state_at: null,
+      source: 'GF-123',
+      has_details: true,
+      details_md: '## Steps',
+      details_version: 1,
+    } satisfies RouteResult<'steps.details'>['step'];
+    const { fetch, sent } = fakeFetch(200, { mutation_id: 'mut_d', step });
+    const client = createApiClient({
+      fetch,
+      cookies: () => COOKIES,
+      onMutation: (m) => seen.push(m),
+    });
+    const res = await client['steps.details']({
+      params: { id: 'RCP-17', stepId: 'wst_a' },
+      body: { details: '## Steps', expected_version: 0 },
+    });
+    expect(res.step.details_version).toBe(1);
+    expect(res.step.source).toBe('GF-123');
+    expect(sent.map((r) => [r.method, r.url, r.body])).toEqual([
+      [
+        'PATCH',
+        '/api/items/RCP-17/work/wst_a/details',
+        { details: '## Steps', expected_version: 0 },
+      ],
+    ]);
+    expect(sent[0]!.headers['X-Docket-CSRF']).toBe('abc123-_x');
+    expect(seen.map((m) => [m.route, m.undoable])).toEqual([['steps.details', true]]);
   });
 });

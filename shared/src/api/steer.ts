@@ -6,6 +6,7 @@
 import { z } from 'zod';
 import { itemId, objectId, text } from '../mcp/common.js';
 import { TEXT_LIMITS } from '../mcp/limits.js';
+import { stepDetails } from '../mcp/checklist.js';
 import {
   checkSchema,
   humanReviewItemSchema,
@@ -47,6 +48,18 @@ export const addStepBody = input({
 });
 export const addStepResponse = ownerMutationOutput({ step: workStepSchema });
 export const stepParams = input({ id: itemId, stepId: objectId });
+
+/**
+ * The step dialog's *Edit details* (decision 33; UI_SPEC §6.3.1a): the new
+ * Markdown (`null` or empty clears it) and the `details_version` the owner
+ * opened, checked like any `expected_version` (a stale one is `409 conflict`).
+ */
+export const stepDetailsBody = input({
+  details: stepDetails,
+  expected_version: expectedVersion,
+});
+/** The step with its details (`details_md`, `details_version`). */
+export const stepDetailsResponse = ownerMutationOutput({ step: workStepSchema });
 
 export const addCheckBody = input({ text: text(TEXT_LIMITS.step) });
 export const addCheckResponse = ownerMutationOutput({ check: checkSchema });
@@ -123,6 +136,17 @@ export const steerRoutes = {
     query: noInput,
     body: noInput,
     response: json(removed),
+    undoable: true,
+  }),
+  /** Edit a step's details from the step dialog, any step on the current plan (decision 33). */
+  'steps.details': route({
+    method: 'PATCH',
+    path: '/api/items/:id/work/:stepId/details',
+    group: 'steer',
+    params: stepParams,
+    query: noInput,
+    body: stepDetailsBody,
+    response: json(stepDetailsResponse),
     undoable: true,
   }),
   'checks.add': route({

@@ -64,6 +64,13 @@
       "when": 1795052384155,
       "tag": "0008_connection_drift_key",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1795066647006,
+      "tag": "0009_step_details",
+      "breakpoints": true
     }
   ]
 }

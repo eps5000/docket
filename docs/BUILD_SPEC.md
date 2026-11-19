@@ -624,7 +624,7 @@ Every route requires the owner session (§3). JSON bodies **and query strings** 
 | `GET /api/diagnostics/calls?days=7` | Settings → *Download diagnostic log*: JSONL of agent calls (time, tool, client, label, run, duration, result code), never arguments or results (FR-108) |
 | `POST /api/items/:id/archive` · `/unarchive` · `POST /api/archive` `{ids[]}` | Archive, Archive all |
 | `POST /api/items/:id/cancel` `{expected_version, reason?}` | *Cancel item…* (owner decision 23); returns a `mutation_id` for Undo |
-| `POST /api/items/:id/work` · `DELETE …/work/:stepId` | Owner work steps |
+| `POST /api/items/:id/work` · `DELETE …/work/:stepId` · `PATCH …/work/:stepId/details` `{details, expected_version}` | Owner work steps, and the step dialog's *Edit details* (decision 33): `expected_version` is the step's `details_version`, a stale one is `409` with `current`, and the edit is undoable |
 | `POST /api/items/:id/checks` · `DELETE …/checks/:checkId` | Owner agent-review items |
 | `POST /api/items/:id/human-review` · `PATCH`/`DELETE …/human-review/:hrId` | Human review items |
 | `POST /api/items/:id/notes` `{text}` | Note for the agent |
