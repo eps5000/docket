@@ -1,9 +1,11 @@
 /**
  * The UI JSON API, mounted at /api (BUILD_SPEC §7).
  *
- * - Every route needs an unlocked owner session, except
- *   `POST /api/session/unlock` (constitution Principle VI).
- * - Mutations need the CSRF double-submit header.
+ * - Protected mode: every route needs an unlocked owner session, except
+ *   `POST /api/session/unlock` (constitution Principle VI). Local trust (the
+ *   default; decision 32): no session is needed (session.ts).
+ * - Browser mutations need the CSRF double-submit header; in local trust a
+ *   script (no browser headers) doesn't, and is recorded as one.
  * - Every route is registered from its shared definition (define.ts):
  *   strict path, query and body validation, then the handler, which calls
  *   only the domain services (domain/contracts.ts). Stubs answer 501.
@@ -49,11 +51,13 @@ export interface ApiDeps {
   db: Db;
   write: WritePath;
   sessions: OwnerSessions;
+  /** `DOCKET_PROTECTED_MODE` (decision 32): require the owner session. */
+  protectedMode: boolean;
   services: Services;
   bus: EventEmitter;
   streamKeepAliveMs?: number;
   log?: (line: string) => void;
-  /** The agent token, for *Reveal token* only (never logged). */
+  /** The agent token, for *Reveal token* only (never logged); protected mode only. */
   agentToken?: () => string;
 }
 
@@ -82,15 +86,17 @@ export function createApiApp(deps: ApiDeps): Hono<ApiEnv> {
     c.json(errorBody('not_found', `No API route ${c.req.method} ${c.req.path}.`), 404),
   );
 
-  // Guards first: every route needs the owner session (except unlock), mutations need CSRF.
-  api.use('*', requireSession(deps.sessions));
-  api.use('*', requireCsrf());
+  // Guards first: the owner session (protected mode; except unlock), then CSRF on browser mutations.
+  const trust = { protectedMode: deps.protectedMode };
+  api.use('*', requireSession(deps.sessions, trust));
+  api.use('*', requireCsrf(deps.sessions, trust));
 
   const routeDeps: RouteDeps = {
     services: deps.services,
     write: deps.write,
     log,
-    agentToken: deps.agentToken,
+    // Local trust: no route reveals the token (decision 32); see settings.ts.
+    agentToken: deps.protectedMode ? deps.agentToken : undefined,
   };
 
   // B2's routes.

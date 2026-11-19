@@ -3,8 +3,10 @@ import { readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';
+import { getCookie } from 'hono/cookie';
 import { createApiApp, errorResponse } from './api/app.js';
 import { allowedOriginsFor, bearerAuth, hostGuard, originGuard } from './api/guards.js';
+import { SESSION_COOKIE, ensureLocalCsrfCookie } from './api/session.js';
 import { installRoutes } from './api/routes/install.js';
 import { uploadRoutes } from './api/routes/upload.js';
 import { migrationStatus } from './db/client.js';
@@ -95,18 +97,23 @@ export function createApp(runtime: Runtime, { webRoot }: AppOptions): Hono {
     return c.json({ status: ready ? 'ready' : 'not_ready', checks }, ready ? 200 : 503);
   });
 
-  // Agents: MCP over Streamable HTTP, behind the bearer token.
-  app.use(
-    '/mcp',
-    bearerAuth(() => runtime.secrets.agentToken()),
-  );
+  // Agents: MCP over Streamable HTTP. Protected mode puts it behind the bearer token;
+  // local trust (decision 32) needs none and ignores one if sent.
+  if (config.protectedMode) {
+    app.use(
+      '/mcp',
+      bearerAuth(() => runtime.secrets.agentToken()),
+    );
+  }
   app.all('/mcp', (c) => runtime.mcp.handle(c.req.raw));
 
-  // Agents: bulk document upload (BUILD_SPEC §5.10), behind the same bearer token.
-  app.use(
-    '/agent-upload',
-    bearerAuth(() => runtime.secrets.agentToken()),
-  );
+  // Agents: bulk document upload (BUILD_SPEC §5.10), behind the same rule as /mcp.
+  if (config.protectedMode) {
+    app.use(
+      '/agent-upload',
+      bearerAuth(() => runtime.secrets.agentToken()),
+    );
+  }
   const uploadApp = new Hono();
   uploadApp.onError((err, c) => errorResponse(c, err, runtime.log));
   uploadRoutes(uploadApp, { services: runtime.services, write: runtime.write, log: runtime.log });
@@ -126,6 +133,7 @@ export function createApp(runtime: Runtime, { webRoot }: AppOptions): Hono {
       db: runtime.db,
       write: runtime.write,
       sessions: runtime.sessions,
+      protectedMode: config.protectedMode,
       services: runtime.services,
       bus: runtime.bus,
       streamKeepAliveMs: runtime.streamKeepAliveMs,
@@ -146,12 +154,25 @@ export function createApp(runtime: Runtime, { webRoot }: AppOptions): Hono {
   );
   app.use('*', serveStatic({ root: webRoot }));
 
+  // Local trust (decision 32): there is nothing to unlock, so the Unlock screen goes home.
+  if (!config.protectedMode) {
+    app.get('/unlock', (c) => {
+      c.header('Cache-Control', 'no-store');
+      return c.redirect('/', 302);
+    });
+  }
+
   // SPA fallback: unknown GET paths that look like client routes get index.html.
   app.get('*', async (c, next) => {
     if (isServerPath(c.req.path) || looksLikeFile(c.req.path)) return next();
     try {
       const html = await readFile(join(webRoot, 'index.html'), 'utf8');
       c.header('Cache-Control', 'no-cache');
+      // Local trust: the page gets its CSRF cookie with the HTML, before its first mutation.
+      if (!config.protectedMode) {
+        const session = runtime.sessions.verify(getCookie(c, SESSION_COOKIE));
+        ensureLocalCsrfCookie(c, runtime.sessions, session);
+      }
       return c.html(html);
     } catch {
       return next();

@@ -88,6 +88,13 @@ export function HistorySection({ kind, data }: { kind: ItemKind; data: ItemDetai
               {a.actor_kind === 'agent' && !a.summary.startsWith(a.actor.split(' · ')[0]!) && (
                 <span className="src"> · {a.actor}</span>
               )}
+              {/* Decision 32: an owner action made by a script, not the browser. */}
+              {a.actor_kind === 'owner' && a.actor !== 'owner' && (
+                <span className="src" data-owner-via="script">
+                  {' '}
+                  · {a.actor}
+                </span>
+              )}
             </span>
           </div>
         ))

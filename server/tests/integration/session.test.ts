@@ -1,12 +1,19 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { createTestServer, parseSetCookies, readUntil, type TestServer } from './harness.js';
+import {
+  PROTECTED_MODE,
+  createTestServer,
+  parseSetCookies,
+  readUntil,
+  type TestServer,
+} from './harness.js';
 
+// Owner sessions are protected mode (decision 32); local trust is in trust-mode.test.ts.
 let s: TestServer;
 
 beforeEach(() => {
-  s = createTestServer();
+  s = createTestServer({ env: PROTECTED_MODE });
 });
 
 afterEach(async () => {

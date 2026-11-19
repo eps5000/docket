@@ -11,7 +11,7 @@
  */
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
 import { syncBundledFiles } from '../../src/jobs/bundled.js';
-import { ORIGIN, parseSetCookies } from '../integration/harness.js';
+import { ORIGIN, PROTECTED_MODE, parseSetCookies } from '../integration/harness.js';
 import { expectOk, startHarness, tokens, type ContractHarness } from './harness.js';
 
 let h: ContractHarness | undefined;
@@ -236,7 +236,8 @@ describe('agent files over the owner API (T153)', () => {
   });
 
   it('agents can’t change agent files: owner session only, and the only MCP tools read or propose', async () => {
-    h = await startHarness();
+    // The agent token is refused by the owner routes in protected mode (decision 32).
+    h = await startHarness({ env: PROTECTED_MODE });
     const token = h.server.runtime.secrets.agentToken();
     const res = await h.server.app.request(`${ORIGIN}/api/agent-files/${WORKER}`, {
       method: 'PUT',

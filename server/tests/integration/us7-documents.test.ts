@@ -16,7 +16,7 @@ import { join } from 'node:path';
 import { AGENT_UPLOAD_MAX_BYTES } from '@docket/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { loadSampleSeed } from '../../src/db/seed/loader.js';
-import { createTestServer, parseSetCookies, type TestServer } from './harness.js';
+import { PROTECTED_MODE, createTestServer, parseSetCookies, type TestServer } from './harness.js';
 
 let s: TestServer;
 beforeEach(() => {
@@ -332,7 +332,10 @@ describe('GET /api/documents/:versionId/content', () => {
     expect(res.status).toBe(404);
   });
 
-  it('needs the owner session, not the agent token', async () => {
+  it('needs the owner session, not the agent token (protected mode; decision 32)', async () => {
+    await s.cleanup();
+    s = createTestServer({ env: PROTECTED_MODE });
+    loadSampleSeed(s.runtime.db, { now: s.clock.now(), docsDir: s.runtime.config.paths.docs });
     const md = await store('a.md', 'x');
     const res = await s.request(`/api/documents/${md}/content`, {
       headers: { authorization: `Bearer ${s.runtime.secrets.agentToken()}` },

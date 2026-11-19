@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   MCP_HEADERS,
   ORIGIN,
+  PROTECTED_MODE,
   createTestServer,
   initializeBody,
   type TestServer,
@@ -91,7 +92,13 @@ describe('Origin allowlist', () => {
   });
 });
 
-describe('bearer token on /mcp', () => {
+describe('bearer token on /mcp (protected mode; decision 32)', () => {
+  beforeEach(async () => {
+    await s.cleanup();
+    s = createTestServer({ env: PROTECTED_MODE });
+    token = s.runtime.secrets.agentToken();
+  });
+
   it('answers 401 without a token, before any MCP handling', async () => {
     const res = await s.request('/mcp', {
       method: 'POST',
@@ -134,7 +141,9 @@ describe('bearer token on /mcp', () => {
 
   it('accepts DOCKET_TOKEN from the environment instead of the generated one', async () => {
     await s.cleanup();
-    s = createTestServer({ env: { DOCKET_TOKEN: 'env-token-0123456789abcdef' } });
+    s = createTestServer({
+      env: { ...PROTECTED_MODE, DOCKET_TOKEN: 'env-token-0123456789abcdef' },
+    });
     token = 'env-token-0123456789abcdef';
     expect(s.runtime.secrets.agentToken()).toBe(token);
     expect((await initialize()).status).toBe(200);

@@ -17,6 +17,13 @@ export const ORIGIN = 'http://127.0.0.1:7420';
  */
 export const STRUCTURED_FOR_ALL = { DOCKET_TEXT_ONLY_CLIENTS: 'none' } as const;
 
+/**
+ * Protected mode (owner decision 32): the owner session on /api and the bearer
+ * token on /mcp, as before the decision. Test servers default to local trust,
+ * like the product; the session, CSRF and token suites pass this.
+ */
+export const PROTECTED_MODE = { DOCKET_PROTECTED_MODE: 'on' } as const;
+
 export interface TestServer {
   app: Hono;
   runtime: Runtime;

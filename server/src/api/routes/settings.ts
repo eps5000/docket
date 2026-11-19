@@ -14,11 +14,18 @@ export function settingsRoutes<E extends Env>(api: Hono<E>, deps: RouteDeps): vo
   defineRoute(api, 'settings.get', deps, ({ services, read }) => services.views.settings(read));
 
   /**
-   * *Reveal token*: the owner session (the guards before this) is the only
-   * way in. `no-store`, so no cache keeps it, and nothing here logs it.
+   * *Reveal token*: protected mode only, where the owner session (the guards
+   * before this) is the only way in. In local trust (decision 32) no route
+   * reveals it, so nothing on this machine can read it ahead of a switch to
+   * protected mode. `no-store`, so no cache keeps it, and nothing here logs it.
    */
   defineRoute(api, 'settings.agentToken', deps, ({ c }) => {
-    if (!deps.agentToken) throw new ToolError('unavailable', 'The agent token is not available.');
+    if (!deps.agentToken) {
+      throw new ToolError(
+        'forbidden',
+        'Agents need no token in local trust. The token is used only in protected mode (DOCKET_PROTECTED_MODE=on).',
+      );
+    }
     c.header('cache-control', 'no-store');
     c.header('pragma', 'no-cache');
     return { token: deps.agentToken() };

@@ -27,7 +27,13 @@ import {
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { seedId } from '../../src/db/seed/loader.js';
 import { syncBundledFiles } from '../../src/jobs/bundled.js';
-import { ORIGIN, createTestServer, parseSetCookies, type TestServer } from './harness.js';
+import {
+  ORIGIN,
+  PROTECTED_MODE,
+  createTestServer,
+  parseSetCookies,
+  type TestServer,
+} from './harness.js';
 
 /**
  * Routes that already work, and must keep their behaviour, not answer 501:
@@ -301,7 +307,9 @@ let s: TestServer;
 beforeEach(() => {
   // No network: the Jira dry run (US9) reads its site in the background.
   vi.stubGlobal('fetch', () => Promise.reject(new TypeError('fetch failed: no network in tests')));
-  s = createTestServer();
+  // The route matrix checks the session and CSRF guards: protected mode (decision 32).
+  // Local trust has its own matrix in trust-mode.test.ts.
+  s = createTestServer({ env: PROTECTED_MODE });
 });
 afterEach(async () => {
   vi.unstubAllGlobals();
