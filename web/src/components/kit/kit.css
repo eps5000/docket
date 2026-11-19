@@ -868,6 +868,9 @@
 /* ---------- ticket and epic cards ---------- */
 .tl a.tcard {
   display: grid;
+  /* One shrinkable column: an auto track grows to the widest child's
+     max-content and spills out of the board column. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 6px;
   background: var(--panel);
   border: 1px solid var(--line);
@@ -894,6 +897,7 @@
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  overflow-wrap: anywhere;
 }
 .tl .tcard .meta {
   display: flex;
@@ -929,6 +933,7 @@
 }
 .tl a.epiccard {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 6px;
   text-align: left;
   border: 1px solid var(--line);

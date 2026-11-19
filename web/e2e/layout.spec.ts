@@ -121,4 +121,29 @@ test.describe('1024×900 (T144)', () => {
     expect(packet.x).toBeGreaterThan(queue.x + queue.width - 1);
     expect(decision.x + decision.width).toBeLessThanOrEqual(1024);
   });
+  test('the board: cards keep their text inside, and progress bars fill', async ({ page }) => {
+    await open(page, '/work');
+    await expect(page.locator('a.tcard').first()).toBeVisible();
+    // Gameflow pilot: long titles and chips spilled past the card, because the
+    // card's auto grid track grew to its widest child.
+    const spills = await page.$$eval('a.tcard, a.epiccard', (cards) =>
+      cards.flatMap((card) => {
+        const c = card.getBoundingClientRect();
+        return [...card.querySelectorAll('*')]
+          .map((el) => ({ el, r: el.getBoundingClientRect() }))
+          .filter(({ r }) => r.width > 0 && r.right > c.right + 1)
+          .map(({ el }) => `${card.getAttribute('href')}: ${el.className || el.tagName}`);
+      }),
+    );
+    expect(spills, 'children wider than their card').toEqual([]);
+    // Gameflow pilot: a board class named "mini" padded the epic bars, so the
+    // fills had no height and every bar looked empty.
+    const bars = page.locator('.epiccard .pbar');
+    expect(await bars.count()).toBeGreaterThan(0);
+    const flat = await page.$$eval(
+      '.pbar i',
+      (fills) => fills.filter((i) => i.getBoundingClientRect().height < 2).length,
+    );
+    expect(flat, 'progress fills with no height').toBe(0);
+  });
 });
