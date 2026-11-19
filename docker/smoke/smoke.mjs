@@ -5,8 +5,9 @@
  * per client surface, next to the checklist for that surface in this folder.
  *
  *   node docker/smoke/smoke.mjs preflight
- *       The service answers, DOCKET_TOKEN is set and clean, and /mcp
- *       accepts it (initialize + whoami).
+ *       The service answers, and /mcp accepts a session (initialize +
+ *       whoami). In local trust (the default; decision 32) no token is
+ *       needed; in protected mode DOCKET_TOKEN must be set and clean.
  *   node docker/smoke/smoke.mjs prepare <surface>
  *       Creates a disposable ticket in the sample project RCP, moves it to
  *       Ready, and prints the prompt to paste into the client.
@@ -23,7 +24,8 @@
  * Run it against a disposable instance loaded with the sample data
  * (DOCKET_SEED=sample on an empty volume; see README.md here), never
  * against your real data. Node 22, no dependencies. It talks plain
- * JSON-RPC to /mcp with the token from DOCKET_TOKEN, and never prints it.
+ * JSON-RPC to /mcp, with the token from DOCKET_TOKEN when it is set (protected
+ * mode), and never prints it.
  * DOCKET_URL overrides http://127.0.0.1:7420.
  */
 const BASE = (process.env.DOCKET_URL ?? 'http://127.0.0.1:7420').replace(/\/$/, '');
@@ -41,13 +43,10 @@ const fail = (line) => {
   process.exit(1);
 };
 
+/** The agent token, or null: local trust (decision 32) needs none. */
 function token() {
   const raw = process.env.DOCKET_TOKEN;
-  if (!raw) {
-    fail(
-      'DOCKET_TOKEN is not set. Get it from Settings → Reveal token (or `docker compose exec docket docket agent-token`) and set it where your agents run.',
-    );
-  }
+  if (!raw) return null;
   if (raw !== raw.trim()) {
     fail(
       'DOCKET_TOKEN has leading or trailing whitespace (often a newline). Set it again without it.',
@@ -58,8 +57,9 @@ function token() {
 
 /** One MCP session over Streamable HTTP with JSON responses. */
 async function connect() {
+  const bearer = token();
   const headers = {
-    authorization: `Bearer ${token()}`,
+    ...(bearer ? { authorization: `Bearer ${bearer}` } : {}),
     'content-type': 'application/json',
     accept: 'application/json, text/event-stream',
   };
@@ -73,7 +73,13 @@ async function connect() {
       headers: session ? { ...headers, 'mcp-session-id': session } : headers,
       body: JSON.stringify(body),
     });
-    if (res.status === 401) fail('/mcp refused the token (401). Check DOCKET_TOKEN.');
+    if (res.status === 401) {
+      fail(
+        bearer
+          ? '/mcp refused the token (401). Check DOCKET_TOKEN.'
+          : '/mcp needs a token (401): this Docket is in protected mode. Set DOCKET_TOKEN (Settings → Reveal token, or `docker compose exec docket docket agent-token`).',
+      );
+    }
     if (!res.ok && res.status !== 202) fail(`/mcp answered ${res.status}: ${await res.text()}`);
     session ??= res.headers.get('mcp-session-id');
     if (notify || res.status === 202) return null;

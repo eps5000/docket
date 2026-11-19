@@ -9,6 +9,10 @@
  *    docket-* folder added, checks again: edited, missing, extra;
  * 4. reinstalls with a new command, which restores them;
  * and the CLAUDE.md text outside the markers stays byte-identical throughout.
+ * The connection file (decision 32): the install adds the docket server to
+ * an existing `.mcp.json` (or `.codex/config.toml`) and keeps every other
+ * byte; the check compares only the docket entry; an invalid file stops the
+ * install before anything is written.
  *
  * A shell that isn't installed skips (CI's no-network container has bash but
  * no curl; the GitHub runner has bash and pwsh). The transcripts are printed.
@@ -22,6 +26,8 @@ import { serve, type ServerType } from '@hono/node-server';
 import {
   DOCKET_BEGIN,
   DOCKET_END,
+  connectionEntry,
+  mergeConnection,
   LEGACY_BEGIN,
   LEGACY_END,
   instructionsInput,
@@ -128,7 +134,7 @@ async function run(shell: ShellName, command: string, cwd: string) {
   const exe = SHELLS[shell]!;
   const args =
     shell === 'bash'
-      ? ['-c', command]
+      ? ['-s']
       : ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Restricted', '-Command', '-'];
   const r = await new Promise<{ status: number | null; out: string }>((resolve) => {
     const child = spawn(exe, args, { cwd, env: process.env });
@@ -141,7 +147,10 @@ async function run(shell: ShellName, command: string, cwd: string) {
       resolve({ status, out });
     });
     // PowerShell reads the pasted line from stdin, then exits with its status.
-    if (shell === 'bash') child.stdin.end();
+    // bash reads it from stdin too, as a pasted line (Windows argument quoting would mangle a long -c).
+    if (shell === 'bash')
+      child.stdin.end(`${command}
+`);
     else child.stdin.end(`${command}\nif (-not $?) { exit 1 }\nexit 0\n`);
   });
   const out = r.out.replace(/\r\n/g, '\n').trimEnd();
@@ -182,6 +191,13 @@ async function report(shell: ShellName, repo: string): Promise<InstructionsInput
 const PRE =
   '# Recipes\r\n\r\nOur own rules — keep them exactly. Ünïcödé.\r\n\r\n## Build\r\n`pnpm build`';
 
+/** The owner's own .mcp.json: another server, CRLF, non-ASCII. */
+const MCP_BEFORE =
+  '{\r\n  "mcpServers": {\r\n    "github": { "command": "gh-mcp", "args": ["--café"] }\r\n  }\r\n}\r\n';
+const MCP_BEFORE_LATIN1 = Buffer.from(MCP_BEFORE, 'utf8').toString('latin1');
+const connEntry = (client: 'claude' | 'codex') =>
+  connectionEntry(client, `http://127.0.0.1:${port}/mcp`, false);
+
 describe.each(Object.keys(SHELLS) as ShellName[])('the %s commands', (shell) => {
   it.skipIf(!SHELLS[shell])(
     'install, check, edit, check, reinstall: byte-identical outside the markers',
@@ -189,6 +205,7 @@ describe.each(Object.keys(SHELLS) as ShellName[])('the %s commands', (shell) => 
       const repo = join(tmp.dir, `repo-${shell}`);
       mkdirSync(join(repo, '.git'), { recursive: true });
       writeFileSync(join(repo, 'CLAUDE.md'), PRE);
+      writeFileSync(join(repo, '.mcp.json'), MCP_BEFORE);
       const key = shell === 'bash' ? 'bash' : 'powershell';
 
       const install = async () => {
@@ -219,6 +236,18 @@ describe.each(Object.keys(SHELLS) as ShellName[])('the %s commands', (shell) => 
         ),
       );
       expect(existsSync(join(repo, '.claude/.docket-manifest.json'))).toBe(true);
+      // The connection file: docket added next to the owner's server, every other byte kept.
+      expect(i1.out).toContain('added the docket server to .mcp.json (nothing else changed)');
+      expect(i1.out).toContain(
+        'Then open Claude Code in this repo and approve Docket when it asks.',
+      );
+      const mcp = readFileSync(join(repo, '.mcp.json'), 'latin1');
+      expect(mcp).toBe(mergeConnection('claude', MCP_BEFORE_LATIN1, connEntry('claude')).text);
+      expect(Object.keys((JSON.parse(mcp) as { mcpServers: object }).mcpServers)).toEqual([
+        'docket',
+        'github',
+      ]);
+      expect(mcp).not.toContain(s.runtime.secrets.agentToken());
 
       // The same command again: the token is used, and nothing changes.
       const reused = await run(shell, first.install, repo);
@@ -229,14 +258,33 @@ describe.each(Object.keys(SHELLS) as ShellName[])('the %s commands', (shell) => 
       transcript.push(`## ${shell}: check`);
       const c1 = await run(shell, first.check, repo);
       expect(c1.status, c1.out).toBe(0);
-      expect(c1.out).toContain('Up to date: all 6 files match what Docket sent.');
+      expect(c1.out).toContain('Up to date: all 7 files match what Docket sent.');
 
       // The installed docket-check (decision 30): every file listed by hash, no text.
       const manifest = readManifest(repo);
       transcript.push(`## ${shell}: docket-check, as installed`);
       const r1 = await report(shell, repo);
       expect(r1.install_id).toBe(manifest.install_id);
-      expect(r1.files).toEqual(manifest.files.map((f) => ({ key: f.key, sha256: f.sha256 })));
+      // The connection file isn't reported to claim_lead (decision 32): only the push and copy-paste checks read it.
+      expect(manifest.files.some((f) => f.key === 'connection')).toBe(true);
+      expect(r1.files).toEqual(
+        manifest.files
+          .filter((f) => f.key !== 'connection')
+          .map((f) => ({ key: f.key, sha256: f.sha256 })),
+      );
+
+      // Another server's entry edited: not drift. The docket entry edited: drift.
+      writeFileSync(join(repo, '.mcp.json'), mcp.replace('"gh-mcp"', '"gh-mcp2"'), 'latin1');
+      const cOther = await run(shell, first.check, repo);
+      expect(cOther.out).toContain('Up to date: all 7 files match what Docket sent.');
+      writeFileSync(
+        join(repo, '.mcp.json'),
+        mcp.replace(':' + port + '/mcp', ':9999/mcp'),
+        'latin1',
+      );
+      const cDocket = await run(shell, first.check, repo);
+      expect(cDocket.out).toMatch(/^edited +\.mcp\.json +\(sent connection connection:local\)$/m);
+      writeFileSync(join(repo, '.mcp.json'), mcp, 'latin1');
 
       // 3. Edit one file, delete another, add an extra folder: the check lists them.
       const worker = join(repo, '.claude/skills/docket-worker/SKILL.md');
@@ -305,6 +353,70 @@ describe.each(Object.keys(SHELLS) as ShellName[])('the %s commands', (shell) => 
       const after = readFileSync(join(repo, 'CLAUDE.md'));
       expect(after.subarray(0, Buffer.byteLength(PRE)).equals(Buffer.from(PRE))).toBe(true);
       expect(after.toString('utf8').endsWith(`${DOCKET_END}\n`)).toBe(true);
+    },
+  );
+
+  it.skipIf(!SHELLS[shell])(
+    'Codex: config.toml gets the docket table; an invalid .mcp.json stops the install before anything is written',
+    async () => {
+      const key = shell === 'bash' ? 'bash' : 'powershell';
+      const commands = async (client: 'claude' | 'codex') => {
+        const created = await request('POST', '/api/installs', {
+          client,
+          target_kind: 'repo',
+          project: 'RCP',
+          method: 'command',
+        });
+        return {
+          install: (created.command as Record<string, string>)[key]!,
+          check: (created.check_command as Record<string, string>)[key]!,
+        };
+      };
+
+      const repo = join(tmp.dir, `codex-${shell}`);
+      mkdirSync(join(repo, '.git'), { recursive: true });
+      mkdirSync(join(repo, '.codex'));
+      const TOML =
+        'model = "gpt-5"\r\n\r\n[mcp_servers.github]\r\ncommand = "gh"\r\nargs = [\r\n  "a",\r\n]\r\n';
+      writeFileSync(join(repo, '.codex/config.toml'), TOML);
+      transcript.push(`## ${shell}: Codex install with an existing config.toml`);
+      const codex = await commands('codex');
+      const i = await run(shell, codex.install, repo);
+      expect(i.status, i.out).toBe(0);
+      expect(i.out).toContain(
+        'added the docket server to .codex/config.toml (nothing else changed)',
+      );
+      expect(i.out).toContain('Then open Codex in this repo and approve Docket when it asks.');
+      expect(readFileSync(join(repo, '.codex/config.toml'), 'latin1')).toBe(
+        `${TOML}\n${connEntry('codex')}`,
+      );
+      const c = await run(shell, codex.check, repo);
+      expect(c.out).toContain('Up to date: all 7 files match what Docket sent.');
+      // The docket table edited: drift; another table edited: not.
+      const toml = readFileSync(join(repo, '.codex/config.toml'), 'latin1');
+      writeFileSync(join(repo, '.codex/config.toml'), toml.replace('"gh"', '"gh2"'), 'latin1');
+      expect((await run(shell, codex.check, repo)).out).toContain('Up to date: all 7 files');
+      writeFileSync(
+        join(repo, '.codex/config.toml'),
+        `${toml}bearer_token_env_var = "X"\n`,
+        'latin1',
+      );
+      expect((await run(shell, codex.check, repo)).out).toMatch(
+        /^edited +\.codex\/config\.toml +\(sent connection connection:local\)$/m,
+      );
+
+      const bad = join(tmp.dir, `invalid-${shell}`);
+      mkdirSync(join(bad, '.git'), { recursive: true });
+      const INVALID = '{"mcpServers": {"a": {},}}\n';
+      writeFileSync(join(bad, '.mcp.json'), INVALID);
+      transcript.push(`## ${shell}: install with an invalid .mcp.json`);
+      const refused = await run(shell, (await commands('claude')).install, bad);
+      expect(refused.status).not.toBe(0);
+      expect(refused.out).toContain(".mcp.json isn't valid JSON (unexpected character)");
+      expect(refused.out).toContain('Nothing was written.');
+      expect(existsSync(join(bad, '.claude'))).toBe(false);
+      expect(existsSync(join(bad, 'CLAUDE.md'))).toBe(false);
+      expect(readFileSync(join(bad, '.mcp.json'), 'utf8')).toBe(INVALID);
     },
   );
 

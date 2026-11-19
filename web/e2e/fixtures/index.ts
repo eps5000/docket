@@ -65,7 +65,7 @@ export async function expectAxeClean(
 
 export { expect, seriousViolations };
 export { useSeededContainer, resetSeededContainer, ownerKey, agentToken } from './container';
-export { unlock, unlockViaUi, lock } from './unlock';
+export { unlock, unlockViaUi, lock, PROTECTED } from './unlock';
 export { connectAgent } from './mcp';
 export { setTheme, THEMES } from './axe';
 export {

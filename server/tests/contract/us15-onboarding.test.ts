@@ -28,7 +28,7 @@ import {
   ONBOARDING_GUIDE_TEMPLATE,
   syncBundledFiles,
 } from '../../src/jobs/bundled.js';
-import { ORIGIN, parseSetCookies } from '../integration/harness.js';
+import { ORIGIN, PROTECTED_MODE, parseSetCookies } from '../integration/harness.js';
 import {
   expectConflict,
   expectForbidden,
@@ -51,8 +51,8 @@ type S = Record<string, unknown>;
 
 const BUNDLED_GUIDE = readFileSync(join(DEFAULT_BUNDLED_ROOT, ONBOARDING_GUIDE_TEMPLATE), 'utf8');
 
-async function start(): Promise<ContractHarness> {
-  h = await startHarness();
+async function start(env?: Record<string, string>): Promise<ContractHarness> {
+  h = await startHarness({ env });
   syncBundledFiles(h.server.runtime);
   return h;
 }
@@ -287,7 +287,8 @@ describe('session tagging and safety', () => {
   });
 
   it('agents never create projects in Settings, change project settings or delete projects (FR-140)', async () => {
-    await start();
+    // Protected mode: the agent token is no owner session (decision 32).
+    await start(PROTECTED_MODE);
     // No MCP tool does it.
     expect(TOOL_NAMES.filter((t) => /project/.test(t))).toEqual([
       'list_projects',

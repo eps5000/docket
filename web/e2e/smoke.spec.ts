@@ -20,7 +20,20 @@ test.describe('smoke', () => {
     expect(await res.text()).toContain('Docket is running');
   });
 
-  test('a locked browser lands on Unlock, with no serious axe violations', async ({ page }) => {
+  test('local trust: the app opens without unlocking, and /unlock goes home (decision 32)', async ({
+    page,
+  }) => {
+    await page.goto('/unlock?next=%2Fagents');
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.getByRole('heading', { level: 1, name: 'Needs you' })).toBeVisible();
+    await page.goto('/work?layout=list');
+    await expect(page).toHaveURL(/\/work\?layout=list$/);
+    await expect(page.getByRole('heading', { level: 1, name: 'Unlock Docket' })).toHaveCount(0);
+  });
+
+  test('a locked browser lands on Unlock, with no serious axe violations @protected', async ({
+    page,
+  }) => {
     await page.goto('/');
     await expect(page).toHaveURL(/\/unlock$/);
     await expect(page.getByRole('heading', { level: 1, name: 'Unlock Docket' })).toBeVisible();
@@ -41,7 +54,7 @@ test.describe('smoke', () => {
     expect(errors).toEqual([]);
   });
 
-  test('client-side routes fall back to the app and come back after unlocking', async ({
+  test('client-side routes fall back to the app and come back after unlocking @protected', async ({
     page,
   }) => {
     await page.goto('/work?layout=list');

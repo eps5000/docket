@@ -60,7 +60,7 @@ import {
   type ContractHarness,
 } from '../contract/harness.js';
 import { TestClock, tempDir, type TempDir } from '../helpers.js';
-import { createTestServer, parseSetCookies, type TestServer } from './harness.js';
+import { PROTECTED_MODE, createTestServer, parseSetCookies, type TestServer } from './harness.js';
 
 const NOW = new Date('2026-11-06T11:00:00.000Z');
 const canChmod = process.platform !== 'win32' && process.getuid?.() !== 0;
@@ -516,7 +516,8 @@ describe('project delete (BUILD_SPEC §5.12; O10; FR-104)', () => {
     (s.runtime.db.sqlite.prepare(sql).get(...args) as { n: number }).n;
 
   it('the typed key confirms it; rows and the docs folder go together; other projects are untouched', async () => {
-    h = await startHarness({ log: (l) => logs.push(l) });
+    // Protected mode (decision 32): the agent's bearer token isn't an owner session.
+    h = await startHarness({ log: (l) => logs.push(l), env: PROTECTED_MODE });
     const s = h.server;
     const cookie = await unlock(s);
     const docs = s.runtime.config.paths.docs;
@@ -756,7 +757,8 @@ describe('logs hold no arguments and no credentials', () => {
       vi.spyOn(console, 'warn').mockImplementation(capture),
     ];
     try {
-      h = await startHarness({ log: (l) => logs.push(l) });
+      // Protected mode (decision 32): a bad bearer token is refused, and the owner reveals the token.
+      h = await startHarness({ log: (l) => logs.push(l), env: PROTECTED_MODE });
       const s = h.server;
       const MARKER = 'zebra-argument-7c1f';
       expectOk(
@@ -832,7 +834,7 @@ describe('logs hold no arguments and no credentials', () => {
   });
 
   it('Reveal token needs the owner session; the agent token itself is refused', async () => {
-    const s = seeded();
+    const s = seeded(PROTECTED_MODE);
     const none = await s.request('/api/settings/agent-token');
     expect(none.status).toBe(401);
     const asAgent = await s.request('/api/settings/agent-token', {

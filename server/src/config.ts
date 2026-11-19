@@ -50,6 +50,13 @@ export interface Config {
   /** Display time zone; storage is always UTC. */
   tz: string | null;
   /**
+   * Trust mode (owner decision 32; BUILD_SPEC §3). False (the default) is
+   * local trust: no owner unlock and no agent token. True (`DOCKET_PROTECTED_MODE=on`)
+   * requires the owner session on /api and the bearer token on /mcp. It is
+   * configuration only: no route or tool changes it.
+   */
+  protectedMode: boolean;
+  /**
    * `clientInfo.name`s (lower-cased) whose sessions get text-only tool results:
    * no `outputSchema`, no `structuredContent` (MCP_SPEC §3 Results; owner decision 28).
    */
@@ -92,6 +99,8 @@ export const DEFAULTS = {
   DOCKET_BACKUP_KEEP: '14',
   // Claude Code gives the model `structuredContent`, not the text (BUILD_SPEC §12 V6).
   DOCKET_TEXT_ONLY_CLIENTS: 'claude-code',
+  // Decision 32: local trust by default; `on` restores the owner unlock and the agent token.
+  DOCKET_PROTECTED_MODE: 'off',
 } as const;
 
 /** Every setting the server reads; each one's old `TASKLITE_*` name still works (B28). */
@@ -214,6 +223,13 @@ export function loadConfig(
     }
   }
 
+  const protectedValue = get('DOCKET_PROTECTED_MODE').toLowerCase();
+  if (!['on', 'off', 'true', 'false'].includes(protectedValue)) {
+    throw new ConfigError(
+      `DOCKET_PROTECTED_MODE must be on or off (true or false also work; got "${protectedValue}")`,
+    );
+  }
+
   const secrets = join(dataDir, 'secrets');
   const db = databaseFile(dataDir);
   return {
@@ -235,6 +251,7 @@ export function loadConfig(
     driftCheckIntervalMs,
     seed: seedValue === 'sample' ? 'sample' : null,
     tz: env(source, 'TZ') ?? null,
+    protectedMode: protectedValue === 'on' || protectedValue === 'true',
     textOnlyClients,
     dataVolume: env(source, 'DOCKET_DATA_VOLUME') ?? null,
     deprecations,

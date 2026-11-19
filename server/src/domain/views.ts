@@ -1675,11 +1675,13 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         projects,
         connections: {
           clients,
+          // Decision 32: local trust (no unlock, no agent token) unless DOCKET_PROTECTED_MODE is on.
+          protected_mode: config.protectedMode,
           endpoint: {
             mcp_url: `http://${host}/mcp`,
             web_url: `http://${host}/`,
             bind: 'loopback',
-            auth: 'bearer',
+            auth: config.protectedMode ? 'bearer' : 'none',
             origins: allowedOriginsFor(config.allowedHosts),
           },
         },

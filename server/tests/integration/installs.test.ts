@@ -23,9 +23,16 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
-import { DOCKET_BEGIN, DOCKET_END } from '@docket/shared';
+import {
+  DOCKET_BEGIN,
+  DOCKET_END,
+  connectionCanonical,
+  connectionEntry,
+  mergeConnection,
+} from '@docket/shared';
 import { afterEach, describe, expect, it } from 'vitest';
 import { syncBundledFiles } from '../../src/jobs/bundled.js';
+import { driftCheckOnce } from '../../src/jobs/sweeper.js';
 import { insertProject, tempDir, type TempDir } from '../helpers.js';
 import { createTestServer, parseSetCookies, type TestServer } from './harness.js';
 
@@ -51,11 +58,15 @@ const SKILLS = [
 ];
 
 /** A server with RCP and the shipped agent files; `push` mounts a temporary push root. */
-async function start(opts: { push?: 'set' | 'missing'; hostPath?: string } = {}) {
+const MCP_URL = 'http://127.0.0.1:7420/mcp';
+
+async function start(
+  opts: { push?: 'set' | 'missing'; hostPath?: string; env?: Record<string, string> } = {},
+) {
   tmp = tempDir('docket-pushroot-');
   const root = join(tmp.dir, 'code');
   mkdirSync(join(root, 'recipes'), { recursive: true });
-  const env: Record<string, string> = {};
+  const env: Record<string, string> = { ...opts.env };
   if (opts.push) env.DOCKET_PUSH_ROOT = opts.push === 'set' ? root : join(tmp.dir, 'not-mounted');
   if (opts.hostPath) env.DOCKET_PUSH_HOST_PATH = opts.hostPath;
   s = createTestServer({ env, log: (line) => logs.push(line) });
@@ -142,7 +153,7 @@ describe('command install: the bundle and the single-use token (T155)', () => {
     // Not in the log until the token is used; one event, "Install command created".
     expect((await api('GET', '/api/installs')).body).toEqual({ installs: [] });
     expect(eventsOf(server).map((e) => e.summary)).toEqual([
-      'Install command created: Claude Code, RCP’s repo, 6 files'.replace('’', "'"),
+      'Install command created: Claude Code, RCP’s repo, 7 files'.replace('’', "'"),
     ]);
 
     // The download: no session, the system as actor.
@@ -164,6 +175,8 @@ describe('command install: the bundle and the single-use token (T155)', () => {
         'docket-install/files/.claude/docket-check.ps1',
         'docket-install/files.txt',
         'docket-install/block.md',
+        // The connection file's docket entry (decision 32).
+        'docket-install/connection.txt',
         'docket-install/install.sh',
         'docket-install/install.ps1',
       ].sort(),
@@ -216,7 +229,22 @@ describe('command install: the bundle and the single-use token (T155)', () => {
     expect(manifest.files.map((f) => [f.key, f.path])).toEqual([
       ...SKILLS.map((n) => [`skill:${n}`, `.claude/skills/${n}/SKILL.md`]),
       ['agents_block', 'CLAUDE.md'],
+      ['connection', '.mcp.json'],
     ]);
+    // The connection file (decision 32): the docket entry, no secret, the entry's canonical hash.
+    expect(files.get('docket-install/connection.txt')).toBe(
+      connectionEntry('claude', MCP_URL, false),
+    );
+    const conn = manifest.files.find((f) => f.key === 'connection')!;
+    expect(conn.version_id).toBe('connection:local');
+    expect(conn.sha256).toBe(sha(connectionCanonical('claude', MCP_URL, false)));
+    for (const text of files.values()) {
+      expect(text).not.toContain(server.runtime.secrets.agentToken());
+      expect(text).not.toContain(server.runtime.secrets.ownerKey());
+    }
+    // The install steps merge it into .mcp.json.
+    expect(files.get('docket-install/install.sh')).toContain('cf="$base/.mcp.json"');
+    expect(files.get('docket-install/install.ps1')).toContain("Join-Path $Base '.mcp.json'");
     expect(manifest.files.find((f) => f.key === 'skill:docket-worker')!.sha256).toBe(sha(worker));
     expect(manifest.files.find((f) => f.key === 'agents_block')!.sha256).toBe(sha(block));
     // One file per line, for the bash check.
@@ -240,7 +268,7 @@ describe('command install: the bundle and the single-use token (T155)', () => {
     expect(log.installs[0]).toMatchObject({
       id: body.install_id,
       method: 'command',
-      file_count: 6,
+      file_count: 7,
       token_used_at: server.clock.current.toISOString(),
     });
     expect(log.installs[0]!.manifest).toEqual(
@@ -248,8 +276,8 @@ describe('command install: the bundle and the single-use token (T155)', () => {
     );
     const events = eventsOf(server);
     expect(events.map((e) => e.summary)).toEqual([
-      "Install command created: Claude Code, RCP's repo, 6 files",
-      "Installed by command: Claude Code, RCP's repo, 6 files",
+      "Install command created: Claude Code, RCP's repo, 7 files",
+      "Installed by command: Claude Code, RCP's repo, 7 files",
     ]);
     expect(events.map((e) => (JSON.parse(e.data) as S).stage)).toEqual([
       'command_issued',
@@ -408,12 +436,16 @@ describe('push install and check (T156)', () => {
       files: [
         ...SKILLS.map((n) => ({ path: `.claude/skills/${n}/SKILL.md`, change: 'created' })),
         { path: 'CLAUDE.md', change: 'updated' },
+        { path: '.mcp.json', change: 'created' },
         { path: '.claude/.docket-manifest.json', change: 'created' },
         { path: '.claude/docket-check.sh', change: 'created' },
         { path: '.claude/docket-check.ps1', change: 'created' },
       ],
     });
     expect(first.body.command).toBeUndefined();
+    expect(readFileSync(join(repo, '.mcp.json'), 'utf8')).toBe(
+      mergeConnection('claude', null, connectionEntry('claude', MCP_URL, false)).text,
+    );
     const id = first.body.install_id as string;
 
     // Nothing outside the markers changed: the old CLAUDE.md is an exact prefix.
@@ -434,11 +466,11 @@ describe('push install and check (T156)', () => {
         id,
         method: 'push',
         path: 'C:\\Users\\me\\code\\recipes',
-        file_count: 6,
+        file_count: 7,
       }),
     ]);
     expect(eventsOf(server).map((e) => e.summary)).toEqual([
-      "Installed by push: Claude Code, RCP's repo at C:\\Users\\me\\code\\recipes, 6 files",
+      "Installed by push: Claude Code, RCP's repo at C:\\Users\\me\\code\\recipes, 7 files",
     ]);
 
     // Up to date.
@@ -634,5 +666,164 @@ describe('the push folder: status and Test', () => {
     const test = await api('POST', '/api/push-target/test', {});
     expect(test.body.ok).toBe(false);
     expect(test.body.message).toMatch(/isn't mounted/);
+  });
+});
+
+describe('connection files (decision 32; BUILD_SPEC §5.17a; T168)', () => {
+  const repoInstall = (client: 'claude' | 'codex') => ({
+    client,
+    target_kind: 'repo',
+    project: 'RCP',
+    method: 'push',
+    path: 'recipes',
+  });
+
+  it('push merges the docket server into .mcp.json, keeps the other servers, and checks only its entry', async () => {
+    const { api, root, server } = await start({ push: 'set' });
+    const repo = join(root, 'recipes');
+    const BEFORE =
+      '{\r\n  "mcpServers": {\r\n    "github": { "command": "gh-mcp" }\r\n  },\r\n  "x": true\r\n}\r\n';
+    writeFileSync(join(repo, '.mcp.json'), BEFORE);
+    const res = await api('POST', '/api/installs', repoInstall('claude'));
+    expect(res.status).toBe(200);
+    expect((res.body.result as { files: S[] }).files).toContainEqual({
+      path: '.mcp.json',
+      change: 'updated',
+    });
+    const id = res.body.install_id as string;
+    const mcp = readFileSync(join(repo, '.mcp.json'), 'utf8');
+    expect(mcp).toBe(
+      mergeConnection('claude', BEFORE, connectionEntry('claude', MCP_URL, false)).text,
+    );
+    expect(mcp.endsWith(BEFORE.slice(BEFORE.indexOf('{', 5) + 1))).toBe(true);
+    expect(mcp).not.toContain(server.runtime.secrets.agentToken());
+
+    // Another server edited: up to date, and the drift check finds nothing.
+    writeFileSync(join(repo, '.mcp.json'), mcp.replace('"gh-mcp"', '"gh-mcp", "args": ["-v"]'));
+    expect((await api('POST', `/api/installs/${id}/check`, {})).body).toMatchObject({
+      state: 'up_to_date',
+    });
+    expect((await driftCheckOnce(server.runtime)).drift_ids).toEqual([]);
+
+    // The docket entry edited: the check says so with the entry's text, and so does drift.
+    writeFileSync(join(repo, '.mcp.json'), mcp.replace(':7420/mcp', ':7499/mcp'));
+    const check = await api('POST', `/api/installs/${id}/check`, {});
+    expect(check.body.files).toEqual([
+      {
+        key: 'connection',
+        path: '.mcp.json',
+        state: 'edited',
+        local_content: '{"type":"http","url":"http://127.0.0.1:7499/mcp"}',
+      },
+    ]);
+    const found = await driftCheckOnce(server.runtime);
+    expect(found.drift_ids).toHaveLength(1);
+    const drift = (await api('GET', '/api/drift?state=open')).body.drift as S[];
+    expect(drift).toEqual([
+      expect.objectContaining({
+        file_key: 'connection',
+        change: 'edited',
+        sent_version_id: 'connection:local',
+      }),
+    ]);
+    // Adopt is refused (it isn't an agent file); Restore puts the entry back.
+    const adopt = await api('POST', `/api/drift/${drift[0]!.id as string}/adopt`, {});
+    expect(adopt.status).toBe(400);
+    const restore = await api('POST', `/api/drift/${drift[0]!.id as string}/restore`, {});
+    expect(restore.status).toBe(200);
+    const restored = readFileSync(join(repo, '.mcp.json'), 'utf8');
+    expect(restored).toContain('"url": "http://127.0.0.1:7420/mcp"');
+    expect(restored).toContain('"gh-mcp"');
+
+    // Removing the docket entry reads as missing.
+    writeFileSync(join(repo, '.mcp.json'), BEFORE);
+    const latest = (await api('GET', '/api/installs')).body.installs as S[];
+    const gone = await api('POST', `/api/installs/${latest[0]!.id as string}/check`, {});
+    expect(gone.body.files).toEqual([{ key: 'connection', path: '.mcp.json', state: 'missing' }]);
+  });
+
+  it('refuses an invalid .mcp.json or config.toml, and writes nothing at all', async () => {
+    const { api, root } = await start({ push: 'set' });
+    const repo = join(root, 'recipes');
+    writeFileSync(join(repo, '.mcp.json'), '{"mcpServers": {"a": {}},}');
+    const bad = await api('POST', '/api/installs', repoInstall('claude'));
+    expect(bad.status).toBe(400);
+    expect((bad.body.error as S).message).toBe(
+      ".mcp.json isn't valid JSON (unexpected character). Fix it, then install again. Nothing was written.",
+    );
+    mkdirSync(join(repo, '.codex'));
+    writeFileSync(join(repo, '.codex/config.toml'), '[mcp_servers]\ndocket = { url = "x" }\n');
+    const conflict = await api('POST', '/api/installs', repoInstall('codex'));
+    expect(conflict.status).toBe(400);
+    expect((conflict.body.error as S).message).toMatch(
+      /^\.codex\/config\.toml defines the docket MCP server in a form Docket can't update/,
+    );
+    expect(
+      filesUnder(repo)
+        .map((p) => p.slice(repo.length + 1).replace(/\\/g, '/'))
+        .sort(),
+    ).toEqual(['.codex/config.toml', '.mcp.json']);
+    expect((await api('GET', '/api/installs')).body.installs).toEqual([]);
+  });
+
+  it('Codex: appends the [mcp_servers.docket] table to config.toml', async () => {
+    const { api, root } = await start({ push: 'set' });
+    const repo = join(root, 'recipes');
+    mkdirSync(join(repo, '.codex'));
+    const BEFORE = 'model = "gpt-5"\n\n[mcp_servers.github]\ncommand = "gh"\n';
+    writeFileSync(join(repo, '.codex/config.toml'), BEFORE);
+    const res = await api('POST', '/api/installs', repoInstall('codex'));
+    expect(res.status).toBe(200);
+    expect(readFileSync(join(repo, '.codex/config.toml'), 'utf8')).toBe(
+      `${BEFORE}\n[mcp_servers.docket]\nurl = "${MCP_URL}"\n`,
+    );
+    const id = res.body.install_id as string;
+    expect((await api('POST', `/api/installs/${id}/check`, {})).body.state).toBe('up_to_date');
+  });
+
+  it('protected mode names DOCKET_TOKEN from the environment, never the token', async () => {
+    const { api, root, server } = await start({
+      push: 'set',
+      env: { DOCKET_PROTECTED_MODE: 'on' },
+    });
+    const repo = join(root, 'recipes');
+    expect((await api('POST', '/api/installs', repoInstall('claude'))).status).toBe(200);
+    expect((await api('POST', '/api/installs', repoInstall('codex'))).status).toBe(200);
+    const mcp = JSON.parse(readFileSync(join(repo, '.mcp.json'), 'utf8')) as {
+      mcpServers: { docket: S };
+    };
+    expect(mcp.mcpServers.docket).toEqual({
+      type: 'http',
+      url: MCP_URL,
+      headers: { Authorization: 'Bearer ${DOCKET_TOKEN}' },
+    });
+    const toml = readFileSync(join(repo, '.codex/config.toml'), 'utf8');
+    expect(toml).toBe(
+      `[mcp_servers.docket]\nurl = "${MCP_URL}"\nbearer_token_env_var = "DOCKET_TOKEN"\n`,
+    );
+    for (const text of [JSON.stringify(mcp), toml]) {
+      expect(text).not.toContain(server.runtime.secrets.agentToken());
+    }
+    const log = (await api('GET', '/api/installs')).body.installs as { manifest: S[] }[];
+    expect(log[0]!.manifest).toContainEqual(
+      expect.objectContaining({ key: 'connection', version_id: 'connection:protected' }),
+    );
+  });
+
+  it('a user-wide install writes no connection file', async () => {
+    const { api } = await start();
+    const created = await api('POST', '/api/installs', {
+      client: 'claude',
+      target_kind: 'user',
+      method: 'command',
+    });
+    const download = await s!.request(
+      `/install/${tokenOf((created.body.command as S).bash as string)}`,
+    );
+    const files = untar(Buffer.from(await download.arrayBuffer()));
+    expect(files.has('docket-install/connection.txt')).toBe(false);
+    expect(files.get('docket-install/files/.claude/.docket-manifest.json')).not.toContain(
+      'connection',
+    );
   });
 });

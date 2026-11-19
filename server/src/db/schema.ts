@@ -956,7 +956,11 @@ export const drift = sqliteTable(
     index('drift_project_state').on(t.project_key, t.state),
     check('drift_state', oneOf('state', DRIFT_STATES)),
     check('drift_change', oneOf('change', DRIFT_CHANGES)),
-    check('drift_file_key', sql.raw(installedKeyCheck('file_key'))),
+    // Decision 32 (B31): drift also covers the project connection file, key `connection`.
+    check(
+      'drift_file_key',
+      sql.raw(`"file_key" = 'connection' OR (${installedKeyCheck('file_key')})`),
+    ),
     check(
       'drift_local_sha256',
       sql.raw(

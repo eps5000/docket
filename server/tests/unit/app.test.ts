@@ -109,8 +109,23 @@ describe('web build', () => {
   });
 
   it.each(['/api/anything', '/mcp'])(
-    'does not fall back for %s (it is guarded instead)',
+    'does not fall back for %s (the server answers it)',
     async (path) => {
+      const res = await get(path);
+      expect(res.status).toBeGreaterThanOrEqual(400);
+      expect(res.headers.get('content-type') ?? '').not.toMatch(/text\/html/);
+    },
+  );
+
+  it.each(['/api/anything', '/mcp'])(
+    'does not fall back for %s in protected mode (it is guarded instead)',
+    async (path) => {
+      await runtime.close();
+      runtime = createRuntime({
+        dataDir: join(tmp.dir, 'data'),
+        env: { DOCKET_PROTECTED_MODE: 'on' },
+      });
+      app = createApp(runtime, { webRoot });
       const res = await get(path);
       expect(res.status).toBe(401);
     },

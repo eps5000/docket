@@ -93,6 +93,27 @@ describe('loadConfig', () => {
     );
   });
 
+  it('DOCKET_PROTECTED_MODE is off by default and takes on, off, true or false (decision 32)', () => {
+    expect(loadConfig({}).protectedMode).toBe(false);
+    expect(loadConfig({ DOCKET_PROTECTED_MODE: 'on' }).protectedMode).toBe(true);
+    expect(loadConfig({ DOCKET_PROTECTED_MODE: 'TRUE' }).protectedMode).toBe(true);
+    expect(loadConfig({ DOCKET_PROTECTED_MODE: ' Off ' }).protectedMode).toBe(false);
+    expect(loadConfig({ DOCKET_PROTECTED_MODE: 'false' }).protectedMode).toBe(false);
+    expect(() => loadConfig({ DOCKET_PROTECTED_MODE: 'yes' })).toThrow(/DOCKET_PROTECTED_MODE/);
+  });
+
+  it('TASKLITE_PROTECTED_MODE still works, with a deprecation warning (B28 rules)', () => {
+    const config = loadConfig({ TASKLITE_PROTECTED_MODE: 'on' });
+    expect(config.protectedMode).toBe(true);
+    expect(config.deprecations).toContain(
+      'TASKLITE_PROTECTED_MODE is deprecated; use DOCKET_PROTECTED_MODE',
+    );
+    // The new name wins when both are set.
+    expect(
+      loadConfig({ TASKLITE_PROTECTED_MODE: 'on', DOCKET_PROTECTED_MODE: 'off' }).protectedMode,
+    ).toBe(false);
+  });
+
   it('DOCKET_TEXT_ONLY_CLIENTS=none gives every client structured results', () => {
     expect(loadConfig({ DOCKET_TEXT_ONLY_CLIENTS: 'none' }).textOnlyClients).toEqual([]);
     expect(loadConfig({ DOCKET_TEXT_ONLY_CLIENTS: 'NONE' }).textOnlyClients).toEqual([]);

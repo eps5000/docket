@@ -569,18 +569,32 @@ export interface StoredEvent {
   item_id: string | null;
   type: string;
   summary: string;
+  /** `data.via` and `data.user_agent` of an owner event (decision 32); null otherwise. */
+  via?: string | null;
+  via_agent?: string | null;
 }
 
 /** Select columns for `eventRow`: events `e`, joined to their run `r` for the label. */
 export const EVENT_COLUMNS =
-  'e.seq, e.at, e.actor_kind, e.client, e.label, r.label AS run_label, e.item_id, e.type, e.summary';
+  "e.seq, e.at, e.actor_kind, e.client, e.label, r.label AS run_label, e.item_id, e.type, e.summary, json_extract(e.data, '$.via') AS via, json_extract(e.data, '$.user_agent') AS via_agent";
+
+/**
+ * How an event's actor is shown: `actorName`, and for an owner action made by
+ * a script (decision 32), "owner (script: curl/8.4.0)".
+ */
+export function eventActor(e: StoredEvent): string {
+  if (e.actor_kind === 'owner' && e.via === 'script') {
+    return `owner (script: ${e.via_agent || 'unknown'})`;
+  }
+  return actorName({ kind: e.actor_kind, client: e.client, label: e.label ?? e.run_label });
+}
 export const EVENT_FROM = 'events e LEFT JOIN runs r ON r.id = e.run_id';
 
 export function eventRow(e: StoredEvent) {
   return {
     cursor: String(e.seq),
     at: e.at,
-    actor: actorName({ kind: e.actor_kind, client: e.client, label: e.label ?? e.run_label }),
+    actor: eventActor(e),
     item_id: e.item_id,
     type: e.type as never,
     summary: e.summary,

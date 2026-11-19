@@ -50,7 +50,7 @@ docker compose up -d
 - It accepts a backup from either location.
 - It prints checksums of items, events and documents, which match the backup's.
 - Backups taken before the rename to Docket (named `tasklite-…tar.gz`) are still listed, kept for the same time and restorable. **Service health** names the data volume that's mounted; the README's "Moving from Task Lite" says how to copy an old `tasklite-data` volume into `docket-data`.
-- Backups hold no keys or tokens. Restoring onto a new volume makes new ones, so unlock again and give your agents the new token.
+- Backups hold no keys or tokens. Restoring onto a new volume makes new ones; in protected mode, unlock again and give your agents the new token.
 
 ## Export
 

@@ -21,7 +21,7 @@ import { TOOL_NAMES } from '@docket/shared';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
 import { syncBundledFiles } from '../../src/jobs/bundled.js';
 import { tempDir } from '../helpers.js';
-import { ORIGIN, parseSetCookies } from '../integration/harness.js';
+import { ORIGIN, PROTECTED_MODE, parseSetCookies } from '../integration/harness.js';
 import {
   expectNotFound,
   expectOk,
@@ -301,7 +301,8 @@ describe('propose_agent_file_change (FR-128)', () => {
 
 describe('agents can’t decide (FR-130)', () => {
   it('has no MCP tool that approves or writes, and the owner routes refuse the agent token', async () => {
-    await start();
+    // Protected mode: the owner routes need the owner session (decision 32).
+    await start({ env: PROTECTED_MODE });
     expect(
       TOOL_NAMES.filter((n) => /approve|decline|decide|put_agent|write_agent/.test(n)),
     ).toEqual([]);

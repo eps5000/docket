@@ -34,6 +34,7 @@
  * accepts the hash. Only *Adopt* is undoable.
  */
 import {
+  CONNECTION_KEY,
   INSTALL_CLIENT_LABELS,
   INSTALLED_FILE_KEY_RE,
   ToolError,
@@ -152,9 +153,15 @@ export function mapReportKeys<T extends { key: string }>(
  * Compare a report with the install's manifest: edited, missing and extra
  * files. Unknown keys (not Docket's) aren't differences.
  */
-export function differences(manifest: ManifestMap, files: ReportFiles): Difference[] {
+export function differences(
+  manifest: ManifestMap,
+  files: ReportFiles,
+  /** False for an agent's report: it never carries the connection file (decision 32). */
+  coversConnection = true,
+): Difference[] {
   const out: Difference[] = [];
   for (const [key, sent] of Object.entries(manifest)) {
+    if (key === CONNECTION_KEY && !coversConnection) continue;
     const got = files[key];
     if (!got) out.push({ key, change: 'missing', local: null });
     else if (got.sha256 !== sent.sha256.toLowerCase()) {
@@ -398,8 +405,14 @@ function record(
   }
 
   // Plan first, so a quiet push check writes nothing.
-  const diffs = differences(manifest, files);
-  const open = new Map(openRowsOf(db, install.id).map((r) => [r.file_key, r]));
+  // Only the push check reads the connection file; an agent's report leaves its records alone.
+  const coversConnection = input.source === 'push_check';
+  const diffs = differences(manifest, files, coversConnection);
+  const open = new Map(
+    openRowsOf(db, install.id)
+      .filter((r) => coversConnection || r.file_key !== CONNECTION_KEY)
+      .map((r) => [r.file_key, r]),
+  );
   const inserts: Difference[] = [];
   const updates: { row: DriftRow; d: Difference }[] = [];
   const matched: DriftRow[] = [];
@@ -560,7 +573,9 @@ export function runInstructions(db: Db, itemId: string): RunInstructions[] {
     const files = filesOf(r);
     const install = r.install_id ? installById(db, r.install_id) : undefined;
     const manifest = install ? manifestOf(install) : {};
-    const keys = [...new Set([...Object.keys(manifest), ...Object.keys(files)])].sort(
+    // An agent never reports the connection file (decision 32): the run lists the instruction files only.
+    const sentKeys = Object.keys(manifest).filter((k) => k !== CONNECTION_KEY);
+    const keys = [...new Set([...sentKeys, ...Object.keys(files)])].sort(
       (a, b) =>
         (a === 'skill:docket-worker' ? -1 : 0) - (b === 'skill:docket-worker' ? -1 : 0) ||
         (a.startsWith('skill:') ? 0 : 1) - (b.startsWith('skill:') ? 0 : 1) ||
@@ -669,7 +684,12 @@ export function createDriftService(deps: ServiceDeps): DriftService {
             ...(row.project_key ? { project: row.project_key } : {}),
             location: row.path!,
             files: files
-              .filter((f) => f.state !== 'missing' && f.sha256 && INSTALLED_FILE_KEY_RE.test(f.key))
+              .filter(
+                (f) =>
+                  f.state !== 'missing' &&
+                  f.sha256 &&
+                  (INSTALLED_FILE_KEY_RE.test(f.key) || f.key === CONNECTION_KEY),
+              )
               .map((f) => {
                 const text = f.state === 'ok' ? null : f.text;
                 const secret = text !== null && findSecret(text, { known: deps.secrets.known() });

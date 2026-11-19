@@ -61,7 +61,7 @@ const FILES: Record<string, { lines: number; why: string }> = {
   'docker/.env.example': { lines: 4, why: 'documents the TASKLITE_* fallback' },
   // Tests of the compatibility rules.
   'server/tests/unit/rename-guard.test.ts': { lines: 12, why: 'this guard' },
-  'server/tests/unit/config.test.ts': { lines: 17, why: 'old settings and database file' },
+  'server/tests/unit/config.test.ts': { lines: 21, why: 'old settings and database file' },
   'server/tests/unit/migration-docket-rename.test.ts': { lines: 7, why: 'the key migration' },
   'server/tests/contract/b28-rename-compat.test.ts': { lines: 33, why: 'old installs, keys' },
   'server/tests/integration/install-shell.test.ts': { lines: 26, why: 'old installs, by shell' },

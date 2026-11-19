@@ -58,7 +58,9 @@ export const COMPAT_SURFACES: readonly CompatSurface[] = [
     orca: false,
     transport: 'Streamable HTTP',
     verified: null,
-    notes: 'Not smoke-tested yet. Run docker/smoke (O07).',
+    // B31: connected from a trusted repo's .codex/config.toml (codex exec 0.157, decision 32).
+    notes:
+      'Connects from a trusted repo (.codex/config.toml, checked Nov 18). Not smoke-tested yet: run docker/smoke (O07).',
   },
   {
     name: 'Claude Code (host)',
@@ -72,7 +74,7 @@ export const COMPAT_SURFACES: readonly CompatSurface[] = [
     // and an interactive session are still the owner's to run, so this stays unverified.
     verified: null,
     notes:
-      'Headless smoke passed Nov 17 (claude -p, temporary config). Your user-scope setup is still to check: run docker/smoke (O07).',
+      'Headless smoke passed Nov 17; connects from a repo’s .mcp.json (claude -p, Nov 18). The one-time approval in an interactive session is still to check: run docker/smoke (O07).',
   },
   {
     name: 'Orca worker · Codex',
@@ -80,18 +82,20 @@ export const COMPAT_SURFACES: readonly CompatSurface[] = [
     // Orca launches the installed client, so the worker sends the host client's name.
     clientInfoName: 'codex-mcp-client',
     orca: true,
-    transport: 'Streamable HTTP (user config)',
+    transport: 'Streamable HTTP (repo or user config)',
     verified: null,
-    notes: 'Inherits the user config in discovery. Not smoke-tested yet.',
+    notes:
+      'Starts the installed Codex in the repo, so its connection file applies. Not smoke-tested yet.',
   },
   {
     name: 'Orca worker · Claude',
     client: 'claude',
     clientInfoName: 'claude-code',
     orca: true,
-    transport: 'Streamable HTTP (user config)',
+    transport: 'Streamable HTTP (repo or user config)',
     verified: null,
-    notes: 'Check that this surface inherits the user MCP config (V2).',
+    notes:
+      'Starts the installed Claude Code in the repo, so its .mcp.json applies once approved (V2).',
   },
   {
     name: 'Agent in another container',

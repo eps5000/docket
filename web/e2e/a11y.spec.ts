@@ -124,7 +124,7 @@ test.describe('axe on every route, both themes (T142)', () => {
     });
   }
 
-  test('Unlock (a locked browser)', async ({ browser }) => {
+  test('Unlock (a locked browser) @protected', async ({ browser }) => {
     const context = await browser.newContext();
     const page = await context.newPage();
     await page.goto('/');

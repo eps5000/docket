@@ -23,6 +23,8 @@
  * bytes exactly (the push install) decode it as latin1, which round-trips
  * every byte, and the markers are ASCII.
  */
+import { CONNECTION_KEY } from './connection.js';
+import { CONNECTION_AWK_ITEMS, CONNECTION_PS1_ONE_LINE } from './connection-shell.js';
 import type { InstallClient, InstallTargetKind } from './enums.js';
 import {
   LEGACY_BEGIN,
@@ -303,9 +305,13 @@ export function checkCommands(input: InstallCommandInput): { powershell: string;
     `( d=${bashBase(input)}; m="$d/${layout.manifest}"; [ -f "$m" ] || { [ -f "$d/${layout.legacyManifest}" ] && m="$d/${layout.legacyManifest}"; }; B='${DOCKET_BEGIN}'; E='${DOCKET_END}'; OB='${LEGACY_BEGIN}'; OE='${LEGACY_END}'`,
     `[ -f "$m" ] || { echo "No Docket install found: $m is missing." >&2; exit 1; }`,
     `h() { tr -d '\\r' | { sha256sum 2>/dev/null || shasum -a 256; } | cut -c1-64; }`,
+    // The connection file's scanner (decision 32): only its docket entry is compared.
+    ...(input.target_kind === 'repo'
+      ? [`A=$(printf '%s\\n' ${CONNECTION_AWK_ITEMS.map((i) => `'${i}'`).join(' ')})`]
+      : []),
     `echo "Checking ${disp}${layout.dir} against Docket install $(grep -o 'ins_[0-9A-Za-z]*' "$m" | head -n 1)"`,
     `n=0; c=0; while IFS= read -r l; do case $l in *'"key":"'*) ;; *) continue ;; esac; k=\${l#*'"key":"'}; k=\${k%%'"'*}; p=\${l#*'"path":"'}; p=\${p%%'"'*}; v=\${l#*'"version_id":"'}; v=\${v%%'"'*}; s=\${l#*'"sha256":"'}; s=\${s%%'"'*}; c=$((c+1)); f="$d/$p"`,
-    `if [ ! -f "$f" ]; then st=missing; elif [ "$k" = agents_block ]; then x=$(cat "$f"; printf x); x=\${x%x}; case $x in *"$B"*) ;; *) B=$OB; E=$OE ;; esac; case $x in *"$B"*"$E"*) x=\${x#*"$B"}; x=\${x%%"$E"*}; x=$(printf '%s' "$x" | tr -d '\\r'; printf x); x=\${x%x}; x=\${x#$'\\n'}; x=\${x%$'\\n'}; if [ "$(printf '%s' "$x" | h)" = "$s" ]; then st=ok; else st=edited; fi ;; *) st=missing ;; esac; elif [ "$(h < "$f")" = "$s" ]; then st=ok; else st=edited; fi`,
+    `if [ ! -f "$f" ]; then st=missing; elif [ "$k" = ${CONNECTION_KEY} ]; then x=$(LC_ALL=C awk -v mode=${input.client === 'codex' ? 'toml' : 'json'} -v out=canon "$A" "$f"); case $x in '!invalid') st=edited ;; '!absent') st=missing ;; *) if [ "$(printf '%s' "$x" | h)" = "$s" ]; then st=ok; else st=edited; fi ;; esac; elif [ "$k" = agents_block ]; then x=$(cat "$f"; printf x); x=\${x%x}; case $x in *"$B"*) ;; *) B=$OB; E=$OE ;; esac; case $x in *"$B"*"$E"*) x=\${x#*"$B"}; x=\${x%%"$E"*}; x=$(printf '%s' "$x" | tr -d '\\r'; printf x); x=\${x%x}; x=\${x#$'\\n'}; x=\${x%$'\\n'}; if [ "$(printf '%s' "$x" | h)" = "$s" ]; then st=ok; else st=edited; fi ;; *) st=missing ;; esac; elif [ "$(h < "$f")" = "$s" ]; then st=ok; else st=edited; fi`,
     `if [ $st != ok ]; then n=$((n+1)); printf '%-8s %s  (sent %s %s)\\n' "$st" "${disp}$p" "$k" "$v"; fi; done < "$m"`,
     `for x in "$d/${layout.skillsDir}"/docket-*/ "$d/${layout.skillsDir}"/${LEGACY_SKILL_PREFIX}*/; do [ -d "$x" ] || continue; y=\${x%/}; y=\${y##*/}; o=''; case $y in ${LEGACY_SKILL_PREFIX}*) o='  (old name)' ;; esac; grep -q "\\"skill:$y\\"" "$m" || { n=$((n+1)); printf '%-8s %s%s\\n' extra "${disp}${layout.skillsDir}/$y/" "$o"; }; done`,
     `if [ $n = 0 ]; then echo "Up to date: all $c files match what Docket sent."; else echo "Differs from what Docket sent: $n file(s). The install log in Agent files shows each version sent."; fi )`,
@@ -315,8 +321,10 @@ export function checkCommands(input: InstallCommandInput): { powershell: string;
     `if (-not (Test-Path -LiteralPath $m)) { throw "No Docket install found: $m is missing." }`,
     `$enc = [Text.Encoding]::GetEncoding(28591); $B = '${DOCKET_BEGIN}'; $E = '${DOCKET_END}'; $OB = '${LEGACY_BEGIN}'; $OE = '${LEGACY_END}'; $sha = [Security.Cryptography.SHA256]::Create()`,
     `function TlHash([string]$s) { -join ($sha.ComputeHash($enc.GetBytes($s.Replace("\`r", ''))) | ForEach-Object { $_.ToString('x2') }) }`,
+    // The connection file's scanner (decision 32): only its docket entry is compared.
+    ...(input.target_kind === 'repo' ? [CONNECTION_PS1_ONE_LINE] : []),
     `$j = Get-Content -Raw -LiteralPath $m | ConvertFrom-Json; "Checking ${disp}${layout.dir} against Docket install $($j.install_id)"; $n = 0`,
-    `foreach ($r in $j.files) { $f = Join-Path $d $r.path; $st = 'ok'; if (-not (Test-Path -LiteralPath $f -PathType Leaf)) { $st = 'missing' } else { $x = $enc.GetString([IO.File]::ReadAllBytes($f)); if ($r.key -eq 'agents_block') { if ($x.IndexOf($B, [StringComparison]::Ordinal) -lt 0) { $B = $OB; $E = $OE }; $i = $x.IndexOf($B, [StringComparison]::Ordinal); $k = $x.IndexOf($E, [StringComparison]::Ordinal); if ($i -lt 0 -or $k -lt $i) { $st = 'missing' } else { $x = $x.Substring($i + $B.Length, $k - $i - $B.Length).Replace("\`r", ''); if ($x.StartsWith("\`n")) { $x = $x.Substring(1) }; if ($x.EndsWith("\`n")) { $x = $x.Substring(0, $x.Length - 1) }; if ((TlHash $x) -ne $r.sha256) { $st = 'edited' } } } elseif ((TlHash $x) -ne $r.sha256) { $st = 'edited' } }; if ($st -ne 'ok') { $n++; '{0,-8} {1}  (sent {2} {3})' -f $st, ('${disp}' + $r.path), $r.key, $r.version_id } }`,
+    `foreach ($r in $j.files) { $f = Join-Path $d $r.path; $st = 'ok'; if (-not (Test-Path -LiteralPath $f -PathType Leaf)) { $st = 'missing' } else { $x = $enc.GetString([IO.File]::ReadAllBytes($f)); if ($r.key -eq '${CONNECTION_KEY}') { $x = DkCanon '${input.client}' $x; if ($x -ceq '!invalid') { $st = 'edited' } elseif ($null -eq $x) { $st = 'missing' } elseif ((TlHash $x) -ne $r.sha256) { $st = 'edited' } } elseif ($r.key -eq 'agents_block') { if ($x.IndexOf($B, [StringComparison]::Ordinal) -lt 0) { $B = $OB; $E = $OE }; $i = $x.IndexOf($B, [StringComparison]::Ordinal); $k = $x.IndexOf($E, [StringComparison]::Ordinal); if ($i -lt 0 -or $k -lt $i) { $st = 'missing' } else { $x = $x.Substring($i + $B.Length, $k - $i - $B.Length).Replace("\`r", ''); if ($x.StartsWith("\`n")) { $x = $x.Substring(1) }; if ($x.EndsWith("\`n")) { $x = $x.Substring(0, $x.Length - 1) }; if ((TlHash $x) -ne $r.sha256) { $st = 'edited' } } } elseif ((TlHash $x) -ne $r.sha256) { $st = 'edited' } }; if ($st -ne 'ok') { $n++; '{0,-8} {1}  (sent {2} {3})' -f $st, ('${disp}' + $r.path), $r.key, $r.version_id } }`,
     `$sk = Join-Path $d '${layout.skillsDir}'; if (Test-Path -LiteralPath $sk) { foreach ($x in @(Get-ChildItem -LiteralPath $sk -Directory -Force -Filter 'docket-*') + @(Get-ChildItem -LiteralPath $sk -Directory -Force -Filter '${LEGACY_SKILL_PREFIX}*')) { if (@($j.files | ForEach-Object { $_.key }) -notcontains ('skill:' + $x.Name)) { $n++; $o = ''; if ($x.Name.StartsWith('${LEGACY_SKILL_PREFIX}')) { $o = '  (old name)' }; '{0,-8} {1}{2}' -f 'extra', ('${disp}${layout.skillsDir}/' + $x.Name + '/'), $o } } }`,
     `if ($n -eq 0) { "Up to date: all $(@($j.files).Count) files match what Docket sent." } else { "Differs from what Docket sent: $n file(s). The install log in Agent files shows each version sent." } }`,
   ].join('; ');

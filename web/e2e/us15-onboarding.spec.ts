@@ -49,6 +49,10 @@ async function shoot(page: Page, name: string, target: Locator) {
 
 /** The owner's API from the unlocked page's context (cookies and the CSRF header). */
 async function owner(page: Page, method: 'GET' | 'POST', path: string, data?: unknown) {
+  // Local trust (decision 32): the page gets its CSRF cookie with its first API call.
+  if (!(await page.context().cookies()).some((c) => c.name === 'docket_csrf')) {
+    await page.request.get('/api/bootstrap');
+  }
   const csrf = (await page.context().cookies()).find((c) => c.name === 'docket_csrf')?.value ?? '';
   const r = await page.request.fetch(path, {
     method,

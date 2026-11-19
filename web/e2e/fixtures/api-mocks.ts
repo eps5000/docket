@@ -86,11 +86,12 @@ export const emptySettings: SettingsResponse = {
   projects: [],
   connections: {
     clients: [],
+    protected_mode: false,
     endpoint: {
       mcp_url: 'http://127.0.0.1:7420/mcp',
       web_url: 'http://127.0.0.1:7420/',
       bind: 'loopback',
-      auth: 'bearer',
+      auth: 'none',
       origins: ['http://127.0.0.1:7420'],
     },
   },

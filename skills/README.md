@@ -14,6 +14,8 @@ These are agent skills that teach the **workflow** for using Docket well. The MC
 
 **From Docket (recommended):** open **Agent files**, pick the project in the project switcher, and click *Install into <project>'s repo* (with All projects, *Install user-wide*). It installs the skills and the AGENTS.md block that project uses (its own copies where you customized a file, the defaults elsewhere), either by a copy-paste command (PowerShell or bash, single use, 10 minutes) or by writing them into a folder you've mounted (**Settings → One-click install**). Every install is logged with the exact version of each file, and *Check* (or the check command) shows whether an installed copy was edited by hand.
 
+**Connecting comes with it** (owner decision 32). A repo install also writes the repo's connection file: `.mcp.json` for Claude Code, `.codex/config.toml` for Codex, adding or updating only the `docket` server and never a token. Open the client in the repo and approve Docket when it asks (Claude Code: use the `docket` server from `.mcp.json`; Codex: trust the folder); there's nothing to configure by hand. Docket uses local trust by default, so agents need no token; in protected mode the file names the `DOCKET_TOKEN` environment variable instead (see the README, "Protected mode"). A user-wide install writes no connection file: use the README's "A user-wide connection instead".
+
 | Client | Skills (repo / user-wide) | The AGENTS.md block |
 |---|---|---|
 | Claude Code | `.claude/skills/<name>/` / `~/.claude/skills/<name>/` | `CLAUDE.md` / `~/.claude/CLAUDE.md` |

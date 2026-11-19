@@ -185,6 +185,14 @@ test.describe('Install and check (US13)', () => {
     await expect(what).toContainText('.claude/skills/docket-worker/SKILL.md');
     await expect(what).toContainText('.claude/.docket-manifest.json');
     await expect(what).toContainText('Only the marked Docket section of CLAUDE.md is touched');
+    // Decision 32: the connection file, and what to do next.
+    await expect(what.locator('[data-connection-file=".mcp.json"]')).toHaveText(
+      '.mcp.json (only its docket server entry)',
+    );
+    await expect(what).toContainText('it never holds a token');
+    await expect(d.locator('[data-connect-note]')).toHaveText(
+      'It also writes the repo’s connection file (.mcp.json). Then open Claude Code in this repo and approve Docket when it asks.',
+    );
     await d.getByLabel('Repo folder').fill(HOST_REPO);
     await expect(method(page)).toHaveAttribute('data-install-method', 'push');
     await shoot(page, '2-dialog-push', d);
@@ -228,7 +236,7 @@ test.describe('Install and check (US13)', () => {
     await expect(row).toHaveAttribute('data-method', 'push');
     await expect(row).toContainText('Claude Code');
     await expect(row).toContainText('Recipe App’s repo');
-    await expect(row).toContainText('6 files');
+    await expect(row).toContainText('7 files');
     await row.getByRole('button', { name: 'Versions sent' }).click();
     await expect(row.locator('[data-sent="skill:docket-worker"]')).toContainText(
       'Docket’s version v1',

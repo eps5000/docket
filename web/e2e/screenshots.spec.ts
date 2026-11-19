@@ -12,6 +12,7 @@ import {
   setTheme,
   test,
   unlock,
+  PROTECTED,
 } from './fixtures/index';
 import type { McpAgent } from './fixtures/mcp';
 
@@ -79,7 +80,7 @@ test.describe('screenshots', () => {
     await shoot(page, 'needs-you-optin');
   });
 
-  test('unlock', async ({ browser }) => {
+  test('unlock @protected', async ({ browser }) => {
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     const page = await context.newPage();
     await page.goto('/unlock');
@@ -90,10 +91,13 @@ test.describe('screenshots', () => {
 
   test('dialog', async ({ page }) => {
     await page.goto('/settings');
-    await page.getByRole('button', { name: 'Rotate owner key…' }).click();
-    await expect(page.getByRole('dialog')).toBeVisible();
-    await shoot(page, 'dialog-rotate-key');
-    await page.keyboard.press('Escape');
+    // The Rotate owner key dialog is protected mode's (decision 32).
+    if (PROTECTED) {
+      await page.getByRole('button', { name: 'Rotate owner key…' }).click();
+      await expect(page.getByRole('dialog')).toBeVisible();
+      await shoot(page, 'dialog-rotate-key');
+      await page.keyboard.press('Escape');
+    }
     await page.getByRole('button', { name: '+ New' }).click();
     await expect(page.getByRole('dialog')).toBeVisible();
     await shoot(page, 'dialog-quick-capture');

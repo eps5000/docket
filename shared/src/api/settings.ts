@@ -48,11 +48,18 @@ export const settingsResponse = jsonResponse({
   projects: z.array(projectSettingsSchema),
   connections: z.object({
     clients: z.array(clientStatusSchema),
+    /**
+     * Trust mode (owner decision 32; BUILD_SPEC §3): false is local trust (no
+     * unlock, no agent token); true is protected mode (`DOCKET_PROTECTED_MODE=on`).
+     * Configuration only: no route changes it.
+     */
+    protected_mode: z.boolean(),
     endpoint: z.object({
       mcp_url: z.string(),
       web_url: z.string(),
       bind: z.literal('loopback'),
-      auth: z.literal('bearer'),
+      /** `none` in local trust; `bearer` (the agent token) in protected mode. */
+      auth: z.enum(['none', 'bearer']),
       origins: z.array(z.string()),
     }),
   }),

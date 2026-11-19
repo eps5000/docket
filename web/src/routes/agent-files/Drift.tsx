@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router';
 import {
+  CONNECTION_KEY,
   INSTALL_CLIENT_LABELS,
   fillsProjectKey,
   isLegacySkillKey,
@@ -19,7 +20,7 @@ import { paths } from '../../lib/paths';
 import { runOwnerMutation, showToast } from '../../lib/undo';
 import { DiffView } from './DiffView';
 import { CopyBlock } from './install-common';
-import { possessive, versionsOf } from './model';
+import { connectionSentText, possessive, versionsOf } from './model';
 
 /** What a remedy refreshes: drift, the files, the install log, Needs you and the ticket. */
 const REFRESH = [
@@ -69,7 +70,12 @@ const CHANGE: Record<Drift['change'], { label: string; kind: ChipKind }> = {
   extra: { label: 'Extra', kind: 'info' },
 };
 
-const nameOf = (key: string) => (key.startsWith('skill:') ? key.slice(6) : 'AGENTS.md block');
+const nameOf = (key: string) =>
+  key.startsWith('skill:')
+    ? key.slice(6)
+    : key === CONNECTION_KEY
+      ? 'Connection file'
+      : 'AGENTS.md block';
 
 /**
  * The file Docket ships for a record: an old `tasklite-*` folder an install
@@ -143,9 +149,11 @@ function useSentText(d: Drift): string | undefined | null {
   const file = useQuery({
     queryKey: queryKeys.agentFile(fileKeyOf(d), q),
     queryFn: () => apiClient['agentFiles.get']({ params: { key: fileKeyOf(d) }, query: q }),
-    enabled: d.sent_version_id !== null,
+    enabled: d.sent_version_id !== null && d.file_key !== CONNECTION_KEY,
   });
   if (d.sent_version_id === null) return null;
+  // The connection file has no stored versions: its docket entry, as the check compares it.
+  if (d.file_key === CONNECTION_KEY) return connectionSentText(d.install.client, d.sent_version_id);
   if (!file.data) return undefined;
   const v = versionsOf(file.data).find((x) => x.id === d.sent_version_id);
   if (!v) return null;
@@ -196,13 +204,15 @@ function DriftCard({
   const adoptWhy =
     d.change === 'missing'
       ? 'The file is missing there: nothing to adopt.'
-      : !adoptable
-        ? 'Only the files Docket ships can be adopted.'
-        : withheld
-          ? 'Content withheld: the local text looked like a secret.'
-          : noText
-            ? 'Run docket-check on that machine to send the text.'
-            : null;
+      : d.file_key === CONNECTION_KEY
+        ? 'The connection file isn’t an agent file: restore Docket’s entry, or keep yours.'
+        : !adoptable
+          ? 'Only the files Docket ships can be adopted.'
+          : withheld
+            ? 'Content withheld: the local text looked like a secret.'
+            : noText
+              ? 'Run docket-check on that machine to send the text.'
+              : null;
   const restoreWhy = legacy
     ? `Docket removes an old-name folder only while it is unmodified, and this one was edited: adopt it as ${nameOf(fileKeyOf(d))}, or keep it.`
     : d.change === 'extra'

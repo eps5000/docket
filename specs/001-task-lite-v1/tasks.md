@@ -481,9 +481,9 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 
 ## Phase 18: Local trust and connection files (owner decision 32)
 
-- [ ] T167 Trust mode: `DOCKET_PROTECTED_MODE` (default off). In local trust, the owner API needs no session (CSRF still applies to browser requests), `/mcp` needs no token, and the Unlock route redirects home. Owner actions record `via` (browser or script plus user agent), shown in Activity. Protected mode keeps today's behaviour exactly. The Settings Security line and protected-only controls. Tests for both modes, including that the Host and Origin guards still refuse in local trust.
-- [ ] T168 Connection files in the install bundle and push install: write and merge `.mcp.json` and `.codex/config.toml` (only the `docket` entry; refuse invalid files; never a secret; the env-var token in protected mode); manifest, *Check* and drift coverage; the Install dialog text. Tests for merging into existing files, and a real check that Claude Code and Codex pick them up (headless, with temporary config).
-- [ ] T169 Docs: the README quick start (no commands beyond starting Docket), Help ("Connect an agent", "Security and protected mode"), the skills' setup notes, the smoke checklist, and the Settings compatibility notes. Remove the token from the default quick start.
+- [x] T167 Trust mode: `DOCKET_PROTECTED_MODE` (default off). In local trust, the owner API needs no session (CSRF still applies to browser requests), `/mcp` needs no token, and the Unlock route redirects home. Owner actions record `via` (browser or script plus user agent), shown in Activity. Protected mode keeps today's behaviour exactly. The Settings Security line and protected-only controls. Tests for both modes, including that the Host and Origin guards still refuse in local trust.
+- [x] T168 Connection files in the install bundle and push install: write and merge `.mcp.json` and `.codex/config.toml` (only the `docket` entry; refuse invalid files; never a secret; the env-var token in protected mode); manifest, *Check* and drift coverage; the Install dialog text. Tests for merging into existing files, and a real check that Claude Code and Codex pick them up (headless, with temporary config).
+- [x] T169 Docs: the README quick start (no commands beyond starting Docket), Help ("Connect an agent", "Security and protected mode"), the skills' setup notes, the smoke checklist, and the Settings compatibility notes. Remove the token from the default quick start.
 
 ## How to run the build
 

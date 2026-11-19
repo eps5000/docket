@@ -5,6 +5,11 @@ const baseURL = process.env.DOCKET_BASE_URL ?? 'http://127.0.0.1:7420';
 const kitPort = Number(process.env.DOCKET_KIT_PORT ?? 5179);
 const kitURL = `http://127.0.0.1:${kitPort}`;
 const ci = !!process.env.CI;
+/**
+ * Decision 32: the default run is local trust. `DOCKET_E2E_PROTECTED=1` runs
+ * only the `@protected` specs, against an instance with DOCKET_PROTECTED_MODE=on.
+ */
+const protectedRun = process.env.DOCKET_E2E_PROTECTED === '1';
 
 /**
  * End-to-end tests run against the container, never a dev server (the
@@ -25,6 +30,7 @@ export default defineConfig({
   workers: 1,
   fullyParallel: false,
   reporter: ci ? [['list'], ['html', { open: 'never' }]] : [['list']],
+  ...(protectedRun ? { grep: /@protected/ } : { grepInvert: /@protected/ }),
   globalSetup: './e2e/global-setup.ts',
   globalTeardown: './e2e/global-teardown.ts',
   use: {

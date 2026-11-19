@@ -99,6 +99,24 @@ jobs:
           DOCKET_E2E_ALLOW_RESET: '1'
         run: pnpm --filter @docket/web e2e
 
+      # Decision 32 (T167): the specs tagged @protected, against the same container restarted
+      # with DOCKET_PROTECTED_MODE=on (owner unlock and agent token), then back to local trust.
+      - name: Playwright, protected mode (decision 32)
+        env:
+          DOCKET_SEED: sample
+          DOCKET_PROTECTED_MODE: 'on'
+          DOCKET_E2E_NO_START: '1'
+          DOCKET_E2E_ALLOW_RESET: '1'
+          DOCKET_E2E_PROTECTED: '1'
+        run: |
+          docker compose -f docker/compose.yaml -f docker/compose.jira-fixture.yaml -f docker/compose.push-e2e.yaml -f docker/compose.no-egress.yaml up -d --wait --wait-timeout 120
+          pnpm --filter @docket/web e2e
+
+      - name: Back to local trust
+        env:
+          DOCKET_SEED: sample
+        run: docker compose -f docker/compose.yaml -f docker/compose.jira-fixture.yaml -f docker/compose.push-e2e.yaml -f docker/compose.no-egress.yaml up -d --wait --wait-timeout 120
+
       # FR-106 (T145): nothing in the container tried to reach another host during the
       # whole e2e run, and a deliberate probe is caught (so the check can fail).
       - name: No egress (FR-106)

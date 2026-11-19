@@ -45,7 +45,16 @@ export interface Actor {
   label: string | null;
   session_id?: string | null;
   run_id?: string | null;
+  /** How an owner action was made (decision 32): stored on its events as `data.via`. */
+  via?: OwnerVia;
 }
+
+/**
+ * How an owner mutation reached the API (owner decision 32; BUILD_SPEC §3):
+ * from the browser UI, or from a script, with the first token of its user
+ * agent. Its events carry `data.via` and, for a script, `data.user_agent`.
+ */
+export type OwnerVia = { via: 'browser' } | { via: 'script'; agent: string };
 
 export const OWNER_ACTOR: Actor = Object.freeze({ kind: 'owner', client: null, label: null });
 export const SYSTEM_ACTOR: Actor = Object.freeze({ kind: 'system', client: null, label: null });
@@ -292,9 +301,12 @@ class Context implements WriteContext {
       input.data?.onboarding_session === undefined
         ? sessionForEvent(this.db, this.actor, input)
         : null;
+    // Decision 32: an owner event records how the owner made it (browser, or a script and its agent).
+    const via = this.actor.kind === 'owner' ? this.actor.via : undefined;
     const data = {
       ...(input.data ?? {}),
       ...(session ? { onboarding_session: session } : {}),
+      ...(via ? { via: via.via, ...(via.via === 'script' ? { user_agent: via.agent } : {}) } : {}),
       objects,
     };
     const inverse = input.inverse && input.inverse.length > 0 ? input.inverse : null;

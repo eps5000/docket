@@ -51,7 +51,13 @@ import {
   type UploadFile,
   type WriteContext,
 } from '../domain/contracts.js';
-import { OWNER_ACTOR, SYSTEM_ACTOR, type Actor, type WritePath } from '../domain/write.js';
+import {
+  OWNER_ACTOR,
+  SYSTEM_ACTOR,
+  type Actor,
+  type OwnerVia,
+  type WritePath,
+} from '../domain/write.js';
 import { errorBody } from './guards.js';
 import { MultipartReader, boundaryOf } from './multipart.js';
 
@@ -226,12 +232,16 @@ export function defineRoute<K extends RouteId, E extends Env>(
       }
 
       // `GET /install/:token` has no caller identity: the service records the download.
+      // An owner mutation carries how it was made (`via`, set by the CSRF guard; decision 32).
+      const via = (c.get as (key: string) => unknown)('via') as OwnerVia | undefined;
       const actor =
         route.auth === 'bearer'
           ? uploadActor(deps, body)
           : route.auth === 'token'
             ? SYSTEM_ACTOR
-            : OWNER_ACTOR;
+            : via
+              ? { ...OWNER_ACTOR, via }
+              : OWNER_ACTOR;
       const warnings: string[] = [];
       const ctx: RouteContext<K> = {
         c,

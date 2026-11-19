@@ -4,13 +4,15 @@ Follow [README.md](README.md) "Before you start" first. Commands run from the re
 
 ## Set up
 
-1. [ ] `~/.codex/config.toml` (Windows: `%USERPROFILE%\.codex\config.toml`) has exactly:
+1. [ ] Connected one of two ways (decision 32: local trust needs no token): from a trusted repo where
+       Agent files → _Install_ wrote `.codex/config.toml`, or with `~/.codex/config.toml`
+       (Windows: `%USERPROFILE%\.codex\config.toml`) holding:
    ```toml
    [mcp_servers.docket]
    url = "http://127.0.0.1:7420/mcp"
-   bearer_token_env_var = "DOCKET_TOKEN"
    ```
-2. [ ] `DOCKET_TOKEN` is set in the terminal you start Codex from (Windows: `setx`, then a new terminal).
+2. [ ] Protected mode only: the table also has `bearer_token_env_var = "DOCKET_TOKEN"`, and
+       `DOCKET_TOKEN` is set in the terminal you start Codex from (Windows: `setx`, then a new terminal).
 3. [ ] Start `codex` in any folder. `/mcp` lists `docket` with its tools.
 
 ## Run
