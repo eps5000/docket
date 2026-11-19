@@ -88,6 +88,16 @@ async function shoot(page: Page, name: string, target: Locator) {
   });
 }
 
+/** A part of the page (not a whole dialog): shot as it is. */
+async function shootPart(page: Page, name: string, target: Locator) {
+  if (!out) return;
+  for (const theme of ['light', 'dark'] as const) {
+    await setTheme(page, theme);
+    await target.screenshot({ path: join(out, `us9-${name}-${theme}.png`) });
+  }
+  await setTheme(page, 'light');
+}
+
 const dialog = (page: Page) => page.getByRole('dialog', { name: 'Import from Jira' });
 
 async function openDialog(page: Page): Promise<Locator> {
@@ -251,7 +261,7 @@ test.describe('Import from Jira (UI_SPEC §9.2)', () => {
     await expect(
       d.getByText('Became a checklist step on TL-2; not kept: 1 attachment', { exact: true }),
     ).toBeVisible();
-    await shoot(page, 'subtask-group', subtasks);
+    await shootPart(page, 'subtask-group', subtasks);
     await d.locator('[data-reason="other_type"] summary').click();
     await expect(d.getByText('Jira type Spike imported as Task', { exact: false })).toBeVisible();
     await d.locator('[data-reason="skip_secret"] summary').click();
@@ -310,6 +320,7 @@ test.describe('Import from Jira (UI_SPEC §9.2)', () => {
     await expect(step.locator('.step-details')).toContainText(
       'Jira TL-8 · assignee Jo Sample · start Nov 2, 2026 · due Dec 4, 2026 · 3 pts',
     );
+    await expect(step.locator('.step-meta')).toContainText('Imported from Jira');
     await expect(step.getByRole('heading', { name: 'What to show' })).toBeVisible();
     await expect(step.locator('.step-details')).toContainText(
       'From Jira: panel simplified or dropped in the description',
@@ -333,7 +344,7 @@ test.describe('Import from Jira (UI_SPEC §9.2)', () => {
     await expectAxeClean(page, 'Imported parent · History', {
       include: '[data-section="history"]',
     });
-    await shoot(page, 'subtask-note', note);
+    await shootPart(page, 'subtask-note', note);
   });
 
   test('a scoped token signs in through the gateway and imports everything there (B32)', async ({

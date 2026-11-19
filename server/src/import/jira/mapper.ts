@@ -193,7 +193,7 @@ function splitText(text: string, size: number): string[] {
  */
 export function packSubtaskNotes(
   sections: { heading: string; comments: string[] }[],
-  max = NOTE_MAX,
+  max: number = NOTE_MAX,
 ): string[] {
   const reserve = `${SUBTASK_NOTES_TITLE} (99 of 99)\n\n`.length;
   const room = max - reserve;

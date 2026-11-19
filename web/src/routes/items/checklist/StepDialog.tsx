@@ -124,8 +124,9 @@ export function StepDialog({
       if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
       if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
       const target = e.target as HTMLElement | null;
-      if (!target?.closest('.step-dlg')) return;
-      if (target.closest('input, textarea, select, [contenteditable], [data-inline-editor]'))
+      // Inside the dialog, or nowhere (a Previous or Next button that just disabled itself).
+      if (target && target !== document.body && !target.closest('.step-dlg')) return;
+      if (target?.closest('input, textarea, select, [contenteditable], [data-inline-editor]'))
         return;
       const m = move.current;
       if (m.editing) return;
@@ -150,6 +151,10 @@ export function StepDialog({
   const version = step.details_version ?? 0;
   const site = query.data?.jira_site ?? null;
   const source = step.source;
+  const jiraLink = !!site && !!source && JIRA_KEY.test(source);
+  // A sub-task the Jira import made: the import "added" it as the owner, so say where it came from.
+  const imported = jiraLink && step.added_by === 'owner';
+  const moved = query.data?.history.some((h) => h.change === 'state') ?? false;
 
   const startEdit = () => {
     setBase({ text: details ?? '', version });
@@ -241,7 +246,7 @@ export function StepDialog({
         {source && (
           <span className="src" data-step-source={source}>
             Source:{' '}
-            {site && JIRA_KEY.test(source) ? (
+            {jiraLink ? (
               <a
                 className="ext"
                 href={`${site}/browse/${encodeURIComponent(source)}`}
@@ -257,8 +262,12 @@ export function StepDialog({
           </span>
         )}
         <span className="src">
-          {step.added_by === 'owner' ? 'Added by you' : 'The agent’s step'}
-          {step.state_by && step.state_at && (
+          {imported
+            ? 'Imported from Jira'
+            : step.added_by === 'owner'
+              ? 'Added by you'
+              : 'The agent’s step'}
+          {step.state_by && step.state_at && !(imported && !moved) && (
             <>
               {' · '}
               {step.state} by {who(step.state_by)}{' '}
