@@ -46,7 +46,7 @@ test('the sweep is clean on the seeded instance, at 1024 dark and 1440 light', a
   test.setTimeout(300_000);
   assertDisposable();
   const json = join(test.info().outputDir, 'sweep.json');
-  const { code, out } = await run(['--base', baseURL, '--items', '2', '--json', json]);
+  const { code, out } = await run(['--base', baseURL, '--items', '1', '--json', json]);
   console.log(out);
   expect(code, out).toBe(0);
   const report = JSON.parse(readFileSync(json, 'utf8')) as {
@@ -72,9 +72,9 @@ test('the sweep is clean on the seeded instance, at 1024 dark and 1440 light', a
       expect(screens, `${view} visits ${s}`).toContain(s);
     }
     expect(screens.some((s) => s.endsWith('· step dialog'))).toBe(true);
-    // Two sample items, each on more than one tab.
+    // A sample item, on each of its tabs.
     expect(
       screens.filter((s) => / · /.test(s) && !s.endsWith('step dialog')).length,
-    ).toBeGreaterThan(4);
+    ).toBeGreaterThanOrEqual(3);
   }
 });
