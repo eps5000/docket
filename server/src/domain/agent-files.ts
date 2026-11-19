@@ -41,6 +41,7 @@
  */
 import { createHash } from 'node:crypto';
 import {
+  ONBOARDING_GUIDE_KEY,
   ToolError,
   type AgentFileDetail,
   type AgentFileLayer,
@@ -96,20 +97,28 @@ const LAYER_NAMES: Record<AgentFileLayer, string> = {
   project: 'project override',
 };
 
-/** `skill:docket-worker` → `docket-worker`; `agents_block` → `AGENTS.md block`. */
+/** `skill:docket-worker` → `docket-worker`; `agents_block` → `AGENTS.md block`; the guide → `Onboarding guide`. */
 export function agentFileName(key: string): string {
+  if (key === ONBOARDING_GUIDE_KEY) return 'Onboarding guide';
   return key.startsWith('skill:') ? key.slice('skill:'.length) : 'AGENTS.md block';
 }
 
-const kindOf = (key: string): 'skill' | 'agents_block' =>
-  key.startsWith('skill:') ? 'skill' : 'agents_block';
+const kindOf = (key: string): 'skill' | 'agents_block' | 'guide' =>
+  key.startsWith('skill:') ? 'skill' : key === ONBOARDING_GUIDE_KEY ? 'guide' : 'agents_block';
 
-/** Skills by name, then the AGENTS.md block. */
+const KIND_ORDER = { skill: 0, agents_block: 1, guide: 2 } as const;
+
+/** Skills by name, then the AGENTS.md block, then the onboarding guide. */
 function compareKeys(a: string, b: string): number {
-  const ka = kindOf(a) === 'skill' ? 0 : 1;
-  const kb = kindOf(b) === 'skill' ? 0 : 1;
-  return ka - kb || (a < b ? -1 : a > b ? 1 : 0);
+  return KIND_ORDER[kindOf(a)] - KIND_ORDER[kindOf(b)] || (a < b ? -1 : a > b ? 1 : 0);
 }
+
+/**
+ * Whether a key is installed into repos. The onboarding guide (decision 31) is
+ * served by onboard_project and the `onboard` prompt instead: installs, drift,
+ * the check script and get_agent_files leave it out, and it can't be proposed.
+ */
+export const isInstalledKey = (key: string): boolean => key !== ONBOARDING_GUIDE_KEY;
 
 /** Who wrote a version: the owner, the system (bundled loads), or an agent's client. */
 function authorOf(actor: Actor): string {
@@ -290,21 +299,34 @@ export function agentFileDetail(db: Db, key: string, project: string | null): Ag
 }
 
 /**
- * The effective version of each agent file for `project` (or service-wide):
- * what an install sends (B24) and what the project section lists.
+ * The effective version of each installed agent file for `project` (or
+ * service-wide): what an install sends (B24) and what get_agent_files lists.
+ * The onboarding guide isn't one (`isInstalledKey`; B30).
  */
 export function effectiveAgentFiles(
   db: Db,
   project: string | null,
 ): { key: string; layer: AgentFileLayer; version: AgentFileVersion }[] {
   const out: { key: string; layer: AgentFileLayer; version: AgentFileVersion }[] = [];
-  for (const key of keysOf(db, project)) {
+  for (const key of keysOf(db, project).filter(isInstalledKey)) {
     const layers = layersOf(db, key, project);
     const layer = effectiveLayer(layers);
     const v = layer ? versionById(db, layers[layer]!.current_version_id) : undefined;
     if (layer && v) out.push({ key, layer, version: toVersion(v) });
   }
   return out;
+}
+
+/**
+ * The effective text of one agent file for `project` (its override, else the
+ * service-wide edit, else bundled), or null when it isn't loaded. A project
+ * that doesn't exist yet gets the service-wide text (onboard_project on a
+ * free key, or the `onboard` prompt).
+ */
+export function effectiveText(db: Db, key: string, project: string | null): string | null {
+  const layers = layersOf(db, key, project);
+  const layer = effectiveLayer(layers);
+  return layer ? (versionById(db, layers[layer]!.current_version_id)?.content ?? null) : null;
 }
 
 const nextVersionNo = (db: Db, fileId: string): number =>

@@ -42,12 +42,29 @@ const questionRow = {
   text: 'Should nutrition values be documented per serving or per 100 g? '.repeat(4),
   asked_at: '2026-11-06T10:51:00.000Z',
 };
+const session = {
+  id: 'onb_1',
+  project: 'GF',
+  project_name: 'Gameflow',
+  started_by: 'claude · orca-w3',
+  run_id: null,
+  state: 'ready_for_review' as const,
+  summary: 'Created 12, enriched 30.',
+  questions: [],
+  changes: { created: 12, enriched: 30, documents: 4, decisions: 3, proposals: 1 },
+  workflow_proposal_id: 'afp_1',
+  started_at: '2026-11-06T10:00:00.000Z',
+  finished_at: '2026-11-06T10:40:00.000Z',
+  reviewed_at: null,
+};
+let reviews: (typeof session)[] = [];
 const needsYou = (rows: NeedsYouResponse['for_you_now']): NeedsYouResponse => ({
   for_you_now: rows,
   problems: [],
   deferred: [],
   planning_queue: [],
   agent_counts: {},
+  onboarding_reviews: reviews,
 });
 const change = (seq: number, type: StreamChange['type'], id: string, for_you = true) =>
   ({ seq, type, objects: [{ kind: 'item', id }], for_you }) as StreamChange;
@@ -57,6 +74,7 @@ let permission: NotificationPermission;
 
 beforeEach(() => {
   localStorage.clear();
+  reviews = [];
   shown = [];
   permission = 'granted';
   class FakeNotification {
@@ -152,21 +170,42 @@ describe('the notifier', () => {
     expect(shown).toEqual([]);
   });
 
-  it('a finished onboarding is for you but not a packet or a question: no notification yet (B29)', async () => {
+  it('a finished onboarding notifies once, and opens Needs you (decision 31; T165)', async () => {
     writePref('on');
-    const { n } = notifier([packetRow, questionRow]);
-    const finished = {
-      seq: 25,
-      type: 'onboarding.finished',
-      objects: [
-        { kind: 'onboarding', id: 'onb_1' },
-        { kind: 'project', id: 'GF' },
-      ],
-      for_you: true,
-    } as StreamChange;
-    expect(await n.handle(finished)).toBeNull();
-    expect(shown).toEqual([]);
-    expect(alreadyNotified(25)).toBe(false);
+    reviews = [session];
+    const { n, navigate } = notifier([packetRow]);
+    const finished = (seq: number) =>
+      ({
+        seq,
+        type: 'onboarding.finished',
+        objects: [
+          { kind: 'onboarding', id: 'onb_1' },
+          { kind: 'project', id: 'GF' },
+        ],
+        for_you: true,
+      }) as StreamChange;
+    expect(await n.handle(finished(25))).toEqual({
+      title: 'Onboarding ready: Gameflow',
+      body: 'claude set it up · 12 created, 30 enriched · review it on Needs you',
+      path: '/',
+      tag: 'tl-onboarding-onb_1',
+    });
+    expect(shown.map((s) => s.title)).toEqual(['Onboarding ready: Gameflow']);
+    shown[0]!.click();
+    expect(navigate.mock.calls).toEqual([['/']]);
+    // The same seq never again; a reviewed session never notifies.
+    expect(await n.handle(finished(25))).toBeNull();
+    reviews = [];
+    expect(await n.handle(finished(26))).toBeNull();
+    expect(shown).toHaveLength(1);
+    // Other onboarding events aren't for you, so they never notify.
+    expect(
+      await n.handle({
+        ...finished(27),
+        type: 'onboarding.started',
+        for_you: false,
+      } as StreamChange),
+    ).toBeNull();
   });
 
   it('a burst on one item notifies once', async () => {

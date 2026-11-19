@@ -15,6 +15,9 @@
  * Domain services receive a `WriteContext`. Its row helpers return the
  * inverse operation of each change, which the service stores on the event
  * so owner undo can reverse it (§5.11).
+ *
+ * Every event an agent writes during its onboarding session carries
+ * `data.onboarding_session` (decision 31; onboarding-tag.ts has the rule).
  */
 import { createHash } from 'node:crypto';
 import {
@@ -30,6 +33,7 @@ import { is } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import * as schema from '../db/schema.js';
 import { newId } from './ids.js';
+import { sessionForEvent } from './onboarding-tag.js';
 import { referenceWarnings } from './references.js';
 
 // ---- Actors and events ----
@@ -283,7 +287,16 @@ class Context implements WriteContext {
     };
     if (input.item_id) add({ kind: 'item', id: input.item_id });
     for (const ref of input.objects ?? []) add(ref);
-    const data = { ...(input.data ?? {}), objects };
+    // Decision 31 (B30): an agent's event during its onboarding session carries the session's ID.
+    const session =
+      input.data?.onboarding_session === undefined
+        ? sessionForEvent(this.db, this.actor, input)
+        : null;
+    const data = {
+      ...(input.data ?? {}),
+      ...(session ? { onboarding_session: session } : {}),
+      objects,
+    };
     const inverse = input.inverse && input.inverse.length > 0 ? input.inverse : null;
     const row = this.db.sqlite
       .prepare(

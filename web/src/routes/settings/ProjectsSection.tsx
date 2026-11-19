@@ -24,6 +24,7 @@ import { runOwnerMutation, showToast } from '../../lib/undo';
 import { useShell } from '../../app/ShellState';
 import { DeleteProjectDialog } from '../dialogs/DeleteProject';
 import { JiraImportDialog } from '../dialogs/JiraImport';
+import { NewProjectDialog } from '../dialogs/NewProject';
 import { DecisionsPanel } from '../shared/DecisionsPanel';
 import { HelpLink } from '../../help/HelpLink';
 
@@ -38,7 +39,9 @@ type Project = SettingsResponse['projects'][number];
  */
 export function ProjectsSection({ query }: { query: UseQueryResult<SettingsResponse> }) {
   const [deleting, setDeleting] = useState<Project | null>(null);
-  const [importing, setImporting] = useState(false);
+  /** True, or the key of a just-created project to import into. */
+  const [importing, setImporting] = useState<boolean | string>(false);
+  const [creating, setCreating] = useState(false);
   const qc = useQueryClient();
   const { scope, setScope, tabs, closeTab } = useShell();
   const keepDays = query.data?.health.backups[0]?.keep_days ?? 14;
@@ -73,9 +76,14 @@ export function ProjectsSection({ query }: { query: UseQueryResult<SettingsRespo
         </QueryState>
         <div className="cardfoot">
           <span />
-          <Button size="sm" onClick={() => setImporting(true)}>
-            Import from Jira…
-          </Button>
+          <div className="row" style={{ gap: 6 }}>
+            <Button size="sm" onClick={() => setImporting(true)}>
+              Import from Jira…
+            </Button>
+            <Button size="sm" variant="primary" icon="plus" onClick={() => setCreating(true)}>
+              New project
+            </Button>
+          </div>
         </div>
       </Card>
       {deleting && (
@@ -91,8 +99,19 @@ export function ProjectsSection({ query }: { query: UseQueryResult<SettingsRespo
           onDeleted={() => deleted(deleting)}
         />
       )}
-      {importing && (
+      {creating && (
+        <NewProjectDialog
+          existingKeys={(query.data?.projects ?? []).map((p) => p.key)}
+          onClose={() => setCreating(false)}
+          onImport={(key) => {
+            setCreating(false);
+            setImporting(key);
+          }}
+        />
+      )}
+      {importing !== false && (
         <JiraImportDialog
+          initialTarget={typeof importing === 'string' ? importing : undefined}
           onClose={() => setImporting(false)}
           projects={(query.data?.projects ?? []).map((p) => ({
             key: p.key,
@@ -114,6 +133,7 @@ function ProjectRow({ project: p, onDelete }: { project: Project; onDelete: () =
           <span className="sw" style={{ background: p.color }} aria-hidden="true" />
           <b>{p.name}</b>
           {scope === p.key && <span className="chip c-gray">Current</span>}
+          {p.created_by && <CreatedByChip agent={p.created_by} />}
         </div>
         <div className="src">
           {p.key} · {p.counts.epics} epics · {p.counts.items} items · {p.counts.documents} documents
@@ -146,6 +166,25 @@ function ProjectRow({ project: p, onDelete }: { project: Project; onDelete: () =
         </Button>
       </div>
     </div>
+  );
+}
+
+/**
+ * "created by <agent> · review" (UI_SPEC §6.7d; FR-140): an agent set this
+ * project up through onboard_project, and the owner hasn't reviewed it yet.
+ * It links to Needs you, where the review card is.
+ */
+export function CreatedByChip({ agent }: { agent: string }) {
+  const who = agent.split(' · ')[0] ?? agent;
+  return (
+    <Link
+      to={paths.needsYou()}
+      className="chip c-warn"
+      data-created-by={agent}
+      title="Review the onboarding on Needs you"
+    >
+      created by {who} · review
+    </Link>
   );
 }
 

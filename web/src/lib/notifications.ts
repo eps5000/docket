@@ -4,7 +4,8 @@
  * - **Opt-in:** off until the owner turns it on (Needs you callout or the
  *   Settings switch). The choice lives in `localStorage` (`docket.notifications`).
  * - **What notifies:** only new for-you events on the live stream
- *   (`for_you: true`: a packet submitted, a question asked). Nothing else.
+ *   (`for_you: true`: a packet submitted, a question asked, an onboarding
+ *   ready for review (decision 31; UI_SPEC §6.7d)). Nothing else.
  * - **One tab per browser:** the tab holding the Web Locks lock
  *   `docket-notifications` notifies; the others stay quiet. Seqs already
  *   notified are recorded in `localStorage` (`docket.notified`), so a seq never
@@ -14,7 +15,7 @@
  * - **Privacy:** generated here from the stream and `GET /api/needs-you`.
  *   Nothing leaves the machine.
  */
-import type { ForYouRow, NeedsYouResponse } from '@docket/shared';
+import type { ForYouRow, NeedsYouResponse, OnboardingSession } from '@docket/shared';
 import type { StreamChange } from './api';
 import { paths } from './paths';
 import { readJson, readString, STORAGE_KEYS, writeJson, writeString } from './persistence';
@@ -114,6 +115,18 @@ export function notificationFor(row: ForYouRow): NotificationText {
   };
 }
 
+/** An onboarding ready for review (decision 31): the click opens Needs you, where its card is. */
+export function onboardingNotificationFor(s: OnboardingSession): NotificationText {
+  const agent = s.started_by.split(' · ')[0] ?? s.started_by;
+  const c = s.changes;
+  return {
+    title: `Onboarding ready: ${s.project_name}`,
+    body: `${agent} set it up · ${c.created} created, ${c.enriched} enriched · review it on Needs you`,
+    path: paths.needsYou(),
+    tag: `tl-onboarding-${s.id}`,
+  };
+}
+
 // ---- Dedupe ----
 
 /** Seqs kept in `docket.notified` (the newest; older ones can't come back on the stream). */
@@ -184,28 +197,41 @@ export class Notifier {
 
   async handle(change: StreamChange): Promise<NotificationText | null> {
     if (!change.for_you || !this.claimed) return null;
-    // `onboarding.finished` is for you too (decision 31): it raises the badge, and
-    // its notification comes with the review card (US15, T165), not as a question.
-    if (change.type !== 'packet.submitted' && change.type !== 'question.asked') return null;
+    const onboarding = change.type === 'onboarding.finished';
+    if (change.type !== 'packet.submitted' && change.type !== 'question.asked' && !onboarding) {
+      return null;
+    }
     if (readPref() !== 'on' || permission() !== 'granted') return null;
     if (alreadyNotified(change.seq)) return null;
     markNotified(change.seq);
-    const kind = change.type === 'packet.submitted' ? 'packet' : 'question';
-    const itemIds = change.objects.filter((o) => o.kind === 'item').map((o) => o.id);
     const now = (this.deps.now ?? Date.now)();
-    let rows: ForYouRow[];
+    let view: NeedsYouResponse;
     try {
-      rows = (await this.deps.fetchNeedsYou()).for_you_now;
+      view = await this.deps.fetchNeedsYou();
     } catch {
       return null;
     }
-    const row = rows.find((r) => r.kind === kind && itemIds.includes(r.item_id));
-    if (!row) return null; // Already handled (answered, decided) by the time we looked.
-    const key = `${row.kind}:${row.item_id}`;
+    let key: string;
+    let text: NotificationText;
+    if (onboarding) {
+      // Decision 31 (US15, T165): the session's card, if it still waits for review.
+      const ids = change.objects.filter((o) => o.kind === 'onboarding').map((o) => o.id);
+      const session = (view.onboarding_reviews ?? []).find((s) => ids.includes(s.id));
+      if (!session) return null; // Already reviewed by the time we looked.
+      key = `onboarding:${session.id}`;
+      text = onboardingNotificationFor(session);
+    } else {
+      const kind = change.type === 'packet.submitted' ? 'packet' : 'question';
+      const itemIds = change.objects.filter((o) => o.kind === 'item').map((o) => o.id);
+      const rows: ForYouRow[] = view.for_you_now;
+      const row = rows.find((r) => r.kind === kind && itemIds.includes(r.item_id));
+      if (!row) return null; // Already handled (answered, decided) by the time we looked.
+      key = `${row.kind}:${row.item_id}`;
+      text = notificationFor(row);
+    }
     const last = this.recent.get(key);
     if (last !== undefined && now - last < BURST_MS) return null;
     this.recent.set(key, now);
-    const text = notificationFor(row);
     try {
       const n = new window.Notification(text.title, { body: text.body, tag: text.tag });
       n.onclick = () => {
@@ -225,7 +251,7 @@ export function sendTestNotification(): boolean {
   if (permission() !== 'granted') return false;
   try {
     new window.Notification('Docket notifications are on', {
-      body: 'You’ll see one when a handoff is ready or an agent asks you something.',
+      body: 'You’ll see one when a handoff or an onboarding is ready, or an agent asks you something.',
       tag: 'tl-test',
     });
     return true;

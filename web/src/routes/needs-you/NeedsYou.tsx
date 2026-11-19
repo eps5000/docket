@@ -10,6 +10,7 @@ import { AgentsStrip } from './AgentsStrip';
 import { NotificationsCallout } from './NotificationsCallout';
 import { DeferredCard } from './DeferredCard';
 import { ForYouNow } from './ForYouNow';
+import { OnboardingReviews } from './OnboardingReviews';
 import { PlanningQueueCard } from './PlanningQueueCard';
 import { ProblemsCard } from './ProblemsCard';
 import '../screens.css';
@@ -18,7 +19,8 @@ import { HelpLink } from '../../help/HelpLink';
 /**
  * Needs you (`/`, UI_SPEC §6.1): h1, Agents strip, the top band (For you
  * now · Problems) and the lower row (Deferred · Planning queue). One file per
- * card; US2 (T081) fills them. No subtitle and no scope pill.
+ * card; US2 (T081) fills them. No subtitle and no scope pill. An onboarding
+ * ready for review gets its own card above the top band (decision 31).
  */
 export function NeedsYou() {
   const { scope } = useShell();
@@ -44,6 +46,7 @@ export function NeedsYou() {
               atRisk={atRisk}
               proposals={data.agent_file_proposals}
             />
+            <OnboardingReviews sessions={data.onboarding_reviews ?? []} />
             <div className="dash-top">
               <ForYouNow rows={data.for_you_now} />
               <ProblemsCard problems={data.problems} workspaces={workspaces} />

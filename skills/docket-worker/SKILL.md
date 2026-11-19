@@ -9,6 +9,8 @@ Docket enforces claims, dependencies and review gates for you. This skill is the
 
 The project has its own rules: who moves work to Ready, when human review is needed, the branch naming, the checks to run. They're in the project's **Workflow notes**, which `get_context` gives you as its `workflow:` section; the repo's `AGENTS.md` / `CLAUDE.md` (the Docket section, installed from Agent files) points you there. Where they differ from this skill, they win.
 
+**Asked to onboard a repo or set up a project?** That isn't item work: call `onboard_project` and follow the guide it returns (`docket-coordinator` §7 has the gist).
+
 ## 1. Start: four calls or fewer
 
 1. **Find work:**

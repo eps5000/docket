@@ -649,7 +649,12 @@ Help anchors: `agent-files.page` (the h1), `agent-files.workflow`, `agent-files.
 ### 6.7d New project and onboarding review (decision 31)
 - **Settings → *New project*:** a dialog with key (2–5 letters, uppercase as you type, checked for uniqueness), name, colour and *Blockers clear when*. After creating, it offers "Onboard it with an agent". That shows the line to give an agent ("Onboard this repo into Docket as project GF, using onboard_project"), the prompt name for clients that support prompts, and *Import from Jira…*.
 - **The Needs you card,** when an onboarding is ready for review: "<Project> was set up by <agent> · review". It shows the counts (created, enriched, documents, decisions, proposals) linking to filtered views, the agent's summary and questions, the proposed Workflow notes (linking to the proposal), *Install agent files*, and *Mark reviewed*.
-- **Agent-created projects** show a "created by <agent> · review" chip in Settings and in the project switcher until reviewed.
+- **Agent-created projects** show a "created by <agent> · review" chip in Settings and in the project switcher until reviewed. In Settings it links to Needs you; in the switcher it sits under the project's name.
+- **B30 details:**
+  - *New project* sits in the Projects card's footer, next to *Import from Jira…*. A taken key says "GF is taken. Pick another key." and *Create project* stays disabled. "Onboard it with an agent" shows both lines with *Copy* (the prompt as `/mcp__docket__onboard GF`, the Claude Code form), *Import from Jira…* (opening the import with the new project as its target), *Switch to GF* and *Done*.
+  - The card sits above For you now, one per session. *Created* and *Enriched* open Work's list with only those items (`?onboarding=<id>&onboarding_change=created`), and a removable chip says why the list is short: "Onboarding by claude (GF) · created". *Documents* and *Decisions* open Settings, where the project's decisions are; the proposal link opens Agent files' proposals for the project. The footer says "n items in GF · nothing was made Ready".
+  - Each card counts toward the for-you badge and the tab title. `onboarding.finished` notifies (§6.7a).
+  - Agent files lists the guide as "Onboarding guide", after the AGENTS.md block, editable as the default or per project like the others.
 
 ### 6.7c Help (`/help`, `/help/:slug`, decision 29)
 - **`/help`:** a searchable list of articles, each with its title and one-line summary, grouped as Getting started, Working with agents, Recovery, Planning and Operations.
@@ -664,7 +669,8 @@ Spec clarification, 2026-11-14 (FR-068).
   - the callout never shows again once either is chosen.
 - **What notifies:** only new *for-you* events, arriving over the live stream:
   - **packet ready:** title "Handoff ready: RCP-12 Weekly planner drag-and-drop", body "2 things to verify · about 10 min";
-  - **question asked:** title "codex asks on DOC-4", body the question, truncated to 120 characters.
+  - **question asked:** title "codex asks on DOC-4", body the question, truncated to 120 characters;
+  - **onboarding ready for review** (decision 31; B30): title "Onboarding ready: Gameflow", body "claude set it up · 12 created, 30 enriched · review it on Needs you"; a click opens Needs you.
 
   Nothing else notifies: no problems, decisions or agent activity.
 - **Click:** focuses the Docket tab, or opens one, and goes to the packet or the item's question.

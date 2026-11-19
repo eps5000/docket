@@ -301,7 +301,13 @@ function FileBody({
         <h2 id="afv-title" className="mono">
           {d.name}
         </h2>
-        <span className="src">{d.kind === 'skill' ? 'Skill' : 'AGENTS.md / CLAUDE.md block'}</span>
+        <span className="src">
+          {d.kind === 'skill'
+            ? 'Skill'
+            : d.kind === 'guide'
+              ? 'Onboarding guide: onboard_project and the onboard prompt send it; it isn’t installed'
+              : 'AGENTS.md / CLAUDE.md block'}
+        </span>
         {project ? (
           copy ? (
             <Chip kind="info">{possessive(pName)} copy</Chip>

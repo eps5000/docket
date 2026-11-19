@@ -147,11 +147,12 @@ describe('bundled loading (startup)', () => {
     ]);
   });
 
-  it('reads the five skills and the AGENTS.md block from the checkout (the image layout)', () => {
+  it('reads the five skills, the AGENTS.md block and the onboarding guide from the checkout (the image layout)', () => {
     const { files, problems } = readBundledFiles(DEFAULT_BUNDLED_ROOT);
     expect(problems).toEqual([]);
     expect(files.map((f) => f.key).sort()).toEqual([
       'agents_block',
+      'guide:onboarding',
       'skill:docket-coordinator',
       'skill:docket-lead-subagents',
       'skill:docket-planner',
@@ -192,9 +193,10 @@ describe('bundled loading (startup)', () => {
       mkdirSync(join(tmp.dir, 'skills', 'no-file'), { recursive: true });
       const { files, problems } = readBundledFiles(tmp.dir);
       expect(files.map((f) => f.key)).toEqual(['skill:good-one']);
-      expect(problems).toHaveLength(2);
+      expect(problems).toHaveLength(3);
       expect(problems.join('\n')).toMatch(/Bad_Name/);
       expect(problems.join('\n')).toMatch(/AGENTS-docket\.md is missing/);
+      expect(problems.join('\n')).toMatch(/ONBOARDING-guide\.md is missing/);
     } finally {
       tmp.cleanup();
     }
@@ -203,7 +205,7 @@ describe('bundled loading (startup)', () => {
   it('syncBundledFiles loads the checkout into a runtime, then is a no-op', () => {
     const lines: string[] = [];
     const rt = { ...d.server.runtime, log: (l: string) => lines.push(l) };
-    expect(syncBundledFiles(rt).added).toHaveLength(6);
+    expect(syncBundledFiles(rt).added).toHaveLength(7);
     expect(syncBundledFiles(rt).added).toEqual([]);
     expect(lines).toEqual([]);
   });

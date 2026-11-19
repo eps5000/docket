@@ -7,11 +7,12 @@ import { z } from 'zod';
 import {
   AGENT_FILE_SOURCES,
   FILTERS,
+  ONBOARDING_CHANGES,
   PROVENANCES,
   SIGNAL_KINDS,
   SUBAGENT_PROVENANCES,
 } from '../enums.js';
-import { itemId, longText } from '../mcp/common.js';
+import { itemId, longText, objectId } from '../mcp/common.js';
 import { labelNameSchema } from '../mcp/items.js';
 import { deferredReviewsOutput } from '../mcp/read.js';
 import {
@@ -166,6 +167,14 @@ export const workQuery = input({
   label: labelNameSchema.optional(),
   filter: uiFilterSchema.default('all'),
   layout: workLayoutSchema.default('board'),
+  /**
+   * The onboarding review card's links (decision 31; UI_SPEC §6.7d; B30
+   * contract change): only the items this session (`onb_…`) created or
+   * enriched, with the epics row limited the same way. Optional.
+   */
+  onboarding: objectId.optional(),
+  /** With `onboarding`: only the items it created, or only the ones it enriched; both when omitted. */
+  onboarding_change: z.enum(ONBOARDING_CHANGES).optional(),
 });
 
 export const timelineRowSchema = z.object({

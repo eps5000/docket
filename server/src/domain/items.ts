@@ -48,6 +48,7 @@ import {
   type StoredEvent,
 } from './model.js';
 import { inScopeOf } from './decisions.js';
+import { activeSessionOf } from './onboarding-tag.js';
 import type { InverseOp, WriteContext } from './write.js';
 
 /** The moves `set_status` allows from each status (BUILD_SPEC §5.1). Review is entered by submit_packet. */
@@ -500,6 +501,13 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
       const to = input.status;
       const agent = w.actor.kind === 'agent';
       if (!ALLOWED_MOVES[from].includes(to)) refuse(item.id, from, to);
+      // Onboarding never makes anything Ready (decision 31; US15 scenario 3).
+      if (to === 'ready' && activeSessionOf(w.db, w.actor, item.project_key)) {
+        throw new ToolError(
+          'forbidden',
+          `You're onboarding ${item.project_key}: leave ${item.id} in ${from}. The owner moves items to Ready after reviewing the onboarding.`,
+        );
+      }
 
       let lead = activeLead(w.db, item.id);
       if (lead && leaseExpired(lead, w.now)) {

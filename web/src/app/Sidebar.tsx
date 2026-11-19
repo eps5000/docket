@@ -69,8 +69,21 @@ function ProjectSwitcher() {
   const menu = useRef<HTMLDivElement>(null);
   const projects = boot.data?.projects ?? [];
   const current = projects.find((p) => p.key === scope);
-  const options = [{ key: 'all', name: 'All projects', color: null as string | null }].concat(
-    projects.map((p) => ({ key: p.key, name: p.short_name, color: p.color })),
+  const options = [
+    {
+      key: 'all',
+      name: 'All projects',
+      color: null as string | null,
+      createdBy: null as string | null,
+    },
+  ].concat(
+    projects.map((p) => ({
+      key: p.key,
+      name: p.short_name,
+      color: p.color,
+      // "created by <agent> · review" until the owner reviews its onboarding (decision 31).
+      createdBy: p.created_by ?? null,
+    })),
   );
 
   useEffect(() => {
@@ -165,7 +178,14 @@ function ProjectSwitcher() {
               ) : (
                 <Icon name="folder" small />
               )}
-              <span className="grow">{o.name}</span>
+              <span className="grow">
+                {o.name}
+                {o.createdBy && (
+                  <span className="chip c-warn scopechip" data-created-by={o.createdBy}>
+                    created by {o.createdBy.split(' · ')[0]} · review
+                  </span>
+                )}
+              </span>
             </button>
           ))}
           <div className="hint">Scopes every page except Settings.</div>

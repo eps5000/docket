@@ -97,11 +97,22 @@ Skip entries with no workspace and no brief: you didn't dispatch them, so leave 
 
 **Finally,** call `recovery_report` again. Nothing interrupted should be left un-dispatched, and nothing should be orphaned.
 
+## 7. Onboarding a project
+
+When the owner asks you to set up a project, or to onboard a repo into one (decision 31):
+
+1. **If the project has Jira tickets,** ask the owner to run the Jira import first (Settings → Projects). Onboarding then enriches those tickets instead of duplicating them.
+2. **Call `onboard_project { key, name }`.** It creates the project (`name` is needed then) or adopts the existing one, and returns a `session_id`, what the project already holds, and the guide. Follow the guide step by step; it needs no installed files.
+3. **Do it in one session, as one client.** Another agent's `onboard_project` on the same project is refused while yours is in progress. Your own reconnect gets the same session back. Subagents may read the repo, but you make the Docket calls.
+4. **Nothing goes to Ready.** Everything stays in Inbox or Planning; `set_status` "ready" is refused until you finish. Don't dispatch workers on it: the owner reviews first.
+5. **Finish with `finish_onboarding { session_id, summary, questions }`,** then stop. The owner reviews it all from one card, approves the Workflow notes and installs the agent files. Running it again later is safe: the guide matches what's already there.
+
 ## Owner-only (don't do these for the owner)
 
 - Answering `ask_owner` questions, and making review decisions.
 - Approving or declining proposed changes to agent files and Workflow notes, and the drift remedies (_Adopt_, _Restore_, _Keep local_).
 - Moving items to Ready, unless the project's `AGENTS.md` says agents may.
+- Reviewing an onboarding, and creating projects in Settings, changing their settings or deleting them.
 - Confirming or withdrawing owner decisions.
 - Releasing another worker's live claim. Only the owner can release a stale one, from the UI.
 

@@ -154,7 +154,8 @@ describe('the service stubs', () => {
     links: ['link', 'unlink', 'blockState'],
     subgraph: ['dependencySubgraph', 'cycles'],
     // US4 (B11, T106) and US10 (B15, T130–T131).
-    projects: ['setDefaultSatisfiedWhen', 'delete', 'removeDeletedDocs'],
+    // US15 (B30, T164): create.
+    projects: ['setDefaultSatisfiedWhen', 'delete', 'removeDeletedDocs', 'create'],
     backup: ['status', 'runNow'],
     diagnostics: ['calls'],
     // US5 (B12, T114).
@@ -193,6 +194,8 @@ describe('the service stubs', () => {
       'restoreRecord',
       'keepLocal',
     ],
+    // US15 (B30, T164): onboarding.
+    onboarding: ['start', 'finish', 'guide', 'list', 'markReviewed'],
   };
 
   it.each(methods)('%s.%s throws NotImplementedError until its slice implements it', (s, m) => {

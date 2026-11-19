@@ -106,6 +106,22 @@ describe('reads', () => {
     within(`get_agent_files RCP listing (${files.length} files)`, r.text, 300);
   });
 
+  it('onboard_project with the bundled guide ≤ 1,400; finish_onboarding ≤ 60 (decision 31; MCP_SPEC §3.2)', async () => {
+    // Exempt from the mutation budget: the text block is a header line and the whole
+    // guide (§5.11). Its own row, set in B30 at the measured size plus 20%.
+    syncBundledFiles(h.server.runtime);
+    const r = expectOk(await h.call('onboard_project', { key: 'BUD', name: 'Budget check' }));
+    expect(r.text).toContain((r.structured as { guide: string }).guide);
+    within('onboard_project, bundled guide', r.text, 1_400);
+    const done = expectOk(
+      await h.call('finish_onboarding', {
+        session_id: (r.structured as { session_id: string }).session_id,
+        summary: 'Nothing to import.',
+      }),
+    );
+    within('finish_onboarding', done.text, 60);
+  });
+
   it('search_items with 25 results ≤ 1,000', async () => {
     const r = expectOk(await h.call('search_items', { limit: 25 }));
     expect((r.structured.items as unknown[]).length).toBe(25);

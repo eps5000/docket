@@ -131,6 +131,10 @@ const B2_ROUTES: readonly RouteId[] = [
   'drift.adopt',
   'drift.restore',
   'drift.keepLocal',
+  // US15 (B30, T164–T165): new project and the onboarding review.
+  'projects.create',
+  'onboarding.list',
+  'onboarding.reviewed',
 ];
 
 interface Req {

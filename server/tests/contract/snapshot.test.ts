@@ -21,7 +21,13 @@
  */
 import { AjvJsonSchemaValidator } from '@modelcontextprotocol/sdk/validation/ajv';
 import { McpError, type Prompt, type Tool } from '@modelcontextprotocol/sdk/types.js';
-import { ONBOARD_PROMPT_STUB } from '@docket/shared';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import {
+  DEFAULT_BUNDLED_ROOT,
+  ONBOARDING_GUIDE_TEMPLATE,
+  syncBundledFiles,
+} from '../../src/jobs/bundled.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   SPEC,
@@ -629,14 +635,16 @@ describe('prompts/list and prompts/get (§1, §5.11; decision 31)', () => {
     );
   });
 
-  it('prompts/get returns one user message: the stub text until B30', async () => {
+  it('prompts/get returns one user message: the bundled guide with the key filled in (B30)', async () => {
+    syncBundledFiles(h.server.runtime);
     const got = await h.a.getPrompt({
       name: 'onboard',
       arguments: { project_key: 'GF', project_name: 'Gameflow' },
     });
     expect(got.description).toBe(specPromptDescription('onboard'));
+    const guide = readFileSync(join(DEFAULT_BUNDLED_ROOT, ONBOARDING_GUIDE_TEMPLATE), 'utf8');
     expect(got.messages).toEqual([
-      { role: 'user', content: { type: 'text', text: ONBOARD_PROMPT_STUB } },
+      { role: 'user', content: { type: 'text', text: guide.replaceAll('{{KEY}}', 'GF') } },
     ]);
     // project_name is optional.
     const keyOnly = await h.a.getPrompt({ name: 'onboard', arguments: { project_key: 'GF' } });
@@ -685,6 +693,7 @@ describe('text-only sessions (§3 Results)', () => {
   });
 
   it('lists the same prompts, and prompts/get answers the same (§3: result modes leave prompts alone)', async () => {
+    syncBundledFiles(t.server.runtime);
     expect((await t.a.listPrompts()).prompts).toEqual((await t.b.listPrompts()).prompts);
     const args = { name: 'onboard', arguments: { project_key: 'GF' } };
     expect(await t.a.getPrompt(args)).toEqual(await t.b.getPrompt(args));

@@ -29,14 +29,18 @@
  * its `next_seq`, so the new items never reuse an ID an agent may still hold
  * for a deleted item.
  *
- * Decision 31 (T163) adds `create` (*New project* in Settings) as a stub;
- * US15 (T164) fills it in with the same key and tombstone rules.
+ * Decision 31 (US15, T164): every new project goes through `insertProject`
+ * with the same key and tombstone rules, and records `project.created`:
+ * the owner's *New project* (`create`), the Jira import (`openProject`; it
+ * wrote `project.updated` until B30), and an agent's `onboard_project` on a
+ * free key (onboarding.ts), which sets `created_by`. Only the owner changes
+ * a project's settings or deletes one (FR-140).
  */
 import { existsSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { SATISFIED_WHEN_LABELS, ToolError, type Project, type SatisfiedWhen } from '@docket/shared';
 import type { Db } from '../db/client.js';
-import { notImplemented, type ProjectsService, type ServiceDeps } from './contracts.js';
+import type { ProjectsService, ServiceDeps } from './contracts.js';
 import { newId } from './ids.js';
 import { blockDiff } from './links.js';
 import { BlockIndex } from './model.js';
@@ -50,6 +54,7 @@ interface ProjectRow {
   color: string;
   default_satisfied_when: SatisfiedWhen;
   version: number;
+  created_by: string | null;
 }
 
 const projectView = (p: ProjectRow): Project => ({
@@ -59,12 +64,17 @@ const projectView = (p: ProjectRow): Project => ({
   color: p.color,
   default_satisfied_when: p.default_satisfied_when,
   version: p.version,
+  created_by: p.created_by,
 });
 
 const items = (n: number) => `${n} ${n === 1 ? 'item' : 'items'}`;
 
 /** Colours for new projects, picked from the key so a project keeps its colour. */
-const PROJECT_COLORS = ['#3b5bdb', '#d9480f', '#2b8a3e', '#862e9c', '#c2255c', '#0b7285'];
+export const PROJECT_COLORS = ['#3b5bdb', '#d9480f', '#2b8a3e', '#862e9c', '#c2255c', '#0b7285'];
+
+/** The default colour for a key: the same key always gets the same one. */
+export const defaultColor = (key: string): string =>
+  PROJECT_COLORS[[...key].reduce((n, ch) => n + ch.charCodeAt(0), 0) % PROJECT_COLORS.length]!;
 
 /**
  * Why `key` can't be used for a new project right now, or null when it can
@@ -92,33 +102,34 @@ export function newProjectKeyProblem(db: Db, docsDir: string, key: string): Tool
   return null;
 }
 
+export interface NewProject {
+  key: string;
+  name: string;
+  color?: string;
+  default_satisfied_when?: SatisfiedWhen;
+  /** The agent that created it (`onboard_project`); null for the owner and imports. */
+  created_by?: string | null;
+}
+
 /**
- * Open a new project for an import, in the caller's transaction: a fresh
- * row, or the key's tombstone revived once its cleanup has finished. Owner
- * only. Records `project.updated` (there is no project-created event type).
+ * Insert a new project in the caller's transaction: a fresh row, or the key's
+ * tombstone revived once its cleanup has finished (it keeps its `next_seq`,
+ * so no ID an agent may still hold is reused). Records `project.created`.
+ * Callers check who may create (`create` and `openProject`: the owner;
+ * onboarding: an agent through `onboard_project`).
  */
-export function openProject(
-  w: WriteContext,
-  docsDir: string,
-  input: { key: string; name: string },
-): Project {
-  if (w.actor.kind !== 'owner') {
-    throw new ToolError('forbidden', 'Only the owner creates projects, through the Jira import.');
-  }
+export function insertProject(w: WriteContext, docsDir: string, input: NewProject): Project {
   const problem = newProjectKeyProblem(w.db, docsDir, input.key);
   if (problem) throw problem;
   const sql = w.db.sqlite;
-  const color =
-    PROJECT_COLORS[
-      [...input.key].reduce((n, ch) => n + ch.charCodeAt(0), 0) % PROJECT_COLORS.length
-    ]!;
   const tombstone = sql.prepare('SELECT * FROM projects WHERE key = ?').get(input.key) as
     (ProjectRow & { deleted_at: string; next_seq: number }) | undefined;
   const fields = {
     name: input.name,
     short_name: input.name,
-    color,
-    default_satisfied_when: 'done' as const,
+    color: input.color ?? defaultColor(input.key),
+    default_satisfied_when: input.default_satisfied_when ?? ('done' as const),
+    created_by: input.created_by ?? null,
   };
   let id: string;
   if (tombstone) {
@@ -128,9 +139,10 @@ export function openProject(
     id = newId('prj', new Date(w.now).getTime());
     w.insert('projects', { id, key: input.key, ...fields, next_seq: 1 });
   }
+  const by = fields.created_by ? ` by ${fields.created_by}` : '';
   w.event({
-    type: 'project.updated',
-    summary: `Created project ${input.name} (${input.key})${tombstone ? ', reusing the key of a deleted project' : ''}`,
+    type: 'project.created',
+    summary: `Created project ${input.name} (${input.key})${by}${tombstone ? ', reusing the key of a deleted project' : ''}`,
     project_key: input.key,
     data: {
       old: tombstone ? { deleted_at: tombstone.deleted_at } : null,
@@ -141,6 +153,21 @@ export function openProject(
     objects: [{ kind: 'project', id: input.key }],
   });
   return projectView(sql.prepare('SELECT * FROM projects WHERE id = ?').get(id) as ProjectRow);
+}
+
+/**
+ * Open a new project for an import, in the caller's transaction (US9). Owner
+ * only. Records `project.created` (B30; `project.updated` before).
+ */
+export function openProject(
+  w: WriteContext,
+  docsDir: string,
+  input: { key: string; name: string },
+): Project {
+  if (w.actor.kind !== 'owner') {
+    throw new ToolError('forbidden', 'Only the owner creates projects, through the Jira import.');
+  }
+  return insertProject(w, docsDir, input);
 }
 
 export function createProjectsService(deps: ServiceDeps): ProjectsService {
@@ -272,7 +299,20 @@ export function createProjectsService(deps: ServiceDeps): ProjectsService {
       return Promise.resolve(removed);
     },
 
-    // *New project* (decision 31): a stub until US15 (T164) fills it in, here.
-    create: notImplemented('projects.create'),
+    // *New project* (decision 31; FR-135). Not undoable: no inverse.
+    create(w, input) {
+      if (w.actor.kind !== 'owner') {
+        throw new ToolError(
+          'forbidden',
+          'Only the owner creates projects in Settings. Agents set one up with onboard_project.',
+        );
+      }
+      return insertProject(w, deps.config.paths.docs, {
+        key: input.key,
+        name: input.name,
+        color: input.color,
+        default_satisfied_when: input.default_satisfied_when,
+      });
+    },
   };
 }

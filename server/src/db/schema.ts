@@ -19,6 +19,7 @@ import {
   AGENT_FILE_LAYERS,
   AGENT_SETUP_LIMITS,
   AGENTS_BLOCK_KEY,
+  ONBOARDING_GUIDE_KEY,
   INSTALL_CLIENTS,
   INSTALL_METHODS,
   INSTALL_TARGET_KINDS,
@@ -686,7 +687,7 @@ export const agent_files = sqliteTable(
   {
     /** `af_…` */
     id: id(),
-    /** `skill:<name>` or `agents_block`. */
+    /** `skill:<name>`, `agents_block` or `guide:onboarding` (B30). */
     key: text('key').notNull(),
     layer: text('layer', { enum: AGENT_FILE_LAYERS }).notNull(),
     /** Project layer only. */
@@ -713,10 +714,13 @@ export const agent_files = sqliteTable(
       'agent_files_project_layer',
       sql.raw(`("layer" = 'project') = ("project_key" IS NOT NULL)`),
     ),
+    // B30 (decision 31; contract change): also exactly `guide:onboarding`, the onboarding
+    // guide. It is served by onboard_project, never installed, and can't be proposed
+    // (agent_file_proposals keeps the narrower check).
     check(
       'agent_files_key',
       sql.raw(
-        `"key" = '${AGENTS_BLOCK_KEY}' OR ("key" GLOB 'skill:?*' AND length("key") <= ${6 + AGENT_SETUP_LIMITS.skill_name} AND substr("key", 7) NOT GLOB '*[^a-z0-9-]*')`,
+        `"key" = '${AGENTS_BLOCK_KEY}' OR "key" = '${ONBOARDING_GUIDE_KEY}' OR ("key" GLOB 'skill:?*' AND length("key") <= ${6 + AGENT_SETUP_LIMITS.skill_name} AND substr("key", 7) NOT GLOB '*[^a-z0-9-]*')`,
       ),
     ),
   ],

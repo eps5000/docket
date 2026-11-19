@@ -3,8 +3,8 @@
  * UI_SPEC §6.7; contracts/ui-api.md US10). Lock and rotate-key are B2's
  * (api/session.ts); the blocker rule is in deps.ts.
  *
- * *New project* (decision 31; BUILD_SPEC §5.20; tasks.md T163) answers 501
- * until US15 (T164) implements `projects.create`. Not undoable.
+ * *New project* (decision 31; BUILD_SPEC §5.20; US15, T164): `projects.create`,
+ * with the Jira import's key and tombstone rules. Not undoable.
  */
 import type { Env, Hono } from 'hono';
 import { ToolError } from '@docket/shared';

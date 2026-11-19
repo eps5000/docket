@@ -78,9 +78,12 @@ function errorText(err: unknown): string {
 export function JiraImportDialog({
   onClose,
   projects = [],
+  initialTarget,
 }: {
   onClose: () => void;
   projects?: readonly ImportTargetProject[];
+  /** An empty project to import into, preselected (*New project* → *Import from Jira…*; B30). */
+  initialTarget?: string;
 }) {
   const ids = {
     site: useId(),
@@ -102,10 +105,11 @@ export function JiraImportDialog({
   const [email, setEmail] = useState('');
   const [token, setToken] = useState('');
   const [jiraKey, setJiraKey] = useState('');
-  const [targetKind, setTargetKind] = useState<'new' | 'existing'>('new');
+  const preset = initialTarget && empty.some((p) => p.key === initialTarget) ? initialTarget : null;
+  const [targetKind, setTargetKind] = useState<'new' | 'existing'>(preset ? 'existing' : 'new');
   const [newKey, setNewKey] = useState('');
   const [newName, setNewName] = useState('');
-  const [existing, setExisting] = useState(empty[0]?.key ?? '');
+  const [existing, setExisting] = useState(preset ?? empty[0]?.key ?? '');
   const [importId, setImportId] = useState<string | null>(null);
   const [actionError, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
