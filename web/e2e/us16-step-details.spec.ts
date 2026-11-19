@@ -217,6 +217,8 @@ test('Previous and Next, and the arrow keys; Esc returns focus to the last step 
   await expect(d).toHaveAccessibleName(B);
   await d.getByRole('button', { name: `Previous step: ${A2}` }).click();
   await expect(d).toHaveAccessibleName(A2);
+  // Previous is now disabled; focus stays in the dialog, on Next.
+  await expect(d.getByRole('button', { name: `Next step: ${B}` })).toBeFocused();
   await page.keyboard.press('ArrowRight');
   await page.keyboard.press('Escape');
   await expect(d).toHaveCount(0);

@@ -102,11 +102,24 @@ export function StepDialog({
   const [base, setBase] = useState({ text: '', version: 0 });
   const [conflict, setConflict] = useState<Conflict | null>(null);
   const editButton = useRef<HTMLButtonElement>(null);
+  const prevButton = useRef<HTMLButtonElement>(null);
+  const nextButton = useRef<HTMLButtonElement>(null);
   const refocusEdit = useRef(false);
   const prev = index > 0 ? steps[index - 1] : undefined;
   const next = index >= 0 && index < steps.length - 1 ? steps[index + 1] : undefined;
 
   // Previous, Next and the arrow keys are off while editing, so an edit never spans two steps.
+
+  // Reaching the first or last step disables the button just pressed, and focus would fall out
+  // of the dialog (and its Esc and Tab handling) to the page: keep it on the other button.
+  useEffect(() => {
+    const active = document.activeElement;
+    if (active && active !== document.body && !(active as HTMLButtonElement).disabled) return;
+    const to = [nextButton.current, prevButton.current, editButton.current].find(
+      (b) => b && !b.disabled,
+    );
+    to?.focus();
+  }, [stepId]);
   useEffect(() => {
     if (!editing && refocusEdit.current) {
       refocusEdit.current = false;
@@ -220,6 +233,7 @@ export function StepDialog({
             <span className="hint"> · ← → move between steps</span>
           </span>
           <Button
+            ref={prevButton}
             size="sm"
             disabled={!prev || editing}
             onClick={() => prev && onMove(prev.id)}
@@ -228,6 +242,7 @@ export function StepDialog({
             ← Previous
           </Button>
           <Button
+            ref={nextButton}
             size="sm"
             disabled={!next || editing}
             onClick={() => next && onMove(next.id)}
