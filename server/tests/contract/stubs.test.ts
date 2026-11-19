@@ -86,33 +86,15 @@ export const US1_TOOLS: readonly ToolName[] = [
   // US14 (B27a, T160).
   'get_agent_files',
   'propose_agent_file_change',
+  // US15 (B30, T164); content in us15-onboarding.test.ts.
+  'onboard_project',
+  'finish_onboarding',
 ];
 const STUB_TOOLS = TOOL_NAMES.filter((n) => !US1_TOOLS.includes(n));
 
 describe('stubs', () => {
-  it('only the decision 31 tools are stubs (B29 contracts; US15, T164, implements them)', () => {
-    expect(STUB_TOOLS).toEqual(['onboard_project', 'finish_onboarding']);
-  });
-
-  it.each(STUB_TOOLS)('%s answers unavailable: "Not implemented yet"', async (name) => {
-    h ??= await startHarness();
-    const result = await h.call(name, VALID_ARGS[name]);
-    expect(expectUnavailable(result)).toEqual({
-      code: 'unavailable',
-      message: `Not implemented yet: ${name}`,
-    });
-    expect(textOf(result)).toBe(`unavailable: Not implemented yet: ${name}`);
-  });
-
-  it('onboard_project stores nothing while it is a stub, even with an idempotency_key', async () => {
-    h = await startHarness();
-    const args = { ...VALID_ARGS.onboard_project, idempotency_key: 'onb-stub-1' };
-    expectUnavailable(await h.call('onboard_project', args));
-    const count = (sql: string) =>
-      (h!.server.runtime.db.sqlite.prepare(sql).get() as { n: number }).n;
-    expect(count('SELECT count(*) AS n FROM onboarding_sessions')).toBe(0);
-    expect(count("SELECT count(*) AS n FROM projects WHERE key = 'GF'")).toBe(0);
-    expect(count('SELECT count(*) AS n FROM idempotency')).toBe(0);
+  it('no tool is a stub any more: US15 (B30, T164) implemented the last two', () => {
+    expect(STUB_TOOLS).toEqual([]);
   });
 
   it('claim_lead accepts instructions (decision 30) and still claims; a bad report is refused', async () => {

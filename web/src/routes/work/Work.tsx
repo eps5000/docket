@@ -1,6 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router';
-import { UI_FILTER_KEYS, WORK_LAYOUTS, type WorkResponse } from '@docket/shared';
+import {
+  ONBOARDING_CHANGES,
+  UI_FILTER_KEYS,
+  WORK_LAYOUTS,
+  type OnboardingChange,
+  type WorkResponse,
+} from '@docket/shared';
 import { Callout, SegmentedControl, Skeleton } from '../../components/kit';
 import { useBootstrap } from '../../app/useBootstrap';
 import { apiClient } from '../../app/queryClient';
@@ -38,6 +44,12 @@ export function readWorkParams(params: URLSearchParams) {
       : 'all') as UiFilter,
     epic: params.get('epic') || undefined,
     label: params.get('label') || undefined,
+    onboarding: params.get('onboarding') || undefined,
+    onboarding_change: (ONBOARDING_CHANGES as readonly string[]).includes(
+      params.get('onboarding_change') ?? '',
+    )
+      ? (params.get('onboarding_change') as OnboardingChange)
+      : undefined,
   };
 }
 
@@ -49,10 +61,11 @@ export function readWorkParams(params: URLSearchParams) {
 export function Work() {
   const { scope } = useShell();
   const [params, setParams] = useSearchParams();
-  const { layout, filter, epic, label } = readWorkParams(params);
+  const { layout, filter, epic, label, onboarding, onboarding_change } = readWorkParams(params);
+  const q = { scope, layout, filter, epic, label, onboarding, onboarding_change };
   const query = useQuery({
-    queryKey: queryKeys.work({ scope, layout, filter, epic, label }),
-    queryFn: () => apiClient['work.get']({ query: { scope, layout, filter, epic, label } }),
+    queryKey: queryKeys.work(q),
+    queryFn: () => apiClient['work.get']({ query: q }),
   });
   const set = (patch: Record<string, string | undefined>) => {
     const next = new URLSearchParams(params);
@@ -84,6 +97,13 @@ export function Work() {
           epics={data?.epics ?? []}
           counts={data?.filter_counts}
           onChange={set}
+        />
+      )}
+      {onboarding && (
+        <OnboardingFilter
+          session={onboarding}
+          change={onboarding_change}
+          onRemove={() => set({ onboarding: undefined, onboarding_change: undefined })}
         />
       )}
       {layout === 'timeline' && (epic || label) && (
@@ -157,6 +177,49 @@ function ActiveScope({
           </span>
         </button>
       )}
+    </div>
+  );
+}
+
+/**
+ * The onboarding review card's links (decision 31; UI_SPEC §6.7d; B30): a
+ * removable chip says why the list is short, "Onboarding by claude · created".
+ */
+function OnboardingFilter({
+  session,
+  change,
+  onRemove,
+}: {
+  session: string;
+  change?: OnboardingChange;
+  onRemove: () => void;
+}) {
+  const sessions = useQuery({
+    queryKey: queryKeys.onboarding({}),
+    queryFn: () => apiClient['onboarding.list']({ query: {} }),
+  });
+  const s = sessions.data?.sessions.find((x) => x.id === session);
+  const who = s ? (s.started_by.split(' · ')[0] ?? s.started_by) : 'an agent';
+  const text = `Onboarding by ${who}${s && s.project ? ` (${s.project})` : ''} · ${change ?? 'created or enriched'}`;
+  return (
+    <div
+      className="filters"
+      role="group"
+      aria-label="Active filters"
+      data-onboarding-filter={session}
+    >
+      <button
+        type="button"
+        className="chip c-info fchip"
+        aria-label={`Remove the onboarding filter: ${text}`}
+        title="Show all work"
+        onClick={onRemove}
+      >
+        {text}
+        <span aria-hidden="true" className="fchip-x">
+          ×
+        </span>
+      </button>
     </div>
   );
 }

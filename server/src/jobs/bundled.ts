@@ -6,13 +6,14 @@
  *
  * Where they are: the image and the workspace share one layout (index.ts),
  * so from `server/dist/` (or `server/src/` in tests) the root is two levels
- * up, holding `skills/<name>/SKILL.md` and `docs/templates/AGENTS-docket.md`.
- * The Dockerfile copies both into `/app`.
+ * up, holding `skills/<name>/SKILL.md`, `docs/templates/AGENTS-docket.md` and
+ * `docs/templates/ONBOARDING-guide.md` (the onboarding guide, agent file
+ * `guide:onboarding`; decision 31, B30). The Dockerfile copies them into `/app`.
  */
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { AGENT_FILE_KEY_RE, AGENT_SETUP_LIMITS } from '@docket/shared';
+import { AGENT_FILE_KEY_RE, AGENT_SETUP_LIMITS, ONBOARDING_GUIDE_KEY } from '@docket/shared';
 import type { BundledAgentFile, Services } from '../domain/contracts.js';
 import { SYSTEM_ACTOR, type WritePath } from '../domain/write.js';
 
@@ -20,10 +21,11 @@ import { SYSTEM_ACTOR, type WritePath } from '../domain/write.js';
 export const DEFAULT_BUNDLED_ROOT = resolve(fileURLToPath(new URL('../../..', import.meta.url)));
 
 export const AGENTS_TEMPLATE = join('docs', 'templates', 'AGENTS-docket.md');
+export const ONBOARDING_GUIDE_TEMPLATE = join('docs', 'templates', 'ONBOARDING-guide.md');
 
 /**
  * Every shipped agent file under `root`: each `skills/<name>/SKILL.md` whose
- * name is a valid key, and the AGENTS.md block. Missing files are skipped,
+ * name is a valid key, the AGENTS.md block and the onboarding guide. Missing files are skipped,
  * with a line in `problems`.
  */
 export function readBundledFiles(root: string): { files: BundledAgentFile[]; problems: string[] } {
@@ -57,6 +59,9 @@ export function readBundledFiles(root: string): { files: BundledAgentFile[]; pro
   const template = join(root, AGENTS_TEMPLATE);
   if (existsSync(template)) add('agents_block', template);
   else problems.push(`${template} is missing; no bundled AGENTS.md block loaded.`);
+  const guide = join(root, ONBOARDING_GUIDE_TEMPLATE);
+  if (existsSync(guide)) add(ONBOARDING_GUIDE_KEY, guide);
+  else problems.push(`${guide} is missing; no bundled onboarding guide loaded.`);
   return { files, problems };
 }
 

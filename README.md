@@ -66,6 +66,15 @@ Don't include a trailing newline or spaces: they break auth.
 
 Either way it installs the skills, puts the AGENTS.md block between `<!-- docket:begin -->` and `<!-- docket:end -->` in `CLAUDE.md` (Claude Code) or `AGENTS.md` (Codex) without touching the rest of the file, and logs the exact version of every file. The install log's *Check* (or its check command) shows later whether an installed copy was edited by hand. Docket also watches for that itself: it checks folders it installed into every 15 minutes (`DOCKET_DRIFT_CHECK_INTERVAL`), and agents report their installed files' hashes when they claim work (the installed `docket-check` script), so an edit made outside Docket shows under Problems with a diff and *Adopt*, *Restore* or *Keep local*. Agents that want to change their instructions propose it instead, for your approval in Agent files. See the in-app help article "Agent files", or [skills/README.md](skills/README.md) for the paths.
 
+### Set up a new project
+An agent can set a project up from what's already in its repo (Spec Kit specs, plans and tasks, the constitution, ADRs and READMEs), with no agent files installed yet:
+1. **Create the project:** Settings → Projects → *New project* (a 2–5 letter key, a name, a colour and the blocker rule).
+2. **Import its Jira tickets first, if it has any:** *Import from Jira…* in the same dialog, with a dry run before anything is written. Import before onboarding, so the agent enriches the imported tickets instead of duplicating them.
+3. **Onboard it:** in the repo's folder, tell any connected agent "Onboard this repo into Docket as project GF, using onboard_project." (Clients with MCP prompts can run the `onboard` prompt; in Claude Code, `/mcp__docket__onboard GF`.) The agent gets the onboarding guide from Docket, matches the repo's tasks to existing items by Jira key, source path or title, creates the rest in Planning with dependencies, labels, decisions and planning documents, proposes Workflow notes, and finishes with a summary. Nothing is made Ready.
+4. **Review it:** Needs you shows one card with what it created and enriched, its questions, the proposed Workflow notes, *Install agent files* and *Mark reviewed*.
+
+Running it again later is safe: each item records its source path, so a second run matches what the first created. The guide itself is an agent file (*Onboarding guide*), editable in Agent files like the skills. See the in-app help article "Onboard a project".
+
 ### Moving from Task Lite
 Docket was called Task Lite until B28. Nothing you already set up stops working, but rename these when you can:
 - **Your data volume.** The compose file now uses `docket-data`; your data is still in `tasklite-data`, which Docket never touches automatically. Settings → Connections → Service health shows which volume is mounted. To move it, stop the old container (`docker stop tasklite`), build the new image (`docker compose build`), and copy the volume with one command:

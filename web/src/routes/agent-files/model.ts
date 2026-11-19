@@ -112,7 +112,11 @@ export const rowDefaultOutdated = (row: AgentFileRow) =>
   row.effective_layer === 'service' && row.bundled_updated;
 
 export const kindLabel = (kind: AgentFileRow['kind']) =>
-  kind === 'skill' ? 'skill' : 'AGENTS.md / CLAUDE.md';
+  kind === 'skill'
+    ? 'skill'
+    : kind === 'guide'
+      ? 'served by onboard_project, not installed'
+      : 'AGENTS.md / CLAUDE.md';
 
 const norm = (p: string) => p.trim().replace(/\\/g, '/').replace(/\/+$/, '');
 

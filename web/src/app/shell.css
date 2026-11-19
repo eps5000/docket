@@ -409,3 +409,9 @@
   padding: 0;
   min-width: 0;
 }
+/* "created by <agent> · review" under an agent-created project's name (decision 31). */
+.tl .scopemenu .scopechip {
+  display: block;
+  width: fit-content;
+  margin-top: 3px;
+}

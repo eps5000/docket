@@ -147,7 +147,8 @@ test.describe('Agent files (US13)', () => {
     await expect(page.getByRole('button', { name: 'Install user-wide' })).toBeVisible();
 
     const table = page.getByRole('table', { name: 'Default agent files' });
-    await expect(table.getByRole('row')).toHaveCount(7);
+    // Five skills, the AGENTS.md block and the onboarding guide (B30), plus the header row.
+    await expect(table.getByRole('row')).toHaveCount(8);
     for (const key of [
       'skill:docket-coordinator',
       'skill:docket-lead-subagents',
@@ -155,6 +156,7 @@ test.describe('Agent files (US13)', () => {
       'skill:docket-review-packet',
       'skill:docket-worker',
       'agents_block',
+      'guide:onboarding',
     ]) {
       await expect(fileRow(page, key)).toHaveAttribute('data-default', 'task-lite');
       await expect(fileRow(page, key).getByText('Docket’s version')).toBeVisible();

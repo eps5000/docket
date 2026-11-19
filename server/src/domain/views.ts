@@ -65,6 +65,7 @@ import {
 } from './contracts.js';
 import { compareIds, cycleText, cyclesOf } from './links.js';
 import { pendingProposalCount } from './agent-proposals.js';
+import { CREATED_BY_SQL, onboardingItemIds, readySessions } from './onboarding.js';
 import { driftProblems, runInstructions } from './drift.js';
 import { inScopeOf, ofScope } from './decisions.js';
 import {
@@ -930,6 +931,8 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
       ),
       agent_counts: runCounts(s, runs),
       agent_file_proposals: pendingProposalCount(r.db, scope),
+      // Decision 31: each onboarding ready for review is one card (and counts as for you).
+      onboarding_reviews: readySessions(r.db, scope),
     };
   }
 
@@ -939,7 +942,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
       const config = deps.config;
       const projects = sql
         .prepare(
-          'SELECT key, name, short_name, color, default_satisfied_when, version FROM projects WHERE deleted_at IS NULL ORDER BY key',
+          `SELECT key, name, short_name, color, default_satisfied_when, version, ${CREATED_BY_SQL('projects')} AS created_by FROM projects WHERE deleted_at IS NULL ORDER BY key`,
         )
         .all() as BootstrapResponse['projects'];
       const labels = (
@@ -969,7 +972,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         projects,
         labels,
         counts: {
-          for_you: view.for_you_now.length,
+          for_you: view.for_you_now.length + (view.onboarding_reviews?.length ?? 0),
           problems: view.problems.length,
           planning: view.planning_queue.length,
           runs: view.agent_counts,
@@ -995,9 +998,16 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
       const ctx = { db: s.db, windows: s.windows, now: s.now, index: s.index };
 
       // Board, list and map: tickets, never epics; canceled items leave the views (§6.3).
+      // The onboarding review card's links (decision 31; B30): only what the session created or enriched.
+      const onboarded = input.onboarding
+        ? onboardingItemIds(r.db, input.onboarding, input.onboarding_change)
+        : null;
       const base = [...s.items.values()].filter(
         (i) =>
-          i.type !== 'Epic' && i.status !== 'canceled' && (!input.epic || i.epic_id === input.epic),
+          i.type !== 'Epic' &&
+          i.status !== 'canceled' &&
+          (!input.epic || i.epic_id === input.epic) &&
+          (!onboarded || onboarded.has(i.id)),
       );
       let summaries = summarize(ctx, base.sort(byPriorityThenId));
       if (input.label) summaries = summaries.filter((i) => i.labels.includes(input.label!));
@@ -1065,7 +1075,13 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
 
       // The Epics row: non-archived epics in scope, with their children's progress.
       const epicRows = [...s.items.values()]
-        .filter((i) => i.type === 'Epic' && i.archived_at === null && i.status !== 'canceled')
+        .filter(
+          (i) =>
+            i.type === 'Epic' &&
+            i.archived_at === null &&
+            i.status !== 'canceled' &&
+            (!onboarded || onboarded.has(i.id)),
+        )
         .sort(byPriorityThenId);
       const children = new Map<string, ItemRow[]>();
       for (const i of s.items.values()) {
@@ -1555,7 +1571,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
       const projects = (
         sql
           .prepare(
-            'SELECT key, name, short_name, color, default_satisfied_when, version FROM projects WHERE deleted_at IS NULL ORDER BY key',
+            `SELECT key, name, short_name, color, default_satisfied_when, version, ${CREATED_BY_SQL('projects')} AS created_by FROM projects WHERE deleted_at IS NULL ORDER BY key`,
           )
           .all() as SettingsResponse['projects'][number][]
       ).map((p) => {
@@ -1570,6 +1586,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
           color: p.color,
           default_satisfied_when: p.default_satisfied_when,
           version: p.version,
+          created_by: p.created_by ?? null,
           counts: {
             epics: rows.filter((i) => i.type === 'Epic').length,
             items: rows.length,

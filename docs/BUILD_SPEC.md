@@ -176,7 +176,7 @@ SQLite tables. Every row has `id`, `created_at` and `updated_at`; all timestamps
 | `questions` | `item_id`, `run_id`, `text`, `asked_by`, `answer`, `answered_at`, `read_by_agent_at` | |
 | `owner_notes` | `item_id`, `text`, `read_by_agent_at` | |
 | `commits` | `item_id`, `run_id`, `sha`, `branch`, `message`, `pr_url`, `pushed`, `reported_by`, `reported_at` | Drives packet staleness. With `pushed`, it also sets the run's `workspace.pushed_sha`. |
-| `agent_files` | `id` (`af_…`), `key` (`skill:<name>` or `agents_block`), `layer` (bundled\|service\|project), `project_key` (project layer only), `current_version_id`, `bundled_hash_at_edit` | One row per key, layer and project. Unique `(key, layer, project_key)`. §5.17. |
+| `agent_files` | `id` (`af_…`), `key` (`skill:<name>`, `agents_block`, or exactly `guide:onboarding`, the onboarding guide; B30 migration 0007), `layer` (bundled\|service\|project), `project_key` (project layer only), `current_version_id`, `bundled_hash_at_edit` | One row per key, layer and project. Unique `(key, layer, project_key)`. §5.17. |
 | `agent_file_versions` | `id` (`afv_…`), `file_id`, `version_no`, `content` (≤ 50,000, B21), `sha256`, `author`, `note`, `created_at` | Immutable. |
 | `project_workflows` | `project_key`, `version_no`, `content_md` (≤ 10,000), `author`, `note`, `created_at` | Versioned; the newest is current. Delivered in `get_context` (§5.15). |
 | `installs` | `id` (`ins_…`), `at`, `client` (claude\|codex), `target_kind` (repo\|user), `project_key` (nullable), `path` (nullable; required for push), `method` (command\|push), `manifest` (JSON: key → `{version_id, sha256}`), `token_sha256`, `token_expires_at`, `token_used_at` | §5.17. A command install keeps only its token's sha256 and expiry, never the token (B21). |
@@ -495,7 +495,8 @@ Articles are Markdown files in `docs/help/<slug>.md`, with front matter `title`,
   - if the key is free, it creates the project, with `created_by` set to the agent;
   - if the project exists, it adopts it;
   - either way it starts an onboarding session and returns `{project, session_id, guide, existing: {items, jira_items, documents}}`;
-  - `guide` is the effective onboarding guide (agent file key `guide:onboarding`; default `docs/templates/ONBOARDING-guide.md`), with the project key filled in.
+  - `guide` is the effective onboarding guide (agent file key `guide:onboarding`; default `docs/templates/ONBOARDING-guide.md`), with the project key filled in (`{{KEY}}`).
+- **The guide as an agent file** (B30; contract change approved for B30): `guide:onboarding` is a bundled agent file, loaded at startup with the skills, and the owner edits it on Agent files as the default or per project (kind `guide`, "Onboarding guide"). The project's copy applies once the project exists; a free key gets the default. It is served by `onboard_project` and the `onboard` prompt, never installed: installs, drift, the check script and `get_agent_files` leave it out, and proposals can't name it. `AGENT_FILE_KEY_RE` and the `agent_files_key` CHECK allow exactly that key (migration 0007 rebuilds `agent_files`, rows unchanged).
 - **The guide** (bundled, editable like the other agent files). Its steps:
   1. **Survey:** Spec Kit `specs/*/{spec,plan,tasks}.md`, the constitution, issues, TODOs, READMEs and docs.
   2. **Reconcile first:** `search_items` by Jira key, title and source path; enrich matches with `update_item` (acceptance, outcome) and links rather than creating duplicates.
@@ -504,11 +505,15 @@ Articles are Markdown files in `docs/help/<slug>.md`, with front matter `title`,
   5. **Ask** open questions with `ask_owner` on the epic.
   6. **Finish** with `finish_onboarding`.
 - **`finish_onboarding {session_id, summary, questions?}`** marks the session ready for review. Changes made during the session are tagged with `session_id`, so the review card can list them.
+- **Tagging** (B30): every event an agent writes while its client has a session in progress on the event's project (its `project_key`, else its item's) carries `data.onboarding_session`. The match is by client only (`onboarding_sessions.client`, the normalised `clientInfo.name`); `agent_label` doesn't narrow it, since labels are optional and per call. Owner and system events are never tagged. The counts: **created**, items with a tagged `item.created`; **enriched**, other items with a tagged edit (`item.updated`, `item.status_changed`, `link.added`, `link.updated`, `document.added`, `human_review.declared`, `decision.published`, `note.added`); **documents**, distinct documents added; **decisions**, decisions published; **proposals**, `agent_file.proposed` (the latest Workflow one is `workflow_proposal_id`).
+- **Never Ready** (B30): while a client's session is in progress, its `set_status` to `ready` on that project is `forbidden`; `create_item` only takes `inbox` or `planning` anyway.
+- **The review card's links** (B30; contract change): `GET /api/work` takes `onboarding` (a session ID) and `onboarding_change` (`created` or `enriched`, both when omitted), limiting the items and the Epics row to that session's.
 - **Calling `onboard_project` again** (B29): the same client, on a project where its own session is in progress, gets that session back (the same `session_id` and guide, `existing` counted again). Another client's session in progress is `forbidden`.
 - **The MCP prompt `onboard`**, with arguments `project_key` and `project_name`, returns the same guide. It's the first MCP prompt; clients that don't support prompts use the tool. The server declares the `prompts` capability (`listChanged: false`), and text-only result mode doesn't affect prompts (MCP_SPEC §3).
 - **Events:** `project.created`, `onboarding.started`, `onboarding.finished` (for you: it raises the badge) and `onboarding.reviewed` (contracts/events.md).
 - **Contracts** (B29, T163): the schema, the two tools as stubs with their descriptions, the prompt (answering "Onboarding guide not available yet"), the server-instructions bullet, the routes as 501 placeholders, the events and the client. B30 (T164–T166) fills them.
-- **Limits:** agents can't change project settings or delete projects (FR-140). An agent-created project shows "created by <agent> · review" until the owner opens the review card.
+- **Limits:** agents can't change project settings or delete projects (FR-140). An agent-created project shows "created by <agent> · review" until the owner marks one of its onboardings reviewed (the API's `created_by` is null from then on; the column keeps it).
+- **The Jira import** writes `project.created` for the project it opens (B30; `project.updated` before), through the same insert as *New project* and `onboard_project`.
 
 ## 6. MCP tool contract
 

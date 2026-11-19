@@ -4,8 +4,7 @@
  * reviewed*. *New project* (`POST /api/projects`) is in settings.ts.
  *
  * Each route sits behind the owner session (and CSRF on the POST), is
- * strictly validated, and calls the `onboarding` service; while it is a stub
- * the route answers 501, until US15 (T164, T165) implements it.
+ * strictly validated, and calls the `onboarding` service (US15, T164).
  */
 import type { Env, Hono } from 'hono';
 import { defineRoute, type RouteDeps } from '../define.js';

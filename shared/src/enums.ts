@@ -370,6 +370,18 @@ export type DriftChange = (typeof DRIFT_CHANGES)[number];
 export const ONBOARDING_STATES = ['in_progress', 'ready_for_review', 'reviewed'] as const;
 export type OnboardingState = (typeof ONBOARDING_STATES)[number];
 
+/**
+ * The onboarding guide's agent file key (decision 31; BUILD_SPEC §5.20; B30
+ * contract change): a bundled agent file the owner edits like the others, as
+ * the default or per project. `onboard_project` and the `onboard` prompt
+ * serve it; it is never installed into a repo and can't be proposed.
+ */
+export const ONBOARDING_GUIDE_KEY = 'guide:onboarding';
+
+/** Work's onboarding filter (B30): the items a session created, or the ones it enriched. */
+export const ONBOARDING_CHANGES = ['created', 'enriched'] as const;
+export type OnboardingChange = (typeof ONBOARDING_CHANGES)[number];
+
 // ---- Events (contracts/events.md; MCP_SPEC §4 EventType) ----
 
 export const ACTOR_KINDS = ['owner', 'agent', 'system'] as const;

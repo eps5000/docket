@@ -241,9 +241,10 @@ RCP-14 Generate shopping list from week plan
 | `search_items` with 25 results | 1,000 |
 | `get_context` `RCP-14` medium | 3,000 |
 | `get_agent_files` `RCP`, listing (no `file`) | 300 |
+| `onboard_project` with the bundled guide (header line plus guide) | 1,400 |
 | Any mutation result | 60 |
 
-`onboard_project` is exempt from the mutation budget: its text block carries the whole onboarding guide, verbatim, because a text-only client's model sees nothing else. The guide gets its own budget row in B30, measured on the bundled guide, so it can't grow unnoticed (B29).
+`onboard_project` is exempt from the mutation budget: its text block carries the whole onboarding guide, verbatim, because a text-only client's model sees nothing else. Its own row (B30) is measured on the bundled `docs/templates/ONBOARDING-guide.md`, set at the measured size plus 20% (1,164 → 1,400), so the guide can't grow unnoticed. `finish_onboarding` is an ordinary mutation (≤ 60).
 
 ### 3.3 Patches: silence preserves
 Writes change what you send and nothing else. This is the TERSL idea that "what you don't restate, you don't change".
@@ -703,7 +704,12 @@ Agents read the agent files and Workflow notes in effect for a project, and chan
 
 ### 5.11 Onboarding (decision 31)
 
-An agent sets up a project, or onboards a repo into one, from a fresh install with no agent files installed: `onboard_project` returns the guide to follow, and `finish_onboarding` hands the result to the owner, who reviews it from one card (BUILD_SPEC §5.20; FR-135–FR-140). Shipped in B29 (tasks T163): the two descriptions below, the `onboard` prompt, and the server-instructions bullet (§2), in MCP_SPEC, `mcp-copy.ts` and the snapshot together. Both tools answer `unavailable`, and the prompt returns "Onboarding guide not available yet", until B30 (T164) implements them.
+An agent sets up a project, or onboards a repo into one, from a fresh install with no agent files installed: `onboard_project` returns the guide to follow, and `finish_onboarding` hands the result to the owner, who reviews it from one card (BUILD_SPEC §5.20; FR-135–FR-140). Contracts shipped in B29 (T163): the two descriptions below, the `onboard` prompt, and the server-instructions bullet (§2), in MCP_SPEC, `mcp-copy.ts` and the snapshot together. B30 (T164) implemented them.
+
+- **The guide** is the agent file `guide:onboarding` (BUILD_SPEC §5.20): the project's copy once the project exists, else the default, with `{{KEY}}` filled in. Not loaded yet: `unavailable` ("The onboarding guide is not loaded yet; …").
+- **The same client** (B30): `onboarding_sessions.client`, the normalised `clientInfo.name`. `agent_label` doesn't narrow it, so a reconnecting agent gets its session back even without a label.
+- **Tagging:** every event the session's client writes on the project while it is in progress carries `data.onboarding_session`; `finish_onboarding` counts them (BUILD_SPEC §5.20).
+- **Never Ready:** while its session is in progress, the client's `set_status` to `ready` on that project is `forbidden` ("You're onboarding GF: leave GF-3 in planning. The owner moves items to Ready after reviewing the onboarding.").
 
 #### `onboard_project`
 **Description:** "Set up a project, or onboard a repo into one. Creates the project when the key is free (pass name) or adopts the existing project with that key, starts an onboarding session, and returns its session_id, what the project already holds, and the onboarding guide. Follow the guide step by step; it works with no agent files installed. Not retry-safe: pass idempotency_key."
@@ -728,7 +734,7 @@ An agent sets up a project, or onboards a repo into one, from a fresh install wi
 - **Arguments:**
   - `project_key` (required): "Project key: 2–5 uppercase letters, like GF."
   - `project_name` (optional): "The project's name, if it is new."
-- **Returns:** the same guide as `onboard_project`, as one user message. Until B30 the text is "Onboarding guide not available yet".
+- **Returns:** the same guide as `onboard_project`, as one user message (B30). A guide that isn't loaded is a JSON-RPC `InternalError` saying so. While the guide service is a stub (B29, and contract tests that stub it), the text is "Onboarding guide not available yet".
 - **Errors** (B29): `prompts/get` with a missing or malformed `project_key`, or an unknown prompt name, is a JSON-RPC `InvalidParams` error (protocol errors, §6).
 - **Result modes:** the same for text-only and structured sessions (§3 Results).
 

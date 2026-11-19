@@ -138,7 +138,7 @@ describe('agent files over the owner API (T153)', () => {
     h = await startHarness();
     const owner = await ownerApi();
     const runtime = h.server.runtime;
-    expect(syncBundledFiles(runtime).added).toHaveLength(6);
+    expect(syncBundledFiles(runtime).added).toHaveLength(7);
 
     const list = await owner('GET', '/api/agent-files');
     expect(list.status).toBe(200);
@@ -150,7 +150,9 @@ describe('agent files over the owner API (T153)', () => {
       'skill:docket-review-packet',
       'skill:docket-worker',
       'agents_block',
+      'guide:onboarding',
     ]);
+    expect(files.at(-1)).toMatchObject({ kind: 'guide', name: 'Onboarding guide' });
     expect(files.every((f) => f.effective_layer === 'bundled' && f.bundled_updated === false)).toBe(
       true,
     );

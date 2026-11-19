@@ -475,9 +475,9 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 ## Phase 17: Onboarding (owner decision 31)
 
 - [x] T163 [contract] Migration (`onboarding_sessions`, `projects.created_by`); the MCP tools `onboard_project` and `finish_onboarding`, with exact descriptions; the `onboard` prompt (the server's prompts capability); the server-instructions bullet; route schemas and placeholders (`POST /api/projects`, onboarding list and review); events (`project.created`, `onboarding.started`, `onboarding.finished`, `onboarding.reviewed`); client entries. Snapshot 40 → 42 tools plus 1 prompt.
-- [ ] T164 [US15] New project (the owner route and the Settings dialog), `onboard_project` (create or adopt, session, existing counts, the guide), `finish_onboarding`, session tagging of changes, the `onboard` prompt, and the bundled `docs/templates/ONBOARDING-guide.md` as agent file `guide:onboarding` (editable, per project too). Owner-only project settings and delete stay enforced. Tests.
-- [ ] T165 [US15] The onboarding review card on Needs you, the "created by agent" chip, and *Install agent files* from the card. E2E, plus the SC-018 fixture: a Jira fixture import followed by onboarding a fixture Spec Kit repo, with no duplicates.
-- [ ] T166 [US15] The Help article "Onboard a project", the README quick start for a new project, and the skills (the coordinator can onboard; the worker points to it). The skills lint stays green.
+- [x] T164 [US15] New project (the owner route and the Settings dialog), `onboard_project` (create or adopt, session, existing counts, the guide), `finish_onboarding`, session tagging of changes, the `onboard` prompt, and the bundled `docs/templates/ONBOARDING-guide.md` as agent file `guide:onboarding` (editable, per project too). Owner-only project settings and delete stay enforced. Tests.
+- [x] T165 [US15] The onboarding review card on Needs you, the "created by agent" chip, and *Install agent files* from the card. E2E, plus the SC-018 fixture: a Jira fixture import followed by onboarding a fixture Spec Kit repo, with no duplicates.
+- [x] T166 [US15] The Help article "Onboard a project", the README quick start for a new project, and the skills (the coordinator can onboard; the worker points to it). The skills lint stays green.
 
 ## How to run the build
 

@@ -11,9 +11,10 @@
  * - `prompts/get`: the arguments are checked against the shared schema (a
  *   missing or malformed `project_key`, an unknown argument, or an unknown
  *   prompt is a JSON-RPC `InvalidParams` error), then the guide comes from
- *   the `onboarding` service (domain/contracts.ts), as one user message.
- *   While that service is a stub, the message is "Onboarding guide not
- *   available yet" (B29); US15 (T164) fills it in.
+ *   the `onboarding` service (domain/onboarding.ts), as one user message:
+ *   the effective `guide:onboarding` agent file (the project's copy if the
+ *   project exists, else the default) with the key filled in (US15, T164). A
+ *   guide that isn't loaded is an InternalError saying so.
  * - Result modes (decision 28) don't apply: a prompt's messages are text in
  *   both modes (MCP_SPEC §3 Results).
  */

@@ -20,8 +20,17 @@ function withQuery(path: string, query: Record<string, string | number | undefin
 
 export const paths = {
   needsYou: () => '/',
-  work: (q: { layout?: WorkLayout; epic?: string; label?: string; filter?: string } = {}) =>
-    withQuery('/work', q),
+  work: (
+    q: {
+      layout?: WorkLayout;
+      epic?: string;
+      label?: string;
+      filter?: string;
+      /** The onboarding review card's links (decision 31; B30): one session's items. */
+      onboarding?: string;
+      onboarding_change?: 'created' | 'enriched';
+    } = {},
+  ) => withQuery('/work', q),
   item: (id: string, tab?: ItemTab) => withQuery(`/items/${encodeURIComponent(id)}`, { tab }),
   review: (id: string, round?: number) => withQuery(`/review/${encodeURIComponent(id)}`, { round }),
   label: (project: string, name: string) =>

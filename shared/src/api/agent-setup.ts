@@ -44,13 +44,17 @@ export const AGENT_SETUP_LIMITS = {
   install_token_ttl_ms: 10 * 60_000,
 } as const;
 
-/** `agents_block`, or `skill:<name>` with a name of `a-z0-9-`. */
-export const AGENT_FILE_KEY_RE = /^(agents_block|skill:[a-z0-9-]{1,60})$/;
+/**
+ * `agents_block`, `skill:<name>` with a name of `a-z0-9-`, or exactly
+ * `guide:onboarding` (the onboarding guide; decision 31, B30 contract change).
+ */
+export const AGENT_FILE_KEY_RE = /^(agents_block|skill:[a-z0-9-]{1,60}|guide:onboarding)$/;
 /** An install token: 32 random bytes, base64url without padding. */
 export const INSTALL_TOKEN_RE = /^[A-Za-z0-9_-]{43}$/;
 
 export const agentFileKey = z.string().trim().regex(AGENT_FILE_KEY_RE, {
-  error: 'Expected an agent file key: agents_block, or skill:<name> like skill:docket-worker.',
+  error:
+    'Expected an agent file key: agents_block, guide:onboarding, or skill:<name> like skill:docket-worker.',
 });
 export const installToken = z
   .string()
@@ -91,8 +95,8 @@ export type AgentFileVersion = z.infer<typeof agentFileVersionSchema>;
 export const agentFileVersionRefSchema = agentFileVersionSchema.omit({ content: true });
 export type AgentFileVersionRef = z.infer<typeof agentFileVersionRefSchema>;
 
-/** A file is a skill or the AGENTS.md block. */
-export const agentFileKindSchema = z.enum(['skill', 'agents_block']);
+/** A file is a skill, the AGENTS.md block, or the onboarding guide (decision 31; B30). */
+export const agentFileKindSchema = z.enum(['skill', 'agents_block', 'guide']);
 
 const agentFileLayersOf = <S extends z.ZodType>(layer: S) =>
   z.object({ bundled: layer.nullable(), service: layer.nullable(), project: layer.nullable() });
