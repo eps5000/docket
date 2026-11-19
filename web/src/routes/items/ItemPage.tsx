@@ -146,6 +146,8 @@ export function ItemPage() {
   const setTab = (t: ItemTab) => {
     const next = new URLSearchParams(params);
     next.set('tab', t);
+    // An open step dialog (`?step=`, B35) belongs to the Checklist tab.
+    next.delete('step');
     setParams(next, { replace: true });
   };
 

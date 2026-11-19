@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router';
 import type { ItemDetailResponse, WorkStep } from '@docket/shared';
 import { Button, EmptyState, Icon, IconButton, Provenance, Section } from '../../../components/kit';
 import { apiClient } from '../../../app/queryClient';
@@ -106,7 +107,25 @@ function StepRow({
  */
 export function WorkSection({ kind, data }: { kind: ItemKind; data: ItemDetailResponse }) {
   const [history, setHistory] = useState(false);
-  const [openStep, setOpenStep] = useState<string | null>(null);
+  // The open step lives in the URL (`?step=`, B35), so a palette hit on a step's source
+  // opens it here. A step that isn't in the current plan opens nothing.
+  const [params, setParams] = useSearchParams();
+  const work = data.item.checklist.work;
+  const stepParam = params.get('step');
+  const openStep = stepParam && work.some((w) => w.id === stepParam) ? stepParam : null;
+  const setOpenStep = (stepId: string | null) => {
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (stepId) next.set('step', stepId);
+        else next.delete('step');
+        return next;
+      },
+      // Synchronous, as local state was: → then Esc at once must close the step just shown
+      // (a navigation in a transition would still hold the previous one).
+      { replace: true, flushSync: true },
+    );
+  };
   // Esc or Close returns focus to the row of the step last shown (UI_SPEC §6.3.1a).
   const returnTo = useRef<string | null>(null);
   useEffect(() => {
@@ -116,7 +135,6 @@ export function WorkSection({ kind, data }: { kind: ItemKind; data: ItemDetailRe
     document.querySelector<HTMLElement>(`[data-step-open="${CSS.escape(id)}"]`)?.focus();
   }, [openStep]);
   const steer = useSteer(data.item.id);
-  const work = data.item.checklist.work;
   const done = work.filter((w) => w.state === 'done').length;
   const open = !['done', 'canceled'].includes(data.item.status);
   const add = (text: string) =>
