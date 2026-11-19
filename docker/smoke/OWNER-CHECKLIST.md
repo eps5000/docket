@@ -122,6 +122,25 @@ With NVDA running in Chrome:
 - [ ] Press Escape or go back; nothing is submitted. (No need to submit.)
 - [ ] Anything NVDA read wrongly, or not at all: write it down.
 
+## 7b. The UI sweep, after an update or import (3 min, unattended)
+
+The sweep (B35) is read-only, so unlike the steps above it can run against **your real
+Docket** as well as the disposable one: it only loads pages and opens and closes dialogs, and
+blocks any request that would write. Run it after each update, and after importing a project.
+
+```bash
+pnpm sweep                                    # your Docket at http://127.0.0.1:7420
+pnpm sweep -- --base http://127.0.0.1:7421    # another instance
+pnpm sweep -- --items 10 --json sweep.json    # more sample items; keep the results
+```
+
+- [ ] The last line says `0 failed`, and the command exited 0.
+- [ ] Anything failed: copy its `FAIL` block (the screen, the view, and what spilled, which axe
+      rule, or the console error) into a note for an agent. Nothing in the sweep changes data, so
+      it is safe to run again after a fix.
+- [ ] Note the slowest load time it reports. Owner views should appear in under a second
+      (SC-013); a few seconds on a 300-item board is worth reporting.
+
 ## 8. Record the results
 
 Hand this file, filled in, to an agent with "record the B18 owner checklist results", or edit:

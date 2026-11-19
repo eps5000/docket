@@ -114,6 +114,16 @@ Docket was called Task Lite until B28. Nothing you already set up stops working,
 - **Stopping:** `docker compose down` keeps your data. `docker compose down --volumes` deletes the volume and everything in it, except backups you copied to the host.
 - **Deleting a project** (Settings → Projects → *Delete…*, after typing its key) removes its items and documents together. Backups keep a copy until they age out.
 
+### After an update or import: the UI sweep
+After you update Docket or import a big project, run the read-only UI sweep against your instance. It opens every main screen (Needs you; Work as board, list, map and timeline; Agents; Agent files; Settings; Help), six sample items on each of their tabs, the palette and a step dialog, at 1024 px dark and 1440 px light. It only loads pages and opens and closes dialogs: it blocks anything that would write.
+```bash
+pnpm install                                            # once, from the repository root
+pnpm --filter @docket/web exec playwright install chromium   # once
+pnpm sweep                                              # http://127.0.0.1:7420
+pnpm sweep -- --base http://127.0.0.1:7421 --items 10   # another instance, more items
+```
+It prints a table with each screen's load time and any sideways scroll, element spilling out of its box, empty progress bar, accessibility (axe) problem or console error, and exits non-zero when something failed. In protected mode, set `DOCKET_OWNER_KEY` first. [docker/smoke/OWNER-CHECKLIST.md](docker/smoke/OWNER-CHECKLIST.md) says what to do with a failure.
+
 ## Start here (builders)
 Docket uses [Spec Kit](https://github.com/github/spec-kit) for spec-driven development. Agents get its skills (`/speckit-implement`, `/speckit-analyze` and the rest) from `.claude/skills/`.
 - [Constitution](.specify/memory/constitution.md): the non-negotiable principles every PR is checked against.
