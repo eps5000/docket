@@ -6,6 +6,7 @@ order: 4
 anchors:
   - jira.import
 related:
+  - the-checklist
   - blockers-and-dependencies
   - backups-restore-export
 ---
@@ -53,7 +54,7 @@ Then:
 - how many issues it found, and how many are imported as is, imported with changes, or skipped. The line under that says what the import creates: for example, "Imports 328 items and 57 checklist steps. Sub-tasks become checklist steps on their parent.";
 - **Imported with changes**, grouped by reason. Each reason has a count and says what is kept and what isn't. For example:
 
-  > **42 sub-tasks → checklist steps on their parent.** Kept: title, done or not done. Not kept yet: description, comments, assignee, dates (a later update keeps the description and comments).
+  > **42 sub-tasks → checklist steps on their parent.** Kept: title, done or not done, description and dates (in the step’s details), comments (in a note on the parent). Not kept: attachments, labels and links on sub-tasks (each one lists what it had).
 
   Open a reason to see its issues, each with its own details;
 - **Skipped**, grouped by reason. For example, a sub-task whose parent isn't in the import is skipped and listed here;
@@ -61,7 +62,7 @@ Then:
 - **Cycles found:** blocking loops in Jira's links. They're imported as they are and show under Problems, so you can fix them afterwards;
 - **Fields used:** which Jira fields it read story points and dates from.
 
-Fields Docket doesn't have (assignee, reporter, sprint, fix versions, components and other custom fields) aren't imported for any issue. *By field* counts them.
+Fields Docket doesn't have (assignee, reporter, sprint, fix versions, components and other custom fields) aren't imported as fields. A sub-task's assignee is kept in its step's details. *By field* counts them.
 
 *Download report (JSON)* saves it. Click *Back* to change the settings, or *Import n items and m checklist steps* to go ahead.
 
@@ -70,3 +71,17 @@ Fields Docket doesn't have (assignee, reporter, sprint, fix versions, components
 The import shows its progress, then the result. Attachments are downloaded too, and any that fail are listed. A copy of the report is saved in the project's documents. Click *Open project* to switch to it and go to Work.
 
 Imported items show an **Imported from Jira** chip, and searching for the Jira key finds them.
+
+## What happens to sub-tasks
+
+Each sub-task becomes a checklist step on its parent, in the parent's Work section:
+
+- the step's text is the sub-task's title, and it's done, current or to do from the sub-task's status;
+- its **source** is the sub-task's Jira key. In the step dialog the key links to the issue in Jira;
+- its **details** start with a header line, for example `Jira GF-123 · assignee Sam Lee · start Nov 2, 2026 · due Dec 4, 2026 · 3 pts` (parts the sub-task didn't have are left out), then its description as Markdown. If the conversion simplified something, such as a panel, a last line says so. Descriptions follow the same rules as an item's: one that looks like a secret is left out, a very long one is shortened, and the report lists both.
+
+Open a step's details from its title or its document icon (see [The checklist and step details](/help/the-checklist)).
+
+The sub-tasks' **comments** are collected on the parent, in a note called **Comments from Jira sub-tasks**: one section per sub-task (`GF-123 Title`), each comment with its author and date. If they don't fit in one note, they continue in numbered notes ("(1 of 2)", "(2 of 2)"). You'll find the notes in the parent's Activity → History, and the agent that next reads the parent receives them, like any note you leave. Comments follow the same rules as the parent's own: ones that look like secrets are left out and listed in the report.
+
+A sub-task's attachments, labels and links aren't imported; each sub-task in the report lists what it had. An import always goes into a new or empty project, so importing again never adds the notes twice.

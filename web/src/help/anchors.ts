@@ -31,6 +31,7 @@ export const HELP_ANCHORS = {
   'item.question': 'Ticket: the open question banner',
   'item.lead-and-runs': 'Ticket → Activity → Lead and runs',
   'item.history': 'Ticket → Activity → History (the note box)',
+  'item.work': 'Ticket → Checklist → Work (steps and the step dialog)',
   'item.human-review': 'Ticket → Checklist → Human review',
   'item.dependencies': 'Ticket → Dependencies',
   'item.dates': 'Ticket → Details → Dates and effort',

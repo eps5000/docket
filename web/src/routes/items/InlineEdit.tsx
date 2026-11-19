@@ -63,7 +63,8 @@ export function ConflictCallout({
   onUseMine,
   onKeepTheirs,
 }: {
-  conflict: EditConflict;
+  /** Who changed it and when (an item's text, or a step's details in the step dialog). */
+  conflict: Pick<EditConflict, 'changed_by' | 'changed_at'>;
   theirs: ReactNode | string;
   markdown?: boolean;
   onUseMine: () => void;

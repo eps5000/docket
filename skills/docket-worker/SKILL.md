@@ -42,14 +42,15 @@ The project has its own rules: who moves work to Ready, when human review is nee
 
 - **`set_plan`:** 3–8 one-line steps, each a verifiable piece of progress. Steps aren't tickets. Create a new item only when a piece needs its own blocker, owner or review.
   - The first plan sends `steps: [{ text }, …]` only. Docket assigns the step IDs and returns them; use those with `update_step`. Never make up an ID: an unknown one is refused.
+  - **Keep each step's `text` to one line.** Context a step needs (reproduction steps, file paths, what done looks like) goes in its `details` (Markdown), and where it came from in `source` (for example a Jira key): `steps: [{ text, details, source }, …]`. Like the rest of the plan, details patch: leave them out to keep them, send `null` to clear them.
 - **`set_checks`:** what you'll verify yourself, stated concretely. For example "Planner unit tests pass" or "Reload keeps the selected week (e2e)", never "it works".
 - **Human review:** if the project rules say this item needs it and none is declared, `declare_human_review` now. Write plain instructions the owner can follow in minutes. See `docket-review-packet`.
 - **Changing the plan later:** patch it, and give a `reason`. Send only the steps that change. Don't silently drop a step: mark it `skipped`, with a note.
 
 ## 3. The loop, per step
 
-1. `update_step { step_id, state: "current" }`.
-2. Do the work.
+1. `update_step { step_id, state: "current" }`. If `get_item` shows the step with `· details`, read them first with `get_step { id, step_id }`. (`get_context` already includes the current step's details; a `…truncated` line there means read the rest with `get_step`.)
+2. Do the work. Found something the next agent needs for this step? Add it to the step's details: `update_step { step_id, state, details }`.
 3. Commit, **push**, then `report_commit { sha, branch, pushed: true }`. Push work in progress at every step: a pushed commit survives a crash or a pruned worktree; an unpushed one may not.
 4. `update_check` as checks pass or fail, with evidence: the command and its result, one line.
 5. `update_step { state: "done" }`.
@@ -104,7 +105,7 @@ To change these instructions, use `get_agent_files` then `propose_agent_file_cha
 - **Write small.** `set_plan`, `set_checks` and `update_item` patch, so send only what changed.
 - **Pass an `idempotency_key`** on any write you might retry after a timeout.
 - **Keep text short:**
-  - steps: one line;
+  - steps: one line, with longer context in their `details`;
   - notes: one or two sentences;
   - evidence: the command and its result.
 - **Never paste secrets.** The write is rejected and nothing is stored.
