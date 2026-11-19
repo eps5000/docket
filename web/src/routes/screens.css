@@ -314,6 +314,9 @@
 }
 .tl .tk-head h1 {
   margin: 0;
+  /* B35: a title holding a long path or URL breaks inside it (Linux fonts pushed a
+     90-character path 38 px past the page at 1024 px). */
+  overflow-wrap: anywhere;
 }
 .tl .banner {
   border: 1px solid var(--warn);

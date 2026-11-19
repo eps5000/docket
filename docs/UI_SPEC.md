@@ -430,7 +430,7 @@ A `ProgressMap` of the filtered set, titled "Outside this view". When no epic or
   - "New items aren't in the current packet; the agent includes them next round." (packet open).
 
 #### 6.3.1a Step dialog (decision 33)
-- **Opening it:** clicking a step's title, or its details icon (shown when the step has details, with an accessible name of "Details for <step>"), opens a dialog. There's no inline expansion. The row also shows the step's source, muted, after the icon (B34). The open step is in the URL (`?step=<id>`, B35), so a palette hit on a sub-task key, a reload or a shared link opens it; closing the dialog or switching tabs removes it.
+- **Opening it:** clicking a step's title, or its details icon (shown when the step has details, with an accessible name of "Details for <step>"), opens a dialog. There's no inline expansion. The row also shows the step's source, muted, after the icon (B34). A link with `?step=<id>` (B35; the palette's sub-task key hits) opens that step's dialog, and the parameter then leaves the URL; moving and closing are local, as before.
 - **Contents:**
   - the title, status chip and source (a Jira key linking to the Jira issue when the project has a Jira site);
   - the rendered details (Markdown, sanitized);

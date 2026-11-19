@@ -107,25 +107,30 @@ function StepRow({
  */
 export function WorkSection({ kind, data }: { kind: ItemKind; data: ItemDetailResponse }) {
   const [history, setHistory] = useState(false);
-  // The open step lives in the URL (`?step=`, B35), so a palette hit on a step's source
-  // opens it here. A step that isn't in the current plan opens nothing.
-  const [params, setParams] = useSearchParams();
   const work = data.item.checklist.work;
+  const [openStep, setOpenStep] = useState<string | null>(null);
+  // A link to one step (`?step=`, B35: a palette hit on a step's source) opens its dialog,
+  // and the parameter then leaves the URL. Moving and closing stay local state: a
+  // navigation there runs in a transition and raced Esc's focus return on CI. A step that
+  // isn't in the current plan opens nothing.
+  const [params, setParams] = useSearchParams();
   const stepParam = params.get('step');
-  const openStep = stepParam && work.some((w) => w.id === stepParam) ? stepParam : null;
-  const setOpenStep = (stepId: string | null) => {
+  const [adopted, setAdopted] = useState<string | null>(null);
+  if (stepParam !== adopted) {
+    setAdopted(stepParam);
+    if (stepParam && work.some((w) => w.id === stepParam)) setOpenStep(stepParam);
+  }
+  useEffect(() => {
+    if (!stepParam) return;
     setParams(
       (prev) => {
         const next = new URLSearchParams(prev);
-        if (stepId) next.set('step', stepId);
-        else next.delete('step');
+        next.delete('step');
         return next;
       },
-      // Synchronous, as local state was: → then Esc at once must close the step just shown
-      // (a navigation in a transition would still hold the previous one).
-      { replace: true, flushSync: true },
+      { replace: true },
     );
-  };
+  }, [stepParam, setParams]);
   // Esc or Close returns focus to the row of the step last shown (UI_SPEC §6.3.1a).
   const returnTo = useRef<string | null>(null);
   useEffect(() => {

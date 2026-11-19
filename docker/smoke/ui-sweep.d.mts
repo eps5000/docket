@@ -2,6 +2,8 @@
 export interface LayoutReport {
   /** How far the page scrolls sideways, in px (0 is fine). */
   sideways: number;
+  /** When it does: the innermost elements that reach past the right edge, described. */
+  sidewaysBy: string[];
   /** Elements outside their parent with nothing between that scrolls or clips. */
   overflowCount: number;
   /** The first few of them, described. */

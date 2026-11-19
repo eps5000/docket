@@ -81,7 +81,8 @@ test('palette: a sub-task key in a step source finds the parent, and opens the s
   await expectAxeClean(page, 'Palette with a step hit', { include: '[role="dialog"]' });
 
   await first.click();
-  await expect(page).toHaveURL(/\/items\/STR-203\?tab=checklist&step=wst_/);
+  // The link carried ?step=<id>; the page opens that step, then drops it from the URL.
+  await expect(page).toHaveURL(/\/items\/STR-203\?tab=checklist$/);
   const dialog = page.getByRole('dialog', { name: STEP });
   await expect(dialog).toBeVisible();
   await expect(dialog.locator('[data-step-source]')).toContainText('STRESS-227');

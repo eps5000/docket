@@ -160,8 +160,35 @@ function inPageLayout(maxDetails) {
       return s.display !== 'none' && i.getBoundingClientRect().height < 2;
     })
     .map((i) => describe(i.closest('.pbar')?.parentElement ?? i));
+  // When the page scrolls sideways, name what reaches past the right edge: the innermost
+  // elements whose box or text does, unless a scroll box that ends inside the page clips them
+  // (absolutely positioned ones are always named: they can escape a scroll box).
+  let reach = [];
+  if (sideways > 0) {
+    const vw = doc.clientWidth;
+    const clippedInside = (el) => {
+      for (let a = el.parentElement; a && a !== doc; a = a.parentElement) {
+        if (clips(a) && a.getBoundingClientRect().right <= vw + 1) return true;
+      }
+      return false;
+    };
+    const found = [];
+    for (const el of document.body.querySelectorAll('*')) {
+      const r = el.getBoundingClientRect();
+      if (r.width === 0 && r.height === 0) continue;
+      const right = Math.max(r.right, r.left + el.scrollWidth);
+      if (right <= vw + 1) continue;
+      const positioned = ['absolute', 'fixed'].includes(getComputedStyle(el).position);
+      if (!positioned && clippedInside(el)) continue;
+      found.push({ el, right });
+    }
+    reach = found
+      .filter((f) => !found.some((o) => o !== f && f.el.contains(o.el)))
+      .map((f) => `${describe(f.el)} reaches ${Math.round(f.right)}px`);
+  }
   return {
     sideways,
+    sidewaysBy: reach.slice(0, maxDetails),
     overflowCount: overflow.length,
     overflow: overflow.slice(0, maxDetails),
     flatCount: flat.length,
@@ -188,6 +215,7 @@ export async function checkPage(page, { console: consoleErrors = [], loadMs = nu
   return {
     loadMs,
     sideways: layout.sideways,
+    sidewaysBy: layout.sidewaysBy,
     overflowCount: layout.overflowCount,
     overflow: layout.overflow,
     flatCount: layout.flatCount,
@@ -330,6 +358,8 @@ async function sweep(opts) {
             error: String(e.message).split('\n')[0],
             loadMs: Date.now() - t0,
             sideways: 0,
+            sidewaysBy: [],
+            sidewaysBy: [],
             overflowCount: 0,
             overflow: [],
             flatCount: 0,
@@ -418,6 +448,7 @@ async function sweep(opts) {
           error: 'No item with step details found',
           loadMs: null,
           sideways: 0,
+          sidewaysBy: [],
           overflowCount: 0,
           overflow: [],
           flatCount: 0,
@@ -464,6 +495,7 @@ function printReport({ base, results, blocked }) {
     out.push(`FAIL ${r.screen} (${r.view})`);
     if (r.error) out.push(`  error: ${r.error}`);
     if (r.sideways) out.push(`  the page scrolls sideways by ${r.sideways}px`);
+    for (const w of r.sidewaysBy ?? []) out.push(`    ${w}`);
     for (const o of r.overflow) out.push(`  overflow: ${o}`);
     if (r.overflowCount > r.overflow.length)
       out.push(`  … and ${r.overflowCount - r.overflow.length} more`);
@@ -509,7 +541,10 @@ async function selfTest() {
       <script>console.error('self-test error')</script></main></body></html>`);
     const r = await checkPage(page, { console: errors });
     const expectations = [
-      ['sideways scroll', r.sideways > 0],
+      [
+        'sideways scroll, naming the wide element',
+        r.sideways > 0 && r.sidewaysBy.some((w) => w.startsWith('div.page')),
+      ],
       // The spill and the wide page; not the clipped one.
       ['unclipped overflow', r.overflowCount === 2],
       ['flat progress fill', r.flatCount === 1],

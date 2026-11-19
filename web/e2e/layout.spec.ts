@@ -66,11 +66,9 @@ async function stressScope(page: Page): Promise<void> {
 }
 
 async function expectNoSpill(page: Page): Promise<void> {
-  const overflow = await page.evaluate(
-    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-  );
-  expect(overflow, 'the page scrolls sideways').toBeLessThanOrEqual(0);
   const report = await layoutReport(page);
+  expect(report.sidewaysBy, `the page scrolls sideways by ${report.sideways}px`).toEqual([]);
+  expect(report.sideways, 'the page scrolls sideways').toBe(0);
   expect(
     report.overflow,
     `${report.overflowCount} elements outside their container, with nothing that scrolls or clips`,
