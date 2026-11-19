@@ -1,0 +1,76 @@
+UI sweep of http://127.0.0.1:7435
+
+| Screen                 | View       | Load ms | Scroll | Overflow | Flat | Axe | Console |
+|------------------------|------------|---------|--------|----------|------|-----|---------|
+| Needs you              | 1024 dark  | 669     | ok     | ok       | ok   | ok  | ok      |
+| Work board             | 1024 dark  | 583     | ok     | ok       | ok   | ok  | ok      |
+| Work list              | 1024 dark  | 633     | ok     | ok       | ok   | ok  | ok      |
+| Work map               | 1024 dark  | 621     | ok     | ok       | ok   | ok  | ok      |
+| Work timeline          | 1024 dark  | 644     | ok     | ok       | ok   | ok  | ok      |
+| Agents                 | 1024 dark  | 577     | ok     | ok       | ok   | ok  | ok      |
+| Agent files            | 1024 dark  | 612     | ok     | ok       | ok   | ok  | ok      |
+| Settings               | 1024 dark  | 593     | ok     | ok       | ok   | ok  | ok      |
+| Help                   | 1024 dark  | 570     | ok     | ok       | ok   | ok  | ok      |
+| STR-40 · first tab     | 1024 dark  | 573     | ok     | ok       | ok   | ok  | ok      |
+| STR-40 · Checklist     | 1024 dark  | 33      | ok     | ok       | ok   | ok  | ok      |
+| STR-40 · Dependencies  | 1024 dark  | 32      | ok     | ok       | ok   | ok  | ok      |
+| STR-40 · Activity      | 1024 dark  | 11      | ok     | ok       | ok   | ok  | ok      |
+| STR-35 · first tab     | 1024 dark  | 586     | ok     | ok       | ok   | ok  | ok      |
+| STR-35 · Checklist     | 1024 dark  | 27      | ok     | ok       | ok   | ok  | ok      |
+| STR-35 · Dependencies  | 1024 dark  | 18      | ok     | ok       | ok   | ok  | ok      |
+| STR-35 · Activity      | 1024 dark  | 21      | ok     | ok       | ok   | ok  | ok      |
+| STR-3 · first tab      | 1024 dark  | 589     | ok     | ok       | ok   | ok  | ok      |
+| STR-3 · Checklist      | 1024 dark  | 26      | ok     | ok       | ok   | ok  | ok      |
+| STR-3 · Map            | 1024 dark  | 10      | ok     | ok       | ok   | ok  | ok      |
+| STR-3 · Activity       | 1024 dark  | 19      | ok     | ok       | ok   | ok  | ok      |
+| STR-1 · first tab      | 1024 dark  | 583     | ok     | ok       | ok   | ok  | ok      |
+| STR-1 · Checklist      | 1024 dark  | 27      | ok     | ok       | ok   | ok  | ok      |
+| STR-1 · Map            | 1024 dark  | 11      | ok     | ok       | ok   | ok  | ok      |
+| STR-1 · Activity       | 1024 dark  | 25      | ok     | ok       | ok   | ok  | ok      |
+| STR-206 · first tab    | 1024 dark  | 571     | ok     | ok       | ok   | ok  | ok      |
+| STR-206 · Checklist    | 1024 dark  | 11      | ok     | ok       | ok   | ok  | ok      |
+| STR-206 · Dependencies | 1024 dark  | 22      | ok     | ok       | ok   | ok  | ok      |
+| STR-206 · Activity     | 1024 dark  | 9       | ok     | ok       | ok   | ok  | ok      |
+| RCP-12 · first tab     | 1024 dark  | 591     | ok     | ok       | ok   | ok  | ok      |
+| RCP-12 · Checklist     | 1024 dark  | 25      | ok     | ok       | ok   | ok  | ok      |
+| RCP-12 · Dependencies  | 1024 dark  | 26      | ok     | ok       | ok   | ok  | ok      |
+| RCP-12 · Activity      | 1024 dark  | 26      | ok     | ok       | ok   | ok  | ok      |
+| Palette                | 1024 dark  | 1030    | ok     | ok       | ok   | ok  | ok      |
+| STR-40 · step dialog   | 1024 dark  | 630     | ok     | ok       | ok   | ok  | ok      |
+| Needs you              | 1440 light | 635     | ok     | ok       | ok   | ok  | ok      |
+| Work board             | 1440 light | 584     | ok     | ok       | ok   | ok  | ok      |
+| Work list              | 1440 light | 623     | ok     | ok       | ok   | ok  | ok      |
+| Work map               | 1440 light | 630     | ok     | ok       | ok   | ok  | ok      |
+| Work timeline          | 1440 light | 618     | ok     | ok       | ok   | ok  | ok      |
+| Agents                 | 1440 light | 572     | ok     | ok       | ok   | ok  | ok      |
+| Agent files            | 1440 light | 593     | ok     | ok       | ok   | ok  | ok      |
+| Settings               | 1440 light | 592     | ok     | ok       | ok   | ok  | ok      |
+| Help                   | 1440 light | 575     | ok     | ok       | ok   | ok  | ok      |
+| STR-40 · first tab     | 1440 light | 582     | ok     | ok       | ok   | ok  | ok      |
+| STR-40 · Checklist     | 1440 light | 15      | ok     | ok       | ok   | ok  | ok      |
+| STR-40 · Dependencies  | 1440 light | 16      | ok     | ok       | ok   | ok  | ok      |
+| STR-40 · Activity      | 1440 light | 25      | ok     | ok       | ok   | ok  | ok      |
+| STR-35 · first tab     | 1440 light | 571     | ok     | ok       | ok   | ok  | ok      |
+| STR-35 · Checklist     | 1440 light | 21      | ok     | ok       | ok   | ok  | ok      |
+| STR-35 · Dependencies  | 1440 light | 23      | ok     | ok       | ok   | ok  | ok      |
+| STR-35 · Activity      | 1440 light | 20      | ok     | ok       | ok   | ok  | ok      |
+| STR-3 · first tab      | 1440 light | 582     | ok     | ok       | ok   | ok  | ok      |
+| STR-3 · Checklist      | 1440 light | 11      | ok     | ok       | ok   | ok  | ok      |
+| STR-3 · Map            | 1440 light | 22      | ok     | ok       | ok   | ok  | ok      |
+| STR-3 · Activity       | 1440 light | 24      | ok     | ok       | ok   | ok  | ok      |
+| STR-1 · first tab      | 1440 light | 570     | ok     | ok       | ok   | ok  | ok      |
+| STR-1 · Checklist      | 1440 light | 13      | ok     | ok       | ok   | ok  | ok      |
+| STR-1 · Map            | 1440 light | 22      | ok     | ok       | ok   | ok  | ok      |
+| STR-1 · Activity       | 1440 light | 10      | ok     | ok       | ok   | ok  | ok      |
+| STR-206 · first tab    | 1440 light | 570     | ok     | ok       | ok   | ok  | ok      |
+| STR-206 · Checklist    | 1440 light | 19      | ok     | ok       | ok   | ok  | ok      |
+| STR-206 · Dependencies | 1440 light | 13      | ok     | ok       | ok   | ok  | ok      |
+| STR-206 · Activity     | 1440 light | 26      | ok     | ok       | ok   | ok  | ok      |
+| RCP-12 · first tab     | 1440 light | 582     | ok     | ok       | ok   | ok  | ok      |
+| RCP-12 · Checklist     | 1440 light | 17      | ok     | ok       | ok   | ok  | ok      |
+| RCP-12 · Dependencies  | 1440 light | 23      | ok     | ok       | ok   | ok  | ok      |
+| RCP-12 · Activity      | 1440 light | 24      | ok     | ok       | ok   | ok  | ok      |
+| Palette                | 1440 light | 1011    | ok     | ok       | ok   | ok  | ok      |
+| STR-40 · step dialog   | 1440 light | 628     | ok     | ok       | ok   | ok  | ok      |
+
+70 checks, 0 failed. Load: median 33 ms, slowest 1030 ms (Palette, 1024 dark).
