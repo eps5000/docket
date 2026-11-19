@@ -175,7 +175,7 @@ test.describe('dialogs: axe while open, and the keyboard (T142)', () => {
   }) => {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: /^For you now/ })).toBeVisible();
-    await page.getByRole('button', { name: '+ New' }).click();
+    await page.getByRole('button', { name: '+ New item' }).click();
     const dialog = page.getByRole('dialog', { name: 'New item in Inbox' });
     await expect(dialog).toBeVisible();
     await expect(dialog.getByRole('textbox').first()).toBeFocused();

@@ -7,6 +7,7 @@ import { CONNECTION_TEXT, useConnection, useFocusKeeper } from '../lib/live';
 import { Notifier, tabTitle } from '../lib/notifications';
 import { paths } from '../lib/paths';
 import { toasts, useToasts } from '../lib/undo';
+import { ProjectDialogsHost } from '../routes/dialogs/ProjectDialogsHost';
 import { QuickCaptureHost } from '../routes/dialogs/QuickCapture';
 import { Header } from './Header';
 import { PaletteHost } from './PaletteHost';
@@ -147,6 +148,7 @@ export function AppShell() {
       </div>
       <PaletteHost />
       <QuickCaptureHost />
+      <ProjectDialogsHost />
       <ToastRegion toasts={toastList} onDismiss={toasts.dismiss} />
     </>
   );

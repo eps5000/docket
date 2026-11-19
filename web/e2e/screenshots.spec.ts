@@ -98,7 +98,7 @@ test.describe('screenshots', () => {
       await shoot(page, 'dialog-rotate-key');
       await page.keyboard.press('Escape');
     }
-    await page.getByRole('button', { name: '+ New' }).click();
+    await page.getByRole('button', { name: '+ New item' }).click();
     await expect(page.getByRole('dialog')).toBeVisible();
     await shoot(page, 'dialog-quick-capture');
   });

@@ -32,7 +32,7 @@ Agents do almost all the writing. The owner verifies, decides, nudges and archiv
 
 ```
 ┌──────────────┬────────────────────────────────────────────────────────────────┐
-│ Sidebar 220  │ Header: breadcrumb · [+ New] · [Search… Ctrl K] · [theme]       │ 9px 18px padding
+│ Sidebar 220  │ Header: breadcrumb · [+ New item|▾] · [Search… Ctrl K] · [theme]│ 9px 18px padding
 │  Logo        ├────────────────────────────────────────────────────────────────┤
 │  Project ▾   │ Open-item tab strip (only when ≥1 item open)                    │
 │  Needs you ③ ├────────────────────────────────────────────────────────────────┤
@@ -47,7 +47,7 @@ Agents do almost all the writing. The owner verifies, decides, nudges and archiv
 
 - **Grid:** `220px minmax(0,1fr)`. Every grid child needs `min-width:0`. (Without it, wide maps and tables push the layout wider than the window.)
 - **Sidebar:**
-  - **Project switcher** (*All projects* or one project): a menu of radio items, each with its for-you count. It scopes every page except Settings.
+  - **Project switcher** (*All projects* or one project): a menu of radio items, each with its for-you count. It scopes every page except Settings. Below the projects and the hint, after a separator, the last item is **+ New project** (a `menuitem`; B32), which opens the New project dialog (§6.7d). Arrow keys, Home and End reach it like the projects.
   - **Nav items:** Needs you (red badge = for-you count), Work, Agents (gray badge = active runs), **Agent files** (B25: project-scoped like the others, so not under the divider), then the "Service-wide" divider, Settings and **Help** (decision 29).
   - **Health line** at the bottom: "Healthy · N clients", linking to Settings. When unhealthy, it shows "Service problem" in `--bad` with the same link.
 - **Header:**
@@ -56,7 +56,8 @@ Agents do almost all the writing. The owner verifies, decides, nudges and archiv
     - tickets: `Project / ◆ Epic / ID Title`, where the epic is a link back to the tab you left;
     - packet: `Needs you / Human review · ID`;
     - Settings: `Settings` plus a "Service-wide" pill.
-  - **+ New** (primary), **Search** (opens the palette; `Ctrl K` or `/`), and a theme toggle cycling System → Light → Dark.
+  - **+ New item** (primary), **Search** (opens the palette; `Ctrl K` or `/`), and a theme toggle cycling System → Light → Dark.
+  - **+ New item** (B32) is a split button. The main part stays one click for Quick capture (§6.9); its tooltip is "New item: capture it in Inbox". A caret beside it (accessible name "More to create", tooltip "Create a new item or a new project") opens a small menu: **New item** ("Capture it in Inbox") and **New project** ("A key, a name, then what next"). With no projects, the whole button is **+ New project** (tooltip "Create your first project") and opens New project. There is no keyboard shortcut for New item (there wasn't one before either).
 - **Open-item tabs:** every ticket or epic you open becomes a tab.
   - Each tab is a fixed 200px with type icon, ID and title, and an × to close.
   - At most 8 tabs; when a 9th opens, the oldest inactive one closes.
@@ -251,6 +252,20 @@ Every screen has three states before its content renders:
 - **Loading:** skeleton blocks for the card shapes after 200 ms. Never a spinner over the whole view.
 - **Error:** an inline `--bad-soft` callout in place of the content, with the error code, one-line message and *Retry*.
 - **Empty:** the per-card lines specified below.
+
+### 6.0 First run (B32)
+What a Docket with **no projects** shows. Deleted projects don't count: the test is the bootstrap's project list being empty. While bootstrap loads or fails, screens render as usual, so a slow start never flashes the Welcome page.
+
+- **Needs you (`/`) is the Welcome page:**
+  - **h1 "Welcome to Docket"** with the "?" (anchor `needs-you.welcome`, article "Your first look around"), and the line "The shared record your AI agents work from.";
+  - **three starts**, as cards in a row (stacked under 1000px), each with an h2:
+    - **Create a project:** "Start empty…", *New project* (primary) opens the New project dialog (§6.7d);
+    - **Import from Jira:** "Copy a Jira Cloud project into a new Docket project, after a dry run…", *Import from Jira…* opens the import (§9.2) with *New project* selected;
+    - **Onboard a repo with an agent:** the line to give an agent, "Onboard this repo into Docket as project <KEY>, using onboard_project." with *Copy*, the `onboard` prompt name, and a callout "The agent needs to be connected first: see Connect an agent" (a link to Help → Connect an agent);
+  - **"How Docket works:"** one line (agents claim items, log what they do and hand finished work back for review; you decide on Needs you; Docket doesn't start agents), then *Read Help*.
+- **Work, Agents and Agent files** show one line instead of their empty states: "No projects yet. Start on the Welcome page to create one, import one from Jira, or have an agent onboard a repo." (the link goes to `/`). Work and Agents show only their h1 and that line; Agent files keeps its defaults list below it (they can be installed user-wide before any project exists).
+- **The header** shows *+ New project* (§2).
+- **After the first project is created,** the New project dialog lands on its "What next" choices (§6.7d) and the scope switches to the new project. Closing it leaves the Welcome page for the normal Needs you.
 
 ### 6.1 Needs you (`/`)
 Fits one 1440×900 screen without scrolling at sample volume. Contents, top to bottom:
@@ -659,6 +674,11 @@ Help anchors: `agent-files.page` (the h1), `agent-files.workflow`, `agent-files.
 
 ### 6.7d New project and onboarding review (decision 31)
 - **Settings → *New project*:** a dialog with key (2–5 letters, uppercase as you type, checked for uniqueness), name, colour and *Blockers clear when*. After creating, it offers "Onboard it with an agent". That shows the line to give an agent ("Onboard this repo into Docket as project GF, using onboard_project"), the prompt name for clients that support prompts, and *Import from Jira…*.
+- **B32: "What next".** The dialog opens from anywhere: the Welcome page (§6.0), the header's *+ New* menu, the project switcher's *+ New project*, and Settings → Projects. After creating, it is titled "<Name> created" and lands on **What next** (h3, with the "?"), three choices in order:
+  1. **Import from Jira:** "Tickets in Jira? Import them first, so an agent enriches them instead of duplicating them." *Import from Jira…* opens the import with the new project as its target;
+  2. **Onboard it with an agent:** the explanation, the line and the prompt, each with *Copy* (as in B30);
+  3. **Install agent files:** "Put Docket's AGENTS.md block, skills and connection file into the repo, so agents there find Docket." *Install agent files* opens Agent files for the project (`/agent-files?project=GF`).
+  The footer has *Switch to GF* (not shown for the first project, which is already switched to) and *Done*.
 - **The Needs you card,** when an onboarding is ready for review: "<Project> was set up by <agent> · review". It shows the counts (created, enriched, documents, decisions, proposals) linking to filtered views, the agent's summary and questions, the proposed Workflow notes (linking to the proposal), *Install agent files*, and *Mark reviewed*.
 - **Agent-created projects** show a "created by <agent> · review" chip in Settings and in the project switcher until reviewed. In Settings it links to Needs you; in the switcher it sits under the project's name.
 - **B30 details:**
@@ -707,7 +727,7 @@ A centred card on the page background:
 On success, go to the page that was requested.
 
 ### 6.9 Dialogs
-- **Quick capture (+ New):**
+- **Quick capture (+ New item):**
   - fields: Title (required, focused), Type (Story default), Project (the current scope, else the first project), Epic (optional; prefilled and fixed when opened from *+ New item in this epic*), Notes;
   - *Create* puts the item in Inbox and opens it. From an epic, you stay on the epic and get a toast "RCP-31 added to Pantry";
   - empty title: toast "Give it a title" and focus the title.
@@ -773,21 +793,32 @@ All of these are off under `prefers-reduced-motion: reduce`.
   - without one: the "No forecast yet…" line.
 
 ### 9.2 Jira import (Settings → Projects → *Import from Jira…*)
-A dialog with three steps. A step indicator "1 Connect · 2 Review · 3 Import" sits at the top, and *Back* is available on step 2.
+A dialog with three steps. A step indicator "1 Connect · 2 Review · 3 Import" sits at the top, and *Back* is available on step 2. Since B32 it also opens from the Welcome page (§6.0) and from New project's "What next" (§6.7d).
 
 1. **Connect:**
    - fields: Jira site (`https://yoursite.atlassian.net`), Email, API token (password field, with "Used for this import only. Not saved."), Jira project key, and Import into (New project: key + name | Existing empty project);
+   - **under the site (B32):** "Just the site: https://<yoursite>.atlassian.net, with no /jira and no path." Leaving the field normalises it: `https://` added if missing; paths (`/jira/…`, `/browse/…`), queries and trailing slashes dropped. The server normalises it again;
+   - **under the token (B32):** a **"Which token?"** disclosure: *Use a personal API token* (link to id.atlassian.com → Security → API tokens, *Create API token*; it must belong to the email above); *Tokens with scopes work too* (give them `read:jira-work` and `read:jira-user`; Docket reaches Jira through `api.atlassian.com` for them); *Organization API keys don't work* (the keys from admin.atlassian.com are for Atlassian's admin APIs only and can't read Jira projects or work items). The link is underlined and opens in a new tab;
    - *Run dry run* (primary);
-   - errors inline: "Couldn't sign in to Jira. Check the email and API token.", "Project ABC not found or not visible to this account.";
+   - **errors inline (B32),** one `role="alert"` callout, the token field cleared:
+     - "Site not found: check the URL (https://yoursite.atlassian.net).";
+     - "That looks like an organization API key from admin.atlassian.com. Those can't read Jira. Create a personal API token at id.atlassian.com instead.";
+     - "Wrong email or API token. The token must belong to <email>'s Atlassian account.";
+     - "Signed in, but this account can't browse that project (or the token's scopes don't include reading Jira work items)." For a scoped token it adds "A scoped token needs the read:jira-work and read:jira-user scopes.";
+     - "Project ABC not found or not visible to this account.";
+     - (BUILD_SPEC §9 "Signing in" has the probe order that picks one);
    - while it runs: a progress line, "Reading 140 of 512 issues…", plus *Cancel*.
-2. **Review report:**
-   - **summary tiles:** n issues, n would import, n skipped, n lossy, attachments size;
-   - **mapping table** (Jira → Docket, count, lossy count);
-   - an expandable **Lossy items** list (key, title, reason);
+2. **Review report (B32 wording):**
+   - **a legend** at the top: **Imported as is** (comes across unchanged), **Imported with changes** (what changes, and what isn't kept, is listed by reason below), **Skipped** (not imported, with the reason). The word "lossy" is never shown;
+   - **summary tiles:** n issues, n as is, n with changes, n skipped, attachments size;
+   - **the summary line:** "Imports 328 items and 57 checklist steps. Sub-tasks become checklist steps on their parent." (no steps part when there are none);
+   - **Imported with changes,** grouped by reason, one row each: the count and what happens in bold ("42 sub-tasks → checklist steps on their parent"), opening to the issues (key, title, that issue's details), and under it what is kept and not ("Kept: title, done or not done. Not kept yet: description, comments, assignee, dates (a later update keeps the description and comments)."). The reasons and their lines come from BUILD_SPEC §9's mapping table. Then one line: fields Docket doesn't have (assignee, reporter, sprint, fix versions, components, other custom fields) aren't imported for any issue, and *By field* counts them;
+   - **Skipped,** grouped the same way (for example "1 sub-task whose parent isn't in this import");
+   - **mapping table** (Jira → Docket, count, with-changes count; sub-task rows read "Checklist step on the parent"), and *By field* (mapped, skipped, with changes);
    - **Cycles found** (if any): "Imported as is. They'll show under Problems.";
    - **Fields used:** "Story points → customfield_10016", "Start date → not found";
    - *Download report (JSON)*;
-   - *Import n items* (primary) and *Cancel*.
+   - *Import n items and m checklist steps* (primary; "Import n items" when there are no steps) and *Cancel*.
 3. **Import:** a progress line ("Importing… / Downloading attachments 12 of 40"), then a result: "Imported 498 items into ABC. 3 attachments failed (listed). The report is saved in the project's documents." *Open project* switches the scope and goes to Work.
 
 Owner-only. The token never appears again after step 1.

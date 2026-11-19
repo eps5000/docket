@@ -60,9 +60,16 @@ function NavItem({
   );
 }
 
-/** Project switcher: a menu of `menuitemradio` items, each with its for-you count (UI_SPEC §2, §11). */
+/** The switcher's focusable rows: the projects, and *+ New project* (B32). */
+const MENU_ITEMS = '[role="menuitemradio"], [role="menuitem"]';
+
+/**
+ * Project switcher: a menu of `menuitemradio` items, each with its for-you
+ * count (UI_SPEC §2, §11), and *+ New project* at the bottom, after a
+ * separator (B32).
+ */
 function ProjectSwitcher() {
-  const { scope, setScope } = useShell();
+  const { scope, setScope, setProjectDialog } = useShell();
   const boot = useBootstrap();
   const [open, setOpen] = useState(false);
   const btn = useRef<HTMLButtonElement>(null);
@@ -88,7 +95,7 @@ function ProjectSwitcher() {
 
   useEffect(() => {
     if (!open) return;
-    const items = menu.current?.querySelectorAll<HTMLElement>('[role="menuitemradio"]');
+    const items = menu.current?.querySelectorAll<HTMLElement>(MENU_ITEMS);
     const checked = menu.current?.querySelector<HTMLElement>('[aria-checked="true"]');
     (checked ?? items?.[0])?.focus();
     const onDown = (e: MouseEvent) => {
@@ -105,9 +112,7 @@ function ProjectSwitcher() {
   };
 
   const onMenuKey = (e: KeyboardEvent<HTMLDivElement>) => {
-    const items = Array.from(
-      menu.current?.querySelectorAll<HTMLElement>('[role="menuitemradio"]') ?? [],
-    );
+    const items = Array.from(menu.current?.querySelectorAll<HTMLElement>(MENU_ITEMS) ?? []);
     const i = items.indexOf(document.activeElement as HTMLElement);
     if (e.key === 'Escape') {
       e.preventDefault();
@@ -189,6 +194,20 @@ function ProjectSwitcher() {
             </button>
           ))}
           <div className="hint">Scopes every page except Settings.</div>
+          <div role="separator" className="scopesep" />
+          <button
+            type="button"
+            role="menuitem"
+            tabIndex={-1}
+            className="scopenew"
+            onClick={() => {
+              close(false);
+              setProjectDialog({ kind: 'new' });
+            }}
+          >
+            <Icon name="plus" small />
+            <span className="grow">New project</span>
+          </button>
         </div>
       )}
     </div>

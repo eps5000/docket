@@ -6,10 +6,16 @@
  * (docker/compose.jira-fixture.yaml; server/tests/fixtures/jira/), reached by
  * the container at https://jira-fixture.test:8443. No internet.
  *
- * - Step 1 (Connect): the fields, inline errors (a bad sign-in, an unknown
- *   project), the progress line and *Cancel* on a slow project.
- * - Step 2 (Review): summary tiles, the mapping table, the lossy items,
- *   cycles, fields used, *Download report (JSON)*, *Back*, *Import n items*.
+ * - Step 1 (Connect): the fields, "Which token?" and the site note, the site
+ *   address normalised on blur, inline errors (B32: site not found,
+ *   organization key, wrong email or token, no access, scoped token without
+ *   the read scopes; and an unknown project), the progress line and *Cancel*
+ *   on a slow project.
+ * - Step 2 (Review): the legend, summary tiles, the changed and skipped
+ *   issues by reason, the mapping table, cycles, fields used, *Download
+ *   report (JSON)*, *Back*, *Import n items and m checklist steps*.
+ * - A scoped token (B32) signs in through the gateway (the fixture answers
+ *   as api.atlassian.com on the test network) and imports everything there.
  * - Step 3 (Import): the result with the failed attachment listed, and
  *   *Open project*; the imported items show "Imported from Jira".
  * - The API token is cleared after step 1 and never on the page again.
@@ -29,6 +35,10 @@ useSeededContainer();
 const SITE = 'https://jira-fixture.test:8443';
 const EMAIL = 'owner@example.test';
 const TOKEN = 'tl-fixture-api-token-0001';
+/** B32: the fixture's other credentials (server/tests/fixtures/jira/site.mjs). */
+const SCOPED = 'tl-fixture-scoped-token-0001';
+const LIMITED = 'tl-fixture-scoped-noread-0001';
+const ORG_KEY = 'ATCTT3xFfGN0-fixture-org-key-not-real-0001';
 const out = process.env.DOCKET_E2E_SCREENSHOTS;
 
 /** Is the fixture reachable from the container? (CI always starts it; locally it's opt-in.) */
@@ -87,9 +97,9 @@ async function openDialog(page: Page): Promise<Locator> {
 
 async function connect(
   d: Locator,
-  opts: { token?: string; project?: string; key?: string; name?: string } = {},
+  opts: { token?: string; project?: string; key?: string; name?: string; site?: string } = {},
 ) {
-  await d.getByLabel('Jira site').fill(SITE);
+  await d.getByLabel('Jira site').fill(opts.site ?? SITE);
   await d.getByLabel('Email').fill(EMAIL);
   await d.getByLabel('API token').fill(opts.token ?? TOKEN);
   await d.getByLabel('Jira project key').fill(opts.project ?? 'TL');
@@ -111,12 +121,60 @@ test.describe('Import from Jira (UI_SPEC §9.2)', () => {
     await expectAxeClean(page, 'Jira import · connect', { include: '.dlg' });
     await shoot(page, 'connect', d);
 
-    // A bad sign-in: the message inline, and the token field cleared.
-    await connect(d, { token: 'not-the-right-token' });
-    await expect(d.getByRole('alert')).toHaveText(
-      "Couldn't sign in to Jira. Check the email and API token.",
+    // "Which token?" and the site note (B32).
+    await expect(d.getByText('with no /jira and no path.', { exact: false })).toBeVisible();
+    await d.getByText('Which token?').click();
+    await expect(d.getByText('Use a personal API token')).toBeVisible();
+    await expect(d.getByRole('link', { name: /id\.atlassian\.com/ })).toHaveAttribute(
+      'href',
+      'https://id.atlassian.com/manage-profile/security/api-tokens',
     );
-    await expect(d.getByLabel('API token')).toHaveValue('');
+    await expect(d.getByText('Organization API keys don’t work.')).toBeVisible();
+    await expectAxeClean(page, 'Jira import · which token', { include: '.dlg' });
+    await shoot(page, 'which-token', d);
+    await d.getByText('Which token?').click();
+
+    // The site address is normalised as the owner leaves the field.
+    await d.getByLabel('Jira site').fill('jira-fixture.test:8443/jira/software/projects/TL/');
+    await d.getByLabel('Email').focus();
+    await expect(d.getByLabel('Jira site')).toHaveValue(SITE);
+
+    // Each sign-in failure, in words (B32), the token field cleared each time.
+    const failures: [string, Parameters<typeof connect>[1], string][] = [
+      [
+        'site-not-found',
+        // A .localhost name: unreachable, and never a DNS query out (the no-egress audit).
+        { site: 'https://nowhere.localhost' },
+        'Site not found: check the URL (https://yoursite.atlassian.net).',
+      ],
+      [
+        'org-key',
+        { token: ORG_KEY },
+        "That looks like an organization API key from admin.atlassian.com. Those can't read Jira. Create a personal API token at id.atlassian.com instead.",
+      ],
+      [
+        'wrong-token',
+        { token: 'not-the-right-token' },
+        "Wrong email or API token. The token must belong to owner@example.test's Atlassian account.",
+      ],
+      [
+        'no-access',
+        { project: 'LOCKED' },
+        "Signed in, but this account can't browse that project (or the token's scopes don't include reading Jira work items).",
+      ],
+      [
+        'scoped-no-scopes',
+        { token: LIMITED },
+        "Signed in, but this account can't browse that project (or the token's scopes don't include reading Jira work items). A scoped token needs the read:jira-work and read:jira-user scopes.",
+      ],
+    ];
+    for (const [name, opts, message] of failures) {
+      await connect(d, opts);
+      await expect(d.getByRole('alert')).toHaveText(message, { timeout: 15_000 });
+      await expect(d.getByLabel('API token')).toHaveValue('');
+      await expectAxeClean(page, `Jira import · ${name}`, { include: '.dlg' });
+      await shoot(page, `error-${name}`, d);
+    }
 
     // An unknown project.
     await d.getByLabel('API token').fill(TOKEN);
@@ -147,14 +205,34 @@ test.describe('Import from Jira (UI_SPEC §9.2)', () => {
 
     // Step 2: the report.
     await expect(d.locator('[aria-current="step"]')).toHaveText('2 Review', { timeout: 30_000 });
+    const legend = d.getByRole('definition').first();
+    await expect(legend).toBeVisible();
+    await expect(d.locator('.jira-legend dt')).toHaveText([
+      'Imported as is',
+      'Imported with changes',
+      'Skipped',
+    ]);
     const tiles = d.getByRole('list', { name: 'Dry-run summary' });
     await expect(tiles).toContainText('22issues');
-    await expect(tiles).toContainText('20would import');
+    await expect(tiles).toContainText('4as is');
+    await expect(tiles).toContainText('16with changes');
     await expect(tiles).toContainText('2skipped');
-    await expect(tiles).toContainText('15lossy');
     await expect(tiles).toContainText('3 attachments');
+    await expect(d.locator('.jira-summary')).toHaveText(
+      'Imports 17 items and 3 checklist steps. Sub-tasks become checklist steps on their parent.',
+    );
+    const subtasks = d.locator('[data-reason="subtask"]');
+    await expect(subtasks).toContainText('3 sub-tasks → checklist steps on their parent');
+    await expect(subtasks).toContainText(
+      'Kept: title, done or not done. Not kept yet: description, comments, assignee, dates (a later update keeps the description and comments).',
+    );
+    await expect(d.locator('[data-reason="skip_subtask"]')).toContainText(
+      '1 sub-task whose parent isn’t in this import',
+    );
     const mapping = d.locator('table.jira-mapping');
-    await expect(mapping.getByRole('row', { name: /Type: Subtask Work step 3 2/ })).toBeVisible();
+    await expect(
+      mapping.getByRole('row', { name: /Type: Subtask Checklist step on the parent 3 3/ }),
+    ).toBeVisible();
     await expect(mapping.getByRole('row', { name: /Link: Duplicate relates 1 1/ })).toBeVisible();
     await expect(d.getByText('Imported as is. They’ll show under Problems.')).toBeVisible();
     await expect(d.getByText('TL-12 → TL-13 → TL-14 → TL-12')).toBeVisible();
@@ -164,8 +242,15 @@ test.describe('Import from Jira (UI_SPEC §9.2)', () => {
     await d.getByText('By field (18)').click();
     await expect(d.getByRole('row', { name: 'Reporter 0 21 —' })).toBeVisible();
     await expect(d.getByRole('row', { name: 'Description 6 2 3' })).toBeVisible();
-    await d.getByText('Lossy items (17)').click();
+    await d.locator('[data-reason="subtask"] summary').click();
+    await expect(
+      d.getByText(
+        'Became a checklist step on TL-2; not kept: assignee, 1 comment, due date, description, 1 attachment',
+      ),
+    ).toBeVisible();
+    await d.locator('[data-reason="other_type"] summary').click();
     await expect(d.getByText('Jira type Spike imported as Task', { exact: false })).toBeVisible();
+    await d.locator('[data-reason="skip_secret"] summary').click();
     await expect(d.getByText('Skipped: its summary looks like a secret (API key)')).toBeVisible();
     // The token never appears again after step 1.
     expect(await page.content()).not.toContain(TOKEN);
@@ -173,7 +258,7 @@ test.describe('Import from Jira (UI_SPEC §9.2)', () => {
     await d.getByRole('button', { name: 'Download report (JSON)' }).click();
     expect((await download).suggestedFilename()).toBe('jira-dry-run-TL.json');
     await expectAxeClean(page, 'Jira import · review', { include: '.dlg' });
-    await shoot(page, 'review-lossy', d);
+    await shoot(page, 'review-groups', d);
 
     // Back goes to step 1 (the session is dropped; the token must be entered again).
     await d.getByRole('button', { name: 'Back' }).click();
@@ -184,7 +269,7 @@ test.describe('Import from Jira (UI_SPEC §9.2)', () => {
     await expect(d.locator('[aria-current="step"]')).toHaveText('2 Review', { timeout: 30_000 });
 
     // Step 3: import.
-    await d.getByRole('button', { name: 'Import 17 items' }).click();
+    await d.getByRole('button', { name: 'Import 17 items and 3 checklist steps' }).click();
     await expect(d.locator('[aria-current="step"]')).toHaveText('3 Import');
     await expect(d.getByRole('status')).toContainText(
       'Imported 17 items into TILL. 1 attachment failed (listed). The report is saved in the project’s documents.',
@@ -204,5 +289,22 @@ test.describe('Import from Jira (UI_SPEC §9.2)', () => {
     await page.goto('/items/TILL-2');
     await expect(page.getByText('Imported from Jira')).toBeVisible();
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Card form validation');
+  });
+
+  test('a scoped token signs in through the gateway and imports everything there (B32)', async ({
+    ownerPage: page,
+  }) => {
+    const d = await openDialog(page);
+    await connect(d, { token: SCOPED, key: 'SCOPE', name: 'Scoped import' });
+    await expect(d.locator('[aria-current="step"]')).toHaveText('2 Review', { timeout: 30_000 });
+    await expect(d.getByRole('list', { name: 'Dry-run summary' })).toContainText('22issues');
+    await d.getByRole('button', { name: 'Import 17 items and 3 checklist steps' }).click();
+    // The two attachments that exist were downloaded through the gateway too.
+    await expect(d.getByRole('status')).toContainText(
+      'Imported 17 items into SCOPE. 1 attachment failed (listed).',
+      { timeout: 30_000 },
+    );
+    await expect(d.getByText('trace.log (TL-2): Jira answered 500')).toBeVisible();
+    expect(await page.content()).not.toContain(SCOPED);
   });
 });

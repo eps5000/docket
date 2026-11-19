@@ -1,3 +1,5 @@
+import { useNoProjects } from '../../app/useBootstrap';
+import { NoProjectsPointer } from '../needs-you/Welcome';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { useLocation, useSearchParams } from 'react-router';
@@ -35,6 +37,17 @@ export function Agents() {
   useEffect(() => {
     if (hash === '#workspaces') document.getElementById('workspaces')?.scrollIntoView();
   }, [hash]);
+  const noProjects = useNoProjects();
+
+  if (noProjects) {
+    // First run (B32): a pointer to the Welcome page instead of empty run lists.
+    return (
+      <div className="agents stack">
+        <h1>Agents</h1>
+        <NoProjectsPointer />
+      </div>
+    );
+  }
 
   return (
     <div className="agents stack">

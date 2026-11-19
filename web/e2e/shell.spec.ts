@@ -305,7 +305,7 @@ test.describe('axe: every shell in both themes', () => {
 
   test('Quick capture dialog and the palette', async ({ page }) => {
     await page.goto('/');
-    await page.getByRole('button', { name: '+ New' }).click();
+    await page.getByRole('button', { name: '+ New item' }).click();
     const dialog = page.getByRole('dialog', { name: 'New item in Inbox' });
     await expect(dialog).toBeVisible();
     await expect(dialog.getByLabel(/^Title/)).toBeFocused();

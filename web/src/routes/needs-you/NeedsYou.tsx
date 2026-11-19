@@ -1,3 +1,5 @@
+import { useNoProjects } from '../../app/useBootstrap';
+import { Welcome } from './Welcome';
 import { useQuery } from '@tanstack/react-query';
 import type { WorkspaceRow } from '@docket/shared';
 import { Skeleton } from '../../components/kit';
@@ -21,6 +23,7 @@ import { HelpLink } from '../../help/HelpLink';
  * now · Problems) and the lower row (Deferred · Planning queue). One file per
  * card; US2 (T081) fills them. No subtitle and no scope pill. An onboarding
  * ready for review gets its own card above the top band (decision 31).
+ * With no projects it is the Welcome page instead (UI_SPEC §6.0; B32).
  */
 export function NeedsYou() {
   const { scope } = useShell();
@@ -31,6 +34,8 @@ export function NeedsYou() {
   // The strip's "n workspaces at risk" and the recovery rows' state chips (B20).
   const workspaces = useWorkspaces().data?.rows ?? NO_WORKSPACES;
   const atRisk = workspaces.filter((w) => w.state === 'at_risk').length;
+  const noProjects = useNoProjects();
+  if (noProjects) return <Welcome />;
   return (
     <div className="needs-you">
       <div className="withhelp wh-h1">

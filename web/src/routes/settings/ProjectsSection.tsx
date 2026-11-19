@@ -23,8 +23,6 @@ import { paths } from '../../lib/paths';
 import { runOwnerMutation, showToast } from '../../lib/undo';
 import { useShell } from '../../app/ShellState';
 import { DeleteProjectDialog } from '../dialogs/DeleteProject';
-import { JiraImportDialog } from '../dialogs/JiraImport';
-import { NewProjectDialog } from '../dialogs/NewProject';
 import { DecisionsPanel } from '../shared/DecisionsPanel';
 import { HelpLink } from '../../help/HelpLink';
 
@@ -35,15 +33,13 @@ type Project = SettingsResponse['projects'][number];
  * the mini status bar, "Blockers clear when", decisions, *Switch to* and
  * *Delete…*; *Import from Jira…* at the bottom. US4 fills the rows and the
  * blocker rule; US5 the decisions dialog; US10 the mini status bar and
- * delete; US9 the import.
+ * delete; US9 the import. *New project* and *Import from Jira…* open the
+ * shell's project dialogs (B32: the same ones as the Welcome page).
  */
 export function ProjectsSection({ query }: { query: UseQueryResult<SettingsResponse> }) {
   const [deleting, setDeleting] = useState<Project | null>(null);
-  /** True, or the key of a just-created project to import into. */
-  const [importing, setImporting] = useState<boolean | string>(false);
-  const [creating, setCreating] = useState(false);
   const qc = useQueryClient();
-  const { scope, setScope, tabs, closeTab } = useShell();
+  const { scope, setScope, tabs, closeTab, setProjectDialog } = useShell();
   const keepDays = query.data?.health.backups[0]?.keep_days ?? 14;
   /** After a delete: leave its scope and its open tabs, toast, and refetch everything. */
   const deleted = (p: Project) => {
@@ -77,10 +73,15 @@ export function ProjectsSection({ query }: { query: UseQueryResult<SettingsRespo
         <div className="cardfoot">
           <span />
           <div className="row" style={{ gap: 6 }}>
-            <Button size="sm" onClick={() => setImporting(true)}>
+            <Button size="sm" onClick={() => setProjectDialog({ kind: 'jira' })}>
               Import from Jira…
             </Button>
-            <Button size="sm" variant="primary" icon="plus" onClick={() => setCreating(true)}>
+            <Button
+              size="sm"
+              variant="primary"
+              icon="plus"
+              onClick={() => setProjectDialog({ kind: 'new' })}
+            >
               New project
             </Button>
           </div>
@@ -97,27 +98,6 @@ export function ProjectsSection({ query }: { query: UseQueryResult<SettingsRespo
           keepDays={keepDays}
           onClose={() => setDeleting(null)}
           onDeleted={() => deleted(deleting)}
-        />
-      )}
-      {creating && (
-        <NewProjectDialog
-          existingKeys={(query.data?.projects ?? []).map((p) => p.key)}
-          onClose={() => setCreating(false)}
-          onImport={(key) => {
-            setCreating(false);
-            setImporting(key);
-          }}
-        />
-      )}
-      {importing !== false && (
-        <JiraImportDialog
-          initialTarget={typeof importing === 'string' ? importing : undefined}
-          onClose={() => setImporting(false)}
-          projects={(query.data?.projects ?? []).map((p) => ({
-            key: p.key,
-            name: p.name,
-            items: p.counts.items,
-          }))}
         />
       )}
     </section>

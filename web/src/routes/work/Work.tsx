@@ -1,3 +1,5 @@
+import { useNoProjects } from '../../app/useBootstrap';
+import { NoProjectsPointer } from '../needs-you/Welcome';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router';
 import {
@@ -77,6 +79,17 @@ export function Work() {
     setParams(next);
   };
   const data: WorkResponse | undefined = query.data;
+  const noProjects = useNoProjects();
+
+  if (noProjects) {
+    // First run (B32): a pointer to the Welcome page instead of empty columns.
+    return (
+      <div className="work">
+        <h1>Work</h1>
+        <NoProjectsPointer />
+      </div>
+    );
+  }
 
   return (
     <div className="work">
