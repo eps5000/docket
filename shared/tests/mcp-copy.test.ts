@@ -25,9 +25,9 @@ describe('mcp-copy matches MCP_SPEC.md', () => {
     expect(SERVER_INSTRUCTIONS).toBe(specInstructions());
   });
 
-  it('the spec defines 42 tools, and the copy has a description for exactly those', () => {
+  it('the spec defines 43 tools, and the copy has a description for exactly those', () => {
     const spec = specDescriptions();
-    expect(spec).toHaveLength(42);
+    expect(spec).toHaveLength(43);
     expect(Object.keys(TOOL_DESCRIPTIONS)).toEqual(spec.map(([name]) => name));
   });
 

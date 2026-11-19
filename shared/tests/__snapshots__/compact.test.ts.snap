@@ -107,6 +107,23 @@ pkt_1 round 1 · decided · built 7d21aa3 · submitted 11-05 · decided 11-05
   - hr_2 Move a recipe using only the keyboard. · undecided"
 `;
 
+exports[`every tool has a renderer > get_step 1`] = `
+"wst_b Implement unit merging (g/kg, ml/l, cups) · current · on RCP-14 · source GF-123 · details v2
+  history:
+  - 11-05 claude added
+  - 10:52Z claude state: todo → current
+  - 10:55Z owner details: v1 → v2
+  subagents:
+    observed units-worker: Added conversion table and 31 tests
+details (67 characters, verbatim):
+## Rules
+
+- Merge g/kg and ml/l
+  - cups stay cups
+
+See \`units.ts\`."
+`;
+
 exports[`every tool has a renderer > heartbeat 1`] = `"Run run_01JA… live · lease until 12:05Z · resources: rsc_1 dev server :5173"`;
 
 exports[`every tool has a renderer > link_artifact 1`] = `"Linked pr PR #52 on RCP-19"`;

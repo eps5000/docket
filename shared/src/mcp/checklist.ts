@@ -4,19 +4,37 @@
  * Shared contract file (tasks.md, Slice rules).
  */
 import { z } from 'zod';
-import { itemId, mutationInput, mutationOutput, objectId, text } from './common.js';
+import {
+  itemId,
+  longText,
+  mutationInput,
+  mutationOutput,
+  objectId,
+  readInput,
+  readOutput,
+  text,
+} from './common.js';
 import { LIMITS, TEXT_LIMITS } from './limits.js';
 import {
   checkSchema,
   checkStateSchema,
   humanReviewItemSchema,
   provenanceSchema,
+  stepHistoryEntrySchema,
   workStepSchema,
   workStepStateSchema,
 } from './types.js';
 import { SUBAGENT_PROVENANCES } from '../enums.js';
 
 const patchMode = z.enum(['patch', 'replace']).default('patch');
+
+/**
+ * A step's details (decision 33; MCP_SPEC §5.12): Markdown, at most 10,000
+ * characters; `null` (or empty) clears them; omitted leaves them unchanged.
+ */
+export const stepDetails = longText(LIMITS.step_details).nullable();
+/** A step's source, for example a Jira key: at most 100 characters; `null` clears it (B33). */
+export const stepSource = text(LIMITS.step_source).nullable();
 
 // ---- set_plan ----
 
@@ -27,6 +45,8 @@ export const planStepInputSchema = z.strictObject({
   change_reason: text(TEXT_LIMITS.note).optional(),
   /** Insert after this step; otherwise at the end. */
   after: objectId.optional(),
+  details: stepDetails.optional(),
+  source: stepSource.optional(),
 });
 
 export const setPlanInput = mutationInput({
@@ -50,6 +70,10 @@ export const updateStepInput = mutationInput({
   state: workStepStateSchema,
   /** Required for blocked and skipped. */
   note: text(TEXT_LIMITS.note).optional(),
+  /** Replace the step's details; `null` clears them (decision 33). */
+  details: stepDetails.optional(),
+  /** The `details_version` you read; a mismatch is a conflict. */
+  expected_details_version: z.number().int().min(0).optional(),
 }).superRefine((value, ctx) => {
   if ((value.state === 'blocked' || value.state === 'skipped') && value.note === undefined) {
     ctx.addIssue({
@@ -60,6 +84,18 @@ export const updateStepInput = mutationInput({
   }
 });
 export const updateStepOutput = mutationOutput({ step: workStepSchema });
+
+// ---- get_step (decision 33; MCP_SPEC §5.12) ----
+
+export const getStepInput = readInput({ id: itemId, step_id: objectId });
+export const getStepOutput = readOutput({
+  /** The step with its details: `details_md` and `details_version` are always present. */
+  step: workStepSchema.extend({
+    details_md: z.string().nullable(),
+    details_version: z.number().int(),
+  }),
+  history: z.array(stepHistoryEntrySchema),
+});
 
 // ---- log_subagent ----
 

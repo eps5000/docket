@@ -161,7 +161,7 @@ These are MCP hints:
 | Retry-safe mutating tools: `heartbeat`, `report_commit`, `update_step`, `update_check` | `idempotentHint: true` (and `false` on every other tool) |
 | All tools | `destructiveHint: false`, set explicitly, because MCP defaults it to true for tools that aren't read-only and agents can't delete |
 
-`readOnlyHint` is set explicitly on every tool: `true` for the 11 read tools (10 before decision 30 added `get_agent_files`), `false` for `get_item` and all mutations. No tool sets `openWorldHint` (B3 resolution 6).
+`readOnlyHint` is set explicitly on every tool: `true` for the 12 read tools (10 before decision 30 added `get_agent_files`, and 11 before decision 33 added `get_step`), `false` for `get_item` and all mutations. No tool sets `openWorldHint` (B3 resolution 6).
 
 ### Results
 Every tool returns two things:
@@ -423,9 +423,10 @@ The format for each tool below:
 - **Note on `mine`:** items where an open lead run belongs to the caller's client and `agent_label`. Pass `agent_label` to narrow it; otherwise every run from the client matches.
 
 #### `get_item`
-**Description:** "Get one item: description, acceptance criteria, blockers, checklist (your plan, your checks, human review), runs, the open question and its answer, the owner's unread notes, documents, packets and recent activity. Owner notes and answers are returned once and then marked as delivered, so read them now. Use view 'summary' when you only need status, and get_context when starting work."
+**Description:** "Get one item: description, acceptance criteria, blockers, checklist (your plan, your checks, human review), runs, the open question and its answer, the owner's unread notes, documents, packets and recent activity. Owner notes and answers are returned once and then marked as delivered, so read them now. Use view 'summary' when you only need status, and get_context when starting work. Step details show as a '· details' marker unless view is 'full'; read one step in full with get_step."
 - **Input:** `id`, `view?: 'summary'|'standard'|'full' = 'standard'`, `fields?: string[]`, `agent_label?` (used to attribute delivery).
 - **Output:** `{ item: Item }`.
+- **Step details** (decision 33; §5.12): `standard` shows each step's `source` and `has_details`, rendered as `· details`, and never the details text, so its budget (§3.2) is unchanged; `full` adds `details_md` and `details_version` to every step and prints the details under it.
 - **Errors:** `not_found`.
 
 #### `get_context`
@@ -542,20 +543,21 @@ The format for each tool below:
 ### 5.5 Checklist
 
 #### `set_plan`
-**Description:** "Publish or revise your plan as one-line work steps. By default this patches: steps with an id are updated (changing text records the old text and your reason), steps without an id are added, and nothing is removed unless you list it in remove. Use mode 'replace' to restate the whole plan. Owner-added steps are always kept. Every revision is kept as history."
+**Description:** "Publish or revise your plan as one-line work steps; steps may carry details (Markdown) and a source, such as a Jira key. By default this patches: steps with an id are updated (changing text records the old text and your reason), steps without an id are added, and nothing is removed unless you list it in remove. Use mode 'replace' to restate the whole plan. Owner-added steps are always kept. Every revision is kept as history."
 - **Input:**
   - `id`, `reason` (required unless this is the first plan);
   - `mode?: 'patch'|'replace' = 'patch'`;
-  - `steps?: [{ id?, text?, state?: StepState, change_reason?, after?: step_id }]`;
+  - `steps?: [{ id?, text?, state?: StepState, change_reason?, after?: step_id, details?, source? }]`, where `details` is Markdown (≤ 10,000; `null` clears it) and `source` is ≤ 100 (`null` clears it); both patch (§5.12);
   - `remove?: step_id[]`;
   - at most 30 steps on the plan in total.
 - **Output:** `{ plan_version, work: WorkStep[] }`.
 - **Errors:** `validation` (limits, unknown step id).
 
 #### `update_step`
-**Description:** "Update one work step's state as you go: current when you start it, done when finished, blocked or skipped with a note."
-- **Input:** `id`, `step_id`, `state`, `note?` (required for blocked and skipped).
+**Description:** "Update one work step's state as you go: current when you start it, done when finished, blocked or skipped with a note. Pass details to replace the step's details (null clears them), with expected_details_version from get_step."
+- **Input:** `id`, `step_id`, `state`, `note?` (required for blocked and skipped), `details?` (≤ 10,000; replaces them, and `null` clears them), `expected_details_version?` (the `details_version` you read; §5.12).
 - **Output:** `{ step: WorkStep }`.
+- **Errors:** `not_found` (step), `conflict` (`expected_details_version` is stale; `current` is the step with its details).
 
 #### `log_subagent`
 **Description:** "Record what a subagent contributed, as a short line under the step it worked on. provenance 'observed' if you saw its run or output directly, 'relayed' if you are passing on its report. This never creates a ticket."
@@ -742,11 +744,13 @@ An agent sets up a project, or onboards a repo into one, from a fresh install wi
 
 ### 5.12 Step details (decision 33)
 
-The exact description changes ship in the contract batch (tasks Phase 19, B33), with the code and the snapshot:
+A checklist step can carry details (Markdown) and a source, such as a Jira key (BUILD_SPEC §5.5; FR-145–FR-148). Contracts shipped in B33 (T170), in MCP_SPEC, `mcp-copy.ts` and the snapshot together:
 - **`set_plan`:** gains "steps may carry details (Markdown) and a source";
 - **`update_step`:** gains `details`;
 - **`get_item`:** says details show as a marker unless view is full;
 - **the new `get_step`.**
+
+B33 also stores details and source through `set_plan`, `update_step` and the owner's step dialog route (UI_SPEC §6.3.1a), and implements `get_step`. B34 (T171) adds the current step's details to `get_context`.
 
 #### Changes to existing tools
 - **`set_plan`:** `steps[]` entries accept `details?` (≤ 10,000; `null` clears it) and `source?` (≤ 100). Patch semantics: omitted means unchanged.
@@ -754,11 +758,24 @@ The exact description changes ship in the contract batch (tasks Phase 19, B33), 
 - **`get_item`:** in `standard` view, steps show `has_details` and render as `· details`; in `full` view, details are included.
 - **`get_context`:** includes the current step's details (the one in state `current`, else the first `todo`), counted in the budget and truncated with a marker.
 
+**B33 resolutions:**
+- **Versions:** `details_version` starts at 0 and goes up by one on every change to the details (set, replace or clear), whoever makes it. Writing the same text again changes nothing.
+- **Empty clears:** `details` is trimmed, and an empty string clears the details like `null`. `source` also accepts `null`, to clear a wrong source.
+- **Kept across revisions:** a step a plan revision keeps carries its details and source unchanged, in `patch` and `replace` mode alike; owner-added steps keep owner-set details.
+- **`update_step` with details:** `state` stays required. When it equals the step's current state and `details` is sent, only the details change. `expected_details_version` is checked only when sent.
+- **Write checks** (§3.4) cover `details` and `source` like any other text: secrets are rejected, and item IDs that don't exist warn.
+- **Events:** details and source changes are recorded on the existing `plan.updated` and `step.updated` events, as versions (`details_version: { old, new }`), never the text.
+- **History entries:** `change` is one of `added`, `text`, `state`, `details` or `source`; `from` and `to` are the old and new text, state, source, or details version (`v1`); `note` carries the reason for a wording change or the note on a state change.
+
 #### `get_step`
+**Description:** "Read one checklist step in full: its text, state, source, details (Markdown), history and subagent notes. Call it before you work on a step that get_item shows with '· details'. Read-only."
 - **Purpose:** read one checklist step in full: title, state, source, details and history.
 - **Input:** `id` (item), `step_id`, plus `run_id?`.
-- **Output:** `{ step: WorkStep (with details_md and details_version), history: [{ at, by, change, from?, to? }] }`.
+- **Output:** `{ step: WorkStep (with details_md and details_version), history: [{ at, by, change, from?, to?, note? }] }`.
+- **Text rendering:** one header line (`wst_… <text> · <state> · on RCP-14 · source GF-123 · details v2`), the history and subagent notes indented, then the details verbatim and unindented, so an agent can edit from exactly that text.
+- **Any step on the item:** a step a revision removed is still readable by its ID, with its history.
 - **Read-only.**
+- **Errors:** `not_found` (item or step).
 
 ## 6. Errors
 

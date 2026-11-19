@@ -836,7 +836,8 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
       )
       .all(row.id) as { id: string; text: string; created_at: string }[];
 
-    const work = workStepsOf(db, row.id);
+    // Step details only in the full view (decision 33): standard shows a marker, so its budget holds.
+    const work = workStepsOf(db, row.id, { details: (input.view ?? 'standard') === 'full' });
     const checks = checksOf(db, row.id);
 
     if (view === 'summary') {

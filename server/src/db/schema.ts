@@ -313,6 +313,13 @@ export const work_steps = sqliteTable(
     added_by: text('added_by').notNull(),
     state_by: text('state_by'),
     state_at: text('state_at'),
+    // ---- Step details (owner decision 33; BUILD_SPEC §4, §5.5) ----
+    /** Markdown, ≤ 10,000 (checked by the tool and route schemas); null when the step has none. */
+    details_md: text('details_md'),
+    /** Where the step came from, ≤ 100, for example a Jira key. */
+    source: text('source'),
+    /** Goes up by one on every change to `details_md`; the owner's edits check it. */
+    details_version: integer('details_version').notNull().default(0),
     version: version(),
     ...timestamps,
   },

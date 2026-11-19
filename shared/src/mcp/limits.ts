@@ -86,6 +86,11 @@ export const LIMITS = {
   /** `finish_onboarding.questions`: up to 20, each at most 500 characters. */
   onboarding_questions_max: 20,
   onboarding_question: 500,
+  // ---- Step details (decision 33; MCP_SPEC §5.12) ----
+  /** `work_steps.details_md`: Markdown. */
+  step_details: 10_000,
+  /** `work_steps.source`, for example a Jira key. */
+  step_source: 100,
   /** Upper bound for opaque identifiers and cursors (not a spec limit; a sanity bound). */
   id: 100,
   /** Lists in compact text truncate long text at this many characters (§3.1). */

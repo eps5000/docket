@@ -31,6 +31,7 @@ import type {
   LinkRef,
   Resource,
   Run,
+  StepHistoryEntry,
   WaitingOn,
   WorkStep,
   Workspace,
@@ -277,18 +278,40 @@ function linksLine(item: AnyItem): string | null {
   return `${I1}${parts.join(SEP)}`;
 }
 
+const subagentLine = (s: WorkStep['subagents'][number], indent = I3) =>
+  `${indent}${s.provenance} ${s.name}: ${s.outcome}${s.evidence ? `${SEP}${s.evidence}` : ''}`;
+
+/**
+ * One checklist step. Details (decision 33; MCP_SPEC §5.12) show as a
+ * `· details` marker, except where the read carries them (`get_item` view
+ * `full`), which prints them in full under the step.
+ */
 function stepLines(step: WorkStep): string[] {
+  const details = typeof step.details_md === 'string' ? step.details_md : null;
   const head = join([
     `${I1}- ${STEP_MARKERS[step.state]} ${step.id} ${step.text}`,
     step.was_text ? `was: ${step.was_text}` : null,
     step.change_reason ? `why: ${step.change_reason}` : null,
     step.from_review ? `from review round ${step.from_review.round}` : null,
     step.added_by === 'owner' ? 'by owner' : null,
+    step.source ? `source ${step.source}` : null,
+    step.has_details && details === null ? 'details' : null,
   ]);
-  const subs = step.subagents.map(
-    (s) => `${I3}${s.provenance} ${s.name}: ${s.outcome}${s.evidence ? `${SEP}${s.evidence}` : ''}`,
-  );
-  return [head, ...subs];
+  const subs = step.subagents.map((s) => subagentLine(s));
+  const body =
+    details !== null
+      ? [`${I3}details:`, ...details.split(/\r?\n/).map((l) => (l ? `${I3}  ${l}` : ''))]
+      : [];
+  return [head, ...subs, ...body];
+}
+
+/** A get_step history entry: `<time> <who> <change>: <from> → <to> · <note>`. */
+function historyLine(h: StepHistoryEntry, now: Date): string {
+  const move =
+    h.from != null || h.to != null
+      ? `: ${h.from != null ? `${truncate(h.from, 120)} → ` : ''}${h.to != null ? truncate(h.to, 120) : 'none'}`
+      : '';
+  return join([`${I1}- ${formatTime(h.at, now)} ${h.by} ${h.change}${move}`, h.note]);
 }
 
 function checkLine(check: Check): string {
@@ -1035,6 +1058,35 @@ const RENDERERS: { [N in ToolName]: Renderer<N> } = {
       decisions: r.changes.decisions,
       proposals: r.changes.proposals,
     }),
+  // Decision 33 (MCP_SPEC §5.12): the header, the history and subagent notes, then the
+  // details verbatim and unindented last, so an agent can edit from exactly this text.
+  get_step: (r, a, now) => {
+    const st = r.step;
+    const lines = [
+      s('get_step', {
+        step_id: st.id,
+        text: st.text,
+        state: st.state,
+        id: str(a.id),
+        facts: `${SEP}${join([
+          st.source ? `source ${st.source}` : null,
+          st.added_by === 'owner' ? 'by owner' : null,
+          st.from_review ? `from review round ${st.from_review.round}` : null,
+          st.details_md !== null ? `details v${st.details_version}` : 'no details',
+        ])}`,
+      }),
+    ];
+    if (r.history.length > 0) {
+      lines.push(`${I1}history:`, ...r.history.map((h) => historyLine(h, now)));
+    }
+    if (st.subagents.length > 0) {
+      lines.push(`${I1}subagents:`, ...st.subagents.map((x) => subagentLine(x, `${I1}  `)));
+    }
+    if (st.details_md !== null) {
+      lines.push(`details (${st.details_md.length} characters, verbatim):`, st.details_md);
+    }
+    return lines.join('\n');
+  },
 };
 
 /** The compact text block for a tool's successful result. */

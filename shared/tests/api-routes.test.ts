@@ -15,6 +15,8 @@ import {
   declineProposalBody,
   onboardingQuery,
   onboardingSessionSchema,
+  stepDetailsBody,
+  stepDetailsResponse,
   projectSchema,
   driftQuery,
   itemDetailResponse,
@@ -120,6 +122,8 @@ const EXPECTED = [
   'POST /api/projects',
   'GET /api/onboarding',
   'POST /api/onboarding/:id/reviewed',
+  // Decision 33 (BUILD_SPEC §7; UI_SPEC §6.3.1a): the step dialog's details editor
+  'PATCH /api/items/:id/work/:stepId/details',
   'GET /api/stream',
   'POST /agent-upload',
 ];
@@ -137,7 +141,7 @@ describe('the route table', () => {
     const labels = ROUTE_IDS.map((id) => routeLabel(API_ROUTES[id]));
     expect(new Set(labels).size).toBe(labels.length);
     expect([...labels].sort()).toEqual([...EXPECTED].sort());
-    expect(labels).toHaveLength(76);
+    expect(labels).toHaveLength(77);
   });
 
   it('puts each route in a known group, and every group has a route', () => {
@@ -349,6 +353,29 @@ describe('field rules', () => {
     expect(API_ROUTES['projects.create'].undoable).toBe(false);
     expect(API_ROUTES['projects.create'].group).toBe('settings');
     expect(API_ROUTES['onboarding.reviewed'].undoable).toBe(false);
+  });
+
+  it('step details (decision 33): details ≤ 10,000 or null, expected_version required, undoable', () => {
+    expect(stepDetailsBody.safeParse({ details: '## Notes', expected_version: 0 }).success).toBe(
+      true,
+    );
+    expect(stepDetailsBody.safeParse({ details: null, expected_version: 3 }).success).toBe(true);
+    expect(
+      stepDetailsBody.safeParse({ details: 'x'.repeat(10_000), expected_version: 1 }).success,
+    ).toBe(true);
+    expect(
+      stepDetailsBody.safeParse({ details: 'x'.repeat(10_001), expected_version: 1 }).success,
+    ).toBe(false);
+    expect(stepDetailsBody.safeParse({ details: 'x' }).success).toBe(false);
+    expect(stepDetailsBody.safeParse({ expected_version: 1 }).success).toBe(false);
+    expect(
+      stepDetailsBody.safeParse({ details: 'x', expected_version: 1, source: 'GF-1' }).success,
+    ).toBe(false);
+    const route = API_ROUTES['steps.details'];
+    expect([route.method, route.group, route.undoable]).toEqual(['PATCH', 'steer', true]);
+    expect(Object.keys(stepDetailsResponse.shape)).toEqual(
+      expect.arrayContaining(['mutation_id', 'step']),
+    );
   });
 
   it('existing responses gain optional decision 31 fields (onboarding reviews, created_by)', () => {

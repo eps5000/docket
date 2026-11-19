@@ -89,6 +89,8 @@ export const US1_TOOLS: readonly ToolName[] = [
   // US15 (B30, T164); content in us15-onboarding.test.ts.
   'onboard_project',
   'finish_onboarding',
+  // Decision 33 (B33, T170); content in checklist-details.test.ts.
+  'get_step',
 ];
 const STUB_TOOLS = TOOL_NAMES.filter((n) => !US1_TOOLS.includes(n));
 
@@ -429,13 +431,15 @@ describe('recovery tools over MCP (B5: park_run, recovery_report and the new fie
       destructiveHint: false,
       idempotentHint: false,
     });
-    // §5.9 recovery_report, then §5.10's two agent file tools (decision 30), then §5.11's two (decision 31).
-    expect(tools.map((t) => t.name).slice(-5)).toEqual([
+    // §5.9 recovery_report, then §5.10's two agent file tools (decision 30), §5.11's two
+    // (decision 31) and §5.12's get_step (decision 33).
+    expect(tools.map((t) => t.name).slice(-6)).toEqual([
       'recovery_report',
       'get_agent_files',
       'propose_agent_file_change',
       'onboard_project',
       'finish_onboarding',
+      'get_step',
     ]);
     expect(tools.findIndex((t) => t.name === 'park_run')).toBe(
       tools.findIndex((t) => t.name === 'finish_run') + 1,

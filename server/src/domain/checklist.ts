@@ -16,8 +16,19 @@
  * Plan history: each `set_plan` writes a `plan_versions` row and moves the
  * surviving steps to that version; removed steps keep their old version
  * number, so earlier plans stay readable.
+ *
+ * Step details (owner decision 33; BUILD_SPEC §5.5; MCP_SPEC §5.12, B33):
+ * `set_plan` sets `details` and `source` per step and `update_step` replaces
+ * `details`, both as patches (omitted means unchanged), so a step a revision
+ * keeps carries them across. Every change to the details bumps
+ * `details_version`, which `update_step` (optionally) and the owner's step
+ * dialog (always) check. Owner-added steps keep owner-set details: an agent
+ * may change their state only. Events record details as versions, never the
+ * text. `get_step` reads one step in full, with its history from the
+ * `plan.updated` and `step.updated` events.
  */
-import { LIMITS, ToolError } from '@docket/shared';
+import { LIMITS, ToolError, type StepHistoryEntry, type WorkStep } from '@docket/shared';
+import type { Db } from '../db/client.js';
 import { type ChecklistService, type In, type Out, type ServiceDeps } from './contracts.js';
 import { newId } from './ids.js';
 import {
@@ -27,6 +38,9 @@ import {
   checkView,
   checksOf,
   currentSteps,
+  EVENT_COLUMNS,
+  EVENT_FROM,
+  eventActor,
   ms,
   planVersion,
   requireItem,
@@ -34,6 +48,7 @@ import {
   type CheckRow,
   type ItemRow,
   type StepRow,
+  type StoredEvent,
 } from './model.js';
 import type { InverseOp, WriteContext } from './write.js';
 
@@ -78,12 +93,122 @@ function unknownId(kind: string, id: string, item: string): ToolError {
   );
 }
 
-function ownerOnly(kind: string, id: string): ToolError {
+function ownerOnly(kind: string, id: string, what = 'text'): ToolError {
   return new ToolError(
     'forbidden',
-    `${id} was added by the owner; only the owner can change its text or remove it. You may change its state.`,
+    `${id} was added by the owner; only the owner can change its ${what} or remove it. You may change its state.`,
     { details: { kind } },
   );
+}
+
+/** Details as stored: `undefined` leaves them, `null` or empty clears them (MCP_SPEC §5.12, B33). */
+const normDetails = (d: string | null | undefined): string | null | undefined =>
+  d === undefined ? undefined : d === null || d === '' ? null : d;
+
+/** One step with its details, for results that carry them. */
+function detailedStep(db: Db, row: StepRow): WorkStep {
+  return stepView(db, [row], { details: true })[0]!;
+}
+
+function detailsConflict(db: Db, step: StepRow, sent: number): ToolError {
+  return new ToolError(
+    'conflict',
+    `${step.id}'s details changed since you read them (now v${step.details_version}, you sent v${sent}). Read the step again and retry only if your change still makes sense.`,
+    { current: detailedStep(db, step) },
+  );
+}
+
+/**
+ * The event data for set_plan's per-step changes: the columns written, with
+ * the details text replaced by its version, plus the old state and source so
+ * a step's history can say what it changed from.
+ */
+function changeData(set: Record<string, unknown>, before: StepRow): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...set };
+  if ('details_md' in out) {
+    delete out.details_md;
+    out.details_version = { old: before.details_version, new: set.details_version };
+  }
+  if ('state' in out) out.was_state = before.state;
+  if ('source' in out) out.was_source = before.source;
+  return out;
+}
+
+type EventData = Record<string, unknown>;
+const parseData = (raw: string | null): EventData | null => {
+  try {
+    const v: unknown = raw ? JSON.parse(raw) : null;
+    return v && typeof v === 'object' ? (v as EventData) : null;
+  } catch {
+    return null;
+  }
+};
+const strOrNull = (v: unknown): string | null => (typeof v === 'string' ? v : null);
+const versionMove = (v: unknown): { from: string; to: string } | null => {
+  const m = v as { old?: unknown; new?: unknown } | null;
+  return m && typeof m.old === 'number' && typeof m.new === 'number'
+    ? { from: `v${m.old}`, to: `v${m.new}` }
+    : null;
+};
+
+/**
+ * A step's history (get_step): when and by whom it was added (from the row
+ * itself, so imported and seeded steps have it too), then every wording,
+ * state, details and source change its events recorded, oldest first.
+ */
+function stepHistory(db: Db, row: StepRow): StepHistoryEntry[] {
+  const history: StepHistoryEntry[] = [
+    {
+      at: row.created_at,
+      by: row.added_by,
+      change: 'added',
+    },
+  ];
+  const events = db.sqlite
+    .prepare(
+      `SELECT ${EVENT_COLUMNS}, e.data AS data FROM ${EVENT_FROM}
+       WHERE e.item_id = ? AND e.type IN ('plan.updated', 'step.updated') ORDER BY e.seq`,
+    )
+    .all(row.item_id) as (StoredEvent & { data: string | null })[];
+  for (const e of events) {
+    const data = parseData(e.data);
+    if (!data) continue;
+    const by = eventActor(e);
+    const push = (entry: Omit<StepHistoryEntry, 'at' | 'by'>) =>
+      history.push({ at: e.at, by, ...entry });
+    if (e.type === 'plan.updated') {
+      const c = (data.changed as Record<string, EventData> | undefined)?.[row.id];
+      if (!c) continue;
+      if (typeof c.text === 'string') {
+        push({
+          change: 'text',
+          from: strOrNull(c.was_text),
+          to: c.text,
+          note: strOrNull(c.change_reason),
+        });
+      }
+      if (typeof c.state === 'string') {
+        push({ change: 'state', from: strOrNull(c.was_state), to: c.state });
+      }
+      const details = versionMove(c.details_version);
+      if (details) push({ change: 'details', ...details });
+      if ('source' in c)
+        push({ change: 'source', from: strOrNull(c.was_source), to: strOrNull(c.source) });
+    } else if (data.step_id === row.id) {
+      const state = data.state as { old?: unknown; new?: unknown } | undefined;
+      if (state && typeof state.new === 'string') {
+        push({
+          change: 'state',
+          from: strOrNull(state.old),
+          to: state.new,
+          note: strOrNull(data.note),
+        });
+      }
+      const details = versionMove(data.details_version);
+      if (details) push({ change: 'details', ...details });
+    }
+  }
+  return history;
 }
 
 const quote = (text: string) => `“${text.length > 60 ? `${text.slice(0, 59)}…` : text}”`;
@@ -143,6 +268,15 @@ export function createChecklistService(_deps: ServiceDeps): ChecklistService {
         if (step.state !== undefined && step.state !== s.state) {
           change(s.id, { state: step.state, state_by: who, state_at: w.now });
         }
+        const details = normDetails(step.details);
+        if (details !== undefined && details !== s.details_md) {
+          if (isOwner(s.added_by)) throw ownerOnly('work step', s.id, 'details');
+          change(s.id, { details_md: details, details_version: s.details_version + 1 });
+        }
+        if (step.source !== undefined && step.source !== s.source) {
+          if (isOwner(s.added_by)) throw ownerOnly('work step', s.id, 'source');
+          change(s.id, { source: step.source });
+        }
       };
       const newStep = (step: (typeof inputs)[number]): string => {
         if (step.text === undefined) {
@@ -155,10 +289,14 @@ export function createChecklistService(_deps: ServiceDeps): ChecklistService {
           );
         }
         const id = newId('wst', ms(w.now));
+        const details = normDetails(step.details) ?? null;
         created.set(id, {
           text: step.text,
           state: step.state ?? 'todo',
           change_reason: step.change_reason ?? null,
+          details_md: details,
+          details_version: details === null ? 0 : 1,
+          source: step.source ?? null,
           added_by: who,
           ...(step.state && step.state !== 'todo' ? { state_by: who, state_at: w.now } : {}),
         });
@@ -248,7 +386,9 @@ export function createChecklistService(_deps: ServiceDeps): ChecklistService {
           plan_version: { old: version, new: next },
           added: [...created.keys()],
           removed,
-          changed: Object.fromEntries(changes),
+          changed: Object.fromEntries(
+            [...changes].map(([id, set]) => [id, changeData(set, byId.get(id)!)]),
+          ),
           reason: input.reason ?? null,
         },
       });
@@ -266,21 +406,46 @@ export function createChecklistService(_deps: ServiceDeps): ChecklistService {
         );
       }
       const who = callerName(w.db, w.actor);
-      w.update('work_steps', step.id, { state: input.state, state_by: who, state_at: w.now });
-      if (input.state === 'current' && run && run.item_id === item.id) {
+      const details = normDetails(input.details);
+      const detailsChange = details !== undefined && details !== step.details_md;
+      if (
+        input.expected_details_version !== undefined &&
+        input.expected_details_version !== step.details_version
+      ) {
+        throw detailsConflict(w.db, step, input.expected_details_version);
+      }
+      if (detailsChange && isOwner(step.added_by)) throw ownerOnly('work step', step.id, 'details');
+      // Sending details with the step's current state changes the details only (B33).
+      const stateChange = !(input.details !== undefined && input.state === step.state);
+      const nextVersion = step.details_version + 1;
+      const set: Record<string, unknown> = {
+        ...(stateChange ? { state: input.state, state_by: who, state_at: w.now } : {}),
+        ...(detailsChange ? { details_md: details, details_version: nextVersion } : {}),
+      };
+      if (Object.keys(set).length > 0) w.update('work_steps', step.id, set);
+      if (stateChange && input.state === 'current' && run && run.item_id === item.id) {
         w.update('runs', run.id, { current_step_id: step.id });
       }
-      w.event({
-        type: 'step.updated',
-        summary: `${who}: ${step.text} → ${input.state}${input.note ? `: ${input.note}` : ''}`,
-        item_id: item.id,
-        project_key: item.project_key,
-        data: {
-          step_id: step.id,
-          state: { old: step.state, new: input.state },
-          note: input.note ?? null,
-        },
-      });
+      if (stateChange || detailsChange) {
+        const detailsNote = details === null ? 'details cleared' : `details v${nextVersion}`;
+        w.event({
+          type: 'step.updated',
+          summary: stateChange
+            ? `${who}: ${step.text} → ${input.state}${input.note ? `: ${input.note}` : ''}${detailsChange ? ` · ${detailsNote}` : ''}`
+            : `${who} updated the details of ${quote(step.text)} (${detailsNote})`,
+          item_id: item.id,
+          project_key: item.project_key,
+          data: {
+            step_id: step.id,
+            ...(stateChange
+              ? { state: { old: step.state, new: input.state }, note: input.note ?? null }
+              : {}),
+            ...(detailsChange
+              ? { details_version: { old: step.details_version, new: nextVersion } }
+              : {}),
+          },
+        });
+      }
       const after = currentSteps(w.db, item.id).find((s) => s.id === step.id)!;
       return { step: stepView(w.db, [after])[0]! };
     },
@@ -568,6 +733,61 @@ export function createChecklistService(_deps: ServiceDeps): ChecklistService {
         data: { added: [], removed: [step.id], added_by: 'owner', text: step.text },
         inverse: [inverse],
       });
+    },
+
+    getStep(r, input) {
+      const item = requireItem(r.db, input.id);
+      // Any step on the item: a step a revision removed keeps its ID and history (§5.12, B33).
+      const row = r.db.sqlite
+        .prepare('SELECT * FROM work_steps WHERE id = ? AND item_id = ?')
+        .get(input.step_id, item.id) as StepRow | undefined;
+      if (!row) {
+        throw new ToolError(
+          'not_found',
+          `No work step ${input.step_id} on ${item.id}. Use a step id from get_item.`,
+        );
+      }
+      return {
+        step: {
+          ...detailedStep(r.db, row),
+          details_md: row.details_md,
+          details_version: row.details_version,
+        },
+        history: stepHistory(r.db, row),
+      };
+    },
+
+    ownerSetStepDetails(w, input) {
+      const item = requireItem(w.db, input.id);
+      const step = currentSteps(w.db, item.id).find((s) => s.id === input.stepId);
+      if (!step) {
+        throw new ToolError(
+          'not_found',
+          `No work step ${input.stepId} on ${item.id}'s current plan. Reload the item.`,
+        );
+      }
+      if (input.expected_version !== step.details_version) {
+        throw detailsConflict(w.db, step, input.expected_version);
+      }
+      const details = normDetails(input.details) ?? null;
+      if (details === step.details_md) return detailedStep(w.db, step);
+      const next = step.details_version + 1;
+      const inverse = w.update('work_steps', step.id, {
+        details_md: details,
+        details_version: next,
+      });
+      w.event({
+        type: 'step.updated',
+        summary: `You ${details === null ? 'cleared' : 'edited'} the details of ${quote(step.text)} on ${item.id} (v${next})`,
+        item_id: item.id,
+        project_key: item.project_key,
+        data: { step_id: step.id, details_version: { old: step.details_version, new: next } },
+        inverse: [inverse],
+      });
+      return detailedStep(
+        w.db,
+        currentSteps(w.db, item.id).find((s) => s.id === step.id)!,
+      );
     },
 
     ownerAddCheck(w, input) {

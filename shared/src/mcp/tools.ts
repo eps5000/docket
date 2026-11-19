@@ -1,5 +1,5 @@
 /**
- * The tool registry: all 42 tools in MCP_SPEC §5 order, with their group,
+ * The tool registry: all 43 tools in MCP_SPEC §5 order, with their group,
  * kind, input and output schemas and MCP annotations (§3 Tool annotations).
  * Descriptions live in mcp-copy.ts. Shared contract file (tasks.md, Slice rules).
  */
@@ -195,6 +195,8 @@ export const TOOLS = [
     onboarding.finishOnboardingInput,
     onboarding.finishOnboardingOutput,
   ),
+  // §5.12 Step details (decision 33)
+  def('get_step', 'checklist', 'read', checklist.getStepInput, checklist.getStepOutput),
 ] as const;
 
 export type ToolName = (typeof TOOLS)[number]['name'];
