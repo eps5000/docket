@@ -22,12 +22,26 @@ import { showToast } from '../../lib/undo';
 import { HelpLink } from '../../help/HelpLink';
 
 /**
- * The client setup snippets, exactly as MCP_SPEC §11 gives them: the token
- * is always `$DOCKET_TOKEN`, never its value.
+ * The user-wide client setup snippets, exactly as MCP_SPEC §11 gives them. In
+ * protected mode the token is always `$DOCKET_TOKEN`, never its value; in
+ * local trust (decision 32) there is no token at all (LOCAL_SNIPPETS).
  */
 export const SNIPPETS = {
   codex: `# ~/.codex/config.toml\n[mcp_servers.docket]\nurl = "http://127.0.0.1:7420/mcp"\nbearer_token_env_var = "DOCKET_TOKEN"`,
   claude: `claude mcp add --transport http --scope user docket \\\n  http://127.0.0.1:7420/mcp \\\n  --header "Authorization: Bearer $DOCKET_TOKEN"`,
+} as const;
+
+/** Local trust (decision 32): the same connections without the token. */
+export const LOCAL_SNIPPETS = {
+  codex: '# ~/.codex/config.toml\n[mcp_servers.docket]\nurl = "http://127.0.0.1:7420/mcp"',
+  claude: 'claude mcp add --transport http --scope user docket http://127.0.0.1:7420/mcp',
+} as const;
+
+/** The Security line (UI_SPEC §6.7e). */
+export const SECURITY_TEXT = {
+  local:
+    'Local trust: anything on this computer can use Docket. Turn on protected mode to require an unlock and an agent token.',
+  protected: 'Protected mode: this browser needs the owner key, and agents need the agent token.',
 } as const;
 
 /** *Reveal token* shows the token for this long, then hides it (UI_SPEC §6.7). */
@@ -134,9 +148,10 @@ export function ConnectionsSection({ query }: { query: UseQueryResult<SettingsRe
               }}
             </QueryState>
           </Card>
-          <ClientSetupCard />
+          <ClientSetupCard protectedMode={query.data?.connections.protected_mode} />
         </div>
         <div className="stack">
+          <SecurityCard query={query} />
           <Card padded data-card="endpoint">
             <h3>Endpoint</h3>
             <QueryState
@@ -152,7 +167,11 @@ export function ConnectionsSection({ query }: { query: UseQueryResult<SettingsRe
                   <dt>Bind</dt>
                   <dd>Loopback only</dd>
                   <dt>Auth</dt>
-                  <dd>Bearer token</dd>
+                  <dd>
+                    {d.connections.endpoint.auth === 'bearer'
+                      ? 'Bearer token (protected mode)'
+                      : 'None (local trust)'}
+                  </dd>
                   <dt>Origins</dt>
                   <dd className="mono">{d.connections.endpoint.origins.join(', ')}</dd>
                 </dl>
@@ -167,12 +186,54 @@ export function ConnectionsSection({ query }: { query: UseQueryResult<SettingsRe
 }
 
 /**
- * Client setup: the Codex | Claude Code snippet with *Copy*, and *Reveal
- * token*, which fetches the token on click, shows it for 30 s and then
- * hides it. The token is kept in this component's state only, never in the
- * query cache, and is dropped when the card unmounts.
+ * Security (UI_SPEC §6.7e; decision 32): which trust mode is on, and how to
+ * change it. The mode is configuration only (`DOCKET_PROTECTED_MODE`, then a
+ * restart): nothing here, or anywhere an agent can reach, changes it.
  */
-function ClientSetupCard() {
+function SecurityCard({ query }: { query: UseQueryResult<SettingsResponse> }) {
+  return (
+    <Card padded data-card="security">
+      <div className="withhelp wh-h3">
+        <h3>Security</h3>
+        <HelpLink anchor="settings.security" />
+      </div>
+      <QueryState query={query} skeleton={<Skeleton lines={2} label="Loading the trust mode" />}>
+        {(d) =>
+          d.connections.protected_mode ? (
+            <div data-trust="protected">
+              <p style={{ marginTop: 0 }}>{SECURITY_TEXT.protected}</p>
+              <p className="src" style={{ marginBottom: 0 }}>
+                To go back to local trust, set{' '}
+                <span className="mono">DOCKET_PROTECTED_MODE=off</span> in{' '}
+                <span className="mono">docker/.env</span>, then restart Docket.
+              </p>
+            </div>
+          ) : (
+            <div data-trust="local">
+              <p style={{ marginTop: 0 }}>{SECURITY_TEXT.local}</p>
+              <p className="src" style={{ marginBottom: 0 }}>
+                To turn it on, set <span className="mono">DOCKET_PROTECTED_MODE=on</span> in{' '}
+                <span className="mono">docker/.env</span>, then restart Docket. In both modes,
+                websites and other computers can’t reach Docket, and Activity shows owner actions
+                made by a script.
+              </p>
+            </div>
+          )
+        }
+      </QueryState>
+    </Card>
+  );
+}
+
+/**
+ * Client setup: the Codex | Claude Code snippet with *Copy*, for a user-wide
+ * connection; installing the agent files into a repo writes its connection
+ * file instead (decision 32). In protected mode, *Reveal token* fetches the
+ * token on click, shows it for 30 s and then hides it. The token is kept in
+ * this component's state only, never in the query cache, and is dropped
+ * when the card unmounts.
+ */
+function ClientSetupCard({ protectedMode }: { protectedMode: boolean | undefined }) {
   const [client, setClient] = useState<'codex' | 'claude'>('codex');
   const [token, setToken] = useState<string | null>(null);
   const [error, setError] = useState<unknown>(null);
@@ -198,6 +259,7 @@ function ClientSetupCard() {
       setBusy(false);
     }
   };
+  const snippets = protectedMode ? SNIPPETS : LOCAL_SNIPPETS;
   const copy = (text: string, done: string) => {
     void navigator.clipboard?.writeText(text).then(
       () => showToast(done),
@@ -221,25 +283,32 @@ function ClientSetupCard() {
           ]}
         />
       </div>
+      <p className="src" style={{ marginTop: 6 }} data-connection-note="">
+        Each repo needs no setup: Agent files → <b>Install</b> writes its connection file
+        (.mcp.json or .codex/config.toml). This is for a user-wide connection instead.
+      </p>
       <pre className="code" tabIndex={0} aria-label="Client configuration" data-snippet={client}>
-        {SNIPPETS[client]}
+        {snippets[client]}
       </pre>
       <div className="row wrap" style={{ marginTop: 8 }}>
-        <Button size="sm" icon="copy" onClick={() => copy(SNIPPETS[client], 'Copied.')}>
+        <Button size="sm" icon="copy" onClick={() => copy(snippets[client], 'Copied.')}>
           Copy
         </Button>
-        {token === null ? (
-          <Button size="sm" variant="ghost" disabled={busy} onClick={() => void reveal()}>
-            Reveal token
-          </Button>
-        ) : (
-          <Button size="sm" variant="ghost" onClick={hide}>
-            Hide token
-          </Button>
+        {protectedMode &&
+          (token === null ? (
+            <Button size="sm" variant="ghost" disabled={busy} onClick={() => void reveal()}>
+              Reveal token
+            </Button>
+          ) : (
+            <Button size="sm" variant="ghost" onClick={hide}>
+              Hide token
+            </Button>
+          ))}
+        {protectedMode && (
+          <span className="src">
+            Put it in <span className="mono">DOCKET_TOKEN</span> where your agents run.
+          </span>
         )}
-        <span className="src">
-          Put it in <span className="mono">DOCKET_TOKEN</span> where your agents run.
-        </span>
       </div>
       <p className="src" data-rename-note="">
         Set up before the rename? Rename your MCP server entry from tasklite to docket; the URL is
@@ -320,7 +389,7 @@ function BackupLines({ health }: { health: Health }) {
   );
 }
 
-/** Service health, the backups, the diagnostic log, *Lock this browser* and *Rotate owner key*. */
+/** Service health, the backups, the diagnostic log, and (protected mode) *Lock this browser* and *Rotate owner key*. */
 function ServiceHealthCard({ query }: { query: UseQueryResult<SettingsResponse> }) {
   const navigate = useNavigate();
   const [rotating, setRotating] = useState(false);
@@ -415,12 +484,17 @@ function ServiceHealthCard({ query }: { query: UseQueryResult<SettingsResponse> 
         >
           Download diagnostic log
         </a>
-        <Button size="sm" icon="lock" onClick={() => void lock()}>
-          Lock this browser
-        </Button>
-        <Button size="sm" variant="danger-text" onClick={() => setRotating(true)}>
-          Rotate owner key…
-        </Button>
+        {/* Protected mode only (decision 32): local trust has no owner session or key to use. */}
+        {query.data?.connections.protected_mode && (
+          <>
+            <Button size="sm" icon="lock" onClick={() => void lock()}>
+              Lock this browser
+            </Button>
+            <Button size="sm" variant="danger-text" onClick={() => setRotating(true)}>
+              Rotate owner key…
+            </Button>
+          </>
+        )}
       </div>
       {rotating && (
         <Dialog

@@ -40,6 +40,7 @@ export const HELP_ANCHORS = {
   'settings.clients': 'Settings → Connections → Client compatibility',
   'settings.client-setup': 'Settings → Connections → Client setup',
   'settings.service-health': 'Settings → Connections → Service health',
+  'settings.security': 'Settings → Connections → Security (the trust mode)',
   'settings.blocker-rule': 'Settings → Projects → Blockers clear when',
   'agent-files.page': 'Agent files: next to the h1',
   'agent-files.workflow': 'Agent files (one project): the Workflow notes card',
