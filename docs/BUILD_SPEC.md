@@ -174,7 +174,7 @@ SQLite tables. Every row has `id`, `created_at` and `updated_at`; all timestamps
 | `item_labels` | `item_id`, `label_id` | |
 | `links` | `from_id`, `to_id`, `type` (blocks\|relates), `satisfied_when` (null = the blocked item's project default; done\|merged\|verified), `created_by` | For `blocks`, `from` blocks `to`. Creating a link that closes a cycle is rejected (A04). |
 | `plan_versions` | `item_id`, `version_no`, `reason`, `created_by` | The Work checklist history (A16). Each `set_plan` writes a version. |
-| `work_steps` | `item_id`, `plan_version_no`, `position`, `text`, `state` (todo\|current\|done\|blocked\|skipped), `was_text`, `change_reason`, `from_review` (JSON), `added_by`, `state_by`, `state_at` | The current plan is the latest `plan_version_no`. |
+| `work_steps` | `item_id`, `plan_version_no`, `position`, `text`, `state` (todo\|current\|done\|blocked\|skipped), `was_text`, `change_reason`, `from_review` (JSON), `added_by`, `state_by`, `state_at`, `details_md` (≤ 10,000, nullable; decision 33), `source` (≤ 100, nullable), `details_version` | The current plan is the latest `plan_version_no`. |
 | `subagent_logs` | `item_id`, `work_step_id`, `name`, `outcome`, `evidence`, `provenance` (observed\|relayed), `child_run_id`, `reported_by_run_id` | A17. |
 | `agent_checks` | `item_id`, `position`, `text`, `state` (todo\|pass\|fail\|skipped), `evidence`, `provenance` (agent\|observed\|relayed\|ci), `added_by` | The checklist's Agent review section. |
 | `hr_items` | `item_id`, `position`, `text`, `state` (declared\|ready\|approved\|deferred), `added_by` (owner\|agent actor), `last_decision` (JSON), `follow_up_item_id`, `version` | Human review items. `ready` means it's in the current packet. |
@@ -290,6 +290,7 @@ Display labels and their one-line meanings are in UI_SPEC.md §5 (run state). Su
 ### 5.5 Checklist
 H13, A16, A17.
 - **Work steps** are the agent's plan. `set_plan` replaces the whole list as a new plan version with a reason. `update_step` changes one step's state. Revisions keep `was_text` and `change_reason`, which the UI shows as strikethrough and "Changed: …". The owner can add a step (`added_by=owner`) and remove their own undone steps. An agent's `set_plan` always keeps owner-added steps, though the agent may change their state. The same applies to owner-added agent checks under `set_checks`.
+- **Step details** (decision 33): each step may carry `details_md` and a `source`. `set_plan` sets them per step (patch semantics: omitted means unchanged); `update_step` can replace `details`; the owner edits them in the step dialog with `expected_version` on `details_version`. Details carry over unchanged when a plan revision keeps the step. Owner-added steps keep owner-set details. The write checks (secrets, item references) apply.
 - **Agent checks** have state and evidence. The owner can add one, and remove their own while it's still todo.
 - **Human review items:**
   - Agents and the owner can add them. While an item is `declared`, its author can edit or remove it. The owner can also change agent-added items, but agents can't change owner-added ones (`forbidden`).
@@ -545,7 +546,7 @@ The agent-files install (§5.17) also writes each client's **project connection 
 
 ## 6. MCP tool contract
 
-**Overview only.** [MCP_SPEC.md](MCP_SPEC.md) is authoritative for the server instructions, every tool's description text, input and output schemas, error messages and worked flows. It defines 42 tools (38, plus `get_agent_files` and `propose_agent_file_change` from decision 30, and `onboard_project` and `finish_onboarding` from decision 31), and one prompt (`onboard`), including `unlink_items`, `update_check` and `update_human_review`, which are paired with their siblings below.
+**Overview only.** [MCP_SPEC.md](MCP_SPEC.md) is authoritative for the server instructions, every tool's description text, input and output schemas, error messages and worked flows. It defines 43 tools (38, plus `get_step` from decision 33, plus `get_agent_files` and `propose_agent_file_change` from decision 30, and `onboard_project` and `finish_onboarding` from decision 31), and one prompt (`onboard`), including `unlink_items`, `update_check` and `update_human_review`, which are paired with their siblings below.
 
 Tools are snake_case, with input and output schemas defined in `shared/` with zod, and every result returns `structuredContent`. Lists are paginated with `cursor` and `limit` (default 25, max 50) (A02).
 
@@ -707,7 +708,7 @@ O05; owner decision 17 puts it in V1.
 |---|---|---|
 | Epic | Epic | — |
 | Story, Task, Bug | same type | — |
-| Sub-task | Work step on the parent (state from status category) | Yes: the subtask's own comments, assignee and dates drop out (listed) |
+| Sub-task | Work step on the parent (state from status category), `source` = its key, `details_md` = a header line (Jira key, assignee, start and due dates, story points) plus its description converted to Markdown | Comments are collected into one owner note on the parent, "Comments from Jira sub-tasks", grouped by sub-task with author and date (decision 33). Nothing else drops out, except ADF conversion losses, which are noted inline |
 | Other issue types | Task | Yes: the original type is noted in the description |
 | Status category To Do / In Progress / Done | Inbox / In progress (no lead claim, no run) / Done (`closed_by=imported`) | Status names are noted when not standard |
 | Priority Highest, High / Medium / Low, Lowest | P1 / P2 / P3 | — |
@@ -840,7 +841,7 @@ The milestones below group *capabilities*. The **execution order** is the batch 
 |---|---|---|
 | M0 | Workspace scaffold, lint, typecheck, Vitest, Dockerfile, compose, `/healthz` and `/readyz`, and the GitHub Actions CI workflow (§2 Stack) | `docker compose up` serves "Docket is running"; the CI check is green on the M0 PR, and Mergify waits for it |
 | M1 | Schema and migrations, domain services for §5 (including `satisfied_when`, decision records and the context bundle), event log, idempotency, undo, seed loader | Unit tests for every §5 rule pass; the seed loads deterministically |
-| M2 | MCP server per [MCP_SPEC.md](MCP_SPEC.md): auth, Host/Origin guards, identity, server instructions, all 42 tools and the `onboard` prompt, with the exact description text, compact text rendering, structured errors, sweeper, restart handling | The MCP_SPEC §10 contract tests pass, including the description snapshot and token budgets; two simultaneous SDK clients work |
+| M2 | MCP server per [MCP_SPEC.md](MCP_SPEC.md): auth, Host/Origin guards, identity, server instructions, all 43 tools and the `onboard` prompt, with the exact description text, compact text rendering, structured errors, sweeper, restart handling | The MCP_SPEC §10 contract tests pass, including the description snapshot and token budgets; two simultaneous SDK clients work |
 | M3 | Owner session and CSRF, UI API (§7, including owner text edits and the diagnostic log), SSE stream | API contract tests pass; the unlock flow works |
 | M4 | Web shell, tokens, Needs you, Work board and list, ticket and epic pages (four tabs, checklist editing, Decisions sections), open-item tabs, palette, quick capture | The e2e groups for Needs you, Tickets and epics, and Shell pass |
 | M5 | Packet screen and decisions, deferrals, questions and notes, archive, undo toasts, inline editing, desktop notifications and the tab-title count | The e2e groups for Packets and Work (archive) pass |
@@ -925,6 +926,7 @@ Owner decisions are marked **(owner)**. Every other entry is a technical choice 
 | 30 **(owner)** | Agents change agent files only by proposing (`get_agent_files`, `propose_agent_file_change`); the owner approves, edits or declines, with proposer and approver recorded. Drift detection for edits made outside Docket: scheduled checks of push installs, and instruction hashes agents report on `claim_lead`; drift shows as a Problem with *Adopt*, *Restore* and *Keep local*; runs record their instruction versions. | §5.19, MCP_SPEC §5.10, UI_SPEC §6.7b |
 | 31 **(owner)** | Onboarding without installed files: *New project* in Settings; the MCP tools `onboard_project` (create or adopt, returning the guide) and `finish_onboarding`; the editable onboarding guide, also served as the first MCP prompt; reconcile-before-create with imported Jira items; everything created in Planning; one review card with *Install agent files*. Agents can't change project settings or delete projects. | §5.20, MCP_SPEC §5.11, UI_SPEC §6.7d |
 | 32 **(owner)** | Local trust by default: no owner unlock and no agent token; Host and Origin guards kept; owner actions record browser or script. Opt-in protected mode restores both. The install writes secret-free project connection files (`.mcp.json`, `.codex/config.toml`), so connecting needs no commands. Supersedes the default-on parts of decision 16 and T2. | §3, §5.17a, constitution VI (v1.2.0) |
+| 33 **(owner)** | Checklist steps carry `details_md` and `source`; a step dialog in the UI (no inline expansion); agents read one step in full with `get_step`, and item reads show a marker; the Jira import keeps sub-task descriptions in step details and collects their comments in one note on the parent. | §4, §5.5, §9, MCP_SPEC §4, §5.5, UI_SPEC §6.3.1a |
 | R1 **(owner)** | The product is renamed Docket (formerly Task Lite; B28), mechanically: packages, CLI, `DOCKET_*` settings, MCP server name, Docker image, container and volume, skills, markers and manifest. Old names keep working: `TASKLITE_*` settings with a warning, the old markers and manifest, `skill:tasklite-*` keys, old backups and the old database file name. The one deletion is old skill folders Docket installed and recorded, when unmodified. The GitHub repo URL is unchanged. | §5.17 |
 | T22 | Parked runs keep their claim indefinitely and are only flagged after `PARK_MAX` (24 h); they are never auto-released. | §5.16 |
 | T23 | Workspace state is derived per worktree path from reported data (`dirty`, `head_sha`, `pushed_sha`, resources), never by inspecting the host. | §5.16 |
