@@ -36,8 +36,9 @@
  * `pnpm install` first (and `pnpm --filter @docket/web exec playwright
  * install chromium` once).
  */
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const require = createRequire(new URL('../../web/package.json', import.meta.url));
@@ -545,6 +546,7 @@ async function main() {
   }
   const report = await sweep(opts);
   printReport(report);
+  if (opts.json) mkdirSync(dirname(opts.json), { recursive: true });
   if (opts.json) writeFileSync(opts.json, `${JSON.stringify(report, null, 2)}\n`);
   process.exit(report.results.some(failed) ? 1 : 0);
 }

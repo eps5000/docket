@@ -49,7 +49,7 @@ const STRESS_SCREENS: [string, string][] = [
   ['Work list', '/work?layout=list'],
   ['Work map', '/work?layout=map'],
   ['Work timeline', '/work?layout=timeline'],
-  ['Big epic (36 tickets)', '/items/STR-3'],
+  ['Big epic (STR-3, 30+ tickets)', '/items/STR-3'],
   ['Big epic checklist', '/items/STR-3?tab=checklist'],
   ['Empty epic', '/items/STR-1'],
   ['Many labels', '/items/STR-14'],
