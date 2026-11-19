@@ -31,6 +31,7 @@
 }
 /* Links inside running text are underlined, not told apart by colour alone (WCAG 1.4.1). */
 .tl p a,
+.tl .md a:not(.btn),
 .tl .callout a,
 .tl .src a:not(.btn) {
   text-decoration: underline;
