@@ -485,6 +485,13 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T168 Connection files in the install bundle and push install: write and merge `.mcp.json` and `.codex/config.toml` (only the `docket` entry; refuse invalid files; never a secret; the env-var token in protected mode); manifest, *Check* and drift coverage; the Install dialog text. Tests for merging into existing files, and a real check that Claude Code and Codex pick them up (headless, with temporary config).
 - [x] T169 Docs: the README quick start (no commands beyond starting Docket), Help ("Connect an agent", "Security and protected mode"), the skills' setup notes, the smoke checklist, and the Settings compatibility notes. Remove the token from the default quick start.
 
+## Phase 19: Step details (owner decision 33)
+
+- [ ] T170 [contract] Migration: `work_steps.details_md`, `source` and `details_version`. Shared types (`WorkStep`: `source`, `has_details`, optional `details_md` and `details_version`); `set_plan` and `update_step` inputs; the new read tool `get_step`; the description changes for `set_plan`, `update_step` and `get_item`, plus `get_step`'s description; the compact renderer's `· details` marker; the owner API for editing step details (route schema plus a 501 placeholder); the client entries. Snapshot 42 → 43 tools. Budgets unchanged for `get_item` standard.
+- [ ] T171 [US16] Service and tools: details and source in `set_plan` (patch semantics, carried across revisions) and `update_step`; `get_step` with history; `get_context` including the current step's details; the owner edit route with a version check; write checks. Tests, including the token budgets with 10 detailed steps.
+- [ ] T172 [US16] The step dialog per UI_SPEC §6.3.1a, and the details icon on rows. E2E plus axe.
+- [ ] T173 [US16] The Jira import: sub-task details (header line plus converted description), source, and the "Comments from Jira sub-tasks" note on the parent. The report's wording ("Imported with changes: became checklist steps; description and comments kept"). Fixture tests for SC-020. Help ("Jira import", "Checklist"), the worker skill (put long step context in details), and BUILD_SPEC §9.
+
 ## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.
@@ -518,6 +525,8 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 | B29 | 17 Contracts for onboarding | T163 | Snapshot 40 → 42 plus a prompt |
 | B30 | 17 Onboarding (US15) | T164–T166 | Before the Gameflow pilot |
 | B31 | 18 Local trust and connection files | T167–T169 | Before the Gameflow pilot |
+| B33 | 19 Contracts for step details | T170 | Snapshot 42 → 43 |
+| B34 | 19 Step details (US16) | T171–T173 | Before the Gameflow import |
 
 **Slices after B6 may run in any order that respects** the dependency table below. Don't run two slices at once: they share route and screen groups.
 
@@ -565,6 +574,7 @@ Open a PR titled "<Bn>: <phase name>" with the checkpoint evidence. Do not queue
 | 16 Proposals and drift | B26 then B27 |
 | 17 Onboarding | B29 then B30 |
 | 18 Local trust | B31 |
+| 19 Step details | B33 then B34 (after B32) |
 
 **Within a phase:** tests (failing) → services → replace stubs or fill handlers → fill screens → checkpoint.
 

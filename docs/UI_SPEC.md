@@ -414,6 +414,17 @@ A `ProgressMap` of the filtered set, titled "Outside this view". When no epic or
   - "None on this ticket. It is reviewed with its epic: ◆ …" (a child of an epic-level review);
   - "New items aren't in the current packet; the agent includes them next round." (packet open).
 
+#### 6.3.1a Step dialog (decision 33)
+- **Opening it:** clicking a step's title, or its details icon (shown when the step has details, with an accessible name of "Details for <step>"), opens a dialog. There's no inline expansion.
+- **Contents:**
+  - the title, status chip and source (a Jira key linking to the Jira issue when the project has a Jira site);
+  - the rendered details (Markdown, sanitized);
+  - the history (wording changes with reasons, state changes by whom and when);
+  - subagent notes with their provenance.
+- **Editing:** *Edit details* opens the inline editor in the dialog, with `expected_version`, the conflict callout, *Ctrl+Enter* to save and Esc to cancel.
+- **Moving around:** *Previous* and *Next* step buttons (and the arrow keys when focus isn't in the editor). Esc closes, and focus returns to the row.
+- **Size:** it's sized for long text (up to 960 px wide and 85 vh tall, with the body scrolling), and works at 1024 px.
+
 #### 6.3.2 Lead and runs
 - **Run rows:** the run's `RunLine` (`state · reason · agent`, the agent in bold, the last-signal age), a "lead" chip, "started 30m ago", and "what" (current step or last report).
 - *Release lead claim…* and *Copy resume note* are shared with the agent bar (§6.3): one implementation, one dialog.

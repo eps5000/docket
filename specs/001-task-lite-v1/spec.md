@@ -26,6 +26,7 @@ One owner runs Docket on their own computer. AI agents (installed coding agents,
 - Owner requirement (2026-11-18, not a clarify question): agents often tailor instructions for a project, and people or agents will also edit installed files directly. Agents must be able to propose changes for the owner's approval, and Docket must detect and help remedy edits made outside it (owner decision 30; User Story 14).
 - Owner requirement (2026-11-18, not a clarify question): onboarding a real project (Gameflow: GitHub code, Spec Kit planning, Jira tickets) must work from a fresh install, with no skills installed yet, and must not duplicate work already imported from Jira (owner decision 31; User Story 15).
 - Owner requirement (2026-11-18, not a clarify question): no unlock step and no commands to connect agents; Docket is a local tool, so local processes are trusted by default, with an opt-in protected mode (owner decision 32).
+- Owner requirement (2026-11-18, not a clarify question): Jira sub-tasks carry real descriptions, so checklist steps need details, a source, and a dialog to read them in (owner decision 33; User Story 16).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -316,6 +317,22 @@ The result: the Jira-matched tasks enrich the existing items instead of duplicat
 5. **Given** a client that supports MCP prompts, **When** the owner runs the onboarding prompt, **Then** the agent receives the same guide.
 6. **Given** an agent, **When** it tries to change a project's settings or delete it, **Then** it can't; those remain owner actions.
 
+### User Story 16 - Checklist steps with details (Priority: P2)
+
+A ticket's checklist steps can carry details: a description in Markdown, and where the step came from. The owner opens a step in a dialog to read or edit everything about it. Agents add details when they plan, and read a step's details when they work on it. Jira sub-tasks import as steps with their full descriptions, and their comments are collected on the parent.
+
+**Why this priority**: real work (Gameflow's Jira sub-tasks) carries descriptions that a one-line step drops.
+
+**Independent Test**: import a fixture Jira project whose sub-tasks have long descriptions and comments. Each parent's steps carry the descriptions in details, with a source of the Jira key; one note on the parent collects the comments; the step dialog shows it all; and an agent's `get_step` returns the details while `get_item` shows only a marker.
+
+**Acceptance Scenarios**:
+
+1. **Given** a step with details, **When** the owner clicks its title or details icon, **Then** a dialog shows its title, status, source, rendered details, history and subagent notes, with *Previous* and *Next*, and Esc closes it.
+2. **Given** the dialog, **When** the owner edits the details and saves, **Then** a new version is recorded (with a conflict check against the version they opened), and agents see the change.
+3. **Given** an agent planning, **When** it calls `set_plan` with steps that include details, **Then** they're stored, and `get_item` standard shows each step with a "· details" marker instead of the text.
+4. **Given** an agent working a step, **When** it calls `get_step` or `get_context`, **Then** it receives that step's details within the budget.
+5. **Given** a Jira import, **When** a sub-task has a description and comments, **Then** its step has the description in details, a header line ("Jira GF-123 · assignee Sam · due Dec 4 · 3 pts"), source GF-123, and its comments appear in one "Comments from Jira sub-tasks" note on the parent, grouped by sub-task with author and date.
+
 ### Edge Cases
 
 - **A lead's lease expires mid-work, and the agent calls again with its old run:** it is refused with the current state. The item has already returned to Ready, with its plan and logs kept.
@@ -497,6 +514,10 @@ The result: the Jira-matched tasks enrich the existing items instead of duplicat
 - **FR-142**: Every owner action MUST record how it was made (the browser UI, or another client such as a script, identified by its user agent), and Activity MUST show it.
 - **FR-143**: A **protected mode** setting MUST restore the owner session (FR-101) and the agent bearer token. Turning it on or off MUST be an explicit configuration change, never done from the UI by an agent.
 - **FR-144**: The agent-files install MUST also write each client's project connection file into the repo (`.mcp.json` for Claude Code, `.codex/config.toml` for Codex), containing no secret. In protected mode it references the token through an environment variable. *Check* and drift MUST cover these files.
+- **FR-145** (owner decision 33): Work steps MUST support optional details (Markdown, ≤ 10,000 characters) and an optional source (≤ 100 characters, for example a Jira key), versioned with the plan like the rest of the step.
+- **FR-146**: The owner UI MUST show a step dialog (title, status, source, rendered details, history, subagent notes, previous and next, editable details with a conflict check). Rows show a details indicator; there's no inline expansion.
+- **FR-147**: Agents MUST be able to write details and source in `set_plan`, update details in `update_step`, and read one step in full with `get_step`. Ordinary item reads MUST show only a details marker; `get_context` MUST include the current step's details within its budget.
+- **FR-148**: The Jira import MUST put each sub-task's description into its step's details (with a header line for assignee, dates and story points), set the source to its Jira key, and collect all sub-task comments into one note on the parent, grouped by sub-task.
 
 ### Key Entities
 
@@ -522,6 +543,7 @@ The result: the Jira-matched tasks enrich the existing items instead of duplicat
 - **AgentFileProposal**: an agent's proposed new content for a file or Workflow notes, with its reason, the version it was based on, its state (pending, approved, declined) and who decided.
 - **InstructionReport / Drift**: the instruction hashes reported for an installed location (by a scheduled push-folder check or an agent's claim), the differences from what was sent, and the owner's remedy (adopted, restored, kept local).
 - **Onboarding**: a project's onboarding session: who started it, when, its state (in progress, ready for review, reviewed), the agent's summary, and the changes it made.
+- **WorkStep details**: optional Markdown details and a source on a checklist step; read in the step dialog, or by agents with `get_step`.
 
 ## Success Criteria *(mandatory)*
 
@@ -546,6 +568,7 @@ The result: the Jira-matched tasks enrich the existing items instead of duplicat
 - **SC-017**: An instruction file edited outside Docket is surfaced to the owner within 15 minutes for push installs, or by the next agent claim on that project otherwise, in 100% of cases in the drift test suite.
 - **SC-018**: Onboarding the fixture repo after a fixture Jira import creates no duplicate items: 100% of Spec Kit tasks that match an imported Jira item enrich it, and the owner can review the whole onboarding from one card.
 - **SC-019**: From a fresh install to a connected agent in a repo takes no typed commands beyond starting Docket: open the UI, create or import a project, click *Install*, and approve the client's one-time prompt.
+- **SC-020**: After a Jira import, 100% of sub-task descriptions and comments in the fixture are readable in Docket (in step details and the parent's note), and `get_item` standard for an item with 10 detailed steps stays within its token budget.
 
 ## Assumptions
 

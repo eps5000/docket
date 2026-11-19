@@ -338,7 +338,9 @@ type WorkStep = { id: string; text: string; state: 'todo'|'current'|'done'|'bloc
   was_text: string|null; change_reason: string|null; added_by: 'owner'|'agent';
   from_review: { round: number; hr_item_id: string } | null;
   subagents: { name: string; outcome: string; evidence: string|null; provenance: 'observed'|'relayed'; child_run_id: string|null; at: string }[];
-  state_by: string|null; state_at: string|null };
+  state_by: string|null; state_at: string|null;
+  source: string|null; has_details: boolean;            // decision 33
+  details_md?: string|null; details_version?: number };  // only in get_step, get_item view 'full', and get_context's current step
 type Check = { id: string; text: string; state: 'todo'|'pass'|'fail'|'skipped'; evidence: string|null;
   provenance: 'agent'|'observed'|'relayed'|'ci'; added_by: 'owner'|'agent' };
 type HumanReviewItem = { id: string; text: string; state: 'declared'|'ready'|'approved'|'deferred';
@@ -737,6 +739,26 @@ An agent sets up a project, or onboards a repo into one, from a fresh install wi
 - **Returns:** the same guide as `onboard_project`, as one user message (B30). A guide that isn't loaded is a JSON-RPC `InternalError` saying so. While the guide service is a stub (B29, and contract tests that stub it), the text is "Onboarding guide not available yet".
 - **Errors** (B29): `prompts/get` with a missing or malformed `project_key`, or an unknown prompt name, is a JSON-RPC `InvalidParams` error (protocol errors, §6).
 - **Result modes:** the same for text-only and structured sessions (§3 Results).
+
+### 5.12 Step details (decision 33)
+
+The exact description changes ship in the contract batch (tasks Phase 19, B33), with the code and the snapshot:
+- **`set_plan`:** gains "steps may carry details (Markdown) and a source";
+- **`update_step`:** gains `details`;
+- **`get_item`:** says details show as a marker unless view is full;
+- **the new `get_step`.**
+
+#### Changes to existing tools
+- **`set_plan`:** `steps[]` entries accept `details?` (≤ 10,000; `null` clears it) and `source?` (≤ 100). Patch semantics: omitted means unchanged.
+- **`update_step`:** accepts `details?` (replace, or `null` to clear) and `expected_details_version?`.
+- **`get_item`:** in `standard` view, steps show `has_details` and render as `· details`; in `full` view, details are included.
+- **`get_context`:** includes the current step's details (the one in state `current`, else the first `todo`), counted in the budget and truncated with a marker.
+
+#### `get_step`
+- **Purpose:** read one checklist step in full: title, state, source, details and history.
+- **Input:** `id` (item), `step_id`, plus `run_id?`.
+- **Output:** `{ step: WorkStep (with details_md and details_version), history: [{ at, by, change, from?, to? }] }`.
+- **Read-only.**
 
 ## 6. Errors
 
