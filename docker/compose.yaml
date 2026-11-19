@@ -14,6 +14,9 @@ services:
         required: false
     environment:
       DOCKET_SEED: ${DOCKET_SEED:-}
+      # Decision 32: empty or off is local trust (no unlock, no agent token); on is protected
+      # mode. Set it in .env (DOCKET_PROTECTED_MODE=on), then restart.
+      DOCKET_PROTECTED_MODE: ${DOCKET_PROTECTED_MODE:-}
       # Shown in Settings > Service health; keep it equal to the volume's name below.
       DOCKET_DATA_VOLUME: docket-data
     ports:

@@ -1,5 +1,7 @@
 # A disposable Docket with the sample data, for the O07 smoke test.
-# It reuses your agent token, so the client configs you already have work unchanged.
+# Local trust by default (decision 32): agents need no token. In protected mode
+# (DOCKET_PROTECTED_MODE=on) it reuses your agent token, so client configs that send
+# DOCKET_TOKEN work unchanged.
 # From the docker/ folder:
 #   docker compose stop docket     # your real instance, if it runs (its data stays put)
 #   docker compose -p docket-smoke -f compose.yaml -f smoke/compose.smoke.yaml up -d --build --wait
@@ -12,7 +14,7 @@ services:
     container_name: docket-smoke
     environment:
       DOCKET_SEED: sample
-      DOCKET_TOKEN: ${DOCKET_TOKEN:?Set DOCKET_TOKEN first (Settings → Reveal token)}
+      DOCKET_TOKEN: ${DOCKET_TOKEN:-}
 volumes:
   docket-data:
     name: docket-smoke-data

@@ -2,13 +2,22 @@
  * The unlock helper (tasks.md T062): give a browser context an owner session
  * through the real `POST /api/session/unlock` (B2), so its pages start
  * unlocked. `unlockViaUi` drives the Unlock screen instead.
+ *
+ * Decision 32: the instance runs in local trust by default, where there is
+ * nothing to unlock, so `unlock` does nothing. With `DOCKET_E2E_PROTECTED=1`
+ * the instance runs `DOCKET_PROTECTED_MODE=on`, only the specs tagged
+ * `@protected` run (playwright.config.ts), and `unlock` unlocks as before.
  */
 import type { BrowserContext, Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 import { ownerKey } from './container';
 
-/** Unlock a context: its cookie jar gets `docket_owner` and `docket_csrf`. */
+/** The run is against a protected-mode instance (decision 32). */
+export const PROTECTED = process.env.DOCKET_E2E_PROTECTED === '1';
+
+/** Unlock a context (protected mode): its cookie jar gets `docket_owner` and `docket_csrf`. */
 export async function unlock(target: BrowserContext | Page): Promise<void> {
+  if (!PROTECTED) return;
   const request = 'request' in target ? target.request : (target as BrowserContext).request;
   const res = await request.post('/api/session/unlock', { data: { key: ownerKey() } });
   expect(res.status(), await res.text()).toBe(200);

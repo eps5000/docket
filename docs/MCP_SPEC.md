@@ -968,7 +968,7 @@ These are part of M2 (BUILD_SPEC §11). Use the official MCP client SDK against 
 
 ## 11. Client setup
 
-**Default (decision 32):** no commands. Installing the agent files into a repo (Agent files → *Install*) writes `.mcp.json` (Claude Code) and `.codex/config.toml` (Codex) there; open the client in that repo and approve the one-time prompt. The commands below remain for a user-wide connection, and for protected mode, which needs the token.
+**Default (decision 32):** no commands. Installing the agent files into a repo (Agent files → *Install*) writes `.mcp.json` (Claude Code) and `.codex/config.toml` (Codex) there; open the client in that repo and approve the one-time prompt. The commands below remain for a user-wide connection, and for protected mode, which needs the token. In local trust, leave out the `--header` and `bearer_token_env_var` lines below (Settings → Connections shows the snippets for the mode in use). Checked in B31: headless `claude -p` uses the project `.mcp.json` without a prompt; `codex exec` reads the project's `.codex/config.toml` only once the folder is trusted.
 
 The commands below were checked against the clients' current documentation on 2026-11-07. The real-client smoke test (BUILD_SPEC §10) is still the final check.
 

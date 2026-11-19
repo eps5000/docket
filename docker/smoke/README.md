@@ -16,12 +16,12 @@ unattended, so you only do the rest.
 | An Orca worker running Claude | [orca-claude.md](orca-claude.md) |
 
 ## What's here
-- `smoke.mjs`: Node 22, no dependencies. `preflight` checks the service and your token;
+- `smoke.mjs`: Node 22, no dependencies. `preflight` checks the service (and your token, in protected mode);
   `prepare <surface>` makes a disposable ticket and prints the prompt to give the client;
   `check <surface> <ID>` reads the ticket back and prints PASS or FAIL for each step. It
   never prints the token.
 - `compose.smoke.yaml`: a disposable instance with the sample data on its own volume,
-  using your existing `DOCKET_TOKEN`.
+  in local trust by default (no token); in protected mode it uses your existing `DOCKET_TOKEN`.
 - One checklist per surface. Each one ends with what to record.
 - `smoke.mjs pdf`: puts a one-page PDF on RCP-14, for the PDF preview check in Chrome.
 - `eval/eval.mjs`: the skills eval (T148). It runs the US1 and US11 scenarios with installed

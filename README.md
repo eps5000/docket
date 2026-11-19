@@ -27,44 +27,52 @@ The first build takes a few minutes. Your data lives in the `docket-data` volume
 
 Set `TZ` to your time zone, e.g. `America/Chicago`: copy `.env.example` to `.env` in the `docker/` folder, uncomment `TZ=` and set it, then run the `up` command again. A container's own zone is usually UTC, so without it the burn-down's days and the Timeline's Now line are in UTC. Storage is always UTC.
 
-**2. Unlock the UI.** Open <http://127.0.0.1:7420/> and paste the owner key, which this prints:
-```bash
-docker compose exec docket docket owner-key
-```
-Agents never get this key. The browser stays unlocked for 30 days from its last use. *Lock this browser* and *Rotate owner key* are in Settings → Connections.
+**2. Open the UI.** Open <http://127.0.0.1:7420/>. There is no unlock step and no token to copy: Docket uses **local trust** by default (owner decision 32), so anything running on this computer can use it, while websites and other computers can't. Every owner action records whether the browser or a script made it, and Activity shows a script's as "owner (script: curl/8.4.0)". Want a hard line between your agents and your own actions? See [Protected mode](#protected-mode).
 
-**3. Put the agent token where your agents run.** Get it from Settings → Connections → *Reveal token* (it hides again after 30 s), or:
-```bash
-docker compose exec docket docket agent-token
-```
-Set it as `DOCKET_TOKEN` in the environment your agent clients start from:
-- macOS or Linux: add `export DOCKET_TOKEN="<token>"` to your shell profile, then open a new terminal.
-- Windows: `setx DOCKET_TOKEN "<token>"`, then open a new terminal.
+**3. Create or import a project.** Settings → Projects → *New project* (a 2–5 letter key, a name, a colour and the blocker rule), or *Import from Jira…* in the same dialog. [Set up a new project](#set-up-a-new-project) has the full path, including onboarding a repo with an agent. (With `DOCKET_SEED=sample` you already have sample projects.)
 
-Don't include a trailing newline or spaces: they break auth.
+**4. Install the agent files into the repo.** Open **Agent files** in the sidebar and pick your project in the project switcher. Write its **Workflow notes** (*Start from template* fills in suggested rules to edit), review the skills and the AGENTS.md block, then click *Install into <project>'s repo* and pick **Claude Code** or **Codex**:
+- **A command:** Docket gives you a PowerShell and a bash one-liner. Run it from the repo folder. It works once, for 10 minutes, and needs nothing else installed.
+- **One-click:** if you've mounted a code folder (**Settings → One-click install** walks you through it, and `docker/compose.yaml` has a commented example), Docket writes the files into the repo folder itself.
 
-**4. Connect your agents** ([MCP spec §11](docs/MCP_SPEC.md#11-client-setup); Settings → Connections shows the same snippets).
-- **Codex:** add this to `~/.codex/config.toml` (Windows: `%USERPROFILE%\.codex\config.toml`). The token is read from the environment on each connection, never stored in the file:
+Either way it installs the skills, puts the AGENTS.md block between `<!-- docket:begin -->` and `<!-- docket:end -->` in `CLAUDE.md` (Claude Code) or `AGENTS.md` (Codex) without touching the rest of the file, writes the repo's **connection file**, and logs the exact version of every file:
+- Claude Code: `.mcp.json`, with a `docket` server at `http://127.0.0.1:7420/mcp`;
+- Codex: `.codex/config.toml`, with a `[mcp_servers.docket]` table.
+
+Only the `docket` entry is added or updated: other servers and settings in the file stay as they are, a file that isn't valid JSON or TOML is refused (nothing is written), and the file never holds a token. You can commit it.
+
+The install log's *Check* (or its check command) shows later whether an installed copy was edited by hand, including the `docket` entry of the connection file. Docket also watches for that itself: it checks folders it installed into every 15 minutes (`DOCKET_DRIFT_CHECK_INTERVAL`), and agents report their installed files' hashes when they claim work (the installed `docket-check` script), so an edit made outside Docket shows under Problems with a diff and *Adopt*, *Restore* or *Keep local* (the connection file has *Restore* and *Keep local*). Agents that want to change their instructions propose it instead, for your approval in Agent files. See the in-app help article "Agent files", or [skills/README.md](skills/README.md) for the paths.
+
+**5. Approve Docket in the client.** Open Claude Code (or Codex) in the repo and approve Docket when it asks. It asks once:
+- **Claude Code** finds the new MCP server in `.mcp.json` and asks whether to use it: approve `docket`. (`/mcp` shows it afterwards. Headless `claude -p` runs use the project's servers without asking.)
+- **Codex** asks whether to trust the folder: trust it, and it reads `.codex/config.toml`. (Headless `codex exec` reads the project's file only once the folder is trusted, so open Codex there once first.)
+- **Orca workers** start the installed Claude Code or Codex in the repo, so they pick up the same files.
+
+**6. Check it.** Ask the agent to call the `whoami` tool. Settings → Connections then shows the client as last seen just now. It stays "Not verified" there until someone runs the [smoke kit](docker/smoke/README.md).
+
+### Protected mode
+For a hard boundary between agents and owner actions, turn on protected mode: set `DOCKET_PROTECTED_MODE=on` in `docker/.env` (copy `.env.example`), then `docker compose up -d --wait`. Then:
+- **The browser asks for the owner key** once (30 days per browser). Print it with `docker compose exec docket docket owner-key`. Agents never get it. *Lock this browser* and *Rotate owner key* are in Settings → Connections.
+- **Agents need the agent token.** Get it from Settings → Connections → *Reveal token* (it hides again after 30 s), or `docker compose exec docket docket agent-token`, and set it as `DOCKET_TOKEN` where your agent clients start (macOS or Linux: `export DOCKET_TOKEN="<token>"` in your shell profile; Windows: `setx DOCKET_TOKEN "<token>"`; then open a new terminal; no trailing newline or spaces).
+- **Install the agent files again.** In protected mode the connection files name the variable, never the token: `.mcp.json` sends `Authorization: Bearer ${DOCKET_TOKEN}`, which Claude Code fills in from the environment, and `.codex/config.toml` adds `bearer_token_env_var = "DOCKET_TOKEN"`.
+
+Agents can't change the mode: it's a setting, with no button, route or tool. To go back, set `DOCKET_PROTECTED_MODE=off` and restart. The in-app help article "Security and protected mode" has the details.
+
+### A user-wide connection instead
+To connect every repo without installing into each one ([MCP spec §11](docs/MCP_SPEC.md#11-client-setup); Settings → Connections → Client setup shows the same snippets):
+- **Codex:** add to `~/.codex/config.toml` (Windows: `%USERPROFILE%\.codex\config.toml`):
   ```toml
   [mcp_servers.docket]
   url = "http://127.0.0.1:7420/mcp"
-  bearer_token_env_var = "DOCKET_TOKEN"
   ```
-- **Claude Code** (user scope, so every project gets it):
+  In protected mode, add `bearer_token_env_var = "DOCKET_TOKEN"` (the token is read from the environment on each connection).
+- **Claude Code:**
   ```bash
-  claude mcp add --transport http --scope user docket http://127.0.0.1:7420/mcp \
-    --header "Authorization: Bearer $DOCKET_TOKEN"
+  claude mcp add --transport http --scope user docket http://127.0.0.1:7420/mcp
   ```
-  In PowerShell, use `--header "Authorization: Bearer $env:DOCKET_TOKEN"`. Your shell expands the variable, so Claude Code stores the token itself; run the command again if you rotate the token. For one repo only, use a project `.mcp.json` instead (MCP spec §11).
-- **Orca workers** start the installed Codex or Claude Code, so the setup above applies as long as they inherit your user config and environment.
+  In protected mode, add `--header "Authorization: Bearer $DOCKET_TOKEN"` (PowerShell: `$env:DOCKET_TOKEN`). Your shell expands it, so Claude Code stores the token; run the command again if you rotate it.
 
-**5. Check it.** `claude mcp list` should show `docket … ✔ Connected`, and `/mcp` inside Codex or Claude Code lists its tools. Ask the agent to call the `whoami` tool. Settings → Connections then shows the client as last seen just now. It stays "Not verified" there until someone runs the [smoke kit](docker/smoke/README.md).
-
-**6. Install the agent files.** Open **Agent files** in the sidebar and pick your project in the project switcher. Write its **Workflow notes** (*Start from template* fills in suggested rules to edit), review the skills and the AGENTS.md block, then click *Install into <project>'s repo* (or, with All projects, *Install user-wide*):
-- **A command:** Docket gives you a PowerShell and a bash one-liner. Run it from the repo folder (or anywhere, for a user-wide install). It works once, for 10 minutes, and needs nothing else installed.
-- **One-click:** if you've mounted a code folder (**Settings → One-click install** walks you through it, and `docker/compose.yaml` has a commented example), Docket writes the files into the repo folder itself.
-
-Either way it installs the skills, puts the AGENTS.md block between `<!-- docket:begin -->` and `<!-- docket:end -->` in `CLAUDE.md` (Claude Code) or `AGENTS.md` (Codex) without touching the rest of the file, and logs the exact version of every file. The install log's *Check* (or its check command) shows later whether an installed copy was edited by hand. Docket also watches for that itself: it checks folders it installed into every 15 minutes (`DOCKET_DRIFT_CHECK_INTERVAL`), and agents report their installed files' hashes when they claim work (the installed `docket-check` script), so an edit made outside Docket shows under Problems with a diff and *Adopt*, *Restore* or *Keep local*. Agents that want to change their instructions propose it instead, for your approval in Agent files. See the in-app help article "Agent files", or [skills/README.md](skills/README.md) for the paths.
+`claude mcp list` should then show `docket … ✔ Connected`.
 
 ### Set up a new project
 An agent can set a project up from what's already in its repo (Spec Kit specs, plans and tasks, the constitution, ADRs and READMEs), with no agent files installed yet:
@@ -83,8 +91,8 @@ Docket was called Task Lite until B28. Nothing you already set up stops working,
   ```
   Then `docker compose up -d --wait`, and `docker rm tasklite` once you're happy. The database file keeps its old name, `tasklite.db`, and Docket keeps using it. Remove the old volume yourself (`docker volume rm tasklite-data`) only when you're sure the copy works. To keep using the old volume instead, add a `docker/compose.override.yaml` that gives the `docket-data` volume `name: tasklite-data`, and set `DOCKET_DATA_VOLUME: tasklite-data` for the `docket` service.
 - **Settings.** Every `TASKLITE_*` setting is now `DOCKET_*` (`docker/.env.example` lists them). An old `TASKLITE_*` value still works while its `DOCKET_*` one is unset, and the server logs one warning per key at startup, for example "TASKLITE_PORT is deprecated; use DOCKET_PORT". It never logs the value.
-- **MCP clients.** Rename your MCP server entry from `tasklite` to `docket` (Codex: `[mcp_servers.docket]`; Claude Code: `claude mcp remove tasklite`, then the `claude mcp add … docket …` command above). The URL is unchanged, so the old entry keeps working until you do. If your clients read the token from `TASKLITE_TOKEN`, rename that variable too, or keep pointing the entry at it.
-- **The CLI and the container** are `docket`: `docker compose exec docket docket owner-key`. The browser asks for the owner key once more, because the session cookie was renamed.
+- **MCP clients.** Rename your MCP server entry from `tasklite` to `docket` (Codex: `[mcp_servers.docket]`; Claude Code: `claude mcp remove tasklite`, then the `claude mcp add … docket …` command in [A user-wide connection instead](#a-user-wide-connection-instead), or install the agent files again for a project `.mcp.json`). The URL is unchanged, so the old entry keeps working until you do. If your clients read the token from `TASKLITE_TOKEN`, rename that variable too, or keep pointing the entry at it.
+- **The CLI and the container** are `docket`: `docker compose exec docket docket owner-key`. In protected mode, the browser asks for the owner key once more, because the session cookie was renamed.
 - **Installed agent files.** Install again from Agent files. The install replaces an old `<!-- tasklite:begin -->` section with the Docket markers, writes the `docket-*` skills, and removes the old `tasklite-*` skill folders it installed itself, only while they are unmodified. An old folder you edited is kept and shows in Agent files as "old name, edited locally", with *Adopt* or *Keep local*. The old `.tasklite-manifest.json` and `tasklite-check` scripts are left in place; delete them when you like.
 - **Backups** taken before the rename (`tasklite-*.tar.gz`) are still listed, kept and restorable.
 
@@ -102,7 +110,7 @@ Docket was called Task Lite until B28. Nothing you already set up stops working,
   docker compose run --rm docket docket restore docket-YYYYMMDD-HHMM.tar.gz
   docker compose up -d
   ```
-  Restore refuses to run while the service is running. It prints item, event and document checksums that match the backup. Backups hold no tokens or keys, so restoring onto a new volume makes new ones (step 2 and 3 again).
+  Restore refuses to run while the service is running. It prints item, event and document checksums that match the backup. Backups hold no tokens or keys, so restoring onto a new volume makes new ones (in protected mode, unlock with the new owner key and give agents the new token).
 - **Stopping:** `docker compose down` keeps your data. `docker compose down --volumes` deletes the volume and everything in it, except backups you copied to the host.
 - **Deleting a project** (Settings → Projects → *Delete…*, after typing its key) removes its items and documents together. Backups keep a copy until they age out.
 

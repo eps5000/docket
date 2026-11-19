@@ -55,7 +55,7 @@ test.describe('shell navigation', () => {
     await unlock(page.context());
   });
 
-  test('the Unlock screen unlocks with the owner key and returns to the requested page', async ({
+  test('the Unlock screen unlocks with the owner key and returns to the requested page @protected', async ({
     browser,
   }) => {
     const context = await browser.newContext();
@@ -320,7 +320,7 @@ test.describe('axe: every shell in both themes', () => {
     await expectAxeClean(page, 'Command palette');
   });
 
-  test('the destructive Rotate owner key dialog focuses Cancel', async ({ page }) => {
+  test('the destructive Rotate owner key dialog focuses Cancel @protected', async ({ page }) => {
     await page.goto('/settings');
     await page.getByRole('button', { name: 'Rotate owner key…' }).click();
     const dialog = page.getByRole('dialog', { name: 'Rotate the owner key?' });

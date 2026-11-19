@@ -23,7 +23,9 @@ configuration except the steps that say so (the README's own setup, which you'd 
 
 ## 0. Start the disposable instance (2 min)
 
-From the repository root, in a terminal where `DOCKET_TOKEN` is set (README step 3):
+From the repository root. Docket runs in local trust (decision 32), so no token or unlock is
+needed; to check protected mode instead, set `DOCKET_PROTECTED_MODE=on` and `DOCKET_TOKEN` in
+that terminal first (README, "Protected mode"):
 
 ```bash
 cd docker
@@ -34,7 +36,21 @@ node docker/smoke/smoke.mjs preflight
 docker compose -p docket-smoke -f docker/compose.yaml -f docker/smoke/compose.smoke.yaml exec docket docket owner-key
 ```
 
-- [ ] Preflight passed. Open <http://127.0.0.1:7420> in **Chrome** and unlock with the key.
+- [ ] Preflight passed. Open <http://127.0.0.1:7420> in **Chrome**: it opens with no unlock
+      (in protected mode, unlock with the key the last command printed).
+
+## 0. Connecting by the project files (3 min): decision 32, SC-019
+
+In a scratch git repo, Agent files → pick Recipe App → _Install into Recipe App's repo_ →
+Claude Code, then Codex (run each command in the repo).
+
+| Check                                                                                                                                                                                     | Your result |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| [ ] The repo now has `.mcp.json` and `.codex/config.toml`, each with only a `docket` entry added (any other servers you put there first are unchanged), and no token in either            |             |
+| [ ] `claude` in the repo asks once to use the `docket` server from `.mcp.json`; after you approve it, "call whoami on docket" answers "Connected as claude"                               |             |
+| [ ] `codex` in the repo asks once to trust the folder; after you trust it, "call whoami on docket" answers "Connected as codex"                                                           |             |
+| [ ] Settings → Connections → Security says "Local trust", with no _Reveal token_, _Lock this browser_ or _Rotate owner key_                                                               |             |
+| [ ] `curl -X POST -H 'content-type: application/json' -d '{"text":"from curl"}' http://127.0.0.1:7420/api/items/RCP-14/notes` works, and RCP-14 → Activity shows "owner (script: curl/…)" |             |
 
 ## 1. Installed Codex CLI (4 min): V1, V6, V7
 
@@ -51,7 +67,7 @@ prompt into `codex`, and `check codex <ID>`.
 ## 2. Installed Claude Code, interactive (4 min): V1, V3
 
 Follow [claude-code.md](claude-code.md) with the README's **user-scope** `claude mcp add`
-(this is your real setup step, not a test-only change).
+("A user-wide connection instead"), or from the repo of step 0, where `.mcp.json` connects it.
 
 | Check                                                                                                                                                                                                                                      | Your result |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------- |

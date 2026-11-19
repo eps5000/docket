@@ -43,7 +43,9 @@ test.describe('e2e harness', () => {
     await b.close();
   });
 
-  test('the unlock helper gives a context an owner session, and lock ends it', async ({ page }) => {
+  test('the unlock helper gives a context an owner session, and lock ends it @protected', async ({
+    page,
+  }) => {
     expect((await page.request.get('/api/bootstrap')).status()).toBe(401);
     await unlock(page.context());
     // Unlocked: the route answers (US2 built it), not 401.

@@ -88,7 +88,43 @@ test.describe('Settings', () => {
     );
   });
 
-  test('connections: the matrix, the snippets with $DOCKET_TOKEN, and Reveal token hiding after 30 s', async ({
+  test('connections in local trust: the Security line, snippets without a token, no Reveal, Lock or Rotate', async ({
+    ownerPage: page,
+  }) => {
+    await page.goto('/settings');
+    const security = card(page, 'security');
+    await expect(security).toContainText(
+      'Local trust: anything on this computer can use Docket. Turn on protected mode to require an unlock and an agent token.',
+    );
+    await expect(security).toContainText('DOCKET_PROTECTED_MODE=on');
+    const setup = card(page, 'client-setup');
+    const snippet = setup.getByLabel('Client configuration');
+    await expect(snippet).toHaveText(
+      '# ~/.codex/config.toml\n[mcp_servers.docket]\nurl = "http://127.0.0.1:7420/mcp"',
+    );
+    await setup.getByRole('button', { name: 'Claude Code' }).click();
+    await expect(snippet).toHaveText(
+      'claude mcp add --transport http --scope user docket http://127.0.0.1:7420/mcp',
+    );
+    await expect(setup.locator('[data-connection-note]')).toContainText(
+      'Agent files → Install writes its connection file',
+    );
+    await expect(page.getByRole('button', { name: 'Reveal token' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Lock this browser' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Rotate owner key…' })).toHaveCount(0);
+    await expect(card(page, 'endpoint').getByText('None (local trust)')).toBeVisible();
+    expect(await page.content()).not.toContain(agentToken());
+    await expectAxeClean(page, 'Settings: Connections (local trust)', {
+      include: 'section[aria-labelledby="settings-connections"]',
+    });
+    await shoot(
+      page,
+      'connections-local-trust',
+      page.locator('section[aria-labelledby="settings-connections"]'),
+    );
+  });
+
+  test('connections: the matrix, the snippets with $DOCKET_TOKEN, and Reveal token hiding after 30 s @protected', async ({
     ownerPage: page,
   }) => {
     await page.clock.install();
@@ -153,6 +189,17 @@ test.describe('Settings', () => {
 
     await expect(card(page, 'endpoint').getByText('Loopback only')).toBeVisible();
     await shoot(page, 'settings-endpoint', card(page, 'endpoint'));
+    // Decision 32: protected mode says so, and offers Lock and Rotate.
+    await expect(card(page, 'security')).toContainText(
+      'Protected mode: this browser needs the owner key, and agents need the agent token.',
+    );
+    await expect(page.getByRole('button', { name: 'Lock this browser' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Rotate owner key…' })).toBeVisible();
+    await shoot(
+      page,
+      'connections-protected',
+      page.locator('section[aria-labelledby="settings-connections"]'),
+    );
   });
 
   test('service health: backup locations before and after `docket backup now`', async ({
@@ -253,7 +300,7 @@ test.describe('Settings', () => {
 });
 
 test.describe('Unlock', () => {
-  test('a new browser unlocks with the owner key and lands where it asked to go', async ({
+  test('a new browser unlocks with the owner key and lands where it asked to go @protected', async ({
     browser,
   }) => {
     const context = await browser.newContext();
