@@ -183,6 +183,7 @@ export function WorkSection({ kind, data }: { kind: ItemKind; data: ItemDetailRe
           itemId={data.item.id}
           steps={work}
           stepId={openStep}
+          itemImported={data.item.jira_key !== null}
           onMove={setOpenStep}
           onClose={() => {
             returnTo.current = openStep;

@@ -35,11 +35,17 @@ export const stepQueryKey = (itemId: string, stepId: string) =>
 const who = (by: string) => (by === 'owner' ? 'you' : by);
 const quote = (text: string | null | undefined) => (text ? `“${text}”` : '(none)');
 
-/** One history line: what changed, by whom; the time is shown beside it. */
-function historyText(h: StepHistoryEntry): string {
+/**
+ * One history line: what changed, by whom; the time is shown beside it.
+ * `importedFrom` is the Jira key of a step the Jira import made: the import
+ * adds steps as the owner, so its "added" line names Jira instead of "you".
+ */
+export function historyText(h: StepHistoryEntry, importedFrom: string | null = null): string {
   switch (h.change) {
     case 'added':
-      return `Added by ${who(h.by)}`;
+      return importedFrom && h.by === 'owner'
+        ? `Imported from Jira (${importedFrom})`
+        : `Added by ${who(h.by)}`;
     case 'text':
       return `Reworded by ${who(h.by)}: ${quote(h.from)} → ${quote(h.to)}`;
     case 'state':
@@ -80,10 +86,13 @@ export function StepDialog({
   itemId,
   steps,
   stepId,
+  itemImported = false,
   onMove,
   onClose,
 }: {
   itemId: string;
+  /** The item came from a Jira import (it has a `jira_key`). */
+  itemImported?: boolean;
   /** The current plan's steps, in order: Previous and Next walk them. */
   steps: readonly WorkStep[];
   stepId: string;
@@ -166,7 +175,8 @@ export function StepDialog({
   const source = step.source;
   const jiraLink = !!site && !!source && JIRA_KEY.test(source);
   // A sub-task the Jira import made: the import "added" it as the owner, so say where it came from.
-  const imported = jiraLink && step.added_by === 'owner';
+  const imported =
+    (itemImported || jiraLink) && step.added_by === 'owner' && !!source && JIRA_KEY.test(source);
   const moved = query.data?.history.some((h) => h.change === 'state') ?? false;
 
   const startEdit = () => {
@@ -278,7 +288,7 @@ export function StepDialog({
         )}
         <span className="src">
           {imported
-            ? 'Imported from Jira'
+            ? `Imported from Jira (${source})`
             : step.added_by === 'owner'
               ? 'Added by you'
               : 'The agent’s step'}
@@ -367,7 +377,7 @@ export function StepDialog({
                   {formatStamp(h.at)}
                 </span>
                 <span>
-                  {historyText(h)}
+                  {historyText(h, imported ? source : null)}
                   {h.note && (
                     <span className="changed">
                       {' '}

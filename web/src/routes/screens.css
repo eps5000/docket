@@ -1537,7 +1537,27 @@
 }
 
 /* History rows keep a note's line breaks (imported Jira comments and sub-task notes, B34). */
-.tl .act > span + span {
+.tl .act > .act-body {
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+/* The Jira import's "Comments from Jira sub-tasks" notes in History (decision 33, B34). */
+.tl .jira-note {
+  white-space: normal;
+}
+.tl .jira-note .jn-title {
+  font-weight: 600;
+}
+.tl .jira-note .jn-head {
+  margin: 10px 0 2px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.tl .jira-note .jn-by {
+  margin-top: 6px;
+}
+.tl .jira-note .jn-text {
   white-space: pre-line;
   overflow-wrap: anywhere;
 }

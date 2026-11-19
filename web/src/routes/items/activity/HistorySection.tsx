@@ -7,6 +7,35 @@ import { showToast } from '../../../lib/undo';
 import { useSteer } from '../../shared/steer';
 import type { ItemKind } from '../ItemPage';
 import { HelpLink } from '../../../help/HelpLink';
+import { parseImportedNote, type ImportedNote } from './importedNote';
+
+/**
+ * A "Comments from Jira sub-tasks" note (decision 33): each sub-task's
+ * heading as a heading, each comment's author and date muted above its text.
+ */
+export function ImportedNoteView({ note }: { note: ImportedNote }) {
+  return (
+    <div className="jira-note" data-imported-note="">
+      <div className="src">Note imported from Jira</div>
+      <div className="jn-title">{note.title}</div>
+      {note.blocks.map((b, i) =>
+        b.kind === 'heading' ? (
+          <h4 className="jn-head" key={i}>
+            {b.text}
+          </h4>
+        ) : b.kind === 'by' ? (
+          <div className="src jn-by" key={i}>
+            {b.text}
+          </div>
+        ) : (
+          <div className="jn-text" key={i}>
+            {b.text}
+          </div>
+        ),
+      )}
+    </div>
+  );
+}
 
 /**
  * History (summary "n updates"), with the *note for the agent* box at the
@@ -83,8 +112,11 @@ export function HistorySection({ kind, data }: { kind: ItemKind; data: ItemDetai
             <span className="src mono" title={isoTitle(a.at)}>
               {formatAge(a.at)}
             </span>
-            <span>
-              {a.summary}
+            <div className="act-body">
+              {(() => {
+                const note = parseImportedNote(a.summary);
+                return note ? <ImportedNoteView note={note} /> : a.summary;
+              })()}
               {a.actor_kind === 'agent' && !a.summary.startsWith(a.actor.split(' · ')[0]!) && (
                 <span className="src"> · {a.actor}</span>
               )}
@@ -95,7 +127,7 @@ export function HistorySection({ kind, data }: { kind: ItemKind; data: ItemDetai
                   · {a.actor}
                 </span>
               )}
-            </span>
+            </div>
           </div>
         ))
       )}

@@ -320,7 +320,12 @@ test.describe('Import from Jira (UI_SPEC §9.2)', () => {
     await expect(step.locator('.step-details')).toContainText(
       'Jira TL-8 · assignee Jo Sample · start Nov 2, 2026 · due Dec 4, 2026 · 3 pts',
     );
-    await expect(step.locator('.step-meta')).toContainText('Imported from Jira');
+    await expect(step.locator('.step-meta')).toContainText('Imported from Jira (TL-8)');
+    // History names Jira, not "you" (the import adds steps as the owner).
+    await expect(step.locator('.step-history [data-change="added"]')).toContainText(
+      'Imported from Jira (TL-8)',
+    );
+    await expect(step.locator('.step-history')).not.toContainText('Added by you');
     await expect(step.getByRole('heading', { name: 'What to show' })).toBeVisible();
     await expect(step.locator('.step-details')).toContainText(
       'From Jira: panel simplified or dropped in the description',
@@ -335,11 +340,23 @@ test.describe('Import from Jira (UI_SPEC §9.2)', () => {
     const note = history
       .locator('.act')
       .filter({ hasText: 'Comments from Jira sub-tasks (1 of 2)' });
-    await expect(note).toContainText('TL-7 Add Luhn check');
-    await expect(note).toContainText('Sam Placeholder · 2026-03-06');
+    // Each sub-task is a heading; each comment's author and date is a muted line.
+    await expect(note.getByRole('heading', { level: 4 })).toHaveText([
+      'TL-7 Add Luhn check',
+      'TL-8 Show inline errors',
+    ]);
+    const by = note.locator('.jn-by').first();
+    await expect(by).toHaveText('Sam Placeholder · 2026-03-06');
+    await expect(by).toHaveClass(/\bsrc\b/);
     await expect(
       history.locator('.act').filter({ hasText: 'Comments from Jira sub-tasks (2 of 2)' }),
     ).toContainText('TL-8 Show inline errors (continued)');
+    await expect(
+      history
+        .locator('.act')
+        .filter({ hasText: 'Comments from Jira sub-tasks (2 of 2)' })
+        .getByRole('heading', { level: 4 }),
+    ).toHaveText(['TL-8 Show inline errors (continued)']);
     await expect(history.locator('[data-notes-unread]')).toHaveText('2 notes not read yet');
     await expectAxeClean(page, 'Imported parent · History', {
       include: '[data-section="history"]',
