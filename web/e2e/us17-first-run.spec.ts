@@ -136,7 +136,7 @@ test.describe('First run (UI_SPEC §6.0)', () => {
     await expect(jira).toHaveCount(0);
 
     // Create a project → its "What next" choices.
-    await page.getByRole('button', { name: 'New project' }).click();
+    await page.getByRole('button', { name: 'New project', exact: true }).click();
     const create = page.getByRole('dialog', { name: 'New project' });
     await create.getByLabel('Key').fill('GF');
     await create.getByLabel('Name').fill('Gameflow');
