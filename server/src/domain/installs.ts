@@ -40,6 +40,16 @@
  * `SKILL.md`; an edited one is kept and listed as `kept_edited`.
  * Edited files carry `local_content` (≤ 50,000 characters) for the diff.
  * Command installs are checked by their check command (`checkCommands`).
+ *
+ * **Connection files** (decision 32; BUILD_SPEC §5.17a): a repo install also
+ * writes the client's project connection file (`.mcp.json`, or
+ * `.codex/config.toml`), merging only the `docket` entry (connection.ts in
+ * @docket/shared). It is in the manifest as `connection`, at the version
+ * `connection:local` or `connection:protected` (the trust mode it was written
+ * in), with the sha256 of the entry's canonical text, so the check and drift
+ * compare only that entry. It never holds a secret: in protected mode it
+ * names the `DOCKET_TOKEN` environment variable. A user-wide install writes
+ * none (the user-wide connection stays a copy-paste command).
  */
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { access, constants as fsConstants, open, rm } from 'node:fs/promises';
@@ -48,6 +58,15 @@ import {
   AGENT_SETUP_LIMITS,
   AGENTS_BLOCK_KEY,
   BrokenMarkersError,
+  CONNECTION_FILES,
+  CONNECTION_KEY,
+  ConnectionFileError,
+  connectionCanonical,
+  connectionEntry,
+  connectionVersionId,
+  installedConnection,
+  isConnectionVersionId,
+  mergeConnection,
   INSTALL_CLIENT_LABELS,
   ToolError,
   checkCommands,
@@ -150,25 +169,54 @@ function versionContent(db: Db, id: string): string {
   return row.content;
 }
 
-/** Each file as installed, for a client, target and project. */
+/** The MCP address the connection files name: the first allowed host's. */
+export const mcpUrlOf = (allowedHosts: readonly string[]): string =>
+  `http://${allowedHosts[0] ?? '127.0.0.1:7420'}/mcp`;
+
+/**
+ * The connection file as installed (decision 32): its manifest entry, and the
+ * text Docket merges in (the `docket` entry). `version_id` records the mode.
+ */
+export function connectionFileFor(
+  client: InstallClient,
+  url: string,
+  protectedMode: boolean,
+): InstallFile {
+  return {
+    key: CONNECTION_KEY,
+    version_id: connectionVersionId(protectedMode),
+    path: CONNECTION_FILES[client],
+    content: connectionEntry(client, url, protectedMode),
+    sha256: hashText(connectionCanonical(client, url, protectedMode)),
+  };
+}
+
+/** Each file as installed, for a client, target and project; a repo install adds its connection file. */
 function filesFor(
   keys: { key: string; version_id: string; content: string }[],
   client: InstallClient,
   target: InstallTargetKind,
   project: string | null,
+  connection: { url: string; protectedMode: boolean },
 ): InstallFile[] {
   const layout = installLayout(client, target);
   const fill = fillsProjectKey(target, project);
-  return keys.map(({ key, version_id, content }) => {
-    const text = key === AGENTS_BLOCK_KEY ? renderAgentsBlock(content, fill) : content;
-    return {
-      key,
-      version_id,
-      path: installPathOf(layout, key),
-      content: text,
-      sha256: hashText(text),
-    };
-  });
+  const files = keys
+    .filter(({ key }) => key !== CONNECTION_KEY)
+    .map(({ key, version_id, content }) => {
+      const text = key === AGENTS_BLOCK_KEY ? renderAgentsBlock(content, fill) : content;
+      return {
+        key,
+        version_id,
+        path: installPathOf(layout, key),
+        content: text,
+        sha256: hashText(text),
+      };
+    });
+  if (target === 'repo') {
+    files.push(connectionFileFor(client, connection.url, connection.protectedMode));
+  }
+  return files;
 }
 
 /**
@@ -279,7 +327,9 @@ export async function inspectPushInstall(
   for (const [key, sent] of Object.entries(manifest)) {
     const rel = sent.installed_as
       ? `${layout.skillsDir}/${sent.installed_as}/SKILL.md`
-      : installPathOf(layout, key);
+      : key === CONNECTION_KEY
+        ? CONNECTION_FILES[row.client]
+        : installPathOf(layout, key);
     const path = layout.display + rel;
     let bytes: Buffer | null;
     try {
@@ -295,7 +345,24 @@ export async function inspectPushInstall(
       files.push({ key, path, state: 'missing', sha256: null, text: null });
       continue;
     }
-    if (key === AGENTS_BLOCK_KEY) {
+    if (key === CONNECTION_KEY) {
+      // Only the docket entry is compared (decision 32): other servers there are the owner's.
+      const entry = installedConnection(row.client, bytes.toString('latin1'));
+      if (entry === null) files.push({ key, path, state: 'missing', sha256: null, text: null });
+      else if (entry === 'invalid') {
+        files.push({
+          key,
+          path,
+          state: 'edited',
+          sha256: hashBytes(bytes),
+          text: bytes.toString('utf8'),
+        });
+      } else {
+        const sha = hashBytes(Buffer.from(entry, 'latin1'));
+        const text = Buffer.from(entry, 'latin1').toString('utf8');
+        files.push({ key, path, state: sha === sent.sha256 ? 'ok' : 'edited', sha256: sha, text });
+      }
+    } else if (key === AGENTS_BLOCK_KEY) {
       const block = installedBlock(bytes.toString('latin1'));
       if (block === null) files.push({ key, path, state: 'missing', sha256: null, text: null });
       else if (block === 'broken') {
@@ -392,6 +459,11 @@ interface Prepared extends PreparedInstall {
 
 export function createInstallsService(deps: ServiceDeps): InstallsService {
   const { config } = deps;
+  /** What the connection files name (decision 32): this Docket's MCP address, and the trust mode. */
+  const connection = () => ({
+    url: mcpUrlOf(config.allowedHosts ?? []),
+    protectedMode: config.protectedMode === true,
+  });
 
   /** The push root, opened and checked; `validation` when push is off or the folder isn't there. */
   async function pushRoot(): Promise<PushRoot> {
@@ -417,7 +489,22 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
     const writes: { rel: string; bytes: Buffer }[] = [];
 
     for (const f of files) {
-      if (f.key === AGENTS_BLOCK_KEY) {
+      if (f.key === CONNECTION_KEY) {
+        // Merge only the docket entry; an invalid file is refused before anything is written.
+        const old = await root.read(base, f.path);
+        try {
+          const merged = mergeConnection(
+            input.client,
+            old === null ? null : old.toString('latin1'),
+            f.content,
+            f.path,
+          );
+          writes.push({ rel: f.path, bytes: Buffer.from(merged.text, 'latin1') });
+        } catch (err) {
+          if (err instanceof ConnectionFileError) throw new ToolError('validation', err.message);
+          throw err;
+        }
+      } else if (f.key === AGENTS_BLOCK_KEY) {
         const old = await root.read(base, f.path);
         let merged;
         try {
@@ -504,6 +591,7 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
         input.client,
         input.target_kind,
         project,
+        connection(),
       );
       const install_id = newId('ins', Date.parse(r.now));
       const prepared: Prepared = {
@@ -637,16 +725,27 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
       if (!row) throw new ToolError('not_found', NOT_FOUND);
 
       const manifest = JSON.parse(row.manifest) as ManifestMap;
+      // The connection file is rewritten in the mode it was recorded in (its version ID).
+      const sentConnection = manifest[CONNECTION_KEY];
       const files = filesFor(
-        Object.entries(manifest).map(([key, v]) => ({
-          key,
-          version_id: v.version_id,
-          content: versionContent(r.db, v.version_id),
-        })),
+        Object.entries(manifest)
+          .filter(([key]) => key !== CONNECTION_KEY)
+          .map(([key, v]) => ({
+            key,
+            version_id: v.version_id,
+            content: versionContent(r.db, v.version_id),
+          })),
         row.client,
         row.target_kind,
         row.project_key,
-      );
+        {
+          url: connection().url,
+          protectedMode:
+            sentConnection && isConnectionVersionId(sentConnection.version_id)
+              ? sentConnection.version_id === connectionVersionId(true)
+              : connection().protectedMode,
+        },
+      ).filter((f) => f.key !== CONNECTION_KEY || sentConnection !== undefined);
       const layout = installLayout(row.client, row.target_kind);
       const now = new Date(r.now);
       const entry = (name: string, text: string, mode = 0o644): TarFileEntry => {
@@ -659,8 +758,9 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
           source: { bytes },
         };
       };
-      const copied = files.filter((f) => f.key !== AGENTS_BLOCK_KEY);
+      const copied = files.filter((f) => f.key !== AGENTS_BLOCK_KEY && f.key !== CONNECTION_KEY);
       const block = files.find((f) => f.key === AGENTS_BLOCK_KEY);
+      const conn = files.find((f) => f.key === CONNECTION_KEY);
       const scripts = checkScripts().map(([name, text]) => ({
         path: `${layout.dir}/${name}`,
         text,
@@ -684,8 +784,10 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
         ...scripts.map((x) => entry(`files/${x.path}`, x.text, x.mode)),
         entry('files.txt', `${list.join('\n')}\n`),
         entry('block.md', block?.content ?? ''),
-        entry('install.sh', installSh(layout.instructions, layout.dir), 0o755),
-        entry('install.ps1', installPs1(layout.instructions, layout.dir)),
+        // The connection file's docket entry, merged by the install step (decision 32).
+        ...(conn ? [entry('connection.txt', conn.content)] : []),
+        entry('install.sh', installSh(layout.instructions, layout.dir, row.client), 0o755),
+        entry('install.ps1', installPs1(layout.instructions, layout.dir, row.client)),
       ];
       return {
         install_id: row.id,

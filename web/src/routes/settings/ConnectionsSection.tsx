@@ -284,8 +284,8 @@ function ClientSetupCard({ protectedMode }: { protectedMode: boolean | undefined
         />
       </div>
       <p className="src" style={{ marginTop: 6 }} data-connection-note="">
-        Each repo needs no setup: Agent files → <b>Install</b> writes its connection file
-        (.mcp.json or .codex/config.toml). This is for a user-wide connection instead.
+        Each repo needs no setup: Agent files → <b>Install</b> writes its connection file (.mcp.json
+        or .codex/config.toml). This is for a user-wide connection instead.
       </p>
       <pre className="code" tabIndex={0} aria-label="Client configuration" data-snippet={client}>
         {snippets[client]}

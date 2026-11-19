@@ -57,6 +57,13 @@
       "when": 1795044601457,
       "tag": "0007_onboarding_guide_key",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1795052384155,
+      "tag": "0008_connection_drift_key",
+      "breakpoints": true
     }
   ]
 }

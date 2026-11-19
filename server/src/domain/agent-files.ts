@@ -41,6 +41,7 @@
  */
 import { createHash } from 'node:crypto';
 import {
+  CONNECTION_KEY,
   ONBOARDING_GUIDE_KEY,
   ToolError,
   type AgentFileDetail,
@@ -100,6 +101,8 @@ const LAYER_NAMES: Record<AgentFileLayer, string> = {
 /** `skill:docket-worker` → `docket-worker`; `agents_block` → `AGENTS.md block`; the guide → `Onboarding guide`. */
 export function agentFileName(key: string): string {
   if (key === ONBOARDING_GUIDE_KEY) return 'Onboarding guide';
+  // The project connection file (decision 32): .mcp.json or .codex/config.toml.
+  if (key === CONNECTION_KEY) return 'Connection file';
   return key.startsWith('skill:') ? key.slice('skill:'.length) : 'AGENTS.md block';
 }
 

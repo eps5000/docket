@@ -1,3 +1,4 @@
+import { connectionCanonical, type InstallClient } from '@docket/shared';
 /**
  * How Agent files presents the stored layers (UI_SPEC §6.7b; BUILD_SPEC
  * §5.17, B25). The storage model is unchanged: bundled, the service-wide
@@ -144,3 +145,12 @@ export function insidePushFolder(path: string, target: PushTargetResponse | unde
 
 /** Push is usable: configured, mounted and writable. */
 export const pushReady = (t: PushTargetResponse | undefined) => !!t?.configured && !!t.writable;
+
+/**
+ * The connection file's docket entry as Docket sent it (decision 32), as the
+ * check compares it: canonical text, for this Docket's MCP address.
+ */
+export function connectionSentText(client: InstallClient, versionId: string | undefined): string {
+  const host = typeof window === 'undefined' ? '127.0.0.1:7420' : window.location.host;
+  return connectionCanonical(client, `http://${host}/mcp`, versionId === 'connection:protected');
+}

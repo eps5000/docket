@@ -24,13 +24,18 @@
  * - an install from before the rename has only `.tasklite-manifest.json`
  *   and the old markers: both are read when the new ones are absent;
  * - at most 20 files, and only valid keys, so the report always passes
- *   `claim_lead`'s schema.
+ *   `claim_lead`'s schema;
+ * - the connection file (`.mcp.json`, `.codex/config.toml`; decision 32) is
+ *   left out: an agent that claims is connected, and the key isn't part of
+ *   `claim_lead`'s contract. The push check, the scheduled drift check and
+ *   the copy-paste check command cover it.
  *
  * It reads only: it writes, deletes and downloads nothing. ASCII only, so
  * PowerShell 5.1 reads it the same in any code page, and the PowerShell
  * version prints non-ASCII text as `\uXXXX` for the same reason.
  */
 import {
+  CONNECTION_KEY,
   DOCKET_BEGIN,
   DOCKET_END,
   INSTALL_MANIFEST_NAME,
@@ -81,6 +86,8 @@ while IFS= read -r l; do
   case $l in *'"key":"'*) ;; *) continue ;; esac
   k=\${l#*'"key":"'}; k=\${k%%'"'*}; p=\${l#*'"path":"'}; p=\${p%%'"'*}; s=\${l#*'"sha256":"'}; s=\${s%%'"'*}
   known="$known$k "
+  # The connection file isn't reported (decision 32): an agent that claims is connected.
+  [ "$k" = ${CONNECTION_KEY} ] && continue
   f="$base/$p"
   [ -f "$f" ] || continue
   if [ "$k" = agents_block ]; then
@@ -150,6 +157,7 @@ function Add-File([string]$k, [string]$x, [bool]$withText) {
   [void]$out.Add($e)
 }
 foreach ($r in $j.files) {
+  if ($r.key -eq '${CONNECTION_KEY}') { continue }
   $f = Join-Path $base $r.path
   if (-not (Test-Path -LiteralPath $f -PathType Leaf)) { continue }
   $x = $enc.GetString([IO.File]::ReadAllBytes($f)).Replace("\`r", '')

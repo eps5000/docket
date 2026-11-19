@@ -184,7 +184,11 @@ describe.each(MODES)('%s', (mode, env) => {
       const body = (await item.json()) as { activity: { actor: string; summary: string }[] };
       const row = body.activity.find((a) => a.actor.startsWith('owner (script'));
       expect(row?.actor).toBe('owner (script: curl/8.4.0)');
-      record('Owner action from a script (curl, no Origin)', mode, '200, `owner (script: curl/8.4.0)`');
+      record(
+        'Owner action from a script (curl, no Origin)',
+        mode,
+        '200, `owner (script: curl/8.4.0)`',
+      );
     } else {
       expect(res.status).toBe(401);
       record('Owner action from a script (curl, no Origin)', mode, '401');
@@ -207,7 +211,7 @@ describe.each(MODES)('%s', (mode, env) => {
   it('a foreign Origin is refused, with or without CSRF (Origin guard)', async () => {
     seeded(env);
     const b = await browser(mode);
-    for (const headers of [
+    for (const headers of <Record<string, string>[]>[
       { origin: 'https://evil.example' },
       { origin: 'https://evil.example', cookie: b.cookie, 'x-docket-csrf': b.csrf },
       { origin: 'null' },

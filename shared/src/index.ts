@@ -15,3 +15,5 @@ export * from './compact.js';
 export * from './api/index.js';
 export * from './install.js';
 export * from './legacy.js';
+export * from './connection.js';
+export * from './connection-shell.js';

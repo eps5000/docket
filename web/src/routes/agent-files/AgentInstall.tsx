@@ -3,6 +3,8 @@ import { useId, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import {
   AGENTS_BLOCK_KEY,
+  CONNECTION_FILES,
+  CONNECTION_KEY,
   INSTALL_CHECK_STATE_LABELS,
   INSTALL_CLIENT_LABELS,
   fillsProjectKey,
@@ -42,7 +44,7 @@ import { paths } from '../../lib/paths';
 import { showToast } from '../../lib/undo';
 import { DiffView } from './DiffView';
 import { CopyBlock, errorText, usePushTarget } from './install-common';
-import { insidePushFolder, possessive, pushReady, versionLabel } from './model';
+import { insidePushFolder, possessive, pushReady, versionLabel, connectionSentText } from './model';
 
 /*
  * Install and check (UI_SPEC §6.7b; FR-124 to FR-127; US13 scenarios 4–5):
@@ -167,7 +169,7 @@ export function InstallDialog({ project, projectName, onClose }: InstallDialogPr
           ? 'the repo folder'
           : 'the folder you run it in';
   const written = (files.data?.files ?? [])
-    .filter((f) => f.key !== AGENTS_BLOCK_KEY)
+    .filter((f) => f.key !== AGENTS_BLOCK_KEY && f.key !== CONNECTION_KEY)
     .map((f) => layout.display + installPathOf(layout, f.key));
   written.push(layout.display + layout.manifest);
   const instructions = layout.display + layout.instructions;
@@ -295,13 +297,33 @@ export function InstallDialog({ project, projectName, onClose }: InstallDialogPr
               <li>
                 {instructions} <span className="src">(only its Docket section)</span>
               </li>
+              {target === 'repo' && (
+                <li data-connection-file={CONNECTION_FILES[client]}>
+                  {CONNECTION_FILES[client]}{' '}
+                  <span className="src">(only its docket server entry)</span>
+                </li>
+              )}
             </ul>
             <div className="src">
               Only the marked Docket section of {instructions} is touched (between{' '}
               <code>{'<!-- docket:begin -->'}</code> and <code>{'<!-- docket:end -->'}</code>);
               everything else in it stays as it is. Nothing is ever deleted.
+              {target === 'repo' && (
+                <>
+                  {' '}
+                  In {CONNECTION_FILES[client]}, the connection file, only the docket server is
+                  added or updated; other servers and settings stay as they are, and it never holds
+                  a token.
+                </>
+              )}
             </div>
           </details>
+          {target === 'repo' && (
+            <p className="src" data-connect-note="" style={{ margin: '8px 0 0' }}>
+              It also writes the repo’s connection file ({CONNECTION_FILES[client]}). Then open{' '}
+              {INSTALL_CLIENT_LABELS[client]} in this repo and approve Docket when it asks.
+            </p>
+          )}
           {placeholders.length > 0 && (
             <Callout tone="warn" role="status">
               <div data-placeholder-warning="">
@@ -382,6 +404,9 @@ function InstallResult({
               <span className="mono">{f.path}</span>
               {/(^|\/)(CLAUDE|AGENTS)\.md$/.test(f.path) && (
                 <span className="src"> (its Docket section only)</span>
+              )}
+              {/(^|\/)(\.mcp\.json|config\.toml)$/.test(f.path) && (
+                <span className="src"> (its docket server entry only)</span>
               )}
             </li>
           ))}
@@ -569,12 +594,25 @@ function SentVersions({ row, projectName }: { row: InstallRow; projectName: stri
     queries: row.manifest.map((m) => ({
       queryKey: queryKeys.agentFile(m.key, q),
       queryFn: () => apiClient['agentFiles.get']({ params: { key: m.key }, query: q }),
+      // The connection file has no stored versions (decision 32).
+      enabled: m.key !== CONNECTION_KEY,
     })),
   });
   return (
     <ul className="indetail insent" aria-label="Versions sent">
       {row.manifest.map((m, i) => {
         const found = findVersion(details[i]?.data, m.version_id);
+        if (m.key === CONNECTION_KEY) {
+          return (
+            <li key={m.key} data-sent={m.key}>
+              <span className="mono">{CONNECTION_FILES[row.client]}</span>{' '}
+              <span className="src">
+                docket server,{' '}
+                {m.version_id === 'connection:protected' ? 'protected mode' : 'local trust'}
+              </span>
+            </li>
+          );
+        }
         return (
           <li key={m.key} data-sent={m.key}>
             <Link
@@ -642,13 +680,15 @@ function CheckFile({
   const detail = useQuery({
     queryKey: queryKeys.agentFile(file.key ?? '', q),
     queryFn: () => apiClient['agentFiles.get']({ params: { key: file.key! }, query: q }),
-    enabled: open && file.key !== null,
+    enabled: open && file.key !== null && file.key !== CONNECTION_KEY,
   });
   const version = sent ? findVersion(detail.data, sent.version_id) : null;
   const sentText =
-    version && file.key === AGENTS_BLOCK_KEY
-      ? renderAgentsBlock(version.content, fillsProjectKey(row.target_kind, row.project))
-      : version?.content;
+    file.key === CONNECTION_KEY
+      ? connectionSentText(row.client, sent?.version_id)
+      : version && file.key === AGENTS_BLOCK_KEY
+        ? renderAgentsBlock(version.content, fillsProjectKey(row.target_kind, row.project))
+        : version?.content;
   return (
     <li data-check-file={file.path} data-state={file.state}>
       <div className="row wrap" style={{ gap: 6 }}>

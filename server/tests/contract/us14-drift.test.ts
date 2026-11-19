@@ -117,6 +117,8 @@ function checkReport(repo: string, opts: { withText?: string[] } = {}) {
     readFileSync(join(repo, '.claude/.docket-manifest.json'), 'utf8'),
   ) as { install_id: string; files: { key: string; path: string; sha256: string }[] };
   const files = manifest.files.flatMap((f) => {
+    // docket-check leaves the connection file out (decision 32).
+    if (f.key === 'connection') return [];
     let text: string;
     try {
       text = readFileSync(join(repo, f.path), 'utf8').replace(/\r/g, '');
