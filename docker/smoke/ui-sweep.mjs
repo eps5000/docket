@@ -446,7 +446,16 @@ async function sweep(opts) {
 
       // Review packets (Gameflow pilot: long agent-check evidence squeezed the
       // check text into a one-word column and overlapped it).
-      for (const r of work.items.filter((i) => i.status === 'review').slice(0, 2)) {
+      // Only items with a packet: an item can be in Review before its packet exists.
+      const withPacket = [];
+      for (const r of work.items.filter((i) => i.status === 'review')) {
+        if (withPacket.length >= 2) break;
+        const res = await context.request.get(
+          `${opts.base}/api/review/${encodeURIComponent(r.id)}`,
+        );
+        if (res.ok()) withPacket.push(r);
+      }
+      for (const r of withPacket) {
         await record(`${r.id} · review packet`, async () => {
           await page.goto(`/review/${encodeURIComponent(r.id)}`);
           await settle(page);
