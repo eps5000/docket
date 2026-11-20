@@ -23,8 +23,8 @@ test.describe('e2e harness', () => {
     // 40 since decision 30 (B26): get_agent_files and propose_agent_file_change;
     // 42 since decision 31 (B29): onboard_project and finish_onboarding;
     // 43 since decision 33 (B33): get_step;
-    // 44 since decision 34 (B36): apply_batch.
-    expect(tools.length).toBe(44);
+    // 48 since decision 36 (B38): declare_shared_changes, list_shared_parts, take_lease, release_lease.
+    expect(tools.length).toBe(48);
 
     const res = await agent.call('whoami');
     if (res.isError) {

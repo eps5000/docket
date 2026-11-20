@@ -196,6 +196,12 @@ SQLite tables. Every row has `id`, `created_at` and `updated_at`; all timestamps
 | `instruction_reports` | `id` (`irp_…`), `source` (agent\|push_check), `run_id` (nullable), `install_id` (nullable), `project_key`, `location`, `files` (JSON: key → `{sha256, content?}`), `at` | §5.19. |
 | `drift` | `id` (`dft_…`), `install_id`, `project_key` (nullable: a user-wide install), `file_key`, `change` (edited\|missing\|extra), `state` (open\|adopted\|restored\|kept_local), `local_sha256` (null when missing), `report_id` (the instruction report that found it), `detected_at`, `resolved_at` | One open row per install and file; *Keep local* stores the accepted hash. B26 added `change` and `report_id`. A report without an `install_id` is stored but raises no drift. |
 | `onboarding_sessions` | `id` (`onb_…`), `project_key`, `started_by`, `client`, `run_id` (nullable), `started_at`, `state` (in_progress\|ready_for_review\|reviewed), `summary`, `questions` (JSON), `finished_at`, `reviewed_at` | §5.20. Events written during a session carry `data.onboarding_session`. One session in progress per project. B29 added `client` (only the client that started a session may resume or finish it) and `run_id`; `summary` is set (≤ 4,000) once finished, and `questions` is an array of at most 20. |
+| `shared_parts` | `id` (`spt_…`), `project_key`, `key` (kind-prefixed, normalised; ≤ 200; unique per project), `kind` (table\|model\|endpoint\|file\|other), `paths` (JSON globs, ≤ 20), `single_writer`, `note` (≤ 1,000), `created_by` (`owner` or the agent), `archived_at`, `version` | §5.21 (decision 36; B38). Archiving is the owner's remove. |
+| `item_shared_changes` | `id` (`isc_…`), `item_id`, `part_key`, `change` (add\|change\|remove), `note` (≤ 500), `declared_by`, `declared_at` | §5.21. Unique per item and part. `items.shared_none_at` marks an item that declared none. |
+| `part_overlaps` | `id` (`pov_…`), `project_key`, `item_a` < `item_b`, `claimed_first`, `parts` (JSON), `state` (open\|sequenced\|compatible\|resolved), `note`, `link_id`, `raised_at`, `decided_by`, `decided_at`, `version` | §5.21. One live row per pair; the row is the owner question (B38). |
+| `part_leases` | `id` (`pls_…`), `project_key`, `part_key`, `item_id`, `run_id`, `taken_at`, `expires_at`, `ended_at`, `end_reason` (released\|owner_released\|done\|handed_off\|expired) | §5.21. One live lease per part. |
+| `undeclared_holds` | `id` (`udh_…`), `item_id`, `packet_id` (nullable), `via` (submit_packet\|set_status), `parts` (JSON), `files` (JSON, ≤ 2,000), `state` (open\|added\|sent_back), `note`, `decided_by`, `decided_at`, `version` | §5.21 (B38 resolution). One open per item; the row is the owner question. |
+| `radar_findings` | `id` (`rdf_…`), `project_key`, `branch_a`, `branch_b`, `item_a`, `item_b` (null for the main branch), `files` (JSON), `seen_at`, `cleared_at` | §5.21. One open finding per branch pair. |
 | `artifacts` | `item_id`, `kind` (url\|pr\|ci\|deploy\|test), `label`, `url`, `state`, `provenance` | A08 evidence links. |
 | `documents` | `project_key`, `item_id` (nullable), `name`, `kind` (planning\|packet_attachment\|import_report\|brief\|other; `brief` is written only through `claim_lead`/`start_run`) | Unique `(item_id, name)`. |
 | `document_versions` | `document_id`, `version_no`, `mime`, `size`, `sha256`, `path`, `created_by` | Immutable. |
@@ -567,9 +573,11 @@ The agent-files install (§5.17) also writes each client's **project connection 
 **Tables** (all project-scoped):
 - `shared_parts`: `project`, `key` (kind-prefixed and normalised: `table:decks`, `model:Token`, `endpoint:POST /decks/{id}/export`, `file:src/Gameflow.Api/Data/Migrations/GameflowDbContextModelSnapshot.cs`, `other:<slug>`), `kind`, `paths` (JSON globs, repo-relative), `single_writer`, `note`, `created_by`, `archived_at`.
 - `item_shared_changes`: `item_id`, `part_key`, `change` (add|change|remove), `note`, `declared_by`, `declared_at`; plus `items.shared_none_at`, set when an item declares none.
-- `part_overlaps`: the pair (two item ids), the part key(s), `state` (open|sequenced|compatible|resolved), `question_id`, `decided_by`, `decided_at`.
+- `part_overlaps`: the pair (two item ids), the part key(s), `state` (open|sequenced|compatible|resolved), `decided_by`, `decided_at`. The row is the owner question (B38: no `question_id`; see the resolutions below).
 - `part_leases`: `part_key`, `item_id`, `run_id`, `taken_at`, `expires_at`, `ended_at`, `end_reason`.
 - `radar_findings`: the branch pair, `files` (JSON), `seen_at`, `cleared_at`.
+- `undeclared_holds` (B38): the item, the held packet (null for `set_status` to `done`), the parts and files, `state` (open|added|sent_back), `decided_by`, `decided_at`.
+- Also (B38): `packets.changed_files`, `packets.branch`, `packets.held_undeclared`; `projects.repo_path`, `projects.main_branch` (default `main`), `projects.radar_last_run_at`, `projects.radar_off_reason`.
 
 **Rules:**
 - **Ready gate:** `set_status ready` (agent or owner) is refused (`not_declared`) unless the item has declarations or `shared_none_at`. The owner may pass `override_reason`.
@@ -578,14 +586,14 @@ The agent-files install (§5.17) also writes each client's **project connection 
   - *They're compatible* records the pair as compatible, plus an optional note. That note is posted to both items as an owner note.
 - **Declaring later:** declarations can change while an item is in progress. A new overlap found then flags both items ("Now overlaps GF-240 on model Token") and raises the question, but doesn't revoke the claim.
 - **Leases:** a lease runs 2 hours by default (`DOCKET_LEASE_MINUTES`) and is renewable. It ends when the holder's item reaches Done or is handed off, when the holder releases it, or when it expires. Owner *Release lease* is in the item's Shared changes section.
-- **Hand-off:**
-  - `submit_for_review` and `handoff` accept `changed_files` (≤ 2,000 repo-relative paths);
+- **Hand-off** is `submit_packet` (a packet for human review) or `set_status` to `done` (closing with no human review):
+  - both accept `changed_files` (≤ 2,000 repo-relative paths);
   - Docket maps them through each part's `paths`;
-  - any part that isn't declared holds the item (a `held_undeclared` flag on the packet: the packet is created, but the human review gate stays closed) and raises a question (kind `undeclared_parts`) with *Add to the declaration* or *Send back*;
+  - any part that isn't declared holds the item and raises a question (kind `undeclared_parts`) with *Add to the declaration* or *Send back*. On `submit_packet`, a `held_undeclared` flag on the packet: the packet is created, but the human review gate stays closed. On `set_status` to `done`, the move is refused with `not_declared` (`details.undeclared`, `details.files`) and the item stays where it was;
   - if `changed_files` is missing, an item with declarations shows "Changed files not reported" on the packet.
 - **Conflict radar:**
   - the project setting `repo_path` (inside `DOCKET_PUSH_ROOT`) and `main_branch` (default `main`);
-  - `claim_lead` and `handoff` accept `branch`;
+  - `claim_lead`, `submit_packet` and `set_status` (to `done`) accept `branch`;
   - every 15 minutes, and on demand, Docket runs `git merge-tree --write-tree --name-only` for each in-flight branch against `main_branch`, and for each pair of in-flight branches whose items share a part or whose changed files intersect;
   - it uses a temporary object directory (`GIT_OBJECT_DIRECTORY` set to a temp dir, with the repo's objects as alternates), so **nothing is written to the repository**. No fetch: local refs only, which worktrees share;
   - findings go to `radar_findings`, to both items ("Heading for a conflict with GF-240: 3 files"), to Needs you (Problems), and to `get_context`. A finding clears when the trial merge is clean;
@@ -596,11 +604,22 @@ The agent-files install (§5.17) also writes each client's **project connection 
   - up to 30 other in-flight declarations in the project.
 
   It also includes leases held, and radar findings for the item. All of this counts against the budget.
-- **Activity:** events `shared.declared`, `overlap.raised|decided`, `lease.taken|ended`, `undeclared.held|decided`, `radar.found|cleared`.
+- **Activity:** events `shared.declared`, `overlap.raised|decided`, `lease.taken|ended`, `undeclared.held|decided`, `radar.found|cleared`, and `shared_part.saved` (B38: a part registered or edited).
+
+**B38 resolutions** (contracts, T182; agreed with the coordinator, or settled in the build and listed in the PR):
+- **Names:** earlier drafts said `submit_for_review` and `handoff`, which aren't Docket tools. Hand-off is `submit_packet` or `set_status` to `done` (coordinator). A refused close reuses `not_declared`, so there are three new codes.
+- **Keys and paths** are normalised as MCP_SPEC §5.15 describes (`table` lowercased, `endpoint` as `METHOD /path`, `file` repo-relative with forward slashes, `other` a slug).
+- **The owner question is the row:** an overlap (`part_overlaps`) or a hold (`undeclared_holds`) is the Needs you card itself, not a `questions` row, so it never takes the item's one open question (FR-022) and an agent can still `ask_owner`. Needs you gains the optional `overlaps`, `undeclared_holds` and `radar_findings`.
+- **Holds have their own table** (`undeclared_holds`), since a `set_status` to `done` hold has no packet.
+- **A declaration doesn't change the item's version**, so an agent's `expected_version` stays good; it's recorded as `shared.declared`. The owner's declaration and registry edits are undoable; overlap and hold decisions, lease release and the radar are not.
+- **In flight** is Ready, In progress or Review (`IN_FLIGHT_STATUSES`), for overlaps, `list_shared_parts` and `get_context.shared`.
+- **The Ready override** is `override_reason` on `PATCH /api/items/:id`, only with `status: ready`.
+- **Parts in owner routes** are addressed by `spt_…` ID, since keys hold `:`, `/` and spaces. Key and kind are fixed once a part exists.
+- **What B38 implements:** the registry, declarations (`declare_shared_changes`, the owner's route), `list_shared_parts`, the item's Shared changes section and the radar card's read, and `submit_packet` storing `changed_files` and `branch` as reported. **Placeholders for B39:** `take_lease` and `release_lease` (`unavailable`), the decisions, lease release and the radar's settings and run (501), the Ready gate, the overlap check at the claim, the changed-file check at hand-off, and `get_context.shared` (absent). `us18-shared-contracts.test.ts` lists each as an `it.todo`.
 
 ## 6. MCP tool contract
 
-**Overview only.** [MCP_SPEC.md](MCP_SPEC.md) is authoritative for the server instructions, every tool's description text, input and output schemas, error messages and worked flows. It defines 44 tools (38, plus `get_step` from decision 33, plus `get_agent_files` and `propose_agent_file_change` from decision 30, `onboard_project` and `finish_onboarding` from decision 31, and `apply_batch` from decision 34), and one prompt (`onboard`), including `unlink_items`, `update_check` and `update_human_review`, which are paired with their siblings below.
+**Overview only.** [MCP_SPEC.md](MCP_SPEC.md) is authoritative for the server instructions, every tool's description text, input and output schemas, error messages and worked flows. It defines 48 tools (38, plus `get_step` from decision 33, plus `get_agent_files` and `propose_agent_file_change` from decision 30, `onboard_project` and `finish_onboarding` from decision 31, `apply_batch` from decision 34, and `declare_shared_changes`, `list_shared_parts`, `take_lease` and `release_lease` from decision 36), and one prompt (`onboard`), including `unlink_items`, `update_check` and `update_human_review`, which are paired with their siblings below.
 
 Tools are snake_case, with input and output schemas defined in `shared/` with zod, and every result returns `structuredContent`. Lists are paginated with `cursor` and `limit` (default 25, max 50) (A02).
 
@@ -705,6 +724,7 @@ Every route requires the owner session (§3). JSON bodies **and query strings** 
 | `GET /api/agent-file-proposals?project&state` · `POST /api/agent-file-proposals/:id/approve` `{content?, note?}` · `POST /api/agent-file-proposals/:id/decline` `{note?}` | Proposals on Agent files and in Needs you (decision 30) |
 | `GET /api/drift?project&state` · `POST /api/drift/:id/adopt` · `POST /api/drift/:id/restore` · `POST /api/drift/:id/keep-local` | Drift review and remedies (decision 30). Shapes in `shared/src/api/agent-proposals.ts` (B26). *Approve* and *Adopt* are undoable; *Decline*, *Restore* and *Keep local* are not. Needs you gains `agent_file_proposals` (a count), Problems a kind `agent_files_drift` (with `drift_id`), and the ticket `run_instructions`, all optional. |
 | `POST /api/projects` `{key, name, color?, default_satisfied_when?}` · `GET /api/onboarding?project&state` · `POST /api/onboarding/:id/reviewed` | New project; the onboarding review card (decision 31). Shapes in `shared/src/api/onboarding.ts` (B29); neither POST is undoable. Needs you gains `onboarding_reviews` (the sessions ready for review) and project rows `created_by`, both optional. |
+| `GET /api/projects/:key/shared-parts?include_archived` · `POST /api/projects/:key/shared-parts` `{key, kind?, paths?, single_writer?, note?}` · `PATCH /api/shared-parts/:id` `{expected_version, paths?, single_writer?, note?, archived?}` · `GET`/`PUT /api/items/:id/shared` `{changes \| none, new_parts?}` · `POST /api/overlaps/:id/decide` `{decision: sequence\|compatible, note?}` · `POST /api/undeclared-holds/:id/decide` `{decision: add\|send_back, note?}` · `POST /api/leases/:id/release` · `GET`/`PUT /api/projects/:key/radar` `{repo_path, main_branch?}` · `POST /api/projects/:key/radar/run` | Shared changes and the conflict radar (decision 36; §5.21; UI_SPEC §6.3.6). Shapes in `shared/src/api/shared-changes.ts` (B38). Registry and declaration edits are undoable. `PATCH /api/items/:id` takes `override_reason` with `status: ready`. Needs you gains `overlaps`, `undeclared_holds` and `radar_findings`, all optional. |
 | `POST /api/resources/:id/release` `{note?}` · `POST /api/runs/:runId/unpushed-handled` | Problems actions: *Mark released* on an orphaned resource; *Handled* on "Unpushed work may be lost" |
 | `GET /api/stream` | SSE: `event: change`, `id: <seq>`, `data: {seq, type, objects:[{kind, id}], for_you}`, where `for_you` is true only for `packet.submitted`, `question.asked` and `onboarding.finished` (used for the badge and desktop notifications; specs/001-task-lite-v1/contracts/events.md). The client invalidates matching TanStack Query keys. Supports `Last-Event-ID`. Sends a heartbeat comment every 25 s. |
 | `GET /healthz` (process up) · `GET /readyz` (database writable, docs dir writable, migrations current) | Compose healthcheck, sidebar health line |
@@ -937,7 +957,7 @@ The milestones below group *capabilities*. The **execution order** is the batch 
 |---|---|---|
 | M0 | Workspace scaffold, lint, typecheck, Vitest, Dockerfile, compose, `/healthz` and `/readyz`, and the GitHub Actions CI workflow (§2 Stack) | `docker compose up` serves "Docket is running"; the CI check is green on the M0 PR, and Mergify waits for it |
 | M1 | Schema and migrations, domain services for §5 (including `satisfied_when`, decision records and the context bundle), event log, idempotency, undo, seed loader | Unit tests for every §5 rule pass; the seed loads deterministically |
-| M2 | MCP server per [MCP_SPEC.md](MCP_SPEC.md): auth, Host/Origin guards, identity, server instructions, all 44 tools and the `onboard` prompt, with the exact description text, compact text rendering, structured errors, sweeper, restart handling | The MCP_SPEC §10 contract tests pass, including the description snapshot and token budgets; two simultaneous SDK clients work |
+| M2 | MCP server per [MCP_SPEC.md](MCP_SPEC.md): auth, Host/Origin guards, identity, server instructions, all 48 tools and the `onboard` prompt, with the exact description text, compact text rendering, structured errors, sweeper, restart handling | The MCP_SPEC §10 contract tests pass, including the description snapshot and token budgets; two simultaneous SDK clients work |
 | M3 | Owner session and CSRF, UI API (§7, including owner text edits and the diagnostic log), SSE stream | API contract tests pass; the unlock flow works |
 | M4 | Web shell, tokens, Needs you, Work board and list, ticket and epic pages (four tabs, checklist editing, Decisions sections), open-item tabs, palette, quick capture | The e2e groups for Needs you, Tickets and epics, and Shell pass |
 | M5 | Packet screen and decisions, deferrals, questions and notes, archive, undo toasts, inline editing, desktop notifications and the tab-title count | The e2e groups for Packets and Work (archive) pass |

@@ -18,6 +18,8 @@ exports[`every tool has a renderer > create_item 1`] = `"Created RCP-30 Pantry i
 
 exports[`every tool has a renderer > declare_human_review 1`] = `"Human review on RCP-14 · 1 total"`;
 
+exports[`every tool has a renderer > declare_shared_changes 1`] = `"Declared 2 changes on GF-312 · registered table:decks · overlaps GF-240 on model:Token"`;
+
 exports[`every tool has a renderer > deferred_reviews 1`] = `
 "Deferred human review checks: 1
 RCP-11 hr_x Sign in from a second browser · deferred 11-02 · note: No second device today · follow-up RCP-29 inbox"
@@ -149,6 +151,13 @@ exports[`every tool has a renderer > list_projects 1`] = `
 RCP Recipes · open 12 · ready_to_start 3 · in_progress 2 · review 1 · blocked 2"
 `;
 
+exports[`every tool has a renderer > list_shared_parts 1`] = `
+"Shared parts in GF: 2
+- model:Token · paths src/Gameflow.Domain/Token.cs
+    GF-240 Token refresh · progress · change · Adds expiry
+- file:src/Gameflow.Api/Data/Migrations/GameflowDbContextModelSnapshot.cs · single-writer · lease GF-240 until 12:40Z · paths src/Gameflow.Api/Data/Migrations/GameflowDbContextModelSnapshot.cs · One migration at a time"
+`;
+
 exports[`every tool has a renderer > log_subagent 1`] = `"Logged relayed explorer on wst_b"`;
 
 exports[`every tool has a renderer > onboard_project 1`] = `
@@ -193,6 +202,8 @@ orphaned_resources:
 
 exports[`every tool has a renderer > release_lead 1`] = `"Released RCP-14 · ready · v9"`;
 
+exports[`every tool has a renderer > release_lease 1`] = `"Released lease on model:Token for GF-240"`;
+
 exports[`every tool has a renderer > report_commit 1`] = `"Recorded c71e002 on RCP-19 · pushed · out of date: RCP-19 round 1"`;
 
 exports[`every tool has a renderer > search_items 1`] = `
@@ -210,6 +221,8 @@ exports[`every tool has a renderer > set_status 1`] = `"Moved RCP-14 to done · 
 exports[`every tool has a renderer > start_run 1`] = `"Started child run run_child on RCP-14"`;
 
 exports[`every tool has a renderer > submit_packet 1`] = `"Submitted pkt-9c0e round 2 for RCP-12 · review · v12"`;
+
+exports[`every tool has a renderer > take_lease 1`] = `"Lease on file:src/Gameflow.Api/Data/Migrations/GameflowDbContextModelSnapshot.cs for GF-240 · until 12:40Z · renewed"`;
 
 exports[`every tool has a renderer > unlink_items 1`] = `"Removed link lnk_e"`;
 

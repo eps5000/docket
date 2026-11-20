@@ -53,6 +53,13 @@ import {
   SUBAGENT_PROVENANCES,
   WORK_STEP_STATES,
   ACTOR_KINDS,
+  LEASE_END_REASONS,
+  LIMITS,
+  OVERLAP_STATES,
+  SHARED_CHANGES,
+  SHARED_PART_KINDS,
+  UNDECLARED_HOLD_STATES,
+  UNDECLARED_HOLD_VIA,
 } from '@docket/shared';
 import { sql, type SQL } from 'drizzle-orm';
 import {
@@ -143,6 +150,17 @@ export const projects = sqliteTable(
      * null when the owner, the seed or a Jira import did (decision 31; B29).
      */
     created_by: text('created_by'),
+    /**
+     * The conflict radar (decision 36; BUILD_SPEC §5.21): the repository
+     * folder inside `DOCKET_PUSH_ROOT` (null: radar off), its main branch,
+     * and the last run. No CHECKs, so the migration needs no rebuild; the
+     * route schemas hold the limits.
+     */
+    repo_path: text('repo_path'),
+    main_branch: text('main_branch').notNull().default('main'),
+    radar_last_run_at: text('radar_last_run_at'),
+    /** Why the last run couldn't trial-merge ("no repository"); null when it worked. */
+    radar_off_reason: text('radar_off_reason'),
     version: version(),
     ...timestamps,
   },
@@ -187,6 +205,8 @@ export const items = sqliteTable(
     imported: integer('imported', { mode: 'boolean' }).notNull().default(false),
     /** `{item_id, round, hr_item_id}` when created from a review decision. */
     from_review: text('from_review', { mode: 'json' }),
+    /** Decision 36: set when the item declared that it changes no shared part. */
+    shared_none_at: text('shared_none_at'),
     version: version(),
     ...timestamps,
   },
@@ -505,6 +525,15 @@ export const packets = sqliteTable(
     gaps: text('gaps', { mode: 'json' }),
     created_by: text('created_by').notNull(),
     state: text('state', { enum: PACKET_STATES }).notNull().default('open'),
+    /**
+     * Decision 36 (BUILD_SPEC §5.21 Hand-off): the files the agent reported
+     * (a JSON array; null when not reported: "Changed files not reported"),
+     * its branch, and the undeclared parts that hold the packet (a JSON
+     * array; null when not held).
+     */
+    changed_files: text('changed_files', { mode: 'json' }),
+    branch: text('branch'),
+    held_undeclared: text('held_undeclared', { mode: 'json' }),
     version: version(),
     ...timestamps,
   },
@@ -1036,6 +1065,235 @@ export const onboarding_sessions = sqliteTable(
       'onboarding_sessions_reviewed',
       sql.raw(`("state" = 'reviewed') = ("reviewed_at" IS NOT NULL)`),
     ),
+  ],
+);
+
+// ---- Shared changes (decision 36; BUILD_SPEC §5.21; B38) ----
+
+/** A JSON array column of at most `max` entries. */
+const jsonArray = (column: string, max: number): SQL =>
+  sql.raw(
+    `json_valid("${column}") AND json_type("${column}") = 'array' AND json_array_length("${column}") <= ${max}`,
+  );
+
+/**
+ * The project's registry of shared parts (FR-158). `key` is kind-prefixed
+ * and normalised (`normaliseSharedPartKey`); `paths` are repo-relative globs.
+ * Agents register parts through declare_shared_changes, never single-writer;
+ * the owner edits, marks single-writer and archives (the remove).
+ */
+export const shared_parts = sqliteTable(
+  'shared_parts',
+  {
+    /** `spt_…` */
+    id: id(),
+    project_key: text('project_key')
+      .notNull()
+      .references(() => projects.key, { onDelete: 'cascade' }),
+    key: text('key').notNull(),
+    kind: text('kind', { enum: SHARED_PART_KINDS }).notNull(),
+    paths: text('paths', { mode: 'json' })
+      .notNull()
+      .default(sql`'[]'`),
+    single_writer: integer('single_writer', { mode: 'boolean' }).notNull().default(false),
+    note: text('note'),
+    /** `owner`, or the agent (`claude · orca-w3`). */
+    created_by: text('created_by').notNull(),
+    archived_at: text('archived_at'),
+    version: version(),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('shared_parts_project_key').on(t.project_key, t.key),
+    check('shared_parts_kind', oneOf('kind', SHARED_PART_KINDS)),
+    check(
+      'shared_parts_key',
+      sql.raw(
+        `length("key") BETWEEN 3 AND ${LIMITS.shared_part_key} AND substr("key", 1, length("kind") + 1) = "kind" || ':' AND length("key") > length("kind") + 1`,
+      ),
+    ),
+    check('shared_parts_paths', jsonArray('paths', LIMITS.shared_part_paths_max)),
+    check('shared_parts_note', maxLen('note', LIMITS.shared_part_note)),
+  ],
+);
+
+/**
+ * An item's declaration (FR-159): one row per part it will change. Parts are
+ * named by key within the item's project; `items.shared_none_at` marks an
+ * item that declared none.
+ */
+export const item_shared_changes = sqliteTable(
+  'item_shared_changes',
+  {
+    /** `isc_…` */
+    id: id(),
+    item_id: itemRef('item_id'),
+    part_key: text('part_key').notNull(),
+    change: text('change', { enum: SHARED_CHANGES }).notNull(),
+    note: text('note'),
+    declared_by: text('declared_by').notNull(),
+    declared_at: text('declared_at').notNull(),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('item_shared_changes_item_part').on(t.item_id, t.part_key),
+    index('item_shared_changes_part').on(t.part_key),
+    check('item_shared_changes_change', oneOf('change', SHARED_CHANGES)),
+    check('item_shared_changes_note', maxLen('note', LIMITS.shared_change_note)),
+  ],
+);
+
+/**
+ * Two in-flight items that declare the same parts (FR-160). The pair is
+ * stored in ID order (`item_a < item_b`) with `claimed_first`, so a pair has
+ * one live row; the row is the owner question (Needs you kind `overlap`,
+ * B38 resolution: not a `questions` row, so it never takes the item's one
+ * open question). *Run one after the other* sets `sequenced` and `link_id`;
+ * *They're compatible* sets `compatible` and `note`.
+ */
+export const part_overlaps = sqliteTable(
+  'part_overlaps',
+  {
+    /** `pov_…` */
+    id: id(),
+    project_key: text('project_key')
+      .notNull()
+      .references(() => projects.key, { onDelete: 'cascade' }),
+    item_a: itemRef('item_a'),
+    item_b: itemRef('item_b'),
+    /** The item that was in flight first: the blocker *Run one after the other* adds runs from it. */
+    claimed_first: text('claimed_first').notNull(),
+    /** The shared keys, a JSON array. */
+    parts: text('parts', { mode: 'json' }).notNull(),
+    state: text('state', { enum: OVERLAP_STATES }).notNull().default('open'),
+    note: text('note'),
+    link_id: text('link_id').references((): AnySQLiteColumn => links.id, { onDelete: 'set null' }),
+    raised_at: text('raised_at').notNull(),
+    decided_by: text('decided_by'),
+    decided_at: text('decided_at'),
+    version: version(),
+    ...timestamps,
+  },
+  (t) => [
+    // One live row per pair: re-claiming the same pair doesn't open a second question.
+    uniqueIndex('part_overlaps_live_pair')
+      .on(t.item_a, t.item_b)
+      .where(sql.raw(`"state" <> 'resolved'`)),
+    index('part_overlaps_project_state').on(t.project_key, t.state),
+    index('part_overlaps_item_b').on(t.item_b),
+    check('part_overlaps_order', sql.raw(`"item_a" < "item_b"`)),
+    check('part_overlaps_first', sql.raw(`"claimed_first" IN ("item_a", "item_b")`)),
+    check('part_overlaps_state', oneOf('state', OVERLAP_STATES)),
+    check('part_overlaps_parts', sql.raw(`json_valid("parts") AND json_type("parts") = 'array'`)),
+    check('part_overlaps_note', maxLen('note', LIMITS.shared_decision_note)),
+    check(
+      'part_overlaps_decided',
+      sql.raw(`("state" IN ('sequenced', 'compatible')) <= ("decided_at" IS NOT NULL)`),
+    ),
+  ],
+);
+
+/** A lease on a single-writer part (FR-161): one live lease per part. */
+export const part_leases = sqliteTable(
+  'part_leases',
+  {
+    /** `pls_…` */
+    id: id(),
+    project_key: text('project_key')
+      .notNull()
+      .references(() => projects.key, { onDelete: 'cascade' }),
+    part_key: text('part_key').notNull(),
+    item_id: itemRef('item_id'),
+    run_id: text('run_id').references((): AnySQLiteColumn => runs.id, { onDelete: 'set null' }),
+    taken_at: text('taken_at').notNull(),
+    expires_at: text('expires_at').notNull(),
+    ended_at: text('ended_at'),
+    end_reason: text('end_reason', { enum: LEASE_END_REASONS }),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('part_leases_one_live')
+      .on(t.project_key, t.part_key)
+      .where(sql.raw(`"ended_at" IS NULL`)),
+    index('part_leases_item').on(t.item_id),
+    check('part_leases_end_reason', nullOrOneOf('end_reason', LEASE_END_REASONS)),
+    check('part_leases_ended', sql.raw(`("ended_at" IS NULL) = ("end_reason" IS NULL)`)),
+  ],
+);
+
+/**
+ * A hand-off held for changes to parts the item didn't declare (FR-162; B38
+ * resolution: its own table, since a `set_status done` hold has no packet).
+ * The row is the owner question (Needs you kind `undeclared_parts`).
+ */
+export const undeclared_holds = sqliteTable(
+  'undeclared_holds',
+  {
+    /** `udh_…` */
+    id: id(),
+    item_id: itemRef('item_id'),
+    packet_id: text('packet_id').references((): AnySQLiteColumn => packets.id, {
+      onDelete: 'set null',
+    }),
+    via: text('via', { enum: UNDECLARED_HOLD_VIA }).notNull(),
+    /** The undeclared keys, a JSON array. */
+    parts: text('parts', { mode: 'json' }).notNull(),
+    /** The changed files that mapped to them, a JSON array. */
+    files: text('files', { mode: 'json' }).notNull(),
+    state: text('state', { enum: UNDECLARED_HOLD_STATES }).notNull().default('open'),
+    note: text('note'),
+    decided_by: text('decided_by'),
+    decided_at: text('decided_at'),
+    version: version(),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('undeclared_holds_one_open').on(t.item_id).where(sql.raw(`"state" = 'open'`)),
+    check('undeclared_holds_via', oneOf('via', UNDECLARED_HOLD_VIA)),
+    check('undeclared_holds_state', oneOf('state', UNDECLARED_HOLD_STATES)),
+    check(
+      'undeclared_holds_parts',
+      sql.raw(`json_valid("parts") AND json_type("parts") = 'array'`),
+    ),
+    check('undeclared_holds_files', jsonArray('files', LIMITS.changed_files_max)),
+    check('undeclared_holds_note', maxLen('note', LIMITS.shared_decision_note)),
+    check('undeclared_holds_decided', sql.raw(`("state" = 'open') = ("decided_at" IS NULL)`)),
+  ],
+);
+
+/**
+ * A conflict the radar found (FR-163): a trial merge of `branch_a` with
+ * `branch_b` (another in-flight branch, or the main branch) that doesn't
+ * merge cleanly. One open finding per branch pair; it clears when the trial
+ * merge is clean.
+ */
+export const radar_findings = sqliteTable(
+  'radar_findings',
+  {
+    /** `rdf_…` */
+    id: id(),
+    project_key: text('project_key')
+      .notNull()
+      .references(() => projects.key, { onDelete: 'cascade' }),
+    branch_a: text('branch_a').notNull(),
+    branch_b: text('branch_b').notNull(),
+    item_a: text('item_a').references((): AnySQLiteColumn => items.id, { onDelete: 'cascade' }),
+    /** Null when `branch_b` is the main branch. */
+    item_b: text('item_b').references((): AnySQLiteColumn => items.id, { onDelete: 'cascade' }),
+    /** The conflicting files, a JSON array. */
+    files: text('files', { mode: 'json' }).notNull(),
+    seen_at: text('seen_at').notNull(),
+    cleared_at: text('cleared_at'),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('radar_findings_open_pair')
+      .on(t.project_key, t.branch_a, t.branch_b)
+      .where(sql.raw(`"cleared_at" IS NULL`)),
+    index('radar_findings_item_a').on(t.item_a),
+    index('radar_findings_item_b').on(t.item_b),
+    check('radar_findings_files', sql.raw(`json_valid("files") AND json_type("files") = 'array'`)),
+    check('radar_findings_branches', sql.raw(`"branch_a" <> "branch_b"`)),
   ],
 );
 

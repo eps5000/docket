@@ -28,6 +28,7 @@ import { createRecoveryService } from './recovery.js';
 import { createReviewDecisionsService } from './review-decisions.js';
 import { createRunsService } from './runs.js';
 import { createSearchService } from './search.js';
+import { createSharedChangesService } from './shared-changes.js';
 import { createSubgraphService } from './subgraph.js';
 import { createUndoService } from './undo.js';
 import { createViewsService } from './views.js';
@@ -69,6 +70,7 @@ export function createServices(
     agentProposals: createAgentProposalsService(full),
     drift: createDriftService(full),
     onboarding: createOnboardingService(full),
+    sharedChanges: createSharedChangesService(full),
     undo: createUndoService(full),
   };
   for (const [name, methods] of Object.entries(overrides)) {

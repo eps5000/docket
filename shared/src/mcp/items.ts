@@ -15,6 +15,7 @@ import {
   text,
 } from './common.js';
 import { LABEL_NAME_RE, LIMITS, TEXT_LIMITS } from './limits.js';
+import { branchInput, changedFilesInput } from './shared-changes.js';
 import {
   itemSummarySchema,
   itemTypeSchema,
@@ -88,6 +89,12 @@ export const setStatusInput = mutationInput({
   expected_version: expectedVersion.optional(),
   /** Required for canceled and reopen. */
   reason: text(TEXT_LIMITS.note).optional(),
+  /**
+   * Decision 36 (MCP_SPEC §5.15): when closing as done, the files the work
+   * changed (repo-relative, ≤ 2,000) and its branch. Ignored for other moves.
+   */
+  changed_files: changedFilesInput.optional(),
+  branch: branchInput.optional(),
 });
 export const setStatusOutput = mutationOutput({ item: itemSummarySchema });
 

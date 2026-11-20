@@ -4,6 +4,7 @@
  * §4 exactly. Shared contract file (tasks.md, Slice rules).
  */
 import { z } from 'zod';
+import { contextSharedSchema } from './shared-changes.js';
 import {
   ADDED_BY,
   CHECK_STATES,
@@ -494,6 +495,13 @@ export const contextBundleSchema = z.object({
       truncated: z.boolean(),
     })
     .nullable(),
+  /**
+   * Shared changes (decision 36; BUILD_SPEC §5.21 Context; MCP_SPEC §5.15):
+   * the item's declaration, overlapping and other in-flight declarations,
+   * leases and radar findings, after the Workflow notes. Optional: absent
+   * until B39 (T183) fills it.
+   */
+  shared: contextSharedSchema.optional(),
   planning_docs: z.array(
     z.object({
       name: z.string(),

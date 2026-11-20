@@ -349,6 +349,9 @@ export function createPacketsService(deps: ServiceDeps): PacketsService {
         gaps,
         created_by: who,
         state: 'open',
+        // Decision 36 (B38): stored as reported; B39 (T183) maps them and holds the packet.
+        changed_files: input.changed_files ?? null,
+        branch: input.branch ?? null,
         version: 1,
       });
       for (const h of chosen) {

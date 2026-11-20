@@ -7,7 +7,9 @@ import { describe, expect, it } from 'vitest';
 import {
   getTool,
   inputJsonSchema,
+  normaliseSharedPartKey,
   outputJsonSchema,
+  sharedPartKey,
   toolAnnotations,
   TOOLS,
 } from '../src/mcp/index.js';
@@ -25,17 +27,17 @@ const fails = (name: string, args: unknown) => {
 };
 
 describe('the registry', () => {
-  it('has 44 tools with unique names: 12 read, 1 delivering (get_item), 31 mutating', () => {
-    expect(TOOLS).toHaveLength(44);
-    expect(new Set(TOOLS.map((t) => t.name)).size).toBe(44);
+  it('has 48 tools with unique names: 13 read, 1 delivering (get_item), 34 mutating', () => {
+    expect(TOOLS).toHaveLength(48);
+    expect(new Set(TOOLS.map((t) => t.name)).size).toBe(48);
     const kinds = TOOLS.reduce<Record<string, number>>(
       (acc, t) => ({ ...acc, [t.kind]: (acc[t.kind] ?? 0) + 1 }),
       {},
     );
-    expect(kinds).toEqual({ read: 12, delivering: 1, mutating: 31 });
+    expect(kinds).toEqual({ read: 13, delivering: 1, mutating: 34 });
   });
 
-  it('groups tools into the eleven server files', () => {
+  it('groups tools into the twelve server files', () => {
     const groups = Object.fromEntries(
       [
         'read',
@@ -49,6 +51,7 @@ describe('the registry', () => {
         'agent_files',
         'onboarding',
         'batch',
+        'shared',
       ].map((g) => [g, TOOLS.filter((t) => t.group === g).length]),
     );
     expect(groups).toEqual({
@@ -63,7 +66,16 @@ describe('the registry', () => {
       agent_files: 2,
       onboarding: 2,
       batch: 1,
+      shared: 4,
     });
+    expect(groups).toEqual(
+      Object.fromEntries(
+        [...new Set(TOOLS.map((t) => t.group))].map((g) => [
+          g,
+          TOOLS.filter((t) => t.group === g).length,
+        ]),
+      ),
+    );
   });
 
   it('annotates per §3: reads read-only, get_item not, four idempotent tools, nothing destructive', () => {
@@ -691,5 +703,159 @@ describe('step details (MCP_SPEC §5.12; decision 33; B33)', () => {
     expect(step.required).toEqual(
       expect.arrayContaining(['details_md', 'details_version', 'source', 'has_details']),
     );
+  });
+});
+
+describe('shared changes (MCP_SPEC §5.15; decision 36; B38)', () => {
+  it('normalises part keys per kind', () => {
+    const cases: [string, string][] = [
+      ['Table: Decks', 'table:decks'],
+      ['model:Token', 'model:Token'],
+      ['endpoint:post /decks/{id}/export/', 'endpoint:POST /decks/{id}/export'],
+      ['endpoint:GET /', 'endpoint:GET /'],
+      [
+        'file:.\\src\\Gameflow.Api\\Data\\Migrations\\Snapshot.cs',
+        'file:src/Gameflow.Api/Data/Migrations/Snapshot.cs',
+      ],
+      ['other:Feature Flags', 'other:feature-flags'],
+    ];
+    for (const [raw, key] of cases) {
+      expect(normaliseSharedPartKey(raw), raw).toMatchObject({ ok: true, key });
+      expect(sharedPartKey.parse(raw), raw).toBe(key);
+    }
+  });
+
+  it('rejects keys that do not parse, naming the rule', () => {
+    const bad: [string, RegExp][] = [
+      ['Token', /<kind>:<name>/],
+      ['class:Token', /unknown kind "class"/],
+      ['model:', /needs a name/],
+      ['table:deck items', /no spaces/],
+      ['endpoint:/decks', /METHOD \/path/],
+      ['endpoint:FETCH /decks', /METHOD \/path/],
+      ['file:../secrets.txt', /repo-relative/],
+      ['file:/etc/passwd', /repo-relative/],
+      ['file:C:/repo/a.cs', /repo-relative/],
+      ['other:***', /slug/],
+      [`model:${'T'.repeat(200)}`, /at most 200/],
+    ];
+    for (const [raw, msg] of bad) {
+      const r = normaliseSharedPartKey(raw);
+      expect(r.ok, raw).toBe(false);
+      if (!r.ok) expect(r.error, raw).toMatch(msg);
+      expect(sharedPartKey.safeParse(raw).success, raw).toBe(false);
+    }
+  });
+
+  it('declare_shared_changes takes changes or none, never both, and normalises keys', () => {
+    const d = ok('declare_shared_changes', {
+      id: 'GF-312',
+      changes: [{ part: 'Table: Decks', change: 'add', note: 'Export column' }],
+      new_parts: [{ key: 'table:decks', kind: 'table', paths: ['./db/migrations/**'] }],
+    });
+    expect(d.changes).toEqual([{ part: 'table:decks', change: 'add', note: 'Export column' }]);
+    expect(d.new_parts).toEqual([
+      { key: 'table:decks', kind: 'table', paths: ['db/migrations/**'] },
+    ]);
+    ok('declare_shared_changes', { id: 'GF-312', none: true });
+    fails('declare_shared_changes', { id: 'GF-312' });
+    fails('declare_shared_changes', { id: 'GF-312', none: false });
+    fails('declare_shared_changes', { id: 'GF-312', changes: [] });
+    fails('declare_shared_changes', {
+      id: 'GF-312',
+      none: true,
+      changes: [{ part: 'model:Token', change: 'change' }],
+    });
+    fails('declare_shared_changes', {
+      id: 'GF-312',
+      none: true,
+      new_parts: [{ key: 'model:Token' }],
+    });
+    fails('declare_shared_changes', {
+      id: 'GF-312',
+      changes: [
+        { part: 'model:Token', change: 'change' },
+        { part: 'model:Token', change: 'remove' },
+      ],
+    });
+    fails('declare_shared_changes', {
+      id: 'GF-312',
+      changes: [{ part: 'model:Token', change: 'rename' }],
+    });
+    // Agents can't set single-writer (FR-158): new_parts is strict.
+    fails('declare_shared_changes', {
+      id: 'GF-312',
+      changes: [{ part: 'model:Token', change: 'change' }],
+      new_parts: [{ key: 'model:Token', single_writer: true }],
+    });
+    fails('declare_shared_changes', {
+      id: 'GF-312',
+      changes: [{ part: 'model:Token', change: 'change' }],
+      new_parts: [{ key: 'model:Token', kind: 'table' }],
+    });
+    const many = Array.from({ length: 51 }, (_, i) => ({ part: `model:M${i}`, change: 'add' }));
+    fails('declare_shared_changes', { id: 'GF-312', changes: many });
+  });
+
+  it('list_shared_parts, take_lease and release_lease', () => {
+    expect(ok('list_shared_parts', { project: 'GF' }).include_archived).toBe(false);
+    ok('take_lease', { id: 'GF-240', part: 'file:src/Snapshot.cs' });
+    ok('release_lease', { id: 'GF-240', part: 'file:src/Snapshot.cs' });
+    fails('take_lease', { id: 'GF-240' });
+    expect(toolAnnotations(getTool('list_shared_parts'))).toEqual({
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: false,
+    });
+    for (const name of ['declare_shared_changes', 'take_lease', 'release_lease']) {
+      expect(toolAnnotations(getTool(name)!), name).toEqual({
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+      });
+    }
+  });
+
+  it('claim_lead takes branch; set_status and submit_packet take changed_files and branch', () => {
+    ok('claim_lead', { id: 'GF-312', branch: 'gf-312-export' });
+    const st = ok('set_status', {
+      id: 'GF-312',
+      status: 'done',
+      changed_files: ['.\\src\\Decks.cs', 'db/migrations/0003.sql'],
+      branch: 'gf-312-export',
+    });
+    expect(st.changed_files).toEqual(['src/Decks.cs', 'db/migrations/0003.sql']);
+    fails('set_status', { id: 'GF-312', status: 'done', changed_files: ['../outside.txt'] });
+    const files = Array.from({ length: 2_001 }, (_, i) => `src/f${i}.ts`);
+    fails('set_status', { id: 'GF-312', status: 'done', changed_files: files });
+    const packet = {
+      id: 'GF-312',
+      built_from_commit: '4be1c09',
+      estimate: '5 min',
+      how: ['Open it'],
+      checked: [],
+    };
+    ok('submit_packet', { ...packet, changed_files: files.slice(0, 2_000), branch: 'b' });
+    fails('submit_packet', { ...packet, changed_files: files });
+  });
+
+  it('the output schemas carry the new error codes and the optional fields', () => {
+    const err = (
+      outputJsonSchema(getTool('take_lease')) as {
+        anyOf: { properties: { code: { enum: string[] } } }[];
+      }
+    ).anyOf[1]!.properties.code.enum;
+    expect(err.slice(-3)).toEqual(['seam_conflict', 'not_declared', 'lease_held']);
+    const packet = getTool('submit_packet').output;
+    expect(
+      packet.safeParse({
+        packet_id: 'pkt_1',
+        round: 1,
+        display_id: 'pkt-1a2b',
+        item: undefined,
+      }).success,
+    ).toBe(false);
+    const ctx = getTool('get_context').output.shape.context.shape;
+    expect(ctx.shared.safeParse(undefined).success).toBe(true);
   });
 });

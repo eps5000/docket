@@ -18,6 +18,7 @@ import {
 } from './common.js';
 import { instructionsInput } from './agent-files.js';
 import { LIMITS, TEXT_LIMITS } from './limits.js';
+import { branchInput } from './shared-changes.js';
 import { itemSummarySchema, runStateSchema } from './types.js';
 
 // ---- Recovery building blocks (MCP_SPEC §3; BUILD_SPEC §5.16) ----
@@ -141,6 +142,11 @@ export const claimLeadInput = mutationInput({
   ...recoveryFields,
   /** Decision 30: the installed `docket-check` script's output (MCP_SPEC §5.4; BUILD_SPEC §5.19). */
   instructions: instructionsInput.optional(),
+  /**
+   * Decision 36 (MCP_SPEC §5.15): the branch the work will be on, for the
+   * conflict radar. Defaults to `workspace.branch`.
+   */
+  branch: branchInput.optional(),
 }).superRefine(oneBrief);
 export const claimLeadOutput = mutationOutput({
   run_id: z.string(),

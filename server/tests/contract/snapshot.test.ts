@@ -3,7 +3,7 @@
  * official MCP client SDK against the in-process server:
  * - `initialize` returns the §2 instructions verbatim and advertises
  *   `tools` and `prompts` (each `listChanged: false`);
- * - `tools/list` has exactly the 44 §5 tools, in order, each with its §5
+ * - `tools/list` has exactly the 48 §5 tools, in order, each with its §5
  *   description verbatim, its fields, defaults and limits, and the §3
  *   annotations;
  * - `prompts/list` has exactly the §5.11 `onboard` prompt, with its
@@ -82,8 +82,8 @@ describe('initialize', () => {
 });
 
 describe('tools/list: names and descriptions (§5)', () => {
-  it('lists exactly 44 tools, in MCP_SPEC §5 order', () => {
-    expect(tools).toHaveLength(44);
+  it('lists exactly 48 tools, in MCP_SPEC §5 order', () => {
+    expect(tools).toHaveLength(48);
     expect(tools.map((t) => t.name)).toEqual(specDescriptions().map(([name]) => name));
   });
 
@@ -96,11 +96,12 @@ describe('tools/list: names and descriptions (§5)', () => {
 });
 
 /**
- * The §3 annotation table: the 12 read tools, `get_item`, the retry-safe
+ * The §3 annotation table: the 13 read tools, `get_item`, the retry-safe
  * four, nothing destructive. `park_run` is a write and not retry-safe;
  * `recovery_report` is read-only (B5); `get_agent_files` is read-only and
  * `propose_agent_file_change` a write that is not retry-safe (B26); `get_step`
- * is read-only (B33).
+ * is read-only (B33); `list_shared_parts` is read-only, and `declare_shared_changes`,
+ * `take_lease` and `release_lease` are writes that are not retry-safe (B38).
  */
 const READ_TOOLS = [
   'whoami',
@@ -115,6 +116,7 @@ const READ_TOOLS = [
   'recovery_report',
   'get_agent_files',
   'get_step',
+  'list_shared_parts',
 ];
 const IDEMPOTENT = ['heartbeat', 'report_commit', 'update_step', 'update_check'];
 
@@ -131,10 +133,10 @@ describe('tools/list: annotations (§3)', () => {
     expect(byName('get_item').annotations?.readOnlyHint).toBe(false);
   });
 
-  it('the §3 counts hold: 12 read tools, 31 mutating', () => {
-    expect(SPEC).toContain('`true` for the 12 read tools');
-    expect(SPEC).toContain('accepted only by the 31 mutating tools');
-    expect(READ_TOOLS).toHaveLength(12);
+  it('the §3 counts hold: 13 read tools, 34 mutating', () => {
+    expect(SPEC).toContain('`true` for the 13 read tools');
+    expect(SPEC).toContain('accepted only by the 34 mutating tools');
+    expect(READ_TOOLS).toHaveLength(13);
   });
 });
 
@@ -203,7 +205,7 @@ const INPUTS: Record<string, [string[], string[]]> = {
   ],
   set_status: [
     ['id', 'status'],
-    ['expected_version', 'reason'],
+    ['expected_version', 'reason', 'changed_files', 'branch'],
   ],
   link_items: [['from', 'to', 'type'], ['satisfied_when']],
   unlink_items: [[], ['link_id', 'from', 'to', 'type']],
@@ -218,6 +220,7 @@ const INPUTS: Record<string, [string[], string[]]> = {
       'brief_document_version_id',
       'external',
       'instructions',
+      'branch',
     ],
   ],
   release_lead: [['id', 'run_id', 'reason'], []],
@@ -265,7 +268,7 @@ const INPUTS: Record<string, [string[], string[]]> = {
   ],
   submit_packet: [
     ['id', 'built_from_commit', 'estimate', 'how', 'checked'],
-    ['hr_item_ids', 'gaps', 'attachments'],
+    ['hr_item_ids', 'gaps', 'attachments', 'changed_files', 'branch'],
   ],
   get_review: [['id'], []],
   ask_owner: [['id', 'question'], []],
@@ -282,6 +285,10 @@ const INPUTS: Record<string, [string[], string[]]> = {
   finish_onboarding: [['session_id', 'summary'], ['questions']],
   get_step: [['id', 'step_id'], []],
   apply_batch: [['operations'], []],
+  declare_shared_changes: [['id'], ['changes', 'none', 'new_parts']],
+  list_shared_parts: [['project'], ['include_archived']],
+  take_lease: [['id', 'part'], []],
+  release_lease: [['id', 'part'], []],
 };
 
 /** Result fields per tool, from the §5 Output lines (all required). */
@@ -346,6 +353,15 @@ const OUTPUTS: Record<string, string[]> = {
   finish_onboarding: ['session_id', 'state', 'changes'],
   get_step: ['step', 'history'],
   apply_batch: ['applied', 'failed', 'results'],
+  declare_shared_changes: ['declaration', 'registered', 'overlaps'],
+  list_shared_parts: ['project', 'parts'],
+  take_lease: ['part', 'item_id', 'held_until', 'renewed'],
+  release_lease: ['part', 'item_id', 'released'],
+};
+
+/** Optional result fields, from the §5 Output lines (decision 36: a held packet). */
+const OPTIONAL_OUTPUTS: Record<string, string[]> = {
+  submit_packet: ['held_undeclared'],
 };
 
 const MUTATING = specDescriptions()
@@ -384,7 +400,7 @@ describe('tools/list: input schemas (§3, §5)', () => {
   });
 
   it('every mutating tool accepts idempotency_key (≤ 100) and run_id; reads accept run_id only', () => {
-    expect(MUTATING).toHaveLength(31);
+    expect(MUTATING).toHaveLength(34);
     for (const t of tools) {
       const props = input(t.name).properties!;
       expect(props.run_id, t.name).toBeDefined();
@@ -412,6 +428,7 @@ describe('tools/list: input schemas (§3, §5)', () => {
       ['report_commit', 'pushed', false],
       ['recovery_report', 'include_briefs', false],
       ['recovery_report', 'limit', 25],
+      ['list_shared_parts', 'include_archived', false],
     ];
     for (const [tool, field, value] of defaults) {
       expect(input(tool).properties![field]!.default, `${tool}.${field}`).toEqual(value);
@@ -579,7 +596,10 @@ describe('tools/list: input schemas (§3, §5)', () => {
 describe('tools/list: output schemas (§4, §5, §6)', () => {
   it.each(Object.entries(OUTPUTS))('%s: result fields', (name, fields) => {
     const schema = result(name);
-    const extras = MUTATING.includes(name) ? ['replayed', 'warnings'] : [];
+    const extras = [
+      ...(MUTATING.includes(name) ? ['replayed', 'warnings'] : []),
+      ...(OPTIONAL_OUTPUTS[name] ?? []),
+    ];
     expect(Object.keys(schema.properties ?? {}).sort()).toEqual([...fields, ...extras].sort());
     expect((schema.required ?? []).sort()).toEqual([...fields].sort());
   });
@@ -588,7 +608,7 @@ describe('tools/list: output schemas (§4, §5, §6)', () => {
     '%s: every result field is named in its MCP_SPEC Output line',
     (name) => {
       const spec = specToolPart(name, 'Output');
-      for (const field of OUTPUTS[name]!)
+      for (const field of [...OUTPUTS[name]!, ...(OPTIONAL_OUTPUTS[name] ?? [])])
         expect(spec, `${name}.${field}`).toMatch(new RegExp(`\\b${field}\\b`));
     },
   );
@@ -607,6 +627,9 @@ describe('tools/list: output schemas (§4, §5, §6)', () => {
         'forbidden',
         'unavailable',
         'internal',
+        'seam_conflict',
+        'not_declared',
+        'lease_held',
       ]);
     }
   });
@@ -708,7 +731,7 @@ describe('text-only sessions (§3 Results)', () => {
     expect(await t.a.getPrompt(args)).toEqual(await t.b.getPrompt(args));
   });
 
-  it('lists the same 44 tools, in order, with the §5 descriptions verbatim', () => {
+  it('lists the same 48 tools, in order, with the §5 descriptions verbatim', () => {
     expect(textTools.map((x) => x.name)).toEqual(specDescriptions().map(([name]) => name));
     for (const [name, description] of specDescriptions()) {
       expect(textTools.find((x) => x.name === name)!.description, name).toBe(description);
@@ -772,5 +795,58 @@ describe('step details follow MCP_SPEC §5.12 (decision 33; B33)', () => {
     const work = result('set_plan').properties!.work!.items!;
     expect(work.required).toEqual(expect.arrayContaining(['source', 'has_details']));
     expect(work.required).not.toContain('details_md');
+  });
+});
+
+describe('shared changes follow MCP_SPEC §5.15 (decision 36; B38)', () => {
+  type Limits = JsonObject & { maxItems?: number; minItems?: number; const?: unknown };
+  it('declare_shared_changes: changes (1–50, notes ≤ 500) or none, new_parts (≤ 20) without single_writer', () => {
+    expect(specToolPart('declare_shared_changes', 'Input')).toContain(
+      "`changes?: [{ part, change: 'add'|'change'|'remove', note? }]` (1–50; `note` ≤ 500) or `none?: true`",
+    );
+    const props = input('declare_shared_changes').properties!;
+    const changes = props.changes as Limits;
+    expect([changes.minItems, changes.maxItems]).toEqual([1, 50]);
+    const change = changes.items!;
+    expect(change.additionalProperties).toBe(false);
+    expect(change.properties!.change!.enum).toEqual(['add', 'change', 'remove']);
+    expect(change.properties!.note!.maxLength).toBe(500);
+    expect(change.properties!.part!.maxLength).toBe(200);
+    expect((props.none as Limits).const).toBe(true);
+    const parts = props.new_parts as Limits;
+    expect(parts.maxItems).toBe(20);
+    expect(Object.keys(parts.items!.properties!).sort()).toEqual(['key', 'kind', 'note', 'paths']);
+    expect(parts.items!.properties!.kind!.enum).toEqual([
+      'table',
+      'model',
+      'endpoint',
+      'file',
+      'other',
+    ]);
+    expect((parts.items!.properties!.paths as Limits).maxItems).toBe(20);
+  });
+
+  it('changed_files is at most 2,000 paths on submit_packet and set_status; branch ≤ 200 there and on claim_lead', () => {
+    for (const tool of ['submit_packet', 'set_status']) {
+      const props = input(tool).properties!;
+      expect((props.changed_files as Limits).maxItems, tool).toBe(2_000);
+      expect(props.branch!.maxLength, tool).toBe(200);
+    }
+    expect(input('claim_lead').properties!.branch!.maxLength).toBe(200);
+  });
+
+  it('get_context may carry shared; submit_packet may carry held_undeclared', () => {
+    const ctx = result('get_context').properties!.context!;
+    expect(Object.keys(ctx.properties!)).toContain('shared');
+    expect(ctx.required).not.toContain('shared');
+    expect(Object.keys(ctx.properties!.shared!.properties!).sort()).toEqual([
+      'declaration',
+      'in_flight',
+      'leases',
+      'overlapping',
+      'radar',
+      'truncated',
+    ]);
+    expect(result('submit_packet').required).not.toContain('held_undeclared');
   });
 });

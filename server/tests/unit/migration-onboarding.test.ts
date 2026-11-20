@@ -21,7 +21,14 @@ import {
   openDb,
   type Db,
 } from '../../src/db/client.js';
-import { createTestDb, insertItem, insertProject, tempDir, type TempDir } from '../helpers.js';
+import {
+  createTestDb,
+  insertItem,
+  insertProject,
+  tempDir,
+  type TempDir,
+  without0010,
+} from '../helpers.js';
 
 const ts = '2026-11-18T00:00:00.000Z';
 const later = '2026-11-18T01:00:00.000Z';
@@ -128,7 +135,7 @@ describe('0006_onboarding on a fresh database', () => {
   afterEach(() => t.cleanup());
 
   it('applies every migration, with foreign keys on and the check clean', () => {
-    expect(migrationStatus(t.db)).toEqual({ current: true, applied: 10, expected: 10 });
+    expect(migrationStatus(t.db)).toEqual({ current: true, applied: 11, expected: 11 });
     expect(t.db.sqlite.pragma('foreign_keys', { simple: true })).toBe(1);
     expect(t.db.sqlite.pragma('foreign_key_check')).toEqual([]);
     expect(tables(t.db)).toContain('onboarding_sessions');
@@ -245,7 +252,7 @@ describe('0006_onboarding on a main-era database (0000–0005, with data)', () =
     db = openDb(join(tmp.dir, 'docket.db'));
     // What current main's migrateDb produced before B29: 0000 to 0005.
     migrate(drizzle(db.sqlite), { migrationsFolder: mainEraMigrations(tmp.dir) });
-    expect(migrationStatus(db)).toEqual({ current: false, applied: 6, expected: 10 });
+    expect(migrationStatus(db)).toEqual({ current: false, applied: 6, expected: 11 });
     expect(tables(db)).not.toContain('onboarding_sessions');
     expect(columns(db, 'projects')).not.toContain('created_by');
     insertProject(db, 'RCP');
@@ -290,9 +297,9 @@ describe('0006_onboarding on a main-era database (0000–0005, with data)', () =
 
   it('migrates to current, and migrating again is a no-op', () => {
     migrateDb(db);
-    expect(migrationStatus(db)).toEqual({ current: true, applied: 10, expected: 10 });
+    expect(migrationStatus(db)).toEqual({ current: true, applied: 11, expected: 11 });
     migrateDb(db);
-    expect(migrationStatus(db).applied).toBe(10);
+    expect(migrationStatus(db).applied).toBe(11);
     expect(tables(db)).toContain('onboarding_sessions');
     expect(columns(db, 'projects')).toContain('created_by');
   });
@@ -310,8 +317,8 @@ describe('0006_onboarding on a main-era database (0000–0005, with data)', () =
     const projectsBefore = all(db, 'SELECT * FROM projects ORDER BY key') as object[];
     migrateDb(db);
     expect(db.sqlite.pragma('foreign_key_check')).toEqual([]);
-    expect(queries.map((q) => all(db, q))).toEqual(before);
-    expect(all(db, 'SELECT * FROM projects ORDER BY key')).toEqual(
+    expect(queries.map((q) => without0010(all(db, q)))).toEqual(before);
+    expect(without0010(all(db, 'SELECT * FROM projects ORDER BY key'))).toEqual(
       projectsBefore.map((p) => ({ ...p, created_by: null })),
     );
   });

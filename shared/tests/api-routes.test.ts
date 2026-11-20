@@ -12,6 +12,13 @@ import {
   agentFileParams,
   approveProposalBody,
   createProjectBody,
+  createSharedPartBody,
+  decideHoldBody,
+  decideOverlapBody,
+  patchSharedPartBody,
+  putItemSharedBody,
+  putRadarBody,
+  sharedPartsQuery,
   declineProposalBody,
   onboardingQuery,
   onboardingSessionSchema,
@@ -123,6 +130,18 @@ const EXPECTED = [
   'POST /api/projects',
   'GET /api/onboarding',
   'POST /api/onboarding/:id/reviewed',
+  // Decision 36 (B38): shared changes and the conflict radar.
+  'GET /api/projects/:key/shared-parts',
+  'POST /api/projects/:key/shared-parts',
+  'PATCH /api/shared-parts/:id',
+  'GET /api/items/:id/shared',
+  'PUT /api/items/:id/shared',
+  'POST /api/overlaps/:id/decide',
+  'POST /api/undeclared-holds/:id/decide',
+  'POST /api/leases/:id/release',
+  'GET /api/projects/:key/radar',
+  'PUT /api/projects/:key/radar',
+  'POST /api/projects/:key/radar/run',
   // Decision 33 (BUILD_SPEC §7; UI_SPEC §6.3.1a): the step dialog's details editor
   'PATCH /api/items/:id/work/:stepId/details',
   // Decision 33 (B34): the step dialog's contents
@@ -140,11 +159,11 @@ const keysOf = (schema: z.ZodType): string[] => {
 };
 
 describe('the route table', () => {
-  it('has every BUILD_SPEC §7 route, the clarification, recovery, agent setup, proposals and drift, and onboarding routes and /agent-upload, once each', () => {
+  it('has every BUILD_SPEC §7 route, the clarification, recovery, agent setup, proposals and drift, onboarding and shared changes routes and /agent-upload, once each', () => {
     const labels = ROUTE_IDS.map((id) => routeLabel(API_ROUTES[id]));
     expect(new Set(labels).size).toBe(labels.length);
     expect([...labels].sort()).toEqual([...EXPECTED].sort());
-    expect(labels).toHaveLength(79);
+    expect(labels).toHaveLength(90);
   });
 
   it('puts each route in a known group, and every group has a route', () => {
@@ -489,5 +508,68 @@ describe('field rules', () => {
     });
     expect(decisionsQuery.safeParse({ project: 'RCP', scope_kind: 'epic' }).success).toBe(false);
     expect(workQuery.parse({})).toEqual({ scope: 'all', filter: 'all', layout: 'board' });
+  });
+
+  it('shared changes (decision 36): bodies, normalised keys, the Ready override, what is undoable', () => {
+    const part = createSharedPartBody.parse({
+      key: 'Table: Decks',
+      paths: ['./db/migrations/**'],
+      single_writer: true,
+    });
+    expect(part).toMatchObject({ key: 'table:decks', paths: ['db/migrations/**'] });
+    expect(createSharedPartBody.safeParse({ key: 'table:decks', kind: 'model' }).success).toBe(
+      false,
+    );
+    expect(createSharedPartBody.safeParse({ key: 'decks' }).success).toBe(false);
+    expect(patchSharedPartBody.safeParse({ expected_version: 1, archived: true }).success).toBe(
+      true,
+    );
+    expect(patchSharedPartBody.safeParse({ expected_version: 1, note: null }).success).toBe(true);
+    expect(patchSharedPartBody.safeParse({ expected_version: 1 }).success).toBe(false);
+    expect(patchSharedPartBody.safeParse({ expected_version: 1, key: 'model:X' }).success).toBe(
+      false,
+    );
+    expect(sharedPartsQuery.parse({ include_archived: 'true' })).toEqual({
+      include_archived: true,
+    });
+    // The owner's declaration: the agent rules, and new parts may be single-writer.
+    expect(putItemSharedBody.safeParse({ none: true }).success).toBe(true);
+    expect(
+      putItemSharedBody.safeParse({
+        changes: [{ part: 'model:Token', change: 'change' }],
+        new_parts: [{ key: 'model:Token', single_writer: true }],
+      }).success,
+    ).toBe(true);
+    expect(putItemSharedBody.safeParse({}).success).toBe(false);
+    expect(
+      decideOverlapBody.safeParse({ decision: 'compatible', note: 'Disjoint fields' }).success,
+    ).toBe(true);
+    expect(decideOverlapBody.safeParse({ decision: 'sequence' }).success).toBe(true);
+    expect(decideOverlapBody.safeParse({ decision: 'sequence', note: 'x' }).success).toBe(false);
+    expect(decideOverlapBody.safeParse({ decision: 'merge' }).success).toBe(false);
+    expect(decideHoldBody.safeParse({ decision: 'add' }).success).toBe(true);
+    expect(decideHoldBody.safeParse({ decision: 'send_back', note: 'Split it' }).success).toBe(
+      true,
+    );
+    expect(putRadarBody.safeParse({ repo_path: null }).success).toBe(true);
+    expect(putRadarBody.safeParse({ repo_path: 'gameflow', main_branch: 'develop' }).success).toBe(
+      true,
+    );
+    expect(putRadarBody.safeParse({}).success).toBe(false);
+    // The Ready gate's owner override (BUILD_SPEC §5.21).
+    expect(
+      patchItemBody.safeParse({
+        expected_version: 3,
+        status: 'ready',
+        override_reason: 'Docs only',
+      }).success,
+    ).toBe(true);
+    expect(
+      patchItemBody.safeParse({ expected_version: 3, priority: 1, override_reason: 'x' }).success,
+    ).toBe(false);
+    const undoable = ['sharedParts.create', 'sharedParts.update', 'itemShared.put'] as const;
+    for (const id of ROUTE_IDS.filter((r) => API_ROUTES[r].group === 'shared')) {
+      expect(API_ROUTES[id].undoable, id).toBe((undoable as readonly string[]).includes(id));
+    }
   });
 });

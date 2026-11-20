@@ -21,7 +21,7 @@ import {
   openDb,
   type Db,
 } from '../../src/db/client.js';
-import { insertItem, insertProject, tempDir, type TempDir } from '../helpers.js';
+import { insertItem, insertProject, tempDir, type TempDir, without0010 } from '../helpers.js';
 
 const ts = '2026-11-18T00:00:00.000Z';
 const SHA = 'a'.repeat(64);
@@ -126,7 +126,7 @@ describe('0007_onboarding_guide_key on a B29-era database (0000–0006, with dat
     tmp = tempDir('docket-migrate-');
     db = openDb(join(tmp.dir, 'docket.db'));
     migrate(drizzle(db.sqlite), { migrationsFolder: beforeB30(tmp.dir) });
-    expect(migrationStatus(db)).toEqual({ current: false, applied: 7, expected: 10 });
+    expect(migrationStatus(db)).toEqual({ current: false, applied: 7, expected: 11 });
     expect(() => agentFile(db, 'af_x', 'guide:onboarding', 'bundled', null)).toThrow(
       /agent_files_key/,
     );
@@ -181,9 +181,9 @@ describe('0007_onboarding_guide_key on a B29-era database (0000–0006, with dat
 
   it('migrates to current, and migrating again is a no-op', () => {
     migrateDb(db);
-    expect(migrationStatus(db)).toEqual({ current: true, applied: 10, expected: 10 });
+    expect(migrationStatus(db)).toEqual({ current: true, applied: 11, expected: 11 });
     migrateDb(db);
-    expect(migrationStatus(db).applied).toBe(10);
+    expect(migrationStatus(db).applied).toBe(11);
   });
 
   it('keeps every agent file, version and reference; foreign_key_check is clean', () => {
@@ -199,7 +199,7 @@ describe('0007_onboarding_guide_key on a B29-era database (0000–0006, with dat
     const before = queries.map((q) => all(db, q));
     migrateDb(db);
     expect(db.sqlite.pragma('foreign_key_check')).toEqual([]);
-    expect(queries.map((q) => all(db, q))).toEqual(before);
+    expect(queries.map((q) => without0010(all(db, q)))).toEqual(before);
     // The history still hangs off each file by ID.
     expect(
       all(

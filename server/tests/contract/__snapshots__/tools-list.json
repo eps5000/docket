@@ -94,7 +94,10 @@
                 "not_found",
                 "forbidden",
                 "unavailable",
-                "internal"
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
               ]
             },
             "message": {
@@ -208,7 +211,10 @@
                 "not_found",
                 "forbidden",
                 "unavailable",
-                "internal"
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
               ]
             },
             "message": {
@@ -571,7 +577,10 @@
                 "not_found",
                 "forbidden",
                 "unavailable",
-                "internal"
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
               ]
             },
             "message": {
@@ -2303,7 +2312,17 @@
                           "project.created",
                           "onboarding.started",
                           "onboarding.finished",
-                          "onboarding.reviewed"
+                          "onboarding.reviewed",
+                          "shared_part.saved",
+                          "shared.declared",
+                          "overlap.raised",
+                          "overlap.decided",
+                          "lease.taken",
+                          "lease.ended",
+                          "undeclared.held",
+                          "undeclared.decided",
+                          "radar.found",
+                          "radar.cleared"
                         ]
                       },
                       "summary": {
@@ -2375,7 +2394,10 @@
                 "not_found",
                 "forbidden",
                 "unavailable",
-                "internal"
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
               ]
             },
             "message": {
@@ -2874,6 +2896,235 @@
                     }
                   ]
                 },
+                "shared": {
+                  "type": "object",
+                  "properties": {
+                    "declaration": {
+                      "type": "object",
+                      "properties": {
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "declared",
+                            "none",
+                            "not_declared"
+                          ]
+                        },
+                        "changes": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "part": {
+                                "type": "string"
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "table",
+                                  "model",
+                                  "endpoint",
+                                  "file",
+                                  "other"
+                                ]
+                              },
+                              "change": {
+                                "type": "string",
+                                "enum": [
+                                  "add",
+                                  "change",
+                                  "remove"
+                                ]
+                              },
+                              "note": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "part",
+                              "kind",
+                              "change",
+                              "note"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "state",
+                        "changes"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "overlapping": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "inbox",
+                              "planning",
+                              "ready",
+                              "progress",
+                              "review",
+                              "done",
+                              "canceled"
+                            ]
+                          },
+                          "change": {
+                            "type": "string",
+                            "enum": [
+                              "add",
+                              "change",
+                              "remove"
+                            ]
+                          },
+                          "note": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "part": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "title",
+                          "status",
+                          "change",
+                          "note",
+                          "part"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "in_flight": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "inbox",
+                              "planning",
+                              "ready",
+                              "progress",
+                              "review",
+                              "done",
+                              "canceled"
+                            ]
+                          },
+                          "change": {
+                            "type": "string",
+                            "enum": [
+                              "add",
+                              "change",
+                              "remove"
+                            ]
+                          },
+                          "note": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "part": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "title",
+                          "status",
+                          "change",
+                          "note",
+                          "part"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "leases": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "part": {
+                            "type": "string"
+                          },
+                          "held_until": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "part",
+                          "held_until"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "radar": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "with": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "branch": {
+                            "type": "string"
+                          },
+                          "files": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "required": [
+                          "with",
+                          "branch",
+                          "files"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "truncated": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "declaration",
+                    "overlapping",
+                    "in_flight",
+                    "leases",
+                    "radar",
+                    "truncated"
+                  ],
+                  "additionalProperties": false
+                },
                 "planning_docs": {
                   "type": "array",
                   "items": {
@@ -3002,7 +3253,10 @@
                 "not_found",
                 "forbidden",
                 "unavailable",
-                "internal"
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
               ]
             },
             "message": {
@@ -3214,7 +3468,10 @@
                 "not_found",
                 "forbidden",
                 "unavailable",
-                "internal"
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
               ]
             },
             "message": {
@@ -3373,7 +3630,10 @@
                 "not_found",
                 "forbidden",
                 "unavailable",
-                "internal"
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
               ]
             },
             "message": {
@@ -3481,7 +3741,17 @@
               "project.created",
               "onboarding.started",
               "onboarding.finished",
-              "onboarding.reviewed"
+              "onboarding.reviewed",
+              "shared_part.saved",
+              "shared.declared",
+              "overlap.raised",
+              "overlap.decided",
+              "lease.taken",
+              "lease.ended",
+              "undeclared.held",
+              "undeclared.decided",
+              "radar.found",
+              "radar.cleared"
             ]
           }
         },
@@ -3582,7 +3852,17 @@
                       "project.created",
                       "onboarding.started",
                       "onboarding.finished",
-                      "onboarding.reviewed"
+                      "onboarding.reviewed",
+                      "shared_part.saved",
+                      "shared.declared",
+                      "overlap.raised",
+                      "overlap.decided",
+                      "lease.taken",
+                      "lease.ended",
+                      "undeclared.held",
+                      "undeclared.decided",
+                      "radar.found",
+                      "radar.cleared"
                     ]
                   },
                   "summary": {
@@ -3624,7 +3904,10 @@
                 "not_found",
                 "forbidden",
                 "unavailable",
-                "internal"
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
               ]
             },
             "message": {
@@ -3990,7 +4273,10 @@
                 "not_found",
                 "forbidden",
                 "unavailable",
-                "internal"
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
               ]
             },
             "message": {
@@ -4380,7 +4666,10 @@
                 "not_found",
                 "forbidden",
                 "unavailable",
-                "internal"
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
               ]
             },
             "message": {
@@ -4411,7 +4700,7 @@
   },
   {
     "name": "set_status",
-    "description": "Move an item to another status. Allowed moves: inbox→planning; planning↔ready; ready→progress; progress→ready (gives up the work); progress or review→done (only when no human review item is undecided); any open status→canceled (reason required); done→progress (reopen, reason required). Use submit_packet, not set_status, to hand off for review.",
+    "description": "Move an item to another status. Allowed moves: inbox→planning; planning↔ready; ready→progress; progress→ready (gives up the work); progress or review→done (only when no human review item is undecided); any open status→canceled (reason required); done→progress (reopen, reason required). Moving to ready needs the item's shared changes declared first (declare_shared_changes), else not_declared. When you close an item as done, pass changed_files and branch. Use submit_packet, not set_status, to hand off for review.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -4439,6 +4728,20 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 4000
+        },
+        "changed_files": {
+          "maxItems": 2000,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          }
+        },
+        "branch": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
         },
         "run_id": {
           "type": "string",
@@ -4687,7 +4990,10 @@
                 "not_found",
                 "forbidden",
                 "unavailable",
-                "internal"
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
               ]
             },
             "message": {
@@ -4834,7 +5140,10 @@
                 "not_found",
                 "forbidden",
                 "unavailable",
-                "internal"
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
               ]
             },
             "message": {
@@ -4938,7 +5247,10 @@
                 "not_found",
                 "forbidden",
                 "unavailable",
-                "internal"
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
               ]
             },
             "message": {
@@ -5050,7 +5362,10 @@
                 "not_found",
                 "forbidden",
                 "unavailable",
-                "internal"
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
               ]
             },
             "message": {
@@ -5081,7 +5396,7 @@
   },
   {
     "name": "claim_lead",
-    "description": "Claim an item as its lead before you work on it. Works on Ready items (moves them to In progress) and on In progress items with no lead (resuming sent-back or interrupted work). Pass workspace (where the work lives) and, if a coordinator briefed you, the brief, so the work can be restarted after a crash. Pass instructions with the output of the installed docket-check script, so the owner knows which instructions you work from. Returns your run_id: pass it on every later call. If someone else holds the claim you get a conflict with who holds it and until when; do not work on the item.",
+    "description": "Claim an item as its lead before you work on it. Works on Ready items (moves them to In progress) and on In progress items with no lead (resuming sent-back or interrupted work). Pass workspace (where the work lives) and, if a coordinator briefed you, the brief, so the work can be restarted after a crash. Pass instructions with the output of the installed docket-check script, so the owner knows which instructions you work from. Pass branch, the branch you will work on, so conflicts are spotted early. Returns your run_id: pass it on every later call. If someone else holds the claim you get a conflict with who holds it and until when; do not work on the item. If its shared parts overlap another item in flight you get seam_conflict: the owner has been asked whether they can run together, so pick other work and leave this item until they decide.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -5216,6 +5531,11 @@
             "files"
           ],
           "additionalProperties": false
+        },
+        "branch": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
         },
         "run_id": {
           "type": "string",
@@ -5471,7 +5791,10 @@
                 "not_found",
                 "forbidden",
                 "unavailable",
-                "internal"
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
               ]
             },
             "message": {
@@ -5763,7 +6086,10 @@
                 "not_found",
                 "forbidden",
                 "unavailable",
-                "internal"
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
               ]
             },
             "message": {
@@ -5947,7 +6273,10 @@
                 "not_found",
                 "forbidden",
                 "unavailable",
-                "internal"
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
               ]
             },
             "message": {
@@ -6208,7 +6537,10 @@
                 "not_found",
                 "forbidden",
                 "unavailable",
-                "internal"
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
               ]
             },
             "message": {
@@ -6323,7 +6655,10 @@
                 "not_found",
                 "forbidden",
                 "unavailable",
-                "internal"
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
               ]
             },
             "message": {
@@ -6446,7 +6781,10 @@
                 "not_found",
                 "forbidden",
                 "unavailable",
-                "internal"
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
               ]
             },
             "message": {
@@ -6777,7 +7115,10 @@
                 "not_found",
                 "forbidden",
                 "unavailable",
-                "internal"
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
               ]
             },
             "message": {
@@ -7054,7 +7395,10 @@
                 "not_found",
                 "forbidden",
                 "unavailable",
-                "internal"
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
               ]
             },
             "message": {
@@ -7180,7 +7524,10 @@
                 "not_found",
                 "forbidden",
                 "unavailable",
-                "internal"
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
               ]
             },
             "message": {
@@ -7381,7 +7728,10 @@
                 "not_found",
                 "forbidden",
                 "unavailable",
-                "internal"
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
               ]
             },
             "message": {
@@ -7549,7 +7899,10 @@
                 "not_found",
                 "forbidden",
                 "unavailable",
-                "internal"
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
               ]
             },
             "message": {
@@ -7753,7 +8106,10 @@
                 "not_found",
                 "forbidden",
                 "unavailable",
-                "internal"
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
               ]
             },
             "message": {
@@ -7966,7 +8322,10 @@
                 "not_found",
                 "forbidden",
                 "unavailable",
-                "internal"
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
               ]
             },
             "message": {
@@ -8108,7 +8467,17 @@
                     "project.created",
                     "onboarding.started",
                     "onboarding.finished",
-                    "onboarding.reviewed"
+                    "onboarding.reviewed",
+                    "shared_part.saved",
+                    "shared.declared",
+                    "overlap.raised",
+                    "overlap.decided",
+                    "lease.taken",
+                    "lease.ended",
+                    "undeclared.held",
+                    "undeclared.decided",
+                    "radar.found",
+                    "radar.cleared"
                   ]
                 },
                 "summary": {
@@ -8151,7 +8520,10 @@
                 "not_found",
                 "forbidden",
                 "unavailable",
-                "internal"
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
               ]
             },
             "message": {
@@ -8292,7 +8664,10 @@
                 "not_found",
                 "forbidden",
                 "unavailable",
-                "internal"
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
               ]
             },
             "message": {
@@ -8436,7 +8811,10 @@
                 "not_found",
                 "forbidden",
                 "unavailable",
-                "internal"
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
               ]
             },
             "message": {
@@ -8575,7 +8953,10 @@
                 "not_found",
                 "forbidden",
                 "unavailable",
-                "internal"
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
               ]
             },
             "message": {
@@ -8606,7 +8987,7 @@
   },
   {
     "name": "submit_packet",
-    "description": "Hand finished work to the owner for human review. Call it when the work is built, your checks pass and everything is committed and reported. The packet must let the owner verify without asking you anything: what to check, exact steps (URLs, builds, commands), what you already verified and how, known gaps, and attachments. The item moves to Review; read the decision later with get_review or get_item.",
+    "description": "Hand finished work to the owner for human review. Call it when the work is built, your checks pass and everything is committed and reported. The packet must let the owner verify without asking you anything: what to check, exact steps (URLs, builds, commands), what you already verified and how, known gaps, and attachments. Pass changed_files (every file your work changed) and branch: changes to shared parts the item didn't declare hold it for the owner. The item moves to Review; read the decision later with get_review or get_item.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -8706,6 +9087,20 @@
             ],
             "additionalProperties": false
           }
+        },
+        "changed_files": {
+          "maxItems": 2000,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          }
+        },
+        "branch": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
         },
         "run_id": {
           "type": "string",
@@ -8940,6 +9335,12 @@
               ],
               "additionalProperties": false
             },
+            "held_undeclared": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
             "replayed": {
               "type": "boolean"
             },
@@ -8969,7 +9370,10 @@
                 "not_found",
                 "forbidden",
                 "unavailable",
-                "internal"
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
               ]
             },
             "message": {
@@ -9178,7 +9582,10 @@
                 "not_found",
                 "forbidden",
                 "unavailable",
-                "internal"
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
               ]
             },
             "message": {
@@ -9274,7 +9681,10 @@
                 "not_found",
                 "forbidden",
                 "unavailable",
-                "internal"
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
               ]
             },
             "message": {
@@ -9514,7 +9924,10 @@
                 "not_found",
                 "forbidden",
                 "unavailable",
-                "internal"
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
               ]
             },
             "message": {
@@ -9746,7 +10159,10 @@
                 "not_found",
                 "forbidden",
                 "unavailable",
-                "internal"
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
               ]
             },
             "message": {
@@ -9947,7 +10363,10 @@
                 "not_found",
                 "forbidden",
                 "unavailable",
-                "internal"
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
               ]
             },
             "message": {
@@ -12059,7 +12478,10 @@
                 "not_found",
                 "forbidden",
                 "unavailable",
-                "internal"
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
               ]
             },
             "message": {
@@ -12190,7 +12612,10 @@
                 "not_found",
                 "forbidden",
                 "unavailable",
-                "internal"
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
               ]
             },
             "message": {
@@ -12313,7 +12738,10 @@
                 "not_found",
                 "forbidden",
                 "unavailable",
-                "internal"
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
               ]
             },
             "message": {
@@ -12458,7 +12886,10 @@
                 "not_found",
                 "forbidden",
                 "unavailable",
-                "internal"
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
               ]
             },
             "message": {
@@ -12598,7 +13029,10 @@
                 "not_found",
                 "forbidden",
                 "unavailable",
-                "internal"
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
               ]
             },
             "message": {
@@ -12881,7 +13315,10 @@
                 "not_found",
                 "forbidden",
                 "unavailable",
-                "internal"
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
               ]
             },
             "message": {
@@ -13092,7 +13529,742 @@
                 "not_found",
                 "forbidden",
                 "unavailable",
-                "internal"
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
+              ]
+            },
+            "message": {
+              "type": "string"
+            },
+            "details": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {}
+            },
+            "current": {}
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false
+    }
+  },
+  {
+    "name": "declare_shared_changes",
+    "description": "Declare the shared parts this item will change (tables, models, endpoints, shared files), each with add, change or remove and a short note, or none: true when it changes none. An item can't move to Ready until it has declared. Each call replaces the item's whole declaration. Name parts by their keys from list_shared_parts; register a missing one with new_parts. Returns the in-flight items that change the same parts.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Z]{2,5}-[1-9][0-9]*$"
+        },
+        "changes": {
+          "minItems": 1,
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "part": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "change": {
+                "type": "string",
+                "enum": [
+                  "add",
+                  "change",
+                  "remove"
+                ]
+              },
+              "note": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              }
+            },
+            "required": [
+              "part",
+              "change"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "none": {
+          "type": "boolean",
+          "const": true
+        },
+        "new_parts": {
+          "minItems": 1,
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "table",
+                  "model",
+                  "endpoint",
+                  "file",
+                  "other"
+                ]
+              },
+              "paths": {
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300
+                }
+              },
+              "note": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000
+              }
+            },
+            "required": [
+              "key"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "run_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "idempotency_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "declaration": {
+              "type": "object",
+              "properties": {
+                "item_id": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "declared",
+                    "none",
+                    "not_declared"
+                  ]
+                },
+                "changes": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "part": {
+                        "type": "string"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "table",
+                          "model",
+                          "endpoint",
+                          "file",
+                          "other"
+                        ]
+                      },
+                      "change": {
+                        "type": "string",
+                        "enum": [
+                          "add",
+                          "change",
+                          "remove"
+                        ]
+                      },
+                      "note": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "part",
+                      "kind",
+                      "change",
+                      "note"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "declared_by": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "declared_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "item_id",
+                "state",
+                "changes",
+                "declared_by",
+                "declared_at"
+              ],
+              "additionalProperties": false
+            },
+            "registered": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "overlaps": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "with": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "inbox",
+                          "planning",
+                          "ready",
+                          "progress",
+                          "review",
+                          "done",
+                          "canceled"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "title",
+                      "status"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "parts": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "with",
+                  "parts"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "replayed": {
+              "type": "boolean"
+            },
+            "warnings": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "declaration",
+            "overlaps",
+            "registered"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string",
+              "enum": [
+                "validation",
+                "conflict",
+                "not_found",
+                "forbidden",
+                "unavailable",
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
+              ]
+            },
+            "message": {
+              "type": "string"
+            },
+            "details": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {}
+            },
+            "current": {}
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false
+    }
+  },
+  {
+    "name": "list_shared_parts",
+    "description": "List a project's shared parts (tables, models, endpoints, shared files): each key, the file paths that map to it, whether it is single-writer and who holds its lease, and the in-flight items that declared changes to it. Read-only. Call it before declare_shared_changes, to name parts by their registered keys.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "project": {
+          "type": "string",
+          "pattern": "^[A-Z]{2,5}$"
+        },
+        "include_archived": {
+          "default": false,
+          "type": "boolean"
+        },
+        "run_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        }
+      },
+      "required": [
+        "project"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "project": {
+              "type": "string"
+            },
+            "parts": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "table",
+                      "model",
+                      "endpoint",
+                      "file",
+                      "other"
+                    ]
+                  },
+                  "paths": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "single_writer": {
+                    "type": "boolean"
+                  },
+                  "note": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "created_by": {
+                    "type": "string"
+                  },
+                  "archived": {
+                    "type": "boolean"
+                  },
+                  "in_flight": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "inbox",
+                            "planning",
+                            "ready",
+                            "progress",
+                            "review",
+                            "done",
+                            "canceled"
+                          ]
+                        },
+                        "change": {
+                          "type": "string",
+                          "enum": [
+                            "add",
+                            "change",
+                            "remove"
+                          ]
+                        },
+                        "note": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "title",
+                        "status",
+                        "change",
+                        "note"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "lease": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "item_id": {
+                            "type": "string"
+                          },
+                          "held_until": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "item_id",
+                          "held_until"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "key",
+                  "kind",
+                  "paths",
+                  "single_writer",
+                  "note",
+                  "created_by",
+                  "archived",
+                  "in_flight",
+                  "lease"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "parts",
+            "project"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string",
+              "enum": [
+                "validation",
+                "conflict",
+                "not_found",
+                "forbidden",
+                "unavailable",
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
+              ]
+            },
+            "message": {
+              "type": "string"
+            },
+            "details": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {}
+            },
+            "current": {}
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": false
+    }
+  },
+  {
+    "name": "take_lease",
+    "description": "Take the lease on a single-writer part (such as a migrations snapshot) for an item you lead, before you change it; call again to renew. A lease lasts 2 hours and ends when the item is done or handed off, or when you release it. If another item holds it you get lease_held with the holder and expiry: work on something else rather than waiting in a loop.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Z]{2,5}-[1-9][0-9]*$"
+        },
+        "part": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "run_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "idempotency_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        }
+      },
+      "required": [
+        "id",
+        "part"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "part": {
+              "type": "string"
+            },
+            "item_id": {
+              "type": "string"
+            },
+            "held_until": {
+              "type": "string"
+            },
+            "renewed": {
+              "type": "boolean"
+            },
+            "replayed": {
+              "type": "boolean"
+            },
+            "warnings": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "held_until",
+            "item_id",
+            "part",
+            "renewed"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string",
+              "enum": [
+                "validation",
+                "conflict",
+                "not_found",
+                "forbidden",
+                "unavailable",
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
+              ]
+            },
+            "message": {
+              "type": "string"
+            },
+            "details": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {}
+            },
+            "current": {}
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false
+    }
+  },
+  {
+    "name": "release_lease",
+    "description": "Release your lease on a single-writer part as soon as your change to it is committed and pushed, so other items can take it.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Z]{2,5}-[1-9][0-9]*$"
+        },
+        "part": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "run_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "idempotency_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        }
+      },
+      "required": [
+        "id",
+        "part"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "part": {
+              "type": "string"
+            },
+            "item_id": {
+              "type": "string"
+            },
+            "released": {
+              "type": "boolean",
+              "const": true
+            },
+            "replayed": {
+              "type": "boolean"
+            },
+            "warnings": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "item_id",
+            "part",
+            "released"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string",
+              "enum": [
+                "validation",
+                "conflict",
+                "not_found",
+                "forbidden",
+                "unavailable",
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
               ]
             },
             "message": {
