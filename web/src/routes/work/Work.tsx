@@ -2,7 +2,7 @@ import { useNoProjects } from '../../app/useBootstrap';
 import { NoProjectsPointer } from '../needs-you/Welcome';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
-import { Link, useLocation, useSearchParams } from 'react-router';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
 import {
   ONBOARDING_CHANGES,
   WORK_LAYOUTS,
@@ -71,14 +71,22 @@ export function Work() {
   const { scope } = useShell();
   const [params, setParams] = useSearchParams();
   const location = useLocation();
+  const navigate = useNavigate();
   const { layout, epic, label, onboarding, onboarding_change } = readWorkParams(params);
-  const settled = isSettled(location.state);
+  // An in-page hash entry (the skip link's #main) is made by the browser, with no router state:
+  // it is never an arrival, so it keeps the filter its URL says.
+  const settled = isSettled(location.state) || location.hash !== '';
   const { filter, settle } = resolveWorkFilter(params, settled, () => readStoredWorkFilter(scope));
   // Settle this history entry once (B43): an old filter= link becomes the new parameters, and an
   // arrival with no filter in the URL takes the remembered one, so the URL always says what's shown.
+  const settledSearch = settle ? withWorkFilter(params, filter).toString() : null;
   useEffect(() => {
-    if (settle) setParams(withWorkFilter(params, filter), { replace: true, state: SETTLED });
-  }, [settle, params, filter, setParams]);
+    if (settledSearch === null) return;
+    void navigate(
+      { search: settledSearch ? `?${settledSearch}` : '', hash: location.hash },
+      { replace: true, state: SETTLED },
+    );
+  }, [settledSearch, location.hash, navigate]);
   const q = {
     scope,
     layout,
