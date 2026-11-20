@@ -62,8 +62,9 @@ export const SCREENS = [
   ['Agents', '/agents'],
   ['Agent files', '/agent-files'],
   ['Settings', '/settings'],
-  // Decision 36 (B39): Settings → Projects → Recipe App → Shared parts.
-  ['Shared parts', '/settings/projects/RCP/shared-parts'],
+  // Decision 36 (B39): Settings → Projects → <project> → Shared parts. `{project}`
+  // is the project of the first listed item, so the sweep works on any instance.
+  ['Shared parts', '/settings/projects/{project}/shared-parts'],
   ['Help', '/help'],
 ];
 
@@ -404,7 +405,10 @@ async function sweep(opts) {
         );
       };
 
-      for (const [name, path] of SCREENS) {
+      const project = (work.items.find((i) => !i.archived) ?? work.items[0])?.id.split('-')[0];
+      for (const [name, rawPath] of SCREENS) {
+        if (rawPath.includes('{project}') && !project) continue;
+        const path = rawPath.replace('{project}', encodeURIComponent(project ?? ''));
         await record(name, async () => {
           await page.goto(path);
           await settle(page);
