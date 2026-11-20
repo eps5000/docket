@@ -506,6 +506,13 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T180 [US3] The service: the note on the verdict, the "Approved with a note: …" owner note, and for `epic` or `project` an owner decision in the same transaction (title from the note, ≤ 120 at a word; the "From your review of …" rationale; `decision.published` with `from_review`; the review event's `kept`), refused for `epic` without an epic. The packet: "Notes for later (optional)" and "Keep it for" on *Looks good* (disabled epic choice with its reason), the note and decision link in past rounds, the History link. Tests: schema, service (each `keep`, no epic, undo), UI (keyboard).
 - [x] T181 [US3] E2E: approve with an epic-scoped note by keyboard, axe in both themes, the past round, the epic's decision, and `get_context` on another ticket in the epic; the disabled epic choice. Help ("Review a handoff packet": Approve with notes). Screenshots in both themes.
 
+## Phase 22: Shared changes and conflict guardrails (owner decision 36)
+
+- [ ] T182 [contract] Migrations for the tables in BUILD_SPEC §5.21. Shared types and zod; the new MCP tools (`declare_shared_changes`, `list_shared_parts`, `take_lease`, `release_lease`) and the changes to `claim_lead`, `set_status`, `submit_for_review`, `handoff` and `get_context`; the new error codes; the descriptions in MCP_SPEC and the snapshot; owner API route shapes (registry, declarations, overlap decisions, undeclared decisions, lease release, radar settings and run); the client entries.
+- [ ] T183 [US18] Service: the registry, declarations, the Ready gate (with owner override), the overlap check at claim with questions and decisions, leases with expiry, the changed-file mapping and hold at hand-off, and `get_context.shared` within budget. Tests, including an unattended two-agent scenario (SC-023).
+- [ ] T184 [US18] The conflict radar: the scheduler, git `merge-tree` with a temporary object directory (proven read-only: the repo's `.git` is unchanged byte-for-byte), findings, clearing, the "Radar off" state, and git in the image. Tests against a fixture repo with conflicting worktree branches.
+- [ ] T185 [US18] UI per UI_SPEC §6.3.6 (Shared changes, Needs you cards, card markers, the Settings registry and radar); Help ("Shared changes and conflicts"); the planner and worker skills (declare before Ready, pick other work on `seam_conflict`, take the lease before generating a migration, report `changed_files` and `branch` at hand-off); the onboarding prompt (propose a starter registry from the codebase's hot files). E2E plus axe.
+
 ## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.
@@ -542,6 +549,8 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 | B33 | 19 Contracts for step details | T170 | Snapshot 42 → 43 |
 | B34 | 19 Step details (US16) | T171–T173 | Before the Gameflow import |
 | B36 | 20 Install and onboarding follow-ups (US17) | T174–T178 | Contract and implementation in one PR; snapshot 43 → 44 |
+| B38 | 22 Contracts for shared changes | T182 | Snapshot 44 → 48 |
+| B39 | 22 Shared changes and guardrails (US18) | T183–T185 | After B38 |
 | B37 | 21 Approve with notes (US3) | T179–T181 | Contract and implementation in one PR; no MCP changes |
 
 **Slices after B6 may run in any order that respects** the dependency table below. Don't run two slices at once: they share route and screen groups.
@@ -593,6 +602,7 @@ Open a PR titled "<Bn>: <phase name>" with the checkpoint evidence. Do not queue
 | 19 Step details | B33 then B34 (after B32) |
 | 20 Install and onboarding follow-ups | B36 (after B35) |
 | 21 Approve with notes | B37 (after B9) |
+| 22 Shared changes and conflict guardrails | B38 then B39 |
 
 **Within a phase:** tests (failing) → services → replace stubs or fill handlers → fill screens → checkpoint.
 

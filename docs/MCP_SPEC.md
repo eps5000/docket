@@ -803,6 +803,30 @@ The Gameflow onboarding (305 matches, 44 enrichments, 39 documents) didn't fit s
 - **Not retry-safe on its own** (`idempotentHint: false`): pass `idempotency_key`.
 - **Errors** (the whole call): `validation` when `operations` is empty, has more than 100 entries, or names a tool that isn't listed. Everything else is per operation.
 
+### 5.15 Shared changes (decision 36)
+
+The exact descriptions ship in the contract batch (tasks Phase 22, B38), with the code and the snapshot.
+
+**New tools:**
+- **`declare_shared_changes`**:
+  - **Input:** `id` (item), `changes: [{ part, change: add|change|remove, note? }]` (≤ 50), or `none: true`, plus an optional `new_parts: [{ key, kind, paths?, note? }]` for parts that aren't registered yet. Agents can't set single-writer.
+  - **Behaviour:** replaces the item's declaration, and returns overlaps found now (informational; the claim is where they're enforced).
+- **`list_shared_parts`**: the project's registry, with in-flight declarations per part. Read-only.
+- **`take_lease` / `release_lease`**: on a single-writer part, for an item you lead. Returns `{ held_until }` or `lease_held` with the holder and expiry.
+
+**Changes to existing tools:**
+- **`claim_lead`:**
+  - accepts `branch`;
+  - may fail with `seam_conflict` (`with`, `parts`). The item stays Ready, and an owner question is raised once per pair;
+  - the description tells the agent to pick other work.
+- **`set_status`:** to `ready`, it may fail with `not_declared`.
+- **`submit_for_review` and `handoff`:**
+  - accept `changed_files` and `branch`;
+  - the result may include `held_undeclared: [parts]`.
+- **`get_context`:** adds `shared` (see BUILD_SPEC §5.21).
+
+**New error codes:** `seam_conflict`, `not_declared`, `lease_held`.
+
 ## 6. Errors
 
 Every error is returned as a tool result: `isError: true`, a `text` block holding the message, and `structuredContent: ToolError`. Messages are one or two sentences: what happened, then what to do.
