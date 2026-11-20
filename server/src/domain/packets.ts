@@ -129,13 +129,46 @@ export function roundOutcome(
   return 'approved';
 }
 
+/**
+ * Where an approval's note was kept (owner decision 35): `item`, or the scope
+ * of the owner decision it became (its `result_ref`); null without a note.
+ */
+export function keepOf(db: Db, d: DecisionRow): 'item' | 'epic' | 'project' | null {
+  if (d.kind !== 'approve' || !d.note) return null;
+  if (!d.result_ref) return 'item';
+  const row = db.sqlite
+    .prepare('SELECT scope_kind FROM decision_records WHERE id = ?')
+    .get(d.result_ref) as { scope_kind: 'epic' | 'project' } | undefined;
+  return row?.scope_kind ?? 'item';
+}
+
 /** What a decision produced, as the packet screen says it ("→ bug RCP-30"). */
-export function resultText(d: DecisionRow): string | null {
+export function resultText(
+  d: DecisionRow,
+  keep: 'item' | 'epic' | 'project' | null = null,
+): string | null {
   if (d.kind === 'changes') {
     return d.into === 'bug' ? `→ bug ${d.result_ref ?? ''}`.trim() : '→ checklist item';
   }
   if (d.kind === 'defer' && d.result_ref) return `→ test ticket ${d.result_ref}`;
+  if (keep === 'epic') return '→ decision for the epic’s future tickets';
+  if (keep === 'project') return '→ decision for all the project’s work';
   return null;
+}
+
+/** A decision as the packet screen shows it. */
+function verdictView(db: Db, d: DecisionRow) {
+  const keep = keepOf(db, d);
+  return {
+    kind: d.kind,
+    note: d.note,
+    into: d.into,
+    follow: d.follow,
+    keep,
+    decision_id: keep === 'epic' || keep === 'project' ? d.result_ref : null,
+    result_ref: resultText(d, keep),
+    decided_at: d.decided_at,
+  };
 }
 
 /** Does a known gap explain this failing check? It names the check's id, or quotes its text. */
@@ -502,16 +535,7 @@ export function createPacketsService(deps: ServiceDeps): PacketsService {
               hr_item_id: pi.hr_item_id,
               text: pi.text_snapshot,
               state: pi.state,
-              decision: d
-                ? {
-                    kind: d.kind,
-                    note: d.note,
-                    into: d.into,
-                    follow: d.follow,
-                    result_ref: resultText(d),
-                    decided_at: d.decided_at,
-                  }
-                : null,
+              decision: d ? verdictView(db, d) : null,
             };
           }),
           how: json<string[]>(packet.how, []),

@@ -9,6 +9,14 @@
  *   agent's plan keeps it) or a Bug in Ready with the ticket's project,
  *   epic and priority, titled with the note (≤ 70 characters), linked by
  *   `relates`.
+ * - approve with a note (owner decision 35): the note is stored on the
+ *   verdict and posted as an owner note ("Approved with a note: …") for
+ *   the item's agent. With `keep=epic` (the item needs an epic) or
+ *   `keep=project`, it also becomes an owner decision in that scope (title
+ *   from the note, ≤ 120 characters cut at a word; rationale "From your
+ *   review of <ITEM>, round <n>: <finding>"), so agents on future tickets
+ *   get it through get_context and get_item. Same transaction: undo reverts
+ *   it with the rest.
  * - defer (note optional) → `deferred`; with `follow=ticket`, a Task in
  *   Inbox titled "Verify: …" (the text ≤ 60 characters) carrying a
  *   `declared` copy of the item, linked by `relates`.
@@ -21,7 +29,7 @@
  * of the changes made since the previous event, so the owner's Undo reverts
  * everything: statuses, steps, Bugs and follow-ups.
  */
-import { ToolError, type ItemSummary } from '@docket/shared';
+import { LIMITS, TEXT_LIMITS, ToolError, type ItemSummary, type ReviewKeep } from '@docket/shared';
 import type { ReviewDecisionsService, ServiceDeps } from './contracts.js';
 import { hrRows, parseLastDecision, type HrRow } from './human-review.js';
 import { allocateItemId, newId } from './ids.js';
@@ -41,6 +49,8 @@ import type { EventInput, InverseOp, WriteContext } from './write.js';
 
 const BUG_TITLE_MAX = 70;
 const VERIFY_TEXT_MAX = 60;
+/** The owner note an approval's note posts (owner decision 35). */
+export const APPROVED_NOTE_PREFIX = 'Approved with a note: ';
 
 /** `text` cut to `max` characters, the last one an ellipsis when cut. */
 export function truncate(text: string, max: number): string {
@@ -49,6 +59,23 @@ export function truncate(text: string, max: number): string {
 }
 
 export const bugTitle = (note: string) => truncate(note, BUG_TITLE_MAX);
+
+/**
+ * A kept note's decision title (owner decision 35): the note on one line,
+ * at most `LIMITS.decision_title` (120) characters, cut at a word boundary
+ * with an ellipsis when it's longer.
+ */
+export function noteTitle(note: string, max: number = LIMITS.decision_title): string {
+  const flat = note.replace(/\s+/g, ' ').trim();
+  if (flat.length <= max) return flat;
+  const room = flat.slice(0, max - 1);
+  const cut = room.lastIndexOf(' ');
+  return `${(cut > 0 ? room.slice(0, cut) : room).replace(/[\s.,;:!?-]+$/, '')}…`;
+}
+
+/** `text` at most `max` characters, keeping its line breaks; an ellipsis when cut. */
+const clip = (text: string, max: number) =>
+  text.length <= max ? text : `${text.slice(0, max - 1).trimEnd()}…`;
 export const verifyTitle = (text: string) => `Verify: ${truncate(text, VERIFY_TEXT_MAX)}`;
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -227,6 +254,21 @@ export function createReviewDecisionsService(deps: ServiceDeps): ReviewDecisions
             { details: { fields: { note: 'required for changes' } } },
           );
         }
+        const keep = v.kind === 'approve' ? (v.keep ?? 'item') : null;
+        if (keep && keep !== 'item' && !(v.note ?? '').trim()) {
+          throw new ToolError(
+            'validation',
+            `Write the note to keep for later on ${v.hr_item_id}, or keep nothing.`,
+            { details: { fields: { note: `required to keep a note for the ${keep}` } } },
+          );
+        }
+        if (keep === 'epic' && !item.epic_id) {
+          throw new ToolError(
+            'validation',
+            `${item.id} has no epic, so the note on ${v.hr_item_id} can't be kept for the epic's future tickets. Keep it for this ticket or the whole project.`,
+            { details: { fields: { keep: 'the item has no epic' } } },
+          );
+        }
       }
 
       const blockedBefore = new BlockIndex(w.db);
@@ -237,6 +279,13 @@ export function createReviewDecisionsService(deps: ServiceDeps): ReviewDecisions
       const created: { id: string; kind: 'bug' | 'test_ticket' }[] = [];
       const counts = { approve: 0, changes: 0, defer: 0 };
       let stepsAdded = 0;
+      /** Notes on approvals (owner decision 35), posted once the verdicts are recorded. */
+      const notes: {
+        h: HrRow;
+        note: string;
+        keep: ReviewKeep;
+        decisionId: string | null;
+      }[] = [];
 
       for (const h of ready) {
         const v = byId.get(h.id)!;
@@ -280,6 +329,11 @@ export function createReviewDecisionsService(deps: ServiceDeps): ReviewDecisions
             resultRef = followUpTicket(w, j, item, h, packet.round);
             created.push({ id: resultRef, kind: 'test_ticket' });
           }
+        } else if (note) {
+          const keep = v.keep ?? 'item';
+          const decisionId = keep === 'item' ? null : newId('dec', ms(w.now));
+          resultRef = decisionId;
+          notes.push({ h, note, keep, decisionId });
         }
         j.add(
           w.insert('review_decisions', {
@@ -328,8 +382,11 @@ export function createReviewDecisionsService(deps: ServiceDeps): ReviewDecisions
       const outcome: 'progress' | 'done' =
         anyChanges || stillDeclared.length > 0 || openChildren.length > 0 ? 'progress' : 'done';
 
+      const kept = notes.filter((n) => n.decisionId !== null);
       const parts = [
-        counts.approve ? `${counts.approve} approved` : null,
+        counts.approve
+          ? `${counts.approve} approved${notes.length ? ` (${notes.length} with a note)` : ''}`
+          : null,
         counts.changes ? `${counts.changes} need${counts.changes === 1 ? 's' : ''} changes` : null,
         counts.defer ? `${counts.defer} deferred, not verified` : null,
       ].filter(Boolean);
@@ -345,12 +402,77 @@ export function createReviewDecisionsService(deps: ServiceDeps): ReviewDecisions
           verdicts: input.verdicts.map((v) => ({ hr_item_id: v.hr_item_id, kind: v.kind })),
           created,
           outcome,
+          ...(kept.length
+            ? {
+                kept: kept.map((n) => ({
+                  decision_id: n.decisionId,
+                  scope: n.keep,
+                  hr_item_id: n.h.id,
+                })),
+              }
+            : {}),
         },
         objects: [
           { kind: 'packet', id: packet.id },
           ...created.map((c) => ({ kind: 'item' as const, id: c.id })),
+          ...kept.map((n) => ({ kind: 'decision' as const, id: n.decisionId! })),
         ],
       });
+
+      // Notes on approvals (owner decision 35): an owner note for the item's
+      // agent, and, kept for the epic or project, an owner decision there.
+      for (const n of notes) {
+        const text = clip(`${APPROVED_NOTE_PREFIX}${n.note}`, TEXT_LIMITS.note);
+        const noteId = newId('note', ms(w.now));
+        j.add(w.insert('owner_notes', { id: noteId, item_id: item.id, text }));
+        j.event({
+          type: 'owner_note.added',
+          summary: `You approved with a note: ${n.note}`,
+          item_id: item.id,
+          project_key: item.project_key,
+          data: { note_id: noteId, text, hr_item_id: n.h.id, round: packet.round },
+        });
+        if (!n.decisionId) continue;
+        const scopeId = n.keep === 'epic' ? item.epic_id : null;
+        const title = noteTitle(n.note);
+        j.add(
+          w.insert('decision_records', {
+            id: n.decisionId,
+            project_key: item.project_key,
+            scope_kind: n.keep,
+            scope_id: scopeId,
+            title,
+            decision_md: clip(n.note, LIMITS.decision_md),
+            rationale_md: clip(
+              `From your review of ${item.id}, round ${packet.round}: ${n.h.text}`,
+              LIMITS.rationale_md,
+            ),
+            authority: 'owner',
+            author: 'owner',
+            status: 'active',
+            supersedes_id: null,
+            confirmed_at: null,
+            version: 1,
+          }),
+        );
+        j.event({
+          type: 'decision.published',
+          summary: `Owner recorded a decision from the review of ${item.id}: ${truncate(title, 80)}`,
+          // Epic records log on the epic, project records on the project (§5.14).
+          item_id: scopeId,
+          project_key: item.project_key,
+          data: {
+            decision_id: n.decisionId,
+            authority: 'owner',
+            scope: { kind: n.keep, id: scopeId },
+            from_review: { item_id: item.id, round: packet.round, hr_item_id: n.h.id },
+          },
+          objects: [
+            { kind: 'decision', id: n.decisionId },
+            { kind: 'item', id: item.id },
+          ],
+        });
+      }
 
       const from = item.status;
       if (outcome === 'done') {

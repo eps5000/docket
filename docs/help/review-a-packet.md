@@ -22,7 +22,7 @@ Click *Open packet* in **Needs you → For you now**, in the amber banner on the
 
 Under **What you're verifying**, each item has three choices:
 
-- **Looks good:** you checked it, and it's approved.
+- **Looks good:** you checked it, and it's approved. You can add **Notes for later** (see below).
 - **Needs changes:** say what needs to change (required), then choose **Send it back as**:
   - *Checklist item on this ticket*: a new work step for the agent;
   - *New bug ticket*: a Bug in Ready, linked to this ticket.
@@ -31,6 +31,16 @@ Under **What you're verifying**, each item has three choices:
   - *No ticket: agent follows the project workflow*.
 
   Deferring lets work continue, but the item is recorded as **not verified**, never as approved. It stays in **Deferred, not verified** on Needs you until someone verifies it.
+
+## Approve with notes
+
+Sometimes a finding is fine for this ticket, but there's something agents should know next time ("Fine here, but next time put the fixture in tests/fixtures/"). Choose **Looks good**, then write it under **Notes for later (optional)**. Once there's a note, **Keep it for** offers three choices:
+
+- *This ticket* (the default): the agent on this ticket gets it as a note from you.
+- *The epic's future tickets*: it's also saved as an owner decision on the ticket's epic, so agents working on the epic's other tickets get it. This choice is disabled when the ticket has no epic.
+- *All … work* (the project's name): it's also saved as an owner decision for the whole project, so every agent working on it gets it.
+
+The note always shows in the round (and in later views of it) and in the ticket's **History**. A decision made this way says "From your review of RCP-12, round 2: …" when you click *Why*, and you can withdraw or supersede it like any decision. *Undo* removes the decision along with your review.
 
 ## Submit
 

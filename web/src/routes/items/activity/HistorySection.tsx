@@ -1,8 +1,10 @@
 import { useId, useRef, useState } from 'react';
+import { Link } from 'react-router';
 import { TEXT_LIMITS, type ItemDetailResponse } from '@docket/shared';
 import { Button, EmptyState, Section } from '../../../components/kit';
 import { apiClient } from '../../../app/queryClient';
 import { formatAge, isoTitle, plural } from '../../../lib/format';
+import { paths } from '../../../lib/paths';
 import { showToast } from '../../../lib/undo';
 import { useSteer } from '../../shared/steer';
 import type { ItemKind } from '../ItemPage';
@@ -117,6 +119,20 @@ export function HistorySection({ kind, data }: { kind: ItemKind; data: ItemDetai
                 const note = parseImportedNote(a.summary);
                 return note ? <ImportedNoteView note={note} /> : a.summary;
               })()}
+              {/* Decision 35: approval notes kept as owner decisions; Details lists them. */}
+              {a.decision_ids && a.decision_ids.length > 0 && (
+                <span className="src">
+                  {' · '}
+                  <Link
+                    to={paths.item(data.item.id, 'details')}
+                    data-decision-link={a.decision_ids.join(' ')}
+                  >
+                    {a.decision_ids.length === 1
+                      ? 'See the decision'
+                      : `See the ${a.decision_ids.length} decisions`}
+                  </Link>
+                </span>
+              )}
               {a.actor_kind === 'agent' && !a.summary.startsWith(a.actor.split(' · ')[0]!) && (
                 <span className="src"> · {a.actor}</span>
               )}

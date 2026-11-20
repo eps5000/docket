@@ -500,6 +500,12 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T177 [US17] `apply_batch`: up to 100 operations, each validated and written as its single call, atomic per operation, `$n` references, derived idempotency keys, per-operation results; its budget (30 + 25 per operation). The onboarding guide and `docket-planner` use it. Tests, including SC-021 (160 operations in one session).
 - [x] T178 [US17] Imported steps take added details from agents (`set_plan`, `update_step`): set or extend only, history "details added by <agent>", text and owner-typed steps stay protected. Tests.
 
+## Phase 21: Approve with notes (owner decision 35)
+
+- [x] T179 [contract] Spec plus code in one PR: decision 35 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.6, UI_SPEC §6.4, FR-154–FR-157 and US3 scenario 8. `approve` verdicts take an optional `note` and, only with a note, `keep` (`item`, `epic` or `project`); the "Not used for approve" refusal goes. The packet's verdicts gain `keep` and `decision_id`; Activity rows gain an optional `decision_ids`. No MCP tool changes: agents already receive owner notes and the decisions in scope.
+- [x] T180 [US3] The service: the note on the verdict, the "Approved with a note: …" owner note, and for `epic` or `project` an owner decision in the same transaction (title from the note, ≤ 120 at a word; the "From your review of …" rationale; `decision.published` with `from_review`; the review event's `kept`), refused for `epic` without an epic. The packet: "Notes for later (optional)" and "Keep it for" on *Looks good* (disabled epic choice with its reason), the note and decision link in past rounds, the History link. Tests: schema, service (each `keep`, no epic, undo), UI (keyboard).
+- [x] T181 [US3] E2E: approve with an epic-scoped note by keyboard, axe in both themes, the past round, the epic's decision, and `get_context` on another ticket in the epic; the disabled epic choice. Help ("Review a handoff packet": Approve with notes). Screenshots in both themes.
+
 ## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.
@@ -536,6 +542,7 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 | B33 | 19 Contracts for step details | T170 | Snapshot 42 → 43 |
 | B34 | 19 Step details (US16) | T171–T173 | Before the Gameflow import |
 | B36 | 20 Install and onboarding follow-ups (US17) | T174–T178 | Contract and implementation in one PR; snapshot 43 → 44 |
+| B37 | 21 Approve with notes (US3) | T179–T181 | Contract and implementation in one PR; no MCP changes |
 
 **Slices after B6 may run in any order that respects** the dependency table below. Don't run two slices at once: they share route and screen groups.
 
@@ -585,6 +592,7 @@ Open a PR titled "<Bn>: <phase name>" with the checkpoint evidence. Do not queue
 | 18 Local trust | B31 |
 | 19 Step details | B33 then B34 (after B32) |
 | 20 Install and onboarding follow-ups | B36 (after B35) |
+| 21 Approve with notes | B37 (after B9) |
 
 **Within a phase:** tests (failing) → services → replace stubs or fill handlers → fill screens → checkpoint.
 

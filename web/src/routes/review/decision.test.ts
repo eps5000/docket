@@ -75,8 +75,8 @@ describe('verdicts sent to the API', () => {
   });
   it('shapes each verdict for its kind', () => {
     const drafts: Drafts = {
-      hr_a: { kind: 'changes', note: ' Too small ', into: 'bug', follow: 'ticket' },
-      hr_b: { kind: 'defer', note: '', into: 'checklist', follow: 'none' },
+      hr_a: { kind: 'changes', note: ' Too small ', into: 'bug', follow: 'ticket', keep: 'item' },
+      hr_b: { kind: 'defer', note: '', into: 'checklist', follow: 'none', keep: 'epic' },
     };
     expect(verdictsOf(items, drafts)).toEqual([
       { hr_item_id: 'hr_a', kind: 'changes', note: 'Too small', into: 'bug' },
@@ -86,6 +86,23 @@ describe('verdicts sent to the API', () => {
       { hr_item_id: 'hr_a', kind: 'approve' },
       { hr_item_id: 'hr_b', kind: 'approve' },
     ]);
+  });
+  it('approve with a note sends the note and where to keep it (owner decision 35)', () => {
+    const drafts: Drafts = {
+      hr_a: {
+        ...EMPTY_DRAFT,
+        kind: 'approve',
+        note: ' Fixtures go in tests/fixtures/ ',
+        keep: 'epic',
+      },
+      // A blank note sends neither the note nor keep.
+      hr_b: { ...EMPTY_DRAFT, kind: 'approve', note: '   ', keep: 'project' },
+    };
+    expect(verdictsOf(items, drafts)).toEqual([
+      { hr_item_id: 'hr_a', kind: 'approve', note: 'Fixtures go in tests/fixtures/', keep: 'epic' },
+      { hr_item_id: 'hr_b', kind: 'approve' },
+    ]);
+    expect(EMPTY_DRAFT.keep).toBe('item');
   });
 });
 

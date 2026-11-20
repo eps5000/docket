@@ -3,7 +3,7 @@
  * contracts/ui-api.md US3). Shared contract file (tasks.md, Slice rules).
  */
 import { z } from 'zod';
-import { PACKET_STATES, REVIEW_FOLLOW, REVIEW_INTO } from '../enums.js';
+import { PACKET_STATES, REVIEW_FOLLOW, REVIEW_INTO, REVIEW_KEEP } from '../enums.js';
 import { itemId, objectId, text } from '../mcp/common.js';
 import { TEXT_LIMITS } from '../mcp/limits.js';
 import {
@@ -28,7 +28,14 @@ export const reviewVerdictSchema = z.object({
   note: z.string().nullable(),
   into: z.enum(REVIEW_INTO).nullable(),
   follow: z.enum(REVIEW_FOLLOW).nullable(),
-  /** "→ bug RCP-30", "→ test ticket RCP-29", "→ checklist item". */
+  /**
+   * An approval with a note (owner decision 35): where the note was kept;
+   * null otherwise. `epic` and `project` also published an owner decision.
+   */
+  keep: z.enum(REVIEW_KEEP).nullable(),
+  /** The owner decision a kept note became (`epic` or `project`), else null. */
+  decision_id: z.string().nullable(),
+  /** "→ bug RCP-30", "→ test ticket RCP-29", "→ checklist item", "→ decision for the epic". */
   result_ref: z.string().nullable(),
   decided_at: z.string(),
 });
@@ -101,12 +108,22 @@ export const verdictInputSchema = z
   .strictObject({
     hr_item_id: objectId,
     kind: reviewKindSchema,
-    /** Required for `changes`, optional for `defer`. */
+    /**
+     * Required for `changes`, optional for `defer` and `approve`. On an
+     * approval it's a note for later (owner decision 35): stored on the
+     * verdict and posted to the item's agent as an owner note.
+     */
     note: text(TEXT_LIMITS.note).optional(),
     /** `changes` only: a checklist item on this ticket, or a new Bug in Ready. */
     into: z.enum(REVIEW_INTO).optional(),
     /** `defer` only: a test ticket in Inbox, or none. */
     follow: z.enum(REVIEW_FOLLOW).optional(),
+    /**
+     * `approve` with a note only: keep the note for this item (the default),
+     * or also publish it as an owner decision for the item's epic or the
+     * whole project, so agents on future tickets get it (owner decision 35).
+     */
+    keep: z.enum(REVIEW_KEEP).optional(),
   })
   .superRefine((v, ctx) => {
     if (v.kind === 'changes') {
@@ -119,8 +136,8 @@ export const verdictInputSchema = z
       ctx.addIssue({ code: 'custom', path: ['into'], message: 'Only for changes.' });
     if (v.kind !== 'defer' && v.follow !== undefined)
       ctx.addIssue({ code: 'custom', path: ['follow'], message: 'Only for defer.' });
-    if (v.kind === 'approve' && v.note !== undefined)
-      ctx.addIssue({ code: 'custom', path: ['note'], message: 'Not used for approve.' });
+    if (v.keep !== undefined && (v.kind !== 'approve' || v.note === undefined))
+      ctx.addIssue({ code: 'custom', path: ['keep'], message: 'Only for approve with a note.' });
   });
 
 /** One atomic call with a verdict for every `ready` item (BUILD_SPEC §5.6). */

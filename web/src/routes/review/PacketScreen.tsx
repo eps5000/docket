@@ -17,6 +17,7 @@ import {
   type ProvenanceKind,
 } from '../../components/kit';
 import { apiClient } from '../../app/queryClient';
+import { useBootstrap } from '../../app/useBootstrap';
 import { useBreadcrumb } from '../../app/ShellState';
 import { queryKeys } from '../../lib/api';
 import { formatStamp, isoTitle } from '../../lib/format';
@@ -215,6 +216,13 @@ function PacketBody({
   const p = data.packet;
   const latest = data.rounds.at(-1)?.round ?? p.round;
   const [viewer, setViewer] = useState<Packet['attachments'][number] | null>(null);
+  const boot = useBootstrap();
+  const scope: KeepScope = {
+    item: data.item.id,
+    epic: data.item.epic,
+    project:
+      boot.data?.projects.find((x) => x.key === data.item.project)?.short_name ?? data.item.project,
+  };
   return (
     <>
       <div className="vers">
@@ -276,9 +284,10 @@ function PacketBody({
                 draft={drafts[it.hr_item_id] ?? EMPTY_DRAFT}
                 noteMissing={noteError === it.hr_item_id}
                 setDraft={(patch) => setDraft(it.hr_item_id, patch)}
+                scope={scope}
               />
             ) : (
-              <PastItem key={it.hr_item_id} n={n} item={it} />
+              <PastItem key={it.hr_item_id} n={n} item={it} itemId={data.item.id} />
             ),
           )}
         </section>
@@ -453,27 +462,94 @@ function VerdictGroup({
   );
 }
 
-function LiveItem({
+/** What *Keep it for* can offer: the ticket, its epic (when it has one) and the project, by name. */
+export interface KeepScope {
+  item: string;
+  epic: string | null;
+  project: string;
+}
+
+/** What each *Keep it for* choice does, under the control (owner decision 35). */
+function keepHint(keep: Draft['keep'], scope: KeepScope): string {
+  if (keep === 'epic' && scope.epic) {
+    return `Also saved as an owner decision on ${scope.epic}: agents get it on the epic’s other tickets.`;
+  }
+  if (keep === 'project') {
+    return `Also saved as an owner decision for ${scope.project}: every agent working on it gets it.`;
+  }
+  return `Posted as a note for the agent on ${scope.item}.`;
+}
+
+export function LiveItem({
   n,
   item,
   draft,
   noteMissing,
   setDraft,
+  scope,
 }: {
   n: number;
   item: PacketItem;
   draft: Draft;
   noteMissing: boolean;
   setDraft: (patch: Partial<Draft>) => void;
+  scope: KeepScope;
 }) {
   const noteId = `note-${item.hr_item_id}`;
   const errId = `${noteId}-err`;
+  const noEpicId = `${noteId}-noepic`;
+  // Without an epic, *The epic's future tickets* is disabled; a kept choice falls back.
+  const keep = draft.keep === 'epic' && !scope.epic ? 'item' : draft.keep;
   return (
     <div className="hritem" data-hr={item.hr_item_id}>
       <div style={{ fontWeight: 600 }}>
         {n + 1}. <LinkText text={item.text} />
       </div>
       <VerdictGroup n={n} value={draft.kind} onChange={(kind) => setDraft({ kind })} />
+      {draft.kind === 'approve' && (
+        <div className="verdict-more" data-approve-note="">
+          <label className="f" htmlFor={noteId}>
+            Notes for later (optional)
+          </label>
+          <textarea
+            id={noteId}
+            className="input"
+            value={draft.note}
+            placeholder="e.g. Fine here, but next time put the fixture in tests/fixtures/"
+            onChange={(e) => setDraft({ note: e.target.value })}
+          />
+          {draft.note.trim() && (
+            <>
+              <div className="row wrap" style={{ marginTop: 6 }}>
+                <span className="src">Keep it for</span>
+                <SegmentedControl
+                  label={`Keep the note on item ${n + 1} for`}
+                  value={keep}
+                  onChange={(k) => setDraft({ keep: k })}
+                  options={[
+                    { key: 'item', label: 'This ticket' },
+                    {
+                      key: 'epic',
+                      label: 'The epic’s future tickets',
+                      disabled: !scope.epic,
+                      describedBy: scope.epic ? undefined : noEpicId,
+                    },
+                    { key: 'project', label: `All ${scope.project} work` },
+                  ]}
+                />
+              </div>
+              {!scope.epic && (
+                <div id={noEpicId} className="src" style={{ marginTop: 4 }}>
+                  {scope.item} has no epic, so the note can’t go to an epic’s tickets.
+                </div>
+              )}
+              <div className="src" style={{ marginTop: 4 }} data-keep-hint={keep}>
+                {keepHint(keep, scope)}
+              </div>
+            </>
+          )}
+        </div>
+      )}
       {draft.kind === 'changes' && (
         <div className="verdict-more">
           <label className="f" htmlFor={noteId}>
@@ -548,7 +624,7 @@ const PAST: Record<VerdictKind, { kind: ProvenanceKind; label: string }> = {
 };
 
 /** A decided (or withdrawn) round: each item's decision in its own style (FR-054). */
-function PastItem({ n, item }: { n: number; item: PacketItem }) {
+export function PastItem({ n, item, itemId }: { n: number; item: PacketItem; itemId: string }) {
   const d = item.decision;
   const ref =
     d?.result_ref ?? (d?.kind === 'defer' ? '→ agent follows the project workflow' : null);
@@ -561,10 +637,19 @@ function PastItem({ n, item }: { n: number; item: PacketItem }) {
       {d ? (
         <div className="row wrap" style={{ marginTop: 6 }}>
           <Provenance kind={PAST[d.kind].kind} label={PAST[d.kind].label} />
-          {d.note && <span>“{d.note}”</span>}
+          {d.note && (
+            <span data-note="">
+              {d.kind === 'approve' && <span className="src">Note for later: </span>}“{d.note}”
+            </span>
+          )}
           {ref && (
             <span className="src">
-              {refId ? (
+              {d.decision_id ? (
+                // A kept note's decision (owner decision 35): the ticket's Decisions list it.
+                <Link to={paths.item(itemId, 'details')} data-decision-link={d.decision_id}>
+                  {ref}
+                </Link>
+              ) : refId ? (
                 <>
                   {ref.slice(0, ref.length - refId.length)}
                   <Link to={paths.item(refId)} className="mono">

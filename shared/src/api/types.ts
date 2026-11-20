@@ -79,6 +79,11 @@ export type WorkItem = z.infer<typeof workItemSchema>;
 export const activityRowSchema = eventRowSchema.extend({
   actor_kind: z.enum(ACTOR_KINDS),
   project: z.string().nullable(),
+  /**
+   * A review that kept approval notes as owner decisions (owner decision 35):
+   * those decisions' IDs, so the row links to them. Absent otherwise.
+   */
+  decision_ids: z.array(z.string()).optional(),
 });
 export type ActivityRow = z.infer<typeof activityRowSchema>;
 

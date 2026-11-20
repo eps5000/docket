@@ -241,6 +241,10 @@
   color: var(--brand);
   font-weight: 650;
 }
+.tl .seg button:disabled {
+  color: var(--ink-3);
+  cursor: not-allowed;
+}
 .tl .fchip {
   border: 1px solid var(--ctl);
   border-radius: 999px;
@@ -342,7 +346,6 @@
 .tl .st-canceled {
   background: var(--gray-soft);
   color: var(--ink-3);
-  text-decoration: line-through;
 }
 .tl .c-bad {
   background: var(--bad-soft);
@@ -998,7 +1001,6 @@
   font-weight: 650;
 }
 .tl .decrow.inactive .dt {
-  text-decoration: line-through;
   color: var(--ink-3);
 }
 .tl .decrow.inactive {
