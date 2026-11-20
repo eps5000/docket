@@ -17,6 +17,7 @@
  * proven read-only) and SC-023's unattended two-agent run.
  */
 import { CSRF_HEADER_NAME } from '@docket/shared';
+import { spawnSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -42,6 +43,8 @@ afterEach(async () => {
 type S = Record<string, unknown>;
 
 const sql = () => h!.server.runtime.db.sqlite;
+/** Whether the git CLI is on PATH (the radar test needs it). */
+const HAS_GIT = spawnSync('git', ['--version'], { windowsHide: true }).status === 0;
 const count = (q: string, ...params: unknown[]) =>
   (
     sql()
@@ -1217,137 +1220,150 @@ describe('the conflict radar (FR-163; T184)', () => {
     tmp = undefined;
   });
 
-  it('the radar trial-merges in-flight branches with merge-tree and a temporary object directory, leaving .git unchanged', async () => {
-    tmp = tempDir('docket-radar-');
-    const fixture = makeRadarRepo(tmp.dir);
-    mkdirSync(join(tmp.dir, 'not-a-repo'));
-    h = await startHarness({ env: { DOCKET_PUSH_ROOT: tmp.dir } });
-    const api = await owner();
+  // CI's no-network contract run uses a bare node image without git; the main test step
+  // (and every developer machine) has it and runs the read-only proof.
+  it.skipIf(!HAS_GIT)(
+    'the radar trial-merges in-flight branches with merge-tree and a temporary object directory, leaving .git unchanged',
+    async () => {
+      tmp = tempDir('docket-radar-');
+      const fixture = makeRadarRepo(tmp.dir);
+      mkdirSync(join(tmp.dir, 'not-a-repo'));
+      h = await startHarness({ env: { DOCKET_PUSH_ROOT: tmp.dir } });
+      const api = await owner();
 
-    // Settings: inside DOCKET_PUSH_ROOT only; a bad branch name is refused.
-    expect(
-      (await api('PUT', '/api/projects/RCP/radar', { repo_path: '../elsewhere' })).status,
-    ).toBe(400);
-    expect((await api('PUT', '/api/projects/RCP/radar', { repo_path: '/etc' })).status).toBe(400);
-    expect((await api('PUT', '/api/projects/RCP/radar', { repo_path: 'nope' })).status).toBe(400);
-    expect(
-      (await api('PUT', '/api/projects/RCP/radar', { repo_path: 'recipe-app', main_branch: '-x' }))
-        .status,
-    ).toBe(400);
-    const set = await api('PUT', '/api/projects/RCP/radar', {
-      repo_path: 'recipe-app',
-      main_branch: 'main',
-    });
-    expect(set.status).toBe(200);
-    expect(set.body.radar).toMatchObject({
-      repo_path: 'recipe-app',
-      state: 'idle',
-      off_reason: null,
-    });
-    expect(events('project.updated').at(-1)!.summary).toBe(
-      'You set the conflict radar for RCP to read recipe-app (main branch main)',
-    );
+      // Settings: inside DOCKET_PUSH_ROOT only; a bad branch name is refused.
+      expect(
+        (await api('PUT', '/api/projects/RCP/radar', { repo_path: '../elsewhere' })).status,
+      ).toBe(400);
+      expect((await api('PUT', '/api/projects/RCP/radar', { repo_path: '/etc' })).status).toBe(400);
+      expect((await api('PUT', '/api/projects/RCP/radar', { repo_path: 'nope' })).status).toBe(400);
+      expect(
+        (
+          await api('PUT', '/api/projects/RCP/radar', {
+            repo_path: 'recipe-app',
+            main_branch: '-x',
+          })
+        ).status,
+      ).toBe(400);
+      const set = await api('PUT', '/api/projects/RCP/radar', {
+        repo_path: 'recipe-app',
+        main_branch: 'main',
+      });
+      expect(set.status).toBe(200);
+      expect(set.body.radar).toMatchObject({
+        repo_path: 'recipe-app',
+        state: 'idle',
+        off_reason: null,
+      });
+      expect(events('project.updated').at(-1)!.summary).toBe(
+        'You set the conflict radar for RCP to read recipe-app (main branch main)',
+      );
 
-    // Two items in flight on worktree branches; the branch comes from claim_lead.
-    expectOk(await h.call('claim_lead', { id: 'RCP-17', branch: 'feat/a' }));
-    expectOk(await h.call('claim_lead', { id: 'RCP-25', branch: 'feat/b' }, h.b));
-    const c = await started('Other file');
-    sql()
-      .prepare(
-        "UPDATE events SET data = json_set(data, '$.branch', 'feat/c') WHERE type = 'claim.granted' AND item_id = ?",
-      )
-      .run(c.id);
+      // Two items in flight on worktree branches; the branch comes from claim_lead.
+      expectOk(await h.call('claim_lead', { id: 'RCP-17', branch: 'feat/a' }));
+      expectOk(await h.call('claim_lead', { id: 'RCP-25', branch: 'feat/b' }, h.b));
+      const c = await started('Other file');
+      sql()
+        .prepare(
+          "UPDATE events SET data = json_set(data, '$.branch', 'feat/c') WHERE type = 'claim.granted' AND item_id = ?",
+        )
+        .run(c.id);
 
-    const before = hashGitDir(fixture.repo);
-    const run = await api('POST', '/api/projects/RCP/radar/run', {});
-    expect(run.status).toBe(200);
-    // Read-only: every file under .git is byte-for-byte the same.
-    expect(hashGitDir(fixture.repo)).toEqual(before);
+      const before = hashGitDir(fixture.repo);
+      const run = await api('POST', '/api/projects/RCP/radar/run', {});
+      expect(run.status).toBe(200);
+      // Read-only: every file under .git is byte-for-byte the same.
+      expect(hashGitDir(fixture.repo)).toEqual(before);
 
-    const radar = run.body.radar as { state: string; last_run_at: string; findings: S[] };
-    expect(radar.state).toBe('ok');
-    expect(radar.last_run_at).toBe('2026-11-06T11:00:00.000Z');
-    const found = radar.findings.map((f) => [
-      f.branch_a,
-      f.branch_b,
-      (f.item_a as S).id,
-      (f.item_b as S | null)?.id ?? null,
-      f.files,
-    ]);
-    expect(found).toEqual(
-      expect.arrayContaining([
-        ['feat/b', 'main', 'RCP-25', null, ['shared.txt']],
-        ['feat/a', 'feat/b', 'RCP-17', 'RCP-25', ['shared.txt']],
-      ]),
-    );
-    expect(found).toHaveLength(2);
-    expect(events('radar.found', 'RCP-17').map((e) => e.summary)).toEqual([
-      'Heading for a conflict with RCP-25: 1 file',
-    ]);
-    expect(
-      events('radar.found', 'RCP-25')
-        .map((e) => e.summary)
-        .sort(),
-    ).toEqual([
-      'Heading for a conflict with RCP-17: 1 file',
-      'Heading for a conflict with main: 1 file',
-    ]);
-    // Both items show it; Needs you lists it under Problems; agents see it in their context.
-    expect(((await api('GET', '/api/items/RCP-17/shared')).body.findings as unknown[]).length).toBe(
-      1,
-    );
-    expect(((await api('GET', '/api/items/RCP-25/shared')).body.findings as unknown[]).length).toBe(
-      2,
-    );
-    const problems = (await api('GET', '/api/needs-you?scope=all')).body.problems as {
-      kind: string;
-      item_id: string;
-      reason: string;
-    }[];
-    expect(
-      problems
-        .filter((p) => p.kind === 'radar_conflict')
-        .map((p) => p.reason)
-        .sort(),
-    ).toEqual([
-      'Heading for a conflict with RCP-25: 1 file · shared.txt (feat/a)',
-      'Heading for a conflict with main: 1 file · shared.txt (feat/b)',
-    ]);
-    expect(expectOk(await h.call('get_context', { id: 'RCP-17' })).text).toContain(
-      'conflict ahead with RCP-25 (feat/b) · 1 file · shared.txt',
-    );
+      const radar = run.body.radar as { state: string; last_run_at: string; findings: S[] };
+      expect(radar.state).toBe('ok');
+      expect(radar.last_run_at).toBe('2026-11-06T11:00:00.000Z');
+      const found = radar.findings.map((f) => [
+        f.branch_a,
+        f.branch_b,
+        (f.item_a as S).id,
+        (f.item_b as S | null)?.id ?? null,
+        f.files,
+      ]);
+      expect(found).toEqual(
+        expect.arrayContaining([
+          ['feat/b', 'main', 'RCP-25', null, ['shared.txt']],
+          ['feat/a', 'feat/b', 'RCP-17', 'RCP-25', ['shared.txt']],
+        ]),
+      );
+      expect(found).toHaveLength(2);
+      expect(events('radar.found', 'RCP-17').map((e) => e.summary)).toEqual([
+        'Heading for a conflict with RCP-25: 1 file',
+      ]);
+      expect(
+        events('radar.found', 'RCP-25')
+          .map((e) => e.summary)
+          .sort(),
+      ).toEqual([
+        'Heading for a conflict with RCP-17: 1 file',
+        'Heading for a conflict with main: 1 file',
+      ]);
+      // Both items show it; Needs you lists it under Problems; agents see it in their context.
+      expect(
+        ((await api('GET', '/api/items/RCP-17/shared')).body.findings as unknown[]).length,
+      ).toBe(1);
+      expect(
+        ((await api('GET', '/api/items/RCP-25/shared')).body.findings as unknown[]).length,
+      ).toBe(2);
+      const problems = (await api('GET', '/api/needs-you?scope=all')).body.problems as {
+        kind: string;
+        item_id: string;
+        reason: string;
+      }[];
+      expect(
+        problems
+          .filter((p) => p.kind === 'radar_conflict')
+          .map((p) => p.reason)
+          .sort(),
+      ).toEqual([
+        'Heading for a conflict with RCP-25: 1 file · shared.txt (feat/a)',
+        'Heading for a conflict with main: 1 file · shared.txt (feat/b)',
+      ]);
+      expect(expectOk(await h.call('get_context', { id: 'RCP-17' })).text).toContain(
+        'conflict ahead with RCP-25 (feat/b) · 1 file · shared.txt',
+      );
 
-    // A second run with nothing new writes no event (the scheduler's path).
-    const n = count('SELECT count(*) AS n FROM events');
-    radarRunOnce(h.server.runtime, 'RCP');
-    expect(count('SELECT count(*) AS n FROM events')).toBe(n);
-    expect(hashGitDir(fixture.repo)).toEqual(before);
+      // A second run with nothing new writes no event (the scheduler's path).
+      const n = count('SELECT count(*) AS n FROM events');
+      radarRunOnce(h.server.runtime, 'RCP');
+      expect(count('SELECT count(*) AS n FROM events')).toBe(n);
+      expect(hashGitDir(fixture.repo)).toEqual(before);
 
-    // feat/b goes back to main: both findings clear.
-    git(fixture.worktrees['feat/b'], 'reset', '-q', '--hard', 'main');
-    const cleared = await api('POST', '/api/projects/RCP/radar/run', {});
-    expect((cleared.body.radar as { findings: unknown[] }).findings).toEqual([]);
-    expect(
-      events('radar.cleared')
-        .map((e) => e.summary)
-        .sort(),
-    ).toEqual([
-      'No longer heading for a conflict with RCP-17',
-      'No longer heading for a conflict with RCP-25',
-      'No longer heading for a conflict with main',
-    ]);
+      // feat/b goes back to main: both findings clear.
+      git(fixture.worktrees['feat/b'], 'reset', '-q', '--hard', 'main');
+      const cleared = await api('POST', '/api/projects/RCP/radar/run', {});
+      expect((cleared.body.radar as { findings: unknown[] }).findings).toEqual([]);
+      expect(
+        events('radar.cleared')
+          .map((e) => e.summary)
+          .sort(),
+      ).toEqual([
+        'No longer heading for a conflict with RCP-17',
+        'No longer heading for a conflict with RCP-25',
+        'No longer heading for a conflict with main',
+      ]);
 
-    // A folder that isn't a repository: "Radar off: no repository"; turning it off too.
-    await api('PUT', '/api/projects/RCP/radar', { repo_path: 'not-a-repo' });
-    const off = await api('POST', '/api/projects/RCP/radar/run', {});
-    expect(off.body.radar).toMatchObject({ state: 'off', off_reason: 'Radar off: no repository' });
-    const none = await api('PUT', '/api/projects/RCP/radar', { repo_path: null });
-    expect(none.body.radar).toMatchObject({
-      repo_path: null,
-      state: 'off',
-      off_reason: 'Radar off: no repository',
-    });
-  }, 30_000); // git runs in a child process; slow under a full parallel run
+      // A folder that isn't a repository: "Radar off: no repository"; turning it off too.
+      await api('PUT', '/api/projects/RCP/radar', { repo_path: 'not-a-repo' });
+      const off = await api('POST', '/api/projects/RCP/radar/run', {});
+      expect(off.body.radar).toMatchObject({
+        state: 'off',
+        off_reason: 'Radar off: no repository',
+      });
+      const none = await api('PUT', '/api/projects/RCP/radar', { repo_path: null });
+      expect(none.body.radar).toMatchObject({
+        repo_path: null,
+        state: 'off',
+        off_reason: 'Radar off: no repository',
+      });
+    },
+    30_000,
+  ); // git runs in a child process; slow under a full parallel run
 
   it('without DOCKET_PUSH_ROOT the radar settings are refused and the card stays off', async () => {
     h = await startHarness();
