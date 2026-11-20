@@ -503,7 +503,9 @@ describe('RunLine and parkedReason (B20)', () => {
     );
     const line = container.querySelector('.runline')!;
     expect(line.classList.contains('rs-stale')).toBe(true);
-    expect(line.getAttribute('title')).toBe(RUN_STATE_LABELS.stale.meaning);
+    expect(line.getAttribute('title')).toBe(
+      `stale · silent 47m · codex · orca-w1: ${RUN_STATE_LABELS.stale.meaning}`,
+    );
     expect(line.querySelector('.rl')!.textContent).toBe(
       `stale${NBSP}· silent 47m${NBSP}· codex · orca-w1`,
     );
@@ -580,7 +582,10 @@ describe('TicketCard', () => {
     expect(text).toBe(
       ['parked', 'waiting on the coordinator', 'claude · orca-w4'].join(`${NBSP}· `),
     );
-    expect(lines[0]!.getAttribute('title')).toBe(RUN_STATE_LABELS.parked.meaning);
+    // The full line is in the title, since the card cuts it off with an ellipsis.
+    expect(lines[0]!.getAttribute('title')).toBe(
+      `parked · waiting on the coordinator · claude · orca-w4: ${RUN_STATE_LABELS.parked.meaning}`,
+    );
   });
 
   it('marks blocked and for-you edges and opens the packet for Review cards with one ready', () => {

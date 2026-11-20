@@ -121,7 +121,11 @@ export function RunLine({
     agent ? { cls: 'rl-agent', text: agent } : null,
   ].filter((s): s is { cls: string; text: string } => s !== null);
   return (
-    <span className={`runline rs-${state}`} title={m.meaning} data-run-line={state}>
+    <span
+      className={`runline rs-${state}`}
+      title={`${segs.map((s) => s.text).join(' · ')}: ${m.meaning}`}
+      data-run-line={state}
+    >
       <i className={`ri ri-${state}`} aria-hidden="true">
         {RUN_GLYPH[state] ?? ''}
       </i>
