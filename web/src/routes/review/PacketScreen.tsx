@@ -23,6 +23,7 @@ import { formatStamp, isoTitle } from '../../lib/format';
 import { paths } from '../../lib/paths';
 import { runOwnerMutation, showToast } from '../../lib/undo';
 import { DocumentViewer } from '../dialogs/DocumentViewer';
+import { LinkText } from '../shared/LinkText';
 import {
   EMPTY_DRAFT,
   agentOf,
@@ -286,7 +287,9 @@ function PacketBody({
             <h2>How to verify</h2>
             <ol className="howlist">
               {p.how.map((h, i) => (
-                <li key={i}>{h}</li>
+                <li key={i}>
+                  <LinkText text={h} />
+                </li>
               ))}
             </ol>
           </section>
@@ -295,10 +298,16 @@ function PacketBody({
           <section>
             <h2>Already checked by the agent</h2>
             {p.checked.map((c, i) => (
-              <div className="lrow" key={i}>
+              <div className="checkrow" key={i}>
                 <Provenance kind={c.provenance as ProvenanceKind} />
-                <span className="grow">{c.text}</span>
-                <span className="src">{c.evidence}</span>
+                <span className="ctext">
+                  <LinkText text={c.text} />
+                </span>
+                {c.evidence && (
+                  <span className="src">
+                    <LinkText text={c.evidence} />
+                  </span>
+                )}
               </div>
             ))}
           </section>
@@ -308,7 +317,9 @@ function PacketBody({
             <h2>Known gaps</h2>
             <ul className="gaplist">
               {p.gaps.map((g, i) => (
-                <li key={i}>{g}</li>
+                <li key={i}>
+                  <LinkText text={g} />
+                </li>
               ))}
             </ul>
           </section>
@@ -460,7 +471,7 @@ function LiveItem({
   return (
     <div className="hritem" data-hr={item.hr_item_id}>
       <div style={{ fontWeight: 600 }}>
-        {n + 1}. {item.text}
+        {n + 1}. <LinkText text={item.text} />
       </div>
       <VerdictGroup n={n} value={draft.kind} onChange={(kind) => setDraft({ kind })} />
       {draft.kind === 'changes' && (
@@ -545,7 +556,7 @@ function PastItem({ n, item }: { n: number; item: PacketItem }) {
   return (
     <div className="hritem" data-hr={item.hr_item_id} data-decision={d?.kind ?? 'none'}>
       <div style={{ fontWeight: 600 }}>
-        {n + 1}. {item.text}
+        {n + 1}. <LinkText text={item.text} />
       </div>
       {d ? (
         <div className="row wrap" style={{ marginTop: 6 }}>
