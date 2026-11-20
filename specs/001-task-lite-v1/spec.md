@@ -27,6 +27,7 @@ One owner runs Docket on their own computer. AI agents (installed coding agents,
 - Owner requirement (2026-11-18, not a clarify question): onboarding a real project (Gameflow: GitHub code, Spec Kit planning, Jira tickets) must work from a fresh install, with no skills installed yet, and must not duplicate work already imported from Jira (owner decision 31; User Story 15).
 - Owner requirement (2026-11-18, not a clarify question): no unlock step and no commands to connect agents; Docket is a local tool, so local processes are trusted by default, with an opt-in protected mode (owner decision 32).
 - Owner requirement (2026-11-18, not a clarify question): Jira sub-tasks carry real descriptions, so checklist steps need details, a source, and a dialog to read them in (owner decision 33; User Story 16).
+- Owner requirement (2026-11-20, not a clarify question): parallel epics that touch the same APIs, models and database must not collide, even when agents run unattended; Docket enforces it (owner decision 36; User Story 18).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -351,6 +352,23 @@ The owner installs the agent files for every client a repo uses in one go and se
 5. **Given** an onboarding of 305 matches, 44 enrichments and 39 documents, **When** the agent sends them with `apply_batch`, **Then** each operation is checked like its single call and reports its own result, a failed one changes nothing, and no second connection is needed.
 6. **Given** a step imported from a Jira sub-task, **When** an agent adds details through `set_plan` or `update_step`, **Then** they're stored and the history reads "details added by <agent>"; rewriting the details or changing the text is refused.
 
+### User Story 18 - Shared changes and conflict guardrails (Priority: P1)
+
+Agents working in parallel worktrees declare the shared parts each item will change. Docket refuses to start work that overlaps other in-flight work until the owner decides, hands out short leases for single-writer files, flags changes that weren't declared, and warns when two branches are heading for a merge conflict. Every agent sees what other in-flight work will change.
+
+**Why this priority**: without it, unattended agents either wait on unrelated epics or create conflicts and duplicate concepts (the Gameflow pilot hit both).
+
+**Independent Test**: two items declare a change to the same model; the first is claimed; claiming the second is refused with a seam conflict, and Needs you shows an overlap question; choosing *Run one after the other* adds a blocker so the second becomes startable only once the first is merged; choosing *They're compatible* lets it be claimed. A hand-off listing a file mapped to an undeclared shared part is flagged. The radar reports two branches that edit the same lines.
+
+**Acceptance Scenarios**:
+
+1. **Given** an item without declarations, **When** anyone moves it to Ready, **Then** it's refused with "Declare the shared parts this item will change (or none)"; the owner may override with a reason.
+2. **Given** GF-240 in progress declaring `model:Token`, **When** an agent claims GF-312 which also declares `model:Token`, **Then** the claim fails with `seam_conflict` naming GF-240, GF-312 stays Ready, and Needs you shows "GF-240 and GF-312 both change model Token" with *Run one after the other*, *They're compatible*, and *Open both*.
+3. **Given** the project marks `file:…/GameflowDbContextModelSnapshot.cs` as single-writer, **When** two agents take its lease, **Then** the second is told who holds it and until when; the lease ends when the holder's PR merges, it hands off or releases, or it expires.
+4. **Given** an agent hands off with changed files, **When** a file maps to a shared part the item didn't declare, **Then** the hand-off is held and Needs you shows "GF-312 changed shared parts it didn't declare: table decks".
+5. **Given** two in-flight items with branches that conflict, **When** the radar runs, **Then** both items show "Heading for a conflict with GF-240 (3 files)", and both agents see it in their context.
+6. **Given** an agent planning GF-330, **When** it calls `get_context`, **Then** it sees the other in-flight items' declared changes to the parts GF-330 declares, and a short list of all in-flight shared changes in the project.
+
 ### Edge Cases
 
 - **A lead's lease expires mid-work, and the agent calls again with its old run:** it is refused with the current state. The item has already returned to Ready, with its plan and logs kept.
@@ -545,6 +563,13 @@ The owner installs the agent files for every client a repo uses in one go and se
 - **FR-155**: A note on an approval MUST be stored on the verdict, posted as an owner note on the item ("Approved with a note: …") delivered to its agent like other owner notes, and shown in the packet's round history and the item's Activity.
 - **FR-156**: A note kept for the epic or the project MUST also become an owner decision in that scope: the title from the note (≤ 120 characters, cut at a word boundary), the full note as the decision, and "From your review of <item>, round <n>: <finding>" as the rationale, linked from the item's Activity. Agents MUST receive it through the decisions in scope (`get_context`, `get_item`).
 - **FR-157**: The decision MUST be created in the same transaction as the verdict, so undoing the review also removes it. *Needs changes* and *Defer* MUST keep their behaviour.
+- **FR-158** (owner decision 36): Each project MUST keep a registry of **shared parts** (kind: table, model, endpoint, file or other; a normalised key such as `model:Token`; optional path patterns that map changed files to the part; a single-writer flag). Agents MAY add parts; only the owner marks a part single-writer or removes one.
+- **FR-159**: An item MUST declare the shared parts it will change (each with add, change or remove, and a note), or declare none, before it can move to Ready. The owner MAY override with a reason, recorded in Activity.
+- **FR-160**: Claiming an item MUST be refused (`seam_conflict`) when one of its declared parts is declared by another in-flight item (Ready-claimed, In progress, or Review), unless the owner has marked that pair compatible or one blocks the other. Docket MUST raise one owner question per pair, with *Run one after the other* (adds a `merged` blocker), *They're compatible*, and *Open both*.
+- **FR-161**: Single-writer parts MUST be taken with a lease (one holder; ends on merge, hand-off, release or expiry; renewable). Taking a held lease MUST fail with who holds it and until when.
+- **FR-162**: Hand-off MUST accept the changed file list. Files that map to parts the item didn't declare MUST hold the item for owner review with a question; the owner can add the parts to the declaration or send it back.
+- **FR-163**: When the project's repository is reachable from Docket, a conflict radar MUST trial-merge in-flight items' branches with each other and with the main branch at least every 15 minutes, without writing to the repository, and flag pairs that conflict on the items and in agents' context.
+- **FR-164**: `get_context` MUST include the declared changes of other in-flight items that overlap the item's parts, and a capped list of all in-flight shared changes in the project.
 
 ### Key Entities
 
@@ -571,6 +596,7 @@ The owner installs the agent files for every client a repo uses in one go and se
 - **InstructionReport / Drift**: the instruction hashes reported for an installed location (by a scheduled push-folder check or an agent's claim), the differences from what was sent, and the owner's remedy (adopted, restored, kept local).
 - **Onboarding**: a project's onboarding session: who started it, when, its state (in progress, ready for review, reviewed), the agent's summary, and the changes it made.
 - **WorkStep details**: optional Markdown details and a source on a checklist step; read in the step dialog, or by agents with `get_step`.
+- **Shared part**: a table, model, endpoint or file that several items may change; has a key, path patterns and a single-writer flag. **Shared-change declaration**: an item's list of parts it will change. **Lease**: temporary single-writer hold on a part.
 
 ## Success Criteria *(mandatory)*
 
@@ -598,6 +624,7 @@ The owner installs the agent files for every client a repo uses in one go and se
 - **SC-020**: After a Jira import, 100% of sub-task descriptions and comments in the fixture are readable in Docket (in step details and the parent's note), and `get_item` standard for an item with 10 detailed steps stays within its token budget.
 - **SC-021**: One agent session onboards at least 150 operations through batches, each with its own result and no second connection, and the batch results stay within their budget (30 + 25 tokens per operation).
 - **SC-022**: The owner installs every client a repo uses in one *Install*, and can tell each client's install state from Agent files within one glance, with no command typed.
+- **SC-023**: In a seeded run of two agents claiming overlapping items unattended, no overlapping work starts without an owner decision, and 100% of seeded branch conflicts are reported by the radar before either branch reaches the merge queue.
 
 ## Assumptions
 

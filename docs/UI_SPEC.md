@@ -535,6 +535,24 @@ Decision records (BUILD_SPEC §5.14) appear where they apply:
 
 Agent decisions never appear in Needs you. They show here, and in the item's Activity ("claude recorded a decision: …").
 
+#### 6.3.6 Shared changes (decision 36)
+- **An item's Details tab** gains a **Shared changes** section, listing:
+  - each declared part with its change (add, change or remove) and note;
+  - "None" when declared none, or "Not declared yet" (warn);
+  - overlaps with other items (linked, with their state);
+  - leases held (with *Release lease*);
+  - radar findings.
+
+  The owner can edit the declaration with the same editor pattern as elsewhere.
+- **Needs you:**
+  - **Overlap questions**, a card for each pair: "GF-240 and GF-312 both change model Token", with *Run one after the other*, *They're compatible* (an optional note) and *Open both*;
+  - **Undeclared-changes holds:** *Add to the declaration* or *Send back*;
+  - **Problems:** radar findings ("Heading for a conflict").
+- **Work cards:** a small "overlap" or "conflict ahead" marker when relevant.
+- **Settings → Projects → <project> → Shared parts:**
+  - the registry (key, kind, paths, single-writer, in-flight declarations);
+  - the radar settings (repository path, main branch, *Run radar now*, last run).
+
 ### 6.4 Human review packet (`/review/:id`)
 Not in the sidebar. It opens from *Open packet* (Needs you, the ticket banner, the Checklist), Review cards, and handoff packets in a ticket's Documents. While it's open, Needs you is the active nav item.
 

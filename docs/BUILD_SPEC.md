@@ -562,6 +562,42 @@ The agent-files install (§5.17) also writes each client's **project connection 
 - **Batches** (decision 34; B36; MCP_SPEC §5.13): `apply_batch` runs up to 100 operations (`create_item`, `update_item`, `link_items`, `upsert_label`, `set_plan`, `update_step`, `put_document`, `publish_decision`) in one call. Each is validated against its own tool's schema and run by its own handler through the write path in its own transaction (atomic per operation, never all-or-nothing), and reports its own result. `"$n"` arguments name an earlier operation's ID. Each operation's idempotency key is its own, or derived from the batch's key and its index (`batch:<sha256 of the key, 40 hex>#<index>`), so a retry replays what succeeded. Events are tagged with the onboarding session as for single calls. The onboarding guide and `docket-planner` tell agents to batch, and to add details to imported steps that a Spec Kit task matches instead of creating items.
 - **The Jira import** writes `project.created` for the project it opens (B30; `project.updated` before), through the same insert as *New project* and `onboard_project`.
 
+### 5.21 Shared changes and conflict guardrails (decision 36)
+
+**Tables** (all project-scoped):
+- `shared_parts`: `project`, `key` (kind-prefixed and normalised: `table:decks`, `model:Token`, `endpoint:POST /decks/{id}/export`, `file:src/Gameflow.Api/Data/Migrations/GameflowDbContextModelSnapshot.cs`, `other:<slug>`), `kind`, `paths` (JSON globs, repo-relative), `single_writer`, `note`, `created_by`, `archived_at`.
+- `item_shared_changes`: `item_id`, `part_key`, `change` (add|change|remove), `note`, `declared_by`, `declared_at`; plus `items.shared_none_at`, set when an item declares none.
+- `part_overlaps`: the pair (two item ids), the part key(s), `state` (open|sequenced|compatible|resolved), `question_id`, `decided_by`, `decided_at`.
+- `part_leases`: `part_key`, `item_id`, `run_id`, `taken_at`, `expires_at`, `ended_at`, `end_reason`.
+- `radar_findings`: the branch pair, `files` (JSON), `seen_at`, `cleared_at`.
+
+**Rules:**
+- **Ready gate:** `set_status ready` (agent or owner) is refused (`not_declared`) unless the item has declarations or `shared_none_at`. The owner may pass `override_reason`.
+- **Overlap at claim:** `claim_lead` checks the item's parts against items that are In progress, In review, or Ready with a live claim. A shared key is an overlap unless that pair is `compatible`, or a `blocks` link already sequences them. On overlap, the claim fails with `seam_conflict` (`details: { with: [ids], parts: [keys] }`) and opens one `part_overlaps` row plus an owner question (Needs you, kind `overlap`). Re-claiming the same pair doesn't open a second question.
+  - *Run one after the other* adds `blocks` (type `merged`) from the item claimed first to the other.
+  - *They're compatible* records the pair as compatible, plus an optional note. That note is posted to both items as an owner note.
+- **Declaring later:** declarations can change while an item is in progress. A new overlap found then flags both items ("Now overlaps GF-240 on model Token") and raises the question, but doesn't revoke the claim.
+- **Leases:** a lease runs 2 hours by default (`DOCKET_LEASE_MINUTES`) and is renewable. It ends when the holder's item reaches Done or is handed off, when the holder releases it, or when it expires. Owner *Release lease* is in the item's Shared changes section.
+- **Hand-off:**
+  - `submit_for_review` and `handoff` accept `changed_files` (≤ 2,000 repo-relative paths);
+  - Docket maps them through each part's `paths`;
+  - any part that isn't declared holds the item (a `held_undeclared` flag on the packet: the packet is created, but the human review gate stays closed) and raises a question (kind `undeclared_parts`) with *Add to the declaration* or *Send back*;
+  - if `changed_files` is missing, an item with declarations shows "Changed files not reported" on the packet.
+- **Conflict radar:**
+  - the project setting `repo_path` (inside `DOCKET_PUSH_ROOT`) and `main_branch` (default `main`);
+  - `claim_lead` and `handoff` accept `branch`;
+  - every 15 minutes, and on demand, Docket runs `git merge-tree --write-tree --name-only` for each in-flight branch against `main_branch`, and for each pair of in-flight branches whose items share a part or whose changed files intersect;
+  - it uses a temporary object directory (`GIT_OBJECT_DIRECTORY` set to a temp dir, with the repo's objects as alternates), so **nothing is written to the repository**. No fetch: local refs only, which worktrees share;
+  - findings go to `radar_findings`, to both items ("Heading for a conflict with GF-240: 3 files"), to Needs you (Problems), and to `get_context`. A finding clears when the trial merge is clean;
+  - when git or the repo isn't available, the radar shows "Radar off: no repository" and the rest still works.
+- **Context:** `get_context` adds `shared` with three parts:
+  - the item's declarations;
+  - overlapping in-flight declarations from other items (id, title, status, change, note);
+  - up to 30 other in-flight declarations in the project.
+
+  It also includes leases held, and radar findings for the item. All of this counts against the budget.
+- **Activity:** events `shared.declared`, `overlap.raised|decided`, `lease.taken|ended`, `undeclared.held|decided`, `radar.found|cleared`.
+
 ## 6. MCP tool contract
 
 **Overview only.** [MCP_SPEC.md](MCP_SPEC.md) is authoritative for the server instructions, every tool's description text, input and output schemas, error messages and worked flows. It defines 44 tools (38, plus `get_step` from decision 33, plus `get_agent_files` and `propose_agent_file_change` from decision 30, `onboard_project` and `finish_onboarding` from decision 31, and `apply_batch` from decision 34), and one prompt (`onboard`), including `unlink_items`, `update_check` and `update_human_review`, which are paired with their siblings below.
@@ -989,6 +1025,7 @@ Owner decisions are marked **(owner)**. Every other entry is a technical choice 
 | 33 **(owner)** | Checklist steps carry `details_md` and `source`; a step dialog in the UI (no inline expansion); agents read one step in full with `get_step`, and item reads show a marker; the Jira import keeps sub-task descriptions in step details and collects their comments in one note on the parent. | §4, §5.5, §9, MCP_SPEC §4, §5.5, UI_SPEC §6.3.1a |
 | 34 **(owner)** | Install and onboarding follow-ups from the Gameflow pilot: one install for several clients (checkboxes, defaults from the repo's markers, one summary; the API's `clients`, with `client` still accepted); each client's install state (up to date, update available, changed outside Docket, not installed) from the manifest and drift, with nothing new stored; a new `CLAUDE.md` imports an existing `AGENTS.md` with `@AGENTS.md`; the MCP tool `apply_batch` (up to 100 operations, atomic per operation) for large onboardings; agents may add details to steps imported from Jira. | §5.5, §5.17b, §5.20, §7, MCP_SPEC §5.5, §5.13, UI_SPEC §6.7b |
 | 35 **(owner)** | Approve with notes: *Looks good* takes an optional note and `keep` (`item`, `epic` or `project`). The note is stored on the verdict and posted as an owner note; kept for the epic or the project it also becomes an owner decision there (title from the note, "From your review of …" rationale), in the same transaction, so Undo reverts it. *Needs changes* and *Defer* are unchanged. | §5.6, §5.14, UI_SPEC §6.4 |
+| 36 **(owner)** | Shared changes and conflict guardrails: shared-part registry and per-item declarations (required for Ready); overlap check at claim (`seam_conflict`) with an owner question (sequence or compatible); single-writer leases; changed-file check at hand-off; a read-only conflict radar (git merge-tree with a temporary object directory); in-flight declarations in `get_context`. | §5.21, MCP_SPEC §5.15, UI_SPEC §6.3.6, §6.1 |
 | R1 **(owner)** | The product is renamed Docket (formerly Task Lite; B28), mechanically: packages, CLI, `DOCKET_*` settings, MCP server name, Docker image, container and volume, skills, markers and manifest. Old names keep working: `TASKLITE_*` settings with a warning, the old markers and manifest, `skill:tasklite-*` keys, old backups and the old database file name. The one deletion is old skill folders Docket installed and recorded, when unmodified. The GitHub repo URL is unchanged. | §5.17 |
 | T22 | Parked runs keep their claim indefinitely and are only flagged after `PARK_MAX` (24 h); they are never auto-released. | §5.16 |
 | T23 | Workspace state is derived per worktree path from reported data (`dirty`, `head_sha`, `pushed_sha`, resources), never by inspecting the host. | §5.16 |
