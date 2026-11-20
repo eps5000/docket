@@ -939,9 +939,11 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
       config: deps.config,
       drift: driftProblems(r.db, s.inScope, scope === 'all'),
     });
+    // Radar findings rank first: unattended branches keep moving toward the conflict.
+    const radarRows: typeof problems = [];
     for (const f of shared.radar_findings) {
       if (!f.item_a) continue;
-      problems.push({
+      radarRows.push({
         kind: 'radar_conflict',
         item_id: f.item_a.id,
         title: f.item_a.title,
@@ -952,6 +954,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         resource_ids: [],
       });
     }
+    problems.unshift(...radarRows);
     return {
       for_you_now: forYouRows(s, att),
       problems,
