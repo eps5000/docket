@@ -241,6 +241,13 @@ export type ReviewInto = (typeof REVIEW_INTO)[number];
 export const REVIEW_FOLLOW = ['ticket', 'none'] as const;
 export type ReviewFollow = (typeof REVIEW_FOLLOW)[number];
 
+/**
+ * Where a note on an approval is kept (owner decision 35): on this item only,
+ * or also as an owner decision for the epic's or the project's future work.
+ */
+export const REVIEW_KEEP = ['item', 'epic', 'project'] as const;
+export type ReviewKeep = (typeof REVIEW_KEEP)[number];
+
 // ---- Evidence and documents ----
 
 export const ARTIFACT_KINDS = ['url', 'pr', 'ci', 'deploy', 'test'] as const;

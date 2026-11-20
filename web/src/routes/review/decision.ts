@@ -3,7 +3,7 @@
  * unit-tested: what the primary button says, what the callout promises,
  * and the verdicts the API receives.
  */
-import type { ReviewResponse } from '@docket/shared';
+import type { ReviewKeep, ReviewResponse } from '@docket/shared';
 
 export type VerdictKind = 'approve' | 'changes' | 'defer';
 
@@ -12,9 +12,11 @@ export interface Draft {
   note: string;
   into: 'checklist' | 'bug';
   follow: 'ticket' | 'none';
+  /** Looks good with a note (owner decision 35): this ticket, the epic's future tickets, or the project. */
+  keep: ReviewKeep;
 }
 
-export const EMPTY_DRAFT: Draft = { note: '', into: 'checklist', follow: 'ticket' };
+export const EMPTY_DRAFT: Draft = { note: '', into: 'checklist', follow: 'ticket', keep: 'item' };
 
 export type Drafts = Record<string, Draft>;
 
@@ -87,7 +89,12 @@ export function verdictsOf(items: readonly { hr_item_id: string }[], drafts: Dra
         ...(note ? { note } : {}),
       };
     }
-    return { hr_item_id: i.hr_item_id, kind: 'approve' as const };
+    // A note for later (owner decision 35); `keep` only travels with a note.
+    return {
+      hr_item_id: i.hr_item_id,
+      kind: 'approve' as const,
+      ...(note ? { note, keep: d.keep } : {}),
+    };
   });
 }
 

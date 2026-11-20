@@ -105,6 +105,19 @@ const isOpenStatus = (s: string) => (OPEN_STATUSES as readonly string[]).include
 
 /** Activity rows the item page loads at once ("small enough to load at once"). */
 export const ACTIVITY_LIMIT = 200;
+
+/** A review's notes kept as owner decisions (owner decision 35), for the Activity row's links. */
+function keptDecisions(kept: string | null): { decision_ids?: string[] } {
+  if (!kept) return {};
+  try {
+    const ids = (JSON.parse(kept) as { decision_id?: unknown }[])
+      .map((k) => k.decision_id)
+      .filter((id): id is string => typeof id === 'string');
+    return ids.length ? { decision_ids: ids } : {};
+  } catch {
+    return {};
+  }
+}
 /** Ended runs and subagent log entries the Agents table shows, newest first. */
 export const AGENTS_ENDED_LIMIT = 50;
 
@@ -1216,14 +1229,18 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
       const activity: ActivityRow[] = (
         sql
           .prepare(
-            `SELECT ${EVENT_COLUMNS}, e.project_key FROM ${EVENT_FROM} WHERE e.item_id = ? ORDER BY e.seq DESC LIMIT ?`,
+            `SELECT ${EVENT_COLUMNS}, e.project_key, json_extract(e.data, '$.kept') AS kept FROM ${EVENT_FROM} WHERE e.item_id = ? ORDER BY e.seq DESC LIMIT ?`,
           )
-          .all(row.id, ACTIVITY_LIMIT) as (StoredEvent & { project_key: string | null })[]
+          .all(row.id, ACTIVITY_LIMIT) as (StoredEvent & {
+          project_key: string | null;
+          kept: string | null;
+        })[]
       ).map((e) => ({
         ...eventRow(e),
         type: e.type as EventType,
         actor_kind: e.actor_kind,
         project: e.project_key,
+        ...keptDecisions(e.kept),
       }));
 
       const packet = item.packets.find((p) => p.state === 'open');

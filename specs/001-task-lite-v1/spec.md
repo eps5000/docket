@@ -88,6 +88,7 @@ When an agent finishes work that the owner must check by hand, it hands off a pa
 5. **Given** an open packet, **When** an agent reports a newer commit for that ticket (or for any ticket in an epic, if the packet is epic-level), **Then** the packet shows as out of date to the owner. The owner can ask for a fresh packet, which returns the ticket to In progress for the agent.
 6. **Given** approvals in round 1, **When** round 2 arrives, **Then** approved items stay approved.
 7. **Given** any owner decision, **When** made, **Then** it can be undone for a short period, and it is recorded with the owner as the actor.
+8. **Given** a finding the owner marks *Looks good* on a ticket in an epic (owner decision 35), **When** they add "Notes for later" and keep it for *The epic's future tickets*, **Then** the ticket's agent receives the note as an owner note, the packet's round and the ticket's Activity show it, and an owner decision with the note appears on the epic, with "From your review of <ticket>, round <n>: …" as its rationale. A `get_context` on another ticket in that epic includes the decision. Without an epic, that choice is disabled and says why; Undo removes the decision with the verdict.
 
 ---
 
@@ -540,6 +541,10 @@ The owner installs the agent files for every client a repo uses in one go and se
 - **FR-151**: When a repo has `AGENTS.md` but no `CLAUDE.md`, the Claude Code install MUST create `CLAUDE.md` starting with `@AGENTS.md`, outside the Docket markers, and MUST NOT add the line to an existing `CLAUDE.md`.
 - **FR-152**: Agents MUST be able to send up to 100 writes in one call (`apply_batch`), each checked like its single call (secrets, limits, versions) and applied on its own with its own result; token budgets MUST hold.
 - **FR-153**: Agents MUST be able to set or extend the details of steps imported from Jira through `set_plan` and `update_step`, recorded as "details added by <agent>"; the step's text, and owner-typed steps, stay owner-only.
+- **FR-154** (owner decision 35): The owner MUST be able to add an optional note to a *Looks good* verdict, and choose where to keep it: this ticket (the default), the epic's future tickets (only when the ticket has an epic; otherwise the choice is disabled with a reason) or all of the project's work.
+- **FR-155**: A note on an approval MUST be stored on the verdict, posted as an owner note on the item ("Approved with a note: …") delivered to its agent like other owner notes, and shown in the packet's round history and the item's Activity.
+- **FR-156**: A note kept for the epic or the project MUST also become an owner decision in that scope: the title from the note (≤ 120 characters, cut at a word boundary), the full note as the decision, and "From your review of <item>, round <n>: <finding>" as the rationale, linked from the item's Activity. Agents MUST receive it through the decisions in scope (`get_context`, `get_item`).
+- **FR-157**: The decision MUST be created in the same transaction as the verdict, so undoing the review also removes it. *Needs changes* and *Defer* MUST keep their behaviour.
 
 ### Key Entities
 

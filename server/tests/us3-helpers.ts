@@ -78,6 +78,8 @@ export type Verdict = {
   note?: string;
   into?: 'checklist' | 'bug';
   follow?: 'ticket' | 'none';
+  /** Approve with a note only (owner decision 35). */
+  keep?: 'item' | 'epic' | 'project';
 };
 
 /** The owner's decision, as the API sends it; returns the result and its mutation ID. */

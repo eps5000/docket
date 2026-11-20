@@ -456,10 +456,21 @@ describe('field rules', () => {
     );
   });
 
-  it('review verdicts: changes needs a note and into; approve takes neither', () => {
+  it('review verdicts: changes needs a note and into; approve takes an optional note', () => {
     const ok = (v: object) => decideBody.safeParse({ round: 1, verdicts: [v] }).success;
     expect(ok({ hr_item_id: 'hr_a', kind: 'approve' })).toBe(true);
-    expect(ok({ hr_item_id: 'hr_a', kind: 'approve', note: 'x' })).toBe(false);
+    // Owner decision 35: approve with a note, kept for the item, the epic or the project.
+    expect(ok({ hr_item_id: 'hr_a', kind: 'approve', note: 'x' })).toBe(true);
+    for (const keep of ['item', 'epic', 'project']) {
+      expect(ok({ hr_item_id: 'hr_a', kind: 'approve', note: 'x', keep })).toBe(true);
+    }
+    expect(ok({ hr_item_id: 'hr_a', kind: 'approve', note: 'x', keep: 'label' })).toBe(false);
+    expect(ok({ hr_item_id: 'hr_a', kind: 'approve', keep: 'epic' })).toBe(false);
+    expect(ok({ hr_item_id: 'hr_a', kind: 'approve', note: 'n'.repeat(4_001) })).toBe(false);
+    expect(ok({ hr_item_id: 'hr_a', kind: 'defer', note: 'x', keep: 'project' })).toBe(false);
+    expect(ok({ hr_item_id: 'hr_a', kind: 'changes', note: 'x', into: 'bug', keep: 'item' })).toBe(
+      false,
+    );
     expect(ok({ hr_item_id: 'hr_a', kind: 'changes', note: 'Fix it' })).toBe(false);
     expect(ok({ hr_item_id: 'hr_a', kind: 'changes', note: 'Fix it', into: 'bug' })).toBe(true);
     expect(ok({ hr_item_id: 'hr_a', kind: 'defer', follow: 'ticket' })).toBe(true);

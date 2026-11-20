@@ -53,7 +53,11 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
   );
 });
 
-/** A segmented control (Work layouts, Settings client setup). */
+/**
+ * A segmented control (Work layouts, Settings client setup). An option can
+ * be `disabled`; `describedBy` then names the element that says why
+ * (the packet's "Keep it for" without an epic, decision 35).
+ */
 export function SegmentedControl<K extends string>({
   label,
   options,
@@ -61,7 +65,7 @@ export function SegmentedControl<K extends string>({
   onChange,
 }: {
   label: string;
-  options: readonly { key: K; label: string }[];
+  options: readonly { key: K; label: string; disabled?: boolean; describedBy?: string }[];
   value: K;
   onChange: (key: K) => void;
 }) {
@@ -72,6 +76,8 @@ export function SegmentedControl<K extends string>({
           key={o.key}
           type="button"
           aria-pressed={value === o.key}
+          disabled={o.disabled || undefined}
+          aria-describedby={o.describedBy}
           onClick={() => onChange(o.key)}
         >
           {o.label}

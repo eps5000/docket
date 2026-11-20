@@ -550,9 +550,10 @@ Not in the sidebar. It opens from *Open packet* (Needs you, the ticket banner, t
     - **Already checked by the agent:** provenance badge + text + evidence;
     - **Known gaps:** bullets;
     - **Attachments:** buttons that open the document viewer.
+  - **Looks good** reveals "Notes for later (optional)", a textarea with the placeholder "e.g. Fine here, but next time put the fixture in tests/fixtures/" (decision 35). Once the note has text, "Keep it for" [This ticket | The epic's future tickets | All <project> work] (the project's short name; *This ticket* is the default), and a line under it says what the choice does: "Posted as a note for the agent on RCP-12.", "Also saved as an owner decision on RCP-1: agents get it on the epic's other tickets." or "Also saved as an owner decision for Recipe App: every agent working on it gets it." Without an epic, *The epic's future tickets* is disabled, and "RCP-20 has no epic, so the note can't go to an epic's tickets." (its description) shows under the control. A blank note sends nothing.
   - **Needs changes** reveals "What needs to change (required)", a textarea, and "Send it back as" [Checklist item on this ticket | New bug ticket].
   - **Defer** reveals "Why defer, and what's still needed (optional)" and "Follow-up" [Create a test ticket in Inbox | No ticket: agent follows the project workflow], plus the note "Deferring clears the gate so work can continue. The item is recorded as not verified, never as approved."
-  - **Past rounds** show the decision provenance badge, the note, and "→ checklist item", "→ bug RCP-30" or "→ test ticket RCP-29".
+  - **Past rounds** show the decision provenance badge, the note, and "→ checklist item", "→ bug RCP-30" or "→ test ticket RCP-29". An approval's note reads "Note for later: “…”"; when it was kept for the epic or the project, "→ decision for the epic's future tickets" or "→ decision for all the project's work" links to the ticket's Details, whose Decisions list it (its *Why* reads "From your review of RCP-12, round 2: …"). The item's History row for the review adds "· See the decision".
 - **Right, decision:**
   - "Your decision · round n", "n of k items decided";
   - the primary button names the outcome:
