@@ -98,7 +98,7 @@ test.describe('Decisions on a ticket', () => {
     // Why is collapsed until asked for.
     const drop = row(page, 'Drop targets are at least 44 px');
     await expect(drop.getByText('Agreed while building it.')).toHaveCount(0);
-    await drop.getByRole('button', { name: 'Why' }).click();
+    await drop.getByRole('button', { name: 'Show reasoning' }).click();
     await expect(drop.getByText('Agreed while building it.')).toBeVisible();
 
     await expectAxeClean(page, 'ticket Decisions', {

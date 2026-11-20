@@ -520,7 +520,7 @@ Decision records (BUILD_SPEC §5.14) appear where they apply:
 - **Header:** "Decisions", with the summary "n in scope · n by agents". *+ Record a decision* sits in the section header.
 - **`DecisionRow`:**
   - the title in bold;
-  - the decision text (2 lines, then *More*), and the rationale under *Why* (collapsed);
+  - the decision text (2 lines, then *Show all* / *Show less*, shown only when the text is longer), and the rationale under *Show reasoning* / *Hide reasoning* (collapsed; shown as "Why: …");
   - a scope chip ("Project", "◆ Epic name", "#label", "This item"; shown on ticket Details, where records are inherited);
   - the authority badge (§5);
   - the author and date ("claude · Nov 6").
