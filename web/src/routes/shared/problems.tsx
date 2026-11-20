@@ -51,24 +51,74 @@ export function WarningMark({ label }: { label: string }) {
   );
 }
 
-/** "Agent" or "You": who acts, in a chip (the line says who exactly). */
+/** "Agent" or "You": who acts, in a chip; the whole line is its `title`. */
 export function WhoChip({ e }: { e: ProblemExplanation }) {
-  return e.who === 'agent' ? <Chip kind="info">Agent</Chip> : <Chip kind="warn">You</Chip>;
+  return e.who === 'agent' ? (
+    <Chip kind="info" title={e.who_text}>
+      Agent
+    </Chip>
+  ) : (
+    <Chip kind="warn" title={e.who_text}>
+      You
+    </Chip>
+  );
 }
 
-/** The three lines, then why it reached you and the acknowledgement, if any. */
+/**
+ * The three lines, then why it reached you and the acknowledgement, if any.
+ * `compact` (the Problems rows, so Needs you fits one screen): what's wrong
+ * on up to two lines, "Fix:" on one (the whole text in `title`), and who acts
+ * in the row's chip, with the full line kept for screen readers. The item's
+ * banner shows all three in full.
+ */
 export function ProblemLines({
   e,
   reachedYou,
   acknowledged,
   titleText,
+  compact = false,
 }: {
   e: ProblemExplanation;
   reachedYou?: string | null;
   acknowledged?: ProblemAck | null;
   /** The one-line reason, kept in `title` (the facts the row used to show). */
   titleText?: string;
+  compact?: boolean;
 }) {
+  if (compact) {
+    return (
+      <dl className="prob-x compact">
+        <div className="px-what">
+          <dt className="sr">What’s wrong</dt>
+          <dd title={titleText}>{e.what}</dd>
+        </div>
+        <div className="px-fix" title={e.fix}>
+          <dt>Fix:</dt> <dd>{e.fix}</dd>
+        </div>
+        <div className="sr">
+          <dt>Who acts</dt>
+          <dd>{e.who_text}</dd>
+        </div>
+        {reachedYou && (
+          <div className="prob-why">
+            <dt className="sr">Why you see it</dt>
+            <dd>{reachedYou}</dd>
+          </div>
+        )}
+        {acknowledged && (
+          <div className="prob-ack">
+            <dt className="sr">Acknowledged</dt>
+            <dd>
+              Acknowledged by {acknowledged.by === 'owner' ? 'you' : acknowledged.by}{' '}
+              <time dateTime={acknowledged.at} title={isoTitle(acknowledged.at)}>
+                {formatAgo(acknowledged.at)}
+              </time>
+            </dd>
+          </div>
+        )}
+      </dl>
+    );
+  }
   return (
     <dl className="prob-x">
       <div>
@@ -193,7 +243,8 @@ export function ProblemActions({
           size="sm"
           variant="ghost"
           disabled={busy}
-          aria-label={`Not an active branch: ${b.branch}`}
+          // One branch: the name joins the visible label; two: the label names it.
+          aria-label={branches.length > 1 ? undefined : `Not an active branch: ${b.branch}`}
           title={`Remove ${b.branch} from ${b.item_id}’s branches`}
           onClick={() => notActive(b.item_id, b.branch)}
         >

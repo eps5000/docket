@@ -1702,6 +1702,41 @@
 .tl .prob-row {
   align-items: start;
   grid-template-columns: auto minmax(0, 1fr);
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+/* The Problems rows (Needs you fits one screen): what's wrong on two lines, the fix on one. */
+.tl .prob-x.compact {
+  gap: 0;
+  margin-top: 2px;
+}
+.tl .prob-x.compact > div {
+  display: block;
+}
+.tl .prob-x.compact .px-what dd {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.tl .prob-x.compact .px-fix {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--ink-2);
+}
+.tl .prob-x.compact .px-fix dt,
+.tl .prob-x.compact .px-fix dd {
+  display: inline;
+  color: var(--ink-2);
+  font-size: inherit;
+}
+.tl .prob-x.compact .px-fix dt {
+  font-weight: 600;
+}
+.tl .prob-row .prob-acts {
+  margin-top: 4px;
 }
 .tl .prob-acts {
   gap: 6px;

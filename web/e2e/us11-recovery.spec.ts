@@ -126,10 +126,11 @@ test.describe.serial('US11 recovery', () => {
 
     await openNeedsYou(page);
     const r = row(page, 'orphaned_resources', 'RCP-17');
-    // Key fact first (B20): what is still running, then since when.
+    // Decision 37: what is still running, since when, and what to do.
     await expect(r).toContainText(
-      'dev server :5173 (pid 4242, port 5173) still running 20m after its run ended',
+      "dev server :5173 (pid 4242, port 5173) is still running 20m after RCP-17's run ended.",
     );
+    await expect(r).toContainText('Stop it, then mark it released.');
     await r.getByRole('button', { name: 'Mark released' }).click();
     const toast = page.getByRole('status');
     await expect(toast).toContainText('Marked released.');

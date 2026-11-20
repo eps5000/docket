@@ -393,6 +393,7 @@ export function ProblemRow({ problem, workspace }: { problem: Problem; workspace
             reachedYou={problem.reached_you}
             acknowledged={problem.acknowledged}
             titleText={problem.reason}
+            compact
           />
         ) : (
           <Reason text={problem.reason} />
