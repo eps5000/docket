@@ -295,10 +295,10 @@ function PacketBody({
           <section>
             <h2>Already checked by the agent</h2>
             {p.checked.map((c, i) => (
-              <div className="lrow" key={i}>
+              <div className="checkrow" key={i}>
                 <Provenance kind={c.provenance as ProvenanceKind} />
-                <span className="grow">{c.text}</span>
-                <span className="src">{c.evidence}</span>
+                <span className="ctext">{c.text}</span>
+                {c.evidence && <span className="src">{c.evidence}</span>}
               </div>
             ))}
           </section>
