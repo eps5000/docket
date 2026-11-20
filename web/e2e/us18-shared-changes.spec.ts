@@ -9,7 +9,9 @@
  * - an undeclared hold: a packet whose changed files touch an undeclared part
  *   is held, and *Add to the declaration* opens it;
  * - the item's Shared changes section with a lease (*Release lease*) and a
- *   radar finding, which Problems also lists ("Heading for a conflict").
+ *   radar finding, which Problems also lists ("Heading for a conflict");
+ * - B40: the item's branch, found by the radar (one local branch names the
+ *   item) or ambiguous (several do), then *Set branch* and *Clear*.
  *
  * axe is clean in both themes on each screen. Set DOCKET_E2E_SCREENSHOTS to a
  * folder to also capture the PR's light and dark screenshots.
@@ -330,4 +332,61 @@ test('the item’s Shared changes: declaration, lease with Release lease, and a 
   await shoot(page, 'radar-finding', page.locator('[data-card="problems"]'));
   const ctx = await codex.call('get_context', { id: 'RCP-17' });
   expect(ctx.text).toContain('conflict ahead with RCP-25 (feat/b) · 1 file · shared.txt');
+});
+
+test('B40: the item’s branch: found by the radar, several matching, Set branch and Clear', async ({
+  page,
+}) => {
+  // RCP-14 and RCP-15 are In progress with no reported branch. One local branch names
+  // RCP-14; two name RCP-15 (in either case, with or without the hyphen).
+  sh(
+    [
+      'set -e',
+      `cd ${ROOT}/${REPO}`,
+      'G="git -c user.name=e2e -c user.email=e2e@docket.invalid -c commit.gpgsign=false"',
+      '$G branch rcp-14-week-plan main',
+      '$G branch rcp-15-a main',
+      '$G branch RCP15-b main',
+    ].join('\n'),
+  );
+  await owner(page, 'POST', '/api/projects/RCP/radar/run', {});
+
+  const section = page.locator('section[data-section="shared"]');
+  const row = section.locator('[data-branch-source]');
+  await page.goto('/items/RCP-14?tab=details');
+  await expect(row).toHaveAttribute('data-branch-source', 'discovered');
+  await expect(row).toContainText('Branch found by the radar: rcp-14-week-plan');
+
+  await page.goto('/items/RCP-15?tab=details');
+  await expect(row).toHaveAttribute('data-branch-source', 'none');
+  await expect(row).toContainText('Several branches match; report the branch: RCP15-b, rcp-15-a');
+  await settle(page);
+  await expectAxeClean(page, 'item Details, several branches match');
+  await shoot(page, 'branch-several', section);
+
+  // Set branch: the dialog suggests the matches; the reported branch wins.
+  await row.getByRole('button', { name: 'Set branch' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Branch · RCP-15' });
+  const input = dialog.getByLabel('Branch', { exact: true });
+  await expect(input).toHaveValue('RCP15-b');
+  await input.fill('rcp-15-a');
+  await expectAxeClean(page, 'the branch dialog', { themes: ['light'] });
+  await dialog.getByRole('button', { name: 'Save' }).click();
+  await expect(toast(page, 'Set RCP-15’s branch to rcp-15-a.')).toBeVisible();
+  await expect(dialog).toHaveCount(0);
+  await expect(row).toHaveAttribute('data-branch-source', 'reported');
+  await expect(row).toContainText('rcp-15-a · reported by you');
+  await settle(page);
+  await shoot(page, 'branch-reported', section);
+  await owner(page, 'POST', '/api/projects/RCP/radar/run', {});
+  expect((await owner(page, 'GET', '/api/items/RCP-15/shared')).branch).toMatchObject({
+    name: 'rcp-15-a',
+    source: 'reported',
+  });
+
+  // Clear: the radar's matches show again.
+  await row.getByRole('button', { name: 'Clear branch' }).click();
+  await expect(toast(page, 'Cleared RCP-15’s branch; the radar looks for one.')).toBeVisible();
+  await expect(row).toHaveAttribute('data-branch-source', 'none');
+  await expect(row).toContainText('Several branches match');
 });

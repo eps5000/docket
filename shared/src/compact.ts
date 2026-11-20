@@ -1179,6 +1179,7 @@ const RENDERERS: { [N in ToolName]: Renderer<N> } = {
         d.state === 'none'
           ? 'none'
           : `${d.changes.length} change${d.changes.length === 1 ? '' : 's'}`,
+      branch: typeof a.branch === 'string' ? `${SEP}branch ${a.branch}` : '',
       registered: r.registered.length > 0 ? `${SEP}registered ${partList(r.registered)}` : '',
       overlaps: overlaps.length > 0 ? `${SEP}overlaps ${overlaps.join('; ')}` : '',
     });

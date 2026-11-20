@@ -203,7 +203,7 @@ describe('the service stubs', () => {
     ],
     // US15 (B30, T164): onboarding.
     onboarding: ['start', 'finish', 'guide', 'list', 'markReviewed'],
-    // Decision 36 (B38, T182; B39, T183–T184): all of it.
+    // Decision 36 (B38, T182; B39, T183–T184; B40: the owner's branch): all of it.
     sharedChanges: [
       'declare',
       'listParts',
@@ -212,6 +212,7 @@ describe('the service stubs', () => {
       'ownerUpdate',
       'itemShared',
       'ownerDeclare',
+      'ownerSetBranch',
       'radar',
       'renewLease',
       'takeLease',

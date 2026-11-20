@@ -42,7 +42,9 @@ import {
   IN_FLIGHT_STATUSES,
   LIMITS,
   ToolError,
+  type BranchSource,
   type ContextShared,
+  type ItemBranch,
   type Declaration,
   type DeclaredChange,
   type InFlightChange,
@@ -65,6 +67,7 @@ import { newId } from './ids.js';
 import {
   clearFinding,
   finishRadar,
+  latestReport,
   planRadar,
   recordRadar,
   resolveRepoPath,
@@ -320,6 +323,8 @@ interface DeclareInput {
     note?: string;
     single_writer?: boolean;
   }[];
+  /** B40: the agent's branch for the radar (the owner sets it on its own route). */
+  branch?: string;
 }
 
 /** Insert a registry row; returns the inverse. */
@@ -458,6 +463,9 @@ function declare(
     });
   }
 
+  // B40: the branch, checked before anything is written.
+  if (input.branch !== undefined) assertBranchName(input.branch);
+
   const listed = changes.map((c) => `${c.part} ${c.change}`).join(', ');
   w.event({
     type: 'shared.declared',
@@ -474,6 +482,7 @@ function declare(
     },
     inverse,
   });
+  if (input.branch !== undefined) reportBranch(w, item, input.branch.trim());
 
   // Declaring later (BUILD_SPEC §5.21): while the item is claimed, a new overlap with other
   // claimed work flags both items and raises the question, without revoking either claim.
@@ -499,6 +508,69 @@ function declare(
           project,
           changes.map((c) => c.part),
         ),
+  };
+}
+
+// ---- The item's branch for the radar (B40) ----
+
+function assertBranchName(branch: string): void {
+  if (!validBranch(branch.trim())) {
+    throw new ToolError('validation', `"${branch}" isn't a branch name git accepts.`, {
+      details: { fields: { branch: 'not a branch name' } },
+    });
+  }
+}
+
+/**
+ * Record (or, with null, clear) the item's reported branch: `items.branch`,
+ * outside the item's version like a declaration, with `branch.reported`.
+ * Undoable for the owner. A reported branch wins over what the radar found
+ * (which stays, so clearing the report falls back to it). Reporting the
+ * branch the radar already uses as reported records nothing.
+ */
+function reportBranch(
+  w: WriteContext,
+  item: { id: string; project_key: string },
+  branch: string | null,
+) {
+  const before = w.db.sqlite
+    .prepare('SELECT branch, branch_by, branch_at FROM items WHERE id = ?')
+    .get(item.id) as { branch: string | null; branch_by: string | null; branch_at: string | null };
+  const current = latestReport(w.db, item.id);
+  if (branch !== null && current?.branch === branch && before.branch === branch) return;
+  if (branch === null && current === null) return; // nothing reported: nothing to clear
+  if (branch === null && current?.branch === null) return; // already cleared
+  const by = callerName(w.db, w.actor);
+  w.db.sqlite
+    .prepare('UPDATE items SET branch = ?, branch_by = ?, branch_at = ? WHERE id = ?')
+    .run(branch, by, w.now, item.id);
+  const owner = w.actor.kind === 'owner';
+  w.event({
+    type: 'branch.reported',
+    summary:
+      branch === null
+        ? `${owner ? 'You cleared' : `${by} cleared`} ${item.id}'s branch; the radar looks for one`
+        : `${owner ? 'You reported' : `${by} reported`} ${item.id}'s branch: ${branch}`,
+    item_id: item.id,
+    project_key: item.project_key,
+    data: { source: 'reported', branch, previous: current?.branch ?? null },
+    inverse: [{ op: 'update', table: 'items', id: item.id, set: { ...before } }],
+  });
+}
+
+/** The branch the radar uses for the item (B40; `ItemBranch`). */
+function itemBranch(db: Db, id: string): ItemBranch {
+  const report = latestReport(db, id);
+  const base = { reported_by: report?.by ?? null, reported_at: report?.at ?? null };
+  if (report?.branch) return { name: report.branch, source: 'reported', ...base, matches: [] };
+  const row = db.sqlite
+    .prepare('SELECT radar_branch, radar_branch_matches FROM items WHERE id = ?')
+    .get(id) as { radar_branch: string | null; radar_branch_matches: string | null };
+  return {
+    name: row.radar_branch,
+    source: row.radar_branch ? 'discovered' : null,
+    ...base,
+    matches: row.radar_branch_matches ? parseList(row.radar_branch_matches) : [],
   };
 }
 
@@ -1020,6 +1092,9 @@ function findingRow(db: Db, r: Record<string, unknown>): RadarFindingRow {
     branch_b: r.branch_b as string,
     item_a: r.item_a ? itemRef(db, r.item_a as string) : null,
     item_b: r.item_b ? itemRef(db, r.item_b as string) : null,
+    // A finding from before B40 has no sources: its branches were all reported.
+    source_a: (r.source_a as BranchSource | null) ?? 'reported',
+    source_b: (r.source_b as BranchSource | null) ?? (r.item_b ? 'reported' : null),
     files: parseList(r.files as string),
     seen_at: r.seen_at as string,
     cleared_at: r.cleared_at as string | null,
@@ -1033,6 +1108,7 @@ function itemShared(r: ReadContext, id: string): ItemSharedResponse {
     db.sqlite.prepare(sql).all(...params) as Record<string, unknown>[];
   return {
     declaration: declarationOf(db, item.id),
+    branch: itemBranch(db, item.id),
     overlaps: all(
       `SELECT * FROM part_overlaps WHERE (item_a = ? OR item_b = ?) AND state <> 'resolved'
        ORDER BY raised_at`,
@@ -1289,6 +1365,20 @@ export function createSharedChangesService(deps: ServiceDeps): SharedChangesServ
       const { registered } = declare(w, input);
       const r = { db: w.db, actor: w.actor, now: w.now };
       return { ...itemShared(r, input.id), registered };
+    },
+
+    ownerSetBranch(w, input) {
+      const item = requireItem(w.db, input.id);
+      if (item.status === 'done' || item.status === 'canceled') {
+        throw new ToolError(
+          'validation',
+          `${item.id} is ${item.status === 'done' ? 'done' : 'canceled'}; set the branch on open items only.`,
+        );
+      }
+      const branch = input.branch === null ? null : input.branch.trim();
+      if (branch !== null) assertBranchName(branch);
+      reportBranch(w, item, branch);
+      return itemShared({ db: w.db, actor: w.actor, now: w.now }, item.id);
     },
 
     radar: (r, input) => radar(r, input.key),

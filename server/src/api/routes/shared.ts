@@ -43,6 +43,14 @@ export function sharedRoutes<E extends Env>(api: Hono<E>, deps: RouteDeps): void
     return { mutation_id, ...result };
   });
 
+  /** B40: set or clear the item's branch for the radar (undoable). */
+  defineRoute(api, 'itemShared.branch', deps, ({ services, mutate, params, body }) => {
+    const { result, mutation_id } = mutate((w) =>
+      services.sharedChanges.ownerSetBranch(w, { ...params, ...body }),
+    );
+    return { mutation_id, ...result };
+  });
+
   /** Not undoable: the decision reaches agents at once. */
   defineRoute(api, 'overlaps.decide', deps, ({ services, mutate, params, body }) => {
     const { result, mutation_id } = mutate((w) =>

@@ -390,7 +390,8 @@ type EventType =
   | 'agent_file.proposed' | 'agent_file.proposal_decided' | 'drift.detected' | 'drift.resolved'   // decision 30
   | 'project.created' | 'onboarding.started' | 'onboarding.finished' | 'onboarding.reviewed'    // decision 31
   | 'shared_part.saved' | 'shared.declared' | 'overlap.raised' | 'overlap.decided' | 'lease.taken' | 'lease.ended'
-  | 'undeclared.held' | 'undeclared.decided' | 'radar.found' | 'radar.cleared';   // decision 36
+  | 'undeclared.held' | 'undeclared.decided' | 'radar.found' | 'radar.cleared'   // decision 36
+  | 'branch.reported' | 'branch.discovered';   // decision 36, B40
 
 // Decision 36 (§5.15; BUILD_SPEC §5.21).
 type SharedPartKind = 'table'|'model'|'endpoint'|'file'|'other';
@@ -838,6 +839,8 @@ Parallel items declare the shared parts they will change (tables, models, endpoi
 
 B38 implemented the registry, `declare_shared_changes` and `list_shared_parts`. B39 (T183) enforces the rest: the Ready gate, the overlap check at the claim, leases, the changed-file check at hand-off, and `get_context.shared`; BUILD_SPEC §5.21 lists its resolutions (the gate covers moves from Planning; the claim check compares against In progress and Review; `ready_to_start` leaves out an item waiting on the owner's overlap decision; a lease renewal writes no event).
 
+**B40** (the radar sees in-flight branches; BUILD_SPEC §5.21 B40): `declare_shared_changes` takes an optional `branch`, recorded as the item's branch for the conflict radar, so an agent can report it while backfilling a declaration for work already in progress. Its description says so; the input schema changes, the tool count doesn't. For an in-flight item with no reported branch, the radar looks for a local branch that names the item's key or Jira key, and uses it when exactly one matches; a reported branch always wins.
+
 **Hand-off** means `submit_packet` (a packet for human review) or `set_status` to `done` (closing an item with no human review). Earlier drafts named `submit_for_review` and `handoff`, which aren't Docket tools (B38 correction, agreed with the coordinator).
 
 **B38 resolutions** (agreed with the coordinator, or settled in the build and listed in the PR):
@@ -856,8 +859,8 @@ B38 implemented the registry, `declare_shared_changes` and `list_shared_parts`. 
 - **`set_status` to `done` with undeclared parts** is refused with `not_declared` (`details.undeclared`, `details.files`), raises the same owner question as a held packet (*Add to the declaration* or *Send back*), and leaves the item where it was. Reusing `not_declared` keeps three new codes (coordinator).
 
 #### `declare_shared_changes`
-**Description:** "Declare the shared parts this item will change (tables, models, endpoints, shared files), each with add, change or remove and a short note, or none: true when it changes none. An item can't move to Ready until it has declared. Each call replaces the item's whole declaration. Name parts by their keys from list_shared_parts; register a missing one with new_parts. Returns the in-flight items that change the same parts."
-- **Input:** `id`, and either `changes?: [{ part, change: 'add'|'change'|'remove', note? }]` (1–50; `note` ≤ 500) or `none?: true`; with `changes`, optionally `new_parts?: [{ key, kind?, paths?, note? }]` (1–20; `paths` ≤ 20 globs of ≤ 300; `note` ≤ 1,000), plus `run_id?` and `idempotency_key?`.
+**Description:** "Declare the shared parts this item will change (tables, models, endpoints, shared files), each with add, change or remove and a short note, or none: true when it changes none. An item can't move to Ready until it has declared. Each call replaces the item's whole declaration. Name parts by their keys from list_shared_parts; register a missing one with new_parts. Pass branch, the branch the work is on, so the conflict radar can check it, also when declaring for work already in progress. Returns the in-flight items that change the same parts."
+- **Input:** `id`, and either `changes?: [{ part, change: 'add'|'change'|'remove', note? }]` (1–50; `note` ≤ 500) or `none?: true`; with `changes`, optionally `new_parts?: [{ key, kind?, paths?, note? }]` (1–20; `paths` ≤ 20 globs of ≤ 300; `note` ≤ 1,000); `branch?` (≤ 200, B40), plus `run_id?` and `idempotency_key?`.
 - **Output:** `{ declaration: Declaration, registered: string[], overlaps: [{ with: { id, title, status }, parts: string[] }] }` (§4). `registered` lists the keys `new_parts` added to the registry.
 - **Rules:**
   - The call replaces the item's declaration: listed parts are kept or added, unlisted ones removed. `none: true` clears them and sets `items.shared_none_at`; declaring parts clears it.
@@ -865,9 +868,10 @@ B38 implemented the registry, `declare_shared_changes` and `list_shared_parts`. 
   - Each `part` must be registered and not archived, or be in `new_parts`, or it is `validation` naming the key. A part may appear once.
   - `new_parts` registers each part (`created_by` the agent), never single-writer (FR-158). A key that is already registered is reused as it is, not changed, and isn't listed in `registered`. `kind`, when given, must match the key's prefix.
   - **Overlaps** are the other in-flight items in the project that declare any of the same parts, except pairs the owner marked compatible and pairs already sequenced by a `blocks` link. They are informational: the claim enforces them. Declaring later, while the item is in progress, is allowed; a new overlap then flags both items and raises the owner question without revoking the claim (BUILD_SPEC §5.21 Declaring later; B39).
-- **Text rendering:** one line: `Declared 2 changes on GF-312 · registered table:decks · overlaps GF-240 on model:Token`.
-- **Events:** `shared.declared` on the item, and `shared_part.saved` for each part `new_parts` registered.
-- **Errors:** `validation` (limits, a key that doesn't parse, an unknown or archived part, a closed item, a secret in a note), `not_found` (item).
+  - **Branch** (B40): `branch`, when given, becomes the item's reported branch, the one the conflict radar trial-merges. It must be a name git accepts (`validation` otherwise), and it replaces any branch the radar found by name. The latest branch reported for an item wins, whether from this call, the owner's Shared changes section, `claim_lead`, or `submit_packet`. Omitting it keeps the item's branch. It doesn't change the item's version.
+- **Text rendering:** one line: `Declared 2 changes on GF-312 · branch eps5000/gf-312-decks · registered table:decks · overlaps GF-240 on model:Token` (` · branch …` only when `branch` is passed).
+- **Events:** `shared.declared` on the item, and `shared_part.saved` for each part `new_parts` registered, and `branch.reported` when `branch` changes the item's branch (B40).
+- **Errors:** `validation` (limits, a key that doesn't parse, an unknown or archived part, a closed item, a secret in a note, a branch name git wouldn't accept), `not_found` (item).
 - **Not retry-safe** (`idempotentHint: false`): pass `idempotency_key` when you might retry.
 
 #### `list_shared_parts`
