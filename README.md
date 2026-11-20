@@ -114,6 +114,28 @@ Docket was called Task Lite until B28. Nothing you already set up stops working,
 - **Stopping:** `docker compose down` keeps your data. `docker compose down --volumes` deletes the volume and everything in it, except backups you copied to the host.
 - **Deleting a project** (Settings → Projects → *Delete…*, after typing its key) removes its items and documents together. Backups keep a copy until they age out.
 
+### Updating from the published image
+
+Every merge to `main` publishes a ready-built image to `ghcr.io/eps5000/docket` (tags `main` and `sha-<commit>`), built on GitHub's runners. To update without building on your machine, which is useful when the machine is busy, point the service at it once in `docker/compose.override.yaml`:
+
+```yaml
+services:
+  docket:
+    image: ghcr.io/eps5000/docket:main
+    pull_policy: always
+```
+
+Then each update is a quick download and restart, with no local build:
+
+```
+cd docker
+docker compose exec docket docket backup now
+docker compose pull
+docker compose up -d
+```
+
+`docker compose up -d --build` still builds locally from the checkout, if you'd rather.
+
 ### After an update or import: the UI sweep
 After you update Docket or import a big project, run the read-only UI sweep against your instance. It opens every main screen (Needs you; Work as board, list, map and timeline; Agents; Agent files; Settings; Help), six sample items on each of their tabs, the palette and a step dialog, at 1024 px dark and 1440 px light. It only loads pages and opens and closes dialogs: it blocks anything that would write.
 ```bash
