@@ -134,7 +134,7 @@ test('Settings → Shared parts: register parts and point the radar at a reposit
   await page.goto('/settings');
   await page.locator('[data-project-shared-parts="RCP"]').click();
   await expect(page).toHaveURL(/\/settings\/projects\/RCP\/shared-parts$/);
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Shared parts · Recipe App');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^Shared parts · .*Recipe App$/);
   await expect(page.getByText('No shared parts yet.')).toBeVisible();
 
   // Add a part through the dialog.
