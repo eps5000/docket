@@ -1,0 +1,11 @@
+# Mergify merges only what CI has proven (owner pilot finding, 2026-11-20:
+# without this file the default queue merged #89 while its e2e job had failed).
+queue_rules:
+  - name: default
+    queue_conditions:
+      - check-success=build
+      - check-success=e2e
+    merge_conditions:
+      - check-success=build
+      - check-success=e2e
+    merge_method: merge
