@@ -14,7 +14,7 @@
  * - at 1024 px the row wraps inside the page and the menu stays on screen.
  */
 import type { Page } from '@playwright/test';
-import { expect, expectAxeClean, setTheme, test, unlock, useSeededContainer } from './fixtures';
+import { expect, expectAxeClean, test, unlock, useSeededContainer } from './fixtures';
 
 useSeededContainer();
 
@@ -70,13 +70,8 @@ test('the Epics strip hides done epics until Show N done, and keeps the filtered
   await expect(done).toContainText('10/10 done · Done');
   const hide = epics.getByRole('button', { name: 'Hide done' });
   await expect(hide).toHaveAttribute('aria-expanded', 'true');
-  for (const theme of ['light', 'dark'] as const) {
-    await setTheme(page, theme);
-    await expectAxeClean(page, `Epics strip with done shown (${theme})`, {
-      include: '[data-card="epics"]',
-    });
-  }
-  await setTheme(page, 'light');
+  // expectAxeClean scans in both themes.
+  await expectAxeClean(page, 'Epics strip with done shown', { include: '[data-card="epics"]' });
   await hide.click();
   await expect(epics.getByRole('heading', { name: 'Epics · 9' })).toBeVisible();
 
@@ -163,13 +158,9 @@ test('the Filters menu from the keyboard: a combination, pills, Clear; axe in bo
     /^Shows canceled\d+$/,
   ]);
   await expect(entry(page, 'For you')).toBeFocused();
-  for (const theme of ['light', 'dark'] as const) {
-    await setTheme(page, theme);
-    await expectAxeClean(page, `Work filter row with the menu open (${theme})`, {
-      include: '[data-work-filters]',
-    });
-  }
-  await setTheme(page, 'light');
+  await expectAxeClean(page, 'Work filter row with the menu open', {
+    include: '[data-work-filters]',
+  });
   await entry(page, 'For you').focus();
 
   // For you (Space ticks and keeps the menu open).
