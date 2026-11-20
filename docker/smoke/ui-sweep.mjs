@@ -142,8 +142,23 @@ function inPageLayout(maxDetails) {
     if (ownText && !s.display.startsWith('inline') && !clips(el)) {
       const spill = el.scrollWidth - el.clientWidth;
       if (spill > 2) {
-        overflow.push(`${describe(el)}: its text spills ${Math.round(spill)}px out of its box`);
-        continue;
+        // Fine when a clipping ancestor hides it before an ancestor wide
+        // enough to show it (a collapsed rail clips its labels on purpose).
+        const er = el.getBoundingClientRect();
+        const textRight = er.left + el.scrollWidth;
+        let hidden = false;
+        for (let a = el.parentElement; a && a !== doc; a = a.parentElement) {
+          if (clips(a)) {
+            hidden = true;
+            break;
+          }
+          const ar = a.getBoundingClientRect();
+          if (textRight <= ar.right + 1) break;
+        }
+        if (!hidden) {
+          overflow.push(`${describe(el)}: its text spills ${Math.round(spill)}px out of its box`);
+          continue;
+        }
       }
     }
     const r = el.getBoundingClientRect();
