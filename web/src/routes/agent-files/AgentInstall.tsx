@@ -208,7 +208,9 @@ export function InstallDialog({
   const writtenFor = (client: InstallClient) => {
     const layout = installLayout(client, target);
     const out = (files.data?.files ?? [])
-      .filter((f) => f.key !== AGENTS_BLOCK_KEY && f.key !== CONNECTION_KEY)
+      // Only skills are copied: the block goes into the instructions file (listed below), and
+      // the onboarding guide is never installed (B30).
+      .filter((f) => f.key.startsWith('skill:'))
       .map((f) => layout.display + installPathOf(layout, f.key));
     out.push(layout.display + layout.manifest);
     return { layout, paths: out, instructions: layout.display + layout.instructions };

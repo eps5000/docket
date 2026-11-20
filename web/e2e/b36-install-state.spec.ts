@@ -127,6 +127,13 @@ test.describe('Several clients and install state (decision 34)', () => {
     await expect(what.locator('[data-install-what-client="codex"]')).toContainText(
       '.codex/skills/docket-worker/SKILL.md',
     );
+    // Each instructions file once, as its Docket section (the onboarding guide is never installed).
+    await expect(
+      what.locator('[data-install-what-client="claude"] li').filter({ hasText: /^CLAUDE\.md/ }),
+    ).toHaveText(['CLAUDE.md (only its Docket section)']);
+    await expect(
+      what.locator('[data-install-what-client="codex"] li').filter({ hasText: /^AGENTS\.md/ }),
+    ).toHaveText(['AGENTS.md (only its Docket section)']);
     await expect(what.locator('[data-import-note]')).toContainText('starts with @AGENTS.md');
     await expect(d.locator('[data-connect-note]')).toContainText('.mcp.json, .codex/config.toml');
     await expect(d.getByRole('button', { name: 'Install', exact: true })).toBeVisible();
