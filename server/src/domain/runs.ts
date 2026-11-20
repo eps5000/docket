@@ -64,6 +64,7 @@ import {
   type ItemRow,
   type RunRow,
 } from './model.js';
+import { SeamConflict, claimOverlaps } from './shared-changes.js';
 import type { InverseOp, WriteContext } from './write.js';
 
 /**
@@ -376,6 +377,10 @@ export function createRunsService(deps: ServiceDeps): RunsService {
             { details: { blocked_by: deps2.blocked_by } },
           );
         }
+        // Decision 36 (FR-160): declared parts that overlap claimed work refuse the claim
+        // until the owner decides; the refusal raises one question per pair.
+        const overlaps = claimOverlaps(w.db, item);
+        if (overlaps.length > 0) throw new SeamConflict(item, overlaps);
       } else if (status !== 'progress') {
         throw new ToolError(
           'validation',
@@ -389,6 +394,11 @@ export function createRunsService(deps: ServiceDeps): RunsService {
       const label = input.agent_label ?? w.actor.label ?? null;
       const leaseUntil = isoPlus(w.now, deps.config.leaseMs);
       const columns = recovery(runId);
+      // Decision 36: the branch the work is on, for the conflict radar (radar.ts reads it
+      // from the workspace, or from this claim's event when no workspace was reported).
+      if (input.branch && columns.workspace) {
+        columns.workspace = { ...(columns.workspace as object), branch: input.branch };
+      }
       w.insert('runs', {
         id: runId,
         item_id: item.id,
@@ -413,7 +423,12 @@ export function createRunsService(deps: ServiceDeps): RunsService {
             : `${who} claimed lead to resume (${Math.round(deps.config.leaseMs / 60_000)} min lease)`,
         item_id: item.id,
         project_key: item.project_key,
-        data: { run_id: runId, lease_expires_at: leaseUntil, resumed: status === 'progress' },
+        data: {
+          run_id: runId,
+          lease_expires_at: leaseUntil,
+          resumed: status === 'progress',
+          ...(input.branch ? { branch: input.branch } : {}),
+        },
         objects: [{ kind: 'run', id: runId }],
       });
       if (status === 'ready')

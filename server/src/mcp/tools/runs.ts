@@ -18,19 +18,24 @@ type WriteContext = Parameters<Parameters<ToolContext['mutate']>[0]>[0];
  * the refusal rolls the claim's own transaction back. The service hands the
  * record back on the error; it is written here through the write path, with
  * no idempotency key, so a retried claim is refused (and recorded) again.
+ * Decision 36 reuses it: a `seam_conflict` claim opens the overlap question,
+ * and a `set_status` done refused with `not_declared` opens the hold.
  */
-function recordRejectedClaim(ctx: ToolContext, args: { id: string }, err: unknown): void {
+export function recordRejection(
+  ctx: ToolContext,
+  tool: string,
+  args: { id: string },
+  err: unknown,
+): void {
   const record = (err as { recordRejection?: (w: WriteContext) => void } | null)?.recordRejection;
   if (typeof record !== 'function') return;
   try {
     ctx.runtime.write.run(
-      { actor: ctx.actor, operation: 'claim_lead.rejected', args: { id: args.id } },
+      { actor: ctx.actor, operation: `${tool}.rejected`, args: { id: args.id } },
       record,
     );
   } catch (logErr) {
-    ctx.runtime.log(
-      `claim_lead: recording the rejected claim failed: ${(logErr as Error).message}`,
-    );
+    ctx.runtime.log(`${tool}: recording the refusal failed: ${(logErr as Error).message}`);
   }
 }
 
@@ -64,7 +69,7 @@ export const runsHandlers: Pick<
     try {
       out = ctx.mutate((w) => ctx.services.runs.claim(w, serviceArgs(args)));
     } catch (err) {
-      recordRejectedClaim(ctx, args, err);
+      recordRejection(ctx, 'claim_lead', args, err);
       throw err;
     }
     firstSignal(ctx, out.run_id);

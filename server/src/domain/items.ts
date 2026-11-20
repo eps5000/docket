@@ -49,6 +49,13 @@ import {
 } from './model.js';
 import { inScopeOf } from './decisions.js';
 import { activeSessionOf } from './onboarding-tag.js';
+import {
+  HoldRefusal,
+  assertReadyGate,
+  hasDeclared,
+  onItemClosed,
+  undeclaredChanges,
+} from './shared-changes.js';
 import type { InverseOp, WriteContext } from './write.js';
 
 /** The moves `set_status` allows from each status (BUILD_SPEC §5.1). Review is entered by submit_packet. */
@@ -433,6 +440,8 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
             { details: { status: from, allowed: OWNER_MOVES[from] ?? [] } },
           );
         }
+        // The Ready gate (decision 36): undeclared items need the owner's reason.
+        if (to === 'ready' && !input.override_reason) assertReadyGate(w.db, before, true);
         set.status = to;
         move = { from, to };
       }
@@ -481,12 +490,19 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
       if (move) {
         // One undo reverses both: the update event carries the inverse when there is one.
         const touch: InverseOp = { op: 'update', table: 'items', id: before.id, set: {} };
+        const override =
+          move.to === 'ready' && input.override_reason && !hasDeclared(w.db, before.id)
+            ? input.override_reason
+            : null;
         w.event({
           type: 'item.status_changed',
-          summary: `You moved ${before.id} from ${move.from} to ${move.to}`,
+          summary: `You moved ${before.id} from ${move.from} to ${move.to}${override ? ` without declaring its shared changes: ${override}` : ''}`,
           item_id: before.id,
           project_key: before.project_key,
-          data: { status: { old: move.from, new: move.to } },
+          data: {
+            status: { old: move.from, new: move.to },
+            ...(override ? { override_reason: override } : {}),
+          },
           inverse: edited ? [touch] : inverse,
         });
       }
@@ -526,6 +542,9 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
         );
       }
 
+      // The Ready gate (decision 36; FR-159): planning → ready needs a declaration, or none.
+      // Giving up work (progress → ready) isn't gated: the item was Ready before.
+      if (from === 'planning' && to === 'ready') assertReadyGate(w.db, item);
       if (from === 'ready' && to === 'progress') {
         const s = summary(w, item.id);
         if (s.blocked) {
@@ -558,6 +577,12 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
               },
             },
           );
+        }
+        // Decision 36 (FR-162): changed files that map to parts the item didn't declare
+        // hold it for the owner; the refusal raises the question in a write of its own.
+        if (input.changed_files?.length) {
+          const held = undeclaredChanges(w.db, item, input.changed_files);
+          if (held.parts.length > 0) throw new HoldRefusal(item, held.parts, held.files);
         }
         if (item.type === 'Epic') {
           const open = openChildren(w.db, item.id);
@@ -653,8 +678,18 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
         summary: `${who} moved ${item.id} from ${from} to ${to}${input.reason ? `: ${input.reason}` : ''}`,
         item_id: item.id,
         project_key: project,
-        data: { status: { old: from, new: to }, ...(input.reason ? { reason: input.reason } : {}) },
+        data: {
+          status: { old: from, new: to },
+          ...(input.reason ? { reason: input.reason } : {}),
+          // Decision 36: what the close reported, for the radar and the record.
+          ...(to === 'done' && input.branch ? { branch: input.branch } : {}),
+          ...(to === 'done' && input.changed_files
+            ? { changed_files: input.changed_files.length }
+            : {}),
+        },
       });
+      // Decision 36: Done and canceled end the item's leases and its overlaps.
+      if (to === 'done' || to === 'canceled') onItemClosed(w, item.id, to);
       return summary(w, item.id);
     },
 
@@ -725,6 +760,15 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
       ).map((r) => r.id);
       if (ids.length === 0) {
         throw new ToolError('validation', `Nothing with #${input.name} is in Planning.`);
+      }
+      // The Ready gate (decision 36): every item must have declared its shared changes.
+      const undeclared = ids.filter((id) => !hasDeclared(w.db, id));
+      if (undeclared.length > 0) {
+        throw new ToolError(
+          'not_declared',
+          `Declare the shared parts ${undeclared.join(', ')} will change (or none) before ${undeclared.length === 1 ? 'it moves' : 'they move'} to Ready. Open each item's Shared changes.`,
+          { details: { items: undeclared } },
+        );
       }
       for (const id of ids) {
         const inverse = w.update('items', id, { status: 'ready' });

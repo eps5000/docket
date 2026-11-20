@@ -22,7 +22,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { In, Services } from '../../src/domain/contracts.js';
 import { undoMutation } from '../../src/domain/undo.js';
 import { OWNER_ACTOR, type WriteContext, type WriteResult } from '../../src/domain/write.js';
-import { forceStatus, startDomain, type Domain } from '../us1-helpers.js';
+import { declareNone, forceStatus, startDomain, type Domain } from '../us1-helpers.js';
 
 let d: Domain;
 beforeEach(() => {
@@ -465,6 +465,7 @@ describe('owner text edits', () => {
         "SELECT summary FROM events WHERE item_id = 'RCP-20' ORDER BY seq DESC LIMIT 1",
       ).summary,
     ).toBe('You moved RCP-20 from inbox to planning');
+    declareNone(d, 'RCP-20'); // the Ready gate (decision 36)
     res = patch('RCP-20', { expected_version: version('RCP-20'), status: 'ready', priority: 1 });
     expect(res.result).toMatchObject({ status: 'ready', priority: 1 });
     res = patch('RCP-20', { expected_version: version('RCP-20'), status: 'planning' });
@@ -549,6 +550,7 @@ describe('labels', () => {
   });
 
   it('Move N to Ready moves every Planning item with the label, undoably', () => {
+    declareNone(d, 'RCP-23', 'RCP-27'); // the Ready gate (decision 36)
     const { result, mutation_id } = owner((w, s) =>
       s.items.moveLabelToReady(w, { project: 'RCP', name: 'ui-refresh' }),
     );

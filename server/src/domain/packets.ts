@@ -37,6 +37,7 @@ import {
   type ItemRow,
 } from './model.js';
 import { deferredOf, openPackets, scoped } from './views.js';
+import { declaredKeys, endLeasesOf, raiseHold, undeclaredChanges } from './shared-changes.js';
 import { canonicalJson, type InverseOp } from './write.js';
 
 export interface PacketRow {
@@ -51,6 +52,10 @@ export interface PacketRow {
   gaps: string | null;
   created_by: string;
   state: 'open' | 'decided' | 'withdrawn';
+  /** Decision 36: JSON arrays as reported or held; null when absent. */
+  changed_files?: string | null;
+  branch?: string | null;
+  held_undeclared?: string | null;
   version: number;
   created_at: string;
   updated_at: string;
@@ -205,6 +210,29 @@ function decodeCursor(cursor: string): number {
   );
 }
 
+/**
+ * What a packet says about shared changes (decision 36; BUILD_SPEC §5.21
+ * Hand-off): the changed files and branch as reported, whether it is held for
+ * undeclared parts (and the hold to decide), and "Changed files not
+ * reported" when an item with declarations handed off without them.
+ */
+function sharedOf(db: Db, itemId: string, packet: PacketRow) {
+  const held = packet.held_undeclared ? (JSON.parse(packet.held_undeclared) as string[]) : null;
+  const hold = held
+    ? (db.sqlite
+        .prepare("SELECT id FROM undeclared_holds WHERE packet_id = ? AND state = 'open'")
+        .get(packet.id) as { id: string } | undefined)
+    : undefined;
+  const files = packet.changed_files ? (JSON.parse(packet.changed_files) as string[]) : null;
+  return {
+    changed_files: files,
+    branch: packet.branch ?? null,
+    held_undeclared: held,
+    hold_id: hold?.id ?? null,
+    not_reported: files === null && declaredKeys(db, itemId).length > 0,
+  };
+}
+
 export function createPacketsService(deps: ServiceDeps): PacketsService {
   const windows = () => windowsOf(deps.config);
 
@@ -349,7 +377,7 @@ export function createPacketsService(deps: ServiceDeps): PacketsService {
         gaps,
         created_by: who,
         state: 'open',
-        // Decision 36 (B38): stored as reported; B39 (T183) maps them and holds the packet.
+        // Decision 36: stored as reported, then mapped through the parts' paths below.
         changed_files: input.changed_files ?? null,
         branch: input.branch ?? null,
         version: 1,
@@ -394,11 +422,26 @@ export function createPacketsService(deps: ServiceDeps): PacketsService {
         project_key: item.project_key,
         data: { status: { old: 'progress', new: 'review' }, packet_id: packetId },
       });
+      // Decision 36 (FR-162): changes to parts the item didn't declare hold the packet: it
+      // is created, but its review gate stays closed until the owner decides. A hand-off
+      // ends the item's leases either way.
+      const held = undeclaredChanges(w.db, item, input.changed_files ?? []);
+      if (held.parts.length > 0) {
+        w.update('packets', packetId, { held_undeclared: held.parts });
+        raiseHold(w, item, {
+          via: 'submit_packet',
+          packet_id: packetId,
+          parts: held.parts,
+          files: held.files,
+        });
+      }
+      endLeasesOf(w, item.id, 'handed_off');
       return {
         packet_id: packetId,
         round,
         display_id: display,
         item: summaryOf({ db: w.db, windows: windows(), now: w.now }, item.id),
+        ...(held.parts.length > 0 ? { held_undeclared: held.parts } : {}),
       };
     },
 
@@ -545,6 +588,7 @@ export function createPacketsService(deps: ServiceDeps): PacketsService {
           checked: json<ReviewResponse['packet']['checked']>(packet.checked, []),
           gaps: json<string[]>(packet.gaps, []),
           attachments,
+          shared: sharedOf(db, item.id, packet),
         },
         unblocks: index.unblocks(item.id),
       };

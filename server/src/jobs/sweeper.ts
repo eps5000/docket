@@ -33,6 +33,7 @@ import { readContext } from '../domain/contracts.js';
 import { ms } from '../domain/model.js';
 import type { RunRow } from '../domain/model.js';
 import { orphans, parkInfo } from '../domain/recovery-model.js';
+import { RADAR_INTERVAL_MS, radarProjects } from '../domain/radar.js';
 import { SYSTEM_ACTOR } from '../domain/write.js';
 import type { Runtime } from '../runtime.js';
 
@@ -227,6 +228,56 @@ export function startDriftCheck(
   return {
     stop() {
       stopped = true;
+      clearInterval(timer);
+    },
+  };
+}
+
+// ---- The conflict radar (owner decision 36; BUILD_SPEC §5.21; T184) ----
+
+/**
+ * One radar run for a project (domain/radar.ts): plan (read the database and
+ * trial-merge, outside any transaction), record the findings through the
+ * write path, then stamp the run. A run that finds nothing new writes no
+ * event. `actor` is the system for scheduled runs.
+ */
+export function radarRunOnce(runtime: Runtime, project: string, actor = SYSTEM_ACTOR): void {
+  const svc = runtime.services.sharedChanges;
+  const plan = svc.planRadar(readContext(runtime.db, actor, runtime.clock()), { key: project });
+  runtime.write.run({ actor, operation: 'radar.run', args: { key: project } }, (w) =>
+    svc.recordRadar(w, plan),
+  );
+  svc.finishRadar(readContext(runtime.db, actor, runtime.clock()), plan);
+}
+
+/**
+ * Run the radar for every project with a repository at startup and every
+ * 15 minutes (BUILD_SPEC §5.21: at least every 15 minutes). Tests pass a
+ * shorter `intervalMs`, or null to turn it off. A failing project is logged
+ * and skipped; the others still run.
+ */
+export function startRadar(runtime: Runtime, opts: { intervalMs?: number | null } = {}): Sweeper {
+  const interval = opts.intervalMs === undefined ? RADAR_INTERVAL_MS : opts.intervalMs;
+  if (!interval) return { stop() {} };
+  let stopped = false;
+  const tick = () => {
+    if (stopped) return;
+    for (const key of radarProjects(runtime.db)) {
+      try {
+        radarRunOnce(runtime, key);
+      } catch (err) {
+        runtime.log(`radar: ${key} failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+  };
+  const first = setTimeout(tick, 5_000);
+  first.unref();
+  const timer = setInterval(tick, interval);
+  timer.unref();
+  return {
+    stop() {
+      stopped = true;
+      clearTimeout(first);
       clearInterval(timer);
     },
   };

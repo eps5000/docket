@@ -17,6 +17,10 @@
  * 4b. the current step (decision 33): the step in state `current`, else the
  *    first `todo`, with its details, cut inline with a marker that points
  *    at `get_step`, or left out with one when nothing of it fits;
+ * 4c. shared changes (decision 36): the item's declaration, other in-flight
+ *    items' declared changes to its parts, up to 30 other in-flight
+ *    declarations, its leases and radar findings (`get_context.shared`);
+ *    rendered after the Workflow notes, cut before them;
  * 5. the project's Workflow notes (decision 29; agent-files.ts), the
  *    current non-empty version: placed after sections 1–4, so it is the
  *    first of 1–5 to be cut; a cut is marked inline (`…truncated`), and
@@ -38,7 +42,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { renderContext, type ContextBundle, type Status } from '@docket/shared';
+import { renderContext, type ContextBundle, type ContextShared, type Status } from '@docket/shared';
 import type { ContextService, ReadContext, ServiceDeps } from './contracts.js';
 import { currentWorkflow } from './agent-files.js';
 import { inScopeOf, labelsOf } from './decisions.js';
@@ -111,6 +115,7 @@ interface Full {
   dependents: Bundle['dependents'];
   step: Step | null;
   workflow: Bundle['workflow'];
+  shared: ContextShared;
   docs: (Doc & { full: string | null })[];
   last_review: Bundle['last_review'];
 }
@@ -281,6 +286,7 @@ function gather(r: ReadContext, deps: ServiceDeps, id: string): Full {
       const wf = currentWorkflow(db, row.project_key);
       return wf ? { ...wf, truncated: false } : null;
     })(),
+    shared: deps.services().sharedChanges.contextFor(r, { item_id: id, max_chars: Infinity }),
     docs,
     last_review: last_review && last_review.items.length > 0 ? last_review : null,
   };
@@ -340,6 +346,8 @@ export function assemble(
   const stepMarker = (st: Step) =>
     `current step ${st.id}${st.details_md ? ` and its details` : ''}; read it with get_step ${id} ${st.id}`;
   if (full.step) pending.set('step', stepMarker(full.step));
+  const sharedMarker = `shared changes; read them with list_shared_parts ${id.split('-')[0]!}`;
+  pending.set('shared', sharedMarker);
   if (full.workflow)
     pending.set(
       'workflow',
@@ -507,6 +515,31 @@ export function assemble(
       else {
         b.current_step = null;
         done('step', stepMarker(source));
+      }
+    }
+  }
+
+  // 4c. Shared changes (decision 36; BUILD_SPEC §5.21 Context): the declaration, the other
+  // in-flight items' changes to its parts, other in-flight declarations, leases and radar
+  // findings. When it doesn't fit, other in-flight declarations go first, then overlapping
+  // ones (marked `truncated`); failing that, it's left out with a marker.
+  if (room) {
+    pending.delete('shared');
+    const src = full.shared;
+    const sh: ContextShared = {
+      ...src,
+      overlapping: [...src.overlapping],
+      in_flight: [...src.in_flight],
+    };
+    b.shared = sh;
+    if (!fits()) {
+      sh.truncated = true;
+      while (sh.in_flight.length > 0 && !fits()) sh.in_flight.pop();
+      while (sh.overlapping.length > 0 && !fits()) sh.overlapping.pop();
+      if (fits()) room = false;
+      else {
+        delete b.shared;
+        done('shared', sharedMarker);
       }
     }
   }

@@ -1,0 +1,115 @@
+/**
+ * A fixture repository for the conflict radar (decision 36; tasks.md T184):
+ * a `main` branch and three worktree branches, built with the git CLI in a
+ * temporary folder (never a real repository).
+ *
+ * `shared.txt` has five lines. After the branches leave `main`:
+ * - `main` changes line 5;
+ * - `feat/a` (worktree `wt-a`) changes line 2: clean against `main`;
+ * - `feat/b` (worktree `wt-b`) changes lines 2 and 5: it conflicts with
+ *   `main` (line 5) and with `feat/a` (line 2);
+ * - `feat/c` (worktree `wt-c`) adds `other.txt`: clean against everything.
+ *
+ * `hashGitDir` hashes every file under `.git` (path and bytes), so a test can
+ * prove a radar run left the repository byte-for-byte unchanged.
+ */
+import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { join, relative } from 'node:path';
+
+/** Run git in `cwd` with a neutral identity and no user or system config; throws on failure. */
+export function git(cwd: string, ...args: string[]): string {
+  const r = spawnSync(
+    'git',
+    [
+      '-c',
+      'user.name=Docket Test',
+      '-c',
+      'user.email=test@docket.invalid',
+      '-c',
+      'commit.gpgsign=false',
+      '-c',
+      'core.autocrlf=false',
+      '-c',
+      'init.defaultBranch=main',
+      ...args,
+    ],
+    {
+      cwd,
+      encoding: 'utf8',
+      windowsHide: true,
+      env: { ...process.env, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: devNull() },
+    },
+  );
+  if (r.status !== 0) throw new Error(`git ${args.join(' ')} failed: ${r.stderr}`);
+  return r.stdout;
+}
+
+const devNull = () => (process.platform === 'win32' ? 'NUL' : '/dev/null');
+
+const LINES = ['one', 'two', 'three', 'four', 'five'];
+const text = (lines: string[]) => `${lines.join('\n')}\n`;
+
+export interface RadarRepo {
+  /** The main checkout: `<root>/recipe-app`. */
+  repo: string;
+  /** Worktree folders by branch. */
+  worktrees: Record<'feat/a' | 'feat/b' | 'feat/c', string>;
+}
+
+/** Build the fixture under `root` (a temporary push root). */
+export function makeRadarRepo(root: string): RadarRepo {
+  const repo = join(root, 'recipe-app');
+  mkdirSync(repo, { recursive: true });
+  git(repo, 'init', '-q', '-b', 'main');
+  writeFileSync(join(repo, 'shared.txt'), text(LINES));
+  git(repo, 'add', 'shared.txt');
+  git(repo, 'commit', '-q', '-m', 'Start');
+  for (const b of ['feat/a', 'feat/b', 'feat/c']) git(repo, 'branch', b);
+
+  // main moves on: line 5.
+  writeFileSync(join(repo, 'shared.txt'), text([...LINES.slice(0, 4), 'five on main']));
+  git(repo, 'commit', '-q', '-am', 'Main changes line 5');
+
+  const worktrees = {
+    'feat/a': join(root, 'wt-a'),
+    'feat/b': join(root, 'wt-b'),
+    'feat/c': join(root, 'wt-c'),
+  } as const;
+  for (const [branch, dir] of Object.entries(worktrees)) {
+    git(repo, 'worktree', 'add', '-q', dir, branch);
+  }
+  writeFileSync(
+    join(worktrees['feat/a'], 'shared.txt'),
+    text(['one', 'two from a', ...LINES.slice(2)]),
+  );
+  git(worktrees['feat/a'], 'commit', '-q', '-am', 'A changes line 2');
+  writeFileSync(
+    join(worktrees['feat/b'], 'shared.txt'),
+    text(['one', 'two from b', 'three', 'four', 'five from b']),
+  );
+  git(worktrees['feat/b'], 'commit', '-q', '-am', 'B changes lines 2 and 5');
+  writeFileSync(join(worktrees['feat/c'], 'other.txt'), 'other\n');
+  git(worktrees['feat/c'], 'add', 'other.txt');
+  git(worktrees['feat/c'], 'commit', '-q', '-m', 'C adds a file');
+  return { repo, worktrees };
+}
+
+/** Every file under `<repo>/.git` with the SHA-256 of its bytes, by repo-relative path. */
+export function hashGitDir(repo: string): Map<string, string> {
+  const base = join(repo, '.git');
+  const out = new Map<string, string>();
+  const walk = (dir: string) => {
+    for (const name of readdirSync(dir).sort()) {
+      const full = join(dir, name);
+      if (statSync(full).isDirectory()) walk(full);
+      else {
+        const rel = relative(base, full).replace(/\\/g, '/');
+        out.set(rel, createHash('sha256').update(readFileSync(full)).digest('hex'));
+      }
+    }
+  };
+  walk(base);
+  return out;
+}

@@ -147,15 +147,19 @@ const B2_ROUTES: readonly RouteId[] = [
   'projects.create',
   'onboarding.list',
   'onboarding.reviewed',
-  // Decision 36 (B38, T182): the registry, the declaration and the reads (content in
-  // us18-shared-contracts.test.ts). The decisions, lease release and the radar's settings and
-  // runs answer 501 until B39 (T183, T184).
+  // Decision 36 (B38, T182; B39, T183–T184): the registry, the declaration, the reads, the
+  // decisions, lease release and the radar (content in us18-shared-contracts.test.ts).
   'sharedParts.list',
   'sharedParts.create',
   'sharedParts.update',
   'itemShared.get',
   'itemShared.put',
   'radar.get',
+  'overlaps.decide',
+  'undeclaredHolds.decide',
+  'leases.release',
+  'radar.settings',
+  'radar.run',
 ];
 
 interface Req {

@@ -108,6 +108,7 @@ import type { Config, SecretStore } from '../config.js';
 import type { Db } from '../db/client.js';
 import type { CallLog } from '../jobs/logs.js';
 import type { Actor, WriteContext } from './write.js';
+import type { RadarPlan } from './radar.js';
 
 export type { Actor, WriteContext } from './write.js';
 
@@ -591,7 +592,13 @@ export interface SharedChangesService {
   declare(w: WriteContext, input: In<'declare_shared_changes'>): Out<'declare_shared_changes'>;
   /** `list_shared_parts`: the registry with in-flight declarations and leases. Read-only. */
   listParts(r: ReadContext, input: In<'list_shared_parts'>): Out<'list_shared_parts'>;
-  /** `take_lease` (B39): `lease_held` when another item holds it; a renewal writes no event. */
+  /**
+   * `take_lease` when the item already holds the part's live lease: move its
+   * expiry, outside the write path (a renewal writes no event, like a
+   * heartbeat). Null when it isn't a renewal; then `takeLease` runs.
+   */
+  renewLease(r: ReadContext, input: In<'take_lease'>): Out<'take_lease'> | null;
+  /** `take_lease` (B39): `lease_held` when another item holds it. Event `lease.taken`. */
   takeLease(w: WriteContext, input: In<'take_lease'>): Out<'take_lease'>;
   /** `release_lease` (B39): event `lease.ended`. */
   releaseLease(w: WriteContext, input: In<'release_lease'>): Out<'release_lease'>;
@@ -638,8 +645,15 @@ export interface SharedChangesService {
     w: WriteContext,
     input: RouteParams<'radar.settings'> & RouteBody<'radar.settings'>,
   ): RadarResponse;
-  /** *Run radar now* (B39, T184): events `radar.found` and `radar.cleared`. */
-  runRadar(w: WriteContext, input: RouteParams<'radar.run'>): RadarResponse;
+  /**
+   * A radar run (B39, T184; radar.ts), in three steps so git never holds the
+   * write transaction: `planRadar` reads and trial-merges (writes nothing),
+   * `recordRadar` writes findings and clearings (events `radar.found` and
+   * `radar.cleared`), `finishRadar` stamps the run on the project.
+   */
+  planRadar(r: ReadContext, input: RouteParams<'radar.run'>): RadarPlan;
+  recordRadar(w: WriteContext, plan: RadarPlan): void;
+  finishRadar(r: ReadContext, plan: RadarPlan): void;
 }
 
 /** Work steps, subagent logs and agent checks (§5.5). */

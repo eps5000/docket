@@ -26,7 +26,7 @@ import {
   type Completion,
 } from '../../src/domain/forecast.js';
 import { OWNER_ACTOR, type Actor } from '../../src/domain/write.js';
-import { addProject, startDomain, type Domain } from '../us1-helpers.js';
+import { addProject, declareNone, startDomain, type Domain } from '../us1-helpers.js';
 
 const DAY = 86_400_000;
 const NOV_16 = '2026-11-16T12:00:00Z';
@@ -49,7 +49,7 @@ function create(
     project?: string;
   } = {},
 ): string {
-  return d.write(claude, (w, s) =>
+  const id = d.write(claude, (w, s) =>
     s.items.create(w, {
       project: opts.project ?? 'TST',
       type: opts.type ?? 'Task',
@@ -63,6 +63,8 @@ function create(
       ...(opts.end ? { planned_end: opts.end } : {}),
     }),
   ).id;
+  declareNone(d, id); // the Ready gate (decision 36)
+  return id;
 }
 
 function move(id: string, status: Status, reason?: string): void {

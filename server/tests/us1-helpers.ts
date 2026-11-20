@@ -100,3 +100,16 @@ export function forceStatus(d: Domain, id: string, status: string): void {
 }
 
 export const minutes = (n: number) => n * 60_000;
+
+/**
+ * Declare that items change no shared part (fixture only), so the Ready gate
+ * passes them (decision 36; BUILD_SPEC §5.21). No event, like `forceStatus`.
+ */
+export function declareNone(d: Domain, ...ids: string[]): void {
+  const t = d.clock.now().toISOString();
+  for (const id of ids) {
+    d.sql
+      .prepare('UPDATE items SET shared_none_at = ? WHERE id = ? AND shared_none_at IS NULL')
+      .run(t, id);
+  }
+}

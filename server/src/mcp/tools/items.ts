@@ -8,6 +8,7 @@
  * implements the service; registration, schemas and copy stay as they are.
  */
 import { serviceArgs, type ToolHandlers } from '../register.js';
+import { recordRejection } from './runs.js';
 
 export const itemsHandlers: Pick<
   ToolHandlers,
@@ -19,9 +20,15 @@ export const itemsHandlers: Pick<
   update_item: (args, ctx) => ({
     item: ctx.mutate((w) => ctx.services.items.update(w, serviceArgs(args))),
   }),
-  set_status: (args, ctx) => ({
-    item: ctx.mutate((w) => ctx.services.items.setStatus(w, serviceArgs(args))),
-  }),
+  set_status: (args, ctx) => {
+    try {
+      return { item: ctx.mutate((w) => ctx.services.items.setStatus(w, serviceArgs(args))) };
+    } catch (err) {
+      // Decision 36: a close refused for undeclared shared parts raises the owner question.
+      recordRejection(ctx, 'set_status', args, err);
+      throw err;
+    }
+  },
   link_items: (args, ctx) => ctx.mutate((w) => ctx.services.links.link(w, serviceArgs(args))),
   unlink_items: (args, ctx) => {
     ctx.mutate((w) => ctx.services.links.unlink(w, serviceArgs(args)));

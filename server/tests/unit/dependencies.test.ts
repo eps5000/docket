@@ -11,7 +11,7 @@ import type { SatisfiedWhen, Status } from '@docket/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Actor } from '../../src/domain/write.js';
 import { OWNER_ACTOR } from '../../src/domain/write.js';
-import { addProject, startDomain, type Domain } from '../us1-helpers.js';
+import { addProject, declareNone, startDomain, type Domain } from '../us1-helpers.js';
 
 let d: Domain;
 let claude: Actor;
@@ -27,9 +27,11 @@ afterEach(() => d.cleanup());
 // ---- Fixtures ----
 
 function create(title: string, project = 'TST', status: 'inbox' | 'planning' = 'planning') {
-  return d.write(claude, (w, s) =>
+  const id = d.write(claude, (w, s) =>
     s.items.create(w, { project, type: 'Task', title, priority: 2, status }),
   ).id;
+  declareNone(d, id); // the Ready gate (decision 36)
+  return id;
 }
 
 function move(id: string, status: Status, reason?: string) {

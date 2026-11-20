@@ -5,10 +5,10 @@
  * the radar card.
  *
  * Each route sits behind the owner session (and CSRF on mutations), is
- * strictly validated, and calls the `sharedChanges` service. B38 implements
- * the registry, the declaration and the reads; the decisions, lease release
- * and the radar's settings and runs answer 501 until B39 (T183, T184).
- * The registry and declaration edits are undoable.
+ * strictly validated, and calls the `sharedChanges` service (B38: the
+ * registry, the declaration and the reads; B39: the decisions, lease release
+ * and the radar's settings and runs). The registry and declaration edits are
+ * undoable; the rest reach agents at once and aren't.
  */
 import type { Env, Hono } from 'hono';
 import { defineRoute, type RouteDeps } from '../define.js';
@@ -78,9 +78,11 @@ export function sharedRoutes<E extends Env>(api: Hono<E>, deps: RouteDeps): void
     return { mutation_id, radar: result };
   });
 
-  /** *Run radar now*. */
-  defineRoute(api, 'radar.run', deps, ({ services, mutate, params }) => {
-    const { result, mutation_id } = mutate((w) => services.sharedChanges.runRadar(w, params));
-    return { mutation_id, radar: result };
+  /** *Run radar now*: git runs before the write, never inside it (radar.ts). */
+  defineRoute(api, 'radar.run', deps, ({ services, read, mutate, params }) => {
+    const plan = services.sharedChanges.planRadar(read, params);
+    const { mutation_id } = mutate((w) => services.sharedChanges.recordRadar(w, plan));
+    services.sharedChanges.finishRadar(read, plan);
+    return { mutation_id, radar: services.sharedChanges.radar(read, params) };
   });
 }

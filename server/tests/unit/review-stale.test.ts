@@ -13,7 +13,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { In } from '../../src/domain/contracts.js';
 import { OWNER_ACTOR } from '../../src/domain/write.js';
-import { startDomain, type Domain } from '../us1-helpers.js';
+import { declareNone, startDomain, type Domain } from '../us1-helpers.js';
 import {
   commit,
   decide,
@@ -235,6 +235,7 @@ describe('the deferred list (deferred_reviews, Needs you)', () => {
     d.write(agent, (w, s) =>
       s.items.setStatus(w, { id: followId!, status: 'planning' } as In<'set_status'>),
     );
+    declareNone(d, followId!); // the Ready gate (decision 36)
     d.write(agent, (w, s) =>
       s.items.setStatus(w, { id: followId!, status: 'ready' } as In<'set_status'>),
     );
