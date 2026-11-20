@@ -97,10 +97,16 @@ async function owner(page: Page, method: 'GET' | 'POST' | 'PUT', path: string, d
 const toast = (page: Page, text: string | RegExp) =>
   page.locator('.toast').filter({ hasText: text });
 
-/** Wait for toasts to finish fading in before axe (B25). */
+/** Wait for toasts to finish fading in before axe (B25); endless animations are skipped. */
 async function settle(page: Page) {
   await page.evaluate(() =>
-    Promise.all(document.getAnimations().map((a) => a.finished.catch(() => undefined))),
+    Promise.all(
+      document
+        .getAnimations()
+        // Only animations that end (a toast fading in), not a live run's endless pulse.
+        .filter((a) => a.effect?.getComputedTiming().endTime !== Infinity)
+        .map((a) => a.finished.catch(() => undefined)),
+    ),
   );
 }
 
