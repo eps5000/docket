@@ -17,7 +17,12 @@
  * 4b. the current step (decision 33): the step in state `current`, else the
  *    first `todo`, with its details, cut inline with a marker that points
  *    at `get_step`, or left out with one when nothing of it fits;
- * 4c. shared changes (decision 36): the item's declaration, other in-flight
+ * 4c. problems (decision 37): the item's open problems in the owner's words
+ *    (what's wrong, what fixes it, who acts, with the ID `propose_resolution`
+ *    takes) and its newest proposed resolutions with the owner's choice;
+ *    rendered after shared changes; when they don't fit, resolutions go
+ *    first, then problems from the end, with a marker;
+ * 4d. shared changes (decision 36): the item's declaration, other in-flight
  *    items' declared changes to its parts, up to 30 other in-flight
  *    declarations, its leases and radar findings (`get_context.shared`);
  *    rendered after the Workflow notes, cut before them;
@@ -47,6 +52,7 @@ import type { ContextService, ReadContext, ServiceDeps } from './contracts.js';
 import { currentWorkflow } from './agent-files.js';
 import { inScopeOf, labelsOf } from './decisions.js';
 import { BlockIndex, currentSteps, requireItem } from './model.js';
+import { contextResolutions } from './problems.js';
 
 /** Approximate tokens per budget (BUILD_SPEC §5.15). */
 export const CONTEXT_BUDGETS = { small: 1_000, medium: 3_000, large: 8_000 } as const;
@@ -116,6 +122,8 @@ interface Full {
   step: Step | null;
   workflow: Bundle['workflow'];
   shared: ContextShared;
+  problems: NonNullable<Bundle['problems']>;
+  resolutions: NonNullable<Bundle['resolutions']>;
   docs: (Doc & { full: string | null })[];
   last_review: Bundle['last_review'];
 }
@@ -287,6 +295,20 @@ function gather(r: ReadContext, deps: ServiceDeps, id: string): Full {
       return wf ? { ...wf, truncated: false } : null;
     })(),
     shared: deps.services().sharedChanges.contextFor(r, { item_id: id, max_chars: Infinity }),
+    // Decision 37: the item's open problems, acknowledged or not, in the owner's words.
+    problems: deps
+      .services()
+      .views.itemProblems(r, row.id)
+      .filter((p) => p.id && p.explanation)
+      .map((p) => ({
+        id: p.id!,
+        kind: p.kind,
+        what: p.explanation!.what,
+        fix: p.explanation!.fix,
+        who: p.explanation!.who,
+        who_text: p.explanation!.who_text,
+      })),
+    resolutions: contextResolutions(db, row.id),
     docs,
     last_review: last_review && last_review.items.length > 0 ? last_review : null,
   };
@@ -346,6 +368,12 @@ export function assemble(
   const stepMarker = (st: Step) =>
     `current step ${st.id}${st.details_md ? ` and its details` : ''}; read it with get_step ${id} ${st.id}`;
   if (full.step) pending.set('step', stepMarker(full.step));
+  const problemsMarker = (n: number, m: number) =>
+    `${[n > 0 ? plural(n, 'problem') : null, m > 0 ? plural(m, 'proposed resolution') : null]
+      .filter(Boolean)
+      .join(' and ')}${larger}`;
+  if (full.problems.length + full.resolutions.length > 0)
+    pending.set('problems', problemsMarker(full.problems.length, full.resolutions.length));
   const sharedMarker = `shared changes; read them with list_shared_parts ${id.split('-')[0]!}`;
   pending.set('shared', sharedMarker);
   if (full.workflow)
@@ -519,7 +547,27 @@ export function assemble(
     }
   }
 
-  // 4c. Shared changes (decision 36; BUILD_SPEC §5.21 Context): the declaration, the other
+  // 4c. Problems (decision 37; BUILD_SPEC §5.15): kept whole while they fit; else the
+  // resolutions go first, then problems from the end, with a marker for what was left out.
+  if (room && full.problems.length + full.resolutions.length > 0) {
+    pending.delete('problems');
+    b.problems = [...full.problems];
+    b.resolutions = [...full.resolutions];
+    const left = () =>
+      problemsMarker(
+        full.problems.length - b.problems!.length,
+        full.resolutions.length - b.resolutions!.length,
+      );
+    if (!fits()) {
+      while (b.resolutions.length > 0 && !fits([left()])) b.resolutions.pop();
+      while (b.problems.length > 0 && !fits([left()])) b.problems.pop();
+      if (b.problems.length === 0) delete b.problems;
+      if (b.resolutions.length === 0) delete b.resolutions;
+      done('problems', left());
+    }
+  }
+
+  // 4d. Shared changes (decision 36; BUILD_SPEC §5.21 Context): the declaration, the other
   // in-flight items' changes to its parts, other in-flight declarations, leases and radar
   // findings. When it doesn't fit, other in-flight declarations go first, then overlapping
   // ones (marked `truncated`); failing that, it's left out with a marker.

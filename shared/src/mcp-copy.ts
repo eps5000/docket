@@ -130,6 +130,8 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
     'Take the lease on a single-writer part (such as a migrations snapshot) for an item you lead, before you change it; call again to renew. A lease lasts 2 hours and ends when the item is done or handed off, or when you release it. If another item holds it you get lease_held with the holder and expiry: work on something else rather than waiting in a loop.',
   release_lease:
     'Release your lease on a single-writer part as soon as your change to it is committed and pushed, so other items can take it.',
+  propose_resolution:
+    "Propose how to resolve a problem that needs the owner: split the work, change its scope, change the order of work, or other, with a plan in Markdown and a reason. Pass problem (its ID from get_context problems), or id for the item in general. The owner approves it, asks for a different way with a note, or acknowledges it; the choice arrives as an owner note and in get_context. After a different way, propose again. Routine fixes need no proposal: rebase onto main, or remove an old branch from the item's branches with declare_shared_changes, and Docket records it on the item.",
 };
 
 /**
@@ -190,6 +192,8 @@ export const TOOL_SUMMARIES: Record<ToolName, string> = {
   list_shared_parts: 'Shared parts in {project}: {count}',
   take_lease: 'Lease on {part} for {id} · until {until}{renewed}',
   release_lease: 'Released lease on {part} for {id}',
+  propose_resolution:
+    'Proposed {kind} for {target} · {resolution_id} · waiting for the owner{superseded}',
 };
 
 /**

@@ -5,7 +5,6 @@ group: Operations
 order: 1
 anchors:
   - settings.service-health
-  - problems.extra_backup_failed
 related:
   - crash-recovery
   - jira-import

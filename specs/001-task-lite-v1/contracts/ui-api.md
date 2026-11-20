@@ -23,6 +23,7 @@ This index groups the routes by user story.
 | `GET /api/install-state` (decision 34); `POST /api/installs` with `clients` | US17 | FR-149, FR-150 |
 | `GET /api/agent-file-proposals`, `POST …/:id/approve`, `POST …/:id/decline`, `GET /api/drift`, `POST /api/drift/:id/adopt`, `…/restore`, `…/keep-local` | US14 | FR-128 to FR-133 |
 | `POST /api/projects`, `GET /api/onboarding`, `POST /api/onboarding/:id/reviewed` | US15 | FR-135, FR-139, FR-140 |
+| `POST /api/problems/acknowledge`, `POST /api/resolutions/:id/decide` (decision 37; B42) | US18 | FR-165–FR-172 |
 | `GET`/`POST /api/projects/:key/shared-parts`, `PATCH /api/shared-parts/:id`, `GET`/`PUT /api/items/:id/shared`, `POST /api/items/:id/shared/branches` (B41; replaces B40's `PUT …/shared/branch`), `POST /api/overlaps/:id/decide`, `POST /api/undeclared-holds/:id/decide`, `POST /api/leases/:id/release`, `GET`/`PUT /api/projects/:key/radar`, `POST /api/projects/:key/radar/run` | US18 | FR-158–FR-164 |
 | `PATCH /api/items/:id/work/:stepId/details` | US16 | FR-145, FR-146 |
 | `GET /api/items/:id/work/:stepId` | US16 | FR-146 |

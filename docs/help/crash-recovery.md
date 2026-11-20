@@ -5,7 +5,6 @@ group: Recovery
 order: 2
 anchors:
   - agents.recent
-  - problems.unpushed_work
 related:
   - workspaces-and-pruning
   - run-states

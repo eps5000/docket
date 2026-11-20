@@ -5,7 +5,6 @@ group: Recovery
 order: 1
 anchors:
   - agents.workspaces
-  - problems.orphaned_resources
 related:
   - crash-recovery
   - run-states

@@ -19,6 +19,19 @@ describe('loadConfig', () => {
     }
   });
 
+  it('reads DOCKET_AGENT_PROBLEM_GRACE_HOURS as whole hours, 0 or more (decision 37)', () => {
+    expect(loadConfig({}).agentProblemGraceMs).toBe(24 * 3_600_000);
+    expect(loadConfig({ DOCKET_AGENT_PROBLEM_GRACE_HOURS: '6' }).agentProblemGraceMs).toBe(
+      6 * 3_600_000,
+    );
+    expect(loadConfig({ DOCKET_AGENT_PROBLEM_GRACE_HOURS: '0' }).agentProblemGraceMs).toBe(0);
+    for (const bad of ['-1', '1.5', '2h', 'soon']) {
+      expect(() => loadConfig({ DOCKET_AGENT_PROBLEM_GRACE_HOURS: bad }), bad).toThrow(
+        /DOCKET_AGENT_PROBLEM_GRACE_HOURS/,
+      );
+    }
+  });
+
   it('applies every BUILD_SPEC §2 default', () => {
     const c = loadConfig({});
     expect(c).toMatchObject({

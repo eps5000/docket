@@ -7,6 +7,7 @@ import { paths } from '../../lib/paths';
 import { formatClock, isoTitle, plural } from '../../lib/format';
 import { AnswerBox } from '../shared/AnswerBox';
 import { HelpLink } from '../../help/HelpLink';
+import { ProblemBanners } from './ProblemBanners';
 
 /** Packet ready: amber banner with *Open packet* (UI_SPEC §6.3), and "out of date" when a newer commit came in. */
 export function PacketBanner({
@@ -124,12 +125,16 @@ export function FromReviewBanner({
   );
 }
 
-/** The banners above the tabs, visible on every tab (UI_SPEC §6.3). */
+/**
+ * The banners above the tabs, visible on every tab (UI_SPEC §6.3); the
+ * problem banner first (decision 37).
+ */
 export function ItemBanners({ data }: { data: ItemDetailResponse }) {
   const { scope } = useShell();
   const item = data.item;
   return (
     <>
+      <ProblemBanners data={data} />
       {scope !== 'all' && item.project !== scope && (
         <OutOfScopeBanner id={item.id} project={item.project} />
       )}

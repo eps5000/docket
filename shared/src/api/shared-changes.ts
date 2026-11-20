@@ -31,6 +31,7 @@ import {
 } from '../enums.js';
 import { itemId, objectId, projectKey, text } from '../mcp/common.js';
 import { LIMITS } from '../mcp/limits.js';
+import { problemExplanationSchema } from './problems.js';
 import {
   branchInput,
   branchSourceSchema,
@@ -94,6 +95,8 @@ export const overlapRowSchema = z.object({
   decided_by: z.string().nullable(),
   decided_at: z.string().nullable(),
   version: z.number().int(),
+  /** Decision 37 (B42; optional): what's wrong, what fixes it, and who acts. */
+  explanation: problemExplanationSchema.optional(),
 });
 export type OverlapRow = z.infer<typeof overlapRowSchema>;
 
@@ -130,6 +133,8 @@ export const undeclaredHoldRowSchema = z.object({
   decided_by: z.string().nullable(),
   decided_at: z.string().nullable(),
   version: z.number().int(),
+  /** Decision 37 (B42; optional): what's wrong, what fixes it, and who acts. */
+  explanation: problemExplanationSchema.optional(),
 });
 export type UndeclaredHoldRow = z.infer<typeof undeclaredHoldRowSchema>;
 

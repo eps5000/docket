@@ -6,7 +6,6 @@ order: 2
 anchors:
   - item.dates
   - work.burndown
-  - problems.date_risk
 related:
   - blockers-and-dependencies
 ---

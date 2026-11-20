@@ -109,7 +109,7 @@ Every mutating tool accepts `idempotency_key` (≤ 100 characters, unique per lo
 - **Use one** for anything you might retry after a timeout.
 
 ### Runs as signals
-Pass `run_id` on every call you make while working. **Every tool accepts an optional `run_id`**, reads included. `idempotency_key` is accepted only by the 34 mutating tools (B3 resolution 1; 27 before decision 30 added `propose_agent_file_change`, 28 before decision 31 added `onboard_project` and `finish_onboarding`, 30 before decision 34 added `apply_batch`, and 31 before decision 36 added `declare_shared_changes`, `take_lease` and `release_lease`).
+Pass `run_id` on every call you make while working. **Every tool accepts an optional `run_id`**, reads included. `idempotency_key` is accepted only by the 35 mutating tools (B3 resolution 1; 27 before decision 30 added `propose_agent_file_change`, 28 before decision 31 added `onboard_project` and `finish_onboarding`, 30 before decision 34 added `apply_batch`, 31 before decision 36 added `declare_shared_changes`, `take_lease` and `release_lease`, and 34 before decision 37 added `propose_resolution`).
 - **What it does:** renews your lead lease and keeps you *live*.
 - **Calls without it** are attributed to your client but don't touch any run.
 
@@ -911,6 +911,31 @@ B38 implemented the registry, `declare_shared_changes` and `list_shared_parts`. 
 - **`get_context`** (§5.2): adds `shared` (§4 `ContextShared`; BUILD_SPEC §5.21 Context).
 
 **New error codes** (§6): `seam_conflict`, `not_declared`, `lease_held`. Over the UI API they map to 409, 400 and 409.
+
+**B42** (owner decision 37; BUILD_SPEC §5.21 B42): one root cause, one problem. A branch that conflicts with the main branch is one "out of date with main" finding; a pair of branches is reported only for files that conflict beyond what either branch's conflict with main explains. A finding clears as soon as its branch stops being reported (a `declare_shared_changes` that drops it, or the owner's *Not an active branch*), not at the next run. A new finding is posted to each item it involves as one owner note ("Docket's conflict radar: …"), which `get_item` delivers. No tool's description or schema changes here; `get_context` gains `problems` and `resolutions` (§5.16).
+
+### 5.16 Problems (decision 37)
+
+Every problem says what's wrong, what fixes it and who acts, in the words the owner reads (BUILD_SPEC §5.22 Problems; FR-165–FR-172). Agents get the item's open problems in `get_context` (`problems`: `id`, `kind`, `what`, `fix`, `who` (`agent`|`owner`), `who_text`), and the newest proposed resolutions for the item (`resolutions`: up to 5, `id`, `problem_id`, `kind`, `state`, `note`), placed after the current step and before shared changes (BUILD_SPEC §5.15 section 4c); when they don't fit, resolutions are cut first. Agent problems (conflict radar findings) reach the item's lead first; the owner sees them only with no lead or after `DOCKET_AGENT_PROBLEM_GRACE_HOURS` (default 24). Contracts shipped in B42 (T186), in MCP_SPEC, `mcp-copy.ts` and the snapshot together:
+- the description below;
+- `get_context`'s additive `problems` and `resolutions` (§5.2), and the event types `problem.acknowledged`, `resolution.proposed` and `resolution.decided` (§4 EventType);
+- the tool count (48 → 49).
+
+**Problem IDs** are `rdf_…` for a radar finding, and otherwise `<kind>:<run, link or item>` (`stale_run:run_…`, `date_risk:GF-12`, `cycle:GF-1+GF-2`), stable while the problem lasts.
+
+#### `propose_resolution`
+**Description:** "Propose how to resolve a problem that needs the owner: split the work, change its scope, change the order of work, or other, with a plan in Markdown and a reason. Pass problem (its ID from get_context problems), or id for the item in general. The owner approves it, asks for a different way with a note, or acknowledges it; the choice arrives as an owner note and in get_context. After a different way, propose again. Routine fixes need no proposal: rebase onto main, or remove an old branch from the item's branches with declare_shared_changes, and Docket records it on the item."
+- **Input:** `problem?` (a problem ID, ≤ 300), `id?` (the item), at least one of them; `kind: 'split'|'rescope'|'reorder'|'other'`, `plan_md` (Markdown, ≤ 10,000), `reason` (≤ 1,000), plus `run_id?` and `idempotency_key?`.
+- **Output:** `{ resolution: { id, item_id, problem_id, kind, state, created_at }, superseded: string[] }`. `superseded` lists your earlier open proposals for the same problem (or the item, without one), which this one replaces.
+- **Rules:**
+  - `problem` must be an open problem (`not_found` otherwise); `id`, when given with it, must be one of its items. Without `problem`, the proposal is about the item in general.
+  - Any agent may propose; who proposed is recorded. The proposal is open until the owner decides: *Approve*, *Go a different way* (with a required note) or *Acknowledge* (fine, proceed). Each choice is posted to the item as an owner note (its lead and the proposer read it on their next `get_item`) and shows in `get_context.resolutions`. A different way keeps the problem open: propose again if you need to.
+  - A proposal brings an acknowledged problem back to the owner's Needs you.
+  - Routine fixes need no proposal: rebase onto main, or remove an old branch from the item's branches with `declare_shared_changes`. Docket records them on the item (`branch.reported`, `radar.cleared`).
+- **Text rendering:** one line: `Proposed split for GF-228 (rdf_…) · prs_… · waiting for the owner` (` · replaces prs_…` when it supersedes one).
+- **Events:** `resolution.proposed` on the item.
+- **Errors:** `validation` (neither `problem` nor `id`, limits, `id` not an item of `problem`, a secret), `not_found` (problem or item).
+- **Not retry-safe** (`idempotentHint: false`): pass `idempotency_key` when you might retry.
 
 ## 6. Errors
 

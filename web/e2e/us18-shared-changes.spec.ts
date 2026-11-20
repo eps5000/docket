@@ -324,10 +324,18 @@ test('the item’s Shared changes: declaration, lease with Release lease, and a 
   await expect(toast(page, /Released the lease on file /)).toBeVisible();
   await expect(section.locator('[data-lease]')).toHaveCount(0);
 
-  // Problems lists the finding; the agent sees it in its context.
+  // Decision 37: both items have a lead, so the agents handle the finding first; Needs you
+  // says so and opens it. The agent sees it in its context.
   await page.goto('/');
-  const row = page.locator('[data-problem="radar_conflict"]').first();
-  await expect(row).toContainText('Heading for a conflict with RCP-25: 1 file');
+  await page
+    .locator('[data-card="problems"]')
+    .getByRole('button', { name: 'Agents are handling 1 problem' })
+    .click();
+  const row = page.locator('[data-more-problems="agents"] [data-problem="radar_conflict"]');
+  await expect(row).toContainText(
+    "RCP-17's branch feat/a and RCP-25's branch feat/b change the same lines: 1 file conflicts (shared.txt).",
+  );
+  await expect(row).toContainText('An agent (the leads of RCP-17 and RCP-25)');
   await settle(page);
   await expectAxeClean(page, 'Needs you, a radar finding in Problems');
   await shoot(page, 'radar-finding', page.locator('[data-card="problems"]'));

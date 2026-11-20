@@ -25,6 +25,7 @@ import {
 } from '../mcp/types.js';
 import { input, jsonResponse, noInput, scopeSchema } from './common.js';
 import { onboardingSessionSchema } from './onboarding.js';
+import { problemAckSchema, problemExplanationSchema, resolutionRowSchema } from './problems.js';
 import {
   overlapRowSchema,
   radarFindingRowSchema,
@@ -136,6 +137,32 @@ export const problemSchema = z.object({
   resource_ids: z.array(z.string()),
   /** Agent files drift (decision 30): the drift record the row opens (optional; B26). */
   drift_id: z.string().optional(),
+  /**
+   * Decision 37 (B42; optional): a stable ID (`rdf_…` for a radar finding,
+   * else `<kind>:<item or run>`), which the item page's `?problem=` focuses.
+   */
+  id: z.string().optional(),
+  /** Decision 37 (B42; optional): what's wrong, what fixes it, and who acts. */
+  explanation: problemExplanationSchema.optional(),
+  /**
+   * Decision 37 (B42; optional): why an agent problem reached the owner:
+   * "Not fixed by an agent for a day" or "Nobody is working on GF-228". Null
+   * while agents are handling it, and for the owner's own problems.
+   */
+  reached_you: z.string().nullable().optional(),
+  /**
+   * Decision 37 (B42; optional): a radar finding's reported branches, which
+   * *Not an active branch* can remove from their item. A branch the radar
+   * found by name isn't listed.
+   */
+  branches: z.array(z.object({ item_id: z.string(), branch: z.string() })).optional(),
+  /**
+   * Decision 37 (B42; optional): the owner's acknowledgement while it still
+   * covers the problem (it left Needs you); null otherwise.
+   */
+  acknowledged: problemAckSchema.nullable().optional(),
+  /** Decision 37 (B42; optional): the newest proposed resolution of this problem. */
+  resolution: resolutionRowSchema.nullable().optional(),
 });
 export type Problem = z.infer<typeof problemSchema>;
 
@@ -161,6 +188,22 @@ export const needsYouResponse = jsonResponse({
   overlaps: z.array(overlapRowSchema).optional(),
   undeclared_holds: z.array(undeclaredHoldRowSchema).optional(),
   radar_findings: z.array(radarFindingRowSchema).optional(),
+  /**
+   * Decision 37 (B42; optional): agent problems the items' leads are still
+   * within their grace period to fix, so they aren't in `problems` yet: the
+   * "Agents are handling N problems" line lists them.
+   */
+  agent_problems: z.array(problemSchema).optional(),
+  /**
+   * Decision 37 (B42; optional): problems the owner acknowledged, which left
+   * Needs you until they need a human step again ("You acknowledged N").
+   */
+  acknowledged: z.array(problemSchema).optional(),
+  /**
+   * Decision 37 (B42; optional): open proposed resolutions, a card each
+   * (counted as for you): *Approve*, *Go a different way*, *Acknowledge*.
+   */
+  resolutions: z.array(resolutionRowSchema).optional(),
 });
 export type NeedsYouResponse = z.infer<typeof needsYouResponse>;
 
@@ -338,6 +381,13 @@ export const itemDetailResponse = jsonResponse({
    * reported them on claim_lead (decision 30; UI_SPEC §6.7b-1; optional; B26).
    */
   run_instructions: z.array(runInstructionsSchema).optional(),
+  /**
+   * Decision 37 (B42; optional): the item's open problems, the owner's and
+   * the ones agents are handling, for the problem banner.
+   */
+  problems: z.array(problemSchema).optional(),
+  /** Decision 37 (B42; optional): open proposed resolutions about the item in general. */
+  resolutions: z.array(resolutionRowSchema).optional(),
 });
 export type ItemDetailResponse = z.infer<typeof itemDetailResponse>;
 

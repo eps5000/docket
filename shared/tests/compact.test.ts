@@ -868,6 +868,19 @@ const SAMPLES: Record<ToolName, { result: unknown; args?: Record<string, unknown
   release_lease: {
     result: { part: 'model:Token', item_id: 'GF-240', released: true },
   },
+  propose_resolution: {
+    result: {
+      resolution: {
+        id: 'prs_01JDSPLIT',
+        item_id: 'GF-228',
+        problem_id: 'rdf_01JSTALE',
+        kind: 'split',
+        state: 'open',
+        created_at: '2026-11-20T10:00:00.000Z',
+      },
+      superseded: ['prs_01JOLDER'],
+    },
+  },
 };
 
 describe('every tool has a renderer', () => {

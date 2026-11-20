@@ -1,5 +1,5 @@
 /**
- * The tool registry: all 48 tools in MCP_SPEC §5 order, with their group,
+ * The tool registry: all 49 tools in MCP_SPEC §5 order, with their group,
  * kind, input and output schemas and MCP annotations (§3 Tool annotations).
  * Descriptions live in mcp-copy.ts. Shared contract file (tasks.md, Slice rules).
  */
@@ -13,6 +13,7 @@ import * as read from './read.js';
 import * as recovery from './recovery.js';
 import * as review from './review.js';
 import * as runs from './runs.js';
+import * as problems from './problems.js';
 import * as shared from './shared-changes.js';
 
 /** Server file each tool's handler lives in (`server/src/mcp/tools/<group>.ts`). */
@@ -28,7 +29,8 @@ export type ToolGroup =
   | 'agent_files'
   | 'onboarding'
   | 'batch'
-  | 'shared';
+  | 'shared'
+  | 'problems';
 
 /**
  * - `read`: no side effects (`readOnlyHint: true`).
@@ -220,6 +222,14 @@ export const TOOLS = [
   ),
   def('take_lease', 'shared', 'mutating', shared.takeLeaseInput, shared.takeLeaseOutput),
   def('release_lease', 'shared', 'mutating', shared.releaseLeaseInput, shared.releaseLeaseOutput),
+  // §5.16 Problems (decision 37)
+  def(
+    'propose_resolution',
+    'problems',
+    'mutating',
+    problems.proposeResolutionInput,
+    problems.proposeResolutionOutput,
+  ),
 ] as const;
 
 export type ToolName = (typeof TOOLS)[number]['name'];

@@ -23,6 +23,7 @@ import { createLinksService } from './links.js';
 import { createMessagesService } from './messages.js';
 import { createOnboardingService } from './onboarding.js';
 import { createPacketsService } from './packets.js';
+import { createProblemsService } from './problems.js';
 import { createProjectsService } from './projects.js';
 import { createRecoveryService } from './recovery.js';
 import { createReviewDecisionsService } from './review-decisions.js';
@@ -71,6 +72,7 @@ export function createServices(
     drift: createDriftService(full),
     onboarding: createOnboardingService(full),
     sharedChanges: createSharedChangesService(full),
+    problems: createProblemsService(full),
     undo: createUndoService(full),
   };
   for (const [name, methods] of Object.entries(overrides)) {

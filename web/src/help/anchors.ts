@@ -26,6 +26,10 @@ export const HELP_ANCHORS = {
   'problems.agent_files_drift': 'Problems row: agent files changed outside Docket',
   'problems.radar_conflict': 'Problems row: heading for a merge conflict (decision 36)',
   'needs-you.shared-questions': 'Needs you: overlap and undeclared-changes cards (decision 36)',
+  'needs-you.agent-problems':
+    'Needs you → Problems: "Agents are handling N problems" (decision 37)',
+  'needs-you.resolutions': 'Needs you: a proposed resolution card (decision 37)',
+  'item.problem-banner': 'Ticket: the problem banner (decision 37)',
   'item.shared-changes': 'Ticket → Details → Shared changes (decision 36)',
   'settings.shared-parts': 'Settings → Projects → Shared parts: the registry and the radar',
   'agents.active-now': 'Agents → Active now',

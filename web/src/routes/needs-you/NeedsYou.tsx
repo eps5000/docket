@@ -1,7 +1,13 @@
 import { useNoProjects } from '../../app/useBootstrap';
 import { Welcome } from './Welcome';
 import { useQuery } from '@tanstack/react-query';
-import type { OverlapRow, UndeclaredHoldRow, WorkspaceRow } from '@docket/shared';
+import type {
+  OverlapRow,
+  Problem,
+  ResolutionRow,
+  UndeclaredHoldRow,
+  WorkspaceRow,
+} from '@docket/shared';
 import { Skeleton } from '../../components/kit';
 import { apiClient } from '../../app/queryClient';
 import { QueryState } from '../../app/QueryState';
@@ -16,6 +22,7 @@ import { OnboardingReviews } from './OnboardingReviews';
 import { PlanningQueueCard } from './PlanningQueueCard';
 import { ProblemsCard } from './ProblemsCard';
 import { SharedQuestions } from './SharedQuestions';
+import { ResolutionCards } from './ResolutionCards';
 import '../screens.css';
 import { HelpLink } from '../../help/HelpLink';
 
@@ -58,9 +65,15 @@ export function NeedsYou() {
               overlaps={data.overlaps ?? NO_OVERLAPS}
               holds={data.undeclared_holds ?? NO_HOLDS}
             />
+            <ResolutionCards resolutions={data.resolutions ?? NO_RESOLUTIONS} />
             <div className="dash-top">
               <ForYouNow rows={data.for_you_now} />
-              <ProblemsCard problems={data.problems} workspaces={workspaces} />
+              <ProblemsCard
+                problems={data.problems}
+                workspaces={workspaces}
+                agentProblems={data.agent_problems ?? NO_PROBLEMS}
+                acknowledged={data.acknowledged ?? NO_PROBLEMS}
+              />
             </div>
             <div className="dash-row two">
               <DeferredCard rows={data.deferred} />
@@ -76,6 +89,8 @@ export function NeedsYou() {
 const NO_WORKSPACES: readonly WorkspaceRow[] = [];
 const NO_OVERLAPS: readonly OverlapRow[] = [];
 const NO_HOLDS: readonly UndeclaredHoldRow[] = [];
+const NO_RESOLUTIONS: readonly ResolutionRow[] = [];
+const NO_PROBLEMS: readonly Problem[] = [];
 
 function NeedsYouSkeleton() {
   return (

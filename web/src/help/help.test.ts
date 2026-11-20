@@ -157,9 +157,11 @@ describe('"?" anchors', () => {
     for (const [anchor, slug] of [
       ['agents.workspaces', 'workspaces-and-pruning'],
       ['agents.active-now', 'run-states'],
-      ['problems.stale_run', 'run-states'],
-      ['problems.parked_too_long', 'run-states'],
-      ['problems.unpushed_work', 'crash-recovery'],
+      // Decision 37: every Problems row and banner opens "Problems and what to do".
+      ['problems.stale_run', 'problems-and-what-to-do'],
+      ['problems.parked_too_long', 'problems-and-what-to-do'],
+      ['problems.unpushed_work', 'problems-and-what-to-do'],
+      ['item.problem-banner', 'problems-and-what-to-do'],
       ['review.packet', 'review-a-packet'],
       ['settings.service-health', 'backups-restore-export'],
       ['jira.import', 'jira-import'],

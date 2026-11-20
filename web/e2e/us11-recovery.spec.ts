@@ -171,12 +171,15 @@ test.describe.serial('US11 recovery', () => {
 
     await openNeedsYou(page);
     const r = row(page, 'unpushed_work', 'RCP-25');
-    await expect(r.locator('.reason')).toHaveAttribute(
+    // Decision 37: what's wrong and what fixes it; the facts stay in `title`.
+    await expect(r.locator('.prob-x dd').first()).toHaveAttribute(
       'title',
       '1 commit not pushed · uncommitted changes · C:/work/rcp-25 · run ended (released by the agent)',
     );
-    // Whole facts: each is its own unit, so a wrap never cuts one.
-    await expect(r.locator('.reason .fact')).toHaveCount(4);
+    await expect(r).toContainText(
+      "RCP-25's run ended (released by the agent) with work that isn't on the remote: 1 commit not pushed and uncommitted changes, in C:/work/rcp-25.",
+    );
+    await expect(r).toContainText('Push or save the work from that folder, then mark it handled.');
     // The worktree's state chip, as on Agents → Workspaces.
     await expect(r.locator('.chip')).toHaveText('At risk');
     await r.getByRole('button', { name: 'Handled' }).click();
@@ -241,8 +244,12 @@ test.describe.serial('US11 recovery', () => {
     await expectAxeClean(page, 'needs you with recovery problems');
     await shoot(page, 'needs-you-problems');
 
+    // Decision 37: Open lands on the item's problem banner, focused.
     await row(page, 'resume_unattended', 'RCP-18').getByRole('link', { name: 'Open' }).click();
-    await expect(page).toHaveURL(/\/items\/RCP-18\?tab=activity/);
+    await expect(page).toHaveURL(/\/items\/RCP-18\?tab=activity&problem=resume_unattended/);
+    await expect(
+      page.locator('[data-banner="problems"] [data-problem="resume_unattended"]'),
+    ).toBeFocused();
     const block = page.locator(`[data-run="${runs.ready}"] [data-section="where-the-work-lives"]`);
     await expect(block.locator('[data-ws="parked"]')).toContainText(
       'Parked · waiting on RCP-11 · since',

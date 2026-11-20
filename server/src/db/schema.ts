@@ -60,6 +60,8 @@ import {
   SHARED_PART_KINDS,
   UNDECLARED_HOLD_STATES,
   UNDECLARED_HOLD_VIA,
+  RESOLUTION_KINDS,
+  RESOLUTION_STATES,
 } from '@docket/shared';
 import { sql, type SQL } from 'drizzle-orm';
 import {
@@ -1329,6 +1331,92 @@ export const radar_findings = sqliteTable(
     index('radar_findings_item_b').on(t.item_b),
     check('radar_findings_files', sql.raw(`json_valid("files") AND json_type("files") = 'array'`)),
     check('radar_findings_branches', sql.raw(`"branch_a" <> "branch_b"`)),
+  ],
+);
+
+/**
+ * The owner's acknowledgement of a problem (owner decision 37; BUILD_SPEC
+ * §5.22 Problems): the problem leaves Needs you until it needs a human step
+ * again. `kind`, `branches` and `facts` are what was acknowledged: the
+ * problem comes back when its kind differs, it names a branch not in
+ * `branches`, or a fact (a conflicting file, for a radar finding; the items
+ * or resources involved, otherwise) not in `facts`, or when a proposed
+ * resolution arrives after `created_at`. The newest row for a problem counts.
+ */
+export const problem_acks = sqliteTable(
+  'problem_acks',
+  {
+    /** `pak_…` */
+    id: id(),
+    /** The problem's ID (`rdf_…`, or `<kind>:<item, run or link>`; Problems' `id`). */
+    problem_id: text('problem_id').notNull(),
+    project_key: text('project_key').references((): AnySQLiteColumn => projects.key, {
+      onDelete: 'cascade',
+    }),
+    item_id: text('item_id').references((): AnySQLiteColumn => items.id, { onDelete: 'cascade' }),
+    /** Problems' `kind`; checked in code, so a new kind needs no table rebuild. */
+    kind: text('kind').notNull(),
+    /** The branches the problem named, a JSON array (empty for kinds without branches). */
+    branches: text('branches', { mode: 'json' }).notNull(),
+    /** The facts it was acknowledged with, a JSON array. */
+    facts: text('facts', { mode: 'json' }).notNull(),
+    /** `owner`, or a decision's maker: who acknowledged it. */
+    acked_by: text('acked_by').notNull(),
+    ...timestamps,
+  },
+  (t) => [
+    index('problem_acks_problem').on(t.problem_id),
+    check('problem_acks_problem_id', lenBetween('problem_id', 1, LIMITS.problem_id)),
+    check(
+      'problem_acks_branches',
+      sql.raw(`json_valid("branches") AND json_type("branches") = 'array'`),
+    ),
+    check('problem_acks_facts', sql.raw(`json_valid("facts") AND json_type("facts") = 'array'`)),
+  ],
+);
+
+/**
+ * An agent's proposed resolution of a problem, or of a problem with the item
+ * in general (owner decision 37; MCP_SPEC §5.16 `propose_resolution`). Open
+ * until the owner approves it, asks for a different way (with a note) or
+ * acknowledges it; a newer proposal for the same problem supersedes an open
+ * one.
+ */
+export const resolutions = sqliteTable(
+  'resolutions',
+  {
+    /** `prs_…` */
+    id: id(),
+    item_id: itemRef('item_id'),
+    /** The problem it resolves; null for one about the item in general. */
+    problem_id: text('problem_id'),
+    /** The problem's `kind` when proposed; checked in code. */
+    problem_kind: text('problem_kind'),
+    kind: text('kind', { enum: RESOLUTION_KINDS }).notNull(),
+    plan_md: text('plan_md').notNull(),
+    reason: text('reason').notNull(),
+    /** `claude · orca-w3`: who proposed it. */
+    proposed_by: text('proposed_by').notNull(),
+    run_id: text('run_id').references((): AnySQLiteColumn => runs.id, { onDelete: 'set null' }),
+    state: text('state', { enum: RESOLUTION_STATES }).notNull().default('open'),
+    note: text('note'),
+    decided_by: text('decided_by'),
+    decided_at: text('decided_at'),
+    version: version(),
+    ...timestamps,
+  },
+  (t) => [
+    index('resolutions_item').on(t.item_id),
+    index('resolutions_open').on(t.state),
+    check('resolutions_kind', oneOf('kind', RESOLUTION_KINDS)),
+    check('resolutions_state', oneOf('state', RESOLUTION_STATES)),
+    check('resolutions_plan', lenBetween('plan_md', 1, LIMITS.resolution_plan)),
+    check('resolutions_reason', lenBetween('reason', 1, LIMITS.resolution_reason)),
+    check('resolutions_note', maxLen('note', LIMITS.resolution_note)),
+    check(
+      'resolutions_decided',
+      sql.raw(`("state" IN ('open', 'superseded')) = ("decided_at" IS NULL)`),
+    ),
   ],
 );
 

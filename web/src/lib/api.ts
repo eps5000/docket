@@ -465,6 +465,11 @@ export const INVALIDATION: Record<EventType, readonly QueryFamily[]> = {
   // B40: the item's branch for the radar, reported or found, shows in its section.
   'branch.reported': ['itemShared', 'item'],
   'branch.discovered': ['itemShared', 'item'],
+  // Decision 37: an acknowledgement takes a problem off Needs you (the banner keeps it); a
+  // proposed resolution is a Needs you card and shows on the banner.
+  'problem.acknowledged': ['needsYou', 'bootstrap', 'item'],
+  'resolution.proposed': ['needsYou', 'bootstrap', 'item'],
+  'resolution.decided': ['needsYou', 'bootstrap', 'item'],
 };
 
 /** Families narrowed to the event's items when it names any. */

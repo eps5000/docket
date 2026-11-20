@@ -86,6 +86,7 @@ import {
   type RunRow,
 } from './model.js';
 import type { InverseOp, WriteContext } from './write.js';
+import { explain } from './problems.js';
 
 // ---- Rows ----
 
@@ -564,7 +565,7 @@ function replaceBranches(
     item_id: item.id,
     project_key: item.project_key,
     data: { source: 'reported', op: 'replace', branches: names, previous: was },
-    inverse: [inverse],
+    inverse,
   });
 }
 
@@ -609,7 +610,7 @@ function ownerBranch(
       branches: next.map((b) => b.name),
       previous: before.map((b) => b.name),
     },
-    inverse: [inverse],
+    inverse,
   });
 }
 
@@ -1101,6 +1102,8 @@ function overlapRow(db: Db, r: Record<string, unknown>): OverlapRow {
     decided_by: r.decided_by as string | null,
     decided_at: r.decided_at as string | null,
     version: r.version as number,
+    // Decision 37 (B42): what's wrong, what fixes it, who acts.
+    explanation: explain.overlap({ first, other, parts: partsText(parseList(r.parts as string)) }),
   };
 }
 
@@ -1123,7 +1126,14 @@ function leaseRow(db: Db, r: Record<string, unknown>): LeaseRow {
 }
 
 function holdRow(db: Db, r: Record<string, unknown>): UndeclaredHoldRow {
+  const parts = parseList(r.parts as string);
   return {
+    // Decision 37 (B42): what's wrong, what fixes it, who acts.
+    explanation: explain.undeclared_hold({
+      item: r.item_id as string,
+      parts: partsText(parts),
+      packet: r.via === 'submit_packet',
+    }),
     id: r.id as string,
     item: itemRef(db, r.item_id as string),
     packet_id: r.packet_id as string | null,
@@ -1778,17 +1788,6 @@ export function needsYouShared(
        WHERE f.cleared_at IS NULL AND p.deleted_at IS NULL ${inScope} ORDER BY f.seen_at, f.id`,
     ).map((r) => findingRow(db, r)),
   };
-}
-
-/**
- * "Heading for a conflict with RCP-18: 3 files · a.ts, b.ts (feat/a vs feat/b)"
- * for a Problems row; B41 names both branches.
- */
-export function radarReason(f: RadarFindingRow): string {
-  const other = f.item_b ? f.item_b.id : f.branch_b;
-  const n = f.files.length;
-  const shown = f.files.slice(0, 3).join(', ');
-  return `Heading for a conflict with ${other}: ${n} file${n === 1 ? '' : 's'}${shown ? ` · ${shown}${n > 3 ? ', …' : ''}` : ''} (${f.branch_a} vs ${f.branch_b})`;
 }
 
 /**

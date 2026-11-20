@@ -2324,7 +2324,10 @@
                           "radar.found",
                           "radar.cleared",
                           "branch.reported",
-                          "branch.discovered"
+                          "branch.discovered",
+                          "problem.acknowledged",
+                          "resolution.proposed",
+                          "resolution.decided"
                         ]
                       },
                       "summary": {
@@ -3131,6 +3134,95 @@
                   ],
                   "additionalProperties": false
                 },
+                "problems": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "kind": {
+                        "type": "string"
+                      },
+                      "what": {
+                        "type": "string"
+                      },
+                      "fix": {
+                        "type": "string"
+                      },
+                      "who": {
+                        "type": "string",
+                        "enum": [
+                          "agent",
+                          "owner"
+                        ]
+                      },
+                      "who_text": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "kind",
+                      "what",
+                      "fix",
+                      "who",
+                      "who_text"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "resolutions": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "problem_id": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "split",
+                          "rescope",
+                          "reorder",
+                          "other"
+                        ]
+                      },
+                      "state": {
+                        "type": "string",
+                        "enum": [
+                          "open",
+                          "approved",
+                          "different",
+                          "acknowledged",
+                          "superseded"
+                        ]
+                      },
+                      "note": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "problem_id",
+                      "kind",
+                      "state",
+                      "note"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
                 "planning_docs": {
                   "type": "array",
                   "items": {
@@ -3759,7 +3851,10 @@
               "radar.found",
               "radar.cleared",
               "branch.reported",
-              "branch.discovered"
+              "branch.discovered",
+              "problem.acknowledged",
+              "resolution.proposed",
+              "resolution.decided"
             ]
           }
         },
@@ -3872,7 +3967,10 @@
                       "radar.found",
                       "radar.cleared",
                       "branch.reported",
-                      "branch.discovered"
+                      "branch.discovered",
+                      "problem.acknowledged",
+                      "resolution.proposed",
+                      "resolution.decided"
                     ]
                   },
                   "summary": {
@@ -8489,7 +8587,10 @@
                     "radar.found",
                     "radar.cleared",
                     "branch.reported",
-                    "branch.discovered"
+                    "branch.discovered",
+                    "problem.acknowledged",
+                    "resolution.proposed",
+                    "resolution.decided"
                   ]
                 },
                 "summary": {
@@ -14273,6 +14374,177 @@
             "item_id",
             "part",
             "released"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string",
+              "enum": [
+                "validation",
+                "conflict",
+                "not_found",
+                "forbidden",
+                "unavailable",
+                "internal",
+                "seam_conflict",
+                "not_declared",
+                "lease_held"
+              ]
+            },
+            "message": {
+              "type": "string"
+            },
+            "details": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {}
+            },
+            "current": {}
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false
+    }
+  },
+  {
+    "name": "propose_resolution",
+    "description": "Propose how to resolve a problem that needs the owner: split the work, change its scope, change the order of work, or other, with a plan in Markdown and a reason. Pass problem (its ID from get_context problems), or id for the item in general. The owner approves it, asks for a different way with a note, or acknowledges it; the choice arrives as an owner note and in get_context. After a different way, propose again. Routine fixes need no proposal: rebase onto main, or remove an old branch from the item's branches with declare_shared_changes, and Docket records it on the item.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "problem": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Z]{2,5}-[1-9][0-9]*$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "split",
+            "rescope",
+            "reorder",
+            "other"
+          ]
+        },
+        "plan_md": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 10000
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "run_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "idempotency_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        }
+      },
+      "required": [
+        "kind",
+        "plan_md",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "resolution": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "item_id": {
+                  "type": "string"
+                },
+                "problem_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "split",
+                    "rescope",
+                    "reorder",
+                    "other"
+                  ]
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "open",
+                    "approved",
+                    "different",
+                    "acknowledged",
+                    "superseded"
+                  ]
+                },
+                "created_at": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "item_id",
+                "problem_id",
+                "kind",
+                "state",
+                "created_at"
+              ],
+              "additionalProperties": false
+            },
+            "superseded": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "replayed": {
+              "type": "boolean"
+            },
+            "warnings": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "resolution",
+            "superseded"
           ],
           "additionalProperties": false
         },

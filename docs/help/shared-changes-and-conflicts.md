@@ -5,10 +5,9 @@ group: Working with agents
 order: 5
 anchors:
   - item.shared-changes
-  - needs-you.shared-questions
-  - problems.radar_conflict
   - settings.shared-parts
 related:
+  - problems-and-what-to-do
   - blockers-and-dependencies
   - review-a-packet
 ---
@@ -44,6 +43,10 @@ When an agent hands off (a packet, or closing as done), it lists the files it ch
 ## The conflict radar
 
 If the project's repository is inside Docket's push folder, set it under **Settings → Projects → Shared parts** with its main branch. Every 15 minutes (or when you press *Run radar now*) Docket trial-merges each in-flight branch with the main branch, and pairs of in-flight branches that change the same parts or files. It never writes to the repository and never fetches: it reads the branches your worktrees share. A pair that would conflict shows on both tickets ("Heading for a conflict with GF-240: 3 files"), as a **conflict ahead** marker on Work cards, under **Problems**, and in both agents' context. It clears once the trial merge is clean. Without a repository the card says "Radar off: no repository", and everything else still works.
+
+### One root cause, one problem
+
+A branch that conflicts with the main branch is one problem: "GF-228's branch eps5000/redesign-438-shell is out of date with main". Two branches are reported as a pair only for files that conflict beyond that, so a stale branch doesn't fill Problems with knock-on pairs. A finding clears as soon as its branch is removed from the item's branches. Radar findings go to the agents leading the items first; they reach your Problems only when nobody leads the item or after a day. See [Problems and what to do](/help/problems-and-what-to-do).
 
 ### Which branches the radar checks
 

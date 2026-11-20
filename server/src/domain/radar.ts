@@ -46,16 +46,33 @@
  * every in-flight item with the main branch, and pairs of branches of
  * different items; two branches of the same item are not a cross-item
  * conflict and aren't checked. Discovery runs only for an item with none.
+ *
+ * **One root cause, one problem (B42; owner decision 37):** a branch that
+ * conflicts with the main branch is one "out of date with main" finding. A
+ * pair finding is kept only for the files that conflict beyond what either
+ * branch's conflict with main explains; a pair whose every conflicting file
+ * is explained is left out (`RadarPlan.suppressed`), and an open finding for
+ * it clears. A finding clears as soon as its branch stops being reported
+ * (`writeBranches`), not at the next run. A newly found conflict is posted
+ * to each item it involves as one note ("Docket's conflict radar: …"), so
+ * the items' leads read it on their next `get_item`.
  */
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, realpathSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { LIMITS, ToolError, type BranchSource, type RadarResponse } from '@docket/shared';
+import {
+  LIMITS,
+  TEXT_LIMITS,
+  ToolError,
+  type BranchSource,
+  type RadarResponse,
+} from '@docket/shared';
 import type { Db } from '../db/client.js';
 import type { Config } from '../config.js';
 import type { ReadContext } from './contracts.js';
 import { newId } from './ids.js';
+import { explain } from './problems.js';
 import { callerName, ms } from './model.js';
 import { isInside, rootSegments } from './push-root.js';
 import type { InverseOp, WriteContext } from './write.js';
@@ -259,6 +276,11 @@ export interface RadarPlan {
   /** Why the radar couldn't run ("Radar off: …"); null when it ran. */
   off: string | null;
   checks: Check[];
+  /**
+   * B42: pairs that conflict only in files either branch's conflict with the
+   * main branch already explains; not findings (their checks are clean).
+   */
+  suppressed: { branch_a: string; branch_b: string; files: string[] }[];
   /** B40: one per in-flight item without a reported branch. */
   discovered: Discovery[];
 }
@@ -303,9 +325,11 @@ export function reportedBranches(db: Db, itemId: string): Reported[] {
 
 /**
  * Store the item's reported branches (B41) outside its version, like a
- * declaration; returns the inverse for an undoable owner change.
+ * declaration, and clear at once the item's open findings for a branch the
+ * radar no longer checks (B42); returns the inverses for an undoable owner
+ * change (the branches, and each cleared finding).
  */
-export function writeBranches(w: WriteContext, itemId: string, list: Reported[]): InverseOp {
+export function writeBranches(w: WriteContext, itemId: string, list: Reported[]): InverseOp[] {
   const before = (
     w.db.sqlite.prepare('SELECT branches FROM items WHERE id = ?').get(itemId) as {
       branches: string | null;
@@ -314,7 +338,33 @@ export function writeBranches(w: WriteContext, itemId: string, list: Reported[])
   w.db.sqlite
     .prepare('UPDATE items SET branches = ? WHERE id = ?')
     .run(list.length > 0 ? JSON.stringify(list) : null, itemId);
-  return { op: 'update', table: 'items', id: itemId, set: { branches: before } };
+  return [
+    { op: 'update', table: 'items', id: itemId, set: { branches: before } },
+    ...clearUncheckedFindings(w, itemId),
+  ];
+}
+
+/**
+ * B42: clear the item's open findings whose branch on the item's side the
+ * radar no longer checks: not among its reported branches, or, with none
+ * reported, not the branch the radar found by name. Returns the inverses.
+ */
+export function clearUncheckedFindings(w: WriteContext, itemId: string): InverseOp[] {
+  const reported = reportedBranches(w.db, itemId).map((b) => b.name);
+  const found = (
+    w.db.sqlite.prepare('SELECT radar_branch FROM items WHERE id = ?').get(itemId) as
+      { radar_branch: string | null } | undefined
+  )?.radar_branch;
+  const checked = new Set(reported.length > 0 ? reported : found ? [found] : []);
+  const out: InverseOp[] = [];
+  for (const f of w.db.sqlite
+    .prepare('SELECT * FROM radar_findings WHERE (item_a = ? OR item_b = ?) AND cleared_at IS NULL')
+    .all(itemId, itemId) as Record<string, unknown>[]) {
+    const own = f.item_a === itemId ? f.branch_a : f.branch_b;
+    if (checked.has(own as string)) continue;
+    out.push(clearFinding(w, f, { undoable: true }));
+  }
+  return out;
 }
 
 /**
@@ -334,7 +384,7 @@ export function addReportedBranch(
   const list = reportedBranches(w.db, itemId);
   if (list.some((b) => b.name === name)) return;
   const next = [...list, { name, by: callerName(w.db, w.actor), at: w.now }];
-  writeBranches(w, itemId, next.slice(-LIMITS.item_branches_max));
+  void writeBranches(w, itemId, next.slice(-LIMITS.item_branches_max));
 }
 
 /**
@@ -380,6 +430,7 @@ export function planRadar(r: ReadContext, config: Config, project: string): Rada
     project,
     off: reason,
     checks: [],
+    suppressed: [],
     discovered: [],
   });
   if (!p.repo_path) return off(RADAR_OFF_NO_REPO);
@@ -437,6 +488,9 @@ export function planRadar(r: ReadContext, config: Config, project: string): Rada
       }
     }
     const checks: Check[] = [];
+    const suppressed: RadarPlan['suppressed'] = [];
+    // B42: each branch's files in conflict with the main branch.
+    const withMain = new Map<string, Set<string>>();
     // One check per branch pair, even when two items report the same branch.
     const pairs = new Set<string>();
     const fresh = (a: string, b: string) => {
@@ -449,6 +503,7 @@ export function planRadar(r: ReadContext, config: Config, project: string): Rada
       if (!fresh(f.branch, p.main_branch)) continue;
       const files = g.merge(main, f.ref);
       if (files === null) continue;
+      withMain.set(f.branch, new Set(files));
       checks.push({
         branch_a: f.branch,
         branch_b: p.main_branch,
@@ -469,8 +524,15 @@ export function planRadar(r: ReadContext, config: Config, project: string): Rada
         if (!related) continue;
         const [a, b] = x.branch < y.branch ? [x, y] : [y, x];
         if (!fresh(a.branch, b.branch)) continue;
-        const files = g.merge(x.ref, y.ref);
-        if (files === null) continue;
+        const all = g.merge(x.ref, y.ref);
+        if (all === null) continue;
+        // B42: only files beyond what either branch's conflict with main explains.
+        const explained = (file: string) =>
+          !!withMain.get(a.branch)?.has(file) || !!withMain.get(b.branch)?.has(file);
+        const files = all.filter((file) => !explained(file));
+        if (all.length > 0 && files.length === 0) {
+          suppressed.push({ branch_a: a.branch, branch_b: b.branch, files: all });
+        }
         checks.push({
           branch_a: a.branch,
           branch_b: b.branch,
@@ -482,7 +544,7 @@ export function planRadar(r: ReadContext, config: Config, project: string): Rada
         });
       }
     }
-    return { project, off: null, checks, discovered };
+    return { project, off: null, checks, suppressed, discovered };
   } finally {
     g.close();
   }
@@ -509,6 +571,8 @@ export function recordRadar(w: WriteContext, plan: RadarPlan): void {
   const key = (a: unknown, b: unknown) => `${String(a)}\u0000${String(b)}`;
   const byPair = new Map(open.map((f) => [key(f.branch_a, f.branch_b), f]));
   const still = new Set<string>();
+  // B42: what each item's lead should read, one note per item for the run's new findings.
+  const notes = new Map<string, string[]>();
   for (const c of plan.checks) {
     if (c.files.length === 0) continue;
     const k = key(c.branch_a, c.branch_b);
@@ -534,6 +598,25 @@ export function recordRadar(w: WriteContext, plan: RadarPlan): void {
       });
     } else {
       id = newId('rdf', ms(w.now));
+      const e = explain.radar(
+        {
+          id,
+          project: plan.project,
+          branch_a: c.branch_a,
+          branch_b: c.branch_b,
+          item_a: { id: c.item_a, title: '', status: 'progress' },
+          item_b: c.item_b ? { id: c.item_b, title: '', status: 'progress' } : null,
+          source_a: c.source_a,
+          source_b: c.source_b,
+          files: c.files,
+          seen_at: w.now,
+          cleared_at: null,
+        },
+        new Set(),
+      );
+      for (const item of [c.item_a, ...(c.item_b ? [c.item_b] : [])]) {
+        notes.set(item, [...(notes.get(item) ?? []), `${e.what} ${e.fix}`]);
+      }
       w.insert('radar_findings', {
         id,
         project_key: plan.project,
@@ -577,6 +660,26 @@ export function recordRadar(w: WriteContext, plan: RadarPlan): void {
     if (still.has(key(f.branch_a, f.branch_b))) continue;
     clearFinding(w, f);
   }
+  for (const [item, lines] of notes) postRadarNote(w, plan.project, item, lines);
+}
+
+/**
+ * One note on the item with the run's new findings (B42; owner decision 37):
+ * "Docket's conflict radar: <what's wrong> <what fixes it>". It is an owner
+ * note, so the item's lead reads it on its next get_item.
+ */
+function postRadarNote(w: WriteContext, project: string, item: string, lines: string[]): void {
+  const full = `Docket's conflict radar: ${lines.join(' Also: ')}`;
+  const text = full.length > TEXT_LIMITS.note ? `${full.slice(0, TEXT_LIMITS.note - 1)}…` : full;
+  const id = newId('note', ms(w.now));
+  w.insert('owner_notes', { id, item_id: item, text });
+  w.event({
+    type: 'owner_note.added',
+    summary: text,
+    item_id: item,
+    project_key: project,
+    data: { note_id: id, text, from: 'radar' },
+  });
 }
 
 /**
@@ -615,9 +718,18 @@ function recordDiscovery(w: WriteContext, project: string, d: Discovery): void {
   });
 }
 
-/** Clear an open finding: `radar.cleared` on each of its items. */
-export function clearFinding(w: WriteContext, f: Record<string, unknown>): void {
-  w.update('radar_findings', f.id as string, { cleared_at: w.now });
+/**
+ * Clear an open finding: `radar.cleared` on each of its items. With
+ * `undoable` (an owner's change cleared it, B42), each event carries the
+ * inverse, which it also returns.
+ */
+export function clearFinding(
+  w: WriteContext,
+  f: Record<string, unknown>,
+  opts: { undoable?: boolean } = {},
+): InverseOp {
+  const inverse = w.update('radar_findings', f.id as string, { cleared_at: w.now });
+  const undo = opts.undoable ? { inverse: [inverse] } : {};
   const items = [f.item_a, f.item_b].filter((x): x is string => typeof x === 'string');
   const other = (self: string) =>
     self === f.item_a
@@ -636,6 +748,7 @@ export function clearFinding(w: WriteContext, f: Record<string, unknown>): void 
       project_key: f.project_key as string,
       data: { finding_id: f.id, branch_a: f.branch_a, branch_b: f.branch_b },
       objects: [{ kind: 'radar_finding', id: f.id as string }],
+      ...undo,
     });
   }
   if (items.length === 0) {
@@ -645,8 +758,10 @@ export function clearFinding(w: WriteContext, f: Record<string, unknown>): void 
       project_key: f.project_key as string,
       data: { finding_id: f.id },
       objects: [{ kind: 'radar_finding', id: f.id as string }],
+      ...undo,
     });
   }
+  return inverse;
 }
 
 /** The run's time and its "off" reason on the project: bookkeeping, not an event. */

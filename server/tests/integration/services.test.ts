@@ -55,7 +55,7 @@ describe('the service stubs', () => {
     Object.keys(impl as object).map((method) => [service, method] as const),
   );
 
-  it('cover every service T047 lists, plus diagnostics, recovery (T055), agent files and installs (T150), proposals and drift (T159), onboarding (T163), shared changes (T182), and undo', () => {
+  it('cover every service T047 lists, plus diagnostics, recovery (T055), agent files and installs (T150), proposals and drift (T159), onboarding (T163), shared changes (T182), problems (T186), and undo', () => {
     expect(Object.keys(services).sort()).toEqual(
       [
         'agentFiles',
@@ -78,6 +78,7 @@ describe('the service stubs', () => {
         'messages',
         'onboarding',
         'packets',
+        'problems',
         'projects',
         'recovery',
         'reviewDecisions',
@@ -140,7 +141,20 @@ describe('the service stubs', () => {
     ],
     evidence: ['addNote', 'linkArtifact', 'reportCommit'],
     search: ['whoami', 'listProjects', 'searchItems', 'getChanges', 'palette'],
-    views: ['bootstrap', 'needsYou', 'work', 'itemDetail', 'agents', 'settings', 'labelPage'],
+    // Decision 37 (B42): findProblem and itemProblems.
+    views: [
+      'bootstrap',
+      'needsYou',
+      'work',
+      'itemDetail',
+      'agents',
+      'settings',
+      'labelPage',
+      'findProblem',
+      'itemProblems',
+    ],
+    // Decision 37 (B42, T186–T188).
+    problems: ['acknowledge', 'propose', 'decide'],
     // US3 (B9, T091–T093), and the delivery receipt agreed for B9.
     humanReview: ['declare', 'update', 'ownerAdd', 'ownerUpdate', 'ownerRemove'],
     packets: ['submit', 'getReview', 'deferredReviews', 'screen', 'refresh', 'markStale'],

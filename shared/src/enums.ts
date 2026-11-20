@@ -466,6 +466,33 @@ export type RadarState = (typeof RADAR_STATES)[number];
 export const BRANCH_SOURCES = ['reported', 'discovered'] as const;
 export type BranchSource = (typeof BRANCH_SOURCES)[number];
 
+/**
+ * What an agent's proposed resolution of a problem does (owner decision 37;
+ * MCP_SPEC §5.16 `propose_resolution`): split the work, change its scope,
+ * change the order of work, or something else.
+ */
+export const RESOLUTION_KINDS = ['split', 'rescope', 'reorder', 'other'] as const;
+export type ResolutionKind = (typeof RESOLUTION_KINDS)[number];
+
+/**
+ * A proposed resolution's state (decision 37): `open` until the owner
+ * decides; `approved`, `different` (*Go a different way*, with a note) or
+ * `acknowledged` (fine, proceed); `superseded` when the agent proposed again
+ * before the owner decided.
+ */
+export const RESOLUTION_STATES = [
+  'open',
+  'approved',
+  'different',
+  'acknowledged',
+  'superseded',
+] as const;
+export type ResolutionState = (typeof RESOLUTION_STATES)[number];
+
+/** The owner's choice on a proposed resolution (decision 37). */
+export const RESOLUTION_DECISIONS = ['approve', 'different', 'acknowledge'] as const;
+export type ResolutionDecision = (typeof RESOLUTION_DECISIONS)[number];
+
 // ---- Events (contracts/events.md; MCP_SPEC §4 EventType) ----
 
 export const ACTOR_KINDS = ['owner', 'agent', 'system'] as const;
@@ -553,6 +580,10 @@ export const EVENT_TYPES = [
   // The radar sees in-flight branches (B40)
   'branch.reported',
   'branch.discovered',
+  // Problems that say what to do (decision 37; B42)
+  'problem.acknowledged',
+  'resolution.proposed',
+  'resolution.decided',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 
@@ -598,6 +629,10 @@ export const OBJECT_KINDS = [
   'undeclared_hold',
   /** Decision 36: a conflict the radar found between two branches. */
   'radar_finding',
+  /** Decision 37: the owner's acknowledgement of a problem. */
+  'problem_ack',
+  /** Decision 37: an agent's proposed resolution of a problem. */
+  'resolution',
 ] as const;
 export type ObjectKind = (typeof OBJECT_KINDS)[number];
 

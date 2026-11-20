@@ -290,4 +290,10 @@ export const VALID_ARGS: Record<ToolName, Record<string, unknown>> = {
   list_shared_parts: { project: 'RCP' },
   take_lease: { id: 'RCP-14', part: 'model:Recipe' },
   release_lease: { id: 'RCP-14', part: 'model:Recipe' },
+  propose_resolution: {
+    id: 'RCP-14',
+    kind: 'split',
+    plan_md: '1. Split the pantry work into two stories.',
+    reason: 'The branch is too far behind main to rebase in one go.',
+  },
 };
