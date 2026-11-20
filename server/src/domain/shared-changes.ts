@@ -44,7 +44,7 @@ import {
   ToolError,
   type BranchSource,
   type ContextShared,
-  type ItemBranch,
+  type ItemBranches,
   type Declaration,
   type DeclaredChange,
   type InFlightChange,
@@ -67,11 +67,13 @@ import { newId } from './ids.js';
 import {
   clearFinding,
   finishRadar,
-  latestReport,
   planRadar,
   recordRadar,
+  reportedBranches,
   resolveRepoPath,
   validBranch,
+  writeBranches,
+  type Reported,
 } from './radar.js';
 import {
   activeLead,
@@ -325,6 +327,8 @@ interface DeclareInput {
   }[];
   /** B40: the agent's branch for the radar (the owner sets it on its own route). */
   branch?: string;
+  /** B41: every branch; replaces the item's reported branches (`[]` clears them). */
+  branches?: string[];
 }
 
 /** Insert a registry row; returns the inverse. */
@@ -463,8 +467,14 @@ function declare(
     });
   }
 
-  // B40: the branch, checked before anything is written.
-  if (input.branch !== undefined) assertBranchName(input.branch);
+  // B40, B41: the branches, checked before anything is written. `branch` is a list of one.
+  const branches =
+    input.branches !== undefined
+      ? [...new Set(input.branches.map((b) => b.trim()))]
+      : input.branch !== undefined
+        ? [input.branch.trim()]
+        : undefined;
+  for (const b of branches ?? []) assertBranchName(b);
 
   const listed = changes.map((c) => `${c.part} ${c.change}`).join(', ');
   w.event({
@@ -482,7 +492,7 @@ function declare(
     },
     inverse,
   });
-  if (input.branch !== undefined) reportBranch(w, item, input.branch.trim());
+  if (branches !== undefined) replaceBranches(w, item, branches);
 
   // Declaring later (BUILD_SPEC §5.21): while the item is claimed, a new overlap with other
   // claimed work flags both items and raises the question, without revoking either claim.
@@ -521,55 +531,100 @@ function assertBranchName(branch: string): void {
   }
 }
 
+const plural = (names: string[]) => (names.length === 1 ? 'branch' : 'branches');
+
 /**
- * Record (or, with null, clear) the item's reported branch: `items.branch`,
- * outside the item's version like a declaration, with `branch.reported`.
- * Undoable for the owner. A reported branch wins over what the radar found
- * (which stays, so clearing the report falls back to it). Reporting the
- * branch the radar already uses as reported records nothing.
+ * Replace the item's reported branches (B41; `declare_shared_changes`), or
+ * clear them with `[]` so the radar looks for one by name: `items.branches`,
+ * outside the item's version like a declaration, with `branch.reported`. The
+ * same set again records nothing. A branch the radar found stays, so
+ * clearing falls back to it.
  */
-function reportBranch(
+function replaceBranches(
   w: WriteContext,
   item: { id: string; project_key: string },
-  branch: string | null,
-) {
-  const before = w.db.sqlite
-    .prepare('SELECT branch, branch_by, branch_at FROM items WHERE id = ?')
-    .get(item.id) as { branch: string | null; branch_by: string | null; branch_at: string | null };
-  const current = latestReport(w.db, item.id);
-  if (branch !== null && current?.branch === branch && before.branch === branch) return;
-  if (branch === null && current === null) return; // nothing reported: nothing to clear
-  if (branch === null && current?.branch === null) return; // already cleared
+  names: string[],
+): void {
+  const before = reportedBranches(w.db, item.id);
+  const was = before.map((b) => b.name);
+  if (was.length === names.length && names.every((n) => was.includes(n))) return;
   const by = callerName(w.db, w.actor);
-  w.db.sqlite
-    .prepare('UPDATE items SET branch = ?, branch_by = ?, branch_at = ? WHERE id = ?')
-    .run(branch, by, w.now, item.id);
-  const owner = w.actor.kind === 'owner';
+  // A branch already reported keeps who reported it first.
+  const next: Reported[] = names.map(
+    (name) => before.find((b) => b.name === name) ?? { name, by, at: w.now },
+  );
+  const inverse = writeBranches(w, item.id, next);
+  const who = w.actor.kind === 'owner' ? 'You' : by;
   w.event({
     type: 'branch.reported',
     summary:
-      branch === null
-        ? `${owner ? 'You cleared' : `${by} cleared`} ${item.id}'s branch; the radar looks for one`
-        : `${owner ? 'You reported' : `${by} reported`} ${item.id}'s branch: ${branch}`,
+      names.length === 0
+        ? `${who} cleared ${item.id}'s branches; the radar looks for one`
+        : `${who} reported ${item.id}'s ${plural(names)}: ${names.join(', ')}`,
     item_id: item.id,
     project_key: item.project_key,
-    data: { source: 'reported', branch, previous: current?.branch ?? null },
-    inverse: [{ op: 'update', table: 'items', id: item.id, set: { ...before } }],
+    data: { source: 'reported', op: 'replace', branches: names, previous: was },
+    inverse: [inverse],
   });
 }
 
-/** The branch the radar uses for the item (B40; `ItemBranch`). */
-function itemBranch(db: Db, id: string): ItemBranch {
-  const report = latestReport(db, id);
-  const base = { reported_by: report?.by ?? null, reported_at: report?.at ?? null };
-  if (report?.branch) return { name: report.branch, source: 'reported', ...base, matches: [] };
+/**
+ * The owner adds a branch to the item's reported branches, or removes one
+ * (B41; the Shared changes section; undoable). Adding one already there, or
+ * removing one that isn't, records nothing.
+ */
+function ownerBranch(
+  w: WriteContext,
+  item: { id: string; project_key: string },
+  op: 'add' | 'remove',
+  name: string,
+): void {
+  const before = reportedBranches(w.db, item.id);
+  const has = before.some((b) => b.name === name);
+  if (op === 'add' ? has : !has) return;
+  if (op === 'add' && before.length >= LIMITS.item_branches_max) {
+    throw new ToolError(
+      'validation',
+      `${item.id} already has ${LIMITS.item_branches_max} branches. Remove one first.`,
+      { details: { fields: { branch: `up to ${LIMITS.item_branches_max} branches` } } },
+    );
+  }
+  const next =
+    op === 'add'
+      ? [...before, { name, by: callerName(w.db, w.actor), at: w.now }]
+      : before.filter((b) => b.name !== name);
+  const inverse = writeBranches(w, item.id, next);
+  w.event({
+    type: 'branch.reported',
+    summary:
+      op === 'add'
+        ? `You added ${name} to ${item.id}'s branches`
+        : `You removed ${name} from ${item.id}'s branches${next.length === 0 ? '; the radar looks for one' : ''}`,
+    item_id: item.id,
+    project_key: item.project_key,
+    data: {
+      source: 'reported',
+      op,
+      branch: name,
+      branches: next.map((b) => b.name),
+      previous: before.map((b) => b.name),
+    },
+    inverse: [inverse],
+  });
+}
+
+/** The branches the radar checks for the item (B40, B41; `ItemBranches`). */
+function itemBranches(db: Db, id: string): ItemBranches {
   const row = db.sqlite
     .prepare('SELECT radar_branch, radar_branch_matches FROM items WHERE id = ?')
     .get(id) as { radar_branch: string | null; radar_branch_matches: string | null };
   return {
-    name: row.radar_branch,
-    source: row.radar_branch ? 'discovered' : null,
-    ...base,
+    reported: reportedBranches(db, id).map((b) => ({
+      name: b.name,
+      reported_by: b.by,
+      reported_at: b.at,
+    })),
+    discovered: row.radar_branch,
     matches: row.radar_branch_matches ? parseList(row.radar_branch_matches) : [],
   };
 }
@@ -1108,7 +1163,7 @@ function itemShared(r: ReadContext, id: string): ItemSharedResponse {
     db.sqlite.prepare(sql).all(...params) as Record<string, unknown>[];
   return {
     declaration: declarationOf(db, item.id),
-    branch: itemBranch(db, item.id),
+    branches: itemBranches(db, item.id),
     overlaps: all(
       `SELECT * FROM part_overlaps WHERE (item_a = ? OR item_b = ?) AND state <> 'resolved'
        ORDER BY raised_at`,
@@ -1260,6 +1315,7 @@ function contextShared(r: ReadContext, id: string): ContextShared {
     return {
       with: ((mineA ? f.item_b : f.item_a) as string | null) ?? null,
       branch: (mineA ? f.branch_b : f.branch_a) as string,
+      own_branch: (mineA ? f.branch_a : f.branch_b) as string,
       files: parseList(f.files as string),
     };
   });
@@ -1367,17 +1423,17 @@ export function createSharedChangesService(deps: ServiceDeps): SharedChangesServ
       return { ...itemShared(r, input.id), registered };
     },
 
-    ownerSetBranch(w, input) {
+    ownerBranches(w, input) {
       const item = requireItem(w.db, input.id);
       if (item.status === 'done' || item.status === 'canceled') {
         throw new ToolError(
           'validation',
-          `${item.id} is ${item.status === 'done' ? 'done' : 'canceled'}; set the branch on open items only.`,
+          `${item.id} is ${item.status === 'done' ? 'done' : 'canceled'}; change branches on open items only.`,
         );
       }
-      const branch = input.branch === null ? null : input.branch.trim();
-      if (branch !== null) assertBranchName(branch);
-      reportBranch(w, item, branch);
+      const branch = input.branch.trim();
+      assertBranchName(branch);
+      ownerBranch(w, item, input.op, branch);
       return itemShared({ db: w.db, actor: w.actor, now: w.now }, item.id);
     },
 
@@ -1724,12 +1780,15 @@ export function needsYouShared(
   };
 }
 
-/** "Heading for a conflict with RCP-18: 3 files · a.ts, b.ts" for a Problems row. */
+/**
+ * "Heading for a conflict with RCP-18: 3 files · a.ts, b.ts (feat/a vs feat/b)"
+ * for a Problems row; B41 names both branches.
+ */
 export function radarReason(f: RadarFindingRow): string {
   const other = f.item_b ? f.item_b.id : f.branch_b;
   const n = f.files.length;
   const shown = f.files.slice(0, 3).join(', ');
-  return `Heading for a conflict with ${other}: ${n} file${n === 1 ? '' : 's'}${shown ? ` · ${shown}${n > 3 ? ', …' : ''}` : ''} (${f.branch_a})`;
+  return `Heading for a conflict with ${other}: ${n} file${n === 1 ? '' : 's'}${shown ? ` · ${shown}${n > 3 ? ', …' : ''}` : ''} (${f.branch_a} vs ${f.branch_b})`;
 }
 
 /**

@@ -57,6 +57,7 @@ import {
   undeclaredChanges,
 } from './shared-changes.js';
 import type { InverseOp, WriteContext } from './write.js';
+import { addReportedBranch } from './radar.js';
 
 /** The moves `set_status` allows from each status (BUILD_SPEC §5.1). Review is entered by submit_packet. */
 export const ALLOWED_MOVES: Record<Status, Status[]> = {
@@ -688,6 +689,8 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
             : {}),
         },
       });
+      // B41: the close's branch joins the item's reported branches.
+      if (to === 'done') addReportedBranch(w, item.id, input.branch);
       // Decision 36: Done and canceled end the item's leases and its overlaps.
       if (to === 'done' || to === 'canceled') onItemClosed(w, item.id, to);
       return summary(w, item.id);

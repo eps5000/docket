@@ -542,7 +542,7 @@ Agent decisions never appear in Needs you. They show here, and in the item's Act
   - overlaps with other items (linked, with their state);
   - leases held (with *Release lease*);
   - radar findings;
-  - **Branch** (B40): the branch the radar trial-merges, either "<name> · reported by <who>" or "Branch found by the radar: <name>". With several matches it shows "Several branches match; report the branch: <names>" (warn), and with none, "No branch yet". *Set branch* (or *Change branch*) opens a small dialog, and *Clear* removes a reported branch so the radar looks again. Both are undoable. A finding on a found branch adds "branch found by the radar".
+  - **Branches** (B40; B41: several): the branches the radar trial-merges, a list of "<name> · reported by <who>" with *Remove* on each. With none reported, "Branch found by the radar: <name>"; with several matches, "Several branches match; add the branch: <names>" (warn); with neither, "No branch yet". *Add branch* opens a small dialog (suggesting the matches when none is reported). Removing a branch moves focus to *Add branch*; removing the last lets the radar look again. Both are undoable. A finding names both branches ("<own> vs <other>") and adds "branch found by the radar" for a found one.
 
   The owner can edit the declaration with the same editor pattern as elsewhere.
 - **Needs you:**

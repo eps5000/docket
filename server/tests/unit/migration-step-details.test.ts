@@ -142,7 +142,7 @@ describe('0009_step_details', () => {
     const migrated = openDb(copy);
     try {
       migrateDb(migrated);
-      expect(migrationStatus(migrated)).toEqual({ current: true, applied: 12, expected: 12 });
+      expect(migrationStatus(migrated)).toEqual({ current: true, applied: 13, expected: 13 });
       const after = steps(migrated);
       expect(after).toEqual(
         before.map((row) => ({ ...row, details_md: null, source: null, details_version: 0 })),
@@ -156,7 +156,7 @@ describe('0009_step_details', () => {
             >[]
           )
             // 0010_shared_changes (B38) adds items.shared_none_at, and 0011_radar_branches
-            // (B40) the branch columns; 0010's test checks them.
+            // (B40) the branch columns, 0012_item_branches (B41) items.branches; 0010's test checks them.
             .map(
               ({
                 shared_none_at: _,
@@ -165,6 +165,7 @@ describe('0009_step_details', () => {
                 branch_at: _ba,
                 radar_branch: _rb,
                 radar_branch_matches: _rbm,
+                branches: _br,
                 ...row
               }) => row,
             ),
@@ -197,7 +198,7 @@ describe('0009_step_details', () => {
 
       // Migrating again is a no-op.
       migrateDb(migrated);
-      expect(migrationStatus(migrated).applied).toBe(12);
+      expect(migrationStatus(migrated).applied).toBe(13);
     } finally {
       migrated.sqlite.close();
     }

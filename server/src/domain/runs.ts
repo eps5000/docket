@@ -66,6 +66,7 @@ import {
 } from './model.js';
 import { SeamConflict, claimOverlaps } from './shared-changes.js';
 import type { InverseOp, WriteContext } from './write.js';
+import { addReportedBranch } from './radar.js';
 
 /**
  * End an item's active lead on the owner's behalf: *Release lead claim*
@@ -431,6 +432,8 @@ export function createRunsService(deps: ServiceDeps): RunsService {
         },
         objects: [{ kind: 'run', id: runId }],
       });
+      // B41: the claim's branch (or its workspace's) joins the item's reported branches.
+      addReportedBranch(w, item.id, input.branch ?? input.workspace?.branch);
       if (status === 'ready')
         moveItem(w, item.id, item.project_key, 'ready', 'progress', `claimed by ${who}`);
       else w.update('items', item.id, {});

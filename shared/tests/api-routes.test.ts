@@ -17,7 +17,7 @@ import {
   decideOverlapBody,
   patchSharedPartBody,
   putItemSharedBody,
-  putItemBranchBody,
+  postItemBranchesBody,
   putRadarBody,
   sharedPartsQuery,
   declineProposalBody,
@@ -137,8 +137,8 @@ const EXPECTED = [
   'PATCH /api/shared-parts/:id',
   'GET /api/items/:id/shared',
   'PUT /api/items/:id/shared',
-  // B40: the owner sets or clears the item's branch for the radar.
-  'PUT /api/items/:id/shared/branch',
+  // B40: the owner sets or clears the item's branch for the radar; B41: adds or removes one.
+  'POST /api/items/:id/shared/branches',
   'POST /api/overlaps/:id/decide',
   'POST /api/undeclared-holds/:id/decide',
   'POST /api/leases/:id/release',
@@ -570,18 +570,23 @@ describe('field rules', () => {
     expect(
       patchItemBody.safeParse({ expected_version: 3, priority: 1, override_reason: 'x' }).success,
     ).toBe(false);
-    // B40: the owner's branch for the radar: a name or null (clear), undoable.
-    expect(putItemBranchBody.safeParse({ branch: 'eps5000/gf-239-visual-shell' }).success).toBe(
-      true,
+    // B41: the owner adds or removes one of the item's branches for the radar, undoable.
+    for (const op of ['add', 'remove']) {
+      expect(
+        postItemBranchesBody.safeParse({ op, branch: 'eps5000/gf-239-visual-shell' }).success,
+      ).toBe(true);
+    }
+    expect(postItemBranchesBody.safeParse({ op: 'add' }).success).toBe(false);
+    expect(postItemBranchesBody.safeParse({ op: 'set', branch: 'a' }).success).toBe(false);
+    expect(postItemBranchesBody.safeParse({ op: 'add', branch: null }).success).toBe(false);
+    expect(postItemBranchesBody.safeParse({ op: 'add', branch: 'x'.repeat(201) }).success).toBe(
+      false,
     );
-    expect(putItemBranchBody.safeParse({ branch: null }).success).toBe(true);
-    expect(putItemBranchBody.safeParse({}).success).toBe(false);
-    expect(putItemBranchBody.safeParse({ branch: 'x'.repeat(201) }).success).toBe(false);
     const undoable = [
       'sharedParts.create',
       'sharedParts.update',
       'itemShared.put',
-      'itemShared.branch',
+      'itemShared.branches',
     ] as const;
     for (const id of ROUTE_IDS.filter((r) => API_ROUTES[r].group === 'shared')) {
       expect(API_ROUTES[id].undoable, id).toBe((undoable as readonly string[]).includes(id));

@@ -162,3 +162,54 @@ export function makeBranchRepo(root: string): { repo: string } {
   git(wt281, 'commit', '-q', '-am', 'GF-281 changes line 5');
   return { repo };
 }
+
+/**
+ * B41: an epic with several branches, `<root>/gf-epics`, built like
+ * `makeRadarRepo`. `shared.txt` and `api.txt` have five lines each. After
+ * the branches leave `main`, `main` adds `main.txt` (clean against every
+ * branch), and:
+ * - `gf-217-api` (worktree `wt-217-api`) changes line 2 of `shared.txt` and
+ *   line 3 of `api.txt`;
+ * - `gf-217-web` (worktree `wt-217-web`) changes line 3 of `api.txt`
+ *   differently: it conflicts with `gf-217-api`, a pair of the same item
+ *   (GF-217), which the radar doesn't flag;
+ * - `gf-235-b` (worktree `wt-235`) changes line 2 of `shared.txt`
+ *   differently: it conflicts with `gf-217-api`, a cross-item pair, and
+ *   shares no file with `gf-217-web`.
+ */
+export function makeEpicRepo(root: string): { repo: string } {
+  const repo = join(root, 'gf-epics');
+  mkdirSync(repo, { recursive: true });
+  git(repo, 'init', '-q', '-b', 'main');
+  writeFileSync(join(repo, 'shared.txt'), text(LINES));
+  writeFileSync(join(repo, 'api.txt'), text(LINES));
+  git(repo, 'add', 'shared.txt', 'api.txt');
+  git(repo, 'commit', '-q', '-m', 'Start');
+  for (const b of ['gf-217-api', 'gf-217-web', 'gf-235-b']) git(repo, 'branch', b);
+  writeFileSync(join(repo, 'main.txt'), 'main\n');
+  git(repo, 'add', 'main.txt');
+  git(repo, 'commit', '-q', '-m', 'Main adds a file');
+
+  const wt = {
+    api: join(root, 'wt-217-api'),
+    web: join(root, 'wt-217-web'),
+    b: join(root, 'wt-235'),
+  };
+  git(repo, 'worktree', 'add', '-q', wt.api, 'gf-217-api');
+  git(repo, 'worktree', 'add', '-q', wt.web, 'gf-217-web');
+  git(repo, 'worktree', 'add', '-q', wt.b, 'gf-235-b');
+  writeFileSync(join(wt.api, 'shared.txt'), text(['one', 'two from 217 api', ...LINES.slice(2)]));
+  writeFileSync(
+    join(wt.api, 'api.txt'),
+    text(['one', 'two', 'three from 217 api', 'four', 'five']),
+  );
+  git(wt.api, 'commit', '-q', '-am', 'GF-217 api changes shared line 2 and api line 3');
+  writeFileSync(
+    join(wt.web, 'api.txt'),
+    text(['one', 'two', 'three from 217 web', 'four', 'five']),
+  );
+  git(wt.web, 'commit', '-q', '-am', 'GF-217 web changes api line 3');
+  writeFileSync(join(wt.b, 'shared.txt'), text(['one', 'two from 235', ...LINES.slice(2)]));
+  git(wt.b, 'commit', '-q', '-am', 'GF-235 changes shared line 2');
+  return { repo };
+}

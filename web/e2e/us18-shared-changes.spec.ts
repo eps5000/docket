@@ -10,8 +10,9 @@
  *   is held, and *Add to the declaration* opens it;
  * - the item's Shared changes section with a lease (*Release lease*) and a
  *   radar finding, which Problems also lists ("Heading for a conflict");
- * - B40: the item's branch, found by the radar (one local branch names the
- *   item) or ambiguous (several do), then *Set branch* and *Clear*.
+ * - B40, B41: the item's branches, found by the radar (one local branch
+ *   names the item) or ambiguous (several do), then *Add branch* twice and
+ *   *Remove* on each.
  *
  * axe is clean in both themes on each screen. Set DOCKET_E2E_SCREENSHOTS to a
  * folder to also capture the PR's light and dark screenshots.
@@ -300,7 +301,7 @@ test('the item’s Shared changes: declaration, lease with Release lease, and a 
     'file:server/src/db/migrations/meta/_journal.json',
   );
   await expect(section.locator('[data-finding]')).toContainText(
-    'Heading for a conflict with RCP-25 (feat/b): 1 file',
+    'Heading for a conflict with RCP-25: 1 file · feat/a vs feat/b',
   );
   await settle(page);
   await expectAxeClean(page, 'item Details, Shared changes');
@@ -331,10 +332,10 @@ test('the item’s Shared changes: declaration, lease with Release lease, and a 
   await expectAxeClean(page, 'Needs you, a radar finding in Problems');
   await shoot(page, 'radar-finding', page.locator('[data-card="problems"]'));
   const ctx = await codex.call('get_context', { id: 'RCP-17' });
-  expect(ctx.text).toContain('conflict ahead with RCP-25 (feat/b) · 1 file · shared.txt');
+  expect(ctx.text).toContain('conflict ahead with RCP-25 (feat/a vs feat/b) · 1 file · shared.txt');
 });
 
-test('B40: the item’s branch: found by the radar, several matching, Set branch and Clear', async ({
+test('B40, B41: the item’s branches: found by the radar, several matching, Add branch and Remove', async ({
   page,
 }) => {
   // RCP-14 and RCP-15 are In progress with no reported branch. One local branch names
@@ -352,41 +353,65 @@ test('B40: the item’s branch: found by the radar, several matching, Set branch
   await owner(page, 'POST', '/api/projects/RCP/radar/run', {});
 
   const section = page.locator('section[data-section="shared"]');
-  const row = section.locator('[data-branch-source]');
+  const state = section.locator('[data-branch-source]');
   await page.goto('/items/RCP-14?tab=details');
-  await expect(row).toHaveAttribute('data-branch-source', 'discovered');
-  await expect(row).toContainText('Branch found by the radar: rcp-14-week-plan');
+  await expect(state).toHaveAttribute('data-branch-source', 'discovered');
+  await expect(state).toContainText('Branch found by the radar: rcp-14-week-plan');
 
   await page.goto('/items/RCP-15?tab=details');
-  await expect(row).toHaveAttribute('data-branch-source', 'none');
-  await expect(row).toContainText('Several branches match; report the branch: RCP15-b, rcp-15-a');
+  await expect(state).toHaveAttribute('data-branch-source', 'matches');
+  await expect(state).toContainText('Several branches match; add the branch: RCP15-b, rcp-15-a');
   await settle(page);
   await expectAxeClean(page, 'item Details, several branches match');
   await shoot(page, 'branch-several', section);
 
-  // Set branch: the dialog suggests the matches; the reported branch wins.
-  await row.getByRole('button', { name: 'Set branch' }).click();
-  const dialog = page.getByRole('dialog', { name: 'Branch · RCP-15' });
+  // Add branch: the dialog suggests the matches; a reported branch wins over them.
+  const add = section.getByRole('button', { name: 'Add branch' });
+  await add.click();
+  const dialog = page.getByRole('dialog', { name: 'Add branch · RCP-15' });
   const input = dialog.getByLabel('Branch', { exact: true });
   await expect(input).toHaveValue('RCP15-b');
   await input.fill('rcp-15-a');
-  await expectAxeClean(page, 'the branch dialog', { themes: ['light'] });
-  await dialog.getByRole('button', { name: 'Save' }).click();
-  await expect(toast(page, 'Set RCP-15’s branch to rcp-15-a.')).toBeVisible();
+  await expectAxeClean(page, 'the add branch dialog', { themes: ['light'] });
+  await dialog.getByRole('button', { name: 'Add', exact: true }).click();
+  await expect(toast(page, 'Added rcp-15-a to RCP-15’s branches.')).toBeVisible();
   await expect(dialog).toHaveCount(0);
-  await expect(row).toHaveAttribute('data-branch-source', 'reported');
-  await expect(row).toContainText('rcp-15-a · reported by you');
-  await settle(page);
-  await shoot(page, 'branch-reported', section);
-  await owner(page, 'POST', '/api/projects/RCP/radar/run', {});
-  expect((await owner(page, 'GET', '/api/items/RCP-15/shared')).branch).toMatchObject({
-    name: 'rcp-15-a',
-    source: 'reported',
-  });
+  const reported = section.locator('[data-branch-source="reported"]');
+  await expect(reported).toHaveCount(1);
+  await expect(reported).toContainText('rcp-15-a');
+  await expect(reported).toContainText('reported by you');
 
-  // Clear: the radar's matches show again.
-  await row.getByRole('button', { name: 'Clear branch' }).click();
-  await expect(toast(page, 'Cleared RCP-15’s branch; the radar looks for one.')).toBeVisible();
-  await expect(row).toHaveAttribute('data-branch-source', 'none');
-  await expect(row).toContainText('Several branches match');
+  // B41: a second branch; the section lists both, each with Remove.
+  await add.click();
+  await expect(input).toHaveValue('');
+  await input.fill('RCP15-b');
+  await dialog.getByRole('button', { name: 'Add', exact: true }).click();
+  await expect(toast(page, 'Added RCP15-b to RCP-15’s branches.')).toBeVisible();
+  await expect(reported).toHaveCount(2);
+  await expect(section.getByRole('list', { name: 'Reported branches' })).toBeVisible();
+  await settle(page);
+  await expectAxeClean(page, 'item Details, two reported branches');
+  await shoot(page, 'branches-reported', section);
+  await owner(page, 'POST', '/api/projects/RCP/radar/run', {});
+  const shared = (await owner(page, 'GET', '/api/items/RCP-15/shared')) as {
+    branches: { reported: { name: string; reported_by: string }[] };
+  };
+  expect(shared.branches.reported.map((b) => [b.name, b.reported_by])).toEqual([
+    ['rcp-15-a', 'owner'],
+    ['RCP15-b', 'owner'],
+  ]);
+
+  // Remove one: focus moves to Add branch.
+  await section.getByRole('button', { name: 'Remove branch rcp-15-a' }).click();
+  await expect(toast(page, 'Removed rcp-15-a from RCP-15’s branches.')).toBeVisible();
+  await expect(reported).toHaveCount(1);
+  await expect(add).toBeFocused();
+
+  // Remove the last: the radar's matches show again.
+  await section.getByRole('button', { name: 'Remove branch RCP15-b' }).click();
+  await expect(toast(page, 'Removed RCP15-b; the radar looks for RCP-15’s branch.')).toBeVisible();
+  await expect(reported).toHaveCount(0);
+  await expect(state).toHaveAttribute('data-branch-source', 'matches');
+  await settle(page);
+  await expectAxeClean(page, 'item Details, branches removed');
 });

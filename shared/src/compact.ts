@@ -663,7 +663,8 @@ export function renderContext(ctx: ContextBundle, opts: RenderOptions = {}): str
     for (const f of sh.radar) {
       lines.push(
         `${I1}${join([
-          `conflict ahead with ${f.with ?? 'main'} (${f.branch})`,
+          // B41: the item's own branch, then the other's.
+          `conflict ahead with ${f.with ?? 'main'} (${f.own_branch} vs ${f.branch})`,
           `${f.files.length} file${f.files.length === 1 ? '' : 's'}`,
           f.files.length > 0 ? truncate(f.files.slice(0, 5).join(', ')) : null,
         ])}`,
@@ -1179,7 +1180,14 @@ const RENDERERS: { [N in ToolName]: Renderer<N> } = {
         d.state === 'none'
           ? 'none'
           : `${d.changes.length} change${d.changes.length === 1 ? '' : 's'}`,
-      branch: typeof a.branch === 'string' ? `${SEP}branch ${a.branch}` : '',
+      branch:
+        typeof a.branch === 'string'
+          ? `${SEP}branch ${a.branch}`
+          : Array.isArray(a.branches)
+            ? a.branches.length > 0
+              ? `${SEP}branches ${a.branches.join(', ')}`
+              : `${SEP}branches cleared`
+            : '',
       registered: r.registered.length > 0 ? `${SEP}registered ${partList(r.registered)}` : '',
       overlaps: overlaps.length > 0 ? `${SEP}overlaps ${overlaps.join('; ')}` : '',
     });

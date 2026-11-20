@@ -129,7 +129,7 @@ function SharedBody({
         <div className="src">Declared by {decl.declared_by}</div>
       )}
 
-      <BranchRow itemId={itemId} branch={s.branch} closed={closed} />
+      <BranchesRow itemId={itemId} branches={s.branches} closed={closed} />
 
       {live.length > 0 && (
         <>
@@ -177,13 +177,14 @@ function SharedBody({
         <>
           <h4>Conflict radar</h4>
           {s.findings.map((f) => {
-            const { other, branch } = findingText(f, itemId);
+            const { other, branch, own } = findingText(f, itemId);
             const mine = f.item_a?.id === itemId ? f.source_a : f.source_b;
             return (
               <div key={f.id} className="lrow" data-finding={f.id}>
                 <Chip kind="bad">conflict ahead</Chip>
                 <span>
-                  Heading for a conflict with {other} ({branch}): {fileCount(f.files.length)}
+                  Heading for a conflict with {other}: {fileCount(f.files.length)} ·{' '}
+                  <span className="mono">{own}</span> vs <span className="mono">{branch}</span>
                 </span>
                 {mine === 'discovered' && <span className="src">branch found by the radar</span>}
                 <span className="src mono one grow" title={f.files.join('\n')}>
@@ -199,34 +200,111 @@ function SharedBody({
 }
 
 /**
- * The item's branch for the conflict radar (B40): reported (by an agent or
- * you), found by the radar, or several matching (the radar then uses none).
- * *Set branch* reports one; *Clear* lets the radar look again. Both are
- * undoable.
+ * The item's branches for the conflict radar (B40; B41: several). The radar
+ * trial-merges every reported branch (by an agent or you); with none, the one
+ * local branch it found named after the item, or none when several match.
+ * *Add branch* reports one; *Remove* on each takes it off, and removing the
+ * last lets the radar look again. Both are undoable.
  */
-function BranchRow({
+function BranchesRow({
   itemId,
-  branch: b,
+  branches: b,
   closed,
 }: {
   itemId: string;
-  branch: ItemSharedResponse['branch'];
+  branches: ItemSharedResponse['branches'];
   closed: boolean;
 }) {
+  const [adding, setAdding] = useState(false);
+  // Removing a branch unmounts its focused button: focus moves to *Add branch* (B34).
+  const addRef = useRef<HTMLButtonElement>(null);
+  const reported = b.reported.length > 0;
+  return (
+    <>
+      <h4>Branches</h4>
+      {reported ? (
+        <ul className="shared-list" aria-label="Reported branches">
+          {b.reported.map((r) => (
+            <BranchItem
+              key={r.name}
+              itemId={itemId}
+              branch={r}
+              closed={closed}
+              onRemoved={() => addRef.current?.focus()}
+            />
+          ))}
+        </ul>
+      ) : b.discovered ? (
+        <div className="lrow" data-branch-source="discovered">
+          <span className="grow">
+            Branch found by the radar: <span className="mono">{b.discovered}</span>
+          </span>
+        </div>
+      ) : b.matches.length > 0 ? (
+        <div className="lrow" data-branch-source="matches">
+          <Callout tone="warn" className="grow">
+            Several branches match; add the branch:{' '}
+            <span className="mono">{b.matches.join(', ')}</span>
+          </Callout>
+        </div>
+      ) : (
+        <div className="lrow" data-branch-source="none">
+          <span className="src grow">
+            No branch yet. The radar looks for a local branch named after the item.
+          </span>
+        </div>
+      )}
+      {!closed && (
+        <div className="row" style={{ gap: 4 }}>
+          <Button ref={addRef} size="sm" icon="plus" onClick={() => setAdding(true)}>
+            Add branch
+          </Button>
+        </div>
+      )}
+      {adding && (
+        <BranchDialog
+          itemId={itemId}
+          initial={reported ? '' : (b.discovered ?? b.matches[0] ?? '')}
+          suggestions={reported ? [] : b.matches}
+          onClose={() => setAdding(false)}
+        />
+      )}
+    </>
+  );
+}
+
+/** One reported branch, with who reported it and *Remove*. */
+function BranchItem({
+  itemId,
+  branch: r,
+  closed,
+  onRemoved,
+}: {
+  itemId: string;
+  branch: ItemSharedResponse['branches']['reported'][number];
+  closed: boolean;
+  onRemoved: () => void;
+}) {
   const qc = useQueryClient();
-  const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
-  const reported = b.source === 'reported';
-  const clear = async () => {
+  const remove = async () => {
     setBusy(true);
     try {
-      await runOwnerMutation(
-        () => apiClient['itemShared.branch']({ params: { id: itemId }, body: { branch: null } }),
+      const out = await runOwnerMutation(
+        () =>
+          apiClient['itemShared.branches']({
+            params: { id: itemId },
+            body: { op: 'remove', branch: r.name },
+          }),
         {
-          success: `Cleared ${itemId}’s branch; the radar looks for one.`,
+          success: (res) =>
+            res.branches.reported.length === 0
+              ? `Removed ${r.name}; the radar looks for ${itemId}’s branch.`
+              : `Removed ${r.name} from ${itemId}’s branches.`,
           refetch: [queryKeys.itemShared(itemId)],
         },
       );
+      if (out) onRemoved();
       await qc.invalidateQueries({ queryKey: queryKeys.itemShared(itemId) });
     } catch (err) {
       showToast(errorText(err));
@@ -235,55 +313,19 @@ function BranchRow({
     }
   };
   return (
-    <>
-      <h4>Branch</h4>
-      <div className="lrow" data-branch-source={b.source ?? 'none'}>
-        {b.name === null ? (
-          b.matches.length > 0 ? (
-            <Callout tone="warn" className="grow">
-              Several branches match; report the branch:{' '}
-              <span className="mono">{b.matches.join(', ')}</span>
-            </Callout>
-          ) : (
-            <span className="src grow">
-              No branch yet. The radar looks for a local branch named after the item.
-            </span>
-          )
-        ) : reported ? (
-          <span className="grow">
-            <span className="mono">{b.name}</span>
-            {b.reported_by && (
-              <span className="src">
-                {' · reported by '}
-                {b.reported_by === 'owner' ? 'you' : b.reported_by}
-              </span>
-            )}
-          </span>
-        ) : (
-          <span className="grow">
-            Branch found by the radar: <span className="mono">{b.name}</span>
-          </span>
-        )}
-        {!closed && (
-          <Button size="sm" onClick={() => setEditing(true)}>
-            {reported ? 'Change branch' : 'Set branch'}
-          </Button>
-        )}
-        {!closed && reported && (
-          <Button size="sm" variant="ghost" disabled={busy} onClick={() => void clear()}>
-            Clear<span className="sr"> branch</span>
-          </Button>
-        )}
-      </div>
-      {editing && (
-        <BranchDialog
-          itemId={itemId}
-          initial={b.name ?? b.matches[0] ?? ''}
-          suggestions={b.matches}
-          onClose={() => setEditing(false)}
-        />
+    <li className="lrow" data-branch={r.name} data-branch-source="reported">
+      <span className="mono one grow">{r.name}</span>
+      {r.reported_by && (
+        <span className="src" title={isoTitle(r.reported_at)}>
+          reported by {r.reported_by === 'owner' ? 'you' : r.reported_by}
+        </span>
       )}
-    </>
+      {!closed && (
+        <Button size="sm" variant="ghost" disabled={busy} onClick={() => void remove()}>
+          Remove<span className="sr"> branch {r.name}</span>
+        </Button>
+      )}
+    </li>
   );
 }
 
@@ -313,9 +355,13 @@ function BranchDialog({
     setBusy(true);
     try {
       const out = await runOwnerMutation(
-        () => apiClient['itemShared.branch']({ params: { id: itemId }, body: { branch } }),
+        () =>
+          apiClient['itemShared.branches']({
+            params: { id: itemId },
+            body: { op: 'add', branch },
+          }),
         {
-          success: `Set ${itemId}’s branch to ${branch}.`,
+          success: `Added ${branch} to ${itemId}’s branches.`,
           refetch: [queryKeys.itemShared(itemId)],
         },
       );
@@ -329,20 +375,20 @@ function BranchDialog({
   };
   return (
     <Dialog
-      title={`Branch · ${itemId}`}
+      title={`Add branch · ${itemId}`}
       onClose={onClose}
       footer={
         <>
           <DialogCancel onClick={onClose} />
           <Button variant="primary" disabled={busy} onClick={() => void save()}>
-            {busy ? 'Saving…' : 'Save'}
+            {busy ? 'Adding…' : 'Add'}
           </Button>
         </>
       }
     >
       <p className="src" style={{ marginTop: 0 }}>
-        The branch the conflict radar trial-merges for this item. It replaces any branch the radar
-        found.
+        A branch the work on this item is on. The conflict radar trial-merges every branch you or an
+        agent report, instead of any branch it found by name.
       </p>
       <label className="f" htmlFor={ids.input}>
         Branch

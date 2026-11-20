@@ -285,7 +285,7 @@ const INPUTS: Record<string, [string[], string[]]> = {
   finish_onboarding: [['session_id', 'summary'], ['questions']],
   get_step: [['id', 'step_id'], []],
   apply_batch: [['operations'], []],
-  declare_shared_changes: [['id'], ['changes', 'none', 'new_parts', 'branch']],
+  declare_shared_changes: [['id'], ['changes', 'none', 'new_parts', 'branch', 'branches']],
   list_shared_parts: [['project'], ['include_archived']],
   take_lease: [['id', 'part'], []],
   release_lease: [['id', 'part'], []],
@@ -838,6 +838,15 @@ describe('shared changes follow MCP_SPEC §5.15 (decision 36; B38)', () => {
     expect(declare.properties!.branch!.maxLength).toBe(200);
     expect(declare.required).not.toContain('branch');
     expect(specToolPart('declare_shared_changes', 'Input')).toContain('`branch?` (≤ 200, B40)');
+    // B41: or branches, up to 10 of them (an empty list clears).
+    const branches = declare.properties!.branches as Limits & { items?: Limits };
+    expect(branches.maxItems).toBe(10);
+    expect(branches.minItems).toBeUndefined();
+    expect(branches.items!.maxLength).toBe(200);
+    expect(declare.required).not.toContain('branches');
+    expect(specToolPart('declare_shared_changes', 'Input')).toContain(
+      '`branches?: string[]` (0–10, each ≤ 200, B41)',
+    );
   });
 
   it('get_context may carry shared; submit_packet may carry held_undeclared', () => {

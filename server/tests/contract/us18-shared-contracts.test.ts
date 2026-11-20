@@ -22,7 +22,14 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { radarRunOnce } from '../../src/jobs/sweeper.js';
-import { git, hashGitDir, makeBranchRepo, makeRadarRepo } from '../fixtures/radar-repo.js';
+import {
+  git,
+  hashGitDir,
+  makeBranchRepo,
+  makeEpicRepo,
+  makeRadarRepo,
+} from '../fixtures/radar-repo.js';
+import { probeRepo, RadarGit } from '../../src/domain/radar.js';
 import { insertItem, insertProject, tempDir } from '../helpers.js';
 import { ORIGIN, parseSetCookies } from '../integration/harness.js';
 import {
@@ -383,8 +390,8 @@ describe('the owner API (UI_SPEC §6.3.6)', () => {
         declared_by: null,
         declared_at: null,
       },
-      // B40: no branch reported or found yet.
-      branch: { name: null, source: null, reported_by: null, reported_at: null, matches: [] },
+      // B40, B41: no branch reported or found yet.
+      branches: { reported: [], discovered: null, matches: [] },
       overlaps: [],
       leases: [],
       findings: [],
@@ -1184,7 +1191,12 @@ describe('get_context.shared (FR-164)', () => {
       { part: 'file:server/src/db/schema.ts', held_until: '2026-11-06T13:00:00.000Z' },
     ]);
     expect(shared.radar).toEqual([
-      { with: 'RCP-18', branch: 'rcp-18-import', files: ['server/src/models/recipe.ts'] },
+      {
+        with: 'RCP-18',
+        branch: 'rcp-18-import',
+        own_branch: 'rcp-14-list',
+        files: ['server/src/models/recipe.ts'],
+      },
     ]);
     const lines = ctx.text.split('\n');
     expect(lines).toContain('shared: file:server/src/db/schema.ts change, model:Recipe change');
@@ -1194,7 +1206,7 @@ describe('get_context.shared (FR-164)', () => {
     );
     expect(lines).toContain('  lease file:server/src/db/schema.ts until 13:00Z');
     expect(lines).toContain(
-      '  conflict ahead with RCP-18 (rcp-18-import) · 1 file · server/src/models/recipe.ts',
+      '  conflict ahead with RCP-18 (rcp-14-list vs rcp-18-import) · 1 file · server/src/models/recipe.ts',
     );
     expect(lines).toContain('  …truncated; see list_shared_parts RCP');
     // Within the medium budget (3,000 tokens), and cut to fit the small one.
@@ -1265,11 +1277,8 @@ describe('the conflict radar (FR-163; T184)', () => {
       expectOk(await h.call('claim_lead', { id: 'RCP-17', branch: 'feat/a' }));
       expectOk(await h.call('claim_lead', { id: 'RCP-25', branch: 'feat/b' }, h.b));
       const c = await started('Other file');
-      sql()
-        .prepare(
-          "UPDATE events SET data = json_set(data, '$.branch', 'feat/c') WHERE type = 'claim.granted' AND item_id = ?",
-        )
-        .run(c.id);
+      // B41: an agent reports its branch with its declaration.
+      expectOk(await declare({ id: c.id, none: true, branches: ['feat/c'] }));
 
       const before = hashGitDir(fixture.repo);
       const run = await api('POST', '/api/projects/RCP/radar/run', {});
@@ -1294,16 +1303,17 @@ describe('the conflict radar (FR-163; T184)', () => {
         ]),
       );
       expect(found).toHaveLength(2);
+      // B41: findings name both branches.
       expect(events('radar.found', 'RCP-17').map((e) => e.summary)).toEqual([
-        'Heading for a conflict with RCP-25: 1 file',
+        'Heading for a conflict with RCP-25: 1 file · feat/a vs feat/b',
       ]);
       expect(
         events('radar.found', 'RCP-25')
           .map((e) => e.summary)
           .sort(),
       ).toEqual([
-        'Heading for a conflict with RCP-17: 1 file',
-        'Heading for a conflict with main: 1 file',
+        'Heading for a conflict with RCP-17: 1 file · feat/b vs feat/a',
+        'Heading for a conflict with main: 1 file · feat/b vs main',
       ]);
       // Both items show it; Needs you lists it under Problems; agents see it in their context.
       expect(
@@ -1323,11 +1333,11 @@ describe('the conflict radar (FR-163; T184)', () => {
           .map((p) => p.reason)
           .sort(),
       ).toEqual([
-        'Heading for a conflict with RCP-25: 1 file · shared.txt (feat/a)',
-        'Heading for a conflict with main: 1 file · shared.txt (feat/b)',
+        'Heading for a conflict with RCP-25: 1 file · shared.txt (feat/a vs feat/b)',
+        'Heading for a conflict with main: 1 file · shared.txt (feat/b vs main)',
       ]);
       expect(expectOk(await h.call('get_context', { id: 'RCP-17' })).text).toContain(
-        'conflict ahead with RCP-25 (feat/b) · 1 file · shared.txt',
+        'conflict ahead with RCP-25 (feat/a vs feat/b) · 1 file · shared.txt',
       );
 
       // A second run with nothing new writes no event (the scheduler's path).
@@ -1345,9 +1355,9 @@ describe('the conflict radar (FR-163; T184)', () => {
           .map((e) => e.summary)
           .sort(),
       ).toEqual([
-        'No longer heading for a conflict with RCP-17',
-        'No longer heading for a conflict with RCP-25',
-        'No longer heading for a conflict with main',
+        'No longer heading for a conflict with RCP-17 · feat/b vs feat/a',
+        'No longer heading for a conflict with RCP-25 · feat/a vs feat/b',
+        'No longer heading for a conflict with main · feat/b vs main',
       ]);
 
       // A folder that isn't a repository: "Radar off: no repository"; turning it off too.
@@ -1389,10 +1399,10 @@ describe('B40: the radar sees in-flight branches', () => {
     tmp = undefined;
   });
 
-  type Branch = {
-    name: string | null;
-    source: string | null;
-    reported_by: string | null;
+  // B41: the item's branches, reported (a set) and found by the radar.
+  type Branches = {
+    reported: { name: string; reported_by: string | null; reported_at: string }[];
+    discovered: string | null;
     matches: string[];
   };
 
@@ -1414,7 +1424,7 @@ describe('B40: the radar sees in-flight branches', () => {
           .status,
       ).toBe(200);
       const branch = async (id: string) =>
-        (await api('GET', `/api/items/${id}/shared`)).body.branch as Branch;
+        (await api('GET', `/api/items/${id}/shared`)).body.branches as Branches;
       const findings = (radar: S) =>
         (radar.findings as S[]).map((f) => [
           f.branch_a,
@@ -1426,13 +1436,7 @@ describe('B40: the radar sees in-flight branches', () => {
         ]);
 
       // Before any run: no branch reported or found.
-      expect(await branch('GF-239')).toEqual({
-        name: null,
-        source: null,
-        reported_by: null,
-        reported_at: null,
-        matches: [],
-      });
+      expect(await branch('GF-239')).toEqual({ reported: [], discovered: null, matches: [] });
 
       const before = hashGitDir(repo);
       const run = await api('POST', '/api/projects/GF/radar/run', {});
@@ -1441,20 +1445,20 @@ describe('B40: the radar sees in-flight branches', () => {
       expect(hashGitDir(repo)).toEqual(before);
 
       // Discovered: the item key (any case, gf-2390-decoy left out) and the Jira key.
-      expect(await branch('GF-239')).toMatchObject({
-        name: 'eps5000/gf-239-visual-shell',
-        source: 'discovered',
+      expect(await branch('GF-239')).toEqual({
+        reported: [],
+        discovered: 'eps5000/gf-239-visual-shell',
         matches: [],
       });
-      expect(await branch('GF-280')).toMatchObject({
-        name: 'feature/GAMEFLOW-280-x',
-        source: 'discovered',
+      expect(await branch('GF-280')).toEqual({
+        reported: [],
+        discovered: 'feature/GAMEFLOW-280-x',
         matches: [],
       });
       // Ambiguous: two branches name GF-281, so the radar uses neither.
-      expect(await branch('GF-281')).toMatchObject({
-        name: null,
-        source: null,
+      expect(await branch('GF-281')).toEqual({
+        reported: [],
+        discovered: null,
         matches: ['gf-281-a', 'gf-281-b'],
       });
       expect(events('branch.discovered').map((e) => e.summary)).toEqual([
@@ -1467,7 +1471,7 @@ describe('B40: the radar sees in-flight branches', () => {
       ]);
       const found = events('radar.found', 'GF-239');
       expect(found.map((e) => e.summary)).toEqual([
-        'Heading for a conflict with main: 1 file (branch found by the radar: eps5000/gf-239-visual-shell)',
+        'Heading for a conflict with main: 1 file · eps5000/gf-239-visual-shell (found by the radar) vs main',
       ]);
       expect(JSON.parse(found[0]!.data)).toMatchObject({ source: 'discovered' });
 
@@ -1487,29 +1491,27 @@ describe('B40: the radar sees in-flight branches', () => {
       expect(events('branch.reported', 'GF-281').map((e) => e.summary)).toEqual([
         "claude reported GF-281's branch: gf-281-a",
       ]);
-      expect(await branch('GF-281')).toMatchObject({
-        name: 'gf-281-a',
-        source: 'reported',
-        reported_by: 'claude',
-        matches: [],
-      });
+      expect((await branch('GF-281')).reported).toMatchObject([
+        { name: 'gf-281-a', reported_by: 'claude' },
+      ]);
 
-      // The owner reports GF-239's branch: it wins over the one the radar found.
-      const set = await api('PUT', '/api/items/GF-239/shared/branch', {
+      // The owner adds a branch for GF-239: it wins over the one the radar found.
+      const set = await api('POST', '/api/items/GF-239/shared/branches', {
+        op: 'add',
         branch: 'spike/shell-rework',
       });
       expect(set.status).toBe(200);
-      expect(set.body.branch).toMatchObject({
-        name: 'spike/shell-rework',
-        source: 'reported',
-        reported_by: 'owner',
+      expect(set.body.branches).toMatchObject({
+        reported: [{ name: 'spike/shell-rework', reported_by: 'owner' }],
+        discovered: 'eps5000/gf-239-visual-shell',
       });
       expect(events('branch.reported', 'GF-239').map((e) => e.summary)).toEqual([
-        "You reported GF-239's branch: spike/shell-rework",
+        "You added spike/shell-rework to GF-239's branches",
       ]);
-      expect((await api('PUT', '/api/items/GF-239/shared/branch', { branch: 'a..b' })).status).toBe(
-        400,
-      );
+      expect(
+        (await api('POST', '/api/items/GF-239/shared/branches', { op: 'add', branch: 'a..b' }))
+          .status,
+      ).toBe(400);
 
       const second = await api('POST', '/api/projects/GF/radar/run', {});
       expect(hashGitDir(repo)).toEqual(before);
@@ -1518,20 +1520,24 @@ describe('B40: the radar sees in-flight branches', () => {
         ['gf-281-a', 'main', 'GF-281', 'reported', null, ['shared.txt']],
       ]);
       expect(events('radar.found', 'GF-281').map((e) => e.summary)).toEqual([
-        'Heading for a conflict with main: 1 file',
+        'Heading for a conflict with main: 1 file · gf-281-a vs main',
       ]);
       expect(events('radar.cleared', 'GF-239').map((e) => e.summary)).toEqual([
-        'No longer heading for a conflict with main',
+        'No longer heading for a conflict with main · eps5000/gf-239-visual-shell vs main',
       ]);
 
-      // Clearing the owner's branch falls back to the one the radar found.
-      const cleared = await api('PUT', '/api/items/GF-239/shared/branch', { branch: null });
-      expect(cleared.body.branch).toMatchObject({
-        name: 'eps5000/gf-239-visual-shell',
-        source: 'discovered',
+      // Removing the owner's only branch falls back to the one the radar found.
+      const cleared = await api('POST', '/api/items/GF-239/shared/branches', {
+        op: 'remove',
+        branch: 'spike/shell-rework',
+      });
+      expect(cleared.body.branches).toEqual({
+        reported: [],
+        discovered: 'eps5000/gf-239-visual-shell',
+        matches: [],
       });
       expect(events('branch.reported', 'GF-239').at(-1)!.summary).toBe(
-        "You cleared GF-239's branch; the radar looks for one",
+        "You removed spike/shell-rework from GF-239's branches; the radar looks for one",
       );
       const third = await api('POST', '/api/projects/GF/radar/run', {});
       expect(findings(third.body.radar as S)).toEqual(
@@ -1543,19 +1549,276 @@ describe('B40: the radar sees in-flight branches', () => {
       expect(hashGitDir(repo)).toEqual(before);
 
       // The owner's report is undoable.
-      const again = await api('PUT', '/api/items/GF-239/shared/branch', {
+      const again = await api('POST', '/api/items/GF-239/shared/branches', {
+        op: 'add',
         branch: 'gf-2390-decoy',
       });
       expect(again.status).toBe(200);
       const undo = await api('POST', `/api/mutations/${again.body.mutation_id as string}/undo`);
       expect(undo.status).toBe(200);
-      expect(await branch('GF-239')).toMatchObject({
-        name: 'eps5000/gf-239-visual-shell',
-        source: 'discovered',
+      expect(await branch('GF-239')).toEqual({
+        reported: [],
+        discovered: 'eps5000/gf-239-visual-shell',
+        matches: [],
       });
     },
     30_000,
   );
+});
+
+describe('B41: several branches per item', () => {
+  let tmp: { dir: string; cleanup(): void } | undefined;
+  afterEach(() => {
+    tmp?.cleanup();
+    tmp = undefined;
+  });
+
+  type Branches = {
+    reported: { name: string; reported_by: string | null; reported_at: string }[];
+    discovered: string | null;
+    matches: string[];
+  };
+
+  it.skipIf(!HAS_GIT)(
+    'trial-merges every reported branch, flags only cross-item pairs naming both branches, and leaves .git unchanged',
+    async () => {
+      tmp = tempDir('docket-radar-b41-');
+      const { repo } = makeEpicRepo(tmp.dir);
+      h = await startHarness({ env: { DOCKET_PUSH_ROOT: tmp.dir } });
+      const api = await owner();
+      const db = h.server.runtime.db;
+      insertProject(db, 'GF');
+      insertItem(db, { id: 'GF-217', status: 'progress' });
+      insertItem(db, { id: 'GF-235', status: 'progress' });
+      expect(
+        (await api('PUT', '/api/projects/GF/radar', { repo_path: 'gf-epics', main_branch: 'main' }))
+          .status,
+      ).toBe(200);
+      const branches = async (id: string) =>
+        (await api('GET', `/api/items/${id}/shared`)).body.branches as Branches;
+      const names = async (id: string) => (await branches(id)).reported.map((b) => b.name);
+      const findings = (radar: S) =>
+        (radar.findings as S[]).map((f) => [
+          f.branch_a,
+          f.branch_b,
+          (f.item_a as S).id,
+          (f.item_b as S | null)?.id ?? null,
+          f.files,
+        ]);
+
+      // GF-217 reports two branches with its declaration; GF-235's one comes from its claim.
+      const v217 = version('GF-217');
+      const declared = expectOk(
+        await declare({ id: 'GF-217', none: true, branches: ['gf-217-api', 'gf-217-web'] }),
+      );
+      expect(declared.text).toBe('Declared none on GF-217 · branches gf-217-api, gf-217-web');
+      expect(version('GF-217')).toBe(v217);
+      expect(events('branch.reported', 'GF-217').map((e) => e.summary)).toEqual([
+        "claude reported GF-217's branches: gf-217-api, gf-217-web",
+      ]);
+      expectOk(await h.call('claim_lead', { id: 'GF-235', branch: 'gf-235-b' }, h.b));
+      expect(await names('GF-217')).toEqual(['gf-217-api', 'gf-217-web']);
+      expect(await names('GF-235')).toEqual(['gf-235-b']);
+
+      const before = hashGitDir(repo);
+      const run = await api('POST', '/api/projects/GF/radar/run', {});
+      expect(run.status).toBe(200);
+      // Read-only: every file under .git (worktrees' admin folders included) is unchanged.
+      expect(hashGitDir(repo)).toEqual(before);
+
+      // Every branch was checked against main (all clean); the one cross-item pair conflicts.
+      // gf-217-api and gf-217-web conflict too (api.txt), but they are the same item's.
+      expect(findings(run.body.radar as S)).toEqual([
+        ['gf-217-api', 'gf-235-b', 'GF-217', 'GF-235', ['shared.txt']],
+      ]);
+      const probe = probeRepo(repo);
+      if (!probe.ok) throw new Error('fixture is not a repository');
+      const g = new RadarGit(repo, probe.objects);
+      try {
+        expect(g.merge('refs/heads/gf-217-api', 'refs/heads/gf-217-web')).toEqual(['api.txt']);
+      } finally {
+        g.close();
+      }
+      expect(hashGitDir(repo)).toEqual(before);
+      expect(events('radar.found', 'GF-217').map((e) => e.summary)).toEqual([
+        'Heading for a conflict with GF-235: 1 file · gf-217-api vs gf-235-b',
+      ]);
+      expect(events('radar.found', 'GF-235').map((e) => e.summary)).toEqual([
+        'Heading for a conflict with GF-217: 1 file · gf-235-b vs gf-217-api',
+      ]);
+      const problems = (await api('GET', '/api/needs-you?scope=all')).body.problems as {
+        kind: string;
+        reason: string;
+      }[];
+      expect(problems.filter((p) => p.kind === 'radar_conflict').map((p) => p.reason)).toEqual([
+        'Heading for a conflict with GF-235: 1 file · shared.txt (gf-217-api vs gf-235-b)',
+      ]);
+      expect(expectOk(await h.call('get_context', { id: 'GF-235' })).text).toContain(
+        'conflict ahead with GF-217 (gf-235-b vs gf-217-api) · 1 file · shared.txt',
+      );
+      // Discovery runs only for items with no reported branch: none here.
+      expect(events('branch.discovered')).toEqual([]);
+
+      // Nothing new: a second run writes no event.
+      const n = count('SELECT count(*) AS n FROM events');
+      radarRunOnce(h.server.runtime, 'GF');
+      expect(count('SELECT count(*) AS n FROM events')).toBe(n);
+
+      // Replacing the set: gf-217-web keeps who reported it first; the finding clears.
+      const first = (await branches('GF-217')).reported[1]!;
+      expectOk(await declare({ id: 'GF-217', none: true, branches: ['gf-217-web'] }));
+      expect((await branches('GF-217')).reported).toEqual([first]);
+      expect(events('branch.reported', 'GF-217').at(-1)!.summary).toBe(
+        "claude reported GF-217's branch: gf-217-web",
+      );
+      const second = await api('POST', '/api/projects/GF/radar/run', {});
+      expect(findings(second.body.radar as S)).toEqual([]);
+      expect(events('radar.cleared', 'GF-217').map((e) => e.summary)).toEqual([
+        'No longer heading for a conflict with GF-235 · gf-217-api vs gf-235-b',
+      ]);
+      // The same set again records nothing.
+      const m = count("SELECT count(*) AS n FROM events WHERE type = 'branch.reported'");
+      expectOk(await declare({ id: 'GF-217', none: true, branches: ['gf-217-web'] }));
+      expect(count("SELECT count(*) AS n FROM events WHERE type = 'branch.reported'")).toBe(m);
+
+      // Clearing: an empty list; the radar then looks by name and finds both GF-217 branches.
+      const cleared = expectOk(await declare({ id: 'GF-217', none: true, branches: [] }));
+      expect(cleared.text).toBe('Declared none on GF-217 · branches cleared');
+      expect(events('branch.reported', 'GF-217').at(-1)!.summary).toBe(
+        "claude cleared GF-217's branches; the radar looks for one",
+      );
+      await api('POST', '/api/projects/GF/radar/run', {});
+      expect(await branches('GF-217')).toEqual({
+        reported: [],
+        discovered: null,
+        matches: ['gf-217-api', 'gf-217-web'],
+      });
+
+      // branch is a list of one: it replaces the set too, and the conflict is back.
+      expectOk(await declare({ id: 'GF-217', none: true, branch: 'gf-217-api' }));
+      expect(await names('GF-217')).toEqual(['gf-217-api']);
+      const third = await api('POST', '/api/projects/GF/radar/run', {});
+      expect(findings(third.body.radar as S)).toEqual([
+        ['gf-217-api', 'gf-235-b', 'GF-217', 'GF-235', ['shared.txt']],
+      ]);
+      expect(hashGitDir(repo)).toEqual(before);
+    },
+    30_000,
+  );
+
+  it('claim_lead, submit_packet and set_status add their branch; the owner adds and removes (undoable); at most 10', async () => {
+    h = await startHarness();
+    const api = await owner();
+    const names = async (id: string) =>
+      ((await api('GET', `/api/items/${id}/shared`)).body.branches as Branches).reported.map(
+        (b) => b.name,
+      );
+
+    // A claim adds its branch to what the declaration reported.
+    const created = expectOk(
+      await h.call('create_item', {
+        project: 'RCP',
+        type: 'Task',
+        title: 'Epic part',
+        status: 'planning',
+      }),
+    );
+    const id = (created.structured.item as { id: string }).id;
+    expectOk(await declare({ id, none: true, branches: ['rcp-a'] }));
+    expectOk(await h.call('set_status', { id, status: 'ready' }));
+    expectOk(await h.call('claim_lead', { id, branch: 'rcp-b' }));
+    expect(await names(id)).toEqual(['rcp-a', 'rcp-b']);
+    const reported = ((await api('GET', `/api/items/${id}/shared`)).body.branches as Branches)
+      .reported[1]!;
+    expect(reported).toMatchObject({ name: 'rcp-b', reported_by: 'claude' });
+
+    // A hand-off adds its branch; one already there stays as it is.
+    expectOk(await h.call('declare_human_review', { id, items: ['Open it.'] }));
+    expectOk(
+      await h.call('submit_packet', {
+        id,
+        built_from_commit: '9c0e7f2',
+        estimate: '2 min',
+        how: ['Open it.'],
+        checked: [],
+        branch: 'rcp-c',
+      }),
+    );
+    expect(await names(id)).toEqual(['rcp-a', 'rcp-b', 'rcp-c']);
+
+    // set_status to done adds the close's branch (on another item).
+    const other = expectOk(
+      await h.call('create_item', {
+        project: 'RCP',
+        type: 'Task',
+        title: 'Closed',
+        status: 'planning',
+      }),
+    );
+    const closedId = (other.structured.item as { id: string }).id;
+    expectOk(await declare({ id: closedId, none: true }));
+    expectOk(await h.call('set_status', { id: closedId, status: 'ready' }));
+    expectOk(await h.call('claim_lead', { id: closedId, workspace: { branch: 'rcp-ws' } }));
+    expect(await names(closedId)).toEqual(['rcp-ws']);
+    expectOk(await h.call('set_status', { id: closedId, status: 'done', branch: 'rcp-done' }));
+    expect(await names(closedId)).toEqual(['rcp-ws', 'rcp-done']);
+
+    // The owner adds and removes one; each is undoable.
+    const add = await api('POST', `/api/items/${id}/shared/branches`, {
+      op: 'add',
+      branch: 'rcp-d',
+    });
+    expect(add.status).toBe(200);
+    expect((add.body.branches as Branches).reported.map((b) => [b.name, b.reported_by])).toEqual([
+      ['rcp-a', 'claude'],
+      ['rcp-b', 'claude'],
+      ['rcp-c', 'claude'],
+      ['rcp-d', 'owner'],
+    ]);
+    const remove = await api('POST', `/api/items/${id}/shared/branches`, {
+      op: 'remove',
+      branch: 'rcp-a',
+    });
+    expect(await names(id)).toEqual(['rcp-b', 'rcp-c', 'rcp-d']);
+    expect(
+      events('branch.reported', id)
+        .map((e) => e.summary)
+        .slice(-2),
+    ).toEqual([`You added rcp-d to ${id}'s branches`, `You removed rcp-a from ${id}'s branches`]);
+    expect(
+      (await api('POST', `/api/mutations/${remove.body.mutation_id as string}/undo`)).status,
+    ).toBe(200);
+    expect(await names(id)).toEqual(['rcp-a', 'rcp-b', 'rcp-c', 'rcp-d']);
+    // Adding one already there, or removing one that isn't, records nothing.
+    const n = count("SELECT count(*) AS n FROM events WHERE type = 'branch.reported'");
+    await api('POST', `/api/items/${id}/shared/branches`, { op: 'add', branch: 'rcp-d' });
+    await api('POST', `/api/items/${id}/shared/branches`, { op: 'remove', branch: 'nope' });
+    expect(count("SELECT count(*) AS n FROM events WHERE type = 'branch.reported'")).toBe(n);
+
+    // At most 10: declaring 11 is refused; the owner can't add an 11th; a claim's drops the oldest.
+    const ten = Array.from({ length: 10 }, (_, i) => `rcp-${i}`);
+    expectValidation(await declare({ id, none: true, branches: [...ten, 'rcp-x'] }));
+    expectOk(await declare({ id, none: true, branches: ten }));
+    const full = await api('POST', `/api/items/${id}/shared/branches`, {
+      op: 'add',
+      branch: 'rcp-x',
+    });
+    expect(full.status).toBe(400);
+    expect((full.body.error as S).message).toContain('already has 10 branches');
+    const third = expectOk(
+      await h.call('create_item', {
+        project: 'RCP',
+        type: 'Task',
+        title: 'Full',
+        status: 'planning',
+      }),
+    );
+    const fullId = (third.structured.item as { id: string }).id;
+    expectOk(await declare({ id: fullId, none: true, branches: ten }));
+    expectOk(await h.call('set_status', { id: fullId, status: 'ready' }));
+    expectOk(await h.call('claim_lead', { id: fullId, branch: 'rcp-new' }));
+    expect(await names(fullId)).toEqual([...ten.slice(1), 'rcp-new']);
+  });
 });
 
 describe('SC-023: unattended agents never start overlapping work without an owner decision', () => {

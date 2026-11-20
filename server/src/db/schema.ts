@@ -225,6 +225,15 @@ export const items = sqliteTable(
      */
     radar_branch: text('radar_branch'),
     radar_branch_matches: text('radar_branch_matches', { mode: 'json' }),
+    /**
+     * B41: the item's reported branches for the conflict radar, a JSON array
+     * of `{name, by, at}` (oldest first, up to 10; null or empty: none, so the
+     * radar looks for one by name). `declare_shared_changes` replaces it; the
+     * owner adds or removes one; `claim_lead`, `submit_packet` and
+     * `set_status` add theirs. Migration 0012 moved B40's single reported
+     * branch here; `branch`, `branch_by` and `branch_at` are no longer written.
+     */
+    branches: text('branches', { mode: 'json' }),
     version: version(),
     ...timestamps,
   },

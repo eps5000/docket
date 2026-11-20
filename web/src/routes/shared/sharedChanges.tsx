@@ -44,11 +44,18 @@ export const OVERLAP_STATE_TEXT: Record<Overlap['state'], string> = {
 
 type Finding = ItemSharedResponse['findings'][number];
 
-/** "Heading for a conflict with RCP-25 (feat/b): 1 file", from one item's side. */
-export function findingText(f: Finding, itemId: string): { other: string; branch: string } {
+/**
+ * "Heading for a conflict with RCP-25: 1 file · feat/a vs feat/b", from one
+ * item's side: the other item (or the main branch), its branch, and this
+ * item's own branch (B41: an item may report several).
+ */
+export function findingText(
+  f: Finding,
+  itemId: string,
+): { other: string; branch: string; own: string } {
   const mineA = f.item_a?.id === itemId;
-  if (mineA) return { other: f.item_b?.id ?? f.branch_b, branch: f.branch_b };
-  return { other: f.item_a?.id ?? f.branch_a, branch: f.branch_a };
+  if (mineA) return { other: f.item_b?.id ?? f.branch_b, branch: f.branch_b, own: f.branch_a };
+  return { other: f.item_a?.id ?? f.branch_a, branch: f.branch_a, own: f.branch_b };
 }
 
 export const fileCount = (n: number) => `${n} file${n === 1 ? '' : 's'}`;

@@ -3098,6 +3098,9 @@
                           "branch": {
                             "type": "string"
                           },
+                          "own_branch": {
+                            "type": "string"
+                          },
                           "files": {
                             "type": "array",
                             "items": {
@@ -3108,6 +3111,7 @@
                         "required": [
                           "with",
                           "branch",
+                          "own_branch",
                           "files"
                         ],
                         "additionalProperties": false
@@ -13571,7 +13575,7 @@
   },
   {
     "name": "declare_shared_changes",
-    "description": "Declare the shared parts this item will change (tables, models, endpoints, shared files), each with add, change or remove and a short note, or none: true when it changes none. An item can't move to Ready until it has declared. Each call replaces the item's whole declaration. Name parts by their keys from list_shared_parts; register a missing one with new_parts. Pass branch, the branch the work is on, so the conflict radar can check it, also when declaring for work already in progress. Returns the in-flight items that change the same parts.",
+    "description": "Declare the shared parts this item will change (tables, models, endpoints, shared files), each with add, change or remove and a short note, or none: true when it changes none. An item can't move to Ready until it has declared. Each call replaces the item's whole declaration. Name parts by their keys from list_shared_parts; register a missing one with new_parts. Pass branches, every branch the work is on (or branch for one), so the conflict radar can check them, also for work already in progress; they replace the item's reported branches, and an empty list clears them. Returns the in-flight items that change the same parts.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -13663,6 +13667,15 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 200
+        },
+        "branches": {
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
         },
         "run_id": {
           "type": "string",

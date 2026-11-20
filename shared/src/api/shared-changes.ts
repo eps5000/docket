@@ -154,31 +154,37 @@ export const radarFindingRowSchema = z.object({
 });
 export type RadarFindingRow = z.infer<typeof radarFindingRowSchema>;
 
-/**
- * The item's branch for the conflict radar (B40). `name` is the branch the
- * radar trial-merges: the latest reported one (by an agent or the owner, or
- * on a claim, run or packet), else the one local branch the radar found that
- * names the item's key or Jira key. With several matches it uses none, and
- * `matches` lists them so the owner can report one.
- */
-export const itemBranchSchema = z.object({
-  /** The branch the radar uses; null when it has none. */
-  name: z.string().nullable(),
-  /** `reported` or `discovered`; null when `name` is null. */
-  source: branchSourceSchema.nullable(),
-  /** Who last reported or cleared the branch (`owner`, `claude · orca-w3`), and when. */
+/** A branch reported for the item (B41): who reported it last and when. */
+export const reportedBranchSchema = z.object({
+  name: z.string(),
+  /** `owner`, or the agent (`claude · orca-w3`); null for one migrated without a name. */
   reported_by: z.string().nullable(),
-  reported_at: z.string().nullable(),
+  reported_at: z.string(),
+});
+export type ReportedBranch = z.infer<typeof reportedBranchSchema>;
+
+/**
+ * The item's branches for the conflict radar (B40; B41: several). The radar
+ * trial-merges every `reported` branch (by an agent or the owner, or on a
+ * claim or hand-off). With none reported, it uses the one local branch it
+ * found that names the item's key or Jira key (`discovered`); with several
+ * matches it uses none, and `matches` lists them so the owner can add one.
+ */
+export const itemBranchesSchema = z.object({
+  /** Up to 10, oldest first. */
+  reported: z.array(reportedBranchSchema),
+  /** The branch the radar found by name; it uses it only while none is reported. */
+  discovered: z.string().nullable(),
   /** Several local branches name the item: the radar uses none until one is reported. */
   matches: z.array(z.string()),
 });
-export type ItemBranch = z.infer<typeof itemBranchSchema>;
+export type ItemBranches = z.infer<typeof itemBranchesSchema>;
 
 /** The item's Shared changes section (UI_SPEC §6.3.6). */
 export const itemSharedResponse = jsonResponse({
   declaration: declarationSchema,
-  /** B40: the branch the radar uses for the item. */
-  branch: itemBranchSchema,
+  /** B40, B41: the branches the radar checks for the item. */
+  branches: itemBranchesSchema,
   overlaps: z.array(overlapRowSchema),
   /** Leases the item holds now. */
   leases: z.array(leaseRowSchema),
@@ -270,14 +276,19 @@ export const putItemSharedResponse = ownerMutationOutput({
 });
 export type PutItemSharedResponse = z.infer<typeof putItemSharedResponse>;
 
-// ---- PUT /api/items/:id/shared/branch (B40) ----
+// ---- POST /api/items/:id/shared/branches (B41) ----
 
-/** The owner reports the item's branch, or clears it (`null`): the radar then looks for one. */
-export const putItemBranchBody = input({
-  branch: branchInput.nullable(),
+/**
+ * The owner adds a branch to the item's reported branches, or removes one
+ * (B41; B40 had one branch, set or cleared). Removing the last lets the radar
+ * look for one by name.
+ */
+export const postItemBranchesBody = input({
+  op: z.enum(['add', 'remove']),
+  branch: branchInput,
 });
-export const putItemBranchResponse = ownerMutationOutput(itemSharedResponse.shape);
-export type PutItemBranchResponse = z.infer<typeof putItemBranchResponse>;
+export const postItemBranchesResponse = ownerMutationOutput(itemSharedResponse.shape);
+export type PostItemBranchesResponse = z.infer<typeof postItemBranchesResponse>;
 
 // ---- POST /api/overlaps/:id/decide ----
 
@@ -378,15 +389,15 @@ export const sharedChangesRoutes = {
     response: json(putItemSharedResponse),
     undoable: true,
   }),
-  /** B40: set or clear the item's branch for the radar (undoable). */
-  'itemShared.branch': route({
-    method: 'PUT',
-    path: '/api/items/:id/shared/branch',
+  /** B41: add or remove one of the item's branches for the radar (undoable). */
+  'itemShared.branches': route({
+    method: 'POST',
+    path: '/api/items/:id/shared/branches',
     group: 'shared',
     params: itemSharedParams,
     query: noInput,
-    body: putItemBranchBody,
-    response: json(putItemBranchResponse),
+    body: postItemBranchesBody,
+    response: json(postItemBranchesResponse),
     undoable: true,
   }),
   'overlaps.decide': route({
