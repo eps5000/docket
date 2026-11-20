@@ -109,6 +109,12 @@
   min-width: 0;
   overflow-wrap: anywhere;
 }
+/* Web addresses in plain text (review packets): underlined, and long ones wrap. */
+.tl a.textlink {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  overflow-wrap: anywhere;
+}
 .tl .act {
   display: grid;
   grid-template-columns: 70px 1fr;
