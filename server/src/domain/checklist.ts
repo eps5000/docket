@@ -26,6 +26,13 @@
  * may change their state only. Events record details as versions, never the
  * text. `get_step` reads one step in full, with its history from the
  * `plan.updated` and `step.updated` events.
+ *
+ * Imported steps (owner decision 34; MCP_SPEC §5.5): a step the Jira import
+ * wrote (an owner step with a `source`, on an imported item) takes details
+ * from agents through `set_plan` and `update_step`, as long as they set them
+ * where there are none or extend them (the current text stays at the start).
+ * Its text and source stay the owner's. Events carry `details_added: true`,
+ * and the step's history reads "details added by <agent>".
  */
 import { LIMITS, ToolError, type StepHistoryEntry, type WorkStep } from '@docket/shared';
 import type { Db } from '../db/client.js';
@@ -108,6 +115,30 @@ function ownerOnly(kind: string, id: string, what = 'text'): ToolError {
   );
 }
 
+/**
+ * A step the Jira import wrote (decision 34; MCP_SPEC §5.5): an owner step
+ * with a `source`, on an item the import created. Owner-typed steps never
+ * carry a source (the owner's routes don't set one), so nothing new is stored.
+ */
+const isImportedStep = (item: ItemRow, s: StepRow): boolean =>
+  isOwner(s.added_by) && s.source !== null && !!item.imported;
+
+/**
+ * Whether an agent may write `next` as an imported step's details (decision
+ * 34): set them when there are none, or extend them, keeping the current text
+ * as the start. Clearing or rewriting stays the owner's.
+ */
+const extendsDetails = (current: string | null, next: string | null): boolean =>
+  next !== null && (current === null || next.startsWith(current.replace(/\s+$/, '')));
+
+function importedDetailsOnly(id: string): ToolError {
+  return new ToolError(
+    'forbidden',
+    `${id} was imported from Jira; you may add to its details, keeping the current text at the start, but only the owner can rewrite or clear them. You may change its state.`,
+    { details: { kind: 'work step' } },
+  );
+}
+
 /** Details as stored: `undefined` leaves them, `null` or empty clears them (MCP_SPEC §5.12, B33). */
 const normDetails = (d: string | null | undefined): string | null | undefined =>
   d === undefined ? undefined : d === null || d === '' ? null : d;
@@ -158,6 +189,10 @@ const versionMove = (v: unknown): { from: string; to: string } | null => {
     : null;
 };
 
+/** Decision 34: an agent's details on an imported step read "details added by <agent>". */
+const addedNote = (data: EventData, by: string): { note?: string } =>
+  data.details_added === true ? { note: `details added by ${by}` } : {};
+
 /**
  * A step's history (get_step): when and by whom it was added (from the row
  * itself, so imported and seeded steps have it too), then every wording,
@@ -198,7 +233,7 @@ function stepHistory(db: Db, row: StepRow): StepHistoryEntry[] {
         push({ change: 'state', from: strOrNull(c.was_state), to: c.state });
       }
       const details = versionMove(c.details_version);
-      if (details) push({ change: 'details', ...details });
+      if (details) push({ change: 'details', ...details, ...addedNote(c, by) });
       if ('source' in c)
         push({ change: 'source', from: strOrNull(c.was_source), to: strOrNull(c.source) });
     } else if (data.step_id === row.id) {
@@ -212,7 +247,7 @@ function stepHistory(db: Db, row: StepRow): StepHistoryEntry[] {
         });
       }
       const details = versionMove(data.details_version);
-      if (details) push({ change: 'details', ...details });
+      if (details) push({ change: 'details', ...details, ...addedNote(data, by) });
     }
   }
   return history;
@@ -332,8 +367,15 @@ export function createChecklistService(_deps: ServiceDeps): ChecklistService {
         }
         const details = normDetails(step.details);
         if (details !== undefined && details !== s.details_md) {
-          if (isOwner(s.added_by)) throw ownerOnly('work step', s.id, 'details');
-          change(s.id, { details_md: details, details_version: s.details_version + 1 });
+          // Imported steps take added details (decision 34); other owner steps none.
+          const added = isImportedStep(item, s);
+          if (added && !extendsDetails(s.details_md, details)) throw importedDetailsOnly(s.id);
+          if (isOwner(s.added_by) && !added) throw ownerOnly('work step', s.id, 'details');
+          change(s.id, {
+            details_md: details,
+            details_version: s.details_version + 1,
+            ...(added ? { details_added: true } : {}),
+          });
         }
         if (step.source !== undefined && step.source !== s.source) {
           if (isOwner(s.added_by)) throw ownerOnly('work step', s.id, 'source');
@@ -427,11 +469,10 @@ export function createChecklistService(_deps: ServiceDeps): ChecklistService {
             ...fresh,
           });
         } else {
-          w.update('work_steps', id, {
-            plan_version_no: next,
-            position,
-            ...(changes.get(id) ?? {}),
-          });
+          // `details_added` is event data (decision 34), not a column.
+          const set = { ...(changes.get(id) ?? {}) };
+          delete set.details_added;
+          w.update('work_steps', id, { plan_version_no: next, position, ...set });
         }
       });
       const facts = [
@@ -476,7 +517,14 @@ export function createChecklistService(_deps: ServiceDeps): ChecklistService {
       ) {
         throw detailsConflict(w.db, step, input.expected_details_version);
       }
-      if (detailsChange && isOwner(step.added_by)) throw ownerOnly('work step', step.id, 'details');
+      // Imported steps take added details (decision 34); other owner steps none.
+      const added = detailsChange && isImportedStep(item, step);
+      if (added && !extendsDetails(step.details_md, details ?? null)) {
+        throw importedDetailsOnly(step.id);
+      }
+      if (detailsChange && isOwner(step.added_by) && !added) {
+        throw ownerOnly('work step', step.id, 'details');
+      }
       // Sending details with the step's current state changes the details only (B33).
       const stateChange = !(input.details !== undefined && input.state === step.state);
       const nextVersion = step.details_version + 1;
@@ -489,12 +537,18 @@ export function createChecklistService(_deps: ServiceDeps): ChecklistService {
         w.update('runs', run.id, { current_step_id: step.id });
       }
       if (stateChange || detailsChange) {
-        const detailsNote = details === null ? 'details cleared' : `details v${nextVersion}`;
+        const detailsNote = added
+          ? `details added by ${who}, v${nextVersion}`
+          : details === null
+            ? 'details cleared'
+            : `details v${nextVersion}`;
         w.event({
           type: 'step.updated',
           summary: stateChange
             ? `${who}: ${step.text} → ${input.state}${input.note ? `: ${input.note}` : ''}${detailsChange ? ` · ${detailsNote}` : ''}`
-            : `${who} updated the details of ${quote(step.text)} (${detailsNote})`,
+            : added
+              ? `Details added by ${who} to ${quote(step.text)} (v${nextVersion})`
+              : `${who} updated the details of ${quote(step.text)} (${detailsNote})`,
           item_id: item.id,
           project_key: item.project_key,
           data: {
@@ -505,6 +559,7 @@ export function createChecklistService(_deps: ServiceDeps): ChecklistService {
             ...(detailsChange
               ? { details_version: { old: step.details_version, new: nextVersion } }
               : {}),
+            ...(added ? { details_added: true } : {}),
           },
         });
       }

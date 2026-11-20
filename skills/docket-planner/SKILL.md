@@ -73,7 +73,16 @@ If the owner must check something by hand, `declare_human_review` during Plannin
 - **Planning docs:** add them as the project's `AGENTS.md` expects for the risk level, with `put_document { item_id, kind: "planning" }`. For example a short PRD for user-facing features, or a TDD for data-model changes. Uploading again under the same name makes a new version.
 - **Conventions:** record conventions that the epic's workers must share (units, API shapes, naming) with `publish_decision`, scoped to the epic or label. That way every worker gets them through `get_context`.
 
-## 6. Hand back
+## 6. Many writes at once
+
+When a breakdown or an onboarding runs to dozens of items, documents or links, send them with `apply_batch`: up to 100 `operations` a call, each naming a tool (`create_item`, `update_item`, `link_items`, `upsert_label`, `set_plan`, `update_step`, `put_document`, `publish_decision`) with the arguments you would give it.
+
+- Each operation is checked and applied on its own, in order. One that fails changes nothing and doesn't stop the rest, so read every result and resend only the failures.
+- `"$1"` in an argument is the ID operation 1 wrote, so an epic and its items fit in one batch: `epic: "$1"`.
+- Pass `idempotency_key` on each batch: a retry then replays what succeeded.
+- **Steps imported from Jira** (they have a `source`): you may add to their details, keeping the current text at the start. Their text stays the owner's.
+
+## 7. Hand back
 
 1. Add one `add_note` on the epic: how you broke it down, what's blocked on what, and any open questions.
 2. If something needs an owner decision, `ask_owner` on the epic, with options and your recommendation.

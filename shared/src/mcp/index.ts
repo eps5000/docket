@@ -10,6 +10,7 @@ export * from './review.js';
 export * from './recovery.js';
 export * from './agent-files.js';
 export * from './onboarding.js';
+export * from './batch.js';
 export * from './tools.js';
 export * from './json-schema.js';
 export * from './validation.js';

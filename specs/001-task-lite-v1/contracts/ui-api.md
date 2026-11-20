@@ -20,6 +20,7 @@ This index groups the routes by user story.
 | `POST /api/mutations/:id/undo` | all | FR-062 |
 | `GET /api/workspaces`, `POST /api/resources/:id/release`, `POST /api/runs/:runId/unpushed-handled` | US11 | FR-113, FR-114, FR-116 |
 | `GET/PUT /api/agent-files…`, `GET/PUT /api/projects/:key/workflow`, `POST/GET /api/installs…`, `GET /api/push-target…`, `GET /install/:token` | US13 | FR-121 to FR-127 |
+| `GET /api/install-state` (decision 34); `POST /api/installs` with `clients` | US17 | FR-149, FR-150 |
 | `GET /api/agent-file-proposals`, `POST …/:id/approve`, `POST …/:id/decline`, `GET /api/drift`, `POST /api/drift/:id/adopt`, `…/restore`, `…/keep-local` | US14 | FR-128 to FR-133 |
 | `POST /api/projects`, `GET /api/onboarding`, `POST /api/onboarding/:id/reviewed` | US15 | FR-135, FR-139, FR-140 |
 | `PATCH /api/items/:id/work/:stepId/details` | US16 | FR-145, FR-146 |

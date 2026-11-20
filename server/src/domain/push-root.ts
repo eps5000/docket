@@ -202,6 +202,24 @@ export class PushRoot {
     }
   }
 
+  /**
+   * Whether anything is at `rel` (a trailing `/` is ignored): the client
+   * markers the Install dialog looks for (decision 34). Reads only; a symlink
+   * counts as there and is never followed.
+   */
+  async exists(base: string, rel: string): Promise<boolean> {
+    const { dir, name } = PushRoot.split(rel.replace(/\/+$/, ''));
+    const folder = await this.folder(base, dir, false);
+    if (folder === null) return false;
+    try {
+      await lstat(join(folder, name));
+      return true;
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') return false;
+      throw err;
+    }
+  }
+
   /** Check that `rel` can be written (folders inside the root, the file not a symlink). */
   async checkWritable(base: string, rel: string): Promise<void> {
     const { dir, name } = PushRoot.split(rel);

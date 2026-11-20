@@ -297,11 +297,7 @@ export async function callTool(
     return toolResult(mode, renderResult(tool.name, structured, { args, now }), structured);
   } catch (raw) {
     if (raw instanceof McpError) throw raw;
-    // A service that is still a stub: "Not implemented yet: <tool>" (tasks.md T041, T048).
-    const mapped = isNotImplemented(raw)
-      ? new ToolError('unavailable', notImplementedMessage(tool.name))
-      : mapDbError(raw);
-    const err = mapped instanceof ToolError ? mapped : internal(runtime, tool.name, mapped);
+    const err = toToolError(runtime, tool.name, raw);
     code = err.code;
     return errorResult(mode, err);
   } finally {
@@ -320,6 +316,19 @@ export async function callTool(
   }
 }
 
+/**
+ * Any failure as the ToolError a call returns (§6): a stub service is
+ * `unavailable` "Not implemented yet: <tool>" (tasks.md T041, T048), SQLite
+ * failures map to their codes, and anything else is `internal`, logged with a
+ * reference. `apply_batch` uses it for each operation (decision 34).
+ */
+export function toToolError(runtime: Runtime, name: ToolName, raw: unknown): ToolError {
+  const mapped = isNotImplemented(raw)
+    ? new ToolError('unavailable', notImplementedMessage(name))
+    : mapDbError(raw);
+  return mapped instanceof ToolError ? mapped : internal(runtime, name, mapped);
+}
+
 /** An `internal` ToolError with a reference that is logged (never the arguments). */
 function internal(runtime: Runtime, tool: string, cause: unknown): ToolError {
   const ref = newId('e', runtime.clock().getTime());
@@ -330,7 +339,7 @@ function internal(runtime: Runtime, tool: string, cause: unknown): ToolError {
   });
 }
 
-/** Register all 43 tools on a session's server (the McpHub `configure` hook). */
+/** Register all 44 tools on a session's server (the McpHub `configure` hook). */
 export function registerTools(server: McpServer, opts: RegisterOptions): void {
   // The tool list is fixed for the life of the server (MCP_SPEC §1). Declared
   // on the low-level server, before connect: McpServer's own tool registration

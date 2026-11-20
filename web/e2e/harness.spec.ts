@@ -22,8 +22,9 @@ test.describe('e2e harness', () => {
     expect(tools).toContain('whoami');
     // 40 since decision 30 (B26): get_agent_files and propose_agent_file_change;
     // 42 since decision 31 (B29): onboard_project and finish_onboarding;
-    // 43 since decision 33 (B33): get_step.
-    expect(tools.length).toBe(43);
+    // 43 since decision 33 (B33): get_step;
+    // 44 since decision 34 (B36): apply_batch.
+    expect(tools.length).toBe(44);
 
     const res = await agent.call('whoami');
     if (res.isError) {

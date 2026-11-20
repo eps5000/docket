@@ -333,6 +333,23 @@ A ticket's checklist steps can carry details: a description in Markdown, and whe
 4. **Given** an agent working a step, **When** it calls `get_step` or `get_context`, **Then** it receives that step's details within the budget.
 5. **Given** a Jira import, **When** a sub-task has a description and comments, **Then** its step has the description in details, a header line ("Jira GF-123 · assignee Sam · due Dec 4 · 3 pts"), source GF-123, and its comments appear in one "Comments from Jira sub-tasks" note on the parent, grouped by sub-task with author and date.
 
+### User Story 17 - Install and onboard without manual steps (Priority: P2)
+
+The owner installs the agent files for every client a repo uses in one go and sees, per client, whether what's installed is current. An agent onboards a large repo in one session. Prompted by the Gameflow pilot (owner decision 34).
+
+**Why this priority**: the pilot hit manual steps (one install per client, no way to tell what's installed) and an onboarding too big for single calls.
+
+**Independent Test**: with a repo that has an `AGENTS.md`, install both clients in one go: one summary lists each client's files, `CLAUDE.md` starts with `@AGENTS.md`, and Agent files shows both up to date. An agent then applies 150 or more onboarding operations in batches in one session, each with its own result.
+
+**Acceptance Scenarios**:
+
+1. **Given** a repo with `.codex/` only, **When** the owner opens the Install dialog, **Then** Codex is ticked and Claude Code isn't; with no markers, both are ticked.
+2. **Given** both clients ticked, **When** the owner clicks *Install*, **Then** both are written, and one summary lists each client's files.
+3. **Given** an installed client, **When** Docket ships newer skills, **Then** its state reads "Installed · update available" with *Update*; after an edit in the repo, "Changed outside Docket" with *Review changes*; the button never says plain *Install* for it.
+4. **Given** a repo with `AGENTS.md` and no `CLAUDE.md`, **When** Claude Code is installed, **Then** the new `CLAUDE.md` starts with `@AGENTS.md`, outside the Docket markers; an existing `CLAUDE.md` is never given the line.
+5. **Given** an onboarding of 305 matches, 44 enrichments and 39 documents, **When** the agent sends them with `apply_batch`, **Then** each operation is checked like its single call and reports its own result, a failed one changes nothing, and no second connection is needed.
+6. **Given** a step imported from a Jira sub-task, **When** an agent adds details through `set_plan` or `update_step`, **Then** they're stored and the history reads "details added by <agent>"; rewriting the details or changing the text is refused.
+
 ### Edge Cases
 
 - **A lead's lease expires mid-work, and the agent calls again with its old run:** it is refused with the current state. The item has already returned to Ready, with its plan and logs kept.
@@ -518,6 +535,11 @@ A ticket's checklist steps can carry details: a description in Markdown, and whe
 - **FR-146**: The owner UI MUST show a step dialog (title, status, source, rendered details, history, subagent notes, previous and next, editable details with a conflict check). Rows show a details indicator; there's no inline expansion.
 - **FR-147**: Agents MUST be able to write details and source in `set_plan`, update details in `update_step`, and read one step in full with `get_step`. Ordinary item reads MUST show only a details marker; `get_context` MUST include the current step's details within its budget.
 - **FR-148**: The Jira import MUST put each sub-task's description into its step's details (with a header line for assignee, dates and story points), set the source to its Jira key, and collect all sub-task comments into one note on the parent, grouped by sub-task.
+- **FR-149** (owner decision 34): The agent-files install MUST accept several clients at once (the dialog, the owner API, push and the copy-paste command), defaulting to the clients whose markers the repo has, else both, and MUST show one summary of each client's files. The single-client form MUST keep working.
+- **FR-150**: For each client and target, the dialog and Agent files MUST show one of "Installed · up to date", "Installed · update available", "Changed outside Docket" or "Not installed", with the matching action, computed from the latest install's manifest and the drift checks without new stored state. An installed client MUST NOT be offered a plain *Install*.
+- **FR-151**: When a repo has `AGENTS.md` but no `CLAUDE.md`, the Claude Code install MUST create `CLAUDE.md` starting with `@AGENTS.md`, outside the Docket markers, and MUST NOT add the line to an existing `CLAUDE.md`.
+- **FR-152**: Agents MUST be able to send up to 100 writes in one call (`apply_batch`), each checked like its single call (secrets, limits, versions) and applied on its own with its own result; token budgets MUST hold.
+- **FR-153**: Agents MUST be able to set or extend the details of steps imported from Jira through `set_plan` and `update_step`, recorded as "details added by <agent>"; the step's text, and owner-typed steps, stay owner-only.
 
 ### Key Entities
 
@@ -569,6 +591,8 @@ A ticket's checklist steps can carry details: a description in Markdown, and whe
 - **SC-018**: Onboarding the fixture repo after a fixture Jira import creates no duplicate items: 100% of Spec Kit tasks that match an imported Jira item enrich it, and the owner can review the whole onboarding from one card.
 - **SC-019**: From a fresh install to a connected agent in a repo takes no typed commands beyond starting Docket: open the UI, create or import a project, click *Install*, and approve the client's one-time prompt.
 - **SC-020**: After a Jira import, 100% of sub-task descriptions and comments in the fixture are readable in Docket (in step details and the parent's note), and `get_item` standard for an item with 10 detailed steps stays within its token budget.
+- **SC-021**: One agent session onboards at least 150 operations through batches, each with its own result and no second connection, and the batch results stay within their budget (30 + 25 tokens per operation).
+- **SC-022**: The owner installs every client a repo uses in one *Install*, and can tell each client's install state from Agent files within one glance, with no command typed.
 
 ## Assumptions
 

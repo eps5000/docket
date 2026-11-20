@@ -2,6 +2,14 @@
 
 exports[`every tool has a renderer > add_note 1`] = `"Noted on RCP-14 · 10:58Z"`;
 
+exports[`every tool has a renderer > apply_batch 1`] = `
+"Batch: 2 applied · 1 failed · of 3
+#1 Created GF-31 Checkout · planning · v1
+#2 Updated GF-12 · acceptance · v4
+  ! GF-99 doesn't exist
+#3 failed put_document · validation: Looks like a secret (GitHub token); remove it and retry."
+`;
+
 exports[`every tool has a renderer > ask_owner 1`] = `"Asked the owner on DOC-4 · q_2 · your run needs input"`;
 
 exports[`every tool has a renderer > claim_lead 1`] = `"Claimed RCP-14 · run run_01JA… · lease until 12:02Z · v8"`;

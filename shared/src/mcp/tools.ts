@@ -1,10 +1,11 @@
 /**
- * The tool registry: all 43 tools in MCP_SPEC §5 order, with their group,
+ * The tool registry: all 44 tools in MCP_SPEC §5 order, with their group,
  * kind, input and output schemas and MCP annotations (§3 Tool annotations).
  * Descriptions live in mcp-copy.ts. Shared contract file (tasks.md, Slice rules).
  */
 import type { z } from 'zod';
 import * as agentFiles from './agent-files.js';
+import * as batch from './batch.js';
 import * as checklist from './checklist.js';
 import * as items from './items.js';
 import * as onboarding from './onboarding.js';
@@ -24,7 +25,8 @@ export type ToolGroup =
   | 'decisions'
   | 'recovery'
   | 'agent_files'
-  | 'onboarding';
+  | 'onboarding'
+  | 'batch';
 
 /**
  * - `read`: no side effects (`readOnlyHint: true`).
@@ -197,6 +199,8 @@ export const TOOLS = [
   ),
   // §5.12 Step details (decision 33)
   def('get_step', 'checklist', 'read', checklist.getStepInput, checklist.getStepOutput),
+  // §5.13 Batches (decision 34)
+  def('apply_batch', 'batch', 'mutating', batch.applyBatchInput, batch.applyBatchOutput),
 ] as const;
 
 export type ToolName = (typeof TOOLS)[number]['name'];
