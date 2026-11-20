@@ -1325,6 +1325,8 @@
 }
 .tl .tablewrap {
   overflow-x: auto;
+  /* Clips the kit's absolutely positioned .sr text too (B35). */
+  position: relative;
 }
 
 /* ---------- B20: the Needs you strip's counts are links ---------- */
@@ -1595,4 +1597,72 @@
 .tl .jira-note .jn-text {
   white-space: pre-line;
   overflow-wrap: anywhere;
+}
+
+/* Shared changes (decision 36; UI_SPEC §6.3.6): the item's section, the Needs you
+   cards and Settings → Shared parts. */
+.tl .shared-sec h4 {
+  margin: 12px 0 4px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+}
+.tl .shared-sec .lrow,
+.tl .radar-findings .lrow,
+.tl .sq-card .lrow {
+  flex-wrap: wrap;
+}
+.tl .shared-list,
+.tl .radar-findings,
+.tl .sq-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.tl .shared-edit {
+  display: grid;
+  gap: 10px;
+}
+.tl .shared-edit-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) auto minmax(0, 2fr) auto;
+  grid-template-rows: auto auto;
+  grid-auto-flow: column;
+  column-gap: 8px;
+  align-items: end;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.tl .shared-edit-row > .btn {
+  grid-row: 2;
+}
+@media (max-width: 640px) {
+  .tl .shared-edit-row {
+    grid-template-columns: minmax(0, 1fr);
+    grid-auto-flow: row;
+  }
+  .tl .shared-edit-row > .btn {
+    grid-row: auto;
+  }
+}
+.tl .sq-card + .sq-card {
+  margin-top: 10px;
+}
+.tl .sq-files {
+  margin: 0 0 4px;
+  padding-left: 18px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.tl .sq-note {
+  margin-top: 8px;
+}
+.tl .sq-note textarea {
+  width: 100%;
+}
+.tl .shared-parts table td {
+  vertical-align: top;
 }

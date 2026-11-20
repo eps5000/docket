@@ -41,6 +41,9 @@ export const paths = {
   agents: (q: { state?: string; section?: 'workspaces' } = {}) =>
     `${withQuery('/agents', { state: q.state })}${q.section ? `#${q.section}` : ''}`,
   settings: () => '/settings',
+  /** Settings → Projects → <project> → Shared parts: the registry and the radar (decision 36). */
+  sharedParts: (project: string) =>
+    `/settings/projects/${encodeURIComponent(project)}/shared-parts`,
   /**
    * Agent files (UI_SPEC §6.7b) follows the project switcher. `project` (a
    * key, or `all`) switches the scope first, so a link can open one

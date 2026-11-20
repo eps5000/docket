@@ -62,6 +62,8 @@ export const SCREENS = [
   ['Agents', '/agents'],
   ['Agent files', '/agent-files'],
   ['Settings', '/settings'],
+  // Decision 36 (B39): Settings → Projects → Recipe App → Shared parts.
+  ['Shared parts', '/settings/projects/RCP/shared-parts'],
   ['Help', '/help'],
 ];
 

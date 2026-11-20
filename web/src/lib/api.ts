@@ -387,7 +387,8 @@ export const INVALIDATION: Record<EventType, readonly QueryFamily[]> = {
   'link.added': ['item', 'work', 'needsYou', 'bootstrap'],
   'link.removed': ['item', 'work', 'needsYou', 'bootstrap'],
   'link.updated': ['item', 'work', 'needsYou', 'bootstrap'],
-  'project.updated': ['bootstrap', 'settings', 'work', 'needsYou', 'item'],
+  // Decision 36: the radar's settings are on the project (Settings → Shared parts).
+  'project.updated': ['bootstrap', 'settings', 'work', 'needsYou', 'item', 'radar'],
   'label.upserted': ['bootstrap', 'labels', 'settings', 'item'],
   'plan.updated': ['item'],
   'step.updated': ['item', 'agents'],

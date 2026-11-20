@@ -6,10 +6,11 @@ import { DecisionsSection } from './details/DecisionsSection';
 import { DocumentsSection } from './details/DocumentsSection';
 import { EpicTicketsSection } from './details/EpicTicketsSection';
 import { OutcomeSection } from './details/OutcomeSection';
+import { SharedChangesSection } from './details/SharedChangesSection';
 
 /**
  * Details (UI_SPEC §6.3 table). Ticket: Outcome, Decisions (hidden when
- * none), Documents, Dates and effort. Epic: Brief and documents, Decisions,
+ * none), Shared changes (decision 36), Documents, Dates and effort. Epic: Brief and documents, Decisions,
  * Tickets in this epic.
  */
 export function DetailsTab({ kind, data }: { kind: ItemKind; data: ItemDetailResponse }) {
@@ -26,6 +27,7 @@ export function DetailsTab({ kind, data }: { kind: ItemKind; data: ItemDetailRes
     <div className="stack1">
       <OutcomeSection data={data} />
       <DecisionsSection data={data} kind={kind} />
+      <SharedChangesSection data={data} />
       <DocumentsSection data={data} />
       <DatesSection data={data} />
     </div>

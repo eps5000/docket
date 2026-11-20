@@ -67,7 +67,7 @@ import { compareIds, cycleText, cyclesOf } from './links.js';
 import { pendingProposalCount } from './agent-proposals.js';
 import { CREATED_BY_SQL, onboardingItemIds, readySessions } from './onboarding.js';
 import { driftProblems, runInstructions } from './drift.js';
-import { needsYouShared, radarReason } from './shared-changes.js';
+import { needsYouShared, radarReason, sharedFlagsOf } from './shared-changes.js';
 import { inScopeOf, ofScope } from './decisions.js';
 import {
   BlockIndex,
@@ -1062,14 +1062,17 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         }
       }
       const parked = leadParkedOf(s.db, summaries, s.now, s.index);
+      const sharedFlags = sharedFlagsOf(r.db);
       const rows: WorkItem[] = summaries.map((i) => {
         const packet_ready = att.packets.has(i.id);
+        const flags = sharedFlags.get(i.id);
         return {
           ...i,
           lead_parked: parked(i),
           packet_ready,
           for_you: packet_ready || att.questions.has(i.id),
           last_activity_at: lastActivity.get(i.id) ?? i.updated_at,
+          ...(flags ? { shared_flags: flags } : {}),
         };
       });
 

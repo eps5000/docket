@@ -20,6 +20,7 @@ The project has its own rules: who moves work to Ready, when human review is nee
 2. **Claim it:** `claim_lead`, with:
    - `agent_label`: your worker name, if you have one;
    - `workspace`: `repo`, `path` (your worktree), `branch`, `base_ref`, `base_sha`;
+   - `branch`: the branch you'll work on, so the conflict radar can trial-merge it;
    - `brief` and `orchestrator`: if a coordinator dispatched you, the brief text exactly as you received it, plus its IDs;
    - `instructions`: the output of the installed `docket-check`, so the owner knows which instructions you work from. Run it once per session, before your first claim, in one shell call: `bash .claude/docket-check.sh` (`.codex/` for Codex, `~/.claude/` for a user-wide install; on Windows without bash, `powershell -NoProfile -ExecutionPolicy Bypass -File .claude/docket-check.ps1`). It prints one line of JSON: pass it as it is, and reuse it for later claims in the session. No script there? Skip it.
 
@@ -27,9 +28,11 @@ The project has its own rules: who moves work to Ready, when human review is nee
 
    If you get `conflict`, someone else holds the item. Pick another one. Never retry in a loop, and never work on an item you haven't claimed.
 
+   If you get `seam_conflict`, the item changes a shared part (a table, model, endpoint or shared file) that another item in flight also changes. The owner has been asked whether they can run together. **Pick other work** from `ready_to_start` and leave this item; don't wait, and don't work on it.
+
    **Given a `run_id` by your coordinator** (you're resuming a parked run after a crash)? Don't claim. Pass that `run_id` on your first call, for example `heartbeat { run_id, note: "Resuming" }`. That resumes the run with its claim, workspace and brief. Then continue from step 3.
 
-3. **Get context:** `get_context { id }`. One call gathers the outcome, the acceptance criteria, the decisions you must follow, the epic and label briefs, blockers, the project's Workflow notes and planning docs. Follow the Workflow notes like the project's `AGENTS.md`.
+3. **Get context:** `get_context { id }`. One call gathers the outcome, the acceptance criteria, the decisions you must follow, the epic and label briefs, blockers, the shared parts this item and other in-flight items will change, the project's Workflow notes and planning docs. Follow the Workflow notes like the project's `AGENTS.md`.
 
 `whoami` isn't needed to start: `claim_lead` returns your lease's expiry. Call it once only when you need your client name or the windows (`lease_s`, `stale_after_s`).
 
@@ -54,6 +57,12 @@ The project has its own rules: who moves work to Ready, when human review is nee
 3. Commit, **push**, then `report_commit { sha, branch, pushed: true }`. Push work in progress at every step: a pushed commit survives a crash or a pruned worktree; an unpushed one may not.
 4. `update_check` as checks pass or fail, with evidence: the command and its result, one line.
 5. `update_step { state: "done" }`.
+
+**Shared parts along the way:**
+
+- **Change a shared part you didn't declare?** Add it now with `declare_shared_changes` (the whole list: it replaces the declaration). Name parts by their keys from `list_shared_parts`.
+- **Single-writer parts** (such as a migrations snapshot): `take_lease { id, part }` **before** you generate or edit it, and `release_lease` as soon as the change is committed and pushed. If you get `lease_held`, work on another step or item; call `take_lease` again later. Never wait in a loop.
+- **"conflict ahead" in your context** means the radar sees your branch heading for a merge conflict. Tell the owner with `add_note` and rebase early.
 
 **Along the way:**
 
@@ -81,9 +90,11 @@ The project has its own rules: who moves work to Ready, when human review is nee
 
 1. **Push everything** and report every commit with `pushed: true`.
 2. **Release every resource** you declared: `heartbeat { resources_released: [{ resource_id }] }`.
-3. **Then hand off or close:**
-   - **No human review items:** once the checks pass, `set_status { status: "done" }`. That also finishes your run.
-   - **Human review declared:** `submit_packet` (see `docket-review-packet`), then `finish_run { result: "finished", summary }`.
+3. **Then hand off or close,** passing `changed_files` (the output of `git diff --name-only <main>...HEAD`) and `branch` either way:
+   - **No human review items:** once the checks pass, `set_status { status: "done", changed_files, branch }`. That also finishes your run.
+   - **Human review declared:** `submit_packet` (see `docket-review-packet`) with `changed_files` and `branch`, then `finish_run { result: "finished", summary }`.
+   - Files that belong to shared parts the item didn't declare hold the hand-off for the owner: `submit_packet` returns `held_undeclared`, and `set_status` fails with `not_declared`. Leave the item as it is; the owner decides.
+   - Handing off or closing ends your leases.
 4. **Treat `finish_run` warnings as mistakes to fix.** For example `! 2 commits not pushed` or `! 1 resource still declared`. Each one leaves your workspace marked at risk.
 5. **A commit after handing off?** Still `report_commit` it. If an open packet was built from an older commit, it's marked out of date for the owner.
 

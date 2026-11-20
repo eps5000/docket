@@ -118,10 +118,14 @@ export function TicketCard({
           ))}
         </div>
       )}
-      {(item.blocked || item.packet_ready || item.human_review.declared > 0) && (
+      {(item.blocked ||
+        item.packet_ready ||
+        item.human_review.declared > 0 ||
+        item.shared_flags) && (
         <div className="meta">
           <BlockedChip blockers={item.blocked_by} />
           <ReviewChip item={item} />
+          <SharedFlags flags={item.shared_flags} />
         </div>
       )}
       {item.lead && (
@@ -156,6 +160,28 @@ export function TicketCard({
             </Button>
           )}
     </div>
+  );
+}
+
+/**
+ * Decision 36 (UI_SPEC §6.3.6): "overlap" while an overlap question waits for
+ * the owner, "conflict ahead" while the radar has an open finding.
+ */
+export function SharedFlags({ flags }: { flags: WorkItem['shared_flags'] }) {
+  if (!flags) return null;
+  return (
+    <>
+      {flags.overlap && (
+        <Chip kind="warn" title="Another in-flight item changes the same shared part">
+          overlap
+        </Chip>
+      )}
+      {flags.conflict && (
+        <Chip kind="bad" icon="git" title="The conflict radar sees a merge conflict ahead">
+          conflict ahead
+        </Chip>
+      )}
+    </>
   );
 }
 

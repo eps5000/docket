@@ -1,7 +1,7 @@
 import { useNoProjects } from '../../app/useBootstrap';
 import { Welcome } from './Welcome';
 import { useQuery } from '@tanstack/react-query';
-import type { WorkspaceRow } from '@docket/shared';
+import type { OverlapRow, UndeclaredHoldRow, WorkspaceRow } from '@docket/shared';
 import { Skeleton } from '../../components/kit';
 import { apiClient } from '../../app/queryClient';
 import { QueryState } from '../../app/QueryState';
@@ -15,6 +15,7 @@ import { ForYouNow } from './ForYouNow';
 import { OnboardingReviews } from './OnboardingReviews';
 import { PlanningQueueCard } from './PlanningQueueCard';
 import { ProblemsCard } from './ProblemsCard';
+import { SharedQuestions } from './SharedQuestions';
 import '../screens.css';
 import { HelpLink } from '../../help/HelpLink';
 
@@ -22,7 +23,8 @@ import { HelpLink } from '../../help/HelpLink';
  * Needs you (`/`, UI_SPEC §6.1): h1, Agents strip, the top band (For you
  * now · Problems) and the lower row (Deferred · Planning queue). One file per
  * card; US2 (T081) fills them. No subtitle and no scope pill. An onboarding
- * ready for review gets its own card above the top band (decision 31).
+ * ready for review gets its own card above the top band (decision 31), and
+ * so does each shared-changes question (decision 36).
  * With no projects it is the Welcome page instead (UI_SPEC §6.0; B32).
  */
 export function NeedsYou() {
@@ -52,6 +54,10 @@ export function NeedsYou() {
               proposals={data.agent_file_proposals}
             />
             <OnboardingReviews sessions={data.onboarding_reviews ?? []} />
+            <SharedQuestions
+              overlaps={data.overlaps ?? NO_OVERLAPS}
+              holds={data.undeclared_holds ?? NO_HOLDS}
+            />
             <div className="dash-top">
               <ForYouNow rows={data.for_you_now} />
               <ProblemsCard problems={data.problems} workspaces={workspaces} />
@@ -68,6 +74,8 @@ export function NeedsYou() {
 }
 
 const NO_WORKSPACES: readonly WorkspaceRow[] = [];
+const NO_OVERLAPS: readonly OverlapRow[] = [];
+const NO_HOLDS: readonly UndeclaredHoldRow[] = [];
 
 function NeedsYouSkeleton() {
   return (

@@ -5,6 +5,7 @@ import {
   Priority,
   ReviewChip,
   RunLine,
+  SharedFlags,
   StatusChip,
   TypeIcon,
   leadName,
@@ -66,6 +67,7 @@ export function ListLayout({ items }: { items: readonly WorkItem[] }) {
                   <div className="row wrap">
                     <StatusChip status={i.status} />
                     <BlockedChip blockers={i.blocked_by} />
+                    <SharedFlags flags={i.shared_flags} />
                   </div>
                 </td>
                 <td>

@@ -136,6 +136,13 @@ function ProjectRow({ project: p, onDelete }: { project: Project; onDelete: () =
         >
           Agent files
         </Link>
+        <Link
+          className="btn ghost sm"
+          to={paths.sharedParts(p.key)}
+          data-project-shared-parts={p.key}
+        >
+          Shared parts
+        </Link>
       </div>
       <div className="row" style={{ gap: 6 }}>
         <Button size="sm" onClick={() => setScope(p.key)}>

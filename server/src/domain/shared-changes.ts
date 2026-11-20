@@ -1641,3 +1641,30 @@ export function radarReason(f: RadarFindingRow): string {
   const shown = f.files.slice(0, 3).join(', ');
   return `Heading for a conflict with ${other}: ${n} file${n === 1 ? '' : 's'}${shown ? ` · ${shown}${n > 3 ? ', …' : ''}` : ''} (${f.branch_a})`;
 }
+
+/**
+ * Work cards' markers (UI_SPEC §6.3.6): items in an undecided overlap
+ * ("overlap") or an open radar finding ("conflict ahead").
+ */
+export function sharedFlagsOf(db: Db): Map<string, { overlap: boolean; conflict: boolean }> {
+  const out = new Map<string, { overlap: boolean; conflict: boolean }>();
+  const flag = (id: string | null, key: 'overlap' | 'conflict') => {
+    if (!id) return;
+    const f = out.get(id) ?? { overlap: false, conflict: false };
+    f[key] = true;
+    out.set(id, f);
+  };
+  for (const r of db.sqlite
+    .prepare("SELECT item_a, item_b FROM part_overlaps WHERE state = 'open'")
+    .all() as { item_a: string; item_b: string }[]) {
+    flag(r.item_a, 'overlap');
+    flag(r.item_b, 'overlap');
+  }
+  for (const r of db.sqlite
+    .prepare('SELECT item_a, item_b FROM radar_findings WHERE cleared_at IS NULL')
+    .all() as { item_a: string | null; item_b: string | null }[]) {
+    flag(r.item_a, 'conflict');
+    flag(r.item_b, 'conflict');
+  }
+  return out;
+}

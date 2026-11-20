@@ -836,7 +836,7 @@ Parallel items declare the shared parts they will change (tables, models, endpoi
 - the three error codes (§6) and the server-instructions error line (§2);
 - the tool count (44 → 48).
 
-B38 implements the registry, `declare_shared_changes` and `list_shared_parts`. B39 (T183) enforces the rest: the Ready gate, the overlap check at the claim, leases (`take_lease` and `release_lease` answer `unavailable` until then), the changed-file check at hand-off, and `get_context.shared`. Until then `claim_lead`, `set_status` and `submit_packet` accept the new fields and ignore them.
+B38 implemented the registry, `declare_shared_changes` and `list_shared_parts`. B39 (T183) enforces the rest: the Ready gate, the overlap check at the claim, leases, the changed-file check at hand-off, and `get_context.shared`; BUILD_SPEC §5.21 lists its resolutions (the gate covers moves from Planning; the claim check compares against In progress and Review; `ready_to_start` leaves out an item waiting on the owner's overlap decision; a lease renewal writes no event).
 
 **Hand-off** means `submit_packet` (a packet for human review) or `set_status` to `done` (closing an item with no human review). Earlier drafts named `submit_for_review` and `handoff`, which aren't Docket tools (B38 correction, agreed with the coordinator).
 
@@ -882,11 +882,10 @@ B38 implements the registry, `declare_shared_changes` and `list_shared_parts`. B
 **Description:** "Take the lease on a single-writer part (such as a migrations snapshot) for an item you lead, before you change it; call again to renew. A lease lasts 2 hours and ends when the item is done or handed off, or when you release it. If another item holds it you get lease_held with the holder and expiry: work on something else rather than waiting in a loop."
 - **Input:** `id` (the item you lead), `part` (a single-writer part's key), plus `run_id?` and `idempotency_key?`.
 - **Output:** `{ part, item_id, held_until, renewed }`. `renewed` is true when the item already held it.
-- **Rules:** one holder per part. A lease lasts `DOCKET_LEASE_MINUTES` (default 120) from the latest take, and ends when the holder releases it, the owner releases it (*Release lease*), the holder's item reaches Done or is handed off (`submit_packet`, or `set_status` to `done`), or it expires.
+- **Rules:** one holder per part. A lease lasts `DOCKET_LEASE_MINUTES` (default 120) from the latest take, and ends when the holder releases it, the owner releases it (*Release lease*), the holder's item reaches Done or is handed off (`submit_packet`, or `set_status` to `done`), the item is canceled, or it expires. Expiry is lazy: reads skip an expired lease, and the next take ends it (`end_reason: expired`).
 - **Text rendering:** `Lease on <part> for GF-240 · until 14:05Z` (` · renewed` when renewed).
 - **Events:** `lease.taken` (a renewal writes none).
 - **Errors:** `lease_held` with `current: { item_id, holder, held_until }`; `validation` (the part isn't single-writer, or is archived); `forbidden` (you don't lead the item); `not_found` (item or part).
-- **B38:** answers `unavailable` until B39 (T183).
 
 #### `release_lease`
 **Description:** "Release your lease on a single-writer part as soon as your change to it is committed and pushed, so other items can take it."
@@ -895,7 +894,6 @@ B38 implements the registry, `declare_shared_changes` and `list_shared_parts`. B
 - **Text rendering:** `Released lease on <part> for GF-240`.
 - **Events:** `lease.ended` (`end_reason: released`).
 - **Errors:** `forbidden` (you don't lead the item), `not_found` (the item holds no lease on that part).
-- **B38:** answers `unavailable` until B39 (T183).
 
 #### Changes to existing tools
 - **`claim_lead`** (§5.4): accepts `branch` (≤ 200; defaults to `workspace.branch`), stored on the run for the radar. It may fail with `seam_conflict` (`details: { with, parts }`): the item's declared parts overlap another in-flight item's, and that pair is neither compatible nor sequenced by a `blocks` link. The item stays Ready, the refusal is recorded as a rejected claim the owner can see, and one overlap (an owner question) is opened per pair; claiming the same pair again doesn't open a second. The description tells the agent to pick other work.
