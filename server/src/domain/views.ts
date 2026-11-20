@@ -67,6 +67,7 @@ import { compareIds, cycleText, cyclesOf } from './links.js';
 import { pendingProposalCount } from './agent-proposals.js';
 import { CREATED_BY_SQL, onboardingItemIds, readySessions } from './onboarding.js';
 import { driftProblems, runInstructions } from './drift.js';
+import { needsYouShared, radarReason, sharedFlagsOf } from './shared-changes.js';
 import { inScopeOf, ofScope } from './decisions.js';
 import {
   BlockIndex,
@@ -927,16 +928,36 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
     const planning = [...s.items.values()]
       .filter((i) => i.status === 'planning' && i.archived_at === null)
       .sort(byPriorityThenId);
+    // Decision 36: overlap questions and undeclared-parts holds are owner questions (a card
+    // each, counted as for you); radar findings are Problems ("Heading for a conflict").
+    const shared = needsYouShared(r.db, scope);
+    const problems = problemsOf({
+      s,
+      runs,
+      deferredCounts: deferred.counts,
+      backupError: backupError(r),
+      config: deps.config,
+      drift: driftProblems(r.db, s.inScope, scope === 'all'),
+    });
+    // Radar findings rank first: unattended branches keep moving toward the conflict.
+    const radarRows: typeof problems = [];
+    for (const f of shared.radar_findings) {
+      if (!f.item_a) continue;
+      radarRows.push({
+        kind: 'radar_conflict',
+        item_id: f.item_a.id,
+        title: f.item_a.title,
+        reason: radarReason(f),
+        related: f.item_b ? [f.item_b.id] : [],
+        link_id: null,
+        run_id: null,
+        resource_ids: [],
+      });
+    }
+    problems.unshift(...radarRows);
     return {
       for_you_now: forYouRows(s, att),
-      problems: problemsOf({
-        s,
-        runs,
-        deferredCounts: deferred.counts,
-        backupError: backupError(r),
-        config: deps.config,
-        drift: driftProblems(r.db, s.inScope, scope === 'all'),
-      }),
+      problems,
       deferred: deferred.rows,
       planning_queue: summarize(
         { db: s.db, windows: s.windows, now: s.now, index: s.index },
@@ -946,6 +967,9 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
       agent_file_proposals: pendingProposalCount(r.db, scope),
       // Decision 31: each onboarding ready for review is one card (and counts as for you).
       onboarding_reviews: readySessions(r.db, scope),
+      overlaps: shared.overlaps,
+      undeclared_holds: shared.undeclared_holds,
+      radar_findings: shared.radar_findings,
     };
   }
 
@@ -985,7 +1009,11 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         projects,
         labels,
         counts: {
-          for_you: view.for_you_now.length + (view.onboarding_reviews?.length ?? 0),
+          for_you:
+            view.for_you_now.length +
+            (view.onboarding_reviews?.length ?? 0) +
+            (view.overlaps?.length ?? 0) +
+            (view.undeclared_holds?.length ?? 0),
           problems: view.problems.length,
           planning: view.planning_queue.length,
           runs: view.agent_counts,
@@ -1037,14 +1065,17 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         }
       }
       const parked = leadParkedOf(s.db, summaries, s.now, s.index);
+      const sharedFlags = sharedFlagsOf(r.db);
       const rows: WorkItem[] = summaries.map((i) => {
         const packet_ready = att.packets.has(i.id);
+        const flags = sharedFlags.get(i.id);
         return {
           ...i,
           lead_parked: parked(i),
           packet_ready,
           for_you: packet_ready || att.questions.has(i.id),
           last_activity_at: lastActivity.get(i.id) ?? i.updated_at,
+          ...(flags ? { shared_flags: flags } : {}),
         };
       });
 

@@ -6,7 +6,7 @@ import type { ItemSummary, Status } from '@docket/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Actor } from '../../src/domain/write.js';
 import { OWNER_ACTOR } from '../../src/domain/write.js';
-import { addProject, forceStatus, startDomain, type Domain } from '../us1-helpers.js';
+import { addProject, declareNone, forceStatus, startDomain, type Domain } from '../us1-helpers.js';
 
 let d: Domain;
 let claude: Actor;
@@ -28,7 +28,7 @@ function create(
     blocked_by: string[];
   }> = {},
 ): ItemSummary {
-  return d.write(claude, (w, s) =>
+  const item = d.write(claude, (w, s) =>
     s.items.create(w, {
       project: 'TST',
       type: extra.type ?? 'Task',
@@ -39,6 +39,8 @@ function create(
       ...(extra.blocked_by ? { blocked_by: extra.blocked_by } : {}),
     }),
   );
+  declareNone(d, item.id); // the Ready gate (decision 36)
+  return item;
 }
 
 function move(id: string, status: Status, actor: Actor = claude, reason?: string) {

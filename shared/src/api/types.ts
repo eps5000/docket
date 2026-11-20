@@ -72,6 +72,12 @@ export const workItemSchema = itemSummarySchema.extend({
   packet_ready: z.boolean(),
   for_you: z.boolean(),
   last_activity_at: z.string(),
+  /**
+   * Decision 36 (UI_SPEC §6.3.6; B39): the card's small markers, "overlap" (an
+   * undecided overlap question) and "conflict ahead" (an open radar finding).
+   * Present only when one is true.
+   */
+  shared_flags: z.object({ overlap: z.boolean(), conflict: z.boolean() }).optional(),
 });
 export type WorkItem = z.infer<typeof workItemSchema>;
 

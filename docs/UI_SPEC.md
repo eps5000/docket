@@ -549,7 +549,7 @@ Agent decisions never appear in Needs you. They show here, and in the item's Act
   - **Undeclared-changes holds:** *Add to the declaration* or *Send back*;
   - **Problems:** radar findings ("Heading for a conflict").
 - **Work cards:** a small "overlap" or "conflict ahead" marker when relevant.
-- **Settings → Projects → <project> → Shared parts:**
+- **Settings → Projects → <project> → Shared parts** (B39: its own page, `/settings/projects/<key>/shared-parts`, linked from the project row):
   - the registry (key, kind, paths, single-writer, in-flight declarations);
   - the radar settings (repository path, main branch, *Run radar now*, last run).
 

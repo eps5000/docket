@@ -203,8 +203,7 @@ describe('the service stubs', () => {
     ],
     // US15 (B30, T164): onboarding.
     onboarding: ['start', 'finish', 'guide', 'list', 'markReviewed'],
-    // Decision 36 (B38, T182): the registry, declarations and the reads. The leases,
-    // decisions, get_context.shared and the radar's settings and runs stay stubs until B39.
+    // Decision 36 (B38, T182; B39, T183–T184): all of it.
     sharedChanges: [
       'declare',
       'listParts',
@@ -214,6 +213,17 @@ describe('the service stubs', () => {
       'itemShared',
       'ownerDeclare',
       'radar',
+      'renewLease',
+      'takeLease',
+      'releaseLease',
+      'ownerReleaseLease',
+      'decideOverlap',
+      'decideHold',
+      'contextFor',
+      'setRadar',
+      'planRadar',
+      'recordRadar',
+      'finishRadar',
     ],
   };
 

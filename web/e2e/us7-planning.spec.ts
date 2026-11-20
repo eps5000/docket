@@ -192,6 +192,14 @@ test.describe('the label page', () => {
     await expect(page.locator('[data-card="brief"]')).toContainText('written by owner');
     await shoot(page, 'label-page', page.locator('.labelpage'));
     await expectAxeClean(page, 'label page', { include: '.labelpage' });
+    // The Ready gate (decision 36): undeclared items refuse the move, and the toast says why.
+    await move.click();
+    await expect(
+      toast(page, 'Declare the shared parts RCP-23, RCP-27 will change (or none)'),
+    ).toBeVisible();
+    for (const id of ['RCP-23', 'RCP-27']) {
+      await ok(codex, 'declare_shared_changes', { id, none: true });
+    }
     await move.click();
     await expect(toast(page, 'Moved 2 items with #ui-refresh to Ready.')).toBeVisible();
     await expect(move).toHaveCount(0);

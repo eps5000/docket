@@ -115,6 +115,8 @@ export const PROBLEM_KINDS = [
   'resume_unattended',
   // Agent files changed outside Docket (owner decision 30; BUILD_SPEC §5.19; UI_SPEC §6.7b-1)
   'agent_files_drift',
+  // Two in-flight branches heading for a merge conflict (owner decision 36; BUILD_SPEC §5.21; B39)
+  'radar_conflict',
 ] as const;
 
 export const problemSchema = z.object({

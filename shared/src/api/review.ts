@@ -74,6 +74,22 @@ export const packetViewSchema = z.object({
       caption: z.string().nullable(),
     }),
   ),
+  /**
+   * Decision 36 (B39; BUILD_SPEC §5.21 Hand-off): the changed files and branch
+   * as reported; `held_undeclared` lists the parts they touch that the item
+   * didn't declare (the review gate stays closed until the owner decides the
+   * hold `hold_id`); `not_reported` is "Changed files not reported" on an
+   * item with declarations. Optional: absent from older responses.
+   */
+  shared: z
+    .object({
+      changed_files: z.array(z.string()).nullable(),
+      branch: z.string().nullable(),
+      held_undeclared: z.array(z.string()).nullable(),
+      hold_id: z.string().nullable(),
+      not_reported: z.boolean(),
+    })
+    .optional(),
 });
 export type PacketView = z.infer<typeof packetViewSchema>;
 

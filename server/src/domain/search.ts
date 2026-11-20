@@ -21,6 +21,7 @@ import {
 import type { Db } from '../db/client.js';
 import { APP_VERSION } from '../version.js';
 import { type In, type SearchService, type ServiceDeps } from './contracts.js';
+import { waitingOnOverlap } from './shared-changes.js';
 import {
   BlockIndex,
   EVENT_COLUMNS,
@@ -242,9 +243,16 @@ export function createSearchService(deps: ServiceDeps): SearchService {
       const row = new Map(rows.map((x) => [x.id, x]));
 
       switch (input.filter) {
-        case 'ready_to_start':
-          items = items.filter((s) => !s.blocked && !s.lead);
+        case 'ready_to_start': {
+          // Decision 36 (SC-023): an item waiting on the owner's overlap decision isn't
+          // startable; an unattended agent moves on to other work.
+          const waiting = waitingOnOverlap(
+            r.db,
+            items.map((s) => s.id),
+          );
+          items = items.filter((s) => !s.blocked && !s.lead && !waiting.has(s.id));
           break;
+        }
         case 'resumable':
           items = items.filter((s) => !s.lead);
           break;

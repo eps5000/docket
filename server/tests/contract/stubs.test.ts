@@ -93,25 +93,23 @@ export const US1_TOOLS: readonly ToolName[] = [
   'get_step',
   // Decision 34 (B36, T177); content in us17-batch.test.ts.
   'apply_batch',
-  // Decision 36 (B38, T182); content in us18-shared-contracts.test.ts.
+  // Decision 36 (B38, T182; B39, T183); content in us18-shared-contracts.test.ts.
   'declare_shared_changes',
   'list_shared_parts',
+  'take_lease',
+  'release_lease',
 ];
 const STUB_TOOLS = TOOL_NAMES.filter((n) => !US1_TOOLS.includes(n));
 
 describe('stubs', () => {
-  it('only the leases are stubs: B39 (T183) implements take_lease and release_lease', () => {
-    expect(STUB_TOOLS).toEqual(['take_lease', 'release_lease']);
+  it('no tool is a stub any more: B39 (T183) implemented the leases', () => {
+    expect(STUB_TOOLS).toEqual([]);
   });
 
   it.each(['take_lease', 'release_lease'] as const)(
-    '%s answers unavailable "Not implemented yet" once its arguments are valid',
+    '%s refuses a malformed part key with validation',
     async (name) => {
       h = await startHarness();
-      expect(expectUnavailable(await h.call(name, VALID_ARGS[name]))).toEqual({
-        code: 'unavailable',
-        message: `Not implemented yet: ${name}`,
-      });
       expectValidation(await h.call(name, { id: 'RCP-14', part: 'Recipe' }));
     },
   );

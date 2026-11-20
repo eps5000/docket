@@ -11,16 +11,26 @@
  * - the owner's registry and declaration routes, undoable, and the radar
  *   card's defaults.
  *
- * The `it.todo` entries at the end are what B39 (T183, T184) must make true.
+ * B39 (T183, T184) made B38's `it.todo` list true, each as a test below: the
+ * Ready gate, overlaps at the claim and their decisions, leases, the hold at
+ * hand-off, `get_context.shared`, the conflict radar (against a fixture repo,
+ * proven read-only) and SC-023's unattended two-agent run.
  */
 import { CSRF_HEADER_NAME } from '@docket/shared';
+import { spawnSync } from 'node:child_process';
+import { mkdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { radarRunOnce } from '../../src/jobs/sweeper.js';
+import { git, hashGitDir, makeRadarRepo } from '../fixtures/radar-repo.js';
+import { tempDir } from '../helpers.js';
 import { ORIGIN, parseSetCookies } from '../integration/harness.js';
 import {
   expectOk,
   expectToolError,
   expectValidation,
   startHarness,
+  tokens,
   type ContractHarness,
 } from './harness.js';
 
@@ -33,6 +43,8 @@ afterEach(async () => {
 type S = Record<string, unknown>;
 
 const sql = () => h!.server.runtime.db.sqlite;
+/** Whether the git CLI is on PATH (the radar test needs it). */
+const HAS_GIT = spawnSync('git', ['--version'], { windowsHide: true }).status === 0;
 const count = (q: string, ...params: unknown[]) =>
   (
     sql()
@@ -292,20 +304,6 @@ describe('list_shared_parts (MCP_SPEC §5.15)', () => {
     expect(count('SELECT count(*) AS n FROM events')).toBe(events);
     expectToolError(await h.call('list_shared_parts', { project: 'ZZZ' }), 'not_found');
   });
-
-  it('get_context has no shared section until B39 fills it', async () => {
-    h = await startHarness();
-    expectOk(
-      await declare({
-        id: 'RCP-14',
-        changes: [{ part: 'model:Recipe', change: 'add' }],
-        new_parts: [{ key: 'model:Recipe' }],
-      }),
-    );
-    const ctx = expectOk(await h.call('get_context', { id: 'RCP-14' }));
-    expect((ctx.structured.context as S).shared).toBeUndefined();
-    expect(ctx.text).not.toContain('shared:');
-  });
 });
 
 describe('the owner API (UI_SPEC §6.3.6)', () => {
@@ -418,7 +416,7 @@ describe('the owner API (UI_SPEC §6.3.6)', () => {
     expect((await api('GET', '/api/items/RCP-99/shared')).status).toBe(404);
   });
 
-  it('the radar card is off with no repository; decisions, lease release and radar runs are 501 until B39', async () => {
+  it('the radar card is off with no repository; unknown decisions and leases are not_found', async () => {
     h = await startHarness();
     const api = await owner();
     expect((await api('GET', '/api/projects/RCP/radar')).body).toEqual({
@@ -430,15 +428,12 @@ describe('the owner API (UI_SPEC §6.3.6)', () => {
       last_run_at: null,
       findings: [],
     });
-    for (const [method, path, body] of [
-      ['POST', '/api/overlaps/pov_1/decide', { decision: 'sequence' }],
-      ['POST', '/api/undeclared-holds/udh_1/decide', { decision: 'send_back' }],
-      ['POST', '/api/leases/pls_1/release', {}],
-      ['PUT', '/api/projects/RCP/radar', { repo_path: 'recipe-app' }],
-      ['POST', '/api/projects/RCP/radar/run', {}],
+    for (const [path, body] of [
+      ['/api/overlaps/pov_1/decide', { decision: 'sequence' }],
+      ['/api/undeclared-holds/udh_1/decide', { decision: 'send_back' }],
+      ['/api/leases/pls_1/release', {}],
     ] as const) {
-      const r = await api(method, path, body);
-      expect(r.status, path).toBe(501);
+      expect((await api('POST', path, body)).status, path).toBe(404);
     }
   });
 
@@ -461,52 +456,1041 @@ describe('the owner API (UI_SPEC §6.3.6)', () => {
   });
 });
 
-/** What B39 (T183, T184) must make true; each becomes a real test there. */
-describe('B39 will make these true (BUILD_SPEC §5.21)', () => {
-  it.todo(
-    'set_status ready on an item without a declaration (or none) is not_declared, for agents and the owner',
+// ---- B39 (T183, T184): the guards, leases, holds, context and radar ----
+
+type R = Awaited<ReturnType<ContractHarness['call']>>;
+
+const items = (r: R) => (expectOk(r).structured.items as { id: string }[]).map((i) => i.id);
+const status = (id: string) =>
+  (sql().prepare('SELECT status FROM items WHERE id = ?').get(id) as { status: string }).status;
+const events = (type: string, item?: string) =>
+  sql()
+    .prepare(
+      `SELECT summary, data FROM events WHERE type = ? ${item ? 'AND item_id = ?' : ''} ORDER BY seq`,
+    )
+    .all(...(item ? [type, item] : [type])) as { summary: string; data: string }[];
+
+/** Register `model:Recipe` (paths in server/src/models) and `table:decks` as the owner. */
+async function registry(api: Awaited<ReturnType<typeof owner>>, extra: S[] = []) {
+  for (const part of [
+    { key: 'model:Recipe', paths: ['server/src/models/recipe.ts'] },
+    { key: 'table:decks', paths: ['server/src/db/decks/**'] },
+    ...extra,
+  ]) {
+    expect((await api('POST', '/api/projects/RCP/shared-parts', part)).status).toBe(200);
+  }
+}
+
+/** A new item, declared (none unless `parts`), moved to Ready and claimed by `client`. */
+async function started(title: string, client = h!.a, parts?: string[]) {
+  const created = expectOk(
+    await h!.call(
+      'create_item',
+      { project: 'RCP', type: 'Task', title, status: 'planning' },
+      client,
+    ),
   );
-  it.todo('the owner moves an undeclared item to Ready with override_reason, recorded in Activity');
-  it.todo(
-    'claim_lead on an item whose parts overlap an in-flight item is seam_conflict { with, parts }, and the item stays Ready',
+  const id = (created.structured.item as { id: string }).id;
+  expectOk(
+    await declare(
+      parts
+        ? { id, changes: parts.map((part) => ({ part, change: 'change' })) }
+        : { id, none: true },
+    ),
   );
-  it.todo(
-    'the refused claim opens one part_overlaps row and one Needs you card; claiming the same pair again opens no second',
-  );
-  it.todo(
-    'Run one after the other adds a merged blocks link from the item claimed first; the other is startable once it merges',
-  );
-  it.todo(
-    "They're compatible records the pair; its note is posted to both items as an owner note; the claim then succeeds",
-  );
-  it.todo(
-    'declaring later, while in progress, flags both items ("Now overlaps …") and raises the question, keeping the claim',
-  );
-  it.todo(
-    'take_lease on a single-writer part returns held_until; a second item gets lease_held with the holder and expiry',
-  );
-  it.todo(
-    'a lease ends on release_lease, owner release, Done, hand-off (submit_packet or set_status done) and expiry',
-  );
-  it.todo(
-    'submit_packet with changed_files mapping to undeclared parts holds the packet (held_undeclared) and raises the question',
-  );
-  it.todo(
-    'set_status done with changed files mapping to undeclared parts is not_declared, raises the question, and leaves the item',
-  );
-  it.todo(
-    'Add to the declaration adds the parts and releases the hold; Send back returns the item with an owner note',
-  );
-  it.todo(
-    'an item with declarations that hands off without changed_files shows "Changed files not reported" on the packet',
-  );
-  it.todo(
-    'get_context.shared lists the declaration, overlapping and up to 30 other in-flight declarations, leases and findings, within budget',
-  );
-  it.todo(
+  expectOk(await h!.call('set_status', { id, status: 'ready' }, client));
+  const claim = expectOk(await h!.call('claim_lead', { id }, client));
+  return { id, run_id: claim.structured.run_id as string };
+}
+
+describe('the Ready gate (FR-159)', () => {
+  it('set_status ready on an item without a declaration (or none) is not_declared, for agents and the owner', async () => {
+    h = await startHarness();
+    const created = expectOk(
+      await h.call('create_item', {
+        project: 'RCP',
+        type: 'Task',
+        title: 'Tags',
+        status: 'planning',
+      }),
+    );
+    const id = (created.structured.item as { id: string }).id;
+    const refused = expectToolError(
+      await h.call('set_status', { id, status: 'ready' }),
+      'not_declared',
+    );
+    expect(refused.message).toBe(
+      `Declare the shared parts ${id} will change (or none) with declare_shared_changes, then move it to Ready.`,
+    );
+    expect(status(id)).toBe('planning');
+    expectOk(await declare({ id, none: true }));
+    expect(
+      (expectOk(await h.call('set_status', { id, status: 'ready' })).structured.item as S).status,
+    ).toBe('ready');
+
+    // The owner too, without a reason.
+    const api = await owner();
+    const res = await api('PATCH', '/api/items/RCP-23', {
+      expected_version: version('RCP-23'),
+      status: 'ready',
+    });
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: { code: 'not_declared' } });
+    expect((res.body.error as S).message).toContain('or give a reason to move it anyway');
+    expect(status('RCP-23')).toBe('planning');
+
+    // Giving up work (In progress → Ready) isn't gated: the item was Ready before.
+    const claim = expectOk(await h.call('claim_lead', { id: 'RCP-17' }));
+    expectOk(
+      await h.call('set_status', {
+        id: 'RCP-17',
+        status: 'ready',
+        run_id: claim.structured.run_id,
+      }),
+    );
+    expect(status('RCP-17')).toBe('ready');
+  });
+
+  it('the owner moves an undeclared item to Ready with override_reason, recorded in Activity', async () => {
+    h = await startHarness();
+    const api = await owner();
+    const res = await api('PATCH', '/api/items/RCP-23', {
+      expected_version: version('RCP-23'),
+      status: 'ready',
+      override_reason: 'Templates only; touches no shared part',
+    });
+    expect(res.status).toBe(200);
+    expect(status('RCP-23')).toBe('ready');
+    const ev = events('item.status_changed', 'RCP-23').at(-1)!;
+    expect(ev.summary).toBe(
+      'You moved RCP-23 from planning to ready without declaring its shared changes: Templates only; touches no shared part',
+    );
+    expect(JSON.parse(ev.data)).toMatchObject({
+      override_reason: 'Templates only; touches no shared part',
+    });
+    // A declared item records no override.
+    expectOk(await declare({ id: 'RCP-27', none: true }));
+    await api('PATCH', '/api/items/RCP-27', {
+      expected_version: version('RCP-27'),
+      status: 'ready',
+      override_reason: 'Not needed',
+    });
+    expect(events('item.status_changed', 'RCP-27').at(-1)!.summary).toBe(
+      'You moved RCP-27 from planning to ready',
+    );
+  });
+});
+
+describe('overlaps at the claim (FR-160)', () => {
+  /** RCP-14 (In progress) and RCP-17 (Ready) both declare model:Recipe. */
+  async function overlapping() {
+    h = await startHarness();
+    const api = await owner();
+    await registry(api);
+    expectOk(
+      await declare({ id: 'RCP-14', changes: [{ part: 'model:Recipe', change: 'change' }] }),
+    );
+    expectOk(await declare({ id: 'RCP-17', changes: [{ part: 'model:Recipe', change: 'add' }] }));
+    return api;
+  }
+
+  it('claim_lead on an item whose parts overlap an in-flight item is seam_conflict { with, parts }, and the item stays Ready', async () => {
+    await overlapping();
+    const err = expectToolError(
+      await h!.call('claim_lead', { id: 'RCP-17' }, h!.b),
+      'seam_conflict',
+    );
+    expect(err.message).toBe(
+      'RCP-17 changes model:Recipe, like RCP-14 (In progress). Pick other work: the owner has been asked whether they can run together.',
+    );
+    expect(err.details).toEqual({ with: ['RCP-14'], parts: ['model:Recipe'] });
+    expect(status('RCP-17')).toBe('ready');
+    expect(count("SELECT count(*) AS n FROM runs WHERE item_id = 'RCP-17'")).toBe(0);
+    // The refusal is a rejected claim the owner sees.
+    expect(events('claim.rejected', 'RCP-17').map((e) => e.summary)).toEqual([
+      'Lead claim by codex refused: RCP-17 overlaps RCP-14 on model Recipe',
+    ]);
+    // Two Ready items that declare the same part don't refuse each other's first claim.
+    expectOk(await declare({ id: 'RCP-25', changes: [{ part: 'table:decks', change: 'add' }] }));
+    expectOk(await declare({ id: 'RCP-22', changes: [{ part: 'table:decks', change: 'change' }] }));
+    expect(count("SELECT count(*) AS n FROM part_overlaps WHERE parts LIKE '%decks%'")).toBe(0);
+    expectOk(await h!.call('claim_lead', { id: 'RCP-25' }));
+  });
+
+  it('the refused claim opens one part_overlaps row and one Needs you card; claiming the same pair again opens no second', async () => {
+    const api = await overlapping();
+    for (let i = 0; i < 3; i++) {
+      expectToolError(await h!.call('claim_lead', { id: 'RCP-17' }, h!.b), 'seam_conflict');
+    }
+    expect(
+      sql().prepare('SELECT item_a, item_b, claimed_first, parts, state FROM part_overlaps').all(),
+    ).toEqual([
+      {
+        item_a: 'RCP-14',
+        item_b: 'RCP-17',
+        claimed_first: 'RCP-14',
+        parts: '["model:Recipe"]',
+        state: 'open',
+      },
+    ]);
+    // overlap.raised once on each item, not once per retry; a rejected claim per retry.
+    expect(events('overlap.raised').map((e) => e.summary)).toEqual([
+      'RCP-14 and RCP-17 both change model Recipe: RCP-17 waits until you decide',
+      'RCP-14 and RCP-17 both change model Recipe: the claim of RCP-17 was refused until you decide',
+    ]);
+    expect(events('claim.rejected', 'RCP-17')).toHaveLength(3);
+    const needs = await api('GET', '/api/needs-you?scope=all');
+    expect(needs.body.overlaps).toMatchObject([
+      {
+        items: [
+          { id: 'RCP-14', status: 'progress' },
+          { id: 'RCP-17', status: 'ready' },
+        ],
+        parts: ['model:Recipe'],
+        state: 'open',
+      },
+    ]);
+    const before = await api('GET', '/api/bootstrap');
+    expect((before.body.counts as { for_you: number }).for_you).toBeGreaterThan(0);
+    // The owner has been asked: ready_to_start leaves RCP-17 out, so agents move on.
+    expect(
+      items(await h!.call('search_items', { project: 'RCP', filter: 'ready_to_start' })),
+    ).not.toContain('RCP-17');
+    // The item's Shared changes section shows it.
+    const shared = await api('GET', '/api/items/RCP-17/shared');
+    expect((shared.body.overlaps as S[])[0]).toMatchObject({ state: 'open' });
+  });
+
+  it('Run one after the other adds a merged blocks link from the item claimed first; the other is startable once it merges', async () => {
+    const api = await overlapping();
+    expectToolError(await h!.call('claim_lead', { id: 'RCP-17' }, h!.b), 'seam_conflict');
+    const id = (sql().prepare('SELECT id FROM part_overlaps').get() as { id: string }).id;
+    const res = await api('POST', `/api/overlaps/${id}/decide`, { decision: 'sequence' });
+    expect(res.status).toBe(200);
+    const overlap = res.body.overlap as S & { link_id: string };
+    expect(overlap).toMatchObject({ state: 'sequenced', decided_by: 'owner' });
+    expect(
+      sql()
+        .prepare('SELECT from_id, to_id, type, satisfied_when FROM links WHERE id = ?')
+        .get(overlap.link_id),
+    ).toEqual({
+      from_id: 'RCP-14',
+      to_id: 'RCP-17',
+      type: 'blocks',
+      satisfied_when: 'merged',
+    });
+    expect(events('overlap.decided').map((e) => e.summary)).toEqual([
+      'You chose to run RCP-14 and RCP-17 one after the other: RCP-17 waits until RCP-14 is merged',
+      'You chose to run RCP-14 and RCP-17 one after the other: RCP-17 waits until RCP-14 is merged',
+    ]);
+    // Deciding twice is a conflict; the card is gone.
+    expect(
+      (await api('POST', `/api/overlaps/${id}/decide`, { decision: 'compatible' })).status,
+    ).toBe(409);
+    expect((await api('GET', '/api/needs-you?scope=all')).body.overlaps).toEqual([]);
+
+    // RCP-17 is blocked by RCP-14 until it is merged.
+    const blocked = expectValidation(await h!.call('claim_lead', { id: 'RCP-17' }, h!.b));
+    expect(blocked.message).toContain('RCP-17 is blocked by RCP-14');
+    sql().prepare("UPDATE items SET status = 'done' WHERE id = 'RCP-14'").run();
+    expect(
+      items(await h!.call('search_items', { project: 'RCP', filter: 'ready_to_start' })),
+    ).not.toContain('RCP-17');
+    expectOk(
+      await h!.call('link_artifact', {
+        id: 'RCP-14',
+        kind: 'pr',
+        label: 'PR #60',
+        url: 'https://example.test/pr/60',
+        state: 'merged',
+      }),
+    );
+    expect(
+      items(await h!.call('search_items', { project: 'RCP', filter: 'ready_to_start' })),
+    ).toContain('RCP-17');
+    expectOk(await h!.call('claim_lead', { id: 'RCP-17' }, h!.b));
+  });
+
+  it("They're compatible records the pair; its note is posted to both items as an owner note; the claim then succeeds", async () => {
+    const api = await overlapping();
+    expectToolError(await h!.call('claim_lead', { id: 'RCP-17' }, h!.b), 'seam_conflict');
+    const id = (sql().prepare('SELECT id FROM part_overlaps').get() as { id: string }).id;
+    expect(
+      (await api('POST', `/api/overlaps/${id}/decide`, { decision: 'sequence', note: 'x' })).status,
+    ).toBe(400);
+    const res = await api('POST', `/api/overlaps/${id}/decide`, {
+      decision: 'compatible',
+      note: 'RCP-17 only adds a field; RCP-14 reads it.',
+    });
+    expect(res.body.overlap).toMatchObject({
+      state: 'compatible',
+      note: 'RCP-17 only adds a field; RCP-14 reads it.',
+      link_id: null,
+    });
+    expect(
+      sql()
+        .prepare(
+          "SELECT item_id, text FROM owner_notes WHERE text LIKE 'Runs alongside%' ORDER BY item_id",
+        )
+        .all(),
+    ).toEqual([
+      {
+        item_id: 'RCP-14',
+        text: 'Runs alongside RCP-17 (both change model Recipe): RCP-17 only adds a field; RCP-14 reads it.',
+      },
+      {
+        item_id: 'RCP-17',
+        text: 'Runs alongside RCP-14 (both change model Recipe): RCP-17 only adds a field; RCP-14 reads it.',
+      },
+    ]);
+    const claim = expectOk(await h!.call('claim_lead', { id: 'RCP-17' }, h!.b));
+    expect((claim.structured.item as S).status).toBe('progress');
+    // The pair stays compatible: re-declaring raises nothing new.
+    expectOk(
+      await declare({ id: 'RCP-17', changes: [{ part: 'model:Recipe', change: 'change' }] }),
+    );
+    expect(count("SELECT count(*) AS n FROM part_overlaps WHERE state = 'open'")).toBe(0);
+  });
+
+  it('declaring later, while in progress, flags both items ("Now overlaps …") and raises the question, keeping the claim', async () => {
+    h = await startHarness();
+    await registry(await owner());
+    expectOk(
+      await declare({ id: 'RCP-14', changes: [{ part: 'model:Recipe', change: 'change' }] }),
+    );
+    const leadBefore = sql()
+      .prepare("SELECT id, state FROM runs WHERE item_id = 'RCP-18' AND is_lead = 1")
+      .get();
+    const r = expectOk(
+      await declare({ id: 'RCP-18', changes: [{ part: 'model:Recipe', change: 'add' }] }),
+    );
+    expect(r.text).toContain('overlaps RCP-14 on model:Recipe');
+    expect(sql().prepare('SELECT item_a, item_b, state FROM part_overlaps').all()).toEqual([
+      { item_a: 'RCP-14', item_b: 'RCP-18', state: 'open' },
+    ]);
+    expect(events('overlap.raised', 'RCP-14').map((e) => e.summary)).toEqual([
+      "Now overlaps RCP-18 on model Recipe: you've been asked whether they can run together",
+    ]);
+    expect(events('overlap.raised', 'RCP-18').map((e) => e.summary)).toEqual([
+      "Now overlaps RCP-14 on model Recipe: you've been asked whether they can run together",
+    ]);
+    // The claim isn't revoked.
+    expect(status('RCP-18')).toBe('progress');
+    expect(
+      sql().prepare("SELECT id, state FROM runs WHERE item_id = 'RCP-18' AND is_lead = 1").get(),
+    ).toEqual(leadBefore);
+    // Dropping the part resolves the undecided question.
+    expectOk(await declare({ id: 'RCP-18', none: true }));
+    expect(sql().prepare('SELECT state FROM part_overlaps').get()).toEqual({ state: 'resolved' });
+  });
+});
+
+describe('leases (FR-161)', () => {
+  const JOURNAL = 'file:server/src/db/migrations/meta/_journal.json';
+
+  it('take_lease on a single-writer part returns held_until; a second item gets lease_held with the holder and expiry', async () => {
+    h = await startHarness();
+    const api = await owner();
+    await registry(api, [{ key: JOURNAL, single_writer: true }]);
+    const t = expectOk(await h.call('take_lease', { id: 'RCP-14', part: JOURNAL }));
+    expect(t.structured).toMatchObject({
+      part: JOURNAL,
+      item_id: 'RCP-14',
+      held_until: '2026-11-06T13:00:00.000Z',
+      renewed: false,
+    });
+    expect(t.text).toBe(`Lease on ${JOURNAL} for RCP-14 · until 13:00Z`);
+    // Codex leads RCP-15: the part is held.
+    const held = expectToolError(
+      await h.call('take_lease', { id: 'RCP-15', part: JOURNAL }, h.b),
+      'lease_held',
+    );
+    expect(held.message).toBe(
+      `${JOURNAL} is leased to RCP-14 (claude · orca-w3) until 13:00 UTC. Work on something else.`,
+    );
+    expect(held.current).toEqual({
+      item_id: 'RCP-14',
+      holder: 'claude · orca-w3',
+      held_until: '2026-11-06T13:00:00.000Z',
+    });
+    // Renewing moves the expiry and writes no event.
+    h.server.clock.advance(30 * 60_000);
+    const renewed = expectOk(await h.call('take_lease', { id: 'RCP-14', part: JOURNAL }));
+    expect(renewed.structured).toMatchObject({
+      held_until: '2026-11-06T13:30:00.000Z',
+      renewed: true,
+    });
+    expect(renewed.text).toBe(`Lease on ${JOURNAL} for RCP-14 · until 13:30Z · renewed`);
+    expect(events('lease.taken')).toHaveLength(1);
+    // list_shared_parts shows the holder.
+    const list = expectOk(await h.call('list_shared_parts', { project: 'RCP' }));
+    expect(
+      (list.structured.parts as { key: string; lease: unknown }[]).find((p) => p.key === JOURNAL)!
+        .lease,
+    ).toEqual({
+      item_id: 'RCP-14',
+      held_until: '2026-11-06T13:30:00.000Z',
+    });
+    // Not single-writer, not the lead, unknown part.
+    expect(
+      expectValidation(await h.call('take_lease', { id: 'RCP-14', part: 'model:Recipe' })).message,
+    ).toContain("isn't single-writer");
+    expectToolError(await h.call('take_lease', { id: 'RCP-14', part: JOURNAL }, h.b), 'forbidden');
+    expectToolError(
+      await h.call('take_lease', { id: 'RCP-14', part: 'table:ghosts' }),
+      'not_found',
+    );
+  });
+
+  it('a lease ends on release_lease, owner release, Done, hand-off (submit_packet or set_status done) and expiry', async () => {
+    h = await startHarness({ env: { DOCKET_LEASE_MINUTES: '10' } });
+    const api = await owner();
+    await registry(api, [{ key: JOURNAL, single_writer: true }]);
+    const reasons = () =>
+      (
+        sql()
+          .prepare(
+            'SELECT end_reason FROM part_leases WHERE ended_at IS NOT NULL ORDER BY ended_at, rowid',
+          )
+          .all() as {
+          end_reason: string;
+        }[]
+      ).map((r) => r.end_reason);
+
+    // The holder releases it.
+    expectOk(await h.call('take_lease', { id: 'RCP-14', part: JOURNAL }));
+    const rel = expectOk(await h.call('release_lease', { id: 'RCP-14', part: JOURNAL }));
+    expect(rel.text).toBe(`Released lease on ${JOURNAL} for RCP-14`);
+    expectToolError(await h.call('release_lease', { id: 'RCP-14', part: JOURNAL }), 'not_found');
+
+    // The owner releases it (Release lease in the item's Shared changes section).
+    expectOk(await h.call('take_lease', { id: 'RCP-14', part: JOURNAL }));
+    const lease = (
+      (await api('GET', '/api/items/RCP-14/shared')).body.leases as { id: string; holder: string }[]
+    )[0]!;
+    expect(lease.holder).toBe('claude · orca-w3');
+    const owned = await api('POST', `/api/leases/${lease.id}/release`, {});
+    expect(owned.body.lease).toMatchObject({ end_reason: 'owner_released' });
+    expect((await api('POST', `/api/leases/${lease.id}/release`, {})).status).toBe(409);
+
+    // Done (set_status done) ends it.
+    const done = await started('Close it');
+    expectOk(await h.call('take_lease', { id: done.id, part: JOURNAL }));
+    expectOk(await h.call('set_status', { id: done.id, status: 'done', run_id: done.run_id }));
+
+    // A hand-off (submit_packet) ends it.
+    const handed = await started('Hand it off');
+    expectOk(await h.call('take_lease', { id: handed.id, part: JOURNAL }));
+    expectOk(await h.call('declare_human_review', { id: handed.id, items: ['Look at it.'] }));
+    expectOk(
+      await h.call('submit_packet', {
+        id: handed.id,
+        built_from_commit: '9c0e7f2',
+        estimate: '2 min',
+        how: ['Open it.'],
+        checked: [],
+      }),
+    );
+
+    // Expiry: lazy. Reads skip it; the next take ends it as expired.
+    expectOk(await h.call('take_lease', { id: 'RCP-14', part: JOURNAL }));
+    h.server.clock.advance(11 * 60_000);
+    const listed = expectOk(await h.call('list_shared_parts', { project: 'RCP' }));
+    expect(
+      (listed.structured.parts as { key: string; lease: unknown }[]).find((p) => p.key === JOURNAL)!
+        .lease,
+    ).toBeNull();
+    expect(((await api('GET', '/api/items/RCP-14/shared')).body.leases as unknown[]).length).toBe(
+      0,
+    );
+    expectOk(await h.call('take_lease', { id: 'RCP-15', part: JOURNAL }, h.b));
+    expect(reasons()).toEqual(['released', 'owner_released', 'done', 'handed_off', 'expired']);
+    expect(events('lease.ended').map((e) => e.summary)).toEqual([
+      `Lease on ${JOURNAL} for RCP-14 ended: released`,
+      `Lease on ${JOURNAL} for RCP-14 ended: released by you`,
+      `Lease on ${JOURNAL} for ${done.id} ended: the item is done`,
+      `Lease on ${JOURNAL} for ${handed.id} ended: the item was handed off`,
+      `Lease on ${JOURNAL} for RCP-14 ended: it expired`,
+    ]);
+  });
+});
+
+describe('changed files at hand-off (FR-162)', () => {
+  const FILES = ['server/src/models/recipe.ts', 'server/src/db/decks/schema.ts', 'README.md'];
+  const packet = (id: string, extra: S = {}) => ({
+    id,
+    built_from_commit: '9c0e7f2',
+    estimate: '2 min',
+    how: ['Open it.'],
+    checked: [],
+    ...extra,
+  });
+
+  it('submit_packet with changed_files mapping to undeclared parts holds the packet (held_undeclared) and raises the question', async () => {
+    h = await startHarness();
+    const api = await owner();
+    await registry(api);
+    const t = await started('Recipe source', h.a, ['model:Recipe']);
+    expectOk(await h.call('declare_human_review', { id: t.id, items: ['Import a recipe.'] }));
+    const r = expectOk(
+      await h.call('submit_packet', packet(t.id, { changed_files: FILES, branch: 'feat/source' })),
+    );
+    expect(r.structured.held_undeclared).toEqual(['table:decks']);
+    expect(r.text).toContain('held for the owner: undeclared table:decks');
+    expect(status(t.id)).toBe('review');
+    expect(
+      sql().prepare('SELECT held_undeclared, branch FROM packets WHERE item_id = ?').get(t.id),
+    ).toEqual({
+      held_undeclared: '["table:decks"]',
+      branch: 'feat/source',
+    });
+    const hold = (await api('GET', '/api/needs-you?scope=all')).body.undeclared_holds as S[];
+    expect(hold).toMatchObject([
+      {
+        item: { id: t.id },
+        via: 'submit_packet',
+        parts: ['table:decks'],
+        files: ['server/src/db/decks/schema.ts'],
+        state: 'open',
+      },
+    ]);
+    expect(events('undeclared.held', t.id).map((e) => e.summary)).toEqual([
+      `${t.id} changed shared parts it didn't declare: table decks`,
+    ]);
+    // The packet shows the hold, and its review gate stays closed.
+    const review = await api('GET', `/api/review/${t.id}`);
+    const p = review.body.packet as { shared: S; items: { hr_item_id: string }[] };
+    expect(p.shared).toMatchObject({
+      held_undeclared: ['table:decks'],
+      hold_id: hold[0]!.id,
+      not_reported: false,
+    });
+    const decided = await api('POST', `/api/review/${t.id}/decisions`, {
+      round: 1,
+      verdicts: [{ hr_item_id: p.items[0]!.hr_item_id, kind: 'approve' }],
+    });
+    expect(decided.status).toBe(409);
+    expect((decided.body.error as S).message).toContain(
+      "changed shared parts it didn't declare (table:decks)",
+    );
+  });
+
+  it('set_status done with changed files mapping to undeclared parts is not_declared, raises the question, and leaves the item', async () => {
+    h = await startHarness();
+    await registry(await owner());
+    const t = await started('Deck export');
+    for (let i = 0; i < 2; i++) {
+      const err = expectToolError(
+        await h.call('set_status', {
+          id: t.id,
+          status: 'done',
+          run_id: t.run_id,
+          changed_files: FILES,
+          branch: 'feat/x',
+        }),
+        'not_declared',
+      );
+      expect(err.details).toEqual({
+        undeclared: ['model:Recipe', 'table:decks'],
+        files: ['server/src/models/recipe.ts', 'server/src/db/decks/schema.ts'],
+      });
+      expect(err.message).toContain(
+        "changed shared parts it didn't declare: model:Recipe, table:decks",
+      );
+    }
+    expect(status(t.id)).toBe('progress');
+    // One question, not one per retry.
+    expect(sql().prepare('SELECT via, packet_id, state FROM undeclared_holds').all()).toEqual([
+      { via: 'set_status', packet_id: null, state: 'open' },
+    ]);
+    expect(events('undeclared.held')).toHaveLength(1);
+    // Files that map to declared parts, or to no part, close normally.
+    expectOk(
+      await declare({
+        id: t.id,
+        changes: [
+          { part: 'model:Recipe', change: 'change' },
+          { part: 'table:decks', change: 'add' },
+        ],
+      }),
+    );
+    expectOk(
+      await h.call('set_status', {
+        id: t.id,
+        status: 'done',
+        run_id: t.run_id,
+        changed_files: FILES,
+      }),
+    );
+    expect(status(t.id)).toBe('done');
+  });
+
+  it('Add to the declaration adds the parts and releases the hold; Send back returns the item with an owner note', async () => {
+    h = await startHarness();
+    const api = await owner();
+    await registry(api);
+    // Add to the declaration: the parts join it, and the packet opens for review.
+    const a = await started('Add them', h.a, ['model:Recipe']);
+    expectOk(await h.call('declare_human_review', { id: a.id, items: ['Look.'] }));
+    expectOk(await h.call('submit_packet', packet(a.id, { changed_files: FILES })));
+    const holdA = (
+      sql().prepare('SELECT id FROM undeclared_holds WHERE item_id = ?').get(a.id) as { id: string }
+    ).id;
+    const added = await api('POST', `/api/undeclared-holds/${holdA}/decide`, { decision: 'add' });
+    expect(added.body.hold).toMatchObject({ state: 'added', decided_by: 'owner' });
+    expect(
+      (
+        (await api('GET', `/api/items/${a.id}/shared`)).body.declaration as {
+          changes: { part: string }[];
+        }
+      ).changes.map((c) => c.part),
+    ).toEqual(['model:Recipe', 'table:decks']);
+    const review = await api('GET', `/api/review/${a.id}`);
+    const pa = review.body.packet as { shared: S; items: { hr_item_id: string }[] };
+    expect(pa.shared.held_undeclared).toBeNull();
+    const ok = await api('POST', `/api/review/${a.id}/decisions`, {
+      round: 1,
+      verdicts: [{ hr_item_id: pa.items[0]!.hr_item_id, kind: 'approve' }],
+    });
+    expect(ok.status).toBe(200);
+    expect(
+      (await api('POST', `/api/undeclared-holds/${holdA}/decide`, { decision: 'add' })).status,
+    ).toBe(409);
+
+    // Send back: the held packet is withdrawn, the item returns to In progress with a note.
+    const b = await started('Send it back', h.a, ['model:Recipe']);
+    expectOk(await h.call('declare_human_review', { id: b.id, items: ['Look.'] }));
+    expectOk(await h.call('submit_packet', packet(b.id, { changed_files: FILES })));
+    const holdB = (
+      sql().prepare('SELECT id FROM undeclared_holds WHERE item_id = ?').get(b.id) as { id: string }
+    ).id;
+    const back = await api('POST', `/api/undeclared-holds/${holdB}/decide`, {
+      decision: 'send_back',
+      note: 'Keep the decks table out of this one.',
+    });
+    expect(back.body.hold).toMatchObject({
+      state: 'sent_back',
+      note: 'Keep the decks table out of this one.',
+    });
+    expect(status(b.id)).toBe('progress');
+    expect(sql().prepare('SELECT state FROM packets WHERE item_id = ?').get(b.id)).toEqual({
+      state: 'withdrawn',
+    });
+    expect(sql().prepare('SELECT text FROM owner_notes WHERE item_id = ?').all(b.id)).toEqual([
+      { text: 'Keep the decks table out of this one.' },
+    ]);
+    expect((await api('GET', '/api/needs-you?scope=all')).body.undeclared_holds).toEqual([]);
+  });
+
+  it('an item with declarations that hands off without changed_files shows "Changed files not reported" on the packet', async () => {
+    h = await startHarness();
+    const api = await owner();
+    await registry(api);
+    const t = await started('No files', h.a, ['model:Recipe']);
+    expectOk(await h.call('declare_human_review', { id: t.id, items: ['Look.'] }));
+    expectOk(await h.call('submit_packet', packet(t.id)));
+    const p = (await api('GET', `/api/review/${t.id}`)).body.packet as { shared: S };
+    expect(p.shared).toEqual({
+      changed_files: null,
+      branch: null,
+      held_undeclared: null,
+      hold_id: null,
+      not_reported: true,
+    });
+    // Declared none: nothing to report against.
+    const none = await started('Declared none');
+    expectOk(await h.call('declare_human_review', { id: none.id, items: ['Look.'] }));
+    expectOk(await h.call('submit_packet', packet(none.id)));
+    expect(
+      ((await api('GET', `/api/review/${none.id}`)).body.packet as { shared: S }).shared
+        .not_reported,
+    ).toBe(false);
+  });
+});
+
+describe('get_context.shared (FR-164)', () => {
+  it('get_context.shared lists the declaration, overlapping and up to 30 other in-flight declarations, leases and findings, within budget', async () => {
+    h = await startHarness();
+    const api = await owner();
+    const keys = Array.from({ length: 6 }, (_, i) => `table:recipe_part_${i}`);
+    await registry(api, [
+      { key: 'file:server/src/db/schema.ts', single_writer: true },
+      ...keys.map((key) => ({ key })),
+    ]);
+    expectOk(
+      await declare({
+        id: 'RCP-14',
+        changes: [
+          { part: 'model:Recipe', change: 'change', note: 'Adds units' },
+          { part: 'file:server/src/db/schema.ts', change: 'change' },
+        ],
+      }),
+    );
+    // RCP-18 overlaps on model:Recipe; seven other in-flight items declare six parts each (42).
+    expectOk(
+      await declare({
+        id: 'RCP-18',
+        changes: [{ part: 'model:Recipe', change: 'add', note: 'Source URL' }],
+      }),
+    );
+    for (const id of ['RCP-12', 'RCP-15', 'RCP-16', 'RCP-17', 'RCP-19', 'RCP-21', 'RCP-22']) {
+      expectOk(
+        await declare({
+          id,
+          changes: keys.map((part) => ({ part, change: 'change', note: `For ${id}` })),
+        }),
+      );
+    }
+    expectOk(await h.call('take_lease', { id: 'RCP-14', part: 'file:server/src/db/schema.ts' }));
+    const t = '2026-11-06T11:00:00.000Z';
+    sql()
+      .prepare(
+        `INSERT INTO radar_findings (id, project_key, branch_a, branch_b, item_a, item_b, files, seen_at, created_at, updated_at)
+         VALUES ('rdf_1', 'RCP', 'rcp-14-list', 'rcp-18-import', 'RCP-14', 'RCP-18', '["server/src/models/recipe.ts"]', ?, ?, ?)`,
+      )
+      .run(t, t, t);
+
+    const ctx = expectOk(await h.call('get_context', { id: 'RCP-14' }));
+    const shared = (ctx.structured.context as S).shared as {
+      declaration: S;
+      overlapping: { id: string; part: string }[];
+      in_flight: unknown[];
+      leases: unknown[];
+      radar: unknown[];
+      truncated: boolean;
+    };
+    expect(shared.declaration).toEqual({
+      state: 'declared',
+      changes: [
+        { part: 'file:server/src/db/schema.ts', kind: 'file', change: 'change', note: null },
+        { part: 'model:Recipe', kind: 'model', change: 'change', note: 'Adds units' },
+      ],
+    });
+    expect(shared.overlapping).toEqual([
+      {
+        id: 'RCP-18',
+        title: 'Import recipes from URL',
+        status: 'progress',
+        change: 'add',
+        note: 'Source URL',
+        part: 'model:Recipe',
+      },
+    ]);
+    expect(shared.in_flight).toHaveLength(30);
+    expect(shared.truncated).toBe(true);
+    expect(shared.leases).toEqual([
+      { part: 'file:server/src/db/schema.ts', held_until: '2026-11-06T13:00:00.000Z' },
+    ]);
+    expect(shared.radar).toEqual([
+      { with: 'RCP-18', branch: 'rcp-18-import', files: ['server/src/models/recipe.ts'] },
+    ]);
+    const lines = ctx.text.split('\n');
+    expect(lines).toContain('shared: file:server/src/db/schema.ts change, model:Recipe change');
+    expect(lines).toContain('  overlaps:');
+    expect(lines).toContain(
+      '  - RCP-18 Import recipes from URL · progress · model:Recipe add · Source URL',
+    );
+    expect(lines).toContain('  lease file:server/src/db/schema.ts until 13:00Z');
+    expect(lines).toContain(
+      '  conflict ahead with RCP-18 (rcp-18-import) · 1 file · server/src/models/recipe.ts',
+    );
+    expect(lines).toContain('  …truncated; see list_shared_parts RCP');
+    // Within the medium budget (3,000 tokens), and cut to fit the small one.
+    expect(tokens(ctx.text)).toBeLessThanOrEqual(3_000);
+    const small = expectOk(await h.call('get_context', { id: 'RCP-14', budget: 'small' }));
+    expect(tokens(small.text)).toBeLessThanOrEqual(1_000);
+    const smallShared = (small.structured.context as S).shared as
+      { in_flight: unknown[]; truncated: boolean } | undefined;
+    if (smallShared) {
+      expect(smallShared.truncated).toBe(true);
+      expect(smallShared.in_flight.length).toBeLessThan(30);
+    } else {
+      expect(small.text).toContain('shared changes; read them with list_shared_parts RCP');
+    }
+    // An undeclared item is told to declare.
+    const bare = expectOk(await h.call('get_context', { id: 'RCP-25' }));
+    expect(bare.text).toContain('shared: not declared; declare_shared_changes before Ready');
+  });
+});
+
+describe('the conflict radar (FR-163; T184)', () => {
+  let tmp: { dir: string; cleanup(): void } | undefined;
+  afterEach(() => {
+    tmp?.cleanup();
+    tmp = undefined;
+  });
+
+  // CI's no-network contract run uses a bare node image without git; the main test step
+  // (and every developer machine) has it and runs the read-only proof.
+  it.skipIf(!HAS_GIT)(
     'the radar trial-merges in-flight branches with merge-tree and a temporary object directory, leaving .git unchanged',
-  );
-  it.todo(
-    'SC-023: two agents claiming overlapping items unattended start no overlapping work without an owner decision',
-  );
+    async () => {
+      tmp = tempDir('docket-radar-');
+      const fixture = makeRadarRepo(tmp.dir);
+      mkdirSync(join(tmp.dir, 'not-a-repo'));
+      h = await startHarness({ env: { DOCKET_PUSH_ROOT: tmp.dir } });
+      const api = await owner();
+
+      // Settings: inside DOCKET_PUSH_ROOT only; a bad branch name is refused.
+      expect(
+        (await api('PUT', '/api/projects/RCP/radar', { repo_path: '../elsewhere' })).status,
+      ).toBe(400);
+      expect((await api('PUT', '/api/projects/RCP/radar', { repo_path: '/etc' })).status).toBe(400);
+      expect((await api('PUT', '/api/projects/RCP/radar', { repo_path: 'nope' })).status).toBe(400);
+      expect(
+        (
+          await api('PUT', '/api/projects/RCP/radar', {
+            repo_path: 'recipe-app',
+            main_branch: '-x',
+          })
+        ).status,
+      ).toBe(400);
+      const set = await api('PUT', '/api/projects/RCP/radar', {
+        repo_path: 'recipe-app',
+        main_branch: 'main',
+      });
+      expect(set.status).toBe(200);
+      expect(set.body.radar).toMatchObject({
+        repo_path: 'recipe-app',
+        state: 'idle',
+        off_reason: null,
+      });
+      expect(events('project.updated').at(-1)!.summary).toBe(
+        'You set the conflict radar for RCP to read recipe-app (main branch main)',
+      );
+
+      // Two items in flight on worktree branches; the branch comes from claim_lead.
+      expectOk(await h.call('claim_lead', { id: 'RCP-17', branch: 'feat/a' }));
+      expectOk(await h.call('claim_lead', { id: 'RCP-25', branch: 'feat/b' }, h.b));
+      const c = await started('Other file');
+      sql()
+        .prepare(
+          "UPDATE events SET data = json_set(data, '$.branch', 'feat/c') WHERE type = 'claim.granted' AND item_id = ?",
+        )
+        .run(c.id);
+
+      const before = hashGitDir(fixture.repo);
+      const run = await api('POST', '/api/projects/RCP/radar/run', {});
+      expect(run.status).toBe(200);
+      // Read-only: every file under .git is byte-for-byte the same.
+      expect(hashGitDir(fixture.repo)).toEqual(before);
+
+      const radar = run.body.radar as { state: string; last_run_at: string; findings: S[] };
+      expect(radar.state).toBe('ok');
+      expect(radar.last_run_at).toBe('2026-11-06T11:00:00.000Z');
+      const found = radar.findings.map((f) => [
+        f.branch_a,
+        f.branch_b,
+        (f.item_a as S).id,
+        (f.item_b as S | null)?.id ?? null,
+        f.files,
+      ]);
+      expect(found).toEqual(
+        expect.arrayContaining([
+          ['feat/b', 'main', 'RCP-25', null, ['shared.txt']],
+          ['feat/a', 'feat/b', 'RCP-17', 'RCP-25', ['shared.txt']],
+        ]),
+      );
+      expect(found).toHaveLength(2);
+      expect(events('radar.found', 'RCP-17').map((e) => e.summary)).toEqual([
+        'Heading for a conflict with RCP-25: 1 file',
+      ]);
+      expect(
+        events('radar.found', 'RCP-25')
+          .map((e) => e.summary)
+          .sort(),
+      ).toEqual([
+        'Heading for a conflict with RCP-17: 1 file',
+        'Heading for a conflict with main: 1 file',
+      ]);
+      // Both items show it; Needs you lists it under Problems; agents see it in their context.
+      expect(
+        ((await api('GET', '/api/items/RCP-17/shared')).body.findings as unknown[]).length,
+      ).toBe(1);
+      expect(
+        ((await api('GET', '/api/items/RCP-25/shared')).body.findings as unknown[]).length,
+      ).toBe(2);
+      const problems = (await api('GET', '/api/needs-you?scope=all')).body.problems as {
+        kind: string;
+        item_id: string;
+        reason: string;
+      }[];
+      expect(
+        problems
+          .filter((p) => p.kind === 'radar_conflict')
+          .map((p) => p.reason)
+          .sort(),
+      ).toEqual([
+        'Heading for a conflict with RCP-25: 1 file · shared.txt (feat/a)',
+        'Heading for a conflict with main: 1 file · shared.txt (feat/b)',
+      ]);
+      expect(expectOk(await h.call('get_context', { id: 'RCP-17' })).text).toContain(
+        'conflict ahead with RCP-25 (feat/b) · 1 file · shared.txt',
+      );
+
+      // A second run with nothing new writes no event (the scheduler's path).
+      const n = count('SELECT count(*) AS n FROM events');
+      radarRunOnce(h.server.runtime, 'RCP');
+      expect(count('SELECT count(*) AS n FROM events')).toBe(n);
+      expect(hashGitDir(fixture.repo)).toEqual(before);
+
+      // feat/b goes back to main: both findings clear.
+      git(fixture.worktrees['feat/b'], 'reset', '-q', '--hard', 'main');
+      const cleared = await api('POST', '/api/projects/RCP/radar/run', {});
+      expect((cleared.body.radar as { findings: unknown[] }).findings).toEqual([]);
+      expect(
+        events('radar.cleared')
+          .map((e) => e.summary)
+          .sort(),
+      ).toEqual([
+        'No longer heading for a conflict with RCP-17',
+        'No longer heading for a conflict with RCP-25',
+        'No longer heading for a conflict with main',
+      ]);
+
+      // A folder that isn't a repository: "Radar off: no repository"; turning it off too.
+      await api('PUT', '/api/projects/RCP/radar', { repo_path: 'not-a-repo' });
+      const off = await api('POST', '/api/projects/RCP/radar/run', {});
+      expect(off.body.radar).toMatchObject({
+        state: 'off',
+        off_reason: 'Radar off: no repository',
+      });
+      const none = await api('PUT', '/api/projects/RCP/radar', { repo_path: null });
+      expect(none.body.radar).toMatchObject({
+        repo_path: null,
+        state: 'off',
+        off_reason: 'Radar off: no repository',
+      });
+    },
+    30_000,
+  ); // git runs in a child process; slow under a full parallel run
+
+  it('without DOCKET_PUSH_ROOT the radar settings are refused and the card stays off', async () => {
+    h = await startHarness();
+    const api = await owner();
+    const res = await api('PUT', '/api/projects/RCP/radar', { repo_path: 'recipe-app' });
+    expect(res.status).toBe(400);
+    expect((res.body.error as S).message).toContain('DOCKET_PUSH_ROOT');
+    const run = await api('POST', '/api/projects/RCP/radar/run', {});
+    expect(run.body.radar).toMatchObject({
+      state: 'off',
+      off_reason: 'Radar off: no repository',
+      findings: [],
+    });
+  });
+});
+
+describe('SC-023: unattended agents never start overlapping work without an owner decision', () => {
+  it('SC-023: two agents claiming overlapping items unattended start no overlapping work without an owner decision', async () => {
+    h = await startHarness();
+    const api = await owner();
+    await registry(api);
+    // Four new P1 items (ahead of the seed's Ready work): two change model:Recipe.
+    const ids: string[] = [];
+    for (const [title, parts] of [
+      ['Recipe units', ['model:Recipe']],
+      ['Recipe source', ['model:Recipe']],
+      ['Deck export', ['table:decks']],
+      ['Copy edits', null],
+    ] as const) {
+      const r = expectOk(
+        await h.call('create_item', {
+          project: 'RCP',
+          type: 'Task',
+          title,
+          status: 'planning',
+          priority: 1,
+        }),
+      );
+      const id = (r.structured.item as { id: string }).id;
+      expectOk(
+        await declare(
+          parts
+            ? { id, changes: parts.map((part) => ({ part, change: 'change' })) }
+            : { id, none: true },
+        ),
+      );
+      expectOk(await h.call('set_status', { id, status: 'ready' }));
+      ids.push(id);
+    }
+    const [units, source] = ids as [string, string];
+    const log: string[] = [];
+    const agents = [
+      { name: 'claude', client: h.a, started: [] as string[] },
+      { name: 'codex', client: h.b, started: [] as string[] },
+    ];
+
+    /** No two claimed items share a declared part unless the owner decided the pair. */
+    const assertNoUndecidedOverlap = () => {
+      const rows = sql()
+        .prepare(
+          `SELECT a.item_id AS x, b.item_id AS y FROM item_shared_changes a
+           JOIN item_shared_changes b ON a.part_key = b.part_key AND a.item_id < b.item_id
+           JOIN items ia ON ia.id = a.item_id JOIN items ib ON ib.id = b.item_id
+           WHERE ia.status IN ('progress', 'review') AND ib.status IN ('progress', 'review')
+             AND ia.id IN (${ids.map(() => '?').join(', ')}) AND ib.id IN (${ids.map(() => '?').join(', ')})`,
+        )
+        .all(...ids, ...ids) as { x: string; y: string }[];
+      for (const r of rows) {
+        expect(
+          count(
+            "SELECT count(*) AS n FROM part_overlaps WHERE item_a = ? AND item_b = ? AND state IN ('compatible', 'sequenced')",
+            r.x,
+            r.y,
+          ),
+          `${r.x} and ${r.y} both started without an owner decision`,
+        ).toBe(1);
+      }
+    };
+
+    /** One unattended turn: take the first startable item of ours that claims; never wait. */
+    const turn = async (agent: (typeof agents)[number]) => {
+      const ready = items(
+        await h!.call('search_items', { project: 'RCP', filter: 'ready_to_start' }, agent.client),
+      );
+      for (const id of ready.filter((x) => ids.includes(x))) {
+        const r = await h!.call('claim_lead', { id }, agent.client);
+        if (!r.isError) {
+          agent.started.push(id);
+          log.push(`${agent.name}: claimed ${id}`);
+          return;
+        }
+        const code = (r.structuredContent as { code: string }).code;
+        log.push(`${agent.name}: ${id} refused (${code}); picks other work`);
+        expect(['seam_conflict', 'conflict']).toContain(code);
+      }
+      log.push(`${agent.name}: nothing startable; moves on`);
+    };
+
+    for (let round = 0; round < 4; round++) {
+      for (const agent of agents) {
+        await turn(agent);
+        assertNoUndecidedOverlap();
+      }
+    }
+    // One of the two Recipe items started; the other waits on the owner, still Ready.
+    const startedAll = agents.flatMap((a) => a.started);
+    expect(startedAll.filter((id) => id === units || id === source)).toHaveLength(1);
+    const waiting = startedAll.includes(units) ? source : units;
+    expect(status(waiting)).toBe('ready');
+    expect(count("SELECT count(*) AS n FROM part_overlaps WHERE state = 'open'")).toBe(1);
+    // Each agent moved on to other startable work rather than waiting.
+    for (const agent of agents) expect(agent.started.length).toBeGreaterThan(0);
+    expect(new Set(startedAll)).toEqual(new Set(ids.filter((id) => id !== waiting)));
+
+    // The owner decides: they're compatible. The next unattended turn starts it.
+    const id = (
+      sql().prepare("SELECT id FROM part_overlaps WHERE state = 'open'").get() as { id: string }
+    ).id;
+    expect(
+      (await api('POST', `/api/overlaps/${id}/decide`, { decision: 'compatible' })).status,
+    ).toBe(200);
+    log.push('owner: marked the pair compatible');
+    for (const agent of agents) {
+      await turn(agent);
+      assertNoUndecidedOverlap();
+    }
+    expect(status(waiting)).toBe('progress');
+    console.log(`SC-023 run:\n  ${log.join('\n  ')}`);
+  });
 });

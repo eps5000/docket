@@ -420,7 +420,9 @@ describe('finish_onboarding and the owner review', () => {
       await h!.call('finish_onboarding', { session_id, summary: 'Again.' }),
     );
     expect((again.current as S).state).toBe('ready_for_review');
-    // After the session, Ready is the normal rule again (the agent may move its items).
+    // After the session, Ready is the normal rule again (the agent may move its items, once
+    // their shared changes are declared: decision 36).
+    expectOk(await h!.call('declare_shared_changes', { id: task.id, none: true }));
     expectOk(await h!.call('set_status', { id: task.id, status: 'ready' }));
     expect(tagOfLast('item.status_changed')).toBeUndefined();
 

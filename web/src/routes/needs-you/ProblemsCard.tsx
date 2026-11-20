@@ -117,6 +117,13 @@ export const PROBLEM_ROWS: Record<
   },
   // Decision 30 (UI_SPEC §6.7b-1): → that record in the Agent files page's "Changed
   // outside Docket" (the page follows the project switcher, like Needs you).
+  // Decision 36 (UI_SPEC §6.3.6): two in-flight branches heading for a merge conflict.
+  radar_conflict: {
+    help: 'problems.radar_conflict',
+    icon: 'git',
+    tone: 'warn',
+    actions: [{ label: 'Open', kind: 'link', to: itemTab('details') }],
+  },
   agent_files_drift: {
     help: 'problems.agent_files_drift',
     icon: 'doc',

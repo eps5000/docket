@@ -154,6 +154,9 @@ describe('MCP_SPEC §10 test 14: satisfied_when gates ready_to_start', () => {
       ).id;
     const blocker = await make('Blocker with review');
     const dep = await make('Dependent');
+    // The Ready gate (decision 36): each declares that it changes no shared part.
+    await step('declare_shared_changes', { id: dep, none: true });
+    await step('declare_shared_changes', { id: blocker, none: true });
     await step('set_status', { id: dep, status: 'ready' });
     await step('link_items', { from: blocker, to: dep, type: 'blocks' });
     expect(await readyToStart()).not.toContain(dep);

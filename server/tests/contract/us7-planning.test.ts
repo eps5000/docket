@@ -316,6 +316,15 @@ describe('the owner’s planning routes', () => {
 
     const page = await owner('GET', '/api/labels/RCP/ui-refresh');
     expect(page.body).toMatchObject({ counts: { total: 4, done: 0, planning: 2 } });
+    // The Ready gate (decision 36): undeclared items refuse the whole move.
+    const gated = await owner('POST', '/api/labels/RCP/ui-refresh/move-to-ready');
+    expect(gated.status).toBe(400);
+    expect(gated.body).toMatchObject({
+      error: { code: 'not_declared', details: { items: ['RCP-23', 'RCP-27'] } },
+    });
+    for (const id of ['RCP-23', 'RCP-27']) {
+      expect((await owner('PUT', `/api/items/${id}/shared`, { none: true })).status).toBe(200);
+    }
     const move = await owner('POST', '/api/labels/RCP/ui-refresh/move-to-ready');
     expect(move.body).toMatchObject({ moved: ['RCP-23', 'RCP-27'] });
     const unknown = await owner('GET', '/api/labels/RCP/nope');

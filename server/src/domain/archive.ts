@@ -19,6 +19,7 @@ import { ToolError, type ItemSummary } from '@docket/shared';
 import type { ArchiveService, ServiceDeps } from './contracts.js';
 import { requireItem, summaryOf, windowsOf, type ItemRow } from './model.js';
 import { endLeadForOwner } from './runs.js';
+import { onItemClosed } from './shared-changes.js';
 import type { InverseOp, WriteContext } from './write.js';
 
 const OPEN = ['inbox', 'planning', 'ready', 'progress', 'review'];
@@ -163,6 +164,8 @@ export function createArchiveService(deps: ServiceDeps): ArchiveService {
         },
         inverse: [inverse],
       });
+      // Decision 36: canceling ends the item's leases and its overlaps (not part of the undo).
+      onItemClosed(w, item.id, 'canceled');
       return summary(w, item.id);
     },
   };

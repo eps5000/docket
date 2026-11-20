@@ -14,6 +14,7 @@ import { NeedsYou } from '../routes/needs-you/NeedsYou';
 import { NotFound } from '../routes/NotFound';
 import { PacketScreen } from '../routes/review/PacketScreen';
 import { Settings } from '../routes/settings/Settings';
+import { SharedPartsPage } from '../routes/settings/SharedPartsPage';
 import { Unlock } from '../routes/unlock/Unlock';
 import { Work } from '../routes/work/Work';
 import { paths } from '../lib/paths';
@@ -36,6 +37,8 @@ export const shellRoutes: RouteObject[] = [
   { path: 'labels/:project/:name', element: <LabelPage /> },
   { path: 'agents', element: <Agents /> },
   { path: 'settings', element: <Settings /> },
+  // Decision 36: Settings → Projects → <project> → Shared parts.
+  { path: 'settings/projects/:key/shared-parts', element: <SharedPartsPage /> },
   { path: 'agent-files', element: <AgentFiles /> },
   { path: 'settings/agent-setup', element: <LegacyAgentSetup /> },
   { path: 'help', element: <HelpIndex /> },

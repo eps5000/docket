@@ -45,6 +45,7 @@ import {
   type ItemRow,
 } from './model.js';
 import { openPacketOf } from './packets.js';
+import { onItemClosed } from './shared-changes.js';
 import type { EventInput, InverseOp, WriteContext } from './write.js';
 
 const BUG_TITLE_MAX = 70;
@@ -206,6 +207,16 @@ export function createReviewDecisionsService(deps: ServiceDeps): ReviewDecisions
         throw new ToolError(
           'conflict',
           `${item.id} has no open packet; it was already decided or withdrawn. Reload to see the latest.`,
+        );
+      }
+      // Decision 36 (FR-162): a packet held for undeclared shared changes keeps its review
+      // gate closed until the owner decides the hold.
+      if (packet.held_undeclared) {
+        const parts = JSON.parse(packet.held_undeclared) as string[];
+        throw new ToolError(
+          'conflict',
+          `Round ${packet.round} of ${item.id} is held: it changed shared parts it didn't declare (${parts.join(', ')}). Decide that first: Add to the declaration, or Send back.`,
+          { details: { held_undeclared: parts } },
         );
       }
       if (packet.round !== input.round) {
@@ -489,6 +500,8 @@ export function createReviewDecisionsService(deps: ServiceDeps): ReviewDecisions
           });
         }
         j.add(w.update('items', item.id, { status: 'done', closed_by: 'owner', closed_at: w.now }));
+        // Decision 36: Done ends the item's leases and its overlaps (not part of the undo).
+        onItemClosed(w, item.id, 'done');
       } else if (from !== 'progress') {
         j.add(w.update('items', item.id, { status: 'progress' }));
       }

@@ -12,6 +12,13 @@ beforeEach(() => {
 afterEach(() => tmp.cleanup());
 
 describe('loadConfig', () => {
+  it('reads DOCKET_LEASE_MINUTES as whole minutes, at least 1 (decision 36)', () => {
+    expect(loadConfig({ DOCKET_LEASE_MINUTES: '30' }).partLeaseMs).toBe(30 * 60_000);
+    for (const bad of ['0', '-5', '1.5', '2h']) {
+      expect(() => loadConfig({ DOCKET_LEASE_MINUTES: bad }), bad).toThrow(/DOCKET_LEASE_MINUTES/);
+    }
+  });
+
   it('applies every BUILD_SPEC §2 default', () => {
     const c = loadConfig({});
     expect(c).toMatchObject({
@@ -22,6 +29,8 @@ describe('loadConfig', () => {
       liveWindowMs: 2 * 60_000,
       staleAfterMs: 30 * 60_000,
       leaseMs: 60 * 60_000,
+      // Decision 36: a shared part's lease, DOCKET_LEASE_MINUTES (default 120).
+      partLeaseMs: 120 * 60_000,
       parkMaxMs: 24 * 3_600_000,
       resumeUnattendedMs: 30 * 60_000,
       orphanAfterMs: 15 * 60_000,

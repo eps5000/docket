@@ -23,6 +23,11 @@ export interface Config {
   liveWindowMs: number;
   staleAfterMs: number;
   leaseMs: number;
+  /**
+   * How long a lease on a single-writer shared part lasts from its latest take
+   * (decision 36; BUILD_SPEC §5.21): DOCKET_LEASE_MINUTES, default 120.
+   */
+  partLeaseMs: number;
   /** A run parked longer than this shows under Problems; it keeps its claim (§5.16). */
   parkMaxMs: number;
   /** A parked run `resume_ready` this long shows as "Ready to resume, unattended" (§5.16). */
@@ -93,6 +98,8 @@ export const DEFAULTS = {
   DOCKET_LIVE_WINDOW: '2m',
   DOCKET_STALE_AFTER: '30m',
   DOCKET_LEASE: '60m',
+  // Decision 36: a lease on a single-writer shared part, in whole minutes.
+  DOCKET_LEASE_MINUTES: '120',
   DOCKET_PARK_MAX: '24h',
   DOCKET_RESUME_UNATTENDED: '30m',
   DOCKET_ORPHAN_AFTER: '15m',
@@ -231,6 +238,13 @@ export function loadConfig(
     }
   }
 
+  const leaseMinutes = Number(get('DOCKET_LEASE_MINUTES'));
+  if (!Number.isInteger(leaseMinutes) || leaseMinutes < 1) {
+    throw new ConfigError(
+      `DOCKET_LEASE_MINUTES must be a whole number of minutes, at least 1 (got "${get('DOCKET_LEASE_MINUTES')}")`,
+    );
+  }
+
   const protectedValue = get('DOCKET_PROTECTED_MODE').toLowerCase();
   if (!['on', 'off', 'true', 'false'].includes(protectedValue)) {
     throw new ConfigError(
@@ -248,6 +262,7 @@ export function loadConfig(
     liveWindowMs: parseDuration(get('DOCKET_LIVE_WINDOW'), 'DOCKET_LIVE_WINDOW'),
     staleAfterMs: parseDuration(get('DOCKET_STALE_AFTER'), 'DOCKET_STALE_AFTER'),
     leaseMs: parseDuration(get('DOCKET_LEASE'), 'DOCKET_LEASE'),
+    partLeaseMs: leaseMinutes * 60_000,
     parkMaxMs: parseDuration(get('DOCKET_PARK_MAX'), 'DOCKET_PARK_MAX'),
     resumeUnattendedMs: parseDuration(get('DOCKET_RESUME_UNATTENDED'), 'DOCKET_RESUME_UNATTENDED'),
     orphanAfterMs: parseDuration(get('DOCKET_ORPHAN_AFTER'), 'DOCKET_ORPHAN_AFTER'),

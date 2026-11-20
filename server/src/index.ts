@@ -9,7 +9,7 @@ import { SYSTEM_ACTOR } from './domain/write.js';
 import { holdServerLock, startBackupJob } from './jobs/backup.js';
 import { syncBundledFiles } from './jobs/bundled.js';
 import { startupHousekeeping } from './jobs/startup.js';
-import { restartSweep, startDriftCheck, startSweeper } from './jobs/sweeper.js';
+import { restartSweep, startDriftCheck, startRadar, startSweeper } from './jobs/sweeper.js';
 import { createRuntime } from './runtime.js';
 import { APP_VERSION } from './version.js';
 
@@ -70,6 +70,8 @@ const backups = startBackupJob({
 const sweeper = startSweeper(runtime);
 // The push folder's drift check, at startup and every DOCKET_DRIFT_CHECK_INTERVAL (decision 30).
 const driftCheck = startDriftCheck(runtime);
+// The conflict radar, every 15 minutes for projects with a repository (decision 36).
+const radar = startRadar(runtime);
 
 const server = serve({ fetch: app.fetch, hostname: '0.0.0.0', port: config.port }, (info) => {
   console.log(`${APP_NAME} ${APP_VERSION} listening on 0.0.0.0:${info.port}`);
@@ -81,6 +83,7 @@ for (const signal of ['SIGTERM', 'SIGINT'] as const) {
   process.on(signal, () => {
     sweeper.stop();
     driftCheck.stop();
+    radar.stop();
     backups.stop();
     lock.stop();
     void runtime.close().finally(() => server.close(() => process.exit(0)));

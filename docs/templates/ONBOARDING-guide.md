@@ -30,6 +30,7 @@ Everything goes in `status: "planning"` (or `inbox` when it's only an idea).
 - **Dependencies:** `blocked_by` on create, or `link_items {from: <blocker>, to: <blocked>, type: "blocks"}`.
 - **Labels** for cross-cutting areas (`auth`, `payments`): `labels` on create; brief them with `upsert_label`.
 - **Planning documents:** attach each spec and plan with `put_document {item_id: <epic>, name: "001-checkout-spec.md", kind: "planning", content_text}`, named after its source path. Use `project` instead for repo-wide documents. A name the item already has adds a version to that document, so check the item's documents first and pick a new name unless it's the same file.
+- **Shared parts:** the most-changed shared files in `git log --since=90.days --name-only --format=` (migrations, models, schemas, API contracts): register them with `declare_shared_changes` `new_parts` on the items that change them.
 - **Decisions** from the constitution and ADRs: `publish_decision {project: "{{KEY}}", scope: {kind: "project"}}`, or scope them to an epic. Skip ones already listed by `list_decisions`.
 
 Skip done work unless an open item depends on it. Never copy secrets or credentials into Docket.
@@ -57,4 +58,4 @@ Ask only what the repo can't answer and the owner must decide (scope, priority, 
 - skipped: what and why (done work, duplicates, unclear sources);
 - anything you couldn't read.
 
-Then stop and tell the user the owner will review it from Needs you in Docket.
+Then stop: tell the user the owner reviews it from Needs you.
