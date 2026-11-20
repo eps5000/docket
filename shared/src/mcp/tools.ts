@@ -1,5 +1,5 @@
 /**
- * The tool registry: all 44 tools in MCP_SPEC §5 order, with their group,
+ * The tool registry: all 48 tools in MCP_SPEC §5 order, with their group,
  * kind, input and output schemas and MCP annotations (§3 Tool annotations).
  * Descriptions live in mcp-copy.ts. Shared contract file (tasks.md, Slice rules).
  */
@@ -13,6 +13,7 @@ import * as read from './read.js';
 import * as recovery from './recovery.js';
 import * as review from './review.js';
 import * as runs from './runs.js';
+import * as shared from './shared-changes.js';
 
 /** Server file each tool's handler lives in (`server/src/mcp/tools/<group>.ts`). */
 export type ToolGroup =
@@ -26,7 +27,8 @@ export type ToolGroup =
   | 'recovery'
   | 'agent_files'
   | 'onboarding'
-  | 'batch';
+  | 'batch'
+  | 'shared';
 
 /**
  * - `read`: no side effects (`readOnlyHint: true`).
@@ -201,6 +203,23 @@ export const TOOLS = [
   def('get_step', 'checklist', 'read', checklist.getStepInput, checklist.getStepOutput),
   // §5.13 Batches (decision 34)
   def('apply_batch', 'batch', 'mutating', batch.applyBatchInput, batch.applyBatchOutput),
+  // §5.15 Shared changes (decision 36)
+  def(
+    'declare_shared_changes',
+    'shared',
+    'mutating',
+    shared.declareSharedChangesInput,
+    shared.declareSharedChangesOutput,
+  ),
+  def(
+    'list_shared_parts',
+    'shared',
+    'read',
+    shared.listSharedPartsInput,
+    shared.listSharedPartsOutput,
+  ),
+  def('take_lease', 'shared', 'mutating', shared.takeLeaseInput, shared.takeLeaseOutput),
+  def('release_lease', 'shared', 'mutating', shared.releaseLeaseInput, shared.releaseLeaseOutput),
 ] as const;
 
 export type ToolName = (typeof TOOLS)[number]['name'];

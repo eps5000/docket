@@ -797,6 +797,77 @@ const SAMPLES: Record<ToolName, { result: unknown; args?: Record<string, unknown
       ],
     },
   },
+  // Decision 36 (MCP_SPEC §5.15; B38).
+  declare_shared_changes: {
+    args: { id: 'GF-312' },
+    result: {
+      declaration: {
+        item_id: 'GF-312',
+        state: 'declared',
+        changes: [
+          { part: 'model:Token', kind: 'model', change: 'change', note: 'Adds expiry' },
+          { part: 'table:decks', kind: 'table', change: 'add', note: null },
+        ],
+        declared_by: 'claude · orca-w3',
+        declared_at: '2026-11-06T10:40:00.000Z',
+      },
+      registered: ['table:decks'],
+      overlaps: [
+        {
+          with: { id: 'GF-240', title: 'Token refresh', status: 'progress' },
+          parts: ['model:Token'],
+        },
+      ],
+    },
+  },
+  list_shared_parts: {
+    result: {
+      project: 'GF',
+      parts: [
+        {
+          key: 'model:Token',
+          kind: 'model',
+          paths: ['src/Gameflow.Domain/Token.cs'],
+          single_writer: false,
+          note: null,
+          created_by: 'owner',
+          archived: false,
+          in_flight: [
+            {
+              id: 'GF-240',
+              title: 'Token refresh',
+              status: 'progress',
+              change: 'change',
+              note: 'Adds expiry',
+            },
+          ],
+          lease: null,
+        },
+        {
+          key: 'file:src/Gameflow.Api/Data/Migrations/GameflowDbContextModelSnapshot.cs',
+          kind: 'file',
+          paths: ['src/Gameflow.Api/Data/Migrations/GameflowDbContextModelSnapshot.cs'],
+          single_writer: true,
+          note: 'One migration at a time',
+          created_by: 'owner',
+          archived: false,
+          in_flight: [],
+          lease: { item_id: 'GF-240', held_until: '2026-11-06T12:40:00.000Z' },
+        },
+      ],
+    },
+  },
+  take_lease: {
+    result: {
+      part: 'file:src/Gameflow.Api/Data/Migrations/GameflowDbContextModelSnapshot.cs',
+      item_id: 'GF-240',
+      held_until: '2026-11-06T12:40:00.000Z',
+      renewed: true,
+    },
+  },
+  release_lease: {
+    result: { part: 'model:Token', item_id: 'GF-240', released: true },
+  },
 };
 
 describe('every tool has a renderer', () => {
@@ -1139,5 +1210,116 @@ describe('step details (MCP_SPEC §5.12; decision 33)', () => {
     expect(renderResult('get_step', bare, { args: { id: 'RCP-14' }, ...opts })).toBe(
       'wst_b Implement unit merging (g/kg, ml/l, cups) · current · on RCP-14 · no details',
     );
+  });
+});
+
+describe('shared changes (MCP_SPEC §5.15; decision 36)', () => {
+  const sample = (name: 'declare_shared_changes' | 'list_shared_parts' | 'take_lease') =>
+    renderResult(name, SAMPLES[name].result as never, { args: SAMPLES[name].args, ...opts });
+
+  it('declare_shared_changes is one line: the count, what it registered, the overlaps', () => {
+    expect(sample('declare_shared_changes')).toBe(
+      'Declared 2 changes on GF-312 · registered table:decks · overlaps GF-240 on model:Token',
+    );
+    const none = {
+      declaration: {
+        item_id: 'GF-9',
+        state: 'none' as const,
+        changes: [],
+        declared_by: 'owner',
+        declared_at: '2026-11-06T10:40:00.000Z',
+      },
+      registered: [],
+      overlaps: [],
+    };
+    expect(renderResult('declare_shared_changes', none, { args: { id: 'GF-9' }, ...opts })).toBe(
+      'Declared none on GF-9',
+    );
+  });
+
+  it('list_shared_parts prints a line per part and its in-flight declarations under it', () => {
+    expect(sample('list_shared_parts').split('\n')).toEqual([
+      'Shared parts in GF: 2',
+      '- model:Token · paths src/Gameflow.Domain/Token.cs',
+      '    GF-240 Token refresh · progress · change · Adds expiry',
+      '- file:src/Gameflow.Api/Data/Migrations/GameflowDbContextModelSnapshot.cs · single-writer · lease GF-240 until 12:40Z · paths src/Gameflow.Api/Data/Migrations/GameflowDbContextModelSnapshot.cs · One migration at a time',
+    ]);
+  });
+
+  it('submit_packet says when the packet is held for undeclared parts', () => {
+    const r = SAMPLES.submit_packet.result as Record<string, unknown>;
+    const held = renderResult(
+      'submit_packet',
+      { ...r, held_undeclared: ['table:decks', 'endpoint:POST /decks'] } as never,
+      { args: SAMPLES.submit_packet.args, ...opts },
+    );
+    expect(held).toMatch(/ · held for the owner: undeclared table:decks, endpoint:POST \/decks$/);
+  });
+
+  it('get_context renders a shared: section after the workflow notes, before planning docs', () => {
+    const shared = {
+      declaration: {
+        state: 'declared' as const,
+        changes: [
+          { part: 'model:Token', kind: 'model' as const, change: 'change' as const, note: null },
+        ],
+      },
+      overlapping: [
+        {
+          id: 'GF-240',
+          title: 'Token refresh',
+          status: 'progress' as const,
+          part: 'model:Token',
+          change: 'change' as const,
+          note: 'Adds expiry',
+        },
+      ],
+      in_flight: [
+        {
+          id: 'GF-250',
+          title: 'Deck export',
+          status: 'review' as const,
+          part: 'table:decks',
+          change: 'add' as const,
+          note: null,
+        },
+      ],
+      leases: [{ part: 'file:Snapshot.cs', held_until: '2026-11-06T12:40:00.000Z' }],
+      radar: [{ with: 'GF-240', branch: 'gf-240-token', files: ['src/Token.cs', 'src/Auth.cs'] }],
+      truncated: true,
+    };
+    const out = renderContext({ ...RCP14_CONTEXT, shared }, opts).split('\n');
+    const at = (prefix: string) => out.findIndex((l) => l.startsWith(prefix));
+    expect(out.slice(at('shared:'), at('shared:') + 8)).toEqual([
+      'shared: model:Token change',
+      '  overlaps:',
+      '  - GF-240 Token refresh · progress · model:Token change · Adds expiry',
+      '  in flight:',
+      '  - GF-250 Deck export · review · table:decks add',
+      '  lease file:Snapshot.cs until 12:40Z',
+      '  conflict ahead with GF-240 (gf-240-token) · 2 files · src/Token.cs, src/Auth.cs',
+      '  …truncated; see list_shared_parts RCP',
+    ]);
+    expect(at('workflow:')).toBeLessThan(at('shared:'));
+    expect(at('shared:')).toBeLessThan(at('planning_docs:'));
+    // Absent until B39 fills it: no section.
+    expect(renderContext(RCP14_CONTEXT, opts)).not.toContain('shared:');
+    const none = { ...shared, declaration: { state: 'not_declared' as const, changes: [] } };
+    expect(
+      renderContext(
+        {
+          ...RCP14_CONTEXT,
+          shared: {
+            ...none,
+            overlapping: [],
+            in_flight: [],
+            leases: [],
+            radar: [],
+            truncated: false,
+          },
+        },
+        opts,
+      ),
+    ).toContain('shared: not declared; declare_shared_changes before Ready');
   });
 });

@@ -38,6 +38,16 @@ export const OPEN_STATUSES = [
   'review',
 ] as const satisfies readonly Status[];
 
+/**
+ * In flight (decision 36; BUILD_SPEC §5.21): items whose declared shared
+ * changes count for overlaps, `list_shared_parts` and `get_context.shared`.
+ */
+export const IN_FLIGHT_STATUSES = [
+  'ready',
+  'progress',
+  'review',
+] as const satisfies readonly Status[];
+
 export const ITEM_TYPES = ['Epic', 'Story', 'Task', 'Bug'] as const;
 export type ItemType = (typeof ITEM_TYPES)[number];
 
@@ -389,6 +399,64 @@ export const ONBOARDING_GUIDE_KEY = 'guide:onboarding';
 export const ONBOARDING_CHANGES = ['created', 'enriched'] as const;
 export type OnboardingChange = (typeof ONBOARDING_CHANGES)[number];
 
+// ---- Shared changes (decision 36; BUILD_SPEC §5.21; MCP_SPEC §5.15) ----
+
+/** What a shared part is: the prefix of its key (`model:Token`). */
+export const SHARED_PART_KINDS = ['table', 'model', 'endpoint', 'file', 'other'] as const;
+export type SharedPartKind = (typeof SHARED_PART_KINDS)[number];
+
+/** What an item does to a part it declares. */
+export const SHARED_CHANGES = ['add', 'change', 'remove'] as const;
+export type SharedChange = (typeof SHARED_CHANGES)[number];
+
+/**
+ * An overlap between two in-flight items: `open` until the owner decides,
+ * `sequenced` (*Run one after the other*: a `merged` blocker was added),
+ * `compatible` (*They're compatible*), or `resolved` when it no longer
+ * applies (a declaration changed, or an item closed or was canceled).
+ */
+export const OVERLAP_STATES = ['open', 'sequenced', 'compatible', 'resolved'] as const;
+export type OverlapState = (typeof OVERLAP_STATES)[number];
+
+/** The owner's choice on an overlap question. */
+export const OVERLAP_DECISIONS = ['sequence', 'compatible'] as const;
+export type OverlapDecision = (typeof OVERLAP_DECISIONS)[number];
+
+/** Why a lease ended (BUILD_SPEC §5.21 Leases). */
+export const LEASE_END_REASONS = [
+  'released',
+  'owner_released',
+  'done',
+  'handed_off',
+  'expired',
+] as const;
+export type LeaseEndReason = (typeof LEASE_END_REASONS)[number];
+
+/**
+ * A hand-off held for changes to parts the item didn't declare (B38
+ * resolution: its own row, since a `set_status done` hold has no packet).
+ * `open` until the owner picks *Add to the declaration* (`added`) or *Send
+ * back* (`sent_back`).
+ */
+export const UNDECLARED_HOLD_STATES = ['open', 'added', 'sent_back'] as const;
+export type UndeclaredHoldState = (typeof UNDECLARED_HOLD_STATES)[number];
+
+/** The owner's choice on an undeclared-parts question. */
+export const UNDECLARED_DECISIONS = ['add', 'send_back'] as const;
+export type UndeclaredDecision = (typeof UNDECLARED_DECISIONS)[number];
+
+/** Which hand-off raised a hold: a packet, or closing as done without one. */
+export const UNDECLARED_HOLD_VIA = ['submit_packet', 'set_status'] as const;
+export type UndeclaredHoldVia = (typeof UNDECLARED_HOLD_VIA)[number];
+
+/**
+ * The conflict radar's state for a project: `off` (no repository, or git
+ * isn't available: "Radar off: no repository"), `idle` (set up, never run),
+ * `ok` (the last run worked).
+ */
+export const RADAR_STATES = ['off', 'idle', 'ok'] as const;
+export type RadarState = (typeof RADAR_STATES)[number];
+
 // ---- Events (contracts/events.md; MCP_SPEC §4 EventType) ----
 
 export const ACTOR_KINDS = ['owner', 'agent', 'system'] as const;
@@ -462,6 +530,17 @@ export const EVENT_TYPES = [
   'onboarding.started',
   'onboarding.finished',
   'onboarding.reviewed',
+  // Shared changes (decision 36; BUILD_SPEC §5.21)
+  'shared_part.saved',
+  'shared.declared',
+  'overlap.raised',
+  'overlap.decided',
+  'lease.taken',
+  'lease.ended',
+  'undeclared.held',
+  'undeclared.decided',
+  'radar.found',
+  'radar.cleared',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 
@@ -497,6 +576,16 @@ export const OBJECT_KINDS = [
   'drift',
   /** Decision 31: an onboarding session. */
   'onboarding',
+  /** Decision 36: a registered shared part. */
+  'shared_part',
+  /** Decision 36: two in-flight items that declare the same part. */
+  'overlap',
+  /** Decision 36: a lease on a single-writer part. */
+  'lease',
+  /** Decision 36: a hand-off held for changes to parts the item didn't declare. */
+  'undeclared_hold',
+  /** Decision 36: a conflict the radar found between two branches. */
+  'radar_finding',
 ] as const;
 export type ObjectKind = (typeof OBJECT_KINDS)[number];
 

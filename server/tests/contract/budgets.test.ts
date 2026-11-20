@@ -19,6 +19,8 @@ import {
 } from './harness.js';
 
 const TOLERANCE = 1.2;
+/** MCP_SPEC §3.2 (decision 36; B38): measured on 20 parts plus 20%. */
+const LIST_SHARED_BUDGET = 1_100;
 const measured: { call: string; tokens: number; budget: number }[] = [];
 
 let h: ContractHarness;
@@ -192,6 +194,53 @@ describe('reads', () => {
     const r = expectOk(await h.call('apply_batch', { operations }));
     expect(r.structured).toMatchObject({ applied: 100, failed: 0 });
     within('apply_batch, 100 create_item operations', r.text, 30 + 25 * 100);
+  });
+
+  it('list_shared_parts with 20 parts ≤ its row; declare_shared_changes ≤ 60 (decision 36; MCP_SPEC §5.15)', async () => {
+    // 20 realistic parts (the Gameflow shape: tables, models, endpoints, shared files), each
+    // with paths and half with notes; 10 of them declared by an in-flight item with a note.
+    const kinds = ['table', 'model', 'endpoint', 'file'] as const;
+    const keyOf = (i: number) => {
+      const kind = kinds[i % 4]!;
+      if (kind === 'table') return `table:recipe_part_${i}`;
+      if (kind === 'model') return `model:RecipePart${i}`;
+      if (kind === 'endpoint') return `endpoint:POST /recipes/{id}/parts/${i}`;
+      return `file:server/src/domain/recipe-part-${i}.ts`;
+    };
+    const flight = ['RCP-14', 'RCP-15', 'RCP-18', 'RCP-12', 'RCP-16'];
+    const keys = Array.from({ length: 20 }, (_, i) => keyOf(i));
+    // Register all 20 from an Inbox item (not in flight), in one call.
+    const registered = expectOk(
+      await h.call('declare_shared_changes', {
+        id: 'RCP-20',
+        changes: keys.map((part) => ({ part, change: 'change' })),
+        new_parts: keys.map((key, i) => ({
+          key,
+          paths: [`server/src/domain/recipe-part-${i}.ts`, `server/tests/recipe-part-${i}.test.ts`],
+          ...(i % 2 === 0 ? { note: 'Shared by the planner and the shopping list' } : {}),
+        })),
+      }),
+    );
+    within('declare_shared_changes, registering 20 parts', registered.text, 60);
+    // Two parts per in-flight item, with notes: 10 parts declared in flight.
+    for (const [n, id] of flight.entries()) {
+      const r = expectOk(
+        await h.call('declare_shared_changes', {
+          id,
+          changes: [2 * n, 2 * n + 1].map((i) => ({
+            part: keys[i]!,
+            change: 'change',
+            note: `Adds field ${i} to the recipe shape`,
+          })),
+        }),
+      );
+      within(`declare_shared_changes ${id}`, r.text, 60);
+    }
+    const r = expectOk(await h.call('list_shared_parts', { project: 'RCP' }));
+    const parts = r.structured.parts as { in_flight: unknown[] }[];
+    expect(parts).toHaveLength(20);
+    expect(parts.filter((p) => p.in_flight.length > 0)).toHaveLength(10);
+    within('list_shared_parts RCP, 20 parts, 10 declared in flight', r.text, LIST_SHARED_BUDGET);
   });
 
   it('search_items with 25 results ≤ 1,000', async () => {

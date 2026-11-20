@@ -633,6 +633,44 @@ export function renderContext(ctx: ContextBundle, opts: RenderOptions = {}): str
           : `${I1}…truncated; ask get_context with a larger budget`,
       );
   }
+  // Decision 36 (BUILD_SPEC §5.21 Context): shared changes, after the Workflow notes.
+  const sh = ctx.shared;
+  if (sh) {
+    const own = sh.declaration;
+    lines.push(
+      own.state === 'declared'
+        ? `shared: ${own.changes.map((c) => `${c.part} ${c.change}`).join(', ')}`
+        : own.state === 'none'
+          ? 'shared: declared none'
+          : 'shared: not declared; declare_shared_changes before Ready',
+    );
+    const change = (c: (typeof sh.overlapping)[number]) =>
+      join([
+        `${c.id} ${title80(c.title)}`,
+        c.status,
+        `${c.part} ${c.change}`,
+        c.note ? truncate(c.note) : null,
+      ]);
+    if (sh.overlapping.length > 0) {
+      lines.push(`${I1}overlaps:`, ...sh.overlapping.map((c) => `${I1}- ${change(c)}`));
+    }
+    if (sh.in_flight.length > 0) {
+      lines.push(`${I1}in flight:`, ...sh.in_flight.map((c) => `${I1}- ${change(c)}`));
+    }
+    for (const l of sh.leases) {
+      lines.push(`${I1}lease ${l.part} until ${formatTime(l.held_until, now)}`);
+    }
+    for (const f of sh.radar) {
+      lines.push(
+        `${I1}${join([
+          `conflict ahead with ${f.with ?? 'main'} (${f.branch})`,
+          `${f.files.length} file${f.files.length === 1 ? '' : 's'}`,
+          f.files.length > 0 ? truncate(f.files.slice(0, 5).join(', ')) : null,
+        ])}`,
+      );
+    }
+    if (sh.truncated) lines.push(`${I1}…truncated; see list_shared_parts ${it.id.split('-')[0]}`);
+  }
   if (ctx.planning_docs.length > 0) {
     lines.push('planning_docs:');
     for (const d of ctx.planning_docs) {
@@ -697,6 +735,12 @@ const str = (v: unknown) => (typeof v === 'string' ? v : undefined);
 const title80 = (t: string) => truncate(t, 80);
 
 const MUTATION_ARG_KEYS = new Set(['id', 'expected_version', 'run_id', 'idempotency_key']);
+
+/** Up to three part keys, then `+n more` (decision 36), so a mutation stays one short line. */
+function partList(parts: string[], max = 3): string {
+  const shown = parts.slice(0, max).map((p) => truncate(p, 60));
+  return parts.length > max ? `${shown.join(', ')} +${parts.length - max} more` : shown.join(', ');
+}
 
 const RENDERERS: { [N in ToolName]: Renderer<N> } = {
   whoami: (r, _a, now) =>
@@ -873,7 +917,11 @@ const RENDERERS: { [N in ToolName]: Renderer<N> } = {
       id: r.item.id,
       status: r.item.status,
       version: r.item.version,
-    }),
+    }) +
+    // Decision 36: the packet is held while the owner decides on undeclared parts.
+    (r.held_undeclared?.length
+      ? `${SEP}held for the owner: undeclared ${partList(r.held_undeclared)}`
+      : ''),
   get_review: (r, a, now) => {
     const lines = [s('get_review', { id: str(a.id), count: r.rounds.length })];
     for (const round of r.rounds) {
@@ -1120,6 +1168,51 @@ const RENDERERS: { [N in ToolName]: Renderer<N> } = {
         return [head, ...rest.map((l) => `${I1}${l}`)].join('\n');
       }),
     ].join('\n'),
+  // Decision 36 (MCP_SPEC §5.15): one line; overlaps name the other item and the parts.
+  declare_shared_changes: (r, a) => {
+    const d = r.declaration;
+    const overlaps = r.overlaps.slice(0, 2).map((o) => `${o.with.id} on ${partList(o.parts, 2)}`);
+    if (r.overlaps.length > 2) overlaps.push(`+${r.overlaps.length - 2} more`);
+    return s('declare_shared_changes', {
+      id: str(a.id) ?? d.item_id,
+      declared:
+        d.state === 'none'
+          ? 'none'
+          : `${d.changes.length} change${d.changes.length === 1 ? '' : 's'}`,
+      registered: r.registered.length > 0 ? `${SEP}registered ${partList(r.registered)}` : '',
+      overlaps: overlaps.length > 0 ? `${SEP}overlaps ${overlaps.join('; ')}` : '',
+    });
+  },
+  // A line per part, then its in-flight declarations indented under it.
+  list_shared_parts: (r, _a, now) => {
+    const lines = [s('list_shared_parts', { project: r.project, count: r.parts.length })];
+    for (const p of r.parts) {
+      lines.push(
+        `- ${join([
+          p.key,
+          p.single_writer ? 'single-writer' : null,
+          p.lease ? `lease ${p.lease.item_id} until ${formatTime(p.lease.held_until, now)}` : null,
+          p.archived ? 'archived' : null,
+          p.paths.length > 0 ? `paths ${truncate(p.paths.join(', '))}` : null,
+          p.note ? truncate(p.note) : null,
+        ])}`,
+      );
+      for (const c of p.in_flight) {
+        lines.push(
+          `${I1}  ${join([`${c.id} ${title80(c.title)}`, c.status, c.change, c.note ? truncate(c.note) : null])}`,
+        );
+      }
+    }
+    return lines.join('\n');
+  },
+  take_lease: (r, _a, now) =>
+    s('take_lease', {
+      part: r.part,
+      id: r.item_id,
+      until: formatTime(r.held_until, now),
+      renewed: r.renewed ? `${SEP}renewed` : '',
+    }),
+  release_lease: (r) => s('release_lease', { part: r.part, id: r.item_id }),
 };
 
 /** The compact text block for a tool's successful result. */

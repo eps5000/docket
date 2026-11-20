@@ -16,7 +16,8 @@ export type ApiMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
  * `upload` is `/agent-upload` (BUILD_SPEC §5.10). `setup` is agent setup
  * (decision 29, BUILD_SPEC §5.17); `install` is `GET /install/:token`, the
  * session-less bundle download. `onboarding` is the onboarding review
- * (decision 31, BUILD_SPEC §5.20).
+ * (decision 31, BUILD_SPEC §5.20). `shared` is shared changes and the
+ * conflict radar (decision 36, BUILD_SPEC §5.21).
  */
 export const API_GROUPS = [
   'session',
@@ -34,6 +35,7 @@ export const API_GROUPS = [
   'setup',
   'install',
   'onboarding',
+  'shared',
   'undo',
   'upload',
 ] as const;

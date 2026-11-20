@@ -13,6 +13,10 @@ export const ERROR_CODES = [
   'forbidden',
   'unavailable',
   'internal',
+  // Decision 36 (MCP_SPEC §5.15, §6): shared changes and conflict guardrails.
+  'seam_conflict',
+  'not_declared',
+  'lease_held',
 ] as const;
 export type ErrorCode = (typeof ERROR_CODES)[number];
 
@@ -38,6 +42,11 @@ export const HTTP_STATUS: Record<ErrorCode, number> = {
   conflict: 409,
   internal: 500,
   unavailable: 503,
+  // Decision 36 (B38 resolution): a claim refused for an overlap, and a held lease, are
+  // conflicts with other work; a missing declaration is a refused move, like validation.
+  seam_conflict: 409,
+  lease_held: 409,
+  not_declared: 400,
 };
 
 export class ToolError extends Error {

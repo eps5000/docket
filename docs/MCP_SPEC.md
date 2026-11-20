@@ -52,7 +52,7 @@ Workflow: Inbox → Planning → Ready → In progress → Review → Done.
 - After any pause, call get_item: it delivers the owner's notes, answers and review decisions, each once.
 - Send only what changes. update_item, set_plan and set_checks patch: whatever you leave out stays as it is. Use get_item view "summary" when you only need status.
 
-Errors are structured (code: validation | conflict | not_found | forbidden | unavailable | internal). On conflict, read the current state in the error and retry only if your change still makes sense.
+Errors are structured (code: validation | conflict | not_found | forbidden | unavailable | internal | seam_conflict | not_declared | lease_held). On conflict, read the current state in the error and retry only if your change still makes sense.
 ```
 
 ---
@@ -109,7 +109,7 @@ Every mutating tool accepts `idempotency_key` (≤ 100 characters, unique per lo
 - **Use one** for anything you might retry after a timeout.
 
 ### Runs as signals
-Pass `run_id` on every call you make while working. **Every tool accepts an optional `run_id`**, reads included. `idempotency_key` is accepted only by the 31 mutating tools (B3 resolution 1; 27 before decision 30 added `propose_agent_file_change`, 28 before decision 31 added `onboard_project` and `finish_onboarding`, and 30 before decision 34 added `apply_batch`).
+Pass `run_id` on every call you make while working. **Every tool accepts an optional `run_id`**, reads included. `idempotency_key` is accepted only by the 34 mutating tools (B3 resolution 1; 27 before decision 30 added `propose_agent_file_change`, 28 before decision 31 added `onboard_project` and `finish_onboarding`, 30 before decision 34 added `apply_batch`, and 31 before decision 36 added `declare_shared_changes`, `take_lease` and `release_lease`).
 - **What it does:** renews your lead lease and keeps you *live*.
 - **Calls without it** are attributed to your client but don't touch any run.
 
@@ -161,7 +161,7 @@ These are MCP hints:
 | Retry-safe mutating tools: `heartbeat`, `report_commit`, `update_step`, `update_check` | `idempotentHint: true` (and `false` on every other tool) |
 | All tools | `destructiveHint: false`, set explicitly, because MCP defaults it to true for tools that aren't read-only and agents can't delete |
 
-`readOnlyHint` is set explicitly on every tool: `true` for the 12 read tools (10 before decision 30 added `get_agent_files`, and 11 before decision 33 added `get_step`), `false` for `get_item` and all mutations. No tool sets `openWorldHint` (B3 resolution 6).
+`readOnlyHint` is set explicitly on every tool: `true` for the 13 read tools (10 before decision 30 added `get_agent_files`, 11 before decision 33 added `get_step`, and 12 before decision 36 added `list_shared_parts`), `false` for `get_item` and all mutations. No tool sets `openWorldHint` (B3 resolution 6).
 
 ### Results
 Every tool returns two things:
@@ -244,8 +244,9 @@ RCP-14 Generate shopping list from week plan
 | `onboard_project` with the bundled guide (header line plus guide) | 1,400 |
 | Any mutation result | 60 |
 | `apply_batch` with n operations (decision 34) | 30 + 25 × n |
+| `list_shared_parts` with 20 parts, 10 of them with an in-flight declaration (decision 36) | 1,100 |
 
-`onboard_project` is exempt from the mutation budget: its text block carries the whole onboarding guide, verbatim, because a text-only client's model sees nothing else. Its own row (B30) is measured on the bundled `docs/templates/ONBOARDING-guide.md`, set at the measured size plus 20% (1,164 → 1,400), so the guide can't grow unnoticed. `finish_onboarding` is an ordinary mutation (≤ 60). `apply_batch` (§5.13) is exempt from the mutation budget too: its text block holds one line per operation, so its own row scales with n. Measured in B36 on 100 operations (an epic, 60 items, 39 documents) at 1,612 tokens, and on 60 (44 enrichments, 2 step details, 13 links, a failure) at 865.
+`onboard_project` is exempt from the mutation budget: its text block carries the whole onboarding guide, verbatim, because a text-only client's model sees nothing else. Its own row (B30) is measured on the bundled `docs/templates/ONBOARDING-guide.md`, set at the measured size plus 20% (1,164 → 1,400), so the guide can't grow unnoticed. `finish_onboarding` is an ordinary mutation (≤ 60). `apply_batch` (§5.13) is exempt from the mutation budget too: its text block holds one line per operation, so its own row scales with n. Measured in B36 on 100 operations (an epic, 60 items, 39 documents) at 1,612 tokens, and on 60 (44 enrichments, 2 step details, 13 links, a failure) at 865. `declare_shared_changes`, `take_lease` and `release_lease` are ordinary mutations (≤ 60); `list_shared_parts` (§5.15) gets its own row, measured in B38 at 908 tokens and set at that plus 20% (908 → 1,100). `get_context`'s `shared` section (decision 36) counts against the `get_context` budget like every other section.
 
 ### 3.3 Patches: silence preserves
 Writes change what you send and nothing else. This is the TERSL idea that "what you don't restate, you don't change".
@@ -333,6 +334,7 @@ type ContextBundle = {
   current_step?: { id: string; text: string; state: WorkStep['state']; source: string|null;
     details_md: string|null; details_version: number; truncated: boolean } | null;   // the step to work on, with its details (decision 33; B34)
   workflow: { project: string; version_no: number; content_md: string; truncated: boolean } | null;   // the project's Workflow notes (decision 29)
+  shared?: ContextShared;                            // shared changes (decision 36; §5.15); absent until B39
   planning_docs: { name: string; version_no: number; content_md: string|null; truncated: boolean }[];
   last_review: { round: number; items: { text: string; kind: 'approve'|'changes'|'defer'; note: string|null }[] } | null;
   budget: 'small'|'medium'|'large'; truncated_sections: string[];
@@ -386,9 +388,28 @@ type EventType =
   | 'decision.published' | 'decision.confirmed' | 'decision.superseded' | 'decision.withdrawn'
   | 'agent_file.updated' | 'agent_file.reverted' | 'workflow.updated' | 'install.recorded'    // decision 29
   | 'agent_file.proposed' | 'agent_file.proposal_decided' | 'drift.detected' | 'drift.resolved'   // decision 30
-  | 'project.created' | 'onboarding.started' | 'onboarding.finished' | 'onboarding.reviewed';   // decision 31
+  | 'project.created' | 'onboarding.started' | 'onboarding.finished' | 'onboarding.reviewed'    // decision 31
+  | 'shared_part.saved' | 'shared.declared' | 'overlap.raised' | 'overlap.decided' | 'lease.taken' | 'lease.ended'
+  | 'undeclared.held' | 'undeclared.decided' | 'radar.found' | 'radar.cleared';   // decision 36
 
-type ToolError = { code: 'validation'|'conflict'|'not_found'|'forbidden'|'unavailable'|'internal';
+// Decision 36 (§5.15; BUILD_SPEC §5.21).
+type SharedPartKind = 'table'|'model'|'endpoint'|'file'|'other';
+type SharedPart = { key: string; kind: SharedPartKind; paths: string[]; single_writer: boolean; note: string|null;
+  created_by: string; archived: boolean };            // created_by: 'owner' or the agent, e.g. 'claude · orca-w3'
+type InFlightChange = { id: string; title: string; status: Status; change: 'add'|'change'|'remove'; note: string|null };
+type DeclaredChange = { part: string; kind: SharedPartKind; change: 'add'|'change'|'remove'; note: string|null };
+type Declaration = { item_id: string; state: 'declared'|'none'|'not_declared'; changes: DeclaredChange[];
+  declared_by: string|null; declared_at: string|null };
+type ContextShared = {
+  declaration: { state: Declaration['state']; changes: DeclaredChange[] };
+  overlapping: (InFlightChange & { part: string })[];   // other in-flight items declaring the item's parts
+  in_flight: (InFlightChange & { part: string })[];     // up to 30 other in-flight declarations in the project
+  leases: { part: string; held_until: string }[];        // leases the item holds
+  radar: { with: string|null; branch: string; files: string[] }[];   // with: the other item, or null for the main branch
+  truncated: boolean };
+
+type ToolError = { code: 'validation'|'conflict'|'not_found'|'forbidden'|'unavailable'|'internal'
+    | 'seam_conflict'|'not_declared'|'lease_held';   // decision 36
   message: string; details?: Record<string, unknown>; current?: unknown };
 ```
 
@@ -438,6 +459,7 @@ The format for each tool below:
 - **Output:** `{ context: ContextBundle }`. The text block renders the bundle in the compact format, in the BUILD_SPEC §5.15 priority order, with `…truncated; …` lines where it was cut.
 - **Note (decision 29):** the bundle includes the project's Workflow notes (`ContextBundle.workflow`, §4; BUILD_SPEC §5.15 section 5), rendered as a `workflow:` section after the blockers and dependents, before the planning documents (the §5.15 order), with a `…truncated` line when cut. Shipped in B21 (tasks T151): the description above names "the project's workflow notes", in `mcp-copy.ts` and the snapshot too. The server returns `workflow: null` until T157 fills it.
 - **Note (decision 33; B34):** the bundle includes the step to work on (`ContextBundle.current_step`: the step in state `current`, else the first `todo`; null when none is open) with its details, rendered as a `step:` section after the blockers and dependents, before the workflow notes (BUILD_SPEC §5.15 section 4b): a header line `step: wst_… <text> · <state> · source GF-123 · details v2`, then the details indented. They count in the budget; when they don't fit they're cut inline, followed by `…truncated; read it with get_step RCP-14 wst_…`, and when not even the header fits, a `…truncated; current step wst_… and its details; read it with get_step RCP-14 wst_…` line takes its place. The description is unchanged; the output schema gains the optional field (snapshot, B34).
+- **Note (decision 36; B38):** the bundle gains `shared` (`ContextBundle.shared`, §4; §5.15; BUILD_SPEC §5.21 Context): the item's declaration, other in-flight items' declarations of the same parts, up to 30 other in-flight declarations in the project, the leases it holds and radar findings, rendered as a `shared:` section after the Workflow notes, before the planning documents, and counted in the budget. Optional and absent until B39 (T183) fills it; the description is unchanged.
 - **Errors:** `not_found`.
 
 #### `dependency_subgraph`
@@ -470,12 +492,13 @@ The format for each tool below:
 - **Errors:** `conflict` (version), `validation`.
 
 #### `set_status`
-**Description:** "Move an item to another status. Allowed moves: inbox→planning; planning↔ready; ready→progress; progress→ready (gives up the work); progress or review→done (only when no human review item is undecided); any open status→canceled (reason required); done→progress (reopen, reason required). Use submit_packet, not set_status, to hand off for review."
-- **Input:** `id`, `status`, `expected_version?`, `reason?` (required for canceled and reopen).
+**Description:** "Move an item to another status. Allowed moves: inbox→planning; planning↔ready; ready→progress; progress→ready (gives up the work); progress or review→done (only when no human review item is undecided); any open status→canceled (reason required); done→progress (reopen, reason required). Moving to ready needs the item's shared changes declared first (declare_shared_changes), else not_declared. When you close an item as done, pass changed_files and branch. Use submit_packet, not set_status, to hand off for review."
+- **Input:** `id`, `status`, `expected_version?`, `reason?` (required for canceled and reopen), `changed_files?: string[]` and `branch?` (decision 36: read only when moving to `done`; §5.15).
 - **Output:** `{ item: ItemSummary }`.
 - **Errors:**
   - `validation`, with `details.allowed: Status[]` and `details.reason`, for example "2 human review items are undecided: hr_…, hr_…";
-  - `conflict`.
+  - `conflict`;
+  - `not_declared` (decision 36; §5.15): moving to `ready` before the item has declared its shared changes, or closing as `done` with changed files that map to parts it didn't declare.
 - **Notes:** Moving to `done` ends your open lead run as `finished` if you haven't. Moving to `progress` doesn't claim the item; use `claim_lead`.
 
 #### `link_items`
@@ -501,13 +524,14 @@ The format for each tool below:
 ### 5.4 Claiming and runs
 
 #### `claim_lead`
-**Description:** "Claim an item as its lead before you work on it. Works on Ready items (moves them to In progress) and on In progress items with no lead (resuming sent-back or interrupted work). Pass workspace (where the work lives) and, if a coordinator briefed you, the brief, so the work can be restarted after a crash. Pass instructions with the output of the installed docket-check script, so the owner knows which instructions you work from. Returns your run_id: pass it on every later call. If someone else holds the claim you get a conflict with who holds it and until when; do not work on the item."
-- **Input:** `id`, `agent_label?` (≤ 40, for example `orca-w3`), `workspace?: { host?, repo?, path?, branch?, base_ref?, base_sha? }`, `orchestrator?: { name, dispatch_id?, task_id?, run_id? }`, `brief?` (text, ≤ 20,000) or `brief_document_version_id?`, `external?` (≤ 2 KB JSON), `instructions?: { install_id?, files: [{ key, sha256, content? }] }` (decision 30: the output of the installed `docket-check` script; `content` ≤ 50,000 only for files that differ from the manifest).
+**Description:** "Claim an item as its lead before you work on it. Works on Ready items (moves them to In progress) and on In progress items with no lead (resuming sent-back or interrupted work). Pass workspace (where the work lives) and, if a coordinator briefed you, the brief, so the work can be restarted after a crash. Pass instructions with the output of the installed docket-check script, so the owner knows which instructions you work from. Pass branch, the branch you will work on, so conflicts are spotted early. Returns your run_id: pass it on every later call. If someone else holds the claim you get a conflict with who holds it and until when; do not work on the item. If its shared parts overlap another item in flight you get seam_conflict: the owner has been asked whether they can run together, so pick other work and leave this item until they decide."
+- **Input:** `id`, `agent_label?` (≤ 40, for example `orca-w3`), `workspace?: { host?, repo?, path?, branch?, base_ref?, base_sha? }`, `orchestrator?: { name, dispatch_id?, task_id?, run_id? }`, `brief?` (text, ≤ 20,000) or `brief_document_version_id?`, `external?` (≤ 2 KB JSON), `instructions?: { install_id?, files: [{ key, sha256, content? }] }` (decision 30: the output of the installed `docket-check` script; `content` ≤ 50,000 only for files that differ from the manifest), `branch?` (decision 36: ≤ 200, the branch the conflict radar trial-merges; defaults to `workspace.branch`).
 - **`instructions` limits** (B26 resolutions): strict; `files` holds 0–20 entries (empty, with `install_id`, means every installed file is missing); `key` is `agents_block` or `skill:<name>`; `sha256` is 64 hex characters, either case (compared lowercased); `content` is 0–50,000 characters, not trimmed. `start_run` doesn't take it.
 - **Output:** `{ run_id, item: ItemSummary, lease_expires_at }`.
 - **Errors:**
   - `conflict` with `current: { lead_client, lead_label, run_id, last_signal_at, lease_expires_at }`, recorded as a rejected claim the owner can see;
-  - `validation`: the status isn't ready or progress, or the item is blocked (`details.blocked_by`).
+  - `validation`: the status isn't ready or progress, or the item is blocked (`details.blocked_by`);
+  - `seam_conflict` (decision 36; §5.15) with `details: { with: string[], parts: string[] }`: the item's declared parts overlap another item in flight. The item stays Ready, and the owner is asked once per pair.
 
 #### `release_lead`
 **Description:** "Give up the lead claim without finishing, for example when you are stopping before the work is done. The item returns to Ready so another agent can pick it up; your plan and notes stay."
@@ -620,15 +644,16 @@ The format for each tool below:
 ### 5.7 Review and the owner
 
 #### `submit_packet`
-**Description:** "Hand finished work to the owner for human review. Call it when the work is built, your checks pass and everything is committed and reported. The packet must let the owner verify without asking you anything: what to check, exact steps (URLs, builds, commands), what you already verified and how, known gaps, and attachments. The item moves to Review; read the decision later with get_review or get_item."
+**Description:** "Hand finished work to the owner for human review. Call it when the work is built, your checks pass and everything is committed and reported. The packet must let the owner verify without asking you anything: what to check, exact steps (URLs, builds, commands), what you already verified and how, known gaps, and attachments. Pass changed_files (every file your work changed) and branch: changes to shared parts the item didn't declare hold it for the owner. The item moves to Review; read the decision later with get_review or get_item."
 - **Input:**
   - `id`, `built_from_commit` (recorded with `report_commit` if not already), `estimate` (for example `"10 min"`);
   - `hr_item_ids?` (defaults to every declared item);
   - `how: string[]` (1–15 steps);
   - `checked: [{ text, provenance, evidence }]`;
   - `gaps?: string[]`;
-  - `attachments?: [{ document_version_id, caption? }]`.
-- **Output:** `{ packet_id, round, display_id: 'pkt-9c0e', item: ItemSummary }`.
+  - `attachments?: [{ document_version_id, caption? }]`;
+  - `changed_files?: string[]` (decision 36: every file the work changed, repo-relative, ≤ 2,000) and `branch?` (§5.15).
+- **Output:** `{ packet_id, round, display_id: 'pkt-9c0e', item: ItemSummary, held_undeclared?: string[] }`. `held_undeclared` (decision 36) lists the parts the changed files touch that the item didn't declare; it is present only when the packet is held for the owner.
 - **Errors:** `validation`:
   - no declared human review items, so close with `set_status` instead;
   - a packet is already open;
@@ -805,27 +830,83 @@ The Gameflow onboarding (305 matches, 44 enrichments, 39 documents) didn't fit s
 
 ### 5.15 Shared changes (decision 36)
 
-The exact descriptions ship in the contract batch (tasks Phase 22, B38), with the code and the snapshot.
+Parallel items declare the shared parts they will change (tables, models, endpoints, shared files), so Docket can stop overlapping work at the claim, hand out leases on single-writer parts, flag undeclared changes at hand-off, and warn when two branches are heading for a merge conflict (BUILD_SPEC §5.21; FR-158–FR-164). Contracts shipped in B38 (T182), in MCP_SPEC, `mcp-copy.ts` and the snapshot together:
+- the four descriptions below;
+- the descriptions of `claim_lead` (§5.4), `set_status` (§5.3) and `submit_packet` (§5.7);
+- the three error codes (§6) and the server-instructions error line (§2);
+- the tool count (44 → 48).
 
-**New tools:**
-- **`declare_shared_changes`**:
-  - **Input:** `id` (item), `changes: [{ part, change: add|change|remove, note? }]` (≤ 50), or `none: true`, plus an optional `new_parts: [{ key, kind, paths?, note? }]` for parts that aren't registered yet. Agents can't set single-writer.
-  - **Behaviour:** replaces the item's declaration, and returns overlaps found now (informational; the claim is where they're enforced).
-- **`list_shared_parts`**: the project's registry, with in-flight declarations per part. Read-only.
-- **`take_lease` / `release_lease`**: on a single-writer part, for an item you lead. Returns `{ held_until }` or `lease_held` with the holder and expiry.
+B38 implements the registry, `declare_shared_changes` and `list_shared_parts`. B39 (T183) enforces the rest: the Ready gate, the overlap check at the claim, leases (`take_lease` and `release_lease` answer `unavailable` until then), the changed-file check at hand-off, and `get_context.shared`. Until then `claim_lead`, `set_status` and `submit_packet` accept the new fields and ignore them.
 
-**Changes to existing tools:**
-- **`claim_lead`:**
-  - accepts `branch`;
-  - may fail with `seam_conflict` (`with`, `parts`). The item stays Ready, and an owner question is raised once per pair;
-  - the description tells the agent to pick other work.
-- **`set_status`:** to `ready`, it may fail with `not_declared`.
-- **`submit_for_review` and `handoff`:**
-  - accept `changed_files` and `branch`;
-  - the result may include `held_undeclared: [parts]`.
-- **`get_context`:** adds `shared` (see BUILD_SPEC §5.21).
+**Hand-off** means `submit_packet` (a packet for human review) or `set_status` to `done` (closing an item with no human review). Earlier drafts named `submit_for_review` and `handoff`, which aren't Docket tools (B38 correction, agreed with the coordinator).
 
-**New error codes:** `seam_conflict`, `not_declared`, `lease_held`.
+**B38 resolutions** (agreed with the coordinator, or settled in the build and listed in the PR):
+- **Keys** are `<kind>:<name>`, where kind is `table`, `model`, `endpoint`, `file` or `other`, normalised so one part has one key:
+  - `table` lowercases the name;
+  - `model` keeps it as written;
+  - `endpoint` is `METHOD /path`, with the method uppercased, one space, and no trailing slash;
+  - `file` is a repo-relative path with forward slashes, with no leading `./` or `/` and no `..`;
+  - `other` is a slug (`a-z0-9-`; spaces and underscores become `-`).
+
+  A key is at most 200 characters. A key that doesn't parse is `validation`, naming the rule.
+- **Paths** are repo-relative globs (`*`, `**`, `?`) with forward slashes: at most 20 per part, each ≤ 300.
+- **Changed files** are up to 2,000 repo-relative paths, normalised like `file:` names.
+- **In flight** means Ready, In progress or Review.
+- **The owner question** is the overlap or hold record itself (Needs you, kinds `overlap` and `undeclared_parts`), not an `ask_owner` question, so it never takes the item's one open question (BUILD_SPEC §5.21, B38 resolutions).
+- **`set_status` to `done` with undeclared parts** is refused with `not_declared` (`details.undeclared`, `details.files`), raises the same owner question as a held packet (*Add to the declaration* or *Send back*), and leaves the item where it was. Reusing `not_declared` keeps three new codes (coordinator).
+
+#### `declare_shared_changes`
+**Description:** "Declare the shared parts this item will change (tables, models, endpoints, shared files), each with add, change or remove and a short note, or none: true when it changes none. An item can't move to Ready until it has declared. Each call replaces the item's whole declaration. Name parts by their keys from list_shared_parts; register a missing one with new_parts. Returns the in-flight items that change the same parts."
+- **Input:** `id`, and either `changes?: [{ part, change: 'add'|'change'|'remove', note? }]` (1–50; `note` ≤ 500) or `none?: true`; with `changes`, optionally `new_parts?: [{ key, kind?, paths?, note? }]` (1–20; `paths` ≤ 20 globs of ≤ 300; `note` ≤ 1,000), plus `run_id?` and `idempotency_key?`.
+- **Output:** `{ declaration: Declaration, registered: string[], overlaps: [{ with: { id, title, status }, parts: string[] }] }` (§4). `registered` lists the keys `new_parts` added to the registry.
+- **Rules:**
+  - The call replaces the item's declaration: listed parts are kept or added, unlisted ones removed. `none: true` clears them and sets `items.shared_none_at`; declaring parts clears it.
+  - Any open item (Inbox to Review) may declare, by any agent; a Done or Canceled item is `validation`.
+  - Each `part` must be registered and not archived, or be in `new_parts`, or it is `validation` naming the key. A part may appear once.
+  - `new_parts` registers each part (`created_by` the agent), never single-writer (FR-158). A key that is already registered is reused as it is, not changed, and isn't listed in `registered`. `kind`, when given, must match the key's prefix.
+  - **Overlaps** are the other in-flight items in the project that declare any of the same parts, except pairs the owner marked compatible and pairs already sequenced by a `blocks` link. They are informational: the claim enforces them. Declaring later, while the item is in progress, is allowed; a new overlap then flags both items and raises the owner question without revoking the claim (BUILD_SPEC §5.21 Declaring later; B39).
+- **Text rendering:** one line: `Declared 2 changes on GF-312 · registered table:decks · overlaps GF-240 on model:Token`.
+- **Events:** `shared.declared` on the item, and `shared_part.saved` for each part `new_parts` registered.
+- **Errors:** `validation` (limits, a key that doesn't parse, an unknown or archived part, a closed item, a secret in a note), `not_found` (item).
+- **Not retry-safe** (`idempotentHint: false`): pass `idempotency_key` when you might retry.
+
+#### `list_shared_parts`
+**Description:** "List a project's shared parts (tables, models, endpoints, shared files): each key, the file paths that map to it, whether it is single-writer and who holds its lease, and the in-flight items that declared changes to it. Read-only. Call it before declare_shared_changes, to name parts by their registered keys."
+- **Input:** `project`, `include_archived?: boolean = false`, plus `run_id?`.
+- **Output:** `{ project, parts: [SharedPart & { in_flight: InFlightChange[], lease: { item_id, held_until } | null }] }` (§4), sorted by key; each part's `in_flight` is sorted by item ID.
+- **Text rendering:** a header line (`Shared parts in GF: 12`), then one line per part (`- model:Token · single-writer · lease GF-240 until 14:05Z · paths src/Domain/Token.cs · <note>`), with its in-flight declarations indented under it (`GF-240 Token refresh · progress · change · <note>`).
+- **Read-only.**
+- **Errors:** `not_found` (project).
+
+#### `take_lease`
+**Description:** "Take the lease on a single-writer part (such as a migrations snapshot) for an item you lead, before you change it; call again to renew. A lease lasts 2 hours and ends when the item is done or handed off, or when you release it. If another item holds it you get lease_held with the holder and expiry: work on something else rather than waiting in a loop."
+- **Input:** `id` (the item you lead), `part` (a single-writer part's key), plus `run_id?` and `idempotency_key?`.
+- **Output:** `{ part, item_id, held_until, renewed }`. `renewed` is true when the item already held it.
+- **Rules:** one holder per part. A lease lasts `DOCKET_LEASE_MINUTES` (default 120) from the latest take, and ends when the holder releases it, the owner releases it (*Release lease*), the holder's item reaches Done or is handed off (`submit_packet`, or `set_status` to `done`), or it expires.
+- **Text rendering:** `Lease on <part> for GF-240 · until 14:05Z` (` · renewed` when renewed).
+- **Events:** `lease.taken` (a renewal writes none).
+- **Errors:** `lease_held` with `current: { item_id, holder, held_until }`; `validation` (the part isn't single-writer, or is archived); `forbidden` (you don't lead the item); `not_found` (item or part).
+- **B38:** answers `unavailable` until B39 (T183).
+
+#### `release_lease`
+**Description:** "Release your lease on a single-writer part as soon as your change to it is committed and pushed, so other items can take it."
+- **Input:** `id`, `part`, plus `run_id?` and `idempotency_key?`.
+- **Output:** `{ part, item_id, released: true }`.
+- **Text rendering:** `Released lease on <part> for GF-240`.
+- **Events:** `lease.ended` (`end_reason: released`).
+- **Errors:** `forbidden` (you don't lead the item), `not_found` (the item holds no lease on that part).
+- **B38:** answers `unavailable` until B39 (T183).
+
+#### Changes to existing tools
+- **`claim_lead`** (§5.4): accepts `branch` (≤ 200; defaults to `workspace.branch`), stored on the run for the radar. It may fail with `seam_conflict` (`details: { with, parts }`): the item's declared parts overlap another in-flight item's, and that pair is neither compatible nor sequenced by a `blocks` link. The item stays Ready, the refusal is recorded as a rejected claim the owner can see, and one overlap (an owner question) is opened per pair; claiming the same pair again doesn't open a second. The description tells the agent to pick other work.
+- **`set_status`** (§5.3):
+  - to `ready`, from an agent, it fails with `not_declared` unless the item has declarations or declared none (the owner's route takes `override_reason`);
+  - to `done`, it accepts `changed_files` and `branch`, mapped through the parts' `paths`; changes to undeclared parts refuse the move with `not_declared` and raise the owner question;
+  - to `done`, it also ends the item's leases (`end_reason: done`).
+- **`submit_packet`** (§5.7): accepts `changed_files` and `branch`. Changes to undeclared parts create the packet held (`held_undeclared` in the result; the human review gate stays closed) and raise the owner question. Without `changed_files`, an item with declarations shows "Changed files not reported" on the packet. A packet ends the item's leases (`end_reason: handed_off`).
+- **`get_context`** (§5.2): adds `shared` (§4 `ContextShared`; BUILD_SPEC §5.21 Context).
+
+**New error codes** (§6): `seam_conflict`, `not_declared`, `lease_held`. Over the UI API they map to 409, 400 and 409.
 
 ## 6. Errors
 
@@ -839,6 +920,9 @@ Every error is returned as a tool result: `isError: true`, a `text` block holdin
 | `forbidden` | Owner-only operation, someone else's run, owner-added or locked item | "hr_01J… was added by the owner; only the owner can change it." | — |
 | `unavailable` | Database busy past 5 s, disk full, maintenance (restore) | "Docket is busy; retry in a few seconds with the same idempotency_key." | `details.retry_after_s` |
 | `internal` | Bug | "Unexpected error (ref e_01J…). It has been logged." | `details.ref` |
+| `seam_conflict` | Decision 36: a claim whose declared shared parts overlap another item in flight (§5.15) | "GF-312 changes model:Token, like GF-240 (In progress). Pick other work: the owner has been asked whether they can run together." | `details.with` (item IDs), `details.parts` (keys) |
+| `not_declared` | Decision 36: moving to Ready before declaring shared changes, or closing as done with changed files mapped to undeclared parts (§5.15) | "Declare the shared parts GF-312 will change (or none) with declare_shared_changes, then move it to Ready." | `details.undeclared`, `details.files` (on done) |
+| `lease_held` | Decision 36: taking a single-writer part's lease that another item holds (§5.15) | "file:…/GameflowDbContextModelSnapshot.cs is leased to GF-240 (claude · orca-w2) until 14:05 UTC. Work on something else." | `current: { item_id, holder, held_until }` |
 
 JSON-RPC protocol errors (malformed requests, unknown tool) follow the MCP spec and are separate from these.
 
@@ -1053,6 +1137,7 @@ These are part of M2 (BUILD_SPEC §11). Use the official MCP client SDK against 
 19. `recovery_report` after a simulated restart lists every interrupted run with its end reason, its brief (with `include_briefs`), its workspace, its checklist progress and its orphaned resources, and the §7.13 flow re-claims and resumes it.
 20. `finish_run` with unreleased resources or unpushed commits warns, and the owner sees the matching Problem.
 21. `apply_batch` (decision 34): at least 150 operations through batches in one session, each with its own result; a failing operation (secret, stale version, bad `$n`) fails alone and writes nothing; a retry with the same key replays what succeeded; within its budget. Imported steps take added details, and refuse rewrites.
+22. Shared changes (decision 36): the Ready gate refuses an undeclared item (`not_declared`) and takes the owner's override; two agents claiming overlapping items unattended: the second gets `seam_conflict`, one question is raised per pair, and *Run one after the other* and *They're compatible* each let work continue (SC-023); a held lease gets `lease_held`, and leases end on done, hand-off, release and expiry; changed files mapped to undeclared parts hold the packet, or refuse the close; `get_context.shared` stays within budget. B38 ships the contract and the registry; B39 (T183) the rest.
 
 ---
 

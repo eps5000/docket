@@ -25,6 +25,11 @@ import {
 } from '../mcp/types.js';
 import { input, jsonResponse, noInput, scopeSchema } from './common.js';
 import { onboardingSessionSchema } from './onboarding.js';
+import {
+  overlapRowSchema,
+  radarFindingRowSchema,
+  undeclaredHoldRowSchema,
+} from './shared-changes.js';
 import { json, route } from './route.js';
 import {
   activityRowSchema,
@@ -146,6 +151,14 @@ export const needsYouResponse = jsonResponse({
   agent_file_proposals: z.number().int().optional(),
   /** Onboardings ready for the owner's review in scope: one card each (decision 31; UI_SPEC §6.7d; optional; B29). */
   onboarding_reviews: z.array(onboardingSessionSchema).optional(),
+  /**
+   * Decision 36 (UI_SPEC §6.3.6; optional; B38): open overlap questions (a card
+   * per pair), open undeclared-parts holds (a card each), and open radar
+   * findings (Problems: "Heading for a conflict").
+   */
+  overlaps: z.array(overlapRowSchema).optional(),
+  undeclared_holds: z.array(undeclaredHoldRowSchema).optional(),
+  radar_findings: z.array(radarFindingRowSchema).optional(),
 });
 export type NeedsYouResponse = z.infer<typeof needsYouResponse>;
 

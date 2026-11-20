@@ -111,3 +111,33 @@ export function allEvents(db: Db): EventRowDb[] {
 export function count(db: Db, table: string): number {
   return (db.sqlite.prepare(`SELECT count(*) AS n FROM ${table}`).get() as { n: number }).n;
 }
+
+/**
+ * Columns migration 0010_shared_changes (B38) adds to existing tables, at their
+ * defaults. Older migration tests migrate to the latest schema, so they compare
+ * rows without these; 0010's own test checks them.
+ */
+export const COLUMNS_0010 = [
+  'shared_none_at',
+  'repo_path',
+  'main_branch',
+  'radar_last_run_at',
+  'radar_off_reason',
+  'changed_files',
+  'branch',
+  'held_undeclared',
+] as const;
+
+/** Rows without the columns 0010 added to `items`, `projects` and `packets`. */
+export function without0010<T>(rows: T): T {
+  if (!Array.isArray(rows)) return rows;
+  return rows.map((row: unknown) => {
+    if (row === null || typeof row !== 'object') return row;
+    const out = { ...(row as Record<string, unknown>) };
+    // commits.branch and runs have their own `branch`-free shapes; only drop 0010's on its tables.
+    if ('shared_none_at' in out || 'main_branch' in out || 'held_undeclared' in out) {
+      for (const c of COLUMNS_0010) delete out[c];
+    }
+    return out;
+  }) as T;
+}

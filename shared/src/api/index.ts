@@ -17,4 +17,5 @@ export * from './recovery.js';
 export * from './agent-setup.js';
 export * from './agent-proposals.js';
 export * from './onboarding.js';
+export * from './shared-changes.js';
 export * from './routes.js';

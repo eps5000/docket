@@ -31,7 +31,7 @@ export const SERVER_INSTRUCTIONS = [
   "- After any pause, call get_item: it delivers the owner's notes, answers and review decisions, each once.",
   '- Send only what changes. update_item, set_plan and set_checks patch: whatever you leave out stays as it is. Use get_item view "summary" when you only need status.',
   '',
-  'Errors are structured (code: validation | conflict | not_found | forbidden | unavailable | internal). On conflict, read the current state in the error and retry only if your change still makes sense.',
+  'Errors are structured (code: validation | conflict | not_found | forbidden | unavailable | internal | seam_conflict | not_declared | lease_held). On conflict, read the current state in the error and retry only if your change still makes sense.',
 ].join('\n');
 
 /** MCP_SPEC §5: the exact `description` registered for each tool. */
@@ -57,14 +57,14 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   update_item:
     "Edit an item's fields. Pass expected_version from your last read. Dates you set are labelled as set by you. To change status use set_status; to change the plan use set_plan.",
   set_status:
-    'Move an item to another status. Allowed moves: inbox→planning; planning↔ready; ready→progress; progress→ready (gives up the work); progress or review→done (only when no human review item is undecided); any open status→canceled (reason required); done→progress (reopen, reason required). Use submit_packet, not set_status, to hand off for review.',
+    "Move an item to another status. Allowed moves: inbox→planning; planning↔ready; ready→progress; progress→ready (gives up the work); progress or review→done (only when no human review item is undecided); any open status→canceled (reason required); done→progress (reopen, reason required). Moving to ready needs the item's shared changes declared first (declare_shared_changes), else not_declared. When you close an item as done, pass changed_files and branch. Use submit_packet, not set_status, to hand off for review.",
   link_items:
     "Link two items. type 'blocks' means from must be finished before to can start; 'relates' is informational. For blocks, satisfied_when sets what 'finished' means: done (default, or the project's default), merged (done and a PR reported merged with link_artifact), or verified (done and every human review item approved). Calling it again on an existing link updates satisfied_when. A link that would create a dependency cycle is rejected with the cycle path.",
   unlink_items: 'Remove a link between two items.',
   upsert_label:
     'Create a label or update its brief. Use a label for an initiative that spans several epics; the brief holds the shared decisions.',
   claim_lead:
-    'Claim an item as its lead before you work on it. Works on Ready items (moves them to In progress) and on In progress items with no lead (resuming sent-back or interrupted work). Pass workspace (where the work lives) and, if a coordinator briefed you, the brief, so the work can be restarted after a crash. Pass instructions with the output of the installed docket-check script, so the owner knows which instructions you work from. Returns your run_id: pass it on every later call. If someone else holds the claim you get a conflict with who holds it and until when; do not work on the item.',
+    'Claim an item as its lead before you work on it. Works on Ready items (moves them to In progress) and on In progress items with no lead (resuming sent-back or interrupted work). Pass workspace (where the work lives) and, if a coordinator briefed you, the brief, so the work can be restarted after a crash. Pass instructions with the output of the installed docket-check script, so the owner knows which instructions you work from. Pass branch, the branch you will work on, so conflicts are spotted early. Returns your run_id: pass it on every later call. If someone else holds the claim you get a conflict with who holds it and until when; do not work on the item. If its shared parts overlap another item in flight you get seam_conflict: the owner has been asked whether they can run together, so pick other work and leave this item until they decide.',
   release_lead:
     'Give up the lead claim without finishing, for example when you are stopping before the work is done. The item returns to Ready so another agent can pick it up; your plan and notes stay.',
   start_run:
@@ -97,7 +97,7 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   report_commit:
     'Report a commit for the item it belongs to. Report every commit you make for an item, including fixes after a review, and set pushed true once it is on the remote: an unpushed commit can be lost in a crash. If a handoff packet was built from an older commit, it is marked out of date for the owner automatically.',
   submit_packet:
-    'Hand finished work to the owner for human review. Call it when the work is built, your checks pass and everything is committed and reported. The packet must let the owner verify without asking you anything: what to check, exact steps (URLs, builds, commands), what you already verified and how, known gaps, and attachments. The item moves to Review; read the decision later with get_review or get_item.',
+    "Hand finished work to the owner for human review. Call it when the work is built, your checks pass and everything is committed and reported. The packet must let the owner verify without asking you anything: what to check, exact steps (URLs, builds, commands), what you already verified and how, known gaps, and attachments. Pass changed_files (every file your work changed) and branch: changes to shared parts the item didn't declare hold it for the owner. The item moves to Review; read the decision later with get_review or get_item.",
   get_review:
     "Read the owner's review decisions for an item, round by round. 'changes' notes say what to fix; each became a checklist step or a new Bug (see result_ref). Approved items stay approved in later rounds. Deferred items are not verified; leave them alone unless you are doing cleanup.",
   ask_owner:
@@ -122,6 +122,14 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
     "Read one checklist step in full: its text, state, source, details (Markdown), history and subagent notes. Call it before you work on a step that get_item shows with '· details'. Read-only.",
   apply_batch:
     'Run up to 100 writes in one call, for large onboardings: each operation names a tool (create_item, update_item, link_items, upsert_label, set_plan, update_step, put_document or publish_decision) and its arguments, exactly as you would call it. Each operation runs the same checks as its single call and is applied on its own, in order: one that fails does not undo the others, and the result lists every operation with its ID or its error. "$1" in an argument means the ID operation 1 wrote. Pass idempotency_key, so a retry replays what succeeded and runs only the rest.',
+  declare_shared_changes:
+    "Declare the shared parts this item will change (tables, models, endpoints, shared files), each with add, change or remove and a short note, or none: true when it changes none. An item can't move to Ready until it has declared. Each call replaces the item's whole declaration. Name parts by their keys from list_shared_parts; register a missing one with new_parts. Returns the in-flight items that change the same parts.",
+  list_shared_parts:
+    "List a project's shared parts (tables, models, endpoints, shared files): each key, the file paths that map to it, whether it is single-writer and who holds its lease, and the in-flight items that declared changes to it. Read-only. Call it before declare_shared_changes, to name parts by their registered keys.",
+  take_lease:
+    'Take the lease on a single-writer part (such as a migrations snapshot) for an item you lead, before you change it; call again to renew. A lease lasts 2 hours and ends when the item is done or handed off, or when you release it. If another item holds it you get lease_held with the holder and expiry: work on something else rather than waiting in a loop.',
+  release_lease:
+    'Release your lease on a single-writer part as soon as your change to it is committed and pushed, so other items can take it.',
 };
 
 /**
@@ -178,6 +186,10 @@ export const TOOL_SUMMARIES: Record<ToolName, string> = {
     "Onboarding {session_id} ready for the owner's review · {created} created · {enriched} enriched · {documents} documents · {decisions} decisions · {proposals} proposals",
   get_step: '{step_id} {text} · {state} · on {id}{facts}',
   apply_batch: 'Batch: {applied} applied · {failed} failed · of {total}',
+  declare_shared_changes: 'Declared {declared} on {id}{registered}{overlaps}',
+  list_shared_parts: 'Shared parts in {project}: {count}',
+  take_lease: 'Lease on {part} for {id} · until {until}{renewed}',
+  release_lease: 'Released lease on {part} for {id}',
 };
 
 /**

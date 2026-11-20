@@ -147,6 +147,15 @@ const B2_ROUTES: readonly RouteId[] = [
   'projects.create',
   'onboarding.list',
   'onboarding.reviewed',
+  // Decision 36 (B38, T182): the registry, the declaration and the reads (content in
+  // us18-shared-contracts.test.ts). The decisions, lease release and the radar's settings and
+  // runs answer 501 until B39 (T183, T184).
+  'sharedParts.list',
+  'sharedParts.create',
+  'sharedParts.update',
+  'itemShared.get',
+  'itemShared.put',
+  'radar.get',
 ];
 
 interface Req {
@@ -304,6 +313,27 @@ const VALID: Record<RouteId, Req> = {
   },
   'onboarding.list': { query: { project: 'RCP', state: 'ready_for_review' } },
   'onboarding.reviewed': { params: { id: 'onb_1' }, body: {} },
+  // Shared changes (decision 36; B38).
+  'sharedParts.list': { params: { key: 'RCP' }, query: { include_archived: 'true' } },
+  'sharedParts.create': {
+    params: { key: 'RCP' },
+    body: { key: 'model:Recipe', paths: ['server/src/models/recipe.ts'], single_writer: false },
+  },
+  'sharedParts.update': { params: { id: 'spt_1' }, body: { expected_version: 1, archived: true } },
+  'itemShared.get': { params: { id: 'RCP-14' } },
+  'itemShared.put': { params: { id: 'RCP-14' }, body: { none: true } },
+  'overlaps.decide': {
+    params: { id: 'pov_1' },
+    body: { decision: 'compatible', note: 'Disjoint' },
+  },
+  'undeclaredHolds.decide': { params: { id: 'udh_1' }, body: { decision: 'add' } },
+  'leases.release': { params: { id: 'pls_1' }, body: {} },
+  'radar.get': { params: { key: 'RCP' } },
+  'radar.settings': {
+    params: { key: 'RCP' },
+    body: { repo_path: 'recipe-app', main_branch: 'main' },
+  },
+  'radar.run': { params: { key: 'RCP' }, body: {} },
 };
 
 /** A path parameter value that fails its schema: a lower-cased item ID or key, a bad label, or blank. */

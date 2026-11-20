@@ -25,6 +25,7 @@ import {
   text,
 } from './common.js';
 import { LIMITS, TEXT_LIMITS } from './limits.js';
+import { branchInput, changedFilesInput } from './shared-changes.js';
 import {
   artifactSchema,
   decisionRecordSchema,
@@ -145,6 +146,12 @@ export const submitPacketInput = mutationInput({
       }),
     )
     .optional(),
+  /**
+   * Decision 36 (MCP_SPEC §5.15): every file the work changed (repo-relative,
+   * ≤ 2,000), mapped through the shared parts' paths, and the branch.
+   */
+  changed_files: changedFilesInput.optional(),
+  branch: branchInput.optional(),
 });
 export const submitPacketOutput = mutationOutput({
   packet_id: z.string(),
@@ -152,6 +159,11 @@ export const submitPacketOutput = mutationOutput({
   /** For example `pkt-9c0e`. */
   display_id: z.string(),
   item: itemSummarySchema,
+  /**
+   * Decision 36: shared parts the changed files touch that the item didn't
+   * declare. Present only when the packet is held for the owner.
+   */
+  held_undeclared: z.array(z.string()).optional(),
 });
 
 // ---- get_review ----

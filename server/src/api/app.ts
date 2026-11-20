@@ -29,6 +29,7 @@ import { depsRoutes } from './routes/deps.js';
 import { diagnosticsRoutes } from './routes/diagnostics.js';
 import { importRoutes } from './routes/import.js';
 import { onboardingRoutes } from './routes/onboarding.js';
+import { sharedRoutes } from './routes/shared.js';
 import { planningRoutes } from './routes/planning.js';
 import { readRoutes } from './routes/read.js';
 import { recoveryRoutes } from './routes/recovery.js';
@@ -123,6 +124,7 @@ export function createApiApp(deps: ApiDeps): Hono<ApiEnv> {
   recoveryRoutes(api, routeDeps);
   setupRoutes(api, routeDeps);
   onboardingRoutes(api, routeDeps);
+  sharedRoutes(api, routeDeps);
 
   return api;
 }

@@ -142,14 +142,21 @@ describe('0009_step_details', () => {
     const migrated = openDb(copy);
     try {
       migrateDb(migrated);
-      expect(migrationStatus(migrated)).toEqual({ current: true, applied: 10, expected: 10 });
+      expect(migrationStatus(migrated)).toEqual({ current: true, applied: 11, expected: 11 });
       const after = steps(migrated);
       expect(after).toEqual(
         before.map((row) => ({ ...row, details_md: null, source: null, details_version: 0 })),
       );
       expect(
         ['runs', 'subagent_logs', 'plan_versions', 'items'].map((t) =>
-          migrated.sqlite.prepare(`SELECT * FROM ${t} ORDER BY 1`).all(),
+          (
+            migrated.sqlite.prepare(`SELECT * FROM ${t} ORDER BY 1`).all() as Record<
+              string,
+              unknown
+            >[]
+          )
+            // 0010_shared_changes (B38) adds items.shared_none_at; it has its own test.
+            .map(({ shared_none_at: _, ...row }) => row),
         ),
       ).toEqual(otherTables);
       expect(migrated.sqlite.pragma('foreign_key_check')).toEqual([]);
@@ -179,7 +186,7 @@ describe('0009_step_details', () => {
 
       // Migrating again is a no-op.
       migrateDb(migrated);
-      expect(migrationStatus(migrated).applied).toBe(10);
+      expect(migrationStatus(migrated).applied).toBe(11);
     } finally {
       migrated.sqlite.close();
     }

@@ -294,6 +294,12 @@ export const QUERY_FAMILIES = [
   'drift',
   /** Onboarding sessions: the Needs you review card (decision 31). */
   'onboarding',
+  /** Settings → Shared parts: the registry (decision 36). */
+  'sharedParts',
+  /** An item's Shared changes section (decision 36). */
+  'itemShared',
+  /** Settings → Shared parts: the radar card (decision 36). */
+  'radar',
 ] as const;
 export type QueryFamily = (typeof QUERY_FAMILIES)[number];
 
@@ -341,6 +347,13 @@ export const queryKeys = {
   /** Onboarding sessions, for the review card (decision 31). */
   onboarding: (query: RouteQueryInput<'onboarding.list'> = {}) =>
     [ROOT, 'onboarding', query] as const,
+  /** A project's shared-part registry (decision 36). */
+  sharedParts: (project: string, query: RouteQueryInput<'sharedParts.list'> = {}) =>
+    [ROOT, 'sharedParts', project, query] as const,
+  /** An item's Shared changes section (decision 36): narrowed per item like `item`. */
+  itemShared: (id: string) => [ROOT, 'itemShared', id] as const,
+  /** A project's radar card (decision 36). */
+  radar: (project: string) => [ROOT, 'radar', project] as const,
 };
 
 export type QueryKey = readonly unknown[];
@@ -433,10 +446,23 @@ export const INVALIDATION: Record<EventType, readonly QueryFamily[]> = {
   'onboarding.started': ['onboarding', 'bootstrap'],
   'onboarding.finished': ['onboarding', 'needsYou', 'bootstrap'],
   'onboarding.reviewed': ['onboarding', 'needsYou', 'bootstrap', 'settings'],
+  // Shared changes (decision 36). The registry shows in Settings and in each item's
+  // section; a declaration changes the item, its overlaps and the registry's in-flight
+  // lists; overlaps and holds are Needs you cards and Work markers; findings are Problems.
+  'shared_part.saved': ['sharedParts', 'itemShared'],
+  'shared.declared': ['itemShared', 'sharedParts', 'item', 'work'],
+  'overlap.raised': ['itemShared', 'needsYou', 'bootstrap', 'work', 'item'],
+  'overlap.decided': ['itemShared', 'needsYou', 'bootstrap', 'work', 'item'],
+  'lease.taken': ['itemShared', 'sharedParts', 'item'],
+  'lease.ended': ['itemShared', 'sharedParts', 'item'],
+  'undeclared.held': ['itemShared', 'needsYou', 'bootstrap', 'item', 'review'],
+  'undeclared.decided': ['itemShared', 'needsYou', 'bootstrap', 'item', 'review', 'work'],
+  'radar.found': ['radar', 'itemShared', 'needsYou', 'bootstrap', 'work', 'item'],
+  'radar.cleared': ['radar', 'itemShared', 'needsYou', 'bootstrap', 'work', 'item'],
 };
 
 /** Families narrowed to the event's items when it names any. */
-const PER_ITEM: readonly QueryFamily[] = ['item', 'review'];
+const PER_ITEM: readonly QueryFamily[] = ['item', 'review', 'itemShared'];
 
 /**
  * The query keys to invalidate for one stream message: the event type's

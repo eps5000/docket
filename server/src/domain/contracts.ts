@@ -44,6 +44,15 @@ import {
   type Check,
   type CreateInstallResponse,
   type ContextBundle,
+  type ContextShared,
+  type ItemSharedResponse,
+  type LeaseRow,
+  type OverlapRow,
+  type PutItemSharedResponse,
+  type RadarResponse,
+  type SharedPartOwnerRow,
+  type SharedPartsResponse,
+  type UndeclaredHoldRow,
   type DecideResponse,
   type Drift,
   type DriftListResponse,
@@ -564,6 +573,75 @@ export interface OnboardingService {
   markReviewed(w: WriteContext, input: RouteParams<'onboarding.reviewed'>): OnboardingSession;
 }
 
+/**
+ * Shared changes and conflict guardrails (decision 36; BUILD_SPEC §5.21;
+ * FR-158–FR-164; MCP_SPEC §5.15). B38 (T182) implements the registry,
+ * declarations and the reads; B39 fills the rest: leases, overlap and hold
+ * decisions and `get_context.shared` (T183), and the radar (T184). The Ready
+ * gate, the overlap check at the claim and the changed-file check at hand-off
+ * land in `items.setStatus`, `runs.claim` and `packets.submit` (T183),
+ * calling `overlapsFor` (shared-changes.ts) and this service.
+ */
+export interface SharedChangesService {
+  /**
+   * `declare_shared_changes`: replace the item's declaration, or declare none;
+   * register `new_parts` (never single-writer); return the informational
+   * overlaps. Events `shared.declared` and `shared_part.saved`.
+   */
+  declare(w: WriteContext, input: In<'declare_shared_changes'>): Out<'declare_shared_changes'>;
+  /** `list_shared_parts`: the registry with in-flight declarations and leases. Read-only. */
+  listParts(r: ReadContext, input: In<'list_shared_parts'>): Out<'list_shared_parts'>;
+  /** `take_lease` (B39): `lease_held` when another item holds it; a renewal writes no event. */
+  takeLease(w: WriteContext, input: In<'take_lease'>): Out<'take_lease'>;
+  /** `release_lease` (B39): event `lease.ended`. */
+  releaseLease(w: WriteContext, input: In<'release_lease'>): Out<'release_lease'>;
+  /** `get_context.shared` (B39), cut to `max_chars` with `truncated` set. */
+  contextFor(r: ReadContext, input: { item_id: string; max_chars: number }): ContextShared;
+  /** `GET /api/projects/:key/shared-parts`. */
+  ownerList(
+    r: ReadContext,
+    input: RouteParams<'sharedParts.list'> & RouteQuery<'sharedParts.list'>,
+  ): SharedPartsResponse;
+  /** `POST /api/projects/:key/shared-parts` (undoable). */
+  ownerCreate(
+    w: WriteContext,
+    input: { project: string; part: RouteBody<'sharedParts.create'> },
+  ): SharedPartOwnerRow;
+  /** `PATCH /api/shared-parts/:id`: paths, single-writer, note, archive and restore (undoable). */
+  ownerUpdate(
+    w: WriteContext,
+    input: RouteParams<'sharedParts.update'> & RouteBody<'sharedParts.update'>,
+  ): SharedPartOwnerRow;
+  /** `GET /api/items/:id/shared`: the item's Shared changes section. */
+  itemShared(r: ReadContext, input: RouteParams<'itemShared.get'>): ItemSharedResponse;
+  /** `PUT /api/items/:id/shared`: the owner edits the declaration (undoable). */
+  ownerDeclare(
+    w: WriteContext,
+    input: RouteParams<'itemShared.put'> & RouteBody<'itemShared.put'>,
+  ): OwnerOut<PutItemSharedResponse>;
+  /** *Run one after the other* or *They're compatible* (B39): event `overlap.decided`. */
+  decideOverlap(
+    w: WriteContext,
+    input: RouteParams<'overlaps.decide'> & RouteBody<'overlaps.decide'>,
+  ): OverlapRow;
+  /** *Add to the declaration* or *Send back* (B39): event `undeclared.decided`. */
+  decideHold(
+    w: WriteContext,
+    input: RouteParams<'undeclaredHolds.decide'> & RouteBody<'undeclaredHolds.decide'>,
+  ): UndeclaredHoldRow;
+  /** *Release lease* (B39): event `lease.ended`, `end_reason: owner_released`. */
+  ownerReleaseLease(w: WriteContext, input: RouteParams<'leases.release'>): LeaseRow;
+  /** `GET /api/projects/:key/radar`: the settings, state and open findings. */
+  radar(r: ReadContext, input: RouteParams<'radar.get'>): RadarResponse;
+  /** `PUT /api/projects/:key/radar` (B39, T184): `repo_path` must be inside `DOCKET_PUSH_ROOT`. */
+  setRadar(
+    w: WriteContext,
+    input: RouteParams<'radar.settings'> & RouteBody<'radar.settings'>,
+  ): RadarResponse;
+  /** *Run radar now* (B39, T184): events `radar.found` and `radar.cleared`. */
+  runRadar(w: WriteContext, input: RouteParams<'radar.run'>): RadarResponse;
+}
+
 /** Work steps, subagent logs and agent checks (§5.5). */
 export interface ChecklistService {
   setPlan(w: WriteContext, input: In<'set_plan'>): Out<'set_plan'>;
@@ -821,6 +899,7 @@ export interface Services {
   agentProposals: AgentProposalsService;
   drift: DriftService;
   onboarding: OnboardingService;
+  sharedChanges: SharedChangesService;
   undo: UndoService;
 }
 

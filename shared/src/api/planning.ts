@@ -7,7 +7,7 @@
 import { z } from 'zod';
 import { itemId, longText, objectId, projectKey, text } from '../mcp/common.js';
 import { labelNameSchema } from '../mcp/items.js';
-import { TEXT_LIMITS } from '../mcp/limits.js';
+import { LIMITS, TEXT_LIMITS } from '../mcp/limits.js';
 import {
   decisionRecordSchema,
   itemSummarySchema,
@@ -58,7 +58,19 @@ export const patchItemBody = input({
   description_md: longText(TEXT_LIMITS.markdown).optional(),
   outcome_md: longText(TEXT_LIMITS.markdown).optional(),
   acceptance: z.array(text(TEXT_LIMITS.step)).optional(),
+  /**
+   * Decision 36 (BUILD_SPEC §5.21 Ready gate): moving an item that hasn't
+   * declared its shared changes to Ready needs a reason, recorded in Activity.
+   */
+  override_reason: text(LIMITS.shared_decision_note).optional(),
 }).superRefine((v, ctx) => {
+  if (v.override_reason !== undefined && v.status !== 'ready') {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['override_reason'],
+      message: 'An override reason goes with status ready.',
+    });
+  }
   if (!PATCH_FIELDS.some((f) => v[f] !== undefined)) {
     ctx.addIssue({
       code: 'custom',

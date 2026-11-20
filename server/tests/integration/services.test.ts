@@ -55,7 +55,7 @@ describe('the service stubs', () => {
     Object.keys(impl as object).map((method) => [service, method] as const),
   );
 
-  it('cover every service T047 lists, plus diagnostics, recovery (T055), agent files and installs (T150), proposals and drift (T159), onboarding (T163), and undo', () => {
+  it('cover every service T047 lists, plus diagnostics, recovery (T055), agent files and installs (T150), proposals and drift (T159), onboarding (T163), shared changes (T182), and undo', () => {
     expect(Object.keys(services).sort()).toEqual(
       [
         'agentFiles',
@@ -83,6 +83,7 @@ describe('the service stubs', () => {
         'reviewDecisions',
         'runs',
         'search',
+        'sharedChanges',
         'subgraph',
         'undo',
         'views',
@@ -202,6 +203,18 @@ describe('the service stubs', () => {
     ],
     // US15 (B30, T164): onboarding.
     onboarding: ['start', 'finish', 'guide', 'list', 'markReviewed'],
+    // Decision 36 (B38, T182): the registry, declarations and the reads. The leases,
+    // decisions, get_context.shared and the radar's settings and runs stay stubs until B39.
+    sharedChanges: [
+      'declare',
+      'listParts',
+      'ownerList',
+      'ownerCreate',
+      'ownerUpdate',
+      'itemShared',
+      'ownerDeclare',
+      'radar',
+    ],
   };
 
   it.each(methods)('%s.%s throws NotImplementedError until its slice implements it', (s, m) => {

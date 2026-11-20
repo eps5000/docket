@@ -93,13 +93,28 @@ export const US1_TOOLS: readonly ToolName[] = [
   'get_step',
   // Decision 34 (B36, T177); content in us17-batch.test.ts.
   'apply_batch',
+  // Decision 36 (B38, T182); content in us18-shared-contracts.test.ts.
+  'declare_shared_changes',
+  'list_shared_parts',
 ];
 const STUB_TOOLS = TOOL_NAMES.filter((n) => !US1_TOOLS.includes(n));
 
 describe('stubs', () => {
-  it('no tool is a stub any more: US15 (B30, T164) implemented the last two', () => {
-    expect(STUB_TOOLS).toEqual([]);
+  it('only the leases are stubs: B39 (T183) implements take_lease and release_lease', () => {
+    expect(STUB_TOOLS).toEqual(['take_lease', 'release_lease']);
   });
+
+  it.each(['take_lease', 'release_lease'] as const)(
+    '%s answers unavailable "Not implemented yet" once its arguments are valid',
+    async (name) => {
+      h = await startHarness();
+      expect(expectUnavailable(await h.call(name, VALID_ARGS[name]))).toEqual({
+        code: 'unavailable',
+        message: `Not implemented yet: ${name}`,
+      });
+      expectValidation(await h.call(name, { id: 'RCP-14', part: 'Recipe' }));
+    },
+  );
 
   it('claim_lead accepts instructions (decision 30) and still claims; a bad report is refused', async () => {
     h = await startHarness();
@@ -434,8 +449,9 @@ describe('recovery tools over MCP (B5: park_run, recovery_report and the new fie
       idempotentHint: false,
     });
     // §5.9 recovery_report, then §5.10's two agent file tools (decision 30), §5.11's two
-    // (decision 31), §5.12's get_step (decision 33) and §5.13's apply_batch (decision 34).
-    expect(tools.map((t) => t.name).slice(-7)).toEqual([
+    // (decision 31), §5.12's get_step (decision 33), §5.13's apply_batch (decision 34) and
+    // §5.15's four (decision 36).
+    expect(tools.map((t) => t.name).slice(-11)).toEqual([
       'recovery_report',
       'get_agent_files',
       'propose_agent_file_change',
@@ -443,6 +459,10 @@ describe('recovery tools over MCP (B5: park_run, recovery_report and the new fie
       'finish_onboarding',
       'get_step',
       'apply_batch',
+      'declare_shared_changes',
+      'list_shared_parts',
+      'take_lease',
+      'release_lease',
     ]);
     expect(tools.findIndex((t) => t.name === 'park_run')).toBe(
       tools.findIndex((t) => t.name === 'finish_run') + 1,

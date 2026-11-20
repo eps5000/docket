@@ -27,7 +27,15 @@ export const ID_PREFIXES = {
   agent_file_proposal: 'afp',
   /** An onboarding session (decision 31; MCP_SPEC §5.11). */
   onboarding_session: 'onb',
+  /** Decision 36 (MCP_SPEC §5.15; BUILD_SPEC §5.21): the registry, overlaps, leases, holds, findings. */
+  shared_part: 'spt',
+  part_overlap: 'pov',
+  part_lease: 'pls',
+  undeclared_hold: 'udh',
+  radar_finding: 'rdf',
   // Internal.
+  /** An item's declared change to one shared part (decision 36). */
+  item_shared_change: 'isc',
   mutation: 'mut',
   project: 'prj',
   acceptance: 'ac',

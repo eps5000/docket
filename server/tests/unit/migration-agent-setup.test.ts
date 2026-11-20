@@ -19,7 +19,14 @@ import {
   openDb,
   type Db,
 } from '../../src/db/client.js';
-import { createTestDb, insertItem, insertProject, tempDir, type TempDir } from '../helpers.js';
+import {
+  createTestDb,
+  insertItem,
+  insertProject,
+  tempDir,
+  type TempDir,
+  without0010,
+} from '../helpers.js';
 
 const ts = '2026-11-17T00:00:00.000Z';
 const SHA = 'a'.repeat(64);
@@ -140,7 +147,7 @@ describe('0003_agent_setup on a fresh database', () => {
   afterEach(() => t.cleanup());
 
   it('applies every migration, with foreign keys on and the check clean', () => {
-    expect(migrationStatus(t.db)).toEqual({ current: true, applied: 10, expected: 10 });
+    expect(migrationStatus(t.db)).toEqual({ current: true, applied: 11, expected: 11 });
     expect(t.db.sqlite.pragma('foreign_keys', { simple: true })).toBe(1);
     expect(t.db.sqlite.pragma('foreign_key_check')).toEqual([]);
   });
@@ -272,7 +279,7 @@ describe('0003_agent_setup on a main-era database (0000–0002, with data)', () 
     db = openDb(join(tmp.dir, 'docket.db'));
     // What main's migrateDb produced before B21: 0000 to 0002 only.
     migrate(drizzle(db.sqlite), { migrationsFolder: mainEraMigrations(tmp.dir) });
-    expect(migrationStatus(db)).toEqual({ current: false, applied: 3, expected: 10 });
+    expect(migrationStatus(db)).toEqual({ current: false, applied: 3, expected: 11 });
     for (const table of NEW_TABLES) expect(tables(db)).not.toContain(table);
     insertProject(db, 'RCP');
     insertItem(db, { id: 'RCP-1' });
@@ -295,9 +302,9 @@ describe('0003_agent_setup on a main-era database (0000–0002, with data)', () 
 
   it('migrates to current, and migrating again is a no-op', () => {
     migrateDb(db);
-    expect(migrationStatus(db)).toEqual({ current: true, applied: 10, expected: 10 });
+    expect(migrationStatus(db)).toEqual({ current: true, applied: 11, expected: 11 });
     migrateDb(db);
-    expect(migrationStatus(db).applied).toBe(10);
+    expect(migrationStatus(db).applied).toBe(11);
     expect(tables(db)).toEqual(expect.arrayContaining(NEW_TABLES));
   });
 
@@ -319,7 +326,7 @@ describe('0003_agent_setup on a main-era database (0000–0002, with data)', () 
         'SELECT id, key, name, short_name, color, next_seq, default_satisfied_when, deleted_at, version, created_at, updated_at FROM projects',
       ),
     ).toEqual(before.projects);
-    expect(all(db, 'SELECT * FROM items ORDER BY id')).toEqual(before.items);
+    expect(without0010(all(db, 'SELECT * FROM items ORDER BY id'))).toEqual(before.items);
     expect(all(db, 'SELECT * FROM runs')).toEqual(before.runs);
     expect(all(db, 'SELECT rowid, * FROM search_fts ORDER BY rowid')).toEqual(before.search);
   });

@@ -91,6 +91,26 @@ export const LIMITS = {
   step_details: 10_000,
   /** `work_steps.source`, for example a Jira key. */
   step_source: 100,
+  // ---- Shared changes (decision 36; MCP_SPEC §5.15; B38 resolutions) ----
+  /** A shared part's key, kind prefix included (`model:Token`). */
+  shared_part_key: 200,
+  /** Path globs on a part: at most 20, each repo-relative, ≤ 300 characters. */
+  shared_part_paths_max: 20,
+  shared_part_path: 300,
+  /** A part's note (the registry). */
+  shared_part_note: 1_000,
+  /** `declare_shared_changes.changes`: up to 50 entries, each note ≤ 500. */
+  shared_changes_max: 50,
+  shared_change_note: 500,
+  /** `declare_shared_changes.new_parts`: up to 20 parts registered in the same call. */
+  shared_new_parts_max: 20,
+  /** `changed_files` on submit_packet and set_status: up to 2,000 repo-relative paths. */
+  changed_files_max: 2_000,
+  changed_file: 1_000,
+  /** The owner's override reason for the Ready gate, and an overlap or hold decision note. */
+  shared_decision_note: 1_000,
+  /** get_context.shared: other in-flight declarations listed (BUILD_SPEC §5.21). */
+  context_in_flight_max: 30,
   /** Upper bound for opaque identifiers and cursors (not a spec limit; a sanity bound). */
   id: 100,
   /** Lists in compact text truncate long text at this many characters (§3.1). */
@@ -131,4 +151,10 @@ export const ID_PREFIXES = {
   resource: 'rsc_',
   agent_file_proposal: 'afp_',
   onboarding_session: 'onb_',
+  /** Decision 36 (MCP_SPEC §5.15): a registered shared part, an overlap, a lease, a hold, a finding. */
+  shared_part: 'spt_',
+  part_overlap: 'pov_',
+  part_lease: 'pls_',
+  undeclared_hold: 'udh_',
+  radar_finding: 'rdf_',
 } as const;

@@ -223,6 +223,8 @@ describe('event → query-key invalidation (contracts/events.md)', () => {
       if (/^(agent_file|workflow|install)\./.test(type)) continue;
       // Onboarding (decision 31) touches a project and its session, never one item.
       if (type === 'project.created' || type.startsWith('onboarding.')) continue;
+      // A registry change (decision 36) touches a part, never one item.
+      if (type === 'shared_part.saved') continue;
       expect(INVALIDATION[type], type).toContain('item');
     }
   });
@@ -656,5 +658,65 @@ describe('step details (decision 33; UI_SPEC §6.3.1a)', () => {
     ]);
     expect(sent[0]!.headers['X-Docket-CSRF']).toBe('abc123-_x');
     expect(seen.map((m) => [m.route, m.undoable])).toEqual([['steps.details', true]]);
+  });
+});
+
+describe('shared changes (decision 36; B38)', () => {
+  it('the client calls the registry routes, and only the registry and declaration edits are undoable', async () => {
+    const seen: MutationRecord[] = [];
+    const part = {
+      id: 'spt_1',
+      key: 'model:Token',
+      kind: 'model',
+      paths: [],
+      single_writer: true,
+      note: null,
+      created_by: 'owner',
+      archived: false,
+      archived_at: null,
+      version: 1,
+      in_flight: [],
+      lease: null,
+    } satisfies RouteResult<'sharedParts.create'>['part'];
+    const { fetch, sent } = fakeFetch(200, { mutation_id: 'mut_s', part });
+    const client = createApiClient({
+      fetch,
+      cookies: () => COOKIES,
+      onMutation: (m) => seen.push(m),
+    });
+    await client['sharedParts.create']({
+      params: { key: 'GF' },
+      body: { key: 'model:Token', single_writer: true },
+    });
+    await client['sharedParts.update']({
+      params: { id: 'spt_1' },
+      body: { expected_version: 1, archived: true },
+    });
+    expect(sent.map((r) => [r.method, r.url])).toEqual([
+      ['POST', '/api/projects/GF/shared-parts'],
+      ['PATCH', '/api/shared-parts/spt_1'],
+    ]);
+    expect(seen.map((m) => [m.route, m.undoable])).toEqual([
+      ['sharedParts.create', true],
+      ['sharedParts.update', true],
+    ]);
+    expect(queryKeys.sharedParts('GF')).toEqual(['docket', 'sharedParts', 'GF', {}]);
+    expect(queryKeys.itemShared('GF-312')).toEqual(['docket', 'itemShared', 'GF-312']);
+    expect(queryKeys.radar('GF')).toEqual(['docket', 'radar', 'GF']);
+  });
+
+  it('a declaration refetches that item’s Shared changes section, the item, Work and the registry', () => {
+    const keys = keysForChange({
+      seq: 70,
+      type: 'shared.declared',
+      objects: [{ kind: 'item', id: 'GF-312' }],
+      for_you: false,
+    });
+    expect(keys).toEqual([
+      ['docket', 'work'],
+      ['docket', 'item', 'GF-312'],
+      ['docket', 'sharedParts'],
+      ['docket', 'itemShared', 'GF-312'],
+    ]);
   });
 });

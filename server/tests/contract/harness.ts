@@ -281,4 +281,13 @@ export const VALID_ARGS: Record<ToolName, Record<string, unknown>> = {
       { op: 'update_item', args: { id: 'RCP-14', expected_version: 7, outcome_md: 'One list.' } },
     ],
   },
+  // Decision 36 (MCP_SPEC §5.15; B38).
+  declare_shared_changes: {
+    id: 'RCP-14',
+    changes: [{ part: 'model:Recipe', change: 'change', note: 'Adds units' }],
+    new_parts: [{ key: 'model:Recipe', paths: ['server/src/models/recipe.ts'] }],
+  },
+  list_shared_parts: { project: 'RCP' },
+  take_lease: { id: 'RCP-14', part: 'model:Recipe' },
+  release_lease: { id: 'RCP-14', part: 'model:Recipe' },
 };

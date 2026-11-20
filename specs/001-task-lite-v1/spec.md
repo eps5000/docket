@@ -358,14 +358,14 @@ Agents working in parallel worktrees declare the shared parts each item will cha
 
 **Why this priority**: without it, unattended agents either wait on unrelated epics or create conflicts and duplicate concepts (the Gameflow pilot hit both).
 
-**Independent Test**: two items declare a change to the same model; the first is claimed; claiming the second is refused with a seam conflict, and Needs you shows an overlap question; choosing *Run one after the other* adds a blocker so the second becomes startable only once the first is merged; choosing *They're compatible* lets it be claimed. A hand-off listing a file mapped to an undeclared shared part is flagged. The radar reports two branches that edit the same lines.
+**Independent Test**: two items declare a change to the same model; the first is claimed; claiming the second is refused with a seam conflict, and Needs you shows an overlap question; choosing *Run one after the other* adds a blocker so the second becomes startable only once the first is merged; choosing *They're compatible* lets it be claimed. A hand-off (`submit_packet`, or `set_status` to `done`) listing a file mapped to an undeclared shared part is flagged. The radar reports two branches that edit the same lines.
 
 **Acceptance Scenarios**:
 
 1. **Given** an item without declarations, **When** anyone moves it to Ready, **Then** it's refused with "Declare the shared parts this item will change (or none)"; the owner may override with a reason.
 2. **Given** GF-240 in progress declaring `model:Token`, **When** an agent claims GF-312 which also declares `model:Token`, **Then** the claim fails with `seam_conflict` naming GF-240, GF-312 stays Ready, and Needs you shows "GF-240 and GF-312 both change model Token" with *Run one after the other*, *They're compatible*, and *Open both*.
 3. **Given** the project marks `file:…/GameflowDbContextModelSnapshot.cs` as single-writer, **When** two agents take its lease, **Then** the second is told who holds it and until when; the lease ends when the holder's PR merges, it hands off or releases, or it expires.
-4. **Given** an agent hands off with changed files, **When** a file maps to a shared part the item didn't declare, **Then** the hand-off is held and Needs you shows "GF-312 changed shared parts it didn't declare: table decks".
+4. **Given** an agent hands off with changed files (`submit_packet`, or `set_status` to `done`), **When** a file maps to a shared part the item didn't declare, **Then** the hand-off is held (the packet is created but its review gate stays closed; closing as done is refused with `not_declared`) and Needs you shows "GF-312 changed shared parts it didn't declare: table decks".
 5. **Given** two in-flight items with branches that conflict, **When** the radar runs, **Then** both items show "Heading for a conflict with GF-240 (3 files)", and both agents see it in their context.
 6. **Given** an agent planning GF-330, **When** it calls `get_context`, **Then** it sees the other in-flight items' declared changes to the parts GF-330 declares, and a short list of all in-flight shared changes in the project.
 
@@ -567,7 +567,7 @@ Agents working in parallel worktrees declare the shared parts each item will cha
 - **FR-159**: An item MUST declare the shared parts it will change (each with add, change or remove, and a note), or declare none, before it can move to Ready. The owner MAY override with a reason, recorded in Activity.
 - **FR-160**: Claiming an item MUST be refused (`seam_conflict`) when one of its declared parts is declared by another in-flight item (Ready-claimed, In progress, or Review), unless the owner has marked that pair compatible or one blocks the other. Docket MUST raise one owner question per pair, with *Run one after the other* (adds a `merged` blocker), *They're compatible*, and *Open both*.
 - **FR-161**: Single-writer parts MUST be taken with a lease (one holder; ends on merge, hand-off, release or expiry; renewable). Taking a held lease MUST fail with who holds it and until when.
-- **FR-162**: Hand-off MUST accept the changed file list. Files that map to parts the item didn't declare MUST hold the item for owner review with a question; the owner can add the parts to the declaration or send it back.
+- **FR-162**: Hand-off (`submit_packet`, and `set_status` to `done`) MUST accept the changed file list. Files that map to parts the item didn't declare MUST hold the item for owner review with a question (a held packet, or a refused close); the owner can add the parts to the declaration or send it back.
 - **FR-163**: When the project's repository is reachable from Docket, a conflict radar MUST trial-merge in-flight items' branches with each other and with the main branch at least every 15 minutes, without writing to the repository, and flag pairs that conflict on the items and in agents' context.
 - **FR-164**: `get_context` MUST include the declared changes of other in-flight items that overlap the item's parts, and a capped list of all in-flight shared changes in the project.
 
