@@ -117,16 +117,16 @@ Designed to fit on one laptop screen without scrolling. In the prototype it fits
 
 ### Work
 - **Board columns:** Inbox · Planning (yours) · Ready (Startable / Waiting on blockers) · In progress · Review (your human review) · Done. A Review card with a packet ready opens the packet directly.
-- **Epics row** at the top (kept on purpose): one compact card per epic with progress and "N for you".
+- **Epics row** at the top (kept on purpose): one compact card per epic with progress and "N for you". Done epics wait behind *Show N done* (B43), so a big imported project's strip shows what's still moving.
 - **Done waits for you, then you archive it.** There's no 7-day cutoff: a finished item stays in the Done column until you've seen it.
   - Each Done card has **Archive**, and the column has **Archive all**. Both show an Undo toast.
   - Archiving only hides the item from your views. It stays in the tracker, in agents' queries, and in search, and it opens normally with *Unarchive* in its header.
   - Archived items leave the board, the list, Timeline and the Epics row (for a done epic). An epic's *Tickets in this epic* folds them into "+ N archived · Show".
-  - An **Archived** filter chip appears once anything is archived.
+  - An **Archived** entry appears in the Filters menu once anything is archived.
   - **Progress maps keep archived items,** because done work is part of the dependency picture and the "N / M done" count.
 - **Layouts:** Board, List, Map and **Timeline** (entered dates vs actual run time vs forecast; who set a date shows on hover, and only blocker dates are written under a bar).
 - **Cards:** type icon (the type legend sits once above the board), epic, labels, run state if claimed, plus chips for *Packet ready*, *Human review later*, *Question for you*, *Blocked*, and *Date risk*. Unclaimed cards say nothing rather than "Unclaimed".
-- **Filters:** epic, label, and saved filters (Blocked, For you, Human review later, Deferred review, Live run). *In planning* and *Ready to start* are left off the board because their columns already show them; links such as *View all* in the Planning queue still apply them. Hovering a filter shows the matching agent query.
+- **Filters** (B43, owner feedback): epic, label, three quick filters (**Active**, the default; **Blocked**; **In progress**), and a **Filters** menu of checkboxes for the rest (For you, Human review later, Deferred review, Live run, Has a problem, Shows done, Shows canceled). Ticked filters show as removable pills, and *Clear* goes back to Active. *In planning* and *Ready to start* are left off because their columns already show them; links such as *View all* in the Planning queue still apply them. Hovering a quick filter shows the matching agent query.
 
 ### Tickets and epics: one tab per job
 Each tab is a view that answers one question. Epics and tickets use the same four slots, so you always know where to look.

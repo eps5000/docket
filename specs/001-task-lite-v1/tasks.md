@@ -520,6 +520,12 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T188 [US18] UI per UI_SPEC §6.1 and §6.3: the three lines on every row and card, the agent actions, "Agents are handling N problems", "You acknowledged N", proposal cards, the item's problem banner (`?problem=`). Help ("Problems and what to do"; the Problems anchors move to it). Worker and planner skills (`propose_resolution`, routine fixes need none, the radar's note).
 - [x] T189 [US18] E2E: the banner with *Remind the agent*, *Not an active branch* and Undo, *Acknowledge*, and propose → a different way → propose again → approve, axe in both themes; the sweep spec stays green.
 
+## Phase 24: Work filters and the Epics strip (owner feedback, Gameflow pilot)
+
+- [x] T190 [US2] Spec plus code in one PR: UI_SPEC §2 (persistence, route) and §6.2 (the filter row, the Epics row, the Done column); Help ("Your first look around" → Filters on the Work page); BUILD_SPEC §7 and §13. `shared/src/work-filter.ts` (quick filters, checks, shows, counts, the old `filter=` mapping); `GET /api/work` takes `quick`, `has` and `show` and returns the new `filter_counts`; canceled items return under *Shows canceled*. No MCP changes.
+- [x] T191 [US2] UI: the Active, Blocked and In progress chips; the Filters menu (ARIA menu button, `menuitemcheckbox`es with counts, the keyboard); pills and *Clear*; the URL with Back and Forward, the last choice per project in `localStorage`, old links rewritten in place; done epics behind *Show N done*; the Done column's *Show N done*; a Canceled column under *Shows canceled*.
+- [x] T192 [US2] Tests: the model, the URL round trip and the old-link mapping (shared), the API (server), the state, storage, menu keyboard and Epics strip (web); e2e on the stress seed: done epics and the toggle, each quick filter, a menu combination from the keyboard, pills, *Clear*, the remembered choice, old links, 1024 px, axe in both themes; the sweep stays green.
+
 ## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.
@@ -560,6 +566,7 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 | B39 | 22 Shared changes and guardrails (US18) | T183–T185 | After B38 |
 | B37 | 21 Approve with notes (US3) | T179–T181 | Contract and implementation in one PR; no MCP changes |
 | B42 | 23 Problems that say what to do (US18) | T186–T189 | Contract and implementation in one PR; snapshot 48 → 49 |
+| B43 | 24 Work filters and the Epics strip (US2) | T190–T192 | Owner feedback; UI API change only, no MCP changes |
 
 **Slices after B6 may run in any order that respects** the dependency table below. Don't run two slices at once: they share route and screen groups.
 
@@ -612,6 +619,7 @@ Open a PR titled "<Bn>: <phase name>" with the checkpoint evidence. Do not queue
 | 21 Approve with notes | B37 (after B9) |
 | 22 Shared changes and conflict guardrails | B38 then B39 |
 | 23 Problems that say what to do | B42 (after B41) |
+| 24 Work filters and the Epics strip | B43 (after B42) |
 
 **Within a phase:** tests (failing) → services → replace stubs or fill handlers → fill screens → checkpoint.
 

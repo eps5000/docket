@@ -139,9 +139,10 @@ test.describe('Work', () => {
     const ready = board.getByRole('region', { name: 'Ready' });
     await expect(ready).toContainText(/Startable · \d+/);
     await expect(ready).toContainText(/Waiting on blockers · \d+/);
-    await expect(page.getByRole('button', { name: /^For you/ })).toHaveAttribute(
-      'title',
-      'Agent query: needs:human',
+    // B43: the quick filters are chips; For you moved into the Filters menu.
+    await expect(page.getByRole('button', { name: /^Active/ })).toHaveAttribute(
+      'aria-pressed',
+      'true',
     );
     await expect(page.getByRole('button', { name: /^Blocked/ })).toHaveAttribute(
       'title',
@@ -155,14 +156,16 @@ test.describe('Work', () => {
     await expect(page).toHaveURL(/\/review\/RCP-12$/);
   });
 
-  test('the Epics row opens an epic; a filter chip narrows the board', async ({ page }) => {
+  test('the Epics row opens an epic; a filter narrows the board', async ({ page }) => {
     await page.goto('/work');
     const epics = page.locator('[data-card="epics"]');
-    // 3 sample epics and the stress project's 10 (B35).
-    await expect(epics.getByRole('heading', { name: 'Epics · 13' })).toBeVisible();
-    await page.getByRole('button', { name: /^For you/ }).click();
-    await expect(page).toHaveURL(/filter=for_you/);
+    // 3 sample epics and the stress project's 10 (B35); the done STR-10 waits behind Show 1 done (B43).
+    await expect(epics.getByRole('heading', { name: 'Epics · 12' })).toBeVisible();
+    await page.getByRole('button', { name: 'Filters' }).click();
+    await page.getByRole('menuitemcheckbox', { name: /^For you/ }).click();
+    await expect(page).toHaveURL(/has=for_you/);
     await expect(page.locator('.tcard')).toHaveCount(3);
+    await page.keyboard.press('Escape');
     await epics.getByRole('link', { name: /Meal planning MVP/ }).click();
     await expect(page).toHaveURL(/\/items\/RCP-1$/);
     await expect(h1(page)).toHaveText('Meal planning MVP');

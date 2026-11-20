@@ -19,111 +19,140 @@ export const BOARD_COLUMNS: readonly { status: Status; note?: string }[] = [
   { status: 'done' },
 ];
 
+/** Shown as a seventh column only under *Shows canceled* (B43). */
+const CANCELED_COLUMN: { status: Status; note?: string } = { status: 'canceled' };
+
 /**
  * Board (UI_SPEC §6.2.1): six columns; Ready splits into Startable and
  * Waiting on blockers; Done keeps every done item until it's archived: each
  * card has *Archive* (or *Unarchive* under the Archived filter), the column
  * header has *Archive all* for the visible done items, and each toasts with
- * Undo (US7, T127).
+ * Undo (US7, T127). B43: done items show only under *Shows done*; until then
+ * the Done column says how many are hidden, with *Show N done*.
  */
-export function BoardLayout({ items }: { items: readonly WorkItem[] }) {
+export function BoardLayout({
+  items,
+  hiddenDone = 0,
+  onShowDone,
+  showCanceled = false,
+}: {
+  items: readonly WorkItem[];
+  /** Done items the filter hides (0 when *Shows done* is ticked). */
+  hiddenDone?: number;
+  onShowDone?: () => void;
+  showCanceled?: boolean;
+}) {
   const [showWaiting, setShowWaiting] = useState(false);
   const archiving = useArchive();
   // At scale (thousands of items), each column renders its first cards at once and the rest
   // right after (lib/progressive.ts). Counts and Archive all always use the whole column.
   const limit = useRenderLimit(items.length);
   return (
-    <div className="board" data-layout="board">
-      {BOARD_COLUMNS.map(({ status, note }) => {
-        const cards = items.filter((i) => i.status === status);
-        const head = (
-          <div className="colh">
-            <h2 className="colname">{STATUS_LABELS[status]}</h2>
-            <span>{cards.length}</span>
-          </div>
-        );
-        if (status === 'ready') {
-          const go = cards.filter((i) => !i.blocked);
-          const wait = cards.filter((i) => i.blocked);
+    <div className={showCanceled ? 'board c7' : 'board'} data-layout="board">
+      {(showCanceled ? [...BOARD_COLUMNS, CANCELED_COLUMN] : BOARD_COLUMNS).map(
+        ({ status, note }) => {
+          const cards = items.filter((i) => i.status === status);
+          const head = (
+            <div className="colh">
+              <h2 className="colname">{STATUS_LABELS[status]}</h2>
+              <span>{cards.length}</span>
+            </div>
+          );
+          if (status === 'ready') {
+            const go = cards.filter((i) => !i.blocked);
+            const wait = cards.filter((i) => i.blocked);
+            return (
+              <section className="col" key={status} aria-label={STATUS_LABELS[status]}>
+                {head}
+                <div className="src colnote">Startable · {go.length}</div>
+                {go.length === 0 ? (
+                  <div className="src colnote">Nothing startable</div>
+                ) : (
+                  go.slice(0, limit).map((i) => <TicketCard key={i.id} item={i} />)
+                )}
+                {wait.length > 0 && (
+                  <>
+                    {/* One button with a full-width hit target (B20), not a label plus a small link. */}
+                    <button
+                      type="button"
+                      className="subh subtog"
+                      aria-expanded={showWaiting}
+                      onClick={() => setShowWaiting(!showWaiting)}
+                    >
+                      {/* Wraps as "Waiting on / blockers · 5", never with the count alone. */}
+                      <span>
+                        Waiting on <span className="nowrap">blockers · {wait.length}</span>
+                      </span>
+                      <span className="subtog-act">
+                        {showWaiting ? 'Hide' : 'Show'}
+                        <span className={`chev${showWaiting ? '' : ' shut'}`} aria-hidden="true">
+                          <Icon name="chev" small />
+                        </span>
+                      </span>
+                    </button>
+                    {showWaiting ? (
+                      wait.slice(0, limit).map((i) => <TicketCard key={i.id} item={i} />)
+                    ) : (
+                      <div className="colmini">
+                        {wait.slice(0, limit).map((i) => (
+                          <Link
+                            key={i.id}
+                            to={paths.item(i.id)}
+                            className="chip c-bad mono"
+                            title={i.title}
+                          >
+                            {i.id}
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </section>
+            );
+          }
           return (
             <section className="col" key={status} aria-label={STATUS_LABELS[status]}>
               {head}
-              <div className="src colnote">Startable · {go.length}</div>
-              {go.length === 0 ? (
-                <div className="src colnote">Nothing startable</div>
-              ) : (
-                go.slice(0, limit).map((i) => <TicketCard key={i.id} item={i} />)
+              {note && <div className="src colnote">{note}</div>}
+              {status === 'done' && hiddenDone > 0 && onShowDone && (
+                <div
+                  className="src colnote row"
+                  data-hidden-done=""
+                  style={{ gap: 6, flexWrap: 'wrap' }}
+                >
+                  <span>Hidden by the filter.</span>
+                  <Button variant="ghost" size="sm" onClick={onShowDone}>
+                    Show {hiddenDone} done
+                  </Button>
+                </div>
               )}
-              {wait.length > 0 && (
-                <>
-                  {/* One button with a full-width hit target (B20), not a label plus a small link. */}
-                  <button
-                    type="button"
-                    className="subh subtog"
-                    aria-expanded={showWaiting}
-                    onClick={() => setShowWaiting(!showWaiting)}
+              {status === 'done' && cards.some((c) => !c.archived) && (
+                <div className="row colnote" style={{ justifyContent: 'flex-end' }}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={archiving.busy}
+                    onClick={() =>
+                      void archiving.all(cards.filter((c) => !c.archived).map((c) => c.id))
+                    }
                   >
-                    {/* Wraps as "Waiting on / blockers · 5", never with the count alone. */}
-                    <span>
-                      Waiting on <span className="nowrap">blockers · {wait.length}</span>
-                    </span>
-                    <span className="subtog-act">
-                      {showWaiting ? 'Hide' : 'Show'}
-                      <span className={`chev${showWaiting ? '' : ' shut'}`} aria-hidden="true">
-                        <Icon name="chev" small />
-                      </span>
-                    </span>
-                  </button>
-                  {showWaiting ? (
-                    wait.slice(0, limit).map((i) => <TicketCard key={i.id} item={i} />)
-                  ) : (
-                    <div className="colmini">
-                      {wait.slice(0, limit).map((i) => (
-                        <Link
-                          key={i.id}
-                          to={paths.item(i.id)}
-                          className="chip c-bad mono"
-                          title={i.title}
-                        >
-                          {i.id}
-                        </Link>
-                      ))}
-                    </div>
-                  )}
-                </>
+                    Archive all
+                  </Button>
+                </div>
               )}
+              {cards.slice(0, limit).map((i) => (
+                <TicketCard
+                  key={i.id}
+                  item={i}
+                  onArchive={() => void archiving.one(i.id)}
+                  onUnarchive={() => void archiving.undo(i.id)}
+                />
+              ))}
             </section>
           );
-        }
-        return (
-          <section className="col" key={status} aria-label={STATUS_LABELS[status]}>
-            {head}
-            {note && <div className="src colnote">{note}</div>}
-            {status === 'done' && cards.some((c) => !c.archived) && (
-              <div className="row colnote" style={{ justifyContent: 'flex-end' }}>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={archiving.busy}
-                  onClick={() =>
-                    void archiving.all(cards.filter((c) => !c.archived).map((c) => c.id))
-                  }
-                >
-                  Archive all
-                </Button>
-              </div>
-            )}
-            {cards.slice(0, limit).map((i) => (
-              <TicketCard
-                key={i.id}
-                item={i}
-                onArchive={() => void archiving.one(i.id)}
-                onUnarchive={() => void archiving.undo(i.id)}
-              />
-            ))}
-          </section>
-        );
-      })}
+        },
+      )}
     </div>
   );
 }

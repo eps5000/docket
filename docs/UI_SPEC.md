@@ -79,11 +79,12 @@ Agents do almost all the writing. The owner verifies, decides, nudges and archiv
 | Theme | `localStorage` | Preference |
 | Desktop notifications on/off, and which events were already notified | `localStorage` | Opt-in per browser; no repeat notifications across tabs |
 | Collapsed sections (per section *type*, e.g. "work") | `localStorage` | Close Work once, and it stays closed on the next ticket. A few sections start collapsed (Agents → Recent, the burn-down); opening one is remembered the same way |
+| Work's last filter choice, per project (B43) | `localStorage` | Applied only when you arrive at Work with no filter in the URL; the URL then shows it |
 | Everything else (filters, layout) | URL query | Shareable, Back works |
 
 **Routes:**
 - `/` Needs you
-- `/work?layout=board|list|map|timeline&epic=&label=&filter=`
+- `/work?layout=board|list|map|timeline&epic=&label=&quick=&has=&show=` (B43: `quick` is `blocked` or `progress`, Active when omitted; `has` and `show` are comma-separated. An old `filter=` link is mapped and rewritten in place, §6.2)
 - `/items/:id?tab=details|checklist|deps|map|activity`
 - `/review/:id?round=`
 - `/labels/:project/:name`
@@ -314,11 +315,15 @@ Fits one 1440×900 screen without scrolling at sample volume. Contents, top to b
 
 ### 6.2 Work (`/work`)
 - **Header row:** h1 "Work", and on the right a segmented control: Board | List | Map | Timeline.
-- **Filter row** (Board, List and Map; Timeline uses the same scope):
+- **Filter row** (Board, List and Map; Timeline uses the same epic and label scope, and none of the status filters). Owner feedback from the Gameflow pilot (B43): the old row of seven chips wasn't what the owner reached for, so three quick filters stay on the row and the rest moved into a menu:
   - Epic select, Label select;
-  - saved-filter chips with counts: All, Blocked, For you, Human review later, Deferred review, Live run, and Archived (shown only once something is archived, or while active). *In planning* and *Ready to start* aren't chips but can still be applied from the URL; a filter applied that way shows as an active chip;
-  - each chip's `title` is "Agent query: <query>" (BUILD_SPEC §13).
-- **Epics row:** "EPICS · N" and the type legend (Epic, Story, Task, Bug). One `EpicCard` per non-archived epic in scope; clicking one opens the epic. Shown on every layout except Timeline.
+  - **quick filters**, chips with counts, one at a time: **Active** (not done or canceled; the default view), **Blocked**, **In progress**. Each chip's `title` is "Agent query: <query>" (BUILD_SPEC §13; Active is `-status:done -status:canceled`, In progress `status:progress`);
+  - a **Filters** menu button (`aria-haspopup="menu"`, a `menu` of `menuitemcheckbox`es, each with its count): *For you*, *Human review later*, *Deferred review*, *Live run*, *Has a problem* (an open problem on the item, decision 37), *Archived* (only once something is archived, or while ticked), a separator, then *Shows done* and *Shows canceled*. Enter, Space or Down opens it on the first entry (Up on the last); Up, Down, Home and End move; Enter or Space ticks and keeps it open; Escape closes it and returns to the button; Tab or a click outside closes it. The button shows a count badge when anything is ticked;
+  - **combining:** ticked checks narrow the quick filter (AND); *Shows done* and *Shows canceled* add those items back on top of it (OR). *Archived* swaps the view to archived items (so archived done items need *Shows done* too). The old *All* is *Active* with both shows ticked;
+  - each ticked entry shows as a removable pill next to the chips ("For you ×"), and a *Clear* button (shown while anything differs from Active) goes back to Active with nothing ticked. *In planning* and *Ready to start* aren't in the menu but still apply from the URL, as pills;
+  - **counts** are over the current epic and label scope: each chip and check counts what you'd see with it chosen (the other ticks kept); *Shows done* and *Shows canceled* count the items they'd add;
+  - **state:** the filter lives in the URL (§2), so links are shareable and Back and Forward work. The last choice per project is remembered in `localStorage` and applied when you arrive with no filter in the URL. Old links map: `filter=all` → Active + Shows done; `blocked` → Blocked; `for_you`, `human_review_later`, `live_run`, `planning`, `ready_to_start` → Active + that check; `deferred_review` and `archived` → Active + that check + Shows done.
+- **Epics row:** "EPICS · N" and the type legend (Epic, Story, Task, Bug). One `EpicCard` per non-archived epic in scope; clicking one opens the epic. Shown on every layout except Timeline. **Done epics** (B43, owner feedback: with Gameflow's 40 epics the strip was mostly done ones) are hidden until *Show N done* at the end of the strip, which toggles to *Hide done* (`aria-expanded`); N in the heading counts the cards showing. An epic with no tickets always shows, and so does the epic the page is filtered to. Canceled epics never appear (§6.3).
 - **A label filter** shows a callout: "Filtered by #label. Open the label page for its brief, progress by epic and bulk actions."
 
 #### 6.2.1 Board
@@ -326,7 +331,8 @@ Fits one 1440×900 screen without scrolling at sample volume. Contents, top to b
 - **Ready** splits into *Startable · n*, then *Waiting on blockers · n*. Waiting items show as red ID chips. "Waiting on blockers · n · Show" is **one button** across the column (at least 32px tall, `aria-expanded`, a chevron), which expands them to cards.
 - **Run line:** each claimed card ends with the lead's `RunLine` (§5): "parked · waiting on the coordinator · claude · orca-w4", in the parked style.
 - **Review cards** with a ready packet open the packet screen directly (`title` "Open the handoff packet"). Other cards open the item.
-- **Done** keeps every done item until it's archived (no time cutoff):
+- **Done** keeps every done item until it's archived (no time cutoff). Under the default *Active* filter (B43) done items are hidden, and the column says so: "Hidden by the filter." with *Show N done* (ticks *Shows done*). Under *Shows canceled* a seventh column, Canceled, follows Done.
+- **Done** cards and the column:
   - each card has *Archive* (a small button at the bottom right, outside the card link);
   - the column header has *Archive all* (ghost button), which archives the visible done items;
   - both show an Undo toast.
@@ -877,7 +883,7 @@ Owner-only. The token never appears again after step 1.
 
 - **Long titles:** two lines on cards and map nodes, then an ellipsis; one line in tabs (200px), rows and breadcrumbs. The full title goes in `title`.
 - **Long IDs and SHAs:** monospace, no wrapping.
-- **Counts:** show "0" in a header (e.g. "Problems · 0") but hide zero-count *filter chips* (Archived) and zero tab counts.
+- **Counts:** show "0" in a header (e.g. "Problems · 0") but hide zero-count filters (Archived, in Work's Filters menu) and zero tab counts.
 - **Large boards** (70+ items): columns scroll vertically inside the view; no virtualization needed below 500 items. *Archive all* keeps Done short.
 - **Many open tabs:** at most 8, with the oldest inactive one closed automatically.
 - **Times:**

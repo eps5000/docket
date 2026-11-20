@@ -124,7 +124,7 @@ test.describe('reduced motion (T144)', () => {
     await page.locator('.pm-node').first().hover();
     expect((await motion(page)).running).toEqual([]);
     // A toast: archive a done card, then the Undo toast appears without its slide-in.
-    await open(page, '/work');
+    await open(page, '/work?show=done');
     const done = page.getByRole('region', { name: 'Done' });
     await done.getByRole('button', { name: 'Archive' }).first().click();
     await expect(page.getByRole('status').filter({ hasText: /Archived/ })).toBeVisible();

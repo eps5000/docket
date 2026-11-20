@@ -757,7 +757,7 @@ Every route requires the owner session (§3). JSON bodies **and query strings** 
 | `POST /api/session/unlock` `{key}` · `POST /api/session/lock` · `POST /api/session/rotate-key` | Unlock screen, Settings. Rotate-key writes a new owner key (0600), ends every owner session including the caller's, clears the cookies, and returns `{rotated: true}`. It never returns the key; the owner reads it with `docket owner-key` (decided in B2). |
 | `GET /api/bootstrap` | Shell: projects, labels, sidebar counts, settings, health |
 | `GET /api/needs-you?scope` | Needs you: `for_you_now[]` (packets, questions), `problems[]`, `deferred[]`, `planning_queue[]`, `agent_counts{}` |
-| `GET /api/work?scope&epic&label&filter&layout` | Work board/list/map; Timeline adds dates and forecast. Each item carries `lead_parked: {waiting_on, since, resume_ready} \| null` (optional; B20), so a parked card's run line says what it waits on |
+| `GET /api/work?scope&epic&label&quick&has&show&layout` | Work board/list/map; Timeline adds dates and forecast. B43 (UI_SPEC §6.2): `quick` (`active`, `blocked`, `progress`), `has` (checks, comma-separated) and `show` (`done`, `canceled`) filter the items, and `filter_counts` counts the chips and the menu; the old `filter` still works when none of the three is given (mapped by `legacyWorkFilter`; none of the four keeps the old All). Each item carries `lead_parked: {waiting_on, since, resume_ready} \| null` (optional; B20), so a parked card's run line says what it waits on |
 | `GET /api/burndown?scope&epic&label` | Timeline burn-down card |
 | `GET /api/items/:id` | Ticket or epic page (all four tabs; small enough to load at once). An epic's `children[]` carry `lead_parked` (optional; B20) for the Tickets list's run line |
 | `POST /api/items` | Quick capture: `{title, type, project, epic?, notes?}` → item in Inbox |
@@ -1075,7 +1075,7 @@ These must be byte-for-byte the same on both sides, so put them in `shared/`:
 - run-state names and one-line meanings;
 - provenance kinds and labels;
 - item types;
-- filters and their agent-query strings: `status:planning`, `status:ready -is:blocked`, `is:blocked`, `needs:human`, `has:human-review`, `review:deferred`, `run:live`, `is:archived`, and the agent-only `status:progress -has:lead` (`resumable`). Each saved filter's tooltip shows its query, and `search_items` accepts the same filters;
+- filters and their agent-query strings: `status:planning`, `status:ready -is:blocked`, `is:blocked`, `needs:human`, `has:human-review`, `review:deferred`, `run:live`, `is:archived`, and the agent-only `status:progress -has:lead` (`resumable`). Each saved filter's tooltip shows its query, and `search_items` accepts the same filters. Work's filter model (B43: quick filters, checks, shows, the old-link mapping) is `shared/src/work-filter.ts`;
 - the MCP description strings and result-summary templates (`shared/mcp-copy.ts`, MCP_SPEC §9);
 - end reasons, workspace states and resource kinds (§5.16), with their UI labels;
 - the compact text renderers (MCP_SPEC §3.1). The UI uses none of them, but they live in `shared/` so tests can render seed data;

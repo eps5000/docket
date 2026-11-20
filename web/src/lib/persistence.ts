@@ -10,8 +10,10 @@
  * | Desktop notifications on/off            | localStorage     |
  * | Which events were already notified      | localStorage     |
  * | Collapsed sections (per section *type*) | localStorage     |
+ * | Work's last filter, per project (B43)   | localStorage     |
  *
- * Everything else (filters, layout) lives in the URL query.
+ * Everything else (filters, layout) lives in the URL query. Work's filter
+ * lives there too; the stored one applies only when the URL has none.
  *
  * Storage can be missing or throw (private windows, blocked site data), so
  * every read and write is guarded and falls back to the default.
@@ -34,6 +36,11 @@ export const STORAGE_KEYS = {
    * start collapsed).
    */
   collapsed: 'docket.collapsed',
+  /**
+   * localStorage: `{[scope]: {quick, has, show}}`, Work's last filter choice per
+   * project (`all` for All projects), kept only where it isn't the default (B43).
+   */
+  workFilters: 'docket.workFilters',
 } as const;
 
 export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS];
@@ -46,6 +53,7 @@ export const STORAGE_AREA: Record<StorageKey, 'session' | 'local'> = {
   'docket.notifications': 'local',
   'docket.notified': 'local',
   'docket.collapsed': 'local',
+  'docket.workFilters': 'local',
 };
 
 function area(key: StorageKey): Storage | null {

@@ -513,7 +513,7 @@ describe('field rules', () => {
       include_inactive: false,
     });
     expect(decisionsQuery.safeParse({ project: 'RCP', scope_kind: 'epic' }).success).toBe(false);
-    expect(workQuery.parse({})).toEqual({ scope: 'all', filter: 'all', layout: 'board' });
+    expect(workQuery.parse({})).toEqual({ scope: 'all', layout: 'board' });
   });
 
   it('shared changes (decision 36): bodies, normalised keys, the Ready override, what is undoable', () => {

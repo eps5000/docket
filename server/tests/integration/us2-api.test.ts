@@ -212,12 +212,11 @@ describe('GET /api/work', () => {
         .map((i) => i.id)
         .sort(),
     ).toEqual(['RCP-12', 'RCP-19']);
+    // With no filter parameters the API keeps the old All: Active with Shows done (B43).
     expect(w.filter_counts).toMatchObject({
-      all: 22,
-      for_you: 3,
-      live_run: 1,
-      planning: 4,
-      deferred_review: 2,
+      quick: { active: 22 },
+      has: { for_you: 3, live_run: 1, planning: 4, deferred_review: 2 },
+      show: { done: 2, canceled: 0 },
       archived: 0,
     });
     expect(w.epics.map((e) => e.id).sort()).toEqual(['DOC-10', 'RCP-1', 'RCP-2']);
@@ -262,6 +261,46 @@ describe('GET /api/work', () => {
     expect(epic.items.map((i) => i.id).sort()).toEqual(['RCP-15', 'RCP-21', 'RCP-25']);
     const label = await get('/api/work?label=ui-refresh&scope=RCP', workResponse);
     expect(label.items.map((i) => i.id).sort()).toEqual(['RCP-12', 'RCP-23', 'RCP-25', 'RCP-27']);
+  });
+
+  it('B43: the quick filter, checks that narrow, shows that add back, and the counts', async () => {
+    sql().prepare("UPDATE items SET status = 'canceled' WHERE id = 'RCP-27'").run();
+    const active = await get('/api/work?quick=active', workResponse);
+    expect(active.items.map((i) => i.id)).not.toContain('RCP-11');
+    expect(active.items.map((i) => i.id)).not.toContain('RCP-27');
+    expect(active.items.every((i) => i.status !== 'done' && i.status !== 'canceled')).toBe(true);
+    expect(active.filter_counts.quick.active).toBe(active.items.length);
+    expect(active.filter_counts.show).toEqual({ done: 2, canceled: 1 });
+
+    // Shows done and Shows canceled add those items back: Active with both is everything.
+    const everything = await get('/api/work?show=done,canceled', workResponse);
+    expect(everything.items).toHaveLength(active.items.length + 3);
+    expect(everything.items.map((i) => i.id)).toEqual(
+      expect.arrayContaining(['RCP-11', 'DOC-2', 'RCP-27']),
+    );
+
+    // In progress, and a check that narrows it (AND).
+    const progress = await get('/api/work?quick=progress', workResponse);
+    expect(progress.items.every((i) => i.status === 'progress')).toBe(true);
+    expect(progress.items.length).toBe(active.filter_counts.quick.progress);
+    const live = await get('/api/work?quick=progress&has=live_run', workResponse);
+    expect(live.items.map((i) => i.id)).toEqual(['RCP-14']);
+    // Counts are faceted: each chip counts what it would show with the ticked checks kept.
+    expect(live.filter_counts.quick.progress).toBe(1);
+    expect(live.filter_counts.has.live_run).toBe(1);
+
+    // Has a problem: items with an open problem (the seed's date risk on RCP-16).
+    const problems = await get('/api/work?has=has_problem', workResponse);
+    expect(problems.items.map((i) => i.id)).toContain('RCP-16');
+    expect(problems.filter_counts.has.has_problem).toBe(problems.items.length);
+
+    // Counts follow the epic scope.
+    const epic = await get('/api/work?epic=RCP-2&show=done', workResponse);
+    expect(epic.filter_counts.quick.active).toBe(epic.items.length);
+
+    // An unknown key is a validation error.
+    const bad = await s.request('/api/work?has=nope', { headers: { cookie } });
+    expect(bad.status).toBe(400);
   });
 
   it('archived items leave every view but the Archived filter', async () => {

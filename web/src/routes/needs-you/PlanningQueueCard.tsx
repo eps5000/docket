@@ -68,7 +68,7 @@ export function PlanningQueueCard({ items }: { items: readonly ItemSummary[] }) 
       {items.length > LOWER_CARD_ROWS && (
         <div className="cardfoot">
           <span />
-          <Link to={paths.work({ filter: 'planning' })}>View all {items.length} →</Link>
+          <Link to={paths.work({ has: 'planning' })}>View all {items.length} →</Link>
         </div>
       )}
     </Card>
