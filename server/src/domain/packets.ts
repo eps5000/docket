@@ -39,6 +39,7 @@ import {
 import { deferredOf, openPackets, scoped } from './views.js';
 import { declaredKeys, endLeasesOf, raiseHold, undeclaredChanges } from './shared-changes.js';
 import { canonicalJson, type InverseOp } from './write.js';
+import { addReportedBranch } from './radar.js';
 
 export interface PacketRow {
   id: string;
@@ -382,6 +383,8 @@ export function createPacketsService(deps: ServiceDeps): PacketsService {
         branch: input.branch ?? null,
         version: 1,
       });
+      // B41: the hand-off's branch joins the item's reported branches.
+      addReportedBranch(w, item.id, input.branch);
       for (const h of chosen) {
         w.insert('packet_items', {
           id: newId('pki', ms(w.now)),

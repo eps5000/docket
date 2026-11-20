@@ -104,6 +104,8 @@ export const LIMITS = {
   shared_change_note: 500,
   /** `declare_shared_changes.new_parts`: up to 20 parts registered in the same call. */
   shared_new_parts_max: 20,
+  /** B41: an item's reported branches for the conflict radar (`declare_shared_changes.branches`). */
+  item_branches_max: 10,
   /** `changed_files` on submit_packet and set_status: up to 2,000 repo-relative paths. */
   changed_files_max: 2_000,
   changed_file: 1_000,

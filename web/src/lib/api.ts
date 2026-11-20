@@ -381,7 +381,8 @@ const DECISIONS = ['decisions', 'item', 'labels', 'settings'] as const;
 export const INVALIDATION: Record<EventType, readonly QueryFamily[]> = {
   'item.created': [...ITEM_VIEWS, 'bootstrap', 'settings'],
   'item.updated': [...ITEM_VIEWS, 'review'],
-  'item.status_changed': [...ITEM_VIEWS, 'review', 'agents', 'bootstrap', 'settings'],
+  // B41: a close's branch joins the item's reported branches (Shared changes).
+  'item.status_changed': [...ITEM_VIEWS, 'review', 'agents', 'bootstrap', 'settings', 'itemShared'],
   'item.archived': ['item', 'work', 'labels', 'burndown', 'settings'],
   'item.unarchived': ['item', 'work', 'labels', 'burndown', 'settings'],
   'link.added': ['item', 'work', 'needsYou', 'bootstrap'],
@@ -398,7 +399,8 @@ export const INVALIDATION: Record<EventType, readonly QueryFamily[]> = {
   'human_review.declared': ['item', 'work', 'labels'],
   'human_review.updated': ['item', 'work', 'labels'],
   'human_review.removed': ['item', 'work', 'labels'],
-  'claim.granted': RUNS,
+  // B41: a claim's branch joins the item's reported branches (Shared changes).
+  'claim.granted': [...RUNS, 'itemShared'],
   'claim.rejected': ['item'],
   'claim.released': RUNS,
   'run.started': RUNS,
@@ -410,7 +412,7 @@ export const INVALIDATION: Record<EventType, readonly QueryFamily[]> = {
   'run.unpushed_handled': ['item', 'needsYou', 'bootstrap', 'workspaces'],
   'resource.declared': ['item', 'agents', 'workspaces'],
   'resource.released': ['item', 'agents', 'needsYou', 'bootstrap', 'workspaces'],
-  'packet.submitted': ['item', 'review', 'work', 'needsYou', 'bootstrap'],
+  'packet.submitted': ['item', 'review', 'work', 'needsYou', 'bootstrap', 'itemShared'],
   'packet.stale': ['item', 'review', 'needsYou'],
   'packet.withdrawn': ['item', 'review', 'work', 'needsYou', 'bootstrap'],
   'review.decided': ['item', 'review', 'work', 'needsYou', 'bootstrap', 'labels', 'burndown'],

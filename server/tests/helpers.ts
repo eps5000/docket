@@ -113,8 +113,8 @@ export function count(db: Db, table: string): number {
 }
 
 /**
- * Columns migrations 0010_shared_changes (B38) and 0011_radar_branches (B40)
- * add to existing tables, at their defaults. Older migration tests migrate to the latest schema, so they compare
+ * Columns migrations 0010_shared_changes (B38), 0011_radar_branches (B40) and
+ * 0012_item_branches (B41) add to existing tables, at their defaults. Older migration tests migrate to the latest schema, so they compare
  * rows without these; 0010's own test checks them.
  */
 export const COLUMNS_0010 = [
@@ -131,6 +131,8 @@ export const COLUMNS_0010 = [
   'branch_at',
   'radar_branch',
   'radar_branch_matches',
+  // 0012_item_branches (B41) adds the reported branches to items.
+  'branches',
 ] as const;
 
 /** Rows without the columns 0010 added to `items`, `projects` and `packets`. */

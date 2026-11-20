@@ -61,7 +61,7 @@ The project has its own rules: who moves work to Ready, when human review is nee
 **Shared parts along the way:**
 
 - **Change a shared part you didn't declare?** Add it now with `declare_shared_changes` (the whole list: it replaces the declaration). Name parts by their keys from `list_shared_parts`.
-- **Declaring shared changes?** Pass `branch`, the branch you work on, every time, also when you backfill a declaration for work already in progress. The conflict radar checks that branch.
+- **Declaring shared changes?** Pass `branches`, every branch the work is on (or `branch` for one), every time, also when you backfill a declaration for work already in progress. The list replaces the item's branches, and the conflict radar checks each one.
 - **Single-writer parts** (such as a migrations snapshot): `take_lease { id, part }` **before** you generate or edit it, and `release_lease` as soon as the change is committed and pushed. If you get `lease_held`, work on another step or item; call `take_lease` again later. Never wait in a loop.
 - **"conflict ahead" in your context** means the radar sees your branch heading for a merge conflict. Tell the owner with `add_note` and rebase early.
 

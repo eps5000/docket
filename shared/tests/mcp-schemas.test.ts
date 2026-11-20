@@ -758,6 +758,22 @@ describe('shared changes (MCP_SPEC §5.15; decision 36; B38)', () => {
       { key: 'table:decks', kind: 'table', paths: ['db/migrations/**'] },
     ]);
     ok('declare_shared_changes', { id: 'GF-312', none: true });
+    // B41: branches (up to 10, an empty list clears) or branch, not both.
+    ok('declare_shared_changes', { id: 'GF-312', none: true, branches: ['gf-312-a', 'gf-312-b'] });
+    ok('declare_shared_changes', { id: 'GF-312', none: true, branches: [] });
+    ok('declare_shared_changes', { id: 'GF-312', none: true, branch: 'gf-312-a' });
+    fails('declare_shared_changes', {
+      id: 'GF-312',
+      none: true,
+      branches: Array.from({ length: 11 }, (_, i) => `gf-312-${i}`),
+    });
+    fails('declare_shared_changes', {
+      id: 'GF-312',
+      none: true,
+      branch: 'gf-312-a',
+      branches: ['gf-312-b'],
+    });
+    fails('declare_shared_changes', { id: 'GF-312', none: true, branches: ['x'.repeat(201)] });
     fails('declare_shared_changes', { id: 'GF-312' });
     fails('declare_shared_changes', { id: 'GF-312', none: false });
     fails('declare_shared_changes', { id: 'GF-312', changes: [] });

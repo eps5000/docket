@@ -627,13 +627,13 @@ export interface SharedChangesService {
     input: RouteParams<'itemShared.put'> & RouteBody<'itemShared.put'>,
   ): OwnerOut<PutItemSharedResponse>;
   /**
-   * `PUT /api/items/:id/shared/branch` (B40): the owner reports the item's
-   * branch for the radar, or clears it (`null`). Event `branch.reported`
-   * (undoable).
+   * `POST /api/items/:id/shared/branches` (B41): the owner adds a branch to
+   * the item's reported branches for the radar, or removes one. Event
+   * `branch.reported` (undoable).
    */
-  ownerSetBranch(
+  ownerBranches(
     w: WriteContext,
-    input: RouteParams<'itemShared.branch'> & RouteBody<'itemShared.branch'>,
+    input: RouteParams<'itemShared.branches'> & RouteBody<'itemShared.branches'>,
   ): ItemSharedResponse;
   /** *Run one after the other* or *They're compatible* (B39): event `overlap.decided`. */
   decideOverlap(

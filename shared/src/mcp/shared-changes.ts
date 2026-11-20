@@ -263,9 +263,18 @@ export function checkDeclaration(
     changes?: { part: string }[];
     none?: boolean;
     new_parts?: { key: string; kind?: string }[];
+    branch?: string;
+    branches?: string[];
   },
   ctx: z.RefinementCtx,
 ): void {
+  if (value.branch !== undefined && value.branches !== undefined) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['branches'],
+      message: 'Pass branch (one) or branches (a list), not both.',
+    });
+  }
   const hasChanges = value.changes !== undefined;
   if (hasChanges === (value.none === true)) {
     ctx.addIssue({
@@ -321,11 +330,17 @@ export const declareSharedChangesInput = mutationInput({
   /** Parts that aren't registered yet. */
   new_parts: z.array(newPartInput).min(1).max(LIMITS.shared_new_parts_max).optional(),
   /**
-   * B40: the branch the item's work is on, recorded for the conflict radar
-   * (it replaces any branch the radar found). Omit it to keep the item's
-   * branch as it is.
+   * B40: the branch the item's work is on, recorded for the conflict radar.
+   * B41: a one-branch `branches`; it replaces the item's reported branches.
+   * Omit both to keep them as they are.
    */
   branch: branchInput.optional(),
+  /**
+   * B41: every branch the item's work is on (up to 10), for the conflict
+   * radar. They replace the item's reported branches; an empty list clears
+   * them, so the radar looks for one by name.
+   */
+  branches: z.array(branchInput).max(LIMITS.item_branches_max).optional(),
 }).superRefine(checkDeclaration);
 export const declareSharedChangesOutput = mutationOutput({
   declaration: declarationSchema,
@@ -401,7 +416,10 @@ export const contextSharedSchema = z.object({
     z.object({
       /** The other item, or null for the main branch. */
       with: z.string().nullable(),
+      /** The other side's branch (the main branch for `with: null`). */
       branch: z.string(),
+      /** B41: this item's branch in the pair (an item may report several). */
+      own_branch: z.string(),
       files: z.array(z.string()),
     }),
   ),

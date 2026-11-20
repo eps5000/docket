@@ -1235,6 +1235,14 @@ describe('shared changes (MCP_SPEC §5.15; decision 36)', () => {
     expect(renderResult('declare_shared_changes', none, { args: { id: 'GF-9' }, ...opts })).toBe(
       'Declared none on GF-9',
     );
+    // B40, B41: the branches it reported, or that it cleared them.
+    const declared = (args: Record<string, unknown>) =>
+      renderResult('declare_shared_changes', none, { args: { id: 'GF-9', ...args }, ...opts });
+    expect(declared({ branch: 'gf-9-api' })).toBe('Declared none on GF-9 · branch gf-9-api');
+    expect(declared({ branches: ['gf-9-api', 'gf-9-web'] })).toBe(
+      'Declared none on GF-9 · branches gf-9-api, gf-9-web',
+    );
+    expect(declared({ branches: [] })).toBe('Declared none on GF-9 · branches cleared');
   });
 
   it('list_shared_parts prints a line per part and its in-flight declarations under it', () => {
@@ -1285,7 +1293,14 @@ describe('shared changes (MCP_SPEC §5.15; decision 36)', () => {
         },
       ],
       leases: [{ part: 'file:Snapshot.cs', held_until: '2026-11-06T12:40:00.000Z' }],
-      radar: [{ with: 'GF-240', branch: 'gf-240-token', files: ['src/Token.cs', 'src/Auth.cs'] }],
+      radar: [
+        {
+          with: 'GF-240',
+          branch: 'gf-240-token',
+          own_branch: 'rcp-14-list',
+          files: ['src/Token.cs', 'src/Auth.cs'],
+        },
+      ],
       truncated: true,
     };
     const out = renderContext({ ...RCP14_CONTEXT, shared }, opts).split('\n');
@@ -1297,7 +1312,7 @@ describe('shared changes (MCP_SPEC §5.15; decision 36)', () => {
       '  in flight:',
       '  - GF-250 Deck export · review · table:decks add',
       '  lease file:Snapshot.cs until 12:40Z',
-      '  conflict ahead with GF-240 (gf-240-token) · 2 files · src/Token.cs, src/Auth.cs',
+      '  conflict ahead with GF-240 (rcp-14-list vs gf-240-token) · 2 files · src/Token.cs, src/Auth.cs',
       '  …truncated; see list_shared_parts RCP',
     ]);
     expect(at('workflow:')).toBeLessThan(at('shared:'));
