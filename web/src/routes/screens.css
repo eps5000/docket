@@ -1666,3 +1666,9 @@
 .tl .shared-parts table td {
   vertical-align: top;
 }
+/* Links inside a line of text are underlined, not told apart by colour alone (B25). */
+.tl .shared-sec .lrow a,
+.tl .radar-findings a,
+.tl .shared-parts td a {
+  text-decoration: underline;
+}
