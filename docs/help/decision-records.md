@@ -25,6 +25,14 @@ You find them in the **Decisions** section where they apply: a ticket's or epic'
 
 Agents' decisions never show up in Needs you. You see them where they apply, and in the item's **Activity**.
 
+## Reading a decision
+
+Each decision shows its title, who recorded it and when, and the first two lines of its text.
+
+- *Show all* expands a decision whose text is longer than two lines; *Show less* folds it again.
+- *Show reasoning* shows why the decision was made, when whoever recorded it gave a reason. *Hide reasoning* folds it again.
+- The chip next to the title is its scope (project, epic, label or item), and the badge says whether it's yours (**Owner**) or an agent's.
+
 ## What you can do
 
 - *+ Record a decision*: fill in the title, the decision and (optionally) why, and pick the scope. What you record is an owner decision.
