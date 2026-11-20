@@ -170,6 +170,28 @@ export class BrokenMarkersError extends Error {
   }
 }
 
+/**
+ * The line a new CLAUDE.md starts with when the repo already has AGENTS.md
+ * (decision 34): Claude Code imports the project's own rules from it. It sits
+ * outside the Docket markers, so the check and drift never compare it, and it
+ * is never added to a CLAUDE.md that already exists.
+ */
+export const IMPORT_AGENTS_LINE = '@AGENTS.md';
+
+/** Whether an install writes the import: Claude Code into a repo (CLAUDE.md next to AGENTS.md). */
+export const importsAgentsMd = (client: InstallClient, target: InstallTargetKind): boolean =>
+  client === 'claude' && target === 'repo';
+
+/**
+ * The files that show a repo is set up for each client (decision 34): the
+ * Install dialog ticks the clients whose markers it finds, or both when none.
+ * Folders end in `/`.
+ */
+export const CLIENT_MARKERS: Record<InstallClient, readonly string[]> = {
+  claude: ['.claude/', 'CLAUDE.md'],
+  codex: ['.codex/', '.agents/', 'AGENTS.md'],
+};
+
 /** The section as written: the markers on their own lines around the block. */
 export const markedSection = (block: string): string => `${DOCKET_BEGIN}\n${block}\n${DOCKET_END}`;
 
@@ -183,9 +205,15 @@ export function mergeMarkedSection(
   existing: string | null,
   block: string,
   file = 'The instructions file',
-): { text: string; how: 'created' | 'replaced' | 'appended'; legacy?: true } {
+  /** A new file starts with `@AGENTS.md` and a blank line (decision 34): only when creating it. */
+  opts: { importAgents?: boolean } = {},
+): { text: string; how: 'created' | 'replaced' | 'appended'; legacy?: true; imported?: true } {
   const section = markedSection(block);
-  if (existing === null) return { text: `${section}\n`, how: 'created' };
+  if (existing === null) {
+    return opts.importAgents
+      ? { text: `${IMPORT_AGENTS_LINE}\n\n${section}\n`, how: 'created', imported: true }
+      : { text: `${section}\n`, how: 'created' };
+  }
   const found = findMarkedSection(existing);
   if (found.kind === 'broken') throw new BrokenMarkersError(file);
   if (found.kind === 'present') {

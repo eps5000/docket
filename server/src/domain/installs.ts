@@ -58,8 +58,13 @@ import {
   AGENT_SETUP_LIMITS,
   AGENTS_BLOCK_KEY,
   BrokenMarkersError,
+  CLIENT_MARKERS,
   CONNECTION_FILES,
   CONNECTION_KEY,
+  IMPORT_AGENTS_LINE,
+  INSTALL_CLIENTS,
+  importsAgentsMd,
+  installClientsOf,
   ConnectionFileError,
   connectionCanonical,
   connectionEntry,
@@ -81,9 +86,10 @@ import {
   renderAgentsBlock,
   withoutCr,
   type CreateInstallResponse,
+  type InstallClientResult,
+  type InstallStateResponse,
   type InstallCheckResponse,
   type InstallClient,
-  type InstallFileChange,
   type InstallMethod,
   type InstallRow,
   type InstallTargetKind,
@@ -95,11 +101,12 @@ import {
   type InstallBundle,
   type InstallsService,
   type PreparedInstall,
+  type ReadContext,
   type ServiceDeps,
 } from './contracts.js';
 import { newId } from './ids.js';
 import { CHECK_SCRIPT_PS1, CHECK_SCRIPT_SH, checkPs1, checkSh } from './check-scripts.js';
-import { installPs1, installSh } from './install-scripts.js';
+import { installPs1, installSh, installWrapperPs1, installWrapperSh } from './install-scripts.js';
 import { PushRoot, SymlinkRefused } from './push-root.js';
 import type { WriteContext } from './write.js';
 
@@ -450,9 +457,80 @@ const checkScripts = (): [string, string][] => [
   [CHECK_SCRIPT_PS1, checkPs1()],
 ];
 
-/** What `prepare` hands `record` beyond the contract's fields. */
-interface Prepared extends PreparedInstall {
-  install_id: string;
+/** One file's part in an install's summary. */
+type InstallFileResult = InstallClientResult['files'][number];
+
+/** What the summary says about a new CLAUDE.md that imports AGENTS.md (decision 34). */
+const IMPORT_NOTE = `starts with ${IMPORT_AGENTS_LINE}, so Claude Code also reads the repo's AGENTS.md`;
+
+/** One client's push, planned: every write checked before any is made (decision 34). */
+interface PlannedPush {
+  base: string;
+  layout: ReturnType<typeof installLayout>;
+  writes: { rel: string; bytes: Buffer; note?: string }[];
+  recorded: { name: string; sha256: string }[];
+}
+
+/**
+ * The files a command install will write for a client, as the summary lists
+ * them (decision 34): the skills, the manifest and check scripts, the
+ * instructions file's Docket section, and the connection file's entry.
+ */
+function plannedPaths(
+  client: InstallClient,
+  target: InstallTargetKind,
+  files: InstallFile[],
+): InstallFileResult[] {
+  const layout = installLayout(client, target);
+  const out: InstallFileResult[] = [];
+  for (const f of files) {
+    if (f.key === AGENTS_BLOCK_KEY) {
+      out.push({
+        path: layout.display + f.path,
+        note: importsAgentsMd(client, target)
+          ? `its Docket section; a new one ${IMPORT_NOTE} when the repo has one`
+          : 'its Docket section',
+      });
+    } else if (f.key === CONNECTION_KEY) {
+      out.push({ path: f.path, note: 'its docket server entry' });
+    } else {
+      out.push({ path: layout.display + f.path });
+    }
+  }
+  out.push({ path: layout.display + layout.manifest });
+  for (const [name] of checkScripts()) out.push({ path: `${layout.display}${layout.dir}/${name}` });
+  return out;
+}
+
+/**
+ * The keys an install's manifest no longer matches (decision 34: "update
+ * available"): an effective file whose version differs from the one sent, a
+ * file added since, a file sent that's no longer installed, or a connection
+ * file written in another trust mode.
+ */
+export function outdatedKeys(
+  row: Pick<InstallDbRow, 'manifest' | 'target_kind'>,
+  effective: { key: string; version: { id: string } }[],
+  protectedMode: boolean,
+): string[] {
+  const manifest = JSON.parse(row.manifest) as ManifestMap;
+  const out: string[] = [];
+  const now = new Map(effective.map((e) => [e.key, e.version.id]));
+  for (const [key, id] of now) {
+    if (manifest[key]?.version_id !== id) out.push(key);
+  }
+  for (const key of Object.keys(manifest)) {
+    if (key === CONNECTION_KEY) {
+      if (manifest[key]!.version_id !== connectionVersionId(protectedMode)) out.push(key);
+    } else if (!now.has(key)) out.push(key);
+  }
+  return out;
+}
+
+/** A text file in the bundle, under `docket-install/`. */
+function tarText(name: string, text: string, mtime: Date, mode = 0o644): TarFileEntry {
+  const bytes = Buffer.from(text, 'utf8');
+  return { name: `docket-install/${name}`, size: bytes.length, mtime, mode, source: { bytes } };
 }
 
 // ---- The service ----
@@ -476,17 +554,116 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
     return PushRoot.open(config.pushRoot, config.pushHostPath);
   }
 
-  /** Write the files into the push root. Everything is checked before the first write. */
-  async function push(
+  /**
+   * Which clients' markers the repo folder has (decision 34), when Docket can
+   * see it: a repo install's folder inside a ready push folder. Null
+   * otherwise (a command install's folder, or user-wide).
+   */
+  async function clientMarkers(
+    target: InstallTargetKind,
+    path: string | undefined,
+  ): Promise<Record<InstallClient, boolean> | null> {
+    if (target !== 'repo' || !path || !config.pushRoot) return null;
+    try {
+      const root = await PushRoot.open(config.pushRoot, config.pushHostPath);
+      const base = await root.base(path);
+      const found = {} as Record<InstallClient, boolean>;
+      for (const client of INSTALL_CLIENTS) {
+        found[client] = false;
+        for (const marker of CLIENT_MARKERS[client]) {
+          if (await root.exists(base, marker)) found[client] = true;
+        }
+      }
+      return found;
+    } catch {
+      return null;
+    }
+  }
+
+  /** One client's files in a command bundle, under `docket-install/<prefix>`. */
+  function clientEntries(
+    r: ReadContext,
+    row: InstallDbRow,
+    prefix: string,
+    now: Date,
+  ): TarFileEntry[] {
+    const manifest = JSON.parse(row.manifest) as ManifestMap;
+    // The connection file is rewritten in the mode it was recorded in (its version ID).
+    const sentConnection = manifest[CONNECTION_KEY];
+    const files = filesFor(
+      Object.entries(manifest)
+        .filter(([key]) => key !== CONNECTION_KEY)
+        .map(([key, v]) => ({
+          key,
+          version_id: v.version_id,
+          content: versionContent(r.db, v.version_id),
+        })),
+      row.client,
+      row.target_kind,
+      row.project_key,
+      {
+        url: connection().url,
+        protectedMode:
+          sentConnection && isConnectionVersionId(sentConnection.version_id)
+            ? sentConnection.version_id === connectionVersionId(true)
+            : connection().protectedMode,
+      },
+    ).filter((f) => f.key !== CONNECTION_KEY || sentConnection !== undefined);
+    const layout = installLayout(row.client, row.target_kind);
+    const entry = (name: string, text: string, mode = 0o644) =>
+      tarText(`${prefix}${name}`, text, now, mode);
+    const copied = files.filter((f) => f.key !== AGENTS_BLOCK_KEY && f.key !== CONNECTION_KEY);
+    const block = files.find((f) => f.key === AGENTS_BLOCK_KEY);
+    const conn = files.find((f) => f.key === CONNECTION_KEY);
+    const scripts = checkScripts().map(([name, text]) => ({
+      path: `${layout.dir}/${name}`,
+      text,
+      mode: name === CHECK_SCRIPT_SH ? 0o755 : 0o644,
+    }));
+    const list = [...copied.map((f) => f.path), layout.manifest, ...scripts.map((x) => x.path)];
+    const imports = importsAgentsMd(row.client, row.target_kind);
+    return [
+      ...copied.map((f) => entry(`files/${f.path}`, f.content)),
+      entry(
+        `files/${layout.manifest}`,
+        manifestJson({
+          install_id: row.id,
+          client: row.client,
+          target_kind: row.target_kind,
+          project: row.project_key,
+          installed_at: r.now,
+          files,
+        }),
+      ),
+      // docket-check, next to the manifest (decision 30).
+      ...scripts.map((x) => entry(`files/${x.path}`, x.text, x.mode)),
+      entry('files.txt', `${list.join('\n')}\n`),
+      entry('block.md', block?.content ?? ''),
+      // The connection file's docket entry, merged by the install step (decision 32).
+      ...(conn ? [entry('connection.txt', conn.content)] : []),
+      entry('install.sh', installSh(layout.instructions, layout.dir, row.client, imports), 0o755),
+      entry('install.ps1', installPs1(layout.instructions, layout.dir, row.client, imports)),
+    ];
+  }
+
+  /**
+   * Plan one client's push: every write's bytes, with every target checked
+   * and the instructions file's markers validated, before anything is
+   * written. A multi-client install plans every client first (decision 34),
+   * so nothing is written unless all of them can be. A new CLAUDE.md starts
+   * with `@AGENTS.md` when the repo had AGENTS.md before this install.
+   */
+  async function planPush(
     root: PushRoot,
     input: PreparedInstall['input'],
+    client: InstallClient,
     install_id: string,
     files: InstallFile[],
     now: string,
-  ): Promise<{ path: string; change: InstallFileChange }[]> {
+  ): Promise<PlannedPush> {
     const base = await root.base(input.path!);
-    const layout = installLayout(input.client, input.target_kind);
-    const writes: { rel: string; bytes: Buffer }[] = [];
+    const layout = installLayout(client, input.target_kind);
+    const writes: PlannedPush['writes'] = [];
 
     for (const f of files) {
       if (f.key === CONNECTION_KEY) {
@@ -494,7 +671,7 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
         const old = await root.read(base, f.path);
         try {
           const merged = mergeConnection(
-            input.client,
+            client,
             old === null ? null : old.toString('latin1'),
             f.content,
             f.path,
@@ -506,25 +683,34 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
         }
       } else if (f.key === AGENTS_BLOCK_KEY) {
         const old = await root.read(base, f.path);
+        const importAgents =
+          old === null &&
+          importsAgentsMd(client, input.target_kind) &&
+          (await root.exists(base, 'AGENTS.md'));
         let merged;
         try {
           merged = mergeMarkedSection(
             old === null ? null : old.toString('latin1'),
             Buffer.from(f.content, 'utf8').toString('latin1'),
             layout.display + f.path,
+            { importAgents },
           );
         } catch (err) {
           if (err instanceof BrokenMarkersError) throw new ToolError('validation', err.message);
           throw err;
         }
-        writes.push({ rel: f.path, bytes: Buffer.from(merged.text, 'latin1') });
+        writes.push({
+          rel: f.path,
+          bytes: Buffer.from(merged.text, 'latin1'),
+          ...(merged.imported ? { note: IMPORT_NOTE } : {}),
+        });
       } else {
         writes.push({ rel: f.path, bytes: Buffer.from(f.content, 'utf8') });
       }
     }
     const manifest = manifestJson({
       install_id,
-      client: input.client,
+      client,
       target_kind: input.target_kind,
       project: input.project ?? null,
       installed_at: now,
@@ -540,16 +726,21 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
     for (const w of writes) await root.checkWritable(base, w.rel);
     // Old skill folders the previous manifest there recorded (B28), read before it's replaced.
     const recorded = await recordedLegacySkills(root, base, layout);
+    return { base, layout, writes, recorded };
+  }
 
-    const out: { path: string; change: InstallFileChange }[] = [];
-    for (const w of writes) {
+  /** Write a planned push; returns what each file did. */
+  async function applyPush(root: PushRoot, plan: PlannedPush): Promise<InstallFileResult[]> {
+    const { base, layout } = plan;
+    const out: InstallFileResult[] = [];
+    for (const w of plan.writes) {
       const old = await root.read(base, w.rel);
       const change = old === null ? 'created' : old.equals(w.bytes) ? 'unchanged' : 'updated';
       if (change !== 'unchanged') await root.write(base, w.rel, w.bytes);
-      out.push({ path: layout.display + w.rel, change });
+      out.push({ path: layout.display + w.rel, change, ...(w.note ? { note: w.note } : {}) });
     }
     // The one deletion (BUILD_SPEC §5.17): a recorded old folder, only while unmodified.
-    for (const { name, sha256 } of recorded) {
+    for (const { name, sha256 } of plan.recorded) {
       const rel = `${layout.skillsDir}/${name}`;
       const removed = await root.removeRecordedSkillFolder(
         base,
@@ -582,88 +773,136 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
           'No agent files are loaded yet. They load when Docket starts; restart it and try again.',
         );
       }
-      const files = filesFor(
-        effective.map((e) => ({
-          key: e.key,
-          version_id: e.version.id,
-          content: e.version.content,
-        })),
-        input.client,
-        input.target_kind,
-        project,
-        connection(),
-      );
-      const install_id = newId('ins', Date.parse(r.now));
-      const prepared: Prepared = {
+      const keys = effective.map((e) => ({
+        key: e.key,
+        version_id: e.version.id,
+        content: e.version.content,
+      }));
+      // One part per client, Claude Code first (decision 34): each its own install.
+      const parts = installClientsOf(input).map((client) => {
+        const files = filesFor(keys, client, input.target_kind, project, connection());
+        return {
+          client,
+          install_id: newId('ins', Date.parse(r.now)),
+          files,
+          manifest: files.map((f) => ({ key: f.key, version_id: f.version_id, sha256: f.sha256 })),
+          paths: plannedPaths(client, input.target_kind, files),
+        };
+      });
+      const prepared: PreparedInstall = {
         input,
-        install_id,
-        manifest: files.map((f) => ({ key: f.key, version_id: f.version_id, sha256: f.sha256 })),
+        parts: parts.map(({ files: _f, ...part }) => part),
       };
       if (input.method === 'push') {
         const root = await pushRoot();
-        prepared.result = { files: await push(root, input, install_id, files, r.now) };
+        // Plan every client before writing any.
+        const plans: PlannedPush[] = [];
+        for (const part of parts) {
+          plans.push(await planPush(root, input, part.client, part.install_id, part.files, r.now));
+        }
+        for (const [i, plan] of plans.entries()) {
+          prepared.parts[i]!.files = await applyPush(root, plan);
+        }
       }
       return prepared;
     },
 
     record(w: WriteContext, p: PreparedInstall): CreateInstallResponse {
-      const { input, manifest } = p;
-      const id = (p as Prepared).install_id ?? newId('ins', Date.parse(w.now));
+      const { input } = p;
       const project = input.project ?? null;
-      const describeArgs = {
-        client: input.client,
-        target_kind: input.target_kind,
-        project_key: project,
-        path: input.path ?? null,
-        count: manifest.length,
-      };
-      const base = {
-        id,
-        at: w.now,
-        client: input.client,
-        target_kind: input.target_kind,
-        project_key: project,
-        path: input.path ?? null,
-        method: input.method,
-        manifest: manifestOf(manifest),
-      };
-      const data = {
-        method: input.method,
-        client: input.client,
-        target_kind: input.target_kind,
-        files: manifest.length,
-      };
-
-      if (input.method === 'push') {
-        w.insert('installs', base);
-        w.event({
-          type: 'install.recorded',
-          summary: `Installed by push: ${describe(describeArgs)}`,
-          project_key: project,
-          objects: [{ kind: 'install', id }],
-          data: { ...data, stage: 'pushed' },
-        });
-        return { install_id: id, result: p.result ?? { files: [] } };
-      }
-
-      const token = randomBytes(32).toString('base64url');
+      const path = input.path ?? null;
+      const push = input.method === 'push';
+      const token = push ? null : randomBytes(32).toString('base64url');
       const expires = new Date(
         Date.parse(w.now) + AGENT_SETUP_LIMITS.install_token_ttl_ms,
       ).toISOString();
-      w.insert('installs', { ...base, token_sha256: tokenHash(token), token_expires_at: expires });
-      w.event({
-        type: 'install.recorded',
-        summary: `Install command created: ${describe(describeArgs)}`,
-        project_key: project,
-        objects: [{ kind: 'install', id }],
-        data: { ...data, stage: 'command_issued' },
-      });
-      const url = `http://${config.allowedHosts[0] ?? '127.0.0.1:7420'}/install/${token}`;
-      const where = { client: input.client, target_kind: input.target_kind, path: input.path };
+      // One token for the whole command: each client's row keeps the sha256 of the
+      // token alone (one client), or of `token:client` (several; decision 34).
+      const several = p.parts.length > 1;
+
+      const clients: InstallClientResult[] = [];
+      for (const part of p.parts) {
+        const id = part.install_id ?? newId('ins', Date.parse(w.now));
+        const describeArgs = {
+          client: part.client,
+          target_kind: input.target_kind,
+          project_key: project,
+          path,
+          count: part.manifest.length,
+        };
+        const row = {
+          id,
+          at: w.now,
+          client: part.client,
+          target_kind: input.target_kind,
+          project_key: project,
+          path,
+          method: input.method,
+          manifest: manifestOf(part.manifest),
+        };
+        const data = {
+          method: input.method,
+          client: part.client,
+          target_kind: input.target_kind,
+          files: part.manifest.length,
+          ...(several ? { clients: p.parts.map((x) => x.client) } : {}),
+        };
+        if (push) {
+          w.insert('installs', row);
+          w.event({
+            type: 'install.recorded',
+            summary: `Installed by push: ${describe(describeArgs)}`,
+            project_key: project,
+            objects: [{ kind: 'install', id }],
+            data: { ...data, stage: 'pushed' },
+          });
+          clients.push({ client: part.client, install_id: id, files: part.files ?? [] });
+        } else {
+          const hash = tokenHash(several ? `${token!}:${part.client}` : token!);
+          w.insert('installs', { ...row, token_sha256: hash, token_expires_at: expires });
+          w.event({
+            type: 'install.recorded',
+            summary: `Install command created: ${describe(describeArgs)}`,
+            project_key: project,
+            objects: [{ kind: 'install', id }],
+            data: { ...data, stage: 'command_issued' },
+          });
+          clients.push({
+            client: part.client,
+            install_id: id,
+            files: part.paths,
+            check_command: checkCommands({
+              client: part.client,
+              target_kind: input.target_kind,
+              path: input.path,
+            }),
+          });
+        }
+      }
+
+      const first = clients[0]!;
+      if (push) {
+        return {
+          install_id: first.install_id,
+          clients,
+          result: {
+            files: clients.flatMap((c) =>
+              c.files.map((f) => ({ path: f.path, change: f.change ?? 'created' })),
+            ),
+          },
+        };
+      }
+      const url = `http://${config.allowedHosts[0] ?? '127.0.0.1:7420'}/install/${token!}`;
       return {
-        install_id: id,
-        command: installCommands({ ...where, url }),
-        check_command: checkCommands(where),
+        install_id: first.install_id,
+        clients,
+        command: installCommands({
+          client: first.client,
+          target_kind: input.target_kind,
+          path: input.path,
+          url,
+        }),
+        check_command: first.check_command,
         expires_at: expires,
       };
     },
@@ -679,6 +918,66 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
         )
         .all(query.project ?? null, query.project ?? null) as InstallDbRow[];
       return { installs: rows.map(toRow) };
+    },
+
+    async state(r, query): Promise<InstallStateResponse> {
+      const project = query.project ?? null;
+      if (project) requireProject(r.db, project);
+      const target: InstallTargetKind = project ? 'repo' : 'user';
+      const effective = effectiveAgentFiles(r.db, project);
+      const markers = await clientMarkers(target, query.path);
+      const clients = INSTALL_CLIENTS.map((client) => {
+        // The latest install of this client there: push, or a command that was downloaded.
+        const row = r.db.sqlite
+          .prepare(
+            `SELECT id, at, client, target_kind, project_key, path, method, manifest, token_used_at
+             FROM installs
+             WHERE client = ? AND target_kind = ? AND project_key IS ?
+               AND (method = 'push' OR token_used_at IS NOT NULL)
+             ORDER BY coalesce(token_used_at, at) DESC, id DESC
+             LIMIT 1`,
+          )
+          .get(client, target, project) as InstallDbRow | undefined;
+        const has = markers === null ? null : markers[client];
+        if (!row) {
+          return {
+            client,
+            state: 'not_installed' as const,
+            install: null,
+            outdated: [],
+            drift_ids: [],
+            markers: has,
+          };
+        }
+        const drift = (
+          r.db.sqlite
+            .prepare(`SELECT id FROM drift WHERE install_id = ? AND state = 'open' ORDER BY id`)
+            .all(row.id) as { id: string }[]
+        ).map((d) => d.id);
+        const outdated = outdatedKeys(row, effective, connection().protectedMode);
+        return {
+          client,
+          state:
+            drift.length > 0
+              ? ('changed' as const)
+              : outdated.length > 0
+                ? ('update_available' as const)
+                : ('up_to_date' as const),
+          install: toRow(row),
+          outdated,
+          drift_ids: drift,
+          markers: has,
+        };
+      });
+      const marked = INSTALL_CLIENTS.filter((c) => markers?.[c]);
+      const installed = clients.filter((c) => c.install !== null).map((c) => c.client);
+      const picked = INSTALL_CLIENTS.filter((c) => marked.includes(c) || installed.includes(c));
+      return {
+        project,
+        target_kind: target,
+        clients,
+        defaults: picked.length > 0 ? picked : [...INSTALL_CLIENTS],
+      };
     },
 
     async check(r, { id }): Promise<InstallCheckResponse> {
@@ -715,83 +1014,41 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
     },
 
     async bundleForToken(r, { token }): Promise<InstallBundle> {
-      const row = r.db.sqlite
-        .prepare(
-          `SELECT id, at, client, target_kind, project_key, path, method, manifest, token_used_at
-           FROM installs
-           WHERE token_sha256 = ? AND method = 'command' AND token_used_at IS NULL AND token_expires_at > ?`,
-        )
-        .get(tokenHash(token), r.now) as InstallDbRow | undefined;
-      if (!row) throw new ToolError('not_found', NOT_FOUND);
+      // One client: the token's own sha256. Several: `token:client` per row (decision 34).
+      const plain = tokenHash(token);
+      const rows = (
+        r.db.sqlite
+          .prepare(
+            `SELECT id, at, client, target_kind, project_key, path, method, manifest, token_used_at, token_sha256
+             FROM installs
+             WHERE token_sha256 IN (?, ?, ?) AND method = 'command' AND token_used_at IS NULL AND token_expires_at > ?`,
+          )
+          .all(
+            plain,
+            ...INSTALL_CLIENTS.map((c) => tokenHash(`${token}:${c}`)),
+            r.now,
+          ) as (InstallDbRow & { token_sha256: string })[]
+      ).sort((a, b) => INSTALL_CLIENTS.indexOf(a.client) - INSTALL_CLIENTS.indexOf(b.client));
+      if (rows.length === 0) throw new ToolError('not_found', NOT_FOUND);
 
-      const manifest = JSON.parse(row.manifest) as ManifestMap;
-      // The connection file is rewritten in the mode it was recorded in (its version ID).
-      const sentConnection = manifest[CONNECTION_KEY];
-      const files = filesFor(
-        Object.entries(manifest)
-          .filter(([key]) => key !== CONNECTION_KEY)
-          .map(([key, v]) => ({
-            key,
-            version_id: v.version_id,
-            content: versionContent(r.db, v.version_id),
-          })),
-        row.client,
-        row.target_kind,
-        row.project_key,
-        {
-          url: connection().url,
-          protectedMode:
-            sentConnection && isConnectionVersionId(sentConnection.version_id)
-              ? sentConnection.version_id === connectionVersionId(true)
-              : connection().protectedMode,
-        },
-      ).filter((f) => f.key !== CONNECTION_KEY || sentConnection !== undefined);
-      const layout = installLayout(row.client, row.target_kind);
       const now = new Date(r.now);
-      const entry = (name: string, text: string, mode = 0o644): TarFileEntry => {
-        const bytes = Buffer.from(text, 'utf8');
-        return {
-          name: `docket-install/${name}`,
-          size: bytes.length,
-          mtime: now,
-          mode,
-          source: { bytes },
-        };
-      };
-      const copied = files.filter((f) => f.key !== AGENTS_BLOCK_KEY && f.key !== CONNECTION_KEY);
-      const block = files.find((f) => f.key === AGENTS_BLOCK_KEY);
-      const conn = files.find((f) => f.key === CONNECTION_KEY);
-      const scripts = checkScripts().map(([name, text]) => ({
-        path: `${layout.dir}/${name}`,
-        text,
-        mode: name === CHECK_SCRIPT_SH ? 0o755 : 0o644,
-      }));
-      const list = [...copied.map((f) => f.path), layout.manifest, ...scripts.map((x) => x.path)];
-      const entries: TarFileEntry[] = [
-        ...copied.map((f) => entry(`files/${f.path}`, f.content)),
-        entry(
-          `files/${layout.manifest}`,
-          manifestJson({
-            install_id: row.id,
-            client: row.client,
-            target_kind: row.target_kind,
-            project: row.project_key,
-            installed_at: r.now,
-            files,
-          }),
-        ),
-        // docket-check, next to the manifest (decision 30).
-        ...scripts.map((x) => entry(`files/${x.path}`, x.text, x.mode)),
-        entry('files.txt', `${list.join('\n')}\n`),
-        entry('block.md', block?.content ?? ''),
-        // The connection file's docket entry, merged by the install step (decision 32).
-        ...(conn ? [entry('connection.txt', conn.content)] : []),
-        entry('install.sh', installSh(layout.instructions, layout.dir, row.client), 0o755),
-        entry('install.ps1', installPs1(layout.instructions, layout.dir, row.client)),
-      ];
+      const single = rows.length === 1 && rows[0]!.token_sha256 === plain;
+      const entries: TarFileEntry[] = [];
+      for (const row of rows) {
+        entries.push(...clientEntries(r, row, single ? '' : `${row.client}/`, now));
+      }
+      if (!single) {
+        const clients = rows.map((row) => row.client);
+        entries.push(
+          tarText('install.sh', installWrapperSh(clients), now, 0o755),
+          tarText('install.ps1', installWrapperPs1(clients), now),
+        );
+      }
+      const first = rows[0]!;
       return {
-        install_id: row.id,
-        filename: `docket-${row.id}.tar.gz`,
+        install_id: first.id,
+        install_ids: rows.map((row) => row.id),
+        filename: `docket-${first.id}.tar.gz`,
         bytes: await tarGzBytes(entries),
       };
     },

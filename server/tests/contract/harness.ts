@@ -276,4 +276,9 @@ export const VALID_ARGS: Record<ToolName, Record<string, unknown>> = {
     questions: ['Is the level editor in scope for V1?'],
   },
   get_step: { id: 'RCP-14', step_id: 'wst_a' },
+  apply_batch: {
+    operations: [
+      { op: 'update_item', args: { id: 'RCP-14', expected_version: 7, outcome_md: 'One list.' } },
+    ],
+  },
 };

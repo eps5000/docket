@@ -41,6 +41,7 @@ import { createTestServer, parseSetCookies, type TestServer } from './harness.js
 // Each test runs several shells and downloads: well over the default 5 s.
 vi.setConfig({ testTimeout: 180_000, hookTimeout: 60_000 });
 
+type S = Record<string, unknown>;
 const transcript: string[] = [];
 
 function which(cmd: string, probe: string[]): string | null {
@@ -571,6 +572,81 @@ describe.each(Object.keys(SHELLS) as ShellName[])('the %s commands', (shell) => 
       expect(r.out).toContain('has a damaged Docket section');
       expect(readFileSync(join(repo, 'CLAUDE.md'), 'utf8')).toBe(damaged);
       expect(existsSync(join(repo, '.claude'))).toBe(false);
+    },
+  );
+  it.skipIf(!SHELLS[shell])(
+    'installs both clients from one command; a new CLAUDE.md imports the repo’s AGENTS.md (decision 34)',
+    async () => {
+      const repo = join(tmp.dir, `both-${shell}`);
+      mkdirSync(join(repo, '.git'), { recursive: true });
+      const own = '# Our agent rules\n\nRun pnpm test before every commit.\n';
+      writeFileSync(join(repo, 'AGENTS.md'), own);
+      const created = await request('POST', '/api/installs', {
+        clients: ['codex', 'claude'],
+        target_kind: 'repo',
+        project: 'RCP',
+        method: 'command',
+      });
+      const parts = created.clients as { client: string; install_id: string; files: S[] }[];
+      expect(parts.map((p) => p.client)).toEqual(['claude', 'codex']);
+      const key = shell === 'bash' ? 'bash' : 'powershell';
+      const r = await run(shell, (created.command as Record<string, string>)[key]!, repo);
+      expect(r.status, r.out).toBe(0);
+      expect(r.out).toContain('Claude Code:');
+      expect(r.out).toContain('Codex:');
+      // CLAUDE.md is new and starts with the import, outside the markers.
+      const claude = readFileSync(join(repo, 'CLAUDE.md'), 'utf8');
+      expect(claude.startsWith(`@AGENTS.md\n\n${DOCKET_BEGIN}\n`)).toBe(true);
+      // AGENTS.md keeps the owner's text exactly, with the Docket section after it.
+      const agents = readFileSync(join(repo, 'AGENTS.md'), 'utf8');
+      expect(agents.startsWith(`${own}\n${DOCKET_BEGIN}\n`)).toBe(true);
+      for (const f of [
+        '.claude/.docket-manifest.json',
+        '.codex/.docket-manifest.json',
+        '.mcp.json',
+        '.codex/config.toml',
+        '.claude/skills/docket-worker/SKILL.md',
+        '.codex/skills/docket-worker/SKILL.md',
+      ]) {
+        expect(existsSync(join(repo, f)), f).toBe(true);
+      }
+      // One download logs both installs.
+      const log = (await request('GET', '/api/installs?project=RCP')).installs as S[];
+      const ids = parts.map((p) => p.install_id);
+      expect(log.filter((row) => ids.includes(row.id as string))).toHaveLength(2);
+      // A second install never adds the import to the CLAUDE.md that now exists.
+      const again = await request('POST', '/api/installs', {
+        client: 'claude',
+        target_kind: 'repo',
+        project: 'RCP',
+        method: 'command',
+      });
+      expect((await run(shell, (again.command as Record<string, string>)[key]!, repo)).status).toBe(
+        0,
+      );
+      expect(readFileSync(join(repo, 'CLAUDE.md'), 'utf8').match(/@AGENTS\.md/g)).toHaveLength(1);
+    },
+  );
+
+  it.skipIf(!SHELLS[shell])(
+    'a damaged AGENTS.md stops every client before anything is written (decision 34)',
+    async () => {
+      const repo = join(tmp.dir, `both-damaged-${shell}`);
+      mkdirSync(join(repo, '.git'), { recursive: true });
+      const damaged = `# Mine\n${DOCKET_BEGIN}\nno end marker\n`;
+      writeFileSync(join(repo, 'AGENTS.md'), damaged);
+      const created = await request('POST', '/api/installs', {
+        clients: ['claude', 'codex'],
+        target_kind: 'repo',
+        method: 'command',
+      });
+      const key = shell === 'bash' ? 'bash' : 'powershell';
+      const r = await run(shell, (created.command as Record<string, string>)[key]!, repo);
+      expect(r.status).not.toBe(0);
+      expect(r.out).toContain('has a damaged Docket section');
+      expect(readFileSync(join(repo, 'AGENTS.md'), 'utf8')).toBe(damaged);
+      expect(existsSync(join(repo, '.claude'))).toBe(false);
+      expect(existsSync(join(repo, 'CLAUDE.md'))).toBe(false);
     },
   );
 });

@@ -165,9 +165,16 @@ test.describe('Install and check (US13)', () => {
     ownerPage: page,
   }) => {
     const d = await openRcpInstall(page);
-    await expect(
-      d.getByRole('group', { name: 'Client' }).getByRole('button', { name: 'Claude Code' }),
-    ).toHaveAttribute('aria-pressed', 'true');
+    // Decision 34: with no folder known yet, both clients are ticked; once Docket sees the
+    // repo's own CLAUDE.md (a Claude Code marker), only Claude Code is.
+    await expect(d.getByRole('checkbox', { name: /^Claude Code/ })).toBeChecked();
+    await expect(d.getByRole('checkbox', { name: /^Codex/ })).toBeChecked();
+    await d.getByLabel('Repo folder').fill(HOST_REPO);
+    await d.getByLabel('Repo folder').blur();
+    await expect(d.getByRole('checkbox', { name: /^Codex/ })).not.toBeChecked();
+    await expect(d.getByRole('checkbox', { name: /^Claude Code/ })).toBeChecked();
+    await expect(d.locator('[data-client="claude"]')).toContainText('found in the repo');
+    await expect(d.locator('[data-client="claude"]')).toContainText('Not installed');
     // No user-wide choice here: that's on All projects.
     await expect(d.getByRole('group', { name: 'Install into' })).toHaveCount(0);
     // The method is chosen: push, with "Copy a command instead".
@@ -191,9 +198,8 @@ test.describe('Install and check (US13)', () => {
     );
     await expect(what).toContainText('it never holds a token');
     await expect(d.locator('[data-connect-note]')).toHaveText(
-      'It also writes the repo’s connection file (.mcp.json). Then open Claude Code in this repo and approve Docket when it asks.',
+      'It also writes each client’s connection file (.mcp.json). Then open Claude Code in this repo and approve Docket when it asks.',
     );
-    await d.getByLabel('Repo folder').fill(HOST_REPO);
     await expect(method(page)).toHaveAttribute('data-install-method', 'push');
     await shoot(page, '2-dialog-push', d);
     await expectAxeClean(page, 'Install dialog: push', { include: '[role="dialog"]' });
@@ -201,7 +207,7 @@ test.describe('Install and check (US13)', () => {
     await d.getByRole('button', { name: 'Install', exact: true }).click();
     const result = d.locator('[data-install-result="push"]');
     await expect(result).toContainText(
-      'Installed. Logged in the install log with every file’s version.',
+      'Installed Claude Code. Logged in the install log with every file’s version.',
     );
     await expect(result.locator('li').filter({ hasText: 'CLAUDE.md' })).toContainText('Updated');
     await expect(
@@ -269,7 +275,10 @@ test.describe('Install and check (US13)', () => {
     await expect(d.getByLabel('Repo folder')).toHaveValue(HOST_REPO);
     await expect(d.getByText('From Recipe App’s last install.')).toBeVisible();
     await expect(method(page)).toHaveAttribute('data-install-method', 'push');
-    await d.getByRole('button', { name: 'Install', exact: true }).click();
+    // Decision 34: Claude Code is installed, so the button never says a plain Install.
+    await expect(d.getByRole('checkbox', { name: /^Claude Code/ })).toBeChecked();
+    await expect(d.getByRole('button', { name: 'Install', exact: true })).toHaveCount(0);
+    await d.getByRole('button', { name: 'Reinstall', exact: true }).click();
     await expect(
       d.locator('[data-install-result="push"] li').filter({ hasText: 'docket-planner' }),
     ).toContainText('Created');
@@ -296,7 +305,9 @@ test.describe('Install and check (US13)', () => {
     await expect(
       method(page).getByRole('button', { name: 'Let Docket write them instead' }),
     ).toBeVisible();
-    await d.getByRole('group', { name: 'Client' }).getByRole('button', { name: 'Codex' }).click();
+    // Codex only (decision 34: checkboxes).
+    await d.getByRole('checkbox', { name: /^Claude Code/ }).uncheck();
+    await d.getByRole('checkbox', { name: /^Codex/ }).check();
     await d.locator('[data-install-what] summary').click();
     await expect(d.locator('[data-install-what]')).toContainText('AGENTS.md');
     await expect(d.locator('[data-placeholder-warning]')).toHaveCount(0);

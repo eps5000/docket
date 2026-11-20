@@ -452,6 +452,8 @@ export interface ItemRow {
   closed_at: string | null;
   archived_at: string | null;
   jira_key: string | null;
+  /** 1 when the Jira import created it (SQLite boolean). */
+  imported?: number | boolean;
   version: number;
   created_at: string;
   updated_at: string;

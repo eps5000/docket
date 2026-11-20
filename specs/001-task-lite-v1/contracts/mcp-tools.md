@@ -1,7 +1,7 @@
 # Contract index: MCP tools
 
 **Authoritative**: [MCP_SPEC.md](../../../docs/MCP_SPEC.md). That file holds the description text,
-schemas, errors and flows. This index maps the 43 tools, and the one prompt, to user stories and spec requirements, so
+schemas, errors and flows. This index maps the 44 tools, and the one prompt, to user stories and spec requirements, so
 the tasks can be grouped by story. Change a tool only in MCP_SPEC.md, together with
 `shared/mcp-copy.ts`.
 
@@ -28,6 +28,7 @@ the tasks can be grouped by story. Change a tool only in MCP_SPEC.md, together w
 | `get_agent_files`, `propose_agent_file_change`; `claim_lead.instructions` | §5.10, §5.4 | US14 | FR-128 to FR-133 |
 | `onboard_project`, `finish_onboarding`; the prompt `onboard` | §5.11 | US15 | FR-136 to FR-140 |
 | `get_step`; step details on `set_plan`, `update_step` and `get_item` | §5.12 | US16 | FR-145, FR-147 |
+| `apply_batch`; added details on imported steps (`set_plan`, `update_step`) | §5.13, §5.5 | US17 | FR-152, FR-153 |
 
 **Cross-cutting**, from MCP_SPEC:
 - connection and auth (§1);

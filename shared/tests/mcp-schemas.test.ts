@@ -25,17 +25,17 @@ const fails = (name: string, args: unknown) => {
 };
 
 describe('the registry', () => {
-  it('has 43 tools with unique names: 12 read, 1 delivering (get_item), 30 mutating', () => {
-    expect(TOOLS).toHaveLength(43);
-    expect(new Set(TOOLS.map((t) => t.name)).size).toBe(43);
+  it('has 44 tools with unique names: 12 read, 1 delivering (get_item), 31 mutating', () => {
+    expect(TOOLS).toHaveLength(44);
+    expect(new Set(TOOLS.map((t) => t.name)).size).toBe(44);
     const kinds = TOOLS.reduce<Record<string, number>>(
       (acc, t) => ({ ...acc, [t.kind]: (acc[t.kind] ?? 0) + 1 }),
       {},
     );
-    expect(kinds).toEqual({ read: 12, delivering: 1, mutating: 30 });
+    expect(kinds).toEqual({ read: 12, delivering: 1, mutating: 31 });
   });
 
-  it('groups tools into the ten server files', () => {
+  it('groups tools into the eleven server files', () => {
     const groups = Object.fromEntries(
       [
         'read',
@@ -48,6 +48,7 @@ describe('the registry', () => {
         'recovery',
         'agent_files',
         'onboarding',
+        'batch',
       ].map((g) => [g, TOOLS.filter((t) => t.group === g).length]),
     );
     expect(groups).toEqual({
@@ -61,6 +62,7 @@ describe('the registry', () => {
       recovery: 1,
       agent_files: 2,
       onboarding: 2,
+      batch: 1,
     });
   });
 

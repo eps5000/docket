@@ -129,6 +129,8 @@ const B2_ROUTES: readonly RouteId[] = [
   'installs.create',
   'installs.list',
   'installs.check',
+  // Decision 34 (B36, T175): install state (content in installs.test.ts).
+  'installs.state',
   'pushTarget.get',
   'pushTarget.test',
   'install.download',
@@ -281,6 +283,7 @@ const VALID: Record<RouteId, Req> = {
   },
   'installs.list': { query: { project: 'RCP' } },
   'installs.check': { params: { id: 'ins_1' }, body: {} },
+  'installs.state': { query: { project: 'RCP' } },
   'pushTarget.get': {},
   'pushTarget.test': { body: {} },
   'install.download': { params: { token: TOKEN } },

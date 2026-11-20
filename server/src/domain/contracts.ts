@@ -57,6 +57,9 @@ import {
   type Forecast,
   type HumanReviewItem,
   type InstallCheckResponse,
+  type InstallClient,
+  type InstallClientResult,
+  type InstallStateResponse,
   type InstallsResponse,
   type ItemDetailResponse,
   type ItemResume,
@@ -382,15 +385,24 @@ export interface AgentFilesService {
 /** An install ready to record: built (and, for push, written) outside any transaction. */
 export interface PreparedInstall {
   input: RouteBody<'installs.create'>;
-  /** The effective files' versions, as in `.docket-manifest.json`. */
-  manifest: { key: string; version_id: string; sha256: string }[];
-  /** Push only: what was written into the push root. */
-  result?: CreateInstallResponse['result'];
+  /** One part per client, Claude Code first (decision 34): each is its own install. */
+  parts: {
+    client: InstallClient;
+    install_id: string;
+    /** The effective files' versions, as in `.docket-manifest.json`. */
+    manifest: { key: string; version_id: string; sha256: string }[];
+    /** Command installs: the files the bundle will write, for the summary. */
+    paths: InstallClientResult['files'];
+    /** Push only: what was written into the push root. */
+    files?: InstallClientResult['files'];
+  }[];
 }
 
 /** A command install's bundle, ready to stream (`GET /install/:token`). */
 export interface InstallBundle {
   install_id: string;
+  /** Every client's install in the bundle (decision 34); the download marks each one used. */
+  install_ids: string[];
   /** For `Content-Disposition`, e.g. `docket-<install_id>.tar.gz`. */
   filename: string;
   bytes: Uint8Array;
@@ -412,6 +424,8 @@ export interface InstallsService {
    * (event `install.recorded`).
    */
   record(w: WriteContext, input: PreparedInstall): CreateInstallResponse;
+  /** `GET /api/install-state`: each client's install state there (decision 34). */
+  state(r: ReadContext, input: RouteQuery<'installs.state'>): Promise<InstallStateResponse>;
   /** `GET /api/installs`: the install log, newest first. */
   list(r: ReadContext, input: RouteQuery<'installs.list'>): InstallsResponse;
   /** `POST /api/installs/:id/check`: diff a pushed install's files against its manifest. */

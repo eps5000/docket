@@ -76,9 +76,9 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   park_run:
     'Park your run when you must wait: on another item, on the coordinator to send you more work, or on a person. A parked run keeps its claim and its workspace stays marked in use, so it is never mistaken for finished or stale. Say what you are waiting on; Docket flags it as ready to resume when that clears. Any later call with your run_id resumes it.',
   set_plan:
-    "Publish or revise your plan as one-line work steps; steps may carry details (Markdown) and a source, such as a Jira key. By default this patches: steps with an id are updated (changing text records the old text and your reason), steps without an id are added, and nothing is removed unless you list it in remove. Use mode 'replace' to restate the whole plan. Owner-added steps are always kept. Every revision is kept as history.",
+    "Publish or revise your plan as one-line work steps; steps may carry details (Markdown) and a source, such as a Jira key. By default this patches: steps with an id are updated (changing text records the old text and your reason), steps without an id are added, and nothing is removed unless you list it in remove. Use mode 'replace' to restate the whole plan. Owner-added steps are always kept; on steps imported from Jira you may add details, keeping the current text at the start. Every revision is kept as history.",
   update_step:
-    "Update one work step's state as you go: current when you start it, done when finished, blocked or skipped with a note. Pass details to replace the step's details (null clears them), with expected_details_version from get_step.",
+    "Update one work step's state as you go: current when you start it, done when finished, blocked or skipped with a note. Pass details to replace the step's details (null clears them), with expected_details_version from get_step. On a step imported from Jira you may only add to its details: keep the current text at the start.",
   log_subagent:
     "Record what a subagent contributed, as a short line under the step it worked on. provenance 'observed' if you saw its run or output directly, 'relayed' if you are passing on its report. This never creates a ticket.",
   set_checks:
@@ -120,6 +120,8 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
     'Finish an onboarding session and hand it to the owner for review, with a short summary and any open questions. Pass the session_id from onboard_project. The owner reviews everything you set up from one card; stop there and wait for them.',
   get_step:
     "Read one checklist step in full: its text, state, source, details (Markdown), history and subagent notes. Call it before you work on a step that get_item shows with '· details'. Read-only.",
+  apply_batch:
+    'Run up to 100 writes in one call, for large onboardings: each operation names a tool (create_item, update_item, link_items, upsert_label, set_plan, update_step, put_document or publish_decision) and its arguments, exactly as you would call it. Each operation runs the same checks as its single call and is applied on its own, in order: one that fails does not undo the others, and the result lists every operation with its ID or its error. "$1" in an argument means the ID operation 1 wrote. Pass idempotency_key, so a retry replays what succeeded and runs only the rest.',
 };
 
 /**
@@ -175,6 +177,7 @@ export const TOOL_SUMMARIES: Record<ToolName, string> = {
   finish_onboarding:
     "Onboarding {session_id} ready for the owner's review · {created} created · {enriched} enriched · {documents} documents · {decisions} decisions · {proposals} proposals",
   get_step: '{step_id} {text} · {state} · on {id}{facts}',
+  apply_batch: 'Batch: {applied} applied · {failed} failed · of {total}',
 };
 
 /**

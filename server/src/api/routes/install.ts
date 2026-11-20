@@ -21,7 +21,11 @@ export function installRoutes<E extends Env>(app: Hono<E>, deps: RouteDeps): voi
     deps,
     async ({ services, read, mutate, params }) => {
       const bundle = await services.installs.bundleForToken(read, params);
-      mutate((w) => services.installs.markDownloaded(w, { install_id: bundle.install_id }));
+      // Every client's install in the bundle is marked used in one write (decision 34).
+      mutate((w) => {
+        for (const id of bundle.install_ids)
+          services.installs.markDownloaded(w, { install_id: id });
+      });
       return new Response(bundle.bytes, {
         headers: {
           'content-type': 'application/gzip',

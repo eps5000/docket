@@ -109,7 +109,7 @@ Every mutating tool accepts `idempotency_key` (≤ 100 characters, unique per lo
 - **Use one** for anything you might retry after a timeout.
 
 ### Runs as signals
-Pass `run_id` on every call you make while working. **Every tool accepts an optional `run_id`**, reads included. `idempotency_key` is accepted only by the 30 mutating tools (B3 resolution 1; 27 before decision 30 added `propose_agent_file_change`, and 28 before decision 31 added `onboard_project` and `finish_onboarding`).
+Pass `run_id` on every call you make while working. **Every tool accepts an optional `run_id`**, reads included. `idempotency_key` is accepted only by the 31 mutating tools (B3 resolution 1; 27 before decision 30 added `propose_agent_file_change`, 28 before decision 31 added `onboard_project` and `finish_onboarding`, and 30 before decision 34 added `apply_batch`).
 - **What it does:** renews your lead lease and keeps you *live*.
 - **Calls without it** are attributed to your client but don't touch any run.
 
@@ -243,8 +243,9 @@ RCP-14 Generate shopping list from week plan
 | `get_agent_files` `RCP`, listing (no `file`) | 300 |
 | `onboard_project` with the bundled guide (header line plus guide) | 1,400 |
 | Any mutation result | 60 |
+| `apply_batch` with n operations (decision 34) | 30 + 25 × n |
 
-`onboard_project` is exempt from the mutation budget: its text block carries the whole onboarding guide, verbatim, because a text-only client's model sees nothing else. Its own row (B30) is measured on the bundled `docs/templates/ONBOARDING-guide.md`, set at the measured size plus 20% (1,164 → 1,400), so the guide can't grow unnoticed. `finish_onboarding` is an ordinary mutation (≤ 60).
+`onboard_project` is exempt from the mutation budget: its text block carries the whole onboarding guide, verbatim, because a text-only client's model sees nothing else. Its own row (B30) is measured on the bundled `docs/templates/ONBOARDING-guide.md`, set at the measured size plus 20% (1,164 → 1,400), so the guide can't grow unnoticed. `finish_onboarding` is an ordinary mutation (≤ 60). `apply_batch` (§5.13) is exempt from the mutation budget too: its text block holds one line per operation, so its own row scales with n. Measured in B36 on 100 operations (an epic, 60 items, 39 documents) at 1,612 tokens, and on 60 (44 enrichments, 2 step details, 13 links, a failure) at 865.
 
 ### 3.3 Patches: silence preserves
 Writes change what you send and nothing else. This is the TERSL idea that "what you don't restate, you don't change".
@@ -546,7 +547,7 @@ The format for each tool below:
 ### 5.5 Checklist
 
 #### `set_plan`
-**Description:** "Publish or revise your plan as one-line work steps; steps may carry details (Markdown) and a source, such as a Jira key. By default this patches: steps with an id are updated (changing text records the old text and your reason), steps without an id are added, and nothing is removed unless you list it in remove. Use mode 'replace' to restate the whole plan. Owner-added steps are always kept. Every revision is kept as history."
+**Description:** "Publish or revise your plan as one-line work steps; steps may carry details (Markdown) and a source, such as a Jira key. By default this patches: steps with an id are updated (changing text records the old text and your reason), steps without an id are added, and nothing is removed unless you list it in remove. Use mode 'replace' to restate the whole plan. Owner-added steps are always kept; on steps imported from Jira you may add details, keeping the current text at the start. Every revision is kept as history."
 - **Input:**
   - `id`, `reason` (required unless this is the first plan);
   - `mode?: 'patch'|'replace' = 'patch'`;
@@ -557,10 +558,13 @@ The format for each tool below:
 - **Errors:** `validation` (limits, unknown step id).
 
 #### `update_step`
-**Description:** "Update one work step's state as you go: current when you start it, done when finished, blocked or skipped with a note. Pass details to replace the step's details (null clears them), with expected_details_version from get_step."
+**Description:** "Update one work step's state as you go: current when you start it, done when finished, blocked or skipped with a note. Pass details to replace the step's details (null clears them), with expected_details_version from get_step. On a step imported from Jira you may only add to its details: keep the current text at the start."
 - **Input:** `id`, `step_id`, `state`, `note?` (required for blocked and skipped), `details?` (≤ 10,000; replaces them, and `null` clears them), `expected_details_version?` (the `details_version` you read; §5.12).
 - **Output:** `{ step: WorkStep }`.
-- **Errors:** `not_found` (step), `conflict` (`expected_details_version` is stale; `current` is the step with its details).
+- **Errors:** `not_found` (step), `conflict` (`expected_details_version` is stale; `current` is the step with its details), `forbidden` (an owner step's details; an imported step's details rewritten or cleared).
+
+**Imported steps** (decision 34; B36, T178): a step the Jira import wrote (it has a `source`, and its item was imported; owner-typed steps never have a source) takes details from agents through `set_plan` and `update_step`: they may set details where there are none, or extend them, keeping the current text (less trailing whitespace) at the start. Rewriting or clearing them is `forbidden` ("GF-12's step wst_… was imported from Jira; you may add to its details, keeping the current text at the start, but only the owner can rewrite or clear them. You may change its state."). Its text and source stay the owner's, and its state is open to agents as on every owner step. Owner-typed steps stay fully protected. The events carry `details_added: true`; the step's history entry has `note: "details added by <agent>"`, and `update_step`'s event reads "Details added by <agent> to “<step>” (v2)". Nothing new is stored: "imported" is read from `added_by`, `source` and the item's `imported` flag.
+
 
 #### `log_subagent`
 **Description:** "Record what a subagent contributed, as a short line under the step it worked on. provenance 'observed' if you saw its run or output directly, 'relayed' if you are passing on its report. This never creates a ticket."
@@ -779,6 +783,25 @@ B33 also stores details and source through `set_plan`, `update_step` and the own
 - **Any step on the item:** a step a revision removed is still readable by its ID, with its history.
 - **Read-only.**
 - **Errors:** `not_found` (item or step).
+
+### 5.13 Batches (decision 34)
+
+The Gameflow onboarding (305 matches, 44 enrichments, 39 documents) didn't fit single calls, so the agent fell back to a script on a second MCP connection. `apply_batch` lets one session do it (BUILD_SPEC §5.20; FR-151–FR-153). Contracts shipped in B36 (T177), in MCP_SPEC, `mcp-copy.ts` and the snapshot together: the description below, the descriptions of `set_plan` and `update_step` (imported steps, §5.5), and the tool count (43 → 44).
+
+#### `apply_batch`
+**Description:** "Run up to 100 writes in one call, for large onboardings: each operation names a tool (create_item, update_item, link_items, upsert_label, set_plan, update_step, put_document or publish_decision) and its arguments, exactly as you would call it. Each operation runs the same checks as its single call and is applied on its own, in order: one that fails does not undo the others, and the result lists every operation with its ID or its error. "$1" in an argument means the ID operation 1 wrote. Pass idempotency_key, so a retry replays what succeeded and runs only the rest."
+- **Input:** `operations: [{ op, args, idempotency_key? }]` (1–100), plus `run_id?` and `idempotency_key?`.
+  - `op` is one of `create_item`, `update_item`, `link_items`, `upsert_label`, `set_plan`, `update_step`, `put_document`, `publish_decision`.
+  - `args` are that tool's arguments as §5 defines them, without `run_id` (the batch's applies to every operation).
+- **Output:** `{ applied, failed, results: [{ index, op, ok, id, version, text, replayed?, warnings?, error? }] }`, in the order sent. `index` is 1-based. `id` is what the operation wrote (the item for `create_item`, `update_item` and `set_plan`; the link, step, document or decision ID; the label name), null on failure. `version` is the item's version, the plan version, or the document's version number, when there is one. `text` is the single call's compact line (§3.1), or the error message. `error` is `{ code, message }`, the same code a single call would return (§6).
+- **Text rendering:** a header line (`Batch: 98 applied · 2 failed · of 100`), then one line per operation in order: `#3 ` and the single call's line, or `#4 failed update_item · conflict: <message>` (the message truncated at 200 characters). Warnings are indented under their operation.
+- **Atomic per operation, never all-or-nothing:** each operation is validated against its own tool's input schema, runs through the write path's checks (secrets, limits, versions, references) in its own transaction, and leaves no trace when it fails. Later operations still run.
+- **`$n` references** (B36 resolution): an argument value that is exactly `"$n"` (anywhere in `args`, in arrays and nested objects too) is replaced by operation n's `id` before the operation is validated, so a batch can create an epic and its items (`epic: "$1"`). Naming this operation or a later one, or one that failed, fails this operation with `validation`.
+- **Idempotency** (B36 resolution): each operation has its own key: its `idempotency_key` (on the operation, or in `args`), else one derived from the batch's key and its index. A retry with the same batch key replays the operations that succeeded (`replayed: true`) and runs the ones that failed; changing a successful operation's arguments under the same key fails it with `validation`, as for single calls. Without any key, a retry runs everything again.
+- **Onboarding:** operations are tagged with the client's onboarding session like single calls (§5.11), and `set_status` isn't a batch operation.
+- **Budget:** 30 tokens plus 25 per operation (§3.2).
+- **Not retry-safe on its own** (`idempotentHint: false`): pass `idempotency_key`.
+- **Errors** (the whole call): `validation` when `operations` is empty, has more than 100 entries, or names a tool that isn't listed. Everything else is per operation.
 
 ## 6. Errors
 
@@ -1005,6 +1028,7 @@ These are part of M2 (BUILD_SPEC §11). Use the official MCP client SDK against 
 18. Workspace state: in_use, parked, at_risk (dirty, unpushed, unreleased resources) and safe_to_prune are each reached from the right inputs; `report_commit pushed:true` moves `pushed_sha`.
 19. `recovery_report` after a simulated restart lists every interrupted run with its end reason, its brief (with `include_briefs`), its workspace, its checklist progress and its orphaned resources, and the §7.13 flow re-claims and resumes it.
 20. `finish_run` with unreleased resources or unpushed commits warns, and the owner sees the matching Problem.
+21. `apply_batch` (decision 34): at least 150 operations through batches in one session, each with its own result; a failing operation (secret, stale version, bad `$n`) fails alone and writes nothing; a retry with the same key replays what succeeded; within its budget. Imported steps take added details, and refuse rewrites.
 
 ---
 

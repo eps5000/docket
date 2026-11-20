@@ -61,6 +61,10 @@ export function setupRoutes<E extends Env>(api: Hono<E>, deps: RouteDeps): void 
     services.installs.list(read, query),
   );
 
+  defineRoute(api, 'installs.state', deps, ({ services, read, query }) =>
+    services.installs.state(read, query),
+  );
+
   defineRoute(api, 'installs.check', deps, ({ services, read, params }) =>
     services.installs.check(read, params),
   );

@@ -492,6 +492,14 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T172 [US16] The step dialog per UI_SPEC §6.3.1a, and the details icon on rows. E2E plus axe.
 - [x] T173 [US16] The Jira import: sub-task details (header line plus converted description), source, and the "Comments from Jira sub-tasks" note on the parent. The report's wording ("Imported with changes: became checklist steps; description and comments kept"). Fixture tests for SC-020. Help ("Jira import", "Checklist"), the worker skill (put long step context in details), and BUILD_SPEC §9.
 
+## Phase 20: Install and onboarding follow-ups (owner decision 34)
+
+- [x] T174 [contract] Spec plus code in one PR: decision 34 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; `POST /api/installs` takes `clients` (`client` still accepted) and returns `clients` (each client's files); `GET /api/install-state`; the MCP tool `apply_batch` with its description, and the `set_plan` and `update_step` description changes. Snapshot 43 → 44 tools.
+- [x] T175 [US17] Several clients per install (push planned for every client first; one command token with per-client row hashes and a wrapper bundle that checks every client first) and install state from the manifest and drift (`outdated`, open drift, markers and defaults from a push-folder repo). Tests, including the real bash and PowerShell commands.
+- [x] T176 [US17] `CLAUDE.md` imports an existing `AGENTS.md` (`@AGENTS.md`, outside the markers, never added to an existing file), in push and both install steps. The Install dialog (checkboxes with state chips, the defaults, the verb-aware button, the one summary) and the Agent files install state card. Help ("Agent files"). Screenshots in both themes.
+- [x] T177 [US17] `apply_batch`: up to 100 operations, each validated and written as its single call, atomic per operation, `$n` references, derived idempotency keys, per-operation results; its budget (30 + 25 per operation). The onboarding guide and `docket-planner` use it. Tests, including SC-021 (160 operations in one session).
+- [x] T178 [US17] Imported steps take added details from agents (`set_plan`, `update_step`): set or extend only, history "details added by <agent>", text and owner-typed steps stay protected. Tests.
+
 ## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.
@@ -527,6 +535,7 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 | B31 | 18 Local trust and connection files | T167–T169 | Before the Gameflow pilot |
 | B33 | 19 Contracts for step details | T170 | Snapshot 42 → 43 |
 | B34 | 19 Step details (US16) | T171–T173 | Before the Gameflow import |
+| B36 | 20 Install and onboarding follow-ups (US17) | T174–T178 | Contract and implementation in one PR; snapshot 43 → 44 |
 
 **Slices after B6 may run in any order that respects** the dependency table below. Don't run two slices at once: they share route and screen groups.
 
@@ -575,6 +584,7 @@ Open a PR titled "<Bn>: <phase name>" with the checkpoint evidence. Do not queue
 | 17 Onboarding | B29 then B30 |
 | 18 Local trust | B31 |
 | 19 Step details | B33 then B34 (after B32) |
+| 20 Install and onboarding follow-ups | B36 (after B35) |
 
 **Within a phase:** tests (failing) → services → replace stubs or fill handlers → fill screens → checkpoint.
 

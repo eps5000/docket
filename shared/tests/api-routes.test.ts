@@ -107,6 +107,7 @@ const EXPECTED = [
   'POST /api/installs',
   'GET /api/installs',
   'POST /api/installs/:id/check',
+  'GET /api/install-state',
   'GET /api/push-target',
   'POST /api/push-target/test',
   'GET /install/:token',
@@ -143,7 +144,7 @@ describe('the route table', () => {
     const labels = ROUTE_IDS.map((id) => routeLabel(API_ROUTES[id]));
     expect(new Set(labels).size).toBe(labels.length);
     expect([...labels].sort()).toEqual([...EXPECTED].sort());
-    expect(labels).toHaveLength(78);
+    expect(labels).toHaveLength(79);
   });
 
   it('puts each route in a known group, and every group has a route', () => {
