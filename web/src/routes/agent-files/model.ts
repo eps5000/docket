@@ -1,4 +1,4 @@
-import { connectionCanonical, type InstallClient } from '@docket/shared';
+import { connectionCanonical, type InstallClient, type InstallState } from '@docket/shared';
 /**
  * How Agent files presents the stored layers (UI_SPEC §6.7b; BUILD_SPEC
  * §5.17, B25). The storage model is unchanged: bundled, the service-wide
@@ -153,4 +153,38 @@ export const pushReady = (t: PushTargetResponse | undefined) => !!t?.configured 
 export function connectionSentText(client: InstallClient, versionId: string | undefined): string {
   const host = typeof window === 'undefined' ? '127.0.0.1:7420' : window.location.host;
   return connectionCanonical(client, `http://${host}/mcp`, versionId === 'connection:protected');
+}
+
+// ---- Install state (decision 34; UI_SPEC §6.7b) ----
+
+/** Each state's chip text and kind. */
+export const INSTALL_STATE_VIEW: Record<
+  InstallState,
+  { label: string; kind: 'ok' | 'info' | 'warn' | 'neutral' }
+> = {
+  up_to_date: { label: 'Installed · up to date', kind: 'ok' },
+  update_available: { label: 'Installed · update available', kind: 'info' },
+  changed: { label: 'Changed outside Docket', kind: 'warn' },
+  not_installed: { label: 'Not installed', kind: 'neutral' },
+};
+
+/** What installing does to a client in each state: never a plain Install once it's installed. */
+export type InstallVerb = 'Install' | 'Update' | 'Reinstall';
+export const installVerb = (state: InstallState | undefined): InstallVerb =>
+  state === 'update_available'
+    ? 'Update'
+    : state === 'up_to_date' || state === 'changed'
+      ? 'Reinstall'
+      : 'Install';
+
+/**
+ * The Install dialog's button for the ticked clients' states: one verb when
+ * they agree, else the verbs joined ("Install and update"), so a client that's
+ * already installed is never offered a plain Install.
+ */
+export function installButtonLabel(states: readonly (InstallState | undefined)[]): string {
+  const order: InstallVerb[] = ['Install', 'Update', 'Reinstall'];
+  const verbs = order.filter((v) => states.some((s) => installVerb(s) === v));
+  if (verbs.length === 0) return 'Install';
+  return [verbs[0]!, ...verbs.slice(1).map((v) => v.toLowerCase())].join(' and ');
 }

@@ -18,6 +18,7 @@ import {
   type CreateInstallResponse,
   type InstallCheckResponse,
   type InstallClient,
+  type InstallStateResponse,
   type InstallRow,
   type InstallTargetKind,
   type PushTargetResponse,
@@ -31,7 +32,6 @@ import {
   Dialog,
   DialogCancel,
   EmptyState,
-  SegmentedControl,
   Skeleton,
 } from '../../components/kit';
 import { QueryState } from '../../app/QueryState';
@@ -44,7 +44,15 @@ import { paths } from '../../lib/paths';
 import { showToast } from '../../lib/undo';
 import { DiffView } from './DiffView';
 import { CopyBlock, errorText, usePushTarget } from './install-common';
-import { insidePushFolder, possessive, pushReady, versionLabel, connectionSentText } from './model';
+import {
+  INSTALL_STATE_VIEW,
+  insidePushFolder,
+  installButtonLabel,
+  possessive,
+  pushReady,
+  versionLabel,
+  connectionSentText,
+} from './model';
 
 /*
  * Install and check (UI_SPEC §6.7b; FR-124 to FR-127; US13 scenarios 4–5):
@@ -102,25 +110,49 @@ export interface InstallDialogProps {
   /** The project whose files to install into its repo; null installs the defaults user-wide. */
   project: string | null;
   projectName: string | null;
+  /** The clients to tick (a state row's *Install*, *Update* or *Reinstall*); else the defaults. */
+  initialClients?: readonly InstallClient[];
   onClose: () => void;
+}
+
+/** Each client's install state there (decision 34): `GET /api/install-state`. */
+export function useInstallState(project: string | null, path?: string) {
+  const query = { ...(project ? { project } : {}), ...(path ? { path } : {}) };
+  return useQuery({
+    queryKey: queryKeys.installState(query),
+    queryFn: () => apiClient['installs.state']({ query }),
+  });
 }
 
 /**
  * *Install into <project>’s repo* (one project selected) or *Install
- * user-wide* (All projects). The repo folder is prefilled from that
- * project's last install (the install log has the path). The method is
- * automatic: push when the push folder is ready and the folder is inside
- * it, otherwise a command; *Copy a command instead* is always there.
+ * user-wide* (All projects), for one client or several in one go (decision
+ * 34). Each client is a checkbox with its install state; the defaults are the
+ * clients the repo has markers for (or that are installed), else both. The
+ * repo folder is prefilled from that project's last install. The method is
+ * automatic: push when the push folder is ready and the folder is inside it,
+ * otherwise a command; *Copy a command instead* is always there. One
+ * *Install* writes every ticked client, then shows one summary.
  */
-export function InstallDialog({ project, projectName, onClose }: InstallDialogProps) {
+export function InstallDialog({
+  project,
+  projectName,
+  initialClients,
+  onClose,
+}: InstallDialogProps) {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const pathId = useId();
   const target: InstallTargetKind = project ? 'repo' : 'user';
   const name = projectName ?? project ?? '';
-  const [client, setClient] = useState<InstallClient>('claude');
+  /** Null until the owner ticks: the defaults (or the row's client) show meanwhile. */
+  const [picked, setPicked] = useState<InstallClient[] | null>(
+    initialClients ? [...initialClients] : null,
+  );
   /** Null until the owner types: the remembered folder shows meanwhile. */
   const [typed, setTyped] = useState<string | null>(null);
+  /** The folder the markers were looked for in: the remembered one, then each typed one on blur. */
+  const [looked, setLooked] = useState<string | null>(null);
   const [forced, setForced] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -134,6 +166,12 @@ export function InstallDialog({ project, projectName, onClose }: InstallDialogPr
   const remembered =
     installs.data?.installs.find((r) => r.target_kind === 'repo' && r.path)?.path ?? '';
   const path = (typed ?? remembered).trim();
+  const state = useInstallState(project, target === 'repo' ? (looked ?? remembered) : undefined);
+  const stateOf = (c: InstallClient) => state.data?.clients.find((x) => x.client === c);
+  const clients = picked ?? state.data?.defaults ?? [];
+  const ticked = CLIENTS.filter((c) => clients.includes(c.key)).map((c) => c.key);
+  const toggle = (c: InstallClient) =>
+    setPicked(ticked.includes(c) ? ticked.filter((x) => x !== c) : [...ticked, c]);
 
   const pushTarget = usePushTarget();
   const pt = pushTarget.data;
@@ -159,7 +197,6 @@ export function InstallDialog({ project, projectName, onClose }: InstallDialogPr
     return placeholdersIn(renderAgentsBlock(content, fillsProjectKey(target, project)));
   }, [block.data, target, project]);
 
-  const layout = installLayout(client, target);
   const where =
     target === 'user'
       ? 'your home folder'
@@ -168,14 +205,27 @@ export function InstallDialog({ project, projectName, onClose }: InstallDialogPr
         : path
           ? 'the repo folder'
           : 'the folder you run it in';
-  const written = (files.data?.files ?? [])
-    .filter((f) => f.key !== AGENTS_BLOCK_KEY && f.key !== CONNECTION_KEY)
-    .map((f) => layout.display + installPathOf(layout, f.key));
-  written.push(layout.display + layout.manifest);
-  const instructions = layout.display + layout.instructions;
+  const writtenFor = (client: InstallClient) => {
+    const layout = installLayout(client, target);
+    const out = (files.data?.files ?? [])
+      .filter((f) => f.key !== AGENTS_BLOCK_KEY && f.key !== CONNECTION_KEY)
+      .map((f) => layout.display + installPathOf(layout, f.key));
+    out.push(layout.display + layout.manifest);
+    return { layout, paths: out, instructions: layout.display + layout.instructions };
+  };
+  const instructionFiles = ticked.map((c) => writtenFor(c).instructions).join(' and ');
+  const changed = ticked.filter((c) => stateOf(c)?.state === 'changed');
+  const reviewChanges = () => {
+    onClose();
+    void navigate(`${paths.agentFiles({ project: project ?? 'all' })}#drift`);
+  };
 
   const install = async () => {
     setError(null);
+    if (ticked.length === 0) {
+      setError('Tick at least one client.');
+      return;
+    }
     if (method === 'push' && path === '') {
       setError(`Give the folder of ${possessive(name)} repo.`);
       document.getElementById(pathId)?.focus();
@@ -185,7 +235,7 @@ export function InstallDialog({ project, projectName, onClose }: InstallDialogPr
     try {
       const out = await apiClient['installs.create']({
         body: {
-          client,
+          clients: ticked,
           target_kind: target,
           method,
           ...(project ? { project } : {}),
@@ -194,6 +244,7 @@ export function InstallDialog({ project, projectName, onClose }: InstallDialogPr
       });
       setResult(out);
       void qc.invalidateQueries({ queryKey: queryKeys.installs() });
+      void qc.invalidateQueries({ queryKey: queryKeys.installState() });
       if (out.result) showToast('Installed. The install log has the versions sent.');
     } catch (err) {
       setError(errorText(err));
@@ -203,7 +254,10 @@ export function InstallDialog({ project, projectName, onClose }: InstallDialogPr
   };
 
   const title = project ? `Install into ${possessive(name)} repo` : 'Install user-wide';
-  const actionLabel = method === 'push' ? 'Install' : 'Create the command';
+  const actionLabel =
+    method === 'push'
+      ? installButtonLabel(ticked.map((c) => stateOf(c)?.state))
+      : 'Create the command';
 
   const footer = result ? (
     <Button variant="primary" onClick={onClose}>
@@ -213,7 +267,11 @@ export function InstallDialog({ project, projectName, onClose }: InstallDialogPr
     <>
       <DialogCancel onClick={onClose} />
       {placeholders.length === 0 && (
-        <Button variant="primary" onClick={() => void install()} disabled={busy || files.isLoading}>
+        <Button
+          variant="primary"
+          onClick={() => void install()}
+          disabled={busy || files.isLoading || ticked.length === 0}
+        >
           {busy ? 'Working…' : actionLabel}
         </Button>
       )}
@@ -228,18 +286,51 @@ export function InstallDialog({ project, projectName, onClose }: InstallDialogPr
         <div className="inform" data-install-dialog="" data-method={method}>
           <p className="src" style={{ margin: 0 }}>
             {project
-              ? `Installs the skills and the AGENTS.md block ${possessive(name)} agents use (its copies where you customized a file, the defaults elsewhere). The block goes into ${client === 'claude' ? 'CLAUDE.md' : 'AGENTS.md'}.`
+              ? `Installs the skills and the AGENTS.md block ${possessive(name)} agents use (its copies where you customized a file, the defaults elsewhere), for each client you tick.`
               : `Installs the default skills and AGENTS.md block into your home folder, for every project on this computer. A project’s own copies aren’t included: install those into its repo.`}
           </p>
-          <div className="infield">
-            <span className="inlabel">Client</span>
-            <SegmentedControl
-              label="Client"
-              options={CLIENTS}
-              value={client}
-              onChange={setClient}
-            />
-          </div>
+          <fieldset className="inclients" data-install-clients="">
+            <legend className="inlabel">Clients</legend>
+            {CLIENTS.map((c) => {
+              const st = stateOf(c.key);
+              const view = st ? INSTALL_STATE_VIEW[st.state] : null;
+              return (
+                <label key={c.key} className="inclient" data-client={c.key} data-state={st?.state}>
+                  <input
+                    type="checkbox"
+                    checked={ticked.includes(c.key)}
+                    onChange={() => toggle(c.key)}
+                  />
+                  <span className="inclientname">{c.label}</span>
+                  {view ? (
+                    <Chip kind={view.kind}>{view.label}</Chip>
+                  ) : (
+                    state.isLoading && <span className="src">Checking…</span>
+                  )}
+                  {st?.markers && <span className="src">found in the repo</span>}
+                </label>
+              );
+            })}
+            {ticked.length === 0 && (
+              <span className="src" role="status">
+                Tick at least one client.
+              </span>
+            )}
+          </fieldset>
+          {changed.length > 0 && (
+            <Callout tone="warn" role="status">
+              <div data-changed-warning="">
+                {changed.map((c) => INSTALL_CLIENT_LABELS[c]).join(' and ')}: files were changed
+                outside Docket. Installing puts Docket’s version back; review the changes first to
+                adopt them or keep them.
+              </div>
+              <div className="row" style={{ gap: 8, marginTop: 8 }}>
+                <Button size="sm" onClick={reviewChanges}>
+                  Review changes
+                </Button>
+              </div>
+            </Callout>
+          )}
           {target === 'repo' && (
             <div className="infield instack">
               <label htmlFor={pathId} className="inlabel">
@@ -256,6 +347,7 @@ export function InstallDialog({ project, projectName, onClose }: InstallDialogPr
                     : 'C:/Users/you/code/my-repo'
                 }
                 onChange={(e) => setTyped(e.target.value)}
+                onBlur={() => setLooked(path || null)}
               />
               <span className="src">
                 {typed === null && remembered
@@ -276,7 +368,10 @@ export function InstallDialog({ project, projectName, onClose }: InstallDialogPr
               </>
             ) : (
               <>
-                <span>{why.text}</span>{' '}
+                <span>
+                  {why.text}
+                  {ticked.length > 1 && ' One command installs every ticked client.'}
+                </span>{' '}
                 {forced && canPush ? (
                   <button type="button" className="linkbtn" onClick={() => setForced(false)}>
                     Let Docket write them instead
@@ -287,41 +382,60 @@ export function InstallDialog({ project, projectName, onClose }: InstallDialogPr
               </>
             )}
           </div>
-          <details className="inwhat" data-install-what="">
-            <summary>What will be written</summary>
-            <div className="src">In {where}:</div>
-            <ul className="mono">
-              {written.map((p) => (
-                <li key={p}>{p}</li>
-              ))}
-              <li>
-                {instructions} <span className="src">(only its Docket section)</span>
-              </li>
-              {target === 'repo' && (
-                <li data-connection-file={CONNECTION_FILES[client]}>
-                  {CONNECTION_FILES[client]}{' '}
-                  <span className="src">(only its docket server entry)</span>
-                </li>
-              )}
-            </ul>
-            <div className="src">
-              Only the marked Docket section of {instructions} is touched (between{' '}
-              <code>{'<!-- docket:begin -->'}</code> and <code>{'<!-- docket:end -->'}</code>);
-              everything else in it stays as it is. Nothing is ever deleted.
-              {target === 'repo' && (
-                <>
-                  {' '}
-                  In {CONNECTION_FILES[client]}, the connection file, only the docket server is
-                  added or updated; other servers and settings stay as they are, and it never holds
-                  a token.
-                </>
-              )}
-            </div>
-          </details>
-          {target === 'repo' && (
+          {ticked.length > 0 && (
+            <details className="inwhat" data-install-what="">
+              <summary>What will be written</summary>
+              {ticked.map((c) => {
+                const w = writtenFor(c);
+                return (
+                  <div key={c} data-install-what-client={c}>
+                    <div className="src">
+                      {INSTALL_CLIENT_LABELS[c]}, in {where}:
+                    </div>
+                    <ul className="mono">
+                      {w.paths.map((p) => (
+                        <li key={p}>{p}</li>
+                      ))}
+                      <li>
+                        {w.instructions} <span className="src">(only its Docket section)</span>
+                      </li>
+                      {target === 'repo' && (
+                        <li data-connection-file={CONNECTION_FILES[c]}>
+                          {CONNECTION_FILES[c]}{' '}
+                          <span className="src">(only its docket server entry)</span>
+                        </li>
+                      )}
+                    </ul>
+                  </div>
+                );
+              })}
+              <div className="src">
+                Only the marked Docket section of {instructionFiles} is touched (between{' '}
+                <code>{'<!-- docket:begin -->'}</code> and <code>{'<!-- docket:end -->'}</code>);
+                everything else stays as it is. Nothing is ever deleted.
+                {target === 'repo' && (
+                  <>
+                    {' '}
+                    In the connection file, only the docket server is added or updated; other
+                    servers and settings stay as they are, and it never holds a token.
+                  </>
+                )}
+                {target === 'repo' && ticked.includes('claude') && (
+                  <span data-import-note="">
+                    {' '}
+                    If the repo has an AGENTS.md but no CLAUDE.md, the new CLAUDE.md starts with{' '}
+                    <code>@AGENTS.md</code>, so Claude Code also reads the project’s own rules.
+                  </span>
+                )}
+              </div>
+            </details>
+          )}
+          {target === 'repo' && ticked.length > 0 && (
             <p className="src" data-connect-note="" style={{ margin: '8px 0 0' }}>
-              It also writes the repo’s connection file ({CONNECTION_FILES[client]}). Then open{' '}
-              {INSTALL_CLIENT_LABELS[client]} in this repo and approve Docket when it asks.
+              It also writes each client’s connection file (
+              {ticked.map((c) => CONNECTION_FILES[c]).join(', ')}). Then open{' '}
+              {ticked.map((c) => INSTALL_CLIENT_LABELS[c]).join(' or ')} in this repo and approve
+              Docket when it asks.
             </p>
           )}
           {placeholders.length > 0 && (
@@ -351,7 +465,11 @@ export function InstallDialog({ project, projectName, onClose }: InstallDialogPr
                 >
                   Edit block
                 </Button>
-                <Button size="sm" onClick={() => void install()} disabled={busy}>
+                <Button
+                  size="sm"
+                  onClick={() => void install()}
+                  disabled={busy || ticked.length === 0}
+                >
                   {busy ? 'Working…' : 'Install anyway'}
                 </Button>
               </div>
@@ -376,6 +494,18 @@ const CHANGE_LABEL = {
   kept_edited: 'Kept (old name, edited locally)',
 } as const;
 
+/** A file's extra words in the summary: its note, or which part Docket touched. */
+function fileNote(f: { path: string; note?: string }): string | null {
+  if (f.note) return f.note;
+  if (/(^|\/)(CLAUDE|AGENTS)\.md$/.test(f.path)) return 'its Docket section only';
+  if (/(^|\/)(\.mcp\.json|config\.toml)$/.test(f.path)) return 'its docket server entry only';
+  return null;
+}
+
+/**
+ * The one summary after *Install* (decision 34): each client's files, what
+ * changed in each (push) or what the command will write, then the command.
+ */
 function InstallResult({
   result,
   target,
@@ -385,32 +515,56 @@ function InstallResult({
   target: InstallTargetKind;
   path: string;
 }) {
-  if (result.result) {
+  const push = !!result.result;
+  const perClient = (
+    <div className="inresult" data-install-summary="">
+      {result.clients.map((c) => (
+        <section key={c.client} data-install-summary-client={c.client}>
+          <h3 className="inresulthead">
+            {INSTALL_CLIENT_LABELS[c.client]}{' '}
+            <span className="src">
+              · {plural(c.files.length, 'file')}
+              {push ? ' written' : ' to write'}
+            </span>
+          </h3>
+          <ul className="inchanges" aria-label={`${INSTALL_CLIENT_LABELS[c.client]} files`}>
+            {c.files.map((f) => {
+              const note = fileNote(f);
+              return (
+                <li key={f.path}>
+                  {f.change && (
+                    <>
+                      <Chip
+                        kind={
+                          f.change === 'unchanged'
+                            ? 'neutral'
+                            : f.change === 'kept_edited'
+                              ? 'warn'
+                              : 'ok'
+                        }
+                      >
+                        {CHANGE_LABEL[f.change]}
+                      </Chip>{' '}
+                    </>
+                  )}
+                  <span className="mono">{f.path}</span>
+                  {note && <span className="src"> ({note})</span>}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ))}
+    </div>
+  );
+  if (push) {
     return (
-      <div data-install-result="push">
+      <div data-install-result="push" className="inform">
         <Callout tone="ok" role="status">
-          Installed. Logged in the install log with every file’s version.
+          Installed {result.clients.map((c) => INSTALL_CLIENT_LABELS[c.client]).join(' and ')}.
+          Logged in the install log with every file’s version.
         </Callout>
-        <ul className="inchanges" aria-label="What changed">
-          {result.result.files.map((f) => (
-            <li key={f.path}>
-              <Chip
-                kind={
-                  f.change === 'unchanged' ? 'neutral' : f.change === 'kept_edited' ? 'warn' : 'ok'
-                }
-              >
-                {CHANGE_LABEL[f.change]}
-              </Chip>{' '}
-              <span className="mono">{f.path}</span>
-              {/(^|\/)(CLAUDE|AGENTS)\.md$/.test(f.path) && (
-                <span className="src"> (its Docket section only)</span>
-              )}
-              {/(^|\/)(\.mcp\.json|config\.toml)$/.test(f.path) && (
-                <span className="src"> (its docket server entry only)</span>
-              )}
-            </li>
-          ))}
-        </ul>
+        {perClient}
       </div>
     );
   }
@@ -424,7 +578,11 @@ function InstallResult({
       )}
       <div className="src">
         Works once, until {result.expires_at ? formatClock(result.expires_at) : 'it expires'} (10
-        minutes). The install is logged when the command downloads the files.
+        minutes).{' '}
+        {result.clients.length > 1
+          ? `It installs ${result.clients.map((c) => INSTALL_CLIENT_LABELS[c.client]).join(' and ')}, checking both first. `
+          : ''}
+        The install is logged when the command downloads the files.
       </div>
       {result.command && (
         <>
@@ -440,10 +598,191 @@ function InstallResult({
           />
         </>
       )}
+      {perClient}
       <div className="src">
         Later, the install log’s <b>Check command</b> shows whether these files were edited.
       </div>
     </div>
+  );
+}
+
+// ---- Install state (decision 34) ----
+
+/**
+ * Each client's install state, on Agent files (UI_SPEC §6.7b): one row per
+ * client with its state and the one action that fits it. *Install*,
+ * *Update* and *Reinstall* open the Install dialog with that client ticked;
+ * *Check* runs the push check (or shows the check command); *Review changes*
+ * goes to the drift section above.
+ */
+export function InstallStateCard({
+  project,
+  projectName,
+  onInstall,
+}: {
+  project: string | null;
+  projectName: string | null;
+  onInstall: (client: InstallClient) => void;
+}) {
+  const state = useInstallState(project);
+  return (
+    <Card data-install-state="">
+      <CardHeader
+        title={
+          <span className="withhelp">
+            {project
+              ? `Installed in ${possessive(projectName ?? project)} repo`
+              : 'Installed user-wide'}
+            <HelpLink anchor="agent-files.install-state" />
+          </span>
+        }
+      />
+      <QueryState
+        query={state}
+        skeleton={
+          <div className="pad">
+            <Skeleton lines={2} label="Loading what’s installed" />
+          </div>
+        }
+      >
+        {(d) => (
+          <ul className="instates" aria-label="Install state">
+            {d.clients.map((c) => (
+              <InstallStateRow key={c.client} row={c} project={project} onInstall={onInstall} />
+            ))}
+          </ul>
+        )}
+      </QueryState>
+    </Card>
+  );
+}
+
+function InstallStateRow({
+  row,
+  project,
+  onInstall,
+}: {
+  row: InstallStateResponse['clients'][number];
+  project: string | null;
+  onInstall: (client: InstallClient) => void;
+}) {
+  const navigate = useNavigate();
+  const [check, setCheck] = useState<InstallCheckResponse | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [showCmd, setShowCmd] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const view = INSTALL_STATE_VIEW[row.state];
+  const install = row.install;
+  const label = INSTALL_CLIENT_LABELS[row.client];
+  const runCheck = async () => {
+    if (!install) return;
+    if (install.method !== 'push') {
+      setShowCmd(!showCmd);
+      return;
+    }
+    setChecking(true);
+    setError(null);
+    try {
+      setCheck(await apiClient['installs.check']({ params: { id: install.id } }));
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setChecking(false);
+    }
+  };
+  const review = () => {
+    const el = document.getElementById('drift');
+    if (el) {
+      el.scrollIntoView({ block: 'start' });
+      el.focus();
+    } else void navigate(`${paths.agentFiles({ project: project ?? 'all' })}#drift`);
+  };
+  const at = install ? (install.token_used_at ?? install.at) : null;
+  const cmds = install
+    ? checkCommands({
+        client: install.client,
+        target_kind: install.target_kind,
+        path: install.path,
+      })
+    : null;
+  return (
+    <li data-install-state-row={row.client} data-state={row.state}>
+      <div className="row wrap inrow">
+        <span className="instatename">{label}</span>
+        <Chip kind={view.kind}>{view.label}</Chip>
+        <span className="src">
+          {row.state === 'update_available' &&
+            `${plural(row.outdated.length, 'file')} newer in Docket · `}
+          {row.state === 'changed' && `${plural(row.drift_ids.length, 'file')} changed · `}
+          {install && at ? (
+            <>
+              {install.method === 'push' ? 'pushed' : 'installed by command'}{' '}
+              <span title={isoTitle(at)}>{formatStamp(at)}</span>
+              {install.path && <span className="mono"> {install.path}</span>}
+            </>
+          ) : (
+            'Nothing installed yet'
+          )}
+        </span>
+        <span className="grow" />
+        {row.state === 'up_to_date' && (
+          <>
+            <Button
+              size="sm"
+              onClick={() => void runCheck()}
+              disabled={checking}
+              aria-expanded={install?.method === 'push' ? undefined : showCmd}
+              aria-label={`Check ${label}`}
+            >
+              {checking ? 'Checking…' : 'Check'}
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => onInstall(row.client)}
+              aria-label={`Reinstall ${label}`}
+            >
+              Reinstall
+            </Button>
+          </>
+        )}
+        {row.state === 'update_available' && (
+          <Button
+            size="sm"
+            variant="primary"
+            onClick={() => onInstall(row.client)}
+            aria-label={`Update ${label}`}
+          >
+            Update
+          </Button>
+        )}
+        {row.state === 'changed' && (
+          <Button size="sm" onClick={review} aria-label={`Review changes to ${label}`}>
+            Review changes
+          </Button>
+        )}
+        {row.state === 'not_installed' && (
+          <Button size="sm" onClick={() => onInstall(row.client)} aria-label={`Install ${label}`}>
+            Install
+          </Button>
+        )}
+      </div>
+      {showCmd && cmds && (
+        <div className="indetail">
+          <div className="src">
+            Run one where {label}’s files were installed. It lists files edited locally, missing or
+            extra, each with the version Docket sent.
+          </div>
+          <CopyBlock text={cmds.powershell} label="PowerShell" what="PowerShell check command" />
+          <CopyBlock text={cmds.bash} label="bash" what="bash check command" />
+        </div>
+      )}
+      {error && (
+        <Callout tone="bad" role="alert">
+          {error}
+        </Callout>
+      )}
+      {check && install && <CheckResult row={install} check={check} />}
+    </li>
   );
 }
 

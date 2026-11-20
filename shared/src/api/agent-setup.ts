@@ -22,6 +22,7 @@ import {
   INSTALL_FILE_CHANGES,
   INSTALL_METHODS,
   INSTALL_TARGET_KINDS,
+  type InstallClient,
 } from '../enums.js';
 import { objectId, projectKey, text } from '../mcp/common.js';
 import { expectedVersion, input, jsonResponse, noInput, ownerMutationOutput } from './common.js';
@@ -257,7 +258,15 @@ export type PutWorkflowResponse = z.infer<typeof putWorkflowResponse>;
 // ---- POST /api/installs ----
 
 export const createInstallBody = input({
-  client: z.enum(INSTALL_CLIENTS),
+  /** One client: the original form (B21), still accepted. */
+  client: z.enum(INSTALL_CLIENTS).optional(),
+  /** Several clients in one install (decision 34): each gets its files, manifest and log row. */
+  clients: z
+    .array(z.enum(INSTALL_CLIENTS))
+    .min(1)
+    .max(INSTALL_CLIENTS.length)
+    .refine((v) => new Set(v).size === v.length, { error: 'lists a client twice' })
+    .optional(),
   target_kind: z.enum(INSTALL_TARGET_KINDS),
   /** The project whose effective files to install; omitted for the service-wide set. */
   project: projectKey.optional(),
@@ -268,16 +277,56 @@ export const createInstallBody = input({
   if (v.method === 'push' && v.path === undefined) {
     ctx.addIssue({ code: 'custom', path: ['path'], message: 'is required for method push' });
   }
+  if ((v.client === undefined) === (v.clients === undefined)) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['clients'],
+      message: 'pass client or clients (one of the two)',
+    });
+  }
 });
-export const createInstallResponse = jsonResponse({
+
+/** The clients an install body names, in the order they're installed (Claude Code first). */
+export function installClientsOf(body: {
+  client?: InstallClient | undefined;
+  clients?: readonly InstallClient[] | undefined;
+}): InstallClient[] {
+  const named = body.clients ?? (body.client ? [body.client] : []);
+  return INSTALL_CLIENTS.filter((c) => named.includes(c));
+}
+
+/**
+ * One client's part of an install (decision 34): its own install ID, and the
+ * files it wrote (push, each with what changed) or will write (command, no
+ * change yet). `note` explains a file Docket wrote in a special way, such as a
+ * new CLAUDE.md that imports AGENTS.md.
+ */
+export const installClientResultSchema = z.object({
+  client: z.enum(INSTALL_CLIENTS),
   install_id: z.string(),
+  files: z.array(
+    z.object({
+      path: z.string(),
+      change: z.enum(INSTALL_FILE_CHANGES).optional(),
+      note: z.string().optional(),
+    }),
+  ),
+  /** Command installs: this client's check one-liners. */
+  check_command: shellCommandsSchema.optional(),
+});
+export type InstallClientResult = z.infer<typeof installClientResultSchema>;
+export const createInstallResponse = jsonResponse({
+  /** The first client's install ID (the single-client form's only one). */
+  install_id: z.string(),
+  /** Every client's part, in install order: the one summary the dialog shows (decision 34). */
+  clients: z.array(installClientResultSchema),
   /** Command installs: the one-liners that download `GET /install/:token` and unpack it. */
   command: shellCommandsSchema.optional(),
-  /** Command installs: hashes the local files against the manifest and prints the differences. */
+  /** Command installs: the first client's check (each client's is in `clients`). */
   check_command: shellCommandsSchema.optional(),
   /** Command installs: when the token stops working. */
   expires_at: z.string().optional(),
-  /** Push installs: what was written. */
+  /** Push installs: what was written, every client's files together. */
   result: z
     .object({
       files: z.array(z.object({ path: z.string(), change: z.enum(INSTALL_FILE_CHANGES) })),
@@ -316,6 +365,58 @@ export const installCheckResponse = jsonResponse({
   ),
 });
 export type InstallCheckResponse = z.infer<typeof installCheckResponse>;
+
+// ---- GET /api/install-state?project&path ----
+
+/**
+ * Install state per client (decision 34; UI_SPEC §6.7b), computed from the
+ * latest install's manifest and the open drift records: nothing new is stored.
+ * - `not_installed`: no push install, and no command install downloaded;
+ * - `changed`: open drift on that install ("Changed outside Docket");
+ * - `update_available`: a file Docket would install now differs from the
+ *   version sent (newer bundled skills, an edit, a new or removed skill, or
+ *   another trust mode for the connection file);
+ * - `up_to_date`.
+ */
+export const INSTALL_STATES = [
+  'not_installed',
+  'up_to_date',
+  'update_available',
+  'changed',
+] as const;
+export type InstallState = (typeof INSTALL_STATES)[number];
+
+export const installStateQuery = input({
+  /** A project's repo installs; omitted: user-wide. */
+  project: projectKey.optional(),
+  /** The repo folder, to look for client markers when it's inside the push folder. */
+  path: text(AGENT_SETUP_LIMITS.install_path).optional(),
+});
+export const installStateResponse = jsonResponse({
+  project: z.string().nullable(),
+  target_kind: z.enum(INSTALL_TARGET_KINDS),
+  clients: z.array(
+    z.object({
+      client: z.enum(INSTALL_CLIENTS),
+      state: z.enum(INSTALL_STATES),
+      /** The latest install the state is based on; null when not installed. */
+      install: installRowSchema.nullable(),
+      /** `update_available`: the keys whose version differs, or that were added or removed. */
+      outdated: z.array(z.string()),
+      /** `changed`: the open drift records (Agent files → Changed outside Docket). */
+      drift_ids: z.array(z.string()),
+      /** The folder has this client's markers; null when Docket can't see the folder. */
+      markers: z.boolean().nullable(),
+    }),
+  ),
+  /**
+   * The clients the Install dialog ticks: those the folder has markers for
+   * (`.claude/`, `CLAUDE.md`; `.codex/`, `.agents/`, `AGENTS.md`) or that are
+   * installed, else both.
+   */
+  defaults: z.array(z.enum(INSTALL_CLIENTS)),
+});
+export type InstallStateResponse = z.infer<typeof installStateResponse>;
 
 // ---- GET /api/push-target, POST /api/push-target/test ----
 
@@ -413,6 +514,15 @@ export const agentSetupRoutes = {
     query: installsQuery,
     body: null,
     response: json(installsResponse),
+  }),
+  'installs.state': route({
+    method: 'GET',
+    path: '/api/install-state',
+    group: 'setup',
+    params: noInput,
+    query: installStateQuery,
+    body: null,
+    response: json(installStateResponse),
   }),
   'installs.check': route({
     method: 'POST',

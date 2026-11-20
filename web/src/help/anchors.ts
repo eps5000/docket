@@ -46,6 +46,7 @@ export const HELP_ANCHORS = {
   'agent-files.page': 'Agent files: next to the h1',
   'agent-files.workflow': 'Agent files (one project): the Workflow notes card',
   'agent-files.install-log': 'Agent files: the install log',
+  'agent-files.install-state': 'Agent files: the install state card (decision 34)',
   'settings.push-folder': 'Settings → One-click install: the push folder card',
   'jira.import': 'Settings → Projects → Import from Jira (the dialog)',
   'settings.new-project': 'Settings → Projects → New project: "Onboard it with an agent"',

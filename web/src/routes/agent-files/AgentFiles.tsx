@@ -2,7 +2,13 @@ import { NoProjectsPointer } from '../needs-you/Welcome';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
-import { AGENT_FILE_KEY_RE, PROJECT_KEY_RE, type AgentFileRow, type Drift } from '@docket/shared';
+import {
+  AGENT_FILE_KEY_RE,
+  PROJECT_KEY_RE,
+  type AgentFileRow,
+  type Drift,
+  type InstallClient,
+} from '@docket/shared';
 import { Button, Card, Chip, EmptyState, Icon, Skeleton } from '../../components/kit';
 import { QueryState } from '../../app/QueryState';
 import { apiClient } from '../../app/queryClient';
@@ -13,7 +19,7 @@ import { queryKeys } from '../../lib/api';
 import { formatAgo, isoTitle } from '../../lib/format';
 import { paths } from '../../lib/paths';
 import { AgentFileView, type FileViewMode } from './AgentFileView';
-import { InstallDialog, InstallLog, SetUpPushLink } from './AgentInstall';
+import { InstallDialog, InstallLog, InstallStateCard, SetUpPushLink } from './AgentInstall';
 import { usePushTarget } from './install-common';
 import { kindLabel, possessive, rowCopyOutdated, rowDefaultOutdated } from './model';
 import { DriftChip, DriftSection, driftCounts, useOpenDrift } from './Drift';
@@ -49,7 +55,8 @@ export function AgentFiles() {
   const location = useLocation();
   const navigate = useNavigate();
   const boot = useBootstrap();
-  const [installing, setInstalling] = useState(false);
+  /** The Install dialog: open with no client (the defaults) or the state row's client. */
+  const [installing, setInstalling] = useState<{ client?: InstallClient } | null>(null);
 
   const rawProject = params.get('project');
   const fromUrl =
@@ -112,7 +119,7 @@ export function AgentFiles() {
           <HelpLink anchor="agent-files.page" />
         </div>
         <span className="grow" />
-        <Button variant="primary" icon="upload" onClick={() => setInstalling(true)}>
+        <Button variant="primary" icon="upload" onClick={() => setInstalling({})}>
           {project ? `Install into ${possessive(projectName!)} repo` : 'Install user-wide'}
         </Button>
       </div>
@@ -184,13 +191,20 @@ export function AgentFiles() {
         />
       )}
 
+      <InstallStateCard
+        project={project}
+        projectName={projectName}
+        onInstall={(client) => setInstalling({ client })}
+      />
+
       <InstallLog project={project} projectName={projectName} />
 
       {installing && (
         <InstallDialog
           project={project}
           projectName={projectName}
-          onClose={() => setInstalling(false)}
+          {...(installing.client ? { initialClients: [installing.client] } : {})}
+          onClose={() => setInstalling(null)}
         />
       )}
     </div>

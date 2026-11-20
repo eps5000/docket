@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { AgentFileDetail, AgentFileRow, PushTargetResponse } from '@docket/shared';
 import {
+  INSTALL_STATE_VIEW,
+  installButtonLabel,
   copyOutdated,
   defaultAt,
   defaultOf,
@@ -201,5 +203,17 @@ describe('the Workflow notes starter', () => {
     expect(WORKFLOW_STARTER).toContain('Only the owner moves items to Ready.');
     expect(WORKFLOW_STARTER).not.toContain('{{');
     expect(WORKFLOW_STARTER.length).toBeLessThan(10_000);
+  });
+});
+
+describe('install state (decision 34)', () => {
+  it('labels each state, and never offers a plain Install for an installed client', () => {
+    expect(INSTALL_STATE_VIEW.update_available.label).toBe('Installed · update available');
+    expect(installButtonLabel(['not_installed', 'not_installed'])).toBe('Install');
+    expect(installButtonLabel(['up_to_date'])).toBe('Reinstall');
+    expect(installButtonLabel(['changed'])).toBe('Reinstall');
+    expect(installButtonLabel(['update_available', 'up_to_date'])).toBe('Update and reinstall');
+    expect(installButtonLabel(['not_installed', 'update_available'])).toBe('Install and update');
+    expect(installButtonLabel([undefined])).toBe('Install');
   });
 });

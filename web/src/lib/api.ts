@@ -325,6 +325,12 @@ export const queryKeys = {
   /** One file's view: every layer and its history. */
   agentFile: (key: string, query: RouteQueryInput<'agentFiles.get'> = {}) =>
     [ROOT, 'agentFiles', key, query] as const,
+  /**
+   * Each client's install state (decision 34): in the agentFiles family, so edits
+   * and drift refresh it, and installs too (install.recorded).
+   */
+  installState: (query: RouteQueryInput<'installs.state'> = {}) =>
+    [ROOT, 'agentFiles', 'install-state', query] as const,
   workflow: (project: string) => [ROOT, 'workflow', project] as const,
   installs: (query: RouteQueryInput<'installs.list'> = {}) => [ROOT, 'installs', query] as const,
   pushTarget: () => [ROOT, 'pushTarget'] as const,
@@ -411,7 +417,8 @@ export const INVALIDATION: Record<EventType, readonly QueryFamily[]> = {
   'agent_file.updated': ['agentFiles'],
   'agent_file.reverted': ['agentFiles'],
   'workflow.updated': ['workflow'],
-  'install.recorded': ['installs'],
+  // Decision 34: an install also changes each client's install state (agentFiles family).
+  'install.recorded': ['installs', 'agentFiles'],
   // Proposals and drift (decision 30). A proposal shows on Agent files and as the
   // Needs you line; deciding one changes the file or the Workflow notes. Drift is
   // a Problems row (counted in the sidebar) and a run's "edited locally" chip.

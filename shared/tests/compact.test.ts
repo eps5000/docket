@@ -760,6 +760,43 @@ const SAMPLES: Record<ToolName, { result: unknown; args?: Record<string, unknown
     },
   },
   get_step: { result: GET_STEP_RESULT, args: { id: 'RCP-14', step_id: 'wst_b' } },
+  apply_batch: {
+    result: {
+      applied: 2,
+      failed: 1,
+      results: [
+        {
+          index: 1,
+          op: 'create_item',
+          ok: true,
+          id: 'GF-31',
+          version: 1,
+          text: 'Created GF-31 Checkout · planning · v1',
+        },
+        {
+          index: 2,
+          op: 'update_item',
+          ok: true,
+          id: 'GF-12',
+          version: 4,
+          text: "Updated GF-12 · acceptance · v4\n! GF-99 doesn't exist",
+          warnings: ["GF-99 doesn't exist"],
+        },
+        {
+          index: 3,
+          op: 'put_document',
+          ok: false,
+          id: null,
+          version: null,
+          text: 'Looks like a secret (GitHub token); remove it and retry.',
+          error: {
+            code: 'validation',
+            message: 'Looks like a secret (GitHub token); remove it and retry.',
+          },
+        },
+      ],
+    },
+  },
 };
 
 describe('every tool has a renderer', () => {
@@ -777,8 +814,10 @@ describe('every tool has a renderer', () => {
   });
 
   it('mutation results stay within the 60-token budget (characters ÷ 4)', () => {
-    // onboard_project is exempt: its text carries the whole guide (MCP_SPEC §3.2; B29).
-    for (const tool of TOOLS.filter((t) => t.kind === 'mutating' && t.name !== 'onboard_project')) {
+    // onboard_project is exempt: its text carries the whole guide (MCP_SPEC §3.2; B29), and
+    // apply_batch one line per operation (its own budget, 30 + 25 per operation; B36).
+    const exempt = ['onboard_project', 'apply_batch'];
+    for (const tool of TOOLS.filter((t) => t.kind === 'mutating' && !exempt.includes(t.name))) {
       const sample = SAMPLES[tool.name];
       const text = renderResult(tool.name, sample.result, { args: sample.args, ...opts });
       expect(Math.ceil(text.length / 4), `${tool.name}: ${text}`).toBeLessThanOrEqual(60);

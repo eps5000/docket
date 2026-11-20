@@ -1107,6 +1107,19 @@ const RENDERERS: { [N in ToolName]: Renderer<N> } = {
     }
     return lines.join('\n');
   },
+  // Decision 34 (MCP_SPEC §5.13): one line per operation, in order: its single call's
+  // compact line, or the error; warnings indented under it.
+  apply_batch: (r) =>
+    [
+      s('apply_batch', { applied: r.applied, failed: r.failed, total: r.results.length }),
+      ...r.results.map((x) => {
+        const [first = '', ...rest] = x.text.split('\n');
+        const head = x.ok
+          ? `#${x.index} ${first}`
+          : `#${x.index} failed ${x.op} · ${x.error?.code ?? 'error'}: ${truncate(first)}`;
+        return [head, ...rest.map((l) => `${I1}${l}`)].join('\n');
+      }),
+    ].join('\n'),
 };
 
 /** The compact text block for a tool's successful result. */

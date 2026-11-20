@@ -7,6 +7,7 @@ anchors:
   - agent-files.page
   - agent-files.workflow
   - agent-files.install-log
+  - agent-files.install-state
   - settings.push-folder
   - problems.agent_files_drift
 related:
@@ -125,7 +126,7 @@ Agents only follow the files once they're in the right folder. With a project se
 
 In the dialog:
 
-1. **Client:** *Claude Code* or *Codex*.
+1. **Clients:** tick *Claude Code*, *Codex*, or both; one install writes every client you tick. Each shows its state there (see **What's installed**). Docket ticks the clients the repo already has signs of (`.claude/` or `CLAUDE.md` for Claude Code; `.codex/`, `.agents/` or `AGENTS.md` for Codex), and both when it finds none or can't see the folder. Clients already installed are ticked too.
 2. **Repo folder** (repo installs): the repo's folder on your computer, like `C:/Users/you/code/recipes`. Docket fills in the folder from the project's last install.
 3. The method is chosen for you:
    - **Docket writes the files into this folder itself** when a push folder is set up and the folder is inside it. *Copy a command instead* switches to a command.
@@ -139,6 +140,8 @@ In the dialog:
 | The AGENTS.md block | `CLAUDE.md` (user-wide: `~/.claude/CLAUDE.md`) | `AGENTS.md` (user-wide: `~/.codex/AGENTS.md`) |
 | The manifest | `.claude/.docket-manifest.json` | `.codex/.docket-manifest.json` |
 
+**CLAUDE.md reads AGENTS.md:** when the repo has an `AGENTS.md` but no `CLAUDE.md`, the Claude Code install creates `CLAUDE.md` starting with the line `@AGENTS.md`, then the Docket section, so Claude agents also follow the project's own rules. The line sits outside the Docket section, so checks never count it, and Docket never adds it to a `CLAUDE.md` that already exists.
+
 In `CLAUDE.md` or `AGENTS.md`, only the Docket section between `<!-- docket:begin -->` and `<!-- docket:end -->` is touched. If the file has no such section, it's added at the end; everything else in the file stays exactly as it is. A file whose markers are damaged (one missing, or repeated) is left alone, and the install stops and says so. Nothing is ever deleted.
 
 The manifest records the install, and every file's version and fingerprint, so a later check can tell what changed.
@@ -147,7 +150,7 @@ The manifest records the install, and every file's version and fingerprint, so a
 
 ### When Docket writes the files
 
-*Install* writes them into the **Repo folder** and lists each one as **Created**, **Updated** or **Unchanged**.
+The button says what happens: *Install* for clients not installed yet, *Update* when Docket has newer files, *Reinstall* when they're up to date (or were changed outside Docket), or both words when the ticked clients differ, like *Install and update*. It writes every ticked client into the **Repo folder**, checking all of them first, so a damaged file stops the install before anything is written. Then one summary lists each client's files as **Created**, **Updated** or **Unchanged**.
 
 ### By command
 
@@ -156,6 +159,18 @@ The manifest records the install, and every file's version and fingerprint, so a
 - **Run from the repo folder** (when you left the folder empty): open a terminal in the repo, then paste one. It refuses a folder without `.git`, before it downloads anything. A user-wide command runs anywhere and installs into your home folder.
 - The command downloads the files from Docket, puts them in place and fills in the Docket section. It needs nothing else installed.
 - It works **once**, for **10 minutes**. If it says *Docket refused the download*, make a new one.
+- With both clients ticked, one command installs both, checking both first. The summary under it lists the files each client gets.
+
+## What's installed
+
+**Installed in Recipe App's repo** (or **Installed user-wide** with **All projects**), above the install log, shows each client's state there, and the Install dialog shows the same next to each client:
+
+- **Installed · up to date:** the files match what Docket would install now. *Check* compares them with the repo (or gives the check command for a command install); *Reinstall* writes them again.
+- **Installed · update available:** Docket would now install something newer: a new version it shipped, your edit of the default or the project's copy, a skill added or removed, or another trust mode for the connection file. *Update* opens the dialog with that client ticked.
+- **Changed outside Docket:** a file there was edited, deleted or added (see **Changed outside Docket** above). *Review changes* takes you to it, to adopt, restore or keep it.
+- **Not installed:** nothing installed by push, and no command run. *Install* opens the dialog with that client ticked.
+
+The state comes from the latest install's versions and the change checks, so it's as current as the last scheduled check or agent report for a command install.
 
 ## The install log and Check
 

@@ -178,6 +178,22 @@ describe('reads', () => {
     within('finish_onboarding', done.text, 60);
   });
 
+  it('apply_batch with 100 operations ≤ 30 + 25 per operation (decision 34; MCP_SPEC §5.13)', async () => {
+    // One line per operation: 100 creates, each the single call's compact line.
+    const operations = Array.from({ length: 100 }, (_, i) => ({
+      op: 'create_item',
+      args: {
+        project: 'RCP',
+        type: 'Task',
+        title: `Onboarded task ${i + 1} from specs/001-checkout/tasks.md`,
+        status: 'planning',
+      },
+    }));
+    const r = expectOk(await h.call('apply_batch', { operations }));
+    expect(r.structured).toMatchObject({ applied: 100, failed: 0 });
+    within('apply_batch, 100 create_item operations', r.text, 30 + 25 * 100);
+  });
+
   it('search_items with 25 results ≤ 1,000', async () => {
     const r = expectOk(await h.call('search_items', { limit: 25 }));
     expect((r.structured.items as unknown[]).length).toBe(25);

@@ -184,6 +184,8 @@ describe('the service stubs', () => {
       'markDownloaded',
       'pushTarget',
       'testPushTarget',
+      // Decision 34 (B36, T175): install state.
+      'state',
     ],
     // US14 (B27a, T160): proposals.
     agentProposals: ['files', 'propose', 'list', 'approve', 'decline'],

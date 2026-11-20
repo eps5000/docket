@@ -381,7 +381,7 @@ describe('agent setup (decision 29; BUILD_SPEC §5.17, §7)', () => {
       }),
     ).toEqual([['docket', 'agentFiles']]);
     expect(INVALIDATION['workflow.updated']).toEqual(['workflow']);
-    expect(INVALIDATION['install.recorded']).toEqual(['installs']);
+    expect(INVALIDATION['install.recorded']).toEqual(['installs', 'agentFiles']);
   });
 });
 

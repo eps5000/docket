@@ -4,6 +4,8 @@ You turn the repo's planning into Docket items the owner can review. Work throug
 
 Keep the `session_id` from `onboard_project`. Pass `idempotency_key` on every create so a retry can't duplicate.
 
+**Batch your writes.** Send creates, enrichments, links and documents with `apply_batch`: up to 100 operations a call, each with the same arguments as its own tool. Each is checked and applied on its own, so read every result, fix the failures and resend only those. `"$1"` stands for the ID operation 1 created, such as an epic for its items. Pass `idempotency_key` on each batch. Never script a second connection.
+
 ## 1. Survey (read only)
 Read these if they exist, and note each one's path:
 - Spec Kit: `specs/*/spec.md`, `plan.md`, `tasks.md`, and the constitution (`.specify/memory/constitution.md`).
@@ -18,7 +20,8 @@ The project may already hold items, from a Jira import or an earlier onboarding.
 1. Jira key in the text (like `GF-12`): `search_items {project: "{{KEY}}", text: "GF-12"}`, then confirm with `get_item {view: "summary"}` that its `jira` matches exactly.
 2. No key: search by the title's distinctive words, then by the source path. A match is the same work, even if worded differently.
 3. On a match, enrich it, never duplicate: `update_item` with what's missing (acceptance, outcome, labels, epic) and a description that keeps the existing text and adds `Source: <path>`. Leave its status alone.
-4. Not sure it's the same work: don't merge. Create it, and `link_items {type: "relates"}` to the candidate.
+4. Jira sub-tasks were imported as work steps on their parent (the step's `source` is the key). When a unit matches one, add to that step's details with `update_step` or `set_plan`: keep the current details at the start, then add `Source: <path>` and what the repo says. Don't create an item for it.
+5. Not sure it's the same work: don't merge. Create it, and `link_items {type: "relates"}` to the candidate.
 
 ## 3. Create the rest
 Everything goes in `status: "planning"` (or `inbox` when it's only an idea).

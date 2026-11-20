@@ -42,6 +42,7 @@ import {
   DOCKET_BEGIN,
   DOCKET_END,
   INSTALL_CLIENT_LABELS,
+  IMPORT_AGENTS_LINE,
   INSTALL_MANIFEST_NAME,
   type InstallClient,
   LEGACY_BEGIN,
@@ -62,7 +63,12 @@ function checkSafe(...paths: string[]): void {
  * @param instructions the instructions file, relative to the base.
  * @param dir the client's folder, relative to the base (`.claude`, `.codex`).
  */
-export function installSh(instructions: string, dir: string, client: InstallClient): string {
+export function installSh(
+  instructions: string,
+  dir: string,
+  client: InstallClient,
+  importAgents = false,
+): string {
   checkSafe(instructions, dir);
   const leftovers = [LEGACY_MANIFEST_NAME, ...LEGACY_CHECK_SCRIPTS].join(' ');
   const conn = CONNECTION_FILES[client];
@@ -138,6 +144,8 @@ if [ -f "$ctx" ] && [ -f "$cf" ]; then
       exit 1 ;;
   esac
 fi
+# A multi-client bundle checks every client before any of them writes (decision 34).
+if [ "\${DOCKET_CHECK_ONLY:-}" = 1 ]; then exit 0; fi
 
 # 2. Old skill folders an earlier install recorded: removed after the copy while
 # unmodified (only SKILL.md, matching the recorded hash); an edited one is kept.
@@ -193,8 +201,18 @@ $blk
 $E"
 if [ ! -f "$instr" ]; then
   mkdir -p "$(dirname "$instr")"
-  printf '%s\\n' "$sec" > "$instr"
-  echo "  created ${instructions} with the Docket section"
+${
+  importAgents
+    ? `  if [ -f "$base/AGENTS.md" ]; then
+    printf '%s\\n\\n%s\\n' '${IMPORT_AGENTS_LINE}' "$sec" > "$instr"
+    echo "  created ${instructions} starting with ${IMPORT_AGENTS_LINE}, so Claude Code also reads the repo's AGENTS.md, then the Docket section"
+  else
+    printf '%s\\n' "$sec" > "$instr"
+    echo "  created ${instructions} with the Docket section"
+  fi`
+    : `  printf '%s\\n' "$sec" > "$instr"
+  echo "  created ${instructions} with the Docket section"`
+}
 elif [ "$had" = yes ]; then
   printf '%s' "\${old%%"$mb"*}$sec$post" > "$instr"
   if [ "$legacy" = yes ]; then
@@ -275,7 +293,12 @@ echo "Done: Docket agent files installed in $base"
  * @param instructions the instructions file, relative to the base.
  * @param dir the client's folder, relative to the base (`.claude`, `.codex`).
  */
-export function installPs1(instructions: string, dir: string, client: InstallClient): string {
+export function installPs1(
+  instructions: string,
+  dir: string,
+  client: InstallClient,
+  importAgents = false,
+): string {
   checkSafe(instructions, dir);
   const leftovers = [LEGACY_MANIFEST_NAME, ...LEGACY_CHECK_SCRIPTS].map((n) => `'${n}'`).join(', ');
   const conn = CONNECTION_FILES[client];
@@ -286,7 +309,7 @@ export function installPs1(instructions: string, dir: string, client: InstallCli
 # Nothing outside the markers changes. The only thing it deletes is an old
 # ${LEGACY_SKILL_PREFIX}* skill folder that an earlier install recorded, and only
 # while it is unmodified.
-param([string]$Here, [string]$Base)
+param([string]$Here, [string]$Base, [string]$Mode)
 $ErrorActionPreference = 'Stop'
 $Base = (Resolve-Path -LiteralPath $Base).ProviderPath
 $enc = [Text.Encoding]::GetEncoding(28591)
@@ -335,6 +358,8 @@ if ((Test-Path -LiteralPath $ctx -PathType Leaf) -and (Test-Path -LiteralPath $c
     throw "Docket: ${conn} isn't valid ${json ? 'JSON' : 'TOML'} ($($cr.error)). Fix it, then make a new install command. Nothing was written."
   }
 }
+# A multi-client bundle checks every client before any of them writes (decision 34).
+if ($Mode -ceq 'check') { return }
 
 # 2. Old skill folders an earlier install recorded: removed after the copy while
 # unmodified (only SKILL.md, matching the recorded hash); an edited one is kept.
@@ -396,7 +421,15 @@ if ($null -eq $old) {
   $dir = Split-Path -Parent $instr
   if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
   $new = $sec + "\`n"; $msg = 'created ${instructions} with the Docket section'
-} elseif ($at -ge 0) {
+${
+  importAgents
+    ? `  if (Test-Path -LiteralPath (Join-Path $Base 'AGENTS.md') -PathType Leaf) {
+    $new = '${IMPORT_AGENTS_LINE}' + "\`n\`n" + $sec + "\`n"
+    $msg = "created ${instructions} starting with ${IMPORT_AGENTS_LINE}, so Claude Code also reads the repo's AGENTS.md, then the Docket section"
+  }
+`
+    : ''
+}} elseif ($at -ge 0) {
   $new = $old.Substring(0, $at) + $sec + $old.Substring($to + $me.Length)
   if ($legacy) { $msg = 'replaced the old tasklite section of ${instructions} with the Docket section (nothing else changed)' }
   else { $msg = 'replaced the Docket section of ${instructions} (nothing else changed)' }
@@ -440,5 +473,47 @@ ${
   "Then open ${label} in this repo and approve Docket when it asks."
 }
 "Done: Docket agent files installed in $Base"
+`;
+}
+
+/**
+ * A multi-client bundle's install step (decision 34): each client's own step
+ * sits in `docket-install/<client>/`. The wrapper first runs every client's
+ * checks (markers, connection file) without writing, then each install in
+ * turn, Claude Code first, so a new CLAUDE.md sees whether the repo had
+ * AGENTS.md before this install. The command runs it like a single step.
+ */
+export function installWrapperSh(clients: readonly InstallClient[]): string {
+  const list = clients.join(' ');
+  return `#!/usr/bin/env bash
+# Docket install step for several clients (Agent files): checks every client
+# first, so a damaged file stops the install before anything is written.
+set -eu
+here=$(cd "$(dirname "$0")" && pwd)
+for c in ${list}; do
+  DOCKET_CHECK_ONLY=1 bash "$here/$c/install.sh" "$1" > /dev/null
+done
+${clients
+  .map((c) => `echo "${INSTALL_CLIENT_LABELS[c]}:"\nbash "$here/${c}/install.sh" "$1"`)
+  .join('\n')}
+`;
+}
+
+/** The PowerShell wrapper: the same two passes, each client's step run as a script block. */
+export function installWrapperPs1(clients: readonly InstallClient[]): string {
+  const list = clients.map((c) => `'${c}'`).join(', ');
+  const labels = clients.map((c) => `'${c}' = '${INSTALL_CLIENT_LABELS[c]}'`).join('; ');
+  return `# Docket install step for several clients (Agent files): checks every client
+# first, so a damaged file stops the install before anything is written.
+param([string]$Here, [string]$Base)
+$ErrorActionPreference = 'Stop'
+$labels = @{ ${labels} }
+$steps = @()
+foreach ($c in @(${list})) {
+  $d = Join-Path $Here $c
+  $steps += ,@($c, $d, [scriptblock]::Create((Get-Content -Raw -LiteralPath (Join-Path $d 'install.ps1'))))
+}
+foreach ($s in $steps) { & $s[2] $s[1] $Base 'check' }
+foreach ($s in $steps) { "$($labels[$s[0]]):"; & $s[2] $s[1] $Base }
 `;
 }

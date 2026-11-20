@@ -450,3 +450,59 @@
 .tl .afpwho a {
   text-decoration: underline;
 }
+
+/* Several clients in one install, and install state (decision 34; UI_SPEC §6.7b). */
+.tl .inclients {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.tl .inclients legend {
+  padding: 0;
+  margin-bottom: 4px;
+}
+.tl .inclient {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.tl .inclientname {
+  font-weight: 600;
+  min-width: 96px;
+}
+.tl .inresult {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.tl .inresulthead {
+  margin: 0 0 4px;
+  font-size: 14px;
+}
+.tl .instates {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.tl .instates > li {
+  display: grid;
+  gap: 6px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--line);
+  min-width: 0;
+}
+.tl .instates > li:first-child {
+  border-top: 0;
+}
+.tl .instatename {
+  font-weight: 600;
+  min-width: 96px;
+}
+.tl .instates .mono {
+  overflow-wrap: anywhere;
+}
