@@ -6,9 +6,6 @@ order: 1
 anchors:
   - item.dependencies
   - settings.blocker-rule
-  - problems.cycle
-  - problems.canceled_blocker
-  - problems.deferred_verified_blocker
 related:
   - review-a-packet
   - dates-effort-forecast

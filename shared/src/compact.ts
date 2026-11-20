@@ -14,7 +14,13 @@
  *
  * Shared contract file (tasks.md, Slice rules).
  */
-import { EFFORT_UNIT, OPEN_RUN_STATES, type CheckState, type WorkStepState } from './enums.js';
+import {
+  EFFORT_UNIT,
+  OPEN_RUN_STATES,
+  type CheckState,
+  type ResolutionState,
+  type WorkStepState,
+} from './enums.js';
 import type { ToolErrorShape } from './errors.js';
 import { fillSummary, TOOL_SUMMARIES } from './mcp-copy.js';
 import { LIMITS } from './mcp/limits.js';
@@ -49,6 +55,15 @@ export interface ResultRenderOptions extends RenderOptions {
 }
 
 const SEP = ' · ';
+
+/** A proposed resolution's state, as get_context says it (decision 37). */
+const RESOLUTION_WORDS: Record<ResolutionState, string> = {
+  open: 'waiting for the owner',
+  approved: 'approved: go ahead',
+  different: 'go a different way; propose again',
+  acknowledged: 'acknowledged: go ahead',
+  superseded: 'replaced by a newer proposal',
+};
 const I1 = '  ';
 const I3 = '      ';
 
@@ -672,6 +687,30 @@ export function renderContext(ctx: ContextBundle, opts: RenderOptions = {}): str
     }
     if (sh.truncated) lines.push(`${I1}…truncated; see list_shared_parts ${it.id.split('-')[0]}`);
   }
+  // Decision 37 (BUILD_SPEC §5.15 section 4d): the item's open problems, in the owner's words,
+  // and the newest proposed resolutions with the owner's choice.
+  if (ctx.problems && ctx.problems.length > 0) {
+    lines.push('problems:');
+    for (const p of ctx.problems) {
+      lines.push(
+        `${I1}- ${p.id} ${p.kind}: ${p.what}`,
+        `${I1}    fix: ${p.fix}`,
+        `${I1}    who acts: ${p.who_text}`,
+      );
+    }
+  }
+  if (ctx.resolutions && ctx.resolutions.length > 0) {
+    lines.push('resolutions:');
+    for (const r of ctx.resolutions) {
+      lines.push(
+        `${I1}- ${join([
+          `${r.id} ${r.kind}${r.problem_id ? ` for ${r.problem_id}` : ''}`,
+          RESOLUTION_WORDS[r.state],
+          r.note ? `owner: ${truncate(r.note)}` : null,
+        ])}`,
+      );
+    }
+  }
   if (ctx.planning_docs.length > 0) {
     lines.push('planning_docs:');
     for (const d of ctx.planning_docs) {
@@ -1222,6 +1261,15 @@ const RENDERERS: { [N in ToolName]: Renderer<N> } = {
       renewed: r.renewed ? `${SEP}renewed` : '',
     }),
   release_lease: (r) => s('release_lease', { part: r.part, id: r.item_id }),
+  propose_resolution: (r) =>
+    s('propose_resolution', {
+      kind: r.resolution.kind,
+      target: r.resolution.problem_id
+        ? `${r.resolution.item_id} (${r.resolution.problem_id})`
+        : r.resolution.item_id,
+      resolution_id: r.resolution.id,
+      superseded: r.superseded.length > 0 ? `${SEP}replaces ${r.superseded.join(', ')}` : '',
+    }),
 };
 
 /** The compact text block for a tool's successful result. */

@@ -33,7 +33,11 @@ export const ID_PREFIXES = {
   part_lease: 'pls',
   undeclared_hold: 'udh',
   radar_finding: 'rdf',
+  /** Decision 37 (MCP_SPEC §5.16): an agent's proposed resolution of a problem. */
+  resolution: 'prs',
   // Internal.
+  /** Decision 37: the owner's acknowledgement of a problem. */
+  problem_ack: 'pak',
   /** An item's declared change to one shared part (decision 36). */
   item_shared_change: 'isc',
   mutation: 'mut',

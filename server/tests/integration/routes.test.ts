@@ -162,6 +162,10 @@ const B2_ROUTES: readonly RouteId[] = [
   'leases.release',
   'radar.settings',
   'radar.run',
+  // Decision 37 (B42, T186–T188): acknowledging a problem and deciding a proposed resolution
+  // (content in b42-problems.test.ts).
+  'problems.acknowledge',
+  'resolutions.decide',
 ];
 
 interface Req {
@@ -341,6 +345,11 @@ const VALID: Record<RouteId, Req> = {
     body: { repo_path: 'recipe-app', main_branch: 'main' },
   },
   'radar.run': { params: { key: 'RCP' }, body: {} },
+  'problems.acknowledge': { body: { problem_id: 'stale_run:run_01JNOSUCHRUN' } },
+  'resolutions.decide': {
+    params: { id: 'prs_01JNOSUCHPROPOSAL' },
+    body: { decision: 'acknowledge' },
+  },
 };
 
 /** A path parameter value that fails its schema: a lower-cased item ID or key, a bad label, or blank. */

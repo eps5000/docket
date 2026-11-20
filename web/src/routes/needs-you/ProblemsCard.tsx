@@ -1,4 +1,4 @@
-import { Fragment } from 'react';
+import { Fragment, useId, useState } from 'react';
 import { Link } from 'react-router';
 import type { PROBLEM_KINDS, Problem, WorkspaceRow } from '@docket/shared';
 import {
@@ -16,6 +16,8 @@ import { HelpLink } from '../../help/HelpLink';
 import { queryKeys } from '../../lib/api';
 import { paths, type ItemTab } from '../../lib/paths';
 import { runOwnerMutation, showToast } from '../../lib/undo';
+import { plural } from '../../lib/format';
+import { ProblemActions, ProblemLines, WhoChip } from '../shared/problems';
 
 type ProblemKind = (typeof PROBLEM_KINDS)[number];
 
@@ -23,11 +25,20 @@ type ProblemKind = (typeof PROBLEM_KINDS)[number];
 export const MAX_PROBLEMS = 5;
 
 type Action =
-  | { label: string; kind: 'link'; to: (p: Problem) => string }
+  | {
+      label: string;
+      kind: 'link';
+      to: (p: Problem) => string;
+      /** Decision 37: it lands on the item's problem banner (left out on the banner itself). */
+      banner?: true;
+    }
   | { label: string; kind: 'release' }
   | { label: string; kind: 'handled' };
 
 const itemTab = (tab: ItemTab) => (p: Problem) => (p.item_id ? paths.item(p.item_id, tab) : '/');
+/** Decision 37: *Open* lands on the item's banner, on the tab it opened before, focused on the problem. */
+const onBanner = (tab: ItemTab) => (p: Problem) =>
+  p.item_id ? paths.item(p.item_id, tab, undefined, p.id) : '/';
 
 /**
  * Every Problems row kind, its icon and its actions (UI_SPEC §6.1 table),
@@ -77,7 +88,7 @@ export const PROBLEM_ROWS: Record<
     help: 'problems.deferred_verified_blocker',
     icon: 'pause',
     tone: 'warn',
-    actions: [{ label: 'Open', kind: 'link', to: itemTab('deps') }],
+    actions: [{ label: 'Open', kind: 'link', to: onBanner('deps'), banner: true }],
   },
   orphaned_resources: {
     help: 'problems.orphaned_resources',
@@ -85,7 +96,7 @@ export const PROBLEM_ROWS: Record<
     tone: 'warn',
     actions: [
       { label: 'Mark released', kind: 'release' },
-      { label: 'Open', kind: 'link', to: itemTab('activity') },
+      { label: 'Open', kind: 'link', to: onBanner('activity'), banner: true },
     ],
   },
   unpushed_work: {
@@ -94,20 +105,20 @@ export const PROBLEM_ROWS: Record<
     tone: 'warn',
     actions: [
       { label: 'Handled', kind: 'handled' },
-      { label: 'Open', kind: 'link', to: itemTab('activity') },
+      { label: 'Open', kind: 'link', to: onBanner('activity'), banner: true },
     ],
   },
   parked_too_long: {
     help: 'problems.parked_too_long',
     icon: 'pause',
     tone: 'gray',
-    actions: [{ label: 'Open', kind: 'link', to: itemTab('activity') }],
+    actions: [{ label: 'Open', kind: 'link', to: onBanner('activity'), banner: true }],
   },
   resume_unattended: {
     help: 'problems.resume_unattended',
     icon: 'clock',
     tone: 'warn',
-    actions: [{ label: 'Open', kind: 'link', to: itemTab('activity') }],
+    actions: [{ label: 'Open', kind: 'link', to: onBanner('activity'), banner: true }],
   },
   extra_backup_failed: {
     help: 'problems.extra_backup_failed',
@@ -118,11 +129,13 @@ export const PROBLEM_ROWS: Record<
   // Decision 30 (UI_SPEC §6.7b-1): → that record in the Agent files page's "Changed
   // outside Docket" (the page follows the project switcher, like Needs you).
   // Decision 36 (UI_SPEC §6.3.6): two in-flight branches heading for a merge conflict.
+  // Decision 37: an agent problem; its actions are *Remind the agent*, *Open the item* and
+  // *Not an active branch* (ProblemActions).
   radar_conflict: {
     help: 'problems.radar_conflict',
     icon: 'git',
     tone: 'warn',
-    actions: [{ label: 'Open', kind: 'link', to: itemTab('details') }],
+    actions: [],
   },
   agent_files_drift: {
     help: 'problems.agent_files_drift',
@@ -228,15 +241,23 @@ async function act(p: Problem, kind: 'release' | 'handled') {
 
 /**
  * Problems · N: at most 5 rows, then "N more" (UI_SPEC §6.1). US2 and US11 fill the rows.
- * Each reason takes up to two lines, key fact first (B20); recovery rows show
- * their worktree's state chip, from `/api/workspaces`.
+ * Recovery rows show their worktree's state chip, from `/api/workspaces`.
+ *
+ * Decision 37: each row says what's wrong, what fixes it and who acts. Agent
+ * problems the agents are still handling, and problems you acknowledged,
+ * aren't counted; the "Agents are handling N problems" and "You acknowledged
+ * N" lines open them, so nothing is hidden.
  */
 export function ProblemsCard({
   problems,
   workspaces = [],
+  agentProblems = [],
+  acknowledged = [],
 }: {
   problems: readonly Problem[];
   workspaces?: readonly WorkspaceRow[];
+  agentProblems?: readonly Problem[];
+  acknowledged?: readonly Problem[];
 }) {
   const shown = problems.slice(0, MAX_PROBLEMS);
   return (
@@ -247,7 +268,7 @@ export function ProblemsCard({
       ) : (
         shown.map((p, i) => (
           <ProblemRow
-            key={`${p.kind}:${p.item_id ?? ''}:${i}`}
+            key={p.id ?? `${p.kind}:${p.item_id ?? ''}:${i}`}
             problem={p}
             workspace={workspaceFor(p, workspaces)}
           />
@@ -258,42 +279,133 @@ export function ProblemsCard({
           <span>{problems.length - MAX_PROBLEMS} more</span>
         </div>
       )}
+      <MoreProblems
+        kind="agents"
+        label={`Agents are handling ${plural(agentProblems.length, 'problem')}`}
+        problems={agentProblems}
+        workspaces={workspaces}
+      />
+      <MoreProblems
+        kind="acknowledged"
+        label={`You acknowledged ${plural(acknowledged.length, 'problem')}`}
+        problems={acknowledged}
+        workspaces={workspaces}
+      />
     </Card>
+  );
+}
+
+/** A line that opens the problems it counts, in place (decision 37). */
+function MoreProblems({
+  kind,
+  label,
+  problems,
+  workspaces,
+}: {
+  kind: 'agents' | 'acknowledged';
+  label: string;
+  problems: readonly Problem[];
+  workspaces: readonly WorkspaceRow[];
+}) {
+  const [open, setOpen] = useState(false);
+  const listId = useId();
+  if (problems.length === 0) return null;
+  return (
+    <div className="prob-more" data-more-problems={kind}>
+      <div className="row" style={{ gap: 6 }}>
+        <button
+          type="button"
+          className="linkbtn"
+          aria-expanded={open}
+          aria-controls={listId}
+          onClick={() => setOpen((o) => !o)}
+        >
+          {label}
+        </button>
+        {kind === 'agents' && <HelpLink anchor="needs-you.agent-problems" />}
+      </div>
+      <div id={listId} hidden={!open}>
+        {open &&
+          problems.map((p, i) => (
+            <ProblemRow
+              key={p.id ?? `${p.kind}:${i}`}
+              problem={p}
+              workspace={workspaceFor(p, workspaces)}
+            />
+          ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The kind's own actions (UI_SPEC §6.1 table). On the item's banner, an
+ * *Open* that would land on the banner itself is left out.
+ */
+export function KindActions({ problem, place }: { problem: Problem; place: 'row' | 'banner' }) {
+  const m = PROBLEM_ROWS[problem.kind];
+  return (
+    <>
+      {m.actions.map((a) =>
+        a.kind === 'link' ? (
+          place === 'banner' && a.banner ? null : (
+            <Link key={a.label} className="btn sm" to={a.to(problem)}>
+              {a.label}
+            </Link>
+          )
+        ) : (
+          <Button key={a.label} size="sm" onClick={() => void act(problem, a.kind)}>
+            {a.label}
+          </Button>
+        ),
+      )}
+    </>
   );
 }
 
 export function ProblemRow({ problem, workspace }: { problem: Problem; workspace?: WorkspaceRow }) {
   const m = PROBLEM_ROWS[problem.kind];
+  const e = problem.explanation;
   return (
-    <div className="mrow" data-problem={problem.kind}>
+    <div
+      className="mrow prob-row"
+      data-problem={problem.kind}
+      data-problem-id={problem.id}
+      data-who={e?.who}
+    >
       <div className={`ico sm ico-${m.tone}`} aria-hidden="true">
         <Icon name={m.icon} />
       </div>
       <div style={{ minWidth: 0 }}>
-        <div className="row" style={{ minWidth: 0 }}>
-          {problem.item_id && (
-            <Link to={paths.item(problem.item_id)} className="mono">
-              {problem.item_id}
-            </Link>
-          )}
-          {problem.title && <span className="tt">{problem.title}</span>}
-          {workspace && <WorkspaceStateChip state={workspace.state} />}
+        {/* One line: the item, who acts, then the actions (they wrap below when they don't fit). */}
+        <div className="prob-head">
+          <div className="row prob-id">
+            {problem.item_id && (
+              <Link to={paths.item(problem.item_id)} className="mono">
+                {problem.item_id}
+              </Link>
+            )}
+            {e && <WhoChip e={e} />}
+            {workspace && <WorkspaceStateChip state={workspace.state} />}
+            {problem.title && <span className="tt">{problem.title}</span>}
+          </div>
+          <div className="row prob-acts">
+            <KindActions problem={problem} place="row" />
+            <ProblemActions problem={problem} place="row" />
+            <HelpLink anchor={m.help} />
+          </div>
         </div>
-        <Reason text={problem.reason} />
-      </div>
-      <div className="row" style={{ gap: 6 }}>
-        {m.actions.map((a) =>
-          a.kind === 'link' ? (
-            <Link key={a.label} className="btn sm" to={a.to(problem)}>
-              {a.label}
-            </Link>
-          ) : (
-            <Button key={a.label} size="sm" onClick={() => void act(problem, a.kind)}>
-              {a.label}
-            </Button>
-          ),
+        {e ? (
+          <ProblemLines
+            e={e}
+            reachedYou={problem.reached_you}
+            acknowledged={problem.acknowledged}
+            titleText={problem.reason}
+            compact
+          />
+        ) : (
+          <Reason text={problem.reason} />
         )}
-        <HelpLink anchor={m.help} />
       </div>
     </div>
   );

@@ -78,10 +78,14 @@ test.describe('Needs you', () => {
     await expect(problems.getByRole('heading', { name: /^Problems · \d+$/ })).toBeVisible();
     const stale = problems.locator('[data-problem="stale_run"]');
     await expect(stale).toContainText('RCP-15');
-    // Key fact first, whole facts on up to two lines (B20).
-    await expect(stale).toContainText('Lead silent for');
-    await expect(stale).toContainText('treated as unknown, not finished');
-    await expect(stale.locator('.reason')).toHaveAttribute('title', /^Lead silent for \d+m · /);
+    // Decision 37: what's wrong, what fixes it and who acts; the facts stay in `title`.
+    await expect(stale).toContainText("RCP-15's lead agent has been silent for");
+    await expect(stale).toContainText('Docket treats the run as unknown, not finished.');
+    await expect(stale).toContainText('You, or your coordinator');
+    await expect(stale.locator('.prob-x dd').first()).toHaveAttribute(
+      'title',
+      /^Lead silent for \d+m · /,
+    );
     await stale.getByRole('link', { name: 'Inspect' }).click();
     await expect(page).toHaveURL(/\/items\/RCP-15\?tab=activity$/);
     await expect(page.getByRole('tabpanel')).toContainText('Lead and runs');

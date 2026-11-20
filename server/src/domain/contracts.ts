@@ -103,12 +103,14 @@ import {
   type WorkspacesResponse,
   type Workflow,
   type WorkStep,
+  type Problem,
 } from '@docket/shared';
 import type { Config, SecretStore } from '../config.js';
 import type { Db } from '../db/client.js';
 import type { CallLog } from '../jobs/logs.js';
 import type { Actor, WriteContext } from './write.js';
 import type { RadarPlan } from './radar.js';
+import type { FoundProblem, ProblemsService } from './problems.js';
 
 export type { Actor, WriteContext } from './write.js';
 
@@ -758,6 +760,13 @@ export interface ViewsService {
   /** Board, list and map. For `layout=timeline` the `timeline` section comes from `forecast.timeline`. */
   work(r: ReadContext, input: RouteQuery<'work.get'>): WorkResponse;
   itemDetail(r: ReadContext, input: RouteParams<'items.get'>): ItemDetailResponse;
+  /**
+   * Decision 37: the open problem with this ID in any project (the owner's,
+   * an agent's or one acknowledged), with its project; null when none.
+   */
+  findProblem(r: ReadContext, id: string): FoundProblem | null;
+  /** Decision 37: an item's open problems (`get_context.problems`, the banner). */
+  itemProblems(r: ReadContext, id: string): Problem[];
   agents(r: ReadContext, input: RouteQuery<'agents.list'>): AgentsResponse;
   labelPage(r: ReadContext, input: RouteParams<'labels.get'>): LabelPageResponse;
   settings(r: ReadContext): SettingsResponse;
@@ -923,6 +932,8 @@ export interface Services {
   drift: DriftService;
   onboarding: OnboardingService;
   sharedChanges: SharedChangesService;
+  /** Decision 37: acknowledging problems and proposed resolutions (problems.ts). */
+  problems: ProblemsService;
   undo: UndoService;
 }
 

@@ -81,6 +81,7 @@ Parallel items collide when they change the same table, model, endpoint or share
 - `declare_shared_changes { id, changes: [{ part, change, note }] }`, with `change` one of `add`, `change` or `remove` and a one-line note. Register a missing part in the same call with `new_parts: [{ key, paths }]`, giving the repo paths that belong to it. An item that changes no shared part declares `none: true`. When the item already has branches (work in progress, or a backfill), pass them as `branches` (or one as `branch`), so the conflict radar checks each.
 - Moving an undeclared item to Ready fails with `not_declared`.
 - **Two items that change the same part** can't run at once without the owner's say. If one should go first, link them now (`link_items { type: "blocks" }`); then they never wait on the owner. Otherwise split the work so only one of them touches the part.
+- **A problem that needs a new plan** (an epic branch far behind main, two items that keep colliding): propose it with `propose_resolution { problem, kind: "split" | "rescope" | "reorder" | "other", plan_md, reason }`, using the problem's ID from `get_context`, and wait for the owner's choice in `resolutions:`. Routine fixes (a rebase, dropping an old branch from the item's branches) need no proposal.
 
 ## 7. Many writes at once
 

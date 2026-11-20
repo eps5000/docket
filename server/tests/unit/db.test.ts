@@ -32,9 +32,9 @@ describe('database client', () => {
   });
 
   it('applies every migration, and migrating again is a no-op', () => {
-    expect(migrationStatus(t.db)).toEqual({ current: true, applied: 13, expected: 13 });
+    expect(migrationStatus(t.db)).toEqual({ current: true, applied: 14, expected: 14 });
     migrateDb(t.db);
-    expect(migrationStatus(t.db).applied).toBe(13);
+    expect(migrationStatus(t.db).applied).toBe(14);
   });
 
   it('creates every BUILD_SPEC §4 table', () => {
@@ -64,6 +64,9 @@ describe('database client', () => {
       'questions',
       'owner_notes',
       'commits',
+      // Decision 37 (B42): acknowledgements and proposed resolutions.
+      'problem_acks',
+      'resolutions',
       'agent_files',
       'agent_file_versions',
       'project_workflows',

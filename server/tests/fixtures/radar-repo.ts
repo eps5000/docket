@@ -3,11 +3,15 @@
  * a `main` branch and three worktree branches, built with the git CLI in a
  * temporary folder (never a real repository).
  *
- * `shared.txt` has five lines. After the branches leave `main`:
- * - `main` changes line 5;
- * - `feat/a` (worktree `wt-a`) changes line 2: clean against `main`;
- * - `feat/b` (worktree `wt-b`) changes lines 2 and 5: it conflicts with
- *   `main` (line 5) and with `feat/a` (line 2);
+ * `shared.txt` and `notes.txt` have five lines each. After the branches
+ * leave `main`:
+ * - `main` changes line 5 of `notes.txt`;
+ * - `feat/a` (worktree `wt-a`) changes line 2 of `shared.txt`: clean against
+ *   `main`;
+ * - `feat/b` (worktree `wt-b`) changes line 2 of `shared.txt` and line 5 of
+ *   `notes.txt`: it conflicts with `main` (`notes.txt`) and with `feat/a`
+ *   (`shared.txt`, a file its conflict with main doesn't explain, so B42
+ *   keeps the pair);
  * - `feat/c` (worktree `wt-c`) adds `other.txt`: clean against everything.
  *
  * `hashGitDir` hashes every file under `.git` (path and bytes), so a test can
@@ -64,13 +68,14 @@ export function makeRadarRepo(root: string): RadarRepo {
   mkdirSync(repo, { recursive: true });
   git(repo, 'init', '-q', '-b', 'main');
   writeFileSync(join(repo, 'shared.txt'), text(LINES));
-  git(repo, 'add', 'shared.txt');
+  writeFileSync(join(repo, 'notes.txt'), text(LINES));
+  git(repo, 'add', 'shared.txt', 'notes.txt');
   git(repo, 'commit', '-q', '-m', 'Start');
   for (const b of ['feat/a', 'feat/b', 'feat/c']) git(repo, 'branch', b);
 
-  // main moves on: line 5.
-  writeFileSync(join(repo, 'shared.txt'), text([...LINES.slice(0, 4), 'five on main']));
-  git(repo, 'commit', '-q', '-am', 'Main changes line 5');
+  // main moves on: line 5 of notes.txt.
+  writeFileSync(join(repo, 'notes.txt'), text([...LINES.slice(0, 4), 'five on main']));
+  git(repo, 'commit', '-q', '-am', 'Main changes notes line 5');
 
   const worktrees = {
     'feat/a': join(root, 'wt-a'),
@@ -87,9 +92,13 @@ export function makeRadarRepo(root: string): RadarRepo {
   git(worktrees['feat/a'], 'commit', '-q', '-am', 'A changes line 2');
   writeFileSync(
     join(worktrees['feat/b'], 'shared.txt'),
-    text(['one', 'two from b', 'three', 'four', 'five from b']),
+    text(['one', 'two from b', ...LINES.slice(2)]),
   );
-  git(worktrees['feat/b'], 'commit', '-q', '-am', 'B changes lines 2 and 5');
+  writeFileSync(
+    join(worktrees['feat/b'], 'notes.txt'),
+    text([...LINES.slice(0, 4), 'five from b']),
+  );
+  git(worktrees['feat/b'], 'commit', '-q', '-am', 'B changes shared line 2 and notes line 5');
   writeFileSync(join(worktrees['feat/c'], 'other.txt'), 'other\n');
   git(worktrees['feat/c'], 'add', 'other.txt');
   git(worktrees['feat/c'], 'commit', '-q', '-m', 'C adds a file');
@@ -211,5 +220,70 @@ export function makeEpicRepo(root: string): { repo: string } {
   git(wt.web, 'commit', '-q', '-am', 'GF-217 web changes api line 3');
   writeFileSync(join(wt.b, 'shared.txt'), text(['one', 'two from 235', ...LINES.slice(2)]));
   git(wt.b, 'commit', '-q', '-am', 'GF-235 changes shared line 2');
+  return { repo };
+}
+
+/**
+ * B42: a Gameflow-like repository, `<root>/gf-stale`, for "one root cause,
+ * one problem" (owner decision 37). `shell.txt`, `api.txt` and `docs.txt`
+ * have five lines each.
+ *
+ * Four epic branches (`stale-228`, `stale-235`, `stale-302`, `stale-310`)
+ * leave `main` early and each rewrites lines 1 to 4 of `shell.txt` (the
+ * redesign); `stale-302` also changes line 2 of `api.txt`. Then `main` moves
+ * on: it rewrites lines 1 to 4 of `shell.txt` its own way, so every stale
+ * branch is out of date with `main` on `shell.txt`, and every pair of stale
+ * branches conflicts on `shell.txt` too (knock-on pairs, all explained).
+ *
+ * Two current branches leave the new `main`:
+ * - `cur-240` changes line 1 of `shell.txt` (so it conflicts with each stale
+ *   branch there: explained by the stale branch's conflict with main) and
+ *   line 2 of `api.txt` (a genuine conflict with `stale-302`, beyond main);
+ * - `cur-241` changes line 5 of `docs.txt`, and so does `cur-240`
+ *   differently: a genuine pair conflict between the two current branches.
+ *
+ * Before B42 the radar reported 15 findings: 4 "out of date with main" and
+ * 11 conflicting pairs (6 stale × stale, 4 `cur-240` × stale, and `cur-240`
+ * × `cur-241`). Expected now: the 4 "out of date with main" findings, plus 2
+ * pairs: `cur-240` vs `stale-302` (`api.txt` only) and `cur-240` vs
+ * `cur-241` (`docs.txt`). The other 9 conflicting pairs are left out.
+ */
+export function makeStaleRepo(root: string): { repo: string } {
+  const repo = join(root, 'gf-stale');
+  mkdirSync(repo, { recursive: true });
+  git(repo, 'init', '-q', '-b', 'main');
+  for (const f of ['shell.txt', 'api.txt', 'docs.txt']) writeFileSync(join(repo, f), text(LINES));
+  git(repo, 'add', 'shell.txt', 'api.txt', 'docs.txt');
+  git(repo, 'commit', '-q', '-m', 'Start');
+  const stale = ['stale-228', 'stale-235', 'stale-302', 'stale-310'];
+  for (const b of stale) {
+    git(repo, 'checkout', '-q', '-b', b, 'main');
+    writeFileSync(
+      join(repo, 'shell.txt'),
+      text([`one ${b}`, `two ${b}`, `three ${b}`, `four ${b}`, 'five']),
+    );
+    if (b === 'stale-302') {
+      writeFileSync(join(repo, 'api.txt'), text(['one', 'two from 302', ...LINES.slice(2)]));
+    }
+    git(repo, 'commit', '-q', '-am', `${b} redesigns the shell`);
+  }
+  git(repo, 'checkout', '-q', 'main');
+  writeFileSync(
+    join(repo, 'shell.txt'),
+    text(['one main', 'two main', 'three main', 'four main', 'five']),
+  );
+  git(repo, 'commit', '-q', '-am', 'Main rewrites the shell');
+  git(repo, 'checkout', '-q', '-b', 'cur-240', 'main');
+  writeFileSync(
+    join(repo, 'shell.txt'),
+    text(['one 240', 'two main', 'three main', 'four main', 'five']),
+  );
+  writeFileSync(join(repo, 'api.txt'), text(['one', 'two from 240', ...LINES.slice(2)]));
+  writeFileSync(join(repo, 'docs.txt'), text([...LINES.slice(0, 4), 'five from 240']));
+  git(repo, 'commit', '-q', '-am', 'cur-240 changes shell, api and docs');
+  git(repo, 'checkout', '-q', '-b', 'cur-241', 'main');
+  writeFileSync(join(repo, 'docs.txt'), text([...LINES.slice(0, 4), 'five from 241']));
+  git(repo, 'commit', '-q', '-am', 'cur-241 changes docs');
+  git(repo, 'checkout', '-q', 'main');
   return { repo };
 }

@@ -113,6 +113,15 @@ export const LIMITS = {
   shared_decision_note: 1_000,
   /** get_context.shared: other in-flight declarations listed (BUILD_SPEC §5.21). */
   context_in_flight_max: 30,
+  /** Decision 37 (`propose_resolution`): the plan (Markdown) and the reason. */
+  resolution_plan: 10_000,
+  resolution_reason: 1_000,
+  /** The owner's note on a proposed resolution (*Go a different way* requires one). */
+  resolution_note: 1_000,
+  /** A problem's ID as `propose_resolution` and the owner's routes take it. */
+  problem_id: 300,
+  /** get_context: the newest proposed resolutions listed for the item (decision 37). */
+  context_resolutions_max: 5,
   /** Upper bound for opaque identifiers and cursors (not a spec limit; a sanity bound). */
   id: 100,
   /** Lists in compact text truncate long text at this many characters (§3.1). */
@@ -159,4 +168,6 @@ export const ID_PREFIXES = {
   part_lease: 'pls_',
   undeclared_hold: 'udh_',
   radar_finding: 'rdf_',
+  /** Decision 37 (MCP_SPEC §5.16): an agent's proposed resolution of a problem. */
+  resolution: 'prs_',
 } as const;

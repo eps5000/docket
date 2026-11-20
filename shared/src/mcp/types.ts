@@ -20,6 +20,8 @@ import {
   PACKET_STATES,
   PROVENANCES,
   RESOURCE_KINDS,
+  RESOLUTION_KINDS,
+  RESOLUTION_STATES,
   REVIEW_KINDS,
   RUN_STATES,
   SATISFIED_WHEN,
@@ -502,6 +504,38 @@ export const contextBundleSchema = z.object({
    * until B39 (T183) fills it.
    */
   shared: contextSharedSchema.optional(),
+  /**
+   * The item's open problems (owner decision 37; BUILD_SPEC §5.15 section
+   * 4d): what's wrong, what fixes it and who acts, in the words the owner
+   * reads, with the ID `propose_resolution` takes. Optional (B42).
+   */
+  problems: z
+    .array(
+      z.object({
+        id: z.string(),
+        kind: z.string(),
+        what: z.string(),
+        fix: z.string(),
+        who: z.enum(['agent', 'owner']),
+        who_text: z.string(),
+      }),
+    )
+    .optional(),
+  /**
+   * The newest proposed resolutions for the item, up to 5, with the owner's
+   * choice and note once decided (decision 37). Optional (B42).
+   */
+  resolutions: z
+    .array(
+      z.object({
+        id: z.string(),
+        problem_id: z.string().nullable(),
+        kind: z.enum(RESOLUTION_KINDS),
+        state: z.enum(RESOLUTION_STATES),
+        note: z.string().nullable(),
+      }),
+    )
+    .optional(),
   planning_docs: z.array(
     z.object({
       name: z.string(),

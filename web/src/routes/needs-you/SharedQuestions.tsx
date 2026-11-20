@@ -11,6 +11,7 @@ import { paths } from '../../lib/paths';
 import { runOwnerMutation, showToast } from '../../lib/undo';
 import { errorText } from '../agent-files/install-common';
 import { partsText } from '../shared/sharedChanges';
+import { ProblemLines, WarningMark } from '../shared/problems';
 
 /**
  * The shared-changes questions on Needs you (UI_SPEC §6.3.6; owner decision
@@ -62,7 +63,14 @@ function useDecide() {
   return { busy, run };
 }
 
-function OverlapCard({ overlap: o }: { overlap: OverlapRow }) {
+/** One overlap question; `banner` places it on the item's page with the warning icon (decision 37). */
+export function OverlapCard({
+  overlap: o,
+  banner = false,
+}: {
+  overlap: OverlapRow;
+  banner?: boolean;
+}) {
   const { busy, run } = useDecide();
   const { openTab } = useShell();
   const navigate = useNavigate();
@@ -87,9 +95,14 @@ function OverlapCard({ overlap: o }: { overlap: OverlapRow }) {
       `Marked ${first.id} and ${other.id} compatible.`,
     );
   return (
-    <Card className="sq-card" data-overlap={o.id}>
+    <Card className="sq-card" data-overlap={o.id} data-problem-id={banner ? o.id : undefined}>
       <CardHeader
-        title={<span id={titleId}>{title}</span>}
+        title={
+          <span className="row" style={{ gap: 6 }}>
+            {banner && <WarningMark label="Problem" />}
+            <span id={titleId}>{title}</span>
+          </span>
+        }
         extra={<HelpLink anchor="needs-you.shared-questions" />}
       />
       <div className="pad" style={{ paddingTop: 0 }}>
@@ -109,11 +122,15 @@ function OverlapCard({ overlap: o }: { overlap: OverlapRow }) {
             </li>
           ))}
         </ul>
-        <p className="src" style={{ margin: '6px 0 0' }}>
-          An agent tried to start {other.id} while {first.id} is in flight; it picked other work.
-          Run them one after the other ({other.id} waits until {first.id} is merged), or let them
-          run together.
-        </p>
+        {o.explanation ? (
+          <ProblemLines e={o.explanation} />
+        ) : (
+          <p className="src" style={{ margin: '6px 0 0' }}>
+            An agent tried to start {other.id} while {first.id} is in flight; it picked other work.
+            Run them one after the other ({other.id} waits until {first.id} is merged), or let them
+            run together.
+          </p>
+        )}
         {noting && (
           <div className="sq-note">
             <label className="f" htmlFor={noteId}>
@@ -177,7 +194,14 @@ function OverlapCard({ overlap: o }: { overlap: OverlapRow }) {
   );
 }
 
-function HoldCard({ hold: h }: { hold: UndeclaredHoldRow }) {
+/** One held hand-off; `banner` places it on the item's page with the warning icon (decision 37). */
+export function HoldCard({
+  hold: h,
+  banner = false,
+}: {
+  hold: UndeclaredHoldRow;
+  banner?: boolean;
+}) {
   const { busy, run } = useDecide();
   const [backing, setBacking] = useState(false);
   const [note, setNote] = useState('');
@@ -185,9 +209,14 @@ function HoldCard({ hold: h }: { hold: UndeclaredHoldRow }) {
   const noteId = useId();
   const title = `${h.item.id} changed shared parts it didn’t declare: ${partsText(h.parts)}`;
   return (
-    <Card className="sq-card" data-hold={h.id}>
+    <Card className="sq-card" data-hold={h.id} data-problem-id={banner ? h.id : undefined}>
       <CardHeader
-        title={<span id={titleId}>{title}</span>}
+        title={
+          <span className="row" style={{ gap: 6 }}>
+            {banner && <WarningMark label="Problem" />}
+            <span id={titleId}>{title}</span>
+          </span>
+        }
         extra={<HelpLink anchor="needs-you.shared-questions" />}
       />
       <div className="pad" style={{ paddingTop: 0 }}>
@@ -198,10 +227,13 @@ function HoldCard({ hold: h }: { hold: UndeclaredHoldRow }) {
           <span className="one grow">{h.item.title}</span>
           <StatusChip status={h.item.status} />
         </div>
+        {h.explanation && <ProblemLines e={h.explanation} />}
         <p className="src" style={{ margin: '6px 0 4px' }}>
-          {h.via === 'submit_packet'
-            ? 'Its packet waits: you can review it once you decide.'
-            : 'It tried to close; it stays open until you decide.'}{' '}
+          {h.explanation
+            ? ''
+            : h.via === 'submit_packet'
+              ? 'Its packet waits: you can review it once you decide. '
+              : 'It tried to close; it stays open until you decide. '}
           Files:
         </p>
         <ul className="sq-files mono" aria-label="Changed files that map to undeclared parts">

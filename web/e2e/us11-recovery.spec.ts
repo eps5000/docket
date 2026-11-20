@@ -126,10 +126,11 @@ test.describe.serial('US11 recovery', () => {
 
     await openNeedsYou(page);
     const r = row(page, 'orphaned_resources', 'RCP-17');
-    // Key fact first (B20): what is still running, then since when.
+    // Decision 37: what is still running, since when, and what to do.
     await expect(r).toContainText(
-      'dev server :5173 (pid 4242, port 5173) still running 20m after its run ended',
+      "dev server :5173 (pid 4242, port 5173) is still running 20m after RCP-17's run ended.",
     );
+    await expect(r).toContainText('Stop it, then mark it released.');
     await r.getByRole('button', { name: 'Mark released' }).click();
     const toast = page.getByRole('status');
     await expect(toast).toContainText('Marked released.');
@@ -171,14 +172,17 @@ test.describe.serial('US11 recovery', () => {
 
     await openNeedsYou(page);
     const r = row(page, 'unpushed_work', 'RCP-25');
-    await expect(r.locator('.reason')).toHaveAttribute(
+    // Decision 37: what's wrong and what fixes it; the facts stay in `title`.
+    await expect(r.locator('.prob-x dd').first()).toHaveAttribute(
       'title',
       '1 commit not pushed · uncommitted changes · C:/work/rcp-25 · run ended (released by the agent)',
     );
-    // Whole facts: each is its own unit, so a wrap never cuts one.
-    await expect(r.locator('.reason .fact')).toHaveCount(4);
+    await expect(r).toContainText(
+      "RCP-25's run ended (released by the agent) with work that isn't on the remote: 1 commit not pushed and uncommitted changes, in C:/work/rcp-25.",
+    );
+    await expect(r).toContainText('Push or save the work from that folder, then mark it handled.');
     // The worktree's state chip, as on Agents → Workspaces.
-    await expect(r.locator('.chip')).toHaveText('At risk');
+    await expect(r.locator('.chip', { hasText: 'At risk' })).toHaveText('At risk');
     await r.getByRole('button', { name: 'Handled' }).click();
     const toast = page.getByRole('status');
     await expect(toast).toContainText('Marked handled.');
@@ -223,13 +227,17 @@ test.describe.serial('US11 recovery', () => {
 
     await openNeedsYou(page);
     await expect(row(page, 'parked_too_long', 'RCP-17')).toContainText(
-      'waiting on the coordinator · keeps its claim',
+      'waiting on the coordinator. It keeps its claim.',
     );
-    await expect(row(page, 'parked_too_long', 'RCP-17').locator('.chip')).toHaveText('Parked');
+    await expect(
+      row(page, 'parked_too_long', 'RCP-17').locator('.chip', { hasText: 'Parked' }),
+    ).toHaveText('Parked');
     await expect(row(page, 'resume_unattended', 'RCP-18')).toContainText(
-      'Ready to resume: RCP-11 is done · parked 40m',
+      'RCP-18 is ready to resume (RCP-11 is done), but nobody has resumed it. It has been parked 40m.',
     );
-    await expect(row(page, 'resume_unattended', 'RCP-18').locator('.chip')).toHaveText('Parked');
+    await expect(
+      row(page, 'resume_unattended', 'RCP-18').locator('.chip', { hasText: 'Parked' }),
+    ).toHaveText('Parked');
     // All four recovery rows fit the card at once.
     for (const kind of [
       'orphaned_resources',
@@ -241,8 +249,12 @@ test.describe.serial('US11 recovery', () => {
     await expectAxeClean(page, 'needs you with recovery problems');
     await shoot(page, 'needs-you-problems');
 
+    // Decision 37: Open lands on the item's problem banner, focused.
     await row(page, 'resume_unattended', 'RCP-18').getByRole('link', { name: 'Open' }).click();
-    await expect(page).toHaveURL(/\/items\/RCP-18\?tab=activity/);
+    await expect(page).toHaveURL(/\/items\/RCP-18\?tab=activity&problem=resume_unattended/);
+    await expect(
+      page.locator('[data-banner="problems"] [data-problem="resume_unattended"]'),
+    ).toBeFocused();
     const block = page.locator(`[data-run="${runs.ready}"] [data-section="where-the-work-lives"]`);
     await expect(block.locator('[data-ws="parked"]')).toContainText(
       'Parked · waiting on RCP-11 · since',

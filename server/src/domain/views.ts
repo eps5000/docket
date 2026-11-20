@@ -67,7 +67,16 @@ import { compareIds, cycleText, cyclesOf } from './links.js';
 import { pendingProposalCount } from './agent-proposals.js';
 import { CREATED_BY_SQL, onboardingItemIds, readySessions } from './onboarding.js';
 import { driftProblems, runInstructions } from './drift.js';
-import { needsYouShared, radarReason, sharedFlagsOf } from './shared-changes.js';
+import { needsYouShared, sharedFlagsOf } from './shared-changes.js';
+import {
+  ackCovers,
+  explain,
+  latestResolutions,
+  loadAcks,
+  openResolutions,
+  radarProblems,
+  type FoundProblem,
+} from './problems.js';
 import { inScopeOf, ofScope } from './decisions.js';
 import {
   BlockIndex,
@@ -414,15 +423,23 @@ function recoveryProblems(
         return where ? `${o.resource.label} (${where})` : o.resource.label;
       })
       .join(', ');
+    const after = durationLabel(ms(now) - ms(first.ended_at));
     push({
       ...base,
       kind: 'orphaned_resources',
+      id: `orphaned_resources:${runId}`,
       item_id: first.run.item_id,
       title: title(first.run.item_id),
       // Key fact first (B20): what is still running, then since when, then what to do.
-      reason: `${what} still running ${durationLabel(ms(now) - ms(first.ended_at))} after its run ended · stop ${left.length === 1 ? 'it' : 'them'}, then mark ${left.length === 1 ? 'it' : 'them'} released`,
+      reason: `${what} still running ${after} after its run ended · stop ${left.length === 1 ? 'it' : 'them'}, then mark ${left.length === 1 ? 'it' : 'them'} released`,
       run_id: runId,
       resource_ids: left.map((o) => o.resource.id),
+      explanation: explain.orphaned_resources({
+        item: first.run.item_id,
+        what,
+        after,
+        n: left.length,
+      }),
     });
   }
 
@@ -447,10 +464,20 @@ function recoveryProblems(
     push({
       ...base,
       kind: 'unpushed_work',
+      id: `unpushed_work:${risk.run.id}`,
       item_id: risk.run.item_id,
       title: title(risk.run.item_id),
       reason: facts.join(' · '),
       run_id: risk.run.id,
+      explanation: explain.unpushed_work({
+        item: risk.run.item_id,
+        facts: [
+          n > 0 ? `${n} ${n === 1 ? 'commit' : 'commits'} not pushed` : null,
+          risk.dirty ? 'uncommitted changes' : null,
+        ].filter((x): x is string => !!x),
+        path: path ?? null,
+        ended: END_REASON_LABELS[risk.run.end_reason!],
+      }),
     });
   }
 
@@ -467,23 +494,32 @@ function recoveryProblems(
           : items2.length > 0
             ? `${items2.join(', ')} cleared`
             : 'its wait time has passed';
+      const parked = durationLabel(ms(now) - ms(since));
       push({
         ...base,
         kind: 'resume_unattended',
+        id: `resume_unattended:${run.id}`,
         item_id: run.item_id,
         title: title(run.item_id),
-        reason: `Ready to resume: ${why} · parked ${durationLabel(ms(now) - ms(since))}`,
+        reason: `Ready to resume: ${why} · parked ${parked}`,
         run_id: run.id,
+        explanation: explain.resume_unattended({ item: run.item_id, why, parked }),
       });
     }
     if (ms(now) - ms(since) >= config.parkMaxMs) {
       push({
         ...base,
         kind: 'parked_too_long',
+        id: `parked_too_long:${run.id}`,
         item_id: run.item_id,
         title: title(run.item_id),
         reason: `Parked since ${dayLabel(since)} · waiting on ${waitingLine(waiting)} · keeps its claim`,
         run_id: run.id,
+        explanation: explain.parked_too_long({
+          item: run.item_id,
+          since: dayLabel(since),
+          waiting: waitingLine(waiting),
+        }),
       });
     }
   }
@@ -535,10 +571,12 @@ function problemsOf({
     push({
       ...base,
       kind: 'stale_run',
+      id: `stale_run:${r.id}`,
       item_id: r.item_id,
       title: title(r.item_id),
       reason: `Lead silent for ${silent} · ${lease} · treated as unknown, not finished${claim}`,
       run_id: r.id,
+      explanation: explain.stale_run({ item: r.item_id, silent, lease }),
     });
   }
 
@@ -547,10 +585,15 @@ function problemsOf({
     push({
       ...base,
       kind: 'failed_run',
+      id: `failed_run:${r.id}`,
       item_id: r.item_id,
       title: title(r.item_id),
       reason: `${r.error ? `Run failed: ${sentence(r.error)}` : 'Run failed.'} Nothing retries automatically.`,
       run_id: r.id,
+      explanation: explain.failed_run({
+        item: r.item_id,
+        error: r.error ? sentence(r.error) : null,
+      }),
     });
   }
 
@@ -569,10 +612,17 @@ function problemsOf({
       push({
         ...base,
         kind: 'date_risk',
+        id: `date_risk:${item.id}`,
         item_id: item.id,
         title: item.title,
         reason: `Planned start ${dayLabel(item.planned_start!)} is before its blocker ${b} is planned to finish (${dayLabel(plannedEnd(s, b)!)}).`,
         related: risky,
+        explanation: explain.date_risk({
+          item: item.id,
+          start: dayLabel(item.planned_start!),
+          blocker: b,
+          blockerEnd: dayLabel(plannedEnd(s, b)!),
+        }),
       });
     }
 
@@ -583,11 +633,13 @@ function problemsOf({
         push({
           ...base,
           kind: 'canceled_blocker',
+          id: `canceled_blocker:${link.id}`,
           item_id: item.id,
           title: item.title,
           reason: `Blocked by canceled ${blocker}. Remove the link, or reopen ${blocker}.`,
           related: [blocker],
           link_id: link.id,
+          explanation: explain.canceled_blocker({ item: item.id, blocker }),
         });
         continue;
       }
@@ -597,11 +649,13 @@ function problemsOf({
         push({
           ...base,
           kind: 'deferred_verified_blocker',
+          id: `deferred_verified_blocker:${link.id}`,
           item_id: item.id,
           title: item.title,
           reason: `${item.id} needs ${blocker} verified, but ${deferred} ${deferred === 1 ? 'check was' : 'checks were'} deferred.`,
           related: [blocker],
           link_id: link.id,
+          explanation: explain.deferred_verified_blocker({ item: item.id, blocker, deferred }),
         });
       }
     }
@@ -618,13 +672,16 @@ function problemsOf({
       return !!row?.imported;
     });
     const path = cycleText(index, cycle);
+    const sorted = [...cycle].sort(compareIds);
     push({
       ...base,
       kind: 'cycle',
+      id: `cycle:${sorted.join('+')}`,
       item_id: members[0]!,
       title: title(members[0]!),
       reason: `Dependency cycle${imported ? ' in imported data' : ''}: ${path}. None of them can start until one link is removed.`,
       related: cycle,
+      explanation: explain.cycle({ path, members: sorted, imported }),
     });
   }
 
@@ -632,9 +689,11 @@ function problemsOf({
     push({
       ...base,
       kind: 'extra_backup_failed',
+      id: 'extra_backup_failed',
       item_id: null,
       title: null,
       reason: `Extra backup copy failed: ${sentence(backupError)}`,
+      explanation: explain.extra_backup_failed({ error: sentence(backupError) }),
     });
   }
 
@@ -643,6 +702,18 @@ function problemsOf({
     .map((x, i) => ({ ...x, i }))
     .sort((a, b) => b.holds - a.holds || a.i - b.i)
     .map((x) => x.p);
+}
+
+/**
+ * An item's problems (decision 37; the banner): those about it, plus the
+ * radar findings and cycles it is part of.
+ */
+export function itemProblemsOf(all: readonly Problem[], id: string): Problem[] {
+  return all.filter(
+    (p) =>
+      p.item_id === id ||
+      ((p.kind === 'radar_conflict' || p.kind === 'cycle') && p.related.includes(id)),
+  );
 }
 
 function plannedEnd(s: Scoped, id: string): string | null {
@@ -920,18 +991,19 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
     return [...packets, ...questions];
   }
 
-  function needsYou(r: ReadContext, scope: Scope): NeedsYouResponse {
+  /**
+   * Every open problem in scope (decision 37): the radar's first (unattended
+   * branches keep moving toward the conflict), then the rest, each with its
+   * newest proposed resolution and whether an acknowledgement still covers it.
+   */
+  function problemSet(r: ReadContext, scope: Scope) {
     const s = scoped(r, windows(), scope);
-    const att = attention(s);
     const runs = scopeRuns(s);
     const deferred = deferredOf(s);
-    const planning = [...s.items.values()]
-      .filter((i) => i.status === 'planning' && i.archived_at === null)
-      .sort(byPriorityThenId);
     // Decision 36: overlap questions and undeclared-parts holds are owner questions (a card
     // each, counted as for you); radar findings are Problems ("Heading for a conflict").
     const shared = needsYouShared(r.db, scope);
-    const problems = problemsOf({
+    const own = problemsOf({
       s,
       runs,
       deferredCounts: deferred.counts,
@@ -939,25 +1011,45 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
       config: deps.config,
       drift: driftProblems(r.db, s.inScope, scope === 'all'),
     });
-    // Radar findings rank first: unattended branches keep moving toward the conflict.
-    const radarRows: typeof problems = [];
-    for (const f of shared.radar_findings) {
-      if (!f.item_a) continue;
-      radarRows.push({
-        kind: 'radar_conflict',
-        item_id: f.item_a.id,
-        title: f.item_a.title,
-        reason: radarReason(f),
-        related: f.item_b ? [f.item_b.id] : [],
-        link_id: null,
-        run_id: null,
-        resource_ids: [],
-      });
+    const radar = radarProblems(
+      r.db,
+      shared.radar_findings,
+      r.now,
+      deps.config.agentProblemGraceMs,
+    );
+    const all = [...radar, ...own];
+    const acks = loadAcks(r.db);
+    const latest = latestResolutions(r.db);
+    for (const p of all) {
+      const resolution = p.id ? (latest.get(p.id) ?? null) : null;
+      p.resolution = resolution;
+      p.acknowledged = p.id ? ackCovers(acks.get(p.id), p, resolution) : null;
+      p.reached_you ??= null;
     }
-    problems.unshift(...radarRows);
+    return { s, runs, deferred, shared, all };
+  }
+
+  /** Agent problems agents are still handling: in their grace period, with a lead (decision 37). */
+  const handledByAgents = (p: Problem) => p.explanation?.who === 'agent' && !p.reached_you;
+
+  function needsYou(r: ReadContext, scope: Scope): NeedsYouResponse {
+    const { s, runs, deferred, shared, all } = problemSet(r, scope);
+    const att = attention(s);
+    const planning = [...s.items.values()]
+      .filter((i) => i.status === 'planning' && i.archived_at === null)
+      .sort(byPriorityThenId);
+    // Decision 37: acknowledged problems leave Needs you; agent problems wait for the agents.
+    const problems = all.filter((p) => !p.acknowledged && !handledByAgents(p));
+    const open = new Set(all.map((p) => p.id));
+    const resolutions = openResolutions(r.db, new Set(s.items.keys())).filter(
+      (x) => x.problem_id === null || open.has(x.problem_id),
+    );
     return {
       for_you_now: forYouRows(s, att),
       problems,
+      agent_problems: all.filter((p) => !p.acknowledged && handledByAgents(p)),
+      acknowledged: all.filter((p) => p.acknowledged),
+      resolutions,
       deferred: deferred.rows,
       planning_queue: summarize(
         { db: s.db, windows: s.windows, now: s.now, index: s.index },
@@ -1013,7 +1105,8 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
             view.for_you_now.length +
             (view.onboarding_reviews?.length ?? 0) +
             (view.overlaps?.length ?? 0) +
-            (view.undeclared_holds?.length ?? 0),
+            (view.undeclared_holds?.length ?? 0) +
+            (view.resolutions?.length ?? 0),
           problems: view.problems.length,
           planning: view.planning_queue.length,
           runs: view.agent_counts,
@@ -1030,6 +1123,27 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
 
     needsYou(r, input) {
       return needsYou(r, input.scope);
+    },
+
+    findProblem(r, id): FoundProblem | null {
+      const { s, all } = problemSet(r, 'all');
+      const problem = all.find((p) => p.id === id);
+      if (!problem) return null;
+      const project = problem.item_id
+        ? (s.items.get(problem.item_id)?.project_key ?? null)
+        : problem.kind === 'agent_files_drift' && problem.drift_id
+          ? ((
+              r.db.sqlite
+                .prepare('SELECT project_key FROM drift WHERE id = ?')
+                .get(problem.drift_id) as { project_key: string | null } | undefined
+            )?.project_key ?? null)
+          : null;
+      return { problem, project };
+    },
+
+    itemProblems(r, id): Problem[] {
+      const row = requireItem(r.db, id);
+      return itemProblemsOf(problemSet(r, row.project_key).all, row.id);
     },
 
     work(r, input): WorkResponse {
@@ -1357,6 +1471,9 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         links,
         outside,
         run_instructions: runInstructions(r.db, row.id),
+        // Decision 37: the item's open problems for its banner, and proposals about the item.
+        problems: itemProblemsOf(problemSet(r, row.project_key).all, row.id),
+        resolutions: openResolutions(r.db, new Set([row.id])).filter((x) => x.problem_id === null),
       };
     },
 

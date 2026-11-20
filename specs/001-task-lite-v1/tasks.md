@@ -513,6 +513,13 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T184 [US18] The conflict radar: the scheduler, git `merge-tree` with a temporary object directory (proven read-only: the repo's `.git` is unchanged byte-for-byte), findings, clearing, the "Radar off" state, and git in the image. Tests against a fixture repo with conflicting worktree branches.
 - [x] T185 [US18] UI per UI_SPEC §6.3.6 (Shared changes, Needs you cards, card markers, the Settings registry and radar); Help ("Shared changes and conflicts"); the planner and worker skills (declare before Ready, pick other work on `seam_conflict`, take the lease before generating a migration, report `changed_files` and `branch` at hand-off, on `submit_packet` or `set_status` to `done`); the onboarding prompt (propose a starter registry from the codebase's hot files). E2E plus axe.
 
+## Phase 23: Problems that say what to do (owner decision 37)
+
+- [x] T186 [contract] Spec plus code in one PR: decision 37 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.22, §5.21 B42, §5.15 4c, §7; MCP_SPEC §5.16; UI_SPEC §6.1, §6.3, §6.3.6, §6.7c; FR-165–FR-172, US18 scenarios 7–9, SC-024. Migration `0013_problem_handling` (`problem_acks`, `resolutions`); `DOCKET_AGENT_PROBLEM_GRACE_HOURS`; the Problems row's optional `id`, `explanation`, `reached_you`, `branches`, `acknowledged`, `resolution`; Needs you's `agent_problems`, `acknowledged`, `resolutions`; the item's `problems` and `resolutions`; `POST /api/problems/acknowledge`, `POST /api/resolutions/:id/decide`; `propose_resolution` (snapshot 48 → 49) and `get_context`'s `problems` and `resolutions`; three event types.
+- [x] T187 [US18] The service: the explanation for every kind (domain/problems.ts), agent problems routed to the leads (grace period, no lead), acknowledgements with the material-change rule, proposed resolutions and decisions with owner notes; the radar: pairs explained by main left out, findings cleared when a branch stops being reported, one note per item. Tests: every kind's text, the routing (time-controlled), the no-lead routing, *Remind the agent*, *Not an active branch* with Undo, the suppression on the Gameflow-like fixture, the immediate clearing, the acknowledgement rule, propose → a different way → propose again → approve.
+- [x] T188 [US18] UI per UI_SPEC §6.1 and §6.3: the three lines on every row and card, the agent actions, "Agents are handling N problems", "You acknowledged N", proposal cards, the item's problem banner (`?problem=`). Help ("Problems and what to do"; the Problems anchors move to it). Worker and planner skills (`propose_resolution`, routine fixes need none, the radar's note).
+- [x] T189 [US18] E2E: the banner with *Remind the agent*, *Not an active branch* and Undo, *Acknowledge*, and propose → a different way → propose again → approve, axe in both themes; the sweep spec stays green.
+
 ## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.
@@ -552,6 +559,7 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 | B38 | 22 Contracts for shared changes | T182 | Snapshot 44 → 48 |
 | B39 | 22 Shared changes and guardrails (US18) | T183–T185 | After B38 |
 | B37 | 21 Approve with notes (US3) | T179–T181 | Contract and implementation in one PR; no MCP changes |
+| B42 | 23 Problems that say what to do (US18) | T186–T189 | Contract and implementation in one PR; snapshot 48 → 49 |
 
 **Slices after B6 may run in any order that respects** the dependency table below. Don't run two slices at once: they share route and screen groups.
 
@@ -603,6 +611,7 @@ Open a PR titled "<Bn>: <phase name>" with the checkpoint evidence. Do not queue
 | 20 Install and onboarding follow-ups | B36 (after B35) |
 | 21 Approve with notes | B37 (after B9) |
 | 22 Shared changes and conflict guardrails | B38 then B39 |
+| 23 Problems that say what to do | B42 (after B41) |
 
 **Within a phase:** tests (failing) → services → replace stubs or fill handlers → fill screens → checkpoint.
 

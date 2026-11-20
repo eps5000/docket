@@ -9,7 +9,6 @@ anchors:
   - agent-files.install-log
   - agent-files.install-state
   - settings.push-folder
-  - problems.agent_files_drift
 related:
   - connect-an-agent
   - crash-recovery

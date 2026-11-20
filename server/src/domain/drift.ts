@@ -33,6 +33,7 @@
  * writes the files; a command install returns the command); *Keep local*
  * accepts the hash. Only *Adopt* is undoable.
  */
+import { explain } from './problems.js';
 import {
   CONNECTION_KEY,
   INSTALL_CLIENT_LABELS,
@@ -537,16 +538,22 @@ export function driftProblems(
     const install = installById(db, row.install_id);
     if (!install) continue;
     const report = reportById(db, row.report_id);
+    const change = changeText(row.file_key, row.change);
+    const project = projectName(db, row.project_key);
+    const where = whereOf(install, report);
     out.push({
       kind: 'agent_files_drift',
       item_id: null,
       title: null,
-      reason: `${changeText(row.file_key, row.change)} outside Docket · ${projectName(db, row.project_key)} · ${whereOf(install, report)} · ${foundText(db, report)}`,
+      reason: `${change} outside Docket · ${project} · ${where} · ${foundText(db, report)}`,
       related: [],
       link_id: null,
       run_id: report?.run_id ?? null,
       resource_ids: [],
       drift_id: row.id,
+      // Decision 37 (B42): an ID for acknowledging it, and what to do.
+      id: `agent_files_drift:${row.id}`,
+      explanation: explain.agent_files_drift({ change, project, where }),
     });
   }
   return out;

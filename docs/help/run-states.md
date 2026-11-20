@@ -8,10 +8,6 @@ anchors:
   - needs-you.agents-strip
   - item.agent-bar
   - item.lead-and-runs
-  - problems.stale_run
-  - problems.failed_run
-  - problems.parked_too_long
-  - problems.resume_unattended
 related:
   - workspaces-and-pruning
   - crash-recovery

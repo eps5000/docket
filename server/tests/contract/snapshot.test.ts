@@ -3,7 +3,7 @@
  * official MCP client SDK against the in-process server:
  * - `initialize` returns the §2 instructions verbatim and advertises
  *   `tools` and `prompts` (each `listChanged: false`);
- * - `tools/list` has exactly the 48 §5 tools, in order, each with its §5
+ * - `tools/list` has exactly the 49 §5 tools, in order, each with its §5
  *   description verbatim, its fields, defaults and limits, and the §3
  *   annotations;
  * - `prompts/list` has exactly the §5.11 `onboard` prompt, with its
@@ -82,8 +82,8 @@ describe('initialize', () => {
 });
 
 describe('tools/list: names and descriptions (§5)', () => {
-  it('lists exactly 48 tools, in MCP_SPEC §5 order', () => {
-    expect(tools).toHaveLength(48);
+  it('lists exactly 49 tools, in MCP_SPEC §5 order', () => {
+    expect(tools).toHaveLength(49);
     expect(tools.map((t) => t.name)).toEqual(specDescriptions().map(([name]) => name));
   });
 
@@ -133,9 +133,9 @@ describe('tools/list: annotations (§3)', () => {
     expect(byName('get_item').annotations?.readOnlyHint).toBe(false);
   });
 
-  it('the §3 counts hold: 13 read tools, 34 mutating', () => {
+  it('the §3 counts hold: 13 read tools, 35 mutating', () => {
     expect(SPEC).toContain('`true` for the 13 read tools');
-    expect(SPEC).toContain('accepted only by the 34 mutating tools');
+    expect(SPEC).toContain('accepted only by the 35 mutating tools');
     expect(READ_TOOLS).toHaveLength(13);
   });
 });
@@ -289,6 +289,10 @@ const INPUTS: Record<string, [string[], string[]]> = {
   list_shared_parts: [['project'], ['include_archived']],
   take_lease: [['id', 'part'], []],
   release_lease: [['id', 'part'], []],
+  propose_resolution: [
+    ['kind', 'plan_md', 'reason'],
+    ['problem', 'id'],
+  ],
 };
 
 /** Result fields per tool, from the §5 Output lines (all required). */
@@ -357,6 +361,7 @@ const OUTPUTS: Record<string, string[]> = {
   list_shared_parts: ['project', 'parts'],
   take_lease: ['part', 'item_id', 'held_until', 'renewed'],
   release_lease: ['part', 'item_id', 'released'],
+  propose_resolution: ['resolution', 'superseded'],
 };
 
 /** Optional result fields, from the §5 Output lines (decision 36: a held packet). */
@@ -400,7 +405,7 @@ describe('tools/list: input schemas (§3, §5)', () => {
   });
 
   it('every mutating tool accepts idempotency_key (≤ 100) and run_id; reads accept run_id only', () => {
-    expect(MUTATING).toHaveLength(34);
+    expect(MUTATING).toHaveLength(35);
     for (const t of tools) {
       const props = input(t.name).properties!;
       expect(props.run_id, t.name).toBeDefined();
@@ -731,7 +736,7 @@ describe('text-only sessions (§3 Results)', () => {
     expect(await t.a.getPrompt(args)).toEqual(await t.b.getPrompt(args));
   });
 
-  it('lists the same 48 tools, in order, with the §5 descriptions verbatim', () => {
+  it('lists the same 49 tools, in order, with the §5 descriptions verbatim', () => {
     expect(textTools.map((x) => x.name)).toEqual(specDescriptions().map(([name]) => name));
     for (const [name, description] of specDescriptions()) {
       expect(textTools.find((x) => x.name === name)!.description, name).toBe(description);

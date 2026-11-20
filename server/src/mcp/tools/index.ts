@@ -1,6 +1,6 @@
 /**
  * Every tool's handler, by group (one file per group; slices fill them in).
- * The type requires all 48: a missing handler fails the typecheck.
+ * The type requires all 49: a missing handler fails the typecheck.
  */
 import type { ToolHandlers } from '../register.js';
 import { readHandlers } from './read.js';
@@ -15,6 +15,7 @@ import { agentFilesHandlers } from './agent-files.js';
 import { onboardingHandlers } from './onboarding.js';
 import { batchHandler } from './batch.js';
 import { sharedHandlers } from './shared.js';
+import { problemsHandlers } from './problems.js';
 
 export const TOOL_HANDLERS: ToolHandlers = {
   ...readHandlers,
@@ -28,6 +29,7 @@ export const TOOL_HANDLERS: ToolHandlers = {
   ...agentFilesHandlers,
   ...onboardingHandlers,
   ...sharedHandlers,
+  ...problemsHandlers,
   // Decision 34: each operation runs through the handlers above.
   apply_batch: batchHandler(() => TOOL_HANDLERS),
 };
@@ -46,4 +48,5 @@ export const HANDLER_GROUPS: Record<string, readonly string[]> = {
   onboarding: Object.keys(onboardingHandlers),
   batch: ['apply_batch'],
   shared: Object.keys(sharedHandlers),
+  problems: Object.keys(problemsHandlers),
 };

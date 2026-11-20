@@ -136,7 +136,12 @@ test.describe('Drift (US14)', () => {
     await page.goto('/');
     const problems = page.locator('[data-card="problems"]');
     const row = problems.locator('[data-problem="agent_files_drift"]');
+    // Decision 37: what's wrong and what to do; the one-line reason stays in `title`.
     await expect(row).toContainText(
+      "docket-worker edited outside Docket (Recipe App, C:/Users/owner/code/recipes), so agents follow instructions you haven't reviewed.",
+    );
+    await expect(row.locator('.prob-x dd').first()).toHaveAttribute(
+      'title',
       'docket-worker edited outside Docket · Recipe App · C:/Users/owner/code/recipes · found by the scheduled check',
     );
     await shoot(page, '1-problem', problems);
@@ -194,7 +199,11 @@ test.describe('Drift (US14)', () => {
       expect(claim.isError, claim.text).toBe(false);
 
       await page.goto('/');
-      await expect(page.locator('[data-problem="agent_files_drift"]')).toContainText(
+      // Decision 37: the one-line reason (who reported it) stays in `title`.
+      await expect(
+        page.locator('[data-problem="agent_files_drift"] .prob-x dd').first(),
+      ).toHaveAttribute(
+        'title',
         'docket-worker edited outside Docket · Recipe App · C:/Users/owner/code/recipes · reported by codex · orca-w3 on RCP-17',
       );
 

@@ -48,6 +48,8 @@ const STROKE = {
   box: '<path d="M2.5 4.5l5.5-3 5.5 3v7l-5.5 3-5.5-3z"/><path d="M2.5 4.5L8 7.5l5.5-3M8 7.5v7"/>',
   server:
     '<rect x="2" y="2.5" width="12" height="4.5" rx="1"/><rect x="2" y="9" width="12" height="4.5" rx="1"/><path d="M5 4.75h.01M5 11.25h.01"/>',
+  /** Decision 37: a problem (the item's banner); give it an accessible name where it stands alone. */
+  warning: '<path d="M8 1.8 14.6 13.6H1.4z"/><path d="M8 6.2v3.4M8 11.7h.01"/>',
   upload: '<path d="M8 11V3M4.5 6.5 8 3l3.5 3.5M3 13.5h10"/>',
 } as const;
 

@@ -295,6 +295,17 @@ Fits one 1440×900 screen without scrolling at sample volume. Contents, top to b
      | Extra backup copy failed | *Open* → Settings |
 
      Empty: "No stale or failed runs, cycles or date conflicts."
+
+     **Decision 37 (B42): every row says three things,** compactly so Needs you still fits one screen (a `dl`): after the ID and title, **who acts** as a "You" or "Agent" chip (its full line, "An agent (the lead of GF-228)", in the chip's `title` and for screen readers); **what's wrong** on up to two lines (the old one-line reason in its `title`); and **"Fix:"** on one line (the whole fix in `title`). An agent problem that reached you adds a `--warn` line, "Not fixed by an agent for a day" or "Nobody is working on GF-228". The item's banner shows the three lines in full. The actions sit under the text: the kind's own (table above; every *Open* now lands on the item's problem banner, `?problem=<id>`), then for agent problems *Remind the agent*, *Open the item* and *Not an active branch* (one per reported branch of a radar finding, named "Not an active branch: <branch>"; with two, "Not active: <branch>"), then *Acknowledge* on every problem not already acknowledged, and the "?" to "Problems and what to do".
+
+     | Problem (decision 37) | Who acts | Actions |
+     |---|---|---|
+     | Out of date with main (a radar finding on one branch) | An agent | *Remind the agent* · *Open the item* · *Not an active branch* · *Acknowledge* |
+     | Heading for a merge conflict (two items' branches) | An agent | the same, with *Not active: <branch>* for each reported side |
+     | Every other row | You (or you or your coordinator, for recovery) | its own action · *Acknowledge* |
+
+     Under the rows, two lines, each a disclosure button that opens its rows in place: **"Agents are handling N problems"** (agent problems within their grace period, with a "?") and **"You acknowledged N problems"**. Neither counts in the header or the sidebar.
+   - **Proposed resolutions** (decision 37): a card each above the top band, beside the shared-changes questions, counted as for you: "claude · orca-w3 proposes how to resolve a problem on GF-228" (the ID links to the banner), the kind ("Proposed: Split the work"), the reason, the plan (Markdown), and *Go a different way* (opens "Which way instead (required)"; *Send: go a different way*), *Acknowledge* and *Approve*. Each has a toast with Undo.
 4. **Lower row** (two cards, each showing the top 3 with *View all N →*):
    - **Deferred, not verified · N:** item + review text + "Test ticket RCP-29 · inbox" or "No follow-up ticket" with *Create test ticket*. *View all* goes to Work with the Deferred review filter. Empty: "Nothing deferred."
    - **Your Planning queue · N:** item + type and epic, with *Move to Ready*. *View all* goes to Work with the In planning filter. Empty: "Nothing in Planning."
@@ -381,6 +392,7 @@ A `ProgressMap` of the filtered set, titled "Outside this view". When no epic or
 - Activity → Lead and runs stays: it is the full run history.
 
 **Banners above the tabs** (visible on every tab):
+- **Problems** (decision 37; first): a `section` labelled "Problems with GF-228", shown while the item has an open problem, acknowledged or not, until it's resolved. Each problem is a `--warn` banner (a `group` named by its title, focusable): a warning icon (an exclamation, `role="img"`, named "Problem" or "Problem (acknowledged)"), a short title ("Out of date with main", "Heading for a merge conflict", "Lead agent silent", "Dependency cycle", …), the You/Agent chip, the three lines, "Why you see it", "Acknowledged by you 5m ago", any proposed resolution with its choices, and the row's actions (without *Open the item*). Several stack under "n open problems". Open overlap and undeclared-changes questions on the item stack here too, as their Needs you cards with a warning icon. `?problem=<id>` focuses that banner (outlined) and scrolls it into view.
 - **Packet ready:** amber banner, "Handoff packet ready (round n). k things to verify, about 10 min. The ticket can't close until you approve.", with *Open packet*.
 - **Open question:** the question, an answer textarea and *Send answer*. After answering: "You answered: “…”. Waiting for codex to read it."
 - **From review:** "Created from your human review of RCP-12 (…)".
@@ -548,7 +560,7 @@ Agent decisions never appear in Needs you. They show here, and in the item's Act
 - **Needs you:**
   - **Overlap questions**, a card for each pair: "GF-240 and GF-312 both change model Token", with *Run one after the other*, *They're compatible* (an optional note) and *Open both*;
   - **Undeclared-changes holds:** *Add to the declaration* or *Send back*;
-  - **Problems:** radar findings ("Heading for a conflict").
+  - **Problems:** radar findings ("Heading for a conflict"). Decision 37: they're agent problems ("Agents are handling N problems") until nobody leads the item or a day passes; overlap and hold cards show the three lines (§6.1).
 - **Work cards:** a small "overlap" or "conflict ahead" marker when relevant.
 - **Settings → Projects → <project> → Shared parts** (B39: its own page, `/settings/projects/<key>/shared-parts`, linked from the project row):
   - the registry (key, kind, paths, single-writer, in-flight declarations);
@@ -730,6 +742,7 @@ Help anchors: `agent-files.page` (the h1), `agent-files.workflow`, `agent-files.
 - **`/help`:** a searchable list of articles, each with its title and one-line summary, grouped as Getting started, Working with agents, Recovery, Planning and Operations.
 - **An article:** the rendered Markdown, with "Related" links.
 - **Contextual "?":** a small `IconButton` with an accessible name of "Help: <topic>", next to headings and states that have an article (Agents → Workspaces, run states, Problems rows, Settings cards, the packet screen). It opens the article in a side panel without leaving the screen, with *Open in Help* in the panel.
+- **"Problems and what to do"** (decision 37): every Problems row, the "Agents are handling" line, proposal and shared-changes cards, and the item's problem banner open this one article: each kind, who acts, and what each button does.
 - **The palette** lists matching articles under "Help".
 
 ### 6.7a Desktop notifications

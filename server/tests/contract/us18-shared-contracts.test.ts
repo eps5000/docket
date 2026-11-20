@@ -1298,7 +1298,7 @@ describe('the conflict radar (FR-163; T184)', () => {
       ]);
       expect(found).toEqual(
         expect.arrayContaining([
-          ['feat/b', 'main', 'RCP-25', null, ['shared.txt']],
+          ['feat/b', 'main', 'RCP-25', null, ['notes.txt']],
           ['feat/a', 'feat/b', 'RCP-17', 'RCP-25', ['shared.txt']],
         ]),
       );
@@ -1322,11 +1322,9 @@ describe('the conflict radar (FR-163; T184)', () => {
       expect(
         ((await api('GET', '/api/items/RCP-25/shared')).body.findings as unknown[]).length,
       ).toBe(2);
-      const problems = (await api('GET', '/api/needs-you?scope=all')).body.problems as {
-        kind: string;
-        item_id: string;
-        reason: string;
-      }[];
+      // B42: both items have a lead, so the agents handle them first (decision 37).
+      const needs = (await api('GET', '/api/needs-you?scope=all')).body;
+      const problems = needs.agent_problems as { kind: string; item_id: string; reason: string }[];
       expect(
         problems
           .filter((p) => p.kind === 'radar_conflict')
@@ -1334,8 +1332,11 @@ describe('the conflict radar (FR-163; T184)', () => {
           .sort(),
       ).toEqual([
         'Heading for a conflict with RCP-25: 1 file · shared.txt (feat/a vs feat/b)',
-        'Heading for a conflict with main: 1 file · shared.txt (feat/b vs main)',
+        'Heading for a conflict with main: 1 file · notes.txt (feat/b vs main)',
       ]);
+      expect((needs.problems as { kind: string }[]).map((p) => p.kind)).not.toContain(
+        'radar_conflict',
+      );
       expect(expectOk(await h.call('get_context', { id: 'RCP-17' })).text).toContain(
         'conflict ahead with RCP-25 (feat/a vs feat/b) · 1 file · shared.txt',
       );
@@ -1646,7 +1647,8 @@ describe('B41: several branches per item', () => {
       expect(events('radar.found', 'GF-235').map((e) => e.summary)).toEqual([
         'Heading for a conflict with GF-217: 1 file · gf-235-b vs gf-217-api',
       ]);
-      const problems = (await api('GET', '/api/needs-you?scope=all')).body.problems as {
+      // B42: the items have leads, so the agents handle it first (decision 37).
+      const problems = (await api('GET', '/api/needs-you?scope=all')).body.agent_problems as {
         kind: string;
         reason: string;
       }[];

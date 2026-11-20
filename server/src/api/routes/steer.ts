@@ -9,6 +9,20 @@ import type { Env, Hono } from 'hono';
 import { defineRoute, type RouteDeps } from '../define.js';
 
 export function steerRoutes<E extends Env>(api: Hono<E>, deps: RouteDeps): void {
+  // Decision 37: acknowledging a problem, and the owner's choice on a proposed resolution
+  // (both undoable).
+  defineRoute(api, 'problems.acknowledge', deps, ({ services, mutate, body }) => {
+    const { result, mutation_id } = mutate((w) => services.problems.acknowledge(w, body));
+    return { mutation_id, ...result };
+  });
+
+  defineRoute(api, 'resolutions.decide', deps, ({ services, mutate, params, body }) => {
+    const { result, mutation_id } = mutate((w) =>
+      services.problems.decide(w, { id: params.id, ...body }),
+    );
+    return { mutation_id, resolution: result };
+  });
+
   defineRoute(api, 'items.answer', deps, ({ services, mutate, params, body }) => {
     const { result, mutation_id } = mutate((w) =>
       services.messages.answer(w, { id: params.id, ...body }),

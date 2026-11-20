@@ -63,7 +63,8 @@ The project has its own rules: who moves work to Ready, when human review is nee
 - **Change a shared part you didn't declare?** Add it now with `declare_shared_changes` (the whole list: it replaces the declaration). Name parts by their keys from `list_shared_parts`.
 - **Declaring shared changes?** Pass `branches`, every branch the work is on (or `branch` for one), every time, also when you backfill a declaration for work already in progress. The list replaces the item's branches, and the conflict radar checks each one.
 - **Single-writer parts** (such as a migrations snapshot): `take_lease { id, part }` **before** you generate or edit it, and `release_lease` as soon as the change is committed and pushed. If you get `lease_held`, work on another step or item; call `take_lease` again later. Never wait in a loop.
-- **"conflict ahead" in your context** means the radar sees your branch heading for a merge conflict. Tell the owner with `add_note` and rebase early.
+- **`problems:` in your context, or a "Docket's conflict radar" note,** is yours to fix first: it says what's wrong, what fixes it and who acts. Fix routine ones without asking: rebase a branch that's out of date with main, or drop an old draft branch from the item's branches with `declare_shared_changes`. Docket records both on the item. You have about a day before the owner sees it.
+- **A fix that changes the plan** (split the work, change its scope or its order): `propose_resolution { problem, kind, plan_md, reason }` with the problem's ID from your context, then work on what doesn't depend on it. The owner's choice arrives as a note and in `get_context` `resolutions:`. After "go a different way", follow the note and propose again if you need to.
 
 **Along the way:**
 
