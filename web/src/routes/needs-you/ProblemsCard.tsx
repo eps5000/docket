@@ -377,15 +377,23 @@ export function ProblemRow({ problem, workspace }: { problem: Problem; workspace
         <Icon name={m.icon} />
       </div>
       <div style={{ minWidth: 0 }}>
-        <div className="row" style={{ minWidth: 0 }}>
-          {problem.item_id && (
-            <Link to={paths.item(problem.item_id)} className="mono">
-              {problem.item_id}
-            </Link>
-          )}
-          {problem.title && <span className="tt">{problem.title}</span>}
-          {e && <WhoChip e={e} />}
-          {workspace && <WorkspaceStateChip state={workspace.state} />}
+        {/* One line: the item, who acts, then the actions (they wrap below when they don't fit). */}
+        <div className="prob-head">
+          <div className="row prob-id">
+            {problem.item_id && (
+              <Link to={paths.item(problem.item_id)} className="mono">
+                {problem.item_id}
+              </Link>
+            )}
+            {e && <WhoChip e={e} />}
+            {workspace && <WorkspaceStateChip state={workspace.state} />}
+            {problem.title && <span className="tt">{problem.title}</span>}
+          </div>
+          <div className="row prob-acts">
+            <KindActions problem={problem} place="row" />
+            <ProblemActions problem={problem} place="row" />
+            <HelpLink anchor={m.help} />
+          </div>
         </div>
         {e ? (
           <ProblemLines
@@ -398,11 +406,6 @@ export function ProblemRow({ problem, workspace }: { problem: Problem; workspace
         ) : (
           <Reason text={problem.reason} />
         )}
-        <div className="row wrap prob-acts">
-          <KindActions problem={problem} place="row" />
-          <ProblemActions problem={problem} place="row" />
-          <HelpLink anchor={m.help} />
-        </div>
       </div>
     </div>
   );

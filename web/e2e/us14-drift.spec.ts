@@ -199,7 +199,11 @@ test.describe('Drift (US14)', () => {
       expect(claim.isError, claim.text).toBe(false);
 
       await page.goto('/');
-      await expect(page.locator('[data-problem="agent_files_drift"]')).toContainText(
+      // Decision 37: the one-line reason (who reported it) stays in `title`.
+      await expect(
+        page.locator('[data-problem="agent_files_drift"] .prob-x dd').first(),
+      ).toHaveAttribute(
+        'title',
         'docket-worker edited outside Docket · Recipe App · C:/Users/owner/code/recipes · reported by codex · orca-w3 on RCP-17',
       );
 

@@ -182,7 +182,7 @@ test.describe.serial('US11 recovery', () => {
     );
     await expect(r).toContainText('Push or save the work from that folder, then mark it handled.');
     // The worktree's state chip, as on Agents → Workspaces.
-    await expect(r.locator('.chip')).toHaveText('At risk');
+    await expect(r.locator('.chip', { hasText: 'At risk' })).toHaveText('At risk');
     await r.getByRole('button', { name: 'Handled' }).click();
     const toast = page.getByRole('status');
     await expect(toast).toContainText('Marked handled.');
@@ -227,13 +227,17 @@ test.describe.serial('US11 recovery', () => {
 
     await openNeedsYou(page);
     await expect(row(page, 'parked_too_long', 'RCP-17')).toContainText(
-      'waiting on the coordinator · keeps its claim',
+      'waiting on the coordinator. It keeps its claim.',
     );
-    await expect(row(page, 'parked_too_long', 'RCP-17').locator('.chip')).toHaveText('Parked');
+    await expect(
+      row(page, 'parked_too_long', 'RCP-17').locator('.chip', { hasText: 'Parked' }),
+    ).toHaveText('Parked');
     await expect(row(page, 'resume_unattended', 'RCP-18')).toContainText(
-      'Ready to resume: RCP-11 is done · parked 40m',
+      'RCP-18 is ready to resume (RCP-11 is done), but nobody has resumed it. It has been parked 40m.',
     );
-    await expect(row(page, 'resume_unattended', 'RCP-18').locator('.chip')).toHaveText('Parked');
+    await expect(
+      row(page, 'resume_unattended', 'RCP-18').locator('.chip', { hasText: 'Parked' }),
+    ).toHaveText('Parked');
     // All four recovery rows fit the card at once.
     for (const kind of [
       'orphaned_resources',
