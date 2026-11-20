@@ -26,12 +26,24 @@
  * `..`, host paths mapped onto the root, symlinks followed only inside it).
  * Without git or a repository the radar is off ("Radar off: no repository")
  * and everything else works.
+ *
+ * **Branches (B40):** an item's branch is the latest one reported for it:
+ * `declare_shared_changes`' `branch` or the owner's Shared changes section
+ * (`items.branch`, which the owner may also clear), its latest packet's, its
+ * lead run's or its latest claim's. An in-flight item with none gets one by
+ * discovery: the local branches (`git for-each-ref refs/heads` and
+ * `git worktree list --porcelain`) whose name holds the item's key, or its
+ * Jira key, as a whole token, in any case and with or without the hyphen
+ * (`gf-239`, `GF-239`, `gf239`, `gameflow-239`). One match is used (source
+ * `discovered`); several are none ("several branches match"), and the run
+ * records them on the item so the owner can report one. A reported branch
+ * always wins over a discovered one.
  */
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, realpathSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { ToolError, type RadarResponse } from '@docket/shared';
+import { ToolError, type BranchSource, type RadarResponse } from '@docket/shared';
 import type { Db } from '../db/client.js';
 import type { Config } from '../config.js';
 import type { ReadContext } from './contracts.js';
@@ -163,6 +175,28 @@ export class RadarGit {
     return null;
   }
 
+  /**
+   * The local branches (B40): `refs/heads`, plus the branch each worktree has
+   * checked out (worktrees share `refs/heads`, so this only adds one the
+   * first list missed). Names git wouldn't take are left out.
+   */
+  branches(): string[] {
+    const out = new Set<string>();
+    const heads = git(this.dir, ['for-each-ref', '--format=%(refname)', 'refs/heads'], this.env);
+    if (heads.status === 0) {
+      for (const line of heads.stdout.split('\n')) {
+        if (line.startsWith('refs/heads/')) out.add(line.slice('refs/heads/'.length));
+      }
+    }
+    const trees = git(this.dir, ['worktree', 'list', '--porcelain'], this.env);
+    if (trees.status === 0) {
+      for (const line of trees.stdout.split('\n')) {
+        if (line.startsWith('branch refs/heads/')) out.add(line.slice('branch refs/heads/'.length));
+      }
+    }
+    return [...out].filter(validBranch).sort();
+  }
+
   /** Files changed on `ref` since it left `base` (`git diff --name-only base...ref`). */
   changed(base: string, ref: string): string[] {
     const r = git(this.dir, ['diff', '--name-only', '--no-renames', `${base}...${ref}`], this.env);
@@ -196,8 +230,20 @@ interface Check {
   item_a: string;
   /** Null when `branch_b` is the main branch. */
   item_b: string | null;
+  source_a: BranchSource;
+  /** Null for the main branch. */
+  source_b: BranchSource | null;
   /** Conflicting files; empty when the trial merge is clean. */
   files: string[];
+}
+
+/** What discovery found for an in-flight item with no reported branch (B40). */
+export interface Discovery {
+  item: string;
+  /** The one matching branch; null with none or several. */
+  branch: string | null;
+  /** Every matching branch when there are several; empty otherwise. */
+  matches: string[];
 }
 
 export interface RadarPlan {
@@ -205,44 +251,95 @@ export interface RadarPlan {
   /** Why the radar couldn't run ("Radar off: …"); null when it ran. */
   off: string | null;
   checks: Check[];
+  /** B40: one per in-flight item without a reported branch. */
+  discovered: Discovery[];
 }
 
 interface Flight {
   id: string;
   branch: string;
+  source: BranchSource;
   ref: string;
   parts: Set<string>;
   files: Set<string>;
 }
 
+/** A branch reported for an item, with who reported it and when. */
+export interface Reported {
+  /** Null when the latest report cleared it (the owner's Shared changes section). */
+  branch: string | null;
+  at: string;
+  by: string | null;
+}
+
+const byName = (client: string | null, label: string | null) =>
+  client ? (label ? `${client} · ${label}` : client) : null;
+
 /**
- * The branch an in-flight item works on: its latest packet's, else its latest
- * lead run's workspace branch, else the branch its latest claim named.
+ * The latest branch reported for an item (B40), whichever is newest of:
+ * `items.branch` (set by `declare_shared_changes`, set or cleared by the
+ * owner), its latest packet's, its latest lead run's workspace branch, and
+ * its latest claim's. On a tie the item's own report wins. Null when no
+ * branch was ever reported.
  */
-function branchOf(db: Db, itemId: string): string | null {
+export function latestReport(db: Db, itemId: string): Reported | null {
+  const found: Reported[] = [];
   const packet = db.sqlite
     .prepare(
-      `SELECT branch FROM packets WHERE item_id = ? AND branch IS NOT NULL
+      `SELECT branch, created_at, created_by FROM packets WHERE item_id = ? AND branch IS NOT NULL
        ORDER BY round DESC LIMIT 1`,
     )
-    .get(itemId) as { branch: string } | undefined;
-  if (packet) return packet.branch;
+    .get(itemId) as { branch: string; created_at: string; created_by: string } | undefined;
+  if (packet) found.push({ branch: packet.branch, at: packet.created_at, by: packet.created_by });
   const run = db.sqlite
     .prepare(
-      `SELECT json_extract(workspace, '$.branch') AS branch FROM runs
+      `SELECT json_extract(workspace, '$.branch') AS branch, created_at, client, label FROM runs
        WHERE item_id = ? AND is_lead = 1 AND json_extract(workspace, '$.branch') IS NOT NULL
        ORDER BY created_at DESC LIMIT 1`,
     )
-    .get(itemId) as { branch: string } | undefined;
-  if (run) return run.branch;
+    .get(itemId) as
+    { branch: string; created_at: string; client: string | null; label: string | null } | undefined;
+  if (run)
+    found.push({ branch: run.branch, at: run.created_at, by: byName(run.client, run.label) });
   const claim = db.sqlite
     .prepare(
-      `SELECT json_extract(data, '$.branch') AS branch FROM events
+      `SELECT json_extract(data, '$.branch') AS branch, at, client, label FROM events
        WHERE item_id = ? AND type = 'claim.granted' AND json_extract(data, '$.branch') IS NOT NULL
        ORDER BY seq DESC LIMIT 1`,
     )
-    .get(itemId) as { branch: string } | undefined;
-  return claim?.branch ?? null;
+    .get(itemId) as
+    { branch: string; at: string; client: string | null; label: string | null } | undefined;
+  if (claim) {
+    found.push({ branch: claim.branch, at: claim.at, by: byName(claim.client, claim.label) });
+  }
+  const item = db.sqlite
+    .prepare('SELECT branch, branch_by, branch_at FROM items WHERE id = ?')
+    .get(itemId) as
+    { branch: string | null; branch_by: string | null; branch_at: string | null } | undefined;
+  if (item?.branch_at) found.push({ branch: item.branch, at: item.branch_at, by: item.branch_by });
+  if (found.length === 0) return null;
+  return found.reduce((a, b) => (b.at >= a.at ? b : a));
+}
+
+/**
+ * A pattern for an item key (`GF-239`) or Jira key (`GAMEFLOW-239`) as a
+ * whole token of a branch name (B40), in any case, with or without the
+ * hyphen: `eps5000/gf-239-visual-shell` and `GF239` match; `gf-2390` and
+ * `xgf-239` don't. Null for a key of another shape.
+ */
+export function keyPattern(key: string): RegExp | null {
+  const m = /^([A-Za-z][A-Za-z0-9]*)-(\d+)$/.exec(key.trim());
+  if (!m) return null;
+  return new RegExp(`(?<![A-Za-z0-9])${m[1]}-?${m[2]}(?![A-Za-z0-9])`, 'i');
+}
+
+/** The branches whose names hold any of `keys` as a whole token (B40), sorted. */
+export function branchesNaming(keys: (string | null)[], branches: string[]): string[] {
+  const patterns = keys.flatMap((k) => {
+    const p = k ? keyPattern(k) : null;
+    return p ? [p] : [];
+  });
+  return branches.filter((b) => patterns.some((p) => p.test(b))).sort();
 }
 
 function reportedFiles(db: Db, itemId: string): string[] {
@@ -263,7 +360,12 @@ export function planRadar(r: ReadContext, config: Config, project: string): Rada
     .get(project) as { repo_path: string | null; main_branch: string } | undefined;
   if (!p)
     throw new ToolError('not_found', `No project ${project}. Check the key with list_projects.`);
-  const off = (reason: string): RadarPlan => ({ project, off: reason, checks: [] });
+  const off = (reason: string): RadarPlan => ({
+    project,
+    off: reason,
+    checks: [],
+    discovered: [],
+  });
   if (!p.repo_path) return off(RADAR_OFF_NO_REPO);
   let dir: string;
   try {
@@ -279,13 +381,25 @@ export function planRadar(r: ReadContext, config: Config, project: string): Rada
     if (!main) return off(`Radar off: no branch ${p.main_branch}`);
     const items = db.sqlite
       .prepare(
-        `SELECT id FROM items WHERE project_key = ? AND status IN ('progress', 'review')
+        `SELECT id, jira_key FROM items WHERE project_key = ? AND status IN ('progress', 'review')
          AND archived_at IS NULL ORDER BY length(id), id`,
       )
-      .all(project) as { id: string }[];
+      .all(project) as { id: string; jira_key: string | null }[];
     const flights: Flight[] = [];
-    for (const { id } of items) {
-      const branch = branchOf(db, id);
+    const discovered: Discovery[] = [];
+    let local: string[] | null = null;
+    for (const { id, jira_key } of items) {
+      let branch = latestReport(db, id)?.branch ?? null;
+      let source: BranchSource = 'reported';
+      if (!branch) {
+        // None reported: a local branch that names the item (B40). Several is none.
+        local ??= g.branches().filter((b) => b !== p.main_branch);
+        const matches = branchesNaming([id, jira_key], local);
+        const one = matches.length === 1 ? matches[0]! : null;
+        discovered.push({ item: id, branch: one, matches: one ? [] : matches });
+        branch = one;
+        source = 'discovered';
+      }
       if (!branch || branch === p.main_branch) continue;
       const ref = g.ref(branch);
       if (!ref) continue;
@@ -299,7 +413,7 @@ export function planRadar(r: ReadContext, config: Config, project: string): Rada
         ).map((x) => x.part_key),
       );
       const files = new Set([...reportedFiles(db, id), ...g.changed(main, ref)]);
-      flights.push({ id, branch, ref, parts, files });
+      flights.push({ id, branch, source, ref, parts, files });
     }
     const checks: Check[] = [];
     for (const f of flights) {
@@ -310,6 +424,8 @@ export function planRadar(r: ReadContext, config: Config, project: string): Rada
         branch_b: p.main_branch,
         item_a: f.id,
         item_b: null,
+        source_a: f.source,
+        source_b: null,
         files,
       });
     }
@@ -323,10 +439,18 @@ export function planRadar(r: ReadContext, config: Config, project: string): Rada
         const files = g.merge(x.ref, y.ref);
         if (files === null) continue;
         const [a, b] = x.branch < y.branch ? [x, y] : [y, x];
-        checks.push({ branch_a: a.branch, branch_b: b.branch, item_a: a.id, item_b: b.id, files });
+        checks.push({
+          branch_a: a.branch,
+          branch_b: b.branch,
+          item_a: a.id,
+          item_b: b.id,
+          source_a: a.source,
+          source_b: b.source,
+          files,
+        });
       }
     }
-    return { project, off: null, checks };
+    return { project, off: null, checks, discovered };
   } finally {
     g.close();
   }
@@ -342,6 +466,7 @@ const fileCount = (n: number) => `${n} file${n === 1 ? '' : 's'}`;
  */
 export function recordRadar(w: WriteContext, plan: RadarPlan): void {
   if (plan.off) return;
+  for (const d of plan.discovered) recordDiscovery(w, plan.project, d);
   const open = w.db.sqlite
     .prepare('SELECT * FROM radar_findings WHERE project_key = ? AND cleared_at IS NULL')
     .all(plan.project) as Record<string, unknown>[];
@@ -353,9 +478,13 @@ export function recordRadar(w: WriteContext, plan: RadarPlan): void {
     const k = key(c.branch_a, c.branch_b);
     still.add(k);
     const existing = byPair.get(k);
-    const sameFiles =
-      existing && JSON.stringify(JSON.parse(existing.files as string)) === JSON.stringify(c.files);
-    if (existing && sameFiles) continue;
+    // A finding from before B40 has no sources: its branches were all reported.
+    const same =
+      existing &&
+      JSON.stringify(JSON.parse(existing.files as string)) === JSON.stringify(c.files) &&
+      (existing.source_a ?? 'reported') === c.source_a &&
+      (existing.source_b ?? (existing.item_b ? 'reported' : null)) === c.source_b;
+    if (existing && same) continue;
     let id: string;
     if (existing) {
       id = existing.id as string;
@@ -363,6 +492,8 @@ export function recordRadar(w: WriteContext, plan: RadarPlan): void {
         files: c.files,
         item_a: c.item_a,
         item_b: c.item_b,
+        source_a: c.source_a,
+        source_b: c.source_b,
         seen_at: w.now,
       });
     } else {
@@ -374,18 +505,21 @@ export function recordRadar(w: WriteContext, plan: RadarPlan): void {
         branch_b: c.branch_b,
         item_a: c.item_a,
         item_b: c.item_b,
+        source_a: c.source_a,
+        source_b: c.source_b,
         files: c.files,
         seen_at: w.now,
         cleared_at: null,
       });
     }
-    for (const [self, other, otherBranch] of [
-      [c.item_a, c.item_b, c.branch_b],
-      ...(c.item_b ? [[c.item_b, c.item_a, c.branch_a] as const] : []),
+    for (const [self, other, otherBranch, ownBranch, source] of [
+      [c.item_a, c.item_b, c.branch_b, c.branch_a, c.source_a],
+      ...(c.item_b ? [[c.item_b, c.item_a, c.branch_a, c.branch_b, c.source_b] as const] : []),
     ] as const) {
+      const found = source === 'discovered' ? ` (branch found by the radar: ${ownBranch})` : '';
       w.event({
         type: 'radar.found',
-        summary: `Heading for a conflict with ${other ?? otherBranch}: ${fileCount(c.files.length)}`,
+        summary: `Heading for a conflict with ${other ?? otherBranch}: ${fileCount(c.files.length)}${found}`,
         item_id: self,
         project_key: plan.project,
         data: {
@@ -393,6 +527,10 @@ export function recordRadar(w: WriteContext, plan: RadarPlan): void {
           branch_a: c.branch_a,
           branch_b: c.branch_b,
           with: other,
+          // B40: how the radar knew this item's branch, and each side's.
+          source,
+          source_a: c.source_a,
+          source_b: c.source_b,
           files: c.files.slice(0, 50),
         },
         objects: [{ kind: 'radar_finding', id }],
@@ -403,6 +541,42 @@ export function recordRadar(w: WriteContext, plan: RadarPlan): void {
     if (still.has(key(f.branch_a, f.branch_b))) continue;
     clearFinding(w, f);
   }
+}
+
+/**
+ * Store what discovery found for an item (B40) when it differs from the last
+ * run: `items.radar_branch` and `items.radar_branch_matches`, outside the
+ * item's version (like a declaration), with `branch.discovered` in Activity.
+ */
+function recordDiscovery(w: WriteContext, project: string, d: Discovery): void {
+  const row = w.db.sqlite
+    .prepare('SELECT radar_branch, radar_branch_matches FROM items WHERE id = ?')
+    .get(d.item) as { radar_branch: string | null; radar_branch_matches: string | null };
+  const before: string[] = row.radar_branch_matches
+    ? (JSON.parse(row.radar_branch_matches) as string[])
+    : [];
+  if (row.radar_branch === d.branch && JSON.stringify(before) === JSON.stringify(d.matches)) {
+    return;
+  }
+  w.db.sqlite
+    .prepare('UPDATE items SET radar_branch = ?, radar_branch_matches = ? WHERE id = ?')
+    .run(d.branch, d.matches.length > 0 ? JSON.stringify(d.matches) : null, d.item);
+  w.event({
+    type: 'branch.discovered',
+    summary: d.branch
+      ? `Branch found by the radar for ${d.item}: ${d.branch}`
+      : d.matches.length > 0
+        ? `Several branches match ${d.item}; report the branch: ${d.matches.join(', ')}`
+        : `The radar no longer finds a branch for ${d.item}`,
+    item_id: d.item,
+    project_key: project,
+    data: {
+      source: 'discovered',
+      branch: d.branch,
+      matches: d.matches,
+      previous: row.radar_branch,
+    },
+  });
 }
 
 /** Clear an open finding: `radar.cleared` on each of its items. */

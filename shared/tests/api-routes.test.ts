@@ -17,6 +17,7 @@ import {
   decideOverlapBody,
   patchSharedPartBody,
   putItemSharedBody,
+  putItemBranchBody,
   putRadarBody,
   sharedPartsQuery,
   declineProposalBody,
@@ -136,6 +137,8 @@ const EXPECTED = [
   'PATCH /api/shared-parts/:id',
   'GET /api/items/:id/shared',
   'PUT /api/items/:id/shared',
+  // B40: the owner sets or clears the item's branch for the radar.
+  'PUT /api/items/:id/shared/branch',
   'POST /api/overlaps/:id/decide',
   'POST /api/undeclared-holds/:id/decide',
   'POST /api/leases/:id/release',
@@ -163,7 +166,7 @@ describe('the route table', () => {
     const labels = ROUTE_IDS.map((id) => routeLabel(API_ROUTES[id]));
     expect(new Set(labels).size).toBe(labels.length);
     expect([...labels].sort()).toEqual([...EXPECTED].sort());
-    expect(labels).toHaveLength(90);
+    expect(labels).toHaveLength(91);
   });
 
   it('puts each route in a known group, and every group has a route', () => {
@@ -567,7 +570,19 @@ describe('field rules', () => {
     expect(
       patchItemBody.safeParse({ expected_version: 3, priority: 1, override_reason: 'x' }).success,
     ).toBe(false);
-    const undoable = ['sharedParts.create', 'sharedParts.update', 'itemShared.put'] as const;
+    // B40: the owner's branch for the radar: a name or null (clear), undoable.
+    expect(putItemBranchBody.safeParse({ branch: 'eps5000/gf-239-visual-shell' }).success).toBe(
+      true,
+    );
+    expect(putItemBranchBody.safeParse({ branch: null }).success).toBe(true);
+    expect(putItemBranchBody.safeParse({}).success).toBe(false);
+    expect(putItemBranchBody.safeParse({ branch: 'x'.repeat(201) }).success).toBe(false);
+    const undoable = [
+      'sharedParts.create',
+      'sharedParts.update',
+      'itemShared.put',
+      'itemShared.branch',
+    ] as const;
     for (const id of ROUTE_IDS.filter((r) => API_ROUTES[r].group === 'shared')) {
       expect(API_ROUTES[id].undoable, id).toBe((undoable as readonly string[]).includes(id));
     }

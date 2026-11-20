@@ -154,6 +154,8 @@ const B2_ROUTES: readonly RouteId[] = [
   'sharedParts.update',
   'itemShared.get',
   'itemShared.put',
+  // B40: the item's branch for the radar.
+  'itemShared.branch',
   'radar.get',
   'overlaps.decide',
   'undeclaredHolds.decide',
@@ -326,6 +328,7 @@ const VALID: Record<RouteId, Req> = {
   'sharedParts.update': { params: { id: 'spt_1' }, body: { expected_version: 1, archived: true } },
   'itemShared.get': { params: { id: 'RCP-14' } },
   'itemShared.put': { params: { id: 'RCP-14' }, body: { none: true } },
+  'itemShared.branch': { params: { id: 'RCP-14' }, body: { branch: 'feat/rcp-14' } },
   'overlaps.decide': {
     params: { id: 'pov_1' },
     body: { decision: 'compatible', note: 'Disjoint' },

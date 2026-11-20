@@ -457,6 +457,15 @@ export type UndeclaredHoldVia = (typeof UNDECLARED_HOLD_VIA)[number];
 export const RADAR_STATES = ['off', 'idle', 'ok'] as const;
 export type RadarState = (typeof RADAR_STATES)[number];
 
+/**
+ * How the radar knew an item's branch (B40): `reported` (an agent or the
+ * owner named it: `declare_shared_changes`, the Shared changes section, a
+ * claim, a run or a packet) or `discovered` (the item had none, and exactly
+ * one local branch names the item's key or Jira key).
+ */
+export const BRANCH_SOURCES = ['reported', 'discovered'] as const;
+export type BranchSource = (typeof BRANCH_SOURCES)[number];
+
 // ---- Events (contracts/events.md; MCP_SPEC §4 EventType) ----
 
 export const ACTOR_KINDS = ['owner', 'agent', 'system'] as const;
@@ -541,6 +550,9 @@ export const EVENT_TYPES = [
   'undeclared.decided',
   'radar.found',
   'radar.cleared',
+  // The radar sees in-flight branches (B40)
+  'branch.reported',
+  'branch.discovered',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 

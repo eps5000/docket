@@ -142,7 +142,7 @@ describe('0009_step_details', () => {
     const migrated = openDb(copy);
     try {
       migrateDb(migrated);
-      expect(migrationStatus(migrated)).toEqual({ current: true, applied: 11, expected: 11 });
+      expect(migrationStatus(migrated)).toEqual({ current: true, applied: 12, expected: 12 });
       const after = steps(migrated);
       expect(after).toEqual(
         before.map((row) => ({ ...row, details_md: null, source: null, details_version: 0 })),
@@ -155,8 +155,19 @@ describe('0009_step_details', () => {
               unknown
             >[]
           )
-            // 0010_shared_changes (B38) adds items.shared_none_at; it has its own test.
-            .map(({ shared_none_at: _, ...row }) => row),
+            // 0010_shared_changes (B38) adds items.shared_none_at, and 0011_radar_branches
+            // (B40) the branch columns; 0010's test checks them.
+            .map(
+              ({
+                shared_none_at: _,
+                branch: _b,
+                branch_by: _bb,
+                branch_at: _ba,
+                radar_branch: _rb,
+                radar_branch_matches: _rbm,
+                ...row
+              }) => row,
+            ),
         ),
       ).toEqual(otherTables);
       expect(migrated.sqlite.pragma('foreign_key_check')).toEqual([]);
@@ -186,7 +197,7 @@ describe('0009_step_details', () => {
 
       // Migrating again is a no-op.
       migrateDb(migrated);
-      expect(migrationStatus(migrated).applied).toBe(11);
+      expect(migrationStatus(migrated).applied).toBe(12);
     } finally {
       migrated.sqlite.close();
     }

@@ -78,7 +78,7 @@ If the owner must check something by hand, `declare_human_review` during Plannin
 Parallel items collide when they change the same table, model, endpoint or shared file. Before an item can move to Ready, declare what it will change:
 
 - `list_shared_parts { project }` first, and name parts by their registered keys (`model:Token`, `table:decks`, `endpoint:POST /decks/{id}/export`, `file:src/…/Snapshot.cs`).
-- `declare_shared_changes { id, changes: [{ part, change, note }] }`, with `change` one of `add`, `change` or `remove` and a one-line note. Register a missing part in the same call with `new_parts: [{ key, paths }]`, giving the repo paths that belong to it. An item that changes no shared part declares `none: true`.
+- `declare_shared_changes { id, changes: [{ part, change, note }] }`, with `change` one of `add`, `change` or `remove` and a one-line note. Register a missing part in the same call with `new_parts: [{ key, paths }]`, giving the repo paths that belong to it. An item that changes no shared part declares `none: true`. When the item already has a branch (work in progress, or a backfill), pass it as `branch`, so the conflict radar checks it.
 - Moving an undeclared item to Ready fails with `not_declared`.
 - **Two items that change the same part** can't run at once without the owner's say. If one should go first, link them now (`link_items { type: "blocks" }`); then they never wait on the owner. Otherwise split the work so only one of them touches the part.
 

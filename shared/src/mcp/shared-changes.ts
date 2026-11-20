@@ -17,7 +17,13 @@
  *   repo-relative paths, normalised like `file:` names.
  */
 import { z } from 'zod';
-import { SHARED_CHANGES, SHARED_PART_KINDS, STATUSES, type SharedPartKind } from '../enums.js';
+import {
+  BRANCH_SOURCES,
+  SHARED_CHANGES,
+  SHARED_PART_KINDS,
+  STATUSES,
+  type SharedPartKind,
+} from '../enums.js';
 import {
   itemId,
   mutationInput,
@@ -168,6 +174,8 @@ export const branchInput = text(LIMITS.branch);
 
 export const sharedPartKindSchema = z.enum(SHARED_PART_KINDS);
 export const sharedChangeSchema = z.enum(SHARED_CHANGES);
+/** How the radar knew a branch (B40): `reported` or `discovered`. */
+export const branchSourceSchema = z.enum(BRANCH_SOURCES);
 
 // ---- Shapes ----
 
@@ -312,6 +320,12 @@ export const declareSharedChangesInput = mutationInput({
   none: z.literal(true).optional(),
   /** Parts that aren't registered yet. */
   new_parts: z.array(newPartInput).min(1).max(LIMITS.shared_new_parts_max).optional(),
+  /**
+   * B40: the branch the item's work is on, recorded for the conflict radar
+   * (it replaces any branch the radar found). Omit it to keep the item's
+   * branch as it is.
+   */
+  branch: branchInput.optional(),
 }).superRefine(checkDeclaration);
 export const declareSharedChangesOutput = mutationOutput({
   declaration: declarationSchema,

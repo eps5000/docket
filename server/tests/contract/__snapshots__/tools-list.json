@@ -2322,7 +2322,9 @@
                           "undeclared.held",
                           "undeclared.decided",
                           "radar.found",
-                          "radar.cleared"
+                          "radar.cleared",
+                          "branch.reported",
+                          "branch.discovered"
                         ]
                       },
                       "summary": {
@@ -3751,7 +3753,9 @@
               "undeclared.held",
               "undeclared.decided",
               "radar.found",
-              "radar.cleared"
+              "radar.cleared",
+              "branch.reported",
+              "branch.discovered"
             ]
           }
         },
@@ -3862,7 +3866,9 @@
                       "undeclared.held",
                       "undeclared.decided",
                       "radar.found",
-                      "radar.cleared"
+                      "radar.cleared",
+                      "branch.reported",
+                      "branch.discovered"
                     ]
                   },
                   "summary": {
@@ -8477,7 +8483,9 @@
                     "undeclared.held",
                     "undeclared.decided",
                     "radar.found",
-                    "radar.cleared"
+                    "radar.cleared",
+                    "branch.reported",
+                    "branch.discovered"
                   ]
                 },
                 "summary": {
@@ -13563,7 +13571,7 @@
   },
   {
     "name": "declare_shared_changes",
-    "description": "Declare the shared parts this item will change (tables, models, endpoints, shared files), each with add, change or remove and a short note, or none: true when it changes none. An item can't move to Ready until it has declared. Each call replaces the item's whole declaration. Name parts by their keys from list_shared_parts; register a missing one with new_parts. Returns the in-flight items that change the same parts.",
+    "description": "Declare the shared parts this item will change (tables, models, endpoints, shared files), each with add, change or remove and a short note, or none: true when it changes none. An item can't move to Ready until it has declared. Each call replaces the item's whole declaration. Name parts by their keys from list_shared_parts; register a missing one with new_parts. Pass branch, the branch the work is on, so the conflict radar can check it, also when declaring for work already in progress. Returns the in-flight items that change the same parts.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -13650,6 +13658,11 @@
             ],
             "additionalProperties": false
           }
+        },
+        "branch": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
         },
         "run_id": {
           "type": "string",

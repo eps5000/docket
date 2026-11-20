@@ -44,3 +44,7 @@ When an agent hands off (a packet, or closing as done), it lists the files it ch
 ## The conflict radar
 
 If the project's repository is inside Docket's push folder, set it under **Settings → Projects → Shared parts** with its main branch. Every 15 minutes (or when you press *Run radar now*) Docket trial-merges each in-flight branch with the main branch, and pairs of in-flight branches that change the same parts or files. It never writes to the repository and never fetches: it reads the branches your worktrees share. A pair that would conflict shows on both tickets ("Heading for a conflict with GF-240: 3 files"), as a **conflict ahead** marker on Work cards, under **Problems**, and in both agents' context. It clears once the trial merge is clean. Without a repository the card says "Radar off: no repository", and everything else still works.
+
+### Which branch the radar checks
+
+The radar checks the branch an agent reported for the item, when it claimed it, declared its shared changes or handed it off. For an item in progress with no reported branch, it looks for a local branch with the item's key (or its Jira key) in its name, such as `eps5000/gf-239-visual-shell` for GF-239. If exactly one matches, the ticket's Shared changes says "Branch found by the radar". If several match, it checks none of them and says "Several branches match; report the branch". Use *Set branch* there to name the right one. A branch you or an agent report always wins over one the radar found, and *Clear* lets the radar look again.

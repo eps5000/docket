@@ -125,11 +125,20 @@ describe('0010_shared_changes', () => {
     const migrated = openDb(copy);
     try {
       migrateDb(migrated);
-      expect(migrationStatus(migrated)).toEqual({ current: true, applied: 11, expected: 11 });
+      expect(migrationStatus(migrated)).toEqual({ current: true, applied: 12, expected: 12 });
 
       // Every existing row is unchanged, plus the new columns at their defaults.
       expect(all(migrated, 'items')).toEqual(
-        before.items!.map((r) => ({ ...r, shared_none_at: null })),
+        // 0011_radar_branches (B40) adds the reported and discovered branch columns.
+        before.items!.map((r) => ({
+          ...r,
+          shared_none_at: null,
+          branch: null,
+          branch_by: null,
+          branch_at: null,
+          radar_branch: null,
+          radar_branch_matches: null,
+        })),
       );
       expect(all(migrated, 'packets')).toEqual(
         before.packets!.map((r) => ({
@@ -303,7 +312,7 @@ describe('0010_shared_changes', () => {
 
       // Migrating again is a no-op.
       migrateDb(migrated);
-      expect(migrationStatus(migrated).applied).toBe(11);
+      expect(migrationStatus(migrated).applied).toBe(12);
     } finally {
       migrated.sqlite.close();
     }

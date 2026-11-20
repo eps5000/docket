@@ -32,6 +32,8 @@ import {
 import { itemId, objectId, projectKey, text } from '../mcp/common.js';
 import { LIMITS } from '../mcp/limits.js';
 import {
+  branchInput,
+  branchSourceSchema,
   checkDeclaration,
   declarationSchema,
   declaredChangeInput,
@@ -142,15 +144,41 @@ export const radarFindingRowSchema = z.object({
   item_a: itemRef.nullable(),
   /** Null when `branch_b` is the main branch. */
   item_b: itemRef.nullable(),
+  /** B40: how the radar knew `branch_a`'s branch: `reported` or `discovered`. */
+  source_a: branchSourceSchema.nullable(),
+  /** B40: the same for `branch_b`; null for the main branch. */
+  source_b: branchSourceSchema.nullable(),
   files: z.array(z.string()),
   seen_at: z.string(),
   cleared_at: z.string().nullable(),
 });
 export type RadarFindingRow = z.infer<typeof radarFindingRowSchema>;
 
+/**
+ * The item's branch for the conflict radar (B40). `name` is the branch the
+ * radar trial-merges: the latest reported one (by an agent or the owner, or
+ * on a claim, run or packet), else the one local branch the radar found that
+ * names the item's key or Jira key. With several matches it uses none, and
+ * `matches` lists them so the owner can report one.
+ */
+export const itemBranchSchema = z.object({
+  /** The branch the radar uses; null when it has none. */
+  name: z.string().nullable(),
+  /** `reported` or `discovered`; null when `name` is null. */
+  source: branchSourceSchema.nullable(),
+  /** Who last reported or cleared the branch (`owner`, `claude · orca-w3`), and when. */
+  reported_by: z.string().nullable(),
+  reported_at: z.string().nullable(),
+  /** Several local branches name the item: the radar uses none until one is reported. */
+  matches: z.array(z.string()),
+});
+export type ItemBranch = z.infer<typeof itemBranchSchema>;
+
 /** The item's Shared changes section (UI_SPEC §6.3.6). */
 export const itemSharedResponse = jsonResponse({
   declaration: declarationSchema,
+  /** B40: the branch the radar uses for the item. */
+  branch: itemBranchSchema,
   overlaps: z.array(overlapRowSchema),
   /** Leases the item holds now. */
   leases: z.array(leaseRowSchema),
@@ -241,6 +269,15 @@ export const putItemSharedResponse = ownerMutationOutput({
   registered: z.array(z.string()),
 });
 export type PutItemSharedResponse = z.infer<typeof putItemSharedResponse>;
+
+// ---- PUT /api/items/:id/shared/branch (B40) ----
+
+/** The owner reports the item's branch, or clears it (`null`): the radar then looks for one. */
+export const putItemBranchBody = input({
+  branch: branchInput.nullable(),
+});
+export const putItemBranchResponse = ownerMutationOutput(itemSharedResponse.shape);
+export type PutItemBranchResponse = z.infer<typeof putItemBranchResponse>;
 
 // ---- POST /api/overlaps/:id/decide ----
 
@@ -339,6 +376,17 @@ export const sharedChangesRoutes = {
     query: noInput,
     body: putItemSharedBody,
     response: json(putItemSharedResponse),
+    undoable: true,
+  }),
+  /** B40: set or clear the item's branch for the radar (undoable). */
+  'itemShared.branch': route({
+    method: 'PUT',
+    path: '/api/items/:id/shared/branch',
+    group: 'shared',
+    params: itemSharedParams,
+    query: noInput,
+    body: putItemBranchBody,
+    response: json(putItemBranchResponse),
     undoable: true,
   }),
   'overlaps.decide': route({

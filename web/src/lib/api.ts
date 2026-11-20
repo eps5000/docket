@@ -460,6 +460,9 @@ export const INVALIDATION: Record<EventType, readonly QueryFamily[]> = {
   'undeclared.decided': ['itemShared', 'needsYou', 'bootstrap', 'item', 'review', 'work'],
   'radar.found': ['radar', 'itemShared', 'needsYou', 'bootstrap', 'work', 'item'],
   'radar.cleared': ['radar', 'itemShared', 'needsYou', 'bootstrap', 'work', 'item'],
+  // B40: the item's branch for the radar, reported or found, shows in its section.
+  'branch.reported': ['itemShared', 'item'],
+  'branch.discovered': ['itemShared', 'item'],
 };
 
 /** Families narrowed to the event's items when it names any. */

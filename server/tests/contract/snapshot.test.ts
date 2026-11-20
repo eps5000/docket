@@ -285,7 +285,7 @@ const INPUTS: Record<string, [string[], string[]]> = {
   finish_onboarding: [['session_id', 'summary'], ['questions']],
   get_step: [['id', 'step_id'], []],
   apply_batch: [['operations'], []],
-  declare_shared_changes: [['id'], ['changes', 'none', 'new_parts']],
+  declare_shared_changes: [['id'], ['changes', 'none', 'new_parts', 'branch']],
   list_shared_parts: [['project'], ['include_archived']],
   take_lease: [['id', 'part'], []],
   release_lease: [['id', 'part'], []],
@@ -833,6 +833,11 @@ describe('shared changes follow MCP_SPEC §5.15 (decision 36; B38)', () => {
       expect(props.branch!.maxLength, tool).toBe(200);
     }
     expect(input('claim_lead').properties!.branch!.maxLength).toBe(200);
+    // B40: declare_shared_changes reports the item's branch too (optional, ≤ 200).
+    const declare = input('declare_shared_changes');
+    expect(declare.properties!.branch!.maxLength).toBe(200);
+    expect(declare.required).not.toContain('branch');
+    expect(specToolPart('declare_shared_changes', 'Input')).toContain('`branch?` (≤ 200, B40)');
   });
 
   it('get_context may carry shared; submit_packet may carry held_undeclared', () => {

@@ -22,8 +22,8 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { radarRunOnce } from '../../src/jobs/sweeper.js';
-import { git, hashGitDir, makeRadarRepo } from '../fixtures/radar-repo.js';
-import { tempDir } from '../helpers.js';
+import { git, hashGitDir, makeBranchRepo, makeRadarRepo } from '../fixtures/radar-repo.js';
+import { insertItem, insertProject, tempDir } from '../helpers.js';
 import { ORIGIN, parseSetCookies } from '../integration/harness.js';
 import {
   expectOk,
@@ -383,6 +383,8 @@ describe('the owner API (UI_SPEC §6.3.6)', () => {
         declared_by: null,
         declared_at: null,
       },
+      // B40: no branch reported or found yet.
+      branch: { name: null, source: null, reported_by: null, reported_at: null, matches: [] },
       overlaps: [],
       leases: [],
       findings: [],
@@ -1378,6 +1380,182 @@ describe('the conflict radar (FR-163; T184)', () => {
       findings: [],
     });
   });
+});
+
+describe('B40: the radar sees in-flight branches', () => {
+  let tmp: { dir: string; cleanup(): void } | undefined;
+  afterEach(() => {
+    tmp?.cleanup();
+    tmp = undefined;
+  });
+
+  type Branch = {
+    name: string | null;
+    source: string | null;
+    reported_by: string | null;
+    matches: string[];
+  };
+
+  it.skipIf(!HAS_GIT)(
+    'discovers one branch per key (or Jira key), uses none when several match, and a reported branch wins, leaving .git unchanged',
+    async () => {
+      tmp = tempDir('docket-radar-b40-');
+      const { repo } = makeBranchRepo(tmp.dir);
+      h = await startHarness({ env: { DOCKET_PUSH_ROOT: tmp.dir } });
+      const api = await owner();
+      const db = h.server.runtime.db;
+      insertProject(db, 'GF');
+      for (const id of ['GF-239', 'GF-280', 'GF-281']) {
+        insertItem(db, { id, status: 'progress' });
+      }
+      sql().prepare("UPDATE items SET jira_key = 'GAMEFLOW-280' WHERE id = 'GF-280'").run();
+      expect(
+        (await api('PUT', '/api/projects/GF/radar', { repo_path: 'gf-app', main_branch: 'main' }))
+          .status,
+      ).toBe(200);
+      const branch = async (id: string) =>
+        (await api('GET', `/api/items/${id}/shared`)).body.branch as Branch;
+      const findings = (radar: S) =>
+        (radar.findings as S[]).map((f) => [
+          f.branch_a,
+          f.branch_b,
+          (f.item_a as S).id,
+          f.source_a,
+          f.source_b,
+          f.files,
+        ]);
+
+      // Before any run: no branch reported or found.
+      expect(await branch('GF-239')).toEqual({
+        name: null,
+        source: null,
+        reported_by: null,
+        reported_at: null,
+        matches: [],
+      });
+
+      const before = hashGitDir(repo);
+      const run = await api('POST', '/api/projects/GF/radar/run', {});
+      expect(run.status).toBe(200);
+      // Read-only: every file under .git (worktrees' admin folders included) is unchanged.
+      expect(hashGitDir(repo)).toEqual(before);
+
+      // Discovered: the item key (any case, gf-2390-decoy left out) and the Jira key.
+      expect(await branch('GF-239')).toMatchObject({
+        name: 'eps5000/gf-239-visual-shell',
+        source: 'discovered',
+        matches: [],
+      });
+      expect(await branch('GF-280')).toMatchObject({
+        name: 'feature/GAMEFLOW-280-x',
+        source: 'discovered',
+        matches: [],
+      });
+      // Ambiguous: two branches name GF-281, so the radar uses neither.
+      expect(await branch('GF-281')).toMatchObject({
+        name: null,
+        source: null,
+        matches: ['gf-281-a', 'gf-281-b'],
+      });
+      expect(events('branch.discovered').map((e) => e.summary)).toEqual([
+        'Branch found by the radar for GF-239: eps5000/gf-239-visual-shell',
+        'Branch found by the radar for GF-280: feature/GAMEFLOW-280-x',
+        'Several branches match GF-281; report the branch: gf-281-a, gf-281-b',
+      ]);
+      expect(findings(run.body.radar as S)).toEqual([
+        ['eps5000/gf-239-visual-shell', 'main', 'GF-239', 'discovered', null, ['shared.txt']],
+      ]);
+      const found = events('radar.found', 'GF-239');
+      expect(found.map((e) => e.summary)).toEqual([
+        'Heading for a conflict with main: 1 file (branch found by the radar: eps5000/gf-239-visual-shell)',
+      ]);
+      expect(JSON.parse(found[0]!.data)).toMatchObject({ source: 'discovered' });
+
+      // Nothing new: a second run writes no event and still leaves .git alone.
+      const n = count('SELECT count(*) AS n FROM events');
+      radarRunOnce(h.server.runtime, 'GF');
+      expect(count('SELECT count(*) AS n FROM events')).toBe(n);
+      expect(hashGitDir(repo)).toEqual(before);
+
+      // An agent reports GF-281's branch with its declaration; a bad name is refused.
+      const bad = expectValidation(await declare({ id: 'GF-281', none: true, branch: '-x' }));
+      expect(bad.message).toContain("isn't a branch name");
+      const v281 = version('GF-281');
+      const declared = expectOk(await declare({ id: 'GF-281', none: true, branch: 'gf-281-a' }));
+      expect(declared.text).toBe('Declared none on GF-281 · branch gf-281-a');
+      expect(version('GF-281')).toBe(v281);
+      expect(events('branch.reported', 'GF-281').map((e) => e.summary)).toEqual([
+        "claude reported GF-281's branch: gf-281-a",
+      ]);
+      expect(await branch('GF-281')).toMatchObject({
+        name: 'gf-281-a',
+        source: 'reported',
+        reported_by: 'claude',
+        matches: [],
+      });
+
+      // The owner reports GF-239's branch: it wins over the one the radar found.
+      const set = await api('PUT', '/api/items/GF-239/shared/branch', {
+        branch: 'spike/shell-rework',
+      });
+      expect(set.status).toBe(200);
+      expect(set.body.branch).toMatchObject({
+        name: 'spike/shell-rework',
+        source: 'reported',
+        reported_by: 'owner',
+      });
+      expect(events('branch.reported', 'GF-239').map((e) => e.summary)).toEqual([
+        "You reported GF-239's branch: spike/shell-rework",
+      ]);
+      expect((await api('PUT', '/api/items/GF-239/shared/branch', { branch: 'a..b' })).status).toBe(
+        400,
+      );
+
+      const second = await api('POST', '/api/projects/GF/radar/run', {});
+      expect(hashGitDir(repo)).toEqual(before);
+      // spike/shell-rework is clean, so GF-239's finding clears; gf-281-a (reported) conflicts.
+      expect(findings(second.body.radar as S)).toEqual([
+        ['gf-281-a', 'main', 'GF-281', 'reported', null, ['shared.txt']],
+      ]);
+      expect(events('radar.found', 'GF-281').map((e) => e.summary)).toEqual([
+        'Heading for a conflict with main: 1 file',
+      ]);
+      expect(events('radar.cleared', 'GF-239').map((e) => e.summary)).toEqual([
+        'No longer heading for a conflict with main',
+      ]);
+
+      // Clearing the owner's branch falls back to the one the radar found.
+      const cleared = await api('PUT', '/api/items/GF-239/shared/branch', { branch: null });
+      expect(cleared.body.branch).toMatchObject({
+        name: 'eps5000/gf-239-visual-shell',
+        source: 'discovered',
+      });
+      expect(events('branch.reported', 'GF-239').at(-1)!.summary).toBe(
+        "You cleared GF-239's branch; the radar looks for one",
+      );
+      const third = await api('POST', '/api/projects/GF/radar/run', {});
+      expect(findings(third.body.radar as S)).toEqual(
+        expect.arrayContaining([
+          ['eps5000/gf-239-visual-shell', 'main', 'GF-239', 'discovered', null, ['shared.txt']],
+          ['gf-281-a', 'main', 'GF-281', 'reported', null, ['shared.txt']],
+        ]),
+      );
+      expect(hashGitDir(repo)).toEqual(before);
+
+      // The owner's report is undoable.
+      const again = await api('PUT', '/api/items/GF-239/shared/branch', {
+        branch: 'gf-2390-decoy',
+      });
+      expect(again.status).toBe(200);
+      const undo = await api('POST', `/api/mutations/${again.body.mutation_id as string}/undo`);
+      expect(undo.status).toBe(200);
+      expect(await branch('GF-239')).toMatchObject({
+        name: 'eps5000/gf-239-visual-shell',
+        source: 'discovered',
+      });
+    },
+    30_000,
+  );
 });
 
 describe('SC-023: unattended agents never start overlapping work without an owner decision', () => {

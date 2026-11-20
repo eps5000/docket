@@ -207,6 +207,24 @@ export const items = sqliteTable(
     from_review: text('from_review', { mode: 'json' }),
     /** Decision 36: set when the item declared that it changes no shared part. */
     shared_none_at: text('shared_none_at'),
+    /**
+     * Decision 36, B40: the branch reported for the conflict radar
+     * (`declare_shared_changes`' `branch`, or the owner's Shared changes
+     * section); null when none, or cleared. `branch_at` is when it was last
+     * reported or cleared (null: never), so the radar takes the latest of
+     * this, a packet's, a lead run's and a claim's branch.
+     */
+    branch: text('branch'),
+    branch_by: text('branch_by'),
+    branch_at: text('branch_at'),
+    /**
+     * B40: what the radar's last run found for an item without a reported
+     * branch: the one local branch that names the item (`radar_branch`), or
+     * the several that do (`radar_branch_matches`, a JSON array; the radar
+     * then uses none).
+     */
+    radar_branch: text('radar_branch'),
+    radar_branch_matches: text('radar_branch_matches', { mode: 'json' }),
     version: version(),
     ...timestamps,
   },
@@ -1280,6 +1298,14 @@ export const radar_findings = sqliteTable(
     item_a: text('item_a').references((): AnySQLiteColumn => items.id, { onDelete: 'cascade' }),
     /** Null when `branch_b` is the main branch. */
     item_b: text('item_b').references((): AnySQLiteColumn => items.id, { onDelete: 'cascade' }),
+    /**
+     * B40: how the radar knew each item's branch, `reported` (an agent or the
+     * owner named it) or `discovered` (the radar matched the item's key to a
+     * local branch); `source_b` is null for the main branch. Checked in code
+     * (BRANCH_SOURCES), so the column needs no table rebuild.
+     */
+    source_a: text('source_a'),
+    source_b: text('source_b'),
     /** The conflicting files, a JSON array. */
     files: text('files', { mode: 'json' }).notNull(),
     seen_at: text('seen_at').notNull(),

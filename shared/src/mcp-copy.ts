@@ -123,7 +123,7 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   apply_batch:
     'Run up to 100 writes in one call, for large onboardings: each operation names a tool (create_item, update_item, link_items, upsert_label, set_plan, update_step, put_document or publish_decision) and its arguments, exactly as you would call it. Each operation runs the same checks as its single call and is applied on its own, in order: one that fails does not undo the others, and the result lists every operation with its ID or its error. "$1" in an argument means the ID operation 1 wrote. Pass idempotency_key, so a retry replays what succeeded and runs only the rest.',
   declare_shared_changes:
-    "Declare the shared parts this item will change (tables, models, endpoints, shared files), each with add, change or remove and a short note, or none: true when it changes none. An item can't move to Ready until it has declared. Each call replaces the item's whole declaration. Name parts by their keys from list_shared_parts; register a missing one with new_parts. Returns the in-flight items that change the same parts.",
+    "Declare the shared parts this item will change (tables, models, endpoints, shared files), each with add, change or remove and a short note, or none: true when it changes none. An item can't move to Ready until it has declared. Each call replaces the item's whole declaration. Name parts by their keys from list_shared_parts; register a missing one with new_parts. Pass branch, the branch the work is on, so the conflict radar can check it, also when declaring for work already in progress. Returns the in-flight items that change the same parts.",
   list_shared_parts:
     "List a project's shared parts (tables, models, endpoints, shared files): each key, the file paths that map to it, whether it is single-writer and who holds its lease, and the in-flight items that declared changes to it. Read-only. Call it before declare_shared_changes, to name parts by their registered keys.",
   take_lease:
@@ -186,7 +186,7 @@ export const TOOL_SUMMARIES: Record<ToolName, string> = {
     "Onboarding {session_id} ready for the owner's review · {created} created · {enriched} enriched · {documents} documents · {decisions} decisions · {proposals} proposals",
   get_step: '{step_id} {text} · {state} · on {id}{facts}',
   apply_batch: 'Batch: {applied} applied · {failed} failed · of {total}',
-  declare_shared_changes: 'Declared {declared} on {id}{registered}{overlaps}',
+  declare_shared_changes: 'Declared {declared} on {id}{branch}{registered}{overlaps}',
   list_shared_parts: 'Shared parts in {project}: {count}',
   take_lease: 'Lease on {part} for {id} · until {until}{renewed}',
   release_lease: 'Released lease on {part} for {id}',

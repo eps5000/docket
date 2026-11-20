@@ -113,3 +113,52 @@ export function hashGitDir(repo: string): Map<string, string> {
   walk(base);
   return out;
 }
+
+/**
+ * B40: a fixture for branch discovery, `<root>/gf-app`, built like
+ * `makeRadarRepo`. After the branches leave `main`, `main` changes line 5 of
+ * `shared.txt`, and:
+ * - `eps5000/gf-239-visual-shell` (worktree `wt-239`) changes line 5: it
+ *   names GF-239 and conflicts with `main`;
+ * - `feature/GAMEFLOW-280-x` (worktree `wt-280`) adds `other.txt`: it names
+ *   GF-280's Jira key, GAMEFLOW-280, and is clean;
+ * - `gf-281-a` (worktree `wt-281`) changes line 5, and `gf-281-b` is a plain
+ *   branch: both name GF-281, so the radar uses neither until one is
+ *   reported;
+ * - `gf-2390-decoy` names GF-2390, not GF-239, and `spike/shell-rework`
+ *   names no item (both clean).
+ */
+export function makeBranchRepo(root: string): { repo: string } {
+  const repo = join(root, 'gf-app');
+  mkdirSync(repo, { recursive: true });
+  git(repo, 'init', '-q', '-b', 'main');
+  writeFileSync(join(repo, 'shared.txt'), text(LINES));
+  git(repo, 'add', 'shared.txt');
+  git(repo, 'commit', '-q', '-m', 'Start');
+  const branches = [
+    'eps5000/gf-239-visual-shell',
+    'feature/GAMEFLOW-280-x',
+    'gf-281-a',
+    'gf-281-b',
+    'gf-2390-decoy',
+    'spike/shell-rework',
+  ];
+  for (const b of branches) git(repo, 'branch', b);
+  writeFileSync(join(repo, 'shared.txt'), text([...LINES.slice(0, 4), 'five on main']));
+  git(repo, 'commit', '-q', '-am', 'Main changes line 5');
+
+  const wt239 = join(root, 'wt-239');
+  const wt280 = join(root, 'wt-280');
+  const wt281 = join(root, 'wt-281');
+  git(repo, 'worktree', 'add', '-q', wt239, 'eps5000/gf-239-visual-shell');
+  git(repo, 'worktree', 'add', '-q', wt280, 'feature/GAMEFLOW-280-x');
+  git(repo, 'worktree', 'add', '-q', wt281, 'gf-281-a');
+  writeFileSync(join(wt239, 'shared.txt'), text([...LINES.slice(0, 4), 'five from 239']));
+  git(wt239, 'commit', '-q', '-am', 'GF-239 changes line 5');
+  writeFileSync(join(wt280, 'other.txt'), 'other\n');
+  git(wt280, 'add', 'other.txt');
+  git(wt280, 'commit', '-q', '-m', 'GAMEFLOW-280 adds a file');
+  writeFileSync(join(wt281, 'shared.txt'), text([...LINES.slice(0, 4), 'five from 281']));
+  git(wt281, 'commit', '-q', '-am', 'GF-281 changes line 5');
+  return { repo };
+}
