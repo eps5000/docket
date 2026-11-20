@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { useId, useLayoutEffect, useRef, useState } from 'react';
 import type { DecisionRecord } from '@docket/shared';
 import { formatDay, isoTitle } from '../../lib/format';
 import { Button } from './Button';
@@ -7,7 +7,8 @@ import { DecisionAuthorityBadge } from './Badges';
 
 /**
  * One decision record (UI_SPEC §6.3.5). A shell: title, text (2 lines, then
- * *More*), *Why* collapsed, scope chip, authority badge (never solid, so it
+ * *Show all* when it's longer), *Show reasoning* (the optional "why",
+ * collapsed), scope chip, authority badge (never solid, so it
  * can't look like review approval), author and date, and the actions.
  * The decisions slice (US5) wires the actions to the API.
  */
@@ -30,6 +31,14 @@ export function DecisionRow({
 }) {
   const [more, setMore] = useState(false);
   const [why, setWhy] = useState(false);
+  // *Show all* only when the 2-line clamp actually hides text.
+  const textRef = useRef<HTMLDivElement>(null);
+  const [clamped, setClamped] = useState(false);
+  useLayoutEffect(() => {
+    const el = textRef.current;
+    if (el && !more) setClamped(el.scrollHeight > el.clientHeight + 1);
+  }, [record.decision_md, more]);
+  const whyId = useId();
   const [withdrawing, setWithdrawing] = useState(false);
   const [reason, setReason] = useState('');
   const reasonId = useId();
@@ -50,14 +59,24 @@ export function DecisionRow({
           {record.author} · {formatDay(record.created_at)}
         </span>
       </div>
-      <div className={`dtext${more ? ' open' : ''}`}>{record.decision_md}</div>
+      <div ref={textRef} className={`dtext${more ? ' open' : ''}`}>
+        {record.decision_md}
+      </div>
       <div className="row wrap" style={{ gap: 4 }}>
-        <Button variant="ghost" size="sm" aria-expanded={more} onClick={() => setMore(!more)}>
-          {more ? 'Less' : 'More'}
-        </Button>
+        {(clamped || more) && (
+          <Button variant="ghost" size="sm" aria-expanded={more} onClick={() => setMore(!more)}>
+            {more ? 'Show less' : 'Show all'}
+          </Button>
+        )}
         {record.rationale_md && (
-          <Button variant="ghost" size="sm" aria-expanded={why} onClick={() => setWhy(!why)}>
-            Why
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-expanded={why}
+            aria-controls={why ? whyId : undefined}
+            onClick={() => setWhy(!why)}
+          >
+            {why ? 'Hide reasoning' : 'Show reasoning'}
           </Button>
         )}
         {canAct && !inactive && !withdrawing && (
@@ -80,7 +99,11 @@ export function DecisionRow({
           </span>
         )}
       </div>
-      {why && record.rationale_md && <div className="src">{record.rationale_md}</div>}
+      {why && record.rationale_md && (
+        <div className="src" id={whyId}>
+          <b>Why:</b> {record.rationale_md}
+        </div>
+      )}
       {withdrawing && (
         <div className="row wrap">
           <label className="sr" htmlFor={reasonId}>
