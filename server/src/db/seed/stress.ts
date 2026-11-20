@@ -138,6 +138,8 @@ function longDetails(n: number, source?: string): string {
       .join('\n') +
     '\n\n### Evidence\n\n' +
     '- Design doc: https://docs.stress.example/engineering/render/svg-admission/2026-11-rfc-0042-admission-limits-and-reasons.html\n' +
+    // A Markdown link inside a list item must be underlined (axe link-in-text-block).
+    '- Tracking: read [the admission limits RFC](https://docs.stress.example/rfc/0042) before changing limits\n' +
     '- Log path: `/var/log/stress/import/2026-11-05T09-14-33Z-admission-run-0007.jsonl`\n\n' +
     '```text\n' +
     'admission: rejected world-03/tiles/atlas-highres-v12-final-final-2.svg (decoded 48.2 MB > 4x 9.1 MB)\n' +
