@@ -1,6 +1,6 @@
 ---
 title: Your first look around
-summary: What Needs you, Work and Agents show, and where to look first each day.
+summary: What Needs you, Work and Agents show, where to look first each day, and how Work's filters work.
 group: Getting started
 order: 2
 anchors:
@@ -39,6 +39,18 @@ The red number next to **Needs you** in the sidebar counts what's for you.
 ## Work
 
 Every ticket and epic, as a board, a list, a map of dependencies, or a timeline. Use the filters to narrow it, and click a card to open the item. An item's tabs show its details, its checklist, what it waits on, and its activity.
+
+### Filters on the Work page
+
+- **Quick filters:** **Active** (everything not done or canceled; what Work shows by default), **Blocked** and **In progress**. Pick one; each shows how many items it holds.
+- **Filters** (the menu button next to them): tick any of *For you*, *Human review later*, *Deferred review*, *Live run* and *Has a problem* to narrow the view further. Ticking two shows only the items that match both.
+- **Shows done** and **Shows canceled**, at the bottom of the menu, add finished items back on top of the quick filter. *Active* with both ticked shows everything.
+- Each ticked filter appears as a pill next to the chips: click its **×** to remove it, or click **Clear** to go back to Active.
+- The epic and label boxes narrow everything, counts included.
+
+The filter is part of the page address, so you can share a link and use Back. Work also remembers your last choice for each project and uses it the next time you open Work without one. Old links (from before these filters) still open the same items.
+
+**Done epics** are hidden from the Epics strip at the top, so you see what's still moving. Click **Show N done** at the end of the strip to see them, and **Hide done** to tuck them away. Epics with no tickets yet, and the epic you've filtered to, always show. On the board, the Done column says how many done items the filter hides, with a **Show N done** button.
 
 ## Agents
 

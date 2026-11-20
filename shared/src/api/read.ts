@@ -25,6 +25,7 @@ import {
 } from '../mcp/types.js';
 import { input, jsonResponse, noInput, scopeSchema } from './common.js';
 import { onboardingSessionSchema } from './onboarding.js';
+import { WORK_CHECKS, WORK_QUICK, WORK_SHOWS } from '../work-filter.js';
 import { problemAckSchema, problemExplanationSchema, resolutionRowSchema } from './problems.js';
 import {
   overlapRowSchema,
@@ -219,11 +220,28 @@ export const uiFilterSchema = z.enum(UI_FILTER_KEYS);
 export const WORK_LAYOUTS = ['board', 'list', 'map', 'timeline'] as const;
 export const workLayoutSchema = z.enum(WORK_LAYOUTS);
 
+/** A comma-separated list of known keys, as one query parameter (`has=for_you,live_run`). */
+const csvOf = (keys: readonly string[]) =>
+  z.string().refine((v) => v.split(',').every((k) => keys.includes(k)), {
+    message: `Expected a comma-separated list of: ${keys.join(', ')}.`,
+  });
+
 export const workQuery = input({
   scope: scopeSchema,
   epic: itemId.optional(),
   label: labelNameSchema.optional(),
-  filter: uiFilterSchema.default('all'),
+  /**
+   * The old single filter (before B43). Used only when none of `quick`, `has`
+   * and `show` is given, mapped by `legacyWorkFilter`; with none of the four,
+   * the view is the old *All* (Active with Shows done).
+   */
+  filter: uiFilterSchema.optional(),
+  /** B43 (UI_SPEC §6.2): the quick filter; `active` when omitted. */
+  quick: z.enum(WORK_QUICK).optional(),
+  /** B43: the ticked checks, comma-separated (each narrows the view). */
+  has: csvOf(WORK_CHECKS).optional(),
+  /** B43: `done`, `canceled` or both, comma-separated (each adds those items back). */
+  show: csvOf(WORK_SHOWS).optional(),
   layout: workLayoutSchema.default('board'),
   /**
    * The onboarding review card's links (decision 31; UI_SPEC §6.7d; B30
@@ -281,8 +299,17 @@ export const workResponse = jsonResponse({
   items: z.array(workItemSchema),
   /** Non-archived epics in scope (the Epics row; not shown on Timeline). */
   epics: z.array(epicCardSchema),
-  /** Chip counts. */
-  filter_counts: z.partialRecord(uiFilterSchema, z.number().int()),
+  /**
+   * B43: the counts for the chips and the Filters menu, over the epic and
+   * label scope (`workFilterCounts`): each chip and check counts what you'd
+   * see with it chosen; each show counts the items it adds.
+   */
+  filter_counts: z.object({
+    quick: z.record(z.enum(WORK_QUICK), z.number().int()),
+    has: z.record(z.enum(WORK_CHECKS), z.number().int()),
+    show: z.record(z.enum(WORK_SHOWS), z.number().int()),
+    archived: z.number().int(),
+  }),
   /** Links among `items`, plus links from `outside` blockers, for the map. */
   links: z.array(linkEdgeSchema),
   /** Blockers of `items` that aren't in `items` (the map's "Outside this view" column). */

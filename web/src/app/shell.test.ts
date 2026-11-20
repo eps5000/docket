@@ -6,7 +6,6 @@ import { PROBLEM_ROWS } from '../routes/needs-you/ProblemsCard';
 import { resolveTab } from '../routes/items/ItemPage';
 import { safeNext } from '../routes/unlock/Unlock';
 import { sortWorkspaces } from '../routes/agents/WorkspacesCard';
-import { visibleChips } from '../routes/work/WorkFilters';
 import { closeTab, EMPTY_TABS, MAX_OPEN_TABS, openTab, parseTabs, updateTab } from './openTabs';
 import { shouldRetry } from './queryClient';
 import { isPaletteShortcut } from './shortcuts';
@@ -71,6 +70,7 @@ describe('persistence keys (UI_SPEC §2)', () => {
     expect(STORAGE_AREA[STORAGE_KEYS.notifications]).toBe('local');
     expect(STORAGE_AREA[STORAGE_KEYS.notified]).toBe('local');
     expect(STORAGE_AREA[STORAGE_KEYS.collapsed]).toBe('local');
+    expect(STORAGE_AREA[STORAGE_KEYS.workFilters]).toBe('local');
     expect(Object.keys(STORAGE_AREA).sort()).toEqual(Object.values(STORAGE_KEYS).sort());
   });
 });
@@ -188,22 +188,5 @@ describe('screen tables', () => {
       'safe_to_prune',
     ]);
     expect(sortWorkspaces(rows, true).map((r) => r.state)).not.toContain('safe_to_prune');
-  });
-
-  it('shows URL-only filters only while active and Archived only once something is archived', () => {
-    const keys = (
-      f: Parameters<typeof visibleChips>[0],
-      counts?: Parameters<typeof visibleChips>[1],
-    ) => visibleChips(f, counts).map((c) => c.key);
-    expect(keys('all')).toEqual([
-      'all',
-      'blocked',
-      'for_you',
-      'human_review_later',
-      'deferred_review',
-      'live_run',
-    ]);
-    expect(keys('planning')).toContain('planning');
-    expect(keys('all', { archived: 2 })).toContain('archived');
   });
 });

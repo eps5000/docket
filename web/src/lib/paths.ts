@@ -25,7 +25,12 @@ export const paths = {
       layout?: WorkLayout;
       epic?: string;
       label?: string;
-      filter?: string;
+      /** B43: the quick filter (`blocked`, `progress`; Active when omitted). */
+      quick?: 'active' | 'blocked' | 'progress';
+      /** B43: ticked checks, comma-separated (`for_you,live_run`). */
+      has?: string;
+      /** B43: `done`, `canceled` or both, comma-separated. */
+      show?: string;
       /** The onboarding review card's links (decision 31; B30): one session's items. */
       onboarding?: string;
       onboarding_change?: 'created' | 'enriched';

@@ -1,12 +1,14 @@
 import { useNoProjects } from '../../app/useBootstrap';
 import { NoProjectsPointer } from '../needs-you/Welcome';
 import { useQuery } from '@tanstack/react-query';
-import { Link, useSearchParams } from 'react-router';
+import { useEffect } from 'react';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
 import {
   ONBOARDING_CHANGES,
-  UI_FILTER_KEYS,
   WORK_LAYOUTS,
+  toggleWorkFilter,
   type OnboardingChange,
+  type WorkFilter,
   type WorkResponse,
 } from '@docket/shared';
 import { Callout, SegmentedControl, Skeleton } from '../../components/kit';
@@ -22,9 +24,15 @@ import { ListLayout } from './ListLayout';
 import { MapLayout } from './MapLayout';
 import { TimelineLayout } from './TimelineLayout';
 import { WorkFilters } from './WorkFilters';
+import {
+  isSettled,
+  readStoredWorkFilter,
+  resolveWorkFilter,
+  SETTLED,
+  storeWorkFilter,
+  withWorkFilter,
+} from './workFilterState';
 import '../screens.css';
-
-type UiFilter = (typeof UI_FILTER_KEYS)[number];
 
 const LAYOUTS: { key: WorkLayout; label: string }[] = [
   { key: 'board', label: 'Board' },
@@ -33,17 +41,16 @@ const LAYOUTS: { key: WorkLayout; label: string }[] = [
   { key: 'timeline', label: 'Timeline' },
 ];
 
-/** The Work URL state (UI_SPEC §2: filters and layout live in the URL). */
+/**
+ * The Work URL state (UI_SPEC §2: filters and layout live in the URL). The
+ * status filter (B43) is read by `resolveWorkFilter` (workFilterState.ts).
+ */
 export function readWorkParams(params: URLSearchParams) {
   const layout = params.get('layout');
-  const filter = params.get('filter');
   return {
     layout: ((WORK_LAYOUTS as readonly string[]).includes(layout ?? '')
       ? layout
       : 'board') as WorkLayout,
-    filter: ((UI_FILTER_KEYS as readonly string[]).includes(filter ?? '')
-      ? filter
-      : 'all') as UiFilter,
     epic: params.get('epic') || undefined,
     label: params.get('label') || undefined,
     onboarding: params.get('onboarding') || undefined,
@@ -63,8 +70,35 @@ export function readWorkParams(params: URLSearchParams) {
 export function Work() {
   const { scope } = useShell();
   const [params, setParams] = useSearchParams();
-  const { layout, filter, epic, label, onboarding, onboarding_change } = readWorkParams(params);
-  const q = { scope, layout, filter, epic, label, onboarding, onboarding_change };
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { layout, epic, label, onboarding, onboarding_change } = readWorkParams(params);
+  // An in-page hash entry (the skip link's #main) is made by the browser, with no router state:
+  // it is never an arrival, so it keeps the filter its URL says.
+  const settled = isSettled(location.state) || location.hash !== '';
+  const { filter, settle } = resolveWorkFilter(params, settled, () => readStoredWorkFilter(scope));
+  // Settle this history entry once (B43): an old filter= link becomes the new parameters, and an
+  // arrival with no filter in the URL takes the remembered one, so the URL always says what's shown.
+  const settledSearch = settle ? withWorkFilter(params, filter).toString() : null;
+  useEffect(() => {
+    if (settledSearch === null) return;
+    void navigate(
+      { search: settledSearch ? `?${settledSearch}` : '', hash: location.hash },
+      { replace: true, state: SETTLED },
+    );
+  }, [settledSearch, location.hash, navigate]);
+  const q = {
+    scope,
+    layout,
+    epic,
+    label,
+    onboarding,
+    onboarding_change,
+    // Always explicit: with no filter parameters the API keeps the old All.
+    quick: filter.quick,
+    ...(filter.has.length ? { has: filter.has.join(',') } : {}),
+    ...(filter.show.length ? { show: filter.show.join(',') } : {}),
+  };
   const query = useQuery({
     queryKey: queryKeys.work(q),
     queryFn: () => apiClient['work.get']({ query: q }),
@@ -72,11 +106,15 @@ export function Work() {
   const set = (patch: Record<string, string | undefined>) => {
     const next = new URLSearchParams(params);
     for (const [k, v] of Object.entries(patch)) {
-      if (!v || (k === 'layout' && v === 'board') || (k === 'filter' && v === 'all'))
-        next.delete(k);
+      if (!v || (k === 'layout' && v === 'board')) next.delete(k);
       else next.set(k, v);
     }
-    setParams(next);
+    setParams(next, { state: SETTLED });
+  };
+  /** A filter choice: into the URL (a new history entry) and remembered for this project. */
+  const setFilter = (f: WorkFilter) => {
+    storeWorkFilter(scope, f);
+    setParams(withWorkFilter(params, f), { state: SETTLED });
   };
   const data: WorkResponse | undefined = query.data;
   const noProjects = useNoProjects();
@@ -110,6 +148,7 @@ export function Work() {
           epics={data?.epics ?? []}
           counts={data?.filter_counts}
           onChange={set}
+          onFilter={setFilter}
         />
       )}
       {onboarding && (
@@ -130,9 +169,16 @@ export function Work() {
       <QueryState query={query} skeleton={<WorkSkeleton layout={layout} />}>
         {(d) => (
           <>
-            {layout !== 'timeline' && <EpicsRow epics={d.epics} current={epic} />}
+            {layout !== 'timeline' && <EpicsRow key={scope} epics={d.epics} current={epic} />}
             {label && layout !== 'timeline' && <LabelCallout label={label} />}
-            {layout === 'board' && <BoardLayout items={d.items} />}
+            {layout === 'board' && (
+              <BoardLayout
+                items={d.items}
+                hiddenDone={filter.show.includes('done') ? 0 : d.filter_counts.show.done}
+                onShowDone={() => setFilter(toggleWorkFilter(filter, 'done'))}
+                showCanceled={filter.show.includes('canceled')}
+              />
+            )}
             {layout === 'list' && <ListLayout items={d.items} />}
             {layout === 'map' && <MapLayout data={d} scoped={!!epic || !!label} />}
             {layout === 'timeline' && (

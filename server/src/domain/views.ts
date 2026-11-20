@@ -30,7 +30,10 @@ import {
   END_REASON_LABELS,
   ToolError,
   OPEN_STATUSES,
-  UI_FILTER_KEYS,
+  LEGACY_WORK_FILTERS,
+  workFilterCounts,
+  workFilterFromParams,
+  workFilterPasses,
   type ActivityRow,
   type AgentRow,
   type AgentsResponse,
@@ -52,6 +55,7 @@ import {
   type SettingsResponse,
   type Status,
   type WaitingOn,
+  type WorkCheck,
   type WorkItem,
   type WorkResponse,
 } from '@docket/shared';
@@ -108,7 +112,6 @@ import {
   type RecoveryConfig,
 } from './recovery-model.js';
 
-type UiFilter = (typeof UI_FILTER_KEYS)[number];
 type Scope = 'all' | string;
 
 const isOpenStatus = (s: string) => (OPEN_STATUSES as readonly string[]).includes(s);
@@ -996,8 +999,8 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
    * branches keep moving toward the conflict), then the rest, each with its
    * newest proposed resolution and whether an acknowledgement still covers it.
    */
-  function problemSet(r: ReadContext, scope: Scope) {
-    const s = scoped(r, windows(), scope);
+  function problemSet(r: ReadContext, scope: Scope, inScope?: Scoped) {
+    const s = inScope ?? scoped(r, windows(), scope);
     const runs = scopeRuns(s);
     const deferred = deferredOf(s);
     // Decision 36: overlap questions and undeclared-parts holds are owner questions (a card
@@ -1152,7 +1155,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
       const deferred = deferredOf(s);
       const ctx = { db: s.db, windows: s.windows, now: s.now, index: s.index };
 
-      // Board, list and map: tickets, never epics; canceled items leave the views (§6.3).
+      // Board, list and map: tickets, never epics. Canceled items show only under Shows canceled (B43).
       // The onboarding review card's links (decision 31; B30): only what the session created or enriched.
       const onboarded = input.onboarding
         ? onboardingItemIds(r.db, input.onboarding, input.onboarding_change)
@@ -1160,7 +1163,6 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
       const base = [...s.items.values()].filter(
         (i) =>
           i.type !== 'Epic' &&
-          i.status !== 'canceled' &&
           (!input.epic || i.epic_id === input.epic) &&
           (!onboarded || onboarded.has(i.id)),
       );
@@ -1193,28 +1195,36 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         };
       });
 
-      const matches: Partial<Record<UiFilter, (i: WorkItem) => boolean>> = {
-        all: () => true,
-        planning: (i) => i.status === 'planning',
-        ready_to_start: (i) => i.status === 'ready' && !i.blocked && i.lead === null,
-        blocked: (i) => i.blocked,
+      // B43 (UI_SPEC §6.2): a quick filter, checks that narrow, and shows that add done or
+      // canceled items back. Without the new parameters, the old `filter` (default All) maps on.
+      const filter =
+        workFilterFromParams(input)?.filter ?? LEGACY_WORK_FILTERS[input.filter ?? 'all']!;
+      const withProblems = new Set<string>();
+      for (const p of problemSet(r, input.scope, s).all) {
+        if (p.item_id) withProblems.add(p.item_id);
+        if (p.kind === 'radar_conflict' || p.kind === 'cycle') {
+          for (const id of p.related) withProblems.add(id);
+        }
+      }
+      const checks: Record<WorkCheck, (i: WorkItem) => boolean> = {
         for_you: (i) => i.for_you,
         human_review_later: (i) =>
           isOpenStatus(i.status) && !i.packet_ready && i.human_review.declared > 0,
         deferred_review: (i) => deferred.unverified.has(i.id),
         live_run: (i) => i.lead?.run_state === 'live',
+        has_problem: (i) => withProblems.has(i.id),
         archived: (i) => i.archived,
+        planning: (i) => i.status === 'planning',
+        ready_to_start: (i) => i.status === 'ready' && !i.blocked && i.lead === null,
       };
-      const visible = rows.filter((i) => !i.archived);
-      const filter_counts: WorkResponse['filter_counts'] = {};
-      for (const key of UI_FILTER_KEYS) {
-        const match = matches[key];
-        if (match) filter_counts[key] = (key === 'archived' ? rows : visible).filter(match).length;
-      }
-      const items =
-        input.filter === 'archived'
-          ? rows.filter((i) => i.archived)
-          : visible.filter(matches[input.filter] ?? (() => true));
+      const facts = rows.map((i) => ({
+        status: i.status,
+        blocked: i.blocked,
+        archived: i.archived,
+        check: (k: WorkCheck) => checks[k](i),
+      }));
+      const filter_counts = workFilterCounts(filter, facts);
+      const items = rows.filter((_, k) => workFilterPasses(filter, facts[k]!));
 
       // The map: links among the items, plus blockers from outside the view (UI_SPEC §6.3.4).
       const shown = new Set(items.map((i) => i.id));

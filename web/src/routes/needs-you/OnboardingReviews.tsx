@@ -45,7 +45,8 @@ function OnboardingCard({ session: s }: { session: OnboardingSession }) {
     if (scope !== 'all' && scope !== s.project) setScope(s.project);
   };
   const work = (change: 'created' | 'enriched') =>
-    paths.work({ layout: 'list', onboarding: s.id, onboarding_change: change });
+    // Done items too (B43): an onboarding (a Jira import) often brings in finished work.
+    paths.work({ layout: 'list', onboarding: s.id, onboarding_change: change, show: 'done' });
   const markReviewed = async () => {
     setBusy(true);
     try {
