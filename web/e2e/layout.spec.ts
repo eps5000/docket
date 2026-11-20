@@ -187,10 +187,19 @@ test.describe('1024×900 (T144)', () => {
       await expect(page.locator('a.tcard').first()).toBeVisible();
       // Gameflow pilot: long titles and chips spilled past the card, because the
       // card's auto grid track grew to its widest child.
+      // Text an ancestor inside the card cuts off (the run line's ellipsis, since #89) is
+      // clipped by design; the clipping element itself is still checked.
       const spills = await page.$$eval('a.tcard, a.epiccard', (cards) =>
         cards.flatMap((card) => {
           const c = card.getBoundingClientRect();
+          const clipped = (el: Element) => {
+            for (let p = el.parentElement; p && p !== card; p = p.parentElement) {
+              if (getComputedStyle(p).overflowX !== 'visible') return true;
+            }
+            return false;
+          };
           return [...card.querySelectorAll('*')]
+            .filter((el) => !clipped(el))
             .map((el) => ({ el, r: el.getBoundingClientRect() }))
             .filter(({ r }) => r.width > 0 && r.right > c.right + 1)
             .map(({ el }) => `${card.getAttribute('href')}: ${el.className || el.tagName}`);
