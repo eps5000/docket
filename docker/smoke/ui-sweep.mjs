@@ -134,6 +134,33 @@ function inPageLayout(maxDetails) {
     if (s.display === 'none' || s.display === 'contents' || s.visibility === 'hidden') continue;
     // Measured mid-animation (the live-run pulse scales), its box isn't its layout.
     if (el.getAnimations().length > 0) continue;
+    // Text spilling out of its own box: a squeezed flex item (even one 0px
+    // wide) whose words run over its neighbours (Gameflow pilot, GF-312).
+    const ownText = [...el.childNodes].some(
+      (n) => n.nodeType === 3 && (n.textContent ?? '').trim().length > 0,
+    );
+    if (ownText && !s.display.startsWith('inline') && !clips(el)) {
+      const spill = el.scrollWidth - el.clientWidth;
+      if (spill > 2) {
+        // Fine when a clipping ancestor hides it before an ancestor wide
+        // enough to show it (a collapsed rail clips its labels on purpose).
+        const er = el.getBoundingClientRect();
+        const textRight = er.left + el.scrollWidth;
+        let hidden = false;
+        for (let a = el.parentElement; a && a !== doc; a = a.parentElement) {
+          if (clips(a)) {
+            hidden = true;
+            break;
+          }
+          const ar = a.getBoundingClientRect();
+          if (textRight <= ar.right + 1) break;
+        }
+        if (!hidden) {
+          overflow.push(`${describe(el)}: its text spills ${Math.round(spill)}px out of its box`);
+          continue;
+        }
+      }
+    }
     const r = el.getBoundingClientRect();
     if (r.width === 0 || r.height === 0) continue;
     let p = el.parentElement;
@@ -416,6 +443,24 @@ async function sweep(opts) {
         await page.waitForTimeout(400); // the palette's 150 ms debounce, then results
       });
       await page.keyboard.press('Escape');
+
+      // Review packets (Gameflow pilot: long agent-check evidence squeezed the
+      // check text into a one-word column and overlapped it).
+      // Only items with a packet: an item can be in Review before its packet exists.
+      const withPacket = [];
+      for (const r of work.items.filter((i) => i.status === 'review')) {
+        if (withPacket.length >= 2) break;
+        const res = await context.request.get(
+          `${opts.base}/api/review/${encodeURIComponent(r.id)}`,
+        );
+        if (res.ok()) withPacket.push(r);
+      }
+      for (const r of withPacket) {
+        await record(`${r.id} · review packet`, async () => {
+          await page.goto(`/review/${encodeURIComponent(r.id)}`);
+          await settle(page);
+        });
+      }
 
       const stepCandidates = [
         ...items,

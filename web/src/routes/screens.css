@@ -89,6 +89,32 @@
   padding: 4px 0;
   min-height: 28px;
 }
+/* An agent check in a review packet: the provenance chip, then the check,
+   with its evidence underneath. A flex row let long evidence squeeze the
+   check into a one-word column (Gameflow pilot, GF-312). */
+.tl .checkrow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 8px;
+  row-gap: 2px;
+  align-items: start;
+  padding: 5px 0;
+}
+.tl .checkrow .ctext {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.tl .checkrow .src {
+  grid-column: 2;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+/* Web addresses in plain text (review packets): underlined, and long ones wrap. */
+.tl a.textlink {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  overflow-wrap: anywhere;
+}
 .tl .act {
   display: grid;
   grid-template-columns: 70px 1fr;
