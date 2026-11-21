@@ -54,6 +54,16 @@ export async function axeInThemes(
   const out: AxeSummary[] = [];
   for (const theme of opts.themes ?? THEMES) {
     await setTheme(page, theme);
+    // A toast mid-fade has partial opacity, so axe measures a false contrast
+    // failure. Wait for animations that end; the live-run pulse never does.
+    await page.evaluate(() =>
+      Promise.all(
+        document
+          .getAnimations()
+          .filter((a) => a.effect?.getComputedTiming().endTime !== Infinity)
+          .map((a) => a.finished.catch(() => undefined)),
+      ),
+    );
     let builder = new AxeBuilder({ page }).withTags(WCAG_TAGS);
     if (opts.include) builder = builder.include(opts.include);
     for (const ex of opts.exclude ?? []) builder = builder.exclude(ex);
