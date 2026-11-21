@@ -56,6 +56,11 @@
  * (`writeBranches`), not at the next run. A newly found conflict is posted
  * to each item it involves as one note ("Docket's conflict radar: …"), so
  * the items' leads read it on their next `get_item`.
+ *
+ * **A removed branch stays out (B45):** the owner's remove (*Not an active
+ * branch*) is remembered in `items.branches`, so discovery looks for another
+ * branch rather than adopting the same one at its next run. Undo, or anyone
+ * reporting that name again, brings it back.
  */
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, realpathSync, rmSync, statSync } from 'node:fs';
@@ -300,10 +305,15 @@ export interface Reported {
   /** `owner` or the agent (`claude · orca-w3`); null when not known (migrated). */
   by: string | null;
   at: string;
+  /**
+   * B45: the owner removed it (*Not an active branch*). Kept in `items.branches`
+   * so discovery doesn't adopt it again; reporting the name again lifts it.
+   */
+  removed?: boolean;
 }
 
-/** The item's reported branches, oldest first (B41); empty when none. */
-export function reportedBranches(db: Db, itemId: string): Reported[] {
+/** Every entry of `items.branches`, including branches the owner removed (B45). */
+function storedBranches(db: Db, itemId: string): Reported[] {
   const row = db.sqlite.prepare('SELECT branches FROM items WHERE id = ?').get(itemId) as
     { branches: string | null } | undefined;
   if (!row?.branches) return [];
@@ -323,25 +333,62 @@ export function reportedBranches(db: Db, itemId: string): Reported[] {
   );
 }
 
+/** The item's reported branches, oldest first (B41); empty when none. */
+export function reportedBranches(db: Db, itemId: string): Reported[] {
+  return storedBranches(db, itemId).filter((b) => !b.removed);
+}
+
 /**
  * Store the item's reported branches (B41) outside its version, like a
  * declaration, and clear at once the item's open findings for a branch the
  * radar no longer checks (B42); returns the inverses for an undoable owner
  * change (the branches, and each cleared finding).
+ *
+ * `removed` (B45) is a branch the owner just said isn't active: it is
+ * remembered so discovery doesn't adopt it again, and dropped from what the
+ * radar last discovered, in the same write, so the next run has nothing to
+ * record and the owner's Undo still applies.
  */
-export function writeBranches(w: WriteContext, itemId: string, list: Reported[]): InverseOp[] {
-  const before = (
-    w.db.sqlite.prepare('SELECT branches FROM items WHERE id = ?').get(itemId) as {
-      branches: string | null;
-    }
-  ).branches;
+export function writeBranches(
+  w: WriteContext,
+  itemId: string,
+  list: Reported[],
+  removed?: string,
+): InverseOp[] {
+  const before = w.db.sqlite
+    .prepare('SELECT branches, radar_branch, radar_branch_matches FROM items WHERE id = ?')
+    .get(itemId) as {
+    branches: string | null;
+    radar_branch: string | null;
+    radar_branch_matches: string | null;
+  };
+  const names = new Set(list.map((b) => b.name));
+  const kept = storedBranches(w.db, itemId).filter(
+    (b) => b.removed && !names.has(b.name) && b.name !== removed,
+  );
+  const gone: Reported[] = removed
+    ? [{ name: removed, by: callerName(w.db, w.actor), at: w.now, removed: true }]
+    : [];
+  const stored = [...list, ...[...kept, ...gone].slice(-LIMITS.item_branches_max)];
   w.db.sqlite
     .prepare('UPDATE items SET branches = ? WHERE id = ?')
-    .run(list.length > 0 ? JSON.stringify(list) : null, itemId);
-  return [
-    { op: 'update', table: 'items', id: itemId, set: { branches: before } },
-    ...clearUncheckedFindings(w, itemId),
-  ];
+    .run(stored.length > 0 ? JSON.stringify(stored) : null, itemId);
+  const set: Record<string, unknown> = { branches: before.branches };
+  if (removed) {
+    set.radar_branch = before.radar_branch;
+    set.radar_branch_matches = before.radar_branch_matches;
+    const matches = (
+      before.radar_branch_matches ? (JSON.parse(before.radar_branch_matches) as string[]) : []
+    ).filter((m) => m !== removed);
+    w.db.sqlite
+      .prepare('UPDATE items SET radar_branch = ?, radar_branch_matches = ? WHERE id = ?')
+      .run(
+        before.radar_branch === removed ? null : before.radar_branch,
+        matches.length > 0 ? JSON.stringify(matches) : null,
+        itemId,
+      );
+  }
+  return [{ op: 'update', table: 'items', id: itemId, set }, ...clearUncheckedFindings(w, itemId)];
 }
 
 /**
@@ -464,7 +511,13 @@ export function planRadar(r: ReadContext, config: Config, project: string): Rada
       } else {
         // Several matches is none.
         local ??= g.branches().filter((b) => b !== p.main_branch);
-        const matches = branchesNaming([id, jira_key], local);
+        // B45: never a branch the owner said isn't active.
+        const removed = new Set(
+          storedBranches(db, id)
+            .filter((b) => b.removed)
+            .map((b) => b.name),
+        );
+        const matches = branchesNaming([id, jira_key], local).filter((b) => !removed.has(b));
         const one = matches.length === 1 ? matches[0]! : null;
         discovered.push({ item: id, branch: one, matches: one ? [] : matches });
         branches = one ? [{ name: one, source: 'discovered' }] : [];

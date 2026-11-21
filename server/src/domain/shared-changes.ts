@@ -594,7 +594,7 @@ function ownerBranch(
     op === 'add'
       ? [...before, { name, by: callerName(w.db, w.actor), at: w.now }]
       : before.filter((b) => b.name !== name);
-  const inverse = writeBranches(w, item.id, next);
+  const inverse = writeBranches(w, item.id, next, op === 'remove' ? name : undefined);
   w.event({
     type: 'branch.reported',
     summary:
