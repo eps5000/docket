@@ -266,7 +266,7 @@ test('Settings → Overlap handling: a default and a per-project override', asyn
   await expect(toast(page, 'Overlap handling: Ask on every overlap.')).toBeVisible();
   await expect(card.getByRole('radio', { name: /Ask on every overlap/ })).toBeChecked();
 
-  const select = card.getByRole('combobox', { name: 'Overlap handling for Recipe App' });
+  const select = card.getByRole('combobox', { name: 'Overlap handling for Sample · Recipe App' });
   await select.selectOption('agents_resolve');
   await expect(toast(page, 'Overlap handling for RCP: Agents resolve.')).toBeVisible();
   await expect

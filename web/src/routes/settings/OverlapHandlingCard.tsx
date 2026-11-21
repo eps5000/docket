@@ -22,10 +22,12 @@ export function OverlapHandlingCard() {
     queryKey: queryKeys.overlapHandling(),
     queryFn: () => apiClient['overlapHandling.get']({}),
   });
-  const [busy, setBusy] = useState(false);
+  // The choice shows at once. Controls stay enabled while it saves, because disabling the
+  // focused control would drop keyboard focus (B34).
+  const [pending, setPending] = useState<OverlapHandling | null>(null);
   const name = useId();
   const save = async (mode: OverlapHandling | null, project?: string) => {
-    setBusy(true);
+    if (!project) setPending(mode);
     try {
       await runOwnerMutation(
         () =>
@@ -44,7 +46,7 @@ export function OverlapHandlingCard() {
     } catch (err) {
       showToast(errorText(err));
     } finally {
-      setBusy(false);
+      setPending(null);
     }
   };
   return (
@@ -69,7 +71,7 @@ export function OverlapHandlingCard() {
         >
           {(d) => (
             <div className="pad">
-              <fieldset className="overlap-modes" disabled={busy}>
+              <fieldset className="overlap-modes">
                 <legend className="f">Default for all projects</legend>
                 {OVERLAP_HANDLING.map((mode) => (
                   <label key={mode} className="overlap-mode">
@@ -77,7 +79,7 @@ export function OverlapHandlingCard() {
                       type="radio"
                       name={name}
                       value={mode}
-                      checked={d.default === mode}
+                      checked={(pending ?? d.default) === mode}
                       onChange={() => void save(mode)}
                     />
                     <span>
@@ -100,12 +102,11 @@ export function OverlapHandlingCard() {
                     </thead>
                     <tbody>
                       {d.projects.map((p) => (
-                        <tr key={p.key} data-project={p.key}>
+                        <tr key={p.key} data-overlap-project={p.key}>
                           <th scope="row">{p.name}</th>
                           <td>
                             <select
                               aria-label={`Overlap handling for ${p.name}`}
-                              disabled={busy}
                               value={p.override ?? ''}
                               onChange={(e) =>
                                 void save((e.target.value || null) as OverlapHandling | null, p.key)
