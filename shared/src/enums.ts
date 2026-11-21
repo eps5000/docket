@@ -431,6 +431,20 @@ export const DESIGN_IMPACTS = ['none', 'changes_approved_design'] as const;
 export type DesignImpact = (typeof DESIGN_IMPACTS)[number];
 
 /**
+ * Owner decision 39: the owner's review of a declared change to an approved
+ * design. It applies with or without an overlap and in every Overlap handling
+ * mode. `open` and `sent_back` pause that item only; `withdrawn` no longer
+ * applies (the owner took the change out of the declaration, or the item was
+ * canceled).
+ */
+export const DESIGN_REVIEW_STATES = ['open', 'approved', 'sent_back', 'withdrawn'] as const;
+export type DesignReviewState = (typeof DESIGN_REVIEW_STATES)[number];
+
+/** The owner's choice on a design review: *Approve the design change* or *Send back*. */
+export const DESIGN_REVIEW_DECISIONS = ['approve', 'send_back'] as const;
+export type DesignReviewDecision = (typeof DESIGN_REVIEW_DECISIONS)[number];
+
+/**
  * Owner decision 39: Settings → Overlap handling, a global default with an
  * optional per-project override. Agents resolve (the default): the owner sees
  * only level 3. Ask on shared data: also tables, models and endpoints. Ask on
@@ -454,8 +468,7 @@ export const OVERLAP_REASONS = [
   'change_touches_part',
   'bare_part',
   'unclear',
-  // The owner decides
-  'changes_approved_design',
+  // The owner decides (a change to an approved design is its own review: DESIGN_REVIEW_STATES)
   'blocker_cycle',
   'disputed',
   'setting',
@@ -630,6 +643,9 @@ export const EVENT_TYPES = [
   'problem.acknowledged',
   'resolution.proposed',
   'resolution.decided',
+  // A declared change to an approved design (decision 39; B46)
+  'design_review.raised',
+  'design_review.decided',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 
@@ -679,6 +695,8 @@ export const OBJECT_KINDS = [
   'problem_ack',
   /** Decision 37: an agent's proposed resolution of a problem. */
   'resolution',
+  /** Decision 39: the owner's review of a declared change to an approved design. */
+  'design_review',
 ] as const;
 export type ObjectKind = (typeof OBJECT_KINDS)[number];
 

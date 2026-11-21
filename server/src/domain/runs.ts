@@ -64,6 +64,7 @@ import {
   type ItemRow,
   type RunRow,
 } from './model.js';
+import { assertDesignCleared } from './design-review.js';
 import { settleClaim } from './shared-changes.js';
 import type { InverseOp, WriteContext } from './write.js';
 import { addReportedBranch } from './radar.js';
@@ -368,6 +369,8 @@ export function createRunsService(deps: ServiceDeps): RunsService {
         );
       }
 
+      // Decision 39: an unapproved change to an approved design pauses this item, at any claim.
+      assertDesignCleared(w.db, item, 'claim');
       const status = requireItem(w.db, item.id).status;
       if (status === 'ready') {
         const deps2 = summary(w, item.id);

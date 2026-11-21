@@ -28,6 +28,8 @@ The project has its own rules: who moves work to Ready, when human review is nee
 
    If you get `conflict`, someone else holds the item. Pick another one. Never retry in a loop, and never work on an item you haven't claimed.
 
+   If you get `design_review`, the item changes an approved design and the owner hasn't approved it. **Pick other work** and leave this item until they do.
+
    If you get `seam_conflict`, the item collides with another item in flight on a shared part (a table, model, endpoint or shared file). Docket has queued it behind that item, or asked the owner if only the owner can decide. **Pick other work** from `ready_to_start` and leave this item; don't wait, and don't work on it.
 
    **Given a `run_id` by your coordinator** (you're resuming a parked run after a crash)? Don't claim. Pass that `run_id` on your first call, for example `heartbeat { run_id, note: "Resuming" }`. That resumes the run with its claim, workspace and brief. Then continue from step 3.
@@ -61,7 +63,7 @@ The project has its own rules: who moves work to Ready, when human review is nee
 **Shared parts along the way:**
 
 - **Change a shared part you didn't declare?** Add it now with `declare_shared_changes` (the whole list: it replaces the declaration). Name parts by their keys from `list_shared_parts`, with the member when you can (`model:Token.expiresAt`): adding different members runs in parallel, while a bare part is sequenced.
-- **Changing something the owner approved?** Set `design_impact: "changes_approved_design"` with a `design_note` naming the design, decision or acceptance criterion. If you and another agent disagree about who owns a part, set `disputed: true`. Both reach the owner. Never decide those yourself.
+- **Changing something the owner approved?** Set `design_impact: "changes_approved_design"` with a `design_note` naming the design, decision or acceptance criterion. It always goes to the owner, overlap or not, and **this item pauses until they approve it**: `claim_lead` and closing return `design_review`, and a packet is held. Stop the affected work and take other work from `ready_to_start`; other items aren't affected. Don't try to clear it by removing the flag. If the owner sends it back, follow their note, then declare again. If you and another agent disagree about who owns a part, set `disputed: true`; that reaches the owner too.
 - **Commit and report early** (`report_commit`, and your `branch`). The conflict radar only sees committed local branches. A clean trial merge means git can combine them, not that they work together, so it never replaces your declaration.
 - **A text conflict stops nobody.** Your context says who merges first. If you're second, keep working, then rebase on the first once it lands. If the rebase isn't mechanical, or would change what the other work does, use `propose_resolution`.
 - **Declaring shared changes?** Pass `branches`, every branch the work is on (or `branch` for one), every time, also when you backfill a declaration for work already in progress. The list replaces the item's branches, and the conflict radar checks each one.

@@ -351,36 +351,6 @@ describe('sequence automatically', () => {
 });
 
 describe('the owner', () => {
-  it('changes_approved_design reaches the owner with the note and a recommendation', async () => {
-    const api = await start();
-    const { first, second, result } = await pair(
-      [{ part: 'file:src/shared.ts', change: 'change' }],
-      [
-        {
-          part: 'file:src/shared.ts',
-          change: 'change',
-          design_impact: 'changes_approved_design',
-          design_note: 'Decision 12: exports stay synchronous',
-        },
-      ],
-    );
-    expectToolError(result, 'seam_conflict');
-    const needs = await needsYou(api);
-    expect(needs.overlaps).toMatchObject([
-      {
-        state: 'open',
-        outcome: 'owner',
-        reason: 'changes_approved_design',
-        evidence: { design_note: 'Decision 12: exports stay synchronous' },
-      },
-    ]);
-    const card = (needs.overlaps as { explanation: { what: string; fix: string } }[])[0]!;
-    expect(card.explanation.what).toContain('Decision 12');
-    expect(card.explanation.fix).toContain('Docket recommends');
-    expect(blockers(second)).toEqual([]);
-    expect(rowFor(first, second)!.decided_by).toBeNull();
-  });
-
   it('a design note is required with changes_approved_design', async () => {
     await start();
     const created = expectOk(
@@ -683,15 +653,22 @@ describe('undeclared shared files at hand-off', () => {
 
   it('an overlap with a change to an approved design still reaches the owner', async () => {
     const api = await start();
-    const other = await ready('Designed', [
-      {
-        part: 'file:src/shared.ts',
-        change: 'change',
-        design_impact: 'changes_approved_design',
-        design_note: 'AC 4',
-      },
-    ]);
+    const other = await ready('Designed', [{ part: 'file:src/shared.ts', change: 'change' }]);
     expectOk(await claim(other, h!.a));
+    // Declared after the claim: the review pauses that item, and it keeps its claim.
+    expectOk(
+      await h!.call('declare_shared_changes', {
+        id: other,
+        changes: [
+          {
+            part: 'file:src/shared.ts',
+            change: 'change',
+            design_impact: 'changes_approved_design',
+            design_note: 'AC 4',
+          },
+        ],
+      }),
+    );
     h!.server.clock.advance(1000);
     const id = await ready('Mine', null);
     expectOk(await claim(id));
@@ -976,9 +953,10 @@ describe('unattended agents keep working (SC-025)', () => {
     expect(blockers(ids[2]!).length).toBeGreaterThan(0);
 
     const needs = await needsYou(api);
-    const cards = needs.overlaps as { reason: string }[];
-    expect(cards.length).toBeGreaterThan(0);
-    expect(cards.every((c) => c.reason === 'changes_approved_design')).toBe(true);
+    // The only thing that needs the owner is the design change, and it paused only its item.
+    expect(needs.overlaps).toEqual([]);
+    expect(needs.design_reviews).toMatchObject([{ item: { id: ids[5] } }]);
+    expect(started.has(ids[5]!)).toBe(false);
     expect((needs.overlaps_handled as { count: number }).count).toBeGreaterThanOrEqual(2);
   }, 60_000);
 });

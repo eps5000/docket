@@ -55,6 +55,7 @@ import {
   type ItemBranches,
   type Declaration,
   type DeclaredChange,
+  type DesignReviewRow,
   type InFlightChange,
   type ItemSharedResponse,
   type LeaseRow,
@@ -80,6 +81,14 @@ import {
   type ServiceDeps,
   type SharedChangesService,
 } from './contracts.js';
+import {
+  decideDesignReview,
+  designHold,
+  itemDesignReviews,
+  openDesignReviews,
+  syncDesignReview,
+  withdrawDesignReviews,
+} from './design-review.js';
 import { newId } from './ids.js';
 import { cycleFor } from './links.js';
 import {
@@ -614,8 +623,12 @@ function declare(
   // with other claimed work is classified again, without revoking either claim. Pairs that
   // no longer share a part resolve.
   syncOverlaps(w, links, item.id);
+  // Decision 39: a change to an approved design goes to the owner, overlap or not.
+  syncDesignReview(w, item);
+  const hold = designHold(db, item.id);
 
   return {
+    ...(hold ? { design_hold: hold } : {}),
     declaration: declarationOf(db, item.id),
     registered,
     overlaps: input.none
@@ -1224,7 +1237,10 @@ export function onItemClosed(w: WriteContext, itemId: string, to: 'done' | 'canc
     itemId,
     to === 'done' ? 'done' : w.actor.kind === 'owner' ? 'owner_released' : 'released',
   );
-  if (to === 'canceled') releaseDocketBlockers(w, itemId);
+  if (to === 'canceled') {
+    releaseDocketBlockers(w, itemId);
+    withdrawDesignReviews(w, itemId);
+  }
   resolveOverlaps(w, itemId);
 }
 
@@ -1371,11 +1387,15 @@ export function settleUndeclared(
     const peers = new Set(
       inFlightFor(w.db, item.project_key, part, item.id, CLAIMED_STATUSES).map((p) => p.id),
     );
+    // Decision 39: touching a part whose unapproved design change is with the owner holds.
+    const designHeld = [...peers].some((id) =>
+      designHold(w.db, id)?.parts.some((p) => p === part || p.startsWith(`${part}.`)),
+    );
     const classes = [...peers].flatMap((id) => {
       const c = classifyPair(item.id, [probe], id, policyChanges(w.db, id), mode);
       return c ? [c] : [];
     });
-    if (classes.some((c) => c.outcome === 'owner')) held.push(part);
+    if (designHeld || classes.some((c) => c.outcome === 'owner')) held.push(part);
     else {
       added.push({
         part,
@@ -1557,7 +1577,6 @@ function overlapRow(
       // A decision the owner took needs no automatic wording.
       outcome: r.decided_by === 'owner' ? null : outcome,
       reason,
-      design_note: evidence?.design_note ?? null,
       reached: reachedYou !== null,
     }),
     outcome,
@@ -1632,6 +1651,7 @@ function itemShared(r: ReadContext, id: string): ItemSharedResponse {
   const item = requireItem(db, id);
   const all = (sql: string, ...params: unknown[]) =>
     db.sqlite.prepare(sql).all(...params) as Record<string, unknown>[];
+  const designReviews = itemDesignReviews(db, item.id);
   return {
     declaration: declarationOf(db, item.id),
     branches: itemBranches(db, item.id),
@@ -1657,6 +1677,7 @@ function itemShared(r: ReadContext, id: string): ItemSharedResponse {
       'SELECT * FROM undeclared_holds WHERE item_id = ? ORDER BY created_at DESC',
       item.id,
     ).map((row) => holdRow(db, row)),
+    ...(designReviews.length > 0 ? { design_reviews: designReviews } : {}),
   };
 }
 
@@ -1797,6 +1818,7 @@ function contextShared(r: ReadContext, id: string): ContextShared {
       ...(f.merge_first ? { merge_first: f.merge_first as string } : {}),
     };
   });
+  const hold = designHold(db, item.id);
   // Decision 39: what Docket decided for this item's overlaps.
   const outcomes = (
     db.sqlite
@@ -1819,6 +1841,7 @@ function contextShared(r: ReadContext, id: string): ContextShared {
     leases,
     radar,
     ...(outcomes.length > 0 ? { outcomes } : {}),
+    ...(hold ? { design_hold: hold } : {}),
     truncated: others.length > LIMITS.context_in_flight_max,
   };
 }
@@ -2200,6 +2223,9 @@ export function createSharedChangesService(deps: ServiceDeps): SharedChangesServ
       return overlapRow(w.db, w.get('part_overlaps', row.id as string)!);
     },
 
+    // Decision 39: the owner approves or sends back a change to an approved design.
+    decideDesignReview: (w, input) => decideDesignReview(w, input),
+
     overlapHandling(r) {
       return overlapHandlingView(r.db);
     },
@@ -2389,6 +2415,7 @@ export function needsYouShared(
 ): {
   overlaps: OverlapRow[];
   overlaps_handled: { count: number; rows: OverlapRow[] };
+  design_reviews: DesignReviewRow[];
   undeclared_holds: UndeclaredHoldRow[];
   radar_findings: RadarFindingRow[];
 } {
@@ -2424,6 +2451,7 @@ export function needsYouShared(
       count: handled.length,
       rows: handled.slice(0, 20).map((r) => overlapRow(db, r)),
     },
+    design_reviews: openDesignReviews(db, scope),
     undeclared_holds: all(
       `SELECT h.* FROM undeclared_holds h JOIN items i ON i.id = h.item_id
        JOIN projects p ON p.key = i.project_key

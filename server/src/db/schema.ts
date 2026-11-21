@@ -55,6 +55,7 @@ import {
   ACTOR_KINDS,
   LEASE_END_REASONS,
   LIMITS,
+  DESIGN_REVIEW_STATES,
   OVERLAP_STATES,
   SHARED_CHANGES,
   SHARED_PART_KINDS,
@@ -1248,6 +1249,43 @@ export const part_overlaps = sqliteTable(
       'part_overlaps_decided',
       sql.raw(`("state" IN ('sequenced', 'compatible')) <= ("decided_at" IS NOT NULL)`),
     ),
+  ],
+);
+
+/**
+ * The owner's review of a declared change to an approved design (owner
+ * decision 39; BUILD_SPEC §5.21 B46): one open per item, with or without an
+ * overlap. `entries` is what the owner reads and approves: each part, its
+ * change and its design note. It pauses this item only.
+ */
+export const design_reviews = sqliteTable(
+  'design_reviews',
+  {
+    /** `drv_…` */
+    id: id(),
+    project_key: text('project_key')
+      .notNull()
+      .references(() => projects.key, { onDelete: 'cascade' }),
+    item_id: itemRef('item_id'),
+    entries: text('entries', { mode: 'json' }).notNull(),
+    state: text('state', { enum: DESIGN_REVIEW_STATES }).notNull().default('open'),
+    /** The owner's note: required to send back. */
+    note: text('note'),
+    requested_by: text('requested_by').notNull(),
+    decided_by: text('decided_by'),
+    decided_at: text('decided_at'),
+    version: version(),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('design_reviews_open_item').on(t.item_id).where(sql.raw(`"state" = 'open'`)),
+    index('design_reviews_project_state').on(t.project_key, t.state),
+    check('design_reviews_state', oneOf('state', DESIGN_REVIEW_STATES)),
+    check(
+      'design_reviews_entries',
+      sql.raw(`json_valid("entries") AND json_type("entries") = 'array'`),
+    ),
+    check('design_reviews_note', maxLen('note', LIMITS.shared_decision_note)),
   ],
 );
 

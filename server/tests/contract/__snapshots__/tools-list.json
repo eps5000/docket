@@ -97,7 +97,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -214,7 +215,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -580,7 +582,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -2328,7 +2331,9 @@
                           "branch.discovered",
                           "problem.acknowledged",
                           "resolution.proposed",
-                          "resolution.decided"
+                          "resolution.decided",
+                          "design_review.raised",
+                          "design_review.decided"
                         ]
                       },
                       "summary": {
@@ -2403,7 +2408,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -3174,7 +3180,6 @@
                               "change_touches_part",
                               "bare_part",
                               "unclear",
-                              "changes_approved_design",
                               "blocker_cycle",
                               "disputed",
                               "setting"
@@ -3199,6 +3204,49 @@
                         ],
                         "additionalProperties": false
                       }
+                    },
+                    "design_hold": {
+                      "type": "object",
+                      "properties": {
+                        "review_id": {
+                          "type": "string"
+                        },
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "open",
+                            "approved",
+                            "sent_back",
+                            "withdrawn"
+                          ]
+                        },
+                        "parts": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "notes": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "owner_note": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "review_id",
+                        "state",
+                        "parts",
+                        "notes",
+                        "owner_note"
+                      ],
+                      "additionalProperties": false
                     },
                     "truncated": {
                       "type": "boolean"
@@ -3434,7 +3482,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -3649,7 +3698,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -3811,7 +3861,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -3935,7 +3986,9 @@
               "branch.discovered",
               "problem.acknowledged",
               "resolution.proposed",
-              "resolution.decided"
+              "resolution.decided",
+              "design_review.raised",
+              "design_review.decided"
             ]
           }
         },
@@ -4052,7 +4105,9 @@
                       "branch.discovered",
                       "problem.acknowledged",
                       "resolution.proposed",
-                      "resolution.decided"
+                      "resolution.decided",
+                      "design_review.raised",
+                      "design_review.decided"
                     ]
                   },
                   "summary": {
@@ -4097,7 +4152,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -4466,7 +4522,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -4859,7 +4916,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -4890,7 +4948,7 @@
   },
   {
     "name": "set_status",
-    "description": "Move an item to another status. Allowed moves: inbox→planning; planning↔ready; ready→progress; progress→ready (gives up the work); progress or review→done (only when no human review item is undecided); any open status→canceled (reason required); done→progress (reopen, reason required). Moving to ready needs the item's shared changes declared first (declare_shared_changes), else not_declared. When you close an item as done, pass changed_files and branch. Use submit_packet, not set_status, to hand off for review.",
+    "description": "Move an item to another status. Allowed moves: inbox→planning; planning↔ready; ready→progress; progress→ready (gives up the work); progress or review→done (only when no human review item is undecided); any open status→canceled (reason required); done→progress (reopen, reason required). Moving to ready needs the item's shared changes declared first (declare_shared_changes), else not_declared. When you close an item as done, pass changed_files and branch. An unapproved change to an approved design refuses starting or closing the item with design_review. Use submit_packet, not set_status, to hand off for review.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -5183,7 +5241,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -5333,7 +5392,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -5440,7 +5500,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -5555,7 +5616,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -5586,7 +5648,7 @@
   },
   {
     "name": "claim_lead",
-    "description": "Claim an item as its lead before you work on it. Works on Ready items (moves them to In progress) and on In progress items with no lead (resuming sent-back or interrupted work). Pass workspace (where the work lives) and, if a coordinator briefed you, the brief, so the work can be restarted after a crash. Pass instructions with the output of the installed docket-check script, so the owner knows which instructions you work from. Pass branch, the branch you will work on, so conflicts are spotted early. Returns your run_id: pass it on every later call. If someone else holds the claim you get a conflict with who holds it and until when; do not work on the item. If its shared parts collide with another item in flight you get seam_conflict: Docket has queued it behind that item, or asked the owner when only the owner can decide, so pick other work and leave this item. Parts that can safely run together do not refuse the claim.",
+    "description": "Claim an item as its lead before you work on it. Works on Ready items (moves them to In progress) and on In progress items with no lead (resuming sent-back or interrupted work). Pass workspace (where the work lives) and, if a coordinator briefed you, the brief, so the work can be restarted after a crash. Pass instructions with the output of the installed docket-check script, so the owner knows which instructions you work from. Pass branch, the branch you will work on, so conflicts are spotted early. Returns your run_id: pass it on every later call. If someone else holds the claim you get a conflict with who holds it and until when; do not work on the item. If its shared parts collide with another item in flight you get seam_conflict: Docket has queued it behind that item, or asked the owner when only the owner can decide, so pick other work and leave this item. Parts that can safely run together do not refuse the claim. If it changes an approved design and the owner has not approved that yet, you get design_review: pause this item and take other work.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -5984,7 +6046,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -6279,7 +6342,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -6466,7 +6530,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -6730,7 +6795,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -6848,7 +6914,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -6974,7 +7041,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -7308,7 +7376,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -7588,7 +7657,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -7717,7 +7787,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -7921,7 +7992,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -8092,7 +8164,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -8299,7 +8372,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -8515,7 +8589,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -8673,7 +8748,9 @@
                     "branch.discovered",
                     "problem.acknowledged",
                     "resolution.proposed",
-                    "resolution.decided"
+                    "resolution.decided",
+                    "design_review.raised",
+                    "design_review.decided"
                   ]
                 },
                 "summary": {
@@ -8719,7 +8796,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -8863,7 +8941,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -9010,7 +9089,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -9152,7 +9232,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -9183,7 +9264,7 @@
   },
   {
     "name": "submit_packet",
-    "description": "Hand finished work to the owner for human review. Call it when the work is built, your checks pass and everything is committed and reported. The packet must let the owner verify without asking you anything: what to check, exact steps (URLs, builds, commands), what you already verified and how, known gaps, and attachments. Pass changed_files (every file your work changed) and branch: changes to shared parts the item didn't declare hold it for the owner. The item moves to Review; read the decision later with get_review or get_item.",
+    "description": "Hand finished work to the owner for human review. Call it when the work is built, your checks pass and everything is committed and reported. The packet must let the owner verify without asking you anything: what to check, exact steps (URLs, builds, commands), what you already verified and how, known gaps, and attachments. Pass changed_files (every file your work changed) and branch: changes to shared parts the item didn't declare, or an unapproved change to an approved design, hold it for the owner. The item moves to Review; read the decision later with get_review or get_item.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -9537,6 +9618,49 @@
                 "type": "string"
               }
             },
+            "held_design": {
+              "type": "object",
+              "properties": {
+                "review_id": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "open",
+                    "approved",
+                    "sent_back",
+                    "withdrawn"
+                  ]
+                },
+                "parts": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "notes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "owner_note": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "review_id",
+                "state",
+                "parts",
+                "notes",
+                "owner_note"
+              ],
+              "additionalProperties": false
+            },
             "replayed": {
               "type": "boolean"
             },
@@ -9569,7 +9693,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -9781,7 +9906,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -9880,7 +10006,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -10123,7 +10250,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -10358,7 +10486,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -10562,7 +10691,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -12677,7 +12807,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -12811,7 +12942,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -12937,7 +13069,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -13085,7 +13218,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -13228,7 +13362,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -13514,7 +13649,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -13728,7 +13864,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -13759,7 +13896,7 @@
   },
   {
     "name": "declare_shared_changes",
-    "description": "Declare the shared parts this item will change (tables, models, endpoints, shared files), each with add, change or remove and a short note, or none: true when it changes none. An item can't move to Ready until it has declared. Each call replaces the item's whole declaration. Name parts by their keys from list_shared_parts; register a missing one with new_parts. Name the member when you can (model:Token.expiresAt, table:decks.archived_at): adding different members runs in parallel, while a bare part means it could touch anything in it and is sequenced. Set design_impact: changes_approved_design with a design_note when the change alters an approved design, and disputed: true when agents disagree about who owns a part; both reach the owner. Pass branches, every branch the work is on (or branch for one), so the conflict radar can check them, also for work already in progress; they replace the item's reported branches, and an empty list clears them. Returns the in-flight items that change the same parts, each with its outcome: parallel, sequence or owner.",
+    "description": "Declare the shared parts this item will change (tables, models, endpoints, shared files), each with add, change or remove and a short note, or none: true when it changes none. An item can't move to Ready until it has declared. Each call replaces the item's whole declaration. Name parts by their keys from list_shared_parts; register a missing one with new_parts. Name the member when you can (model:Token.expiresAt, table:decks.archived_at): adding different members runs in parallel, while a bare part means it could touch anything in it and is sequenced. Set design_impact: changes_approved_design with a design_note when the change alters an approved design: it always reaches the owner, and this item pauses until they approve it, while other items continue. Set disputed: true when agents disagree about who owns a part; that reaches the owner too. Pass branches, every branch the work is on (or branch for one), so the conflict radar can check them, also for work already in progress; they replace the item's reported branches, and an empty list clears them. Returns the in-flight items that change the same parts, each with its outcome: parallel, sequence or owner.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -14055,7 +14192,6 @@
                       "change_touches_part",
                       "bare_part",
                       "unclear",
-                      "changes_approved_design",
                       "blocker_cycle",
                       "disputed",
                       "setting"
@@ -14068,6 +14204,49 @@
                 ],
                 "additionalProperties": false
               }
+            },
+            "design_hold": {
+              "type": "object",
+              "properties": {
+                "review_id": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "open",
+                    "approved",
+                    "sent_back",
+                    "withdrawn"
+                  ]
+                },
+                "parts": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "notes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "owner_note": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "review_id",
+                "state",
+                "parts",
+                "notes",
+                "owner_note"
+              ],
+              "additionalProperties": false
             },
             "replayed": {
               "type": "boolean"
@@ -14100,7 +14279,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -14312,7 +14492,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -14423,7 +14604,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -14531,7 +14713,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {
@@ -14702,7 +14885,8 @@
                 "internal",
                 "seam_conflict",
                 "not_declared",
-                "lease_held"
+                "lease_held",
+                "design_review"
               ]
             },
             "message": {

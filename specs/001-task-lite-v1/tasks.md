@@ -538,6 +538,8 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T197 [US18] Service: members and `design_impact` on declarations; the classification at claim, on declaration changes and at hand-off; automatic sequences with `merged` blockers; the radar's merge order and its runs on reported branches and commits; Overlap handling (global and per project); overrule with undo; Docket attribution. UI: the ticket's outcomes, the Needs you line, the Settings card, the declaration editor.
 - [x] T198 [US18] Tests: every classification path; the same-line add-only fixture (a text conflict with a merge order, no owner card, neither agent stopped); the clean-merge same-member fixture (sequenced); `changes_approved_design`; all three settings, global and per project; overrule and undo; an unattended multi-agent run; migration of existing overlaps; e2e `b46-overlaps` with axe in both themes; the sweep spec stays green.
 
+- [x] T199 [US18] A change to an approved design always reaches the owner, with or without an overlap and in every mode (owner correction to decision 39): `design_reviews`; the `design_review` error; held packets; a Needs you card and ticket banner with *Approve the design change* and *Send back*; tests for no overlap, overlap, already claimed, approve, send back, re-declare and every mode; e2e with axe in both themes.
+
 ## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.
@@ -580,7 +582,7 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 | B42 | 23 Problems that say what to do (US18) | T186–T189 | Contract and implementation in one PR; snapshot 48 → 49 |
 | B43 | 24 Work filters and the Epics strip (US2) | T190–T192 | Owner feedback; UI API change only, no MCP changes |
 | B44 | 25 Project decisions get their own page (US5) | T193–T195 | Owner feedback; no tool changes; one new event type |
-| B46 | 26 Overlaps reach the owner only when they need the owner (US18) | T196–T198 | Owner decision 39; contract and implementation in one PR; no new tools, snapshot updated |
+| B46 | 26 Overlaps reach the owner only when they need the owner (US18) | T196–T199 | Owner decision 39; contract and implementation in one PR; no new tools, snapshot updated |
 
 **Slices after B6 may run in any order that respects** the dependency table below. Don't run two slices at once: they share route and screen groups.
 

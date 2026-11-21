@@ -21,6 +21,7 @@ import {
 import type { Db } from '../db/client.js';
 import { APP_VERSION } from '../version.js';
 import { type In, type SearchService, type ServiceDeps } from './contracts.js';
+import { waitingOnDesign } from './design-review.js';
 import { waitingOnOverlap } from './shared-changes.js';
 import {
   BlockIndex,
@@ -250,12 +251,24 @@ export function createSearchService(deps: ServiceDeps): SearchService {
             r.db,
             items.map((s) => s.id),
           );
-          items = items.filter((s) => !s.blocked && !s.lead && !waiting.has(s.id));
+          // Decision 39: nor is one paused for the owner's design review.
+          const design = waitingOnDesign(
+            r.db,
+            items.map((s) => s.id),
+          );
+          items = items.filter(
+            (s) => !s.blocked && !s.lead && !waiting.has(s.id) && !design.has(s.id),
+          );
           break;
         }
-        case 'resumable':
-          items = items.filter((s) => !s.lead);
+        case 'resumable': {
+          const design = waitingOnDesign(
+            r.db,
+            items.map((s) => s.id),
+          );
+          items = items.filter((s) => !s.lead && !design.has(s.id));
           break;
+        }
         case 'blocked':
           items = items.filter((s) => s.blocked);
           break;

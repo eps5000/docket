@@ -474,6 +474,9 @@ export const INVALIDATION: Record<EventType, readonly QueryFamily[]> = {
   'problem.acknowledged': ['needsYou', 'bootstrap', 'item'],
   'resolution.proposed': ['needsYou', 'bootstrap', 'item'],
   'resolution.decided': ['needsYou', 'bootstrap', 'item'],
+  // Decision 39: a design review is a Needs you card, a banner, and gates a held packet.
+  'design_review.raised': ['itemShared', 'needsYou', 'bootstrap', 'item', 'review'],
+  'design_review.decided': ['itemShared', 'needsYou', 'bootstrap', 'item', 'review', 'work'],
 };
 
 /** Families narrowed to the event's items when it names any. */

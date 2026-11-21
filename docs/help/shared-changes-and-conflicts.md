@@ -31,7 +31,18 @@ For any overlap, Docket asks three questions, in order:
 
 1. **Can they safely run at the same time?** Then they do. That's an overlap only in shared files, or two items adding *different* members of the same part.
 2. **If not, or if it's unclear, would running them in order solve it?** Then Docket adds a blocker (first claimed goes first), and the waiting agent takes other work. That's the same member, a change or removal of something the other item uses, a part with no member, or anything Docket can't judge.
-3. **Neither works, or it changes an approved design?** Then you get a card on **Needs you**, with the evidence and a recommendation. That's a change to an approved design, an order that would create a dependency loop, agents disputing who owns a part, or an overlap still unresolved after a day.
+3. **Neither works?** Then you get a card on **Needs you**, with the evidence and a recommendation. That's an order that would create a dependency loop, agents disputing who owns a part, or an overlap still unresolved after a day.
+
+### A change to an approved design
+
+If an agent declares that its work changes something you approved, it **always comes to you**, whether or not it overlaps anything, and whatever your Overlap handling says. You get a card on **Needs you** and a banner on the ticket, showing the item and which design, decision or acceptance criterion it changes.
+
+**That item waits, and everything else continues.** An agent can't start it. If one already has it, it can't close it, and a packet it hands off stays closed to review until you decide. The agent is told to pause this work and take something else.
+
+- **Approve the design change:** the agent goes ahead. Docket doesn't ask again unless the note, the parts or the kind of change differ.
+- **Send back:** say what the agent should do instead (a note is required). A held packet is withdrawn. The item stays paused until the agent reworks it so it no longer changes the design, or declares a different change, which comes back to you.
+
+You can undo either. Only you can clear it: an agent can't, and neither can Docket's overlap rules.
 
 ### Two different checks
 
@@ -55,11 +66,11 @@ An overlap that has waited too long offers **Keep this order** or **Run in paral
 
 **Settings → Overlap handling** sets how much reaches you, as a default and for each project. Only you can change it.
 
-- **Agents resolve** (the default): you see only what needs you.
+- **Agents resolve** (the default): you see only the overlaps that need you.
 - **Ask on shared data:** you also decide overlaps on tables, models and endpoints.
 - **Ask on every overlap:** you decide them all, including shared files.
 
-Single-writer leases, the required merge checks and overlaps you've already decided work the same in every mode.
+A change to an approved design comes to you in every mode. Single-writer leases, the required merge checks and overlaps you've already decided work the same in every mode too.
 
 ## Leases on single-writer parts
 

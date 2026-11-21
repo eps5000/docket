@@ -174,4 +174,6 @@ export const ID_PREFIXES = {
   radar_finding: 'rdf_',
   /** Decision 37 (MCP_SPEC §5.16): an agent's proposed resolution of a problem. */
   resolution: 'prs_',
+  /** Decision 39: the owner's review of a declared change to an approved design. */
+  design_review: 'drv_',
 } as const;

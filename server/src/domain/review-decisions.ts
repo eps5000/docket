@@ -45,6 +45,7 @@ import {
   type ItemRow,
 } from './model.js';
 import { openPacketOf } from './packets.js';
+import { designHold } from './design-review.js';
 import { onItemClosed } from './shared-changes.js';
 import type { EventInput, InverseOp, WriteContext } from './write.js';
 
@@ -217,6 +218,14 @@ export function createReviewDecisionsService(deps: ServiceDeps): ReviewDecisions
           'conflict',
           `Round ${packet.round} of ${item.id} is held: it changed shared parts it didn't declare (${parts.join(', ')}). Decide that first: Add to the declaration, or Send back.`,
           { details: { held_undeclared: parts } },
+        );
+      }
+      // Decision 39: so does a packet whose item has an unapproved change to an approved design.
+      if (designHold(w.db, item.id)) {
+        throw new ToolError(
+          'conflict',
+          `${item.id} changes an approved design. Approve the design change or send it back before deciding this packet.`,
+          { details: { design_review: designHold(w.db, item.id)!.review_id } },
         );
       }
       if (packet.round !== input.round) {

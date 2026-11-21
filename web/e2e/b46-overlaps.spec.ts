@@ -226,32 +226,99 @@ test('the same member: Docket sequences it, and the owner overrules with Undo', 
   await expect(row).toContainText('Docket: in order');
 });
 
-test('a change to an approved design reaches the owner, with the note', async ({ page }) => {
-  const a = await readyItem(
-    'Rework exports',
-    [{ part: 'endpoint:POST /decks/{id}/export', change: 'change' }],
+const NOTE = 'Decision 12: exports stay synchronous';
+const designChange = (part: string) => ({
+  part,
+  change: 'change',
+  design_impact: 'changes_approved_design',
+  design_note: NOTE,
+});
+
+test('a change to an approved design with no overlap: a card and a banner; Approve, with Undo', async ({
+  page,
+}) => {
+  const id = await readyItem(
+    'Make exports async',
+    [designChange('endpoint:POST /decks/{id}/export')],
     ['endpoint:POST /decks/{id}/export'],
   );
-  const b = await readyItem('Make exports async', [
-    {
-      part: 'endpoint:POST /decks/{id}/export',
-      change: 'change',
-      design_impact: 'changes_approved_design',
-      design_note: 'Decision 12: exports stay synchronous',
-    },
+  const refused = await second.call('claim_lead', { id });
+  expect(refused.isError).toBe(true);
+  expect(refused.text).toContain('design_review');
+
+  await page.goto('/');
+  const card = page.locator('[data-card="shared-questions"] [data-design-review]');
+  await expect(card).toHaveCount(1);
+  await expect(card).toContainText(`${id} changes an approved design`);
+  await expect(card).toContainText(NOTE);
+  await expect(card).toContainText('Other work continues');
+  await expectAxeClean(page, 'Needs you, a design review card');
+
+  await page.goto(`/items/${id}`);
+  const banner = page.locator('[data-banner="problems"] [data-design-review]');
+  await expect(banner).toContainText(NOTE);
+  await expectAxeClean(page, 'The ticket, a design review banner', {
+    include: '[data-banner="problems"]',
+  });
+
+  await banner.getByRole('button', { name: /Approve the design change/ }).click();
+  const done = toast(page, `Approved ${id}’s design change.`);
+  await expect(done).toBeVisible();
+  await expect(banner).toHaveCount(0);
+  await settle(page);
+  await done.getByRole('button', { name: 'Undo' }).click();
+  await expect(banner).toBeVisible();
+
+  await banner.getByRole('button', { name: /Approve the design change/ }).click();
+  await expect(banner).toHaveCount(0);
+  await ok(second, 'claim_lead', { id });
+});
+
+test('Send back needs a note, keeps the item paused, and tells the agent', async ({ page }) => {
+  const id = await readyItem('Rewrite the export route', [
+    designChange('endpoint:POST /decks/{id}/export'),
   ]);
+  await page.goto(`/items/${id}`);
+  const banner = page.locator('[data-banner="problems"] [data-design-review]');
+  await banner.getByRole('button', { name: 'Send back' }).click();
+  const note = banner.getByLabel('What should the agent do instead? (required)');
+  await expect(note).toBeFocused();
+  await banner.getByRole('button', { name: 'Send it back' }).click();
+  await expect(banner.getByRole('alert')).toHaveText('Say what the agent should do instead.');
+  await expect(note).toBeFocused();
+  await expectAxeClean(page, 'The design review banner, a missing note', {
+    include: '[data-banner="problems"]',
+  });
+
+  await note.fill('Keep the export synchronous');
+  await banner.getByRole('button', { name: 'Send it back' }).click();
+  await expect(toast(page, `Sent ${id}’s design change back.`)).toBeVisible();
+  await expect(banner).toHaveCount(0);
+  const section = page.locator('section[data-section="shared"]');
+  await page.goto(`/items/${id}?tab=details`);
+  await expect(section.locator('[data-design-state="sent_back"]')).toContainText(
+    'Keep the export synchronous',
+  );
+  const refused = await second.call('claim_lead', { id });
+  expect(refused.isError).toBe(true);
+  expect(refused.text).toContain('Keep the export synchronous');
+});
+
+test('with an overlap: one design card, and the other item keeps working', async ({ page }) => {
+  const a = await readyItem(
+    'Add a shared helper',
+    [{ part: 'file:src/shared-b46.ts', change: 'change' }],
+    ['file:src/shared-b46.ts'],
+  );
+  const b = await readyItem('Change the helper contract', [designChange('file:src/shared-b46.ts')]);
   await ok(first, 'claim_lead', { id: a });
   const refused = await second.call('claim_lead', { id: b });
   expect(refused.isError).toBe(true);
+  expect(refused.text).toContain('design_review');
 
   await page.goto('/');
-  const card = page
-    .locator('[data-card="shared-questions"] [data-overlap]')
-    .filter({ hasText: 'Decision 12' });
-  await expect(card).toBeVisible();
-  await expect(card).toContainText('Docket recommends');
-  await expect(card.getByRole('button', { name: 'Run one after the other' })).toBeVisible();
-  await expectAxeClean(page, 'Needs you, an approved-design card');
+  await expect(page.locator(`[data-design-review]`).filter({ hasText: b })).toBeVisible();
+  await expect(page.locator('[data-card="shared-questions"] [data-overlap]')).toHaveCount(0);
 });
 
 test('Settings → Overlap handling: a default and a per-project override', async ({ page }) => {

@@ -47,6 +47,7 @@ import {
   type ContextShared,
   type ItemSharedResponse,
   type LeaseRow,
+  type DesignReviewRow,
   type OverlapHandlingResponse,
   type OverlapRow,
   type PutItemSharedResponse,
@@ -651,6 +652,11 @@ export interface SharedChangesService {
     w: WriteContext,
     input: RouteParams<'overlaps.overrule'> & RouteBody<'overlaps.overrule'>,
   ): OverlapRow;
+  /** Decision 39: *Approve the design change* or *Send back*. Owner only; undoable. */
+  decideDesignReview(
+    w: WriteContext,
+    input: RouteParams<'designReviews.decide'> & RouteBody<'designReviews.decide'>,
+  ): DesignReviewRow;
   /** Decision 39: Settings → Overlap handling. Owner only: no MCP tool writes it. */
   overlapHandling(r: ReadContext): OverlapHandlingResponse;
   setOverlapHandling(

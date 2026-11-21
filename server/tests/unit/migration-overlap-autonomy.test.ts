@@ -92,6 +92,11 @@ describe('0015_overlap_autonomy', () => {
         },
       ]);
 
+      // The owner's design reviews start empty: nothing existing asks for one.
+      expect(migrated.sqlite.prepare('SELECT count(*) AS n FROM design_reviews').get()).toEqual({
+        n: 0,
+      });
+
       // Existing projects get the default.
       expect(
         migrated.sqlite.prepare('SELECT overlap_handling FROM projects WHERE key = ?').get('RCP'),

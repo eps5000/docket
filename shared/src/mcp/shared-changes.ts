@@ -20,6 +20,7 @@ import { z } from 'zod';
 import {
   BRANCH_SOURCES,
   DESIGN_IMPACTS,
+  DESIGN_REVIEW_STATES,
   OVERLAP_OUTCOMES,
   OVERLAP_REASONS,
   SHARED_CHANGES,
@@ -205,6 +206,22 @@ export const sharedChangeSchema = z.enum(SHARED_CHANGES);
 export const branchSourceSchema = z.enum(BRANCH_SOURCES);
 /** Decision 39: whether a declared change alters an approved design. */
 export const designImpactSchema = z.enum(DESIGN_IMPACTS);
+/**
+ * Decision 39: the owner's review of this item's change to an approved design,
+ * present while it pauses the item. `open` waits for the owner; `sent_back`
+ * carries their note.
+ */
+export const designHoldSchema = z.object({
+  review_id: z.string(),
+  state: z.enum(DESIGN_REVIEW_STATES),
+  /** The declared parts the review covers. */
+  parts: z.array(z.string()),
+  /** Which design, decision or acceptance criterion each change alters. */
+  notes: z.array(z.string()),
+  /** The owner's note when they sent it back. */
+  owner_note: z.string().nullable(),
+});
+export type DesignHold = z.infer<typeof designHoldSchema>;
 export const overlapOutcomeSchema = z.enum(OVERLAP_OUTCOMES);
 export const overlapReasonSchema = z.enum(OVERLAP_REASONS);
 
@@ -418,6 +435,8 @@ export const declareSharedChangesOutput = mutationOutput({
   registered: z.array(z.string()),
   /** In-flight items that change the same parts now (informational; the claim enforces). */
   overlaps: z.array(overlapFoundSchema),
+  /** Decision 39: present while the owner's review of a design change pauses this item. */
+  design_hold: designHoldSchema.optional(),
 });
 
 // ---- list_shared_parts ----
@@ -511,6 +530,8 @@ export const contextSharedSchema = z.object({
       }),
     )
     .optional(),
+  /** Decision 39: present while the owner's review of a design change pauses this item. */
+  design_hold: designHoldSchema.optional(),
   truncated: z.boolean(),
 });
 export type ContextShared = z.infer<typeof contextSharedSchema>;

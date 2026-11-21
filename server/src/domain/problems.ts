@@ -230,7 +230,6 @@ export const explain = {
     parts: string;
     outcome?: OverlapOutcome | null;
     reason?: OverlapReason | null;
-    design_note?: string | null;
     /** An automatic sequence still unresolved after the grace period. */
     reached?: boolean;
   }): ProblemExplanation {
@@ -258,13 +257,6 @@ export const explain = {
         who_text: 'Docket (automatic)',
       };
     }
-    if (f.reason === 'changes_approved_design') {
-      return {
-        what: `${f.first} and ${f.other} both change ${f.parts}, and this changes an approved design${f.design_note ? `: ${f.design_note}` : '.'}`,
-        fix: `Docket recommends running them one after the other (${inOrder}) while you check the design. Mark them compatible if the change is fine.`,
-        ...YOU_DECIDE,
-      };
-    }
     if (f.reason === 'blocker_cycle') {
       return {
         what: `${f.first} and ${f.other} both change ${f.parts}, and running them in order would create a dependency cycle.`,
@@ -282,6 +274,15 @@ export const explain = {
     return {
       what: `${f.first} and ${f.other} both change ${f.parts}. An agent tried to start ${f.other} while ${f.first} is in flight, so it picked other work.`,
       fix: `Run them one after the other (${f.other} waits until ${f.first} is merged), or mark them compatible if their changes don't collide.`,
+      ...YOU_DECIDE,
+    };
+  },
+
+  /** Decision 39: a declared change to an approved design, which pauses that item only. */
+  design_review(f: { item: string; notes: string }): ProblemExplanation {
+    return {
+      what: `${f.item} changes an approved design: ${f.notes}. Its work is paused until you decide; everything else continues.`,
+      fix: 'Approve the design change so the agent can go on, or send it back and say what to do instead.',
       ...YOU_DECIDE,
     };
   },

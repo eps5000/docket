@@ -17,6 +17,8 @@ export const ERROR_CODES = [
   'seam_conflict',
   'not_declared',
   'lease_held',
+  // Decision 39: this item changes an approved design and the owner hasn't approved it.
+  'design_review',
 ] as const;
 export type ErrorCode = (typeof ERROR_CODES)[number];
 
@@ -47,6 +49,7 @@ export const HTTP_STATUS: Record<ErrorCode, number> = {
   seam_conflict: 409,
   lease_held: 409,
   not_declared: 400,
+  design_review: 409,
 };
 
 export class ToolError extends Error {

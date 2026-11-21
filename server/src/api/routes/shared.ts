@@ -67,6 +67,14 @@ export function sharedRoutes<E extends Env>(api: Hono<E>, deps: RouteDeps): void
     return { mutation_id, overlap: result };
   });
 
+  /** Decision 39: *Approve the design change* or *Send back*. Undoable. */
+  defineRoute(api, 'designReviews.decide', deps, ({ services, mutate, params, body }) => {
+    const { result, mutation_id } = mutate((w) =>
+      services.sharedChanges.decideDesignReview(w, { ...params, ...body }),
+    );
+    return { mutation_id, review: result };
+  });
+
   /** Decision 39: Settings → Overlap handling (owner session only; no MCP tool). */
   defineRoute(api, 'overlapHandling.get', deps, ({ services, read }) =>
     services.sharedChanges.overlapHandling(read),

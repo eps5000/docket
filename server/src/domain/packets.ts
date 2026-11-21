@@ -37,6 +37,7 @@ import {
   type ItemRow,
 } from './model.js';
 import { deferredOf, openPackets, scoped } from './views.js';
+import { designHold } from './design-review.js';
 import { declaredKeys, endLeasesOf, raiseHold, settleUndeclared } from './shared-changes.js';
 import { canonicalJson, type InverseOp } from './write.js';
 import { addReportedBranch } from './radar.js';
@@ -439,12 +440,15 @@ export function createPacketsService(deps: ServiceDeps): PacketsService {
         });
       }
       endLeasesOf(w, item.id, 'handed_off');
+      // Decision 39: an unapproved change to an approved design keeps the review gate closed.
+      const heldDesign = designHold(w.db, item.id);
       return {
         packet_id: packetId,
         round,
         display_id: display,
         item: summaryOf({ db: w.db, windows: windows(), now: w.now }, item.id),
         ...(held.parts.length > 0 ? { held_undeclared: held.parts } : {}),
+        ...(heldDesign ? { held_design: heldDesign } : {}),
       };
     },
 

@@ -1,4 +1,5 @@
 import type {
+  DesignReviewState,
   ItemSharedResponse,
   OverlapHandling,
   OverlapReason,
@@ -65,6 +66,14 @@ export function findingText(
 
 export const fileCount = (n: number) => `${n} file${n === 1 ? '' : 's'}`;
 
+/** A review of a change to an approved design, in the ticket's words (decision 39). */
+export const DESIGN_STATE_TEXT: Record<DesignReviewState, string> = {
+  open: 'waiting for you',
+  approved: 'approved by you',
+  sent_back: 'sent back',
+  withdrawn: 'withdrawn',
+};
+
 /** Why an overlap got its outcome, in the ticket's words (decision 39). */
 export const OVERLAP_REASON_WORDS: Record<OverlapReason, string> = {
   file_only: 'They only share files. The radar checks whether the lines collide.',
@@ -73,7 +82,6 @@ export const OVERLAP_REASON_WORDS: Record<OverlapReason, string> = {
   change_touches_part: 'One changes or removes something in a part the other uses.',
   bare_part: 'One could touch anything in the part.',
   unclear: 'Docket can’t tell whether they collide, so it runs them in order.',
-  changes_approved_design: 'It changes an approved design.',
   blocker_cycle: 'Running them in order would create a dependency cycle.',
   disputed: 'Agents disagree about who owns the part.',
   setting: 'Your Overlap handling setting asks you.',
@@ -90,7 +98,7 @@ export function overlapOutcomeText(o: Overlap): string {
 export const OVERLAP_HANDLING_TEXT: Record<OverlapHandling, { label: string; help: string }> = {
   agents_resolve: {
     label: 'Agents resolve',
-    help: 'Docket runs safe overlaps in parallel and sequences the rest. You see only what needs you: a change to an approved design, a dependency cycle, a dispute, or something unresolved after a day.',
+    help: 'Docket runs safe overlaps in parallel and sequences the rest. You see only what needs you: a dependency cycle, a dispute, or something unresolved after a day. A change to an approved design always comes to you, in every mode.',
   },
   ask_shared_data: {
     label: 'Ask on shared data',

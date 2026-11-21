@@ -48,6 +48,7 @@ import {
   type StoredEvent,
 } from './model.js';
 import { inScopeOf } from './decisions.js';
+import { assertDesignCleared } from './design-review.js';
 import { activeSessionOf } from './onboarding-tag.js';
 import {
   HoldRefusal,
@@ -546,7 +547,10 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
       // The Ready gate (decision 36; FR-159): planning → ready needs a declaration, or none.
       // Giving up work (progress → ready) isn't gated: the item was Ready before.
       if (from === 'planning' && to === 'ready') assertReadyGate(w.db, item);
+      // Decision 39: an unapproved change to an approved design pauses this item.
+      if (to === 'done') assertDesignCleared(w.db, item, 'close', !agent);
       if (from === 'ready' && to === 'progress') {
+        assertDesignCleared(w.db, item, 'start', !agent);
         const s = summary(w, item.id);
         if (s.blocked) {
           refuse(

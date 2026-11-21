@@ -713,6 +713,18 @@ export function renderContext(ctx: ContextBundle, opts: RenderOptions = {}): str
         ])}`,
       );
     }
+    // Decision 39: the owner's review pauses this item, and only this item.
+    if (sh.design_hold) {
+      lines.push(
+        `${I1}${join([
+          sh.design_hold.state === 'sent_back'
+            ? 'design change sent back by the owner: rework it, then declare again'
+            : 'design change waits for the owner: pause this item and take other work',
+          truncate(sh.design_hold.notes.join('; ')),
+          sh.design_hold.owner_note ? `owner: ${truncate(sh.design_hold.owner_note)}` : null,
+        ])}`,
+      );
+    }
     if (sh.truncated) lines.push(`${I1}…truncated; see list_shared_parts ${it.id.split('-')[0]}`);
   }
   // Decision 37 (BUILD_SPEC §5.15 section 4d): the item's open problems, in the owner's words,
@@ -989,7 +1001,9 @@ const RENDERERS: { [N in ToolName]: Renderer<N> } = {
     // Decision 36: the packet is held while the owner decides on undeclared parts.
     (r.held_undeclared?.length
       ? `${SEP}held for the owner: undeclared ${partList(r.held_undeclared)}`
-      : ''),
+      : '') +
+    // Decision 39: an unapproved change to an approved design holds the packet.
+    (r.held_design ? `${SEP}held for the owner: changes an approved design` : ''),
   get_review: (r, a, now) => {
     const lines = [s('get_review', { id: str(a.id), count: r.rounds.length })];
     for (const round of r.rounds) {
@@ -1246,7 +1260,10 @@ const RENDERERS: { [N in ToolName]: Renderer<N> } = {
           `${o.with.id} on ${partList(o.parts, 2)}${o.outcome ? ` (${OVERLAP_OUTCOME_WORDS[o.outcome]})` : ''}`,
       );
     if (r.overlaps.length > 2) overlaps.push(`+${r.overlaps.length - 2} more`);
-    return s('declare_shared_changes', {
+    const designHold = r.design_hold
+      ? `${SEP}${r.design_hold.state === 'sent_back' ? 'design change sent back' : 'design change waits for the owner'}: pause this item`
+      : '';
+    const line = s('declare_shared_changes', {
       id: str(a.id) ?? d.item_id,
       declared:
         d.state === 'none'
@@ -1263,6 +1280,7 @@ const RENDERERS: { [N in ToolName]: Renderer<N> } = {
       registered: r.registered.length > 0 ? `${SEP}registered ${partList(r.registered)}` : '',
       overlaps: overlaps.length > 0 ? `${SEP}overlaps ${overlaps.join('; ')}` : '',
     });
+    return line + designHold;
   },
   // A line per part, then its in-flight declarations indented under it.
   list_shared_parts: (r, _a, now) => {

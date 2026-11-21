@@ -635,6 +635,7 @@ describe('tools/list: output schemas (§4, §5, §6)', () => {
         'seam_conflict',
         'not_declared',
         'lease_held',
+        'design_review',
       ]);
     }
   });
@@ -860,6 +861,7 @@ describe('shared changes follow MCP_SPEC §5.15 (decision 36; B38)', () => {
     expect(ctx.required).not.toContain('shared');
     expect(Object.keys(ctx.properties!.shared!.properties!).sort()).toEqual([
       'declaration',
+      'design_hold',
       'in_flight',
       'leases',
       'outcomes',

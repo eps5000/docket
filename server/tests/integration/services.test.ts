@@ -234,6 +234,7 @@ describe('the service stubs', () => {
       'ownerReleaseLease',
       'decideOverlap',
       'overruleOverlap',
+      'decideDesignReview',
       'overlapHandling',
       'setOverlapHandling',
       'decideHold',

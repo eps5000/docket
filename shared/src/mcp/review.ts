@@ -25,7 +25,7 @@ import {
   text,
 } from './common.js';
 import { LIMITS, TEXT_LIMITS } from './limits.js';
-import { branchInput, changedFilesInput } from './shared-changes.js';
+import { branchInput, changedFilesInput, designHoldSchema } from './shared-changes.js';
 import {
   artifactSchema,
   decisionRecordSchema,
@@ -164,6 +164,11 @@ export const submitPacketOutput = mutationOutput({
    * declare. Present only when the packet is held for the owner.
    */
   held_undeclared: z.array(z.string()).optional(),
+  /**
+   * Decision 39: present when the item's change to an approved design is
+   * unapproved, so the packet's review gate stays closed until the owner decides.
+   */
+  held_design: designHoldSchema.optional(),
 });
 
 // ---- get_review ----

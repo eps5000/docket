@@ -160,6 +160,7 @@ const B2_ROUTES: readonly RouteId[] = [
   'overlaps.decide',
   // Decision 39 (B46): overrule and Settings → Overlap handling (content in b46-overlaps.test.ts).
   'overlaps.overrule',
+  'designReviews.decide',
   'overlapHandling.get',
   'overlapHandling.set',
   'undeclaredHolds.decide',
@@ -345,6 +346,10 @@ const VALID: Record<RouteId, Req> = {
     body: { decision: 'compatible', note: 'Disjoint' },
   },
   'overlaps.overrule': { params: { id: 'pov_1' }, body: { decision: 'parallel' } },
+  'designReviews.decide': {
+    params: { id: 'drv_1' },
+    body: { expected_version: 1, decision: 'approve' },
+  },
   'overlapHandling.get': {},
   'overlapHandling.set': { body: { mode: 'ask_every' } },
   'undeclaredHolds.decide': { params: { id: 'udh_1' }, body: { decision: 'add' } },

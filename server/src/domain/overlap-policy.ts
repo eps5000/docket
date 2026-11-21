@@ -15,6 +15,10 @@
  * radar.ts). "Add-only" doesn't prevent a merge conflict, and a clean trial
  * merge doesn't make work safe: it never overrides a sequence decided here.
  *
+ * A declared change to an approved design is not an overlap question: it
+ * always goes to the owner through its own review (design-review.ts), which
+ * this classifier never reads or clears.
+ *
  * `classifyPair` is pure, so every path is unit-tested without a database.
  */
 import {
@@ -79,8 +83,8 @@ function changePair(x: PolicyChange, y: PolicyChange): OverlapReason {
 
 /**
  * Classify two items' declarations. Null when they share no part. The order
- * matters: an approved design or a dispute always reaches the owner, then the
- * owner's setting applies, and only then the automatic rules.
+ * matters: a dispute always reaches the owner, then the owner's setting
+ * applies, and only then the automatic rules.
  */
 export function classifyPair(
   aId: string,
@@ -111,7 +115,6 @@ export function classifyPair(
     evidence,
   });
 
-  if (designed.length > 0) return done('owner', 'changes_approved_design');
   if ([...mine, ...theirs].some((c) => c.disputed)) return done('owner', 'disputed');
   if (mode === 'ask_every') return done('owner', 'setting');
   if (mode === 'ask_shared_data' && mine.some((c) => SHARED_DATA.includes(c.kind))) {
@@ -203,7 +206,6 @@ export const OVERLAP_REASON_TEXT: Record<OverlapReason, string> = {
   change_touches_part: 'one changes or removes something in a part the other uses',
   bare_part: 'one could touch anything in the part',
   unclear: 'Docket can’t tell whether they collide',
-  changes_approved_design: 'it changes an approved design',
   blocker_cycle: 'running them in order would create a dependency cycle',
   disputed: 'agents disagree about who owns the part',
   setting: 'your Overlap handling setting asks you',

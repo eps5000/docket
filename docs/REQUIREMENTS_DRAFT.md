@@ -149,6 +149,8 @@ Amends decision 36. The point of Docket is to keep agents implementing in parall
 
 The owner's correction shapes the design: "add-only" does **not** prevent merge conflicts. Two branches inserting at the same lines conflict, in Markdown, models or anything else, and Mergify doesn't resolve that. So there are two independent checks, and neither substitutes for the other. **Text:** do the actual lines collide? Only a git trial merge of real commits can answer. **Meaning:** do the changes collide semantically, even if git merges them cleanly? Declarations and agents answer this.
 
+Altering an approved design always needs the owner, whether or not anything overlaps and in every setting: if an agent declares that its work changes an approved design, it comes to the owner and that work pauses while everything else continues. Only the owner can approve it or send it back.
+
 Automatic outcomes are recorded as Docket, never as the owner, on both tickets, and the owner can overrule them with undo. Settings → Overlap handling (*Agents resolve*, the default; *Ask on shared data*; *Ask on every overlap*) applies globally and per project. Single-writer leases, Mergify requiring `build` and `e2e`, owner-recorded decisions and overlaps the owner already decided are unchanged. BUILD_SPEC §5.21 B46 has the rules.
 
 ## Deferred choices

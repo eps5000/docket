@@ -21,6 +21,8 @@
  */
 import { z } from 'zod';
 import {
+  DESIGN_REVIEW_DECISIONS,
+  DESIGN_REVIEW_STATES,
   LEASE_END_REASONS,
   OVERLAP_DECISIONS,
   OVERLAP_HANDLING,
@@ -97,6 +99,32 @@ export const overlapEvidenceSchema = z.object({
   text_conflict: z.array(z.string()),
 });
 export type OverlapEvidence = z.infer<typeof overlapEvidenceSchema>;
+
+/**
+ * Decision 39: the owner's review of a declared change to an approved design,
+ * with or without an overlap. A Needs you card and a ticket banner while
+ * `open`; it pauses this item only.
+ */
+export const designReviewRowSchema = z.object({
+  /** `drv_…` */
+  id: z.string(),
+  project: z.string(),
+  item: itemRef,
+  /** What the owner is approving: each part, its change, and which design it alters. */
+  entries: z.array(
+    z.object({ part: z.string(), change: z.enum(SHARED_CHANGES), note: z.string() }),
+  ),
+  state: z.enum(DESIGN_REVIEW_STATES),
+  /** The owner's note: required to send back, optional to approve. */
+  note: z.string().nullable(),
+  requested_by: z.string(),
+  created_at: z.string(),
+  decided_by: z.string().nullable(),
+  decided_at: z.string().nullable(),
+  version: z.number().int(),
+  explanation: problemExplanationSchema,
+});
+export type DesignReviewRow = z.infer<typeof designReviewRowSchema>;
 
 /** Two in-flight items that declare the same parts: a Needs you card while `open`. */
 export const overlapRowSchema = z.object({
@@ -224,6 +252,8 @@ export const itemSharedResponse = jsonResponse({
   /** Open findings for the item. */
   findings: z.array(radarFindingRowSchema),
   holds: z.array(undeclaredHoldRowSchema),
+  /** Decision 39: the item's design reviews, newest first; absent when it has none. */
+  design_reviews: z.array(designReviewRowSchema).optional(),
 });
 export type ItemSharedResponse = z.infer<typeof itemSharedResponse>;
 
@@ -383,6 +413,23 @@ export const putOverlapHandlingBody = input({
 export const putOverlapHandlingResponse = ownerMutationOutput(overlapHandlingResponse.shape);
 export type PutOverlapHandlingResponse = z.infer<typeof putOverlapHandlingResponse>;
 
+// ---- POST /api/design-reviews/:id/decide (decision 39) ----
+
+export const designReviewParams = input({ id: objectId });
+/** Owner only, undoable. `expected_version` is the version the owner read. */
+export const decideDesignReviewBody = input({
+  expected_version: expectedVersion,
+  decision: z.enum(DESIGN_REVIEW_DECISIONS),
+  /** Required with `send_back`; posted to the item as an owner note. */
+  note: text(LIMITS.shared_decision_note).optional(),
+}).superRefine((v, ctx) => {
+  if (v.decision === 'send_back' && !v.note?.trim()) {
+    ctx.addIssue({ code: 'custom', path: ['note'], message: 'Say what to do instead.' });
+  }
+});
+export const decideDesignReviewResponse = ownerMutationOutput({ review: designReviewRowSchema });
+export type DecideDesignReviewResponse = z.infer<typeof decideDesignReviewResponse>;
+
 // ---- POST /api/undeclared-holds/:id/decide ----
 
 export const holdParams = input({ id: objectId });
@@ -515,6 +562,17 @@ export const sharedChangesRoutes = {
     query: noInput,
     body: putOverlapHandlingBody,
     response: json(putOverlapHandlingResponse),
+  }),
+  /** Decision 39: *Approve the design change* or *Send back* (undoable). */
+  'designReviews.decide': route({
+    method: 'POST',
+    path: '/api/design-reviews/:id/decide',
+    group: 'shared',
+    params: designReviewParams,
+    query: noInput,
+    body: decideDesignReviewBody,
+    response: json(decideDesignReviewResponse),
+    undoable: true,
   }),
   'undeclaredHolds.decide': route({
     method: 'POST',

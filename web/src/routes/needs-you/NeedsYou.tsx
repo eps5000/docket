@@ -3,6 +3,7 @@ import { Welcome } from './Welcome';
 import { useQuery } from '@tanstack/react-query';
 import type {
   DecisionRecord,
+  DesignReviewRow,
   OverlapRow,
   Problem,
   ProjectDecisionGroup,
@@ -68,6 +69,7 @@ export function NeedsYou() {
             <SharedQuestions
               overlaps={data.overlaps ?? NO_OVERLAPS}
               holds={data.undeclared_holds ?? NO_HOLDS}
+              designReviews={data.design_reviews ?? NO_DESIGN_REVIEWS}
             />
             <OverlapsHandled handled={data.overlaps_handled} />
             <ResolutionCards resolutions={data.resolutions ?? NO_RESOLUTIONS} />
@@ -98,6 +100,7 @@ export function NeedsYou() {
 const NO_WORKSPACES: readonly WorkspaceRow[] = [];
 const NO_OVERLAPS: readonly OverlapRow[] = [];
 const NO_HOLDS: readonly UndeclaredHoldRow[] = [];
+const NO_DESIGN_REVIEWS: readonly DesignReviewRow[] = [];
 const NO_RESOLUTIONS: readonly ResolutionRow[] = [];
 const NO_PROBLEMS: readonly Problem[] = [];
 const NO_DECISIONS: readonly DecisionRecord[] = [];

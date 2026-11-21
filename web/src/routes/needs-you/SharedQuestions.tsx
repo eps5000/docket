@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useId, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-import type { OverlapRow, UndeclaredHoldRow } from '@docket/shared';
+import type { DesignReviewRow, OverlapRow, UndeclaredHoldRow } from '@docket/shared';
 import { Button, Card, CardHeader, Chip, StatusChip } from '../../components/kit';
 import { apiClient } from '../../app/queryClient';
 import { useShell } from '../../app/ShellState';
@@ -25,13 +25,19 @@ import { ProblemLines, WarningMark } from '../shared/problems';
 export function SharedQuestions({
   overlaps,
   holds,
+  designReviews = [],
 }: {
   overlaps: readonly OverlapRow[];
   holds: readonly UndeclaredHoldRow[];
+  /** Decision 39: a card per open review of a change to an approved design. */
+  designReviews?: readonly DesignReviewRow[];
 }) {
-  if (overlaps.length === 0 && holds.length === 0) return null;
+  if (overlaps.length === 0 && holds.length === 0 && designReviews.length === 0) return null;
   return (
     <div className="mb shared-qs" data-card="shared-questions">
+      {designReviews.map((r) => (
+        <DesignReviewCard key={r.id} review={r} />
+      ))}
       {overlaps.map((o) => (
         <OverlapCard key={o.id} overlap={o} />
       ))}
@@ -205,6 +211,136 @@ export function OverlapCard({
             onClick={sequence}
           >
             {byDocket ? 'Keep this order' : 'Run one after the other'}
+          </Button>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+/**
+ * A declared change to an approved design (owner decision 39): it comes to the
+ * owner with or without an overlap, and that item waits until they decide.
+ * *Approve the design change*, or *Send back* with a required note; both have
+ * Undo on the toast. `banner` places it on the item's page.
+ */
+export function DesignReviewCard({
+  review: r,
+  banner = false,
+}: {
+  review: DesignReviewRow;
+  banner?: boolean;
+}) {
+  const { busy, run } = useDecide();
+  const [sending, setSending] = useState(false);
+  const [note, setNote] = useState('');
+  const [missing, setMissing] = useState(false);
+  const noteRef = useRef<HTMLTextAreaElement>(null);
+  const titleId = useId();
+  const noteId = useId();
+  const errorId = useId();
+  const title = `${r.item.id} changes an approved design`;
+  const decide = (decision: 'approve' | 'send_back') =>
+    void run(
+      () =>
+        apiClient['designReviews.decide']({
+          params: { id: r.id },
+          body: {
+            expected_version: r.version,
+            decision,
+            ...(decision === 'send_back' ? { note: note.trim() } : {}),
+          },
+        }),
+      decision === 'approve'
+        ? `Approved ${r.item.id}’s design change.`
+        : `Sent ${r.item.id}’s design change back.`,
+    );
+  const sendBack = () => {
+    if (!note.trim()) {
+      setMissing(true);
+      noteRef.current?.focus();
+      return;
+    }
+    decide('send_back');
+  };
+  return (
+    <Card className="sq-card" data-design-review={r.id} data-problem-id={banner ? r.id : undefined}>
+      <CardHeader
+        title={
+          <span className="row" style={{ gap: 6 }}>
+            {banner && <WarningMark label="Problem" />}
+            <span id={titleId}>{title}</span>
+          </span>
+        }
+        extra={<HelpLink anchor="needs-you.shared-questions" />}
+      />
+      <div className="pad" style={{ paddingTop: 0 }}>
+        <div className="lrow">
+          <Link to={paths.item(r.item.id)} className="mono">
+            {r.item.id}
+          </Link>
+          <span className="one grow">{r.item.title}</span>
+          <StatusChip status={r.item.status} />
+          <Chip kind="warn">paused</Chip>
+        </div>
+        <ProblemLines e={r.explanation} />
+        <ul className="sq-files" aria-label="What this changes">
+          {r.entries.map((e) => (
+            <li key={`${e.part}:${e.change}`}>
+              <span className="mono">{e.part}</span> ({e.change}): {e.note}
+            </li>
+          ))}
+        </ul>
+        {sending && (
+          <div className="sq-note">
+            <label className="f" htmlFor={noteId}>
+              What should the agent do instead? (required)
+            </label>
+            <textarea
+              ref={noteRef}
+              id={noteId}
+              className="input"
+              rows={2}
+              maxLength={1000}
+              // The button that opened it stays mounted; the note takes focus (B34).
+              autoFocus
+              required
+              aria-invalid={missing}
+              aria-describedby={missing ? errorId : undefined}
+              value={note}
+              onChange={(e) => {
+                setNote(e.target.value);
+                setMissing(false);
+              }}
+            />
+            {missing && (
+              <p id={errorId} className="src" role="alert">
+                Say what the agent should do instead.
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+      <div className="cardfoot">
+        <span className="src">Other work continues</span>
+        <div className="row wrap" style={{ gap: 6 }}>
+          {sending ? (
+            <Button size="sm" disabled={busy} aria-describedby={titleId} onClick={sendBack}>
+              Send it back
+            </Button>
+          ) : (
+            <Button size="sm" aria-describedby={titleId} onClick={() => setSending(true)}>
+              Send back
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant="primary"
+            disabled={busy}
+            aria-describedby={titleId}
+            onClick={() => decide('approve')}
+          >
+            Approve the design change
           </Button>
         </div>
       </div>

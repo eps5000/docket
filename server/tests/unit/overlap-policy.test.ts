@@ -119,7 +119,7 @@ describe('2. Would running them in order solve it?', () => {
 });
 
 describe('3. Does it need the owner?', () => {
-  it('a change to an approved design does, even on a file-only overlap, with its note', () => {
+  it('a change to an approved design is not an overlap question: its review is separate', () => {
     const c = classify(
       [
         change('file:a.txt', 'change', {
@@ -129,7 +129,8 @@ describe('3. Does it need the owner?', () => {
       ],
       [change('file:a.txt')],
     );
-    expect(c).toMatchObject({ outcome: 'owner', reason: 'changes_approved_design' });
+    // The classifier neither escalates it nor clears it (design-review.ts); it keeps the note.
+    expect(c).toMatchObject({ outcome: 'parallel', reason: 'file_only' });
     expect(c?.evidence.design_note).toBe('Decision 12: tokens never expire');
   });
 
@@ -190,13 +191,14 @@ describe('Overlap handling', () => {
     });
   });
 
-  it('a design change names its reason in every mode', () => {
+  it('a design change follows the setting like any overlap; its review is what asks', () => {
     const designed = [
       change('file:a.txt', 'add', {
         design_impact: 'changes_approved_design',
         design_note: 'AC 3',
       }),
     ];
-    expect(classify(designed, file, 'ask_every')?.reason).toBe('changes_approved_design');
+    expect(classify(designed, file, 'ask_every')?.reason).toBe('setting');
+    expect(classify(designed, file, 'agents_resolve')?.outcome).toBe('parallel');
   });
 });

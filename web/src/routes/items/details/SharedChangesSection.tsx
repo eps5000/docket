@@ -29,6 +29,7 @@ import { runOwnerMutation, showToast } from '../../../lib/undo';
 import { errorText } from '../../agent-files/install-common';
 import {
   ChangeChip,
+  DESIGN_STATE_TEXT,
   OVERLAP_REASON_WORDS,
   fileCount,
   findingText,
@@ -134,6 +135,23 @@ function SharedBody({
       )}
       {decl.state === 'declared' && decl.declared_by && (
         <div className="src">Declared by {decl.declared_by}</div>
+      )}
+
+      {(s.design_reviews ?? []).length > 0 && (
+        <>
+          <h4>Approved-design changes</h4>
+          {(s.design_reviews ?? []).map((d) => (
+            <div key={d.id} className="shared-outcome" data-design-state={d.state}>
+              <div className="lrow">
+                <Chip kind={d.state === 'approved' ? 'ok' : 'warn'}>
+                  {DESIGN_STATE_TEXT[d.state]}
+                </Chip>
+                <span className="grow">{d.entries.map((e) => e.note).join('; ')}</span>
+              </div>
+              {d.note && <p className="src shared-why">Your note: {d.note}</p>}
+            </div>
+          ))}
+        </>
       )}
 
       <BranchesRow itemId={itemId} branches={s.branches} closed={closed} />
