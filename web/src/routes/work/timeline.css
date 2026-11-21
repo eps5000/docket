@@ -83,9 +83,9 @@
   background: var(--bad-soft);
 }
 .tl .tline .bar.planned.done {
-  border-color: var(--ok);
-  color: var(--ok);
-  background: var(--ok-soft);
+  border-color: var(--st-done);
+  color: var(--st-done-text);
+  background: var(--st-done-soft);
 }
 .tl .tline .bar.actual {
   top: 27px;

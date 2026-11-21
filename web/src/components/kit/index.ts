@@ -18,6 +18,8 @@ export {
   HUMAN_REVIEW_CHIP,
 } from './Chip';
 export type { ChipKind, BlockerWait } from './Chip';
+export { StatusBar, STATUS_BAR_ORDER } from './StatusBar';
+export type { StatusBarSegment } from './StatusBar';
 export {
   TypeBadge,
   TypeIcon,

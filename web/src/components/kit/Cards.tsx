@@ -14,6 +14,7 @@ import { Button } from './Button';
 import { BlockedChip, Chip } from './Chip';
 import { Priority, RunLine, TypeIcon, parkedReason } from './Badges';
 import { Label } from './Label';
+import { StatusBar } from './StatusBar';
 
 /** `codex · orca-w1`. */
 export function leadName(lead: { client: string; label: string | null }): string {
@@ -204,8 +205,6 @@ export function EpicCard({
   current?: boolean;
 }) {
   const { total, done, by_status } = epic.children;
-  const active = (by_status.progress ?? 0) + (by_status.review ?? 0);
-  const pct = (n: number) => (total ? `${(n / total) * 100}%` : '0%');
   return (
     <Link
       className={total === 0 ? 'epiccard empty' : 'epiccard'}
@@ -222,12 +221,7 @@ export function EpicCard({
         </span>
       </span>
       {/* An epic with no tickets has no bar (B35): "0/0 done" over an empty bar read as broken. */}
-      {total > 0 && (
-        <span className="pbar mini" role="img" aria-label={`${done} of ${total} done`}>
-          <i className="done" style={{ width: pct(done) }} />
-          <i className="active" style={{ width: pct(active) }} />
-        </span>
-      )}
+      {total > 0 && <StatusBar counts={by_status} label={`${done} of ${total} done`} mini />}
       <span className="src">
         {total === 0
           ? epicEmptyText(epic.status)

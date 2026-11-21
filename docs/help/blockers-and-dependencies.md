@@ -33,6 +33,12 @@ The ticket's **Dependencies** tab shows what it waits on, then the ticket, then 
 
 Parent epics and "relates" links never block. Blocking works across projects.
 
+## Reading the map
+
+An epic's **Map** tab puts its tickets in waves, left to right: wave 1 can start now, wave 2 after it, and so on. The bar at the top and the card edges use the same colours as the status chips, and red is Ready work that's blocked.
+
+Arrows run through the gaps between cards and never across one, so several can share a gap. **Hover or focus a card** to pick out its arrows: they light up and the rest fade. A dashed green arrow is a blocker that's already cleared. Use − / + or **Fit** to zoom, and drag the background to pan.
+
 ## Problems you may see
 
 - **Cycle:** items block each other in a loop, so none can start. Agents can't create one, but imported data can contain them. Click *Fix*: the Dependencies tab shows the loop with a *Remove “A blocks B”* button for each of its links. Remove the one that’s wrong.

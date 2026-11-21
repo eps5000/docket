@@ -20,18 +20,6 @@
   font-size: 15px;
   font-weight: 600;
 }
-.tl .pm-bar {
-  height: 10px;
-  border-radius: 5px;
-  display: flex;
-  overflow: hidden;
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-}
-.tl .pm-bar i {
-  display: block;
-  height: 100%;
-}
 .tl .pm-legend {
   display: flex;
   gap: 12px;
@@ -52,25 +40,7 @@
   display: inline-block;
 }
 .tl .pm-badtext {
-  color: var(--bad);
-}
-.tl .pb-done {
-  background: var(--ok);
-}
-.tl .pb-review {
-  background: var(--warn);
-}
-.tl .pb-progress {
-  background: var(--violet);
-}
-.tl .pb-ready {
-  background: var(--info);
-}
-.tl .pb-planning {
-  background: var(--teal);
-}
-.tl .pb-inbox {
-  background: var(--ctl);
+  color: var(--st-blocked-text);
 }
 
 /* ---------- tools ---------- */
@@ -137,6 +107,18 @@
   position: relative;
   z-index: 1;
   width: 200px;
+}
+/* Once routed (routing.ts), columns and cards sit at computed positions. */
+.tl .pm-map.routed {
+  display: block;
+}
+.tl .pm-map.routed .pm-col {
+  position: absolute;
+  top: 0;
+}
+.tl .pm-map.routed .pm-node {
+  position: absolute;
+  left: 0;
 }
 .tl .pm-colh {
   font-size: 11px;
@@ -214,8 +196,7 @@
 }
 
 /* ---------- arrows ---------- */
-/* Above the cards (B18), so an arrow that skips a column is never hidden
-   under the cards it crosses; it never takes pointer events. */
+/* Arrows run only in the gutters and channels (routing.ts), so they never cross a card. */
 .tl svg.pm-edges {
   position: absolute;
   left: 0;
@@ -223,17 +204,6 @@
   pointer-events: none;
   z-index: 2;
   overflow: visible;
-}
-/* The halo under an arrow that crosses cards: a band in the card colour. */
-.tl .pm-halo {
-  fill: none;
-  stroke: var(--panel);
-  stroke-width: 6;
-  stroke-linecap: round;
-  transition: opacity 0.12s;
-}
-.tl .pm-halo.dim {
-  opacity: 0.15;
 }
 .tl .pm-edge {
   fill: none;
@@ -307,7 +277,7 @@
   flex-wrap: wrap;
 }
 .tl .pm-node .pm-blocked {
-  color: var(--bad);
+  color: var(--st-blocked-text);
   font-weight: 600;
 }
 .tl .pm-node .pm-ready {
@@ -319,31 +289,33 @@
   font-weight: 600;
 }
 .tl .pm-node.ps-done {
-  --sc: var(--ok);
-  background: var(--ok-soft);
+  --sc: var(--st-done);
+  background: var(--st-done-soft);
 }
 .tl .pm-node.ps-review {
-  --sc: var(--warn);
+  --sc: var(--st-review);
 }
 .tl .pm-node.ps-progress {
-  --sc: var(--violet);
+  --sc: var(--st-progress);
 }
 .tl .pm-node.ps-ready {
-  --sc: var(--info);
+  --sc: var(--st-ready);
 }
 .tl .pm-node.ps-planning {
-  --sc: var(--teal);
+  --sc: var(--st-planning);
 }
-.tl .pm-node.ps-inbox,
+.tl .pm-node.ps-inbox {
+  --sc: var(--st-inbox);
+}
 .tl .pm-node.ps-canceled {
-  --sc: var(--ctl);
+  --sc: var(--st-canceled);
 }
 .tl .pm-node.ps-canceled .pm-title {
   text-decoration: line-through;
 }
 .tl .pm-node.blk {
-  border-color: var(--bad);
-  box-shadow: inset 0 0 0 1px var(--bad);
+  border-color: var(--st-blocked);
+  box-shadow: inset 0 0 0 1px var(--st-blocked);
 }
 .tl .pm-node.ext {
   border-style: dashed;
@@ -361,7 +333,7 @@
   position: absolute;
   top: 5px;
   right: 6px;
-  color: var(--ok);
+  color: var(--st-done-text);
   font-weight: 800;
 }
 .tl .pm-hr {

@@ -26,6 +26,8 @@ export interface MapCardProps {
   /** Hover tracing (the map). */
   traced?: 'on' | 'dim' | null;
   onTrace?: (id: string | null) => void;
+  /** Its top on the routed map (routing.ts). */
+  top?: number;
 }
 
 /** Packet ready (filled) or human review later (outlined); none otherwise (UI_SPEC §5). */
@@ -37,7 +39,7 @@ export function reviewMark(item: MapItem): 'now' | 'later' | null {
   return null;
 }
 
-export function MapCard({ item, outside, current, waiting, traced, onTrace }: MapCardProps) {
+export function MapCard({ item, outside, current, waiting, traced, onTrace, top }: MapCardProps) {
   const navigate = useNavigate();
   const blockedReady = item.status === 'ready' && item.blocked;
   const after =
@@ -64,6 +66,7 @@ export function MapCard({ item, outside, current, waiting, traced, onTrace }: Ma
         .filter(Boolean)
         .join(' ')}
       data-pid={item.id}
+      style={top === undefined ? undefined : { top }}
       aria-current={current ? 'page' : undefined}
       title={item.title}
       onClick={() => navigate(paths.item(item.id))}
