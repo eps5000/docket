@@ -18,6 +18,12 @@ export interface SectionProps {
   defaultCollapsed?: boolean;
   /** An anchor (`/agents#workspaces`). */
   id?: string;
+  /**
+   * The page's main content (the project Decisions page; decision 38): always
+   * open, whatever was collapsed for this section type elsewhere, and the
+   * header is not a toggle.
+   */
+  alwaysOpen?: boolean;
   children?: ReactNode;
 }
 
@@ -33,11 +39,13 @@ export function Section({
   extraHead,
   defaultCollapsed = false,
   id,
+  alwaysOpen = false,
   children,
 }: SectionProps) {
-  const [collapsed, setCollapsed] = useState(() =>
+  const [storedCollapsed, setCollapsed] = useState(() =>
     isSectionCollapsed(sectionKey, defaultCollapsed),
   );
+  const collapsed = !alwaysOpen && storedCollapsed;
   const bodyId = useId();
   const toggle = () => {
     const next = !collapsed;
@@ -52,19 +60,26 @@ export function Section({
       id={id}
     >
       <div className="sechead">
-        <button
-          type="button"
-          className="sectog"
-          aria-expanded={!collapsed}
-          aria-controls={collapsed ? undefined : bodyId}
-          onClick={toggle}
-        >
-          <span className="chev" aria-hidden="true">
-            <Icon name="chev" small />
-          </span>
-          <h3>{title}</h3>
-          {summary !== undefined && summary !== '' && <span className="src">· {summary}</span>}
-        </button>
+        {alwaysOpen ? (
+          <div className="sectog fixed">
+            <h3>{title}</h3>
+            {summary !== undefined && summary !== '' && <span className="src">· {summary}</span>}
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="sectog"
+            aria-expanded={!collapsed}
+            aria-controls={collapsed ? undefined : bodyId}
+            onClick={toggle}
+          >
+            <span className="chev" aria-hidden="true">
+              <Icon name="chev" small />
+            </span>
+            <h3>{title}</h3>
+            {summary !== undefined && summary !== '' && <span className="src">· {summary}</span>}
+          </button>
+        )}
         {extraHead}
       </div>
       {!collapsed && (

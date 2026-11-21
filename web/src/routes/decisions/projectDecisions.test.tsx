@@ -17,6 +17,7 @@ import type { DecisionRecord } from '@docket/shared';
 import { createAppQueryClient } from '../../app/queryClient';
 import { appRoutes } from '../../app/router';
 import { ShellStateProvider } from '../../app/ShellState';
+import { STORAGE_KEYS } from '../../lib/persistence';
 import { toasts } from '../../lib/undo';
 import { DecisionsPanel } from '../shared/DecisionsPanel';
 import { ProjectDecisionCards } from '../needs-you/ProjectDecisionCards';
@@ -301,6 +302,37 @@ describe('the project Decisions page', () => {
       expect(document.activeElement).toBe(el);
       expect(el!.classList.contains('focused')).toBe(true);
     });
+  });
+
+  it('?decision= keeps focus when the records are already cached (the shell moves it first)', async () => {
+    const router = renderAt('/projects/RCP/decisions');
+    await waitFor(() => expect(document.querySelector('[data-decision="dec_a"]')).toBeTruthy());
+    await act(() => router.navigate('/settings'));
+    await act(() => router.navigate('/projects/RCP/decisions?decision=dec_a'));
+    await waitFor(() =>
+      expect(document.activeElement).toBe(document.querySelector('[data-decision="dec_a"]')),
+    );
+  });
+
+  it('?decision= on a withdrawn record shows the inactive ones, so the link lands', async () => {
+    renderAt('/projects/RCP/decisions?decision=dec_w');
+    await waitFor(() =>
+      expect(document.activeElement).toBe(document.querySelector('[data-decision="dec_w"]')),
+    );
+    expect(screen.getByRole('button', { name: /^Hide withdrawn and superseded/ })).toBeTruthy();
+  });
+
+  it('stays open when Decisions was collapsed on a ticket, and shows which filter is on', async () => {
+    localStorage.setItem(STORAGE_KEYS.collapsed, JSON.stringify({ decisions: true }));
+    renderAt('/projects/RCP/decisions?decision=dec_a');
+    await waitFor(() =>
+      expect(document.activeElement).toBe(document.querySelector('[data-decision="dec_a"]')),
+    );
+    const sec = document.querySelector('section[data-section="decisions"]') as HTMLElement;
+    expect(sec.querySelector('button.sectog')).toBeNull();
+    expect(within(sec).getByRole('heading', { name: 'Decisions' })).toBeTruthy();
+    const group = screen.getByRole('group', { name: 'Show decisions' });
+    expect(group.classList.contains('seg')).toBe(true);
   });
 
   it('an unknown project says so', async () => {

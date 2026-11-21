@@ -89,6 +89,8 @@ export function DecisionsPanel({
   records: all,
   hideWhenEmpty = false,
   emptyText = 'No decisions recorded. Agents record conventions and choices here; yours are authoritative.',
+  alwaysOpen = false,
+  revealInactive = false,
 }: {
   place: DecisionsPlace;
   /** Active and inactive records, owner first then newest. */
@@ -96,10 +98,14 @@ export function DecisionsPanel({
   hideWhenEmpty?: boolean;
   /** What an empty list says (the project page's *Needs your review* filter has its own). */
   emptyText?: string;
+  /** The section is the page's content (the project Decisions page): it can't be collapsed. */
+  alwaysOpen?: boolean;
+  /** Start with withdrawn and superseded shown (a link to one that no longer applies). */
+  revealInactive?: boolean;
 }) {
   const qc = useQueryClient();
   const [form, setForm] = useState<FormState | null>(null);
-  const [showInactive, setShowInactive] = useState(false);
+  const [showInactive, setShowInactive] = useState(revealInactive);
   const recordButtonId = useId();
   const focusRecordButton = () => document.getElementById(recordButtonId)?.focus();
   /** Close the form and put focus back on *+ Record a decision* (the form held it). */
@@ -180,6 +186,7 @@ export function DecisionsPanel({
   return (
     <Section
       sectionKey="decisions"
+      alwaysOpen={alwaysOpen}
       title="Decisions"
       summary={`${active.length} in scope · ${byAgents} by agents`}
       extraHead={

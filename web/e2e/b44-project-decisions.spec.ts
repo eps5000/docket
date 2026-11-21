@@ -118,7 +118,8 @@ test('a ticket and an epic list their own scopes, with one line for the project 
   // Agents still get every project decision in context.
   const ctx = await agent.call('get_context', { id: 'RCP-12', budget: 'medium' });
   expect(ctx.isError, ctx.text).toBe(false);
-  const titles = (ctx.structured.decisions as { title: string }[]).map((d) => d.title);
+  const context = ctx.structured.context as { decisions: { title: string }[] };
+  const titles = context.decisions.map((d) => d.title);
   expect(titles).toEqual(
     expect.arrayContaining(['Prototypes for owner review', 'Open with no commands']),
   );

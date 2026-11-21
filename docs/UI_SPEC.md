@@ -560,9 +560,9 @@ Agent decisions for an item, an epic or a label never appear in Needs you. They 
 #### 6.3.7 Project Decisions page (`/projects/:key/decisions`, decision 38)
 Project-wide decisions, managed in one place.
 - **Breadcrumb:** project name › Decisions. **h1** "Project decisions · <project name>" with the "?" to "Decision records", and one line: "Decisions that apply to every item in RCP. Agents get them with every item's context; tickets show only their own, their epic's and their labels', with one line pointing here."
-- **Filter:** a group of two toggle buttons (`aria-pressed`), *All* and *Needs your review (n)*: agents' active, unconfirmed records. It is in the URL (`?filter=review`).
-- **The Decisions section** (§6.3.5) with every project-scope record: *Confirm* on agent records, *Supersede*, *Withdraw…*, *+ Record a decision* (scope Project, shown as text), *Show withdrawn and superseded*; each action toasts with Undo. Empty under *Needs your review*: "Nothing to review. Agents' project-wide decisions wait here until you confirm, supersede or withdraw them."
-- **`?decision=<id>`** (a Needs you card's *Open*): once loaded, the record scrolls into view, gets focus and a focus ring.
+- **Filter:** a `SegmentedControl` labelled "Show decisions", *All* and *Needs your review (n)*: agents' active, unconfirmed records. It is in the URL (`?filter=review`).
+- **The Decisions section** (§6.3.5), always open here (it is the page's content, so a collapse saved on a ticket doesn't apply and its header isn't a toggle), with every project-scope record: *Confirm* on agent records, *Supersede*, *Withdraw…*, *+ Record a decision* (scope Project, shown as text), *Show withdrawn and superseded*; each action toasts with Undo. Empty under *Needs your review*: "Nothing to review. Agents' project-wide decisions wait here until you confirm, supersede or withdraw them."
+- **`?decision=<id>`** (a Needs you card's *Open*, a kept review note's link): once loaded, the record scrolls into view, gets focus and a focus ring. A withdrawn or superseded record opens with *Show withdrawn and superseded* on, so the link still lands.
 - **Opens from:** the "also apply" line, the project switcher's *Project decisions*, Settings → Projects ("n decisions"), the Needs you cards and Help.
 - An unknown key shows "There's no project XYZ." with a link to Settings. Fits 1024 px; axe-clean in both themes.
 

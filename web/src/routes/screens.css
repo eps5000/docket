@@ -1105,8 +1105,12 @@
   max-width: 80ch;
 }
 .tl .projdec-filter {
-  gap: 6px;
   margin-bottom: 10px;
+}
+.tl .sectog.fixed,
+.tl .sectog.fixed:hover {
+  cursor: default;
+  background: none;
 }
 .tl .projdec .decrow:focus-visible,
 .tl .projdec .decrow.focused {
