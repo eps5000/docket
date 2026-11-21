@@ -267,7 +267,7 @@ const INPUTS: Record<string, [string[], string[]]> = {
     ['branch', 'message', 'pr_url', 'pushed'],
   ],
   submit_packet: [
-    ['id', 'built_from_commit', 'estimate', 'how', 'checked', 'held_design'],
+    ['id', 'built_from_commit', 'estimate', 'how', 'checked'],
     ['hr_item_ids', 'gaps', 'attachments', 'changed_files', 'branch'],
   ],
   get_review: [['id'], []],
