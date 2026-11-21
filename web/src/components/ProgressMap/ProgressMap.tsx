@@ -227,7 +227,8 @@ export function ProgressMap({
         : next,
     );
   }, []);
-  useLayoutEffect(updateCues, [updateCues, geo, z]);
+  // `view` too: a narrower window changes what overflows without moving any arrow.
+  useLayoutEffect(updateCues, [updateCues, geo, z, view]);
 
   // ---- Pan ----
   const pan = (dx: number, dy: number) => {
