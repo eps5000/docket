@@ -561,7 +561,7 @@ The format for each tool below:
 - **Warnings:** finishing with unreleased resources, or with `head_sha` ≠ `pushed_sha`, succeeds but warns (`! 1 resource still declared: dev server :5173`; `! 2 commits not pushed`). The workspace then shows as `at_risk`.
 
 #### `park_run`
-**Description:** "Park your run when you must wait: on another item, on the coordinator to send you more work, or on a person. A parked run keeps its claim and its workspace stays marked in use, so it is never mistaken for finished or stale. Say what you are waiting on; Docket flags it as ready to resume when that clears. Any later call with your run_id resumes it."
+**Description:** "Park your run only when the work itself stops: waiting on another item, on the coordinator to send you more work, or on a person. Do not park while your own CI or tests run or while you review their results: that is still work in progress, so stay live and log a short note. A parked run keeps its claim and its workspace stays marked in use, so it is never mistaken for finished or stale. Say what you are waiting on; Docket flags it as ready to resume when that clears. Any later call with your run_id resumes it."
 - **Input:** `run_id`, `reason` (≤ 500), `waiting_on?: { items?: string[], orchestrator?: boolean, person?: boolean, until? }`.
 - **Output:** `{ run_state: 'parked', resume_ready: boolean }`.
 - **Errors:** `conflict` (the run has ended), `validation` (unknown item in `waiting_on.items`).
