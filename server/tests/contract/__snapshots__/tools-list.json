@@ -2947,6 +2947,22 @@
                                   "string",
                                   "null"
                                 ]
+                              },
+                              "member": {
+                                "type": "string"
+                              },
+                              "design_impact": {
+                                "type": "string",
+                                "enum": [
+                                  "none",
+                                  "changes_approved_design"
+                                ]
+                              },
+                              "design_note": {
+                                "type": "string"
+                              },
+                              "disputed": {
+                                "type": "boolean"
                               }
                             },
                             "required": [
@@ -3002,6 +3018,9 @@
                               "null"
                             ]
                           },
+                          "member": {
+                            "type": "string"
+                          },
                           "part": {
                             "type": "string"
                           }
@@ -3053,6 +3072,9 @@
                               "string",
                               "null"
                             ]
+                          },
+                          "member": {
+                            "type": "string"
                           },
                           "part": {
                             "type": "string"
@@ -3110,6 +3132,12 @@
                             "items": {
                               "type": "string"
                             }
+                          },
+                          "merge_first": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
                           }
                         },
                         "required": [
@@ -3117,6 +3145,57 @@
                           "branch",
                           "own_branch",
                           "files"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "outcomes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "with": {
+                            "type": "string"
+                          },
+                          "outcome": {
+                            "type": "string",
+                            "enum": [
+                              "parallel",
+                              "sequence",
+                              "owner"
+                            ]
+                          },
+                          "reason": {
+                            "type": "string",
+                            "enum": [
+                              "file_only",
+                              "different_members",
+                              "same_member",
+                              "change_touches_part",
+                              "bare_part",
+                              "unclear",
+                              "changes_approved_design",
+                              "blocker_cycle",
+                              "disputed",
+                              "setting"
+                            ]
+                          },
+                          "first": {
+                            "type": "string"
+                          },
+                          "parts": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "required": [
+                          "with",
+                          "outcome",
+                          "reason",
+                          "first",
+                          "parts"
                         ],
                         "additionalProperties": false
                       }
@@ -5507,7 +5586,7 @@
   },
   {
     "name": "claim_lead",
-    "description": "Claim an item as its lead before you work on it. Works on Ready items (moves them to In progress) and on In progress items with no lead (resuming sent-back or interrupted work). Pass workspace (where the work lives) and, if a coordinator briefed you, the brief, so the work can be restarted after a crash. Pass instructions with the output of the installed docket-check script, so the owner knows which instructions you work from. Pass branch, the branch you will work on, so conflicts are spotted early. Returns your run_id: pass it on every later call. If someone else holds the claim you get a conflict with who holds it and until when; do not work on the item. If its shared parts overlap another item in flight you get seam_conflict: the owner has been asked whether they can run together, so pick other work and leave this item until they decide.",
+    "description": "Claim an item as its lead before you work on it. Works on Ready items (moves them to In progress) and on In progress items with no lead (resuming sent-back or interrupted work). Pass workspace (where the work lives) and, if a coordinator briefed you, the brief, so the work can be restarted after a crash. Pass instructions with the output of the installed docket-check script, so the owner knows which instructions you work from. Pass branch, the branch you will work on, so conflicts are spotted early. Returns your run_id: pass it on every later call. If someone else holds the claim you get a conflict with who holds it and until when; do not work on the item. If its shared parts collide with another item in flight you get seam_conflict: Docket has queued it behind that item, or asked the owner when only the owner can decide, so pick other work and leave this item. Parts that can safely run together do not refuse the claim.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -13680,7 +13759,7 @@
   },
   {
     "name": "declare_shared_changes",
-    "description": "Declare the shared parts this item will change (tables, models, endpoints, shared files), each with add, change or remove and a short note, or none: true when it changes none. An item can't move to Ready until it has declared. Each call replaces the item's whole declaration. Name parts by their keys from list_shared_parts; register a missing one with new_parts. Pass branches, every branch the work is on (or branch for one), so the conflict radar can check them, also for work already in progress; they replace the item's reported branches, and an empty list clears them. Returns the in-flight items that change the same parts.",
+    "description": "Declare the shared parts this item will change (tables, models, endpoints, shared files), each with add, change or remove and a short note, or none: true when it changes none. An item can't move to Ready until it has declared. Each call replaces the item's whole declaration. Name parts by their keys from list_shared_parts; register a missing one with new_parts. Name the member when you can (model:Token.expiresAt, table:decks.archived_at): adding different members runs in parallel, while a bare part means it could touch anything in it and is sequenced. Set design_impact: changes_approved_design with a design_note when the change alters an approved design, and disputed: true when agents disagree about who owns a part; both reach the owner. Pass branches, every branch the work is on (or branch for one), so the conflict radar can check them, also for work already in progress; they replace the item's reported branches, and an empty list clears them. Returns the in-flight items that change the same parts, each with its outcome: parallel, sequence or owner.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -13712,6 +13791,21 @@
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 500
+              },
+              "design_impact": {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "changes_approved_design"
+                ]
+              },
+              "design_note": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "disputed": {
+                "type": "boolean"
               }
             },
             "required": [
@@ -13849,6 +13943,22 @@
                           "string",
                           "null"
                         ]
+                      },
+                      "member": {
+                        "type": "string"
+                      },
+                      "design_impact": {
+                        "type": "string",
+                        "enum": [
+                          "none",
+                          "changes_approved_design"
+                        ]
+                      },
+                      "design_note": {
+                        "type": "string"
+                      },
+                      "disputed": {
+                        "type": "boolean"
                       }
                     },
                     "required": [
@@ -13927,6 +14037,29 @@
                     "items": {
                       "type": "string"
                     }
+                  },
+                  "outcome": {
+                    "type": "string",
+                    "enum": [
+                      "parallel",
+                      "sequence",
+                      "owner"
+                    ]
+                  },
+                  "reason": {
+                    "type": "string",
+                    "enum": [
+                      "file_only",
+                      "different_members",
+                      "same_member",
+                      "change_touches_part",
+                      "bare_part",
+                      "unclear",
+                      "changes_approved_design",
+                      "blocker_cycle",
+                      "disputed",
+                      "setting"
+                    ]
                   }
                 },
                 "required": [
@@ -14105,6 +14238,9 @@
                             "string",
                             "null"
                           ]
+                        },
+                        "member": {
+                          "type": "string"
                         }
                       },
                       "required": [

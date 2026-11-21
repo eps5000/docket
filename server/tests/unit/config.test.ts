@@ -19,6 +19,17 @@ describe('loadConfig', () => {
     }
   });
 
+  it('reads DOCKET_OVERLAP_GRACE_HOURS as whole hours, 0 or more (decision 39)', () => {
+    expect(loadConfig({}).overlapGraceMs).toBe(24 * 3_600_000);
+    expect(loadConfig({ DOCKET_OVERLAP_GRACE_HOURS: '6' }).overlapGraceMs).toBe(6 * 3_600_000);
+    expect(loadConfig({ DOCKET_OVERLAP_GRACE_HOURS: '0' }).overlapGraceMs).toBe(0);
+    for (const bad of ['-1', '1.5', '2h']) {
+      expect(() => loadConfig({ DOCKET_OVERLAP_GRACE_HOURS: bad }), bad).toThrow(
+        /DOCKET_OVERLAP_GRACE_HOURS/,
+      );
+    }
+  });
+
   it('reads DOCKET_AGENT_PROBLEM_GRACE_HOURS as whole hours, 0 or more (decision 37)', () => {
     expect(loadConfig({}).agentProblemGraceMs).toBe(24 * 3_600_000);
     expect(loadConfig({ DOCKET_AGENT_PROBLEM_GRACE_HOURS: '6' }).agentProblemGraceMs).toBe(

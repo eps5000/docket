@@ -19,6 +19,9 @@
 import { z } from 'zod';
 import {
   BRANCH_SOURCES,
+  DESIGN_IMPACTS,
+  OVERLAP_OUTCOMES,
+  OVERLAP_REASONS,
   SHARED_CHANGES,
   SHARED_PART_KINDS,
   STATUSES,
@@ -125,6 +128,30 @@ export function normaliseSharedPartKey(raw: string): SharedPartKeyResult {
   return { ok: true, key, kind: kind as SharedPartKind, name };
 }
 
+/** Decision 39: the kinds whose parts have named members (`model:Token.expiresAt`). */
+export const MEMBER_KINDS: readonly SharedPartKind[] = ['table', 'model'];
+
+/**
+ * Split a declared key into its registered part and member (decision 39):
+ * `model:Token.expiresAt` is member `expiresAt` of `model:Token`. A key that
+ * is itself registered is a bare part, so an existing part whose name holds a
+ * dot keeps working. The longest registered prefix wins. Null when no part
+ * matches. An endpoint names one endpoint, so it has no member syntax.
+ */
+export function splitPartMember(
+  key: string,
+  isPart: (key: string) => boolean,
+): { part: string; member: string | null } | null {
+  if (isPart(key)) return { part: key, member: null };
+  const colon = key.indexOf(':');
+  if (!MEMBER_KINDS.includes(key.slice(0, colon) as SharedPartKind)) return null;
+  for (let dot = key.lastIndexOf('.'); dot > colon + 1; dot = key.lastIndexOf('.', dot - 1)) {
+    const member = key.slice(dot + 1);
+    if (member !== '' && isPart(key.slice(0, dot))) return { part: key.slice(0, dot), member };
+  }
+  return null;
+}
+
 /** A shared part key, normalised (`Table: Decks` → `table:decks`). */
 export const sharedPartKey = z
   .string()
@@ -176,6 +203,10 @@ export const sharedPartKindSchema = z.enum(SHARED_PART_KINDS);
 export const sharedChangeSchema = z.enum(SHARED_CHANGES);
 /** How the radar knew a branch (B40): `reported` or `discovered`. */
 export const branchSourceSchema = z.enum(BRANCH_SOURCES);
+/** Decision 39: whether a declared change alters an approved design. */
+export const designImpactSchema = z.enum(DESIGN_IMPACTS);
+export const overlapOutcomeSchema = z.enum(OVERLAP_OUTCOMES);
+export const overlapReasonSchema = z.enum(OVERLAP_REASONS);
 
 // ---- Shapes ----
 
@@ -201,6 +232,8 @@ export const inFlightChangeSchema = z.object({
   status: statusSchema,
   change: sharedChangeSchema,
   note: z.string().nullable(),
+  /** Decision 39: the member it names; absent for a bare part. */
+  member: z.string().optional(),
 });
 export type InFlightChange = z.infer<typeof inFlightChangeSchema>;
 
@@ -212,10 +245,19 @@ export const leaseRefSchema = z.object({
 
 /** One part an item declares. */
 export const declaredChangeSchema = z.object({
+  /** The key as declared; with a member, `model:Token.expiresAt`. */
   part: z.string(),
   kind: sharedPartKindSchema,
   change: sharedChangeSchema,
   note: z.string().nullable(),
+  /** Decision 39: the member named; absent for a bare part ("could touch anything in it"). */
+  member: z.string().optional(),
+  /** Decision 39: present only when the change alters an approved design. */
+  design_impact: designImpactSchema.optional(),
+  /** Which design, decision or acceptance criterion it alters. */
+  design_note: z.string().optional(),
+  /** Decision 39: agents disagree about who owns this part. */
+  disputed: z.boolean().optional(),
 });
 export type DeclaredChange = z.infer<typeof declaredChangeSchema>;
 
@@ -236,16 +278,29 @@ export type Declaration = z.infer<typeof declarationSchema>;
 export const overlapFoundSchema = z.object({
   with: z.object({ id: z.string(), title: z.string(), status: statusSchema }),
   parts: z.array(z.string()),
+  /** Decision 39: run in parallel, Docket sequences them, or the owner decides. */
+  outcome: overlapOutcomeSchema.optional(),
+  reason: overlapReasonSchema.optional(),
 });
 export type OverlapFound = z.infer<typeof overlapFoundSchema>;
 
 // ---- declare_shared_changes ----
 
 export const declaredChangeInput = z.strictObject({
-  /** A registered part's key, or one in `new_parts`. */
+  /**
+   * A registered part's key, or one in `new_parts`. Add `.member` to name
+   * what it touches (`model:Token.expiresAt`, `table:decks.archived_at`); a
+   * bare part means it could touch anything in it.
+   */
   part: sharedPartKey,
   change: sharedChangeSchema,
   note: text(LIMITS.shared_change_note).optional(),
+  /** Decision 39: `changes_approved_design` reaches the owner; default `none`. */
+  design_impact: designImpactSchema.optional(),
+  /** Required with `changes_approved_design`: which design, decision or acceptance criterion. */
+  design_note: text(LIMITS.shared_design_note).optional(),
+  /** Decision 39: true when you and another item's agent disagree about who owns this part. */
+  disputed: z.boolean().optional(),
 });
 
 /** A part to register in the same call. Agents can't set single-writer (FR-158). */
@@ -260,7 +315,7 @@ export const newPartInput = z.strictObject({
 /** Checks shared by the tool and the owner's `PUT /api/items/:id/shared`. */
 export function checkDeclaration(
   value: {
-    changes?: { part: string }[];
+    changes?: { part: string; design_impact?: string; design_note?: string }[];
     none?: boolean;
     new_parts?: { key: string; kind?: string }[];
     branch?: string;
@@ -300,6 +355,21 @@ export function checkDeclaration(
       });
     }
     seen.add(c.part);
+    // Decision 39: a change to an approved design says which one.
+    if (c.design_impact === 'changes_approved_design' && !c.design_note?.trim()) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['changes', i, 'design_note'],
+        message: 'say which design, decision or acceptance criterion this changes',
+      });
+    }
+    if (c.design_impact !== 'changes_approved_design' && c.design_note !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['changes', i, 'design_note'],
+        message: 'design_note goes with design_impact: changes_approved_design',
+      });
+    }
   });
   const fresh = new Set<string>();
   value.new_parts?.forEach((p, i) => {
@@ -421,8 +491,26 @@ export const contextSharedSchema = z.object({
       /** B41: this item's branch in the pair (an item may report several). */
       own_branch: z.string(),
       files: z.array(z.string()),
+      /**
+       * Decision 39: the item that merges first when two branches conflict;
+       * the other rebases on it. Absent for the main branch.
+       */
+      merge_first: z.string().nullable().optional(),
     }),
   ),
+  /** Decision 39: what Docket decided for this item's overlaps, up to 10. */
+  outcomes: z
+    .array(
+      z.object({
+        with: z.string(),
+        outcome: overlapOutcomeSchema,
+        reason: overlapReasonSchema,
+        /** The item that goes first when they run in order. */
+        first: z.string(),
+        parts: z.array(z.string()),
+      }),
+    )
+    .optional(),
   truncated: z.boolean(),
 });
 export type ContextShared = z.infer<typeof contextSharedSchema>;

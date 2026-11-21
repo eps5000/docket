@@ -807,7 +807,7 @@ describe('shared changes follow MCP_SPEC §5.15 (decision 36; B38)', () => {
   type Limits = JsonObject & { maxItems?: number; minItems?: number; const?: unknown };
   it('declare_shared_changes: changes (1–50, notes ≤ 500) or none, new_parts (≤ 20) without single_writer', () => {
     expect(specToolPart('declare_shared_changes', 'Input')).toContain(
-      "`changes?: [{ part, change: 'add'|'change'|'remove', note? }]` (1–50; `note` ≤ 500) or `none?: true`",
+      "`changes?: [{ part, change: 'add'|'change'|'remove', note?, design_impact?, design_note?, disputed? }]` (1–50; `note` and `design_note` ≤ 500; B46) or `none?: true`",
     );
     const props = input('declare_shared_changes').properties!;
     const changes = props.changes as Limits;
@@ -862,6 +862,7 @@ describe('shared changes follow MCP_SPEC §5.15 (decision 36; B38)', () => {
       'declaration',
       'in_flight',
       'leases',
+      'outcomes',
       'overlapping',
       'radar',
       'truncated',

@@ -49,6 +49,8 @@ Until then, Needs you shows **Agents are handling N problems** under Problems. O
 
 **Your problems** (everything else) show at once.
 
+**Overlaps** between two items follow the same idea: Docket runs safe ones in parallel, puts the rest in order, and shows you one quiet line, **Docket handled N overlaps today**. You get a card only when an overlap needs you. See [Shared changes and conflicts](/help/shared-changes-and-conflicts).
+
 ## The buttons
 
 - **Remind the agent** posts the problem's explanation to the item's lead as a note from you. You can undo it.
@@ -72,7 +74,7 @@ Each choice reaches the agent as a note from you, and in its context. Each also 
 | Problem | Who acts | What to do |
 |---|---|---|
 | Out of date with main | An agent | Rebase onto main, or split into short story PRs. If the branch is an old draft, use **Not an active branch**. |
-| Heading for a merge conflict (two items' branches) | An agent | Merge one first, then rebase the other. Pairs that only conflict because a branch is out of date with main aren't listed: fixing that fixes them. |
+| Heading for a merge conflict (two items' branches) | An agent | Neither stops. Docket says which merges first, and the other rebases on it. Pairs that only conflict because a branch is out of date with main aren't listed: fixing that fixes them. |
 | Lead agent silent (stale) | You or your coordinator | Check whether the agent is still running. If it stopped, release its claim. See [Run states](/help/run-states). |
 | Lead run failed | You or your coordinator | Read the error in Activity, then restart the work or move it back to Ready. |
 | Parked a long time | You or your coordinator | Check it's still waiting for something real; resume it or release its claim. |
@@ -85,5 +87,5 @@ Each choice reaches the agent as a note from you, and in its context. Each also 
 | Date conflict | You | Ask the lead to move the planned start, or bring the blocker's finish forward. |
 | Agent files changed outside Docket | You | **Review**: adopt, restore or keep local. See [Agent files](/help/agent-files). |
 | Extra backup copy failed | You | Check the extra backup folder in Settings. |
-| Two items change the same shared part | You | **Run one after the other**, or **They're compatible**. See [Shared changes and conflicts](/help/shared-changes-and-conflicts). |
-| Changed shared parts it didn't declare | You | **Add to the declaration**, or **Send back**. |
+| Two items overlap, and it needs you | You | Docket handles most overlaps itself. You get a card for a change to an approved design, a dependency loop, a dispute over who owns a part, or one still unresolved after a day. **Run one after the other**, or **They're compatible** (on a waiting one, **Keep this order** or **Run in parallel**). See [Shared changes and conflicts](/help/shared-changes-and-conflicts). |
+| Changed shared parts it didn't declare, and it needs you | You | Docket records the safe ones itself. For the rest: **Add to the declaration**, or **Send back**. |

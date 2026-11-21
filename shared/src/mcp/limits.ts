@@ -102,6 +102,8 @@ export const LIMITS = {
   /** `declare_shared_changes.changes`: up to 50 entries, each note ≤ 500. */
   shared_changes_max: 50,
   shared_change_note: 500,
+  /** Decision 39: which design, decision or acceptance criterion a change alters. */
+  shared_design_note: 500,
   /** `declare_shared_changes.new_parts`: up to 20 parts registered in the same call. */
   shared_new_parts_max: 20,
   /** B41: an item's reported branches for the conflict radar (`declare_shared_changes.branches`). */
@@ -113,6 +115,8 @@ export const LIMITS = {
   shared_decision_note: 1_000,
   /** get_context.shared: other in-flight declarations listed (BUILD_SPEC §5.21). */
   context_in_flight_max: 30,
+  /** Decision 39: get_context.shared.outcomes, what Docket decided for this item's overlaps. */
+  context_overlap_outcomes_max: 10,
   /** Decision 37 (`propose_resolution`): the plan (Markdown) and the reason. */
   resolution_plan: 10_000,
   resolution_reason: 1_000,

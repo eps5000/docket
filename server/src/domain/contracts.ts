@@ -47,6 +47,7 @@ import {
   type ContextShared,
   type ItemSharedResponse,
   type LeaseRow,
+  type OverlapHandlingResponse,
   type OverlapRow,
   type PutItemSharedResponse,
   type RadarResponse,
@@ -642,6 +643,20 @@ export interface SharedChangesService {
     w: WriteContext,
     input: RouteParams<'overlaps.decide'> & RouteBody<'overlaps.decide'>,
   ): OverlapRow;
+  /**
+   * Decision 39: the owner overrules an automatic outcome from the ticket
+   * (*Run in parallel*, *Run in order*). Undoable. Event `overlap.decided`.
+   */
+  overruleOverlap(
+    w: WriteContext,
+    input: RouteParams<'overlaps.overrule'> & RouteBody<'overlaps.overrule'>,
+  ): OverlapRow;
+  /** Decision 39: Settings → Overlap handling. Owner only: no MCP tool writes it. */
+  overlapHandling(r: ReadContext): OverlapHandlingResponse;
+  setOverlapHandling(
+    w: WriteContext,
+    input: RouteBody<'overlapHandling.set'>,
+  ): OverlapHandlingResponse;
   /** *Add to the declaration* or *Send back* (B39): event `undeclared.decided`. */
   decideHold(
     w: WriteContext,

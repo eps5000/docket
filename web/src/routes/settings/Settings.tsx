@@ -6,6 +6,7 @@ import { apiClient } from '../../app/queryClient';
 import { queryKeys } from '../../lib/api';
 import { paths } from '../../lib/paths';
 import { ConnectionsSection } from './ConnectionsSection';
+import { OverlapHandlingCard } from './OverlapHandlingCard';
 import { ProjectsSection } from './ProjectsSection';
 import { PushFolderCard } from './PushFolderCard';
 import { ThisBrowserCard } from './ThisBrowserCard';
@@ -32,6 +33,7 @@ export function Settings() {
     <div className="settings">
       <h1>Settings</h1>
       <ProjectsSection query={query} />
+      <OverlapHandlingCard />
       <ConnectionsSection query={query} />
       <section id="push-folder" aria-labelledby="set-push" className="settings-sec">
         <h2 id="set-push">One-click install</h2>

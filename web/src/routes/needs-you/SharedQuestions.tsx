@@ -10,7 +10,7 @@ import { queryKeys } from '../../lib/api';
 import { paths } from '../../lib/paths';
 import { runOwnerMutation, showToast } from '../../lib/undo';
 import { errorText } from '../agent-files/install-common';
-import { partsText } from '../shared/sharedChanges';
+import { overlapOutcomeText, partsText } from '../shared/sharedChanges';
 import { ProblemLines, WarningMark } from '../shared/problems';
 
 /**
@@ -80,19 +80,28 @@ export function OverlapCard({
   const noteId = useId();
   const [first, other] = o.items;
   const title = `${first.id} and ${other.id} both change ${partsText(o.parts)}`;
+  // Decision 39: a sequence Docket set that outlived its grace period is overruled, not decided.
+  const byDocket = o.decided_by === 'docket';
   const sequence = () =>
     void run(
-      () => apiClient['overlaps.decide']({ params: { id: o.id }, body: { decision: 'sequence' } }),
+      () =>
+        byDocket
+          ? apiClient['overlaps.overrule']({ params: { id: o.id }, body: { decision: 'order' } })
+          : apiClient['overlaps.decide']({ params: { id: o.id }, body: { decision: 'sequence' } }),
       `${other.id} now waits until ${first.id} is merged.`,
     );
   const compatible = () =>
     void run(
       () =>
-        apiClient['overlaps.decide']({
-          params: { id: o.id },
-          body: { decision: 'compatible', ...(note.trim() ? { note: note.trim() } : {}) },
-        }),
-      `Marked ${first.id} and ${other.id} compatible.`,
+        byDocket
+          ? apiClient['overlaps.overrule']({ params: { id: o.id }, body: { decision: 'parallel' } })
+          : apiClient['overlaps.decide']({
+              params: { id: o.id },
+              body: { decision: 'compatible', ...(note.trim() ? { note: note.trim() } : {}) },
+            }),
+      byDocket
+        ? `${first.id} and ${other.id} now run in parallel.`
+        : `Marked ${first.id} and ${other.id} compatible.`,
     );
   return (
     <Card className="sq-card" data-overlap={o.id} data-problem-id={banner ? o.id : undefined}>
@@ -122,6 +131,11 @@ export function OverlapCard({
             </li>
           ))}
         </ul>
+        {o.reached_you && (
+          <p className="src" style={{ margin: '6px 0 0' }}>
+            {o.reached_you}
+          </p>
+        )}
         {o.explanation ? (
           <ProblemLines e={o.explanation} />
         ) : (
@@ -164,7 +178,11 @@ export function OverlapCard({
           Open both
         </Button>
         <div className="row wrap" style={{ gap: 6 }}>
-          {noting ? (
+          {byDocket ? (
+            <Button size="sm" disabled={busy} aria-describedby={titleId} onClick={compatible}>
+              Run in parallel
+            </Button>
+          ) : noting ? (
             <Button
               size="sm"
               disabled={busy}
@@ -186,11 +204,46 @@ export function OverlapCard({
             aria-describedby={titleId}
             onClick={sequence}
           >
-            Run one after the other
+            {byDocket ? 'Keep this order' : 'Run one after the other'}
           </Button>
         </div>
       </div>
     </Card>
+  );
+}
+
+/**
+ * The one quiet line on Needs you (decision 39): "Docket handled N overlaps
+ * today". It opens the overlaps in place, each linking to its tickets, so
+ * nothing Docket decided is hidden.
+ */
+export function OverlapsHandled({
+  handled,
+}: {
+  handled: { count: number; rows: readonly OverlapRow[] } | undefined;
+}) {
+  if (!handled || handled.count === 0) return null;
+  return (
+    <details className="src mb" data-card="overlaps-handled">
+      <summary>
+        Docket handled {handled.count} {handled.count === 1 ? 'overlap' : 'overlaps'} today
+      </summary>
+      <ul className="sq-items" aria-label="Overlaps Docket handled today">
+        {handled.rows.map((o) => (
+          <li key={o.id} className="lrow" data-handled={o.id}>
+            <Link to={paths.item(o.items[0].id)} className="mono">
+              {o.items[0].id}
+            </Link>
+            <Link to={paths.item(o.items[1].id)} className="mono">
+              {o.items[1].id}
+            </Link>
+            <span className="one grow">{partsText(o.parts)}</span>
+            <span>{overlapOutcomeText(o)}</span>
+          </li>
+        ))}
+      </ul>
+      {handled.count > handled.rows.length && <p>and {handled.count - handled.rows.length} more</p>}
+    </details>
   );
 }
 

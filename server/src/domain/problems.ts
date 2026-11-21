@@ -36,6 +36,8 @@ import {
   LIMITS,
   RESOLUTION_KINDS,
   ToolError,
+  type OverlapOutcome,
+  type OverlapReason,
   type Problem,
   type ProblemAck,
   type ProblemExplanation,
@@ -46,6 +48,7 @@ import type { Db } from '../db/client.js';
 import type { ReadContext, ServiceDeps } from './contracts.js';
 import { newId } from './ids.js';
 import { callerName, leaseExpired, ms, requireItem, type RunRow } from './model.js';
+import { OVERLAP_REASON_TEXT } from './overlap-policy.js';
 import type { WriteContext } from './write.js';
 
 // ---- Words ----
@@ -217,7 +220,65 @@ export const explain = {
     };
   },
 
-  overlap(f: { first: string; other: string; parts: string }): ProblemExplanation {
+  /**
+   * An overlap (decision 39): an owner question says why it needs the owner
+   * and what Docket recommends; an automatic outcome says what Docket did.
+   */
+  overlap(f: {
+    first: string;
+    other: string;
+    parts: string;
+    outcome?: OverlapOutcome | null;
+    reason?: OverlapReason | null;
+    design_note?: string | null;
+    /** An automatic sequence still unresolved after the grace period. */
+    reached?: boolean;
+  }): ProblemExplanation {
+    const inOrder = `${f.other} waits until ${f.first} is merged`;
+    if (f.outcome === 'sequence' && f.reached) {
+      return {
+        what: `Docket ran ${f.first} and ${f.other} in order on ${f.parts} (${OVERLAP_REASON_TEXT[f.reason ?? 'unclear']}), and it still isn't settled. ${inOrder}.`,
+        fix: `Docket recommends keeping this order and checking on ${f.first}. Run them in parallel if ${f.other} shouldn't wait.`,
+        ...YOU_DECIDE,
+      };
+    }
+    if (f.outcome === 'parallel') {
+      return {
+        what: `${f.first} and ${f.other} both touch ${f.parts}, and Docket is running them in parallel: ${OVERLAP_REASON_TEXT[f.reason ?? 'file_only']}.`,
+        fix: 'Nothing to do. The radar still checks their real commits. Overrule it from the ticket if you know better.',
+        who: 'agent',
+        who_text: 'Docket (automatic)',
+      };
+    }
+    if (f.outcome === 'sequence') {
+      return {
+        what: `${f.first} and ${f.other} both change ${f.parts}, so Docket runs them in order: ${OVERLAP_REASON_TEXT[f.reason ?? 'unclear']}. ${inOrder}.`,
+        fix: 'Nothing to do; the waiting agent took other work. Overrule it from the ticket if they can run together.',
+        who: 'agent',
+        who_text: 'Docket (automatic)',
+      };
+    }
+    if (f.reason === 'changes_approved_design') {
+      return {
+        what: `${f.first} and ${f.other} both change ${f.parts}, and this changes an approved design${f.design_note ? `: ${f.design_note}` : '.'}`,
+        fix: `Docket recommends running them one after the other (${inOrder}) while you check the design. Mark them compatible if the change is fine.`,
+        ...YOU_DECIDE,
+      };
+    }
+    if (f.reason === 'blocker_cycle') {
+      return {
+        what: `${f.first} and ${f.other} both change ${f.parts}, and running them in order would create a dependency cycle.`,
+        fix: 'Docket recommends removing the link that matters least in the Dependencies tab, then running them in order. Mark them compatible if their changes don’t collide.',
+        ...YOU_DECIDE,
+      };
+    }
+    if (f.reason === 'disputed') {
+      return {
+        what: `${f.first} and ${f.other} both change ${f.parts}, and the agents disagree about who owns it.`,
+        fix: `Docket recommends running them one after the other (${inOrder}), with the owner of the part going first.`,
+        ...YOU_DECIDE,
+      };
+    }
     return {
       what: `${f.first} and ${f.other} both change ${f.parts}. An agent tried to start ${f.other} while ${f.first} is in flight, so it picked other work.`,
       fix: `Run them one after the other (${f.other} waits until ${f.first} is merged), or mark them compatible if their changes don't collide.`,
@@ -252,9 +313,13 @@ export const explain = {
       };
     }
     const b = f.item_b.id;
+    // Decision 39: Docket picks the merge order; neither agent stops.
+    const later = f.merge_first === b ? a : b;
     return {
       what: `${a}'s branch ${f.branch_a} and ${b}'s branch ${f.branch_b} change the same lines: ${conflictText(f.files)}.`,
-      fix: "Merge one first, then rebase the other onto main and resolve the conflict. If one of them is an old draft, remove it from its item's branches.",
+      fix: f.merge_first
+        ? `Keep working: neither item stops. ${f.merge_first} merges first, then ${later} rebases onto it and resolves the conflict. If that can't be done mechanically, or changes what ${f.merge_first} does, use propose_resolution. If one of them is an old draft, remove it from its item's branches.`
+        : "Merge one first, then rebase the other onto main and resolve the conflict. If one of them is an old draft, remove it from its item's branches.",
       ...agentWho(f.item_a ? [f.item_a.id, b] : [b], leading),
     };
   },

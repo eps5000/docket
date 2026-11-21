@@ -23,7 +23,7 @@ import { ForYouNow } from './ForYouNow';
 import { OnboardingReviews } from './OnboardingReviews';
 import { PlanningQueueCard } from './PlanningQueueCard';
 import { ProblemsCard } from './ProblemsCard';
-import { SharedQuestions } from './SharedQuestions';
+import { OverlapsHandled, SharedQuestions } from './SharedQuestions';
 import { ResolutionCards } from './ResolutionCards';
 import { ProjectDecisionCards } from './ProjectDecisionCards';
 import '../screens.css';
@@ -69,6 +69,7 @@ export function NeedsYou() {
               overlaps={data.overlaps ?? NO_OVERLAPS}
               holds={data.undeclared_holds ?? NO_HOLDS}
             />
+            <OverlapsHandled handled={data.overlaps_handled} />
             <ResolutionCards resolutions={data.resolutions ?? NO_RESOLUTIONS} />
             <ProjectDecisionCards
               cards={data.project_decisions ?? NO_DECISIONS}

@@ -135,6 +135,9 @@ test.beforeEach(async ({ page }) => {
   await page.context().addInitScript(() => localStorage.setItem('docket.notifications', 'off'));
   // Recipe App only: the stress project's items stay out of the views.
   await page.context().addInitScript(() => sessionStorage.setItem('docket.scope', 'RCP'));
+  // Decision 39: this spec pins decision 36's behaviour, now *Ask on every overlap*;
+  // b46-overlaps.spec.ts covers the default. The reset in afterAll puts it back.
+  await owner(page, 'PUT', '/api/settings/overlap-handling', { mode: 'ask_every' });
 });
 
 test('Settings → Shared parts: register parts and point the radar at a repository', async ({

@@ -6,13 +6,14 @@ order: 5
 anchors:
   - item.shared-changes
   - settings.shared-parts
+  - settings.overlap-handling
 related:
   - problems-and-what-to-do
   - blockers-and-dependencies
   - review-a-packet
 ---
 
-When several agents work at once, two items can collide on the same table, model, endpoint or shared file. Docket keeps that from happening unattended: every item says which **shared parts** it will change, and Docket stops overlapping work before it starts and asks you.
+When several agents work at once, two items can collide on the same table, model, endpoint or shared file. Every item says which **shared parts** it will change. Docket keeps agents working in parallel where that's safe, puts work in order where it isn't, and asks you only when it needs you.
 
 ## Shared parts
 
@@ -22,15 +23,43 @@ Each project keeps a registry of shared parts under **Settings → Projects → 
 
 An item can't move to Ready until it declares the parts it will change (add, change or remove, with a short note), or declares that it changes none. You see the declaration in the ticket's **Details → Shared changes**, where *Edit* changes it. If you need to move an undeclared item to Ready anyway, give a reason: it's recorded in Activity.
 
+A declaration can name a **member** of a part, such as `model:Token.expiresAt` or `table:decks.archived_at`. A part with no member means "could touch anything in it". If a change alters something you already approved, the agent marks it **Changes an approved design** and says which design, decision or acceptance criterion.
+
 ## When two items overlap
 
-When an agent claims an item whose parts overlap another item already in progress or in review, the claim is refused and the agent picks other work. You get one card per pair on **Needs you**, for example "GF-240 and GF-312 both change model Token":
+For any overlap, Docket asks three questions, in order:
+
+1. **Can they safely run at the same time?** Then they do. That's an overlap only in shared files, or two items adding *different* members of the same part.
+2. **If not, or if it's unclear, would running them in order solve it?** Then Docket adds a blocker (first claimed goes first), and the waiting agent takes other work. That's the same member, a change or removal of something the other item uses, a part with no member, or anything Docket can't judge.
+3. **Neither works, or it changes an approved design?** Then you get a card on **Needs you**, with the evidence and a recommendation. That's a change to an approved design, an order that would create a dependency loop, agents disputing who owns a part, or an overlap still unresolved after a day.
+
+### Two different checks
+
+**Do the lines collide?** Only a trial merge of real commits can tell. "Add-only" doesn't prevent this: two branches inserting at the same line conflict, in Markdown, models or anything else.
+
+**Do the changes collide in meaning?** Git can merge two changes cleanly that still break each other. Declarations and agents answer this one. A clean trial merge never makes work safe on its own.
+
+### What you see
+
+Every outcome is on both tickets under **Shared changes**, with who decided, why and the evidence. Automatic outcomes are recorded as **Docket**, never as you. To change one, use **Run in parallel** or **Run in order** on the ticket; you can undo it. Needs you shows one quiet line, **Docket handled N overlaps today**, which opens them.
+
+On a card that needs you:
 
 - **Run one after the other** adds a blocker, so the second item starts once the first is merged.
 - **They're compatible** lets both run. An optional note goes to both agents.
 - **Open both** opens the two tickets side by side.
 
-An item that declares a new overlap while it's already in progress keeps its claim; both items are flagged and you get the same card. Work cards show a small **overlap** marker until you decide.
+An overlap that has waited too long offers **Keep this order** or **Run in parallel** instead. An item that declares a new overlap while it's already in progress keeps its claim. Overlaps you've decided stay decided.
+
+### Overlap handling
+
+**Settings → Overlap handling** sets how much reaches you, as a default and for each project. Only you can change it.
+
+- **Agents resolve** (the default): you see only what needs you.
+- **Ask on shared data:** you also decide overlaps on tables, models and endpoints.
+- **Ask on every overlap:** you decide them all, including shared files.
+
+Single-writer leases, the required merge checks and overlaps you've already decided work the same in every mode.
 
 ## Leases on single-writer parts
 
@@ -38,11 +67,15 @@ A single-writer part, such as a migrations snapshot, can only be changed by one 
 
 ## Held hand-offs
 
-When an agent hands off (a packet, or closing as done), it lists the files it changed. If any of them belong to a shared part the item didn't declare, the hand-off is held and Needs you says, for example, "GF-312 changed shared parts it didn't declare: table decks". **Add to the declaration** accepts the change: a held packet opens for review, and a refused close can be retried. **Send back** returns the item to the agent with your note. A packet with no file list from an item with declarations says "Changed files not reported".
+When an agent hands off (a packet, or closing as done), it lists the files it changed. If any belong to a shared part the item didn't declare, Docket asks the same three questions. A safe one is added to the declaration, recorded as Docket, and the hand-off goes on. One that has to wait gets a blocker. Only one that needs you holds the hand-off, and Needs you says, for example, "GF-312 changed shared parts it didn't declare: table decks". **Add to the declaration** accepts the change: a held packet opens for review, and a refused close can be retried. **Send back** returns the item to the agent with your note. A packet with no file list from an item with declarations says "Changed files not reported".
 
 ## The conflict radar
 
 If the project's repository is inside Docket's push folder, set it under **Settings → Projects → Shared parts** with its main branch. Every 15 minutes (or when you press *Run radar now*) Docket trial-merges each in-flight branch with the main branch, and pairs of in-flight branches that change the same parts or files. It never writes to the repository and never fetches: it reads the branches your worktrees share. A pair that would conflict shows on both tickets ("Heading for a conflict with GF-240: 3 files"), as a **conflict ahead** marker on Work cards, under **Problems**, and in both agents' context. It clears once the trial merge is clean. Without a repository the card says "Radar off: no repository", and everything else still works.
+
+The radar also runs shortly after an agent reports a branch or a commit. **It sees committed local branches only**, so agents should commit and report early: work that isn't committed is invisible to it. **A clean trial merge means git can combine the branches, not that they work together.**
+
+A real conflict between two branches **stops neither agent**. Docket picks a merge order (the first to merge, or else the earlier claim) and tells both agents which files collide. The later one rebases on the first. If that can't be done mechanically, or would change what the other work does, the agent proposes a resolution, and that reaches you.
 
 ### One root cause, one problem
 

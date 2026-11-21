@@ -287,3 +287,32 @@ export function makeStaleRepo(root: string): { repo: string } {
   git(repo, 'checkout', '-q', 'main');
   return { repo };
 }
+
+/**
+ * Owner decision 39 (B46): the two checks disagree on purpose.
+ * - `add-a` and `add-b` each only **add** a line, at the same place in
+ *   `models.md`. Add-only, yet git reports a real text conflict.
+ * - `clean-a` and `clean-b` change different files, so a trial merge is clean,
+ *   though their declarations can still collide in meaning.
+ */
+export function makeOverlapRepo(root: string): { repo: string } {
+  const repo = join(root, 'overlap-app');
+  mkdirSync(repo, { recursive: true });
+  git(repo, 'init', '-q', '-b', 'main');
+  writeFileSync(join(repo, 'models.md'), text(['# Models', 'Token', 'Deck']));
+  writeFileSync(join(repo, 'a.txt'), text(['a']));
+  writeFileSync(join(repo, 'b.txt'), text(['b']));
+  git(repo, 'add', 'models.md', 'a.txt', 'b.txt');
+  git(repo, 'commit', '-q', '-m', 'Start');
+  const commit = (branch: string, file: string, lines: string[]) => {
+    git(repo, 'checkout', '-q', '-b', branch, 'main');
+    writeFileSync(join(repo, file), text(lines));
+    git(repo, 'commit', '-q', '-am', `${branch} changes ${file}`);
+  };
+  commit('add-a', 'models.md', ['# Models', 'Token', 'Token.expiresAt', 'Deck']);
+  commit('add-b', 'models.md', ['# Models', 'Token', 'Token.scopes', 'Deck']);
+  commit('clean-a', 'a.txt', ['a', 'from a']);
+  commit('clean-b', 'b.txt', ['b', 'from b']);
+  git(repo, 'checkout', '-q', 'main');
+  return { repo };
+}

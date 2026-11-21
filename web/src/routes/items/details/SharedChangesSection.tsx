@@ -4,6 +4,7 @@ import { Link } from 'react-router';
 import {
   SHARED_CHANGES,
   normaliseSharedPartKey,
+  splitPartMember,
   type ItemDetailResponse,
   type ItemSharedResponse,
   type SharedChange,
@@ -28,9 +29,10 @@ import { runOwnerMutation, showToast } from '../../../lib/undo';
 import { errorText } from '../../agent-files/install-common';
 import {
   ChangeChip,
-  OVERLAP_STATE_TEXT,
+  OVERLAP_REASON_WORDS,
   fileCount,
   findingText,
+  overlapOutcomeText,
   partLabel,
   partsText,
 } from '../../shared/sharedChanges';
@@ -120,7 +122,12 @@ function SharedBody({
             <li key={c.part} className="lrow" data-part={c.part}>
               <span className="mono one">{c.part}</span>
               <ChangeChip change={c.change} />
+              {c.design_impact === 'changes_approved_design' && (
+                <Chip kind="warn">changes approved design</Chip>
+              )}
+              {c.disputed && <Chip kind="warn">ownership disputed</Chip>}
               {c.note && <span className="src grow">{c.note}</span>}
+              {c.design_note && <span className="src grow">Design: {c.design_note}</span>}
             </li>
           ))}
         </ul>
@@ -134,19 +141,9 @@ function SharedBody({
       {live.length > 0 && (
         <>
           <h4>Overlaps</h4>
-          {live.map((o) => {
-            const other = o.items[0].id === itemId ? o.items[1] : o.items[0];
-            return (
-              <div key={o.id} className="lrow" data-overlap={o.id}>
-                <span>
-                  Overlaps <Link to={paths.item(other.id)}>{other.id}</Link> on {partsText(o.parts)}
-                </span>
-                <Chip kind={o.state === 'open' ? 'warn' : 'neutral'}>
-                  {OVERLAP_STATE_TEXT[o.state]}
-                </Chip>
-              </div>
-            );
-          })}
+          {live.map((o) => (
+            <OverlapOutcomeRow key={o.id} itemId={itemId} overlap={o} closed={closed} />
+          ))}
         </>
       )}
 
@@ -176,6 +173,10 @@ function SharedBody({
       {s.findings.length > 0 && (
         <>
           <h4>Conflict radar</h4>
+          <p className="src" style={{ margin: 0 }}>
+            The radar sees committed local branches only. A clean trial merge means git can combine
+            them, not that they work together.
+          </p>
           {s.findings.map((f) => {
             const { other, branch, own } = findingText(f, itemId);
             const mine = f.item_a?.id === itemId ? f.source_a : f.source_b;
@@ -186,6 +187,13 @@ function SharedBody({
                   Heading for a conflict with {other}: {fileCount(f.files.length)} ·{' '}
                   <span className="mono">{own}</span> vs <span className="mono">{branch}</span>
                 </span>
+                {f.merge_first && (
+                  <span className="src" data-merge-first={f.merge_first}>
+                    {f.merge_first === itemId
+                      ? 'This item merges first'
+                      : `Rebases after ${f.merge_first} merges`}
+                  </span>
+                )}
                 {mine === 'discovered' && <span className="src">branch found by the radar</span>}
                 <span className="src mono one grow" title={f.files.join('\n')}>
                   {f.files.slice(0, 3).join(', ')}
@@ -194,6 +202,92 @@ function SharedBody({
             );
           })}
         </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * One overlap on the ticket (decision 39): who decided, why, on what evidence.
+ * An outcome Docket chose can be overruled here (*Run in parallel*, *Run in
+ * order*), with Undo on the toast.
+ */
+function OverlapOutcomeRow({
+  itemId,
+  overlap: o,
+  closed,
+}: {
+  itemId: string;
+  overlap: ItemSharedResponse['overlaps'][number];
+  closed: boolean;
+}) {
+  const qc = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  const other = o.items[0].id === itemId ? o.items[1] : o.items[0];
+  const byDocket = o.decided_by === 'docket';
+  const overrule = async (decision: 'parallel' | 'order') => {
+    setBusy(true);
+    try {
+      await runOwnerMutation(
+        () => apiClient['overlaps.overrule']({ params: { id: o.id }, body: { decision } }),
+        {
+          success:
+            decision === 'order'
+              ? `${o.items[1].id} now waits until ${o.items[0].id} is merged.`
+              : `${o.items[0].id} and ${o.items[1].id} now run in parallel.`,
+          refetch: [queryKeys.itemShared(itemId)],
+        },
+      );
+      await qc.invalidateQueries({ queryKey: queryKeys.all });
+    } catch (err) {
+      showToast(errorText(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const changes = o.evidence?.changes ?? [];
+  const textFiles = o.evidence?.text_conflict ?? [];
+  return (
+    <div className="shared-outcome" data-overlap={o.id} data-outcome={o.outcome ?? undefined}>
+      <div className="lrow">
+        <span>
+          Overlaps <Link to={paths.item(other.id)}>{other.id}</Link> on {partsText(o.parts)}
+        </span>
+        <Chip kind={o.state === 'open' ? 'warn' : 'neutral'}>{overlapOutcomeText(o)}</Chip>
+      </div>
+      {o.reason && o.decided_by !== 'owner' && (
+        <p className="src shared-why">
+          {OVERLAP_REASON_WORDS[o.reason]}
+          {o.outcome === 'sequence' && ` ${o.items[1].id} waits until ${o.items[0].id} is merged.`}
+          {o.evidence?.design_note && ` Design: ${o.evidence.design_note}`}
+        </p>
+      )}
+      {changes.length > 0 && (
+        <ul className="sq-files mono" aria-label={`What the overlap with ${other.id} rests on`}>
+          {changes.slice(0, 6).map((c) => (
+            <li key={`${c.item}:${c.part}`}>
+              {c.item} {c.change} {c.part}
+            </li>
+          ))}
+          {changes.length > 6 && <li className="src">and {changes.length - 6} more</li>}
+        </ul>
+      )}
+      {textFiles.length > 0 && (
+        <p className="src shared-why">Lines collide in {textFiles.slice(0, 3).join(', ')}.</p>
+      )}
+      {byDocket && !closed && (
+        <div className="row wrap" style={{ gap: 4 }}>
+          {o.state !== 'compatible' && (
+            <Button size="sm" disabled={busy} onClick={() => void overrule('parallel')}>
+              Run in parallel<span className="sr"> with {other.id}</span>
+            </Button>
+          )}
+          {o.state !== 'sequenced' && (
+            <Button size="sm" disabled={busy} onClick={() => void overrule('order')}>
+              Run in order<span className="sr"> with {other.id}</span>
+            </Button>
+          )}
+        </div>
       )}
     </div>
   );
@@ -463,7 +557,20 @@ interface Row {
   part: string;
   change: SharedChange;
   note: string;
+  /** Decision 39: this change alters an approved design; `designNote` says which. */
+  designed: boolean;
+  designNote: string;
+  disputed: boolean;
 }
+
+const blankRow = (): Row => ({
+  part: '',
+  change: 'change',
+  note: '',
+  designed: false,
+  designNote: '',
+  disputed: false,
+});
 
 /**
  * The declaration editor: the same rules as `declare_shared_changes` (the
@@ -489,8 +596,15 @@ function DeclarationDialog({
   const [none, setNone] = useState(declaration.state === 'none');
   const [rows, setRows] = useState<Row[]>(
     declaration.changes.length > 0
-      ? declaration.changes.map((c) => ({ part: c.part, change: c.change, note: c.note ?? '' }))
-      : [{ part: '', change: 'change', note: '' }],
+      ? declaration.changes.map((c) => ({
+          part: c.part,
+          change: c.change,
+          note: c.note ?? '',
+          designed: c.design_impact === 'changes_approved_design',
+          designNote: c.design_note ?? '',
+          disputed: !!c.disputed,
+        }))
+      : [blankRow()],
   );
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -519,14 +633,26 @@ function DeclarationDialog({
           setError(`“${r.part}” ${k.error}.`);
           return;
         }
+        if (r.designed && !r.designNote.trim()) {
+          setError(`Say which design, decision or acceptance criterion ${k.key} changes.`);
+          return;
+        }
         keys.push(k.key);
       }
-      const fresh = [...new Set(keys.filter((k) => !known.has(k)))];
+      // Decision 39: a member of a registered part isn't a new part.
+      const fresh = [...new Set(keys.filter((k) => !splitPartMember(k, (key) => known.has(key))))];
       body = {
         changes: filled.map((r, i) => ({
           part: keys[i]!,
           change: r.change,
           ...(r.note.trim() ? { note: r.note.trim() } : {}),
+          ...(r.designed
+            ? {
+                design_impact: 'changes_approved_design' as const,
+                design_note: r.designNote.trim(),
+              }
+            : {}),
+          ...(r.disputed ? { disputed: true } : {}),
         })),
         ...(fresh.length > 0 ? { new_parts: fresh.map((key) => ({ key })) } : {}),
       };
@@ -568,7 +694,9 @@ function DeclarationDialog({
       <p className="src" style={{ marginTop: 0 }}>
         The tables, models, endpoints and shared files this item will change. Name parts as{' '}
         <span className="mono">kind:name</span>, for example{' '}
-        <span className="mono">model:Token</span> or <span className="mono">table:decks</span>.
+        <span className="mono">model:Token</span> or <span className="mono">table:decks</span>. Add
+        a member when you can (<span className="mono">model:Token.expiresAt</span>): adding
+        different members runs in parallel, and a bare part could touch anything in it.
       </p>
       <label className="row" htmlFor={ids.none} style={{ gap: 6, margin: '6px 0 10px' }}>
         <input
@@ -625,6 +753,40 @@ function DeclarationDialog({
                 value={r.note}
                 onChange={(e) => set(i, { note: e.target.value })}
               />
+              <div className="shared-edit-extra">
+                <label className="row" htmlFor={`${ids.list}-d${i}`} style={{ gap: 6 }}>
+                  <input
+                    id={`${ids.list}-d${i}`}
+                    type="checkbox"
+                    checked={r.designed}
+                    onChange={(e) => set(i, { designed: e.target.checked })}
+                  />
+                  Changes an approved design
+                </label>
+                <label className="row" htmlFor={`${ids.list}-o${i}`} style={{ gap: 6 }}>
+                  <input
+                    id={`${ids.list}-o${i}`}
+                    type="checkbox"
+                    checked={r.disputed}
+                    onChange={(e) => set(i, { disputed: e.target.checked })}
+                  />
+                  Ownership is disputed
+                </label>
+                {r.designed && (
+                  <div className="shared-edit-design">
+                    <label className="f" htmlFor={`${ids.list}-w${i}`}>
+                      Which design, decision or acceptance criterion
+                    </label>
+                    <input
+                      id={`${ids.list}-w${i}`}
+                      className="input"
+                      maxLength={500}
+                      value={r.designNote}
+                      onChange={(e) => set(i, { designNote: e.target.value })}
+                    />
+                  </div>
+                )}
+              </div>
               <Button
                 size="sm"
                 variant="ghost"
@@ -642,7 +804,7 @@ function DeclarationDialog({
             ref={addRef}
             size="sm"
             icon="plus"
-            onClick={() => setRows((all) => [...all, { part: '', change: 'change', note: '' }])}
+            onClick={() => setRows((all) => [...all, blankRow()])}
           >
             Add a part
           </Button>

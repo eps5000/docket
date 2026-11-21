@@ -54,7 +54,7 @@ import {
   assertReadyGate,
   hasDeclared,
   onItemClosed,
-  undeclaredChanges,
+  settleUndeclared,
 } from './shared-changes.js';
 import type { InverseOp, WriteContext } from './write.js';
 import { addReportedBranch } from './radar.js';
@@ -579,10 +579,11 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
             },
           );
         }
-        // Decision 36 (FR-162): changed files that map to parts the item didn't declare
-        // hold it for the owner; the refusal raises the question in a write of its own.
+        // Decisions 36 and 39 (FR-162, FR-181): undeclared parts get the three questions. Safe
+        // ones join the declaration; one that needs the owner holds the close, and the
+        // refusal raises the question in a write of its own.
         if (input.changed_files?.length) {
-          const held = undeclaredChanges(w.db, item, input.changed_files);
+          const held = settleUndeclared(w, deps.services().links, item, input.changed_files);
           if (held.parts.length > 0) throw new HoldRefusal(item, held.parts, held.files);
         }
         if (item.type === 'Epic') {

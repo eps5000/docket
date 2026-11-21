@@ -532,6 +532,12 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T194 [US5] UI: ticket and epic Decisions list their own scopes with "N project decisions also apply · View"; the project Decisions page (`/projects/:key/decisions`, *All* / *Needs your review*, `?decision=`); the Needs you cards (one per new agent project decision, one grouped card per project for older ones) with *Confirm*, *Withdraw…*, *Acknowledge*, *Open*, *Review*, *Acknowledge all*; links from the switcher, Settings → Projects and Help.
 - [x] T195 [US5] Tests: acknowledge and the card rules (server), the filtering, the line and its count, the page and the cards (web); e2e `b44-project-decisions` with axe in both themes; the sweep spec stays green.
 
+## Phase 26: Overlaps reach the owner only when they need the owner (owner decision 39)
+
+- [x] T196 [contract] Spec plus code in one PR: decision 39 in REQUIREMENTS_DRAFT and the BUILD_SPEC log, amending 36; BUILD_SPEC §5.21 B46; MCP_SPEC §5.15 (declaration inputs, classification in outputs, descriptions, snapshot); UI_SPEC §6.3.6, §6.7; Help; the planner and worker skills. Migration `0015_overlap_autonomy` (additive).
+- [x] T197 [US18] Service: members and `design_impact` on declarations; the classification at claim, on declaration changes and at hand-off; automatic sequences with `merged` blockers; the radar's merge order and its runs on reported branches and commits; Overlap handling (global and per project); overrule with undo; Docket attribution. UI: the ticket's outcomes, the Needs you line, the Settings card, the declaration editor.
+- [x] T198 [US18] Tests: every classification path; the same-line add-only fixture (a text conflict with a merge order, no owner card, neither agent stopped); the clean-merge same-member fixture (sequenced); `changes_approved_design`; all three settings, global and per project; overrule and undo; an unattended multi-agent run; migration of existing overlaps; e2e `b46-overlaps` with axe in both themes; the sweep spec stays green.
+
 ## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.
@@ -574,6 +580,7 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 | B42 | 23 Problems that say what to do (US18) | T186–T189 | Contract and implementation in one PR; snapshot 48 → 49 |
 | B43 | 24 Work filters and the Epics strip (US2) | T190–T192 | Owner feedback; UI API change only, no MCP changes |
 | B44 | 25 Project decisions get their own page (US5) | T193–T195 | Owner feedback; no tool changes; one new event type |
+| B46 | 26 Overlaps reach the owner only when they need the owner (US18) | T196–T198 | Owner decision 39; contract and implementation in one PR; no new tools, snapshot updated |
 
 **Slices after B6 may run in any order that respects** the dependency table below. Don't run two slices at once: they share route and screen groups.
 
@@ -628,6 +635,7 @@ Open a PR titled "<Bn>: <phase name>" with the checkpoint evidence. Do not queue
 | 23 Problems that say what to do | B42 (after B41) |
 | 24 Work filters and the Epics strip | B43 (after B42) |
 | 25 Project decisions get their own page | B44 (after B43) |
+| 26 Overlaps reach the owner only when they need the owner | B46 (after B44) |
 
 **Within a phase:** tests (failing) → services → replace stubs or fill handlers → fill screens → checkpoint.
 

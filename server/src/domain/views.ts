@@ -1005,7 +1005,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
     const deferred = deferredOf(s);
     // Decision 36: overlap questions and undeclared-parts holds are owner questions (a card
     // each, counted as for you); radar findings are Problems ("Heading for a conflict").
-    const shared = needsYouShared(r.db, scope);
+    const shared = needsYouShared(r.db, scope, r.now, deps.config.overlapGraceMs);
     const own = problemsOf({
       s,
       runs,
@@ -1065,6 +1065,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
       // Decision 31: each onboarding ready for review is one card (and counts as for you).
       onboarding_reviews: readySessions(r.db, scope),
       overlaps: shared.overlaps,
+      overlaps_handled: shared.overlaps_handled,
       undeclared_holds: shared.undeclared_holds,
       radar_findings: shared.radar_findings,
       project_decisions: reviews.cards,

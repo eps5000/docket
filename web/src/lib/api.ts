@@ -324,6 +324,8 @@ export const queryKeys = {
   label: (project: string, name: string) => [ROOT, 'labels', project, name] as const,
   decisions: (query: RouteQueryInput<'decisions.list'>) => [ROOT, 'decisions', query] as const,
   settings: () => [ROOT, 'settings'] as const,
+  /** Decision 39: Settings → Overlap handling. */
+  overlapHandling: () => [ROOT, 'overlapHandling'] as const,
   jiraImport: (id: string) => [ROOT, 'jiraImport', id] as const,
   /** The effective set, service-wide or for one project. */
   agentFiles: (query: RouteQueryInput<'agentFiles.list'> = {}) =>

@@ -140,6 +140,10 @@ const EXPECTED = [
   // B40: the owner sets or clears the item's branch for the radar; B41: adds or removes one.
   'POST /api/items/:id/shared/branches',
   'POST /api/overlaps/:id/decide',
+  // Decision 39 (B46): the owner's overrule, and Settings → Overlap handling.
+  'POST /api/overlaps/:id/overrule',
+  'GET /api/settings/overlap-handling',
+  'PUT /api/settings/overlap-handling',
   'POST /api/undeclared-holds/:id/decide',
   'POST /api/leases/:id/release',
   'GET /api/projects/:key/radar',
