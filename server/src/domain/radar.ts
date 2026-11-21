@@ -57,10 +57,10 @@
  * to each item it involves as one note ("Docket's conflict radar: …"), so
  * the items' leads read it on their next `get_item`.
  *
- * **A removed branch stays out (B45):** the owner's remove (*Not an active
- * branch*) is remembered in `items.branches`, so discovery looks for another
- * branch rather than adopting the same one at its next run. Undo, or anyone
- * reporting that name again, brings it back.
+ * **Not an active branch stays out (B45):** that action is remembered in
+ * `items.branches`, so discovery looks for another branch rather than
+ * adopting the same one at its next run. Undo, or anyone reporting that name
+ * again, brings it back. A plain Remove doesn't: the radar may find it again.
  */
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, realpathSync, rmSync, statSync } from 'node:fs';
@@ -306,13 +306,13 @@ export interface Reported {
   by: string | null;
   at: string;
   /**
-   * B45: the owner removed it (*Not an active branch*). Kept in `items.branches`
+   * B45: the owner said it isn't active (*Not an active branch*). Kept in `items.branches`
    * so discovery doesn't adopt it again; reporting the name again lifts it.
    */
   removed?: boolean;
 }
 
-/** Every entry of `items.branches`, including branches the owner removed (B45). */
+/** Every entry of `items.branches`, including those marked not active (B45). */
 function storedBranches(db: Db, itemId: string): Reported[] {
   const row = db.sqlite.prepare('SELECT branches FROM items WHERE id = ?').get(itemId) as
     { branches: string | null } | undefined;

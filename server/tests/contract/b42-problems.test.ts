@@ -310,7 +310,11 @@ describe('card actions (decision 37)', () => {
     return { finding, id: id! };
   };
   const remove = (api: Api) =>
-    api('POST', '/api/items/GF-228/shared/branches', { op: 'remove', branch: 'gf-228-old' });
+    api('POST', '/api/items/GF-228/shared/branches', {
+      op: 'remove',
+      branch: 'gf-228-old',
+      not_active: true,
+    });
 
   it.skipIf(!HAS_GIT)(
     'a radar run between Not an active branch and Undo leaves the undo working (B45)',
@@ -356,6 +360,17 @@ describe('card actions (decision 37)', () => {
       await api('POST', '/api/items/GF-228/shared/branches', { op: 'add', branch: 'gf-228-old' });
       radarRunOnce(h!.server.runtime, 'GF');
       expect(finding()).toBeDefined();
+
+      // A plain Remove (the Shared changes section) still lets the radar find it by name.
+      await api('POST', '/api/items/GF-228/shared/branches', {
+        op: 'remove',
+        branch: 'gf-228-old',
+      });
+      radarRunOnce(h!.server.runtime, 'GF');
+      expect((await api('GET', '/api/items/GF-228/shared')).body.branches).toMatchObject({
+        reported: [],
+        discovered: 'gf-228-old',
+      });
     },
     60_000,
   );
