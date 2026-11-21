@@ -357,16 +357,17 @@ const OUTPUTS: Record<string, string[]> = {
   finish_onboarding: ['session_id', 'state', 'changes'],
   get_step: ['step', 'history'],
   apply_batch: ['applied', 'failed', 'results'],
-  declare_shared_changes: ['declaration', 'registered', 'overlaps', 'design_hold'],
+  declare_shared_changes: ['declaration', 'registered', 'overlaps'],
   list_shared_parts: ['project', 'parts'],
   take_lease: ['part', 'item_id', 'held_until', 'renewed'],
   release_lease: ['part', 'item_id', 'released'],
   propose_resolution: ['resolution', 'superseded'],
 };
 
-/** Optional result fields, from the §5 Output lines (decision 36: a held packet). */
+/** Optional result fields, from the §5 Output lines (decisions 36 and 39: what's held). */
 const OPTIONAL_OUTPUTS: Record<string, string[]> = {
-  submit_packet: ['held_undeclared'],
+  submit_packet: ['held_undeclared', 'held_design'],
+  declare_shared_changes: ['design_hold'],
 };
 
 const MUTATING = specDescriptions()

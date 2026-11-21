@@ -186,7 +186,7 @@ describe('already claimed', () => {
   }
 
   it('keeps the claim, tells the agent, and refuses a close', async () => {
-    const api = await start();
+    await start();
     const created = await ready('Close me', [plain('model:Token.expiresAt')]);
     expectOk(await claim(created, h!.a));
     expectOk(await declare(created, [designed()]));
@@ -198,8 +198,6 @@ describe('already claimed', () => {
       'design_review',
     );
     expect(statusOf(created)).toBe('progress');
-  });
-    expect(res.status).toBe(409);
   });
 
   it('holds a packet: the review gate stays closed until the owner approves', async () => {
