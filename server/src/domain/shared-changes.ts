@@ -1224,7 +1224,49 @@ export function onItemClosed(w: WriteContext, itemId: string, to: 'done' | 'canc
     itemId,
     to === 'done' ? 'done' : w.actor.kind === 'owner' ? 'owner_released' : 'released',
   );
+  if (to === 'canceled') releaseDocketBlockers(w, itemId);
   resolveOverlaps(w, itemId);
+}
+
+/**
+ * Decision 39: a canceled item never merges, so the blockers Docket added from
+ * it would strand the waiting items and turn into an owner problem. They go
+ * with it. A blocker the owner or an agent added stays.
+ */
+function releaseDocketBlockers(w: WriteContext, itemId: string): void {
+  const rows = w.db.sqlite
+    .prepare(
+      `SELECT * FROM part_overlaps WHERE claimed_first = ? AND decided_by = 'docket'
+       AND state = 'sequenced' AND link_id IS NOT NULL`,
+    )
+    .all(itemId) as Record<string, unknown>[];
+  const docket = asDocket(w);
+  for (const row of rows) {
+    const linkId = row.link_id as string;
+    const other = row.item_a === itemId ? (row.item_b as string) : (row.item_a as string);
+    const inverse = docket.remove('links', linkId);
+    const blocked = new BlockIndex(w.db).state(other).blocked;
+    docket.event({
+      type: 'link.removed',
+      summary: `Docket removed: ${itemId} blocks ${other}, because ${itemId} was canceled`,
+      item_id: other,
+      project_key: row.project_key as string,
+      data: {
+        link_id: linkId,
+        from: itemId,
+        to: other,
+        type: 'blocks',
+        satisfied_when: 'merged',
+        reblocked: [],
+        unblocked: blocked ? [] : [other],
+      },
+      inverse: [inverse],
+      objects: [
+        { kind: 'item', id: itemId },
+        { kind: 'link', id: linkId },
+      ],
+    });
+  }
 }
 
 // ---- Changed files ----

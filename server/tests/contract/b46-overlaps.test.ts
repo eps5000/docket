@@ -266,6 +266,33 @@ describe('sequence automatically', () => {
     expect(sql().prepare('SELECT count(*) AS n FROM part_overlaps').get()).toEqual({ n: 1 });
   });
 
+  it('canceling the item that goes first frees the waiting one, with no owner problem', async () => {
+    const api = await start();
+    const { first, second } = await pair(
+      [{ part: 'table:decks', change: 'change' }],
+      [{ part: 'table:decks', change: 'change' }],
+    );
+    expect(blockers(second)).toEqual([`${first}:merged`]);
+    expectOk(
+      await h!.call('set_status', { id: first, status: 'canceled', reason: 'Not needed' }, h!.a),
+    );
+    expect(blockers(second)).toEqual([]);
+    const needs = await needsYou(api);
+    expect((needs.problems as { kind: string }[]).map((p) => p.kind)).not.toContain(
+      'canceled_blocker',
+    );
+    expectOk(await claim(second));
+  });
+
+  it('a blocker someone else added stays when its item is canceled', async () => {
+    await start();
+    const first = await ready('First', null);
+    const second = await ready('Second', null);
+    expectOk(await h!.call('link_items', { from: first, to: second, type: 'blocks' }));
+    expectOk(await h!.call('set_status', { id: first, status: 'canceled', reason: 'No' }));
+    expect(blockers(second)).toHaveLength(1);
+  });
+
   it('narrowing a declaration reclassifies the pair and removes the blocker Docket added', async () => {
     await start();
     const { first, second } = await pair(
