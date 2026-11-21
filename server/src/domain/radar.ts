@@ -61,6 +61,14 @@
  * `items.branches`, so discovery looks for another branch rather than
  * adopting the same one at its next run. Undo, or anyone reporting that name
  * again, brings it back. A plain Remove doesn't: the radar may find it again.
+ *
+ * **Text conflicts get a merge order (B46; owner decision 39):** a real
+ * conflict between two in-flight branches stops neither agent. Docket picks
+ * who merges first (the first to merge, or the earlier claim) and tells both
+ * leads; the later one rebases. The radar answers only whether the *lines*
+ * collide, and it sees committed local branches only. A clean trial merge
+ * means git can combine them, not that they work together, so it never
+ * overrides a sequence decided from the declarations (overlap-policy.ts).
  */
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, realpathSync, rmSync, statSync } from 'node:fs';
@@ -84,6 +92,10 @@ import type { InverseOp, WriteContext } from './write.js';
 
 /** How often the scheduler runs the radar (BUILD_SPEC §5.21: at least every 15 minutes). */
 export const RADAR_INTERVAL_MS = 15 * 60_000;
+/** Decision 39: how soon after a reported branch or commit the radar runs. */
+export const RADAR_DEBOUNCE_MS = 10_000;
+/** Decision 39: a project's radar runs at most this often on reports. */
+export const RADAR_MIN_GAP_MS = 60_000;
 
 export const RADAR_OFF_NO_REPO = 'Radar off: no repository';
 
@@ -234,6 +246,11 @@ export class RadarGit {
     return r.stdout.split('\n').filter(Boolean);
   }
 
+  /** Decision 39: whether `ref`'s commits are already on `base` (the branch has merged). */
+  merged(ref: string, base: string): boolean {
+    return git(this.dir, ['merge-base', '--is-ancestor', ref, base], this.env).status === 0;
+  }
+
   /** Trial-merge two refs: the conflicting files (empty when clean), or null when git failed. */
   merge(a: string, b: string): string[] | null {
     const r = git(
@@ -265,6 +282,8 @@ interface Check {
   source_b: BranchSource | null;
   /** Conflicting files; empty when the trial merge is clean. */
   files: string[];
+  /** Decision 39: for two items' branches, which item merges first. Null with main. */
+  merge_first?: string | null;
 }
 
 /** What discovery found for an in-flight item with no reported branch (B40). */
@@ -455,6 +474,30 @@ export function branchesNaming(keys: (string | null)[], branches: string[]): str
   return branches.filter((b) => patterns.some((p) => p.test(b))).sort();
 }
 
+/** When the item's current lead claimed it (its latest lead run), for "claimed first". */
+export function claimedAt(db: Db, itemId: string): string {
+  const row = db.sqlite
+    .prepare('SELECT max(created_at) AS at FROM runs WHERE item_id = ? AND is_lead = 1')
+    .get(itemId) as { at: string | null };
+  return row.at ?? '9999';
+}
+
+/**
+ * Decision 39: which of two conflicting items merges first. The first to
+ * merge wins; if neither has, the earlier claim; the item ID settles a tie,
+ * so a repeat run gives the same order.
+ */
+export function mergeOrder(
+  db: Db,
+  a: { id: string; merged: boolean },
+  b: { id: string; merged: boolean },
+): string {
+  if (a.merged !== b.merged) return a.merged ? a.id : b.id;
+  const [atA, atB] = [claimedAt(db, a.id), claimedAt(db, b.id)];
+  if (atA !== atB) return atA < atB ? a.id : b.id;
+  return a.id < b.id ? a.id : b.id;
+}
+
 function reportedFiles(db: Db, itemId: string): string[] {
   const row = db.sqlite
     .prepare(
@@ -594,6 +637,15 @@ export function planRadar(r: ReadContext, config: Config, project: string): Rada
           source_a: a.source,
           source_b: b.source,
           files,
+          // Decision 39: a real text conflict gets a merge order; it stops neither agent.
+          merge_first:
+            files.length > 0
+              ? mergeOrder(
+                  db,
+                  { id: a.id, merged: g.merged(a.ref, main) },
+                  { id: b.id, merged: g.merged(b.ref, main) },
+                )
+              : null,
         });
       }
     }
@@ -648,6 +700,7 @@ export function recordRadar(w: WriteContext, plan: RadarPlan): void {
         source_a: c.source_a,
         source_b: c.source_b,
         seen_at: w.now,
+        merge_first: c.merge_first ?? null,
       });
     } else {
       id = newId('rdf', ms(w.now));
@@ -664,6 +717,7 @@ export function recordRadar(w: WriteContext, plan: RadarPlan): void {
           files: c.files,
           seen_at: w.now,
           cleared_at: null,
+          merge_first: c.merge_first ?? null,
         },
         new Set(),
       );
@@ -682,8 +736,11 @@ export function recordRadar(w: WriteContext, plan: RadarPlan): void {
         files: c.files,
         seen_at: w.now,
         cleared_at: null,
+        merge_first: c.merge_first ?? null,
       });
     }
+    // Decision 39: the live overlap between the two items, if any, shows the real conflict.
+    if (c.item_b) noteTextConflict(w, c.item_a, c.item_b, c.files);
     for (const [self, other, otherBranch, ownBranch, source] of [
       [c.item_a, c.item_b, c.branch_b, c.branch_a, c.source_a],
       ...(c.item_b ? [[c.item_b, c.item_a, c.branch_a, c.branch_b, c.source_b] as const] : []),
@@ -704,6 +761,7 @@ export function recordRadar(w: WriteContext, plan: RadarPlan): void {
           source_a: c.source_a,
           source_b: c.source_b,
           files: c.files.slice(0, 50),
+          merge_first: c.merge_first ?? null,
         },
         objects: [{ kind: 'radar_finding', id }],
       });
@@ -712,8 +770,30 @@ export function recordRadar(w: WriteContext, plan: RadarPlan): void {
   for (const f of open) {
     if (still.has(key(f.branch_a, f.branch_b))) continue;
     clearFinding(w, f);
+    if (f.item_a && f.item_b) noteTextConflict(w, f.item_a as string, f.item_b as string, []);
   }
   for (const [item, lines] of notes) postRadarNote(w, plan.project, item, lines);
+}
+
+/**
+ * Decision 39: keep the pair's overlap evidence current with what the radar
+ * sees. This is evidence only: a clean trial merge never makes a sequenced
+ * pair safe, and a text conflict doesn't change the semantic outcome.
+ */
+function noteTextConflict(w: WriteContext, a: string, b: string, files: string[]): void {
+  const [x, y] = a < b ? [a, b] : [b, a];
+  const row = w.db.sqlite
+    .prepare(
+      `SELECT id, evidence FROM part_overlaps
+       WHERE item_a = ? AND item_b = ? AND state <> 'resolved' AND evidence IS NOT NULL`,
+    )
+    .get(x, y) as { id: string; evidence: string } | undefined;
+  if (!row) return;
+  const evidence = JSON.parse(row.evidence) as { text_conflict: string[] };
+  if (JSON.stringify(evidence.text_conflict) === JSON.stringify(files)) return;
+  w.db.sqlite
+    .prepare('UPDATE part_overlaps SET evidence = ? WHERE id = ?')
+    .run(JSON.stringify({ ...evidence, text_conflict: files }), row.id);
 }
 
 /**
@@ -825,6 +905,41 @@ export function finishRadar(r: ReadContext, plan: RadarPlan): void {
        WHERE key = ? AND deleted_at IS NULL`,
     )
     .run(plan.off ? null : r.now, plan.off, plan.project);
+  // Decision 39: an open finding keeps its merge order current (the first branch to merge
+  // takes the lead). Bookkeeping like the run's time, so an unchanged run writes no event.
+  const order = r.db.sqlite.prepare(
+    `UPDATE radar_findings SET merge_first = @first
+     WHERE project_key = @project AND branch_a = @a AND branch_b = @b AND cleared_at IS NULL
+       AND merge_first IS NOT @first`,
+  );
+  for (const c of plan.checks) {
+    if (c.item_b && c.files.length > 0) {
+      order.run({
+        first: c.merge_first ?? null,
+        project: plan.project,
+        a: c.branch_a,
+        b: c.branch_b,
+      });
+    }
+  }
+}
+
+/**
+ * Decision 39: the projects with a repository where one of these events
+ * reported a branch or a commit, so the radar should run soon. The radar's
+ * own events are not triggers, so a run can't schedule another.
+ */
+export function radarTriggers(db: Db, seqs: readonly number[]): string[] {
+  if (seqs.length === 0) return [];
+  const rows = db.sqlite
+    .prepare(
+      `SELECT DISTINCT e.project_key AS key FROM events e JOIN projects p ON p.key = e.project_key
+       WHERE e.seq IN (${seqs.map(() => '?').join(', ')})
+         AND e.type IN ('branch.reported', 'commit.reported', 'claim.granted', 'packet.submitted')
+         AND p.repo_path IS NOT NULL AND p.deleted_at IS NULL`,
+    )
+    .all(...seqs) as { key: string }[];
+  return rows.map((r) => r.key);
 }
 
 /** Projects whose radar has a repository set, for the scheduler. */

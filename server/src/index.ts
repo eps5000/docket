@@ -9,7 +9,13 @@ import { SYSTEM_ACTOR } from './domain/write.js';
 import { holdServerLock, startBackupJob } from './jobs/backup.js';
 import { syncBundledFiles } from './jobs/bundled.js';
 import { startupHousekeeping } from './jobs/startup.js';
-import { restartSweep, startDriftCheck, startRadar, startSweeper } from './jobs/sweeper.js';
+import {
+  classifyLegacyOverlapsOnce,
+  restartSweep,
+  startDriftCheck,
+  startRadar,
+  startSweeper,
+} from './jobs/sweeper.js';
 import { createRuntime } from './runtime.js';
 import { APP_VERSION } from './version.js';
 
@@ -67,6 +73,8 @@ const backups = startBackupJob({
     runtime.services.backup.runNow(readContext(runtime.db, SYSTEM_ACTOR, runtime.clock())),
 });
 // Lease expiry and the 60 s pings to sessions of open runs (BUILD_SPEC §5.3, §5.4).
+// Decision 39: overlaps from before it get the new rule once.
+classifyLegacyOverlapsOnce(runtime);
 const sweeper = startSweeper(runtime);
 // The push folder's drift check, at startup and every DOCKET_DRIFT_CHECK_INTERVAL (decision 30).
 const driftCheck = startDriftCheck(runtime);

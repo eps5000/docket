@@ -28,6 +28,7 @@ import { onboardingSessionSchema } from './onboarding.js';
 import { WORK_CHECKS, WORK_QUICK, WORK_SHOWS } from '../work-filter.js';
 import { problemAckSchema, problemExplanationSchema, resolutionRowSchema } from './problems.js';
 import {
+  designReviewRowSchema,
   overlapRowSchema,
   radarFindingRowSchema,
   undeclaredHoldRowSchema,
@@ -199,7 +200,16 @@ export const needsYouResponse = jsonResponse({
    */
   overlaps: z.array(overlapRowSchema).optional(),
   undeclared_holds: z.array(undeclaredHoldRowSchema).optional(),
+  /** Decision 39 (B46; optional): open reviews of a change to an approved design, a card each. */
+  design_reviews: z.array(designReviewRowSchema).optional(),
   radar_findings: z.array(radarFindingRowSchema).optional(),
+  /**
+   * Decision 39 (B46; optional): the quiet line "Docket handled N overlaps
+   * today", with the overlaps it links to (up to 20, newest first).
+   */
+  overlaps_handled: z
+    .object({ count: z.number().int(), rows: z.array(overlapRowSchema) })
+    .optional(),
   /**
    * Decision 37 (B42; optional): agent problems the items' leads are still
    * within their grace period to fix, so they aren't in `problems` yet: the

@@ -37,20 +37,33 @@
  * - **`get_context.shared`** (`contextFor`; context.ts cuts it to the budget).
  *
  * The conflict radar (T184) is radar.ts.
+ *
+ * B46 (owner decision 39) changes who answers an overlap. `overlap-policy.ts`
+ * classifies each pair from the declarations: run in parallel, sequence them
+ * (a `merged` blocker, first claimed goes first), or ask the owner. It runs at
+ * the claim, when a declaration changes and at hand-off. Automatic outcomes
+ * are recorded as Docket (`decided_by: 'docket'`); the owner can overrule them
+ * from the ticket, with undo. A pair the owner decided is never reclassified.
  */
 import {
   IN_FLIGHT_STATUSES,
   LIMITS,
   ToolError,
+  splitPartMember,
   type BranchSource,
   type ContextShared,
   type ItemBranches,
   type Declaration,
   type DeclaredChange,
+  type DesignReviewRow,
   type InFlightChange,
   type ItemSharedResponse,
   type LeaseRow,
+  type OverlapEvidence,
   type OverlapFound,
+  type OverlapHandlingResponse,
+  type OverlapOutcome,
+  type OverlapReason,
   type OverlapRow,
   type RadarFindingRow,
   type RadarResponse,
@@ -62,9 +75,34 @@ import {
   type UndeclaredHoldRow,
 } from '@docket/shared';
 import type { Db } from '../db/client.js';
-import { type ReadContext, type ServiceDeps, type SharedChangesService } from './contracts.js';
-import { newId } from './ids.js';
 import {
+  type LinksService,
+  type ReadContext,
+  type ServiceDeps,
+  type SharedChangesService,
+} from './contracts.js';
+import {
+  decideDesignReview,
+  designHold,
+  itemDesignReviews,
+  openDesignReviews,
+  syncDesignReview,
+  withdrawDesignReviews,
+} from './design-review.js';
+import { newId } from './ids.js';
+import { cycleFor } from './links.js';
+import {
+  asDocket,
+  classifyPair,
+  defaultHandling,
+  overlapHandling,
+  OVERLAP_REASON_TEXT,
+  writeDefaultHandling,
+  type Classification,
+  type PolicyChange,
+} from './overlap-policy.js';
+import {
+  claimedAt,
   clearFinding,
   finishRadar,
   planRadar,
@@ -77,6 +115,7 @@ import {
 } from './radar.js';
 import {
   activeLead,
+  BlockIndex,
   callerName,
   isoPlus,
   leaseExpired,
@@ -86,7 +125,7 @@ import {
   type RunRow,
 } from './model.js';
 import type { InverseOp, WriteContext } from './write.js';
-import { explain } from './problems.js';
+import { explain, graceText } from './problems.js';
 
 // ---- Rows ----
 
@@ -111,7 +150,16 @@ interface ChangeRow {
   note: string | null;
   declared_by: string;
   declared_at: string;
+  /** Decision 39: the member `part_key` names; null is a bare part. */
+  member: string | null;
+  design_impact: 'none' | 'changes_approved_design';
+  design_note: string | null;
+  disputed: number;
 }
+
+/** The registered part a declared change belongs to (`model:Token.expiresAt` → `model:Token`). */
+const baseOf = (r: { part_key: string; member: string | null }) =>
+  r.member === null ? r.part_key : r.part_key.slice(0, -(r.member.length + 1));
 
 const statusSql = (statuses: readonly Status[]) => `(${statuses.map((s) => `'${s}'`).join(', ')})`;
 
@@ -141,7 +189,10 @@ function partByKey(db: Db, project: string, key: string): PartRow | undefined {
 
 const kindOf = (key: string) => key.slice(0, key.indexOf(':')) as SharedPartKind;
 
-/** The in-flight items (other than `except`) that declared a change to `key`, by item ID. */
+/**
+ * The in-flight items (other than `except`) that declared a change to the
+ * registered part `key`, or to one of its members (decision 39), by item ID.
+ */
 function inFlightFor(
   db: Db,
   project: string,
@@ -151,20 +202,41 @@ function inFlightFor(
 ): InFlightChange[] {
   const rows = db.sqlite
     .prepare(
-      `SELECT i.id, i.title, i.status, c.change, c.note
+      `SELECT i.id, i.title, i.status, c.change, c.note, c.member
        FROM item_shared_changes c JOIN items i ON i.id = c.item_id
-       WHERE i.project_key = ? AND c.part_key = ? AND i.status IN ${statusSql(statuses)}
-         AND i.archived_at IS NULL AND i.id <> ?
-       ORDER BY length(i.id), i.id`,
+       WHERE i.project_key = @project
+         AND (c.part_key = @key OR (c.member IS NOT NULL AND c.part_key = @key || '.' || c.member))
+         AND i.status IN ${statusSql(statuses)}
+         AND i.archived_at IS NULL AND i.id <> @except
+       ORDER BY length(i.id), i.id, c.part_key`,
     )
-    .all(project, key, except ?? '') as {
+    .all({ project, key, except: except ?? '' }) as {
     id: string;
     title: string;
     status: Status;
     change: SharedChange;
     note: string | null;
+    member: string | null;
   }[];
-  return rows;
+  return rows.map(({ member, ...r }) => (member === null ? r : { ...r, member }));
+}
+
+/** An item's declared changes, as the classification reads them (decision 39). */
+function policyChanges(db: Db, itemId: string): PolicyChange[] {
+  return (
+    db.sqlite
+      .prepare('SELECT * FROM item_shared_changes WHERE item_id = ? ORDER BY part_key')
+      .all(itemId) as ChangeRow[]
+  ).map((r) => ({
+    part: r.part_key,
+    base: baseOf(r),
+    member: r.member,
+    kind: kindOf(r.part_key),
+    change: r.change,
+    design_impact: r.design_impact,
+    design_note: r.design_note,
+    disputed: !!r.disputed,
+  }));
 }
 
 function liveLease(db: Db, project: string, key: string, now: string) {
@@ -222,6 +294,12 @@ function declarationOf(db: Db, itemId: string): Declaration {
     kind: kindOf(r.part_key),
     change: r.change,
     note: r.note,
+    // Decision 39: present only when they say something.
+    ...(r.member !== null ? { member: r.member } : {}),
+    ...(r.design_impact !== 'none'
+      ? { design_impact: r.design_impact, design_note: r.design_note ?? '' }
+      : {}),
+    ...(r.disputed ? { disputed: true } : {}),
   }));
   if (rows.length > 0) {
     const latest = rows.reduce((a, b) => (b.declared_at > a.declared_at ? b : a));
@@ -276,48 +354,69 @@ function sequenced(db: Db, a: string, b: string): boolean {
     .get(a, b, b, a);
 }
 
-/** Whether the owner marked the pair compatible (a live overlap in state `compatible`). */
-function compatible(db: Db, a: string, b: string): boolean {
-  const [x, y] = a < b ? [a, b] : [b, a];
-  return !!db.sqlite
-    .prepare(
-      `SELECT 1 FROM part_overlaps WHERE item_a = ? AND item_b = ? AND state = 'compatible' LIMIT 1`,
-    )
-    .get(x, y);
-}
+/** An overlap with its classification and what it rests on (decision 39). */
+export type ClassifiedOverlap = OverlapFound & {
+  outcome: OverlapOutcome;
+  reason: OverlapReason;
+  evidence: OverlapEvidence;
+};
 
 /**
- * The other in-flight items that declare any of `keys`, grouped by item:
- * an overlap unless the pair is compatible or sequenced by a `blocks` link
- * (BUILD_SPEC §5.21 Overlap at claim). B39's claim check reuses it.
+ * The other in-flight items that share a part with this item, each classified
+ * (decision 39; BUILD_SPEC §5.21). A pair the owner decided is left out, and
+ * so is one a `blocks` link already sequences, unless `docketLinks` asks for
+ * the links Docket added itself, so a changed declaration can undo them.
  */
 export function overlapsFor(
   db: Db,
   itemId: string,
   project: string,
-  keys: string[],
   statuses: readonly Status[] = IN_FLIGHT_STATUSES,
-): OverlapFound[] {
-  const byItem = new Map<string, OverlapFound>();
-  for (const key of keys) {
+  docketLinks = false,
+): ClassifiedOverlap[] {
+  const mine = policyChanges(db, itemId);
+  if (mine.length === 0) return [];
+  const mode = overlapHandling(db, project);
+  const peers = new Map<string, InFlightChange>();
+  for (const key of new Set(mine.map((c) => c.base))) {
     for (const other of inFlightFor(db, project, key, itemId, statuses)) {
-      let found = byItem.get(other.id);
-      if (!found) {
-        if (compatible(db, itemId, other.id) || sequenced(db, itemId, other.id)) continue;
-        found = { with: { id: other.id, title: other.title, status: other.status }, parts: [] };
-        byItem.set(other.id, found);
-      }
-      found.parts.push(key);
+      if (!peers.has(other.id)) peers.set(other.id, other);
     }
   }
-  return [...byItem.values()];
+  const out: ClassifiedOverlap[] = [];
+  for (const other of peers.values()) {
+    const live = liveOverlapRow(db, itemId, other.id);
+    if (live?.decided_by === 'owner') continue;
+    const ours = live?.decided_by === 'docket' && live.link_id !== null;
+    if (sequenced(db, itemId, other.id) && !(docketLinks && ours)) continue;
+    const c = classifyPair(itemId, mine, other.id, policyChanges(db, other.id), mode);
+    if (!c) continue;
+    out.push({
+      with: { id: other.id, title: other.title, status: other.status },
+      parts: c.parts,
+      outcome: c.outcome,
+      reason: c.reason,
+      evidence: c.evidence,
+    });
+  }
+  return out;
 }
+
+/** What `declare_shared_changes` returns: the classification, without the evidence. */
+const publicOverlap = ({ evidence: _evidence, ...found }: ClassifiedOverlap): OverlapFound => found;
 
 // ---- Declaring ----
 
 interface DeclareInput {
   id: string;
-  changes?: { part: string; change: SharedChange; note?: string }[];
+  changes?: {
+    part: string;
+    change: SharedChange;
+    note?: string;
+    design_impact?: 'none' | 'changes_approved_design';
+    design_note?: string;
+    disputed?: boolean;
+  }[];
   none?: true;
   new_parts?: {
     key: string;
@@ -358,6 +457,7 @@ function insertPart(
 /** Replace an item's declaration (the agent tool and the owner's route share it). */
 function declare(
   w: WriteContext,
+  links: OverlapLinks,
   input: DeclareInput,
 ): { declaration: Declaration; registered: string[]; overlaps: OverlapFound[] } {
   const db = w.db;
@@ -374,8 +474,13 @@ function declare(
 
   // New parts first, so the changes can name them.
   const registered: string[] = [];
+  const named = new Set((input.new_parts ?? []).map((p) => p.key));
   for (const part of input.new_parts ?? []) {
     if (partByKey(db, project, part.key)) continue; // already registered: reused as it is
+    // Decision 39: a member of a part isn't a part of its own, or two items adding to the
+    // same model would never meet.
+    const isOther = (k: string) => k !== part.key && (named.has(k) || !!partByKey(db, project, k));
+    if (splitPartMember(part.key, isOther)?.member) continue;
     const { id, inverse } = insertPart(
       w,
       project,
@@ -396,10 +501,14 @@ function declare(
   const changes = input.changes ?? [];
   const missing: string[] = [];
   const archived: string[] = [];
+  // Decision 39: `model:Token.expiresAt` is member `expiresAt` of the registered `model:Token`.
+  const members = new Map<string, string | null>();
   for (const c of changes) {
-    const part = partByKey(db, project, c.part);
-    if (!part) missing.push(c.part);
+    const split = splitPartMember(c.part, (key) => !!partByKey(db, project, key));
+    const part = split ? partByKey(db, project, split.part) : undefined;
+    if (!split || !part) missing.push(c.part);
     else if (part.archived_at) archived.push(c.part);
+    else members.set(c.part, split.member);
   }
   if (missing.length > 0 || archived.length > 0) {
     const parts = [
@@ -425,12 +534,26 @@ function declare(
   for (const c of changes) {
     const row = existing.find((r) => r.part_key === c.part);
     const note = c.note ?? null;
+    const precise = {
+      member: members.get(c.part) ?? null,
+      design_impact: c.design_impact ?? 'none',
+      design_note: c.design_note?.trim() || null,
+      disputed: c.disputed ?? false,
+    };
     if (row) {
-      if (row.change !== c.change || row.note !== note) {
+      if (
+        row.change !== c.change ||
+        row.note !== note ||
+        row.member !== precise.member ||
+        row.design_impact !== precise.design_impact ||
+        row.design_note !== precise.design_note ||
+        !!row.disputed !== precise.disputed
+      ) {
         inverse.push(
           w.update('item_shared_changes', row.id, {
             change: c.change,
             note,
+            ...precise,
             declared_by: who,
             declared_at: w.now,
           }),
@@ -444,6 +567,7 @@ function declare(
           part_key: c.part,
           change: c.change,
           note,
+          ...precise,
           declared_by: who,
           declared_at: w.now,
         }),
@@ -495,30 +619,21 @@ function declare(
   });
   if (branches !== undefined) replaceBranches(w, item, branches);
 
-  // Declaring later (BUILD_SPEC §5.21): while the item is claimed, a new overlap with other
-  // claimed work flags both items and raises the question, without revoking either claim.
-  // Undecided pairs that no longer share a part resolve.
-  resolveOverlaps(w, item.id);
-  if (!input.none && (CLAIMED_STATUSES as readonly Status[]).includes(item.status)) {
-    const keys = changes.map((c) => c.part);
-    for (const o of overlapsFor(db, item.id, project, keys, CLAIMED_STATUSES)) {
-      const mineFirst = claimedAt(db, item.id) < claimedAt(db, o.with.id);
-      const [first, other] = mineFirst ? [item.id, o.with.id] : [o.with.id, item.id];
-      raiseOverlap(w, project, first, other, o.parts, 'declared');
-    }
-  }
+  // Declaring later (BUILD_SPEC §5.21; decision 39): while the item is claimed, each overlap
+  // with other claimed work is classified again, without revoking either claim. Pairs that
+  // no longer share a part resolve.
+  syncOverlaps(w, links, item.id);
+  // Decision 39: a change to an approved design goes to the owner, overlap or not.
+  syncDesignReview(w, item);
+  const hold = designHold(db, item.id);
 
   return {
+    ...(hold ? { design_hold: hold } : {}),
     declaration: declarationOf(db, item.id),
     registered,
     overlaps: input.none
       ? []
-      : overlapsFor(
-          db,
-          item.id,
-          project,
-          changes.map((c) => c.part),
-        ),
+      : overlapsFor(db, item.id, project, IN_FLIGHT_STATUSES, true).map(publicOverlap),
   };
 }
 
@@ -649,13 +764,12 @@ function partsText(keys: string[]): string {
     : `${shown.slice(0, -1).join(', ')} and ${shown[shown.length - 1]!}`;
 }
 
-/** The parts an item declares, by key. */
+/** The registered parts an item declares, by key (a member counts as its part). */
 export function declaredKeys(db: Db, itemId: string): string[] {
-  return (
-    db.sqlite
-      .prepare('SELECT part_key FROM item_shared_changes WHERE item_id = ? ORDER BY part_key')
-      .all(itemId) as { part_key: string }[]
-  ).map((r) => r.part_key);
+  const rows = db.sqlite
+    .prepare('SELECT part_key, member FROM item_shared_changes WHERE item_id = ? ORDER BY part_key')
+    .all(itemId) as { part_key: string; member: string | null }[];
+  return [...new Set(rows.map(baseOf))].sort();
 }
 
 /** Whether the item has declared its shared changes: one or more parts, or none. */
@@ -685,14 +799,6 @@ export function assertReadyGate(db: Db, item: { id: string }, owner = false): vo
   );
 }
 
-/** When the item's current lead claimed it (its latest lead run), for "claimed first". */
-function claimedAt(db: Db, itemId: string): string {
-  const row = db.sqlite
-    .prepare('SELECT max(created_at) AS at FROM runs WHERE item_id = ? AND is_lead = 1')
-    .get(itemId) as { at: string | null };
-  return row.at ?? '9999';
-}
-
 function liveOverlapRow(db: Db, a: string, b: string) {
   const [x, y] = a < b ? [a, b] : [b, a];
   return db.sqlite
@@ -700,79 +806,195 @@ function liveOverlapRow(db: Db, a: string, b: string) {
     .get(x, y) as Record<string, unknown> | undefined;
 }
 
+/** The two calls an automatic sequence needs from the `links` service. */
+export type OverlapLinks = Pick<LinksService, 'link' | 'unlink'>;
+
+type OverlapWhy = 'claim' | 'declared' | 'handoff';
+
+const DOCKET_STATE: Record<OverlapOutcome, 'compatible' | 'sequenced' | 'open'> = {
+  parallel: 'compatible',
+  sequence: 'sequenced',
+  owner: 'open',
+};
+
 /**
- * Open the owner question for a pair (BUILD_SPEC §5.21; FR-160): one
- * `part_overlaps` row per pair, never a second while one is live. `first` is
- * the item claimed first (*Run one after the other* makes it the blocker).
- * Events `overlap.raised` on both items. Returns the new row's ID, or null
- * when the pair already has a live question (its parts are kept current).
+ * Record a pair's outcome (decision 39; BUILD_SPEC §5.21): one `part_overlaps`
+ * row per pair, never a second while one is live. `first` is the item claimed
+ * first; a sequence makes it the blocker with a `merged` link. A pair the
+ * owner decided is left alone, and an outcome that hasn't changed writes no
+ * event. Everything is recorded as Docket and carries its inverse, so it goes
+ * back with an owner's undoable change.
  */
-export function raiseOverlap(
+function applyOutcome(
   w: WriteContext,
+  links: OverlapLinks,
   project: string,
-  first: string,
-  other: string,
-  parts: string[],
-  why: 'claim' | 'declared',
-): string | null {
-  const live = liveOverlapRow(w.db, first, other);
-  if (live) {
-    const had = parseList(live.parts as string);
-    const merged = [...new Set([...had, ...parts])].sort();
-    if (live.state === 'open' && merged.length !== had.length) {
-      w.update('part_overlaps', live.id as string, { parts: merged });
-    }
-    return null;
+  claimedFirst: string,
+  claimedOther: string,
+  c: Pick<Classification, 'outcome' | 'reason' | 'parts' | 'evidence'>,
+  why: OverlapWhy,
+): void {
+  const live = liveOverlapRow(w.db, claimedFirst, claimedOther);
+  if (live?.decided_by === 'owner') return;
+  const first = (live?.claimed_first as string | undefined) ?? claimedFirst;
+  const other = first === claimedFirst ? claimedOther : claimedFirst;
+  const hadLink = (live?.link_id as string | null | undefined) ?? null;
+  let { outcome, reason } = c;
+  if (outcome === 'sequence' && !hadLink && cycleFor(new BlockIndex(w.db), first, other)) {
+    outcome = 'owner';
+    reason = 'blocker_cycle';
   }
-  const [a, b] = first < other ? [first, other] : [other, first];
-  const id = newId('pov', ms(w.now));
-  const sorted = [...parts].sort();
-  w.insert('part_overlaps', {
-    id,
-    project_key: project,
-    item_a: a,
-    item_b: b,
-    claimed_first: first,
-    parts: sorted,
-    state: 'open',
-    note: null,
-    link_id: null,
-    raised_at: w.now,
-    decided_by: null,
-    decided_at: null,
-    version: 1,
-  });
-  const both = `${first} and ${other} both change ${partsText(sorted)}`;
-  for (const [self, peer] of [
-    [first, other],
-    [other, first],
-  ] as const) {
-    w.event({
-      type: 'overlap.raised',
+  const parts =
+    live?.state === 'open'
+      ? [...new Set([...parseList(live.parts as string), ...c.parts])].sort()
+      : [...c.parts].sort();
+  const evidence: OverlapEvidence = {
+    ...c.evidence,
+    text_conflict: live?.evidence
+      ? (JSON.parse(live.evidence as string) as OverlapEvidence).text_conflict
+      : [],
+  };
+  // The same outcome, or a question that is already the owner's: keep the row current, quietly.
+  if (
+    live &&
+    ((live.outcome === outcome && live.reason === reason) ||
+      (live.state === 'open' && outcome === 'owner'))
+  ) {
+    if (
+      live.outcome !== outcome ||
+      live.reason !== reason ||
+      JSON.stringify(parseList(live.parts as string)) !== JSON.stringify(parts)
+    ) {
+      w.update('part_overlaps', live.id as string, { parts, outcome, reason, evidence });
+    }
+    return;
+  }
+
+  const docket = asDocket(w);
+  let linkId = hadLink;
+  if (outcome === 'sequence' && !linkId) {
+    linkId = links.link(docket, {
+      from: first,
+      to: other,
+      type: 'blocks',
+      satisfied_when: 'merged',
+    }).link_id;
+  }
+  // A link this outcome drops goes after the row, so Undo restores it before the row names it.
+  const dropLink = outcome !== 'sequence' ? linkId : null;
+  if (dropLink) linkId = null;
+  const set = {
+    parts,
+    outcome,
+    reason,
+    evidence,
+    link_id: linkId,
+    state: DOCKET_STATE[outcome],
+    decided_by: outcome === 'owner' ? null : 'docket',
+    decided_at: outcome === 'owner' ? null : w.now,
+  };
+  const id = (live?.id as string | undefined) ?? newId('pov', ms(w.now));
+  const inverse = live
+    ? docket.update('part_overlaps', id, set)
+    : docket.insert('part_overlaps', {
+        id,
+        project_key: project,
+        item_a: first < other ? first : other,
+        item_b: first < other ? other : first,
+        claimed_first: first,
+        note: null,
+        raised_at: w.now,
+        version: 1,
+        ...set,
+      });
+  const both = `${first} and ${other} both change ${partsText(parts)}`;
+  const because = OVERLAP_REASON_TEXT[reason];
+  [first, other].forEach((self, i) => {
+    const peer = self === first ? other : first;
+    docket.event({
+      type: outcome === 'owner' ? 'overlap.raised' : 'overlap.decided',
       summary:
-        why === 'claim'
-          ? self === other
-            ? `${both}: the claim of ${other} was refused until you decide`
-            : `${both}: ${other} waits until you decide`
-          : `Now overlaps ${peer} on ${partsText(sorted)}: you've been asked whether they can run together`,
+        outcome === 'parallel'
+          ? `Docket runs ${first} and ${other} in parallel on ${partsText(parts)}: ${because}`
+          : outcome === 'sequence'
+            ? `Docket runs ${first} then ${other} on ${partsText(parts)}: ${because}. ${other} waits until ${first} is merged`
+            : reason !== 'setting'
+              ? `${both}: you've been asked, because ${because}`
+              : why === 'claim'
+                ? self === other
+                  ? `${both}: the claim of ${other} was refused until you decide`
+                  : `${both}: ${other} waits until you decide`
+                : `Now overlaps ${peer} on ${partsText(parts)}: you've been asked whether they can run together`,
       item_id: self,
       project_key: project,
-      data: { overlap_id: id, with: peer, parts: sorted, claimed_first: first, why },
+      data: {
+        overlap_id: id,
+        with: peer,
+        parts,
+        claimed_first: first,
+        why,
+        outcome,
+        reason,
+        evidence,
+        ...(outcome === 'owner' ? {} : { decision: outcome }),
+      },
       objects: [
         { kind: 'overlap', id },
         { kind: 'item', id: peer },
       ],
+      // Undo runs newest first: the second event's no-op, then the row's own inverse.
+      inverse: i === 0 ? [inverse] : [{ op: 'update', table: 'part_overlaps', id, set: {} }],
+    });
+  });
+  if (dropLink) links.unlink(docket, { link_id: dropLink });
+  // An item already in progress hears about a new sequence: it keeps its claim.
+  if (outcome === 'sequence' && why !== 'claim') {
+    const text = `Docket: ${other} now runs after ${first} (${partsText(parts)}): ${because}. Merge ${first} first; ${other} rebases on it. If they can't run in that order, use propose_resolution.`;
+    const noteId = newId('note', ms(w.now));
+    const noteInverse = docket.insert('owner_notes', { id: noteId, item_id: other, text });
+    docket.event({
+      type: 'owner_note.added',
+      summary: text,
+      item_id: other,
+      project_key: project,
+      data: { note_id: noteId, text, from: 'docket' },
+      inverse: [noteInverse],
     });
   }
-  return id;
+}
+
+/**
+ * Classify an item's overlaps again (decision 39): when its declaration
+ * changes or it hands off. Pairs that no longer share a part resolve; while
+ * the item is claimed, each overlap with other claimed work gets its outcome.
+ * Claims are never revoked.
+ */
+export function syncOverlaps(
+  w: WriteContext,
+  links: OverlapLinks,
+  itemId: string,
+  why: OverlapWhy = 'declared',
+): void {
+  resolveOverlaps(w, itemId, links);
+  const item = requireItem(w.db, itemId);
+  const claimed = (CLAIMED_STATUSES as readonly Status[]).includes(item.status);
+  for (const o of overlapsFor(w.db, item.id, item.project_key, CLAIMED_STATUSES, true)) {
+    // An unclaimed item raises nothing new, but a pair it's already in is classified again,
+    // so narrowing a declaration lifts the blocker Docket added.
+    if (!claimed && !liveOverlapRow(w.db, item.id, o.with.id)) continue;
+    const mineFirst = claimedAt(w.db, item.id) < claimedAt(w.db, o.with.id);
+    const [first, other] = mineFirst ? [item.id, o.with.id] : [o.with.id, item.id];
+    applyOutcome(w, links, item.project_key, first, other, o, why);
+  }
 }
 
 /**
  * Overlaps that no longer apply become `resolved` (enums.ts OVERLAP_STATES):
- * either item closed or was canceled, or (while still undecided) the two no
- * longer declare a common part. A resolved pair can be raised again later.
+ * either item closed or was canceled, or (while undecided, or decided by
+ * Docket) the two no longer declare a common part. A sequence Docket added
+ * for such a pair is removed. A resolved pair can be raised again later.
  */
-export function resolveOverlaps(w: WriteContext, itemId: string): void {
+export function resolveOverlaps(w: WriteContext, itemId: string, links?: OverlapLinks): void {
   const rows = w.db.sqlite
     .prepare(`SELECT * FROM part_overlaps WHERE (item_a = ? OR item_b = ?) AND state <> 'resolved'`)
     .all(itemId, itemId) as Record<string, unknown>[];
@@ -781,43 +1003,75 @@ export function resolveOverlaps(w: WriteContext, itemId: string): void {
     const b = itemRef(w.db, row.item_b as string);
     const closed = [a.status, b.status].some((s) => s === 'done' || s === 'canceled');
     let stale = closed;
-    if (!stale && row.state === 'open') {
+    if (!stale && (row.state === 'open' || row.decided_by === 'docket')) {
       const mine = new Set(declaredKeys(w.db, a.id));
       stale = !declaredKeys(w.db, b.id).some((k) => mine.has(k));
     }
-    if (stale) w.update('part_overlaps', row.id as string, { state: 'resolved' });
+    if (!stale) continue;
+    if (!closed && row.decided_by === 'docket') {
+      // Recorded on both tickets, and reversible with an owner's change that caused it.
+      const docket = asDocket(w);
+      const id = row.id as string;
+      const inverse = docket.update('part_overlaps', id, { state: 'resolved', link_id: null });
+      [a.id, b.id].forEach((self, i) => {
+        docket.event({
+          type: 'overlap.decided',
+          summary: `Docket: ${a.id} and ${b.id} no longer share a part`,
+          item_id: self,
+          project_key: row.project_key as string,
+          data: { overlap_id: id, decision: 'resolved', parts: parseList(row.parts as string) },
+          objects: [
+            { kind: 'overlap', id },
+            { kind: 'item', id: self === a.id ? b.id : a.id },
+          ],
+          inverse: i === 0 ? [inverse] : [{ op: 'update', table: 'part_overlaps', id, set: {} }],
+        });
+      });
+      if (links && row.link_id) links.unlink(docket, { link_id: row.link_id as string });
+      continue;
+    }
+    w.update('part_overlaps', row.id as string, { state: 'resolved' });
   }
 }
 
 /**
- * A claim refused because the item's parts overlap in-flight work
+ * A claim refused because the item's parts collide with in-flight work
  * (`seam_conflict`; MCP_SPEC §5.15). Like `ClaimConflict`, the refusal rolls
  * the claim's transaction back, so the adapter writes `recordRejection` on
- * its own: a `claim.rejected` event and one owner question per pair.
+ * its own: a `claim.rejected` event and each pair's outcome (decision 39).
  */
 export class SeamConflict extends ToolError {
   readonly recordRejection: (w: WriteContext) => void;
-  constructor(item: { id: string; project_key: string }, overlaps: OverlapFound[]) {
-    const parts = [...new Set(overlaps.flatMap((o) => o.parts))].sort();
-    const withText = overlaps
+  constructor(
+    item: { id: string; project_key: string },
+    overlaps: ClassifiedOverlap[],
+    links: OverlapLinks,
+  ) {
+    const refused = overlaps.filter((o) => o.outcome !== 'parallel');
+    const parts = [...new Set(refused.flatMap((o) => o.parts))].sort();
+    const withText = refused
       .map((o) => `${o.with.id} (${STATUS_WORDS[o.with.status] ?? o.with.status})`)
       .join(', ');
+    const queued = refused.every((o) => o.outcome === 'sequence');
+    const ids = refused.map((o) => o.with.id);
     super(
       'seam_conflict',
-      `${item.id} changes ${parts.join(', ')}, like ${withText}. Pick other work: the owner has been asked whether they can run together.`,
-      { details: { with: overlaps.map((o) => o.with.id), parts } },
+      queued
+        ? `${item.id} changes ${parts.join(', ')}, like ${withText}. Pick other work: Docket queued ${item.id} behind ${ids.join(', ')}, and it can start once ${ids.length === 1 ? 'that is' : 'they are'} merged.`
+        : `${item.id} changes ${parts.join(', ')}, like ${withText}. Pick other work: the owner has been asked whether they can run together.`,
+      { details: { with: ids, parts, ...(queued ? { outcome: 'sequence' } : {}) } },
     );
     this.name = 'SeamConflict';
     this.recordRejection = (w) => {
       w.event({
         type: 'claim.rejected',
-        summary: `Lead claim by ${callerName(w.db, w.actor)} refused: ${item.id} overlaps ${overlaps.map((o) => `${o.with.id} on ${partsText(o.parts)}`).join('; ')}`,
+        summary: `Lead claim by ${callerName(w.db, w.actor)} refused: ${item.id} overlaps ${refused.map((o) => `${o.with.id} on ${partsText(o.parts)}`).join('; ')}`,
         item_id: item.id,
         project_key: item.project_key,
-        data: { seam_conflict: { with: overlaps.map((o) => o.with.id), parts } },
+        data: { seam_conflict: { with: ids, parts } },
       });
       for (const o of overlaps) {
-        raiseOverlap(w, item.project_key, o.with.id, item.id, o.parts, 'claim');
+        applyOutcome(w, links, item.project_key, o.with.id, item.id, o, 'claim');
       }
     };
   }
@@ -829,11 +1083,73 @@ const STATUS_WORDS: Partial<Record<Status, string>> = {
   review: 'In review',
 };
 
-/** The overlaps that refuse a claim of `item` now (empty when it may start). */
-export function claimOverlaps(db: Db, item: { id: string; project_key: string }): OverlapFound[] {
-  const keys = declaredKeys(db, item.id);
-  if (keys.length === 0) return [];
-  return overlapsFor(db, item.id, item.project_key, keys, CLAIMED_STATUSES);
+/** The item's overlaps with claimed work, classified, for the claim check. */
+export function claimOverlaps(
+  db: Db,
+  item: { id: string; project_key: string },
+): ClassifiedOverlap[] {
+  return overlapsFor(db, item.id, item.project_key, CLAIMED_STATUSES).map((o) =>
+    // A sequence that would close a cycle can't be automatic.
+    o.outcome === 'sequence' && cycleFor(new BlockIndex(db), o.with.id, item.id)
+      ? { ...o, outcome: 'owner' as const, reason: 'blocker_cycle' as const }
+      : o,
+  );
+}
+
+/**
+ * The claim check (decision 39): overlaps that can run in parallel are
+ * recorded and the claim goes on; anything else refuses it with `seam_conflict`.
+ */
+export function settleClaim(
+  w: WriteContext,
+  links: OverlapLinks,
+  item: { id: string; project_key: string },
+): void {
+  const overlaps = claimOverlaps(w.db, item);
+  if (overlaps.some((o) => o.outcome !== 'parallel')) {
+    throw new SeamConflict(item, overlaps, links);
+  }
+  for (const o of overlaps) {
+    applyOutcome(w, links, item.project_key, o.with.id, item.id, o, 'claim');
+  }
+}
+
+/**
+ * Legacy open questions (decision 36) get the new rule once, at startup:
+ * rows with no classification. A pair the owner decided is untouched.
+ */
+export function classifyLegacyOverlaps(w: WriteContext, links: OverlapLinks): number {
+  const rows = w.db.sqlite
+    .prepare("SELECT * FROM part_overlaps WHERE state = 'open' AND outcome IS NULL")
+    .all() as Record<string, unknown>[];
+  for (const row of rows) {
+    const [a, b] = [row.item_a as string, row.item_b as string];
+    resolveOverlaps(w, a, links);
+    if (!liveOverlapRow(w.db, a, b)) continue;
+    const c = classifyPair(
+      a,
+      policyChanges(w.db, a),
+      b,
+      policyChanges(w.db, b),
+      overlapHandling(w.db, row.project_key as string),
+    );
+    if (!c) continue;
+    const first = row.claimed_first as string;
+    applyOutcome(w, links, row.project_key as string, first, first === a ? b : a, c, 'declared');
+  }
+  // One record of the review; some rows change without an event of their own.
+  if (rows.length > 0) {
+    const gone = rows.filter(
+      (row) => !liveOverlapRow(w.db, row.item_a as string, row.item_b as string),
+    );
+    asDocket(w).event({
+      type: 'overlap.decided',
+      summary: `Docket reviewed ${rows.length} open overlap ${rows.length === 1 ? 'question' : 'questions'} under the new rule${gone.length > 0 ? `; ${gone.length} no longer ${gone.length === 1 ? 'applies' : 'apply'}` : ''}`,
+      data: { reviewed: rows.map((row) => row.id), resolved: gone.map((row) => row.id) },
+      objects: rows.map((row) => ({ kind: 'overlap' as const, id: row.id as string })),
+    });
+  }
+  return rows.length;
 }
 
 /**
@@ -921,7 +1237,52 @@ export function onItemClosed(w: WriteContext, itemId: string, to: 'done' | 'canc
     itemId,
     to === 'done' ? 'done' : w.actor.kind === 'owner' ? 'owner_released' : 'released',
   );
+  if (to === 'canceled') {
+    releaseDocketBlockers(w, itemId);
+    withdrawDesignReviews(w, itemId);
+  }
   resolveOverlaps(w, itemId);
+}
+
+/**
+ * Decision 39: a canceled item never merges, so the blockers Docket added from
+ * it would strand the waiting items and turn into an owner problem. They go
+ * with it. A blocker the owner or an agent added stays.
+ */
+function releaseDocketBlockers(w: WriteContext, itemId: string): void {
+  const rows = w.db.sqlite
+    .prepare(
+      `SELECT * FROM part_overlaps WHERE claimed_first = ? AND decided_by = 'docket'
+       AND state = 'sequenced' AND link_id IS NOT NULL`,
+    )
+    .all(itemId) as Record<string, unknown>[];
+  const docket = asDocket(w);
+  for (const row of rows) {
+    const linkId = row.link_id as string;
+    const other = row.item_a === itemId ? (row.item_b as string) : (row.item_a as string);
+    const inverse = docket.remove('links', linkId);
+    const blocked = new BlockIndex(w.db).state(other).blocked;
+    docket.event({
+      type: 'link.removed',
+      summary: `Docket removed: ${itemId} blocks ${other}, because ${itemId} was canceled`,
+      item_id: other,
+      project_key: row.project_key as string,
+      data: {
+        link_id: linkId,
+        from: itemId,
+        to: other,
+        type: 'blocks',
+        satisfied_when: 'merged',
+        reblocked: [],
+        unblocked: blocked ? [] : [other],
+      },
+      inverse: [inverse],
+      objects: [
+        { kind: 'item', id: itemId },
+        { kind: 'link', id: linkId },
+      ],
+    });
+  }
 }
 
 // ---- Changed files ----
@@ -990,6 +1351,103 @@ export function undeclaredChanges(
   }
   parts.sort();
   return { parts, files: files.filter((f) => hit.has(f)) };
+}
+
+/**
+ * Undeclared shared files at hand-off get the same three questions (decision
+ * 39). A part whose overlap is safe, or that nobody else touches, joins the
+ * declaration automatically, attributed to Docket, and doesn't hold. One that
+ * must be sequenced joins it too, with the blocker. One that needs the owner
+ * is returned, with its files, for the caller to hold. With *Ask on every
+ * overlap* every undeclared part holds, as under decision 36.
+ */
+export function settleUndeclared(
+  w: WriteContext,
+  links: OverlapLinks,
+  item: { id: string; project_key: string },
+  files: string[],
+): { parts: string[]; files: string[] } {
+  const found = undeclaredChanges(w.db, item, files);
+  if (found.parts.length === 0) return found;
+  const mode = overlapHandling(w.db, item.project_key);
+  if (mode === 'ask_every') return found;
+  const held: string[] = [];
+  const added: { part: string; reason: OverlapReason | null }[] = [];
+  for (const part of found.parts) {
+    const probe: PolicyChange = {
+      part,
+      base: part,
+      member: null,
+      kind: kindOf(part),
+      change: 'change',
+      design_impact: 'none',
+      design_note: null,
+      disputed: false,
+    };
+    const peers = new Set(
+      inFlightFor(w.db, item.project_key, part, item.id, CLAIMED_STATUSES).map((p) => p.id),
+    );
+    // Decision 39: touching a part whose unapproved design change is with the owner holds.
+    const designHeld = [...peers].some((id) =>
+      designHold(w.db, id)?.parts.some((p) => p === part || p.startsWith(`${part}.`)),
+    );
+    const classes = [...peers].flatMap((id) => {
+      const c = classifyPair(item.id, [probe], id, policyChanges(w.db, id), mode);
+      return c ? [c] : [];
+    });
+    if (designHeld || classes.some((c) => c.outcome === 'owner')) held.push(part);
+    else {
+      added.push({
+        part,
+        reason: (classes.find((c) => c.outcome === 'sequence') ?? classes[0])?.reason ?? null,
+      });
+    }
+  }
+  if (added.length > 0) {
+    const docket = asDocket(w);
+    const inverse: InverseOp[] = added.map(({ part, reason }) =>
+      docket.insert('item_shared_changes', {
+        id: newId('isc', ms(w.now)),
+        item_id: item.id,
+        part_key: part,
+        change: 'change',
+        note: `Added by Docket at hand-off${reason ? `: ${OVERLAP_REASON_TEXT[reason]}` : ': no other item in flight changes it'}`,
+        member: null,
+        design_impact: 'none',
+        design_note: null,
+        disputed: false,
+        declared_by: 'docket',
+        declared_at: w.now,
+      }),
+    );
+    const none = (
+      w.db.sqlite.prepare('SELECT shared_none_at FROM items WHERE id = ?').get(item.id) as {
+        shared_none_at: string | null;
+      }
+    ).shared_none_at;
+    if (none !== null) {
+      w.db.sqlite.prepare('UPDATE items SET shared_none_at = NULL WHERE id = ?').run(item.id);
+      inverse.push({ op: 'update', table: 'items', id: item.id, set: { shared_none_at: none } });
+    }
+    docket.event({
+      type: 'shared.declared',
+      summary: `Docket added ${partsText(added.map((a) => a.part))} to ${item.id}'s declaration at hand-off`,
+      item_id: item.id,
+      project_key: item.project_key,
+      data: {
+        none: false,
+        automatic: true,
+        changes: added.map((a) => ({ part: a.part, change: 'change', reason: a.reason })),
+        files: found.files.slice(0, 50),
+      },
+      inverse,
+    });
+    syncOverlaps(w, links, item.id, 'handoff');
+  }
+  if (held.length === 0) return { parts: [], files: [] };
+  const hits = partsForFiles(w.db, item.project_key, files);
+  const heldFiles = new Set(held.flatMap((p) => hits.get(p) ?? []));
+  return { parts: held, files: files.filter((f) => heldFiles.has(f)) };
 }
 
 /**
@@ -1089,9 +1547,16 @@ function itemRef(db: Db, id: string) {
   };
 }
 
-function overlapRow(db: Db, r: Record<string, unknown>): OverlapRow {
+function overlapRow(
+  db: Db,
+  r: Record<string, unknown>,
+  reachedYou: string | null = null,
+): OverlapRow {
   const first = r.claimed_first as string;
   const other = first === r.item_a ? (r.item_b as string) : (r.item_a as string);
+  const evidence = r.evidence ? (JSON.parse(r.evidence as string) as OverlapEvidence) : null;
+  const outcome = (r.outcome as OverlapOutcome | null) ?? null;
+  const reason = (r.reason as OverlapReason | null) ?? null;
   return {
     id: r.id as string,
     project: r.project_key as string,
@@ -1104,8 +1569,20 @@ function overlapRow(db: Db, r: Record<string, unknown>): OverlapRow {
     decided_by: r.decided_by as string | null,
     decided_at: r.decided_at as string | null,
     version: r.version as number,
-    // Decision 37 (B42): what's wrong, what fixes it, who acts.
-    explanation: explain.overlap({ first, other, parts: partsText(parseList(r.parts as string)) }),
+    // Decision 37 (B42): what's wrong, what fixes it, who acts. Decision 39: and who decided.
+    explanation: explain.overlap({
+      first,
+      other,
+      parts: partsText(parseList(r.parts as string)),
+      // A decision the owner took needs no automatic wording.
+      outcome: r.decided_by === 'owner' ? null : outcome,
+      reason,
+      reached: reachedYou !== null,
+    }),
+    outcome,
+    reason,
+    evidence,
+    reached_you: reachedYou,
   };
 }
 
@@ -1165,6 +1642,7 @@ function findingRow(db: Db, r: Record<string, unknown>): RadarFindingRow {
     files: parseList(r.files as string),
     seen_at: r.seen_at as string,
     cleared_at: r.cleared_at as string | null,
+    merge_first: (r.merge_first as string | null) ?? null,
   };
 }
 
@@ -1173,6 +1651,7 @@ function itemShared(r: ReadContext, id: string): ItemSharedResponse {
   const item = requireItem(db, id);
   const all = (sql: string, ...params: unknown[]) =>
     db.sqlite.prepare(sql).all(...params) as Record<string, unknown>[];
+  const designReviews = itemDesignReviews(db, item.id);
   return {
     declaration: declarationOf(db, item.id),
     branches: itemBranches(db, item.id),
@@ -1198,6 +1677,7 @@ function itemShared(r: ReadContext, id: string): ItemSharedResponse {
       'SELECT * FROM undeclared_holds WHERE item_id = ? ORDER BY created_at DESC',
       item.id,
     ).map((row) => holdRow(db, row)),
+    ...(designReviews.length > 0 ? { design_reviews: designReviews } : {}),
   };
 }
 
@@ -1290,23 +1770,28 @@ function contextShared(r: ReadContext, id: string): ContextShared {
   const item = requireItem(db, id);
   const decl = declarationOf(db, item.id);
   const overlapping: ContextShared['overlapping'] = [];
-  for (const c of decl.changes) {
-    for (const o of inFlightFor(db, item.project_key, c.part, item.id)) {
-      overlapping.push({ ...o, part: c.part });
+  const mine = new Set(declaredKeys(db, item.id));
+  for (const key of mine) {
+    for (const o of inFlightFor(db, item.project_key, key, item.id)) {
+      // Decision 39: name the member the other item declared.
+      overlapping.push({ ...o, part: o.member ? `${key}.${o.member}` : key });
     }
   }
-  const mine = new Set(decl.changes.map((c) => c.part));
   const others = (
     db.sqlite
       .prepare(
-        `SELECT i.id, i.title, i.status, c.change, c.note, c.part_key AS part
+        `SELECT i.id, i.title, i.status, c.change, c.note, c.part_key AS part, c.member
          FROM item_shared_changes c JOIN items i ON i.id = c.item_id
          WHERE i.project_key = ? AND i.status IN ${statusSql(IN_FLIGHT_STATUSES)}
            AND i.archived_at IS NULL AND i.id <> ?
          ORDER BY c.declared_at DESC, length(i.id), i.id, c.part_key`,
       )
-      .all(item.project_key, item.id) as ContextShared['in_flight']
-  ).filter((c) => !mine.has(c.part));
+      .all(item.project_key, item.id) as (ContextShared['in_flight'][number] & {
+      member: string | null;
+    })[]
+  )
+    .filter((c) => !mine.has(baseOf({ part_key: c.part, member: c.member })))
+    .map(({ member, ...c }) => (member === null ? c : { ...c, member }));
   const leases = (
     db.sqlite
       .prepare(
@@ -1329,23 +1814,73 @@ function contextShared(r: ReadContext, id: string): ContextShared {
       branch: (mineA ? f.branch_b : f.branch_a) as string,
       own_branch: (mineA ? f.branch_a : f.branch_b) as string,
       files: parseList(f.files as string),
+      // Decision 39: who merges first; the other rebases, and neither stops.
+      ...(f.merge_first ? { merge_first: f.merge_first as string } : {}),
     };
   });
+  const hold = designHold(db, item.id);
+  // Decision 39: what Docket decided for this item's overlaps.
+  const outcomes = (
+    db.sqlite
+      .prepare(
+        `SELECT * FROM part_overlaps WHERE (item_a = ? OR item_b = ?) AND state <> 'resolved'
+         AND outcome IS NOT NULL ORDER BY raised_at, id LIMIT ?`,
+      )
+      .all(item.id, item.id, LIMITS.context_overlap_outcomes_max) as Record<string, unknown>[]
+  ).map((o) => ({
+    with: (o.item_a === item.id ? o.item_b : o.item_a) as string,
+    outcome: o.outcome as OverlapOutcome,
+    reason: o.reason as OverlapReason,
+    first: o.claimed_first as string,
+    parts: parseList(o.parts as string),
+  }));
   return {
     declaration: { state: decl.state, changes: decl.changes },
     overlapping,
     in_flight: others.slice(0, LIMITS.context_in_flight_max),
     leases,
     radar,
+    ...(outcomes.length > 0 ? { outcomes } : {}),
+    ...(hold ? { design_hold: hold } : {}),
     truncated: others.length > LIMITS.context_in_flight_max,
+  };
+}
+
+// ---- Overlap handling (decision 39) ----
+
+const HANDLING_WORDS: Record<OverlapHandlingResponse['default'], string> = {
+  agents_resolve: 'Agents resolve',
+  ask_shared_data: 'Ask on shared data',
+  ask_every: 'Ask on every overlap',
+};
+
+function overlapHandlingView(db: Db): OverlapHandlingResponse {
+  const fallback = defaultHandling(db);
+  const rows = db.sqlite
+    .prepare(
+      'SELECT key, name, overlap_handling FROM projects WHERE deleted_at IS NULL ORDER BY key',
+    )
+    .all() as { key: string; name: string; overlap_handling: string | null }[];
+  return {
+    default: fallback,
+    projects: rows.map((p) => ({
+      key: p.key,
+      name: p.name,
+      override: p.overlap_handling as OverlapHandlingResponse['default'] | null,
+      effective: overlapHandling(db, p.key),
+    })),
   };
 }
 
 // ---- The service ----
 
 export function createSharedChangesService(deps: ServiceDeps): SharedChangesService {
+  const links: OverlapLinks = {
+    link: (w, input) => deps.services().links.link(w, input),
+    unlink: (w, input) => deps.services().links.unlink(w, input),
+  };
   return {
-    declare: (w, input) => declare(w, input),
+    declare: (w, input) => declare(w, links, input),
 
     listParts(r, input) {
       requireProject(r.db, input.project);
@@ -1430,7 +1965,7 @@ export function createSharedChangesService(deps: ServiceDeps): SharedChangesServ
     itemShared: (r, input) => itemShared(r, input.id),
 
     ownerDeclare(w, input) {
-      const { registered } = declare(w, input);
+      const { registered } = declare(w, links, input);
       const r = { db: w.db, actor: w.actor, now: w.now };
       return { ...itemShared(r, input.id), registered };
     },
@@ -1619,6 +2154,114 @@ export function createSharedChangesService(deps: ServiceDeps): SharedChangesServ
       return overlapRow(w.db, w.get('part_overlaps', row.id as string)!);
     },
 
+    /**
+     * *Run in parallel* or *Run in order* on an automatic outcome (decision
+     * 39). The pair becomes the owner's, so Docket won't reclassify it; Undo
+     * puts Docket's outcome back, with its link.
+     */
+    overruleOverlap(w, input) {
+      const row = w.get('part_overlaps', input.id);
+      if (!row) throw new ToolError('not_found', `No overlap ${input.id}.`);
+      if (row.decided_by !== 'docket' || row.state === 'resolved') {
+        throw new ToolError(
+          'conflict',
+          row.state === 'open'
+            ? 'This overlap is waiting for your decision. Decide it on its card.'
+            : `This overlap was already ${row.state === 'resolved' ? 'resolved' : 'decided by you'}. Showing the latest.`,
+          { current: overlapRow(w.db, row) },
+        );
+      }
+      const first = row.claimed_first as string;
+      const other = first === row.item_a ? (row.item_b as string) : (row.item_a as string);
+      const parts = parseList(row.parts as string);
+      let linkId = row.link_id as string | null;
+      if (input.decision === 'order' && !linkId) {
+        linkId = links.link(w, {
+          from: first,
+          to: other,
+          type: 'blocks',
+          satisfied_when: 'merged',
+        }).link_id;
+      }
+      // A dropped link goes after the row, so Undo restores it before the row names it.
+      const dropLink = input.decision === 'parallel' ? linkId : null;
+      if (dropLink) linkId = null;
+      const inverse = w.update('part_overlaps', row.id as string, {
+        state: input.decision === 'order' ? 'sequenced' : 'compatible',
+        link_id: linkId,
+        decided_by: 'owner',
+        decided_at: w.now,
+      });
+      const summary =
+        input.decision === 'order'
+          ? `You overruled Docket: ${other} waits until ${first} is merged`
+          : `You overruled Docket: ${first} and ${other} run in parallel`;
+      [first, other].forEach((id, i) => {
+        w.event({
+          type: 'overlap.decided',
+          summary,
+          item_id: id,
+          project_key: row.project_key as string,
+          data: {
+            overlap_id: row.id,
+            decision: input.decision === 'order' ? 'sequence' : 'compatible',
+            overruled: { outcome: row.outcome, reason: row.reason },
+            parts,
+            claimed_first: first,
+          },
+          objects: [
+            { kind: 'overlap', id: row.id as string },
+            { kind: 'item', id: id === first ? other : first },
+          ],
+          inverse:
+            i === 0
+              ? [inverse]
+              : [{ op: 'update', table: 'part_overlaps', id: row.id as string, set: {} }],
+        });
+      });
+      if (dropLink) links.unlink(w, { link_id: dropLink });
+      return overlapRow(w.db, w.get('part_overlaps', row.id as string)!);
+    },
+
+    // Decision 39: the owner approves or sends back a change to an approved design.
+    decideDesignReview: (w, input) => decideDesignReview(w, input),
+
+    overlapHandling(r) {
+      return overlapHandlingView(r.db);
+    },
+
+    setOverlapHandling(w, input) {
+      if (input.project === undefined) {
+        const was = defaultHandling(w.db);
+        if (was !== input.mode) {
+          writeDefaultHandling(w.db, input.mode!, w.now);
+          w.event({
+            type: 'project.updated',
+            summary: `You set Overlap handling to ${HANDLING_WORDS[input.mode!]} for all projects`,
+            data: { overlap_handling: { old: was, new: input.mode } },
+          });
+        }
+        return overlapHandlingView(w.db);
+      }
+      requireProject(w.db, input.project);
+      const p = w.db.sqlite
+        .prepare('SELECT id, overlap_handling FROM projects WHERE key = ?')
+        .get(input.project) as { id: string; overlap_handling: string | null };
+      if (p.overlap_handling !== input.mode) {
+        w.update('projects', p.id, { overlap_handling: input.mode });
+        w.event({
+          type: 'project.updated',
+          summary: input.mode
+            ? `You set Overlap handling for ${input.project} to ${HANDLING_WORDS[input.mode]}`
+            : `${input.project} follows the default Overlap handling again`,
+          project_key: input.project,
+          data: { overlap_handling: { old: p.overlap_handling, new: input.mode } },
+          objects: [{ kind: 'project', id: input.project }],
+        });
+      }
+      return overlapHandlingView(w.db);
+    },
+
     decideHold(w, input) {
       const row = w.get('undeclared_holds', input.id);
       if (!row) throw new ToolError('not_found', `No hold ${input.id}.`);
@@ -1767,19 +2410,48 @@ export function createSharedChangesService(deps: ServiceDeps): SharedChangesServ
 export function needsYouShared(
   db: Db,
   scope: 'all' | string,
+  now: string,
+  overlapGraceMs: number,
 ): {
   overlaps: OverlapRow[];
+  overlaps_handled: { count: number; rows: OverlapRow[] };
+  design_reviews: DesignReviewRow[];
   undeclared_holds: UndeclaredHoldRow[];
   radar_findings: RadarFindingRow[];
 } {
   const inScope = scope === 'all' ? '' : 'AND p.key = @scope';
-  const all = (sql: string) =>
-    db.sqlite.prepare(sql).all(scope === 'all' ? {} : { scope }) as Record<string, unknown>[];
-  return {
-    overlaps: all(
+  const params = (extra: Record<string, unknown> = {}) =>
+    scope === 'all' ? extra : { scope, ...extra };
+  const all = (sql: string) => db.sqlite.prepare(sql).all(params()) as Record<string, unknown>[];
+  // Decision 39: a sequence Docket set that is still unresolved after the grace period needs a
+  // person. It stays Docket's until the owner overrules it or confirms the order.
+  const cutoff = new Date(ms(now) - overlapGraceMs).toISOString();
+  const reached = (r: Record<string, unknown>) =>
+    r.state === 'open' ? null : `Not settled by agents for ${graceText(overlapGraceMs)}`;
+  const today = `${now.slice(0, 10)}T00:00:00.000Z`;
+  const handled = db.sqlite
+    .prepare(
       `SELECT o.* FROM part_overlaps o JOIN projects p ON p.key = o.project_key
-       WHERE o.state = 'open' AND p.deleted_at IS NULL ${inScope} ORDER BY o.raised_at, o.id`,
-    ).map((r) => overlapRow(db, r)),
+       WHERE o.decided_by = 'docket' AND o.decided_at >= @today
+         AND p.deleted_at IS NULL ${inScope} ORDER BY o.decided_at DESC, o.id`,
+    )
+    .all(params({ today })) as Record<string, unknown>[];
+  return {
+    overlaps: (
+      db.sqlite
+        .prepare(
+          `SELECT o.* FROM part_overlaps o JOIN projects p ON p.key = o.project_key
+           WHERE (o.state = 'open'
+             OR (o.state = 'sequenced' AND o.decided_by = 'docket' AND o.decided_at <= @cutoff))
+             AND p.deleted_at IS NULL ${inScope} ORDER BY o.raised_at, o.id`,
+        )
+        .all(params({ cutoff })) as Record<string, unknown>[]
+    ).map((r) => overlapRow(db, r, reached(r))),
+    overlaps_handled: {
+      count: handled.length,
+      rows: handled.slice(0, 20).map((r) => overlapRow(db, r)),
+    },
+    design_reviews: openDesignReviews(db, scope),
     undeclared_holds: all(
       `SELECT h.* FROM undeclared_holds h JOIN items i ON i.id = h.item_id
        JOIN projects p ON p.key = i.project_key

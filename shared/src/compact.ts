@@ -18,6 +18,7 @@ import {
   EFFORT_UNIT,
   OPEN_RUN_STATES,
   type CheckState,
+  type OverlapOutcome,
   type ResolutionState,
   type WorkStepState,
 } from './enums.js';
@@ -63,6 +64,13 @@ const RESOLUTION_WORDS: Record<ResolutionState, string> = {
   different: 'go a different way; propose again',
   acknowledged: 'acknowledged: go ahead',
   superseded: 'replaced by a newer proposal',
+};
+
+/** An overlap's outcome, as agents read it (decision 39). */
+const OVERLAP_OUTCOME_WORDS: Record<OverlapOutcome, string> = {
+  parallel: 'run in parallel',
+  sequence: 'run in order',
+  owner: 'owner decides',
 };
 const I1 = '  ';
 const I3 = '      ';
@@ -682,6 +690,38 @@ export function renderContext(ctx: ContextBundle, opts: RenderOptions = {}): str
           `conflict ahead with ${f.with ?? 'main'} (${f.own_branch} vs ${f.branch})`,
           `${f.files.length} file${f.files.length === 1 ? '' : 's'}`,
           f.files.length > 0 ? truncate(f.files.slice(0, 5).join(', ')) : null,
+          // Decision 39: neither agent stops; the later one rebases.
+          f.merge_first
+            ? f.merge_first === it.id
+              ? 'you merge first'
+              : `rebase after ${f.merge_first} merges`
+            : null,
+        ])}`,
+      );
+    }
+    // Decision 39: what Docket decided for this item's overlaps.
+    for (const o of sh.outcomes ?? []) {
+      lines.push(
+        `${I1}${join([
+          `overlap with ${o.with}: ${OVERLAP_OUTCOME_WORDS[o.outcome]}`,
+          o.outcome === 'sequence'
+            ? o.first === it.id
+              ? 'you go first'
+              : `waits for ${o.first}`
+            : null,
+          partList(o.parts, 2),
+        ])}`,
+      );
+    }
+    // Decision 39: the owner's review pauses this item, and only this item.
+    if (sh.design_hold) {
+      lines.push(
+        `${I1}${join([
+          sh.design_hold.state === 'sent_back'
+            ? 'design change sent back by the owner: rework it, then declare again'
+            : 'design change waits for the owner: pause this item and take other work',
+          truncate(sh.design_hold.notes.join('; ')),
+          sh.design_hold.owner_note ? `owner: ${truncate(sh.design_hold.owner_note)}` : null,
         ])}`,
       );
     }
@@ -961,7 +1001,9 @@ const RENDERERS: { [N in ToolName]: Renderer<N> } = {
     // Decision 36: the packet is held while the owner decides on undeclared parts.
     (r.held_undeclared?.length
       ? `${SEP}held for the owner: undeclared ${partList(r.held_undeclared)}`
-      : ''),
+      : '') +
+    // Decision 39: an unapproved change to an approved design holds the packet.
+    (r.held_design ? `${SEP}held for the owner: changes an approved design` : ''),
   get_review: (r, a, now) => {
     const lines = [s('get_review', { id: str(a.id), count: r.rounds.length })];
     for (const round of r.rounds) {
@@ -1211,9 +1253,17 @@ const RENDERERS: { [N in ToolName]: Renderer<N> } = {
   // Decision 36 (MCP_SPEC §5.15): one line; overlaps name the other item and the parts.
   declare_shared_changes: (r, a) => {
     const d = r.declaration;
-    const overlaps = r.overlaps.slice(0, 2).map((o) => `${o.with.id} on ${partList(o.parts, 2)}`);
+    const overlaps = r.overlaps
+      .slice(0, 2)
+      .map(
+        (o) =>
+          `${o.with.id} on ${partList(o.parts, 2)}${o.outcome ? ` (${OVERLAP_OUTCOME_WORDS[o.outcome]})` : ''}`,
+      );
     if (r.overlaps.length > 2) overlaps.push(`+${r.overlaps.length - 2} more`);
-    return s('declare_shared_changes', {
+    const designHold = r.design_hold
+      ? `${SEP}${r.design_hold.state === 'sent_back' ? 'design change sent back' : 'design change waits for the owner'}: pause this item`
+      : '';
+    const line = s('declare_shared_changes', {
       id: str(a.id) ?? d.item_id,
       declared:
         d.state === 'none'
@@ -1230,6 +1280,7 @@ const RENDERERS: { [N in ToolName]: Renderer<N> } = {
       registered: r.registered.length > 0 ? `${SEP}registered ${partList(r.registered)}` : '',
       overlaps: overlaps.length > 0 ? `${SEP}overlaps ${overlaps.join('; ')}` : '',
     });
+    return line + designHold;
   },
   // A line per part, then its in-flight declarations indented under it.
   list_shared_parts: (r, _a, now) => {

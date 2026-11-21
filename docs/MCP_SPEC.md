@@ -52,7 +52,7 @@ Workflow: Inbox → Planning → Ready → In progress → Review → Done.
 - After any pause, call get_item: it delivers the owner's notes, answers and review decisions, each once.
 - Send only what changes. update_item, set_plan and set_checks patch: whatever you leave out stays as it is. Use get_item view "summary" when you only need status.
 
-Errors are structured (code: validation | conflict | not_found | forbidden | unavailable | internal | seam_conflict | not_declared | lease_held). On conflict, read the current state in the error and retry only if your change still makes sense.
+Errors are structured (code: validation | conflict | not_found | forbidden | unavailable | internal | seam_conflict | not_declared | lease_held | design_review). On conflict, read the current state in the error and retry only if your change still makes sense.
 ```
 
 ---
@@ -411,7 +411,8 @@ type ContextShared = {
   truncated: boolean };
 
 type ToolError = { code: 'validation'|'conflict'|'not_found'|'forbidden'|'unavailable'|'internal'
-    | 'seam_conflict'|'not_declared'|'lease_held';   // decision 36
+    | 'seam_conflict'|'not_declared'|'lease_held'   // decision 36
+    | 'design_review';   // decision 39
   message: string; details?: Record<string, unknown>; current?: unknown };
 ```
 
@@ -494,13 +495,14 @@ The format for each tool below:
 - **Errors:** `conflict` (version), `validation`.
 
 #### `set_status`
-**Description:** "Move an item to another status. Allowed moves: inbox→planning; planning↔ready; ready→progress; progress→ready (gives up the work); progress or review→done (only when no human review item is undecided); any open status→canceled (reason required); done→progress (reopen, reason required). Moving to ready needs the item's shared changes declared first (declare_shared_changes), else not_declared. When you close an item as done, pass changed_files and branch. Use submit_packet, not set_status, to hand off for review."
+**Description:** "Move an item to another status. Allowed moves: inbox→planning; planning↔ready; ready→progress; progress→ready (gives up the work); progress or review→done (only when no human review item is undecided); any open status→canceled (reason required); done→progress (reopen, reason required). Moving to ready needs the item's shared changes declared first (declare_shared_changes), else not_declared. When you close an item as done, pass changed_files and branch. An unapproved change to an approved design refuses starting or closing the item with design_review. Use submit_packet, not set_status, to hand off for review."
 - **Input:** `id`, `status`, `expected_version?`, `reason?` (required for canceled and reopen), `changed_files?: string[]` and `branch?` (decision 36: read only when moving to `done`; §5.15).
 - **Output:** `{ item: ItemSummary }`.
 - **Errors:**
   - `validation`, with `details.allowed: Status[]` and `details.reason`, for example "2 human review items are undecided: hr_…, hr_…";
   - `conflict`;
   - `not_declared` (decision 36; §5.15): moving to `ready` before the item has declared its shared changes, or closing as `done` with changed files that map to parts it didn't declare.
+  - `design_review` (decision 39; §5.15): starting or closing an item whose change to an approved design the owner hasn't approved. Other items aren't affected.
 - **Notes:** Moving to `done` ends your open lead run as `finished` if you haven't. Moving to `progress` doesn't claim the item; use `claim_lead`.
 
 #### `link_items`
@@ -526,14 +528,15 @@ The format for each tool below:
 ### 5.4 Claiming and runs
 
 #### `claim_lead`
-**Description:** "Claim an item as its lead before you work on it. Works on Ready items (moves them to In progress) and on In progress items with no lead (resuming sent-back or interrupted work). Pass workspace (where the work lives) and, if a coordinator briefed you, the brief, so the work can be restarted after a crash. Pass instructions with the output of the installed docket-check script, so the owner knows which instructions you work from. Pass branch, the branch you will work on, so conflicts are spotted early. Returns your run_id: pass it on every later call. If someone else holds the claim you get a conflict with who holds it and until when; do not work on the item. If its shared parts overlap another item in flight you get seam_conflict: the owner has been asked whether they can run together, so pick other work and leave this item until they decide."
+**Description:** "Claim an item as its lead before you work on it. Works on Ready items (moves them to In progress) and on In progress items with no lead (resuming sent-back or interrupted work). Pass workspace (where the work lives) and, if a coordinator briefed you, the brief, so the work can be restarted after a crash. Pass instructions with the output of the installed docket-check script, so the owner knows which instructions you work from. Pass branch, the branch you will work on, so conflicts are spotted early. Returns your run_id: pass it on every later call. If someone else holds the claim you get a conflict with who holds it and until when; do not work on the item. If its shared parts collide with another item in flight you get seam_conflict: Docket has queued it behind that item, or asked the owner when only the owner can decide, so pick other work and leave this item. Parts that can safely run together do not refuse the claim. If it changes an approved design and the owner has not approved that yet, you get design_review: pause this item and take other work."
 - **Input:** `id`, `agent_label?` (≤ 40, for example `orca-w3`), `workspace?: { host?, repo?, path?, branch?, base_ref?, base_sha? }`, `orchestrator?: { name, dispatch_id?, task_id?, run_id? }`, `brief?` (text, ≤ 20,000) or `brief_document_version_id?`, `external?` (≤ 2 KB JSON), `instructions?: { install_id?, files: [{ key, sha256, content? }] }` (decision 30: the output of the installed `docket-check` script; `content` ≤ 50,000 only for files that differ from the manifest), `branch?` (decision 36: ≤ 200, the branch the conflict radar trial-merges; defaults to `workspace.branch`).
 - **`instructions` limits** (B26 resolutions): strict; `files` holds 0–20 entries (empty, with `install_id`, means every installed file is missing); `key` is `agents_block` or `skill:<name>`; `sha256` is 64 hex characters, either case (compared lowercased); `content` is 0–50,000 characters, not trimmed. `start_run` doesn't take it.
 - **Output:** `{ run_id, item: ItemSummary, lease_expires_at }`.
 - **Errors:**
   - `conflict` with `current: { lead_client, lead_label, run_id, last_signal_at, lease_expires_at }`, recorded as a rejected claim the owner can see;
   - `validation`: the status isn't ready or progress, or the item is blocked (`details.blocked_by`);
-  - `seam_conflict` (decision 36; §5.15) with `details: { with: string[], parts: string[] }`: the item's declared parts overlap another item in flight. The item stays Ready, and the owner is asked once per pair.
+  - `design_review` (decision 39; §5.15) with `details: { review_id, state, parts }`: the item changes an approved design and the owner hasn't approved it. Pause this item and take other work.
+  - `seam_conflict` (decisions 36 and 39; §5.15) with `details: { with: string[], parts: string[], outcome?: 'sequence' }`: the item's declared parts collide with another item in flight. The item stays Ready. With `outcome: 'sequence'`, Docket queued it behind those items with a `merged` blocker; without it, the owner is asked once per pair. Overlaps that can safely run together don't refuse the claim.
 
 #### `release_lead`
 **Description:** "Give up the lead claim without finishing, for example when you are stopping before the work is done. The item returns to Ready so another agent can pick it up; your plan and notes stay."
@@ -646,7 +649,7 @@ The format for each tool below:
 ### 5.7 Review and the owner
 
 #### `submit_packet`
-**Description:** "Hand finished work to the owner for human review. Call it when the work is built, your checks pass and everything is committed and reported. The packet must let the owner verify without asking you anything: what to check, exact steps (URLs, builds, commands), what you already verified and how, known gaps, and attachments. Pass changed_files (every file your work changed) and branch: changes to shared parts the item didn't declare hold it for the owner. The item moves to Review; read the decision later with get_review or get_item."
+**Description:** "Hand finished work to the owner for human review. Call it when the work is built, your checks pass and everything is committed and reported. The packet must let the owner verify without asking you anything: what to check, exact steps (URLs, builds, commands), what you already verified and how, known gaps, and attachments. Pass changed_files (every file your work changed) and branch: changes to shared parts the item didn't declare, or an unapproved change to an approved design, hold it for the owner. The item moves to Review; read the decision later with get_review or get_item."
 - **Input:**
   - `id`, `built_from_commit` (recorded with `report_commit` if not already), `estimate` (for example `"10 min"`);
   - `hr_item_ids?` (defaults to every declared item);
@@ -655,7 +658,7 @@ The format for each tool below:
   - `gaps?: string[]`;
   - `attachments?: [{ document_version_id, caption? }]`;
   - `changed_files?: string[]` (decision 36: every file the work changed, repo-relative, ≤ 2,000) and `branch?` (§5.15).
-- **Output:** `{ packet_id, round, display_id: 'pkt-9c0e', item: ItemSummary, held_undeclared?: string[] }`. `held_undeclared` (decision 36) lists the parts the changed files touch that the item didn't declare; it is present only when the packet is held for the owner.
+- **Output:** `{ packet_id, round, display_id: 'pkt-9c0e', item: ItemSummary, held_undeclared?: string[], held_design?: DesignHold }`. `held_design` (decision 39; §5.15) is present while an unapproved change to an approved design keeps the packet's review gate closed. `held_undeclared` (decision 36) lists the parts the changed files touch that the item didn't declare; it is present only when the packet is held for the owner.
 - **Errors:** `validation`:
   - no declared human review items, so close with `set_status` instead;
   - a packet is already open;
@@ -846,6 +849,21 @@ B38 implemented the registry, `declare_shared_changes` and `list_shared_parts`. 
 
 **B41** (several branches per item; BUILD_SPEC §5.21 B41): an item keeps a set of up to 10 reported branches. `declare_shared_changes` takes `branches: string[]` as well as `branch` (a list of one); either replaces the set, and an empty list clears it. `claim_lead`, `submit_packet` and `set_status` still take one `branch`, which joins the set. The radar checks every reported branch of every in-flight item against the main branch, and branches of different items against each other; findings and `get_context.shared.radar` (`own_branch`) name both branches. The description and input schema change; the tool count doesn't.
 
+**B46** (overlaps reach the owner only when they need the owner; owner decision 39, amending 36; BUILD_SPEC §5.21 B46). The tool count doesn't change. Contract changes, in this file, `mcp-copy.ts` and the snapshot together:
+- **`declare_shared_changes` input:** a change's `part` may name a member (`model:Token.expiresAt`, `table:decks.archived_at`; tables and models only, and the part before the member must be registered). A bare part means "could touch anything in it", so every existing declaration keeps working. Each change also takes `design_impact?: 'none' | 'changes_approved_design'` with `design_note?` (≤ 500; required with `changes_approved_design`, refused without it), and `disputed?: boolean` (agents disagree about who owns the part).
+- **`new_parts`:** a key that names a member of a registered part (or of another key in the same call) registers nothing, so a member can't become a separate part that never overlaps its siblings.
+- **Outputs:** `Declaration.changes[]` gains `member?`, `design_impact?`, `design_note?` and `disputed?`, present only when set. `overlaps[]` gains `outcome` (`parallel`, `sequence` or `owner`) and `reason` (`file_only`, `different_members`, `same_member`, `change_touches_part`, `bare_part`, `unclear`, `blocker_cycle`, `disputed` or `setting`). The text line adds the outcome: `overlaps GF-240 on model:Token (run in order)`.
+- **A change to an approved design always reaches the owner** (decision 39), with or without an overlap and in every mode, as a review separate from the overlap outcome. Until the owner approves it, that item is paused and nothing else is:
+  - `claim_lead` and `set_status` (to `progress` from Ready, or to `done`) are refused with the new error `design_review` (`details: { review_id, state, parts }`);
+  - `submit_packet` creates the packet held, with `held_design`, and its review gate stays closed;
+  - `search_items` `ready_to_start` and `resumable` leave the item out;
+  - `declare_shared_changes` and `get_context.shared` return `design_hold?: { review_id, state: 'open' | 'sent_back', parts, notes, owner_note }`. The text says "design change waits for the owner: pause this item".
+  - An approval covers each part, its change and its design note, and doesn't ask again unless one of those materially changes. No tool decides a review. An agent can't clear an open one by taking the flag out of its declaration; after the owner sends it back, reworking the item so it no longer changes the design frees it, and a materially different change asks again.
+- **`get_context.shared`:** `radar[]` gains `merge_first` (the item that merges first; the other rebases, and neither stops), rendered "you merge first" or "rebase after GF-240 merges". `outcomes?` lists up to 10 of the item's overlaps, one line each ("overlap with GF-240: run in order · waits for GF-240 · model:Token"). Both count against the budget.
+- **`seam_conflict`** means "take other work" in both cases: Docket queued the item (`details.outcome: 'sequence'`), or the owner was asked.
+- **Agents never decide for the owner:** no tool writes an overlap decision or the Overlap handling setting, and agents have no route to the owner's decide or overrule.
+- **Undeclared files at hand-off:** a part that's safe joins the declaration as Docket's (`declared_by: docket`), and `held_undeclared` / `not_declared` are returned only for what needs the owner.
+
 **Hand-off** means `submit_packet` (a packet for human review) or `set_status` to `done` (closing an item with no human review). Earlier drafts named `submit_for_review` and `handoff`, which aren't Docket tools (B38 correction, agreed with the coordinator).
 
 **B38 resolutions** (agreed with the coordinator, or settled in the build and listed in the PR):
@@ -864,15 +882,15 @@ B38 implemented the registry, `declare_shared_changes` and `list_shared_parts`. 
 - **`set_status` to `done` with undeclared parts** is refused with `not_declared` (`details.undeclared`, `details.files`), raises the same owner question as a held packet (*Add to the declaration* or *Send back*), and leaves the item where it was. Reusing `not_declared` keeps three new codes (coordinator).
 
 #### `declare_shared_changes`
-**Description:** "Declare the shared parts this item will change (tables, models, endpoints, shared files), each with add, change or remove and a short note, or none: true when it changes none. An item can't move to Ready until it has declared. Each call replaces the item's whole declaration. Name parts by their keys from list_shared_parts; register a missing one with new_parts. Pass branches, every branch the work is on (or branch for one), so the conflict radar can check them, also for work already in progress; they replace the item's reported branches, and an empty list clears them. Returns the in-flight items that change the same parts."
-- **Input:** `id`, and either `changes?: [{ part, change: 'add'|'change'|'remove', note? }]` (1–50; `note` ≤ 500) or `none?: true`; with `changes`, optionally `new_parts?: [{ key, kind?, paths?, note? }]` (1–20; `paths` ≤ 20 globs of ≤ 300; `note` ≤ 1,000); `branch?` (≤ 200, B40) or `branches?: string[]` (0–10, each ≤ 200, B41), not both, plus `run_id?` and `idempotency_key?`.
-- **Output:** `{ declaration: Declaration, registered: string[], overlaps: [{ with: { id, title, status }, parts: string[] }] }` (§4). `registered` lists the keys `new_parts` added to the registry.
+**Description:** "Declare the shared parts this item will change (tables, models, endpoints, shared files), each with add, change or remove and a short note, or none: true when it changes none. An item can't move to Ready until it has declared. Each call replaces the item's whole declaration. Name parts by their keys from list_shared_parts; register a missing one with new_parts. Name the member when you can (model:Token.expiresAt, table:decks.archived_at): adding different members runs in parallel, while a bare part means it could touch anything in it and is sequenced. Set design_impact: changes_approved_design with a design_note when the change alters an approved design: it always reaches the owner, and this item pauses until they approve it, while other items continue. Set disputed: true when agents disagree about who owns a part; that reaches the owner too. Pass branches, every branch the work is on (or branch for one), so the conflict radar can check them, also for work already in progress; they replace the item's reported branches, and an empty list clears them. Returns the in-flight items that change the same parts, each with its outcome: parallel, sequence or owner."
+- **Input:** `id`, and either `changes?: [{ part, change: 'add'|'change'|'remove', note?, design_impact?, design_note?, disputed? }]` (1–50; `note` and `design_note` ≤ 500; B46) or `none?: true`; with `changes`, optionally `new_parts?: [{ key, kind?, paths?, note? }]` (1–20; `paths` ≤ 20 globs of ≤ 300; `note` ≤ 1,000); `branch?` (≤ 200, B40) or `branches?: string[]` (0–10, each ≤ 200, B41), not both, plus `run_id?` and `idempotency_key?`.
+- **Output:** `{ declaration: Declaration, registered: string[], overlaps: [{ with: { id, title, status }, parts: string[], outcome?, reason? }], design_hold?: DesignHold }` (§4). `design_hold` (decision 39) is present while the owner's review of a change to an approved design pauses this item. `registered` lists the keys `new_parts` added to the registry.
 - **Rules:**
   - The call replaces the item's declaration: listed parts are kept or added, unlisted ones removed. `none: true` clears them and sets `items.shared_none_at`; declaring parts clears it.
   - Any open item (Inbox to Review) may declare, by any agent; a Done or Canceled item is `validation`.
   - Each `part` must be registered and not archived, or be in `new_parts`, or it is `validation` naming the key. A part may appear once.
   - `new_parts` registers each part (`created_by` the agent), never single-writer (FR-158). A key that is already registered is reused as it is, not changed, and isn't listed in `registered`. `kind`, when given, must match the key's prefix.
-  - **Overlaps** are the other in-flight items in the project that declare any of the same parts, except pairs the owner marked compatible and pairs already sequenced by a `blocks` link. They are informational: the claim enforces them. Declaring later, while the item is in progress, is allowed; a new overlap then flags both items and raises the owner question without revoking the claim (BUILD_SPEC §5.21 Declaring later; B39).
+  - **Overlaps** are the other in-flight items in the project that declare any of the same parts, except pairs the owner decided and pairs already sequenced by a `blocks` link someone else added. Each carries its outcome (B46). Declaring later, while the item is in progress, is allowed: each overlap with claimed work is classified again, and a sequence or an owner question never revokes a claim (BUILD_SPEC §5.21 B46).
   - **Branches** (B40; B41): `branches`, when given, replaces the item's reported branches, every one of which the conflict radar trial-merges; `[]` clears them, so the radar looks for one by name again. `branch` is the same as a list of one. Each must be a name git accepts (`validation` otherwise); a name listed twice counts once, and a branch already in the set keeps who reported it first. Reported branches win over any branch the radar found by name. Afterwards `claim_lead`, `submit_packet` and `set_status` add their `branch` to the set, and the owner adds or removes one in the item's Shared changes section. Omitting both keeps the set as it is. It doesn't change the item's version.
 - **Text rendering:** one line: `Declared 2 changes on GF-312 · branch eps5000/gf-312-decks · registered table:decks · overlaps GF-240 on model:Token` (` · branch …` only when `branch` is passed; with `branches`, ` · branches a, b`, or ` · branches cleared` for `[]`).
 - **Events:** `shared.declared` on the item, and `shared_part.saved` for each part `new_parts` registered, and `branch.reported` when `branch` or `branches` changes the item's reported branches (B40, B41).
@@ -955,6 +973,7 @@ Every error is returned as a tool result: `isError: true`, a `text` block holdin
 | `seam_conflict` | Decision 36: a claim whose declared shared parts overlap another item in flight (§5.15) | "GF-312 changes model:Token, like GF-240 (In progress). Pick other work: the owner has been asked whether they can run together." | `details.with` (item IDs), `details.parts` (keys) |
 | `not_declared` | Decision 36: moving to Ready before declaring shared changes, or closing as done with changed files mapped to undeclared parts (§5.15) | "Declare the shared parts GF-312 will change (or none) with declare_shared_changes, then move it to Ready." | `details.undeclared`, `details.files` (on done) |
 | `lease_held` | Decision 36: taking a single-writer part's lease that another item holds (§5.15) | "file:…/GameflowDbContextModelSnapshot.cs is leased to GF-240 (claude · orca-w2) until 14:05 UTC. Work on something else." | `current: { item_id, holder, held_until }` |
+| `design_review` | Decision 39: claiming, starting or closing an item whose change to an approved design the owner hasn't approved (§5.15) | "GF-312 changes an approved design (Decision 12) and is waiting for the owner. Don't claim it: pause this item's work and pick other work. Other items aren't affected." | `details.review_id`, `details.state`, `details.parts` |
 
 JSON-RPC protocol errors (malformed requests, unknown tool) follow the MCP spec and are separate from these.
 

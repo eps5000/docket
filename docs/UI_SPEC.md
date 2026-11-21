@@ -580,6 +580,12 @@ Project-wide decisions, managed in one place.
   - **Overlap questions**, a card for each pair: "GF-240 and GF-312 both change model Token", with *Run one after the other*, *They're compatible* (an optional note) and *Open both*;
   - **Undeclared-changes holds:** *Add to the declaration* or *Send back*;
   - **Problems:** radar findings ("Heading for a conflict"). Decision 37: they're agent problems ("Agents are handling N problems") until nobody leads the item or a day passes; overlap and hold cards show the three lines (§6.1).
+- **Decision 39 (B46), who is asked:**
+  - **The ticket's Overlaps** show each outcome on both tickets: a chip ("Docket: in parallel", "Docket: in order", "waiting for you"), why, what it rests on (each item's declared change), any design note, and the files whose lines collide. On an outcome Docket chose: *Run in parallel* or *Run in order*, with Undo on the toast.
+  - **A radar conflict** on the ticket says who goes first ("This item merges first" or "Rebases after GF-240 merges"), with the honest line: "The radar sees committed local branches only. A clean trial merge means git can combine them, not that they work together."
+  - **A change to an approved design** always gets a Needs you card and a ticket banner, with or without an overlap and in every mode: "GF-312 changes an approved design", the item with a "paused" chip, the three lines, each part with its change and note, "Other work continues", and *Approve the design change* or *Send back* (which opens a required note, "What should the agent do instead?"; an empty note keeps focus there with an inline error). Both have Undo on the toast. The ticket's Shared changes lists its reviews under "Approved-design changes" ("waiting for you", "approved by you", "sent back", with the owner's note).
+  - **Needs you** gets an overlap card only for level 3: a cycle, a dispute, what the setting asks, or a sequence unresolved after the grace period ("Not settled by agents for a day"; *Run in parallel* or *Keep this order*). Everything else is one quiet line, "Docket handled N overlaps today", which opens them in place, each linking to its tickets.
+  - **The declaration editor** takes a member in the part field, plus "Changes an approved design" (with a required note) and "Ownership is disputed" per part.
 - **Work cards:** a small "overlap" or "conflict ahead" marker when relevant.
 - **Settings → Projects → <project> → Shared parts** (B39: its own page, `/settings/projects/<key>/shared-parts`, linked from the project row):
   - the registry (key, kind, paths, single-writer, in-flight declarations);
@@ -670,6 +676,8 @@ h1 "Settings".
   - **Endpoint card:** MCP URL, Web UI URL, Bind "Loopback only", Auth "Bearer token", Origins;
   - **Service health card:** Database and Documents with ready chips and sizes, Volume, Backups: one row per location, "In the data volume · Nov 6 03:00 · kept 14 days", and, if configured, "Extra copy: /backups-extra · Nov 6 03:01". When the extra location isn't configured, a muted line explains how to add it ("Mount a host folder and set DOCKET_BACKUP_EXTRA_DIR; see the README"), Restarted (with "0 runs were active…"), *Download diagnostic log* (the last 7 days of agent calls, without contents), and *Lock this browser* / *Rotate owner key*.
   - **This browser card:** "Desktop notifications" with a switch, a status line ("On", "Off", "Blocked by the browser. Allow notifications for 127.0.0.1:7420 in your browser settings.") and *Send a test notification*. Theme is also set here.
+
+**Overlap handling** (decision 39; B46): a section after Projects. A default for all projects as three radios (*Agents resolve*, *Ask on shared data*, *Ask on every overlap*), each with one line saying what reaches the owner (a change to an approved design always does), and a table with one select per project ("Default (…)" or an override). Owner only: no MCP tool writes it. Leases, merge checks and decided overlaps are the same in every mode.
 
 ### 6.7b Agent files (`/agent-files`, decision 29; redesigned in B25)
 Its own nav item, after Agents. It isn't under Settings and isn't marked service-wide: like the other pages it follows the project switcher (All projects, or one project). The screen shows **two ideas, not three layers**, and never uses the words bundled, layer, override, effective set or service-wide:

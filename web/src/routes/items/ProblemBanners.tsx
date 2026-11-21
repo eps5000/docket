@@ -7,7 +7,7 @@ import { HelpLink } from '../../help/HelpLink';
 import { queryKeys } from '../../lib/api';
 import { plural } from '../../lib/format';
 import { KindActions } from '../needs-you/ProblemsCard';
-import { HoldCard, OverlapCard } from '../needs-you/SharedQuestions';
+import { DesignReviewCard, HoldCard, OverlapCard } from '../needs-you/SharedQuestions';
 import {
   PROBLEM_TITLES,
   ProblemActions,
@@ -40,7 +40,10 @@ export function ProblemBanners({ data }: { data: ItemDetailResponse }) {
   });
   const overlaps = (shared.data?.overlaps ?? []).filter((o) => o.state === 'open');
   const holds = (shared.data?.holds ?? []).filter((h) => h.state === 'open');
-  const total = problems.length + resolutions.length + overlaps.length + holds.length;
+  // Decision 39: an open review of a change to an approved design pauses this item.
+  const designs = (shared.data?.design_reviews ?? []).filter((d) => d.state === 'open');
+  const total =
+    problems.length + resolutions.length + overlaps.length + holds.length + designs.length;
   const root = useRef<HTMLElement>(null);
   const focused = useRef<string | null>(null);
 
@@ -70,6 +73,9 @@ export function ProblemBanners({ data }: { data: ItemDetailResponse }) {
       ))}
       {resolutions.map((r) => (
         <ResolutionBanner key={r.id} resolution={r} />
+      ))}
+      {designs.map((d) => (
+        <DesignReviewCard key={d.id} review={d} banner />
       ))}
       {overlaps.map((o) => (
         <OverlapCard key={o.id} overlap={o} banner />

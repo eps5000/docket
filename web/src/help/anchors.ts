@@ -32,6 +32,7 @@ export const HELP_ANCHORS = {
   'item.problem-banner': 'Ticket: the problem banner (decision 37)',
   'item.shared-changes': 'Ticket → Details → Shared changes (decision 36)',
   'settings.shared-parts': 'Settings → Projects → Shared parts: the registry and the radar',
+  'settings.overlap-handling': 'Settings → Overlap handling (decision 39)',
   'agents.active-now': 'Agents → Active now',
   'agents.workspaces': 'Agents → Workspaces',
   'agents.recent': 'Agents → Recent',

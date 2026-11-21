@@ -55,6 +55,7 @@ import {
   ACTOR_KINDS,
   LEASE_END_REASONS,
   LIMITS,
+  DESIGN_REVIEW_STATES,
   OVERLAP_STATES,
   SHARED_CHANGES,
   SHARED_PART_KINDS,
@@ -163,6 +164,12 @@ export const projects = sqliteTable(
     radar_last_run_at: text('radar_last_run_at'),
     /** Why the last run couldn't trial-merge ("no repository"); null when it worked. */
     radar_off_reason: text('radar_off_reason'),
+    /**
+     * Owner decision 39 (B46): this project's Overlap handling override; null
+     * follows the global default (`settings.overlap_handling`). Checked in
+     * code (OVERLAP_HANDLING), so the column needs no table rebuild.
+     */
+    overlap_handling: text('overlap_handling'),
     version: version(),
     ...timestamps,
   },
@@ -1160,11 +1167,22 @@ export const item_shared_changes = sqliteTable(
     /** `isc_…` */
     id: id(),
     item_id: itemRef('item_id'),
+    /** The key as declared; with a member, `model:Token.expiresAt`. */
     part_key: text('part_key').notNull(),
     change: text('change', { enum: SHARED_CHANGES }).notNull(),
     note: text('note'),
     declared_by: text('declared_by').notNull(),
     declared_at: text('declared_at').notNull(),
+    /**
+     * Owner decision 39 (B46): the member `part_key` names (`expiresAt`); null
+     * is a bare part. The registered part is `part_key` without `.member`.
+     */
+    member: text('member'),
+    /** `none`, or `changes_approved_design` with `design_note`. Checked in code. */
+    design_impact: text('design_impact').notNull().default('none'),
+    design_note: text('design_note'),
+    /** An agent reports that ownership of this part is disputed. */
+    disputed: integer('disputed', { mode: 'boolean' }).notNull().default(false),
     ...timestamps,
   },
   (t) => [
@@ -1201,8 +1219,17 @@ export const part_overlaps = sqliteTable(
     note: text('note'),
     link_id: text('link_id').references((): AnySQLiteColumn => links.id, { onDelete: 'set null' }),
     raised_at: text('raised_at').notNull(),
+    /** `owner`, or `docket` for an automatic outcome (decision 39). */
     decided_by: text('decided_by'),
     decided_at: text('decided_at'),
+    /**
+     * Owner decision 39 (B46): the classification (`parallel`, `sequence` or
+     * `owner`), why, and what it rests on. Null on a row from before it.
+     * Checked in code, so the columns need no table rebuild.
+     */
+    outcome: text('outcome'),
+    reason: text('reason'),
+    evidence: text('evidence', { mode: 'json' }),
     version: version(),
     ...timestamps,
   },
@@ -1222,6 +1249,43 @@ export const part_overlaps = sqliteTable(
       'part_overlaps_decided',
       sql.raw(`("state" IN ('sequenced', 'compatible')) <= ("decided_at" IS NOT NULL)`),
     ),
+  ],
+);
+
+/**
+ * The owner's review of a declared change to an approved design (owner
+ * decision 39; BUILD_SPEC §5.21 B46): one open per item, with or without an
+ * overlap. `entries` is what the owner reads and approves: each part, its
+ * change and its design note. It pauses this item only.
+ */
+export const design_reviews = sqliteTable(
+  'design_reviews',
+  {
+    /** `drv_…` */
+    id: id(),
+    project_key: text('project_key')
+      .notNull()
+      .references(() => projects.key, { onDelete: 'cascade' }),
+    item_id: itemRef('item_id'),
+    entries: text('entries', { mode: 'json' }).notNull(),
+    state: text('state', { enum: DESIGN_REVIEW_STATES }).notNull().default('open'),
+    /** The owner's note: required to send back. */
+    note: text('note'),
+    requested_by: text('requested_by').notNull(),
+    decided_by: text('decided_by'),
+    decided_at: text('decided_at'),
+    version: version(),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('design_reviews_open_item').on(t.item_id).where(sql.raw(`"state" = 'open'`)),
+    index('design_reviews_project_state').on(t.project_key, t.state),
+    check('design_reviews_state', oneOf('state', DESIGN_REVIEW_STATES)),
+    check(
+      'design_reviews_entries',
+      sql.raw(`json_valid("entries") AND json_type("entries") = 'array'`),
+    ),
+    check('design_reviews_note', maxLen('note', LIMITS.shared_decision_note)),
   ],
 );
 
@@ -1324,6 +1388,12 @@ export const radar_findings = sqliteTable(
     files: text('files', { mode: 'json' }).notNull(),
     seen_at: text('seen_at').notNull(),
     cleared_at: text('cleared_at'),
+    /**
+     * Owner decision 39 (B46): for a conflict between two items' branches,
+     * the item that merges first (already merged, else claimed first). The
+     * other rebases on it; neither stops. Null for the main branch.
+     */
+    merge_first: text('merge_first'),
     ...timestamps,
   },
   (t) => [

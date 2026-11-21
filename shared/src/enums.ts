@@ -422,6 +422,63 @@ export type OverlapState = (typeof OVERLAP_STATES)[number];
 export const OVERLAP_DECISIONS = ['sequence', 'compatible'] as const;
 export type OverlapDecision = (typeof OVERLAP_DECISIONS)[number];
 
+/**
+ * Owner decision 39 (B46): whether a declared change alters something the
+ * owner already approved. `changes_approved_design` needs a note naming the
+ * design, decision or acceptance criterion, and always reaches the owner.
+ */
+export const DESIGN_IMPACTS = ['none', 'changes_approved_design'] as const;
+export type DesignImpact = (typeof DESIGN_IMPACTS)[number];
+
+/**
+ * Owner decision 39: the owner's review of a declared change to an approved
+ * design. It applies with or without an overlap and in every Overlap handling
+ * mode. `open` and `sent_back` pause that item only; `withdrawn` no longer
+ * applies (the owner took the change out of the declaration, or the item was
+ * canceled).
+ */
+export const DESIGN_REVIEW_STATES = ['open', 'approved', 'sent_back', 'withdrawn'] as const;
+export type DesignReviewState = (typeof DESIGN_REVIEW_STATES)[number];
+
+/** The owner's choice on a design review: *Approve the design change* or *Send back*. */
+export const DESIGN_REVIEW_DECISIONS = ['approve', 'send_back'] as const;
+export type DesignReviewDecision = (typeof DESIGN_REVIEW_DECISIONS)[number];
+
+/**
+ * Owner decision 39: Settings → Overlap handling, a global default with an
+ * optional per-project override. Agents resolve (the default): the owner sees
+ * only level 3. Ask on shared data: also tables, models and endpoints. Ask on
+ * every overlap: decision 36's behaviour.
+ */
+export const OVERLAP_HANDLING = ['agents_resolve', 'ask_shared_data', 'ask_every'] as const;
+export type OverlapHandling = (typeof OVERLAP_HANDLING)[number];
+export const DEFAULT_OVERLAP_HANDLING: OverlapHandling = 'agents_resolve';
+
+/** The three questions' answers: run in parallel, Docket sequences them, or the owner decides. */
+export const OVERLAP_OUTCOMES = ['parallel', 'sequence', 'owner'] as const;
+export type OverlapOutcome = (typeof OVERLAP_OUTCOMES)[number];
+
+/** Why an overlap got its outcome (BUILD_SPEC §5.21, decision 39). */
+export const OVERLAP_REASONS = [
+  // Run in parallel
+  'file_only',
+  'different_members',
+  // Sequence automatically
+  'same_member',
+  'change_touches_part',
+  'bare_part',
+  'unclear',
+  // The owner decides (a change to an approved design is its own review: DESIGN_REVIEW_STATES)
+  'blocker_cycle',
+  'disputed',
+  'setting',
+] as const;
+export type OverlapReason = (typeof OVERLAP_REASONS)[number];
+
+/** The owner's overrule of an automatic outcome, from the ticket (decision 39; undoable). */
+export const OVERLAP_OVERRULES = ['parallel', 'order'] as const;
+export type OverlapOverrule = (typeof OVERLAP_OVERRULES)[number];
+
 /** Why a lease ended (BUILD_SPEC §5.21 Leases). */
 export const LEASE_END_REASONS = [
   'released',
@@ -586,6 +643,9 @@ export const EVENT_TYPES = [
   'problem.acknowledged',
   'resolution.proposed',
   'resolution.decided',
+  // A declared change to an approved design (decision 39; B46)
+  'design_review.raised',
+  'design_review.decided',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 
@@ -635,6 +695,8 @@ export const OBJECT_KINDS = [
   'problem_ack',
   /** Decision 37: an agent's proposed resolution of a problem. */
   'resolution',
+  /** Decision 39: the owner's review of a declared change to an approved design. */
+  'design_review',
 ] as const;
 export type ObjectKind = (typeof OBJECT_KINDS)[number];
 

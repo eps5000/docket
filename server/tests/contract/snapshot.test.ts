@@ -364,9 +364,10 @@ const OUTPUTS: Record<string, string[]> = {
   propose_resolution: ['resolution', 'superseded'],
 };
 
-/** Optional result fields, from the §5 Output lines (decision 36: a held packet). */
+/** Optional result fields, from the §5 Output lines (decisions 36 and 39: what's held). */
 const OPTIONAL_OUTPUTS: Record<string, string[]> = {
-  submit_packet: ['held_undeclared'],
+  submit_packet: ['held_undeclared', 'held_design'],
+  declare_shared_changes: ['design_hold'],
 };
 
 const MUTATING = specDescriptions()
@@ -635,6 +636,7 @@ describe('tools/list: output schemas (§4, §5, §6)', () => {
         'seam_conflict',
         'not_declared',
         'lease_held',
+        'design_review',
       ]);
     }
   });
@@ -807,7 +809,7 @@ describe('shared changes follow MCP_SPEC §5.15 (decision 36; B38)', () => {
   type Limits = JsonObject & { maxItems?: number; minItems?: number; const?: unknown };
   it('declare_shared_changes: changes (1–50, notes ≤ 500) or none, new_parts (≤ 20) without single_writer', () => {
     expect(specToolPart('declare_shared_changes', 'Input')).toContain(
-      "`changes?: [{ part, change: 'add'|'change'|'remove', note? }]` (1–50; `note` ≤ 500) or `none?: true`",
+      "`changes?: [{ part, change: 'add'|'change'|'remove', note?, design_impact?, design_note?, disputed? }]` (1–50; `note` and `design_note` ≤ 500; B46) or `none?: true`",
     );
     const props = input('declare_shared_changes').properties!;
     const changes = props.changes as Limits;
@@ -860,8 +862,10 @@ describe('shared changes follow MCP_SPEC §5.15 (decision 36; B38)', () => {
     expect(ctx.required).not.toContain('shared');
     expect(Object.keys(ctx.properties!.shared!.properties!).sort()).toEqual([
       'declaration',
+      'design_hold',
       'in_flight',
       'leases',
+      'outcomes',
       'overlapping',
       'radar',
       'truncated',

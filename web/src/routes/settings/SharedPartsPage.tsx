@@ -68,8 +68,9 @@ export function SharedPartsPage() {
       </div>
       <p className="src aflede">
         The tables, models, endpoints and shared files that parallel work in {key} can collide on.
-        Items declare which ones they change; Docket stops overlapping work at the claim and asks
-        you. <Link to={paths.settings()}>Back to Settings</Link>
+        Items declare which ones they change; Docket runs safe overlaps in parallel, sequences the
+        rest and asks you only when it needs you.{' '}
+        <Link to={paths.settings()}>Back to Settings</Link>
       </p>
       <Card>
         <CardHeader

@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useId, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-import type { OverlapRow, UndeclaredHoldRow } from '@docket/shared';
+import type { DesignReviewRow, OverlapRow, UndeclaredHoldRow } from '@docket/shared';
 import { Button, Card, CardHeader, Chip, StatusChip } from '../../components/kit';
 import { apiClient } from '../../app/queryClient';
 import { useShell } from '../../app/ShellState';
@@ -10,7 +10,7 @@ import { queryKeys } from '../../lib/api';
 import { paths } from '../../lib/paths';
 import { runOwnerMutation, showToast } from '../../lib/undo';
 import { errorText } from '../agent-files/install-common';
-import { partsText } from '../shared/sharedChanges';
+import { overlapOutcomeText, partsText } from '../shared/sharedChanges';
 import { ProblemLines, WarningMark } from '../shared/problems';
 
 /**
@@ -25,13 +25,19 @@ import { ProblemLines, WarningMark } from '../shared/problems';
 export function SharedQuestions({
   overlaps,
   holds,
+  designReviews = [],
 }: {
   overlaps: readonly OverlapRow[];
   holds: readonly UndeclaredHoldRow[];
+  /** Decision 39: a card per open review of a change to an approved design. */
+  designReviews?: readonly DesignReviewRow[];
 }) {
-  if (overlaps.length === 0 && holds.length === 0) return null;
+  if (overlaps.length === 0 && holds.length === 0 && designReviews.length === 0) return null;
   return (
     <div className="mb shared-qs" data-card="shared-questions">
+      {designReviews.map((r) => (
+        <DesignReviewCard key={r.id} review={r} />
+      ))}
       {overlaps.map((o) => (
         <OverlapCard key={o.id} overlap={o} />
       ))}
@@ -80,19 +86,28 @@ export function OverlapCard({
   const noteId = useId();
   const [first, other] = o.items;
   const title = `${first.id} and ${other.id} both change ${partsText(o.parts)}`;
+  // Decision 39: a sequence Docket set that outlived its grace period is overruled, not decided.
+  const byDocket = o.decided_by === 'docket';
   const sequence = () =>
     void run(
-      () => apiClient['overlaps.decide']({ params: { id: o.id }, body: { decision: 'sequence' } }),
+      () =>
+        byDocket
+          ? apiClient['overlaps.overrule']({ params: { id: o.id }, body: { decision: 'order' } })
+          : apiClient['overlaps.decide']({ params: { id: o.id }, body: { decision: 'sequence' } }),
       `${other.id} now waits until ${first.id} is merged.`,
     );
   const compatible = () =>
     void run(
       () =>
-        apiClient['overlaps.decide']({
-          params: { id: o.id },
-          body: { decision: 'compatible', ...(note.trim() ? { note: note.trim() } : {}) },
-        }),
-      `Marked ${first.id} and ${other.id} compatible.`,
+        byDocket
+          ? apiClient['overlaps.overrule']({ params: { id: o.id }, body: { decision: 'parallel' } })
+          : apiClient['overlaps.decide']({
+              params: { id: o.id },
+              body: { decision: 'compatible', ...(note.trim() ? { note: note.trim() } : {}) },
+            }),
+      byDocket
+        ? `${first.id} and ${other.id} now run in parallel.`
+        : `Marked ${first.id} and ${other.id} compatible.`,
     );
   return (
     <Card className="sq-card" data-overlap={o.id} data-problem-id={banner ? o.id : undefined}>
@@ -122,6 +137,11 @@ export function OverlapCard({
             </li>
           ))}
         </ul>
+        {o.reached_you && (
+          <p className="src" style={{ margin: '6px 0 0' }}>
+            {o.reached_you}
+          </p>
+        )}
         {o.explanation ? (
           <ProblemLines e={o.explanation} />
         ) : (
@@ -164,7 +184,11 @@ export function OverlapCard({
           Open both
         </Button>
         <div className="row wrap" style={{ gap: 6 }}>
-          {noting ? (
+          {byDocket ? (
+            <Button size="sm" disabled={busy} aria-describedby={titleId} onClick={compatible}>
+              Run in parallel
+            </Button>
+          ) : noting ? (
             <Button
               size="sm"
               disabled={busy}
@@ -186,11 +210,176 @@ export function OverlapCard({
             aria-describedby={titleId}
             onClick={sequence}
           >
-            Run one after the other
+            {byDocket ? 'Keep this order' : 'Run one after the other'}
           </Button>
         </div>
       </div>
     </Card>
+  );
+}
+
+/**
+ * A declared change to an approved design (owner decision 39): it comes to the
+ * owner with or without an overlap, and that item waits until they decide.
+ * *Approve the design change*, or *Send back* with a required note; both have
+ * Undo on the toast. `banner` places it on the item's page.
+ */
+export function DesignReviewCard({
+  review: r,
+  banner = false,
+}: {
+  review: DesignReviewRow;
+  banner?: boolean;
+}) {
+  const { busy, run } = useDecide();
+  const [sending, setSending] = useState(false);
+  const [note, setNote] = useState('');
+  const [missing, setMissing] = useState(false);
+  const noteRef = useRef<HTMLTextAreaElement>(null);
+  const titleId = useId();
+  const noteId = useId();
+  const errorId = useId();
+  const title = `${r.item.id} changes an approved design`;
+  const decide = (decision: 'approve' | 'send_back') =>
+    void run(
+      () =>
+        apiClient['designReviews.decide']({
+          params: { id: r.id },
+          body: {
+            expected_version: r.version,
+            decision,
+            ...(decision === 'send_back' ? { note: note.trim() } : {}),
+          },
+        }),
+      decision === 'approve'
+        ? `Approved ${r.item.id}’s design change.`
+        : `Sent ${r.item.id}’s design change back.`,
+    );
+  const sendBack = () => {
+    if (!note.trim()) {
+      setMissing(true);
+      noteRef.current?.focus();
+      return;
+    }
+    decide('send_back');
+  };
+  return (
+    <Card className="sq-card" data-design-review={r.id} data-problem-id={banner ? r.id : undefined}>
+      <CardHeader
+        title={
+          <span className="row" style={{ gap: 6 }}>
+            {banner && <WarningMark label="Problem" />}
+            <span id={titleId}>{title}</span>
+          </span>
+        }
+        extra={<HelpLink anchor="needs-you.shared-questions" />}
+      />
+      <div className="pad" style={{ paddingTop: 0 }}>
+        <div className="lrow">
+          <Link to={paths.item(r.item.id)} className="mono">
+            {r.item.id}
+          </Link>
+          <span className="one grow">{r.item.title}</span>
+          <StatusChip status={r.item.status} />
+          <Chip kind="warn">paused</Chip>
+        </div>
+        <ProblemLines e={r.explanation} />
+        <ul className="sq-files" aria-label="What this changes">
+          {r.entries.map((e) => (
+            <li key={`${e.part}:${e.change}`}>
+              <span className="mono">{e.part}</span> ({e.change}): {e.note}
+            </li>
+          ))}
+        </ul>
+        {sending && (
+          <div className="sq-note">
+            <label className="f" htmlFor={noteId}>
+              What should the agent do instead? (required)
+            </label>
+            <textarea
+              ref={noteRef}
+              id={noteId}
+              className="input"
+              rows={2}
+              maxLength={1000}
+              // The button that opened it stays mounted; the note takes focus (B34).
+              autoFocus
+              required
+              aria-invalid={missing}
+              aria-describedby={missing ? errorId : undefined}
+              value={note}
+              onChange={(e) => {
+                setNote(e.target.value);
+                setMissing(false);
+              }}
+            />
+            {missing && (
+              <p id={errorId} className="src" role="alert">
+                Say what the agent should do instead.
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+      <div className="cardfoot">
+        <span className="src">Other work continues</span>
+        <div className="row wrap" style={{ gap: 6 }}>
+          {sending ? (
+            <Button size="sm" disabled={busy} aria-describedby={titleId} onClick={sendBack}>
+              Send it back
+            </Button>
+          ) : (
+            <Button size="sm" aria-describedby={titleId} onClick={() => setSending(true)}>
+              Send back
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant="primary"
+            disabled={busy}
+            aria-describedby={titleId}
+            onClick={() => decide('approve')}
+          >
+            Approve the design change
+          </Button>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+/**
+ * The one quiet line on Needs you (decision 39): "Docket handled N overlaps
+ * today". It opens the overlaps in place, each linking to its tickets, so
+ * nothing Docket decided is hidden.
+ */
+export function OverlapsHandled({
+  handled,
+}: {
+  handled: { count: number; rows: readonly OverlapRow[] } | undefined;
+}) {
+  if (!handled || handled.count === 0) return null;
+  return (
+    <details className="src mb" data-card="overlaps-handled">
+      <summary>
+        Docket handled {handled.count} {handled.count === 1 ? 'overlap' : 'overlaps'} today
+      </summary>
+      <ul className="sq-items" aria-label="Overlaps Docket handled today">
+        {handled.rows.map((o) => (
+          <li key={o.id} className="lrow" data-handled={o.id}>
+            <Link to={paths.item(o.items[0].id)} className="mono">
+              {o.items[0].id}
+            </Link>
+            <Link to={paths.item(o.items[1].id)} className="mono">
+              {o.items[1].id}
+            </Link>
+            <span className="one grow">{partsText(o.parts)}</span>
+            <span>{overlapOutcomeText(o)}</span>
+          </li>
+        ))}
+      </ul>
+      {handled.count > handled.rows.length && <p>and {handled.count - handled.rows.length} more</p>}
+    </details>
   );
 }
 

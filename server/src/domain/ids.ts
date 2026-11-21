@@ -35,6 +35,8 @@ export const ID_PREFIXES = {
   radar_finding: 'rdf',
   /** Decision 37 (MCP_SPEC §5.16): an agent's proposed resolution of a problem. */
   resolution: 'prs',
+  /** Decision 39: the owner's review of a declared change to an approved design. */
+  design_review: 'drv',
   // Internal.
   /** Decision 37: the owner's acknowledgement of a problem. */
   problem_ack: 'pak',

@@ -37,7 +37,8 @@ import {
   type ItemRow,
 } from './model.js';
 import { deferredOf, openPackets, scoped } from './views.js';
-import { declaredKeys, endLeasesOf, raiseHold, undeclaredChanges } from './shared-changes.js';
+import { designHold } from './design-review.js';
+import { declaredKeys, endLeasesOf, raiseHold, settleUndeclared } from './shared-changes.js';
 import { canonicalJson, type InverseOp } from './write.js';
 import { addReportedBranch } from './radar.js';
 
@@ -425,10 +426,10 @@ export function createPacketsService(deps: ServiceDeps): PacketsService {
         project_key: item.project_key,
         data: { status: { old: 'progress', new: 'review' }, packet_id: packetId },
       });
-      // Decision 36 (FR-162): changes to parts the item didn't declare hold the packet: it
-      // is created, but its review gate stays closed until the owner decides. A hand-off
-      // ends the item's leases either way.
-      const held = undeclaredChanges(w.db, item, input.changed_files ?? []);
+      // Decisions 36 and 39 (FR-162, FR-181): undeclared parts get the three questions. Safe
+      // ones join the declaration; one that needs the owner holds the packet: it is created,
+      // but its review gate stays closed until they decide. A hand-off ends the item's leases.
+      const held = settleUndeclared(w, deps.services().links, item, input.changed_files ?? []);
       if (held.parts.length > 0) {
         w.update('packets', packetId, { held_undeclared: held.parts });
         raiseHold(w, item, {
@@ -439,12 +440,15 @@ export function createPacketsService(deps: ServiceDeps): PacketsService {
         });
       }
       endLeasesOf(w, item.id, 'handed_off');
+      // Decision 39: an unapproved change to an approved design keeps the review gate closed.
+      const heldDesign = designHold(w.db, item.id);
       return {
         packet_id: packetId,
         round,
         display_id: display,
         item: summaryOf({ db: w.db, windows: windows(), now: w.now }, item.id),
         ...(held.parts.length > 0 ? { held_undeclared: held.parts } : {}),
+        ...(heldDesign ? { held_design: heldDesign } : {}),
       };
     },
 

@@ -64,7 +64,8 @@ import {
   type ItemRow,
   type RunRow,
 } from './model.js';
-import { SeamConflict, claimOverlaps } from './shared-changes.js';
+import { assertDesignCleared } from './design-review.js';
+import { settleClaim } from './shared-changes.js';
 import type { InverseOp, WriteContext } from './write.js';
 import { addReportedBranch } from './radar.js';
 
@@ -368,6 +369,8 @@ export function createRunsService(deps: ServiceDeps): RunsService {
         );
       }
 
+      // Decision 39: an unapproved change to an approved design pauses this item, at any claim.
+      assertDesignCleared(w.db, item, 'claim');
       const status = requireItem(w.db, item.id).status;
       if (status === 'ready') {
         const deps2 = summary(w, item.id);
@@ -378,10 +381,9 @@ export function createRunsService(deps: ServiceDeps): RunsService {
             { details: { blocked_by: deps2.blocked_by } },
           );
         }
-        // Decision 36 (FR-160): declared parts that overlap claimed work refuse the claim
-        // until the owner decides; the refusal raises one question per pair.
-        const overlaps = claimOverlaps(w.db, item);
-        if (overlaps.length > 0) throw new SeamConflict(item, overlaps);
+        // Decisions 36 and 39 (FR-160, FR-179): overlaps that can safely run together let the
+        // claim go on; the rest refuse it, sequenced by Docket or asked of the owner.
+        settleClaim(w, deps.services().links, item);
       } else if (status !== 'progress') {
         throw new ToolError(
           'validation',

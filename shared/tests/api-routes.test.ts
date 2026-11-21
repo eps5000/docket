@@ -140,6 +140,11 @@ const EXPECTED = [
   // B40: the owner sets or clears the item's branch for the radar; B41: adds or removes one.
   'POST /api/items/:id/shared/branches',
   'POST /api/overlaps/:id/decide',
+  // Decision 39 (B46): the owner's overrule, and Settings → Overlap handling.
+  'POST /api/overlaps/:id/overrule',
+  'POST /api/design-reviews/:id/decide',
+  'GET /api/settings/overlap-handling',
+  'PUT /api/settings/overlap-handling',
   'POST /api/undeclared-holds/:id/decide',
   'POST /api/leases/:id/release',
   'GET /api/projects/:key/radar',
@@ -171,7 +176,7 @@ describe('the route table', () => {
     const labels = ROUTE_IDS.map((id) => routeLabel(API_ROUTES[id]));
     expect(new Set(labels).size).toBe(labels.length);
     expect([...labels].sort()).toEqual([...EXPECTED].sort());
-    expect(labels).toHaveLength(94);
+    expect(labels).toHaveLength(98);
   });
 
   it('puts each route in a known group, and every group has a route', () => {
@@ -592,6 +597,9 @@ describe('field rules', () => {
       'sharedParts.update',
       'itemShared.put',
       'itemShared.branches',
+      // Decision 39: overruling an automatic outcome.
+      'overlaps.overrule',
+      'designReviews.decide',
     ] as const;
     for (const id of ROUTE_IDS.filter((r) => API_ROUTES[r].group === 'shared')) {
       expect(API_ROUTES[id].undoable, id).toBe((undoable as readonly string[]).includes(id));

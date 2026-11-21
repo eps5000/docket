@@ -3,6 +3,7 @@ import { Welcome } from './Welcome';
 import { useQuery } from '@tanstack/react-query';
 import type {
   DecisionRecord,
+  DesignReviewRow,
   OverlapRow,
   Problem,
   ProjectDecisionGroup,
@@ -23,7 +24,7 @@ import { ForYouNow } from './ForYouNow';
 import { OnboardingReviews } from './OnboardingReviews';
 import { PlanningQueueCard } from './PlanningQueueCard';
 import { ProblemsCard } from './ProblemsCard';
-import { SharedQuestions } from './SharedQuestions';
+import { OverlapsHandled, SharedQuestions } from './SharedQuestions';
 import { ResolutionCards } from './ResolutionCards';
 import { ProjectDecisionCards } from './ProjectDecisionCards';
 import '../screens.css';
@@ -68,7 +69,9 @@ export function NeedsYou() {
             <SharedQuestions
               overlaps={data.overlaps ?? NO_OVERLAPS}
               holds={data.undeclared_holds ?? NO_HOLDS}
+              designReviews={data.design_reviews ?? NO_DESIGN_REVIEWS}
             />
+            <OverlapsHandled handled={data.overlaps_handled} />
             <ResolutionCards resolutions={data.resolutions ?? NO_RESOLUTIONS} />
             <ProjectDecisionCards
               cards={data.project_decisions ?? NO_DECISIONS}
@@ -97,6 +100,7 @@ export function NeedsYou() {
 const NO_WORKSPACES: readonly WorkspaceRow[] = [];
 const NO_OVERLAPS: readonly OverlapRow[] = [];
 const NO_HOLDS: readonly UndeclaredHoldRow[] = [];
+const NO_DESIGN_REVIEWS: readonly DesignReviewRow[] = [];
 const NO_RESOLUTIONS: readonly ResolutionRow[] = [];
 const NO_PROBLEMS: readonly Problem[] = [];
 const NO_DECISIONS: readonly DecisionRecord[] = [];

@@ -33,7 +33,14 @@ import { readContext } from '../domain/contracts.js';
 import { ms } from '../domain/model.js';
 import type { RunRow } from '../domain/model.js';
 import { orphans, parkInfo } from '../domain/recovery-model.js';
-import { RADAR_INTERVAL_MS, radarProjects } from '../domain/radar.js';
+import {
+  RADAR_DEBOUNCE_MS,
+  RADAR_INTERVAL_MS,
+  RADAR_MIN_GAP_MS,
+  radarProjects,
+  radarTriggers,
+} from '../domain/radar.js';
+import { classifyLegacyOverlaps } from '../domain/shared-changes.js';
 import { SYSTEM_ACTOR } from '../domain/write.js';
 import type { Runtime } from '../runtime.js';
 
@@ -251,34 +258,82 @@ export function radarRunOnce(runtime: Runtime, project: string, actor = SYSTEM_A
 }
 
 /**
- * Run the radar for every project with a repository at startup and every
- * 15 minutes (BUILD_SPEC §5.21: at least every 15 minutes). Tests pass a
- * shorter `intervalMs`, or null to turn it off. A failing project is logged
- * and skipped; the others still run.
+ * Decision 39, once at startup: open overlap questions from before it get the
+ * new rule, so the owner isn't left answering what Docket now handles. A pair
+ * the owner decided is untouched. Writes nothing when there are none.
  */
-export function startRadar(runtime: Runtime, opts: { intervalMs?: number | null } = {}): Sweeper {
+export function classifyLegacyOverlapsOnce(runtime: Runtime): number {
+  return runtime.write.run({ actor: SYSTEM_ACTOR, operation: 'overlaps.classify', args: {} }, (w) =>
+    classifyLegacyOverlaps(w, runtime.services.links),
+  ).result;
+}
+
+/**
+ * Run the radar for every project with a repository at startup and every
+ * 15 minutes (BUILD_SPEC §5.21: at least every 15 minutes), and for a project
+ * soon after one of its items reports a branch or a commit (decision 39;
+ * debounced, and at most once per `minGapMs`). Tests pass shorter times, or
+ * null to turn either off. A failing project is logged and skipped; the
+ * others still run.
+ */
+export function startRadar(
+  runtime: Runtime,
+  opts: { intervalMs?: number | null; debounceMs?: number | null; minGapMs?: number } = {},
+): Sweeper {
   const interval = opts.intervalMs === undefined ? RADAR_INTERVAL_MS : opts.intervalMs;
-  if (!interval) return { stop() {} };
+  const debounce = opts.debounceMs === undefined ? RADAR_DEBOUNCE_MS : opts.debounceMs;
+  const minGap = opts.minGapMs ?? RADAR_MIN_GAP_MS;
+  if (!interval && !debounce) return { stop() {} };
   let stopped = false;
-  const tick = () => {
-    if (stopped) return;
-    for (const key of radarProjects(runtime.db)) {
-      try {
-        radarRunOnce(runtime, key);
-      } catch (err) {
-        runtime.log(`radar: ${key} failed: ${err instanceof Error ? err.message : String(err)}`);
-      }
+  const lastRun = new Map<string, number>();
+  const pending = new Map<string, NodeJS.Timeout>();
+  const runProject = (key: string) => {
+    lastRun.set(key, Date.now());
+    try {
+      radarRunOnce(runtime, key);
+    } catch (err) {
+      runtime.log(`radar: ${key} failed: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
-  const first = setTimeout(tick, 5_000);
-  first.unref();
-  const timer = setInterval(tick, interval);
-  timer.unref();
+  const tick = () => {
+    if (stopped) return;
+    for (const key of radarProjects(runtime.db)) runProject(key);
+  };
+  // Decision 39: run soon after a branch or commit is reported, at most once per `minGap`.
+  const schedule = (key: string) => {
+    if (stopped || pending.has(key)) return;
+    const since = Date.now() - (lastRun.get(key) ?? 0);
+    const timer = setTimeout(
+      () => {
+        pending.delete(key);
+        if (!stopped) runProject(key);
+      },
+      Math.max(debounce ?? 0, minGap - since),
+    );
+    timer.unref();
+    pending.set(key, timer);
+  };
+  const onChange = (seqs: number[]) => {
+    if (stopped || !debounce) return;
+    try {
+      for (const key of radarTriggers(runtime.db, seqs)) schedule(key);
+    } catch (err) {
+      runtime.log(`radar: trigger failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  };
+  if (debounce) runtime.bus.on('change', onChange);
+  const first = interval ? setTimeout(tick, 5_000) : null;
+  first?.unref();
+  const timer = interval ? setInterval(tick, interval) : null;
+  timer?.unref();
   return {
     stop() {
       stopped = true;
-      clearTimeout(first);
-      clearInterval(timer);
+      if (first) clearTimeout(first);
+      if (timer) clearInterval(timer);
+      for (const t of pending.values()) clearTimeout(t);
+      pending.clear();
+      runtime.bus.off('change', onChange);
     },
   };
 }

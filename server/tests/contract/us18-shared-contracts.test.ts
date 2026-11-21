@@ -33,6 +33,7 @@ import { probeRepo, RadarGit } from '../../src/domain/radar.js';
 import { insertItem, insertProject, tempDir } from '../helpers.js';
 import { ORIGIN, parseSetCookies } from '../integration/harness.js';
 import {
+  CONTRACT_NOW,
   expectOk,
   expectToolError,
   expectValidation,
@@ -40,6 +41,7 @@ import {
   tokens,
   type ContractHarness,
 } from './harness.js';
+import { writeDefaultHandling } from '../../src/domain/overlap-policy.js';
 
 let h: ContractHarness | undefined;
 afterEach(async () => {
@@ -89,9 +91,19 @@ async function owner() {
 
 const declare = (args: S) => h!.call('declare_shared_changes', args);
 
+/**
+ * Decision 39 (B46): *Ask on every overlap* is decision 36's behaviour, which
+ * this file pins. b46-overlaps.test.ts covers the default, *Agents resolve*.
+ */
+async function askEveryHarness(opts?: Parameters<typeof startHarness>[0]) {
+  const harness = await startHarness(opts);
+  writeDefaultHandling(harness.server.runtime.db, 'ask_every', CONTRACT_NOW.toISOString());
+  return harness;
+}
+
 describe('declare_shared_changes (MCP_SPEC §5.15)', () => {
   it('registers new parts, replaces the declaration, and returns in-flight overlaps', async () => {
-    h = await startHarness();
+    h = await askEveryHarness();
     const first = expectOk(
       await declare({
         id: 'RCP-18',
@@ -130,10 +142,12 @@ describe('declare_shared_changes (MCP_SPEC §5.15)', () => {
       {
         with: { id: 'RCP-18', title: 'Import recipes from URL', status: 'progress' },
         parts: ['model:Recipe'],
+        outcome: 'owner',
+        reason: 'setting',
       },
     ]);
     expect(second.text).toBe(
-      'Declared 2 changes on RCP-14 · registered table:shopping_lists · overlaps RCP-18 on model:Recipe',
+      'Declared 2 changes on RCP-14 · registered table:shopping_lists · overlaps RCP-18 on model:Recipe (owner decides)',
     );
     // A declaration isn't an edit of the item: its version doesn't move.
     expect(version('RCP-14')).toBe(before);
@@ -196,7 +210,7 @@ describe('declare_shared_changes (MCP_SPEC §5.15)', () => {
   });
 
   it('refuses unknown or archived parts, closed items, and single_writer from agents', async () => {
-    h = await startHarness();
+    h = await askEveryHarness();
     const unknown = expectValidation(
       await declare({ id: 'RCP-14', changes: [{ part: 'model:Ghost', change: 'add' }] }),
     );
@@ -235,7 +249,7 @@ describe('declare_shared_changes (MCP_SPEC §5.15)', () => {
   });
 
   it('a secret in a note is refused before anything is stored', async () => {
-    h = await startHarness();
+    h = await askEveryHarness();
     const err = expectValidation(
       await declare({
         id: 'RCP-14',
@@ -252,7 +266,7 @@ describe('declare_shared_changes (MCP_SPEC §5.15)', () => {
 
 describe('list_shared_parts (MCP_SPEC §5.15)', () => {
   it('lists parts by key with their in-flight declarations, and writes nothing', async () => {
-    h = await startHarness();
+    h = await askEveryHarness();
     expectOk(
       await declare({
         id: 'RCP-18',
@@ -315,7 +329,7 @@ describe('list_shared_parts (MCP_SPEC §5.15)', () => {
 
 describe('the owner API (UI_SPEC §6.3.6)', () => {
   it('creates, edits, archives and restores registry parts; creating and editing are undoable', async () => {
-    h = await startHarness();
+    h = await askEveryHarness();
     const api = await owner();
     const created = await api('POST', '/api/projects/RCP/shared-parts', {
       key: 'File: .\\server\\src\\db\\migrations\\meta\\_journal.json',
@@ -379,7 +393,7 @@ describe('the owner API (UI_SPEC §6.3.6)', () => {
   });
 
   it('reads and edits an item’s declaration; the edit is undoable; new parts may be single-writer', async () => {
-    h = await startHarness();
+    h = await askEveryHarness();
     const api = await owner();
     const empty = await api('GET', '/api/items/RCP-14/shared');
     expect(empty.body).toEqual({
@@ -426,7 +440,7 @@ describe('the owner API (UI_SPEC §6.3.6)', () => {
   });
 
   it('the radar card is off with no repository; unknown decisions and leases are not_found', async () => {
-    h = await startHarness();
+    h = await askEveryHarness();
     const api = await owner();
     expect((await api('GET', '/api/projects/RCP/radar')).body).toEqual({
       project: 'RCP',
@@ -447,7 +461,7 @@ describe('the owner API (UI_SPEC §6.3.6)', () => {
   });
 
   it('PATCH /api/items/:id takes override_reason only with status ready', async () => {
-    h = await startHarness();
+    h = await askEveryHarness();
     const api = await owner();
     const v = version('RCP-23');
     const ok = await api('PATCH', '/api/items/RCP-23', {
@@ -514,7 +528,7 @@ async function started(title: string, client = h!.a, parts?: string[]) {
 
 describe('the Ready gate (FR-159)', () => {
   it('set_status ready on an item without a declaration (or none) is not_declared, for agents and the owner', async () => {
-    h = await startHarness();
+    h = await askEveryHarness();
     const created = expectOk(
       await h.call('create_item', {
         project: 'RCP',
@@ -561,7 +575,7 @@ describe('the Ready gate (FR-159)', () => {
   });
 
   it('the owner moves an undeclared item to Ready with override_reason, recorded in Activity', async () => {
-    h = await startHarness();
+    h = await askEveryHarness();
     const api = await owner();
     const res = await api('PATCH', '/api/items/RCP-23', {
       expected_version: version('RCP-23'),
@@ -593,7 +607,7 @@ describe('the Ready gate (FR-159)', () => {
 describe('overlaps at the claim (FR-160)', () => {
   /** RCP-14 (In progress) and RCP-17 (Ready) both declare model:Recipe. */
   async function overlapping() {
-    h = await startHarness();
+    h = await askEveryHarness();
     const api = await owner();
     await registry(api);
     expectOk(
@@ -762,7 +776,7 @@ describe('overlaps at the claim (FR-160)', () => {
   });
 
   it('declaring later, while in progress, flags both items ("Now overlaps …") and raises the question, keeping the claim', async () => {
-    h = await startHarness();
+    h = await askEveryHarness();
     await registry(await owner());
     expectOk(
       await declare({ id: 'RCP-14', changes: [{ part: 'model:Recipe', change: 'change' }] }),
@@ -798,7 +812,7 @@ describe('leases (FR-161)', () => {
   const JOURNAL = 'file:server/src/db/migrations/meta/_journal.json';
 
   it('take_lease on a single-writer part returns held_until; a second item gets lease_held with the holder and expiry', async () => {
-    h = await startHarness();
+    h = await askEveryHarness();
     const api = await owner();
     await registry(api, [{ key: JOURNAL, single_writer: true }]);
     const t = expectOk(await h.call('take_lease', { id: 'RCP-14', part: JOURNAL }));
@@ -852,7 +866,7 @@ describe('leases (FR-161)', () => {
   });
 
   it('a lease ends on release_lease, owner release, Done, hand-off (submit_packet or set_status done) and expiry', async () => {
-    h = await startHarness({ env: { DOCKET_LEASE_MINUTES: '10' } });
+    h = await askEveryHarness({ env: { DOCKET_LEASE_MINUTES: '10' } });
     const api = await owner();
     await registry(api, [{ key: JOURNAL, single_writer: true }]);
     const reasons = () =>
@@ -936,7 +950,7 @@ describe('changed files at hand-off (FR-162)', () => {
   });
 
   it('submit_packet with changed_files mapping to undeclared parts holds the packet (held_undeclared) and raises the question', async () => {
-    h = await startHarness();
+    h = await askEveryHarness();
     const api = await owner();
     await registry(api);
     const t = await started('Recipe source', h.a, ['model:Recipe']);
@@ -985,7 +999,7 @@ describe('changed files at hand-off (FR-162)', () => {
   });
 
   it('set_status done with changed files mapping to undeclared parts is not_declared, raises the question, and leaves the item', async () => {
-    h = await startHarness();
+    h = await askEveryHarness();
     await registry(await owner());
     const t = await started('Deck export');
     for (let i = 0; i < 2; i++) {
@@ -1035,7 +1049,7 @@ describe('changed files at hand-off (FR-162)', () => {
   });
 
   it('Add to the declaration adds the parts and releases the hold; Send back returns the item with an owner note', async () => {
-    h = await startHarness();
+    h = await askEveryHarness();
     const api = await owner();
     await registry(api);
     // Add to the declaration: the parts join it, and the packet opens for review.
@@ -1092,7 +1106,7 @@ describe('changed files at hand-off (FR-162)', () => {
   });
 
   it('an item with declarations that hands off without changed_files shows "Changed files not reported" on the packet', async () => {
-    h = await startHarness();
+    h = await askEveryHarness();
     const api = await owner();
     await registry(api);
     const t = await started('No files', h.a, ['model:Recipe']);
@@ -1119,7 +1133,7 @@ describe('changed files at hand-off (FR-162)', () => {
 
 describe('get_context.shared (FR-164)', () => {
   it('get_context.shared lists the declaration, overlapping and up to 30 other in-flight declarations, leases and findings, within budget', async () => {
-    h = await startHarness();
+    h = await askEveryHarness();
     const api = await owner();
     const keys = Array.from({ length: 6 }, (_, i) => `table:recipe_part_${i}`);
     await registry(api, [
@@ -1242,7 +1256,7 @@ describe('the conflict radar (FR-163; T184)', () => {
       tmp = tempDir('docket-radar-');
       const fixture = makeRadarRepo(tmp.dir);
       mkdirSync(join(tmp.dir, 'not-a-repo'));
-      h = await startHarness({ env: { DOCKET_PUSH_ROOT: tmp.dir } });
+      h = await askEveryHarness({ env: { DOCKET_PUSH_ROOT: tmp.dir } });
       const api = await owner();
 
       // Settings: inside DOCKET_PUSH_ROOT only; a bad branch name is refused.
@@ -1379,7 +1393,7 @@ describe('the conflict radar (FR-163; T184)', () => {
   ); // git runs in a child process; slow under a full parallel run
 
   it('without DOCKET_PUSH_ROOT the radar settings are refused and the card stays off', async () => {
-    h = await startHarness();
+    h = await askEveryHarness();
     const api = await owner();
     const res = await api('PUT', '/api/projects/RCP/radar', { repo_path: 'recipe-app' });
     expect(res.status).toBe(400);
@@ -1412,7 +1426,7 @@ describe('B40: the radar sees in-flight branches', () => {
     async () => {
       tmp = tempDir('docket-radar-b40-');
       const { repo } = makeBranchRepo(tmp.dir);
-      h = await startHarness({ env: { DOCKET_PUSH_ROOT: tmp.dir } });
+      h = await askEveryHarness({ env: { DOCKET_PUSH_ROOT: tmp.dir } });
       const api = await owner();
       const db = h.server.runtime.db;
       insertProject(db, 'GF');
@@ -1585,7 +1599,7 @@ describe('B41: several branches per item', () => {
     async () => {
       tmp = tempDir('docket-radar-b41-');
       const { repo } = makeEpicRepo(tmp.dir);
-      h = await startHarness({ env: { DOCKET_PUSH_ROOT: tmp.dir } });
+      h = await askEveryHarness({ env: { DOCKET_PUSH_ROOT: tmp.dir } });
       const api = await owner();
       const db = h.server.runtime.db;
       insertProject(db, 'GF');
@@ -1709,7 +1723,7 @@ describe('B41: several branches per item', () => {
   );
 
   it('claim_lead, submit_packet and set_status add their branch; the owner adds and removes (undoable); at most 10', async () => {
-    h = await startHarness();
+    h = await askEveryHarness();
     const api = await owner();
     const names = async (id: string) =>
       ((await api('GET', `/api/items/${id}/shared`)).body.branches as Branches).reported.map(
@@ -1825,7 +1839,7 @@ describe('B41: several branches per item', () => {
 
 describe('SC-023: unattended agents never start overlapping work without an owner decision', () => {
   it('SC-023: two agents claiming overlapping items unattended start no overlapping work without an owner decision', async () => {
-    h = await startHarness();
+    h = await askEveryHarness();
     const api = await owner();
     await registry(api);
     // Four new P1 items (ahead of the seed's Ready work): two change model:Recipe.

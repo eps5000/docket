@@ -863,7 +863,7 @@ describe('shared changes (MCP_SPEC §5.15; decision 36; B38)', () => {
         anyOf: { properties: { code: { enum: string[] } } }[];
       }
     ).anyOf[1]!.properties.code.enum;
-    expect(err.slice(-3)).toEqual(['seam_conflict', 'not_declared', 'lease_held']);
+    expect(err.slice(-4)).toEqual(['seam_conflict', 'not_declared', 'lease_held', 'design_review']);
     const packet = getTool('submit_packet').output;
     expect(
       packet.safeParse({

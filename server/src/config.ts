@@ -36,6 +36,12 @@ export interface Config {
    * BUILD_SPEC §5.21): DOCKET_AGENT_PROBLEM_GRACE_HOURS, default 24.
    */
   agentProblemGraceMs: number;
+  /**
+   * How long an overlap Docket handled may stay unresolved before it reaches
+   * the owner (owner decision 39; BUILD_SPEC §5.21):
+   * DOCKET_OVERLAP_GRACE_HOURS, default 24.
+   */
+  overlapGraceMs: number;
   /** A parked run `resume_ready` this long shows as "Ready to resume, unattended" (§5.16). */
   resumeUnattendedMs: number;
   /** A resource unreleased this long after its run ended is orphaned (§5.16). */
@@ -109,6 +115,7 @@ export const DEFAULTS = {
   DOCKET_PARK_MAX: '24h',
   // Decision 37: agent problems reach the owner after this many whole hours unfixed.
   DOCKET_AGENT_PROBLEM_GRACE_HOURS: '24',
+  DOCKET_OVERLAP_GRACE_HOURS: '24',
   DOCKET_RESUME_UNATTENDED: '30m',
   DOCKET_ORPHAN_AFTER: '15m',
   DOCKET_DRIFT_CHECK_INTERVAL: '15m',
@@ -260,6 +267,13 @@ export function loadConfig(
     );
   }
 
+  const overlapGraceHours = Number(get('DOCKET_OVERLAP_GRACE_HOURS'));
+  if (!Number.isInteger(overlapGraceHours) || overlapGraceHours < 0) {
+    throw new ConfigError(
+      `DOCKET_OVERLAP_GRACE_HOURS must be a whole number of hours, 0 or more (got "${get('DOCKET_OVERLAP_GRACE_HOURS')}")`,
+    );
+  }
+
   const protectedValue = get('DOCKET_PROTECTED_MODE').toLowerCase();
   if (!['on', 'off', 'true', 'false'].includes(protectedValue)) {
     throw new ConfigError(
@@ -280,6 +294,7 @@ export function loadConfig(
     partLeaseMs: leaseMinutes * 60_000,
     parkMaxMs: parseDuration(get('DOCKET_PARK_MAX'), 'DOCKET_PARK_MAX'),
     agentProblemGraceMs: graceHours * 3_600_000,
+    overlapGraceMs: overlapGraceHours * 3_600_000,
     resumeUnattendedMs: parseDuration(get('DOCKET_RESUME_UNATTENDED'), 'DOCKET_RESUME_UNATTENDED'),
     orphanAfterMs: parseDuration(get('DOCKET_ORPHAN_AFTER'), 'DOCKET_ORPHAN_AFTER'),
     backupAt,

@@ -1763,14 +1763,67 @@
 .tl .shared-edit-row > .btn {
   grid-row: 2;
 }
+/* Decision 39: the design-impact and ownership controls sit under the row's fields. */
+.tl .shared-edit-extra {
+  grid-column: 1 / -1;
+  grid-row: 3;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: 6px;
+}
+.tl .shared-edit-design {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+.tl .shared-edit-design .input {
+  width: 100%;
+}
 @media (max-width: 640px) {
   .tl .shared-edit-row {
     grid-template-columns: minmax(0, 1fr);
     grid-auto-flow: row;
   }
-  .tl .shared-edit-row > .btn {
+  .tl .shared-edit-row > .btn,
+  .tl .shared-edit-extra {
     grid-row: auto;
   }
+}
+/* Decision 39: an overlap's outcome on the ticket, and Settings → Overlap handling. */
+.tl .shared-outcome {
+  padding: 4px 0;
+}
+.tl .shared-outcome + .shared-outcome {
+  border-top: 1px solid var(--line);
+}
+.tl .shared-why {
+  margin: 2px 0 4px;
+}
+.tl .overlap-modes {
+  border: 0;
+  margin: 0 0 12px;
+  padding: 0;
+  min-width: 0;
+}
+.tl .overlap-mode {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 4px 0;
+}
+.tl .overlap-mode input {
+  margin-top: 3px;
+  flex: none;
+}
+.tl .overlap-mode-name {
+  display: block;
+  font-weight: 600;
+}
+.tl .overlap-mode-help {
+  display: block;
+}
+.tl [data-card='overlaps-handled'] summary {
+  cursor: pointer;
 }
 .tl .sq-card + .sq-card {
   margin-top: 10px;

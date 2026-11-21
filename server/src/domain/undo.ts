@@ -75,7 +75,16 @@ export function applyUndo(ctx: WriteContext, mutationId: string): { undone: stri
   if (events.length === 0) {
     throw new ToolError('not_found', `No change ${mutationId} to undo.`);
   }
-  if (events.some((e) => e.actor_kind !== 'owner')) {
+  // Decision 39: an automatic outcome written inside the owner's own change is recorded as
+  // Docket, and goes back with it. A mutation made only by Docket or an agent stays out.
+  const docket = (e: StoredEvent) =>
+    e.actor_kind === 'system' &&
+    !!e.data &&
+    (JSON.parse(e.data) as { decided_by?: unknown }).decided_by === 'docket';
+  if (
+    events.some((e) => e.actor_kind !== 'owner' && !docket(e)) ||
+    !events.some((e) => e.actor_kind === 'owner')
+  ) {
     throw new ToolError(
       'forbidden',
       "Agent changes can't be undone from the UI. Leave the agent a note instead.",

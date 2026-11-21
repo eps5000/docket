@@ -32,6 +32,8 @@ import type { Actor } from './write.js';
 
 /** How an actor is written in stored attributions and events: `owner`, `system`, `claude · orca-w3`. */
 export function actorName(actor: Pick<Actor, 'kind' | 'client' | 'label'>): string {
+  // Decision 39: an automatic outcome is recorded as Docket, not as a nameless system.
+  if (actor.kind === 'system' && actor.label === 'Docket') return 'docket';
   if (actor.kind !== 'agent') return actor.kind;
   const client = actor.client ?? 'agent';
   return actor.label ? `${client} · ${actor.label}` : client;
