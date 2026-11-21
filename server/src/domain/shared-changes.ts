@@ -572,13 +572,15 @@ function replaceBranches(
 /**
  * The owner adds a branch to the item's reported branches, or removes one
  * (B41; the Shared changes section; undoable). Adding one already there, or
- * removing one that isn't, records nothing.
+ * removing one that isn't, records nothing. `notActive` (B45; *Not an active
+ * branch*) also keeps discovery from adopting the removed branch.
  */
 function ownerBranch(
   w: WriteContext,
   item: { id: string; project_key: string },
   op: 'add' | 'remove',
   name: string,
+  notActive = false,
 ): void {
   const before = reportedBranches(w.db, item.id);
   const has = before.some((b) => b.name === name);
@@ -594,7 +596,7 @@ function ownerBranch(
     op === 'add'
       ? [...before, { name, by: callerName(w.db, w.actor), at: w.now }]
       : before.filter((b) => b.name !== name);
-  const inverse = writeBranches(w, item.id, next);
+  const inverse = writeBranches(w, item.id, next, op === 'remove' && notActive ? name : undefined);
   w.event({
     type: 'branch.reported',
     summary:
@@ -1443,7 +1445,7 @@ export function createSharedChangesService(deps: ServiceDeps): SharedChangesServ
       }
       const branch = input.branch.trim();
       assertBranchName(branch);
-      ownerBranch(w, item, input.op, branch);
+      ownerBranch(w, item, input.op, branch, input.not_active);
       return itemShared({ db: w.db, actor: w.actor, now: w.now }, item.id);
     },
 

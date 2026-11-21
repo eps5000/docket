@@ -343,8 +343,10 @@ export function radarProblems(
     if (!set) {
       const row = db.sqlite.prepare('SELECT branches FROM items WHERE id = ?').get(item) as
         { branches: string | null } | undefined;
-      const list = row?.branches ? (JSON.parse(row.branches) as { name: string }[]) : [];
-      set = new Set(list.map((b) => b.name));
+      const list = row?.branches
+        ? (JSON.parse(row.branches) as { name: string; removed?: boolean }[])
+        : [];
+      set = new Set(list.filter((b) => !b.removed).map((b) => b.name));
       reported.set(item, set);
     }
     return set;

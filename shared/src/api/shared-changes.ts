@@ -286,11 +286,14 @@ export type PutItemSharedResponse = z.infer<typeof putItemSharedResponse>;
 /**
  * The owner adds a branch to the item's reported branches, or removes one
  * (B41; B40 had one branch, set or cleared). Removing the last lets the radar
- * look for one by name.
+ * look for one by name. `not_active` (B45; *Not an active branch*, with
+ * `remove`) also keeps the radar from finding this branch by name, until Undo
+ * or someone reports it again.
  */
 export const postItemBranchesBody = input({
   op: z.enum(['add', 'remove']),
   branch: branchInput,
+  not_active: z.boolean().optional(),
 });
 export const postItemBranchesResponse = ownerMutationOutput(itemSharedResponse.shape);
 export type PostItemBranchesResponse = z.infer<typeof postItemBranchesResponse>;

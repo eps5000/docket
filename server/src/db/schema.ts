@@ -234,6 +234,9 @@ export const items = sqliteTable(
      * owner adds or removes one; `claim_lead`, `submit_packet` and
      * `set_status` add theirs. Migration 0012 moved B40's single reported
      * branch here; `branch`, `branch_by` and `branch_at` are no longer written.
+     * B45: an entry with `removed: true` is a branch the owner marked *Not an
+     * active branch*; it isn't reported, and discovery won't adopt it until it
+     * is reported again.
      */
     branches: text('branches', { mode: 'json' }),
     version: version(),

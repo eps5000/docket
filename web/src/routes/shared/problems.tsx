@@ -215,7 +215,10 @@ export function ProblemActions({
   const notActive = (item: string, branch: string) =>
     void run(
       () =>
-        apiClient['itemShared.branches']({ params: { id: item }, body: { op: 'remove', branch } }),
+        apiClient['itemShared.branches']({
+          params: { id: item },
+          body: { op: 'remove', branch, not_active: true },
+        }),
       `Removed ${branch} from ${item}’s branches; the radar stops checking it.`,
     );
   const acknowledge = () =>
