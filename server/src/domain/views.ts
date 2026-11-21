@@ -81,7 +81,7 @@ import {
   radarProblems,
   type FoundProblem,
 } from './problems.js';
-import { inScopeOf, ofScope } from './decisions.js';
+import { inScopeOf, ofScope, projectReviews } from './decisions.js';
 import {
   BlockIndex,
   EVENT_COLUMNS,
@@ -1047,6 +1047,8 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
     const resolutions = openResolutions(r.db, new Set(s.items.keys())).filter(
       (x) => x.problem_id === null || open.has(x.problem_id),
     );
+    // Decision 38: agents' project-wide decisions wait for the owner's review.
+    const reviews = projectReviews(r.db, scope);
     return {
       for_you_now: forYouRows(s, att),
       problems,
@@ -1065,6 +1067,8 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
       overlaps: shared.overlaps,
       undeclared_holds: shared.undeclared_holds,
       radar_findings: shared.radar_findings,
+      project_decisions: reviews.cards,
+      project_decision_groups: reviews.groups,
     };
   }
 
@@ -1109,7 +1113,9 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
             (view.onboarding_reviews?.length ?? 0) +
             (view.overlaps?.length ?? 0) +
             (view.undeclared_holds?.length ?? 0) +
-            (view.resolutions?.length ?? 0),
+            (view.resolutions?.length ?? 0) +
+            (view.project_decisions?.length ?? 0) +
+            (view.project_decision_groups?.length ?? 0),
           problems: view.problems.length,
           planning: view.planning_queue.length,
           runs: view.agent_counts,
@@ -1310,12 +1316,15 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         lead_parked: childParked(c),
       }));
 
-      // Decision records (§6.3.5), every status (the section can show inactive ones): an
-      // epic shows its own; a ticket everything that applies (decisions.ts, the one scope rule).
-      const decisions: DecisionRecord[] =
-        row.type === 'Epic'
-          ? ofScope(r.db, row.project_key, { kind: 'epic', id: row.id }, { includeInactive: true })
-          : inScopeOf(r.db, { ...row, labels: item.labels }, { includeInactive: true });
+      // Decision records (§6.3.5), every status (the section can show inactive ones):
+      // everything that applies (decisions.ts, the one scope rule). Decision 38: the page
+      // lists the item's, its epic's (an epic's own) and its labels'; project records are
+      // one "also apply" line, so they come too.
+      const decisions: DecisionRecord[] = inScopeOf(
+        r.db,
+        { ...row, labels: item.labels },
+        { includeInactive: true },
+      );
 
       // Checklist history: each plan version, with the step changes its event recorded.
       const versions = sql

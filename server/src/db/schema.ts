@@ -1510,6 +1510,16 @@ export const decision_records = sqliteTable(
       onDelete: 'set null',
     }),
     confirmed_at: text('confirmed_at'),
+    /**
+     * Decision 38 (B44): when the owner acknowledged an agent's project-wide
+     * record on Needs you (kept as an agent decision); null until then.
+     */
+    acknowledged_at: text('acknowledged_at'),
+    /**
+     * Decision 38 (B44): 1 for agent project records that predate the review
+     * card; Needs you shows them as one grouped card, not one card each.
+     */
+    review_grouped: integer('review_grouped', { mode: 'boolean' }).notNull().default(false),
     version: version(),
     ...timestamps,
   },

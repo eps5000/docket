@@ -32,6 +32,11 @@ export function decisionsRoutes<E extends Env>(api: Hono<E>, deps: RouteDeps): v
     return { mutation_id, decision: result };
   });
 
+  defineRoute(api, 'decisions.acknowledge', deps, ({ services, mutate, body }) => {
+    const { result, mutation_id } = mutate((w) => services.decisions.acknowledge(w, body));
+    return { mutation_id, decisions: result };
+  });
+
   defineRoute(api, 'decisions.withdraw', deps, ({ services, mutate, params, body }) => {
     const { result, mutation_id } = mutate((w) =>
       services.decisions.withdraw(w, { decision_id: params.id, ...body }),

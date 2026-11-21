@@ -386,6 +386,7 @@ type EventType =
   | 'document.added' | 'commit.reported' | 'artifact.linked'
   | 'link.updated' | 'project.updated'
   | 'decision.published' | 'decision.confirmed' | 'decision.superseded' | 'decision.withdrawn'
+  | 'decision.acknowledged'   // decision 38 (B44): the owner kept an agent's project decision without confirming it
   | 'agent_file.updated' | 'agent_file.reverted' | 'workflow.updated' | 'install.recorded'    // decision 29
   | 'agent_file.proposed' | 'agent_file.proposal_decided' | 'drift.detected' | 'drift.resolved'   // decision 30
   | 'project.created' | 'onboarding.started' | 'onboarding.finished' | 'onboarding.reviewed'    // decision 31
@@ -696,6 +697,8 @@ The format for each tool below:
 - **Input:** `decision_id`, `reason` (≤ 500).
 - **Output:** `{ decision: DecisionRecord }`.
 - **Errors:** `forbidden` (an owner decision), `not_found`.
+
+**Decision 38 (B44):** no tool changes. An agent's project-scope record now reaches the owner's Needs you for review; the owner may confirm, withdraw or supersede it, or acknowledge it (it stays `authority: 'agent'`; event `decision.acknowledged`, owner only). `get_context`, `get_item` and `list_decisions in_scope_of` still include every record in scope, project ones included.
 
 ### 5.9 Recovery
 

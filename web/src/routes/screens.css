@@ -1090,10 +1090,44 @@
 .tl .decform select {
   max-width: 100%;
 }
-.tl .decdlg .card.sec {
-  box-shadow: none;
-  border: 0;
-  padding: 0;
+/* Decision 38 (B44): the "also apply" line on ticket and epic Details, and the project
+   Decisions page. */
+.tl .decalso {
+  margin: 8px 0 0;
+}
+.tl .decalso a,
+.tl .projdec-lede a,
+.tl .pdec-card .pdec-list a {
+  text-decoration: underline;
+}
+.tl .projdec-lede {
+  margin: -4px 0 10px;
+  max-width: 80ch;
+}
+.tl .projdec-filter {
+  margin-bottom: 10px;
+}
+.tl .sectog.fixed,
+.tl .sectog.fixed:hover {
+  cursor: default;
+  background: none;
+}
+.tl .projdec .decrow:focus-visible,
+.tl .projdec .decrow.focused {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+.tl .pdec-card .pdec-text {
+  margin: 0 0 4px;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.tl .pdec-card .pdec-why {
+  margin: 0 0 8px;
+}
+.tl .pdec-card .pdec-list {
+  margin: 0 0 8px;
+  padding-left: 18px;
 }
 
 /* ---------- Steering (US6; UI_SPEC §6.1, §6.3, §6.3.2) ---------- */

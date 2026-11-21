@@ -166,6 +166,9 @@ const B2_ROUTES: readonly RouteId[] = [
   // (content in b42-problems.test.ts).
   'problems.acknowledge',
   'resolutions.decide',
+  // Decision 38 (B44, T193): acknowledging agents' project decisions (content in
+  // project-decision-review.test.ts).
+  'decisions.acknowledge',
 ];
 
 interface Req {
@@ -346,6 +349,7 @@ const VALID: Record<RouteId, Req> = {
   },
   'radar.run': { params: { key: 'RCP' }, body: {} },
   'problems.acknowledge': { body: { problem_id: 'stale_run:run_01JNOSUCHRUN' } },
+  'decisions.acknowledge': { body: { decision_ids: ['dec_01JNOSUCHDECISION'] } },
   'resolutions.decide': {
     params: { id: 'prs_01JNOSUCHPROPOSAL' },
     body: { decision: 'acknowledge' },

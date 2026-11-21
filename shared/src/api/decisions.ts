@@ -62,6 +62,19 @@ export const withdrawDecisionBody = input({
   expected_version: expectedVersion.optional(),
 });
 
+/**
+ * *Acknowledge* on Needs you (owner decision 38; B44): keep agents'
+ * project-wide records as agent decisions and take them off Needs you. One
+ * record from its card, or every record of a grouped card.
+ */
+export const acknowledgeDecisionsBody = input({
+  // A grouped card sends all its records (one project's, at most a few hundred).
+  decision_ids: z.array(objectId).min(1).max(500),
+});
+export const acknowledgeDecisionsResponse = ownerMutationOutput({
+  decisions: z.array(decisionRecordSchema),
+});
+
 export const decisionsRoutes = {
   'decisions.list': route({
     method: 'GET',
@@ -101,6 +114,17 @@ export const decisionsRoutes = {
     query: noInput,
     body: withdrawDecisionBody,
     response: json(decisionResponse),
+    undoable: true,
+  }),
+  /** Decision 38: sets `acknowledged_at`; the records stay agent decisions. */
+  'decisions.acknowledge': route({
+    method: 'POST',
+    path: '/api/decisions/acknowledge',
+    group: 'decisions',
+    params: noInput,
+    query: noInput,
+    body: acknowledgeDecisionsBody,
+    response: json(acknowledgeDecisionsResponse),
     undoable: true,
   }),
 } as const;

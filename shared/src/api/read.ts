@@ -170,6 +170,17 @@ export type Problem = z.infer<typeof problemSchema>;
 export const deferredRowSchema = deferredReviewsOutput.shape.items.element;
 export type DeferredRow = z.infer<typeof deferredRowSchema>;
 
+/**
+ * Decision 38 (B44): agents' project-wide records that predate the review
+ * card, one grouped card per project ("3 project-wide decisions by agents to
+ * review"), newest first. *Acknowledge all* sends their IDs.
+ */
+export const projectDecisionGroupSchema = z.object({
+  project: z.string(),
+  decisions: z.array(z.object({ id: z.string(), title: z.string(), author: z.string() })),
+});
+export type ProjectDecisionGroup = z.infer<typeof projectDecisionGroupSchema>;
+
 export const needsYouQuery = input({ scope: scopeSchema });
 export const needsYouResponse = jsonResponse({
   for_you_now: z.array(forYouRowSchema),
@@ -205,6 +216,14 @@ export const needsYouResponse = jsonResponse({
    * (counted as for you): *Approve*, *Go a different way*, *Acknowledge*.
    */
   resolutions: z.array(resolutionRowSchema).optional(),
+  /**
+   * Decision 38 (B44; optional): agents' new project-wide records, a card each
+   * (counted as for you), until the owner confirms, withdraws, supersedes or
+   * acknowledges them. Item, epic and label records never appear here.
+   */
+  project_decisions: z.array(decisionRecordSchema).optional(),
+  /** Decision 38 (B44; optional): the older ones, one card per project (counted as for you). */
+  project_decision_groups: z.array(projectDecisionGroupSchema).optional(),
 });
 export type NeedsYouResponse = z.infer<typeof needsYouResponse>;
 

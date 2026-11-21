@@ -2,8 +2,10 @@ import { useNoProjects } from '../../app/useBootstrap';
 import { Welcome } from './Welcome';
 import { useQuery } from '@tanstack/react-query';
 import type {
+  DecisionRecord,
   OverlapRow,
   Problem,
+  ProjectDecisionGroup,
   ResolutionRow,
   UndeclaredHoldRow,
   WorkspaceRow,
@@ -23,6 +25,7 @@ import { PlanningQueueCard } from './PlanningQueueCard';
 import { ProblemsCard } from './ProblemsCard';
 import { SharedQuestions } from './SharedQuestions';
 import { ResolutionCards } from './ResolutionCards';
+import { ProjectDecisionCards } from './ProjectDecisionCards';
 import '../screens.css';
 import { HelpLink } from '../../help/HelpLink';
 
@@ -31,7 +34,8 @@ import { HelpLink } from '../../help/HelpLink';
  * now · Problems) and the lower row (Deferred · Planning queue). One file per
  * card; US2 (T081) fills them. No subtitle and no scope pill. An onboarding
  * ready for review gets its own card above the top band (decision 31), and
- * so does each shared-changes question (decision 36).
+ * so does each shared-changes question (decision 36) and each agent's new
+ * project-wide decision (decision 38).
  * With no projects it is the Welcome page instead (UI_SPEC §6.0; B32).
  */
 export function NeedsYou() {
@@ -66,6 +70,10 @@ export function NeedsYou() {
               holds={data.undeclared_holds ?? NO_HOLDS}
             />
             <ResolutionCards resolutions={data.resolutions ?? NO_RESOLUTIONS} />
+            <ProjectDecisionCards
+              cards={data.project_decisions ?? NO_DECISIONS}
+              groups={data.project_decision_groups ?? NO_GROUPS}
+            />
             <div className="dash-top">
               <ForYouNow rows={data.for_you_now} />
               <ProblemsCard
@@ -91,6 +99,8 @@ const NO_OVERLAPS: readonly OverlapRow[] = [];
 const NO_HOLDS: readonly UndeclaredHoldRow[] = [];
 const NO_RESOLUTIONS: readonly ResolutionRow[] = [];
 const NO_PROBLEMS: readonly Problem[] = [];
+const NO_DECISIONS: readonly DecisionRecord[] = [];
+const NO_GROUPS: readonly ProjectDecisionGroup[] = [];
 
 function NeedsYouSkeleton() {
   return (

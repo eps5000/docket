@@ -148,6 +148,8 @@ const EXPECTED = [
   // Decision 37 (B42): acknowledging a problem, and the owner's choice on a proposed resolution
   'POST /api/problems/acknowledge',
   'POST /api/resolutions/:id/decide',
+  // Decision 38 (B44): acknowledging agents' project decisions on Needs you
+  'POST /api/decisions/acknowledge',
   // Decision 33 (BUILD_SPEC §7; UI_SPEC §6.3.1a): the step dialog's details editor
   'PATCH /api/items/:id/work/:stepId/details',
   // Decision 33 (B34): the step dialog's contents
@@ -165,11 +167,11 @@ const keysOf = (schema: z.ZodType): string[] => {
 };
 
 describe('the route table', () => {
-  it('has every BUILD_SPEC §7 route, the clarification, recovery, agent setup, proposals and drift, onboarding, shared changes and problem routes and /agent-upload, once each', () => {
+  it('has every BUILD_SPEC §7 route, the clarification, recovery, agent setup, proposals and drift, onboarding, shared changes, problem and decision-review routes and /agent-upload, once each', () => {
     const labels = ROUTE_IDS.map((id) => routeLabel(API_ROUTES[id]));
     expect(new Set(labels).size).toBe(labels.length);
     expect([...labels].sort()).toEqual([...EXPECTED].sort());
-    expect(labels).toHaveLength(93);
+    expect(labels).toHaveLength(94);
   });
 
   it('puts each route in a known group, and every group has a route', () => {

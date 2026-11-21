@@ -1086,6 +1086,11 @@ export function loadSampleSeed(db: Db, opts: SeedOptions): SeedSummary {
       status: 'active',
       supersedes_id: null,
       confirmed_at: null,
+      // Decision 38 (B44): the sample's one agent project record (DOC's dec_2) is already
+      // acknowledged, so the seeded Needs you has no decision card; tests add their own.
+      acknowledged_at:
+        d.scope_kind === 'project' && d.authority === 'agent' ? clock.iso(d.at + 3_600_000) : null,
+      review_grouped: 0,
       version: 1,
       created_at: clock.iso(d.at),
       updated_at: clock.iso(d.at),

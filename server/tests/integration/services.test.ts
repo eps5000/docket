@@ -178,7 +178,7 @@ describe('the service stubs', () => {
     backup: ['status', 'runNow'],
     diagnostics: ['calls'],
     // US5 (B12, T114).
-    decisions: ['publish', 'list', 'withdraw', 'confirm'],
+    decisions: ['publish', 'list', 'withdraw', 'confirm', 'acknowledge'],
     context: ['getContext'],
     // US7 (B14, T124–T125).
     documents: ['put', 'stage', 'commitUpload', 'content'],

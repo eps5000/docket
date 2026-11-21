@@ -47,7 +47,7 @@ Agents do almost all the writing. The owner verifies, decides, nudges and archiv
 
 - **Grid:** `220px minmax(0,1fr)`. Every grid child needs `min-width:0`. (Without it, wide maps and tables push the layout wider than the window.)
 - **Sidebar:**
-  - **Project switcher** (*All projects* or one project): a menu of radio items, each with its for-you count. It scopes every page except Settings. Below the projects and the hint, after a separator, the last item is **+ New project** (a `menuitem`; B32), which opens the New project dialog (§6.7d). Arrow keys, Home and End reach it like the projects.
+  - **Project switcher** (*All projects* or one project): a menu of radio items, each with its for-you count. It scopes every page except Settings. Below the projects and the hint, after a separator, comes **Project decisions** (a `menuitem`, only with a project chosen; decision 38), which opens that project's Decisions page (§6.3.7), and the last item is **+ New project** (a `menuitem`; B32), which opens the New project dialog (§6.7d). Arrow keys, Home and End reach it like the projects.
   - **Nav items:** Needs you (red badge = for-you count), Work, Agents (gray badge = active runs), **Agent files** (B25: project-scoped like the others, so not under the divider), then the "Service-wide" divider, Settings and **Help** (decision 29).
   - **Health line** at the bottom: "Healthy · N clients", linking to Settings. When unhealthy, it shows "Service problem" in `--bad` with the same link.
 - **Header:**
@@ -88,6 +88,7 @@ Agents do almost all the writing. The owner verifies, decides, nudges and archiv
 - `/items/:id?tab=details|checklist|deps|map|activity`
 - `/review/:id?round=`
 - `/labels/:project/:name`
+- `/projects/:key/decisions?filter=review&decision=` (decision 38; §6.3.7): a project's Decisions page. `filter=review` shows only agents' unconfirmed records; `decision` scrolls to one record and focuses it
 - `/agents?state=` (Active now filtered to one run state, from the Needs you strip) and `/agents#workspaces`
 - `/agent-files?file=` (§6.7b); `?project=<KEY|all>` switches the scope, then drops out of the URL. `/settings/agent-setup` (B23–B24) redirects here
 - `/settings`
@@ -306,6 +307,7 @@ Fits one 1440×900 screen without scrolling at sample volume. Contents, top to b
      | Every other row | You (or you or your coordinator, for recovery) | its own action · *Acknowledge* |
 
      Under the rows, two lines, each a disclosure button that opens its rows in place: **"Agents are handling N problems"** (agent problems within their grace period, with a "?") and **"You acknowledged N problems"**. Neither counts in the header or the sidebar.
+   - **Agents' project-wide decisions** (decision 38; B44): a card each above the top band, after the proposed resolutions, counted as for you: "New project-wide decision by <agent>: <title>", the project and date, the decision text and "Why: …" (the reason), then *Confirm* (primary), *Withdraw…* (an optional reason inline, then *Withdraw* or *Keep it*), *Acknowledge* (keeps it as an agent decision without confirming it) and *Open* (the project Decisions page, focused on the record), and the "?" to "Decision records". Each action has a toast with Undo, and the card leaves once the owner confirms, withdraws, supersedes or acknowledges the record (undo brings it back). Item, epic and label decisions never make cards. **Older ones:** agents' project decisions recorded before decision 38 share one card per project, "3 project-wide decisions by agents to review", with the project, the first 3 titles ("and N more"), *Review* (the page filtered to *Needs your review*) and *Acknowledge all*; acting on each from the page shrinks it. The sample seed has none.
    - **Proposed resolutions** (decision 37): a card each above the top band, beside the shared-changes questions, counted as for you: "claude · orca-w3 proposes how to resolve a problem on GF-228" (the ID links to the banner), the kind ("Proposed: Split the work"), the reason, the plan (Markdown), and *Go a different way* (opens "Which way instead (required)"; *Send: go a different way*), *Acknowledge* and *Approve*. Each has a toast with Undo.
 4. **Lower row** (two cards, each showing the top 3 with *View all N →*):
    - **Deferred, not verified · N:** item + review text + "Test ticket RCP-29 · inbox" or "No follow-up ticket" with *Create test ticket*. *View all* goes to Work with the Deferred review filter. Empty: "Nothing deferred."
@@ -529,17 +531,19 @@ Used on the epic Map tab, label pages and Work → Map.
 
 #### 6.3.5 Decisions
 Decision records (BUILD_SPEC §5.14) appear where they apply:
-- **ticket Details:** everything in scope (project, epic, labels, this item);
-- **epic Details:** the epic's own records;
+- **ticket Details:** the decisions made for it: this item's, its epic's and its labels' (decision 38);
+- **epic Details:** the epic's own and its labels' (decision 38);
 - **label page:** the label's own records;
-- **Settings → project:** project-wide records.
+- **the project Decisions page** (§6.3.7): project-wide records. Settings → Projects links to it.
+
+**Decision 38 (B44): project records aren't listed on tickets or epics.** Instead, under the listed records, one line: "3 project decisions also apply · View" ("1 project decision also applies"), counting the active project records, shown only when there is at least one; *View* (an underlined link, accessible name "View RCP project decisions") opens the project Decisions page. On a ticket the section is hidden only when nothing is listed and no project record applies. The header counts and *Show withdrawn and superseded* cover what's listed.
 
 **Each section:**
 - **Header:** "Decisions", with the summary "n in scope · n by agents". *+ Record a decision* sits in the section header.
 - **`DecisionRow`:**
   - the title in bold;
   - the decision text (2 lines, then *Show all* / *Show less*, shown only when the text is longer), and the rationale under *Show reasoning* / *Hide reasoning* (collapsed; shown as "Why: …");
-  - a scope chip ("Project", "◆ Epic name", "#label", "This item"; shown on ticket Details, where records are inherited);
+  - a scope chip ("◆ Epic name", "#label", "This item" on ticket Details; "This epic", "#label" on epic Details, where records are inherited);
   - the authority badge (§5);
   - the author and date ("claude · Nov 6").
 - **Actions:**
@@ -551,7 +555,16 @@ Decision records (BUILD_SPEC §5.14) appear where they apply:
 - **Record form** (inline, under the header): Title (required, ≤ 120), Decision (required, Markdown, ≤ 4,000), Why (optional), Scope (preset to where you are; on a ticket you can pick This item, the epic, or the project). *Save* and *Cancel*. Records you create are owner decisions.
 - **Empty** (ticket): the section is hidden. Elsewhere: "No decisions recorded. Agents record conventions and choices here; yours are authoritative."
 
-Agent decisions never appear in Needs you. They show here, and in the item's Activity ("claude recorded a decision: …").
+Agent decisions for an item, an epic or a label never appear in Needs you. They show here, and in the item's Activity ("claude recorded a decision: …"). An agent's **project** decision is a Needs you card until the owner handles it (decision 38; §6.1).
+
+#### 6.3.7 Project Decisions page (`/projects/:key/decisions`, decision 38)
+Project-wide decisions, managed in one place.
+- **Breadcrumb:** project name › Decisions. **h1** "Project decisions · <project name>" with the "?" to "Decision records", and one line: "Decisions that apply to every item in RCP. Agents get them with every item's context; tickets show only their own, their epic's and their labels', with one line pointing here."
+- **Filter:** a `SegmentedControl` labelled "Show decisions", *All* and *Needs your review (n)*: agents' active, unconfirmed records. It is in the URL (`?filter=review`).
+- **The Decisions section** (§6.3.5), always open here (it is the page's content, so a collapse saved on a ticket doesn't apply and its header isn't a toggle), with every project-scope record: *Confirm* on agent records, *Supersede*, *Withdraw…*, *+ Record a decision* (scope Project, shown as text), *Show withdrawn and superseded*; each action toasts with Undo. Empty under *Needs your review*: "Nothing to review. Agents' project-wide decisions wait here until you confirm, supersede or withdraw them."
+- **`?decision=<id>`** (a Needs you card's *Open*, a kept review note's link): once loaded, the record scrolls into view, gets focus and a focus ring. A withdrawn or superseded record opens with *Show withdrawn and superseded* on, so the link still lands.
+- **Opens from:** the "also apply" line, the project switcher's *Project decisions*, Settings → Projects ("n decisions"), the Needs you cards and Help.
+- An unknown key shows "There's no project XYZ." with a link to Settings. Fits 1024 px; axe-clean in both themes.
 
 #### 6.3.6 Shared changes (decision 36)
 - **An item's Details tab** gains a **Shared changes** section, listing:
@@ -647,7 +660,7 @@ h1 "Settings".
   - label tags;
   - a mini status bar with "n done · n active · n review · n planning";
   - "Blockers clear when": a select with **Done** (default), **PR merged** and **Verified by you**. Its `title` reads: "When a blocking item counts as finished for its dependents. Agents can override it per link. PR merged is reported by the agent." Changing it shows the toast "Blocker rule for Recipe App set to PR merged. 2 items are blocked again." with Undo;
-  - "n decisions", a link that opens a dialog with the project-wide Decisions section (§6.3.5);
+  - "n decisions", a link to the project's Decisions page (§6.3.7; decision 38 replaced the dialog);
   - *Switch to*, and *Delete…* (danger text);
   - *Import from Jira…* at the bottom (§9.2).
 - **Delete dialog:** titled "Delete Sample · Recipe App?". Body: "This permanently removes **N work items**, their checklists, runs and history, and **N local documents** including handoff packets. Agents will get “not found” for these IDs." Then a warning callout: "Backups keep a copy until their 14-day retention ends. Removing the Docker container alone doesn't delete data." Then an input "Type RCP to confirm" and *Cancel* (focused) / *Delete project* (enabled only when the input matches).

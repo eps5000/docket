@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { Link, useLocation } from 'react-router';
+import { Link, useLocation, useNavigate } from 'react-router';
 import { OPEN_RUN_STATES } from '@docket/shared';
 import { Icon, isNotBuilt, type IconName } from '../components/kit';
 import { paths } from '../lib/paths';
@@ -60,16 +60,20 @@ function NavItem({
   );
 }
 
-/** The switcher's focusable rows: the projects, and *+ New project* (B32). */
+/**
+ * The switcher's focusable rows: the projects, *Project decisions* for the
+ * current project (decision 38), and *+ New project* (B32).
+ */
 const MENU_ITEMS = '[role="menuitemradio"], [role="menuitem"]';
 
 /**
  * Project switcher: a menu of `menuitemradio` items, each with its for-you
- * count (UI_SPEC §2, §11), and *+ New project* at the bottom, after a
- * separator (B32).
+ * count (UI_SPEC §2, §11), and after a separator *Project decisions* (with
+ * a project chosen; decision 38) and *+ New project* (B32).
  */
 function ProjectSwitcher() {
   const { scope, setScope, setProjectDialog } = useShell();
+  const navigate = useNavigate();
   const boot = useBootstrap();
   const [open, setOpen] = useState(false);
   const btn = useRef<HTMLButtonElement>(null);
@@ -195,6 +199,22 @@ function ProjectSwitcher() {
           ))}
           <div className="hint">Scopes every page except Settings.</div>
           <div role="separator" className="scopesep" />
+          {current && (
+            <button
+              type="button"
+              role="menuitem"
+              tabIndex={-1}
+              className="scopenew"
+              data-project-decisions-menu={current.key}
+              onClick={() => {
+                close(false);
+                void navigate(paths.projectDecisions(current.key));
+              }}
+            >
+              <Icon name="check" small />
+              <span className="grow">Project decisions</span>
+            </button>
+          )}
           <button
             type="button"
             role="menuitem"
