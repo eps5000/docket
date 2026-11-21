@@ -372,7 +372,8 @@ export interface StreamChange {
 const ITEM_VIEWS = ['item', 'work', 'needsYou', 'search', 'labels', 'burndown'] as const;
 /** A run starting or ending also changes its workspace's state (BUILD_SPEC §5.16). */
 const RUNS = ['item', 'work', 'agents', 'needsYou', 'bootstrap', 'workspaces'] as const;
-const DECISIONS = ['decisions', 'item', 'labels', 'settings'] as const;
+// Decision 38: agents' project-wide decisions are Needs you cards (counted in the sidebar).
+const DECISIONS = ['decisions', 'item', 'labels', 'settings', 'needsYou', 'bootstrap'] as const;
 
 /**
  * Which query families each event type invalidates. `item` and `review`
@@ -429,6 +430,7 @@ export const INVALIDATION: Record<EventType, readonly QueryFamily[]> = {
   'decision.confirmed': DECISIONS,
   'decision.superseded': DECISIONS,
   'decision.withdrawn': DECISIONS,
+  'decision.acknowledged': DECISIONS,
   // Agent setup (decision 29). A file's list row and its view share the family.
   'agent_file.updated': ['agentFiles'],
   'agent_file.reverted': ['agentFiles'],

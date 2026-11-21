@@ -46,6 +46,22 @@ export function ImportedNoteView({ note }: { note: ImportedNote }) {
  * it is delivered once, on the agent's next `get_item` (BUILD_SPEC §5.7),
  * and the box says how many are still unread.
  */
+/**
+ * Where "See the decision" goes: the item's Details, or the project Decisions
+ * page when every kept decision is project-wide (decision 38: tickets don't
+ * list those).
+ */
+function keptDecisionsHref(data: ItemDetailResponse, ids: readonly string[]): string {
+  const kept = data.decisions.filter((d) => ids.includes(d.id));
+  if (kept.length > 0 && kept.every((d) => d.scope.kind === 'project')) {
+    return paths.projectDecisions(
+      data.item.project,
+      kept.length === 1 ? { decision: kept[0]!.id } : {},
+    );
+  }
+  return paths.item(data.item.id, 'details');
+}
+
 export function HistorySection({ kind, data }: { kind: ItemKind; data: ItemDetailResponse }) {
   const noteId = useId();
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -119,12 +135,13 @@ export function HistorySection({ kind, data }: { kind: ItemKind; data: ItemDetai
                 const note = parseImportedNote(a.summary);
                 return note ? <ImportedNoteView note={note} /> : a.summary;
               })()}
-              {/* Decision 35: approval notes kept as owner decisions; Details lists them. */}
+              {/* Decision 35: approval notes kept as owner decisions; Details lists them, or
+                  (decision 38) the project Decisions page, for notes kept for the project. */}
               {a.decision_ids && a.decision_ids.length > 0 && (
                 <span className="src">
                   {' · '}
                   <Link
-                    to={paths.item(data.item.id, 'details')}
+                    to={keptDecisionsHref(data, a.decision_ids)}
                     data-decision-link={a.decision_ids.join(' ')}
                   >
                     {a.decision_ids.length === 1

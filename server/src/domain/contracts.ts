@@ -801,6 +801,11 @@ export interface DecisionsService {
     w: WriteContext,
     input: { decision_id: string; expected_version?: number },
   ): DecisionRecord;
+  /**
+   * Owner only (decision 38): keep agents' project-wide records as agent
+   * decisions, and take them off Needs you (`acknowledged_at`). One event each.
+   */
+  acknowledge(w: WriteContext, input: { decision_ids: readonly string[] }): DecisionRecord[];
 }
 
 /** The context bundle (§5.15). Read-only: never marks anything delivered. */

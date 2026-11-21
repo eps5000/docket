@@ -645,8 +645,16 @@ export function PastItem({ n, item, itemId }: { n: number; item: PacketItem; ite
           {ref && (
             <span className="src">
               {d.decision_id ? (
-                // A kept note's decision (owner decision 35): the ticket's Decisions list it.
-                <Link to={paths.item(itemId, 'details')} data-decision-link={d.decision_id}>
+                // A kept note's decision (owner decision 35): the ticket's Decisions list it,
+                // or (decision 38) the project Decisions page, for a note kept for the project.
+                <Link
+                  to={
+                    d.keep === 'project'
+                      ? paths.projectDecisions(itemId.split('-')[0]!, { decision: d.decision_id })
+                      : paths.item(itemId, 'details')
+                  }
+                  data-decision-link={d.decision_id}
+                >
                   {ref}
                 </Link>
               ) : refId ? (

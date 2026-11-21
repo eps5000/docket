@@ -49,6 +49,12 @@ export const paths = {
   agents: (q: { state?: string; section?: 'workspaces' } = {}) =>
     `${withQuery('/agents', { state: q.state })}${q.section ? `#${q.section}` : ''}`,
   settings: () => '/settings',
+  /**
+   * A project's Decisions page (owner decision 38; UI_SPEC §6.3.7): `filter=review`
+   * shows only agents' unconfirmed records; `decision` scrolls to one and focuses it.
+   */
+  projectDecisions: (project: string, q: { filter?: 'review'; decision?: string } = {}) =>
+    withQuery(`/projects/${encodeURIComponent(project)}/decisions`, q),
   /** Settings → Projects → <project> → Shared parts: the registry and the radar (decision 36). */
   sharedParts: (project: string) =>
     `/settings/projects/${encodeURIComponent(project)}/shared-parts`,

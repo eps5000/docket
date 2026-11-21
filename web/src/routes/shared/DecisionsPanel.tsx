@@ -1,9 +1,11 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useId, useRef, useState } from 'react';
+import { Link } from 'react-router';
 import { LIMITS, type DecisionRecord, type DecisionScopeKind } from '@docket/shared';
 import { Button, Callout, DecisionRow, EmptyState, Section } from '../../components/kit';
 import { apiClient } from '../../app/queryClient';
 import { queryKeys } from '../../lib/api';
+import { paths } from '../../lib/paths';
 import { runOwnerMutation, showToast } from '../../lib/undo';
 import { HelpLink } from '../../help/HelpLink';
 
@@ -46,8 +48,11 @@ function scopeOptions(place: DecisionsPlace): { scope: Scope; label: string }[] 
   }
 }
 
-/** The scope chip on ticket Details, where records are inherited. */
+/** The scope chip on ticket and epic Details, where records are inherited. */
 function scopeChip(d: DecisionRecord, place: DecisionsPlace): string | undefined {
+  if (place.kind === 'epic') {
+    return d.scope.kind === 'label' ? `#${d.scope.id}` : 'This epic';
+  }
   if (place.kind !== 'ticket') return undefined;
   switch (d.scope.kind) {
     case 'project':
@@ -61,7 +66,11 @@ function scopeChip(d: DecisionRecord, place: DecisionsPlace): string | undefined
   }
 }
 
-const WITHDRAWN_DEFAULT = 'Withdrawn by the owner.';
+export const WITHDRAWN_DEFAULT = 'Withdrawn by the owner.';
+
+/** "3 project decisions also apply" (decision 38). */
+export const alsoApplyText = (n: number) =>
+  n === 1 ? '1 project decision also applies' : `${n} project decisions also apply`;
 
 /**
  * A Decisions section (UI_SPEC §6.3.5): header "Decisions" with "n in scope ·
@@ -69,16 +78,24 @@ const WITHDRAWN_DEFAULT = 'Withdrawn by the owner.';
  * `DecisionRow` per active record (owner first, then newest, as the server
  * orders them), with *Confirm*, *Supersede* and *Withdraw…*; and *Show
  * withdrawn and superseded*. Every owner action toasts with Undo.
+ *
+ * Decision 38 (B44): on a ticket or an epic, project records aren't listed;
+ * one line, "N project decisions also apply · View", links to the project
+ * Decisions page instead (shown when N > 0). The counts and *Show withdrawn
+ * and superseded* cover what's listed.
  */
 export function DecisionsPanel({
   place,
-  records,
+  records: all,
   hideWhenEmpty = false,
+  emptyText = 'No decisions recorded. Agents record conventions and choices here; yours are authoritative.',
 }: {
   place: DecisionsPlace;
   /** Active and inactive records, owner first then newest. */
   records: readonly DecisionRecord[];
   hideWhenEmpty?: boolean;
+  /** What an empty list says (the project page's *Needs your review* filter has its own). */
+  emptyText?: string;
 }) {
   const qc = useQueryClient();
   const [form, setForm] = useState<FormState | null>(null);
@@ -90,9 +107,15 @@ export function DecisionsPanel({
     setForm(null);
     requestAnimationFrame(focusRecordButton);
   };
+  // Decision 38: a ticket or epic lists its own scopes; project records are one line.
+  const inherits = place.kind === 'ticket' || place.kind === 'epic';
+  const records = inherits ? all.filter((d) => d.scope.kind !== 'project') : all;
+  const alsoApply = inherits
+    ? all.filter((d) => d.scope.kind === 'project' && d.status === 'active').length
+    : 0;
   const active = records.filter((d) => d.status === 'active');
   const inactive = records.filter((d) => d.status !== 'active');
-  if (hideWhenEmpty && active.length === 0 && !form) return null;
+  if (hideWhenEmpty && active.length === 0 && alsoApply === 0 && !form) return null;
   const byAgents = active.filter((d) => d.authority === 'agent').length;
   const options = scopeOptions(place);
 
@@ -209,10 +232,19 @@ export function DecisionsPanel({
           }}
         />
       )}
-      {active.length === 0 && !form ? (
-        <EmptyState text="No decisions recorded. Agents record conventions and choices here; yours are authoritative." />
-      ) : (
-        rows(active)
+      {active.length === 0 && !form
+        ? alsoApply === 0 && <EmptyState text={emptyText} />
+        : rows(active)}
+      {alsoApply > 0 && (
+        <p className="src decalso" data-also-apply={alsoApply}>
+          {alsoApplyText(alsoApply)} ·{' '}
+          <Link
+            to={paths.projectDecisions(place.project)}
+            aria-label={`View ${place.project} project decisions`}
+          >
+            View
+          </Link>
+        </p>
       )}
       {inactive.length > 0 && (
         <div className="row" style={{ marginTop: 8 }}>

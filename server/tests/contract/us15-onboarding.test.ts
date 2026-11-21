@@ -441,8 +441,12 @@ describe('finish_onboarding and the owner review', () => {
       changes,
       workflow_proposal_id: proposal.proposal_id,
     });
+    // The review card, and (decision 38) the agent's project decision "Metric units".
+    expect((needs.project_decisions as { title: string }[]).map((d) => d.title)).toEqual([
+      'Metric units',
+    ]);
     const boot = (await owner('GET', '/api/bootstrap')).body.counts as { for_you: number };
-    expect(boot.for_you).toBe(bootBefore.for_you + 1);
+    expect(boot.for_you).toBe(bootBefore.for_you + 2);
     const listed = (await owner('GET', '/api/onboarding?project=GF')).body.sessions as S[];
     expect(listed.map((s) => s.id)).toEqual([session_id]);
 

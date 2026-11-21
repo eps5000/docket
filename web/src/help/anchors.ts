@@ -44,6 +44,8 @@ export const HELP_ANCHORS = {
   'item.dependencies': 'Ticket → Dependencies',
   'item.dates': 'Ticket → Details → Dates and effort',
   'decisions.section': 'Decisions sections (ticket, epic, label, project)',
+  'decisions.project-page': 'A project’s Decisions page: next to the h1 (decision 38)',
+  'needs-you.project-decisions': 'Needs you: an agent’s project-wide decision card (decision 38)',
   'review.packet': 'Human review packet: next to the h1',
   'work.burndown': 'Work → Timeline → Remaining effort',
   'settings.clients': 'Settings → Connections → Client compatibility',

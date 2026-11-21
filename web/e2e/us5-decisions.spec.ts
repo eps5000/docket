@@ -2,18 +2,20 @@
  * Decisions end to end (tasks.md T113; spec US5; UI_SPEC §6.3.5, §6.5, §6.7;
  * BUILD_SPEC §10 "Decisions").
  *
- * - A ticket's Details lists every record in scope with its scope chip
- *   (Project, ◆ epic, #label, This item); an agent record can be confirmed
+ * - A ticket's Details lists its own, its epic's and its labels' records
+ *   with their scope chips (◆ epic, #label, This item), and project records
+ *   as one "also apply" line (decision 38); an agent record can be confirmed
  *   and becomes "Owner"; Withdraw… takes an optional reason inline, hides
  *   the record (it stays in Activity and under *Show withdrawn and
  *   superseded*) and Undo brings it back; the Record form validates and
  *   records an owner decision.
- * - An epic's Details lists its own records; recording one on the epic shows
+ * - An epic's Details lists its own records ("This epic"); recording one on the epic shows
  *   it on its child tickets; Supersede opens the form prefilled and marks the
  *   old record superseded.
  * - The label page lists the label's records; Settings → "n decisions" opens
- *   the project-wide section in a dialog.
- * - Agent decisions never appear in Needs you.
+ *   the project Decisions page (decision 38).
+ * - Agent item decisions never appear in Needs you; an agent project
+ *   decision does (b44-project-decisions covers its card).
  * - axe on every Decisions section, both themes.
  *
  * Set DOCKET_E2E_SCREENSHOTS to a folder to also capture the PR's light
@@ -67,7 +69,7 @@ async function openDetails(page: Page, id: string) {
 }
 
 test.describe('Decisions on a ticket', () => {
-  test('inherited scope chips, Confirm → Owner, Withdraw with Undo, and the Record form', async ({
+  test('inherited scope chips, the also-apply line, Confirm → Owner, Withdraw with Undo, and the Record form', async ({
     ownerPage: page,
     agent,
   }) => {
@@ -78,7 +80,7 @@ test.describe('Decisions on a ticket', () => {
 
     await openDetails(page, 'RCP-12');
     const sec = section(page);
-    await expect(sec.locator('.sechead')).toContainText('4 in scope · 3 by agents');
+    await expect(sec.locator('.sechead')).toContainText('3 in scope · 2 by agents');
     // Owner first.
     await expect(sec.locator('.decrow').first()).toContainText(
       'Units are metric internally; convert on display',
@@ -89,7 +91,11 @@ test.describe('Decisions on a ticket', () => {
     await expect(row(page, 'Use design tokens v2 spacing').locator('.auth')).toHaveText(
       'Agent · claude',
     );
-    await expect(row(page, 'Dates are ISO 8601')).toContainText('Project');
+    // Decision 38: the project record is one line, not a row.
+    await expect(row(page, 'Dates are ISO 8601')).toHaveCount(0);
+    await expect(sec.locator('[data-also-apply]')).toHaveText(
+      '1 project decision also applies · View',
+    );
     await expect(row(page, 'Drop targets are at least 44 px')).toContainText('This item');
     // An owner record has no Confirm.
     await expect(
@@ -112,7 +118,7 @@ test.describe('Decisions on a ticket', () => {
     await expect(page.getByRole('status')).toContainText('It is now an owner decision.');
     await expect(tokens.locator('.auth')).toHaveText('Owner');
     await expect(tokens.getByRole('button', { name: 'Confirm' })).toHaveCount(0);
-    await expect(sec.locator('.sechead')).toContainText('4 in scope · 2 by agents');
+    await expect(sec.locator('.sechead')).toContainText('3 in scope · 1 by agents');
 
     // Withdraw… asks for an optional reason inline, then Undo brings it back.
     await drop.getByRole('button', { name: 'Withdraw…' }).click();
@@ -175,10 +181,13 @@ test.describe('Decisions on a ticket', () => {
     await expect(mine).toContainText('This item');
     await expect(mine).toContainText('owner');
 
-    // Agent decisions never reach Needs you.
+    // Agent item decisions never reach Needs you; the project one does (decision 38).
     await page.goto('/');
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-    await expect(page.getByText('Dates are ISO 8601')).toHaveCount(0);
+    await expect(
+      page.locator('[data-project-decision-card]').filter({ hasText: 'Dates are ISO 8601' }),
+    ).toBeVisible();
+    await expect(page.getByText('Drop targets are at least 44 px')).toHaveCount(0);
   });
 });
 
@@ -188,9 +197,13 @@ test.describe('Decisions on an epic', () => {
   }) => {
     await openDetails(page, 'RCP-1');
     const sec = section(page);
-    // Epic: its own records, no scope chips.
+    // Epic: its own records, chipped "This epic" (decision 38); the project one is a line.
     await expect(row(page, 'Units are metric internally')).toBeVisible();
+    await expect(row(page, 'Units are metric internally')).toContainText('This epic');
     await expect(row(page, 'Units are metric internally')).not.toContainText('◆');
+    await expect(sec.locator('[data-also-apply]')).toHaveText(
+      '1 project decision also applies · View',
+    );
     await expect(row(page, 'Use design tokens v2 spacing')).toHaveCount(0);
 
     await sec.getByRole('button', { name: '+ Record a decision' }).click();
@@ -248,30 +261,31 @@ test.describe('Decisions on a label and in Settings', () => {
     await shoot(page, 'label', sec);
   });
 
-  test('Settings → "n decisions" opens the project-wide section in a dialog', async ({
-    ownerPage: page,
-  }) => {
+  test('Settings → "n decisions" opens the project Decisions page', async ({ ownerPage: page }) => {
     await page.goto('/settings');
     const link = page.locator('[data-project-decisions="RCP"]');
     await expect(link).toHaveText(/^\d+ decisions?$/);
     const before = Number((await link.textContent())!.split(' ')[0]);
     await link.click();
-    const dialog = page.getByRole('dialog', { name: 'Sample · Recipe App · Decisions' });
-    await expect(dialog).toBeVisible();
-    await dialog.getByRole('button', { name: '+ Record a decision' }).click();
-    const form = dialog.locator('form[data-decision-form]');
+    await expect(page).toHaveURL(/\/projects\/RCP\/decisions$/);
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Project decisions · Sample · Recipe App' }),
+    ).toBeVisible();
+    const sec = section(page);
+    await sec.getByRole('button', { name: '+ Record a decision' }).click();
+    const form = sec.locator('form[data-decision-form]');
+    await expect(form.locator('[data-scope]')).toHaveText('Project');
     await form.getByLabel(/^Title/).fill('Write in plain English');
     await form.getByLabel(/^Decision/).fill('Short sentences. No jargon in the UI.');
     await form.getByRole('button', { name: 'Save' }).click();
-    await expect(
-      dialog.locator('.decrow').filter({ hasText: 'Write in plain English' }),
-    ).toContainText('Owner');
-    await expectAxeClean(page, 'Settings project Decisions', { include: '[role="dialog"]' });
-    await shoot(page, 'settings', dialog);
-    // Focus returns to + Record a decision, so Esc closes the dialog.
-    await expect(dialog.getByRole('button', { name: '+ Record a decision' })).toBeFocused();
-    await page.keyboard.press('Escape');
-    await expect(dialog).toHaveCount(0);
+    await expect(row(page, 'Write in plain English')).toContainText('Owner');
+    await expectAxeClean(page, 'project Decisions page', {
+      include: 'section[data-section="decisions"]',
+    });
+    await shoot(page, 'settings', sec);
+    // Focus returns to + Record a decision.
+    await expect(sec.getByRole('button', { name: '+ Record a decision' })).toBeFocused();
+    await page.goto('/settings');
     await expect(link).toHaveText(`${before + 1} ${before + 1 === 1 ? 'decision' : 'decisions'}`);
   });
 });
