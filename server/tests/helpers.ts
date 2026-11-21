@@ -133,6 +133,8 @@ export const COLUMNS_0010 = [
   'radar_branch_matches',
   // 0012_item_branches (B41) adds the reported branches to items.
   'branches',
+  // 0015 (decision 39): the project's Overlap handling override.
+  'overlap_handling',
 ] as const;
 
 /** Rows without the columns 0010 added to `items`, `projects` and `packets`. */

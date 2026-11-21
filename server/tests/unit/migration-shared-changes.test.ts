@@ -157,6 +157,7 @@ describe('0010_shared_changes', () => {
           main_branch: 'main',
           radar_last_run_at: null,
           radar_off_reason: null,
+          overlap_handling: null,
         })),
       );
       expect(all(migrated, 'links')).toEqual(before.links);
