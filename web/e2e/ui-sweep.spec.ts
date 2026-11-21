@@ -67,6 +67,7 @@ test('the sweep is clean on the seeded instance, at 1024 dark and 1440 light', a
       'Agent files',
       'Settings',
       'Shared parts',
+      'Project decisions',
       'Help',
       'Palette',
     ]) {

@@ -12,10 +12,15 @@
  *   `forbidden` and a pointer to `ask_owner`. The owner records `owner`
  *   decisions, confirms agent ones (`authority=owner`, `confirmed_at`) and
  *   may supersede or withdraw anything.
- * - **Events:** `decision.published`, `.confirmed`, `.superseded` and
- *   `.withdrawn`, on the scope item (epic or item scope) or on the project.
- *   Each carries its inverse, so every owner action is undoable (§5.11).
- * - **Not a Needs-you item:** nothing here raises attention.
+ * - **Events:** `decision.published`, `.confirmed`, `.superseded`,
+ *   `.withdrawn` and (decision 38) `.acknowledged`, on the scope item (epic
+ *   or item scope) or on the project. Each carries its inverse, so every
+ *   owner action is undoable (§5.11).
+ * - **Needs you (decision 38; B44):** an active agent record of project scope
+ *   is a card until the owner confirms, withdraws, supersedes or
+ *   acknowledges it (`projectReviews`). Records that predate the card
+ *   (`review_grouped`, set by migration 0014) share one card per project.
+ *   Item, epic and label records never raise attention.
  */
 import { ToolError, type DecisionRecord, type DecisionScopeKind, LIMITS } from '@docket/shared';
 import type { Db } from '../db/client.js';
@@ -40,6 +45,8 @@ interface DecisionDbRow {
   supersedes_id: string | null;
   superseded_by_id: string | null;
   confirmed_at: string | null;
+  acknowledged_at: string | null;
+  review_grouped: number;
   version: number;
   created_at: string;
 }
@@ -147,6 +154,52 @@ export function ofScope(
         scope.kind === 'project' ? null : (scope.id ?? null),
       ) as DecisionDbRow[]
   ).map(recordView);
+}
+
+// ---- Needs you: agents' project-wide records to review (decision 38) ----
+
+/** Agent records of project scope, active, not yet acknowledged: what Needs you reviews. */
+const TO_REVIEW = `d.scope_kind = 'project' AND d.authority = 'agent' AND d.status = 'active'
+  AND d.acknowledged_at IS NULL AND d.project_key IN (SELECT key FROM projects WHERE deleted_at IS NULL)`;
+
+/**
+ * Needs you's project-decision cards in scope: one per new agent record
+ * (newest first), and one per project for the records that predate the card.
+ */
+export function projectReviews(
+  db: Db,
+  scope: string,
+): {
+  cards: DecisionRecord[];
+  groups: { project: string; decisions: { id: string; title: string; author: string }[] }[];
+} {
+  const inScope = scope === 'all' ? '' : 'AND d.project_key = ?';
+  const args = scope === 'all' ? [] : [scope];
+  const cards = (
+    db.sqlite
+      .prepare(
+        `${SELECT} WHERE ${TO_REVIEW} AND d.review_grouped = 0 ${inScope}
+         ORDER BY d.created_at DESC, d.id DESC`,
+      )
+      .all(...args) as DecisionDbRow[]
+  ).map(recordView);
+  const grouped = db.sqlite
+    .prepare(
+      `SELECT d.id, d.project_key, d.title, d.author FROM decision_records d
+       WHERE ${TO_REVIEW} AND d.review_grouped = 1 ${inScope}
+       ORDER BY d.project_key, d.created_at DESC, d.id DESC`,
+    )
+    .all(...args) as { id: string; project_key: string; title: string; author: string }[];
+  const groups = new Map<string, { id: string; title: string; author: string }[]>();
+  for (const { project_key, ...d } of grouped) {
+    const list = groups.get(project_key) ?? [];
+    list.push(d);
+    groups.set(project_key, list);
+  }
+  return {
+    cards,
+    groups: [...groups].map(([project, decisions]) => ({ project, decisions })),
+  };
 }
 
 // ---- Validation helpers ----
@@ -325,6 +378,8 @@ export function createDecisionsService(_deps: ServiceDeps): DecisionsService {
           status: 'active',
           supersedes_id: old?.id ?? null,
           confirmed_at: null,
+          acknowledged_at: null,
+          review_grouped: 0,
           version: 1,
         }),
       );
@@ -464,6 +519,43 @@ export function createDecisionsService(_deps: ServiceDeps): DecisionsService {
         objects: [{ kind: 'decision', id: row.id }],
       });
       return decisionById(w.db, row.id)!;
+    },
+
+    acknowledge(w, input) {
+      if (w.actor.kind !== 'owner') {
+        throw new ToolError('forbidden', 'Only the owner can acknowledge a decision.');
+      }
+      const ids = [...new Set(input.decision_ids)];
+      // Check them all first, so one stale record leaves the rest untouched.
+      const rows = ids.map((id) => {
+        const row = load(w, id);
+        mustBeActive(w.db, row, 'acknowledged');
+        if (row.scope_kind !== 'project' || row.authority !== 'agent') {
+          throw new ToolError(
+            'conflict',
+            `${row.id} isn't an agent's project-wide decision; only those wait for your review.`,
+            { current: decisionById(w.db, row.id) },
+          );
+        }
+        if (row.acknowledged_at !== null) {
+          throw new ToolError('conflict', `${row.id} is already acknowledged.`, {
+            current: decisionById(w.db, row.id),
+          });
+        }
+        return row;
+      });
+      return rows.map((row) => {
+        const inverse = w.update('decision_records', row.id, { acknowledged_at: w.now });
+        w.event({
+          type: 'decision.acknowledged',
+          summary: `Owner acknowledged a decision by ${row.author}: ${short(row.title)}`,
+          ...where(row),
+          data: { decision_id: row.id, author: row.author },
+          inverse: [inverse],
+          objects: [{ kind: 'decision', id: row.id }],
+        });
+        return decisionById(w.db, row.id)!;
+      });
     },
   };
 }

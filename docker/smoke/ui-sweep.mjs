@@ -10,7 +10,8 @@
  *   node docker/smoke/ui-sweep.mjs --self-test  # shows each check can fail
  *
  * It visits Needs you; Work (board, list, map and timeline); Agents; Agent
- * files; Settings; Help; N sample items from the Work list (default 6: the
+ * files; Settings; Shared parts and Project decisions (the first item's
+ * project); Help; N sample items from the Work list (default 6: the
  * longest title, the most labels, the biggest epic, an epic with no tickets,
  * an imported item, then a spread of the rest) on each of their tabs; the
  * command palette; and the step dialog on an item whose steps have details.
@@ -65,6 +66,8 @@ export const SCREENS = [
   // Decision 36 (B39): Settings → Projects → <project> → Shared parts. `{project}`
   // is the project of the first listed item, so the sweep works on any instance.
   ['Shared parts', '/settings/projects/{project}/shared-parts'],
+  // Decision 38 (B44): the project's Decisions page.
+  ['Project decisions', '/projects/{project}/decisions'],
   ['Help', '/help'],
 ];
 

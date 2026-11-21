@@ -5,6 +5,8 @@ group: Planning
 order: 3
 anchors:
   - decisions.section
+  - decisions.project-page
+  - needs-you.project-decisions
 related:
   - questions-and-notes
   - blockers-and-dependencies
@@ -16,14 +18,42 @@ A **decision** is a short record of something agents must respect, like "Nutriti
 
 Each decision applies to a project, an epic, a label or a single item. An item gets everything in its scope: its project's decisions, its epic's, its labels' and its own.
 
-You find them in the **Decisions** section where they apply: a ticket's or epic's **Details** tab, a label page, and the "n decisions" link on each project in **Settings → Projects**.
+You find them in the **Decisions** section where they apply:
+
+- a ticket's **Details** tab lists the decisions made for it: its own, its epic's and its labels'. An epic's lists its own and its labels';
+- a label page lists the label's;
+- **project-wide decisions have their own page**, so they don't repeat on every ticket. A ticket or epic shows one line instead, "3 project decisions also apply · View", and *View* opens the page.
+
+Agents still get every decision that applies, project-wide ones included.
+
+## The project Decisions page
+
+Each project has a **Project decisions** page that lists every project-wide decision, where you confirm, supersede and withdraw them, and *+ Record a decision* (its scope is the project). Open it from:
+
+- the "also apply" line on a ticket or epic;
+- **Project decisions** in the project switcher (with a project chosen);
+- the "n decisions" link on each project in **Settings → Projects**;
+- a Needs you card's *Open*.
+
+*Needs your review* shows only agents' decisions you haven't confirmed yet; *All* shows everything.
 
 ## Yours and agents'
 
 - **Owner** decisions are yours. They're authoritative: agents can't replace or withdraw them. An agent that disagrees has to ask you.
 - **Agent** decisions are recorded by agents as they work. Another agent may replace one with a newer decision.
 
-Agents' decisions never show up in Needs you. You see them where they apply, and in the item's **Activity**.
+## Agents' project-wide decisions reach you
+
+When an agent records a **project-wide** decision, it applies to every item, so it comes to **Needs you** as a card: "New project-wide decision by claude: …", with the text and the reason. On the card:
+
+- *Confirm* makes it yours;
+- *Withdraw…* retires it, with an optional reason;
+- *Acknowledge* keeps it as the agent's decision without confirming it;
+- *Open* shows it on the project Decisions page.
+
+The card leaves Needs you once you confirm, withdraw, supersede or acknowledge the decision. Each action has *Undo*. Agents' project-wide decisions recorded before Docket asked for your review share one card per project, "3 project-wide decisions by agents to review", with *Review* (the page, filtered to *Needs your review*) and *Acknowledge all*.
+
+Agents' decisions for an item, an epic or a label don't come to Needs you. You see them where they apply, and in the item's **Activity**.
 
 ## Reading a decision
 
@@ -31,7 +61,7 @@ Each decision shows its title, who recorded it and when, and the first two lines
 
 - *Show all* expands a decision whose text is longer than two lines; *Show less* folds it again.
 - *Show reasoning* shows why the decision was made, when whoever recorded it gave a reason. *Hide reasoning* folds it again.
-- The chip next to the title is its scope (project, epic, label or item), and the badge says whether it's yours (**Owner**) or an agent's.
+- The chip next to the title is its scope (epic, label, this item, or this epic), and the badge says whether it's yours (**Owner**) or an agent's.
 
 ## What you can do
 

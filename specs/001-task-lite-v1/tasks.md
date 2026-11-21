@@ -526,6 +526,12 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T191 [US2] UI: the Active, Blocked and In progress chips; the Filters menu (ARIA menu button, `menuitemcheckbox`es with counts, the keyboard); pills and *Clear*; the URL with Back and Forward, the last choice per project in `localStorage`, old links rewritten in place; done epics behind *Show N done*; the Done column's *Show N done*; a Canceled column under *Shows canceled*.
 - [x] T192 [US2] Tests: the model, the URL round trip and the old-link mapping (shared), the API (server), the state, storage, menu keyboard and Epics strip (web); e2e on the stress seed: done epics and the toggle, each quick filter, a menu combination from the keyboard, pills, *Clear*, the remembered choice, old links, 1024 px, axe in both themes; the sweep stays green.
 
+## Phase 25: Project decisions get their own page (owner decision 38)
+
+- [x] T193 [US5] Spec plus code in one PR: decision 38 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §4, §5.14, §7, §10; MCP_SPEC §4 (EventType) and §5.8 (no tool changes); UI_SPEC §2, §6.1, §6.3.5, §6.3.7, §6.7; FR-173–FR-176, US5 scenario 6; Help ("Decision records"). Migration `0014_project_decision_review` (`acknowledged_at`, `review_grouped`, set for existing agent project records); `POST /api/decisions/acknowledge`; Needs you's `project_decisions` and `project_decision_groups`; the event type `decision.acknowledged` (owner only; the tools-list snapshot gains one enum value).
+- [x] T194 [US5] UI: ticket and epic Decisions list their own scopes with "N project decisions also apply · View"; the project Decisions page (`/projects/:key/decisions`, *All* / *Needs your review*, `?decision=`); the Needs you cards (one per new agent project decision, one grouped card per project for older ones) with *Confirm*, *Withdraw…*, *Acknowledge*, *Open*, *Review*, *Acknowledge all*; links from the switcher, Settings → Projects and Help.
+- [x] T195 [US5] Tests: acknowledge and the card rules (server), the filtering, the line and its count, the page and the cards (web); e2e `b44-project-decisions` with axe in both themes; the sweep spec stays green.
+
 ## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.
@@ -567,6 +573,7 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 | B37 | 21 Approve with notes (US3) | T179–T181 | Contract and implementation in one PR; no MCP changes |
 | B42 | 23 Problems that say what to do (US18) | T186–T189 | Contract and implementation in one PR; snapshot 48 → 49 |
 | B43 | 24 Work filters and the Epics strip (US2) | T190–T192 | Owner feedback; UI API change only, no MCP changes |
+| B44 | 25 Project decisions get their own page (US5) | T193–T195 | Owner feedback; no tool changes; one new event type |
 
 **Slices after B6 may run in any order that respects** the dependency table below. Don't run two slices at once: they share route and screen groups.
 
@@ -620,6 +627,7 @@ Open a PR titled "<Bn>: <phase name>" with the checkpoint evidence. Do not queue
 | 22 Shared changes and conflict guardrails | B38 then B39 |
 | 23 Problems that say what to do | B42 (after B41) |
 | 24 Work filters and the Epics strip | B43 (after B42) |
+| 25 Project decisions get their own page | B44 (after B43) |
 
 **Within a phase:** tests (failing) → services → replace stubs or fill handlers → fill screens → checkpoint.
 

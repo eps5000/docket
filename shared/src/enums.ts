@@ -551,6 +551,8 @@ export const EVENT_TYPES = [
   'decision.confirmed',
   'decision.superseded',
   'decision.withdrawn',
+  // The owner keeps an agent's project-wide decision without confirming it (decision 38; B44)
+  'decision.acknowledged',
   // Agent setup (decision 29; BUILD_SPEC §5.17)
   'agent_file.updated',
   'agent_file.reverted',

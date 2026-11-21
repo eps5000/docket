@@ -9,6 +9,7 @@ import { AgentFiles } from '../routes/agent-files/AgentFiles';
 import { Agents } from '../routes/agents/Agents';
 import { HelpArticlePage, HelpIndex } from '../routes/help/HelpPages';
 import { ItemPage } from '../routes/items/ItemPage';
+import { ProjectDecisionsPage } from '../routes/decisions/ProjectDecisionsPage';
 import { LabelPage } from '../routes/labels/LabelPage';
 import { NeedsYou } from '../routes/needs-you/NeedsYou';
 import { NotFound } from '../routes/NotFound';
@@ -35,6 +36,8 @@ export const shellRoutes: RouteObject[] = [
   { path: 'items/:id', element: <ItemPage /> },
   { path: 'review/:id', element: <PacketScreen /> },
   { path: 'labels/:project/:name', element: <LabelPage /> },
+  // Decision 38: a project's Decisions page.
+  { path: 'projects/:key/decisions', element: <ProjectDecisionsPage /> },
   { path: 'agents', element: <Agents /> },
   { path: 'settings', element: <Settings /> },
   // Decision 36: Settings → Projects → <project> → Shared parts.
