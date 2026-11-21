@@ -74,7 +74,7 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   finish_run:
     "End your run. result 'finished' when you stopped normally, 'failed' with an error when something broke. Finishing a lead run releases the claim but does not change the item's status: hand off with submit_packet or close with set_status first.",
   park_run:
-    'Park your run when you must wait: on another item, on the coordinator to send you more work, or on a person. A parked run keeps its claim and its workspace stays marked in use, so it is never mistaken for finished or stale. Say what you are waiting on; Docket flags it as ready to resume when that clears. Any later call with your run_id resumes it.',
+    'Park your run only when the work itself stops: waiting on another item, on the coordinator to send you more work, or on a person. Do not park while your own CI or tests run or while you review their results: that is still work in progress, so stay live and log a short note. A parked run keeps its claim and its workspace stays marked in use, so it is never mistaken for finished or stale. Say what you are waiting on; Docket flags it as ready to resume when that clears. Any later call with your run_id resumes it.',
   set_plan:
     "Publish or revise your plan as one-line work steps; steps may carry details (Markdown) and a source, such as a Jira key. By default this patches: steps with an id are updated (changing text records the old text and your reason), steps without an id are added, and nothing is removed unless you list it in remove. Use mode 'replace' to restate the whole plan. Owner-added steps are always kept; on steps imported from Jira you may add details, keeping the current text at the start. Every revision is kept as history.",
   update_step:

@@ -86,6 +86,8 @@ The project has its own rules: who moves work to Ready, when human review is nee
 | Something broke and you can't continue               | `finish_run { result: "failed", error }`                                                                                                                                                             |
 | A write returns `conflict`                           | Read `current` in the error. Re-apply your change only if it still makes sense.                                                                                                                      |
 
+**Park only when the work itself stops.** Running CI or tests, or reviewing their results, is still work in progress: stay live and `log` a short note ("PR #784 checks running") instead of parking.
+
 **Never just go quiet.** A silent run looks stale and loses its claim. A parked run keeps it, and its worktree is protected from pruning. Any later call with your `run_id` un-parks you.
 
 ## 5. Finish
