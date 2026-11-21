@@ -64,17 +64,32 @@ function samplePath(d: string): Point[] {
 const inside = ([x, y]: Point, b: CardBox) =>
   x > b.x + 0.5 && x < b.x + b.width - 0.5 && y > b.y + 0.5 && y < b.y + b.height - 0.5;
 
-/** Arrows that enter a card, as "arrow → card". Endpoints count too: an arrow stops at the edge. */
+/**
+ * Arrows that enter a card, as "arrow → card". Endpoints count too: an arrow
+ * stops at the edge. Cards are looked up by column, so this stays fast on
+ * hundreds of maps with thousands of sampled points each.
+ */
 function violations(map: RoutedMap): string[] {
-  const out: string[] = [];
-  const boxes = [...map.cards];
+  const out = new Set<string>();
+  const byColumn = map.columnX.map((x) => [...map.cards].filter(([, box]) => box.x === x));
+  const columnAt = (x: number) => {
+    let lo = 0;
+    let hi = map.columnX.length - 1;
+    while (lo < hi) {
+      const mid = Math.ceil((lo + hi) / 2);
+      if (map.columnX[mid]! <= x) lo = mid;
+      else hi = mid - 1;
+    }
+    return lo;
+  };
   for (const a of map.arrows) {
-    const pts = samplePath(a.d);
-    for (const [id, box] of boxes) {
-      if (pts.some((p) => inside(p, box))) out.push(`${a.from}>${a.to} → ${id}`);
+    for (const p of samplePath(a.d)) {
+      for (const [id, box] of byColumn[columnAt(p[0])] ?? []) {
+        if (inside(p, box)) out.add(`${a.from}>${a.to} → ${id}`);
+      }
     }
   }
-  return out;
+  return [...out];
 }
 
 function overlappingCards(map: RoutedMap): string[] {
@@ -307,7 +322,7 @@ describe('arrows never cross a card', () => {
       expect(violations(map), `seed ${seed}`).toEqual([]);
       expect(overlappingCards(map), `seed ${seed}`).toEqual([]);
     }
-  });
+  }, 30_000);
 
   it('arrows start on the blocker’s right edge and stop just before the blocked card', () => {
     const { map } = route(GF, gfLinks);
@@ -398,7 +413,7 @@ describe('a readable layout', () => {
       const { ids, links } = randomDag(seed);
       expect(sharedRuns(route(ids, links, seed).map), `seed ${seed}`).toEqual([]);
     }
-  });
+  }, 30_000);
 
   it('keeps the minimum spacing when nothing needs more', () => {
     const map = routeMap(planMap([['A-1'], ['B-1']], []), { height: () => 60, head: 30 });
