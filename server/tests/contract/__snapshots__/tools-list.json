@@ -9672,10 +9672,10 @@
             }
           },
           "required": [
-            "display_id",
-            "item",
             "packet_id",
-            "round"
+            "round",
+            "display_id",
+            "item"
           ],
           "additionalProperties": false
         },
@@ -14260,8 +14260,8 @@
           },
           "required": [
             "declaration",
-            "overlaps",
-            "registered"
+            "registered",
+            "overlaps"
           ],
           "additionalProperties": false
         },

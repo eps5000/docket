@@ -145,6 +145,14 @@ export function assertDesignCleared(
   });
 }
 
+/**
+ * The owner at Docket's UI. In local trust an agent's shell can reach the owner
+ * API with no session (decision 32), recorded as `via: script`, so a script
+ * can neither decide a review nor withdraw one.
+ */
+const ownerInPerson = (w: WriteContext) =>
+  w.actor.kind === 'owner' && w.actor.via?.via !== 'script';
+
 function raised(w: WriteContext, r: ReviewRow, entries: DesignEntry[], inverse: InverseOp) {
   const notes = listText([...new Set(entries.map((e) => e.note))]);
   w.event({
@@ -168,7 +176,7 @@ export function syncDesignReview(w: WriteContext, item: { id: string; project_ke
   const open = reviews.find((r) => r.state === 'open');
   const left = unapproved(reviews, currentDesign(w.db, item.id));
   if (left.length === 0) {
-    if (open && w.actor.kind === 'owner') withdraw(w, open, 'You took it out of the declaration');
+    if (open && ownerInPerson(w)) withdraw(w, open, 'You took it out of the declaration');
     return;
   }
   const keys = left.map(designKey).sort();
@@ -238,8 +246,11 @@ export function decideDesignReview(
     note?: string;
   },
 ): DesignReviewRow {
-  if (w.actor.kind !== 'owner') {
-    throw new ToolError('forbidden', 'Only the owner decides a change to an approved design.');
+  if (!ownerInPerson(w)) {
+    throw new ToolError(
+      'forbidden',
+      'Only the owner decides a change to an approved design, on its card in Docket. An agent or a script can not.',
+    );
   }
   const row = w.checkVersion(
     'design_reviews',

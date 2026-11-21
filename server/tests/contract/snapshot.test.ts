@@ -267,7 +267,7 @@ const INPUTS: Record<string, [string[], string[]]> = {
     ['branch', 'message', 'pr_url', 'pushed'],
   ],
   submit_packet: [
-    ['id', 'built_from_commit', 'estimate', 'how', 'checked'],
+    ['id', 'built_from_commit', 'estimate', 'how', 'checked', 'held_design'],
     ['hr_item_ids', 'gaps', 'attachments', 'changed_files', 'branch'],
   ],
   get_review: [['id'], []],
@@ -357,7 +357,7 @@ const OUTPUTS: Record<string, string[]> = {
   finish_onboarding: ['session_id', 'state', 'changes'],
   get_step: ['step', 'history'],
   apply_batch: ['applied', 'failed', 'results'],
-  declare_shared_changes: ['declaration', 'registered', 'overlaps'],
+  declare_shared_changes: ['declaration', 'registered', 'overlaps', 'design_hold'],
   list_shared_parts: ['project', 'parts'],
   take_lease: ['part', 'item_id', 'held_until', 'renewed'],
   release_lease: ['part', 'item_id', 'released'],

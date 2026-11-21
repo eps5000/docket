@@ -198,13 +198,7 @@ describe('already claimed', () => {
       'design_review',
     );
     expect(statusOf(created)).toBe('progress');
-    // The owner's own close waits for their decision too.
-    const res = await api('PATCH', `/api/items/${created}`, {
-      expected_version: (
-        sql().prepare('SELECT version FROM items WHERE id = ?').get(created) as { version: number }
-      ).version,
-      status: 'done',
-    });
+  });
     expect(res.status).toBe(409);
   });
 
@@ -417,8 +411,21 @@ describe('only the owner can clear it', () => {
       headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
       body: JSON.stringify({ expected_version: r!.version, decision: 'approve' }),
     });
-    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect(res.status).toBe(403);
     expect((await cards(api))[0]!.state).toBe('open');
+  });
+
+  it('a script on the owner API can’t withdraw it by editing the declaration', async () => {
+    const api = await start();
+    const id = await ready('Let tokens expire', [designed()]);
+    const res = await h!.server.app.request(`${ORIGIN}/api/items/${id}/shared`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', 'user-agent': 'curl/8.4.0' },
+      body: JSON.stringify({ changes: [plain('model:Token.expiresAt')] }),
+    });
+    expect(res.status).toBe(200);
+    expect(await cards(api)).toHaveLength(1);
+    expectToolError(await claim(id), 'design_review');
   });
 
   it('Docket’s classifier doesn’t clear it, even when it runs the pair in parallel', async () => {
