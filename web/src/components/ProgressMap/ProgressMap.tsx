@@ -5,14 +5,12 @@
  * - Header: "n / N done", a bar split by status, counts with swatches,
  *   "n ready but blocked", "n ready to start · working on wave x of y".
  * - Columns are waves (layout.ts), after a dashed outside column, with a
- *   Cycle column last. Columns 200 px, 76 px apart, 16 px between cards.
- * - Arrows: SVG cubic curves from the right edge of a blocker to the left
- *   edge of the blocked card; solid = still blocks, dashed green = cleared.
- *   They are drawn above the cards. One that skips a column (for example
- *   from the outside column to wave 2) crosses the cards between, so it
- *   gets a halo in the card colour and reads as passing over them (B18).
- *   They are measured from the laid-out cards (unscaled), redrawn on resize
- *   (80 ms debounce) and scale with the map on zoom.
+ *   Cycle column last. Columns are 200 px wide; gutters (at least 76 px) and
+ *   row gaps (at least 16 px) grow with the arrows they carry.
+ * - Arrows (routing.ts, B47): rounded runs through the gutters and the
+ *   channels between rows, never across a card; solid = still blocks, dashed
+ *   green = cleared. Card heights are measured (unscaled), everything is
+ *   re-routed on resize (80 ms debounce), and it scales with the map on zoom.
  * - Hover or focus on a card highlights its links and dims the rest.
  * - Pan: drag the background (drags under 4 px are clicks), scroll, or the
  *   arrow keys while the canvas has focus (UI_SPEC §11). Edge fades and
@@ -32,19 +30,11 @@ import {
   type PointerEvent,
 } from 'react';
 import { STATUS_LABELS, type LinkEdge } from '@docket/shared';
-import { Icon } from '../kit';
+import { Icon, StatusBar, type StatusBarSegment } from '../kit';
 import { useRenderLimit } from '../../lib/progressive';
 import { MapCard } from './MapCard';
-import {
-  BAR_ORDER,
-  arrowPath,
-  skipsColumn,
-  fitZoom,
-  layoutMap,
-  stepZoom,
-  type MapEdge,
-  type MapItem,
-} from './layout';
+import { fitZoom, layoutMap, stepZoom, type MapEdge, type MapItem } from './layout';
+import { planMap, routeMap, type RoutedMap } from './routing';
 import './progress-map.css';
 
 export interface ProgressMapProps {
@@ -75,9 +65,20 @@ type Zoom = { fit: false; z: number } | { fit: true };
 
 interface Arrow extends MapEdge {
   d: string;
-  /** It skips a column, so it crosses cards: draw it with a halo. */
-  over: boolean;
 }
+
+/** The map's bar and legend, in order (UI_SPEC §6.3.4); "blocked" is Ready that can't start. */
+const MAP_BAR: readonly Exclude<StatusBarSegment, 'canceled'>[] = [
+  'done',
+  'review',
+  'progress',
+  'ready',
+  'blocked',
+  'planning',
+  'inbox',
+];
+const barName = (s: (typeof MAP_BAR)[number]) =>
+  s === 'blocked' ? 'ready but blocked' : STATUS_LABELS[s].toLowerCase();
 
 /** One shared empty `outside`: a fresh `[]` default would change the layout every render and loop. */
 const NO_OUTSIDE: readonly MapItem[] = [];
@@ -97,42 +98,89 @@ export function ProgressMap({
   const mapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState<Zoom>({ fit: false, z: 1 });
-  const [geo, setGeo] = useState<{ w: number; h: number; arrows: Arrow[]; view: number }>({
-    w: 0,
-    h: 0,
-    arrows: [],
-    view: 0,
-  });
+  const [geo, setGeo] = useState<{
+    w: number;
+    h: number;
+    arrows: Arrow[];
+    routed: RoutedMap | null;
+  }>({ w: 0, h: 0, arrows: [], routed: null });
+  const [view, setView] = useState(0);
+  const routedFor = useRef('');
+  const geoPlan = useRef<unknown>(null);
   const [cues, setCues] = useState({ l: false, r: false, b: false, pannable: false });
   const [traced, setTraced] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const drag = useRef<{ x: number; y: number; l: number; t: number; moved: boolean } | null>(null);
 
-  // ---- Measure cards and draw arrows (unscaled coordinates) ----
+  // ---- Columns, card order and rows (pure, so the map doesn't jump between renders) ----
+  const cols = useMemo(() => {
+    const out: { key: string; title: string; sub: string; cards: MapItem[]; ext?: boolean }[] = [];
+    if (layout.outside.length > 0) {
+      out.push({
+        key: 'outside',
+        title: outsideTitle,
+        sub: 'blocks work here',
+        cards: layout.outside,
+        ext: true,
+      });
+    }
+    layout.waves.forEach((w, k) =>
+      out.push({
+        key: `wave-${k + 1}`,
+        title: `Wave ${k + 1}`,
+        sub: k === 0 ? 'nothing blocks these' : `after wave ${k}`,
+        cards: w,
+      }),
+    );
+    if (layout.cycle.length > 0) {
+      out.push({
+        key: 'cycle',
+        title: 'Cycle',
+        sub: 'fix a link to place these',
+        cards: layout.cycle,
+      });
+    }
+    const plan = planMap(
+      out.map((c) => c.cards.map((i) => i.id)),
+      layout.edges.map((e) => ({ id: e.link_id, from: e.from, to: e.to })),
+    );
+    const byId = new Map(out.flatMap((c) => c.cards).map((i) => [i.id, i]));
+    return {
+      plan,
+      list: out.map((c, i) => ({ ...c, cards: plan.columns[i]!.map((id) => byId.get(id)!) })),
+    };
+  }, [layout, outsideTitle]);
+
+  // ---- Measure card heights and route the arrows (unscaled coordinates) ----
   const measure = useCallback(() => {
     const map = mapRef.current;
     const canvas = canvasRef.current;
     if (!map || !canvas) return;
-    const nodes = new Map<string, HTMLElement>();
+    setView(canvas.clientWidth);
+    const heights = new Map<string, number>();
     for (const el of map.querySelectorAll<HTMLElement>('[data-pid]'))
-      nodes.set(el.dataset.pid!, el);
-    const pos = (id: string) => {
-      const el = nodes.get(id);
-      const col = el?.parentElement;
-      if (!el || !col) return null;
-      const x = col.offsetLeft + el.offsetLeft;
-      const y = col.offsetTop + el.offsetTop;
-      return { left: x, right: x + el.offsetWidth, midY: y + el.offsetHeight / 2 };
-    };
-    const arrows: Arrow[] = [];
-    for (const e of layout.edges) {
-      const a = pos(e.from);
-      const b = pos(e.to);
-      if (!a || !b || a.right > b.left) continue;
-      arrows.push({ ...e, d: arrowPath(a, b), over: skipsColumn(a, b) });
-    }
-    setGeo({ w: map.offsetWidth, h: map.offsetHeight, arrows, view: canvas.clientWidth });
-  }, [layout]);
+      heights.set(el.dataset.pid!, el.offsetHeight);
+    let head = 0;
+    for (const el of map.querySelectorAll<HTMLElement>('.pm-colh'))
+      head = Math.max(head, el.offsetHeight);
+    // Re-route only when something changed: the observer also fires for our own resize.
+    const stamp = `${head}|${[...heights].map(([id, h]) => `${id}:${h}`).join(',')}`;
+    if (routedFor.current === stamp && geoPlan.current === cols.plan) return;
+    routedFor.current = stamp;
+    geoPlan.current = cols.plan;
+    const routed = routeMap(cols.plan, {
+      height: (id) => heights.get(id),
+      head,
+      rendered: (id) => heights.has(id),
+    });
+    const edgeById = new Map(layout.edges.map((e) => [e.link_id, e]));
+    setGeo({
+      w: routed.width,
+      h: routed.height,
+      routed,
+      arrows: routed.arrows.map((a) => ({ ...edgeById.get(a.id)!, d: a.d })),
+    });
+  }, [cols, layout.edges]);
 
   // Again when more cards arrive (`limit`), so their arrows are drawn too.
   useLayoutEffect(() => {
@@ -159,7 +207,7 @@ export function ProgressMap({
   const z = zoom.fit
     ? fitZoom(
         { width: geo.w, height: geo.h },
-        { width: Math.max(0, geo.view - PAD_X), height: MAX_H - PAD_Y },
+        { width: Math.max(0, view - PAD_X), height: MAX_H - PAD_Y },
       )
     : zoom.z;
 
@@ -241,36 +289,24 @@ export function ProgressMap({
   const tracedOf = (id: string) => (related ? (related.has(id) ? 'on' : 'dim') : null);
 
   const { counts } = layout;
-  const cols: { key: string; title: string; sub: string; cards: MapItem[]; ext?: boolean }[] = [];
-  if (layout.outside.length > 0) {
-    cols.push({
-      key: 'outside',
-      title: outsideTitle,
-      sub: 'blocks work here',
-      cards: layout.outside,
-      ext: true,
-    });
-  }
-  layout.waves.forEach((w, k) =>
-    cols.push({
-      key: `wave-${k + 1}`,
-      title: `Wave ${k + 1}`,
-      sub: k === 0 ? 'nothing blocks these' : `after wave ${k}`,
-      cards: w,
-    }),
-  );
-  if (layout.cycle.length > 0) {
-    cols.push({
-      key: 'cycle',
-      title: 'Cycle',
-      sub: 'fix a link to place these',
-      cards: layout.cycle,
-    });
-  }
-
-  const barLabel = BAR_ORDER.map(
-    (s) => `${counts.byStatus[s] ?? 0} ${STATUS_LABELS[s].toLowerCase()}`,
-  ).join(', ');
+  // Ready splits into what can start and what can't, so the bar adds up to the total.
+  const bar: Record<(typeof MAP_BAR)[number], number> = {
+    done: counts.byStatus.done ?? 0,
+    review: counts.byStatus.review ?? 0,
+    progress: counts.byStatus.progress ?? 0,
+    ready: (counts.byStatus.ready ?? 0) - counts.readyButBlocked,
+    blocked: counts.readyButBlocked,
+    planning: counts.byStatus.planning ?? 0,
+    inbox: counts.byStatus.inbox ?? 0,
+  };
+  const barLabel = MAP_BAR.map((s) => `${bar[s]} ${barName(s)}`).join(', ');
+  // A traced arrow is painted last, so it stays on top where arrows share a channel.
+  const paintOrder = related
+    ? [
+        ...geo.arrows.filter((a) => a.from !== traced && a.to !== traced),
+        ...geo.arrows.filter((a) => a.from === traced || a.to === traced),
+      ]
+    : geo.arrows;
   const pct = Math.round(z * 100);
 
   return (
@@ -280,30 +316,15 @@ export function ProgressMap({
           {counts.done}
           <span className="muted"> / {counts.total} done</span>
         </div>
-        <div className="pm-bar" role="img" aria-label={barLabel}>
-          {BAR_ORDER.map((s) =>
-            counts.byStatus[s] ? (
-              <i
-                key={s}
-                className={`pb-${s}`}
-                style={{
-                  width: `${((counts.byStatus[s] ?? 0) / Math.max(1, counts.total)) * 100}%`,
-                }}
-              />
-            ) : null,
-          )}
-        </div>
+        <StatusBar counts={bar} label={barLabel} />
         <div />
         <div className="pm-legend">
-          {BAR_ORDER.filter((s) => counts.byStatus[s]).map((s) => (
-            <span key={s}>
-              <b className={`pb-${s}`} aria-hidden="true" />
-              {counts.byStatus[s]} {STATUS_LABELS[s].toLowerCase()}
+          {MAP_BAR.filter((s) => bar[s] > 0).map((s) => (
+            <span key={s} className={s === 'blocked' ? 'pm-badtext' : undefined}>
+              <b className={`sb-${s}`} aria-hidden="true" />
+              {bar[s]} {barName(s)}
             </span>
           ))}
-          {counts.readyButBlocked > 0 && (
-            <span className="pm-badtext">{counts.readyButBlocked} ready but blocked</span>
-          )}
           <span className="muted">
             {counts.readyToStart} ready to start
             {counts.workingOnWave !== null
@@ -359,7 +380,7 @@ export function ProgressMap({
           className={`pm-canvas${dragging ? ' dragging' : ''}`}
           tabIndex={0}
           role="region"
-          aria-label={`Progress map: ${cols.map((c) => c.title).join(', ')}. Scroll, use the arrow keys, or drag to move around.`}
+          aria-label={`Progress map: ${cols.list.map((c) => c.title).join(', ')}. Scroll, use the arrow keys, or drag to move around.`}
           onKeyDown={onKeyDown}
           onScroll={updateCues}
           onPointerDown={onPointerDown}
@@ -373,8 +394,13 @@ export function ProgressMap({
           >
             <div
               ref={mapRef}
-              className={`pm-map${related ? ' tracing' : ''}`}
-              style={{ transform: `scale(${z})` }}
+              className={['pm-map', geo.routed && 'routed', related && 'tracing']
+                .filter(Boolean)
+                .join(' ')}
+              style={{
+                transform: `scale(${z})`,
+                ...(geo.routed ? { width: geo.w, height: geo.h } : null),
+              }}
               data-zoom={pct}
             >
               <svg
@@ -408,36 +434,33 @@ export function ProgressMap({
                     <path d="M0,0L10,5L0,10z" className="pm-head-ok" />
                   </marker>
                 </defs>
-                {geo.arrows.map((a) => {
+                {paintOrder.map((a) => {
                   const on = related && (a.from === traced || a.to === traced);
                   return (
-                    <g key={a.link_id}>
-                      {a.over && (
-                        <path
-                          className={['pm-halo', related && !on && 'dim'].filter(Boolean).join(' ')}
-                          d={a.d}
-                        />
-                      )}
-                      <path
-                        className={[
-                          'pm-edge',
-                          a.cleared && 'ok',
-                          on && 'hl',
-                          related && !on && 'dim',
-                        ]
-                          .filter(Boolean)
-                          .join(' ')}
-                        data-from={a.from}
-                        data-to={a.to}
-                        d={a.d}
-                        markerEnd={`url(#${a.cleared ? `pa-ok-${uid}` : `pa-${uid}`})`}
-                      />
-                    </g>
+                    <path
+                      key={a.link_id}
+                      className={['pm-edge', a.cleared && 'ok', on && 'hl', related && !on && 'dim']
+                        .filter(Boolean)
+                        .join(' ')}
+                      data-from={a.from}
+                      data-to={a.to}
+                      d={a.d}
+                      markerEnd={`url(#${a.cleared ? `pa-ok-${uid}` : `pa-${uid}`})`}
+                    />
                   );
                 })}
               </svg>
-              {cols.map((c) => (
-                <div key={c.key} className={`pm-col${c.ext ? ' ext' : ''}`} data-col={c.key}>
+              {cols.list.map((c, colIndex) => (
+                <div
+                  key={c.key}
+                  className={`pm-col${c.ext ? ' ext' : ''}`}
+                  data-col={c.key}
+                  style={
+                    geo.routed
+                      ? { left: geo.routed.columnX[colIndex] ?? 0, height: geo.h }
+                      : undefined
+                  }
+                >
                   <div className="pm-colh">
                     {c.title}
                     <span>{c.sub}</span>
@@ -449,6 +472,7 @@ export function ProgressMap({
                       outside={c.ext ? { label: outsideLabel(i, home) } : null}
                       traced={tracedOf(i.id)}
                       onTrace={setTraced}
+                      top={geo.routed?.cards.get(i.id)?.y}
                     />
                   ))}
                 </div>

@@ -540,6 +540,12 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 
 - [x] T199 [US18] A change to an approved design always reaches the owner, with or without an overlap and in every mode (owner correction to decision 39): `design_reviews`; the `design_review` error; held packets; a Needs you card and ticket banner with *Approve the design change* and *Send back*; tests for no overlap, overlap, already claimed, approve, send back, re-declare and every mode; e2e with axe in both themes.
 
+## Phase 27: One status colour system; map arrows route around cards (owner feedback, Gameflow pilot)
+
+- [x] T200 [US4] Spec plus code in one PR: UI_SPEC §3, §5 (the status palette) and §6.3.4 (bar, spacing, arrows); UI_DESIGN; Help ("Blocker rules and dependencies" → Reading the map); the prototype's token block. No MCP change.
+- [x] T201 [US4] One status token set (`--st-<status>`, `-soft`, `-text`, light and dark) used by chips, the shared `StatusBar` (Map, epic cards, Settings), legends and card edges; `--teal` removed; Blocked is its own red, Canceled is hatched. `routing.ts`: a pure, deterministic layout with barycenter ordering, shared rows, lanes in gutters and channels, and ports spread across card edges.
+- [x] T202 [US4] Tests: the palette over the real tokens (CIEDE2000 at least 20, at least 12 under deuteranopia and protanopia, WCAG AA, both themes); sampled arrow geometry for a Gameflow-like epic, the STR epic's shape and 200 seeded DAGs; determinism; performance at 5,000 cards; e2e `b47-map-routing` (arrows clear of cards at every zoom and Fit, hover and keyboard tracing, shared tokens, axe in both themes); the sweep spec stays green.
+
 ## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.
@@ -583,6 +589,7 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 | B43 | 24 Work filters and the Epics strip (US2) | T190–T192 | Owner feedback; UI API change only, no MCP changes |
 | B44 | 25 Project decisions get their own page (US5) | T193–T195 | Owner feedback; no tool changes; one new event type |
 | B46 | 26 Overlaps reach the owner only when they need the owner (US18) | T196–T199 | Owner decision 39; contract and implementation in one PR; no new tools, snapshot updated |
+| B47 | 27 One status colour system; map arrows route around cards (US4) | T200–T202 | Owner feedback, Gameflow pilot |
 
 **Slices after B6 may run in any order that respects** the dependency table below. Don't run two slices at once: they share route and screen groups.
 
@@ -638,6 +645,7 @@ Open a PR titled "<Bn>: <phase name>" with the checkpoint evidence. Do not queue
 | 24 Work filters and the Epics strip | B43 (after B42) |
 | 25 Project decisions get their own page | B44 (after B43) |
 | 26 Overlaps reach the owner only when they need the owner | B46 (after B44) |
+| 27 One status colour system; map arrows route around cards | B47 (after B46) |
 
 **Within a phase:** tests (failing) → services → replace stubs or fill handlers → fill screens → checkpoint.
 

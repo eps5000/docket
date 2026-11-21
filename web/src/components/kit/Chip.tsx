@@ -40,7 +40,7 @@ export function Chip({
   );
 }
 
-/** Work status (UI_SPEC §5): Inbox gray, Planning teal, Ready blue, In progress violet, Review amber, Done green, Canceled gray struck through. */
+/** Work status (UI_SPEC §5): Inbox gray, Planning orange, Ready blue, In progress violet, Review magenta, Done green, Canceled dark gray struck through. */
 export function StatusChip({ status }: { status: Status }) {
   return <span className={`chip st-${status}`}>{STATUS_LABELS[status]}</span>;
 }
@@ -64,7 +64,7 @@ export function BlockedChip({
         ? ' (needs your verification)'
         : '';
   return (
-    <span className="chip c-bad">
+    <span className="chip st-blocked">
       <span aria-hidden="true">⊘</span> Blocked by {blockers.join(', ')}
       {suffix}
     </span>

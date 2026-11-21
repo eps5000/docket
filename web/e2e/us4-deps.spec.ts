@@ -39,7 +39,7 @@ const map = (page: Page) => page.locator('[data-progress-map]');
 const card = (page: Page, id: string) => map(page).locator(`.pm-node[data-pid="${id}"]`);
 const edges = (page: Page) => map(page).locator('path.pm-edge');
 
-/** The arrow's end point (just left of the blocked card) must sit on that card's left edge. */
+/** The arrow must start on the blocker's right edge and end just left of the blocked card (B47: anywhere along each edge). */
 async function arrowsLineUp(page: Page, from: string, to: string): Promise<void> {
   const ok = await page.evaluate(
     ([f, t]) => {
@@ -61,12 +61,10 @@ async function arrowsLineUp(page: Page, from: string, to: string): Promise<void>
       const sx = svg.left + start.x * scale;
       const sy = svg.top + start.y * scale;
       const near = (a: number, b: number) => Math.abs(a - b) <= 6;
-      return near(ex, tr.left) &&
-        near(ey, tr.top + tr.height / 2) &&
-        near(sx, sr.right) &&
-        near(sy, sr.top + sr.height / 2)
+      const along = (v: number, r: DOMRect) => v >= r.top && v <= r.bottom;
+      return near(ex, tr.left) && along(ey, tr) && near(sx, sr.right) && along(sy, sr)
         ? 'ok'
-        : `off: end ${ex},${ey} vs ${tr.left},${tr.top + tr.height / 2}`;
+        : `off: end ${ex},${ey} vs ${tr.left},${tr.top}-${tr.bottom}`;
     },
     [from, to],
   );

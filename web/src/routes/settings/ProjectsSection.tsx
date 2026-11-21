@@ -7,7 +7,7 @@ import {
   type SatisfiedWhen,
   type SettingsResponse,
 } from '@docket/shared';
-import { Button, Card, EmptyState, Label, Skeleton } from '../../components/kit';
+import { Button, Card, EmptyState, Label, Skeleton, StatusBar } from '../../components/kit';
 import { QueryState } from '../../app/QueryState';
 import { apiClient } from '../../app/queryClient';
 import { queryKeys } from '../../lib/api';
@@ -166,31 +166,16 @@ export function CreatedByChip({ agent }: { agent: string }) {
   );
 }
 
-const BAR = [
-  ['done', 'var(--ok)', 'done'],
-  ['review', 'var(--warn)', 'in review'],
-  ['active', 'var(--violet)', 'in progress'],
-  ['planning', 'var(--teal)', 'planning'],
-] as const;
-
 /** The mini status bar (UI_SPEC §6.7), with its counts in text (never colour alone). */
 function MiniStatusBar({ project: p }: { project: Project }) {
   const c = p.counts;
-  const total = BAR.reduce((n, [k]) => n + c[k], 0);
   return (
     <div>
-      <div
-        className="bar-mini"
-        role="img"
-        aria-label={BAR.map(([k, , label]) => `${c[k]} ${label}`).join(', ')}
-      >
-        {BAR.map(([k, colour]) => (
-          <i
-            key={k}
-            style={{ width: `${total ? (c[k] / total) * 100 : 0}%`, background: colour }}
-          />
-        ))}
-      </div>
+      <StatusBar
+        counts={{ done: c.done, review: c.review, progress: c.active, planning: c.planning }}
+        label={`${c.done} done, ${c.review} in review, ${c.active} in progress, ${c.planning} planning`}
+        mini
+      />
       <div className="src" style={{ marginTop: 3 }}>
         {c.done} done · {c.active} active · {c.review} review · {c.planning} planning
       </div>

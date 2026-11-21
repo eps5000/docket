@@ -43,9 +43,6 @@ export interface MapLayout {
   };
 }
 
-/** Bar and legend order (UI_SPEC §6.3.4). */
-export const BAR_ORDER = ['done', 'review', 'progress', 'ready', 'planning', 'inbox'] as const;
-
 const CARD_ORDER: Record<Status, number> = {
   done: 0,
   review: 1,
@@ -247,21 +244,4 @@ export function fitZoom(
 ): number {
   if (content.width <= 0 || content.height <= 0) return 1;
   return Math.max(FIT_MIN, Math.min(1, view.width / content.width, view.height / content.height));
-}
-
-/** A cubic curve from the right edge of the blocker to the left edge of the blocked card. */
-export function arrowPath(
-  a: { right: number; midY: number },
-  b: { left: number; midY: number },
-): string {
-  const mx = (a.right + b.left) / 2;
-  return `M${a.right},${a.midY} C${mx},${a.midY} ${mx},${b.midY} ${b.left - 3},${b.midY}`;
-}
-
-/** The gap between columns (UI_SPEC §6.3.4), in unscaled pixels. */
-const COL_GAP = 76;
-
-/** Whether an arrow from `a` to `b` skips at least one column (and so crosses its cards). */
-export function skipsColumn(a: { right: number }, b: { left: number }): boolean {
-  return b.left - a.right > COL_GAP + 1;
 }

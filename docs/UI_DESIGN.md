@@ -185,8 +185,8 @@ The dependency view is a **progress picture**, not a standalone graph page. It a
   - Items in a dependency cycle get their own column.
 - **Human review on the cards:** a **filled amber person** means a handoff packet is ready for you now; an **outlined** person means a human review is coming later; no person means no human review. A key under the map explains it. This replaces any separate review widget on the map.
 - **Each box is coloured by status.** Done is filled green with a ✓; the left edge shows the status colour. Red marks only *Ready* items that are blocked. Planning items show a neutral "after RCP-12".
-- **Arrows** mean "blocks". Solid arrows still block; dashed green ones are cleared. Hovering a box highlights its links.
-- **It sits on a canvas with fixed spacing**, so it never gets packed: 200px columns with a 76px gap for the arrows (a four-wave epic fits the full-width Map tab at 1440px without panning), and 16px between items. The canvas is at most 540px tall, with a dotted background so it reads as a surface you can move around.
+- **Arrows** mean "blocks". Solid arrows still block; dashed green ones are cleared. They run through the gaps between columns and rows and never across a box. Hovering a box highlights its links.
+- **It sits on a canvas with fixed spacing**, so it never gets packed: 200px columns with gaps of at least 76px for the arrows, wider when more arrows pass through (a four-wave epic fits the full-width Map tab at 1440px without panning), and 16px between items. The canvas is at most 540px tall, with a dotted background so it reads as a surface you can move around.
 - **Panning is obvious when it's needed:**
   - drag the background, scroll, or use the arrow keys;
   - fades on any edge with more beyond it, plus clickable *More →* / *← More* / *More ↓* pills;
@@ -227,12 +227,15 @@ These follow the familiar Jira convention for quick recognition. The icon on its
 | Status | Colour |
 | --- | --- |
 | Inbox | gray |
-| Planning | teal |
+| Planning | orange |
 | Ready | blue |
 | In progress | violet |
-| Review | amber |
+| Review | magenta |
 | Done | green |
+| Canceled | dark gray, hatched in bars |
 | **Blocked** (derived) | red chip shown *next to* the status |
+
+Chips, bars, legends and card edges share one set of status tokens (UI_SPEC §5).
 
 ### Run state (icon shape + text label)
 | Label | Icon |
@@ -272,12 +275,12 @@ All text is at least 4.5:1 and control borders at least 3:1, in light and dark m
 | --- | --- | --- | --- |
 | `--ink-3` | #5f6878 (5.6:1) | #99a2b4 | Secondary text |
 | `--ctl` | #8a929f (3.1:1) | #6f788a | Control borders |
-| `--ok` | #237032 | #5bd06f | Done, your approval |
-| `--warn` | #9a4705 | #f0a020 | For you, review |
+| `--ok` | #237032 | #5bd06f | Success, your approval |
+| `--warn` | #9a4705 | #f0a020 | For you |
 | `--bad` | #c22b2b | #ff7b7b | Blocked, failed, conflict |
-| `--info` | #1864ab | #5cb3f8 | Ready |
+| `--info` | #1864ab | #5cb3f8 | Callouts |
 | `--violet` | #6741d9 | #a990ff | Agent work |
-| `--teal` | #0b7285 | #3bc9db | Planning |
+| `--st-<status>` | see UI_SPEC §5 | see UI_SPEC §5 | Status: solid, soft, text |
 | `--on-fill` | #fff | #0f1115 | Text on solid fills |
 
 Base type is 13px; secondary text is at least 11.5px. Small controls are at least 28px tall.

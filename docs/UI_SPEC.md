@@ -110,12 +110,12 @@ Copy the prototype's `.tl` token block. Light and dark values below; the prototy
 | `--ink` / `--ink-2` / `--ink-3` | #16191f / #444c59 / #5f6878 | #e6e9ef / #b8c0cc / #99a2b4 | Text, secondary, tertiary (≥4.5:1) |
 | `--on-fill` | #fff | #0f1115 | Text on solid fills |
 | `--brand` / `--brand-soft` | #3b5bdb / #e8edff | #8ea2ff / #1d2440 | Primary buttons, links, focus, active tab |
-| `--ok` / `--ok-soft` | #237032 / #e6f4ea | #5bd06f / #14281a | Done, owner approval |
-| `--warn` / `--warn-soft` | #9a4705 / #fdf1e2 | #f0a020 / #2d2210 | For you, Review, packet ready, attention dot |
+| `--ok` / `--ok-soft` | #237032 / #e6f4ea | #5bd06f / #14281a | Success, owner approval |
+| `--warn` / `--warn-soft` | #9a4705 / #fdf1e2 | #f0a020 / #2d2210 | For you, packet ready, attention dot |
 | `--bad` / `--bad-soft` | #c22b2b / #fdecec | #ff7b7b / #351818 | Blocked, failed, cycle, conflict |
-| `--info` / `--info-soft` | #1864ab / #e7f1fb | #5cb3f8 / #132536 | Ready, callouts, deferred |
-| `--violet` / `--violet-soft` | #6741d9 / #f0ebff | #a990ff / #241c3e | In progress, agent work |
-| `--teal` / `--teal-soft` | #0b7285 / #e3f6f8 | #3bc9db / #10292d | Planning |
+| `--info` / `--info-soft` | #1864ab / #e7f1fb | #5cb3f8 / #132536 | Callouts, deferred |
+| `--violet` / `--violet-soft` | #6741d9 / #f0ebff | #a990ff / #241c3e | Agent work |
+| `--st-<status>` / `-soft` / `-text` | see §5 | see §5 | The one status colour system (B47) |
 | `--gray-soft` | #eef0f3 | #23272f | Neutral chips |
 | `--t-epic` `--t-story` `--t-task` `--t-bug` | #7b2fa3 #2b7a3b #1c64b9 #c92a2a | #d197f0 #6fd384 #74b8f7 #ff8a8a | Item type squares |
 | `--shadow` | 0 12px 40px rgba(20,25,35,.18) | 0 12px 40px rgba(0,0,0,.5) | Menus, dialogs |
@@ -182,15 +182,18 @@ Copy the prototype's `.tl` token block. Light and dark values below; the prototy
 
 **Work status chips:**
 
-| Status | Colour |
-|---|---|
-| Inbox | gray |
-| Planning | teal |
-| Ready | blue |
-| In progress | violet |
-| Review | amber |
-| Done | green |
-| Canceled | gray, with strikethrough title |
+| Status | Colour | Solid (light / dark) | In bars |
+|---|---|---|---|
+| Inbox | gray | #8a8c91 / #c5c7ce | solid |
+| Planning | orange | #cf6a07 / #f8a60d | solid |
+| Ready | blue | #0f65af / #35c3fc | solid |
+| In progress | violet | #9d68fb / #7361ff | solid |
+| Review | magenta | #b51c6e / #ea509e | solid |
+| Done | green | #136c3f / #5befa0 | solid |
+| Blocked (a state) | red | #ad0707 / #e0503c | solid |
+| Canceled | dark gray, with strikethrough | #303337 / #727070 | hatched |
+
+**One status colour system (B47).** Each status has three tokens in `tokens.css`: `--st-<status>` (solid: bars, legend swatches, card edges), `--st-<status>-soft` (chip fill) and `--st-<status>-text` (chip text). Chips, the Map's bar and legend, epic-card bars, Settings project bars and card edges all use them, and nothing else defines a status colour. A unit test over the real tokens holds, in both themes: every pair of bar colours at least 20 apart in CIEDE2000; at least 12 apart under simulated deuteranopia and protanopia; chip text at least 4.5:1; bars at least 3:1 on the track and the panel; every status at least 14 from the epic type colour. Bars always carry text or an accessible label, so status is never told by colour alone.
 
 Blocked is derived and shows as a separate red chip, "⊘ Blocked by RCP-12, …", next to the status. When a blocker is done but its link needs more, the chip says what it's waiting for: "⊘ Blocked by RCP-12 (needs merge)" or "(needs your verification)".
 
@@ -499,16 +502,16 @@ Used on the epic Map tab, label pages and Work → Map.
 
 - **Header:**
   - "n / N done" (big n);
-  - a bar split by status in order: done, review, progress, ready, planning, inbox;
-  - status counts with swatches;
-  - "n ready but blocked" in red;
+  - a bar split by status in order: done, review, progress, ready, blocked, planning, inbox, in the §5 status colours (Ready that can't start is its own red segment, so the bar adds up to the total);
+  - status counts with swatches, including "n ready but blocked" in red;
   - "n ready to start · working on wave x of y".
 - **Columns are waves:**
   - "Wave 1 / nothing blocks these";
   - "Wave n / after wave n−1";
   - before them, a dashed "Outside this epic / blocks work here" column (or "Outside this view" / "Without this label");
   - cycle members get a "Cycle" column;
-  - wave index = the longest `blocks` path from a root within the scope set.
+  - wave index = the longest `blocks` path from a root within the scope set;
+  - cards within a wave are ordered to reduce crossings (a deterministic barycenter pass) and sit on rows shared across the map, so the map doesn't jump between renders.
 - **Card** (200px wide):
   - type icon · ID (+ "other epic ↗" or project) · title (2 lines) · "Status · run state" or "· after RCP-12" on Planning items;
   - left edge in the status colour;
@@ -516,12 +519,14 @@ Used on the epic Map tab, label pages and Work → Map.
   - blocked Ready = red border and "blocked";
   - human review person icon at the top right (§5);
   - each card is a focusable button that opens the item.
-- **Spacing:** columns 200px with a 76px gap (for arrows); 16px between cards; the canvas padding is 18px 22px; maximum height 540px; dotted background.
+- **Spacing:** columns 200px with gutters of at least 76px; at least 16px between rows; both grow with the number of arrow lanes they carry; the canvas padding is 18px 22px; maximum height 540px; dotted background.
 - **Arrows:**
-  - SVG cubic curves from the right edge of a blocker to the left edge of the blocked item, with arrowheads;
+  - rounded orthogonal SVG paths from the right edge of a blocker to the left edge of the blocked item, with arrowheads;
+  - **an arrow never crosses a card** other than its two ends, at any zoom: it runs only through the vertical gutters between waves and the horizontal channels between rows (B47);
+  - parallel arrows get their own lanes, and several arrows on one card spread across its edge;
   - solid `--ink-3` = still blocks; dashed `--ok` = cleared (blocker done);
   - redraw on resize (80 ms debounce) and on zoom;
-  - hover or focus on a card highlights its links and dims the rest.
+  - hover or focus on a card highlights its links, paints them on top and dims the rest.
 - **Pan and zoom:**
   - drag the background (grab cursor), scroll, or use arrow keys while the canvas is focused;
   - edge fades plus clickable *More →*, *← More*, *More ↓* pills when content overflows;

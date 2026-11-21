@@ -98,7 +98,7 @@ export function BoardLayout({
                           <Link
                             key={i.id}
                             to={paths.item(i.id)}
-                            className="chip c-bad mono"
+                            className="chip st-blocked mono"
                             title={i.title}
                           >
                             {i.id}

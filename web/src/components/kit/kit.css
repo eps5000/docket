@@ -319,33 +319,40 @@
   width: 12px;
   height: 12px;
 }
+/* Status colours: one token per status in styles/tokens.css (B47; UI_SPEC §5). */
 .tl .st-inbox {
-  background: var(--gray-soft);
-  color: var(--ink-2);
+  background: var(--st-inbox-soft);
+  color: var(--st-inbox-text);
 }
 .tl .st-planning {
-  background: var(--teal-soft);
-  color: var(--teal);
+  background: var(--st-planning-soft);
+  color: var(--st-planning-text);
 }
 .tl .st-ready {
-  background: var(--info-soft);
-  color: var(--info);
+  background: var(--st-ready-soft);
+  color: var(--st-ready-text);
 }
 .tl .st-progress {
-  background: var(--violet-soft);
-  color: var(--violet);
+  background: var(--st-progress-soft);
+  color: var(--st-progress-text);
 }
 .tl .st-review {
-  background: var(--warn-soft);
-  color: var(--warn);
+  background: var(--st-review-soft);
+  color: var(--st-review-text);
 }
 .tl .st-done {
-  background: var(--ok-soft);
-  color: var(--ok);
+  background: var(--st-done-soft);
+  color: var(--st-done-text);
+}
+.tl .st-blocked {
+  background: var(--st-blocked-soft);
+  color: var(--st-blocked-text);
+  border-color: color-mix(in srgb, var(--st-blocked) 35%, transparent);
 }
 .tl .st-canceled {
-  background: var(--gray-soft);
-  color: var(--ink-3);
+  background: var(--st-canceled-soft);
+  color: var(--st-canceled-text);
+  text-decoration: line-through;
 }
 .tl .c-bad {
   background: var(--bad-soft);
@@ -984,11 +991,34 @@
   display: block;
   height: 100%;
 }
-.tl .pbar .done {
-  background: var(--ok);
+/* A hairline between segments, so neighbours never rely on colour alone. */
+.tl .pbar i + i {
+  box-shadow: inset 1px 0 0 var(--panel);
 }
-.tl .pbar .active {
-  background: var(--violet);
+.tl .sb-inbox {
+  background: var(--st-inbox);
+}
+.tl .sb-planning {
+  background: var(--st-planning);
+}
+.tl .sb-ready {
+  background: var(--st-ready);
+}
+.tl .sb-progress {
+  background: var(--st-progress);
+}
+.tl .sb-review {
+  background: var(--st-review);
+}
+.tl .sb-done {
+  background: var(--st-done);
+}
+.tl .sb-blocked {
+  background: var(--st-blocked);
+}
+/* Canceled is hatched, so it never reads as Inbox. */
+.tl .sb-canceled {
+  background: repeating-linear-gradient(45deg, var(--st-canceled) 0 2px, transparent 2px 4px);
 }
 
 /* ---------- decision row ---------- */

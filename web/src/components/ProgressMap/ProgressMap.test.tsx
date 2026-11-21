@@ -11,8 +11,6 @@ import type { LinkEdge, Status } from '@docket/shared';
 import {
   FIT_MIN,
   ProgressMap,
-  arrowPath,
-  skipsColumn,
   cyclePath,
   cyclesIn,
   fitZoom,
@@ -158,17 +156,6 @@ describe('cycles, zoom and arrows', () => {
     expect(fitZoom({ width: 1000, height: 400 }, { width: 800, height: 500 })).toBe(0.8);
     expect(fitZoom({ width: 300, height: 200 }, { width: 800, height: 500 })).toBe(1);
   });
-
-  it('an arrow that skips a column crosses cards, so it gets a halo (B18)', () => {
-    expect(skipsColumn({ right: 200 }, { left: 276 })).toBe(false); // the next column
-    expect(skipsColumn({ right: 200 }, { left: 552 })).toBe(true); // one column between
-  });
-
-  it('an arrow is a cubic curve from the right edge to just before the left edge', () => {
-    expect(arrowPath({ right: 200, midY: 40 }, { left: 276, midY: 100 })).toBe(
-      'M200,40 C238,40 238,100 273,100',
-    );
-  });
 });
 
 /**
@@ -218,7 +205,9 @@ describe('<ProgressMap>', () => {
     const { container } = view();
     expect(container.querySelector('.pm-big')!.textContent).toBe('1 / 9 done');
     expect(
-      screen.getByRole('img', { name: /1 done, 1 review, 1 in progress, 5 ready/i }),
+      screen.getByRole('img', {
+        name: '1 done, 1 review, 1 in progress, 1 ready, 4 ready but blocked, 1 planning, 0 inbox',
+      }),
     ).toBeTruthy();
     expect(screen.getByText('4 ready but blocked')).toBeTruthy();
     expect(screen.getByText('1 ready to start · working on wave 1 of 3')).toBeTruthy();
@@ -278,6 +267,32 @@ describe('<ProgressMap>', () => {
     expect(cardOf('RCP-40').className).not.toContain('dim');
     fireEvent.focus(cardOf('DOC-4'));
     expect(cardOf('RCP-16').className).toContain('hl');
+  });
+
+  it('routes every arrow and paints a traced card’s arrows last (B47)', () => {
+    const { container } = view();
+    expect(container.querySelector('.pm-map')!.className).toContain('routed');
+    const paths = () => [...container.querySelectorAll<SVGPathElement>('path.pm-edge')];
+    expect(paths().length).toBe(5);
+    expect(container.querySelector('.pm-halo')).toBeNull();
+    fireEvent.mouseEnter(cardOf('DOC-4'));
+    const last = paths().at(-1)!;
+    expect(last.getAttribute('data-from')).toBe('DOC-4');
+    expect(last.getAttribute('class')).toContain('hl');
+  });
+
+  it('the bar and legend share the status tokens’ classes, and Blocked is its own segment', () => {
+    const { container } = view();
+    const bar = container.querySelector('.pbar')!;
+    expect([...bar.children].map((i) => i.className)).toEqual([
+      'sb-done',
+      'sb-review',
+      'sb-progress',
+      'sb-ready',
+      'sb-blocked',
+      'sb-planning',
+    ]);
+    expect(container.querySelector('.pm-legend .sb-blocked')).toBeTruthy();
   });
 
   it('the canvas is a focusable region that pans with the arrow keys', () => {
