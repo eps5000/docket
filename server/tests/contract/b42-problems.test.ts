@@ -25,7 +25,8 @@ import { spawnSync } from 'node:child_process';
 import { afterEach, describe, expect, it } from 'vitest';
 import { planRadar } from '../../src/domain/radar.js';
 import { OWNER_ACTOR } from '../../src/domain/write.js';
-import { makeStaleRepo } from '../fixtures/radar-repo.js';
+import { radarRunOnce } from '../../src/jobs/sweeper.js';
+import { git, makeStaleRepo } from '../fixtures/radar-repo.js';
 import { insertItem, insertProject, tempDir } from '../helpers.js';
 import { ORIGIN, parseSetCookies } from '../integration/harness.js';
 import { expectOk, expectToolError, startHarness, type ContractHarness } from './harness.js';
@@ -283,6 +284,108 @@ describe('card actions (decision 37)', () => {
       // An agent clearing its branches clears its findings at once too.
       expectOk(await h!.call('declare_shared_changes', { id: 'GF-310', none: true, branches: [] }));
       expect(open()).not.toContain('stale-310 vs main');
+    },
+    60_000,
+  );
+
+  // B45: the branch below names its item, so discovery would adopt it again.
+  const namedBranch = async (api: Api) => {
+    git(`${tmp!.dir}/gf-stale`, 'branch', 'gf-228-old', 'stale-228');
+    expectOk(
+      await h!.call('declare_shared_changes', {
+        id: 'GF-228',
+        none: true,
+        branches: ['gf-228-old'],
+      }),
+    );
+    await api('POST', '/api/projects/GF/radar/run', {});
+    const finding = () =>
+      sql()
+        .prepare(
+          "SELECT id FROM radar_findings WHERE branch_a = 'gf-228-old' AND cleared_at IS NULL",
+        )
+        .get() as { id: string } | undefined;
+    const id = finding()?.id;
+    expect(id).toMatch(/^rdf_/);
+    return { finding, id: id! };
+  };
+  const remove = (api: Api) =>
+    api('POST', '/api/items/GF-228/shared/branches', { op: 'remove', branch: 'gf-228-old' });
+
+  it.skipIf(!HAS_GIT)(
+    'a radar run between Not an active branch and Undo leaves the undo working (B45)',
+    async () => {
+      const api = await gameflow();
+      const { finding, id } = await namedBranch(api);
+      const removed = await remove(api);
+      expect(finding()).toBeUndefined();
+
+      // The scheduled run lands inside the undo window: it must not adopt the branch again.
+      const events = sql().prepare('SELECT count(*) AS n FROM events');
+      const before = events.get();
+      radarRunOnce(h!.server.runtime, 'GF');
+      expect(finding()).toBeUndefined();
+      expect(events.get()).toEqual(before);
+
+      const undo = await api('POST', `/api/mutations/${removed.body.mutation_id as string}/undo`);
+      expect(undo.status, JSON.stringify(undo.body)).toBe(200);
+      expect(finding()?.id).toBe(id);
+      expect(
+        ((await api('GET', '/api/items/GF-228/shared')).body.branches as S).reported,
+      ).toMatchObject([{ name: 'gf-228-old' }]);
+    },
+    60_000,
+  );
+
+  it.skipIf(!HAS_GIT)(
+    'a removed branch stays out of discovery until someone reports it again (B45)',
+    async () => {
+      const api = await gameflow();
+      const { finding } = await namedBranch(api);
+      await remove(api);
+      radarRunOnce(h!.server.runtime, 'GF');
+      radarRunOnce(h!.server.runtime, 'GF');
+      expect(finding()).toBeUndefined();
+      expect((await api('GET', '/api/items/GF-228/shared')).body.branches).toMatchObject({
+        reported: [],
+        discovered: null,
+        matches: [],
+      });
+
+      // Reporting it again is the way back.
+      await api('POST', '/api/items/GF-228/shared/branches', { op: 'add', branch: 'gf-228-old' });
+      radarRunOnce(h!.server.runtime, 'GF');
+      expect(finding()).toBeDefined();
+    },
+    60_000,
+  );
+
+  it.skipIf(!HAS_GIT)(
+    'removing a reported branch the radar had also discovered clears its finding (B45)',
+    async () => {
+      const api = await gameflow();
+      git(`${tmp!.dir}/gf-stale`, 'branch', 'gf-228-old', 'stale-228');
+      // Discovered first, with no reported branch; then reported under the same name.
+      expectOk(await h!.call('declare_shared_changes', { id: 'GF-228', none: true, branches: [] }));
+      await api('POST', '/api/projects/GF/radar/run', {});
+      expect((await api('GET', '/api/items/GF-228/shared')).body.branches).toMatchObject({
+        discovered: 'gf-228-old',
+      });
+      expectOk(
+        await h!.call('declare_shared_changes', {
+          id: 'GF-228',
+          none: true,
+          branches: ['gf-228-old'],
+        }),
+      );
+      await api('POST', '/api/projects/GF/radar/run', {});
+      await remove(api);
+      const open = sql()
+        .prepare(
+          "SELECT count(*) AS n FROM radar_findings WHERE branch_a = 'gf-228-old' AND cleared_at IS NULL",
+        )
+        .get() as { n: number };
+      expect(open.n).toBe(0);
     },
     60_000,
   );
