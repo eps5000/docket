@@ -566,6 +566,53 @@ const SAMPLES: Record<ToolName, { result: unknown; args?: Record<string, unknown
       next_cursor: null,
     },
   },
+  get_digest: {
+    result: {
+      project: 'RCP',
+      cursor: '812',
+      since: null,
+      ready: {
+        total: 9,
+        rows: [{ id: 'RCP-17', title: 'Week view reload', priority: 1, unblocks: 2 }],
+      },
+      runs: {
+        total: 1,
+        rows: [
+          {
+            item_id: 'RCP-14',
+            run_id: 'run_01JA',
+            state: 'parked',
+            label: 'orca-w3',
+            resume_ready: true,
+            waiting: 'RCP-12',
+          },
+        ],
+      },
+      blocked: {
+        total: 1,
+        rows: [{ id: 'RCP-22', title: 'Export', priority: 2, unblocks: 0, blocked_by: ['RCP-12'] }],
+      },
+      owner: {
+        total: 1,
+        rows: [{ kind: 'question', item_id: 'RCP-14', text: 'Per serving or per 100 g?' }],
+      },
+      problems: {
+        total: 1,
+        rows: [
+          { id: 'rdf_1', kind: 'radar_conflict', item_id: 'RCP-19', fix: 'Rebase it onto main.' },
+        ],
+      },
+      leases: {
+        total: 1,
+        rows: [{ part: 'table:recipes', item_id: 'RCP-14', until: '2026-11-06T12:00:00.000Z' }],
+      },
+      conflicts: {
+        total: 1,
+        rows: [{ items: ['RCP-14', 'RCP-19'], parts: ['model:Recipe'], outcome: 'sequence' }],
+      },
+      changed: { total: 0, rows: [] },
+    },
+  },
   get_changes: {
     result: {
       events: [
