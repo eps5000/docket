@@ -870,25 +870,29 @@ export function createRunsService(deps: ServiceDeps): RunsService {
       return { interrupted: due.map((r) => r.id) };
     },
 
-    interruptOpenRuns(w, input) {
+    keepOpenRuns(w, input) {
       const open = w.db.sqlite
         .prepare(
           "SELECT * FROM runs WHERE state IN ('open', 'needs_input') ORDER BY created_at, id",
         )
         .all() as RunRow[];
+      if (open.length === 0) return { kept: [] };
+      const until = isoPlus(w.now, input.graceMs);
+      // Like a signal, the lease is bookkeeping: no version bump and no event per run.
+      const extend = w.db.sqlite.prepare('UPDATE runs SET lease_expires_at = ? WHERE id = ?');
       for (const run of open) {
-        const item = requireItem(w.db, run.item_id);
-        endRun(w, run, 'interrupted', 'service_restart');
-        w.event({
-          type: 'run.ended',
-          summary: `${run.is_lead ? 'Lead run' : `Child run ${run.label ?? run.id}`} interrupted: ${input.reason}`,
-          item_id: item.id,
-          project_key: item.project_key,
-          data: { run_id: run.id, end_reason: 'service_restart', is_lead: run.is_lead === 1 },
-          objects: [{ kind: 'run', id: run.id }],
-        });
+        if (run.is_lead !== 1) continue;
+        if (run.lease_expires_at === null || ms(run.lease_expires_at) < ms(until)) {
+          extend.run(until, run.id);
+        }
       }
-      return { interrupted: open.map((r) => r.id) };
+      const n = open.length;
+      w.event({
+        type: 'service.restarted',
+        summary: `Docket restarted and kept ${n} open ${n === 1 ? 'run' : 'runs'}. Each agent's next call continues; a run that doesn't return ends when its lease runs out.`,
+        data: { runs_kept: n, grace_ms: input.graceMs, lease_at_least_until: until },
+      });
+      return { kept: open.map((r) => r.id) };
     },
 
     openRunSessions(r) {

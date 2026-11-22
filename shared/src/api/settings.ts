@@ -76,8 +76,8 @@ export const settingsResponse = jsonResponse({
     backups: z.array(backupLocationSchema),
     extra_backup_configured: z.boolean(),
     restarted_at: z.string(),
-    /** "0 runs were active…": runs interrupted by the last restart. */
-    interrupted_at_restart: z.number().int(),
+    /** Decision 41: open runs the last restart kept open (from its `service.restarted` event). */
+    runs_kept_at_restart: z.number().int(),
   }),
 });
 export type SettingsResponse = z.infer<typeof settingsResponse>;

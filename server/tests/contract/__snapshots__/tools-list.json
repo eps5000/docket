@@ -3526,7 +3526,7 @@
   },
   {
     "name": "recovery_report",
-    "description": "After a crash or restart, or before pruning worktrees, get the restart list: interrupted, stale and parked runs with brief, workspace, last pushed commit, checklist progress and open question; every workspace as in use, at risk or safe to prune; resources left running. Re-dispatch from this instead of guessing, and never prune a workspace marked in use or at risk.",
+    "description": "After a crash or restart, or before pruning worktrees, get the restart list: interrupted, stale and parked runs with brief, workspace, last pushed commit, checklist progress and open question; every workspace as in use, at risk or safe to prune; resources left running. A Docket restart keeps open runs open, so re-dispatch only what's interrupted, and never prune a workspace marked in use or at risk.",
     "inputSchema": {
       "type": "object",
       "properties": {

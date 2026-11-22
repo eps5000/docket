@@ -111,6 +111,8 @@ export const PROBLEM_KINDS = [
   'canceled_blocker',
   'deferred_verified_blocker',
   'extra_backup_failed',
+  // The nightly backup failed or is overdue (owner decision 41; BUILD_SPEC §5.13; B49)
+  'backup_missed',
   // Recovery (owner decision 26; BUILD_SPEC §5.16; UI_SPEC §6.1)
   'orphaned_resources',
   'unpushed_work',
@@ -133,7 +135,7 @@ export const problemSchema = z.object({
   related: z.array(z.string()),
   /** The link to remove, for a canceled blocker. */
   link_id: z.string().nullable(),
-  /** The run a recovery problem is about (*Handled* on unpushed work sends it). */
+  /** The run a recovery problem is about (*Keep for later* and *Safe to discard* send it). */
   run_id: z.string().nullable(),
   /** Orphaned resources: what *Mark released* sends, one call each. */
   resource_ids: z.array(z.string()),
@@ -236,6 +238,27 @@ export const needsYouResponse = jsonResponse({
   project_decision_groups: z.array(projectDecisionGroupSchema).optional(),
 });
 export type NeedsYouResponse = z.infer<typeof needsYouResponse>;
+
+/**
+ * What the owner can act on in a Needs you response (owner decision 41; B49):
+ * every card, plus the Problems that reached them. Problems agents are still
+ * handling, acknowledged ones, and the Deferred and Planning lists aren't
+ * counted. The sidebar badge, the tab title and the page all use this, on the
+ * same response, so they can't disagree.
+ */
+export function needsYouCount(view: NeedsYouResponse): number {
+  return (
+    view.for_you_now.length +
+    view.problems.length +
+    (view.onboarding_reviews?.length ?? 0) +
+    (view.overlaps?.length ?? 0) +
+    (view.undeclared_holds?.length ?? 0) +
+    (view.design_reviews?.length ?? 0) +
+    (view.resolutions?.length ?? 0) +
+    (view.project_decisions?.length ?? 0) +
+    (view.project_decision_groups?.length ?? 0)
+  );
+}
 
 // ---- GET /api/work ----
 

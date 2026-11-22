@@ -111,7 +111,7 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   withdraw_decision:
     "Withdraw a decision you or another agent recorded when it no longer applies. Agents can't withdraw owner decisions.",
   recovery_report:
-    'After a crash or restart, or before pruning worktrees, get the restart list: interrupted, stale and parked runs with brief, workspace, last pushed commit, checklist progress and open question; every workspace as in use, at risk or safe to prune; resources left running. Re-dispatch from this instead of guessing, and never prune a workspace marked in use or at risk.',
+    "After a crash or restart, or before pruning worktrees, get the restart list: interrupted, stale and parked runs with brief, workspace, last pushed commit, checklist progress and open question; every workspace as in use, at risk or safe to prune; resources left running. A Docket restart keeps open runs open, so re-dispatch only what's interrupted, and never prune a workspace marked in use or at risk.",
   get_agent_files:
     'Read the agent files (skills, AGENTS.md block) and Workflow notes in effect for a project, with version_id and source. Pass file for its full text. Read-only. Call before propose_agent_file_change, and propose from this text, not your installed copy.',
   propose_agent_file_change:

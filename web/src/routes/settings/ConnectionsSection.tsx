@@ -467,9 +467,9 @@ function ServiceHealthCard({ query }: { query: UseQueryResult<SettingsResponse> 
                 {formatStamp(d.health.restarted_at)}
               </span>
               <div className="src">
-                {plural(d.health.interrupted_at_restart, 'run')}{' '}
-                {d.health.interrupted_at_restart === 1 ? 'was' : 'were'} active. Any active run
-                would show as interrupted, not finished.
+                {plural(d.health.runs_kept_at_restart, 'open run')}{' '}
+                {d.health.runs_kept_at_restart === 1 ? 'was' : 'were'} kept. Agents continue with
+                the same run; one that doesn’t return ends when its lease runs out.
               </div>
             </dd>
           </dl>

@@ -1,10 +1,12 @@
 import { Fragment, useId, useState } from 'react';
 import { Link } from 'react-router';
-import type { PROBLEM_KINDS, Problem, WorkspaceRow } from '@docket/shared';
+import type { PROBLEM_KINDS, Problem, UnpushedOutcome, WorkspaceRow } from '@docket/shared';
 import {
   Button,
   Card,
   CardHeader,
+  Dialog,
+  DialogCancel,
   EmptyState,
   Icon,
   WorkspaceStateChip,
@@ -32,8 +34,7 @@ type Action =
       /** Decision 37: it lands on the item's problem banner (left out on the banner itself). */
       banner?: true;
     }
-  | { label: string; kind: 'release' }
-  | { label: string; kind: 'handled' };
+  | { label: string; kind: 'release' };
 
 const itemTab = (tab: ItemTab) => (p: Problem) => (p.item_id ? paths.item(p.item_id, tab) : '/');
 /** Decision 37: *Open* lands on the item's banner, on the tab it opened before, focused on the problem. */
@@ -103,10 +104,8 @@ export const PROBLEM_ROWS: Record<
     help: 'problems.unpushed_work',
     icon: 'upload',
     tone: 'warn',
-    actions: [
-      { label: 'Handled', kind: 'handled' },
-      { label: 'Open', kind: 'link', to: onBanner('activity'), banner: true },
-    ],
+    // Decision 41: *Keep for later* and *Safe to discard* (UnpushedOutcomes), then Open.
+    actions: [{ label: 'Open', kind: 'link', to: onBanner('activity'), banner: true }],
   },
   parked_too_long: {
     help: 'problems.parked_too_long',
@@ -122,6 +121,13 @@ export const PROBLEM_ROWS: Record<
   },
   extra_backup_failed: {
     help: 'problems.extra_backup_failed',
+    icon: 'server',
+    tone: 'bad',
+    actions: [{ label: 'Open', kind: 'link', to: () => paths.settings() }],
+  },
+  // Decision 41: the nightly backup failed or is overdue; Settings shows each location.
+  backup_missed: {
+    help: 'problems.backup_missed',
     icon: 'server',
     tone: 'bad',
     actions: [{ label: 'Open', kind: 'link', to: () => paths.settings() }],
@@ -218,25 +224,98 @@ const refetch = [
   queryKeys.family('workspaces'),
 ];
 
-async function act(p: Problem, kind: 'release' | 'handled') {
+async function release(p: Problem) {
   try {
-    if (kind === 'release') {
-      for (const id of p.resource_ids) {
-        await runOwnerMutation(() => apiClient['resources.release']({ params: { id }, body: {} }), {
-          success: 'Marked released.',
-          refetch,
-        });
-      }
-    } else if (p.run_id) {
-      const runId = p.run_id;
-      await runOwnerMutation(() => apiClient['runs.unpushedHandled']({ params: { runId } }), {
-        success: 'Marked handled.',
+    for (const id of p.resource_ids) {
+      await runOwnerMutation(() => apiClient['resources.release']({ params: { id }, body: {} }), {
+        success: 'Marked released.',
         refetch,
       });
     }
   } catch (err) {
     showToast(err instanceof Error ? err.message : 'That didn’t work. Try again.');
   }
+}
+
+/** What each outcome on unpushed work does, and doesn't do (owner decision 41). */
+export const UNPUSHED_OUTCOME_TEXT: Record<
+  UnpushedOutcome,
+  { label: string; title: string; does: string; toast: string }
+> = {
+  keep: {
+    label: 'Keep for later',
+    title: 'Keep this work for later?',
+    does: 'Docket records that you want this work kept and takes it off Needs you. The worktree stays At risk, so it won’t count as safe to prune.',
+    toast: 'Kept for later. The worktree stays At risk.',
+  },
+  discard: {
+    label: 'Safe to discard',
+    title: 'Mark this work safe to discard?',
+    does: 'Docket records that you’re fine losing this work and takes it off Needs you. The worktree can then count as Safe to prune, so a coordinator may delete it and the work with it.',
+    toast: 'Marked safe to discard. The worktree can count as Safe to prune.',
+  },
+};
+
+/**
+ * *Keep for later* and *Safe to discard* on unpushed work (decision 41): each
+ * says what it does and doesn't do before it's confirmed, and can be undone.
+ */
+function UnpushedOutcomes({ problem }: { problem: Problem }) {
+  const [open, setOpen] = useState<UnpushedOutcome | null>(null);
+  const [busy, setBusy] = useState(false);
+  const runId = problem.run_id;
+  if (!runId) return null;
+  const text = open ? UNPUSHED_OUTCOME_TEXT[open] : null;
+  const confirm = async (outcome: UnpushedOutcome) => {
+    setBusy(true);
+    try {
+      await runOwnerMutation(
+        () => apiClient['runs.unpushedHandled']({ params: { runId }, body: { outcome } }),
+        { success: UNPUSHED_OUTCOME_TEXT[outcome].toast, refetch },
+      );
+      setOpen(null);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'That didn’t work. Try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <>
+      {(['keep', 'discard'] as const).map((o) => (
+        <Button key={o} size="sm" title={UNPUSHED_OUTCOME_TEXT[o].does} onClick={() => setOpen(o)}>
+          {UNPUSHED_OUTCOME_TEXT[o].label}
+        </Button>
+      ))}
+      {open && text && (
+        <Dialog
+          title={text.title}
+          onClose={() => setOpen(null)}
+          destructive={open === 'discard'}
+          footer={
+            <>
+              <DialogCancel onClick={() => setOpen(null)}>Cancel</DialogCancel>
+              <Button
+                variant="primary"
+                aria-disabled={busy || undefined}
+                onClick={() => {
+                  if (!busy) void confirm(open);
+                }}
+              >
+                {text.label}
+              </Button>
+            </>
+          }
+        >
+          <p>{text.does}</p>
+          <p>
+            <b>It doesn’t commit, push, save or delete anything.</b> Docket never removes a worktree
+            or files itself. You can undo this choice.
+          </p>
+        </Dialog>
+      )}
+    </>
+  );
 }
 
 /**
@@ -259,7 +338,9 @@ export function ProblemsCard({
   agentProblems?: readonly Problem[];
   acknowledged?: readonly Problem[];
 }) {
-  const shown = problems.slice(0, MAX_PROBLEMS);
+  // Decision 41: every counted row can be reached, so the badge is never more than you can open.
+  const [showAll, setShowAll] = useState(false);
+  const shown = showAll ? problems : problems.slice(0, MAX_PROBLEMS);
   return (
     <Card data-card="problems">
       <CardHeader title={`Problems · ${problems.length}`} />
@@ -276,7 +357,14 @@ export function ProblemsCard({
       )}
       {problems.length > MAX_PROBLEMS && (
         <div className="cardfoot">
-          <span>{problems.length - MAX_PROBLEMS} more</span>
+          <button
+            type="button"
+            className="linkbtn"
+            aria-expanded={showAll}
+            onClick={() => setShowAll((v) => !v)}
+          >
+            {showAll ? 'Show fewer' : `${problems.length - MAX_PROBLEMS} more`}
+          </button>
         </div>
       )}
       <MoreProblems
@@ -346,6 +434,7 @@ export function KindActions({ problem, place }: { problem: Problem; place: 'row'
   const m = PROBLEM_ROWS[problem.kind];
   return (
     <>
+      {problem.kind === 'unpushed_work' && <UnpushedOutcomes problem={problem} />}
       {m.actions.map((a) =>
         a.kind === 'link' ? (
           place === 'banner' && a.banner ? null : (
@@ -354,7 +443,7 @@ export function KindActions({ problem, place }: { problem: Problem; place: 'row'
             </Link>
           )
         ) : (
-          <Button key={a.label} size="sm" onClick={() => void act(problem, a.kind)}>
+          <Button key={a.label} size="sm" onClick={() => void release(problem)}>
             {a.label}
           </Button>
         ),

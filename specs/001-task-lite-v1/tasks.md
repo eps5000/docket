@@ -552,6 +552,13 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T204 [US1] Waiting: `GET /agent/changes/wait` on one event-driven waiter set, `get_changes { wait_s }` (≤ 45 s, below the measured client limit) and the installed `docket-wait` (`.sh`, `.ps1`), in the manifest and covered by *Check* and drift. `get_digest`: one capped snapshot with a cursor.
 - [x] T205 [US1] Compact tool definitions (shorter descriptions, lean input schemas, top-level output schemas, Codex text-only), a contract budget, skill line and token caps, and a scripted coordinator scenario on a Gameflow-sized fixture reporting old path against new.
 
+## Phase 29: Survive restarts, catch up backups, truthful Needs you (owner decision 41)
+
+- [x] T206 [US11] Spec plus code in one PR: decision 41 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §2, §5.3, §5.13, §5.16, §5.22; MCP_SPEC §5.9; UI_SPEC §6.1; spec FR-188–FR-195; Help (Problems and what to do, Recovering after a crash, Backups, Run states) and the coordinator skill.
+- [x] T207 [US11] Runs survive a restart: the boot sweep keeps open runs with a lease of at least `DOCKET_RESTART_GRACE_MINUTES`, one `service.restarted` event, and normal lease expiry for a run that never returns.
+- [x] T208 [US10] Backups: a wall-clock scheduler with one catch-up, tries kept across restarts, and the `backup_missed` Problem.
+- [x] T209 [US18] Needs you: parked and unpushed Problems routed to agents first, the read-only git check, canceled and deferred wording, *Keep for later* and *Safe to discard* with undo, and one count for the badge, the tab title and the page.
+
 ## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.
@@ -653,6 +660,7 @@ Open a PR titled "<Bn>: <phase name>" with the checkpoint evidence. Do not queue
 | 26 Overlaps reach the owner only when they need the owner | B46 (after B44) |
 | 27 One status colour system; map arrows route around cards | B47 (after B46) |
 | 28 Coordinators get what they need with far fewer tokens | B48 (after B47) |
+| 29 Survive restarts, catch up backups, truthful Needs you | B49 (after B48) |
 
 **Within a phase:** tests (failing) → services → replace stubs or fill handlers → fill screens → checkpoint.
 

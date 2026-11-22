@@ -28,11 +28,11 @@ const webRoot = resolve(here, '../../web/dist');
 const runtime = createRuntime({ dataDir: '/data', env: process.env });
 const { config } = runtime;
 
-// Service start (BUILD_SPEC §5.3): every run still open from before is interrupted.
-// Before the seed, so a freshly seeded database keeps its sample runs.
-const { interrupted } = restartSweep(runtime);
-if (interrupted.length > 0) {
-  console.log(`Service restarted: ${interrupted.length} open run(s) marked interrupted.`);
+// Service start (BUILD_SPEC §5.3; decision 41): runs still open from before stay open, and
+// each lead's lease runs at least DOCKET_RESTART_GRACE_MINUTES from now.
+const { kept } = restartSweep(runtime);
+if (kept.length > 0) {
+  console.log(`Service restarted: kept ${kept.length} open run(s); their agents can continue.`);
 }
 
 if (config.seed === 'sample') {

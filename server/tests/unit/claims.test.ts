@@ -296,20 +296,26 @@ describe('release and finish', () => {
 });
 
 describe('the restart sweep (FR-016)', () => {
-  it('turns every open run interrupted (service_restart); none shows as finished', () => {
+  it('keeps every open run open, with a lease of at least the grace (decision 41)', () => {
     const open = d.rows<{ id: string; item_id: string }>(
       "SELECT id, item_id FROM runs WHERE state IN ('open', 'needs_input')",
     );
     expect(open.length).toBeGreaterThan(0);
     const statuses = Object.fromEntries(open.map((r) => [r.item_id, status(r.item_id)]));
-    const { interrupted } = restartSweep(d.server.runtime);
-    expect(interrupted.sort()).toEqual(open.map((r) => r.id).sort());
+    const states = Object.fromEntries(open.map((r) => [r.id, run(r.id).state]));
+    const { kept } = restartSweep(d.server.runtime);
+    expect(kept.sort()).toEqual(open.map((r) => r.id).sort());
     for (const r of open) {
-      expect(run(r.id)).toMatchObject({ state: 'interrupted', end_reason: 'service_restart' });
-      // The item keeps its status: the work is resumable.
+      expect(run(r.id).state).toBe(states[r.id]);
+      expect(run(r.id).end_reason).toBeNull();
       expect(status(r.item_id)).toBe(statuses[r.item_id]);
     }
-    expect(d.rows("SELECT id FROM runs WHERE state IN ('open', 'needs_input')")).toEqual([]);
+    expect(d.rows("SELECT seq FROM events WHERE type = 'service.restarted'")).toHaveLength(1);
+    expect(
+      d.rows(
+        "SELECT seq FROM events WHERE type = 'run.ended' AND json_extract(data, '$.end_reason') = 'service_restart'",
+      ),
+    ).toEqual([]);
   });
 
   it('leaves parked runs alone (they keep their claim)', () => {
@@ -322,9 +328,11 @@ describe('the restart sweep (FR-016)', () => {
   });
 
   it('does nothing on a quiet database', () => {
-    restartSweep(d.server.runtime);
+    d.sql
+      .prepare("UPDATE runs SET state = 'finished' WHERE state IN ('open', 'needs_input')")
+      .run();
     const n = d.row<{ n: number }>('SELECT count(*) AS n FROM events').n;
-    expect(restartSweep(d.server.runtime).interrupted).toEqual([]);
+    expect(restartSweep(d.server.runtime).kept).toEqual([]);
     expect(d.row<{ n: number }>('SELECT count(*) AS n FROM events').n).toBe(n);
   });
 });

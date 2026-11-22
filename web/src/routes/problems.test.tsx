@@ -107,11 +107,49 @@ describe('the Problems rows (decision 37)', () => {
       />,
     );
     const row = document.querySelector('[data-problem="unpushed_work"]') as HTMLElement;
-    expect(within(row).getByRole('button', { name: 'Handled' })).toBeTruthy();
+    // Decision 41: outcomes that say what happens, in place of *Handled*.
+    expect(within(row).getByRole('button', { name: 'Keep for later' })).toBeTruthy();
+    expect(within(row).getByRole('button', { name: 'Safe to discard' })).toBeTruthy();
+    expect(within(row).queryByRole('button', { name: 'Handled' })).toBeNull();
+    expect(within(row).queryByRole('button', { name: 'Acknowledge' })).toBeNull();
     expect(within(row).getByRole('link', { name: 'Open' }).getAttribute('href')).toBe(
       '/items/GF-228?tab=activity&problem=unpushed_work%3Arun_25',
     );
     expect(within(row).queryByRole('button', { name: 'Remind the agent' })).toBeNull();
+  });
+
+  it('Keep for later and Safe to discard say what they do before you confirm (decision 41)', async () => {
+    const user = userEvent.setup();
+    wrap(
+      <ProblemsCard
+        problems={[
+          radar({
+            kind: 'unpushed_work',
+            id: 'unpushed_work:run_25',
+            run_id: 'run_25',
+            branches: [],
+          }),
+        ]}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Safe to discard' }));
+    const discard = screen.getByRole('dialog', { name: 'Mark this work safe to discard?' });
+    expect(discard.textContent).toContain('can then count as Safe to prune');
+    expect(discard.textContent).toContain('It doesn’t commit, push, save or delete anything.');
+    await user.click(within(discard).getByRole('button', { name: 'Cancel' }));
+    await user.click(screen.getByRole('button', { name: 'Keep for later' }));
+    const keep = screen.getByRole('dialog', { name: 'Keep this work for later?' });
+    expect(keep.textContent).toContain('The worktree stays At risk');
+    expect(keep.textContent).toContain('It doesn’t commit, push, save or delete anything.');
+  });
+
+  it('"N more" opens the rest, so every counted problem can be reached (decision 41)', async () => {
+    const user = userEvent.setup();
+    const many = Array.from({ length: 7 }, (_, i) => radar({ id: `rdf_${i}` }));
+    wrap(<ProblemsCard problems={many} />);
+    expect(document.querySelectorAll('[data-problem]')).toHaveLength(5);
+    await user.click(screen.getByRole('button', { name: '2 more' }));
+    expect(document.querySelectorAll('[data-problem]')).toHaveLength(7);
   });
 
   it('"Agents are handling N problems" opens the rows agents are handling', async () => {

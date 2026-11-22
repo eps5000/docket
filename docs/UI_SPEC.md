@@ -216,7 +216,7 @@ Blocked is derived and shows as a separate red chip, "⊘ Blocked by RCP-12, …
 | needs input | amber "?" | Waiting on you |
 | failed | red "×" | Run ended with an error |
 | finished | gray "✓" | Run ended normally |
-| interrupted | ring "–" | Stopped without finishing (lease expired, released, or service restart) |
+| interrupted | ring "–" | Stopped without finishing (lease expired or released; a service restart only in history from before decision 41) |
 
 **One run-state line** (B20). Everywhere a run is shown with its context (Board and List cards, the epic's Tickets list, Agents, the agent bar, Lead and runs) it is one `RunLine`: `state · reason · agent`, then the age.
 - **state:** the run state's icon and label;
@@ -294,10 +294,13 @@ Fits one 1440×900 screen without scrolling at sample volume. Contents, top to b
      | Canceled blocker | *Fix* → item, Dependencies tab |
      | A blocker that must be verified closed with a deferred check ("RCP-22 needs RCP-12 verified, but 1 check was deferred") | *Open* → the blocked item, Dependencies tab |
      | Orphaned resources ("vite :5173 still running 18m after its run ended · stop it, then mark it released") | *Mark released* (once you've stopped it) · *Open* → Activity |
-     | Unpushed work may be lost ("1 commit not pushed · uncommitted changes · C:/work/rcp-25 · run ended (lease expired)") | *Handled* · *Open* → Activity |
+     | Work left in a worktree ("3 uncommitted files · commits already on main · C:/work/gf-280 · run ended (finished)") | *Keep for later* · *Safe to discard* (each opens a dialog saying what it does and doesn't do; undoable) · *Open* → Activity |
      | Parked for 24 h ("Parked since Nov 14 · waiting on the coordinator · keeps its claim") | *Open* → Activity (Release lead claim is also on the agent bar) |
      | Ready to resume, unattended ("Ready to resume: RCP-11 is done · parked 40m") | *Open* → Activity |
      | Extra backup copy failed | *Open* → Settings |
+     | Backup failed or overdue (decision 41: "Last backup failed: …", "The backup due at Nov 21, 3:00 AM hasn't run") | *Open* → Settings |
+
+     **Decision 41 (B49):** parked-too-long and unpushed-work rows go to the lead or coordinator first, so they sit under "Agents are handling N" until they reach the owner, with why ("No coordinator or lead is on GF-280", "Not handled by an agent for a day"). *Keep for later* leaves the worktree At risk; *Safe to discard* lets it count as Safe to prune and says so before it's confirmed. Both dialogs say "It doesn't commit, push, save or delete anything." "N more" under the rows is a button that opens the rest, because every counted row must be reachable. **The sidebar badge, the tab title and "N things to act on" beside the h1 are one number** (`needsYouCount`, from this page's own response for the current project: every card plus the Problems above), and there's no badge at 0.
 
      Empty: "No stale or failed runs, cycles or date conflicts."
 
@@ -679,7 +682,7 @@ h1 "Settings".
   - **Client compatibility table** (Client, Transport, Last seen, Status chip Verified / Not verified, Results: Text only / Structured per MCP_SPEC §3 Results, Notes), with "Smoke test: claim, plan, log, read back" in the header. Surfaces that are off by default ("Agent in another container") are a **footnote under the table**, not a row: "**Agent in another container** (Docker network): not configured. Off by default. Needs an explicit network path (O02).";
   - **Client setup card:** Codex | Claude Code segmented control, a code block, and *Copy*. The token placeholder is `$DOCKET_TOKEN`; show the token itself only behind *Reveal token*, which needs a click and auto-hides after 30 s;
   - **Endpoint card:** MCP URL, Web UI URL, Bind "Loopback only", Auth "Bearer token", Origins;
-  - **Service health card:** Database and Documents with ready chips and sizes, Volume, Backups: one row per location, "In the data volume · Nov 6 03:00 · kept 14 days", and, if configured, "Extra copy: /backups-extra · Nov 6 03:01". When the extra location isn't configured, a muted line explains how to add it ("Mount a host folder and set DOCKET_BACKUP_EXTRA_DIR; see the README"), Restarted (with "0 runs were active…"), *Download diagnostic log* (the last 7 days of agent calls, without contents), and *Lock this browser* / *Rotate owner key*.
+  - **Service health card:** Database and Documents with ready chips and sizes, Volume, Backups: one row per location, "In the data volume · Nov 6 03:00 · kept 14 days", and, if configured, "Extra copy: /backups-extra · Nov 6 03:01". When the extra location isn't configured, a muted line explains how to add it ("Mount a host folder and set DOCKET_BACKUP_EXTRA_DIR; see the README"), Restarted (with "2 open runs were kept. Agents continue with the same run; one that doesn't return ends when its lease runs out."), *Download diagnostic log* (the last 7 days of agent calls, without contents), and *Lock this browser* / *Rotate owner key*.
   - **This browser card:** "Desktop notifications" with a switch, a status line ("On", "Off", "Blocked by the browser. Allow notifications for 127.0.0.1:7420 in your browser settings.") and *Send a test notification*. Theme is also set here.
 
 **Overlap handling** (decision 39; B46): a section after Projects. A default for all projects as three radios (*Agents resolve*, *Ask on shared data*, *Ask on every overlap*), each with one line saying what reaches the owner (a change to an approved design always does), and a table with one select per project ("Default (…)" or an override). Owner only: no MCP tool writes it. Leases, merge checks and decided overlaps are the same in every mode.

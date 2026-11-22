@@ -135,6 +135,10 @@ export interface RunRow {
   brief_document_version_id: string | null;
   external: string | null;
   unpushed_handled_at: string | null;
+  /** Decision 41: what the owner chose for the work left behind. */
+  unpushed_outcome: 'keep' | 'discard' | null;
+  /** Decision 41: the last read-only git check of this run's worktree (worktree-check.ts). */
+  worktree_check: string | null;
   version: number;
   created_at: string;
   updated_at: string;

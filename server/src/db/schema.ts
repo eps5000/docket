@@ -431,6 +431,10 @@ export const runs = sqliteTable(
     external: text('external', { mode: 'json' }),
     /** The owner's *Handled* on "Unpushed work may be lost". */
     unpushed_handled_at: text('unpushed_handled_at'),
+    /** Decision 41: `keep` (stays at risk) or `discard` (may count as safe to prune). */
+    unpushed_outcome: text('unpushed_outcome', { enum: ['keep', 'discard'] }),
+    /** Decision 41: the last read-only git check of the worktree, as JSON; never an event. */
+    worktree_check: text('worktree_check'),
     version: version(),
     ...timestamps,
   },

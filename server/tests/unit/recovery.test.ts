@@ -19,7 +19,13 @@ import { flagOnce, restartSweep, sweepOnce } from '../../src/jobs/sweeper.js';
 import { callTool, type RegisterOptions } from '../../src/mcp/register.js';
 import type { McpSessionInfo } from '../../src/mcp/server.js';
 import { TOOL_HANDLERS } from '../../src/mcp/tools/index.js';
-import { forceStatus, minutes, startDomain, type Domain } from '../us1-helpers.js';
+import {
+  endRunsAsOldRestart,
+  forceStatus,
+  minutes,
+  startDomain,
+  type Domain,
+} from '../us1-helpers.js';
 
 let d: Domain;
 let claude: Actor;
@@ -160,7 +166,7 @@ describe('park_run (BUILD_SPEC §5.16)', () => {
     park(run_id, { orchestrator: true });
     d.clock.advance(hours(30));
     expect(sweepOnce(d.server.runtime).interrupted).not.toContain(run_id);
-    expect(restartSweep(d.server.runtime).interrupted).not.toContain(run_id);
+    expect(restartSweep(d.server.runtime).kept).not.toContain(run_id);
     expect(runView('RCP-17', run_id).run_state).toBe('parked');
     expect(run(run_id).state).toBe('parked');
     expect(problems('stale_run').map((p) => p.run_id)).not.toContain(run_id);
@@ -372,13 +378,13 @@ describe('end_reason on every terminal path (FR-114)', () => {
     expect(run(c)).toMatchObject({ state: 'interrupted', end_reason: 'released' });
   });
 
-  it('lease_expired (sweeper), service_restart (boot), canceled (set_status)', () => {
+  it('lease_expired (sweeper), service_restart (history before decision 41), canceled (set_status)', () => {
     const a = claim('RCP-17').run_id;
     d.clock.advance(cfg().leaseMs + minutes(1));
     sweepOnce(d.server.runtime);
     expect(run(a)).toMatchObject({ state: 'interrupted', end_reason: 'lease_expired' });
     const b = claim('RCP-25').run_id;
-    restartSweep(d.server.runtime);
+    endRunsAsOldRestart(d.server.runtime);
     expect(run(b)).toMatchObject({ state: 'interrupted', end_reason: 'service_restart' });
     const c = claim('DOC-5').run_id;
     const version = d.row<{ version: number }>(
@@ -539,7 +545,7 @@ describe('unpushed work may be lost (FR-114)', () => {
     const [p] = problems('unpushed_work');
     expect(p).toMatchObject({ item_id: 'RCP-17', run_id });
     expect(p!.reason).toBe(
-      '1 commit not pushed · uncommitted changes · C:/work/rcp-17 · run ended (lease expired)',
+      '1 commit not pushed · uncommitted changes · unverified · C:/work/rcp-17 · run ended (lease expired)',
     );
   });
 
@@ -557,7 +563,9 @@ describe('unpushed work may be lost (FR-114)', () => {
     expect(finish(run_id)).toEqual({ run_state: 'finished', warnings: ['2 commits not pushed'] });
     const [p] = problems('unpushed_work');
     expect(p).toMatchObject({ item_id: 'RCP-17', run_id });
-    expect(p!.reason).toBe('2 commits not pushed · C:/work/rcp-17 · run ended (finished)');
+    expect(p!.reason).toBe(
+      '2 commits not pushed · unverified · C:/work/rcp-17 · run ended (finished)',
+    );
     expect(wsState('C:/work/rcp-17')).toBe('at_risk');
   });
 
@@ -593,7 +601,11 @@ describe('unpushed work may be lost (FR-114)', () => {
       mutation = w.mutationId;
       return s.recovery.markUnpushedHandled(w, { runId: run_id });
     });
-    expect(out).toEqual({ run_id, unpushed_handled_at: d.clock.now().toISOString() });
+    expect(out).toEqual({
+      run_id,
+      unpushed_handled_at: d.clock.now().toISOString(),
+      outcome: 'discard',
+    });
     expect(problems('unpushed_work')).toEqual([]);
     // Handled, but the work still waits to be restarted: not safe to prune yet (ruling Q1).
     expect(wsState('C:/work/rcp-17')).toBe('at_risk');
@@ -663,7 +675,7 @@ describe('workspace state, derived per worktree path (MCP_SPEC §3)', () => {
   it('at_risk while an interrupted run waits to be restarted, even clean and pushed (B10 ruling Q1)', () => {
     const { run_id } = claim('RCP-17', { workspace: ws });
     pushedClean(run_id);
-    restartSweep(d.server.runtime); // service_restart; RCP-17 is still In progress, nobody leads it
+    endRunsAsOldRestart(d.server.runtime); // RCP-17 is still In progress, nobody leads it
     expect(wsState(path)).toBe('at_risk');
     expect(itemView('RCP-17').resume!.workspace!.state).toBe('at_risk');
     // A newer run claims the item (elsewhere) and finishes: the old worktree follows the normal rules.
@@ -819,7 +831,7 @@ describe('briefs and Item.resume (FR-111, FR-115)', () => {
     resources(run_id, {
       resources_started: [{ kind: 'port', label: 'port 3000', locator: { port: 3000 } }],
     });
-    restartSweep(d.server.runtime);
+    endRunsAsOldRestart(d.server.runtime);
     const resume = itemView('RCP-17').resume!;
     expect(resume).toMatchObject({
       last_pushed_sha: '4be1c09',
@@ -851,7 +863,7 @@ describe('recovery_report', () => {
     park(b, { orchestrator: true });
     // Before the restart, the seed's silent RCP-15 lead is stale.
     expect(report().stale.map((s) => s.item.id)).toContain('RCP-15');
-    restartSweep(d.server.runtime);
+    endRunsAsOldRestart(d.server.runtime);
     const r = report({ include_briefs: true });
     const entry = r.interrupted.find((e) => e.run.run_id === a)!;
     expect(entry).toMatchObject({
@@ -875,7 +887,7 @@ describe('recovery_report', () => {
     for (const id of ['RCP-17', 'RCP-25', 'DOC-5']) {
       claim(id, { workspace: { path: `C:/work/${id}`, branch: id } });
     }
-    restartSweep(d.server.runtime);
+    endRunsAsOldRestart(d.server.runtime);
     const full = report();
     const total =
       full.interrupted.length +
@@ -906,7 +918,7 @@ describe('recovery_report', () => {
 
   it('is read-only: it writes no event and changes no run', () => {
     claim('RCP-17');
-    restartSweep(d.server.runtime);
+    endRunsAsOldRestart(d.server.runtime);
     const before = d.row<{ n: number }>('SELECT count(*) AS n FROM events').n;
     report({ include_briefs: true });
     expect(d.row<{ n: number }>('SELECT count(*) AS n FROM events').n).toBe(before);

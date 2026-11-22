@@ -4,7 +4,7 @@ import { OPEN_RUN_STATES } from '@docket/shared';
 import { Icon, isNotBuilt, type IconName } from '../components/kit';
 import { paths } from '../lib/paths';
 import { useShell } from './ShellState';
-import { useBootstrap } from './useBootstrap';
+import { useBootstrap, useNeedsYouCount } from './useBootstrap';
 
 /** Which nav item a path belongs to (UI_SPEC §2, §6.4: the packet keeps Needs you active). */
 export function navSection(
@@ -271,6 +271,8 @@ export function Sidebar() {
   const boot = useBootstrap();
   const counts = boot.data?.counts;
   const activeRuns = counts ? OPEN_RUN_STATES.reduce((n, s) => n + (counts.runs[s] ?? 0), 0) : 0;
+  // Decision 41: what the owner can act on on the page, from the page's own response.
+  const forYou = useNeedsYouCount();
   return (
     <nav className="side" aria-label="Primary">
       <div className="logo">
@@ -283,7 +285,7 @@ export function Sidebar() {
         icon="attention"
         label="Needs you"
         section="needs-you"
-        badge={{ n: counts?.for_you ?? 0, tone: 'red', sr: 'for you' }}
+        badge={{ n: forYou ?? 0, tone: 'red', sr: 'for you' }}
       />
       <NavItem to={paths.work()} icon="work" label="Work" section="work" />
       <NavItem

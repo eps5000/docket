@@ -46,7 +46,7 @@ import { basename, dirname, isAbsolute, join, normalize, resolve, sep } from 'no
 import { LEGACY_BACKUP_FORMAT, LEGACY_DB_FILE } from '@docket/shared';
 import Database from 'better-sqlite3';
 import type { Config } from '../config.js';
-import type { BackupLocationStatus, BackupResult } from '../domain/contracts.js';
+import type { BackupLocationStatus, BackupResult, BackupTrouble } from '../domain/contracts.js';
 import { APP_VERSION } from '../version.js';
 import { readTarGz, writeTarGz, type TarFileEntry, type TarSink } from './tar.js';
 
@@ -254,6 +254,14 @@ interface LocationState {
 interface StatusFile {
   volume?: LocationState;
   extra?: LocationState;
+  /** The scheduler's memory across restarts (decision 41). */
+  schedule?: {
+    /** When Docket first ran with no backup yet: a new install isn't "behind". */
+    first_seen_at?: string;
+    /** The scheduled time last tried, and how many automatic tries it had. */
+    slot?: string;
+    attempts?: number;
+  };
 }
 
 const statusPath = (config: Config) => join(config.paths.backups, 'status.json');
@@ -878,38 +886,147 @@ export function nextBackupAt(now: Date, at: string): Date {
   return next;
 }
 
-/** Run `backup` every night at `DOCKET_BACKUP_AT`. A failure is logged and retried the next night. */
+/** The latest `HH:MM` (local time) at or before `now`: the backup that should exist by now. */
+export function lastBackupAt(now: Date, at: string): Date {
+  const [h, m] = at.split(':').map(Number) as [number, number];
+  const last = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, 0, 0);
+  if (last.getTime() > now.getTime()) last.setDate(last.getDate() - 1);
+  return last;
+}
+
+/** How often the scheduler wakes and compares the wall clock (decision 41). */
+export const BACKUP_TICK_MS = 60_000;
+/** The first check waits this long, so a catch-up never delays the server's start. */
+export const BACKUP_START_DELAY_MS = 5_000;
+/** A missed backup is a Problem this long after its scheduled time (catch-up usually fixes it first). */
+export const BACKUP_OVERDUE_AFTER_MS = 3_600_000;
+/**
+ * Automatic tries per scheduled time. A run the process didn't survive (a
+ * restart in the middle of it) gets one more; a run that failed doesn't, so a
+ * broken backup can't loop. It waits for the next night, shown as a Problem.
+ */
+const MAX_SLOT_ATTEMPTS = 2;
+
+/** When the last good backup finished, from the status file, else the newest archive. */
+function newestSuccess(config: Config, status: StatusFile): Date | null {
+  const recorded = status.volume?.last_success_at;
+  if (recorded) return new Date(recorded);
+  return listArchives(config.paths.backups)[0]?.at ?? null;
+}
+
+/**
+ * Whether the backup due at `slot` is missing. A first install isn't behind
+ * until a scheduled time passes after Docket first saw it. A newest backup
+ * more than a day in the future means the clock moved back, so it doesn't count.
+ */
+function slotMissed(status: StatusFile, newest: Date | null, slot: Date, now: Date): boolean {
+  if (newest && newest.getTime() <= now.getTime() + DAY_MS) {
+    return newest.getTime() < slot.getTime();
+  }
+  if (newest) return true;
+  const first = status.schedule?.first_seen_at;
+  return !!first && Date.parse(first) < slot.getTime();
+}
+
+/** Why the nightly backup needs the owner (owner decision 41): it failed, or it's overdue. */
+export function backupTrouble(config: Config, now: Date): BackupTrouble | null {
+  const status = readStatusFile(config);
+  const newest = newestSuccess(config, status);
+  const slot = lastBackupAt(now, config.backupAt);
+  const base = { last_success_at: newest?.toISOString() ?? null, due_at: slot.toISOString() };
+  const error = status.volume?.last_error;
+  if (error) return { state: 'failed', error, ...base };
+  if (!slotMissed(status, newest, slot, now)) return null;
+  if (now.getTime() - slot.getTime() < BACKUP_OVERDUE_AFTER_MS) return null;
+  return { state: 'overdue', error: null, ...base };
+}
+
+/**
+ * The nightly backup at `DOCKET_BACKUP_AT`, robust to restarts, host sleep
+ * and clock jumps (owner decision 41). It wakes every `BACKUP_TICK_MS` and at
+ * startup, and compares the wall clock: when the newest good backup is older
+ * than the last scheduled time, it runs one. Timers don't count sleep and a
+ * restart forgets them, so nothing depends on one long timer. One run at a
+ * time; however many nights were missed, one backup catches up. The tries for
+ * each scheduled time are kept in `status.json`, so they survive a restart.
+ */
 export function startBackupJob(opts: {
   config: Config;
   backup: () => Promise<unknown>;
   log: (line: string) => void;
   now?: () => Date;
-}): { stop(): void; next(): Date } {
+  tickMs?: number;
+  startDelayMs?: number;
+}): { stop(): void; next(): Date; tick(): Promise<boolean> } {
+  const { config, log } = opts;
   const now = opts.now ?? (() => new Date());
-  let timer: NodeJS.Timeout | null = null;
-  let next = nextBackupAt(now(), opts.config.backupAt);
+  let next = nextBackupAt(now(), config.backupAt);
   let stopped = false;
-  const schedule = () => {
-    if (stopped) return;
-    next = nextBackupAt(now(), opts.config.backupAt);
-    // Timers can't wait longer than ~24.8 days; a day is well inside that.
-    timer = setTimeout(() => void fire(), Math.max(1_000, next.getTime() - now().getTime()));
-    timer.unref();
+  let running: Promise<boolean> | null = null;
+  // Also in memory: on a full disk the status file can't record the try.
+  let tried: { slot: string; attempts: number } = { slot: '', attempts: 0 };
+
+  const record = (schedule: Partial<NonNullable<StatusFile['schedule']>>) => {
+    try {
+      const status = readStatusFile(config);
+      writeStatusFile(config, { ...status, schedule: { ...status.schedule, ...schedule } });
+    } catch (err) {
+      log(`Backup schedule not recorded: ${(err as Error).message}`);
+    }
   };
-  const fire = async () => {
+
+  const initial = readStatusFile(config);
+  if (!newestSuccess(config, initial) && !initial.schedule?.first_seen_at) {
+    record({ first_seen_at: now().toISOString() });
+  }
+
+  const check = async (): Promise<boolean> => {
+    const at = now();
+    next = nextBackupAt(at, config.backupAt);
+    const due = lastBackupAt(at, config.backupAt);
+    const slot = due.toISOString();
+    const status = readStatusFile(config);
+    if (!slotMissed(status, newestSuccess(config, status), due, at)) return false;
+    const stored = status.schedule?.slot === slot ? (status.schedule.attempts ?? 0) : 0;
+    const attempts = Math.max(stored, tried.slot === slot ? tried.attempts : 0);
+    if (attempts >= MAX_SLOT_ATTEMPTS) return false;
+    tried = { slot, attempts: attempts + 1 };
+    record({ slot, attempts: attempts + 1 });
+    log(`Running the backup due at ${slot}.`);
     try {
       await opts.backup();
     } catch (err) {
-      opts.log(`Nightly backup failed: ${(err as Error).message}`);
+      log(`Backup failed: ${(err as Error).message}. It tries again at the next scheduled time.`);
+      tried = { slot, attempts: MAX_SLOT_ATTEMPTS };
+      record({ slot, attempts: MAX_SLOT_ATTEMPTS });
     }
-    schedule();
+    return true;
   };
-  schedule();
+
+  const tick = (): Promise<boolean> => {
+    if (stopped) return Promise.resolve(false);
+    running ??= check()
+      .catch((err: unknown) => {
+        log(`Backup check failed: ${(err as Error).message}`);
+        return false;
+      })
+      .finally(() => {
+        running = null;
+      });
+    return running;
+  };
+
+  const first = setTimeout(() => void tick(), opts.startDelayMs ?? BACKUP_START_DELAY_MS);
+  first.unref();
+  const timer = setInterval(() => void tick(), opts.tickMs ?? BACKUP_TICK_MS);
+  timer.unref();
   return {
     stop() {
       stopped = true;
-      if (timer) clearTimeout(timer);
+      clearTimeout(first);
+      clearInterval(timer);
     },
     next: () => next,
+    tick,
   };
 }

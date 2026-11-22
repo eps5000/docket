@@ -165,6 +165,19 @@ Docket's core features are good; this decision makes them cheaper to use. The or
 
 BUILD_SPEC §5.11 and MCP_SPEC §3 and §5.2 have the details.
 
+## Owner decision 41 (2026-11-22): survive restarts, never miss a backup, and make Needs you truthful
+
+Evidence from the Gameflow pilot. A restart marked every open run interrupted, so an update meant parking every agent by hand first. The 03:00 backup on Nov 21 never ran and recorded no error, and nothing caught it up. Needs you showed six Problems, none needing a person yet: three parked runs a coordinator owned, a radar conflict agents owned, and two misleading "unpushed work" rows. One said "1 commit not pushed" about a commit already on main, when what was left was 3 uncommitted files. The other told the owner to push work on an item the owner had canceled. The owner couldn't tell whether they were expected to commit that work, or what *Mark handled* did, and the sidebar badge showed a number that didn't match what they could act on.
+
+1. **Runs survive a Docket restart.** Open runs stay open with their claim, workspace and `run_id`, and each lease runs at least `DOCKET_RESTART_GRACE_MINUTES` (default 15) from the restart. An agent's next call continues. One that never returns ends by normal lease expiry. One `service.restarted` event, not one per run.
+2. **Backups can't be silently missed.** At startup and on every scheduler wake, if the newest good backup is older than the last scheduled time, Docket catches up once, never concurrently, comparing the wall clock so sleep and clock jumps don't lose a night. A failed or overdue backup is an owner-visible Problem until the next success. Retention stays 14 days.
+3. **Needs you only shows what needs the owner.** Parked-too-long and unpushed-work Problems go to the lead or coordinator first, and reach the owner only when no one can act or after the grace period, saying why.
+4. **Unpushed work is true.** With a readable repository, Docket checks (read-only: no fetch, nothing written) whether HEAD is on a remote or in main, and reports commits and uncommitted changes separately. Without one it says the state is unverified. Canceled or deferred work is never something to push: the owner keeps it or lets it go. Docket never deletes a worktree or files itself.
+5. **Actions say what they do.** *Mark handled* becomes *Keep for later* and *Safe to discard*. Each says what it does and doesn't do before it's confirmed (neither commits, pushes, saves or deletes anything), and can be undone.
+6. **The badge equals what the owner can act on** on the page: same source, same count, none at 0.
+
+BUILD_SPEC §5.3, §5.13, §5.16 and §5.22, MCP_SPEC §5.9 and UI_SPEC §6.1 have the details.
+
 ## Deferred choices
 
 Pilot project choice and Jira import strategy are deferred until V1 is ready for real work. Design should still settle the storage layout, supported document preview formats, the exact project gate configuration shape, and the minimum history needed before a velocity forecast is shown. These are implementation choices guided by the owner decisions above, not blockers to selecting a pilot now.
@@ -180,4 +193,4 @@ Pilot project choice and Jira import strategy are deferred until V1 is ready for
 - In a project configured without owner approval, an agent completes the declared acceptance and reports Done. The UI shows agent completion accurately without inventing an owner approval.
 - An agent updates a planned date and estimates a ticket at five points. The timeline labels the entered date; the burn-down uses the effort value only after enough completed work exists to show a meaningful rate.
 - A project with local Markdown reviews is deleted through the UI. Its work records and files are removed together, while retained backups follow the documented backup policy.
-- Docker restarts during an active run; task data persists and the run is shown as interrupted/stale rather than falsely finished.
+- Docker restarts during an active run; task data persists, the run stays open and its agent continues with the same `run_id` (decision 41). If the agent never returns, its lease ends it as interrupted, never falsely finished.

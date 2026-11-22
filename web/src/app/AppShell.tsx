@@ -16,7 +16,7 @@ import { useShell } from './ShellState';
 import { isPaletteShortcut } from './shortcuts';
 import { Sidebar } from './Sidebar';
 import { TabStrip } from './TabStrip';
-import { useBootstrap } from './useBootstrap';
+import { useBootstrap, useNeedsYouCount } from './useBootstrap';
 import { useLiveStream } from './useLiveStream';
 import './shell.css';
 
@@ -82,8 +82,8 @@ export function AppShell() {
   const connection = useConnection(unlocked && stream !== 'open');
   useFocusKeeper(queryClient);
 
-  // The tab title shows the for-you count, notifications on or off.
-  const forYou = boot.data?.counts.for_you;
+  // The tab title shows the same count as the badge, notifications on or off (decision 41).
+  const forYou = useNeedsYouCount();
   useEffect(() => {
     document.title = tabTitle(forYou);
   }, [forYou]);

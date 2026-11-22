@@ -1,9 +1,13 @@
 /**
  * The sweeper (BUILD_SPEC §5.3, §5.4; tasks.md T072).
  *
- * - **Restart sweep,** once at boot before anything else writes: every open
- *   run becomes `interrupted` (`end_reason: service_restart`). Runs are
- *   never shown as finished unless the agent finished them (FR-016).
+ * - **Restart sweep,** once at boot before anything else writes (owner
+ *   decision 41): open runs stay open, with their claim, workspace and
+ *   `run_id`, and each lead's lease runs at least
+ *   `DOCKET_RESTART_GRACE_MINUTES` from now. An agent's next call continues;
+ *   one that never returns ends by lease expiry. Runs are never shown as
+ *   finished unless the agent finished them (FR-016). `service_restart`
+ *   remains only in the history of runs ended before decision 41.
  * - **Lease expiry,** every `sweepMs`: an expired lead run is `interrupted`
  *   (`lease_expired`) and its item goes back to Ready with its plan kept.
  * - **Pings,** every `pingMs` (60 s): each open run whose MCP session has
@@ -41,6 +45,7 @@ import {
   radarTriggers,
 } from '../domain/radar.js';
 import { classifyLegacyOverlaps } from '../domain/shared-changes.js';
+import { checkProjectWorktrees } from '../domain/worktree-check.js';
 import { SYSTEM_ACTOR } from '../domain/write.js';
 import type { Runtime } from '../runtime.js';
 
@@ -49,10 +54,10 @@ export const PING_MS = 60_000;
 /** How long a ping may take before it doesn't count. */
 export const PING_TIMEOUT_MS = 10_000;
 
-/** At boot: every open run → interrupted (service restarted). */
-export function restartSweep(runtime: Runtime): { interrupted: string[] } {
+/** At boot (decision 41): open runs keep their claim, with a lease of at least the grace. */
+export function restartSweep(runtime: Runtime): { kept: string[] } {
   return runtime.write.run({ actor: SYSTEM_ACTOR, operation: 'sweeper.restart', args: {} }, (w) =>
-    runtime.services.runs.interruptOpenRuns(w, { reason: 'service restarted' }),
+    runtime.services.runs.keepOpenRuns(w, { graceMs: runtime.config.restartGraceMs }),
   ).result;
 }
 
@@ -293,6 +298,14 @@ export function startRadar(
       radarRunOnce(runtime, key);
     } catch (err) {
       runtime.log(`radar: ${key} failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    // Decision 41: what ended runs really left behind, with the same read-only git.
+    try {
+      checkProjectWorktrees(runtime.db, runtime.config, key, runtime.clock().toISOString());
+    } catch (err) {
+      runtime.log(
+        `worktree check: ${key} failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   };
   const tick = () => {

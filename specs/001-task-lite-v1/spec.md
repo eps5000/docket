@@ -47,7 +47,7 @@ An agent connects, asks for work it may start, claims one item, publishes a shor
 4. **Given** a lead agent, **When** it publishes a plan and later sends only one changed step, **Then** the other steps are unchanged, and the revision is kept as history with its reason.
 5. **Given** an item with no human review items and passing checks, **When** the agent closes it, **Then** it becomes Done, closed by the agent, and the agent's run ends as finished.
 6. **Given** a lead agent that sends no signal for the stale period, **When** the owner looks at the item, **Then** its run shows as stale (not finished). When the lease expires, the claim is released and the item returns to Ready with its plan intact.
-7. **Given** the service restarts while runs are open, **When** it comes back, **Then** every open run shows as interrupted and none as finished.
+7. **Given** the service restarts while runs are open, **When** it comes back, **Then** every open run stays open with its claim and none shows as finished; its agent's next call continues the same run, and one that never returns ends as interrupted when its lease runs out (owner decision 41).
 8. **Given** an agent retries a write after a timeout with the same retry key, **When** the server receives it, **Then** the original result is returned and nothing is duplicated.
 
 ---
@@ -233,7 +233,7 @@ The coordinator (an Orca orchestrator, a script or the owner) dispatches workers
 
 **Acceptance Scenarios**:
 
-1. **Given** a worker claimed an item with a workspace and a brief, **When** the service restarts, **Then** `recovery_report` lists it as interrupted (service_restart) with the exact brief, worktree path, branch, last pushed commit and checklist progress, and a new worker can claim and resume it.
+1. **Given** a worker claimed an item with a workspace and a brief, **When** the service restarts and the worker never returns, **Then** once its lease runs out (decision 41) `recovery_report` lists it as interrupted (lease_expired) with the exact brief, worktree path, branch, last pushed commit and checklist progress, and a new worker can claim and resume it.
 2. **Given** a worker is waiting for the coordinator, **When** it parks with `waiting_on: orchestrator` and stays idle for hours, **Then** it keeps its claim, never shows as stale or finished, and its workspace is reported as in use.
 3. **Given** a worker parked waiting on RCP-12, **When** RCP-12 is done, **Then** the parked run is flagged ready to resume. If nobody resumes it within 30 minutes, the owner sees "Ready to resume, unattended".
 4. **Given** a worker declared a dev server and its run ended without releasing it, **When** 15 minutes pass, **Then** the owner sees "Orphaned resources" with how to find it, and can mark it released once it's stopped.
@@ -600,6 +600,14 @@ Agents working in parallel worktrees declare the shared parts each item will cha
 - **FR-185** (owner decision 39): A declared change to an approved design MUST always reach the owner, with or without an overlap and in every Overlap handling mode, as a Needs you card and a ticket banner showing the item and the note, with *Approve the design change* and *Send back* (a note is required). Both MUST be undoable and attributed to the owner.
 - **FR-186**: Until it is approved, that item MUST be paused and no other item: `claim_lead` and starting it MUST be refused with a clear error, closing it MUST be refused, a packet MUST be held, and the agent MUST be told to pause only the affected work and take other work.
 - **FR-187**: An approval MUST hold for that declaration, and MUST NOT ask again unless its design note or affected parts materially change. An agent MUST NOT be able to approve or clear an open review, and the automatic overlap classifier MUST NOT clear it.
+- **FR-188** (owner decision 41): A Docket restart MUST NOT end open runs. Each MUST keep its claim, workspace and `run_id`, with a lease of at least `DOCKET_RESTART_GRACE_MINUTES` from the restart, and MUST end by normal lease expiry if its agent never returns. One `service.restarted` event MUST record the restart.
+- **FR-189**: The backup scheduler MUST compare the wall clock at startup and on each wake, and when the newest good backup is older than the last scheduled time MUST run one catch-up backup, never concurrently.
+- **FR-190**: A failed or overdue backup MUST be an owner-visible Problem with a plain explanation, and MUST clear on the next success.
+- **FR-191**: Parked-too-long and unpushed-work Problems MUST go to the lead or coordinator first, and reach the owner only when no one can act on them or after the grace period, saying why.
+- **FR-192**: When the repository is readable, unpushed work MUST be checked read-only against git and report commits and uncommitted changes separately, and MUST NOT call a commit unpushed when it is on main. Otherwise it MUST say the state is unverified.
+- **FR-193**: Work on a canceled or deferred item MUST say so and MUST NOT tell the owner to push it. Docket MUST NOT delete a worktree or files itself.
+- **FR-194**: The owner's outcomes on that work (*Keep for later*, *Safe to discard*) MUST say what they do and don't do before confirming, including whether the worktree may count as safe to prune, and MUST be undoable.
+- **FR-195**: The Needs you badge MUST equal what the owner can act on on the page, from the same source, with no badge at 0.
 - **FR-184**: Automatic outcomes MUST be recorded as Docket (`decided_by: docket`), never as the owner, on both tickets with their reason and evidence. The owner MUST be able to overrule them from the ticket with undo, and Needs you MUST show at most one quiet line, "Docket handled N overlaps today", linking to them. Single-writer leases, the required merge checks, owner-recorded decisions and overlaps the owner already decided MUST be unchanged in every mode.
 
 ### Key Entities
@@ -639,7 +647,7 @@ Agents working in parallel worktrees declare the shared parts each item will cha
 - **SC-004**: When an item's last blocker clears, it appears in agents' ready list on the very next request, with no human or agent action.
 - **SC-005**: The owner can tell what needs them, and act on the first item, within 10 seconds of opening the UI, without scrolling, on a 1440×900 screen at sample-data volume.
 - **SC-006**: The owner can verify a two-item handoff and record a decision in no more than 4 clicks beyond the verification work itself.
-- **SC-007**: 100% of runs open at a restart show as interrupted afterwards, and 0% as finished.
+- **SC-007** (revised by owner decision 41): 100% of runs open at a restart stay open with their claim afterwards, and 0% show as finished.
 - **SC-008**: Replacing the container loses 0 items, events or documents, and a restored backup matches the original exactly.
 - **SC-009**: A new owner goes from a clean machine to a connected agent in 10 minutes or less by following the README.
 - **SC-010**: Every owner-facing screen passes automated accessibility checks with no serious or critical issues, in both themes.

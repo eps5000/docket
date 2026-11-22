@@ -25,6 +25,7 @@ type Fixtures = {
   agent: McpAgent;
 };
 
+export { needsYouTitle } from './needs-you-count';
 export const test = base.extend<Fixtures>({
   makeAxeBuilder: async ({ page }, use) => {
     await use(() => new AxeBuilder({ page }).withTags(WCAG_TAGS));

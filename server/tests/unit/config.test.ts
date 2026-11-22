@@ -30,6 +30,16 @@ describe('loadConfig', () => {
     }
   });
 
+  it('reads DOCKET_RESTART_GRACE_MINUTES as whole minutes, at least 1 (decision 41)', () => {
+    expect(loadConfig({}).restartGraceMs).toBe(15 * 60_000);
+    expect(loadConfig({ DOCKET_RESTART_GRACE_MINUTES: '5' }).restartGraceMs).toBe(5 * 60_000);
+    for (const bad of ['0', '-1', '1.5', 'soon']) {
+      expect(() => loadConfig({ DOCKET_RESTART_GRACE_MINUTES: bad }), bad).toThrow(
+        /DOCKET_RESTART_GRACE_MINUTES/,
+      );
+    }
+  });
+
   it('reads DOCKET_AGENT_PROBLEM_GRACE_HOURS as whole hours, 0 or more (decision 37)', () => {
     expect(loadConfig({}).agentProblemGraceMs).toBe(24 * 3_600_000);
     expect(loadConfig({ DOCKET_AGENT_PROBLEM_GRACE_HOURS: '6' }).agentProblemGraceMs).toBe(

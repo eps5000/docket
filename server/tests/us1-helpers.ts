@@ -102,6 +102,32 @@ export function forceStatus(d: Domain, id: string, status: string): void {
 export const minutes = (n: number) => n * 60_000;
 
 /**
+ * Open runs ended the way a restart ended them before decision 41 (B49), for
+ * tests of the `service_restart` history that must stay readable.
+ */
+export function endRunsAsOldRestart(runtime: TestServer['runtime']): string[] {
+  return runtime.write.run(
+    { actor: SYSTEM_ACTOR, operation: 'test.old_restart', args: {} },
+    (w) => {
+      const open = w.db.sqlite
+        .prepare("SELECT id, item_id, is_lead FROM runs WHERE state IN ('open', 'needs_input')")
+        .all() as { id: string; item_id: string; is_lead: number }[];
+      for (const run of open) {
+        w.update('runs', run.id, { state: 'interrupted', end_reason: 'service_restart' });
+        w.event({
+          type: 'run.ended',
+          summary: 'Lead run interrupted: service restarted',
+          item_id: run.item_id,
+          data: { run_id: run.id, end_reason: 'service_restart', is_lead: run.is_lead === 1 },
+          objects: [{ kind: 'run', id: run.id }],
+        });
+      }
+      return open.map((r) => r.id);
+    },
+  ).result;
+}
+
+/**
  * Declare that items change no shared part (fixture only), so the Ready gate
  * passes them (decision 36; BUILD_SPEC §5.21). No event, like `forceStatus`.
  */

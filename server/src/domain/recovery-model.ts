@@ -2,7 +2,8 @@
  * The recovery read model (owner decision 26; BUILD_SPEC §5.16; MCP_SPEC §3
  * "Workspaces, briefs and resources"): derived workspace state per worktree
  * path, `resume_ready` for parked runs, when a run ended, unpushed work at
- * risk and orphaned resources. Pure derivations over what agents reported:
+ * risk and orphaned resources. Pure derivations over what agents reported and
+ * the last stored read-only git check (decision 41; worktree-check.ts):
  * nothing here looks at the host (FR-117), and nothing here writes.
  *
  * Not a contract file. The runs and recovery services, `get_item` and the
@@ -251,7 +252,9 @@ export function workspaceFacts(
     head,
     pushed,
   );
+  // Decision 41: *Keep for later* leaves the worktree at risk, so nothing prunes it.
   const handledAt = ordered
+    .filter((r) => r.unpushed_outcome !== 'keep')
     .map((r) => r.unpushed_handled_at)
     .filter((t): t is string => !!t)
     .sort()
@@ -469,6 +472,57 @@ export function unpushedRisks(db: Db, runs: readonly RunRow[]): UnpushedRisk[] {
   return out;
 }
 
+/** The last read-only git check of a run's worktree (decision 41; worktree-check.ts). */
+export interface WorktreeCheck {
+  checked_at: string;
+  head_sha: string;
+  /** HEAD is in the main branch, local or origin's. */
+  on_main: boolean;
+  /** HEAD is on a remote ref; null when git couldn't tell. */
+  on_remote: boolean | null;
+  /** Commits on HEAD that are on no remote ref and not in main; null when git couldn't tell. */
+  unpushed_commits: number | null;
+  /** Files `git status` lists; null when the worktree's folder can't be read. */
+  uncommitted_files: number | null;
+}
+
+/** A check this old no longer counts: the worktree may have changed since. */
+const CHECK_MAX_AGE_MS = 24 * 3_600_000;
+
+/** What is really left in a worktree: commits and uncommitted changes, separately. */
+export interface UnpushedTruth {
+  commits: number;
+  /** A file count from git; null when only the agent's "dirty" is known. */
+  files: number | null;
+  dirty: boolean;
+  /** Git confirmed HEAD is in the main branch. */
+  on_main: boolean;
+  /** Some of this is the agent's last report, because git couldn't confirm it. */
+  unverified: boolean;
+}
+
+/**
+ * The risk as git last saw it, else as the agent last reported it (decision
+ * 41). Null when git shows nothing is left: every commit is on a remote or in
+ * main, and the worktree is clean.
+ */
+export function unpushedTruth(risk: UnpushedRisk, now: string): UnpushedTruth | null {
+  const stored = parseJson<WorktreeCheck>(risk.run.worktree_check);
+  const check = stored && ms(now) - ms(stored.checked_at) <= CHECK_MAX_AGE_MS ? stored : null;
+  const knownCommits = check?.unpushed_commits ?? null;
+  const files = check?.uncommitted_files ?? null;
+  const commits = knownCommits ?? risk.unpushed_commits ?? 0;
+  const dirty = files !== null ? files > 0 : risk.dirty;
+  if (commits === 0 && !dirty) return null;
+  return {
+    commits,
+    files,
+    dirty,
+    on_main: check?.on_main === true,
+    unverified: (commits > 0 && knownCommits === null) || (dirty && files === null),
+  };
+}
+
 // ---- Orphaned resources (BUILD_SPEC §5.16; FR-113) ----
 
 export interface Orphan {
@@ -509,7 +563,13 @@ export function orphans(db: Db, now: string, orphanAfterMs: number): Orphan[] {
 
 export type RecoveryConfig = Pick<
   Config,
-  'liveWindowMs' | 'staleAfterMs' | 'parkMaxMs' | 'resumeUnattendedMs' | 'orphanAfterMs'
+  | 'liveWindowMs'
+  | 'staleAfterMs'
+  | 'parkMaxMs'
+  | 'resumeUnattendedMs'
+  | 'orphanAfterMs'
+  | 'agentProblemGraceMs'
+  | 'restartGraceMs'
 >;
 
 /**

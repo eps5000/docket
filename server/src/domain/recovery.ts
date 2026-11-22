@@ -1,12 +1,13 @@
 /**
  * Recovery (BUILD_SPEC §5.16; MCP_SPEC §5.9): the `recovery` service:
  * workspace state, `Item.resume`, `recovery_report`, Agents → Workspaces and
- * the owner's *Mark released* and *Handled*.
+ * the owner's *Mark released*, *Keep for later* and *Safe to discard*.
  *
  * US11 (T100). Everything here is derived from what agents reported
- * (recovery-model.ts): Docket never checks a folder, a process or a
- * remote (FR-117). The coordinator acts on the restart list; the owner acts
- * on the Problems rows.
+ * (recovery-model.ts), plus the radar's read-only git check of what ended
+ * runs left behind (decision 41; worktree-check.ts). Docket never fetches,
+ * and never changes a folder, a process or a remote (FR-117). The coordinator
+ * acts on the restart list; the owner acts on the Problems rows.
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -438,22 +439,31 @@ export function createRecoveryService(deps: ServiceDeps): RecoveryService {
           `Run ${run.id} is still going; its work isn't lost. Mark it handled once the run has ended.`,
         );
       }
-      if (run.unpushed_handled_at) {
-        return { run_id: run.id, unpushed_handled_at: run.unpushed_handled_at };
+      const outcome = input.outcome ?? 'discard';
+      if (run.unpushed_handled_at && (run.unpushed_outcome ?? 'discard') === outcome) {
+        return { run_id: run.id, unpushed_handled_at: run.unpushed_handled_at, outcome };
       }
       const item = requireItem(w.db, run.item_id);
       const ws = storedWorkspace(run);
-      const inverse = w.update('runs', run.id, { unpushed_handled_at: w.now });
+      const inverse = w.update('runs', run.id, {
+        unpushed_handled_at: w.now,
+        unpushed_outcome: outcome,
+      });
+      const where = ws?.path ? ` (${ws.path})` : '';
       w.event({
         type: 'run.unpushed_handled',
-        summary: `Owner marked unpushed work on ${item.id} handled${ws?.path ? ` (${ws.path})` : ''}`,
+        // Decision 41: it records a choice. Nothing was committed, pushed, saved or deleted.
+        summary:
+          outcome === 'keep'
+            ? `Owner chose to keep the work left on ${item.id} for later${where}`
+            : `Owner marked the work left on ${item.id} safe to discard${where}`,
         item_id: item.id,
         project_key: item.project_key,
-        data: { run_id: run.id, workspace: ws },
+        data: { run_id: run.id, workspace: ws, outcome },
         inverse: [inverse],
         objects: [{ kind: 'run', id: run.id }],
       });
-      return { run_id: run.id, unpushed_handled_at: w.now };
+      return { run_id: run.id, unpushed_handled_at: w.now, outcome };
     },
   };
 }
