@@ -10,19 +10,21 @@
  * Problems are computed on every read. The result is stored on the run as
  * bookkeeping (`runs.worktree_check`, no event). A repository Docket can't
  * read clears it, so the Problem says its state is unverified and gives the
- * last reported one.
+ * last reported one. A git read with no answer (B52: timed out or cancelled)
+ * leaves the stored check as it was.
  *
  * A linked worktree's `.git` file names its folder as the host sees it, so
  * inside the container git can't follow it. The worktree is found from the
  * main repository (`git worktree list`), and `git status` is pointed at its
  * admin folder with `GIT_DIR`.
  */
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFile, readdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { Config } from '../config.js';
 import type { Db } from '../db/client.js';
 import type { RunRow } from './model.js';
-import { git, probeRepo, resolveRepoPath, validBranch } from './radar.js';
+import { git, GitUnknown, known } from './git-read.js';
+import { probeRepo, resolveRepoPath, validBranch } from './radar.js';
 import {
   pathKey,
   storedWorkspace,
@@ -39,8 +41,8 @@ interface Tree {
 }
 
 /** `git worktree list --porcelain`; the main worktree comes first. */
-function listTrees(dir: string): Tree[] {
-  const r = git(dir, ['worktree', 'list', '--porcelain']);
+async function listTrees(dir: string, signal?: AbortSignal): Promise<Tree[]> {
+  const r = known(await git(dir, ['worktree', 'list', '--porcelain'], {}, signal));
   if (r.status !== 0) return [];
   const out: Tree[] = [];
   for (const line of r.stdout.split('\n')) {
@@ -53,17 +55,17 @@ function listTrees(dir: string): Tree[] {
 }
 
 /** The admin folder (`.git/worktrees/<name>`) of the linked worktree at `path`. */
-function adminDir(common: string, path: string): string | null {
+async function adminDir(common: string, path: string): Promise<string | null> {
   const base = join(common, 'worktrees');
   let names: string[];
   try {
-    names = readdirSync(base);
+    names = await readdir(base);
   } catch {
     return null;
   }
   for (const name of names) {
     try {
-      const gitFile = readFileSync(join(base, name, 'gitdir'), 'utf8').trim();
+      const gitFile = (await readFile(join(base, name, 'gitdir'), 'utf8')).trim();
       if (samePath(dirname(gitFile), path)) return join(base, name);
     } catch {
       // A broken entry is another worktree's problem.
@@ -78,8 +80,14 @@ function adminDir(common: string, path: string): string | null {
  * repository's config, so without this a check could run a command they chose
  * inside Docket's container. Null when the config can't be read: no status then.
  */
-function filtersOff(folder: string, env: Record<string, string>): string[] | null {
-  const r = git(folder, ['config', '--name-only', '--get-regexp', '^filter\\.'], env);
+async function filtersOff(
+  folder: string,
+  env: Record<string, string>,
+  signal?: AbortSignal,
+): Promise<string[] | null> {
+  const r = known(
+    await git(folder, ['config', '--name-only', '--get-regexp', '^filter\\.'], env, signal),
+  );
   // Exit 1 means no key matched.
   if (r.status !== 0 && r.status !== 1) return null;
   const names = new Set<string>();
@@ -100,101 +108,124 @@ function filtersOff(folder: string, env: Record<string, string>): string[] | nul
 }
 
 /** How many files `git status` lists; null when the folder can't be read. */
-function uncommittedFiles(
+async function uncommittedFiles(
   config: Config,
   common: string,
   trees: readonly Tree[],
   tree: Tree,
-): number | null {
+  signal?: AbortSignal,
+): Promise<number | null> {
   let folder: string;
   try {
     folder = resolveRepoPath(config, tree.path);
   } catch {
     return null;
   }
-  const gitDir = tree === trees[0] ? common : adminDir(common, tree.path);
+  const gitDir = tree === trees[0] ? common : await adminDir(common, tree.path);
   if (!gitDir) return null;
   const env = { GIT_DIR: gitDir, GIT_WORK_TREE: folder };
-  const off = filtersOff(folder, env);
+  const off = await filtersOff(folder, env, signal);
   if (!off) return null;
   // The host's line-ending and file-mode settings aren't visible here; without
   // these, every file checked out on Windows could read as modified. Submodules
   // are skipped because status would run git inside them with their own config.
-  const r = git(
-    folder,
-    [
-      ...off,
-      '-c',
-      'core.fileMode=false',
-      '-c',
-      'core.autocrlf=input',
-      'status',
-      '--porcelain',
-      '--untracked-files=all',
-      '--ignore-submodules=all',
-    ],
-    env,
+  const r = known(
+    await git(
+      folder,
+      [
+        ...off,
+        '-c',
+        'core.fileMode=false',
+        '-c',
+        'core.autocrlf=input',
+        'status',
+        '--porcelain',
+        '--untracked-files=all',
+        '--ignore-submodules=all',
+      ],
+      env,
+      signal,
+    ),
   );
   if (r.status !== 0) return null;
   return r.stdout.split('\n').filter(Boolean).length;
 }
 
 /** The main branch's refs that exist, local and origin's. */
-function mainRefs(dir: string, main: string): string[] {
+async function mainRefs(dir: string, main: string, signal?: AbortSignal): Promise<string[]> {
   if (!validBranch(main)) return [];
-  return [`refs/heads/${main}`, `refs/remotes/origin/${main}`].filter(
-    (ref) => git(dir, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`]).status === 0,
-  );
+  const out: string[] = [];
+  for (const ref of [`refs/heads/${main}`, `refs/remotes/origin/${main}`]) {
+    const r = known(
+      await git(dir, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`], {}, signal),
+    );
+    if (r.status === 0) out.push(ref);
+  }
+  return out;
 }
 
-/** Read one worktree's real state. Null when its commit isn't in this repository. */
-export function checkWorktree(
+/**
+ * Read one worktree's real state. Null when its commit isn't in this
+ * repository. Throws `GitUnknown` when a read had no answer.
+ */
+export async function checkWorktree(
   config: Config,
   repo: { dir: string; common: string; main: string },
+  trees: readonly Tree[],
   ws: StoredWorkspace,
   now: string,
-): WorktreeCheck | null {
-  const trees = listTrees(repo.dir);
+  signal?: AbortSignal,
+): Promise<WorktreeCheck | null> {
+  const read = async (args: string[]) => known(await git(repo.dir, args, {}, signal));
   const tree = ws.path ? trees.find((t) => samePath(t.path, ws.path!)) : undefined;
   const head = tree?.head ?? ws.head_sha ?? null;
   if (!head || !/^[0-9a-f]{7,64}$/i.test(head)) return null;
-  const resolved = git(repo.dir, ['rev-parse', '--verify', '--quiet', `${head}^{commit}`]);
+  const resolved = await read(['rev-parse', '--verify', '--quiet', `${head}^{commit}`]);
   if (resolved.status !== 0) return null;
   const sha = resolved.stdout.trim();
-  const mains = mainRefs(repo.dir, repo.main);
-  const on_main = mains.some(
-    (ref) => git(repo.dir, ['merge-base', '--is-ancestor', sha, ref]).status === 0,
-  );
-  const remote = git(repo.dir, [
+  const mains = await mainRefs(repo.dir, repo.main, signal);
+  let on_main = false;
+  for (const ref of mains) {
+    if ((await read(['merge-base', '--is-ancestor', sha, ref])).status === 0) {
+      on_main = true;
+      break;
+    }
+  }
+  const remote = await read([
     'for-each-ref',
     '--count=1',
     '--format=%(refname)',
     `--contains=${sha}`,
     'refs/remotes',
   ]);
-  const count = git(repo.dir, ['rev-list', '--count', sha, '--not', '--remotes', ...mains]);
+  const count = await read(['rev-list', '--count', sha, '--not', '--remotes', ...mains]);
   const unpushed = count.status === 0 ? Number(count.stdout.trim()) : NaN;
+  const uncommitted_files = tree
+    ? await uncommittedFiles(config, repo.common, trees, tree, signal)
+    : null;
   return {
     checked_at: now,
     head_sha: sha,
     on_main,
     on_remote: remote.status === 0 ? remote.stdout.trim() !== '' : null,
     unpushed_commits: Number.isInteger(unpushed) ? unpushed : null,
-    uncommitted_files: tree ? uncommittedFiles(config, repo.common, trees, tree) : null,
+    uncommitted_files,
   };
 }
 
 /**
  * Check the worktrees of a project's ended runs that left work behind, and
  * store what git says. Returns how many it read. With no readable repository
- * it clears their last check, so they show as unverified.
+ * it clears their last check, so they show as unverified. A read with no
+ * answer changes nothing, and a run that changed during the read isn't written.
  */
-export function checkProjectWorktrees(
+export async function checkProjectWorktrees(
   db: Db,
   config: Config,
   project: string,
   now: string,
-): number {
+  signal?: AbortSignal,
+): Promise<number> {
   const runs = db.sqlite
     .prepare(
       `SELECT r.* FROM runs r JOIN items i ON i.id = r.item_id
@@ -204,9 +235,17 @@ export function checkProjectWorktrees(
     .all(project) as RunRow[];
   const risks = unpushedRisks(db, runs);
   if (risks.length === 0) return 0;
-  const store = db.sqlite.prepare('UPDATE runs SET worktree_check = ? WHERE id = ?');
+  const store = db.sqlite.prepare(
+    `UPDATE runs SET worktree_check = @check WHERE id = @id AND state = @state
+       AND workspace IS @workspace AND unpushed_handled_at IS NULL`,
+  );
   const save = (run: RunRow, check: WorktreeCheck | null) =>
-    store.run(check ? JSON.stringify(check) : null, run.id);
+    store.run({
+      check: check ? JSON.stringify(check) : null,
+      id: run.id,
+      state: run.state,
+      workspace: run.workspace,
+    });
 
   const p = db.sqlite
     .prepare('SELECT repo_path, main_branch FROM projects WHERE key = ? AND deleted_at IS NULL')
@@ -215,16 +254,34 @@ export function checkProjectWorktrees(
   if (p?.repo_path) {
     try {
       const dir = resolveRepoPath(config, p.repo_path);
-      const probe = probeRepo(dir);
+      const probe = await probeRepo(dir, signal);
+      if (!probe.ok && probe.unknown) return 0;
       if (probe.ok) repo = { dir, common: dirname(probe.objects), main: p.main_branch };
     } catch {
       repo = null;
     }
   }
+  let trees: Tree[] = [];
+  if (repo) {
+    try {
+      trees = await listTrees(repo.dir, signal);
+    } catch (err) {
+      if (err instanceof GitUnknown) return 0;
+      throw err;
+    }
+  }
   let read = 0;
   for (const risk of risks) {
+    if (signal?.aborted) break;
     const ws = storedWorkspace(risk.run);
-    const check = repo && ws ? checkWorktree(config, repo, ws, now) : null;
+    let check: WorktreeCheck | null;
+    try {
+      check = repo && ws ? await checkWorktree(config, repo, trees, ws, now, signal) : null;
+    } catch (err) {
+      if (err instanceof GitUnknown) continue;
+      throw err;
+    }
+    if (signal?.aborted) break;
     if (check) read += 1;
     save(risk.run, check);
   }

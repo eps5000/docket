@@ -114,11 +114,16 @@ export function sharedRoutes<E extends Env>(api: Hono<E>, deps: RouteDeps): void
     return { mutation_id, radar: result };
   });
 
-  /** *Run radar now*: git runs before the write, never inside it (radar.ts). */
-  defineRoute(api, 'radar.run', deps, ({ services, read, mutate, params }) => {
-    const plan = services.sharedChanges.planRadar(read, params);
-    const { mutation_id } = mutate((w) => services.sharedChanges.recordRadar(w, plan));
-    services.sharedChanges.finishRadar(read, plan);
-    return { mutation_id, radar: services.sharedChanges.radar(read, params) };
+  /**
+   * *Run radar now*: git runs before the write, never inside it, and never on
+   * the event loop (B52). During a run this joins it and answers when it ends.
+   */
+  defineRoute(api, 'radar.run', deps, async ({ services, read, mutate, params }) => {
+    const current = () => ({ ...read, now: deps.write.now().toISOString() });
+    const { mutation_id } = await services.sharedChanges.runRadar(params, {
+      read: current,
+      record: mutate,
+    });
+    return { mutation_id, radar: services.sharedChanges.radar(current(), params) };
   });
 }

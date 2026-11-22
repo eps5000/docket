@@ -137,6 +137,8 @@ export const COLUMNS_0010 = [
   'overlap_handling',
   // 0018 (decision 42): the project's registered coordinators.
   'coordinators',
+  // 0019 (B52): how long the last radar run took.
+  'radar_last_duration_ms',
 ] as const;
 
 /** Rows without the columns 0010 added to `items`, `projects` and `packets`. */

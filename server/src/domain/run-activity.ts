@@ -13,12 +13,15 @@
  * written, inside `DOCKET_PUSH_ROOT`), outside any transaction. A flag never
  * changes a run's state, and it stays until the run or a coordinator speaks, so
  * it can't flap. Clearing moves the baseline, so what was seen is not re-raised.
+ * A git read with no answer (B52: timed out or cancelled) skips that run until
+ * the next check, so a partial count never replaces what is stored.
  */
 import type { ProducerHold, RunActivity, RunStatusUpdate, WaitingOn } from '@docket/shared';
 import type { Config } from '../config.js';
 import type { Db } from '../db/client.js';
 import { BlockIndex, actorName, displayRunState, ms, windowsOf, type RunRow } from './model.js';
-import { git, probeRepo, reportedBranches, resolveRepoPath, validBranch } from './radar.js';
+import { git, GitUnknown, known } from './git-read.js';
+import { probeRepo, reportedBranches, resolveRepoPath, validBranch } from './radar.js';
 import { clearedSince, parkInfo, parseJson, storedWorkspace } from './recovery-model.js';
 
 // ---- Stored shapes ----
@@ -134,39 +137,50 @@ interface Repo {
   main: string;
 }
 
-function projectRepo(db: Db, config: Config, project: string): Repo | null {
+async function projectRepo(
+  db: Db,
+  config: Config,
+  project: string,
+  signal?: AbortSignal,
+): Promise<Repo | null> {
   const p = db.sqlite
     .prepare('SELECT repo_path, main_branch FROM projects WHERE key = ? AND deleted_at IS NULL')
     .get(project) as { repo_path: string | null; main_branch: string } | undefined;
   if (!p?.repo_path) return null;
   try {
     const dir = resolveRepoPath(config, p.repo_path);
-    return probeRepo(dir).ok ? { dir, main: p.main_branch } : null;
-  } catch {
+    const probe = await probeRepo(dir, signal);
+    if (!probe.ok && probe.unknown) throw new GitUnknown();
+    return probe.ok ? { dir, main: p.main_branch } : null;
+  } catch (err) {
+    if (err instanceof GitUnknown) throw err;
     return null;
   }
 }
 
-/** Commits on `branches` newer than `since`, from local and origin refs. Read-only. */
-export function commitsSince(
+/**
+ * Commits on `branches` newer than `since`, from local and origin refs.
+ * Read-only. Throws `GitUnknown` when a read had no answer.
+ */
+export async function commitsSince(
   repo: Repo,
   branches: readonly string[],
   since: string,
-): { count: number; last: string | null; branch: string | null } {
+  signal?: AbortSignal,
+): Promise<{ count: number; last: string | null; branch: string | null }> {
   const seen = new Map<string, { at: number; branch: string }>();
   const after = ms(since);
   for (const branch of branches.slice(0, MAX_BRANCHES)) {
     if (branch === repo.main || !validBranch(branch)) continue;
     for (const ref of [`refs/heads/${branch}`, `refs/remotes/origin/${branch}`]) {
-      const r = git(repo.dir, [
-        'log',
-        '--format=%H %ct',
-        '-n',
-        String(MAX_COMMITS),
-        `--since=${since}`,
-        ref,
-        '--',
-      ]);
+      const r = known(
+        await git(
+          repo.dir,
+          ['log', '--format=%H %ct', '-n', String(MAX_COMMITS), `--since=${since}`, ref, '--'],
+          {},
+          signal,
+        ),
+      );
       if (r.status !== 0) continue;
       for (const line of r.stdout.split('\n')) {
         const [sha, ct] = line.trim().split(' ');
@@ -194,7 +208,12 @@ const sameFacts = (a: RunActivity, b: RunActivity) =>
  * What changed for each parked or silent lead run since its baseline. Reads
  * git, so it runs on a timer and never on a read. Returns only what is new.
  */
-export function planRunActivity(db: Db, config: Config, now: string): ActivityFinding[] {
+export async function planRunActivity(
+  db: Db,
+  config: Config,
+  now: string,
+  signal?: AbortSignal,
+): Promise<ActivityFinding[]> {
   const runs = db.sqlite
     .prepare(
       `SELECT r.*, i.project_key AS project_key FROM runs r JOIN items i ON i.id = r.item_id
@@ -205,8 +224,18 @@ export function planRunActivity(db: Db, config: Config, now: string): ActivityFi
   const windows = windowsOf(config);
   const index = new BlockIndex(db);
   const repos = new Map<string, Repo | null>();
-  const repoOf = (key: string) => {
-    if (!repos.has(key)) repos.set(key, projectRepo(db, config, key));
+  // One timed-out probe per project per check, not one per run.
+  const unread = new Set<string>();
+  const repoOf = async (key: string) => {
+    if (unread.has(key)) throw new GitUnknown();
+    if (!repos.has(key)) {
+      try {
+        repos.set(key, await projectRepo(db, config, key, signal));
+      } catch (err) {
+        if (err instanceof GitUnknown) unread.add(key);
+        throw err;
+      }
+    }
     return repos.get(key)!;
   };
   const countEvents = db.sqlite.prepare(
@@ -215,6 +244,7 @@ export function planRunActivity(db: Db, config: Config, now: string): ActivityFi
   );
   const out: ActivityFinding[] = [];
   for (const run of runs) {
+    if (signal?.aborted) break;
     const parked = run.state === 'parked';
     if (!parked && displayRunState(run, windows, now) !== 'stale') continue;
     const stored = storedActivity(run);
@@ -232,16 +262,22 @@ export function planRunActivity(db: Db, config: Config, now: string): ActivityFi
           }
         ).n
       : 0;
-    const repo = repoOf(run.project_key);
     const branches = [
       ...new Set([
         ...reportedBranches(db, run.item_id).map((b) => b.name),
         ...(storedWorkspace(run)?.branch ? [storedWorkspace(run)!.branch!] : []),
       ]),
     ];
-    const commits = repo
-      ? commitsSince(repo, branches, baseline)
-      : { count: 0, last: null, branch: null };
+    let commits: Awaited<ReturnType<typeof commitsSince>>;
+    try {
+      const repo = await repoOf(run.project_key);
+      commits = repo
+        ? await commitsSince(repo, branches, baseline, signal)
+        : { count: 0, last: null, branch: null };
+    } catch (err) {
+      if (err instanceof GitUnknown) continue;
+      throw err;
+    }
     const ready = info?.resume_ready === true && ms(info.ready_since!) > ms(baseline);
     if (commits.count === 0 && events === 0 && cleared.length === 0 && !ready) continue;
 

@@ -711,7 +711,7 @@ describe('line conflicts (the radar)', () => {
         reason: 'different_members',
       });
 
-      radarRunOnce(h!.server.runtime, 'RCP');
+      await radarRunOnce(h!.server.runtime, 'RCP');
       const pairFinding = findings().find((f) => f.item_b !== null)!;
       expect(JSON.parse(pairFinding.files as string)).toEqual(['models.md']);
       expect(pairFinding.merge_first).toBe(first);
@@ -749,7 +749,7 @@ describe('line conflicts (the radar)', () => {
 
       // A second run changes nothing and tells nobody again.
       const before = sql().prepare('SELECT count(*) AS n FROM owner_notes').get();
-      radarRunOnce(h!.server.runtime, 'RCP');
+      await radarRunOnce(h!.server.runtime, 'RCP');
       expect(sql().prepare('SELECT count(*) AS n FROM owner_notes').get()).toEqual(before);
 
       // The overlap's evidence shows the real conflict; the outcome is unchanged.
@@ -769,7 +769,7 @@ describe('line conflicts (the radar)', () => {
       h!.server.clock.advance(1000);
       const second = await ready('B', [{ part: 'model:Token.expiresAt', change: 'change' }]);
       expectToolError(await claim(second, h!.b, 'clean-b'), 'seam_conflict');
-      radarRunOnce(h!.server.runtime, 'RCP');
+      await radarRunOnce(h!.server.runtime, 'RCP');
       expect(findings().filter((f) => f.item_b !== null)).toEqual([]);
       expect(rowFor(first, second)).toMatchObject({ state: 'sequenced', outcome: 'sequence' });
       expect(blockers(second)).toEqual([`${first}:merged`]);
@@ -793,7 +793,7 @@ describe('line conflicts (the radar)', () => {
       };
       const orderOf = (plan: RadarPlan) =>
         plan.checks.find((c) => c.item_b !== null && c.files.length > 0)?.merge_first;
-      expect(orderOf(planRadar(r, h!.server.runtime.config, 'RCP'))).toBe(first);
+      expect(orderOf(await planRadar(r, h!.server.runtime.config, 'RCP'))).toBe(first);
       expect(claimedAt(r.db, first) < claimedAt(r.db, second)).toBe(true);
     },
     60_000,
@@ -834,7 +834,7 @@ describe('line conflicts (the radar)', () => {
           .poll(() => findings().filter((f) => f.item_b !== null).length, { timeout: 10_000 })
           .toBe(1);
       } finally {
-        radar.stop();
+        await radar.stop();
       }
     },
     60_000,

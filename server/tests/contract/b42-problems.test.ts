@@ -117,7 +117,7 @@ describe('one root cause, one problem (decision 37; the radar refinement)', () =
     async () => {
       const api = await gameflow();
       const r = { db: h!.server.runtime.db, actor: OWNER_ACTOR, now: '2026-11-06T11:00:00.000Z' };
-      const plan = planRadar(r, h!.server.runtime.config, 'GF');
+      const plan = await planRadar(r, h!.server.runtime.config, 'GF');
       const conflicting = plan.checks.filter((c) => c.files.length > 0);
       // Before B42 every conflicting pair was a finding: 4 with main and 11 pairs, 15 in all.
       const before = conflicting.length + plan.suppressed.length;
@@ -327,7 +327,7 @@ describe('card actions (decision 37)', () => {
       // The scheduled run lands inside the undo window: it must not adopt the branch again.
       const events = sql().prepare('SELECT count(*) AS n FROM events');
       const before = events.get();
-      radarRunOnce(h!.server.runtime, 'GF');
+      await radarRunOnce(h!.server.runtime, 'GF');
       expect(finding()).toBeUndefined();
       expect(events.get()).toEqual(before);
 
@@ -347,8 +347,8 @@ describe('card actions (decision 37)', () => {
       const api = await gameflow();
       const { finding } = await namedBranch(api);
       await remove(api);
-      radarRunOnce(h!.server.runtime, 'GF');
-      radarRunOnce(h!.server.runtime, 'GF');
+      await radarRunOnce(h!.server.runtime, 'GF');
+      await radarRunOnce(h!.server.runtime, 'GF');
       expect(finding()).toBeUndefined();
       expect((await api('GET', '/api/items/GF-228/shared')).body.branches).toMatchObject({
         reported: [],
@@ -358,7 +358,7 @@ describe('card actions (decision 37)', () => {
 
       // Reporting it again is the way back.
       await api('POST', '/api/items/GF-228/shared/branches', { op: 'add', branch: 'gf-228-old' });
-      radarRunOnce(h!.server.runtime, 'GF');
+      await radarRunOnce(h!.server.runtime, 'GF');
       expect(finding()).toBeDefined();
 
       // A plain Remove (the Shared changes section) still lets the radar find it by name.
@@ -366,7 +366,7 @@ describe('card actions (decision 37)', () => {
         op: 'remove',
         branch: 'gf-228-old',
       });
-      radarRunOnce(h!.server.runtime, 'GF');
+      await radarRunOnce(h!.server.runtime, 'GF');
       expect((await api('GET', '/api/items/GF-228/shared')).body.branches).toMatchObject({
         reported: [],
         discovered: 'gf-228-old',

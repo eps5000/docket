@@ -316,3 +316,44 @@ export function makeOverlapRepo(root: string): { repo: string } {
   git(repo, 'checkout', '-q', 'main');
   return { repo };
 }
+
+/**
+ * B52: a repository with `count` branches off `main`, written in one
+ * `git fast-import`. Every fifth branch changes line 2 of `shared.txt`, so
+ * those conflict with each other; the rest each add their own file.
+ */
+export function makeLargeRadarRepo(root: string, count: number): LargeRadarRepo {
+  const repo = join(root, 'large-app');
+  mkdirSync(repo, { recursive: true });
+  git(repo, 'init', '-q', '-b', 'main');
+  const who = 'committer Docket Test <test@docket.invalid> 1793000000 +0000';
+  const data = (s: string) => `data ${Buffer.byteLength(s)}\n${s}\n`;
+  const stream = [
+    `commit refs/heads/main\nmark :1\n${who}\n${data('Start')}`,
+    `M 100644 inline shared.txt\n${data(text(LINES))}`,
+  ];
+  const branches: string[] = [];
+  for (let i = 0; i < count; i++) {
+    const branch = `feat/big-${i}`;
+    branches.push(branch);
+    const change =
+      i % 5 === 0
+        ? `M 100644 inline shared.txt\n${data(text(['one', `two from ${i}`, 'three', 'four', 'five']))}`
+        : `M 100644 inline files/f${i}.txt\n${data(`file ${i}\n`)}`;
+    stream.push(`commit refs/heads/${branch}\n${who}\n${data(`Change ${i}`)}from :1\n${change}`);
+  }
+  const r = spawnSync('git', ['fast-import', '--quiet'], {
+    cwd: repo,
+    input: stream.join(''),
+    encoding: 'utf8',
+    windowsHide: true,
+    maxBuffer: 16 * 1024 * 1024,
+  });
+  if (r.status !== 0) throw new Error(`git fast-import failed: ${r.stderr}`);
+  return { repo, branches };
+}
+
+export interface LargeRadarRepo {
+  repo: string;
+  branches: string[];
+}

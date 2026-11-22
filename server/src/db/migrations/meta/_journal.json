@@ -134,6 +134,13 @@
       "when": 1795334860406,
       "tag": "0018_b50_status_drift",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1795347551273,
+      "tag": "0019_b52_radar_duration",
+      "breakpoints": true
     }
   ]
 }
