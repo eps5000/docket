@@ -226,57 +226,57 @@ describe('producer holds (one story, many workers)', () => {
 });
 
 describe('activity since parked', () => {
-  it('flags a note, keeps the state, and raises one event', () => {
+  it('flags a note, keeps the state, and raises one event', async () => {
     const id = claim();
     park(id);
     d.clock.advance(minutes(5));
     note();
-    expect(runActivityOnce(d.server.runtime)).toEqual([id]);
+    expect(await runActivityOnce(d.server.runtime)).toEqual([id]);
     expect(run(id).state).toBe('parked');
     expect(flag(id)).toMatchObject({ events: 1 });
     note('Another');
-    expect(runActivityOnce(d.server.runtime)).toEqual([]);
+    expect(await runActivityOnce(d.server.runtime)).toEqual([]);
     expect(flag(id)).toMatchObject({ events: 2 });
     expect(d.rows("SELECT seq FROM events WHERE type = 'run.activity'")).toHaveLength(1);
   });
 
-  it('nothing new, nothing written', () => {
+  it('nothing new, nothing written', async () => {
     const id = claim();
     park(id);
     d.clock.advance(minutes(5));
-    expect(runActivityOnce(d.server.runtime)).toEqual([]);
+    expect(await runActivityOnce(d.server.runtime)).toEqual([]);
     expect(flag(id)).toBeNull();
   });
 
-  it("clears when a coordinator updates it, and what they saw isn't raised again", () => {
+  it("clears when a coordinator updates it, and what they saw isn't raised again", async () => {
     const id = claim({ orchestrator: { name: CO } });
     park(id);
     d.clock.advance(minutes(5));
     note();
-    runActivityOnce(d.server.runtime);
+    await runActivityOnce(d.server.runtime);
     d.clock.advance(minutes(1));
     update({ park_reason: 'Still waiting' });
     expect(flag(id)).toBeNull();
     d.clock.advance(minutes(2));
-    expect(runActivityOnce(d.server.runtime)).toEqual([]);
+    expect(await runActivityOnce(d.server.runtime)).toEqual([]);
     expect(flag(id)).toBeNull();
   });
 
-  it('clears when the run resumes itself', () => {
+  it('clears when the run resumes itself', async () => {
     const id = claim();
     park(id);
     d.clock.advance(minutes(5));
     note();
-    runActivityOnce(d.server.runtime);
+    await runActivityOnce(d.server.runtime);
     d.write({ ...worker, run_id: id }, (w, s) => s.runs.resume(w, { run_id: id }));
     expect(run(id).park_activity).toBeNull();
   });
 
-  it("doesn't count the park's own bookkeeping", () => {
+  it("doesn't count the park's own bookkeeping", async () => {
     const id = claim();
     d.clock.advance(minutes(1));
     park(id);
     d.clock.advance(minutes(5));
-    expect(runActivityOnce(d.server.runtime)).toEqual([]);
+    expect(await runActivityOnce(d.server.runtime)).toEqual([]);
   });
 });

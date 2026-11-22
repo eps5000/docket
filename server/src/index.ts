@@ -16,6 +16,7 @@ import {
   startRadar,
   startRunActivity,
   startSweeper,
+  type Sweeper,
 } from './jobs/sweeper.js';
 import { createRuntime } from './runtime.js';
 import { APP_VERSION } from './version.js';
@@ -82,26 +83,35 @@ classifyLegacyOverlapsOnce(runtime);
 const sweeper = startSweeper(runtime);
 // The push folder's drift check, at startup and every DOCKET_DRIFT_CHECK_INTERVAL (decision 30).
 const driftCheck = startDriftCheck(runtime);
-// The conflict radar, every 15 minutes for projects with a repository (decision 36).
-const radar = startRadar(runtime);
-// Decision 42: newer activity on parked and silent runs, every two minutes.
-const runActivity = startRunActivity(runtime);
+// B52: the jobs that read git start once the listener is up, each after its own delay.
+let radar: Sweeper | null = null;
+let runActivity: Sweeper | null = null;
+let stopping = false;
 
 const server = serve({ fetch: app.fetch, hostname: '0.0.0.0', port: config.port }, (info) => {
   console.log(`${APP_NAME} ${APP_VERSION} listening on 0.0.0.0:${info.port}`);
   console.log('Owner key: run `docket owner-key` in the container to print it.');
+  if (stopping) return;
+  // The conflict radar, every 15 minutes for projects with a repository (decision 36).
+  radar = startRadar(runtime);
+  // Decision 42: newer activity on parked and silent runs, every two minutes.
+  runActivity = startRunActivity(runtime);
 });
 
 // Docker sends SIGTERM on stop; close the listener so the container stops promptly.
 for (const signal of ['SIGTERM', 'SIGINT'] as const) {
   process.on(signal, () => {
-    sweeper.stop();
-    driftCheck.stop();
-    radar.stop();
-    runActivity.stop();
+    stopping = true;
+    void sweeper.stop();
+    void driftCheck.stop();
     backups.stop();
-    lock.stop();
-    void runtime.close().finally(() => server.close(() => process.exit(0)));
+    // B52: in-flight git ends before the database closes and the lock is released.
+    void Promise.allSettled([radar?.stop(), runActivity?.stop()])
+      .then(() => runtime.close())
+      .finally(() => {
+        lock.stop();
+        server.close(() => process.exit(0));
+      });
     setTimeout(() => process.exit(0), 5_000).unref();
   });
 }

@@ -449,6 +449,7 @@ describe('the owner API (UI_SPEC §6.3.6)', () => {
       state: 'off',
       off_reason: 'Radar off: no repository',
       last_run_at: null,
+      last_duration_ms: null,
       findings: [],
     });
     for (const [path, body] of [
@@ -1357,7 +1358,7 @@ describe('the conflict radar (FR-163; T184)', () => {
 
       // A second run with nothing new writes no event (the scheduler's path).
       const n = count('SELECT count(*) AS n FROM events');
-      radarRunOnce(h.server.runtime, 'RCP');
+      await radarRunOnce(h.server.runtime, 'RCP');
       expect(count('SELECT count(*) AS n FROM events')).toBe(n);
       expect(hashGitDir(fixture.repo)).toEqual(before);
 
@@ -1492,7 +1493,7 @@ describe('B40: the radar sees in-flight branches', () => {
 
       // Nothing new: a second run writes no event and still leaves .git alone.
       const n = count('SELECT count(*) AS n FROM events');
-      radarRunOnce(h.server.runtime, 'GF');
+      await radarRunOnce(h.server.runtime, 'GF');
       expect(count('SELECT count(*) AS n FROM events')).toBe(n);
       expect(hashGitDir(repo)).toEqual(before);
 
@@ -1646,13 +1647,15 @@ describe('B41: several branches per item', () => {
       expect(findings(run.body.radar as S)).toEqual([
         ['gf-217-api', 'gf-235-b', 'GF-217', 'GF-235', ['shared.txt']],
       ]);
-      const probe = probeRepo(repo);
+      const probe = await probeRepo(repo);
       if (!probe.ok) throw new Error('fixture is not a repository');
-      const g = new RadarGit(repo, probe.objects);
+      const g = await RadarGit.open(repo, probe.objects);
       try {
-        expect(g.merge('refs/heads/gf-217-api', 'refs/heads/gf-217-web')).toEqual(['api.txt']);
+        expect(await g.merge('refs/heads/gf-217-api', 'refs/heads/gf-217-web')).toEqual([
+          'api.txt',
+        ]);
       } finally {
-        g.close();
+        await g.close();
       }
       expect(hashGitDir(repo)).toEqual(before);
       expect(events('radar.found', 'GF-217').map((e) => e.summary)).toEqual([
@@ -1677,7 +1680,7 @@ describe('B41: several branches per item', () => {
 
       // Nothing new: a second run writes no event.
       const n = count('SELECT count(*) AS n FROM events');
-      radarRunOnce(h.server.runtime, 'GF');
+      await radarRunOnce(h.server.runtime, 'GF');
       expect(count('SELECT count(*) AS n FROM events')).toBe(n);
 
       // Replacing the set: gf-217-web keeps who reported it first; the finding clears.

@@ -167,6 +167,8 @@ export const projects = sqliteTable(
     radar_last_run_at: text('radar_last_run_at'),
     /** Why the last run couldn't trial-merge ("no repository"); null when it worked. */
     radar_off_reason: text('radar_off_reason'),
+    /** B52: how long the last radar run took (bookkeeping). */
+    radar_last_duration_ms: integer('radar_last_duration_ms'),
     /**
      * Owner decision 39 (B46): this project's Overlap handling override; null
      * follows the global default (`settings.overlap_handling`). Checked in

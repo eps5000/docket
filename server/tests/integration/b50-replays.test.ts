@@ -43,10 +43,10 @@ afterEach(async () => {
 });
 
 /** The check Docket runs every two minutes. Absent before B50. */
-const activityCheck = () =>
-  (sweeper as unknown as { runActivityOnce?: (r: unknown) => string[] }).runActivityOnce?.(
-    d.server.runtime,
-  ) ?? [];
+const activityCheck = async () =>
+  (await (
+    sweeper as unknown as { runActivityOnce?: (r: unknown) => Promise<string[]> }
+  ).runActivityOnce?.(d.server.runtime)) ?? [];
 
 /** A commit on a branch, dated by the test clock. */
 function commitAt(branch: 'feat/a', message: string) {
@@ -102,13 +102,13 @@ function park(id: string, waiting_on: Record<string, unknown>, reason: string) {
 }
 
 describe.runIf(HAS_GIT)('replays of the Gameflow status failures (decision 42)', () => {
-  it('GF-269: the work moved on while it read "waiting on a mailbox"', () => {
+  it('GF-269: the work moved on while it read "waiting on a mailbox"', async () => {
     park('RCP-17', { orchestrator: true }, 'Waiting on a mailbox route');
     d.clock.advance(minutes(90));
     // The coordinator's session replaces the route and enables the flag: real commits, no run_id.
     commitAt('feat/a', 'Replace the mailbox route');
     d.clock.advance(minutes(2));
-    activityCheck();
+    await activityCheck();
 
     // Within a few minutes, with no human noticing, the status says the park may be stale.
     expect(digestRow('RCP-17')?.activity, 'GF-269 shows activity since parked').toContain(
@@ -130,7 +130,7 @@ describe.runIf(HAS_GIT)('replays of the Gameflow status failures (decision 42)',
     expect(digestRow('RCP-17')?.activity).toBeUndefined();
   });
 
-  it('GF-336: a blocker cleared, the producer was idle, and a restart came in between', () => {
+  it('GF-336: a blocker cleared, the producer was idle, and a restart came in between', async () => {
     park('RCP-17', { items: ['RCP-25'] }, 'Waiting on the memory check');
     const { cursor } = d.services.digest.get(d.read(), { project: 'RCP' });
     d.clock.advance(minutes(60));
@@ -144,7 +144,7 @@ describe.runIf(HAS_GIT)('replays of the Gameflow status failures (decision 42)',
     // Docket restarts before anyone looks. The run stays parked, and the check still finds it.
     sweeper.restartSweep(d.server.runtime);
     d.clock.advance(minutes(2));
-    activityCheck();
+    await activityCheck();
 
     // A coordinator watching by cursor is told, though the event was on the blocker.
     const row = digestRow('RCP-17', cursor);
@@ -158,7 +158,7 @@ describe.runIf(HAS_GIT)('replays of the Gameflow status failures (decision 42)',
 
     // Later checks add no second event: the flag doesn't flap.
     d.clock.advance(minutes(2));
-    activityCheck();
+    await activityCheck();
     expect(
       d.rows("SELECT seq FROM events WHERE type = 'run.activity' AND item_id = 'RCP-17'"),
     ).toHaveLength(1);

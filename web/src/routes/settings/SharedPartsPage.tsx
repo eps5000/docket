@@ -399,6 +399,10 @@ function RadarCard({ project }: { project: string }) {
   );
 }
 
+/** B52: how long the last radar run took. */
+const radarDuration = (ms: number) =>
+  ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(ms < 10_000 ? 1 : 0)} s`;
+
 function RadarBody({ project, radar: r }: { project: string; radar: RadarResponse }) {
   const qc = useQueryClient();
   const ids = { repo: useId(), main: useId() };
@@ -492,6 +496,7 @@ function RadarBody({ project, radar: r }: { project: string; radar: RadarRespons
         {r.last_run_at ? (
           <span title={isoTitle(r.last_run_at)}>
             Last run {formatAge(r.last_run_at)} ago ({formatStamp(r.last_run_at)})
+            {r.last_duration_ms !== null ? `, took ${radarDuration(r.last_duration_ms)}` : ''}
           </span>
         ) : (
           'Not run yet.'

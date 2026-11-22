@@ -106,6 +106,7 @@ import {
   clearFinding,
   finishRadar,
   planRadar,
+  RadarRuns,
   recordRadar,
   reportedBranches,
   resolveRepoPath,
@@ -1688,13 +1689,14 @@ function radar(r: ReadContext, project: string): RadarResponse {
   requireProject(db, project);
   const p = db.sqlite
     .prepare(
-      'SELECT repo_path, main_branch, radar_last_run_at, radar_off_reason FROM projects WHERE key = ?',
+      'SELECT repo_path, main_branch, radar_last_run_at, radar_off_reason, radar_last_duration_ms FROM projects WHERE key = ?',
     )
     .get(project) as {
     repo_path: string | null;
     main_branch: string;
     radar_last_run_at: string | null;
     radar_off_reason: string | null;
+    radar_last_duration_ms: number | null;
   };
   const off = p.repo_path === null ? 'Radar off: no repository' : p.radar_off_reason;
   return {
@@ -1704,6 +1706,7 @@ function radar(r: ReadContext, project: string): RadarResponse {
     state: off ? 'off' : p.radar_last_run_at ? 'ok' : 'idle',
     off_reason: off,
     last_run_at: p.radar_last_run_at,
+    last_duration_ms: p.radar_last_duration_ms,
     findings: (
       db.sqlite
         .prepare(
@@ -1875,6 +1878,7 @@ function overlapHandlingView(db: Db): OverlapHandlingResponse {
 // ---- The service ----
 
 export function createSharedChangesService(deps: ServiceDeps): SharedChangesService {
+  const radarRuns = new RadarRuns(deps.config);
   const links: OverlapLinks = {
     link: (w, input) => deps.services().links.link(w, input),
     unlink: (w, input) => deps.services().links.unlink(w, input),
@@ -2396,7 +2400,10 @@ export function createSharedChangesService(deps: ServiceDeps): SharedChangesServ
 
     planRadar: (r, input) => planRadar(r, deps.config, input.key),
     recordRadar: (w, plan) => recordRadar(w, plan),
-    finishRadar: (r, plan) => finishRadar(r, plan),
+    finishRadar: (r, plan, applied, durationMs) => finishRadar(r, plan, applied, durationMs),
+    runRadar: (input, run) => radarRuns.run(input.key, run),
+    radarRunning: (project) => radarRuns.isRunning(project),
+    stopRadar: () => radarRuns.stop(),
   };
 }
 

@@ -114,7 +114,7 @@ import type { Config, SecretStore } from '../config.js';
 import type { Db } from '../db/client.js';
 import type { CallLog } from '../jobs/logs.js';
 import type { Actor, WriteContext } from './write.js';
-import type { RadarPlan } from './radar.js';
+import type { RadarApplied, RadarPlan, RadarRunInput, RadarRunResult } from './radar.js';
 import type { ActivityFinding } from './run-activity.js';
 import type { DigestService } from './digest.js';
 import type { FoundProblem, ProblemsService } from './problems.js';
@@ -723,11 +723,17 @@ export interface SharedChangesService {
    * A radar run (B39, T184; radar.ts), in three steps so git never holds the
    * write transaction: `planRadar` reads and trial-merges (writes nothing),
    * `recordRadar` writes findings and clearings (events `radar.found` and
-   * `radar.cleared`), `finishRadar` stamps the run on the project.
+   * `radar.cleared`), `finishRadar` stamps the run on the project. B52:
+   * `runRadar` does all three, one run per project, and `stopRadar` cancels
+   * and waits for them at shutdown.
    */
-  planRadar(r: ReadContext, input: RouteParams<'radar.run'>): RadarPlan;
-  recordRadar(w: WriteContext, plan: RadarPlan): void;
-  finishRadar(r: ReadContext, plan: RadarPlan): void;
+  planRadar(r: ReadContext, input: RouteParams<'radar.run'>): Promise<RadarPlan>;
+  recordRadar(w: WriteContext, plan: RadarPlan): RadarApplied;
+  finishRadar(r: ReadContext, plan: RadarPlan, applied: RadarApplied, durationMs: number): void;
+  runRadar(input: RouteParams<'radar.run'>, run: RadarRunInput): Promise<RadarRunResult>;
+  /** Whether a radar run is in flight for the project. */
+  radarRunning(project: string): boolean;
+  stopRadar(): Promise<void>;
 }
 
 /** Work steps, subagent logs and agent checks (§5.5). */

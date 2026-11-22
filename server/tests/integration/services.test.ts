@@ -253,6 +253,9 @@ describe('the service stubs', () => {
       'planRadar',
       'recordRadar',
       'finishRadar',
+      'runRadar',
+      'radarRunning',
+      'stopRadar',
     ],
   };
 

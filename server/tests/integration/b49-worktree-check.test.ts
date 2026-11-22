@@ -75,14 +75,14 @@ const row = (run_id: string) => {
 const headOf = (cwd: string) => git(cwd, 'rev-parse', 'HEAD').trim();
 
 describe.runIf(HAS_GIT)('the worktree check (decision 41)', () => {
-  it('a HEAD already on main is not unpushed; uncommitted files are counted separately', () => {
+  it('a HEAD already on main is not unpushed; uncommitted files are counted separately', async () => {
     const wt = repo.worktrees['feat/a'];
     git(wt, 'reset', '-q', '--hard', 'main');
     const run_id = endedRun(wt, headOf(wt), false);
     writeFileSync(join(wt, 'one.txt'), 'x');
     writeFileSync(join(wt, 'two.txt'), 'x');
     writeFileSync(join(wt, 'shared.txt'), 'changed\n');
-    expect(check()).toBe(1);
+    expect(await check()).toBe(1);
     expect(stored(run_id)).toMatchObject({
       on_main: true,
       unpushed_commits: 0,
@@ -96,37 +96,37 @@ describe.runIf(HAS_GIT)('the worktree check (decision 41)', () => {
     expect(p.explanation!.what).not.toContain('unverified');
   });
 
-  it('counts commits on neither a remote nor main', () => {
+  it('counts commits on neither a remote nor main', async () => {
     const wt = repo.worktrees['feat/a'];
     const run_id = endedRun(wt, headOf(wt), false);
-    check();
+    await check();
     expect(stored(run_id)).toMatchObject({ on_main: false, on_remote: false });
     expect(stored(run_id).unpushed_commits).toBeGreaterThan(0);
     expect(row(run_id)!.reason).toMatch(/\d+ commits? not pushed/);
   });
 
-  it('a commit on a remote ref is not unpushed, and a clean one clears the Problem', () => {
+  it('a commit on a remote ref is not unpushed, and a clean one clears the Problem', async () => {
     const wt = repo.worktrees['feat/a'];
     const head = headOf(wt);
     git(repo.repo, 'update-ref', 'refs/remotes/origin/feat/a', head);
     const run_id = endedRun(wt, head, false);
     expect(row(run_id)).toBeDefined(); // As last reported, before git has looked.
-    check();
+    await check();
     expect(stored(run_id)).toMatchObject({ on_remote: true, unpushed_commits: 0 });
     expect(row(run_id)).toBeUndefined();
   });
 
-  it('writes nothing to the repository', () => {
+  it('writes nothing to the repository', async () => {
     const wt = repo.worktrees['feat/a'];
     const run_id = endedRun(wt, headOf(wt), true);
     writeFileSync(join(wt, 'one.txt'), 'x');
     const before = hashGitDir(repo.repo);
-    check();
+    await check();
     expect(stored(run_id).uncommitted_files).toBe(1);
     expect(hashGitDir(repo.repo)).toEqual(before);
   });
 
-  it("never runs a content filter from the repository's config", () => {
+  it("never runs a content filter from the repository's config", async () => {
     const wt = repo.worktrees['feat/a'];
     const marker = join(tmp.dir, 'filter-ran');
     const script = join(tmp.dir, 'filter.js');
@@ -140,29 +140,29 @@ describe.runIf(HAS_GIT)('the worktree check (decision 41)', () => {
     writeFileSync(join(wt, '.gitattributes'), 'shared.txt filter=evil\n');
     writeFileSync(join(wt, 'shared.txt'), 'changed\n');
     const run_id = endedRun(wt, headOf(wt), true);
-    check();
+    await check();
     expect(existsSync(marker)).toBe(false);
     expect(stored(run_id).uncommitted_files).toBe(2);
   });
 
-  it('with no readable repository it says unverified and keeps the last report', () => {
+  it('with no readable repository it says unverified and keeps the last report', async () => {
     const wt = repo.worktrees['feat/a'];
     const run_id = endedRun(wt, headOf(wt), true);
-    check();
+    await check();
     expect(row(run_id)!.explanation!.what).not.toContain('unverified');
     d.sql.prepare("UPDATE projects SET repo_path = 'no-such-folder' WHERE key = 'RCP'").run();
-    check();
+    await check();
     const p = row(run_id)!;
     expect(p.reason).toContain('unverified');
     expect(p.reason).toContain('uncommitted changes');
     expect(p.explanation!.what).toContain('last reported state (unverified)');
   });
 
-  it('a check more than a day old no longer counts', () => {
+  it('a check more than a day old no longer counts', async () => {
     const wt = repo.worktrees['feat/a'];
     git(wt, 'reset', '-q', '--hard', 'main');
     const run_id = endedRun(wt, headOf(wt), true);
-    check();
+    await check();
     expect(row(run_id)).toBeUndefined(); // git says clean and on main.
     d.clock.advance(25 * 60 * minutes(1));
     expect(row(run_id)!.reason).toContain('unverified');

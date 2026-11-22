@@ -69,11 +69,20 @@
  * collide, and it sees committed local branches only. A clean trial merge
  * means git can combine them, not that they work together, so it never
  * overrides a sequence decided from the declarations (overlap-policy.ts).
+ *
+ * **Never freezes the server (B52):** git runs in async child processes,
+ * bounded and timed (git-read.ts). A read with no answer is *unknown*: the
+ * findings and discovery it would have decided stay as they are. One run per
+ * project at a time (`RadarRuns`); *Run radar now* during a run joins it. The
+ * plan keeps what it read the database against (`RadarBasis`), and `record`
+ * applies nothing for an item or project that changed since, so a slow run
+ * can't undo what the owner did meanwhile (B45's race).
  */
-import { spawnSync } from 'node:child_process';
-import { mkdtempSync, realpathSync, rmSync, statSync } from 'node:fs';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { realpathSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { performance } from 'node:perf_hooks';
 import {
   LIMITS,
   TEXT_LIMITS,
@@ -84,6 +93,7 @@ import {
 import type { Db } from '../db/client.js';
 import type { Config } from '../config.js';
 import type { ReadContext } from './contracts.js';
+import { git, GitUnknown, known } from './git-read.js';
 import { newId } from './ids.js';
 import { explain } from './problems.js';
 import { callerName, ms } from './model.js';
@@ -97,9 +107,12 @@ export const RADAR_DEBOUNCE_MS = 10_000;
 /** Decision 39: a project's radar runs at most this often on reports. */
 export const RADAR_MIN_GAP_MS = 60_000;
 
-export const RADAR_OFF_NO_REPO = 'Radar off: no repository';
+/** B52: how long after the listener is up the first scheduled radar pass starts. */
+export const RADAR_FIRST_MS = 15_000;
+/** B52: after this many reads with no answer, a run stops asking git and keeps what it has. */
+const RADAR_MAX_UNKNOWN_READS = 3;
 
-const GIT_TIMEOUT_MS = 60_000;
+export const RADAR_OFF_NO_REPO = 'Radar off: no repository';
 
 /** A branch name the radar will pass to git: no option-like or path-escaping names. */
 export function validBranch(name: string): boolean {
@@ -111,36 +124,6 @@ export function validBranch(name: string): boolean {
     !name.endsWith('/') &&
     !name.endsWith('.lock')
   );
-}
-
-interface GitResult {
-  status: number | null;
-  stdout: string;
-  missing: boolean;
-}
-
-/** Run git read-only in `cwd`, with extra environment. */
-export function git(cwd: string, args: string[], env: Record<string, string> = {}): GitResult {
-  const r = spawnSync(
-    'git',
-    ['-c', 'safe.directory=*', '-c', 'gc.auto=0', '-c', 'core.fsmonitor=false', ...args],
-    {
-      cwd,
-      encoding: 'utf8',
-      timeout: GIT_TIMEOUT_MS,
-      maxBuffer: 16 * 1024 * 1024,
-      windowsHide: true,
-      env: {
-        ...process.env,
-        GIT_OPTIONAL_LOCKS: '0',
-        GIT_TERMINAL_PROMPT: '0',
-        LC_ALL: 'C',
-        ...env,
-      },
-    },
-  );
-  const missing = (r.error as NodeJS.ErrnoException | undefined)?.code === 'ENOENT';
-  return { status: r.status, stdout: r.stdout ?? '', missing };
 }
 
 /** The repository folder `repo_path` names, inside the push root; throws `validation`. */
@@ -186,32 +169,48 @@ export function resolveRepoPath(config: Config, repoPath: string): string {
   return real;
 }
 
-/** The repository's shared objects folder (worktrees share one), or why there isn't one. */
-export function probeRepo(dir: string): { ok: true; objects: string } | { ok: false } {
-  const r = git(dir, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
+/**
+ * The repository's shared objects folder (worktrees share one), or why there
+ * isn't one. `unknown` means the read had no answer, which isn't "no repository".
+ */
+export async function probeRepo(
+  dir: string,
+  signal?: AbortSignal,
+): Promise<{ ok: true; objects: string } | { ok: false; unknown?: boolean }> {
+  const r = await git(dir, ['rev-parse', '--path-format=absolute', '--git-common-dir'], {}, signal);
+  if (r.unknown) return { ok: false, unknown: true };
   if (r.missing || r.status !== 0) return { ok: false };
   const common = r.stdout.trim();
   return common ? { ok: true, objects: join(common, 'objects') } : { ok: false };
 }
 
-/** A git session over one repository with a throwaway object directory. */
+/**
+ * A git session over one repository with a throwaway object directory. A read
+ * with no answer (timed out, cancelled) throws `GitUnknown`.
+ */
 export class RadarGit {
-  private readonly tmp: string;
-  private readonly env: Record<string, string>;
-
-  constructor(
+  private constructor(
     readonly dir: string,
-    objects: string,
-  ) {
-    this.tmp = mkdtempSync(join(tmpdir(), 'docket-radar-'));
-    this.env = { GIT_OBJECT_DIRECTORY: this.tmp, GIT_ALTERNATE_OBJECT_DIRECTORIES: objects };
+    private readonly tmp: string,
+    private readonly env: Record<string, string>,
+    private readonly signal?: AbortSignal,
+  ) {}
+
+  static async open(dir: string, objects: string, signal?: AbortSignal): Promise<RadarGit> {
+    const tmp = await mkdtemp(join(tmpdir(), 'docket-radar-'));
+    const env = { GIT_OBJECT_DIRECTORY: tmp, GIT_ALTERNATE_OBJECT_DIRECTORIES: objects };
+    return new RadarGit(dir, tmp, env, signal);
+  }
+
+  private async read(args: string[]) {
+    return known(await git(this.dir, args, this.env, this.signal));
   }
 
   /** The full ref for a local branch (or, failing that, origin's copy), or null. */
-  ref(branch: string): string | null {
+  async ref(branch: string): Promise<string | null> {
     if (!validBranch(branch)) return null;
     for (const ref of [`refs/heads/${branch}`, `refs/remotes/origin/${branch}`]) {
-      const r = git(this.dir, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`], this.env);
+      const r = await this.read(['rev-parse', '--verify', '--quiet', `${ref}^{commit}`]);
       if (r.status === 0) return ref;
     }
     return null;
@@ -222,15 +221,15 @@ export class RadarGit {
    * checked out (worktrees share `refs/heads`, so this only adds one the
    * first list missed). Names git wouldn't take are left out.
    */
-  branches(): string[] {
+  async branches(): Promise<string[]> {
     const out = new Set<string>();
-    const heads = git(this.dir, ['for-each-ref', '--format=%(refname)', 'refs/heads'], this.env);
+    const heads = await this.read(['for-each-ref', '--format=%(refname)', 'refs/heads']);
     if (heads.status === 0) {
       for (const line of heads.stdout.split('\n')) {
         if (line.startsWith('refs/heads/')) out.add(line.slice('refs/heads/'.length));
       }
     }
-    const trees = git(this.dir, ['worktree', 'list', '--porcelain'], this.env);
+    const trees = await this.read(['worktree', 'list', '--porcelain']);
     if (trees.status === 0) {
       for (const line of trees.stdout.split('\n')) {
         if (line.startsWith('branch refs/heads/')) out.add(line.slice('branch refs/heads/'.length));
@@ -240,32 +239,28 @@ export class RadarGit {
   }
 
   /** Files changed on `ref` since it left `base` (`git diff --name-only base...ref`). */
-  changed(base: string, ref: string): string[] {
-    const r = git(this.dir, ['diff', '--name-only', '--no-renames', `${base}...${ref}`], this.env);
+  async changed(base: string, ref: string): Promise<string[]> {
+    const r = await this.read(['diff', '--name-only', '--no-renames', `${base}...${ref}`]);
     if (r.status !== 0) return [];
     return r.stdout.split('\n').filter(Boolean);
   }
 
   /** Decision 39: whether `ref`'s commits are already on `base` (the branch has merged). */
-  merged(ref: string, base: string): boolean {
-    return git(this.dir, ['merge-base', '--is-ancestor', ref, base], this.env).status === 0;
+  async merged(ref: string, base: string): Promise<boolean> {
+    return (await this.read(['merge-base', '--is-ancestor', ref, base])).status === 0;
   }
 
   /** Trial-merge two refs: the conflicting files (empty when clean), or null when git failed. */
-  merge(a: string, b: string): string[] | null {
-    const r = git(
-      this.dir,
-      ['merge-tree', '--write-tree', '--name-only', '--no-messages', a, b],
-      this.env,
-    );
+  async merge(a: string, b: string): Promise<string[] | null> {
+    const r = await this.read(['merge-tree', '--write-tree', '--name-only', '--no-messages', a, b]);
     if (r.status === 0) return [];
     if (r.status !== 1) return null;
     const lines = r.stdout.split('\n');
     return [...new Set(lines.slice(1).filter(Boolean))].sort();
   }
 
-  close(): void {
-    rmSync(this.tmp, { recursive: true, force: true });
+  async close(): Promise<void> {
+    await rm(this.tmp, { recursive: true, force: true, maxRetries: 2 });
   }
 }
 
@@ -307,6 +302,36 @@ export interface RadarPlan {
   suppressed: { branch_a: string; branch_b: string; files: string[] }[];
   /** B40: one per in-flight item without a reported branch. */
   discovered: Discovery[];
+  /** B52: what the database said when the run began. */
+  basis: RadarBasis;
+  /** B52: what git couldn't answer this run. Nothing about these changes. */
+  unknown: RadarUnknown;
+}
+
+/** B52: the reads with no answer (timed out or cancelled). */
+export interface RadarUnknown {
+  /** The repository or its main branch: the run changes nothing. */
+  all: boolean;
+  /** Items whose branch discovery had no answer. */
+  items: string[];
+  branches: string[];
+  /** Branch pairs, in finding order (`branch_a`, `branch_b`). */
+  pairs: [string, string][];
+}
+
+/** B52: fingerprints of what a run read, to tell whether it's still current. */
+export interface RadarBasis {
+  project: string;
+  /** Per in-flight item at the start of the run. */
+  items: Record<string, string>;
+}
+
+/** B52: what `recordRadar` did with a plan. */
+export interface RadarApplied {
+  /** The project's radar settings changed during the run: nothing was applied. */
+  discarded: boolean;
+  /** Items that changed during the run: left as they are until the next run. */
+  stale: string[];
 }
 
 interface Flight {
@@ -508,20 +533,80 @@ function reportedFiles(db: Db, itemId: string): string[] {
   return row ? (JSON.parse(row.changed_files) as string[]) : [];
 }
 
-/** Read the project and run the trial merges. Writes nothing anywhere. */
-export function planRadar(r: ReadContext, config: Config, project: string): RadarPlan {
+const projectBasis = (db: Db, project: string) =>
+  JSON.stringify(
+    db.sqlite
+      .prepare('SELECT repo_path, main_branch, deleted_at FROM projects WHERE key = ?')
+      .get(project) ?? null,
+  );
+
+/** Everything about an item that decides what the radar checks for it. */
+function itemBasis(db: Db, id: string): string {
+  const row = db.sqlite
+    .prepare(
+      `SELECT status, archived_at, jira_key, branches, radar_branch, radar_branch_matches
+       FROM items WHERE id = ?`,
+    )
+    .get(id);
+  if (!row) return 'null';
+  const parts = (
+    db.sqlite
+      .prepare('SELECT part_key FROM item_shared_changes WHERE item_id = ? ORDER BY part_key')
+      .all(id) as { part_key: string }[]
+  ).map((x) => x.part_key);
+  return JSON.stringify([row, parts, reportedFiles(db, id)]);
+}
+
+const inFlightItems = (db: Db, project: string) =>
+  db.sqlite
+    .prepare(
+      `SELECT id, jira_key FROM items WHERE project_key = ? AND status IN ('progress', 'review')
+       AND archived_at IS NULL ORDER BY length(id), id`,
+    )
+    .all(project) as { id: string; jira_key: string | null }[];
+
+function isInFlight(db: Db, id: string): boolean {
+  return !!db.sqlite
+    .prepare(
+      `SELECT 1 FROM items WHERE id = ? AND status IN ('progress', 'review') AND archived_at IS NULL`,
+    )
+    .get(id);
+}
+
+/**
+ * Read the project and run the trial merges. Writes nothing anywhere. A read
+ * with no answer lands in `plan.unknown`, never in a finding or its clearing.
+ */
+export async function planRadar(
+  r: ReadContext,
+  config: Config,
+  project: string,
+  signal?: AbortSignal,
+): Promise<RadarPlan> {
   const db = r.db;
   const p = db.sqlite
     .prepare('SELECT repo_path, main_branch FROM projects WHERE key = ? AND deleted_at IS NULL')
     .get(project) as { repo_path: string | null; main_branch: string } | undefined;
   if (!p)
     throw new ToolError('not_found', `No project ${project}. Check the key with list_projects.`);
+  // Read before git, so anything that changes during the run differs from it.
+  const items = inFlightItems(db, project);
+  const basis: RadarBasis = {
+    project: projectBasis(db, project),
+    items: Object.fromEntries(items.map(({ id }) => [id, itemBasis(db, id)])),
+  };
+  const empty = { checks: [], suppressed: [], discovered: [], basis };
   const off = (reason: string): RadarPlan => ({
     project,
     off: reason,
-    checks: [],
-    suppressed: [],
-    discovered: [],
+    ...empty,
+    unknown: { all: false, items: [], branches: [], pairs: [] },
+  });
+  const unread = (): RadarPlan => ({
+    project,
+    off: null,
+    ...empty,
+    unknown: { all: true, items: [], branches: [], pairs: [] },
   });
   if (!p.repo_path) return off(RADAR_OFF_NO_REPO);
   let dir: string;
@@ -530,21 +615,34 @@ export function planRadar(r: ReadContext, config: Config, project: string): Rada
   } catch {
     return off(RADAR_OFF_NO_REPO);
   }
-  const probe = probeRepo(dir);
-  if (!probe.ok) return off(RADAR_OFF_NO_REPO);
-  const g = new RadarGit(dir, probe.objects);
+  const probe = await probeRepo(dir, signal);
+  if (!probe.ok) return probe.unknown ? unread() : off(RADAR_OFF_NO_REPO);
+  // A repository that keeps timing out ends the run's reads early: the rest are unknown.
+  const giveUp = new AbortController();
+  const reads = signal ? AbortSignal.any([signal, giveUp.signal]) : giveUp.signal;
+  const g = await RadarGit.open(dir, probe.objects, reads);
+  const unknownItems = new Set<string>();
+  const unknownBranches = new Set<string>();
+  const unknownPairs: [string, string][] = [];
+  let noAnswers = 0;
+  /** The answer, or undefined when git had none. */
+  const answer = async <T>(read: () => Promise<T>): Promise<T | undefined> => {
+    try {
+      return await read();
+    } catch (err) {
+      if (!(err instanceof GitUnknown)) throw err;
+      noAnswers += 1;
+      if (noAnswers >= RADAR_MAX_UNKNOWN_READS) giveUp.abort();
+      return undefined;
+    }
+  };
   try {
-    const main = g.ref(p.main_branch);
+    const main = await answer(() => g.ref(p.main_branch));
+    if (main === undefined) return unread();
     if (!main) return off(`Radar off: no branch ${p.main_branch}`);
-    const items = db.sqlite
-      .prepare(
-        `SELECT id, jira_key FROM items WHERE project_key = ? AND status IN ('progress', 'review')
-         AND archived_at IS NULL ORDER BY length(id), id`,
-      )
-      .all(project) as { id: string; jira_key: string | null }[];
     const flights: Flight[] = [];
     const discovered: Discovery[] = [];
-    let local: string[] | null = null;
+    let local: string[] | null | undefined = null;
     for (const { id, jira_key } of items) {
       // B41: every reported branch; with none, a local branch that names the item (B40).
       const reported = reportedBranches(db, id).map((b) => b.name);
@@ -553,7 +651,15 @@ export function planRadar(r: ReadContext, config: Config, project: string): Rada
         branches = reported.map((name) => ({ name, source: 'reported' }));
       } else {
         // Several matches is none.
-        local ??= g.branches().filter((b) => b !== p.main_branch);
+        if (local === null) {
+          const all = await answer(() => g.branches());
+          local = all?.filter((b) => b !== p.main_branch);
+        }
+        if (local === undefined) {
+          // The list had no answer: this item's discovery and findings stay.
+          unknownItems.add(id);
+          continue;
+        }
         // B45: never a branch the owner said isn't active.
         const removed = new Set(
           storedBranches(db, id)
@@ -577,9 +683,18 @@ export function planRadar(r: ReadContext, config: Config, project: string): Rada
       const handed = reportedFiles(db, id);
       for (const { name: branch, source } of branches) {
         if (branch === p.main_branch) continue;
-        const ref = g.ref(branch);
+        const ref = await answer(() => g.ref(branch));
+        if (ref === undefined) {
+          unknownBranches.add(branch);
+          continue;
+        }
         if (!ref) continue;
-        const files = new Set([...handed, ...g.changed(main, ref)]);
+        const changed = await answer(() => g.changed(main, ref));
+        if (changed === undefined) {
+          unknownBranches.add(branch);
+          continue;
+        }
+        const files = new Set([...handed, ...changed]);
         flights.push({ id, branch, source, ref, parts, files });
       }
     }
@@ -597,7 +712,12 @@ export function planRadar(r: ReadContext, config: Config, project: string): Rada
     };
     for (const f of flights) {
       if (!fresh(f.branch, p.main_branch)) continue;
-      const files = g.merge(main, f.ref);
+      const files = await answer(() => g.merge(main, f.ref));
+      if (files === undefined) {
+        // B42 needs this answer to judge the branch's pairs, so they wait too.
+        unknownBranches.add(f.branch);
+        continue;
+      }
       if (files === null) continue;
       withMain.set(f.branch, new Set(files));
       checks.push({
@@ -615,17 +735,39 @@ export function planRadar(r: ReadContext, config: Config, project: string): Rada
         const [x, y] = [flights[i]!, flights[j]!];
         // B41: two branches of one item aren't a cross-item conflict; not checked.
         if (x.id === y.id || x.branch === y.branch) continue;
+        if (unknownBranches.has(x.branch) || unknownBranches.has(y.branch)) continue;
         const related =
           [...x.parts].some((k) => y.parts.has(k)) || [...x.files].some((k) => y.files.has(k));
         if (!related) continue;
         const [a, b] = x.branch < y.branch ? [x, y] : [y, x];
         if (!fresh(a.branch, b.branch)) continue;
-        const all = g.merge(x.ref, y.ref);
+        const all = await answer(() => g.merge(x.ref, y.ref));
+        if (all === undefined) {
+          unknownPairs.push([a.branch, b.branch]);
+          continue;
+        }
         if (all === null) continue;
         // B42: only files beyond what either branch's conflict with main explains.
         const explained = (file: string) =>
           !!withMain.get(a.branch)?.has(file) || !!withMain.get(b.branch)?.has(file);
         const files = all.filter((file) => !explained(file));
+        // Decision 39: a real text conflict gets a merge order; it stops neither agent.
+        let merge_first: string | null = null;
+        if (files.length > 0) {
+          const order = await answer(async () => ({
+            a: await g.merged(a.ref, main),
+            b: await g.merged(b.ref, main),
+          }));
+          if (!order) {
+            unknownPairs.push([a.branch, b.branch]);
+            continue;
+          }
+          merge_first = mergeOrder(
+            db,
+            { id: a.id, merged: order.a },
+            { id: b.id, merged: order.b },
+          );
+        }
         if (all.length > 0 && files.length === 0) {
           suppressed.push({ branch_a: a.branch, branch_b: b.branch, files: all });
         }
@@ -637,21 +779,26 @@ export function planRadar(r: ReadContext, config: Config, project: string): Rada
           source_a: a.source,
           source_b: b.source,
           files,
-          // Decision 39: a real text conflict gets a merge order; it stops neither agent.
-          merge_first:
-            files.length > 0
-              ? mergeOrder(
-                  db,
-                  { id: a.id, merged: g.merged(a.ref, main) },
-                  { id: b.id, merged: g.merged(b.ref, main) },
-                )
-              : null,
+          merge_first,
         });
       }
     }
-    return { project, off: null, checks, suppressed, discovered };
+    return {
+      project,
+      off: null,
+      checks,
+      suppressed,
+      discovered,
+      basis,
+      unknown: {
+        all: false,
+        items: [...unknownItems],
+        branches: [...unknownBranches],
+        pairs: unknownPairs,
+      },
+    };
   } finally {
-    g.close();
+    await g.close();
   }
 }
 
@@ -666,19 +813,45 @@ export const branchPair = (own: string, source: BranchSource | null, other: stri
  * `radar.found` on each item; an open finding the run found clean, or no
  * longer checks, clears with `radar.cleared`. A plan from an "off" run
  * changes no finding.
+ *
+ * B52: inside the write transaction, the plan is compared with the database.
+ * If the project's radar settings changed, nothing applies. An item that
+ * changed since the plan began keeps its discovery and findings, and so does
+ * anything git had no answer for; the next run decides them.
  */
-export function recordRadar(w: WriteContext, plan: RadarPlan): void {
-  if (plan.off) return;
-  for (const d of plan.discovered) recordDiscovery(w, plan.project, d);
+export function recordRadar(w: WriteContext, plan: RadarPlan): RadarApplied {
+  if (projectBasis(w.db, plan.project) !== plan.basis.project) {
+    return { discarded: true, stale: [] };
+  }
+  if (plan.off || plan.unknown.all) return { discarded: false, stale: [] };
+  const seen = new Map<string, boolean>();
+  const changed = (id: string) => {
+    let c = seen.get(id);
+    if (c === undefined) {
+      const was = plan.basis.items[id];
+      c = was === undefined ? isInFlight(w.db, id) : itemBasis(w.db, id) !== was;
+      seen.set(id, c);
+    }
+    return c;
+  };
+  // Before anything below writes: discovery changes an item's own fingerprint.
+  for (const id of Object.keys(plan.basis.items)) changed(id);
+  const key = (a: unknown, b: unknown) => `${String(a)}\u0000${String(b)}`;
+  const unknownItems = new Set(plan.unknown.items);
+  const unknownBranches = new Set(plan.unknown.branches);
+  const unknownPairs = new Set(plan.unknown.pairs.map(([a, b]) => key(a, b)));
+  for (const d of plan.discovered) {
+    if (!changed(d.item)) recordDiscovery(w, plan.project, d);
+  }
   const open = w.db.sqlite
     .prepare('SELECT * FROM radar_findings WHERE project_key = ? AND cleared_at IS NULL')
     .all(plan.project) as Record<string, unknown>[];
-  const key = (a: unknown, b: unknown) => `${String(a)}\u0000${String(b)}`;
   const byPair = new Map(open.map((f) => [key(f.branch_a, f.branch_b), f]));
   const still = new Set<string>();
   // B42: what each item's lead should read, one note per item for the run's new findings.
   const notes = new Map<string, string[]>();
   for (const c of plan.checks) {
+    if (changed(c.item_a) || (c.item_b && changed(c.item_b))) continue;
     if (c.files.length === 0) continue;
     const k = key(c.branch_a, c.branch_b);
     still.add(k);
@@ -769,10 +942,21 @@ export function recordRadar(w: WriteContext, plan: RadarPlan): void {
   }
   for (const f of open) {
     if (still.has(key(f.branch_a, f.branch_b))) continue;
+    // B52: no answer, or an item that moved during the run, is no reason to clear it.
+    const items = [f.item_a, f.item_b].filter((x): x is string => typeof x === 'string');
+    if (
+      items.some((id) => changed(id) || unknownItems.has(id)) ||
+      unknownBranches.has(f.branch_a as string) ||
+      unknownBranches.has(f.branch_b as string) ||
+      unknownPairs.has(key(f.branch_a, f.branch_b))
+    ) {
+      continue;
+    }
     clearFinding(w, f);
     if (f.item_a && f.item_b) noteTextConflict(w, f.item_a as string, f.item_b as string, []);
   }
   for (const [item, lines] of notes) postRadarNote(w, plan.project, item, lines);
+  return { discarded: false, stale: [...seen].filter(([, c]) => c).map(([id]) => id) };
 }
 
 /**
@@ -897,14 +1081,33 @@ export function clearFinding(
   return inverse;
 }
 
-/** The run's time and its "off" reason on the project: bookkeeping, not an event. */
-export function finishRadar(r: ReadContext, plan: RadarPlan): void {
+/**
+ * The run's time, how long it took (B52) and its "off" reason on the project:
+ * bookkeeping, not an event. A discarded plan stamps nothing, and a run that
+ * couldn't read the repository keeps the last time and reason.
+ */
+export function finishRadar(
+  r: ReadContext,
+  plan: RadarPlan,
+  applied: RadarApplied,
+  durationMs: number,
+): void {
+  if (applied.discarded) return;
+  if (plan.unknown.all) {
+    r.db.sqlite
+      .prepare(
+        'UPDATE projects SET radar_last_duration_ms = ? WHERE key = ? AND deleted_at IS NULL',
+      )
+      .run(durationMs, plan.project);
+    return;
+  }
   r.db.sqlite
     .prepare(
-      `UPDATE projects SET radar_last_run_at = coalesce(?, radar_last_run_at), radar_off_reason = ?
+      `UPDATE projects SET radar_last_run_at = coalesce(?, radar_last_run_at), radar_off_reason = ?,
+         radar_last_duration_ms = ?
        WHERE key = ? AND deleted_at IS NULL`,
     )
-    .run(plan.off ? null : r.now, plan.off, plan.project);
+    .run(plan.off ? null : r.now, plan.off, durationMs, plan.project);
   // Decision 39: an open finding keeps its merge order current (the first branch to merge
   // takes the lead). Bookkeeping like the run's time, so an unchanged run writes no event.
   const order = r.db.sqlite.prepare(
@@ -912,7 +1115,9 @@ export function finishRadar(r: ReadContext, plan: RadarPlan): void {
      WHERE project_key = @project AND branch_a = @a AND branch_b = @b AND cleared_at IS NULL
        AND merge_first IS NOT @first`,
   );
+  const stale = new Set(applied.stale);
   for (const c of plan.checks) {
+    if (stale.has(c.item_a) || (c.item_b && stale.has(c.item_b))) continue;
     if (c.item_b && c.files.length > 0) {
       order.run({
         first: c.merge_first ?? null,
@@ -921,6 +1126,78 @@ export function finishRadar(r: ReadContext, plan: RadarPlan): void {
         b: c.branch_b,
       });
     }
+  }
+}
+
+// ---- One run per project (B52) ----
+
+export interface RadarRunInput {
+  /** A read context at the current time; called for each step. */
+  read: () => ReadContext;
+  /** Run `fn` as one mutation through the write path. */
+  record: <T>(fn: (w: WriteContext) => T) => { result: T; mutation_id: string };
+  /** Cancels this run, if this caller started it. */
+  signal?: AbortSignal;
+}
+
+export interface RadarRunResult {
+  mutation_id: string;
+  plan: RadarPlan;
+  applied: RadarApplied;
+  duration_ms: number;
+  /** This caller joined a run already in flight. */
+  joined: boolean;
+}
+
+/**
+ * The radar's runs. A project has at most one at a time: a second caller gets
+ * the run in flight. Git runs outside the write path; the write is one short
+ * transaction at the end. `stop` cancels what's running and waits for it, so
+ * the database can close after it.
+ */
+export class RadarRuns {
+  private readonly live = new Map<string, Promise<RadarRunResult>>();
+  private readonly stopping = new AbortController();
+  private stopped = false;
+
+  constructor(private readonly config: Config) {}
+
+  isRunning(project: string): boolean {
+    return this.live.has(project);
+  }
+
+  run(project: string, input: RadarRunInput): Promise<RadarRunResult> {
+    const inFlight = this.live.get(project);
+    if (inFlight) return inFlight.then((result) => ({ ...result, joined: true }));
+    if (this.stopped) {
+      return Promise.reject(new ToolError('unavailable', 'Docket is shutting down. Try again.'));
+    }
+    const run = this.execute(project, input).finally(() => this.live.delete(project));
+    this.live.set(project, run);
+    return run;
+  }
+
+  private async execute(project: string, input: RadarRunInput): Promise<RadarRunResult> {
+    const signal = input.signal
+      ? AbortSignal.any([this.stopping.signal, input.signal])
+      : this.stopping.signal;
+    const started = performance.now();
+    const plan = await planRadar(input.read(), this.config, project, signal);
+    // Cancelled: what it read is incomplete, and nothing may be written.
+    if (signal.aborted) {
+      throw new ToolError('unavailable', 'The radar run was cancelled because Docket is stopping.');
+    }
+    const { result: applied, mutation_id } = input.record((w) => recordRadar(w, plan));
+    const duration_ms = Math.round(performance.now() - started);
+    finishRadar(input.read(), plan, applied, duration_ms);
+    return { mutation_id, plan, applied, duration_ms, joined: false };
+  }
+
+  /** Cancel every run and wait for them. No new run starts afterwards. */
+  async stop(): Promise<void> {
+    this.stopped = true;
+    this.stopping.abort();
+    await Promise.allSettled(this.live.values());
   }
 }
 

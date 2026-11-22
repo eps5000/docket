@@ -41,10 +41,12 @@ import type { RunRow } from '../domain/model.js';
 import { orphans, parkInfo } from '../domain/recovery-model.js';
 import {
   RADAR_DEBOUNCE_MS,
+  RADAR_FIRST_MS,
   RADAR_INTERVAL_MS,
   RADAR_MIN_GAP_MS,
   radarProjects,
   radarTriggers,
+  type RadarRunResult,
 } from '../domain/radar.js';
 import { planRunActivity } from '../domain/run-activity.js';
 import { classifyLegacyOverlaps } from '../domain/shared-changes.js';
@@ -58,6 +60,8 @@ export const PING_MS = 60_000;
 export const PING_TIMEOUT_MS = 10_000;
 /** Decision 42: how often parked and silent runs are checked for newer activity. */
 export const RUN_ACTIVITY_MS = 120_000;
+/** B52: after the listener is up, and after the radar's first pass has started. */
+export const RUN_ACTIVITY_FIRST_MS = 30_000;
 
 /**
  * At boot (decision 41): open runs keep their claim, with a lease of at least
@@ -97,9 +101,14 @@ export function sweepOnce(runtime: Runtime): {
  * outside any transaction, then store what changed. Finding nothing new writes
  * nothing. Returns the runs newly flagged.
  */
-export function runActivityOnce(runtime: Runtime): string[] {
-  const findings = planRunActivity(runtime.db, runtime.config, runtime.clock().toISOString());
-  if (findings.length === 0) return [];
+export async function runActivityOnce(runtime: Runtime, signal?: AbortSignal): Promise<string[]> {
+  const findings = await planRunActivity(
+    runtime.db,
+    runtime.config,
+    runtime.clock().toISOString(),
+    signal,
+  );
+  if (signal?.aborted || findings.length === 0) return [];
   const known = findings.filter((f) => !f.raised);
   if (known.length > 0) {
     runtime.services.runs.refreshActivity(
@@ -123,16 +132,22 @@ export function startRunActivity(
   opts: { intervalMs?: number; firstMs?: number } = {},
 ): Sweeper {
   let stopped = false;
+  let running: Promise<void> | null = null;
+  const stopping = new AbortController();
   const tick = () => {
-    if (stopped) return;
-    try {
-      const raised = runActivityOnce(runtime);
-      if (raised.length > 0) runtime.log(`run activity: flagged ${raised.join(', ')}`);
-    } catch (err) {
-      runtime.log(`run activity: failed: ${err instanceof Error ? err.message : String(err)}`);
-    }
+    if (stopped || running) return;
+    running = runActivityOnce(runtime, stopping.signal)
+      .then((raised) => {
+        if (raised.length > 0) runtime.log(`run activity: flagged ${raised.join(', ')}`);
+      })
+      .catch((err: unknown) => {
+        runtime.log(`run activity: failed: ${err instanceof Error ? err.message : String(err)}`);
+      })
+      .finally(() => {
+        running = null;
+      });
   };
-  const first = setTimeout(tick, opts.firstMs ?? 5_000);
+  const first = setTimeout(tick, opts.firstMs ?? RUN_ACTIVITY_FIRST_MS);
   first.unref();
   const timer = setInterval(tick, opts.intervalMs ?? RUN_ACTIVITY_MS);
   timer.unref();
@@ -141,6 +156,8 @@ export function startRunActivity(
       stopped = true;
       clearTimeout(first);
       clearInterval(timer);
+      stopping.abort();
+      return running ?? undefined;
     },
   };
 }
@@ -218,7 +235,8 @@ export async function pingOnce(runtime: Runtime, timeoutMs = PING_TIMEOUT_MS): P
 }
 
 export interface Sweeper {
-  stop(): void;
+  /** Stops the job; a job with work in flight returns a promise for its end (B52). */
+  stop(): void | Promise<void>;
 }
 
 /** Start the periodic lease sweep and pings. The restart sweep is separate (`restartSweep`, at boot). */
@@ -332,15 +350,29 @@ export function startDriftCheck(
  * One radar run for a project (domain/radar.ts): plan (read the database and
  * trial-merge, outside any transaction), record the findings through the
  * write path, then stamp the run. A run that finds nothing new writes no
- * event. `actor` is the system for scheduled runs.
+ * event. `actor` is the system for scheduled runs. During a run for the same
+ * project, this joins it (B52).
  */
-export function radarRunOnce(runtime: Runtime, project: string, actor = SYSTEM_ACTOR): void {
-  const svc = runtime.services.sharedChanges;
-  const plan = svc.planRadar(readContext(runtime.db, actor, runtime.clock()), { key: project });
-  runtime.write.run({ actor, operation: 'radar.run', args: { key: project } }, (w) =>
-    svc.recordRadar(w, plan),
+export function radarRunOnce(
+  runtime: Runtime,
+  project: string,
+  actor = SYSTEM_ACTOR,
+  signal?: AbortSignal,
+): Promise<RadarRunResult> {
+  return runtime.services.sharedChanges.runRadar(
+    { key: project },
+    {
+      read: () => readContext(runtime.db, actor, runtime.clock()),
+      record: (fn) => {
+        const out = runtime.write.run(
+          { actor, operation: 'radar.run', args: { key: project } },
+          fn,
+        );
+        return { result: out.result, mutation_id: out.mutation_id };
+      },
+      signal,
+    },
   );
-  svc.finishRadar(readContext(runtime.db, actor, runtime.clock()), plan);
 }
 
 /**
@@ -355,16 +387,25 @@ export function classifyLegacyOverlapsOnce(runtime: Runtime): number {
 }
 
 /**
- * Run the radar for every project with a repository at startup and every
- * 15 minutes (BUILD_SPEC §5.21: at least every 15 minutes), and for a project
- * soon after one of its items reports a branch or a commit (decision 39;
- * debounced, and at most once per `minGapMs`). Tests pass shorter times, or
- * null to turn either off. A failing project is logged and skipped; the
- * others still run.
+ * Run the radar for every project with a repository soon after the listener
+ * is up and every 15 minutes (BUILD_SPEC §5.21: at least every 15 minutes), and
+ * for a project soon after one of its items reports a branch or a commit
+ * (decision 39; debounced, and at most once per `minGapMs`). Tests pass shorter
+ * times, or null to turn either off. A failing project is logged and skipped;
+ * the others still run.
+ *
+ * B52: a pass takes the projects one at a time, a project never has two jobs,
+ * and a report that lands during a job, or an item that changed during it,
+ * gets another run afterwards. `stop` cancels the git in flight and waits.
  */
 export function startRadar(
   runtime: Runtime,
-  opts: { intervalMs?: number | null; debounceMs?: number | null; minGapMs?: number } = {},
+  opts: {
+    intervalMs?: number | null;
+    debounceMs?: number | null;
+    minGapMs?: number;
+    firstMs?: number;
+  } = {},
 ): Sweeper {
   const interval = opts.intervalMs === undefined ? RADAR_INTERVAL_MS : opts.intervalMs;
   const debounce = opts.debounceMs === undefined ? RADAR_DEBOUNCE_MS : opts.debounceMs;
@@ -373,25 +414,74 @@ export function startRadar(
   let stopped = false;
   const lastRun = new Map<string, number>();
   const pending = new Map<string, NodeJS.Timeout>();
-  const runProject = (key: string) => {
+  const stopping = new AbortController();
+  /** The job in flight per project: its radar run, then its worktree check. */
+  const jobs = new Map<string, Promise<void>>();
+  /** Projects with a report since their job began: they run again after it. */
+  const again = new Set<string>();
+  const runProject = (key: string, reported: boolean): Promise<void> => {
+    const live = jobs.get(key);
+    if (live) {
+      if (reported) again.add(key);
+      return live;
+    }
     lastRun.set(key, Date.now());
-    try {
-      radarRunOnce(runtime, key);
-    } catch (err) {
-      runtime.log(`radar: ${key} failed: ${err instanceof Error ? err.message : String(err)}`);
-    }
-    // Decision 41: what ended runs really left behind, with the same read-only git.
-    try {
-      checkProjectWorktrees(runtime.db, runtime.config, key, runtime.clock().toISOString());
-    } catch (err) {
-      runtime.log(
-        `worktree check: ${key} failed: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
+    const job = (async () => {
+      try {
+        const run = await radarRunOnce(runtime, key, SYSTEM_ACTOR, stopping.signal);
+        // It joined a *Run radar now*, whose reads may predate this report.
+        if ((reported && run.joined) || run.applied.discarded || run.applied.stale.length > 0) {
+          again.add(key);
+        }
+        const unread = run.plan.unknown;
+        if (unread.all || unread.branches.length + unread.pairs.length + unread.items.length > 0) {
+          runtime.log(`radar: ${key}: some git reads timed out; their findings are unchanged`);
+        }
+      } catch (err) {
+        if (!stopped) {
+          runtime.log(`radar: ${key} failed: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+      if (stopped) return;
+      // Decision 41: what ended runs really left behind, with the same read-only git.
+      try {
+        await checkProjectWorktrees(
+          runtime.db,
+          runtime.config,
+          key,
+          runtime.clock().toISOString(),
+          stopping.signal,
+        );
+      } catch (err) {
+        if (!stopped) {
+          runtime.log(
+            `worktree check: ${key} failed: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
+      }
+    })().finally(() => {
+      jobs.delete(key);
+      if (again.delete(key)) schedule(key);
+    });
+    jobs.set(key, job);
+    return job;
   };
-  const tick = () => {
-    if (stopped) return;
-    for (const key of radarProjects(runtime.db)) runProject(key);
+  let passing = false;
+  const tick = async () => {
+    if (stopped || passing) return;
+    passing = true;
+    try {
+      for (const key of radarProjects(runtime.db)) {
+        if (stopped) break;
+        await runProject(key, false);
+      }
+    } catch (err) {
+      if (!stopped) {
+        runtime.log(`radar: pass failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    } finally {
+      passing = false;
+    }
   };
   // Decision 39: run soon after a branch or commit is reported, at most once per `minGap`.
   const schedule = (key: string) => {
@@ -400,7 +490,7 @@ export function startRadar(
     const timer = setTimeout(
       () => {
         pending.delete(key);
-        if (!stopped) runProject(key);
+        if (!stopped) void runProject(key, true);
       },
       Math.max(debounce ?? 0, minGap - since),
     );
@@ -416,9 +506,9 @@ export function startRadar(
     }
   };
   if (debounce) runtime.bus.on('change', onChange);
-  const first = interval ? setTimeout(tick, 5_000) : null;
+  const first = interval ? setTimeout(() => void tick(), opts.firstMs ?? RADAR_FIRST_MS) : null;
   first?.unref();
-  const timer = interval ? setInterval(tick, interval) : null;
+  const timer = interval ? setInterval(() => void tick(), interval) : null;
   timer?.unref();
   return {
     stop() {
@@ -428,6 +518,8 @@ export function startRadar(
       for (const t of pending.values()) clearTimeout(t);
       pending.clear();
       runtime.bus.off('change', onChange);
+      stopping.abort();
+      return Promise.allSettled(jobs.values()).then(() => undefined);
     },
   };
 }

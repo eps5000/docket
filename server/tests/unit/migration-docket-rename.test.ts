@@ -178,7 +178,7 @@ describe('0005_docket_rename on a database from before the rename', () => {
 
   it('migrates to current, and migrating again is a no-op', () => {
     migrateDb(db);
-    expect(migrationStatus(db)).toMatchObject({ current: true, applied: 19 });
+    expect(migrationStatus(db)).toMatchObject({ current: true, applied: 20 });
     const after = ['agent_files', 'installs', 'instruction_reports', 'drift'].map((t) =>
       all(db, `SELECT * FROM ${t} ORDER BY id`),
     );

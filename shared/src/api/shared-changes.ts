@@ -267,6 +267,8 @@ export const radarResponse = jsonResponse({
   /** "Radar off: no repository" and the like, when `state` is `off`. */
   off_reason: z.string().nullable(),
   last_run_at: z.string().nullable(),
+  /** B52: how long the last run took, in milliseconds; null before the first. */
+  last_duration_ms: z.number().int().nonnegative().nullable(),
   findings: z.array(radarFindingRowSchema),
 });
 export type RadarResponse = z.infer<typeof radarResponse>;
