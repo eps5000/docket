@@ -34,6 +34,7 @@ import type {
   HumanReviewItem,
   ItemResume,
   ItemSummaryView,
+  RunActivity,
   ItemView,
   LinkRef,
   Resource,
@@ -229,6 +230,17 @@ export function resourceText(r: Resource, now: Date): string {
   ]);
 }
 
+/** Decision 42: "activity since parked: 2 commits, 1 update, GF-12 cleared". */
+export function activityText(a: RunActivity): string {
+  const parts = [
+    a.commits > 0 ? `${a.commits} ${a.commits === 1 ? 'commit' : 'commits'}` : null,
+    a.events > 0 ? `${a.events} ${a.events === 1 ? 'update' : 'updates'}` : null,
+    a.cleared_items.length > 0 ? `${a.cleared_items.join(', ')} cleared` : null,
+  ].filter(Boolean);
+  const head = a.kind === 'since_parked' ? 'activity since parked' : 'commits while silent';
+  return `${head}: ${parts.join(', ')}`;
+}
+
 /** The recovery facts under a run: parked, end reason, workspace, orchestrator, brief, resources. */
 function runRecoveryLines(run: Run, now: Date, indent: string): string[] {
   const out: string[] = [];
@@ -243,6 +255,13 @@ function runRecoveryLines(run: Run, now: Date, indent: string): string[] {
       ])}`,
     );
   }
+  if (run.producer) out.push(`${indent}producer: ${run.producer}`);
+  if (run.status_update) {
+    out.push(
+      `${indent}status updated by ${run.status_update.by} ${formatTime(run.status_update.at, now)}`,
+    );
+  }
+  if (run.activity) out.push(`${indent}${activityText(run.activity)}`);
   if (run.end_reason && run.end_reason !== run.run_state)
     out.push(`${indent}ended: ${run.end_reason}`);
   if (run.workspace) out.push(`${indent}${workspaceText(run.workspace)}`);
@@ -483,6 +502,12 @@ export function renderItem(
 
   lines.push(...questionLines(item, now));
   if (item.resume) lines.push(resumeLine(item.resume));
+  if (item.producer_hold) {
+    const h = item.producer_hold;
+    lines.push(
+      `${I1}between workers: producer ${h.producer} holds it until ${formatTime(h.until, now)}${h.last_worker ? `${SEP}last worker ${h.last_worker}` : ''}`,
+    );
+  }
 
   if (item.documents && item.documents.length > 0) {
     lines.push(
@@ -851,6 +876,9 @@ function renderDigest(d: Digest, now: Date): string {
         `${x.item_id} ${x.state}${x.resume_ready ? ' resume_ready' : ''}`,
         x.waiting ? `waiting ${clip(x.waiting, 30)}` : null,
         x.label ? clip(x.label, 20) : null,
+        x.producer ? `producer ${clip(x.producer, 20)}` : null,
+        x.activity ? clip(x.activity, 40) : null,
+        x.updated_by ? `by ${clip(x.updated_by, 20)}` : null,
       ]),
     ),
   };
@@ -1044,6 +1072,13 @@ const RENDERERS: { [N in ToolName]: Renderer<N> } = {
       ready: r.resume_ready ? 'ready to resume' : 'resume_ready false',
     });
   },
+  update_run_status: (r) =>
+    s('update_run_status', {
+      id: r.id,
+      run_state: r.run_state,
+      by: r.updated_by,
+      ready: r.resume_ready ? `${SEP}ready to resume` : '',
+    }),
   set_plan: (r, a) =>
     s('set_plan', {
       id: str(a.id),

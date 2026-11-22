@@ -125,7 +125,7 @@ describe('0010_shared_changes', () => {
     const migrated = openDb(copy);
     try {
       migrateDb(migrated);
-      expect(migrationStatus(migrated)).toEqual({ current: true, applied: 18, expected: 18 });
+      expect(migrationStatus(migrated)).toEqual({ current: true, applied: 19, expected: 19 });
 
       // Every existing row is unchanged, plus the new columns at their defaults.
       expect(all(migrated, 'items')).toEqual(
@@ -158,6 +158,7 @@ describe('0010_shared_changes', () => {
           radar_last_run_at: null,
           radar_off_reason: null,
           overlap_handling: null,
+          coordinators: null,
         })),
       );
       expect(all(migrated, 'links')).toEqual(before.links);
@@ -315,7 +316,7 @@ describe('0010_shared_changes', () => {
 
       // Migrating again is a no-op.
       migrateDb(migrated);
-      expect(migrationStatus(migrated).applied).toBe(18);
+      expect(migrationStatus(migrated).applied).toBe(19);
     } finally {
       migrated.sqlite.close();
     }

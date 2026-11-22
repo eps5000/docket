@@ -68,7 +68,7 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   claim_lead:
     "Claim an item as its lead before working on it. Works on Ready items (moves them to In progress) and In progress items with no lead (resuming sent-back or interrupted work). Pass workspace and, if a coordinator briefed you, brief, so the work can restart after a crash; instructions with the installed docket-check script's output; and branch, so conflicts are spotted early. Returns run_id: pass it on every later call. Errors: conflict (someone holds it, with who and until when: do not work on it); seam_conflict (its shared parts collide with an item in flight: Docket queued it or asked the owner, so pick other work and leave it); design_review (it changes an approved design awaiting the owner: pause it and take other work). Parts that can safely run together don't refuse the claim.",
   release_lead:
-    'Give up the lead claim without finishing. The item returns to Ready for another agent; your plan and notes stay.',
+    'Give up the lead claim without finishing. The item returns to Ready; your plan and notes stay. Under a producer it waits for the next worker unless you pass release_story.',
   start_run:
     'Start a child run under your lead run when delegating to a subagent that has its own Docket connection. Pass its workspace and brief as for claim_lead; the subagent passes the child run_id on its calls. For subagents without a connection, use log_subagent.',
   heartbeat:
@@ -76,7 +76,9 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   finish_run:
     "End your run: result 'finished' when you stopped normally, 'failed' with an error when something broke. Finishing a lead run releases the claim but doesn't change the item's status: hand off with submit_packet or close with set_status first.",
   park_run:
-    "Park only when the work itself stops: waiting on another item, the coordinator or a person. Don't park while your own CI or tests run or while you review them: stay live and log a note. A parked run keeps its claim and its workspace stays in use, so it is never mistaken for finished or stale. Say what you wait on; Docket flags it resume_ready when that clears. Any later call with your run_id resumes it.",
+    "Park only when the work itself stops: waiting on another item, the coordinator or a person. Don't park while your own CI or tests run or while you review them: stay live and log a note. A parked run keeps its claim and its workspace stays in use, so it is never mistaken for finished or stale. Say what you wait on; Docket flags it resume_ready when that clears. Any write with your run_id resumes it; reads don't.",
+  update_run_status:
+    "Coordinators: set an item's lead run's current action, park reason or waiting_on, or resume it, without its run_id. coordinator is your name: the run's orchestrator or one registered for the project. Grants no other power.",
   set_plan:
     "Publish or revise your plan as one-line steps, optionally with details (Markdown) and a source such as a Jira key. Patches by default: steps with an id are updated (text changes record the old text and your reason), steps without one are added, nothing is removed unless listed in remove. mode 'replace' restates the plan. Owner-added steps are always kept; on Jira-imported steps you may add details, keeping the current text at the start. Revisions are kept as history.",
   update_step:
@@ -163,6 +165,7 @@ export const TOOL_SUMMARIES: Record<ToolName, string> = {
   heartbeat: 'Run {run_id} {run_state} · lease until {lease}{resources}',
   finish_run: 'Run {run_id} {run_state}',
   park_run: 'Parked run {run_id}{waiting} · {ready}',
+  update_run_status: "Updated {id}'s run · {run_state} · by {by}{ready}",
   set_plan: 'Plan v{plan_version} on {id} · {done}/{total} done',
   update_step: 'Step {step_id} {state} on {id}',
   log_subagent: 'Logged {provenance} {name} on {target}',

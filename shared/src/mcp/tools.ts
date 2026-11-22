@@ -1,5 +1,5 @@
 /**
- * The tool registry: all 50 tools in MCP_SPEC §5 order, with their group,
+ * The tool registry: all 51 tools in MCP_SPEC §5 order, with their group,
  * kind, input and output schemas and MCP annotations (§3 Tool annotations).
  * Descriptions live in mcp-copy.ts. Shared contract file (tasks.md, Slice rules).
  */
@@ -103,6 +103,13 @@ export const TOOLS = [
   def('heartbeat', 'runs', 'mutating', runs.heartbeatInput, runs.heartbeatOutput),
   def('finish_run', 'runs', 'mutating', runs.finishRunInput, runs.finishRunOutput),
   def('park_run', 'runs', 'mutating', runs.parkRunInput, runs.parkRunOutput),
+  def(
+    'update_run_status',
+    'runs',
+    'mutating',
+    runs.updateRunStatusInput,
+    runs.updateRunStatusOutput,
+  ),
   // §5.5 Checklist
   def('set_plan', 'checklist', 'mutating', checklist.setPlanInput, checklist.setPlanOutput),
   def(

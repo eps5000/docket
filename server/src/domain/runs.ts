@@ -20,10 +20,12 @@ import { dirname, join } from 'node:path';
 import {
   RESOURCE_KIND_LABELS,
   ToolError,
+  activityText,
   jsonBytes,
   LIMITS,
   type ItemSummary,
   type ResourceKind,
+  type RunStatusUpdate,
   type SignalKind,
   type WaitingOn,
 } from '@docket/shared';
@@ -68,6 +70,12 @@ import { assertDesignCleared } from './design-review.js';
 import { settleClaim } from './shared-changes.js';
 import type { InverseOp, WriteContext } from './write.js';
 import { addReportedBranch } from './radar.js';
+import {
+  producerHold,
+  projectCoordinators,
+  storedActivity,
+  type ActivityFinding,
+} from './run-activity.js';
 
 /**
  * End an item's active lead on the owner's behalf: *Release lead claim*
@@ -137,7 +145,7 @@ export function createRunsService(deps: ServiceDeps): RunsService {
     run: RunRow,
     state: 'finished' | 'failed' | 'interrupted',
     endReason: NonNullable<RunRow['end_reason']>,
-    extra: { summary?: string; error?: string } = {},
+    extra: { summary?: string; error?: string; producer_hold_until?: string } = {},
   ): void {
     w.update('runs', run.id, { state, end_reason: endReason, ...extra });
   }
@@ -161,22 +169,132 @@ export function createRunsService(deps: ServiceDeps): RunsService {
     });
   }
 
-  /** The sweeper's (and a late claim's) lease expiry: run interrupted, item back to Ready. */
-  function expire(w: WriteContext, run: RunRow): void {
+  /** Decision 42: how long a story waits for its producer's next worker. */
+  const holdUntil = (now: string) => isoPlus(now, deps.config.producerGraceMs);
+
+  /**
+   * The sweeper's (and a late claim's) lease expiry: run interrupted, item
+   * back to Ready. A worker under a producer leaves the story held for that
+   * producer's next worker (decision 42), unless the owner is sending it back.
+   */
+  function expire(w: WriteContext, run: RunRow, opts: { toReady?: boolean } = {}): void {
     const item = requireItem(w.db, run.item_id);
-    endRun(w, run, 'interrupted', 'lease_expired');
+    const hold = !!run.producer && !opts.toReady && item.status === 'progress';
+    endRun(
+      w,
+      run,
+      'interrupted',
+      'lease_expired',
+      hold ? { producer_hold_until: holdUntil(w.now) } : {},
+    );
     const lead = actorName({ kind: 'agent', client: run.client, label: run.label });
     w.event({
       type: 'claim.released',
-      summary: `Lease expired on ${item.id} (${lead}); the run is interrupted and the plan kept`,
+      summary: hold
+        ? `Lease expired on ${item.id} (${lead}); ${run.producer} keeps the story for its next worker`
+        : `Lease expired on ${item.id} (${lead}); the run is interrupted and the plan kept`,
       item_id: item.id,
       project_key: item.project_key,
-      data: { run_id: run.id, end_reason: 'lease_expired' },
+      data: {
+        run_id: run.id,
+        end_reason: 'lease_expired',
+        ...(hold ? { producer: run.producer, handoff: true } : {}),
+      },
       objects: [{ kind: 'run', id: run.id }],
     });
-    if (item.status === 'progress') {
+    if (item.status === 'progress' && !hold) {
       moveItem(w, item.id, item.project_key, 'progress', 'ready', 'lease expired');
     }
+  }
+
+  /** Who a run's status update names: the run's recorded orchestrator, or a registered one. */
+  function assertCoordinator(
+    w: WriteContext,
+    item: { id: string; project_key: string },
+    run: RunRow,
+    name: string,
+  ): void {
+    const recorded = parseJson<{ name?: string }>(run.orchestrator)?.name;
+    if (name === recorded || projectCoordinators(w.db, item.project_key).includes(name)) return;
+    throw new ToolError(
+      'forbidden',
+      `${name} isn't ${item.id}'s coordinator. Only the run's recorded orchestrator, or a coordinator the owner registered for ${item.project_key} in Settings, can update its status.`,
+      { details: { coordinator: name } },
+    );
+  }
+
+  /** The run a finding was read for, unless it has moved on since: the check reads outside a transaction. */
+  function currentForActivity(db: WriteContext['db'], f: ActivityFinding): RunRow | null {
+    const run = getRun(db, f.run_id);
+    if (!run || run.state !== f.state) return null;
+    if (run.state === 'parked') {
+      const since = storedActivity(run)?.since ?? run.parked_at ?? run.updated_at;
+      return since === f.baseline ? run : null;
+    }
+    return ms(run.last_signal_at) > ms(f.baseline) ? null : run;
+  }
+
+  /** `waiting_on.items` must exist and not name the run's own item. */
+  function checkWaiting(w: WriteContext, item: { id: string }, waiting: WaitingOn): void {
+    const unknown = (waiting.items ?? []).filter(
+      (id) =>
+        id === item.id ||
+        !w.db.sqlite
+          .prepare(
+            'SELECT 1 FROM items i JOIN projects p ON p.key = i.project_key WHERE i.id = ? AND p.deleted_at IS NULL',
+          )
+          .get(id),
+    );
+    if (unknown.length > 0) {
+      throw new ToolError(
+        'validation',
+        unknown.includes(item.id)
+          ? `A run can't wait on its own item ${item.id}. Name the items you are waiting for.`
+          : `Unknown item ${unknown.join(', ')} in waiting_on.items. Check the IDs with search_items.`,
+        { details: { fields: { 'waiting_on.items': 'unknown item' }, items: unknown } },
+      );
+    }
+  }
+
+  /**
+   * Parked → running. `by` is a coordinator resuming it (decision 42), who is
+   * named as themselves; otherwise the run's own later call resumed it.
+   */
+  function resumeRun(w: WriteContext, run: RunRow, by?: RunStatusUpdate): void {
+    const item = requireItem(w.db, run.item_id);
+    const asked = w.db.sqlite
+      .prepare('SELECT 1 FROM questions WHERE run_id = ? AND answered_at IS NULL')
+      .get(run.id);
+    const since = run.parked_at ?? run.updated_at;
+    const ready = parkInfo(w.db, run, w.now).resume_ready;
+    w.update('runs', run.id, {
+      state: asked ? 'needs_input' : 'open',
+      parked_reason: null,
+      waiting_on: null,
+      parked_at: null,
+      lease_expires_at: run.is_lead === 1 ? isoPlus(w.now, deps.config.leaseMs) : null,
+      park_activity: null,
+      status_update: by ?? null,
+    });
+    const who = by ? `${by.by} (coordinator)` : callerName(w.db, { ...w.actor, run_id: run.id });
+    const whose = by
+      ? ` ${actorName({ kind: 'agent', client: run.client, label: run.label })}`
+      : '';
+    w.event({
+      type: 'run.resumed',
+      summary: `${who} resumed${whose} after ${durationText(ms(w.now) - ms(since))} parked${ready ? '' : ' (before what it waited on cleared)'}`,
+      item_id: item.id,
+      project_key: item.project_key,
+      data: {
+        run_id: run.id,
+        parked_at: since,
+        reason: run.parked_reason,
+        waiting_on: parseJson<WaitingOn>(run.waiting_on),
+        resume_ready: ready,
+        ...(by ? { updated_by: by.by, client: by.client } : {}),
+      },
+      objects: [{ kind: 'run', id: run.id }],
+    });
   }
 
   /** Record a signal on an open run (§5.4); a lead's lease runs LEASE from now. Not an event. */
@@ -189,7 +307,8 @@ export function createRunsService(deps: ServiceDeps): RunsService {
       .prepare(
         `UPDATE runs SET last_signal_at = ?, last_signal_kind = ?,
            lease_expires_at = CASE WHEN is_lead = 1 THEN ? ELSE lease_expires_at END,
-           restart_deadline_at = NULL
+           restart_deadline_at = NULL,
+           park_activity = NULL
          WHERE id = ? AND state IN ('open', 'needs_input')`,
       )
       .run(r.now, kind, isoPlus(r.now, deps.config.leaseMs), runId);
@@ -370,6 +489,29 @@ export function createRunsService(deps: ServiceDeps): RunsService {
         );
       }
 
+      // Decision 42: between workers, the story is its producer's. One active lead still holds.
+      const hold = producerHold(w.db, item.id);
+      if (hold && hold.producer !== (input.producer ?? null)) {
+        const current = {
+          producer: hold.producer,
+          hold_until: hold.until,
+          last_worker: hold.last_worker,
+        };
+        throw new ClaimConflict(
+          `${item.id} is held by producer ${hold.producer} for its next worker (until ${utcTime(hold.until, w.now)}). Pick another item.`,
+          current,
+          (rw) => {
+            rw.event({
+              type: 'claim.rejected',
+              summary: `Lead claim by ${callerName(rw.db, rw.actor)} rejected (held by producer ${hold.producer})`,
+              item_id: item.id,
+              project_key: item.project_key,
+              data: { conflict: current },
+            });
+          },
+        );
+      }
+
       // Decision 39: an unapproved change to an approved design pauses this item, at any claim.
       assertDesignCleared(w.db, item, 'claim');
       const status = requireItem(w.db, item.id).status;
@@ -416,15 +558,26 @@ export function createRunsService(deps: ServiceDeps): RunsService {
         // Conservative until the adapter classifies the claiming call (§5.4).
         last_signal_kind: 'report',
         lease_expires_at: leaseUntil,
+        producer: input.producer ?? null,
         ...columns,
       });
+      // The hold has done its job: this worker now leads the story.
+      if (hold) {
+        w.db.sqlite
+          .prepare(
+            'UPDATE runs SET producer_hold_until = NULL WHERE item_id = ? AND producer_hold_until IS NOT NULL',
+          )
+          .run(item.id);
+      }
       const who = actorName({ kind: 'agent', client: w.actor.client, label });
+      const minutes = Math.round(deps.config.leaseMs / 60_000);
       w.event({
         type: 'claim.granted',
-        summary:
-          status === 'ready'
-            ? `${who} claimed lead (${Math.round(deps.config.leaseMs / 60_000)} min lease)`
-            : `${who} claimed lead to resume (${Math.round(deps.config.leaseMs / 60_000)} min lease)`,
+        summary: hold
+          ? `${who} took over from ${hold.last_worker} under producer ${hold.producer} (${minutes} min lease)`
+          : status === 'ready'
+            ? `${who} claimed lead (${minutes} min lease)`
+            : `${who} claimed lead to resume (${minutes} min lease)`,
         item_id: item.id,
         project_key: item.project_key,
         data: {
@@ -432,6 +585,8 @@ export function createRunsService(deps: ServiceDeps): RunsService {
           lease_expires_at: leaseUntil,
           resumed: status === 'progress',
           ...(input.branch ? { branch: input.branch } : {}),
+          ...(input.producer ? { producer: input.producer } : {}),
+          ...(hold ? { handoff: true, from_run_id: hold.run_id } : {}),
         },
         objects: [{ kind: 'run', id: runId }],
       });
@@ -473,16 +628,32 @@ export function createRunsService(deps: ServiceDeps): RunsService {
         );
       }
       if (!isRunOpen(run.state) || leaseExpired(run, w.now)) throw runEndedError(w.db, run, w.now);
-      endRun(w, run, 'interrupted', 'released');
+      // Decision 42: a worker under a producer hands the story on; the producer gives it up.
+      const handoff = !!run.producer && !input.release_story && item.status === 'progress';
+      endRun(
+        w,
+        run,
+        'interrupted',
+        'released',
+        handoff ? { producer_hold_until: holdUntil(w.now) } : {},
+      );
       w.event({
         type: 'claim.released',
-        summary: `${callerName(w.db, w.actor)} released the lead on ${item.id}: ${input.reason}`,
+        summary: handoff
+          ? `${callerName(w.db, w.actor)} handed ${item.id} back to producer ${run.producer}: ${input.reason}`
+          : `${callerName(w.db, w.actor)} released the lead on ${item.id}: ${input.reason}`,
         item_id: item.id,
         project_key: item.project_key,
-        data: { run_id: run.id, end_reason: 'released', reason: input.reason },
+        data: {
+          run_id: run.id,
+          end_reason: 'released',
+          reason: input.reason,
+          ...(run.producer ? { producer: run.producer, handoff } : {}),
+        },
         objects: [{ kind: 'run', id: run.id }],
       });
-      if (item.status === 'progress')
+      if (handoff) w.update('items', item.id, {});
+      else if (item.status === 'progress')
         moveItem(w, item.id, item.project_key, 'progress', 'ready', 'lead released');
       else w.update('items', item.id, {});
       return summary(w, item.id);
@@ -533,7 +704,7 @@ export function createRunsService(deps: ServiceDeps): RunsService {
         );
       }
       // A lease that ran out before the sweeper got to it: end it as such first.
-      if (lead) expire(w, lead);
+      if (lead) expire(w, lead, { toReady: true });
       else {
         const inverse = w.update('items', item.id, { status: 'ready' });
         w.event({
@@ -637,6 +808,10 @@ export function createRunsService(deps: ServiceDeps): RunsService {
                 'UPDATE runs SET current_step_id = coalesce(?, current_step_id), summary = coalesce(?, summary) WHERE id = ?',
               )
               .run(input.current_step_id ?? null, input.note ?? null, run.id);
+          }
+          // Decision 42: the run's own words replace a coordinator's.
+          if (input.note !== undefined) {
+            r.db.sqlite.prepare('UPDATE runs SET status_update = NULL WHERE id = ?').run(run.id);
           }
           // The workspace patch: what you leave out stays as it is (§5.16).
           if (input.workspace) {
@@ -748,9 +923,12 @@ export function createRunsService(deps: ServiceDeps): RunsService {
       assertOwnRun(w, run);
       if (!isRunOpen(run.state) || leaseExpired(run, w.now)) throw runEndedError(w.db, run, w.now);
       const item = requireItem(w.db, run.item_id);
+      // Decision 42: a worker under a producer finishing its part leaves the story held.
+      const keep = run.is_lead === 1 && !!run.producer && item.status === 'progress';
       endRun(w, run, input.result, input.result, {
         summary: input.summary,
         ...(input.error !== undefined ? { error: input.error } : {}),
+        ...(keep ? { producer_hold_until: holdUntil(w.now) } : {}),
       });
       w.event({
         type: 'run.ended',
@@ -785,24 +963,7 @@ export function createRunsService(deps: ServiceDeps): RunsService {
       if (!isRunOpen(run.state) || leaseExpired(run, w.now)) throw runEndedError(w.db, run, w.now);
       const item = requireItem(w.db, run.item_id);
       const waiting: WaitingOn = input.waiting_on ?? {};
-      const unknown = (waiting.items ?? []).filter(
-        (id) =>
-          id === item.id ||
-          !w.db.sqlite
-            .prepare(
-              'SELECT 1 FROM items i JOIN projects p ON p.key = i.project_key WHERE i.id = ? AND p.deleted_at IS NULL',
-            )
-            .get(id),
-      );
-      if (unknown.length > 0) {
-        throw new ToolError(
-          'validation',
-          unknown.includes(item.id)
-            ? `A run can't wait on its own item ${item.id}. Name the items you are waiting for.`
-            : `Unknown item ${unknown.join(', ')} in waiting_on.items. Check the IDs with search_items.`,
-          { details: { fields: { 'waiting_on.items': 'unknown item' }, items: unknown } },
-        );
-      }
+      checkWaiting(w, item, waiting);
       // Parking again updates what it waits on; it has been parked since the first time.
       const parkedAt = run.state === 'parked' && run.parked_at ? run.parked_at : w.now;
       w.update('runs', run.id, {
@@ -813,6 +974,9 @@ export function createRunsService(deps: ServiceDeps): RunsService {
         // The lease is suspended: a parked run keeps its claim and never expires (§5.16).
         lease_expires_at: null,
         restart_deadline_at: null,
+        // Decision 42: what happens from now on is activity since this park.
+        park_activity: { since: w.now, flag: null },
+        status_update: null,
       });
       const on = waitingText(waiting);
       w.event({
@@ -830,34 +994,147 @@ export function createRunsService(deps: ServiceDeps): RunsService {
     resume(w, input) {
       const run = getRun(w.db, input.run_id);
       if (!run || run.state !== 'parked') return { resumed: false };
-      const item = requireItem(w.db, run.item_id);
-      const asked = w.db.sqlite
-        .prepare('SELECT 1 FROM questions WHERE run_id = ? AND answered_at IS NULL')
-        .get(run.id);
-      const since = run.parked_at ?? run.updated_at;
-      const ready = parkInfo(w.db, run, w.now).resume_ready;
-      w.update('runs', run.id, {
-        state: asked ? 'needs_input' : 'open',
-        parked_reason: null,
-        waiting_on: null,
-        parked_at: null,
-        lease_expires_at: run.is_lead === 1 ? isoPlus(w.now, deps.config.leaseMs) : null,
-      });
-      w.event({
-        type: 'run.resumed',
-        summary: `${callerName(w.db, { ...w.actor, run_id: run.id })} resumed after ${durationText(ms(w.now) - ms(since))} parked${ready ? '' : ' (before what it waited on cleared)'}`,
-        item_id: item.id,
-        project_key: item.project_key,
-        data: {
-          run_id: run.id,
-          parked_at: since,
-          reason: run.parked_reason,
-          waiting_on: parseJson<WaitingOn>(run.waiting_on),
-          resume_ready: ready,
-        },
-        objects: [{ kind: 'run', id: run.id }],
-      });
+      resumeRun(w, run);
       return { resumed: true };
+    },
+
+    updateStatus(w, input) {
+      const item = requireItem(w.db, input.id);
+      const run = activeLead(w.db, item.id);
+      if (!run) {
+        throw new ToolError(
+          'validation',
+          `${item.id} has no active lead run to update. Check it with get_item.`,
+          { details: { id: item.id } },
+        );
+      }
+      assertCoordinator(w, item, run, input.coordinator);
+      if (leaseExpired(run, w.now)) throw runEndedError(w.db, run, w.now);
+      const parkFields = input.park_reason !== undefined || input.waiting_on !== undefined;
+      if ((input.resume || parkFields) && run.state !== 'parked') {
+        throw new ToolError(
+          'validation',
+          `${item.id}'s lead run isn't parked, so it has no park to change or resume. Only the run can park itself.`,
+          { details: { run_state: run.state } },
+        );
+      }
+      if (input.waiting_on) checkWaiting(w, item, input.waiting_on);
+      const stamp: RunStatusUpdate = {
+        by: input.coordinator,
+        client: w.actor.client ?? null,
+        at: w.now,
+      };
+      if (input.resume) {
+        resumeRun(w, run, stamp);
+        if (input.current_action !== undefined) {
+          w.update('runs', run.id, { summary: input.current_action });
+        }
+      } else {
+        w.update('runs', run.id, {
+          ...(input.current_action !== undefined ? { summary: input.current_action } : {}),
+          ...(input.park_reason !== undefined ? { parked_reason: input.park_reason } : {}),
+          ...(input.waiting_on !== undefined ? { waiting_on: input.waiting_on } : {}),
+          status_update: stamp,
+          // What the coordinator has seen no longer counts as new.
+          park_activity: run.state === 'parked' ? { since: w.now, flag: null } : null,
+        });
+        const changed = [
+          input.current_action !== undefined ? `doing: ${input.current_action}` : null,
+          input.park_reason !== undefined ? `park reason: ${input.park_reason}` : null,
+          input.waiting_on !== undefined
+            ? `waiting on ${waitingText(input.waiting_on) || 'nothing named'}`
+            : null,
+        ].filter(Boolean);
+        const holder = actorName({ kind: 'agent', client: run.client, label: run.label });
+        w.event({
+          type: 'run.status_updated',
+          summary: `${input.coordinator} (coordinator) updated ${holder}'s status on ${item.id}: ${changed.join('; ')}`,
+          item_id: item.id,
+          project_key: item.project_key,
+          data: {
+            run_id: run.id,
+            updated_by: input.coordinator,
+            client: stamp.client,
+            ...(input.current_action !== undefined ? { current_action: input.current_action } : {}),
+            ...(input.park_reason !== undefined ? { park_reason: input.park_reason } : {}),
+            ...(input.waiting_on !== undefined ? { waiting_on: input.waiting_on } : {}),
+          },
+          objects: [{ kind: 'run', id: run.id }],
+        });
+      }
+      const after = getRun(w.db, run.id)!;
+      return {
+        id: item.id,
+        run_state: displayRunState(after, windows(), w.now),
+        updated_by: input.coordinator,
+        resume_ready: parkInfo(w.db, after, w.now).resume_ready,
+      };
+    },
+
+    refreshActivity(r, findings) {
+      const store = r.db.sqlite.prepare('UPDATE runs SET park_activity = ? WHERE id = ?');
+      r.db.sqlite
+        .transaction(() => {
+          for (const f of findings) {
+            const run = currentForActivity(r.db, f);
+            // Only a raised flag's counts: raising one is an event, through the write path.
+            if (run && storedActivity(run)?.flag) {
+              store.run(JSON.stringify({ since: f.baseline, flag: f.activity }), run.id);
+            }
+          }
+        })
+        .immediate();
+    },
+
+    recordActivity(w, findings) {
+      const store = w.db.sqlite.prepare('UPDATE runs SET park_activity = ? WHERE id = ?');
+      const raised: string[] = [];
+      for (const f of findings) {
+        const run = currentForActivity(w.db, f);
+        if (!run || storedActivity(run)?.flag) continue;
+        store.run(JSON.stringify({ since: f.baseline, flag: f.activity }), run.id);
+        const item = requireItem(w.db, run.item_id);
+        const holder = actorName({ kind: 'agent', client: run.client, label: run.label });
+        w.event({
+          type: 'run.activity',
+          summary:
+            f.activity.kind === 'since_parked'
+              ? `${item.id} may be out of date: ${activityText(f.activity)} (${holder} is parked)`
+              : `${item.id}: ${activityText(f.activity)}. ${holder} hasn't reported, so its session may not have Docket`,
+          item_id: item.id,
+          project_key: item.project_key,
+          data: { run_id: run.id, activity: f.activity, resume_ready: f.resume_ready },
+          objects: [{ kind: 'run', id: run.id }],
+        });
+        raised.push(run.id);
+      }
+      return { raised };
+    },
+
+    expireProducerHolds(w) {
+      const due = w.db.sqlite
+        .prepare(
+          `SELECT * FROM runs WHERE producer_hold_until IS NOT NULL AND producer_hold_until <= ?
+           ORDER BY producer_hold_until, id`,
+        )
+        .all(w.now) as RunRow[];
+      const clear = w.db.sqlite.prepare('UPDATE runs SET producer_hold_until = NULL WHERE id = ?');
+      const returned: string[] = [];
+      for (const run of due) {
+        clear.run(run.id);
+        const item = requireItem(w.db, run.item_id);
+        if (item.status !== 'progress' || activeLead(w.db, item.id)) continue;
+        moveItem(
+          w,
+          item.id,
+          item.project_key,
+          'progress',
+          'ready',
+          `producer ${run.producer}'s hold ran out with no worker on it`,
+        );
+        returned.push(item.id);
+      }
+      return { returned };
     },
 
     recordSignal(r, input: RunSignalInput) {

@@ -46,6 +46,7 @@ import {
   radarProjects,
   radarTriggers,
 } from '../domain/radar.js';
+import { planRunActivity } from '../domain/run-activity.js';
 import { classifyLegacyOverlaps } from '../domain/shared-changes.js';
 import { checkProjectWorktrees } from '../domain/worktree-check.js';
 import { SYSTEM_ACTOR } from '../domain/write.js';
@@ -55,6 +56,8 @@ export const SWEEP_MS = 15_000;
 export const PING_MS = 60_000;
 /** How long a ping may take before it doesn't count. */
 export const PING_TIMEOUT_MS = 10_000;
+/** Decision 42: how often parked and silent runs are checked for newer activity. */
+export const RUN_ACTIVITY_MS = 120_000;
 
 /**
  * At boot (decision 41): open runs keep their claim, with a lease of at least
@@ -75,12 +78,71 @@ export function restartSweep(runtime: Runtime): { kept: string[]; ended: string[
  * One sweep: expired leases (`interrupted`), and child runs silent past their
  * restart deadline (`children`). A sweep with nothing to end writes nothing.
  */
-export function sweepOnce(runtime: Runtime): { interrupted: string[]; children: string[] } {
+export function sweepOnce(runtime: Runtime): {
+  interrupted: string[];
+  children: string[];
+  /** Decision 42: stories whose producer's hold ran out with no worker, back in Ready. */
+  returned: string[];
+} {
   return runtime.write.run({ actor: SYSTEM_ACTOR, operation: 'sweeper.leases', args: {} }, (w) => {
     const { interrupted } = runtime.services.runs.expireLeases(w);
     const { ended } = runtime.services.runs.endSilentChildren(w);
-    return { interrupted, children: ended };
+    const { returned } = runtime.services.runs.expireProducerHolds(w);
+    return { interrupted, children: ended, returned };
   }).result;
+}
+
+/**
+ * One activity check (decision 42; run-activity.ts): read git and events
+ * outside any transaction, then store what changed. Finding nothing new writes
+ * nothing. Returns the runs newly flagged.
+ */
+export function runActivityOnce(runtime: Runtime): string[] {
+  const findings = planRunActivity(runtime.db, runtime.config, runtime.clock().toISOString());
+  if (findings.length === 0) return [];
+  const known = findings.filter((f) => !f.raised);
+  if (known.length > 0) {
+    runtime.services.runs.refreshActivity(
+      readContext(runtime.db, SYSTEM_ACTOR, runtime.clock()),
+      known,
+    );
+  }
+  const fresh = findings.filter((f) => f.raised);
+  if (fresh.length === 0) return [];
+  return runtime.write.run({ actor: SYSTEM_ACTOR, operation: 'run.activity', args: {} }, (w) =>
+    runtime.services.runs.recordActivity(w, fresh),
+  ).result.raised;
+}
+
+/**
+ * Check parked and silent runs soon after startup and every two minutes, so a
+ * flag shows within a few minutes (decision 42). Skips a tick still running.
+ */
+export function startRunActivity(
+  runtime: Runtime,
+  opts: { intervalMs?: number; firstMs?: number } = {},
+): Sweeper {
+  let stopped = false;
+  const tick = () => {
+    if (stopped) return;
+    try {
+      const raised = runActivityOnce(runtime);
+      if (raised.length > 0) runtime.log(`run activity: flagged ${raised.join(', ')}`);
+    } catch (err) {
+      runtime.log(`run activity: failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  };
+  const first = setTimeout(tick, opts.firstMs ?? 5_000);
+  first.unref();
+  const timer = setInterval(tick, opts.intervalMs ?? RUN_ACTIVITY_MS);
+  timer.unref();
+  return {
+    stop() {
+      stopped = true;
+      clearTimeout(first);
+      clearInterval(timer);
+    },
+  };
 }
 
 /**
@@ -169,11 +231,13 @@ export function startSweeper(
   const seen = new Set<string>();
   const sweep = setInterval(() => {
     try {
-      const { interrupted, children } = sweepOnce(runtime);
+      const { interrupted, children, returned } = sweepOnce(runtime);
       if (interrupted.length > 0)
         runtime.log(`sweeper: lease expired for ${interrupted.join(', ')}`);
       if (children.length > 0)
         runtime.log(`sweeper: no signal after the restart from ${children.join(', ')}`);
+      if (returned.length > 0)
+        runtime.log(`sweeper: producer hold ran out on ${returned.join(', ')}`);
     } catch (err) {
       report('lease sweep', err);
     }

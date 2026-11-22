@@ -42,6 +42,12 @@ export const digestRunSchema = z.object({
   label: z.string().nullable(),
   resume_ready: z.boolean(),
   waiting: z.string().nullable(),
+  /** Decision 42: the story's producer, when it has one. */
+  producer: z.string().optional(),
+  /** Decision 42: "2 commits since parked", while flagged. */
+  activity: z.string().optional(),
+  /** Decision 42: the coordinator who last set this run's status. */
+  updated_by: z.string().optional(),
 });
 
 export const digestBlockedSchema = z.object({

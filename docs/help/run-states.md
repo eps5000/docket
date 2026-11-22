@@ -29,7 +29,13 @@ A **run** is one agent's stretch of work on an item. The agent leading an item h
 | **finished** | The run ended normally. |
 | **interrupted** | Stopped without finishing: its lease expired, its claim was released, or it was a subagent's run that didn't call within 15 minutes of a Docket restart. (Runs from before Docket kept work through restarts may also say the service restarted.) |
 
-Hover a state to see its meaning. Parked runs also say what they wait on, like "parked · waiting on RCP-12", and "ready to resume" once that has cleared.
+Hover a state to see its meaning. Parked runs also say what they wait on, like "parked · waiting on RCP-12", and "ready to resume" once that has cleared. Only real work resumes a parked run: an agent reading the ticket doesn't.
+
+**Activity since parked** means something happened after the run parked: new commits on its branch, updates on the ticket, or a blocker clearing. The run stays parked, because Docket can't be sure, and its coordinator is told. The line goes away once the run or its coordinator responds. **Commits while silent** means commits are landing on a run that has stopped reporting, so that session may not have Docket.
+
+**Producer** is the session that owns a story while smaller workers take turns on it. Handing it between them keeps it In progress ("Between workers"). If no worker picks it up within 30 minutes, it returns to Ready.
+
+**Status updated by** names a coordinator who corrected the run's status for it. A coordinator can't claim, close or review work this way.
 
 ## Leases
 

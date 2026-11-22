@@ -559,6 +559,16 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T208 [US10] Backups: a wall-clock scheduler with one catch-up, tries kept across restarts, and the `backup_missed` Problem.
 - [x] T209 [US18] Needs you: parked and unpushed Problems routed to agents first, the read-only git check, canceled and deferred wording, *Keep for later* and *Safe to discard* with undo, and one count for the badge, the tab title and the page.
 
+## Phase 30: Status follows what agents are doing (owner decision 42)
+
+- [x] T210 [US11] Spec plus code in one PR: decision 42 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.16, §5.23; MCP_SPEC §5.4; UI_SPEC §6.3.2, §6.7, §6.7b; spec FR-196–FR-200; Help (Run states, Connect an agent) and the worker and coordinator skills.
+- [x] T211 [US1] Per-launch connections verified on Claude Code and Codex with temporary homes; `LAUNCH_SNIPPETS` on Agent files and in the coordinator skill.
+- [x] T212 [US11] `update_run_status`: a named coordinator updates a run without its `run_id`, with attribution and no other power.
+- [x] T213 [US11] Activity detection: read-only git, item events and cleared blockers, one event per flag, no flapping.
+- [x] T214 [US1] Producer holds across worker handoffs, keeping one active lead and every protection.
+- [x] T215 [US11] Only mutating calls resume a parked run; every read tool leaves it parked.
+- [x] T216 [US11] Scripted replays of GF-269, GF-336 and GF-280, including a restart.
+
 ## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.
@@ -661,6 +671,7 @@ Open a PR titled "<Bn>: <phase name>" with the checkpoint evidence. Do not queue
 | 27 One status colour system; map arrows route around cards | B47 (after B46) |
 | 28 Coordinators get what they need with far fewer tokens | B48 (after B47) |
 | 29 Survive restarts, catch up backups, truthful Needs you | B49 (after B48) |
+| 30 Status follows what agents are doing | B50 (after B49) |
 
 **Within a phase:** tests (failing) → services → replace stubs or fill handlers → fill screens → checkpoint.
 

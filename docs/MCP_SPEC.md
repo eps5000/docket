@@ -110,7 +110,7 @@ Every mutating tool accepts `idempotency_key` (≤ 100 characters, unique per lo
 - **Use one** for anything you might retry after a timeout.
 
 ### Runs as signals
-Pass `run_id` on every call you make while working. **Every tool accepts an optional `run_id`**, reads included. `idempotency_key` is accepted only by the 35 mutating tools (B3 resolution 1; 27 before decision 30 added `propose_agent_file_change`, 28 before decision 31 added `onboard_project` and `finish_onboarding`, 30 before decision 34 added `apply_batch`, 31 before decision 36 added `declare_shared_changes`, `take_lease` and `release_lease`, and 34 before decision 37 added `propose_resolution`).
+Pass `run_id` on every call you make while working. **Every tool accepts an optional `run_id`**, reads included. `idempotency_key` is accepted only by the 36 mutating tools (B3 resolution 1; 35 before decision 42 added `update_run_status`; 27 before decision 30 added `propose_agent_file_change`, 28 before decision 31 added `onboard_project` and `finish_onboarding`, 30 before decision 34 added `apply_batch`, 31 before decision 36 added `declare_shared_changes`, `take_lease` and `release_lease`, and 34 before decision 37 added `propose_resolution`).
 - **What it does:** renews your lead lease and keeps you *live*.
 - **Calls without it** are attributed to your client but don't touch any run.
 
@@ -183,7 +183,7 @@ Results may carry `warnings: string[]` (§3.4). These are rendered as `! …` li
 
 **Compact definitions** (owner decision 40). Tool definitions are resent to the model on every call, so what a client receives is kept small, and a contract test holds a total budget and a per-tool cap (`server/tests/contract/token-budget.test.ts`):
 - `outputSchema`, for structured sessions, names each result's top-level fields and their types, and that a ToolError has `code` and `message`. The full shapes are in §4, and the server still validates every result against them (`resultJsonSchema`, reviewed as the `tool-results.json` snapshot).
-- `inputSchema` leaves out what validation already reports: `minLength: 1`, the item-ID pattern, the event-type list on `get_changes` (§4 has it, and a wrong type gets a `validation` error), and the length limits of `run_id` and `idempotency_key`. Every other limit, enum, default and required field stays.
+- `inputSchema` leaves out what validation already reports: `minLength: 1`, the item-ID and timestamp patterns, the event-type list on `get_changes` (§4 has it, and a wrong type gets a `validation` error), and the length limits of `run_id` and `idempotency_key`. Every other limit, enum, default and required field stays.
 
 | Tool definitions (characters ÷ 4) | Before | After |
 |---|---|---|
@@ -552,18 +552,18 @@ The format for each tool below:
 
 #### `claim_lead`
 **Description:** "Claim an item as its lead before working on it. Works on Ready items (moves them to In progress) and In progress items with no lead (resuming sent-back or interrupted work). Pass workspace and, if a coordinator briefed you, brief, so the work can restart after a crash; instructions with the installed docket-check script's output; and branch, so conflicts are spotted early. Returns run_id: pass it on every later call. Errors: conflict (someone holds it, with who and until when: do not work on it); seam_conflict (its shared parts collide with an item in flight: Docket queued it or asked the owner, so pick other work and leave it); design_review (it changes an approved design awaiting the owner: pause it and take other work). Parts that can safely run together don't refuse the claim."
-- **Input:** `id`, `agent_label?` (≤ 40, for example `orca-w3`), `workspace?: { host?, repo?, path?, branch?, base_ref?, base_sha? }`, `orchestrator?: { name, dispatch_id?, task_id?, run_id? }`, `brief?` (text, ≤ 20,000) or `brief_document_version_id?`, `external?` (≤ 2 KB JSON), `instructions?: { install_id?, files: [{ key, sha256, content? }] }` (decision 30: the output of the installed `docket-check` script; `content` ≤ 50,000 only for files that differ from the manifest), `branch?` (decision 36: ≤ 200, the branch the conflict radar trial-merges; defaults to `workspace.branch`).
+- **Input:** `id`, `agent_label?` (≤ 40, for example `orca-w3`), `workspace?: { host?, repo?, path?, branch?, base_ref?, base_sha? }`, `orchestrator?: { name, dispatch_id?, task_id?, run_id? }`, `brief?` (text, ≤ 20,000) or `brief_document_version_id?`, `external?` (≤ 2 KB JSON), `instructions?: { install_id?, files: [{ key, sha256, content? }] }` (decision 30: the output of the installed `docket-check` script; `content` ≤ 50,000 only for files that differ from the manifest), `branch?` (decision 36: ≤ 200, the branch the conflict radar trial-merges; defaults to `workspace.branch`), `producer?` (decision 42: ≤ 40, the stable owner of the story across worker handoffs).
 - **`instructions` limits** (B26 resolutions): strict; `files` holds 0–20 entries (empty, with `install_id`, means every installed file is missing); `key` is `agents_block` or `skill:<name>`; `sha256` is 64 hex characters, either case (compared lowercased); `content` is 0–50,000 characters, not trimmed. `start_run` doesn't take it.
 - **Output:** `{ run_id, item: ItemSummary, lease_expires_at }`.
 - **Errors:**
-  - `conflict` with `current: { lead_client, lead_label, run_id, last_signal_at, lease_expires_at }`, recorded as a rejected claim the owner can see;
+  - `conflict` with `current: { lead_client, lead_label, run_id, last_signal_at, lease_expires_at }`, recorded as a rejected claim the owner can see. Between workers, a claim that doesn't name the holding producer gets `conflict` with `current: { producer, hold_until, last_worker }` (decision 42);
   - `validation`: the status isn't ready or progress, or the item is blocked (`details.blocked_by`);
   - `design_review` (decision 39; §5.15) with `details: { review_id, state, parts }`: the item changes an approved design and the owner hasn't approved it. Pause this item and take other work.
   - `seam_conflict` (decisions 36 and 39; §5.15) with `details: { with: string[], parts: string[], outcome?: 'sequence' }`: the item's declared parts collide with another item in flight. The item stays Ready. With `outcome: 'sequence'`, Docket queued it behind those items with a `merged` blocker; without it, the owner is asked once per pair. Overlaps that can safely run together don't refuse the claim.
 
 #### `release_lead`
-**Description:** "Give up the lead claim without finishing. The item returns to Ready for another agent; your plan and notes stay."
-- **Input:** `id`, `run_id`, `reason`.
+**Description:** "Give up the lead claim without finishing. The item returns to Ready; your plan and notes stay. Under a producer it waits for the next worker unless you pass release_story."
+- **Input:** `id`, `run_id`, `reason`, `release_story?` (decision 42: under a producer, give the story up so it returns to Ready).
 - **Output:** `{ item: ItemSummary }`.
 - **Errors:** `forbidden` (not your run), `not_found`.
 
@@ -588,13 +588,21 @@ The format for each tool below:
 - **Warnings:** finishing with unreleased resources, or with `head_sha` ≠ `pushed_sha`, succeeds but warns (`! 1 resource still declared: dev server :5173`; `! 2 commits not pushed`). The workspace then shows as `at_risk`.
 
 #### `park_run`
-**Description:** "Park only when the work itself stops: waiting on another item, the coordinator or a person. Don't park while your own CI or tests run or while you review them: stay live and log a note. A parked run keeps its claim and its workspace stays in use, so it is never mistaken for finished or stale. Say what you wait on; Docket flags it resume_ready when that clears. Any later call with your run_id resumes it."
+**Description:** "Park only when the work itself stops: waiting on another item, the coordinator or a person. Don't park while your own CI or tests run or while you review them: stay live and log a note. A parked run keeps its claim and its workspace stays in use, so it is never mistaken for finished or stale. Say what you wait on; Docket flags it resume_ready when that clears. Any write with your run_id resumes it; reads don't."
 - **Input:** `run_id`, `reason` (≤ 500), `waiting_on?: { items?: string[], orchestrator?: boolean, person?: boolean, until? }`.
 - **Output:** `{ run_state: 'parked', resume_ready: boolean }`.
 - **Errors:** `conflict` (the run has ended), `validation` (unknown item in `waiting_on.items`).
 - **Rules:**
   - A parked run doesn't go stale, and its lease is suspended. After `DOCKET_PARK_MAX` (default 24 h) it shows under the owner's Problems but keeps its claim.
   - `resume_ready` becomes true when every `waiting_on.items` entry is done or cleared, or `until` passes. A run parked only on the orchestrator or a person stays false until it is resumed.
+  - **Only work resumes it (decision 42):** `heartbeat` or any other mutating tool with its `run_id`. A read tool, `get_item` included, leaves its state, lease and park unchanged and writes no event.
+
+#### `update_run_status`
+**Description:** "Coordinators: set an item's lead run's current action, park reason or waiting_on, or resume it, without its run_id. coordinator is your name: the run's orchestrator or one registered for the project. Grants no other power."
+- **Input:** `id`, `coordinator` (≤ 40), `current_action?` (≤ 2,000), `park_reason?` (≤ 500), `waiting_on?`, `resume?` (`true`). At least one of the last four; `resume` not with `park_reason` or `waiting_on`.
+- **Output:** `{ id, run_state, updated_by, resume_ready }`.
+- **Errors:** `forbidden` (not the run's recorded orchestrator or a coordinator registered for the project), `validation` (no active lead; a park change or resume on a run that isn't parked; unknown item in `waiting_on.items`), `conflict` (the run's lease has run out).
+- **Rules:** names the item and takes no `run_id`, so it never counts as the run's signal and renews no lease. It grants no claim, close, review or owner power, and can't park a run. Recorded as `run.status_updated` (or `run.resumed`) naming the coordinator and the calling client. Runs show it as `status_update`, and the run's own next note replaces it.
 
 ### 5.5 Checklist
 

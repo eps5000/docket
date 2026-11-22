@@ -73,6 +73,8 @@ export const LIMITS = {
   workspace_repo: 2_000,
   workspace_path: 1_000,
   orchestrator_name: 40,
+  /** Decision 42: coordinators registered for one project. */
+  coordinators_max: 10,
   locator_text: 200,
   release_note: 500,
   resources_released_max: 50,

@@ -32,7 +32,7 @@ The project has its own rules: who moves work to Ready, when human review is nee
 
    If you get `seam_conflict`, the item collides with another item in flight on a shared part (a table, model, endpoint or shared file). Docket has queued it behind that item, or asked the owner if only the owner can decide. **Pick other work** from `ready_to_start` and leave this item; don't wait, and don't work on it.
 
-   **Given a `run_id` by your coordinator** (you're resuming a parked run after a crash)? Don't claim. Pass that `run_id` on your first call, for example `heartbeat { run_id, note: "Resuming" }`. That resumes the run with its claim, workspace and brief. Then continue from step 3.
+   **Given a `run_id` by your coordinator** (you're resuming a parked run after a crash)? Don't claim. Call `heartbeat { run_id, note: "Resuming" }` first: a read doesn't resume it. That resumes the run with its claim, workspace and brief. Then continue from step 3.
 
 3. **Get context:** `get_context { id, budget: "small" }`. One call gathers the outcome, the acceptance criteria, the decisions you must follow, the epic and label briefs, blockers, the shared parts this item and other in-flight items will change, the project's Workflow notes and planning docs. Widen to `"medium"` or `"large"` only when a `…truncated` line hides something you need. Follow the Workflow notes like the project's `AGENTS.md`.
 
@@ -93,7 +93,7 @@ The project has its own rules: who moves work to Ready, when human review is nee
 
 **Park only when the work itself stops.** Running CI or tests, or reviewing their results, is still work in progress: stay live and `log` a short note ("PR #784 checks running") instead of parking.
 
-**Never just go quiet.** A silent run looks stale and loses its claim. A parked run keeps it, and its worktree is protected from pruning. Any later call with your `run_id` un-parks you.
+**Never just go quiet.** A silent run looks stale and loses its claim. A parked run keeps it, and its worktree is protected from pruning. `heartbeat` or any other write with your `run_id` un-parks you; reads don't.
 
 **Wait without spending tokens.** After `park_run`, end your turn if something will wake you. If you must stay running, block on the installed script, next to `docket-check`: `bash .claude/docket-wait.sh --item <id> --cursor <cursor> --timeout 540` (`docket-wait.ps1` on Windows without bash; keep your shell tool's timeout above `--timeout`). Exit 0 means something changed, 2 means it timed out. Never wait in a `sleep` loop.
 

@@ -85,8 +85,8 @@ describe('initialize', () => {
 });
 
 describe('tools/list: names and descriptions (§5)', () => {
-  it('lists exactly 50 tools, in MCP_SPEC §5 order', () => {
-    expect(tools).toHaveLength(50);
+  it('lists exactly 51 tools, in MCP_SPEC §5 order', () => {
+    expect(tools).toHaveLength(51);
     expect(tools.map((t) => t.name)).toEqual(specDescriptions().map(([name]) => name));
   });
 
@@ -138,9 +138,9 @@ describe('tools/list: annotations (§3)', () => {
     expect(byName('get_item').annotations?.readOnlyHint).toBe(false);
   });
 
-  it('the §3 counts hold: 14 read tools, 35 mutating', () => {
+  it('the §3 counts hold: 14 read tools, 36 mutating', () => {
     expect(SPEC).toContain('`true` for the 14 read tools');
-    expect(SPEC).toContain('accepted only by the 35 mutating tools');
+    expect(SPEC).toContain('accepted only by the 36 mutating tools');
     expect(READ_TOOLS).toHaveLength(14);
   });
 });
@@ -227,9 +227,10 @@ const INPUTS: Record<string, [string[], string[]]> = {
       'external',
       'instructions',
       'branch',
+      'producer',
     ],
   ],
-  release_lead: [['id', 'run_id', 'reason'], []],
+  release_lead: [['id', 'run_id', 'reason'], ['release_story']],
   start_run: [
     ['id', 'parent_run_id'],
     ['agent_label', 'workspace', 'orchestrator', 'brief', 'brief_document_version_id', 'external'],
@@ -240,6 +241,10 @@ const INPUTS: Record<string, [string[], string[]]> = {
   ],
   finish_run: [['run_id', 'result', 'summary'], ['error']],
   park_run: [['run_id', 'reason'], ['waiting_on']],
+  update_run_status: [
+    ['id', 'coordinator'],
+    ['current_action', 'park_reason', 'waiting_on', 'resume'],
+  ],
   set_plan: [['id'], ['reason', 'mode', 'steps', 'remove']],
   update_step: [
     ['id', 'step_id', 'state'],
@@ -345,6 +350,7 @@ const OUTPUTS: Record<string, string[]> = {
   heartbeat: ['run_state', 'lease_expires_at', 'resources'],
   finish_run: ['run_state'],
   park_run: ['run_state', 'resume_ready'],
+  update_run_status: ['id', 'run_state', 'updated_by', 'resume_ready'],
   set_plan: ['plan_version', 'work'],
   update_step: ['step'],
   log_subagent: ['logged'],
@@ -425,7 +431,7 @@ describe('tools/list: input schemas (§3, §5)', () => {
   });
 
   it('every mutating tool accepts idempotency_key and run_id; reads accept run_id only', () => {
-    expect(MUTATING).toHaveLength(35);
+    expect(MUTATING).toHaveLength(36);
     for (const t of tools) {
       const props = input(t.name).properties!;
       expect(props.run_id, t.name).toBeDefined();
@@ -785,7 +791,7 @@ describe('text-only sessions (§3 Results)', () => {
     expect(await t.a.getPrompt(args)).toEqual(await other.getPrompt(args));
   });
 
-  it('lists the same 50 tools, in order, with the §5 descriptions verbatim', () => {
+  it('lists the same 51 tools, in order, with the §5 descriptions verbatim', () => {
     expect(t.b.getServerVersion()?.name).toBe('docket');
     expect(textTools.map((x) => x.name)).toEqual(specDescriptions().map(([name]) => name));
     for (const [name, description] of specDescriptions()) {

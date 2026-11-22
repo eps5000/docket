@@ -29,14 +29,14 @@ const fails = (name: string, args: unknown) => {
 };
 
 describe('the registry', () => {
-  it('has 50 tools with unique names: 14 read, 1 delivering (get_item), 35 mutating', () => {
-    expect(TOOLS).toHaveLength(50);
-    expect(new Set(TOOLS.map((t) => t.name)).size).toBe(50);
+  it('has 51 tools with unique names: 14 read, 1 delivering (get_item), 36 mutating', () => {
+    expect(TOOLS).toHaveLength(51);
+    expect(new Set(TOOLS.map((t) => t.name)).size).toBe(51);
     const kinds = TOOLS.reduce<Record<string, number>>(
       (acc, t) => ({ ...acc, [t.kind]: (acc[t.kind] ?? 0) + 1 }),
       {},
     );
-    expect(kinds).toEqual({ read: 14, delivering: 1, mutating: 35 });
+    expect(kinds).toEqual({ read: 14, delivering: 1, mutating: 36 });
   });
 
   it('groups tools into the thirteen server files', () => {
@@ -60,7 +60,7 @@ describe('the registry', () => {
     expect(groups).toEqual({
       read: 9,
       items: 6,
-      runs: 6,
+      runs: 7,
       checklist: 8,
       evidence: 4,
       review: 3,

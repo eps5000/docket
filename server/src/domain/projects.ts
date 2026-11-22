@@ -55,7 +55,18 @@ interface ProjectRow {
   default_satisfied_when: SatisfiedWhen;
   version: number;
   created_by: string | null;
+  coordinators?: string | null;
 }
+
+/** Decision 42: the stored JSON list, cleaned; empty when none are registered. */
+const coordinatorList = (stored: string | null | undefined): string[] => {
+  try {
+    const names: unknown = JSON.parse(stored ?? '[]');
+    return Array.isArray(names) ? names.filter((n): n is string => typeof n === 'string') : [];
+  } catch {
+    return [];
+  }
+};
 
 const projectView = (p: ProjectRow): Project => ({
   key: p.key,
@@ -65,6 +76,10 @@ const projectView = (p: ProjectRow): Project => ({
   default_satisfied_when: p.default_satisfied_when,
   version: p.version,
   created_by: p.created_by,
+  // Decision 42: present once the owner registers one, so other responses stay as they were.
+  ...(coordinatorList(p.coordinators).length > 0
+    ? { coordinators: coordinatorList(p.coordinators) }
+    : {}),
 });
 
 const items = (n: number) => `${n} ${n === 1 ? 'item' : 'items'}`;
@@ -191,9 +206,28 @@ export function createProjectsService(deps: ServiceDeps): ProjectsService {
         found.id,
         input.expected_version,
       ) as unknown as ProjectRow;
+      // Decision 42: the owner names who may use update_run_status on this project's runs.
+      if (input.coordinators !== undefined) {
+        const names = [...new Set(input.coordinators.map((n) => n.trim()).filter(Boolean))];
+        const old = coordinatorList(row.coordinators);
+        if (JSON.stringify(names) !== JSON.stringify(old)) {
+          const inverse = w.update('projects', row.id, { coordinators: JSON.stringify(names) });
+          w.event({
+            type: 'project.updated',
+            summary: names.length
+              ? `Coordinators for ${row.name}: ${names.join(', ')}`
+              : `No coordinators registered for ${row.name}`,
+            project_key: row.key,
+            data: { old: { coordinators: old }, new: { coordinators: names } },
+            objects: [{ kind: 'project', id: row.key }],
+            inverse: [inverse],
+          });
+        }
+      }
       const rule = input.default_satisfied_when;
-      if (row.default_satisfied_when === rule) {
-        return { project: projectView(row), reblocked: [], unblocked: [] };
+      if (rule === undefined || row.default_satisfied_when === rule) {
+        const now = sql.prepare('SELECT * FROM projects WHERE id = ?').get(row.id) as ProjectRow;
+        return { project: projectView(now), reblocked: [], unblocked: [] };
       }
       const before = new BlockIndex(w.db);
       const inverse = w.update('projects', row.id, { default_satisfied_when: rule });

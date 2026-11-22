@@ -172,11 +172,21 @@ describe('park_run (BUILD_SPEC §5.16)', () => {
     expect(problems('stale_run').map((p) => p.run_id)).not.toContain(run_id);
   });
 
-  it('any later call with its run_id resumes it, through the signal hook (a read too)', async () => {
+  it('a read with its run_id leaves it parked (decision 42)', async () => {
     const { run_id } = claim('RCP-17');
     park(run_id, { orchestrator: true });
     d.clock.advance(hours(3));
     const res = await call('get_item', { id: 'RCP-17', view: 'summary', run_id });
+    expect(res.isError).toBeFalsy();
+    expect(run(run_id).state).toBe('parked');
+    expect(events('run.resumed')).toHaveLength(0);
+  });
+
+  it('a later write with its run_id resumes it, through the signal hook', async () => {
+    const { run_id } = claim('RCP-17');
+    park(run_id, { orchestrator: true });
+    d.clock.advance(hours(3));
+    const res = await call('add_note', { id: 'RCP-17', text: 'Back on it', run_id });
     expect(res.isError).toBeFalsy();
     const after = run(run_id);
     expect(after.state).toBe('open');

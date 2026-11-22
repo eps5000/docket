@@ -7,9 +7,9 @@
  * - `tools/call`:
  *   1. validate the arguments against the zod schema; a bad call gets a
  *      `validation` ToolError, even from a stub;
- *   2. the `run_id` signal hook: resume the run if it is parked (US11),
- *      classify the signal (session or report), record it and renew the
- *      lead lease;
+ *   2. the `run_id` signal hook: a mutating tool resumes the run if it is
+ *      parked (US11; decision 42: reads never do), classify the signal
+ *      (session or report), record it and renew the lead lease;
  *   3. run the handler, which calls the domain services (domain/contracts.ts);
  *      a service that is still a stub answers `unavailable` "Not implemented
  *      yet: <tool>". Mutating handlers write through `ctx.mutate`, which
@@ -170,7 +170,7 @@ export function runSignal(
  * Resume a parked run (BUILD_SPEC §5.16): state back to open, lease renewed,
  * `run.resumed`. A mutation of its own through the write path, before the
  * call's own handler, so the handler sees a running run. A call naming a run
- * that isn't parked writes nothing.
+ * that isn't parked writes nothing. Only mutating tools call this (decision 42).
  */
 export function resumeIfParked(runtime: Runtime, actor: Actor, runId: string): void {
   const row = runtime.db.sqlite.prepare('SELECT state FROM runs WHERE id = ?').get(runId) as
@@ -178,6 +178,22 @@ export function resumeIfParked(runtime: Runtime, actor: Actor, runId: string): v
   if (row?.state !== 'parked') return;
   runtime.write.run({ actor, operation: 'run.resume', args: { run_id: runId } }, (w) =>
     runtime.services.runs.resume(w, { run_id: runId }),
+  );
+}
+
+/**
+ * `update_run_status` takes the optional `run_id` every tool takes, which is
+ * the caller's own run. Naming a run of the item being updated would make the
+ * call that run's signal, so it is refused before the signal hook sees it.
+ */
+function assertNotBorrowed(runtime: Runtime, itemId: string, runId: string): void {
+  const row = runtime.db.sqlite.prepare('SELECT item_id FROM runs WHERE id = ?').get(runId) as
+    { item_id: string } | undefined;
+  if (row?.item_id !== itemId) return;
+  throw new ToolError(
+    'validation',
+    `Don't pass a run_id from ${itemId}: this tool updates that run as you, not as the run. Leave run_id out.`,
+    { details: { fields: { run_id: 'a run of the item being updated' } } },
   );
 }
 
@@ -242,11 +258,18 @@ export async function callTool(
     let replayed = false;
     const warnings: string[] = [];
     const read = readContext(runtime.db, actor, now);
+    // Decision 42: a coordinator's update never speaks as the run it is updating.
+    if (tool.name === 'update_run_status' && runId) {
+      assertNotBorrowed(runtime, String(args.id), runId);
+    }
     const signal = runId ? runSignal(runtime, runId, session) : null;
     // Every call naming a known run is a signal (BUILD_SPEC §5.4): it renews the lead lease.
     if (signal?.known) {
-      // A parked run resumes on any later call naming it (§5.16); park_run itself re-parks.
-      if (tool.name !== 'park_run') resumeIfParked(runtime, actor, signal.run_id);
+      // Decision 42: only work resumes a parked run: a mutating tool naming it (§5.16). Reads,
+      // get_item included, leave its state, lease and park alone. park_run itself re-parks.
+      if (tool.kind === 'mutating' && tool.name !== 'park_run') {
+        resumeIfParked(runtime, actor, signal.run_id);
+      }
       runtime.services.runs.recordSignal(read, {
         run_id: signal.run_id,
         kind: signal.kind,
@@ -343,7 +366,7 @@ function internal(runtime: Runtime, tool: string, cause: unknown): ToolError {
   });
 }
 
-/** Register all 50 tools on a session's server (the McpHub `configure` hook). */
+/** Register all 51 tools on a session's server (the McpHub `configure` hook). */
 export function registerTools(server: McpServer, opts: RegisterOptions): void {
   // The tool list is fixed for the life of the server (MCP_SPEC §1). Declared
   // on the low-level server, before connect: McpServer's own tool registration

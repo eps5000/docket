@@ -68,6 +68,7 @@ export const US1_TOOLS: readonly ToolName[] = [
   'deferred_reviews',
   // US11 (B10, T100).
   'park_run',
+  'update_run_status',
   'recovery_report',
   // US4 (B11, T107).
   'link_items',

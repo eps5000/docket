@@ -113,6 +113,7 @@ import type { Db } from '../db/client.js';
 import type { CallLog } from '../jobs/logs.js';
 import type { Actor, WriteContext } from './write.js';
 import type { RadarPlan } from './radar.js';
+import type { ActivityFinding } from './run-activity.js';
 import type { DigestService } from './digest.js';
 import type { FoundProblem, ProblemsService } from './problems.js';
 
@@ -309,11 +310,23 @@ export interface RunsService {
   /** `park_run` (§5.16): state `parked`, lease suspended, claim kept; event `run.parked`. */
   park(w: WriteContext, input: In<'park_run'>): Out<'park_run'>;
   /**
-   * Any later call with a parked run's `run_id` resumes it (state `open`,
-   * lease renewed; event `run.resumed`). US11 calls it from the MCP signal
-   * hook for parked runs.
+   * A later mutating call with a parked run's `run_id` resumes it (state
+   * `open`, lease renewed; event `run.resumed`). The MCP signal hook calls it;
+   * read-only tools never do (decision 42).
    */
   resume(w: WriteContext, input: { run_id: string }): { resumed: boolean };
+  /**
+   * Decision 42 (`update_run_status`): a named coordinator sets the item's lead
+   * run's current action, park reason or waiting-on, or resumes it. Never the
+   * run's own signal; grants no claim, close, review or owner power.
+   */
+  updateStatus(w: WriteContext, input: In<'update_run_status'>): Out<'update_run_status'>;
+  /** Decision 42: raise the flags the activity check found; one event each. */
+  recordActivity(w: WriteContext, findings: readonly ActivityFinding[]): { raised: string[] };
+  /** Decision 42: newer counts on flags already raised. Bookkeeping: no event, no version. */
+  refreshActivity(r: ReceiptContext, findings: readonly ActivityFinding[]): void;
+  /** Decision 42: holds past their time end; a story with no worker on it returns to Ready. */
+  expireProducerHolds(w: WriteContext): { returned: string[] };
   /** Every call carrying `run_id` (the MCP signal hook): renew the lease, record the signal. */
   recordSignal(r: ReceiptContext, signal: RunSignalInput): void;
   /** The sweeper: expired leases → run `interrupted`, item back to Ready. */

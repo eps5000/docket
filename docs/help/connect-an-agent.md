@@ -35,6 +35,13 @@ Open the client in the repo:
 
 Headless runs: `claude -p` uses the project's servers without asking; `codex exec` reads the project's file only once the folder is trusted, so open Codex there once first.
 
+**A session that can't see Docket?** Codex skips the repo's connection file until the folder is trusted. **Agent files → Start a session with Docket connected** has a command for each client that connects that one session and changes no config file:
+
+- Claude Code: `claude --mcp-config .mcp.json`
+- Codex: `codex -c "mcp_servers.docket.url='http://127.0.0.1:7420/mcp'"`
+
+In protected mode, set `DOCKET_TOKEN` first; the commands never contain the token.
+
 ## 3. Check it
 
 Ask the agent to call the `whoami` tool. Then look at the **Client compatibility** table in Settings → Connections: the client appears with *Last seen* just now.

@@ -253,6 +253,33 @@ export const runParkedSchema = z.object({
   resume_ready: z.boolean(),
 });
 
+/** Decision 42: who last set this run's status for it (`update_run_status`). */
+export const runStatusUpdateSchema = z.object({
+  by: z.string(),
+  client: z.string().nullable(),
+  at: z.string(),
+});
+export type RunStatusUpdate = z.infer<typeof runStatusUpdateSchema>;
+
+/**
+ * Decision 42: real activity newer than the run's last word. `since_parked`:
+ * while it is parked. `since_signal`: commits on its branch while it is silent,
+ * so its session may be working without Docket. Stays until the run or a
+ * coordinator speaks; the state itself doesn't change.
+ */
+export const runActivitySchema = z.object({
+  kind: z.enum(['since_parked', 'since_signal']),
+  since: z.string(),
+  detected_at: z.string(),
+  commits: z.number().int(),
+  last_commit: z.string().nullable(),
+  branch: z.string().nullable(),
+  events: z.number().int(),
+  /** `waiting_on.items` that cleared since. */
+  cleared_items: z.array(z.string()),
+});
+export type RunActivity = z.infer<typeof runActivitySchema>;
+
 export const runSchema = z.object({
   run_id: z.string(),
   parent_run_id: z.string().nullable(),
@@ -275,8 +302,22 @@ export const runSchema = z.object({
   resources: z.array(resourceSchema),
   /** `get_item` view `full` and `recovery_report` only. */
   external: externalSchema.optional(),
+  /** Decision 42: the stable owner of the story across worker handoffs. Present when set. */
+  producer: z.string().optional(),
+  /** Decision 42: present after a coordinator's `update_run_status`. */
+  status_update: runStatusUpdateSchema.optional(),
+  /** Decision 42: present while newer activity is flagged. */
+  activity: runActivitySchema.optional(),
 });
 export type Run = z.infer<typeof runSchema>;
+
+/** Decision 42: a story between workers, still held by its producer until `until`. */
+export const producerHoldSchema = z.object({
+  producer: z.string(),
+  until: z.string(),
+  last_worker: z.string().nullable(),
+});
+export type ProducerHold = z.infer<typeof producerHoldSchema>;
 
 /** `Item.resume`: set when the item is resumable or its last run was interrupted. */
 export const itemResumeSchema = z.object({
@@ -352,6 +393,8 @@ export const itemSchema = itemSummarySchema.extend({
   open_question: questionSchema.nullable(),
   /** Set when the item is resumable or its last run was interrupted (MCP_SPEC §4). */
   resume: itemResumeSchema.nullable(),
+  /** Decision 42: present while the story is between workers under one producer. */
+  producer_hold: producerHoldSchema.optional(),
   /** Returned once, then marked read. */
   unread_owner_notes: z.array(z.object({ id: z.string(), text: z.string(), at: z.string() })),
   documents: z.array(

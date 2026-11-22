@@ -1,0 +1,270 @@
+/**
+ * Status that follows the work (owner decision 42; BUILD_SPEC §5.23).
+ *
+ * - **Producer holds.** A story has a stable producer across worker handoffs.
+ *   While no worker leads it, the last lead run carries `producer_hold_until`
+ *   and the item stays In progress for that producer alone.
+ * - **Activity detection.** A parked run shows "activity since parked" when
+ *   something real happened after it parked (commits on its reported branches,
+ *   updates on the item, a blocker that cleared). A silent open run shows the
+ *   same for commits, because its session may be working without Docket.
+ *
+ * The check reads git with the radar's read-only rules (no fetch, nothing
+ * written, inside `DOCKET_PUSH_ROOT`), outside any transaction. A flag never
+ * changes a run's state, and it stays until the run or a coordinator speaks, so
+ * it can't flap. Clearing moves the baseline, so what was seen is not re-raised.
+ */
+import type { ProducerHold, RunActivity, RunStatusUpdate, WaitingOn } from '@docket/shared';
+import type { Config } from '../config.js';
+import type { Db } from '../db/client.js';
+import { BlockIndex, actorName, displayRunState, ms, windowsOf, type RunRow } from './model.js';
+import { git, probeRepo, reportedBranches, resolveRepoPath, validBranch } from './radar.js';
+import { clearedSince, parkInfo, parseJson, storedWorkspace } from './recovery-model.js';
+
+// ---- Stored shapes ----
+
+/** `runs.park_activity`: the baseline to compare against, and the raised flag. */
+export interface StoredActivity {
+  since: string;
+  flag: RunActivity | null;
+}
+
+export const storedActivity = (run: Pick<RunRow, 'park_activity'>): StoredActivity | null =>
+  parseJson<StoredActivity>(run.park_activity);
+
+export const storedStatusUpdate = (run: Pick<RunRow, 'status_update'>): RunStatusUpdate | null =>
+  parseJson<RunStatusUpdate>(run.status_update);
+
+/** The coordinators the owner registered for a project. */
+export function projectCoordinators(db: Db, project: string): string[] {
+  const row = db.sqlite.prepare('SELECT coordinators FROM projects WHERE key = ?').get(project) as
+    { coordinators: string | null } | undefined;
+  const names = parseJson<unknown>(row?.coordinators);
+  return Array.isArray(names) ? names.filter((n): n is string => typeof n === 'string') : [];
+}
+
+// ---- Producer holds ----
+
+export interface HoldRow extends ProducerHold {
+  run_id: string;
+}
+
+/**
+ * The hold on an In progress item with no active lead, if any: the newest lead
+ * run carrying one. It counts until the sweeper ends it, so a claim just after
+ * `until` can't slip in ahead of the item's return to Ready.
+ */
+export function producerHold(db: Db, itemId: string): HoldRow | null {
+  const run = db.sqlite
+    .prepare(
+      `SELECT r.* FROM runs r JOIN items i ON i.id = r.item_id
+       WHERE r.item_id = ? AND r.is_lead = 1 AND i.status = 'progress'
+         AND r.producer IS NOT NULL AND r.producer_hold_until IS NOT NULL
+       ORDER BY r.created_at DESC, r.id DESC LIMIT 1`,
+    )
+    .get(itemId) as RunRow | undefined;
+  if (!run) return null;
+  return {
+    run_id: run.id,
+    producer: run.producer!,
+    until: run.producer_hold_until!,
+    last_worker: actorName({ kind: 'agent', client: run.client, label: run.label }),
+  };
+}
+
+/** Each item's producer, for cards: from its active lead, or its hold between workers. */
+export function producersByItem(db: Db): Map<string, { name: string; between_workers: boolean }> {
+  const out = new Map<string, { name: string; between_workers: boolean }>();
+  for (const r of db.sqlite
+    .prepare(
+      `SELECT r.item_id, r.producer, r.state FROM runs r JOIN items i ON i.id = r.item_id
+       WHERE r.is_lead = 1 AND r.producer IS NOT NULL AND (
+         r.state IN ('open', 'needs_input', 'parked')
+         OR (r.producer_hold_until IS NOT NULL AND i.status = 'progress'))
+       ORDER BY r.created_at, r.id`,
+    )
+    .all() as { item_id: string; producer: string; state: string }[]) {
+    out.set(r.item_id, {
+      name: r.producer,
+      between_workers: !['open', 'needs_input', 'parked'].includes(r.state),
+    });
+  }
+  return out;
+}
+
+// ---- Activity detection ----
+
+/** Item events that show real work happened. The park and resume bookkeeping isn't one. */
+const ACTIVITY_EVENTS = [
+  'note.added',
+  'owner_note.added',
+  'commit.reported',
+  'artifact.linked',
+  'document.added',
+  'plan.updated',
+  'step.updated',
+  'checks.updated',
+  'check.updated',
+  'subagent.logged',
+  'run.started',
+  'run.ended',
+  'question.answered',
+  'packet.submitted',
+] as const;
+
+/** How many of a run's branches one check reads. */
+const MAX_BRANCHES = 10;
+/** Commits counted per ref: enough to say "there are new commits". */
+const MAX_COMMITS = 50;
+
+export interface ActivityFinding {
+  run_id: string;
+  item_id: string;
+  /** The stored state and baseline the finding was read against. */
+  state: RunRow['state'];
+  baseline: string;
+  activity: RunActivity;
+  /** First time for this baseline: it gets one event. */
+  raised: boolean;
+  resume_ready: boolean;
+}
+
+interface Repo {
+  dir: string;
+  main: string;
+}
+
+function projectRepo(db: Db, config: Config, project: string): Repo | null {
+  const p = db.sqlite
+    .prepare('SELECT repo_path, main_branch FROM projects WHERE key = ? AND deleted_at IS NULL')
+    .get(project) as { repo_path: string | null; main_branch: string } | undefined;
+  if (!p?.repo_path) return null;
+  try {
+    const dir = resolveRepoPath(config, p.repo_path);
+    return probeRepo(dir).ok ? { dir, main: p.main_branch } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Commits on `branches` newer than `since`, from local and origin refs. Read-only. */
+export function commitsSince(
+  repo: Repo,
+  branches: readonly string[],
+  since: string,
+): { count: number; last: string | null; branch: string | null } {
+  const seen = new Map<string, { at: number; branch: string }>();
+  const after = ms(since);
+  for (const branch of branches.slice(0, MAX_BRANCHES)) {
+    if (branch === repo.main || !validBranch(branch)) continue;
+    for (const ref of [`refs/heads/${branch}`, `refs/remotes/origin/${branch}`]) {
+      const r = git(repo.dir, [
+        'log',
+        '--format=%H %ct',
+        '-n',
+        String(MAX_COMMITS),
+        `--since=${since}`,
+        ref,
+        '--',
+      ]);
+      if (r.status !== 0) continue;
+      for (const line of r.stdout.split('\n')) {
+        const [sha, ct] = line.trim().split(' ');
+        const at = Number(ct) * 1000;
+        if (!sha || !Number.isFinite(at) || at <= after) continue;
+        if (!seen.has(sha)) seen.set(sha, { at, branch });
+      }
+    }
+  }
+  let last: { sha: string; at: number; branch: string } | null = null;
+  for (const [sha, c] of seen) if (!last || c.at > last.at) last = { sha, ...c };
+  return { count: seen.size, last: last?.sha ?? null, branch: last?.branch ?? null };
+}
+
+const later = (a: string, b: string | null | undefined) => (b && ms(b) > ms(a) ? b : a);
+
+const sameFacts = (a: RunActivity, b: RunActivity) =>
+  a.kind === b.kind &&
+  a.commits === b.commits &&
+  a.last_commit === b.last_commit &&
+  a.events === b.events &&
+  a.cleared_items.join() === b.cleared_items.join();
+
+/**
+ * What changed for each parked or silent lead run since its baseline. Reads
+ * git, so it runs on a timer and never on a read. Returns only what is new.
+ */
+export function planRunActivity(db: Db, config: Config, now: string): ActivityFinding[] {
+  const runs = db.sqlite
+    .prepare(
+      `SELECT r.*, i.project_key AS project_key FROM runs r JOIN items i ON i.id = r.item_id
+       WHERE r.is_lead = 1 AND r.state IN ('parked', 'open') ORDER BY r.created_at, r.id`,
+    )
+    .all() as (RunRow & { project_key: string })[];
+  if (runs.length === 0) return [];
+  const windows = windowsOf(config);
+  const index = new BlockIndex(db);
+  const repos = new Map<string, Repo | null>();
+  const repoOf = (key: string) => {
+    if (!repos.has(key)) repos.set(key, projectRepo(db, config, key));
+    return repos.get(key)!;
+  };
+  const countEvents = db.sqlite.prepare(
+    `SELECT count(*) AS n FROM events WHERE item_id = ? AND at > ?
+     AND type IN (SELECT value FROM json_each(?))`,
+  );
+  const out: ActivityFinding[] = [];
+  for (const run of runs) {
+    const parked = run.state === 'parked';
+    if (!parked && displayRunState(run, windows, now) !== 'stale') continue;
+    const stored = storedActivity(run);
+    const baseline = parked
+      ? (stored?.since ?? run.parked_at ?? run.updated_at)
+      : later(run.last_signal_at, storedStatusUpdate(run)?.at);
+
+    const waiting = parseJson<WaitingOn>(run.waiting_on) ?? {};
+    const info = parked ? parkInfo(db, run, now, index) : null;
+    const cleared = parked ? clearedSince(db, run, waiting, baseline, index) : [];
+    const events = parked
+      ? (
+          countEvents.get(run.item_id, baseline, JSON.stringify(ACTIVITY_EVENTS)) as {
+            n: number;
+          }
+        ).n
+      : 0;
+    const repo = repoOf(run.project_key);
+    const branches = [
+      ...new Set([
+        ...reportedBranches(db, run.item_id).map((b) => b.name),
+        ...(storedWorkspace(run)?.branch ? [storedWorkspace(run)!.branch!] : []),
+      ]),
+    ];
+    const commits = repo
+      ? commitsSince(repo, branches, baseline)
+      : { count: 0, last: null, branch: null };
+    const ready = info?.resume_ready === true && ms(info.ready_since!) > ms(baseline);
+    if (commits.count === 0 && events === 0 && cleared.length === 0 && !ready) continue;
+
+    const activity: RunActivity = {
+      kind: parked ? 'since_parked' : 'since_signal',
+      since: baseline,
+      detected_at: stored?.flag?.detected_at ?? now,
+      commits: commits.count,
+      last_commit: commits.last,
+      branch: commits.branch,
+      events,
+      cleared_items: cleared,
+    };
+    if (stored?.flag && sameFacts(stored.flag, activity)) continue;
+    out.push({
+      run_id: run.id,
+      item_id: run.item_id,
+      state: run.state,
+      baseline,
+      activity,
+      raised: !stored?.flag,
+      resume_ready: info?.resume_ready ?? false,
+    });
+  }
+  return out;
+}
