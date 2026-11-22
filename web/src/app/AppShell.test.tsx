@@ -111,7 +111,7 @@ describe('the Needs you count (owner decision 41)', () => {
     agent_counts: {},
     ...over,
   });
-  const nav = () => screen.getByRole('link', { name: /^Needs you/ });
+  const nav = () => screen.getByRole('link', { name: /^Overview/ });
 
   it('the badge, the tab title and the page agree; problems agents handle are not counted', async () => {
     bootProjects = [project];
@@ -142,19 +142,19 @@ describe('app shell', () => {
   it('renders the sidebar, header and a clean "not built yet" state for 501', async () => {
     renderAt('/');
     expect(screen.getByRole('navigation', { name: 'Primary' })).toBeTruthy();
-    for (const name of ['Needs you', 'Work', 'Agents', 'Settings']) {
+    for (const name of ['Overview', 'Work', 'Agents', 'Settings']) {
       expect(screen.getByRole('link', { name: new RegExp(`^${name}`) })).toBeTruthy();
     }
-    expect(screen.getByRole('heading', { level: 1, name: 'Needs you' })).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 1, name: 'Overview' })).toBeTruthy();
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toContain('Not built yet.');
     expect(alert.textContent).toContain('unavailable');
     expect(alert.textContent).toContain('Not implemented yet: GET /api/needs-you');
-    expect(screen.getByRole('link', { name: 'Needs you' }).getAttribute('aria-current')).toBe(
+    expect(screen.getByRole('link', { name: 'Overview' }).getAttribute('aria-current')).toBe(
       'page',
     );
     expect(screen.getByRole('navigation', { name: 'Breadcrumb' }).textContent).toBe(
-      'All projects / Needs you',
+      'All projects / Overview',
     );
   });
 

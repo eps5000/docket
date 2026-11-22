@@ -11,6 +11,7 @@
  * | Which events were already notified      | localStorage     |
  * | Collapsed sections (per section *type*) | localStorage     |
  * | Work's last filter, per project (B43)   | localStorage     |
+ * | Overview's time window (decision 43)    | localStorage     |
  *
  * Everything else (filters, layout) lives in the URL query. Work's filter
  * lives there too; the stored one applies only when the URL has none.
@@ -41,6 +42,8 @@ export const STORAGE_KEYS = {
    * project (`all` for All projects), kept only where it isn't the default (B43).
    */
   workFilters: 'docket.workFilters',
+  /** localStorage: `24h` | `7d` | `30d`, Overview's last time window (decision 43). */
+  overviewWindow: 'docket.overviewWindow',
 } as const;
 
 export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS];
@@ -54,6 +57,7 @@ export const STORAGE_AREA: Record<StorageKey, 'session' | 'local'> = {
   'docket.notified': 'local',
   'docket.collapsed': 'local',
   'docket.workFilters': 'local',
+  'docket.overviewWindow': 'local',
 };
 
 function area(key: StorageKey): Storage | null {

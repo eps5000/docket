@@ -41,7 +41,8 @@ export const PALETTE_LABELS = 10;
 
 /** The palette's "Go to" views (UI_SPEC §6.9), the same list the web client shows. */
 export const PALETTE_VIEWS = [
-  { key: 'needs-you', label: 'Needs you', path: '/' },
+  { key: 'overview', label: 'Overview', path: '/' },
+  { key: 'needs-you', label: 'Needs you', path: '/#needs-you' },
   { key: 'work', label: 'Work', path: '/work' },
   { key: 'timeline', label: 'Timeline (Work)', path: '/work?layout=timeline' },
   { key: 'agents', label: 'Agents', path: '/agents' },

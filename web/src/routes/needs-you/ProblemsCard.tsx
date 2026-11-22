@@ -342,7 +342,7 @@ export function ProblemsCard({
   const [showAll, setShowAll] = useState(false);
   const shown = showAll ? problems : problems.slice(0, MAX_PROBLEMS);
   return (
-    <Card data-card="problems">
+    <Card data-card="problems" id="problems">
       <CardHeader title={`Problems · ${problems.length}`} />
       {problems.length === 0 ? (
         <EmptyState text="No stale or failed runs, cycles or date conflicts." />
@@ -384,7 +384,7 @@ export function ProblemsCard({
 }
 
 /** A line that opens the problems it counts, in place (decision 37). */
-function MoreProblems({
+export function MoreProblems({
   kind,
   label,
   problems,

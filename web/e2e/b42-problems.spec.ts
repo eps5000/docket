@@ -152,9 +152,10 @@ test('an agent problem with no lead reaches you; Open lands on the banner; Remin
   expect(problemId).toMatch(/^rdf_/);
   const mine = card.locator(`[data-problem-id="${problemId}"]`);
   // RCP-14 has a lead: the agents handle it first, and Needs you says so.
-  const handling = card.getByRole('button', { name: 'Agents are handling 1 problem' });
+  const health = page.locator('[data-card="health"]');
+  const handling = health.getByRole('button', { name: 'Agents are handling 1 problem' });
   await handling.click();
-  await expect(card.locator('[data-more-problems="agents"] [data-problem]')).toContainText(
+  await expect(health.locator('[data-more-problems="agents"] [data-problem]')).toContainText(
     'An agent (the lead of RCP-14)',
   );
   await settle(page);
@@ -205,7 +206,11 @@ test('Acknowledge, then propose, a different way, propose again, approve', async
   await row.getByRole('button', { name: 'Acknowledge' }).click();
   await expect(toast(page, 'Acknowledged.')).toBeVisible();
   await expect(row).toHaveCount(0);
-  await expect(card.getByRole('button', { name: 'You acknowledged 1 problem' })).toBeVisible();
+  await expect(
+    page
+      .locator('[data-card="health"]')
+      .getByRole('button', { name: 'You acknowledged 1 problem' }),
+  ).toBeVisible();
 
   // The banner keeps it, saying so.
   await page.goto(`/items/RCP-1?problem=${problemId}`);

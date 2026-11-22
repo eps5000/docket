@@ -79,7 +79,7 @@ An agent can set a project up from what's already in its repo (Spec Kit specs, p
 1. **Create the project:** Settings → Projects → *New project* (a 2–5 letter key, a name, a colour and the blocker rule).
 2. **Import its Jira tickets first, if it has any:** *Import from Jira…* in the same dialog, with a dry run before anything is written. Import before onboarding, so the agent enriches the imported tickets instead of duplicating them.
 3. **Onboard it:** in the repo's folder, tell any connected agent "Onboard this repo into Docket as project GF, using onboard_project." (Clients with MCP prompts can run the `onboard` prompt; in Claude Code, `/mcp__docket__onboard GF`.) The agent gets the onboarding guide from Docket, matches the repo's tasks to existing items by Jira key, source path or title, creates the rest in Planning with dependencies, labels, decisions and planning documents, proposes Workflow notes, and finishes with a summary. Nothing is made Ready.
-4. **Review it:** Needs you shows one card with what it created and enriched, its questions, the proposed Workflow notes, *Install agent files* and *Mark reviewed*.
+4. **Review it:** Overview, under Needs you, shows one card with what it created and enriched, its questions, the proposed Workflow notes, *Install agent files* and *Mark reviewed*.
 
 Running it again later is safe: each item records its source path, so a second run matches what the first created. The guide itself is an agent file (*Onboarding guide*), editable in Agent files like the skills. See the in-app help article "Onboard a project".
 
@@ -137,7 +137,7 @@ docker compose up -d
 `docker compose up -d --build` still builds locally from the checkout, if you'd rather.
 
 ### After an update or import: the UI sweep
-After you update Docket or import a big project, run the read-only UI sweep against your instance. It opens every main screen (Needs you; Work as board, list, map and timeline; Agents; Agent files; Settings; Help), six sample items on each of their tabs, the palette and a step dialog, at 1024 px dark and 1440 px light. It only loads pages and opens and closes dialogs: it blocks anything that would write.
+After you update Docket or import a big project, run the read-only UI sweep against your instance. It opens every main screen (Overview; Work as board, list, map and timeline; Agents; Agent files; Settings; Help), six sample items on each of their tabs, the palette and a step dialog, at 1024 px dark and 1440 px light. It only loads pages and opens and closes dialogs: it blocks anything that would write.
 ```bash
 pnpm install                                            # once, from the repository root
 pnpm --filter @docket/web exec playwright install chromium   # once

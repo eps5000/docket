@@ -19,7 +19,7 @@ Status: ready to build, 2026-11-07. This is the screen-by-screen contract for th
 Agents do almost all the writing. The owner verifies, decides, nudges and archives.
 
 **Principles to apply when this spec is silent:**
-1. **"For you" first.** Only Needs you has a red badge.
+1. **"For you" first.** Only Overview has a red badge, counting the owner actions in its Needs you section.
 2. **Never blur provenance.** Owner approval, agent claims, observed child runs, relayed logs and CI look different. Nothing but an owner decision looks like approval.
 3. **Unknown is not done.** Stale never becomes a check mark.
 4. **One job per view.** Tickets and epics have four tabs: Details, Checklist, Dependencies (Map on epics) and Activity. Don't mix their content.
@@ -48,13 +48,13 @@ Agents do almost all the writing. The owner verifies, decides, nudges and archiv
 - **Grid:** `220px minmax(0,1fr)`. Every grid child needs `min-width:0`. (Without it, wide maps and tables push the layout wider than the window.)
 - **Sidebar:**
   - **Project switcher** (*All projects* or one project): a menu of radio items, each with its for-you count. It scopes every page except Settings. Below the projects and the hint, after a separator, comes **Project decisions** (a `menuitem`, only with a project chosen; decision 38), which opens that project's Decisions page (§6.3.7), and the last item is **+ New project** (a `menuitem`; B32), which opens the New project dialog (§6.7d). Arrow keys, Home and End reach it like the projects.
-  - **Nav items:** Needs you (red badge = for-you count), Work, Agents (gray badge = active runs), **Agent files** (B25: project-scoped like the others, so not under the divider), then the "Service-wide" divider, Settings and **Help** (decision 29).
+  - **Nav items:** Overview (red badge = the owner actions, decision 41), Work, Agents (gray badge = active runs), **Agent files** (B25: project-scoped like the others, so not under the divider), then the "Service-wide" divider, Settings and **Help** (decision 29).
   - **Health line** at the bottom: "Healthy · N clients", linking to Settings. When unhealthy, it shows "Service problem" in `--bad` with the same link.
 - **Header:**
   - **Breadcrumb:**
     - `Scope / Page`;
     - tickets: `Project / ◆ Epic / ID Title`, where the epic is a link back to the tab you left;
-    - packet: `Needs you / Human review · ID`;
+    - packet: `Overview / Human review · ID`;
     - Settings: `Settings` plus a "Service-wide" pill.
   - **+ New item** (primary), **Search** (opens the palette; `Ctrl K` or `/`), and a theme toggle cycling System → Light → Dark.
   - **+ New item** (B32) is a split button. The main part stays one click for Quick capture (§6.9); its tooltip is "New item: capture it in Inbox". A caret beside it (accessible name "More to create", tooltip "Create a new item or a new project") opens a small menu: **New item** ("Capture it in Inbox") and **New project** ("A key, a name, then what next"). With no projects, the whole button is **+ New project** (tooltip "Create your first project") and opens New project. There is no keyboard shortcut for New item (there wasn't one before either).
@@ -66,7 +66,7 @@ Agents do almost all the writing. The owner verifies, decides, nudges and archiv
   - The strip scrolls sideways and is hidden when empty.
 - **Breakpoint at 1180px and below:**
   - the sidebar becomes a 64px icon rail (labels move to `title` and `aria-label`);
-  - Needs you stacks its top band to one column, with the lower cards 2 across;
+  - Overview stacks Needs you and Health to one column, with its four numbers, charts and lower cards still side by side;
   - on the packet screen, the decision panel moves under the queue (columns `220px | 1fr`, rows `auto 1fr`).
 - **Minimum supported window:** 1024×768. Narrower layouts are out of scope for V1 (host-only, desktop).
 
@@ -83,13 +83,14 @@ Agents do almost all the writing. The owner verifies, decides, nudges and archiv
 | Everything else (filters, layout) | URL query | Shareable, Back works |
 
 **Routes:**
-- `/` Needs you
+- `/` Overview (decision 43); `/needs-you` redirects to its Needs you section (`/#needs-you`)
+- `/overview/:metric` the list behind a number: `completed` (`?window=`), `agents_working`, `agents_waiting`, `in_flight`, `no_epic`
 - `/work?layout=board|list|map|timeline&epic=&label=&quick=&has=&show=` (B43: `quick` is `blocked` or `progress`, Active when omitted; `has` and `show` are comma-separated. An old `filter=` link is mapped and rewritten in place, §6.2)
 - `/items/:id?tab=details|checklist|deps|map|activity`
 - `/review/:id?round=`
 - `/labels/:project/:name`
 - `/projects/:key/decisions?filter=review&decision=` (decision 38; §6.3.7): a project's Decisions page. `filter=review` shows only agents' unconfirmed records; `decision` scrolls to one record and focuses it
-- `/agents?state=` (Active now filtered to one run state, from the Needs you strip) and `/agents#workspaces`
+- `/agents?state=` (Active now filtered to one run state) and `/agents#workspaces`
 - `/agent-files?file=` (§6.7b); `?project=<KEY|all>` switches the scope, then drops out of the URL. `/settings/agent-setup` (B23–B24) redirects here
 - `/settings`
 - `/unlock`
@@ -146,7 +147,7 @@ Copy the prototype's `.tl` token block. Light and dark values below; the prototy
 | `IconButton` | — | `aria-label` (required) | 32×32. |
 | `Chip` | status (7), blocked, human review (4), neutral, warn, ok, bad, info | `kind, children` | Rounded pill; always text, never colour alone. |
 | `TypeBadge` / `TypeIcon` | Epic, Story, Task, Bug | `type, iconOnly?` | 16px square in the type colour with a white glyph, plus the name. Icon-only on board cards and tabs, with an sr-only name. |
-| `RunState` | live, reported, stale, parked, needs input, failed, finished, interrupted | `state, age?` | Icon shape + label + `title` holding the one-line meaning (§5). The live dot pulses, except under reduced motion. Used alone only where a state is counted (the Needs you strip). |
+| `RunState` | live, reported, stale, parked, needs input, failed, finished, interrupted | `state, age?` | Icon shape + label + `title` holding the one-line meaning (§5). The live dot pulses, except under reduced motion. Used alone only where a state is counted. |
 | `RunLine` | one per run state | `state, reason?, agent?, age?` | **The one run-state line** (§5): `state · reason · agent`, then the age at the right. Cards, the epic's Tickets list, Agents, the agent bar and Lead and runs all use it. The separators keep to the segment before them, so a wrapped line never starts with "·"; the state and the agent never break inside. |
 | `WorkspaceStateChip` | In use, Parked, At risk, Safe to prune, Unknown | `state` | Agents → Workspaces, the agent bar, Where the work lives, and recovery Problems rows. At risk is `--warn`, Safe to prune `--ok`. |
 | `Provenance` | owner (approve), owner (changes), owner (defer), observed, agent, relayed, CI, git | `kind, label?` | §5. Only the owner variants are solid-filled. |
@@ -272,17 +273,28 @@ What a Docket with **no projects** shows. Deleted projects don't count: the test
 - **The header** shows *+ New project* (§2).
 - **After the first project is created,** the New project dialog lands on its "What next" choices (§6.7d) and the scope switches to the new project. Closing it leaves the Welcome page for the normal Needs you.
 
-### 6.1 Needs you (`/`)
-Fits one 1440×900 screen without scrolling at sample volume. Contents, top to bottom:
+### 6.1 Overview (`/`; decision 43)
+Answers three questions in about ten seconds: are agents making progress, is anything stuck, do I need to do anything? For one project or All projects. At 1440×900 the four numbers and the first owner action show without scrolling. Metric definitions are in BUILD_SPEC §5.24. Contents, top to bottom:
 
-1. **h1 "Needs you".** No subtitle and no scope pill.
-2. **Agents strip** (one line, a `nav` labelled "Agents"): counts per run state that has any (live, reported, needs input, parked, stale, failed). **Each count is a link** to Agents → Active now filtered to that state (`/agents?state=parked`). Then "n workspaces at risk", in `--warn`, when n > 0, linking to Agents → Workspaces (`/agents#workspaces`). Then *All runs →* (Agents). Empty: "No active runs".
-3. **Top band** (`1.55fr | 1fr`):
+1. **h1 "Overview"**, "N things to act on" when there are any, and the **time window** (`24h | 7d | 30d`, a pressed-button group): 7d by default, remembered in this browser (`docket.overviewWindow`), and safe when storage is unavailable.
+2. **Four numbers**, each a link to the view behind it:
+   - **Completed:** "18 tickets" → `/overview/completed?window=`, then "+6 vs the previous 7 days" (the sign and words carry the direction);
+   - **Agents:** "4 working" and "3 waiting" → `/overview/agents_working`, `/overview/agents_waiting`. Stories at producer level, never raw runs;
+   - **In flight:** "23 tickets" → `/overview/in_flight`, "5 blocked" → Work, *Blocked*;
+   - **Needs you:** "3 to act on", then reviews, questions, decisions and problems, each linking to its section. "✓ Nothing" at zero.
+3. **Needs you and Health** (`2fr | 1fr`, one column at ≤ 1180 px). **Needs you · N** (`#needs-you`) holds every owner action, in the order below; a card with no rows isn't shown. With no actions, one line: "Nothing needs you". **Health** (`data-card="health"`): "n problems need you" (→ `#problems`) or "No problems need you"; the last backup (→ Settings; "!" when it failed, is overdue or never ran); "n workspaces at risk" (→ Agents → Workspaces); the collapsed lines "Agents are handling N problems" and "You acknowledged N problems"; "n agent file changes proposed"; "Docket handled N overlaps today"; and *All runs →*. Each state has a ✓ or ! as well as its words. None of these lines adds to the badge.
+4. **Completed per day** (per hour for 24h): one series in the Done token, with a one-sentence summary and a screen-reader table of the same values. **Workload · N open:** a status bar per epic (`StatusBar`, B47 tokens) with a legend and a text label, its count linking to Work filtered to that epic ("No epic" → `/overview/no_epic`). The top 6 epics, then *View all*.
+5. **Your Planning queue** and **Deferred, not verified:** a count and the top 3, with *View all N →*.
+
+Radar insights get their own section between 4 and 5 when they exist; nothing renders there until then. Token use and estimated metrics are not shown. `/overview/:metric` is a small table (ticket, title, status, epic, plus when completed or the producer) with the same count as the number.
+
+**The owner's actions** (what Needs you was before decision 43):
+
+3a. **Cards and rows:**
    - **For you now · N:**
      - **packet rows:** box icon; title + ID; "Round n packet · k to verify · about 10 min", plus a red "out of date: code changed after it was written" when stale; *Open packet* (primary);
      - **question rows:** ? icon; "codex asks: “…”" on one truncated line; *Answer* opens an inline reply (textarea, *Send answer*, *Cancel*, "codex reads it on its next query");
      - rows have an amber tint, and clicking a row opens the item;
-     - empty: "Nothing to verify. Agents will hand off when work is built."
    - **Problems · N:** at most 5 rows, then "N more". Each row has icon, ID link + title, a reason of **up to two lines with the key fact first**, and its action. The server writes the reason as facts joined by " · "; each fact is kept whole, so the line wraps between facts and a fact that doesn't fit is hidden whole rather than cut (the full reason is in `title`). A single long fact (an error message) ends in an ellipsis. **Recovery rows** (orphaned resources, unpushed work, parked, ready to resume) show the worktree's `WorkspaceStateChip` after the title.
 
      | Problem | Action |
@@ -302,8 +314,6 @@ Fits one 1440×900 screen without scrolling at sample volume. Contents, top to b
 
      **Decision 41 (B49):** parked-too-long and unpushed-work rows go to the lead or coordinator first, so they sit under "Agents are handling N" until they reach the owner, with why ("No coordinator or lead is on GF-280", "Not handled by an agent for a day"). *Keep for later* leaves the worktree At risk; *Safe to discard* lets it count as Safe to prune and says so before it's confirmed. Both dialogs say "It doesn't commit, push, save or delete anything." "N more" under the rows is a button that opens the rest, because every counted row must be reachable. **The sidebar badge, the tab title and "N things to act on" beside the h1 are one number** (`needsYouCount`, from this page's own response for the current project: every card plus the Problems above), and there's no badge at 0.
 
-     Empty: "No stale or failed runs, cycles or date conflicts."
-
      **Decision 37 (B42): every row says three things,** compactly so Needs you still fits one screen (a `dl`): after the ID and title, **who acts** as a "You" or "Agent" chip (its full line, "An agent (the lead of GF-228)", in the chip's `title` and for screen readers); **what's wrong** on up to two lines (the old one-line reason in its `title`); and **"Fix:"** on one line (the whole fix in `title`). An agent problem that reached you adds a `--warn` line, "Not fixed by an agent for a day" or "Nobody is working on GF-228". The item's banner shows the three lines in full. The actions sit under the text: the kind's own (table above; every *Open* now lands on the item's problem banner, `?problem=<id>`), then for agent problems *Remind the agent*, *Open the item* and *Not an active branch* (one per reported branch of a radar finding, named "Not an active branch: <branch>"; with two, "Not active: <branch>"), then *Acknowledge* on every problem not already acknowledged, and the "?" to "Problems and what to do".
 
      | Problem (decision 37) | Who acts | Actions |
@@ -312,10 +322,10 @@ Fits one 1440×900 screen without scrolling at sample volume. Contents, top to b
      | Heading for a merge conflict (two items' branches) | An agent | the same, with *Not active: <branch>* for each reported side |
      | Every other row | You (or you or your coordinator, for recovery) | its own action · *Acknowledge* |
 
-     Under the rows, two lines, each a disclosure button that opens its rows in place: **"Agents are handling N problems"** (agent problems within their grace period, with a "?") and **"You acknowledged N problems"**. Neither counts in the header or the sidebar.
+     On Overview these two lines sit in **Health**, each a disclosure button that opens its rows in place: **"Agents are handling N problems"** (agent problems within their grace period, with a "?") and **"You acknowledged N problems"**. Neither counts in the header or the sidebar.
    - **Agents' project-wide decisions** (decision 38; B44): a card each above the top band, after the proposed resolutions, counted as for you: "New project-wide decision by <agent>: <title>", the project and date, the decision text and "Why: …" (the reason), then *Confirm* (primary), *Withdraw…* (an optional reason inline, then *Withdraw* or *Keep it*), *Acknowledge* (keeps it as an agent decision without confirming it) and *Open* (the project Decisions page, focused on the record), and the "?" to "Decision records". Each action has a toast with Undo, and the card leaves once the owner confirms, withdraws, supersedes or acknowledges the record (undo brings it back). Item, epic and label decisions never make cards. **Older ones:** agents' project decisions recorded before decision 38 share one card per project, "3 project-wide decisions by agents to review", with the project, the first 3 titles ("and N more"), *Review* (the page filtered to *Needs your review*) and *Acknowledge all*; acting on each from the page shrinks it. The sample seed has none.
    - **Proposed resolutions** (decision 37): a card each above the top band, beside the shared-changes questions, counted as for you: "claude · orca-w3 proposes how to resolve a problem on GF-228" (the ID links to the banner), the kind ("Proposed: Split the work"), the reason, the plan (Markdown), and *Go a different way* (opens "Which way instead (required)"; *Send: go a different way*), *Acknowledge* and *Approve*. Each has a toast with Undo.
-4. **Lower row** (two cards, each showing the top 3 with *View all N →*):
+3b. **The lower row** (two cards, each showing the top 3 with *View all N →*):
    - **Deferred, not verified · N:** item + review text + "Test ticket RCP-29 · inbox" or "No follow-up ticket" with *Create test ticket*. *View all* goes to Work with the Deferred review filter. Empty: "Nothing deferred."
    - **Your Planning queue · N:** item + type and epic, with *Move to Ready*. *View all* goes to Work with the In planning filter. Empty: "Nothing in Planning."
 

@@ -153,6 +153,8 @@ describe('the service stubs', () => {
     views: [
       'bootstrap',
       'needsYou',
+      'overview',
+      'overviewItems',
       'work',
       'itemDetail',
       'agents',

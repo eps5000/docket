@@ -1,6 +1,6 @@
 ---
 title: Your first look around
-summary: What Needs you, Work and Agents show, where to look first each day, and how Work's filters work.
+summary: What Overview, Work and Agents show, where to look first each day, and how Work's filters work.
 group: Getting started
 order: 2
 anchors:
@@ -16,25 +16,36 @@ Docket doesn't start agents. You (or Orca) start them, and they report here: wha
 
 ## First run: the Welcome page
 
-Until you have a project, **Needs you** is the Welcome page. Work, Agents and Agent files point back to it. It offers three ways to start:
+Until you have a project, **Overview** is the Welcome page. Work, Agents and Agent files point back to it. It offers three ways to start:
 
 - **Create a project:** a key (2–5 letters, like `GF`) and a name. Then Docket shows what to do next: *Import from Jira*, *Onboard it with an agent*, or *Install agent files*.
 - **Import from Jira:** copies a Jira Cloud project into a new Docket project, after a dry run. See [Jira import](/help/jira-import).
-- **Onboard a repo with an agent:** give a connected agent the line "Onboard this repo into Docket as project KEY, using onboard_project" in the repo's folder, or run the `onboard` prompt. The agent sets the project up in Planning, and you review it on Needs you. [Connect the agent](/help/connect-an-agent) first.
+- **Onboard a repo with an agent:** give a connected agent the line "Onboard this repo into Docket as project KEY, using onboard_project" in the repo's folder, or run the `onboard` prompt. The agent sets the project up in Planning, and you review it on Overview, under Needs you. [Connect the agent](/help/connect-an-agent) first.
 
 Later you can make another project from the project switcher (*+ New project* at the bottom), from the header (the caret next to *+ New item*), or in **Settings → Projects**.
 
-## Needs you
+## Overview
 
-Start here. It shows only what's waiting on you:
+Start here. In about ten seconds it tells you whether agents are making progress, whether anything is stuck, and whether you need to do anything. Choose **24h**, **7d** or **30d** at the top; Docket remembers your choice in this browser.
 
-- **Agents** (the line at the top): how many runs are live, reported, needs input, parked, stale or failed. Each count opens Agents filtered to that state. "n workspaces at risk" appears when an agent's worktree holds work that isn't safe yet.
+**The four numbers.** Each one opens the list behind it.
+
+- **Completed:** tickets that reached Done in this period and are still Done, compared with the period before. Epics, canceled tickets and items imported as Done don't count, and a reopened ticket drops out.
+- **Agents:** stories being worked on now, and stories whose agent is parked waiting on something named. A story counts once, however many workers or child runs it has.
+- **In flight:** open tickets in In progress or Review, and how many open tickets are blocked.
+- **Needs you:** how many things are waiting on you.
+
+**Needs you** lists every one of those things. When there are none, it says "Nothing needs you":
+
 - **For you now:** handoff packets to review (*Open packet*) and agents' questions (*Answer*).
+- **Decisions:** overlaps, held hand-offs, design changes, proposed resolutions, onboarding reviews and agents' project-wide decisions.
 - **Problems:** stale or failed runs, dependency cycles, date conflicts and recovery warnings, each with a button that takes you to the fix.
-- **Deferred, not verified:** checks you deferred during a review that nobody has verified yet.
-- **Your Planning queue:** items in Planning. Planning is yours: click *Move to Ready* when an item is ready for an agent.
 
-The red number next to **Needs you** in the sidebar counts what's for you.
+**Health** shows the problems agents are handling on one line (open it to see them), your last backup, workspaces at risk, and proposed agent file changes.
+
+**Below that:** completed per day, open work per epic, **Your Planning queue** (click *Move to Ready* when an item is ready for an agent) and **Deferred, not verified** (checks you deferred that nobody has verified yet).
+
+The red number next to **Overview** in the sidebar is the number of things under Needs you. Docket doesn't show token use, because clients don't report it.
 
 ## Work
 

@@ -569,6 +569,13 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T215 [US11] Only mutating calls resume a parked run; every read tool leaves it parked.
 - [x] T216 [US11] Scripted replays of GF-269, GF-336 and GF-280, including a restart.
 
+## Phase 31: The Overview page (owner decision 43)
+
+- [x] T217 [US2] Spec plus code in one PR: decision 43 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.24; UI_SPEC §2, §6.1; spec FR-201–FR-205; Help (Your first look around, Run states, Problems); the design file marked built.
+- [x] T218 [US2] The read API: `GET /api/overview` and `/api/overview/items`, each metric defined once, read-only, with unit tests for handoffs, reopened and canceled tickets, epics and imports.
+- [x] T219 [US2] The page at `/`: four numbers, every owner action, Health, completed per day, workload by epic, the Planning and Deferred lists; the time window; `/overview/:metric`; `/needs-you` redirects.
+- [x] T220 [US2] Tests: every owner action from Overview, the badge invariant, links, e2e on the seeded and STR data, axe in both themes at 1440 and 1024 px, and the sweep.
+
 ## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.
@@ -672,6 +679,7 @@ Open a PR titled "<Bn>: <phase name>" with the checkpoint evidence. Do not queue
 | 28 Coordinators get what they need with far fewer tokens | B48 (after B47) |
 | 29 Survive restarts, catch up backups, truthful Needs you | B49 (after B48) |
 | 30 Status follows what agents are doing | B50 (after B49) |
+| 31 The Overview page | B51 (after B50) |
 
 **Within a phase:** tests (failing) → services → replace stubs or fill handlers → fill screens → checkpoint.
 

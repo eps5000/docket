@@ -9,7 +9,7 @@
  *   pnpm sweep -- --base http://127.0.0.1:7435 --items 3 --json sweep.json
  *   node docker/smoke/ui-sweep.mjs --self-test  # shows each check can fail
  *
- * It visits Needs you; Work (board, list, map and timeline); Agents; Agent
+ * It visits Overview and a list behind one of its numbers; Work (board, list, map and timeline); Agents; Agent
  * files; Settings; Shared parts and Project decisions (the first item's
  * project); Help; N sample items from the Work list (default 6: the
  * longest title, the most labels, the biggest epic, an epic with no tickets,
@@ -55,7 +55,9 @@ export const VIEWPORTS = [
 ];
 
 export const SCREENS = [
-  ['Needs you', '/'],
+  ['Overview', '/'],
+  // Decision 43: the list behind a number, on whatever the instance holds.
+  ['Overview list', '/overview/in_flight'],
   ['Work board', '/work'],
   ['Work list', '/work?layout=list'],
   ['Work map', '/work?layout=map'],

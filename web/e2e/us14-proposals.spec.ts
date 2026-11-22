@@ -102,7 +102,7 @@ test.describe('Agent proposals (US14)', () => {
     await page.goto('/');
     const line = page.getByRole('link', { name: '1 agent file change proposed' });
     await expect(line).toBeVisible();
-    await shoot(page, '1-needs-you', page.locator('[data-card="agents-strip"]'));
+    await shoot(page, '1-needs-you', page.locator('[data-card="health"]'));
     await line.click();
     await expect(page).toHaveURL(/\/agent-files#proposals$/);
     await expect(

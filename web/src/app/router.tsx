@@ -3,7 +3,13 @@
  * them in. `/unlock` and the dev-only `/dev/kit` live outside the shell.
  */
 import { lazy, Suspense } from 'react';
-import { createBrowserRouter, Navigate, useSearchParams, type RouteObject } from 'react-router';
+import {
+  createBrowserRouter,
+  Navigate,
+  useLocation,
+  useSearchParams,
+  type RouteObject,
+} from 'react-router';
 import { PROJECT_KEY_RE } from '@docket/shared';
 import { AgentFiles } from '../routes/agent-files/AgentFiles';
 import { Agents } from '../routes/agents/Agents';
@@ -11,8 +17,9 @@ import { HelpArticlePage, HelpIndex } from '../routes/help/HelpPages';
 import { ItemPage } from '../routes/items/ItemPage';
 import { ProjectDecisionsPage } from '../routes/decisions/ProjectDecisionsPage';
 import { LabelPage } from '../routes/labels/LabelPage';
-import { NeedsYou } from '../routes/needs-you/NeedsYou';
 import { NotFound } from '../routes/NotFound';
+import { Overview } from '../routes/overview/Overview';
+import { OverviewListPage } from '../routes/overview/OverviewListPage';
 import { PacketScreen } from '../routes/review/PacketScreen';
 import { Settings } from '../routes/settings/Settings';
 import { SharedPartsPage } from '../routes/settings/SharedPartsPage';
@@ -31,7 +38,11 @@ export const DEV_KIT_ENABLED = import.meta.env.DEV || import.meta.env.MODE === '
 const KitGallery = DEV_KIT_ENABLED ? lazy(() => import('../routes/dev/kit')) : null;
 
 export const shellRoutes: RouteObject[] = [
-  { index: true, element: <NeedsYou /> },
+  { index: true, element: <Overview /> },
+  { path: 'overview', element: <Navigate replace to="/" /> },
+  { path: 'overview/:metric', element: <OverviewListPage /> },
+  // Decision 43: Needs you is a section of Overview now; old links land on it.
+  { path: 'needs-you', element: <LegacyNeedsYou /> },
   { path: 'work', element: <Work /> },
   { path: 'items/:id', element: <ItemPage /> },
   { path: 'review/:id', element: <PacketScreen /> },
@@ -48,6 +59,12 @@ export const shellRoutes: RouteObject[] = [
   { path: 'help/:slug', element: <HelpArticlePage /> },
   { path: '*', element: <NotFound /> },
 ];
+
+/** `/needs-you` → Overview, at the Needs you section, keeping any query. */
+function LegacyNeedsYou() {
+  const { search, hash } = useLocation();
+  return <Navigate replace to={{ pathname: '/', search, hash: hash || '#needs-you' }} />;
+}
 
 /**
  * The old Settings → Agent setup route (B21–B24) redirects to Agent files

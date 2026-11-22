@@ -6,11 +6,12 @@ import { paths } from '../lib/paths';
 import { useShell } from './ShellState';
 import { useBootstrap, useNeedsYouCount } from './useBootstrap';
 
-/** Which nav item a path belongs to (UI_SPEC §2, §6.4: the packet keeps Needs you active). */
+/** Which nav item a path belongs to (UI_SPEC §2, §6.4: the packet keeps Overview active). */
 export function navSection(
   pathname: string,
-): 'needs-you' | 'work' | 'agents' | 'agent-files' | 'settings' | 'help' | null {
-  if (pathname === '/' || pathname.startsWith('/review/')) return 'needs-you';
+): 'overview' | 'work' | 'agents' | 'agent-files' | 'settings' | 'help' | null {
+  if (pathname === '/' || pathname.startsWith('/review/') || pathname.startsWith('/overview'))
+    return 'overview';
   if (
     pathname.startsWith('/work') ||
     pathname.startsWith('/items/') ||
@@ -281,10 +282,10 @@ export function Sidebar() {
       </div>
       <ProjectSwitcher />
       <NavItem
-        to={paths.needsYou()}
+        to={paths.overview()}
         icon="attention"
-        label="Needs you"
-        section="needs-you"
+        label="Overview"
+        section="overview"
         badge={{ n: forYou ?? 0, tone: 'red', sr: 'for you' }}
       />
       <NavItem to={paths.work()} icon="work" label="Work" section="work" />

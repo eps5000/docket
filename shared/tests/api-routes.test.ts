@@ -58,6 +58,8 @@ const EXPECTED = [
   'POST /api/session/rotate-key',
   'GET /api/bootstrap',
   'GET /api/needs-you',
+  'GET /api/overview',
+  'GET /api/overview/items',
   'GET /api/work',
   'GET /api/burndown',
   'GET /api/items/:id',

@@ -10,7 +10,8 @@ import { useShell } from './ShellState';
 
 /** The "Go to" views (UI_SPEC §6.9). */
 export const GO_TO_VIEWS = [
-  { key: 'needs-you', label: 'Needs you', path: paths.needsYou() },
+  { key: 'overview', label: 'Overview', path: paths.overview() },
+  { key: 'needs-you', label: 'Needs you', path: '/#needs-you' },
   { key: 'work', label: 'Work', path: paths.work() },
   { key: 'timeline', label: 'Timeline (Work)', path: paths.work({ layout: 'timeline' }) },
   { key: 'agents', label: 'Agents', path: paths.agents() },

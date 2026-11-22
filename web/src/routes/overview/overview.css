@@ -1,0 +1,246 @@
+/* Overview (owner decision 43; UI_SPEC §6.1). Status colours are the shared tokens (B47). */
+.tl .ov-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  flex-wrap: wrap;
+}
+.tl .ov-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 10px 0 12px;
+}
+.tl .ov-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 9px 14px 10px;
+  min-width: 0;
+}
+.tl .ov-k {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--ink-2);
+}
+.tl .ov-num {
+  font-size: 13px;
+  color: var(--ink);
+}
+.tl a.ov-num:hover {
+  text-decoration: underline;
+}
+.tl .ov-num b {
+  font-size: 22px;
+  line-height: 1.2;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.tl .ov-clear {
+  font-size: 16px;
+  line-height: 1.65;
+  font-weight: 650;
+}
+.tl .ov-sub {
+  font-size: 12px;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+.tl .ov-sub a,
+.tl a.ov-sub {
+  color: var(--ink-2);
+  text-decoration: underline;
+}
+.tl .ov-metrics-error {
+  margin: 0 0 12px;
+}
+.tl .ov-main {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  margin-bottom: 12px;
+}
+.tl .needs-you {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  scroll-margin-top: 12px;
+}
+.tl .needs-you:focus {
+  outline: none;
+}
+.tl .needs-you > * {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+.tl .ov-h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+.tl .ov-nothing {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+}
+.tl #problems {
+  scroll-margin-top: 12px;
+}
+.tl .ov-hlist {
+  list-style: none;
+  margin: 0;
+  padding: 2px 14px 6px;
+}
+.tl .ov-hl {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 3px 0;
+  font-size: 13px;
+}
+.tl .ov-hl i {
+  flex: none;
+  width: 14px;
+  text-align: center;
+  font-style: normal;
+  font-weight: 700;
+}
+.tl .ov-hl.ok i {
+  color: var(--st-done-text);
+}
+.tl .ov-hl.warn i {
+  color: var(--st-blocked-text);
+}
+.tl .ov-hl a {
+  text-decoration: underline;
+}
+.tl .ov-health .prob-more {
+  padding-left: 14px;
+  padding-right: 14px;
+}
+.tl .ov-quiet {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 8px 14px 10px;
+  border-top: 1px solid var(--line);
+  font-size: 12.5px;
+}
+.tl .ov-quiet details {
+  margin: 0;
+  width: 100%;
+}
+.tl .ov-charts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-items: stretch;
+  margin-bottom: 12px;
+}
+.tl .ov-chart {
+  position: relative;
+  min-width: 0;
+}
+.tl .ov-chart-body {
+  padding: 0 14px 12px;
+}
+.tl .ov-chart-body .cardfoot {
+  padding-left: 0;
+  padding-right: 0;
+}
+.tl .ov-bars {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 2px;
+  height: 84px;
+  margin-top: 6px;
+  border-bottom: 1px solid var(--line);
+}
+.tl .ov-bar {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.tl .ov-bar:hover {
+  background: var(--panel-2);
+}
+.tl .ov-bar i {
+  display: block;
+  width: 100%;
+  max-width: 24px;
+  min-height: 3px;
+  border-radius: 4px 4px 0 0;
+  background: var(--st-done);
+}
+.tl .ov-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--ink-2);
+}
+.tl .ov-legend {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 10px;
+  margin: 0 0 7px;
+  padding: 0;
+  font-size: 11.5px;
+  color: var(--ink-2);
+}
+.tl .ov-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.tl .ov-legend i {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+}
+.tl .ov-work {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.tl .ov-work li {
+  display: grid;
+  grid-template-columns: minmax(0, 34%) minmax(0, 1fr) 34px;
+  gap: 8px;
+  align-items: center;
+  padding: 3px 0;
+  font-size: 12.5px;
+}
+.tl .ov-epic {
+  min-width: 0;
+}
+.tl .ov-count {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  text-decoration: underline;
+}
+.tl .ov-table {
+  position: relative;
+  overflow-x: auto;
+}
+.tl .ov-table .ov-title {
+  max-width: 380px;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 1180px) {
+  .tl .ov-main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
