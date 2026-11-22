@@ -117,6 +117,11 @@ describe('the service stubs', () => {
       'keepOpenRuns',
       'endSilentChildren',
       'openRunSessions',
+      // Decision 42 (B50).
+      'updateStatus',
+      'recordActivity',
+      'refreshActivity',
+      'expireProducerHolds',
       // US11 (B10, T099).
       'updateResources',
       'park',
