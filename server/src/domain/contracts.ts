@@ -323,6 +323,12 @@ export interface RunsService {
    * run's own signal; grants no claim, close, review or owner power.
    */
   updateStatus(w: WriteContext, input: In<'update_run_status'>): Out<'update_run_status'>;
+  /**
+   * Decision 44: coordinator parks past their deadline go back to `open` (or
+   * `needs_input`) on a restart-grace lease, one `run.park_expired` each. The
+   * normal lease path then ends a run that never returns.
+   */
+  expireCoordinatorParks(w: WriteContext): { expired: string[] };
   /** Decision 42: raise the flags the activity check found; one event each. */
   recordActivity(w: WriteContext, findings: readonly ActivityFinding[]): { raised: string[] };
   /** Decision 42: newer counts on flags already raised. Bookkeeping: no event, no version. */

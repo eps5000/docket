@@ -262,6 +262,18 @@ export const runStatusUpdateSchema = z.object({
 export type RunStatusUpdate = z.infer<typeof runStatusUpdateSchema>;
 
 /**
+ * Decision 44: a time-limited park set by a coordinator. `ended_at` is set once
+ * the time ran out and the run went back to a short lease, until the run speaks.
+ */
+export const coordinatorParkSchema = z.object({
+  by: z.string(),
+  at: z.string(),
+  until: z.string(),
+  ended_at: z.string().optional(),
+});
+export type CoordinatorPark = z.infer<typeof coordinatorParkSchema>;
+
+/**
  * Decision 42: real activity newer than the run's last word. `since_parked`:
  * while it is parked. `since_signal`: commits on its branch while it is silent,
  * so its session may be working without Docket. Stays until the run or a
@@ -306,6 +318,8 @@ export const runSchema = z.object({
   producer: z.string().optional(),
   /** Decision 42: present after a coordinator's `update_run_status`. */
   status_update: runStatusUpdateSchema.optional(),
+  /** Decision 44: present while a coordinator's park holds, or just ran out. */
+  coordinator_park: coordinatorParkSchema.optional(),
   /** Decision 42: present while newer activity is flagged. */
   activity: runActivitySchema.optional(),
 });

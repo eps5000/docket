@@ -2,6 +2,7 @@ import { useState } from 'react';
 import {
   RUN_STATE_LABELS,
   activityText,
+  type CoordinatorPark,
   type ItemDetailResponse,
   type RunActivity,
 } from '@docket/shared';
@@ -13,7 +14,7 @@ import {
   leadName,
   parkedReason,
 } from '../../components/kit';
-import { formatAgo, formatClock, formatSince, isoTitle } from '../../lib/format';
+import { formatAgo, formatClock, formatSince, formatStamp, isoTitle } from '../../lib/format';
 import {
   CopyResumeNoteButton,
   canCopyResumeNote,
@@ -23,6 +24,13 @@ import {
 } from './activity/leadActions';
 import { RunInstructionsLine } from './activity/RunInstructions';
 import { HelpLink } from '../../help/HelpLink';
+
+/** Decision 44: who parked it and until when, or that their park just ran out. */
+function coordinatorParkSentence(park: CoordinatorPark): string {
+  return park.ended_at
+    ? `Park by ${park.by} ran out at ${formatClock(park.ended_at)}. It has a short lease to call back.`
+    : `Parked by ${park.by} until ${formatStamp(park.until)}`;
+}
 
 /** Decision 42: "Activity since parked: 2 commits", with what it means when the run is silent. */
 function activitySentence(activity: RunActivity): string {
@@ -121,13 +129,19 @@ export function AgentBar({ data }: { data: ItemDetailResponse }) {
           {parked.resume_ready && <Chip kind="ok">Ready to resume</Chip>}
         </div>
       )}
-      {(run.producer || run.status_update || run.activity) && (
+      {(run.producer || run.status_update || run.coordinator_park || run.activity) && (
         <div className="ab-parked src" data-ab="status">
           {run.producer && <span data-ab="producer">Producer {run.producer}</span>}
-          {run.status_update && (
-            <span data-ab="updated-by" title={isoTitle(run.status_update.at)}>
-              Status updated by {run.status_update.by}
+          {run.coordinator_park ? (
+            <span data-ab="coordinator-park" title={isoTitle(run.coordinator_park.until)}>
+              {coordinatorParkSentence(run.coordinator_park)}
             </span>
+          ) : (
+            run.status_update && (
+              <span data-ab="updated-by" title={isoTitle(run.status_update.at)}>
+                Status updated by {run.status_update.by}
+              </span>
+            )
           )}
           {run.activity && (
             <span data-ab="activity" title={`Since ${isoTitle(run.activity.since)}`}>

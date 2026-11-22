@@ -204,6 +204,19 @@ Needs you did two jobs: it listed what requires the owner, and it was the only p
 
 BUILD_SPEC §5.24, UI_SPEC §6.1 and spec FR-201–FR-205 have the details.
 
+## Owner decision 44 (2026-11-22): a coordinator can park a run for a limited time
+
+Decision 42 deliberately stopped a coordinator from parking an open run, because parking suspends the claim timer and a mistaken park could hold a dead run's ticket forever. In practice, when a producer stops to wait and goes quiet, its coordinator has to keep it alive or watch its lease, which spends tokens and misstates what is happening. A park that always ends by itself removes that risk.
+
+1. **A named coordinator can park an item's live lead run for a stated time,** with a reason and what it waits on, through `update_run_status`. The authority is decision 42's: the run's recorded orchestrator, or a coordinator the owner registered for the project. It grants no claim, close, review or owner power, and never speaks as the run.
+2. **The limits are 4 hours per park and 24 hours in total since the run's last own signal.** A request over a limit is refused with a clear error, never shortened. A coordinator can renew within the limits or end the park early. Docket records and shows who parked it and until when.
+3. **A coordinator's park always ends.** At the deadline the run returns to open on a short lease, the restart grace. A live agent continues, and a dead one loses its claim through the normal lease expiry. The deadline survives a restart.
+4. **The run's own park stays unlimited.** Its own later `park_run` replaces the time limit, a real write by it resumes it, and a read never does. A coordinator can't put a time limit on a park the run set itself.
+5. **The coordinator hears about an expired park** through the feed and the digest. It reaches the owner only under decision 41's routing.
+6. **Other protections are unchanged.** Part leases keep their own clock and aren't extended by a park, so a part another item needs still comes free on time. Overlaps, holds, producer holds, activity flags and `resume_ready` work as for any parked run.
+
+BUILD_SPEC §5.25, MCP_SPEC §5.4, UI_SPEC §6.3 and spec FR-206–FR-210 have the details.
+
 ## Deferred choices
 
 Pilot project choice and Jira import strategy are deferred until V1 is ready for real work. Design should still settle the storage layout, supported document preview formats, the exact project gate configuration shape, and the minimum history needed before a velocity forecast is shown. These are implementation choices guided by the owner decisions above, not blockers to selecting a pilot now.

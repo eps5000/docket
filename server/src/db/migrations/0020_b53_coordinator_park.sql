@@ -1,0 +1,1 @@
+ALTER TABLE `runs` ADD `coordinator_park` text;

@@ -125,7 +125,7 @@ describe('0010_shared_changes', () => {
     const migrated = openDb(copy);
     try {
       migrateDb(migrated);
-      expect(migrationStatus(migrated)).toEqual({ current: true, applied: 20, expected: 20 });
+      expect(migrationStatus(migrated)).toEqual({ current: true, applied: 21, expected: 21 });
 
       // Every existing row is unchanged, plus the new columns at their defaults.
       expect(all(migrated, 'items')).toEqual(
@@ -317,7 +317,7 @@ describe('0010_shared_changes', () => {
 
       // Migrating again is a no-op.
       migrateDb(migrated);
-      expect(migrationStatus(migrated).applied).toBe(20);
+      expect(migrationStatus(migrated).applied).toBe(21);
     } finally {
       migrated.sqlite.close();
     }

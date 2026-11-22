@@ -17,7 +17,7 @@ import {
   text,
 } from './common.js';
 import { instructionsInput } from './agent-files.js';
-import { LIMITS, TEXT_LIMITS } from './limits.js';
+import { COORDINATOR_PARK, LIMITS, TEXT_LIMITS } from './limits.js';
 import { branchInput } from './shared-changes.js';
 import { itemSummarySchema, runStateSchema } from './types.js';
 
@@ -240,7 +240,9 @@ export const parkRunOutput = mutationOutput({
 /**
  * A named coordinator updates the status of an item's lead run without its
  * `run_id`, so the call is never the run's own signal. It grants no claim,
- * close, review or owner power.
+ * close, review or owner power. With `park_minutes` (decision 44) it parks or
+ * renews the run for a limited time; when that ends, the run goes back to a
+ * short lease on its own.
  */
 export const updateRunStatusInput = mutationInput({
   id: itemId,
@@ -248,26 +250,34 @@ export const updateRunStatusInput = mutationInput({
   coordinator: text(LIMITS.orchestrator_name),
   /** Replaces the run's "doing" line. */
   current_action: text(TEXT_LIMITS.note).optional(),
-  /** A parked run only. */
+  /** A parked run, or with `park_minutes`. */
   park_reason: text(LIMITS.park_reason).optional(),
-  /** A parked run only. Replaces what it waits on. */
+  /** A parked run, or with `park_minutes`. Replaces what it waits on. */
   waiting_on: waitingOnInput.optional(),
-  /** Resume a parked run. Not with `park_reason` or `waiting_on`. */
+  /** Decision 44: park or renew for this long. A new park also needs a reason and waiting_on. */
+  park_minutes: z.number().int().min(1).max(COORDINATOR_PARK.max_minutes).optional(),
+  /** Resume a parked run, or end a coordinator's park early. Not with the park fields. */
   resume: z.literal(true).optional(),
 }).superRefine((value, ctx) => {
   if (
     value.current_action === undefined &&
     value.park_reason === undefined &&
     value.waiting_on === undefined &&
+    value.park_minutes === undefined &&
     value.resume === undefined
   ) {
     ctx.addIssue({
       code: 'custom',
       path: ['current_action'],
-      message: 'Pass current_action, park_reason, waiting_on or resume.',
+      message: 'Pass current_action, park_reason, waiting_on, park_minutes or resume.',
     });
   }
-  if (value.resume && (value.park_reason !== undefined || value.waiting_on !== undefined)) {
+  if (
+    value.resume &&
+    (value.park_reason !== undefined ||
+      value.waiting_on !== undefined ||
+      value.park_minutes !== undefined)
+  ) {
     ctx.addIssue({
       code: 'custom',
       path: ['resume'],
@@ -280,4 +290,6 @@ export const updateRunStatusOutput = mutationOutput({
   run_state: runStateSchema,
   updated_by: z.string(),
   resume_ready: z.boolean(),
+  /** Decision 44: when a coordinator's park ends, while one holds. */
+  parked_until: z.string().optional(),
 });

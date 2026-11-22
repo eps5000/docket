@@ -21,6 +21,7 @@ import {
   RESOURCE_KIND_LABELS,
   ToolError,
   activityText,
+  COORDINATOR_PARK,
   jsonBytes,
   LIMITS,
   type ItemSummary,
@@ -52,6 +53,7 @@ import {
   actorName,
   assertCallerRun,
   callerName,
+  coordinatorParkOf,
   displayRunState,
   getRun,
   isRunOpen,
@@ -258,7 +260,9 @@ export function createRunsService(deps: ServiceDeps): RunsService {
 
   /**
    * Parked → running. `by` is a coordinator resuming it (decision 42), who is
-   * named as themselves; otherwise the run's own later call resumed it.
+   * named as themselves; otherwise the run's own later call resumed it. A
+   * coordinator ending their own time-limited park (decision 44) hands back the
+   * short lease expiry would, so ending it early can't stretch a dead run's claim.
    */
   function resumeRun(w: WriteContext, run: RunRow, by?: RunStatusUpdate): void {
     const item = requireItem(w.db, run.item_id);
@@ -272,9 +276,16 @@ export function createRunsService(deps: ServiceDeps): RunsService {
       parked_reason: null,
       waiting_on: null,
       parked_at: null,
-      lease_expires_at: run.is_lead === 1 ? isoPlus(w.now, deps.config.leaseMs) : null,
+      lease_expires_at:
+        run.is_lead === 1
+          ? isoPlus(
+              w.now,
+              by && activeCoordinatorPark(run) ? deps.config.restartGraceMs : deps.config.leaseMs,
+            )
+          : null,
       park_activity: null,
       status_update: by ?? null,
+      coordinator_park: null,
     });
     const who = by ? `${by.by} (coordinator)` : callerName(w.db, { ...w.actor, run_id: run.id });
     const whose = by
@@ -297,6 +308,153 @@ export function createRunsService(deps: ServiceDeps): RunsService {
     });
   }
 
+  /** Decision 44: the coordinator's park holding this run, if any (not one that ran out). */
+  function activeCoordinatorPark(run: RunRow) {
+    const park = coordinatorParkOf(run);
+    return run.state === 'parked' && park && !park.ended_at ? park : null;
+  }
+
+  /**
+   * Decision 44: the deadline passed. The run goes back to `open` (`needs_input`
+   * with a question still open) on a restart-grace lease, so a live agent's next
+   * call continues and a dead one loses its claim through `lease_expired`. The
+   * claim is never released here. An activity flag stays for the coordinator.
+   */
+  function endCoordinatorPark(w: WriteContext, run: RunRow): void {
+    const park = activeCoordinatorPark(run)!;
+    const item = requireItem(w.db, run.item_id);
+    const asked = w.db.sqlite
+      .prepare('SELECT 1 FROM questions WHERE run_id = ? AND answered_at IS NULL')
+      .get(run.id);
+    const stored = parseJson<Record<string, unknown>>(run.coordinator_park)!;
+    const activity = storedActivity(run);
+    const ready = parkInfo(w.db, run, w.now).resume_ready;
+    const leaseUntil = isoPlus(w.now, deps.config.restartGraceMs);
+    w.update('runs', run.id, {
+      state: asked ? 'needs_input' : 'open',
+      parked_reason: null,
+      waiting_on: null,
+      parked_at: null,
+      lease_expires_at: leaseUntil,
+      park_activity: activity?.flag ? activity : null,
+      coordinator_park: { ...stored, ended_at: w.now },
+    });
+    const holder = actorName({ kind: 'agent', client: run.client, label: run.label });
+    w.event({
+      type: 'run.park_expired',
+      summary: `${park.by}'s park on ${item.id} ran out. ${holder} has until ${utcTime(leaseUntil, w.now)} to call, or its lease ends`,
+      item_id: item.id,
+      project_key: item.project_key,
+      data: {
+        run_id: run.id,
+        parked_by: park.by,
+        until: park.until,
+        reason: run.parked_reason,
+        waiting_on: parseJson<WaitingOn>(run.waiting_on),
+        resume_ready: ready,
+        lease_expires_at: leaseUntil,
+      },
+      objects: [{ kind: 'run', id: run.id }],
+    });
+  }
+
+  /**
+   * Decision 44: park the lead for a limited time, or renew a coordinator's
+   * park. The run's own park has no limit and stays its own, so it can't be
+   * converted. A deadline over a limit is refused, never clamped.
+   */
+  function parkForCoordinator(
+    w: WriteContext,
+    item: { id: string; project_key: string },
+    run: RunRow,
+    input: In<'update_run_status'> & { park_minutes: number },
+    stamp: RunStatusUpdate,
+  ): string {
+    const renewing = !!activeCoordinatorPark(run);
+    if (run.state === 'parked' && !renewing) {
+      throw new ToolError(
+        'validation',
+        `${item.id}'s lead run parked itself, so its park has no time limit and stays its own. Change its reason or waiting_on, or resume it.`,
+        { details: { fields: { park_minutes: 'the run parked itself' } } },
+      );
+    }
+    if (!renewing && (input.park_reason === undefined || input.waiting_on === undefined)) {
+      throw new ToolError(
+        'validation',
+        `Parking ${item.id}'s lead run needs park_reason and waiting_on, so it's clear what it waits for.`,
+        {
+          details: {
+            fields: {
+              ...(input.park_reason === undefined ? { park_reason: 'required to park' } : {}),
+              ...(input.waiting_on === undefined ? { waiting_on: 'required to park' } : {}),
+            },
+          },
+        },
+      );
+    }
+    const until = isoPlus(w.now, input.park_minutes * 60_000);
+    const totalMs = COORDINATOR_PARK.total_minutes * 60_000;
+    if (ms(until) - ms(run.last_signal_at) > totalMs) {
+      const left = Math.floor((totalMs - (ms(w.now) - ms(run.last_signal_at))) / 60_000);
+      throw new ToolError(
+        'validation',
+        left >= 1
+          ? `${item.id}'s lead run can be parked for at most ${left} more minutes: a coordinator's parks end within ${COORDINATOR_PARK.total_minutes / 60} hours of the run's last own signal.`
+          : `${item.id}'s lead run hasn't signalled for ${COORDINATOR_PARK.total_minutes / 60} hours, so it can't be parked again. It has to call in, or its lease ends the run.`,
+        {
+          details: {
+            fields: { park_minutes: `at most ${Math.max(left, 0)}` },
+            last_signal_at: run.last_signal_at,
+          },
+        },
+      );
+    }
+    const waiting = input.waiting_on ?? parseJson<WaitingOn>(run.waiting_on) ?? {};
+    const reason = input.park_reason ?? run.parked_reason ?? '';
+    w.update('runs', run.id, {
+      state: 'parked',
+      parked_reason: reason,
+      waiting_on: waiting,
+      parked_at: renewing && run.parked_at ? run.parked_at : w.now,
+      lease_expires_at: null,
+      restart_deadline_at: null,
+      park_activity: { since: w.now, flag: null },
+      status_update: stamp,
+      coordinator_park: { by: stamp.by, client: stamp.client, at: w.now, until },
+      ...(input.current_action !== undefined ? { summary: input.current_action } : {}),
+    });
+    const holder = actorName({ kind: 'agent', client: run.client, label: run.label });
+    const on = waitingText(waiting);
+    const data = {
+      run_id: run.id,
+      reason,
+      waiting_on: waiting,
+      parked_by: stamp.by,
+      client: stamp.client,
+      until,
+    };
+    if (renewing) {
+      w.event({
+        type: 'run.status_updated',
+        summary: `${stamp.by} (coordinator) renewed the park on ${holder} on ${item.id} until ${utcTime(until, w.now)}`,
+        item_id: item.id,
+        project_key: item.project_key,
+        data: { ...data, updated_by: stamp.by, renewed: true },
+        objects: [{ kind: 'run', id: run.id }],
+      });
+    } else {
+      w.event({
+        type: 'run.parked',
+        summary: `${stamp.by} (coordinator) parked ${holder} until ${utcTime(until, w.now)}${on ? `, waiting on ${on}` : ''}: ${reason}`,
+        item_id: item.id,
+        project_key: item.project_key,
+        data: { ...data, from: run.state },
+        objects: [{ kind: 'run', id: run.id }],
+      });
+    }
+    return until;
+  }
+
   /** Record a signal on an open run (§5.4); a lead's lease runs LEASE from now. Not an event. */
   function signal(r: ReceiptContext, runId: string, kind: SignalKind): void {
     const run = getRun(r.db, runId);
@@ -308,7 +466,8 @@ export function createRunsService(deps: ServiceDeps): RunsService {
         `UPDATE runs SET last_signal_at = ?, last_signal_kind = ?,
            lease_expires_at = CASE WHEN is_lead = 1 THEN ? ELSE lease_expires_at END,
            restart_deadline_at = NULL,
-           park_activity = NULL
+           park_activity = NULL,
+           coordinator_park = NULL
          WHERE id = ? AND state IN ('open', 'needs_input')`,
       )
       .run(r.now, kind, isoPlus(r.now, deps.config.leaseMs), runId);
@@ -977,6 +1136,9 @@ export function createRunsService(deps: ServiceDeps): RunsService {
         // Decision 42: what happens from now on is activity since this park.
         park_activity: { since: w.now, flag: null },
         status_update: null,
+        // Decision 44: the run's own park replaces a coordinator's limit, and is its own word.
+        coordinator_park: null,
+        ...(coordinatorParkOf(run) ? { last_signal_at: w.now } : {}),
       });
       const on = waitingText(waiting);
       w.event({
@@ -1000,21 +1162,28 @@ export function createRunsService(deps: ServiceDeps): RunsService {
 
     updateStatus(w, input) {
       const item = requireItem(w.db, input.id);
-      const run = activeLead(w.db, item.id);
-      if (!run) {
+      const lead = activeLead(w.db, item.id);
+      if (!lead) {
         throw new ToolError(
           'validation',
           `${item.id} has no active lead run to update. Check it with get_item.`,
           { details: { id: item.id } },
         );
       }
-      assertCoordinator(w, item, run, input.coordinator);
-      if (leaseExpired(run, w.now)) throw runEndedError(w.db, run, w.now);
+      assertCoordinator(w, item, lead, input.coordinator);
+      if (leaseExpired(lead, w.now)) throw runEndedError(w.db, lead, w.now);
+      // Decision 44: a deadline that passed before the sweep is over, whatever this call does.
+      const due = activeCoordinatorPark(lead);
+      if (due && !input.resume && ms(due.until) <= ms(w.now)) endCoordinatorPark(w, lead);
+      const run = getRun(w.db, lead.id)!;
       const parkFields = input.park_reason !== undefined || input.waiting_on !== undefined;
-      if ((input.resume || parkFields) && run.state !== 'parked') {
+      if (
+        (input.resume || (parkFields && input.park_minutes === undefined)) &&
+        run.state !== 'parked'
+      ) {
         throw new ToolError(
           'validation',
-          `${item.id}'s lead run isn't parked, so it has no park to change or resume. Only the run can park itself.`,
+          `${item.id}'s lead run isn't parked, so it has no park to change or resume. To park it, pass park_minutes with park_reason and waiting_on.`,
           { details: { run_state: run.state } },
         );
       }
@@ -1024,7 +1193,16 @@ export function createRunsService(deps: ServiceDeps): RunsService {
         client: w.actor.client ?? null,
         at: w.now,
       };
-      if (input.resume) {
+      let parkedUntil: string | undefined;
+      if (input.park_minutes !== undefined) {
+        parkedUntil = parkForCoordinator(
+          w,
+          item,
+          run,
+          { ...input, park_minutes: input.park_minutes },
+          stamp,
+        );
+      } else if (input.resume) {
         resumeRun(w, run, stamp);
         if (input.current_action !== undefined) {
           w.update('runs', run.id, { summary: input.current_action });
@@ -1063,12 +1241,27 @@ export function createRunsService(deps: ServiceDeps): RunsService {
         });
       }
       const after = getRun(w.db, run.id)!;
+      const held = activeCoordinatorPark(after);
+      parkedUntil ??= held?.until;
       return {
         id: item.id,
         run_state: displayRunState(after, windows(), w.now),
         updated_by: input.coordinator,
         resume_ready: parkInfo(w.db, after, w.now).resume_ready,
+        ...(parkedUntil ? { parked_until: parkedUntil } : {}),
       };
+    },
+
+    expireCoordinatorParks(w) {
+      const due = w.db.sqlite
+        .prepare(
+          `SELECT * FROM runs WHERE state = 'parked' AND coordinator_park IS NOT NULL
+             AND json_extract(coordinator_park, '$.until') <= ?
+           ORDER BY json_extract(coordinator_park, '$.until'), id`,
+        )
+        .all(w.now) as RunRow[];
+      for (const run of due) endCoordinatorPark(w, run);
+      return { expired: due.map((r) => r.id) };
     },
 
     refreshActivity(r, findings) {

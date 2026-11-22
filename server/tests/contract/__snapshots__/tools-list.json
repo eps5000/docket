@@ -2038,7 +2038,7 @@
   },
   {
     "name": "update_run_status",
-    "description": "Coordinators: set an item's lead run's current action, park reason or waiting_on, or resume it, without its run_id. coordinator is your name: the run's orchestrator or one registered for the project. Grants no other power.",
+    "description": "Coordinators: set an item's lead run's current action, park reason or waiting_on, resume it, or park it for park_minutes (a new park needs park_reason and waiting_on; 240 at most, and 24 hours since its last own signal). When the time ends it returns to a short lease. No run_id. coordinator is your name: the run's orchestrator or one registered for the project. Grants no other power.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -2081,6 +2081,11 @@
           },
           "additionalProperties": false
         },
+        "park_minutes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 240
+        },
         "resume": {
           "type": "boolean",
           "const": true
@@ -2115,6 +2120,9 @@
             },
             "resume_ready": {
               "type": "boolean"
+            },
+            "parked_until": {
+              "type": "string"
             },
             "replayed": {
               "type": "boolean"

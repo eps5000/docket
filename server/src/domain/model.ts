@@ -149,6 +149,8 @@ export interface RunRow {
   status_update: string | null;
   /** Decision 42: `{since, flag}`, activity newer than the run's last word (run-activity.ts). */
   park_activity: string | null;
+  /** Decision 44: `{by, client, at, until, ended_at?}`, a coordinator's time-limited park. */
+  coordinator_park: string | null;
   version: number;
   created_at: string;
   updated_at: string;
@@ -184,6 +186,20 @@ const parseJson = <T>(text: string | null): T | null => {
     return null;
   }
 };
+
+/** Decision 44: the coordinator's park as it is shown (the calling client stays in the event). */
+export function coordinatorParkOf(
+  row: Pick<RunRow, 'coordinator_park'>,
+): NonNullable<Run['coordinator_park']> | null {
+  const park = parseJson<NonNullable<Run['coordinator_park']>>(row.coordinator_park);
+  if (!park) return null;
+  return {
+    by: park.by,
+    at: park.at,
+    until: park.until,
+    ...(park.ended_at ? { ended_at: park.ended_at } : {}),
+  };
+}
 
 /**
  * A run as agents see it (MCP_SPEC §4 Run). The workspace (with its derived
@@ -266,6 +282,8 @@ export function runView(
   if (isRunOpen(row.state)) {
     const update = parseJson<NonNullable<Run['status_update']>>(row.status_update);
     if (update) view.status_update = update;
+    const park = coordinatorParkOf(row);
+    if (park) view.coordinator_park = park;
     const flag = parseJson<{ flag: Run['activity'] | null }>(row.park_activity)?.flag;
     if (flag) view.activity = flag;
   }

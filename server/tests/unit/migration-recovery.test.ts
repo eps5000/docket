@@ -128,7 +128,7 @@ describe('0002_recovery on a fresh database', () => {
   afterEach(() => t.cleanup());
 
   it('applies every migration through 0004, leaves foreign keys on and the check clean', () => {
-    expect(migrationStatus(t.db)).toEqual({ current: true, applied: 20, expected: 20 });
+    expect(migrationStatus(t.db)).toEqual({ current: true, applied: 21, expected: 21 });
     expect(t.db.sqlite.pragma('foreign_keys', { simple: true })).toBe(1);
     expect(t.db.sqlite.pragma('foreign_key_check')).toEqual([]);
   });
@@ -161,7 +161,7 @@ describe('0002_recovery on a main-era database', () => {
     db = openDb(join(tmp.dir, 'docket.db'));
     // Exactly what main's migrateDb did: foreign keys on, 0000 and 0001 only.
     migrate(drizzle(db.sqlite), { migrationsFolder: mainEraMigrations(tmp.dir) });
-    expect(migrationStatus(db)).toEqual({ current: false, applied: 2, expected: 20 });
+    expect(migrationStatus(db)).toEqual({ current: false, applied: 2, expected: 21 });
     expect(columns(db, 'runs')).not.toContain('workspace');
     seedMainEra(db);
   });
@@ -172,9 +172,9 @@ describe('0002_recovery on a main-era database', () => {
 
   it('migrates to current, and migrating again is a no-op', () => {
     migrateDb(db);
-    expect(migrationStatus(db)).toEqual({ current: true, applied: 20, expected: 20 });
+    expect(migrationStatus(db)).toEqual({ current: true, applied: 21, expected: 21 });
     migrateDb(db);
-    expect(migrationStatus(db).applied).toBe(20);
+    expect(migrationStatus(db).applied).toBe(21);
   });
 
   it('keeps every row and every foreign key value through the rebuild; foreign_key_check is clean', () => {

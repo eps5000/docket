@@ -128,8 +128,11 @@ function sharedEnums(into: Set<string>): void {
   for (const value of Object.values(shared)) {
     if (!Array.isArray(value)) continue;
     for (const v of value) {
-      if (typeof v === 'string') into.add(v);
-      else if (v && typeof v === 'object' && typeof (v as { key?: unknown }).key === 'string') {
+      if (typeof v === 'string') {
+        into.add(v);
+        // An event type's name after its dot (`run.park_expired`), as the skills write it.
+        for (const part of v.split('.')) into.add(part);
+      } else if (v && typeof v === 'object' && typeof (v as { key?: unknown }).key === 'string') {
         into.add((v as { key: string }).key);
       }
     }

@@ -6,6 +6,13 @@
  * the B3 PR): evidence and packet lines ≤ 500, estimate ≤ 40, URLs ≤ 2,000,
  * branch ≤ 200, artifact state ≤ 40.
  */
+/**
+ * Decision 44: how long a coordinator may park a run for it. Each park or
+ * renewal is at most `max_minutes`, and its deadline at most `total_minutes`
+ * after the run's last own signal, so a dead run can't hold its ticket.
+ */
+export const COORDINATOR_PARK = { max_minutes: 240, total_minutes: 1_440 } as const;
+
 export const TEXT_LIMITS = {
   title: 200,
   /** Step, check and human review item text. */

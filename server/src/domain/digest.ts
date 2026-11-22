@@ -196,10 +196,12 @@ export function createDigestService(deps: ServiceDeps): DigestService {
           ...(x.producer ? { producer: x.producer } : {}),
           ...(x.activity ? { activity: activityText(x.activity) } : {}),
           ...(x.updated_by ? { updated_by: x.updated_by } : {}),
+          ...(x.coordinator_park ? { coordinator_park: x.coordinator_park } : {}),
         }))
         .sort(
           (a, b) =>
             Number(b.resume_ready) - Number(a.resume_ready) ||
+            Number(!!b.coordinator_park?.ended_at) - Number(!!a.coordinator_park?.ended_at) ||
             Number(!!b.activity) - Number(!!a.activity) ||
             (RUN_ORDER[a.state] ?? 9) - (RUN_ORDER[b.state] ?? 9) ||
             a.item_id.localeCompare(b.item_id),

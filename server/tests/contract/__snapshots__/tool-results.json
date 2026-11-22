@@ -1439,6 +1439,29 @@
                   ],
                   "additionalProperties": false
                 },
+                "coordinator_park": {
+                  "type": "object",
+                  "properties": {
+                    "by": {
+                      "type": "string"
+                    },
+                    "at": {
+                      "type": "string"
+                    },
+                    "until": {
+                      "type": "string"
+                    },
+                    "ended_at": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "by",
+                    "at",
+                    "until"
+                  ],
+                  "additionalProperties": false
+                },
                 "activity": {
                   "type": "object",
                   "properties": {
@@ -2062,7 +2085,8 @@
                     "design_review.decided",
                     "service.restarted",
                     "run.status_updated",
-                    "run.activity"
+                    "run.activity",
+                    "run.park_expired"
                   ]
                 },
                 "summary": {
@@ -3437,7 +3461,8 @@
                 "design_review.decided",
                 "service.restarted",
                 "run.status_updated",
-                "run.activity"
+                "run.activity",
+                "run.park_expired"
               ]
             },
             "summary": {
@@ -3581,6 +3606,29 @@
                 },
                 "updated_by": {
                   "type": "string"
+                },
+                "coordinator_park": {
+                  "type": "object",
+                  "properties": {
+                    "by": {
+                      "type": "string"
+                    },
+                    "at": {
+                      "type": "string"
+                    },
+                    "until": {
+                      "type": "string"
+                    },
+                    "ended_at": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "by",
+                    "at",
+                    "until"
+                  ],
+                  "additionalProperties": false
                 }
               },
               "required": [
@@ -5228,6 +5276,9 @@
       "resume_ready": {
         "type": "boolean"
       },
+      "parked_until": {
+        "type": "string"
+      },
       "replayed": {
         "type": "boolean"
       },
@@ -6105,7 +6156,8 @@
               "design_review.decided",
               "service.restarted",
               "run.status_updated",
-              "run.activity"
+              "run.activity",
+              "run.park_expired"
             ]
           },
           "summary": {
@@ -7675,6 +7727,29 @@
                   ],
                   "additionalProperties": false
                 },
+                "coordinator_park": {
+                  "type": "object",
+                  "properties": {
+                    "by": {
+                      "type": "string"
+                    },
+                    "at": {
+                      "type": "string"
+                    },
+                    "until": {
+                      "type": "string"
+                    },
+                    "ended_at": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "by",
+                    "at",
+                    "until"
+                  ],
+                  "additionalProperties": false
+                },
                 "activity": {
                   "type": "object",
                   "properties": {
@@ -8419,6 +8494,29 @@
                   ],
                   "additionalProperties": false
                 },
+                "coordinator_park": {
+                  "type": "object",
+                  "properties": {
+                    "by": {
+                      "type": "string"
+                    },
+                    "at": {
+                      "type": "string"
+                    },
+                    "until": {
+                      "type": "string"
+                    },
+                    "ended_at": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "by",
+                    "at",
+                    "until"
+                  ],
+                  "additionalProperties": false
+                },
                 "activity": {
                   "type": "object",
                   "properties": {
@@ -9085,6 +9183,29 @@
                     "by",
                     "client",
                     "at"
+                  ],
+                  "additionalProperties": false
+                },
+                "coordinator_park": {
+                  "type": "object",
+                  "properties": {
+                    "by": {
+                      "type": "string"
+                    },
+                    "at": {
+                      "type": "string"
+                    },
+                    "until": {
+                      "type": "string"
+                    },
+                    "ended_at": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "by",
+                    "at",
+                    "until"
                   ],
                   "additionalProperties": false
                 },
