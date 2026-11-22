@@ -147,6 +147,11 @@ export function without0010<T>(rows: T): T {
     if ('shared_none_at' in out || 'main_branch' in out || 'held_undeclared' in out) {
       for (const c of COLUMNS_0010) delete out[c];
     }
+    // Decision 41 (0017): two more columns on runs, null on every row from before it.
+    if ('unpushed_handled_at' in out) {
+      delete out.unpushed_outcome;
+      delete out.worktree_check;
+    }
     return out;
   }) as T;
 }

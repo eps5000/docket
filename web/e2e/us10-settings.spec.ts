@@ -216,7 +216,7 @@ test.describe('Settings', () => {
     await expect(health.locator('[data-backup="volume"]')).toHaveText(
       /^In the data volume · [A-Z][a-z]{2} \d{1,2} \d{2}:\d{2} · kept \d+ days$/,
     );
-    await expect(health.getByText(/runs? (was|were) active/)).toBeVisible();
+    await expect(health.getByText(/open runs? (was|were) kept/)).toBeVisible();
     await shoot(page, 'settings-service-health', health);
     await shoot(page, 'settings-this-browser', card(page, 'this-browser'));
   });

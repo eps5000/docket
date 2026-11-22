@@ -20,7 +20,7 @@ import {
   openDb,
   type Db,
 } from '../../src/db/client.js';
-import { insertItem, insertProject, tempDir, type TempDir } from '../helpers.js';
+import { insertItem, insertProject, tempDir, without0010, type TempDir } from '../helpers.js';
 
 const ts = '2026-11-19T00:00:00.000Z';
 const BEFORE = [
@@ -125,7 +125,7 @@ describe('0010_shared_changes', () => {
     const migrated = openDb(copy);
     try {
       migrateDb(migrated);
-      expect(migrationStatus(migrated)).toEqual({ current: true, applied: 17, expected: 17 });
+      expect(migrationStatus(migrated)).toEqual({ current: true, applied: 18, expected: 18 });
 
       // Every existing row is unchanged, plus the new columns at their defaults.
       expect(all(migrated, 'items')).toEqual(
@@ -161,7 +161,7 @@ describe('0010_shared_changes', () => {
         })),
       );
       expect(all(migrated, 'links')).toEqual(before.links);
-      expect(all(migrated, 'runs')).toEqual(before.runs);
+      expect(without0010(all(migrated, 'runs'))).toEqual(before.runs);
       expect(migrated.sqlite.pragma('foreign_key_check')).toEqual([]);
       for (const t of NEW_TABLES) expect(all(migrated, t), t).toEqual([]);
 
@@ -315,7 +315,7 @@ describe('0010_shared_changes', () => {
 
       // Migrating again is a no-op.
       migrateDb(migrated);
-      expect(migrationStatus(migrated).applied).toBe(17);
+      expect(migrationStatus(migrated).applied).toBe(18);
     } finally {
       migrated.sqlite.close();
     }
