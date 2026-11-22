@@ -744,7 +744,7 @@ The format for each tool below:
   ```
 - **Text rendering:** one block per section. An interrupted entry reads like `RCP-15 Pantry inventory schema · interrupted (service_restart) · 2/4 done · ws C:/…/rcp-15 @ 4be1c09 (pushed) · brief dv_…`.
 - **Read-only.** It never changes state; the coordinator acts on it.
-- **After a Docket restart (decision 41; B49):** open runs stay open, so a restart adds nothing to `interrupted`. A run silent since the restart may be under `stale` with a `lease_expires_at` still ahead: leave it, because its agent's next call with its `run_id` continues. If it never returns, the lease ends it (`lease_expired`) and it moves to `interrupted`. `service_restart` remains only on runs that ended before B49. The output shape is unchanged; the one addition to the contract is the event type `service.restarted` (one per restart that kept runs, with `runs_kept`).
+- **After a Docket restart (decision 41; B49):** open runs stay open, so a restart adds nothing to `interrupted`. A run silent since the restart may be under `stale` with a `lease_expires_at` still ahead: leave it, because its agent's next call with its `run_id` continues. If it never returns, the lease ends it (`lease_expired`) and it moves to `interrupted`. A child run gets the same window: any call with its `run_id` continues it, and one still silent at the deadline ends as `interrupted` (`service_restart`) without affecting its parent. Children aren't listed under `interrupted`, which is for leads. On a lead, `service_restart` appears only on runs that ended before B49. The output shape is unchanged; the one addition to the contract is the event type `service.restarted` (one per restart that kept runs, with `runs_kept`).
 
 ---
 

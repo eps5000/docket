@@ -216,7 +216,7 @@ Blocked is derived and shows as a separate red chip, "⊘ Blocked by RCP-12, …
 | needs input | amber "?" | Waiting on you |
 | failed | red "×" | Run ended with an error |
 | finished | gray "✓" | Run ended normally |
-| interrupted | ring "–" | Stopped without finishing (lease expired or released; a service restart only in history from before decision 41) |
+| interrupted | ring "–" | Stopped without finishing (lease expired or released; a service restart for a child run that didn't signal in time, or in history from before decision 41) |
 
 **One run-state line** (B20). Everywhere a run is shown with its context (Board and List cards, the epic's Tickets list, Agents, the agent bar, Lead and runs) it is one `RunLine`: `state · reason · agent`, then the age.
 - **state:** the run state's icon and label;

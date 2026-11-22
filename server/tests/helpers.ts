@@ -151,6 +151,7 @@ export function without0010<T>(rows: T): T {
     if ('unpushed_handled_at' in out) {
       delete out.unpushed_outcome;
       delete out.worktree_check;
+      delete out.restart_deadline_at;
     }
     return out;
   }) as T;

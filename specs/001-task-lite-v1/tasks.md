@@ -555,7 +555,7 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 ## Phase 29: Survive restarts, catch up backups, truthful Needs you (owner decision 41)
 
 - [x] T206 [US11] Spec plus code in one PR: decision 41 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §2, §5.3, §5.13, §5.16, §5.22; MCP_SPEC §5.9; UI_SPEC §6.1; spec FR-188–FR-195; Help (Problems and what to do, Recovering after a crash, Backups, Run states) and the coordinator skill.
-- [x] T207 [US11] Runs survive a restart: the boot sweep keeps open runs with a lease of at least `DOCKET_RESTART_GRACE_MINUTES`, one `service.restarted` event, and normal lease expiry for a run that never returns.
+- [x] T207 [US11] Runs survive a restart: the boot sweep keeps open runs with a lease of at least `DOCKET_RESTART_GRACE_MINUTES`, one `service.restarted` event, and normal lease expiry for a run that never returns. Child runs get a stored restart deadline: a signal continues them, and silence ends them as interrupted without affecting the parent.
 - [x] T208 [US10] Backups: a wall-clock scheduler with one catch-up, tries kept across restarts, and the `backup_missed` Problem.
 - [x] T209 [US18] Needs you: parked and unpushed Problems routed to agents first, the read-only git check, canceled and deferred wording, *Keep for later* and *Safe to discard* with undo, and one count for the badge, the tab title and the page.
 

@@ -140,13 +140,24 @@ describe('a Docket restart (owner decision 41)', () => {
       },
       h.a,
     )) as { run_id: string };
+    const sub = (await step(
+      'start_run',
+      { id: 'RCP-17', parent_run_id: run_id, agent_label: 'orca-w1-sub' },
+      h.a,
+    )) as { run_id: string };
     const { runtime, app, kept } = await restart(h);
-    expect(kept).toContain(run_id);
+    expect(kept).toEqual(expect.arrayContaining([run_id, sub.run_id]));
 
     // The same agent reconnects: its next call with the run_id simply continues.
     const agent = await connectTo(app, runtime);
     expectOk(await call(agent, 'heartbeat', { run_id, workspace: { dirty: false } }));
+    // Its child signals inside the window, so it outlives the deadline.
+    expectOk(await call(agent, 'heartbeat', { run_id: sub.run_id }));
+    h.server.clock.advance(runtime.config.restartGraceMs + minutes(1));
+    expect(sweepOnce(runtime).children).toEqual([]);
+    expectOk(await call(agent, 'heartbeat', { run_id }));
     const got = expectOk(await call(agent, 'get_item', { id: 'RCP-17', run_id })).structured;
+    expect(runOf(got, sub.run_id)).toMatchObject({ end_reason: null, lease_expires_at: null });
     expect(runOf(got, run_id)).toMatchObject({
       run_state: expect.stringMatching(/^(live|reported)$/),
       end_reason: null,
@@ -160,6 +171,9 @@ describe('a Docket restart (owner decision 41)', () => {
       interrupted: { run: { run_id: string } }[];
     };
     expect(report.interrupted.map((e) => e.run.run_id)).not.toContain(run_id);
+    expectOk(
+      await call(agent, 'finish_run', { run_id: sub.run_id, result: 'finished', summary: 'Done.' }),
+    );
     expectOk(await call(agent, 'finish_run', { run_id, result: 'finished', summary: 'Done.' }));
     await Promise.allSettled([agent.close(), other.close()]);
   });

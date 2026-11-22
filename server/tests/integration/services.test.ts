@@ -115,6 +115,7 @@ describe('the service stubs', () => {
       'recordSignal',
       'expireLeases',
       'keepOpenRuns',
+      'endSilentChildren',
       'openRunSessions',
       // US11 (B10, T099).
       'updateResources',

@@ -27,7 +27,7 @@ A **run** is one agent's stretch of work on an item. The agent leading an item h
 | **needs input** | Waiting on you: it asked a question. |
 | **failed** | The run ended with an error. |
 | **finished** | The run ended normally. |
-| **interrupted** | Stopped without finishing: its lease expired or its claim was released. (Runs from before Docket kept work through restarts may also say the service restarted.) |
+| **interrupted** | Stopped without finishing: its lease expired, its claim was released, or it was a subagent's run that didn't call within 15 minutes of a Docket restart. (Runs from before Docket kept work through restarts may also say the service restarted.) |
 
 Hover a state to see its meaning. Parked runs also say what they wait on, like "parked · waiting on RCP-12", and "ready to resume" once that has cleared.
 

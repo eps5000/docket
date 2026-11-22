@@ -406,6 +406,11 @@ export const runs = sqliteTable(
     last_signal_at: text('last_signal_at').notNull(),
     last_signal_kind: text('last_signal_kind', { enum: SIGNAL_KINDS }).notNull(),
     lease_expires_at: text('lease_expires_at'),
+    /**
+     * Decision 41: a child run's deadline to signal after a restart. Children have
+     * no lease; this is set only at boot, cleared by any signal, and null otherwise.
+     */
+    restart_deadline_at: text('restart_deadline_at'),
     summary: text('summary'),
     error: text('error'),
     current_step_id: text('current_step_id').references(() => work_steps.id, {

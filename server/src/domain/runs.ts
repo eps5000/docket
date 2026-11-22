@@ -188,7 +188,8 @@ export function createRunsService(deps: ServiceDeps): RunsService {
     r.db.sqlite
       .prepare(
         `UPDATE runs SET last_signal_at = ?, last_signal_kind = ?,
-           lease_expires_at = CASE WHEN is_lead = 1 THEN ? ELSE lease_expires_at END
+           lease_expires_at = CASE WHEN is_lead = 1 THEN ? ELSE lease_expires_at END,
+           restart_deadline_at = NULL
          WHERE id = ? AND state IN ('open', 'needs_input')`,
       )
       .run(r.now, kind, isoPlus(r.now, deps.config.leaseMs), runId);
@@ -656,7 +657,10 @@ export function createRunsService(deps: ServiceDeps): RunsService {
           }
           // The MCP signal hook has already recorded this call; another adapter's call can't prove a session.
           const fresh = getRun(r.db, run.id)!;
-          if (ms(fresh.last_signal_at) < ms(r.now)) signal(r, run.id, 'report');
+          // A child inside its restart window must clear its deadline even in the same instant.
+          if (ms(fresh.last_signal_at) < ms(r.now) || fresh.restart_deadline_at !== null) {
+            signal(r, run.id, 'report');
+          }
         })
         .immediate();
       const after = getRun(r.db, run.id)!;
@@ -808,6 +812,7 @@ export function createRunsService(deps: ServiceDeps): RunsService {
         parked_at: parkedAt,
         // The lease is suspended: a parked run keeps its claim and never expires (§5.16).
         lease_expires_at: null,
+        restart_deadline_at: null,
       });
       const on = waitingText(waiting);
       w.event({
@@ -878,21 +883,51 @@ export function createRunsService(deps: ServiceDeps): RunsService {
         .all() as RunRow[];
       if (open.length === 0) return { kept: [] };
       const until = isoPlus(w.now, input.graceMs);
-      // Like a signal, the lease is bookkeeping: no version bump and no event per run.
+      // Like a signal, these are bookkeeping: no version bump and no event per run.
       const extend = w.db.sqlite.prepare('UPDATE runs SET lease_expires_at = ? WHERE id = ?');
+      const deadline = w.db.sqlite.prepare('UPDATE runs SET restart_deadline_at = ? WHERE id = ?');
       for (const run of open) {
-        if (run.is_lead !== 1) continue;
-        if (run.lease_expires_at === null || ms(run.lease_expires_at) < ms(until)) {
+        if (run.is_lead !== 1) {
+          // Another restart inside the window doesn't move a child's deadline.
+          if (run.restart_deadline_at === null) deadline.run(until, run.id);
+        } else if (run.lease_expires_at === null || ms(run.lease_expires_at) < ms(until)) {
           extend.run(until, run.id);
         }
       }
       const n = open.length;
       w.event({
         type: 'service.restarted',
-        summary: `Docket restarted and kept ${n} open ${n === 1 ? 'run' : 'runs'}. Each agent's next call continues; a run that doesn't return ends when its lease runs out.`,
+        summary: `Docket restarted and kept ${n} open ${n === 1 ? 'run' : 'runs'}. Each agent's next call continues; a run that doesn't return ends when its time runs out.`,
         data: { runs_kept: n, grace_ms: input.graceMs, lease_at_least_until: until },
       });
       return { kept: open.map((r) => r.id) };
+    },
+
+    endSilentChildren(w) {
+      const due = w.db.sqlite
+        .prepare(
+          `SELECT * FROM runs WHERE is_lead = 0 AND state IN ('open', 'needs_input')
+             AND restart_deadline_at IS NOT NULL AND restart_deadline_at <= ?
+           ORDER BY restart_deadline_at, id`,
+        )
+        .all(w.now) as RunRow[];
+      for (const run of due) {
+        const item = requireItem(w.db, run.item_id);
+        w.update('runs', run.id, {
+          state: 'interrupted',
+          end_reason: 'service_restart',
+          restart_deadline_at: null,
+        });
+        w.event({
+          type: 'run.ended',
+          summary: `Child run ${run.label ?? run.id} interrupted: no signal after the Docket restart`,
+          item_id: item.id,
+          project_key: item.project_key,
+          data: { run_id: run.id, end_reason: 'service_restart', is_lead: false },
+          objects: [{ kind: 'run', id: run.id }],
+        });
+      }
+      return { ended: due.map((r) => r.id) };
     },
 
     openRunSessions(r) {

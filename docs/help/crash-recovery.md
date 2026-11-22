@@ -15,6 +15,7 @@ When an agent, your coordinator (such as Orca) or Docket itself stops unexpected
 ## What you see
 
 - **A Docket restart doesn't end work.** Open runs stay open, with their claim, worktree and run ID, and each lease lasts at least 15 more minutes. Each agent's next call simply continues, so you don't need to park agents before an update. Settings → **Service health** says how many runs were kept.
+- **Subagent runs get the same 15 minutes.** One that calls in that time carries on. One that stays silent ends as **interrupted** ("service restarted"), and its worktree follows the usual at-risk rules. Its lead keeps working, and nothing is deleted.
 - **Runs that don't come back end as interrupted, never finished.** If an agent goes quiet, its run turns **stale**, then **interrupted** when its lease runs out. Interrupted runs from the last 24 hours are under **Agents → Recent**.
 - **Items go back to Ready** when a lease runs out or you release a claim, so another agent can claim them. Their checklist and partial work stay on the ticket.
 - **Work left in a worktree** shows when a run ended with uncommitted changes or commits that weren't pushed. It goes to the item's lead or your coordinator first, and reaches you if nobody can act on it or it's still there after a day. Docket checks the repository (read-only) when it can, so it won't call a commit unpushed when it's already on main. When it can't check, the row says the state is **unverified**.

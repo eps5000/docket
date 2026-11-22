@@ -30,9 +30,12 @@ const { config } = runtime;
 
 // Service start (BUILD_SPEC §5.3; decision 41): runs still open from before stay open, and
 // each lead's lease runs at least DOCKET_RESTART_GRACE_MINUTES from now.
-const { kept } = restartSweep(runtime);
+const { kept, ended } = restartSweep(runtime);
 if (kept.length > 0) {
   console.log(`Service restarted: kept ${kept.length} open run(s); their agents can continue.`);
+}
+if (ended.length > 0) {
+  console.log(`Service restarted: ${ended.length} child run(s) missed their deadline and ended.`);
 }
 
 if (config.seed === 'sample') {

@@ -168,6 +168,7 @@ describe('0009_step_details', () => {
                 branches: _br,
                 unpushed_outcome: _uo,
                 worktree_check: _wc,
+                restart_deadline_at: _rd,
                 ...row
               }) => row,
             ),

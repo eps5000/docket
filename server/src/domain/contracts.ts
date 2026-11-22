@@ -320,10 +320,16 @@ export interface RunsService {
   expireLeases(w: WriteContext): { interrupted: string[] };
   /**
    * Service start (decision 41): open runs stay open with their claim, and each
-   * lead's lease runs at least `graceMs` from now. One `service.restarted` event
-   * when any were kept; none on a quiet database.
+   * lead's lease runs at least `graceMs` from now. A child, which has no lease,
+   * gets a deadline to signal instead; a deadline from an earlier restart stands.
+   * One `service.restarted` event when any were kept; none on a quiet database.
    */
   keepOpenRuns(w: WriteContext, input: { graceMs: number }): { kept: string[] };
+  /**
+   * Child runs still silent at their restart deadline → `interrupted`
+   * (`service_restart`), one `run.ended` each. Their parent and item are untouched.
+   */
+  endSilentChildren(w: WriteContext): { ended: string[] };
   /** Sessions of open runs, for the 60 s ping. */
   openRunSessions(r: ReadContext): { run_id: string; session_id: string }[];
 }

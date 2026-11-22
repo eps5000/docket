@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "e790fd04-2647-4c1c-a8e8-df86b3ad32cd",
+  "id": "c0608dd5-2fec-42d6-a928-f74dc1707dbf",
   "prevId": "7ec2b240-f1be-4932-8c28-7a5bf0c1f775",
   "tables": {
     "acceptance_criteria": {
@@ -4988,6 +4988,13 @@
         },
         "lease_expires_at": {
           "name": "lease_expires_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "restart_deadline_at": {
+          "name": "restart_deadline_at",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
