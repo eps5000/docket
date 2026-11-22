@@ -9,7 +9,9 @@ import {
   inputJsonSchema,
   normaliseSharedPartKey,
   outputJsonSchema,
+  resultJsonSchema,
   sharedPartKey,
+  TOOL_ERROR_JSON_SCHEMA,
   toolAnnotations,
   TOOLS,
 } from '../src/mcp/index.js';
@@ -27,14 +29,14 @@ const fails = (name: string, args: unknown) => {
 };
 
 describe('the registry', () => {
-  it('has 49 tools with unique names: 13 read, 1 delivering (get_item), 35 mutating', () => {
-    expect(TOOLS).toHaveLength(49);
-    expect(new Set(TOOLS.map((t) => t.name)).size).toBe(49);
+  it('has 50 tools with unique names: 14 read, 1 delivering (get_item), 35 mutating', () => {
+    expect(TOOLS).toHaveLength(50);
+    expect(new Set(TOOLS.map((t) => t.name)).size).toBe(50);
     const kinds = TOOLS.reduce<Record<string, number>>(
       (acc, t) => ({ ...acc, [t.kind]: (acc[t.kind] ?? 0) + 1 }),
       {},
     );
-    expect(kinds).toEqual({ read: 13, delivering: 1, mutating: 35 });
+    expect(kinds).toEqual({ read: 14, delivering: 1, mutating: 35 });
   });
 
   it('groups tools into the thirteen server files', () => {
@@ -56,7 +58,7 @@ describe('the registry', () => {
       ].map((g) => [g, TOOLS.filter((t) => t.group === g).length]),
     );
     expect(groups).toEqual({
-      read: 8,
+      read: 9,
       items: 6,
       runs: 6,
       checklist: 8,
@@ -84,12 +86,10 @@ describe('the registry', () => {
     expect(toolAnnotations(getTool('search_items'))).toEqual({
       readOnlyHint: true,
       destructiveHint: false,
-      idempotentHint: false,
     });
     expect(toolAnnotations(getTool('get_item'))).toEqual({
       readOnlyHint: false,
       destructiveHint: false,
-      idempotentHint: false,
     });
     expect(toolAnnotations(getTool('heartbeat'))).toEqual({
       readOnlyHint: false,
@@ -109,12 +109,10 @@ describe('the registry', () => {
     expect(toolAnnotations(getTool('park_run'))).toEqual({
       readOnlyHint: false,
       destructiveHint: false,
-      idempotentHint: false,
     });
     expect(toolAnnotations(getTool('recovery_report'))).toEqual({
       readOnlyHint: true,
       destructiveHint: false,
-      idempotentHint: false,
     });
   });
 });
@@ -359,12 +357,10 @@ describe('JSON Schema for MCP', () => {
     for (const t of TOOLS) {
       const schema = outputJsonSchema(t);
       expect(schema.type, t.name).toBe('object');
-      const [result, error] = schema.anyOf as {
-        type: string;
-        properties: Record<string, unknown>;
-      }[];
+      const [result, error] = schema.anyOf as { type: string; required: string[] }[];
       expect(result!.type).toBe('object');
-      expect(Object.keys(error!.properties)).toEqual(['code', 'message', 'details', 'current']);
+      // Compact for clients (decision 40): the full ToolError is in MCP_SPEC §6.
+      expect(error!.required).toEqual(['code', 'message']);
     }
   });
 
@@ -592,12 +588,10 @@ describe('agent file inputs (MCP_SPEC §5.4 instructions, §5.10; decision 30; B
     expect(toolAnnotations(getTool('get_agent_files'))).toEqual({
       readOnlyHint: true,
       destructiveHint: false,
-      idempotentHint: false,
     });
     expect(toolAnnotations(getTool('propose_agent_file_change'))).toEqual({
       readOnlyHint: false,
       destructiveHint: false,
-      idempotentHint: false,
     });
   });
 });
@@ -648,7 +642,6 @@ describe('onboarding (MCP_SPEC §5.11; decision 31; B29)', () => {
       expect(toolAnnotations(getTool(name))).toEqual({
         readOnlyHint: false,
         destructiveHint: false,
-        idempotentHint: false,
       });
     }
   });
@@ -689,7 +682,6 @@ describe('step details (MCP_SPEC §5.12; decision 33; B33)', () => {
     expect(toolAnnotations(getTool('get_step'))).toEqual({
       readOnlyHint: true,
       destructiveHint: false,
-      idempotentHint: false,
     });
     ok('get_step', { id: 'RCP-14', step_id: 'wst_a' });
     ok('get_step', { id: 'RCP-14', step_id: 'wst_a', run_id: 'run_A' });
@@ -698,10 +690,11 @@ describe('step details (MCP_SPEC §5.12; decision 33; B33)', () => {
   });
 
   it('get_step output: the step always carries details_md and details_version', () => {
-    const out = outputJsonSchema(getTool('get_step')) as {
-      anyOf: { properties: Record<string, { required?: string[] }> }[];
+    // The full result: clients get a compact outputSchema (decision 40).
+    const out = resultJsonSchema(getTool('get_step')) as {
+      properties: Record<string, { required?: string[] }>;
     };
-    const step = out.anyOf[0]!.properties.step!;
+    const step = out.properties.step!;
     expect(step.required).toEqual(
       expect.arrayContaining(['details_md', 'details_version', 'source', 'has_details']),
     );
@@ -823,13 +816,11 @@ describe('shared changes (MCP_SPEC §5.15; decision 36; B38)', () => {
     expect(toolAnnotations(getTool('list_shared_parts'))).toEqual({
       readOnlyHint: true,
       destructiveHint: false,
-      idempotentHint: false,
     });
     for (const name of ['declare_shared_changes', 'take_lease', 'release_lease']) {
       expect(toolAnnotations(getTool(name)!), name).toEqual({
         readOnlyHint: false,
         destructiveHint: false,
-        idempotentHint: false,
       });
     }
   });
@@ -858,11 +849,8 @@ describe('shared changes (MCP_SPEC §5.15; decision 36; B38)', () => {
   });
 
   it('the output schemas carry the new error codes and the optional fields', () => {
-    const err = (
-      outputJsonSchema(getTool('take_lease')) as {
-        anyOf: { properties: { code: { enum: string[] } } }[];
-      }
-    ).anyOf[1]!.properties.code.enum;
+    const err = (TOOL_ERROR_JSON_SCHEMA as { properties: { code: { enum: string[] } } }).properties
+      .code.enum;
     expect(err.slice(-4)).toEqual(['seam_conflict', 'not_declared', 'lease_held', 'design_review']);
     const packet = getTool('submit_packet').output;
     expect(

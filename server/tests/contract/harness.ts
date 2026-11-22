@@ -56,6 +56,8 @@ export interface ContractHarness {
 
 export interface HarnessOptions {
   seed?: boolean;
+  /** Also seed the 300-item STR stress project (B35), about the size of the Gameflow pilot. */
+  stress?: boolean;
   toolHandlers?: Partial<ToolHandlers>;
   /** Replace service methods (domain/contracts.ts), as a slice's implementation would. */
   services?: ServiceOverrides;
@@ -67,7 +69,8 @@ export interface HarnessOptions {
 
 /**
  * The shipped DOCKET_TEXT_ONLY_CLIENTS default (BUILD_SPEC §2): an empty
- * value counts as unset, so `claude-code` sessions are text-only.
+ * value counts as unset, so `claude-code` and `codex-mcp-client` sessions are
+ * text-only.
  */
 export const PRODUCT_RESULT_MODES = { DOCKET_TEXT_ONLY_CLIENTS: '' } as const;
 
@@ -83,6 +86,7 @@ export async function startHarness(opts: HarnessOptions = {}): Promise<ContractH
     loadSampleSeed(server.runtime.db, {
       now: server.clock.now(),
       docsDir: server.runtime.config.paths.docs,
+      ...(opts.stress ? { stress: true } : {}),
     });
   }
   const token = server.runtime.secrets.agentToken();
@@ -195,6 +199,7 @@ export const VALID_ARGS: Record<ToolName, Record<string, unknown>> = {
   dependency_subgraph: { id: 'RCP-14' },
   deferred_reviews: { project: 'RCP' },
   get_changes: {},
+  get_digest: { project: 'RCP' },
   create_item: { project: 'RCP', type: 'Task', title: 'Pantry inventory schema' },
   update_item: { id: 'RCP-14', expected_version: 7, title: 'Generate the shopping list' },
   set_status: { id: 'RCP-14', status: 'ready' },

@@ -18,15 +18,26 @@ You dispatch workers, create and prune worktrees, and clean up. Workers follow `
 
 **Instructions changed outside Docket.** Workers pass the `docket-check` output as `instructions` on `claim_lead` (the worker skill says how), and Docket also checks folders it installed into. When an installed skill or the Docket section was edited, deleted or added by hand, the owner sees "… edited outside Docket" under Problems, and the run shows "edited locally". The remedies are the owner's, in Agent files: _Adopt_ (save the local text as the project's copy, or the default), _Restore Docket's version_ (reinstall), or _Keep local_ (accept it; a further change alerts again). Mention it to the owner when a worker hits it; don't restore or overwrite the files yourself.
 
+## Spend few tokens
+
+Every model call resends your whole context, so the cheapest turn is the one you don't take.
+
+- **Dispatch fresh.** Start each worker as a new agent. Never fork it or let it inherit your conversation: inherited context started workers at 132k tokens instead of 24–30k.
+- **Brief = item ID, worktree, branch and how to report.** Docket holds the rest.
+- **Snapshot, then wait.** `get_digest { project }`, act, then block on `docket-wait` (§4). With `cursor`, the digest returns only what changed.
+- **Never poll.** No `sleep` loops, and no repeated `get_changes` or `get_digest` to check on things. Park real waits and end your turn.
+- **Restart instead of carrying history.** Past about **100k tokens of context**, finish what's in hand, note the cursor and start a fresh session: `get_digest` and `recovery_report` rebuild the picture from Docket.
+- **Subagents return short results:** the outcome, the commit, anything blocking. Details go in Docket.
+
 ## 1. Every time you start, including after any crash or restart
 
-1. Call `whoami`, then `list_projects`.
+1. Call `whoami`, then `list_projects` if you don't know the project key.
 2. Call `recovery_report`. It's read-only and cheap. If anything is interrupted, stale, parked and ready to resume, or orphaned, handle it first (§6).
-3. Call `get_changes` with no cursor, and save the returned `next_cursor`. That cursor is your watch position (§4).
+3. Call `get_digest { project }`: ready work, runs, blockers, what waits on the owner, problems, leases and conflicts in one short read. Save its `cursor`: that's your watch position (§4).
 
 ## 2. Choosing work
 
-- **Find candidates:** `search_items { project, filter: "ready_to_start" }`. Results are sorted by priority, then by how many items each would unblock, so take them in order.
+- **Find candidates:** the digest's `ready` section lists the top items. For more, `search_items { project, filter: "ready_to_start" }`. Results are sorted by priority, then by how many items each would unblock, so take them in order.
 - **Ready means unblocked and unclaimed.** Two Ready items never block each other in Docket. They can still collide in code, though: same files, same migration. Use your judgement, and keep items from the same epic in one worker when they touch the same area.
 - **Mind the owner's review queue.** If `search_items { filter: "waiting_for_review" }` is long, prefer work that doesn't add another packet, such as items with no human review. The owner's attention is the scarcest resource.
 - **Resumable work comes first:** `filter: "resumable"` is work the owner sent back.
@@ -40,16 +51,29 @@ You dispatch workers, create and prune worktrees, and clean up. Workers follow `
    Work Docket item RCP-17 using the docket-worker skill.
    Worktree: C:/work/rcp-17 · branch rcp-17-week-reload · base origin/main @ 9a10624
    Claim with claim_lead, passing this workspace, orchestrator {name:"orca", dispatch_id:"<id>"}
-   and this brief verbatim. Then get_context; don't ask me for the requirements.
+   and this brief verbatim. Then get_context with budget "small"; don't ask me for the requirements.
    Constraints: <tests to run, dirs not to touch, PR rules>.
    If you must wait for me, park_run with waiting_on {orchestrator:true}. Don't end silently.
    ```
    Don't copy the description or acceptance criteria into the brief. They live in Docket, and copies go stale.
 3. **The worker claims** with `workspace`, `orchestrator` and `brief`. If a worker can't reach Docket, claim on its behalf with the same fields, and give it the `run_id`.
 
-## 4. Monitoring: the change feed, not polling
+## 4. Waiting: docket-wait, not polling
 
-Call `get_changes { cursor, types: [...] }`, then save the new `next_cursor`. Watch for:
+Block in one shell call. It spends no model tokens until a matching event arrives, and it rides out a Docket restart:
+
+```bash
+bash .claude/docket-wait.sh --cursor <cursor> --project RCP --timeout 540 \
+  --types run.parked,question.asked,packet.submitted,review.decided,run.ended
+```
+
+- **Where it is:** next to `docket-check` (`.codex/` for Codex, `~/.claude/` for a user-wide install). On Windows without bash: `powershell -NoProfile -ExecutionPolicy Bypass -File .claude/docket-wait.ps1`, with the same flags.
+- **Set your shell tool's timeout above `--timeout`,** or run it as a background command that wakes you when it exits.
+- **It prints** `changed cursor=<n> events=<k>`, then one line per event. Exit 0 is changed, 2 is timed out (wait again with the printed cursor), 1 is an error.
+- **Then** act on those lines, or call `get_digest { project, cursor }` for what changed, and wait again with the new cursor.
+- **No shell?** `get_changes { cursor, wait_s: 45 }` holds the call for up to 45 seconds. Clients cut tool calls off at 60 seconds, so it can't go longer.
+
+Watch for:
 
 | Event                                     | What it means for you                                                                      |
 | ----------------------------------------- | ------------------------------------------------------------------------------------------ |
@@ -67,7 +91,7 @@ For a detailed look at one worker, use `get_item { id, view: "summary" }`. Don't
 
 - **When a worker has to wait for you,** it calls `park_run { waiting_on: { orchestrator: true } }`. It keeps its claim, and its worktree counts as **in use**.
 - **When you're ready,** send it more work. Its next call un-parks it.
-- **Parked on items:** `recovery_report` shows `resume_ready: true` once those items clear. Resume it promptly: after 30 minutes the owner sees "ready to resume, unattended".
+- **Parked on items:** `get_digest` and `recovery_report` show `resume_ready` once those items clear. Resume it promptly: after 30 minutes the owner sees "ready to resume, unattended".
 - **Parked for over 24 hours:** the owner sees it under Problems. Resume it, or have it `release_lead`.
 
 ## 6. Pruning and crash recovery
@@ -118,6 +142,7 @@ When the owner asks you to set up a project, or to onboard a repo into one (deci
 
 ## Never
 
+- Wait in a `sleep` loop, or fork a worker from your own conversation.
 - Treat an idle worktree or terminal as finished. Check its workspace state.
 - Rebuild a brief from memory or chat history when Docket has it.
 - Leave a process, dev server or session running without a declared resource.

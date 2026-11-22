@@ -15,6 +15,7 @@ This project's work lives in Docket (MCP server `docket`). Track all work there;
 - **Claim before you work:** `claim_lead` the item, with the output of the installed `docket-check` (`.claude/` or `.codex/`) as `instructions` when it's there, and pass the returned `run_id` on every call while you work on it.
 - **Push at every step:** push your work in progress at each checklist step, then `report_commit … pushed: true`. Unpushed work may be lost.
 - **Park instead of going quiet:** waiting on another item, the coordinator or a person? `park_run` with what you're waiting on. A silent run looks stale and loses its claim.
+- **Wait without polling:** block on the installed `docket-wait` script (next to `docket-check`), which costs no tokens until something changes. Never wait in a `sleep` loop.
 - **Declare and release resources:** started a dev server, a session or a container? Declare it with `heartbeat resources_started`, and release it (`resources_released`) before you finish.
 - **Ask, don't guess, on product decisions:** `ask_owner` with your recommendation, then stop the work that depends on it.
 - **Propose instruction changes:** to change these instructions, use `get_agent_files` then `propose_agent_file_change`, and tell the user you've proposed it for the owner's approval. Don't edit installed files directly.

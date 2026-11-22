@@ -87,6 +87,8 @@ export interface ToolContext {
   readonly services: Services;
   /** A read context for this call: the database, the caller and the time. */
   readonly read: ReadContext;
+  /** Aborted when the client cancels the call: a waiting `get_changes` lets go (decision 40). */
+  readonly abort?: AbortSignal;
   /**
    * Run `fn` as this call's mutation, through the one write path: secret
    * checks, one transaction, events, and the call's `idempotency_key`.
@@ -211,6 +213,7 @@ export async function callTool(
   opts: RegisterOptions,
   name: string,
   rawArgs: unknown,
+  abort?: AbortSignal,
 ): Promise<CallToolResult> {
   const tool = getTool(name);
   if (!tool) throw new McpError(ErrorCode.InvalidParams, `Unknown tool: ${name}`);
@@ -259,6 +262,7 @@ export async function callTool(
       now,
       services: runtime.services,
       read,
+      ...(abort ? { abort } : {}),
       mutate: (fn) => {
         if (tool.kind !== 'mutating') throw new Error(`${tool.name} is not a mutating tool`);
         const { idempotency_key: key, ...hashed } = args;
@@ -339,7 +343,7 @@ function internal(runtime: Runtime, tool: string, cause: unknown): ToolError {
   });
 }
 
-/** Register all 48 tools on a session's server (the McpHub `configure` hook). */
+/** Register all 50 tools on a session's server (the McpHub `configure` hook). */
 export function registerTools(server: McpServer, opts: RegisterOptions): void {
   // The tool list is fixed for the life of the server (MCP_SPEC §1). Declared
   // on the low-level server, before connect: McpServer's own tool registration
@@ -348,7 +352,7 @@ export function registerTools(server: McpServer, opts: RegisterOptions): void {
   server.server.setRequestHandler(ListToolsRequestSchema, () => ({
     tools: toolList(opts.session()?.result_mode ?? 'structured'),
   }));
-  server.server.setRequestHandler(CallToolRequestSchema, (request) =>
-    callTool(opts, request.params.name, request.params.arguments),
+  server.server.setRequestHandler(CallToolRequestSchema, (request, extra) =>
+    callTool(opts, request.params.name, request.params.arguments, extra.signal),
   );
 }

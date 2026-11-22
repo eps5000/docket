@@ -11,6 +11,7 @@ import { createContextService } from './context.js';
 import type { ServiceDeps, Services } from './contracts.js';
 import { createDecisionsService } from './decisions.js';
 import { createDiagnosticsService } from './diagnostics.js';
+import { createDigestService } from './digest.js';
 import { createDocumentsService } from './documents.js';
 import { createDriftService } from './drift.js';
 import { createEvidenceService } from './evidence.js';
@@ -52,6 +53,7 @@ export function createServices(
     reviewDecisions: createReviewDecisionsService(full),
     evidence: createEvidenceService(full),
     search: createSearchService(full),
+    digest: createDigestService(full),
     views: createViewsService(full),
     links: createLinksService(full),
     subgraph: createSubgraphService(full),

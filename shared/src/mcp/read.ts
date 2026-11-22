@@ -198,6 +198,8 @@ export const getChangesInput = readInput({
   item_id: itemId.optional(),
   types: z.array(eventTypeSchema).min(1).optional(),
   limit: z.number().int().min(1).max(LIMITS.changes_max).default(LIMITS.changes_default),
+  /** Decision 40: hold the call up to this many seconds for a matching event (needs `cursor`). */
+  wait_s: z.number().int().min(1).max(LIMITS.changes_wait_s).optional(),
 });
 export const getChangesOutput = readOutput({
   events: z.array(eventRowSchema),

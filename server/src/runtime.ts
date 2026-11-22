@@ -8,6 +8,7 @@ import { SERVER_INSTRUCTIONS } from '@docket/shared';
 import { OwnerSessions } from './api/session.js';
 import { SecretStore, loadConfig, type Config } from './config.js';
 import { migrateDb, openDb, type Db } from './db/client.js';
+import { ChangeWaiters } from './domain/change-wait.js';
 import type { Services } from './domain/contracts.js';
 import { createServices, type ServiceOverrides } from './domain/services.js';
 import { WritePath } from './domain/write.js';
@@ -38,6 +39,8 @@ export interface Runtime {
   /** Emits `change` (seq numbers) after each commit, and `close` on shutdown. */
   bus: EventEmitter;
   write: WritePath;
+  /** Clients waiting on the change feed (decision 40). */
+  changes: ChangeWaiters;
   sessions: OwnerSessions;
   /** The domain services (contracts.ts): both adapters call only these. */
   services: Services;
@@ -84,6 +87,7 @@ export function createRuntime(opts: RuntimeOptions = {}): Runtime {
     db,
     bus,
     write,
+    changes: new ChangeWaiters(db, bus),
     sessions: new OwnerSessions({ db, secrets, clock }),
     services,
     mcp: new McpHub({
@@ -91,7 +95,7 @@ export function createRuntime(opts: RuntimeOptions = {}): Runtime {
       clock,
       instructions: SERVER_INSTRUCTIONS,
       textOnlyClients: config.textOnlyClients,
-      // Each new MCP session's server gets all 48 tools (MCP_SPEC §5) and the
+      // Each new MCP session's server gets all 50 tools (MCP_SPEC §5) and the
       // onboard prompt (§5.11).
       configure: (server, session) => {
         registerTools(server, { runtime, session, handlers });

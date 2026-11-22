@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router';
 import {
   CONNECTION_KEY,
+  isScriptKey,
+  scriptNameOf,
   INSTALL_CLIENT_LABELS,
   fillsProjectKey,
   isLegacySkillKey,
@@ -75,7 +77,9 @@ const nameOf = (key: string) =>
     ? key.slice(6)
     : key === CONNECTION_KEY
       ? 'Connection file'
-      : 'AGENTS.md block';
+      : isScriptKey(key)
+        ? scriptNameOf(key)
+        : 'AGENTS.md block';
 
 /**
  * The file Docket ships for a record: an old `tasklite-*` folder an install
@@ -149,9 +153,11 @@ function useSentText(d: Drift): string | undefined | null {
   const file = useQuery({
     queryKey: queryKeys.agentFile(fileKeyOf(d), q),
     queryFn: () => apiClient['agentFiles.get']({ params: { key: fileKeyOf(d) }, query: q }),
-    enabled: d.sent_version_id !== null && d.file_key !== CONNECTION_KEY,
+    enabled:
+      d.sent_version_id !== null && d.file_key !== CONNECTION_KEY && !isScriptKey(d.file_key),
   });
-  if (d.sent_version_id === null) return null;
+  // An installed script has no stored versions either (decision 40): no diff, restore or keep.
+  if (d.sent_version_id === null || isScriptKey(d.file_key)) return null;
   // The connection file has no stored versions: its docket entry, as the check compares it.
   if (d.file_key === CONNECTION_KEY) return connectionSentText(d.install.client, d.sent_version_id);
   if (!file.data) return undefined;
@@ -206,13 +212,15 @@ function DriftCard({
       ? 'The file is missing there: nothing to adopt.'
       : d.file_key === CONNECTION_KEY
         ? 'The connection file isn’t an agent file: restore Docket’s entry, or keep yours.'
-        : !adoptable
-          ? 'Only the files Docket ships can be adopted.'
-          : withheld
-            ? 'Content withheld: the local text looked like a secret.'
-            : noText
-              ? 'Run docket-check on that machine to send the text.'
-              : null;
+        : isScriptKey(d.file_key)
+          ? 'Docket’s scripts aren’t agent files: restore Docket’s copy, or keep yours.'
+          : !adoptable
+            ? 'Only the files Docket ships can be adopted.'
+            : withheld
+              ? 'Content withheld: the local text looked like a secret.'
+              : noText
+                ? 'Run docket-check on that machine to send the text.'
+                : null;
   const restoreWhy = legacy
     ? `Docket removes an old-name folder only while it is unmodified, and this one was edited: adopt it as ${nameOf(fileKeyOf(d))}, or keep it.`
     : d.change === 'extra'

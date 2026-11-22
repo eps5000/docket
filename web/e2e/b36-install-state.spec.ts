@@ -236,7 +236,7 @@ test.describe('Several clients and install state (decision 34)', () => {
       string,
       unknown
     >;
-    const agent = await connectAgent('codex-mcp-client', '0.50.0');
+    const agent = await connectAgent('codex', '0.50.0');
     try {
       const claim = await agent.call('claim_lead', {
         id: 'RCP-17',

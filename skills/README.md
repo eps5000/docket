@@ -44,7 +44,9 @@ They're plain Markdown, so edit them to fit your tooling: your orchestrator's co
 
 **Changes from agents, and edits by hand.** Agents don't edit their installed files: the skills tell them to read a file with `get_agent_files` and propose a change with `propose_agent_file_change`, which waits for your approval in Agent files (FR-128–FR-130). Each install also puts a `docket-check` script (`.sh` and `.ps1`) next to the manifest. Agents run it once per session and pass its one line of JSON as `instructions` on `claim_lead`: each file's hash, plus the text of any file that differs. That, and a scheduled check of folders Docket installed into (`DOCKET_DRIFT_CHECK_INTERVAL`, 15 minutes by default), shows you "edited outside Docket" with a diff, and *Adopt*, *Restore Docket's version* or *Keep local*.
 
-**Keep them in sync with the tools.** CI parses every `SKILL.md` and fails if it names a tool or a top-level input field that doesn't exist. If you add your own skills here, they get the same check.
+**Waiting.** Each install also puts a `docket-wait` script (`.sh` and `.ps1`) next to `docket-check`. Agents run it to wait for a change without spending model tokens (decision 40). It's in the manifest, so *Check* and drift cover it.
+
+**Keep them in sync with the tools.** CI parses every `SKILL.md` and fails if it names a tool or a top-level input field that doesn't exist, or if a skill passes **500 lines or 4,800 tokens** (characters ÷ 4). Move rarely used detail into a reference file rather than raising the cap. If you add your own skills here, they get the same checks.
 
 ## Not (yet) served over MCP
 

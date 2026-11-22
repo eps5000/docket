@@ -82,6 +82,25 @@ planning_docs:
       …truncated; read aggregation-rules.md v1 with get_item"
 `;
 
+exports[`every tool has a renderer > get_digest 1`] = `
+"Digest RCP · cursor 812
+ready 9:
+- RCP-17 p1 unblocks 2 · Week view reload
+  +8 more
+runs 1:
+- RCP-14 parked resume_ready · waiting RCP-12 · orca-w3
+blocked 1:
+- RCP-22 p2 unblocks 0 by RCP-12 · Export
+owner 1:
+- RCP-14 · question · Per serving or per 100 g?
+problems 1:
+- RCP-19 · radar_conflict · Rebase it onto main.
+leases 1:
+- table:recipes RCP-14 until 12:00Z
+conflicts 1:
+- RCP-14+RCP-19 sequence on model:Recipe"
+`;
+
 exports[`every tool has a renderer > get_item 1`] = `
 "RCP-14 Generate shopping list from week plan
   story · P1 · progress · epic RCP-1 Meal planning MVP · labels mobile · v7

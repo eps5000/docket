@@ -43,6 +43,7 @@ import type {
   WorkStep,
   Workspace,
 } from './mcp/types.js';
+import { DIGEST_MAX_CHARS, DIGEST_TEXT_CHARS, type Digest } from './mcp/digest.js';
 import type { RecoveryWorkspace } from './mcp/recovery.js';
 
 export interface RenderOptions {
@@ -822,7 +823,102 @@ function partList(parts: string[], max = 3): string {
   return parts.length > max ? `${shown.join(', ')} +${parts.length - max} more` : shown.join(', ');
 }
 
+/**
+ * `get_digest` (decision 40; MCP_SPEC §5.2): a header, then one short line per
+ * row, each section ending in `+N more` when it holds more. Empty sections
+ * are left out. Past `DIGEST_MAX_CHARS`, rows drop from the last section up,
+ * and the `+N more` lines still count them.
+ */
+function renderDigest(d: Digest, now: Date): string {
+  const clip = (t: string, max: number = DIGEST_TEXT_CHARS) => truncate(t, max);
+  const head = s('get_digest', {
+    project: d.project,
+    cursor: d.cursor,
+    since: d.since === null ? '' : `${SEP}since ${d.since}`,
+  });
+  const ready = {
+    title: 'ready',
+    total: d.ready.total,
+    rows: d.ready.rows.map(
+      (x) => `${x.id} p${x.priority} unblocks ${x.unblocks}${SEP}${clip(x.title)}`,
+    ),
+  };
+  const runs = {
+    title: 'runs',
+    total: d.runs.total,
+    rows: d.runs.rows.map((x) =>
+      join([
+        `${x.item_id} ${x.state}${x.resume_ready ? ' resume_ready' : ''}`,
+        x.waiting ? `waiting ${clip(x.waiting, 30)}` : null,
+        x.label ? clip(x.label, 20) : null,
+      ]),
+    ),
+  };
+  const blocked = {
+    title: 'blocked',
+    total: d.blocked.total,
+    rows: d.blocked.rows.map(
+      (x) =>
+        `${x.id} p${x.priority} unblocks ${x.unblocks} by ${partList(x.blocked_by, 2)}${SEP}${clip(x.title, 30)}`,
+    ),
+  };
+  const owner = {
+    title: 'owner',
+    total: d.owner.total,
+    rows: d.owner.rows.map((x) => join([x.item_id, x.kind, clip(x.text)])),
+  };
+  const problems = {
+    title: 'problems',
+    total: d.problems.total,
+    rows: d.problems.rows.map((x) => join([x.item_id ?? clip(x.id, 24), x.kind, clip(x.fix)])),
+  };
+  const leases = {
+    title: 'leases',
+    total: d.leases.total,
+    rows: d.leases.rows.map(
+      (x) => `${clip(x.part, 40)} ${x.item_id} until ${formatTime(x.until, now)}`,
+    ),
+  };
+  const conflicts = {
+    title: 'conflicts',
+    total: d.conflicts.total,
+    rows: d.conflicts.rows.map(
+      (x) => `${x.items.join('+')} ${x.outcome} on ${clip(partList(x.parts, 2), 40)}`,
+    ),
+  };
+  const changed = {
+    title: 'changed',
+    total: d.changed.total,
+    rows: d.changed.rows.map((x) => [x.cursor, x.item_id, x.type].filter(Boolean).join(' ')),
+  };
+  const rest = [ready, runs, blocked, owner, problems, leases, conflicts];
+  const parts = d.since === null ? [...rest, changed] : [changed, ...rest];
+  const build = () =>
+    [
+      head,
+      ...parts
+        .filter((p) => p.total > 0)
+        .flatMap((p) => [
+          `${p.title} ${p.total}:`,
+          ...p.rows.map((r) => `- ${r}`),
+          ...(p.total > p.rows.length ? [`${I1}+${p.total - p.rows.length} more`] : []),
+        ]),
+    ].join('\n');
+  if (parts.every((p) => p.total === 0)) {
+    return `${head}\n${d.since === null ? 'Nothing to act on.' : `No changes since ${d.since}.`}`;
+  }
+  let text = build();
+  while (text.length > DIGEST_MAX_CHARS) {
+    const last = [...parts].reverse().find((p) => p.rows.length > 0);
+    if (!last) break;
+    last.rows.pop();
+    text = build();
+  }
+  return text;
+}
+
 const RENDERERS: { [N in ToolName]: Renderer<N> } = {
+  get_digest: (r, _a, now) => renderDigest(r, now),
   whoami: (r, _a, now) =>
     [
       s('whoami', { ...r, server_time: formatTime(r.server_time, now) }),

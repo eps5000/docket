@@ -149,9 +149,9 @@ test.describe('Settings', () => {
     // Result modes under the default DOCKET_TEXT_ONLY_CLIENTS (MCP_SPEC §3 Results).
     await expect(clients.getByRole('columnheader', { name: 'Results' })).toBeVisible();
     for (const [name, mode] of [
-      ['Codex CLI (host)', 'Structured'],
+      ['Codex CLI (host)', 'Text only'],
       ['Claude Code (host)', 'Text only'],
-      ['Orca worker · Codex', 'Structured'],
+      ['Orca worker · Codex', 'Text only'],
       ['Orca worker · Claude', 'Text only'],
     ] as const) {
       await expect(

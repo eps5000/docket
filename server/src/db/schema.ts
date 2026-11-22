@@ -19,6 +19,7 @@ import {
   AGENT_FILE_LAYERS,
   AGENT_SETUP_LIMITS,
   AGENTS_BLOCK_KEY,
+  WAIT_SCRIPT_KEYS,
   ONBOARDING_GUIDE_KEY,
   INSTALL_CLIENTS,
   INSTALL_METHODS,
@@ -1032,9 +1033,12 @@ export const drift = sqliteTable(
     check('drift_state', oneOf('state', DRIFT_STATES)),
     check('drift_change', oneOf('change', DRIFT_CHANGES)),
     // Decision 32 (B31): drift also covers the project connection file, key `connection`.
+    // Decision 40 (B48): and the installed docket-wait scripts.
     check(
       'drift_file_key',
-      sql.raw(`"file_key" = 'connection' OR (${installedKeyCheck('file_key')})`),
+      sql.raw(
+        `"file_key" IN ('connection', ${WAIT_SCRIPT_KEYS.map((k) => `'${k}'`).join(', ')}) OR (${installedKeyCheck('file_key')})`,
+      ),
     ),
     check(
       'drift_local_sha256',

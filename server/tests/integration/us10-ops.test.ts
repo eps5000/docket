@@ -917,11 +917,11 @@ describe('GET /api/settings: connections and health', () => {
       };
       return body.connections.clients.map((c) => [c.client, c.result_mode]);
     };
-    // The shipped default (an empty value counts as unset): Claude Code is text-only.
+    // The shipped default (an empty value counts as unset): Claude Code and Codex are text-only.
     expect(await modes({ DOCKET_TEXT_ONLY_CLIENTS: '' })).toEqual([
-      ['Codex CLI (host)', 'structured'],
+      ['Codex CLI (host)', 'text'],
       ['Claude Code (host)', 'text'],
-      ['Orca worker · Codex', 'structured'],
+      ['Orca worker · Codex', 'text'],
       ['Orca worker · Claude', 'text'],
       ['Agent in another container', 'structured'],
     ]);

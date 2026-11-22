@@ -7,6 +7,7 @@ import { getCookie } from 'hono/cookie';
 import { createApiApp, errorResponse } from './api/app.js';
 import { allowedOriginsFor, bearerAuth, hostGuard, originGuard } from './api/guards.js';
 import { SESSION_COOKIE, ensureLocalCsrfCookie } from './api/session.js';
+import { changesWait } from './api/agent-wait.js';
 import { installRoutes } from './api/routes/install.js';
 import { uploadRoutes } from './api/routes/upload.js';
 import { migrationStatus } from './db/client.js';
@@ -18,7 +19,15 @@ export interface AppOptions {
 }
 
 /** Paths owned by the server. They never fall back to the SPA. */
-const SERVER_PREFIXES = ['/api', '/mcp', '/agent-upload', '/install', '/healthz', '/readyz'];
+const SERVER_PREFIXES = [
+  '/api',
+  '/mcp',
+  '/agent',
+  '/agent-upload',
+  '/install',
+  '/healthz',
+  '/readyz',
+];
 
 function isServerPath(path: string): boolean {
   return SERVER_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`));
@@ -106,6 +115,15 @@ export function createApp(runtime: Runtime, { webRoot }: AppOptions): Hono {
     );
   }
   app.all('/mcp', (c) => runtime.mcp.handle(c.req.raw));
+
+  // Agents: wait on the change feed (decision 40), behind the same rule as /mcp.
+  if (config.protectedMode) {
+    app.use(
+      '/agent/*',
+      bearerAuth(() => runtime.secrets.agentToken()),
+    );
+  }
+  app.get('/agent/changes/wait', (c) => changesWait(runtime, c));
 
   // Agents: bulk document upload (BUILD_SPEC §5.10), behind the same rule as /mcp.
   if (config.protectedMode) {

@@ -32,6 +32,7 @@ import {
 } from '@docket/shared';
 import { afterEach, describe, expect, it } from 'vitest';
 import { syncBundledFiles } from '../../src/jobs/bundled.js';
+import { waitPs1, waitSh } from '../../src/domain/wait-scripts.js';
 import { driftCheckOnce } from '../../src/jobs/sweeper.js';
 import { insertProject, tempDir, type TempDir } from '../helpers.js';
 import { createTestServer, parseSetCookies, type TestServer } from './harness.js';
@@ -153,7 +154,7 @@ describe('command install: the bundle and the single-use token (T155)', () => {
     // Not in the log until the token is used; one event, "Install command created".
     expect((await api('GET', '/api/installs')).body).toEqual({ installs: [] });
     expect(eventsOf(server).map((e) => e.summary)).toEqual([
-      'Install command created: Claude Code, RCP’s repo, 7 files'.replace('’', "'"),
+      'Install command created: Claude Code, RCP’s repo, 9 files'.replace('’', "'"),
     ]);
 
     // The download: no session, the system as actor.
@@ -170,9 +171,11 @@ describe('command install: the bundle and the single-use token (T155)', () => {
       [
         ...SKILLS.map((n) => `docket-install/files/.claude/skills/${n}/SKILL.md`),
         'docket-install/files/.claude/.docket-manifest.json',
-        // docket-check, next to the manifest (decision 30, B27b).
+        // docket-check, next to the manifest (decision 30, B27b), and docket-wait (decision 40).
         'docket-install/files/.claude/docket-check.sh',
         'docket-install/files/.claude/docket-check.ps1',
+        'docket-install/files/.claude/docket-wait.sh',
+        'docket-install/files/.claude/docket-wait.ps1',
         'docket-install/files.txt',
         'docket-install/block.md',
         // The connection file's docket entry (decision 32).
@@ -184,6 +187,8 @@ describe('command install: the bundle and the single-use token (T155)', () => {
     expect(files.get('docket-install/files.txt')).toBe(
       [
         ...SKILLS.map((n) => `.claude/skills/${n}/SKILL.md`),
+        '.claude/docket-wait.sh',
+        '.claude/docket-wait.ps1',
         '.claude/.docket-manifest.json',
         '.claude/docket-check.sh',
         '.claude/docket-check.ps1',
@@ -229,8 +234,16 @@ describe('command install: the bundle and the single-use token (T155)', () => {
     expect(manifest.files.map((f) => [f.key, f.path])).toEqual([
       ...SKILLS.map((n) => [`skill:${n}`, `.claude/skills/${n}/SKILL.md`]),
       ['agents_block', 'CLAUDE.md'],
+      // docket-wait (decision 40): in the manifest, so Check and drift cover it.
+      ['script:docket-wait.sh', '.claude/docket-wait.sh'],
+      ['script:docket-wait.ps1', '.claude/docket-wait.ps1'],
       ['connection', '.mcp.json'],
     ]);
+    expect(files.get('docket-install/files/.claude/docket-wait.sh')).toBe(waitSh());
+    expect(files.get('docket-install/files/.claude/docket-wait.ps1')).toBe(waitPs1());
+    for (const script of [waitSh(), waitPs1()]) {
+      expect([...script].every((c) => c.charCodeAt(0) < 0x80)).toBe(true);
+    }
     // The connection file (decision 32): the docket entry, no secret, the entry's canonical hash.
     expect(files.get('docket-install/connection.txt')).toBe(
       connectionEntry('claude', MCP_URL, false),
@@ -268,7 +281,7 @@ describe('command install: the bundle and the single-use token (T155)', () => {
     expect(log.installs[0]).toMatchObject({
       id: body.install_id,
       method: 'command',
-      file_count: 7,
+      file_count: 9,
       token_used_at: server.clock.current.toISOString(),
     });
     expect(log.installs[0]!.manifest).toEqual(
@@ -276,8 +289,8 @@ describe('command install: the bundle and the single-use token (T155)', () => {
     );
     const events = eventsOf(server);
     expect(events.map((e) => e.summary)).toEqual([
-      "Install command created: Claude Code, RCP's repo, 7 files",
-      "Installed by command: Claude Code, RCP's repo, 7 files",
+      "Install command created: Claude Code, RCP's repo, 9 files",
+      "Installed by command: Claude Code, RCP's repo, 9 files",
     ]);
     expect(events.map((e) => (JSON.parse(e.data) as S).stage)).toEqual([
       'command_issued',
@@ -352,7 +365,7 @@ describe('command install: the bundle and the single-use token (T155)', () => {
     expect(files.get('docket-install/block.md')).toMatch(/^## Work tracking: Docket/);
     expect(files.get('docket-install/block.md')).not.toContain('{{');
     expect(eventsOf(server).at(-1)!.summary).toBe(
-      'Installed by command: Codex, user-wide, 6 files',
+      'Installed by command: Codex, user-wide, 8 files',
     );
   });
 
@@ -436,6 +449,8 @@ describe('push install and check (T156)', () => {
       files: [
         ...SKILLS.map((n) => ({ path: `.claude/skills/${n}/SKILL.md`, change: 'created' })),
         { path: 'CLAUDE.md', change: 'updated' },
+        { path: '.claude/docket-wait.sh', change: 'created' },
+        { path: '.claude/docket-wait.ps1', change: 'created' },
         { path: '.mcp.json', change: 'created' },
         { path: '.claude/.docket-manifest.json', change: 'created' },
         { path: '.claude/docket-check.sh', change: 'created' },
@@ -466,11 +481,11 @@ describe('push install and check (T156)', () => {
         id,
         method: 'push',
         path: 'C:\\Users\\me\\code\\recipes',
-        file_count: 7,
+        file_count: 9,
       }),
     ]);
     expect(eventsOf(server).map((e) => e.summary)).toEqual([
-      "Installed by push: Claude Code, RCP's repo at C:\\Users\\me\\code\\recipes, 7 files",
+      "Installed by push: Claude Code, RCP's repo at C:\\Users\\me\\code\\recipes, 9 files",
     ]);
 
     // Up to date.

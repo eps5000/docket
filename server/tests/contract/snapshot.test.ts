@@ -3,7 +3,7 @@
  * official MCP client SDK against the in-process server:
  * - `initialize` returns the §2 instructions verbatim and advertises
  *   `tools` and `prompts` (each `listChanged: false`);
- * - `tools/list` has exactly the 49 §5 tools, in order, each with its §5
+ * - `tools/list` has exactly the 50 §5 tools, in order, each with its §5
  *   description verbatim, its fields, defaults and limits, and the §3
  *   annotations;
  * - `prompts/list` has exactly the §5.11 `onboard` prompt, with its
@@ -19,10 +19,12 @@
  * (__snapshots__/tools-list.json), and `prompts/list` likewise
  * (__snapshots__/prompts-list.json), so any change shows in review.
  */
+import type { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { AjvJsonSchemaValidator } from '@modelcontextprotocol/sdk/validation/ajv';
 import { McpError, type Prompt, type Tool } from '@modelcontextprotocol/sdk/types.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { TOOLS, TOOL_ERROR_JSON_SCHEMA, getTool, resultJsonSchema } from '@docket/shared';
 import {
   DEFAULT_BUNDLED_ROOT,
   ONBOARDING_GUIDE_TEMPLATE,
@@ -65,7 +67,8 @@ type JsonObject = {
   additionalProperties?: boolean;
 };
 const input = (name: string) => byName(name).inputSchema as JsonObject;
-const result = (name: string) => (byName(name).outputSchema as JsonObject).anyOf![0]!;
+/** The full result shape: clients get a compact one (decision 40), reviewed below. */
+const result = (name: string) => resultJsonSchema(getTool(name)!) as JsonObject;
 
 describe('initialize', () => {
   it('returns the server instructions verbatim (MCP_SPEC §2)', () => {
@@ -82,8 +85,8 @@ describe('initialize', () => {
 });
 
 describe('tools/list: names and descriptions (§5)', () => {
-  it('lists exactly 49 tools, in MCP_SPEC §5 order', () => {
-    expect(tools).toHaveLength(49);
+  it('lists exactly 50 tools, in MCP_SPEC §5 order', () => {
+    expect(tools).toHaveLength(50);
     expect(tools.map((t) => t.name)).toEqual(specDescriptions().map(([name]) => name));
   });
 
@@ -96,7 +99,7 @@ describe('tools/list: names and descriptions (§5)', () => {
 });
 
 /**
- * The §3 annotation table: the 13 read tools, `get_item`, the retry-safe
+ * The §3 annotation table: the 14 read tools, `get_item`, the retry-safe
  * four, nothing destructive. `park_run` is a write and not retry-safe;
  * `recovery_report` is read-only (B5); `get_agent_files` is read-only and
  * `propose_agent_file_change` a write that is not retry-safe (B26); `get_step`
@@ -111,6 +114,7 @@ const READ_TOOLS = [
   'dependency_subgraph',
   'deferred_reviews',
   'get_changes',
+  'get_digest',
   'get_review',
   'list_decisions',
   'recovery_report',
@@ -125,7 +129,8 @@ describe('tools/list: annotations (§3)', () => {
     expect(byName(name).annotations).toEqual({
       readOnlyHint: READ_TOOLS.includes(name),
       destructiveHint: false,
-      idempotentHint: IDEMPOTENT.includes(name),
+      // Left out where it's false, MCP's default (decision 40).
+      ...(IDEMPOTENT.includes(name) ? { idempotentHint: true } : {}),
     });
   });
 
@@ -133,10 +138,10 @@ describe('tools/list: annotations (§3)', () => {
     expect(byName('get_item').annotations?.readOnlyHint).toBe(false);
   });
 
-  it('the §3 counts hold: 13 read tools, 35 mutating', () => {
-    expect(SPEC).toContain('`true` for the 13 read tools');
+  it('the §3 counts hold: 14 read tools, 35 mutating', () => {
+    expect(SPEC).toContain('`true` for the 14 read tools');
     expect(SPEC).toContain('accepted only by the 35 mutating tools');
-    expect(READ_TOOLS).toHaveLength(13);
+    expect(READ_TOOLS).toHaveLength(14);
   });
 });
 
@@ -169,7 +174,8 @@ const INPUTS: Record<string, [string[], string[]]> = {
   get_context: [['id'], ['budget']],
   dependency_subgraph: [['id'], ['depth', 'direction', 'delay_days']],
   deferred_reviews: [[], ['project', 'cursor', 'limit']],
-  get_changes: [[], ['cursor', 'project', 'item_id', 'types', 'limit']],
+  get_changes: [[], ['cursor', 'project', 'item_id', 'types', 'limit', 'wait_s']],
+  get_digest: [['project'], ['cursor']],
   create_item: [
     ['project', 'type', 'title'],
     [
@@ -314,6 +320,19 @@ const OUTPUTS: Record<string, string[]> = {
   dependency_subgraph: ['nodes', 'edges', 'cycles', 'at_risk'],
   deferred_reviews: ['items', 'next_cursor'],
   get_changes: ['events', 'next_cursor'],
+  get_digest: [
+    'project',
+    'cursor',
+    'since',
+    'ready',
+    'runs',
+    'blocked',
+    'owner',
+    'problems',
+    'leases',
+    'conflicts',
+    'changed',
+  ],
   create_item: ['item'],
   update_item: ['item'],
   set_status: ['item'],
@@ -405,12 +424,14 @@ describe('tools/list: input schemas (§3, §5)', () => {
     }
   });
 
-  it('every mutating tool accepts idempotency_key (≤ 100) and run_id; reads accept run_id only', () => {
+  it('every mutating tool accepts idempotency_key and run_id; reads accept run_id only', () => {
     expect(MUTATING).toHaveLength(35);
     for (const t of tools) {
       const props = input(t.name).properties!;
       expect(props.run_id, t.name).toBeDefined();
-      if (MUTATING.includes(t.name)) expect(props.idempotency_key?.maxLength, t.name).toBe(100);
+      // Their limits are in §3 and enforced by validation; the definitions stay lean (decision 40).
+      if (MUTATING.includes(t.name))
+        expect(props.idempotency_key, t.name).toEqual({ type: 'string' });
       else expect(props.idempotency_key, t.name).toBeUndefined();
     }
   });
@@ -626,18 +647,35 @@ describe('tools/list: output schemas (§4, §5, §6)', () => {
       expect(schema.anyOf).toHaveLength(2);
       const error = schema.anyOf![1]!;
       expect(error.required).toEqual(['code', 'message']);
-      expect(error.properties!.code!.enum).toEqual([
-        'validation',
-        'conflict',
-        'not_found',
-        'forbidden',
-        'unavailable',
-        'internal',
-        'seam_conflict',
-        'not_declared',
-        'lease_held',
-        'design_review',
-      ]);
+    }
+    // The full ToolError, as §6 defines it.
+    const full = TOOL_ERROR_JSON_SCHEMA as JsonObject;
+    expect(full.properties!.code!.enum).toEqual([
+      'validation',
+      'conflict',
+      'not_found',
+      'forbidden',
+      'unavailable',
+      'internal',
+      'seam_conflict',
+      'not_declared',
+      'lease_held',
+      'design_review',
+    ]);
+  });
+
+  it('a compact outputSchema names the top-level fields and their types only (decision 40)', () => {
+    for (const t of tools) {
+      const compact = (t.outputSchema as JsonObject).anyOf![0]!;
+      expect(Object.keys(compact.properties ?? {}).sort(), t.name).toEqual(
+        Object.keys(result(t.name).properties ?? {}).sort(),
+      );
+      for (const field of Object.values(compact.properties ?? {})) {
+        expect(
+          Object.keys(field).every((k) => k === 'type'),
+          t.name,
+        ).toBe(true);
+      }
     }
   });
 
@@ -654,6 +692,13 @@ describe('the whole contract', () => {
   it('matches the reviewed tools/list snapshot', async () => {
     await expect(`${JSON.stringify(tools, null, 2)}\n`).toMatchFileSnapshot(
       './__snapshots__/tools-list.json',
+    );
+  });
+
+  it('matches the reviewed full result schemas (decision 40: clients get a compact form)', async () => {
+    const full = Object.fromEntries(TOOLS.map((t) => [t.name, resultJsonSchema(t)]));
+    await expect(`${JSON.stringify(full, null, 2)}\n`).toMatchFileSnapshot(
+      './__snapshots__/tool-results.json',
     );
   });
 });
@@ -712,12 +757,14 @@ describe('text-only sessions (§3 Results)', () => {
   let t: ContractHarness;
   let textTools: Tool[];
   let structuredTools: Tool[];
+  let other: Client;
   beforeAll(async () => {
-    // The shipped default: `claude-code` (client a) is text-only; codex (b) is structured.
+    // The shipped default: `claude-code` (a) and `codex-mcp-client` (b) are text-only.
     // A fresh structured list: the tests above sort `required` arrays in place.
     t = await startHarness({ seed: false, env: PRODUCT_RESULT_MODES });
     textTools = (await t.a.listTools()).tools;
-    structuredTools = (await t.b.listTools()).tools;
+    other = await t.connect({ name: 'another-client', version: '1.0.0' });
+    structuredTools = (await other.listTools()).tools;
   });
   afterAll(async () => {
     await t.close();
@@ -733,12 +780,13 @@ describe('text-only sessions (§3 Results)', () => {
 
   it('lists the same prompts, and prompts/get answers the same (§3: result modes leave prompts alone)', async () => {
     syncBundledFiles(t.server.runtime);
-    expect((await t.a.listPrompts()).prompts).toEqual((await t.b.listPrompts()).prompts);
+    expect((await t.a.listPrompts()).prompts).toEqual((await other.listPrompts()).prompts);
     const args = { name: 'onboard', arguments: { project_key: 'GF' } };
-    expect(await t.a.getPrompt(args)).toEqual(await t.b.getPrompt(args));
+    expect(await t.a.getPrompt(args)).toEqual(await other.getPrompt(args));
   });
 
-  it('lists the same 49 tools, in order, with the §5 descriptions verbatim', () => {
+  it('lists the same 50 tools, in order, with the §5 descriptions verbatim', () => {
+    expect(t.b.getServerVersion()?.name).toBe('docket');
     expect(textTools.map((x) => x.name)).toEqual(specDescriptions().map(([name]) => name));
     for (const [name, description] of specDescriptions()) {
       expect(textTools.find((x) => x.name === name)!.description, name).toBe(description);

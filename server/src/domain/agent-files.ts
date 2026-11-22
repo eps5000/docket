@@ -44,6 +44,8 @@ import {
   CONNECTION_KEY,
   ONBOARDING_GUIDE_KEY,
   ToolError,
+  isScriptKey,
+  scriptNameOf,
   type AgentFileDetail,
   type AgentFileLayer,
   type AgentFileRow,
@@ -103,6 +105,7 @@ export function agentFileName(key: string): string {
   if (key === ONBOARDING_GUIDE_KEY) return 'Onboarding guide';
   // The project connection file (decision 32): .mcp.json or .codex/config.toml.
   if (key === CONNECTION_KEY) return 'Connection file';
+  if (isScriptKey(key)) return scriptNameOf(key);
   return key.startsWith('skill:') ? key.slice('skill:'.length) : 'AGENTS.md block';
 }
 

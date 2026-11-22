@@ -3,6 +3,7 @@ export * from './limits.js';
 export * from './types.js';
 export * from './common.js';
 export * from './read.js';
+export * from './digest.js';
 export * from './items.js';
 export * from './runs.js';
 export * from './checklist.js';

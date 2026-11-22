@@ -1,5 +1,5 @@
 /**
- * The tool registry: all 49 tools in MCP_SPEC §5 order, with their group,
+ * The tool registry: all 50 tools in MCP_SPEC §5 order, with their group,
  * kind, input and output schemas and MCP annotations (§3 Tool annotations).
  * Descriptions live in mcp-copy.ts. Shared contract file (tasks.md, Slice rules).
  */
@@ -7,6 +7,7 @@ import type { z } from 'zod';
 import * as agentFiles from './agent-files.js';
 import * as batch from './batch.js';
 import * as checklist from './checklist.js';
+import * as digest from './digest.js';
 import * as items from './items.js';
 import * as onboarding from './onboarding.js';
 import * as read from './read.js';
@@ -42,7 +43,8 @@ export type ToolKind = 'read' | 'delivering' | 'mutating';
 export interface ToolAnnotations {
   readOnlyHint: boolean;
   destructiveHint: boolean;
-  idempotentHint: boolean;
+  /** Only on retry-safe tools: MCP's default is false (decision 40). */
+  idempotentHint?: true;
 }
 
 export interface ToolDef<I extends z.ZodType = z.ZodType, O extends z.ZodType = z.ZodType> {
@@ -86,6 +88,7 @@ export const TOOLS = [
   ),
   def('deferred_reviews', 'read', 'read', read.deferredReviewsInput, read.deferredReviewsOutput),
   def('get_changes', 'read', 'read', read.getChangesInput, read.getChangesOutput),
+  def('get_digest', 'read', 'read', digest.getDigestInput, digest.getDigestOutput),
   // §5.3 Creating and editing items
   def('create_item', 'items', 'mutating', items.createItemInput, items.createItemOutput),
   def('update_item', 'items', 'mutating', items.updateItemInput, items.updateItemOutput),
@@ -253,6 +256,8 @@ export function toolAnnotations(tool: Pick<ToolDef, 'name' | 'kind'>): ToolAnnot
   return {
     readOnlyHint: tool.kind === 'read',
     destructiveHint: false,
-    idempotentHint: (IDEMPOTENT_TOOLS as readonly string[]).includes(tool.name),
+    ...((IDEMPOTENT_TOOLS as readonly string[]).includes(tool.name)
+      ? { idempotentHint: true as const }
+      : {}),
   };
 }
