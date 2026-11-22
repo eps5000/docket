@@ -401,6 +401,28 @@ export function parkInfo(
   return { resume_ready: times.length > 0, ready_since: times[0] ?? null };
 }
 
+/** Decision 42: the `waiting_on.items` that cleared after `since`. */
+export function clearedSince(
+  db: Db,
+  run: Pick<RunRow, 'item_id'>,
+  waiting: WaitingOn,
+  since: string,
+  index: BlockIndex,
+): string[] {
+  return (waiting.items ?? []).filter((id) => {
+    const link = index.blockers.get(run.item_id)?.find((l) => l.from_id === id) ?? {
+      id: '',
+      from_id: id,
+      to_id: run.item_id,
+      type: 'blocks' as const,
+      satisfied_when: null,
+    };
+    if (!index.cleared(link)) return false;
+    const at = clearedAt(db, id, index.rule(link));
+    return !!at && ms(at) > ms(since);
+  });
+}
+
 /** When a cleared item cleared: closed, then merged or verified when the rule asks for it. */
 function clearedAt(db: Db, id: string, rule: 'done' | 'merged' | 'verified'): string | null {
   const row = db.sqlite.prepare('SELECT closed_at, updated_at FROM items WHERE id = ?').get(id) as

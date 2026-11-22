@@ -58,7 +58,24 @@ import {
   settleUndeclared,
 } from './shared-changes.js';
 import type { InverseOp, WriteContext } from './write.js';
+import type { Db } from '../db/client.js';
 import { addReportedBranch } from './radar.js';
+import { producerHold } from './run-activity.js';
+
+/** Decision 42: `producer_hold`, only while the story is between workers. */
+function holdField(db: Db, id: string, openRuns: number) {
+  if (openRuns > 0) return {};
+  const hold = producerHold(db, id);
+  return hold
+    ? {
+        producer_hold: {
+          producer: hold.producer,
+          until: hold.until,
+          last_worker: hold.last_worker,
+        },
+      }
+    : {};
+}
 
 /** The moves `set_status` allows from each status (BUILD_SPEC §5.1). Review is entered by submit_packet. */
 export const ALLOWED_MOVES: Record<Status, Status[]> = {
@@ -1129,6 +1146,7 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
           }
         : null,
       resume: wanted('resume') ? deps.services().recovery.itemResume(r, { item_id: row.id }) : null,
+      ...holdField(db, row.id, openRuns.length),
       unread_owner_notes: notes.map((n) => ({ id: n.id, text: n.text, at: n.created_at })),
       documents,
       packets,

@@ -154,6 +154,8 @@ export const projects = sqliteTable(
      * null when the owner, the seed or a Jira import did (decision 31; B29).
      */
     created_by: text('created_by'),
+    /** Decision 42: coordinators the owner registered for `update_run_status`, as a JSON array. */
+    coordinators: text('coordinators'),
     /**
      * The conflict radar (decision 36; BUILD_SPEC §5.21): the repository
      * folder inside `DOCKET_PUSH_ROOT` (null: radar off), its main branch,
@@ -440,6 +442,14 @@ export const runs = sqliteTable(
     unpushed_outcome: text('unpushed_outcome', { enum: ['keep', 'discard'] }),
     /** Decision 41: the last read-only git check of the worktree, as JSON; never an event. */
     worktree_check: text('worktree_check'),
+    /** Decision 42: the stable owner of the story across worker handoffs. */
+    producer: text('producer'),
+    /** Decision 42: on an ended lead, the story is held for this producer's next worker. */
+    producer_hold_until: text('producer_hold_until'),
+    /** Decision 42: `{by, client, at}`, the coordinator who last set this run's status. */
+    status_update: text('status_update', { mode: 'json' }),
+    /** Decision 42: `{since, flag}`, activity newer than the run's last word. */
+    park_activity: text('park_activity', { mode: 'json' }),
     version: version(),
     ...timestamps,
   },

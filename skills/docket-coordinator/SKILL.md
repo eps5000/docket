@@ -14,7 +14,7 @@ description: Coordinate several agents against Docket. Covers choosing and dispa
 
 You dispatch workers, create and prune worktrees, and clean up. Workers follow `docket-worker`; tell them to use it.
 
-**Agent files.** The owner installs the skills and the project's `AGENTS.md` / `CLAUDE.md` section from Agent files (_Install into <project>'s repo_, by a copy-paste command or into a mounted folder), and the install log shows which versions each repo got. If a worker doesn't have `docket-worker`, or can't reach Docket, ask the owner to install the agent files there: the install also writes the repo's connection file, so a worker started in that repo connects once the client's one-time approval is given. Paste the skill into the brief only as a last resort. Each project's **Workflow notes** reach every worker through `get_context`, so don't repeat them, or the `AGENTS.md` rules, in briefs. To change these instructions, use `get_agent_files` then `propose_agent_file_change`, and tell the user you've proposed it for the owner's approval. Don't edit installed files directly, and don't tell workers to.
+**Agent files.** The owner installs the skills and the project's `AGENTS.md` / `CLAUDE.md` section from Agent files (_Install into <project>'s repo_, by a copy-paste command or into a mounted folder), and the install log shows which versions each repo got. If a worker can't reach Docket, start it with Docket connected for that session only: `claude --mcp-config .mcp.json`, or `codex -c "mcp_servers.docket.url='http://127.0.0.1:7420/mcp'"` (Codex skips the repo's file in an untrusted folder). Never edit a user-level client config. If a worker doesn't have `docket-worker`, ask the owner to install the agent files there: the install also writes the repo's connection file, so a worker started in that repo connects once the client's one-time approval is given. Paste the skill into the brief only as a last resort. Each project's **Workflow notes** reach every worker through `get_context`, so don't repeat them, or the `AGENTS.md` rules, in briefs. To change these instructions, use `get_agent_files` then `propose_agent_file_change`, and tell the user you've proposed it for the owner's approval. Don't edit installed files directly, and don't tell workers to.
 
 **Instructions changed outside Docket.** Workers pass the `docket-check` output as `instructions` on `claim_lead` (the worker skill says how), and Docket also checks folders it installed into. When an installed skill or the Docket section was edited, deleted or added by hand, the owner sees "… edited outside Docket" under Problems, and the run shows "edited locally". The remedies are the owner's, in Agent files: _Adopt_ (save the local text as the project's copy, or the default), _Restore Docket's version_ (reinstall), or _Keep local_ (accept it; a further change alerts again). Mention it to the owner when a worker hits it; don't restore or overwrite the files yourself.
 
@@ -57,6 +57,7 @@ Every model call resends your whole context, so the cheapest turn is the one you
    ```
    Don't copy the description or acceptance criteria into the brief. They live in Docket, and copies go stale.
 3. **The worker claims** with `workspace`, `orchestrator` and `brief`. If a worker can't reach Docket, claim on its behalf with the same fields, and give it the `run_id`.
+4. **Handing one story between small workers?** Give every worker the same `producer` on `claim_lead`. A release then hands it on without it returning to Ready. To give it up, pass `release_story: true`.
 
 ## 4. Waiting: docket-wait, not polling
 
@@ -64,7 +65,7 @@ Block in one shell call. It spends no model tokens until a matching event arrive
 
 ```bash
 bash .claude/docket-wait.sh --cursor <cursor> --project RCP --timeout 540 \
-  --types run.parked,question.asked,packet.submitted,review.decided,run.ended
+  --types run.parked,run.activity,question.asked,packet.submitted,review.decided,run.ended
 ```
 
 - **Where it is:** next to `docket-check` (`.codex/` for Codex, `~/.claude/` for a user-wide install). On Windows without bash: `powershell -NoProfile -ExecutionPolicy Bypass -File .claude/docket-wait.ps1`, with the same flags.
@@ -79,6 +80,7 @@ Watch for:
 | ----------------------------------------- | ------------------------------------------------------------------------------------------ |
 | `claim.rejected`                          | Two workers raced for one item. Re-assign the loser.                                       |
 | `run.parked`                              | A worker is waiting on purpose. Leave it, and send work when you're ready.                 |
+| `run.activity`                            | Work moved while it was parked or silent. Check it (§5).                                   |
 | `question.asked`                          | Owner input is needed. **Don't answer for the owner**; that worker's dependent work waits. |
 | `packet.submitted`                        | Handed to the owner. The worker should finish its run.                                     |
 | `review.decided`                          | Changes requested? The item becomes `resumable`; dispatch it again.                        |
@@ -90,7 +92,9 @@ For a detailed look at one worker, use `get_item { id, view: "summary" }`. Don't
 ## 5. Parked workers
 
 - **When a worker has to wait for you,** it calls `park_run { waiting_on: { orchestrator: true } }`. It keeps its claim, and its worktree counts as **in use**.
-- **When you're ready,** send it more work. Its next call un-parks it.
+- **When you're ready,** send it more work. Its next `heartbeat` or other write un-parks it; a read doesn't.
+- **When the status is wrong,** fix it yourself without its `run_id`: `update_run_status { id, coordinator: "<your name>", current_action?, park_reason?, waiting_on?, resume? }`. You must be the run's `orchestrator` or registered for the project. It's recorded as you, and grants no claim, close or review power.
+- **"Activity since parked"** in `get_digest` or `get_context` means commits, updates or a cleared blocker arrived. Check, then resume it or update it, which clears the flag. "Commits while silent" means that session may have no Docket tools.
 - **Parked on items:** `get_digest` and `recovery_report` show `resume_ready` once those items clear. Resume it promptly: after 30 minutes the owner sees "ready to resume, unattended".
 - **Parked for over 24 hours:** it comes to you first, in `get_digest` problems. Resume it, or have it `release_lead`. Left for a day, it reaches the owner.
 - **Work left in an ended run's worktree** comes to you the same way. Commit and push it, or say it can go. Never push work on a canceled item: that's the owner's call.
@@ -119,7 +123,7 @@ Skip entries with no workspace and no brief: you didn't dispatch them, so leave 
 **For parked entries:** a parked run keeps its claim through a crash, so a new worker's `claim_lead` would get `conflict`.
 
 - If `resume_ready` is true and the worker's process is still alive, send it more work.
-- If the process is gone, re-dispatch a worker with the parked run's **`run_id`** from the report, and tell it: "Don't claim. Continue under run `<run_id>`: your first call with it resumes the parked run; then `get_context` and `get_item`."
+- If the process is gone, re-dispatch a worker with the parked run's **`run_id`** from the report, and tell it: "Don't claim. Continue under run `<run_id>`: call `heartbeat` with it first, which resumes the parked run; then `get_context` and `get_item`."
 - Otherwise leave it: it's waiting on purpose.
 
 **Finally,** call `recovery_report` again. Nothing interrupted should be left un-dispatched, and nothing should be orphaned.

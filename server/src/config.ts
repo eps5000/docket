@@ -47,6 +47,8 @@ export interface Config {
    * (owner decision 41; BUILD_SPEC §5.3): DOCKET_RESTART_GRACE_MINUTES, default 15.
    */
   restartGraceMs: number;
+  /** Decision 42: how long a story with no worker stays with its producer (DOCKET_PRODUCER_GRACE). */
+  producerGraceMs: number;
   /** A parked run `resume_ready` this long shows as "Ready to resume, unattended" (§5.16). */
   resumeUnattendedMs: number;
   /** A resource unreleased this long after its run ended is orphaned (§5.16). */
@@ -123,6 +125,8 @@ export const DEFAULTS = {
   DOCKET_OVERLAP_GRACE_HOURS: '24',
   // Decision 41: an open run's lease runs at least this many whole minutes after a restart.
   DOCKET_RESTART_GRACE_MINUTES: '15',
+  // Decision 42: a story between workers stays with its producer this long.
+  DOCKET_PRODUCER_GRACE: '30m',
   DOCKET_RESUME_UNATTENDED: '30m',
   DOCKET_ORPHAN_AFTER: '15m',
   DOCKET_DRIFT_CHECK_INTERVAL: '15m',
@@ -310,6 +314,7 @@ export function loadConfig(
     agentProblemGraceMs: graceHours * 3_600_000,
     overlapGraceMs: overlapGraceHours * 3_600_000,
     restartGraceMs: restartGraceMinutes * 60_000,
+    producerGraceMs: parseDuration(get('DOCKET_PRODUCER_GRACE'), 'DOCKET_PRODUCER_GRACE'),
     resumeUnattendedMs: parseDuration(get('DOCKET_RESUME_UNATTENDED'), 'DOCKET_RESUME_UNATTENDED'),
     orphanAfterMs: parseDuration(get('DOCKET_ORPHAN_AFTER'), 'DOCKET_ORPHAN_AFTER'),
     backupAt,

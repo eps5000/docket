@@ -118,6 +118,7 @@ function ProjectRow({ project: p, onDelete }: { project: Project; onDelete: () =
       </div>
       <MiniStatusBar project={p} />
       <BlockerRule project={p} />
+      <Coordinators project={p} />
       <div className="row wrap" style={{ gap: 2 }}>
         <ProjectDecisionsLink project={p} />
         <Link
@@ -243,6 +244,70 @@ function BlockerRule({ project: p }: { project: Project }) {
         ))}
       </select>
       <HelpLink anchor="settings.blocker-rule" />
+    </div>
+  );
+}
+
+/**
+ * Decision 42: who may correct a run's status with `update_run_status` on this
+ * project, besides the coordinator recorded on the run. Names, comma-separated.
+ */
+function Coordinators({ project: p }: { project: Project }) {
+  const id = useId();
+  const qc = useQueryClient();
+  const saved = (p.coordinators ?? []).join(', ');
+  const [draft, setDraft] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const value = draft ?? saved;
+  const save = async () => {
+    if (draft === null || draft.trim() === saved) {
+      setDraft(null);
+      return;
+    }
+    const coordinators = draft
+      .split(',')
+      .map((n) => n.trim())
+      .filter(Boolean);
+    setBusy(true);
+    try {
+      await runOwnerMutation(
+        () =>
+          apiClient['projects.patch']({
+            params: { key: p.key },
+            body: { coordinators, expected_version: p.version },
+          }),
+        {
+          success: () =>
+            coordinators.length
+              ? `Coordinators for ${p.name}: ${coordinators.join(', ')}.`
+              : `No coordinators registered for ${p.name}.`,
+          refetch: [queryKeys.settings()],
+        },
+      );
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Couldn’t save the coordinators. Try again.');
+    }
+    await qc.invalidateQueries({ queryKey: queryKeys.all });
+    setDraft(null);
+    setBusy(false);
+  };
+  return (
+    <div className="row" style={{ gap: 6 }} data-coordinators={p.key}>
+      <label htmlFor={id} className="src">
+        Coordinators
+      </label>
+      <input
+        id={id}
+        value={value}
+        disabled={busy}
+        placeholder="None"
+        title="Names, separated by commas. They can update a run's status here, and nothing else."
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => void save()}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') e.currentTarget.blur();
+        }}
+      />
     </div>
   );
 }

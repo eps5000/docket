@@ -15,6 +15,7 @@ These match the `EventType` union in [MCP_SPEC §4](../../../docs/MCP_SPEC.md):
 | Claims and runs | `claim.granted`, `claim.rejected`, `claim.released`, `run.started`, `run.ended` (heartbeats are **not** events) |
 | Restart (decision 41) | `service.restarted`: one per restart that kept open runs, with `runs_kept`. |
 | Recovery (US11) | `run.parked`, `run.resumed`, `run.unpushed_handled`, `resource.declared`, `resource.released`. A heartbeat that declares or releases resources appends these events; the heartbeat itself still doesn't. |
+| Status follows the work (decision 42) | `run.status_updated` (a coordinator set a run's status, with `updated_by`), `run.activity` (newer activity on a parked or silent run; one per flag). |
 | Review | `packet.submitted`, `packet.stale`, `packet.withdrawn`, `review.decided` |
 | Messages | `question.asked`, `question.answered`, `owner_note.added`, `note.added` |
 | Evidence | `document.added`, `commit.reported`, `artifact.linked` |

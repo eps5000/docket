@@ -1,4 +1,15 @@
 /**
+ * Decision 42: start one session with Docket connected, changing no user-level
+ * or project file. Verified on Claude Code 2.1.326 and Codex 0.171 with
+ * temporary homes. Neither holds a token: protected mode reads DOCKET_TOKEN.
+ */
+export const LAUNCH_SNIPPETS = {
+  claude: 'claude --mcp-config .mcp.json',
+  codex: `codex -c "mcp_servers.docket.url='http://127.0.0.1:7420/mcp'"`,
+  codex_protected: `codex -c "mcp_servers.docket.url='http://127.0.0.1:7420/mcp'" -c "mcp_servers.docket.bearer_token_env_var='DOCKET_TOKEN'"`,
+} as const;
+
+/**
  * Project connection files (owner decision 32; BUILD_SPEC §5.17a; FR-144):
  * the agent-files install into a repo also writes the client's project MCP
  * configuration, so connecting an agent needs no commands.

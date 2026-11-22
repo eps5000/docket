@@ -105,6 +105,7 @@ import {
   type RunWindows,
   type StoredEvent,
 } from './model.js';
+import { producersByItem, storedActivity, storedStatusUpdate } from './run-activity.js';
 import { UNDO_WINDOW_MS } from './undo.js';
 import { allowedOriginsFor } from '../api/guards.js';
 import {
@@ -325,6 +326,7 @@ function parkedOf(db: Db, run: RunRow, now: string, index: BlockIndex): LeadPark
     waiting_on: parseJson<WaitingOn>(run.waiting_on) ?? {},
     since: run.parked_at ?? run.updated_at,
     resume_ready: parkInfo(db, run, now, index).resume_ready,
+    ...(storedActivity(run)?.flag ? { activity: storedActivity(run)!.flag! } : {}),
   };
 }
 
@@ -1349,12 +1351,15 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
       }
       const parked = leadParkedOf(s.db, summaries, s.now, s.index);
       const sharedFlags = sharedFlagsOf(r.db);
+      const producers = producersByItem(r.db);
       const rows: WorkItem[] = summaries.map((i) => {
         const packet_ready = att.packets.has(i.id);
         const flags = sharedFlags.get(i.id);
+        const producer = producers.get(i.id);
         return {
           ...i,
           lead_parked: parked(i),
+          ...(producer ? { producer } : {}),
           packet_ready,
           for_you: packet_ready || att.questions.has(i.id),
           last_activity_at: lastActivity.get(i.id) ?? i.updated_at,
@@ -1786,6 +1791,9 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
             lease,
             provenance,
             lead_parked: x.state === 'parked' ? parkedOf(r.db, x, s.now, s.index) : null,
+            ...(x.producer ? { producer: x.producer } : {}),
+            ...(open && storedActivity(x)?.flag ? { activity: storedActivity(x)!.flag! } : {}),
+            ...(open && storedStatusUpdate(x) ? { updated_by: storedStatusUpdate(x)!.by } : {}),
             at: open ? x.last_signal_at : x.updated_at,
           },
         });

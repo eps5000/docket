@@ -19,6 +19,7 @@ import {
   type ToolInput,
   type WaitingOn,
 } from '@docket/shared';
+import { activityText } from '@docket/shared';
 import type { ReadContext, ServiceDeps } from './contracts.js';
 
 export interface DigestService {
@@ -192,10 +193,14 @@ export function createDigestService(deps: ServiceDeps): DigestService {
           label: x.label,
           resume_ready: x.lead_parked?.resume_ready ?? false,
           waiting: x.lead_parked ? waitingText(x.lead_parked.waiting_on) : null,
+          ...(x.producer ? { producer: x.producer } : {}),
+          ...(x.activity ? { activity: activityText(x.activity) } : {}),
+          ...(x.updated_by ? { updated_by: x.updated_by } : {}),
         }))
         .sort(
           (a, b) =>
             Number(b.resume_ready) - Number(a.resume_ready) ||
+            Number(!!b.activity) - Number(!!a.activity) ||
             (RUN_ORDER[a.state] ?? 9) - (RUN_ORDER[b.state] ?? 9) ||
             a.item_id.localeCompare(b.item_id),
         );

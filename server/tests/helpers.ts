@@ -135,6 +135,8 @@ export const COLUMNS_0010 = [
   'branches',
   // 0015 (decision 39): the project's Overlap handling override.
   'overlap_handling',
+  // 0018 (decision 42): the project's registered coordinators.
+  'coordinators',
 ] as const;
 
 /** Rows without the columns 0010 added to `items`, `projects` and `packets`. */
@@ -152,6 +154,11 @@ export function without0010<T>(rows: T): T {
       delete out.unpushed_outcome;
       delete out.worktree_check;
       delete out.restart_deadline_at;
+      // Decision 42 (0018): null on every row from before it.
+      delete out.producer;
+      delete out.producer_hold_until;
+      delete out.status_update;
+      delete out.park_activity;
     }
     return out;
   }) as T;

@@ -253,6 +253,8 @@ exports[`every tool has a renderer > update_human_review 1`] = `"Human review on
 
 exports[`every tool has a renderer > update_item 1`] = `"Updated RCP-14 · title, labels · v8"`;
 
+exports[`every tool has a renderer > update_run_status 1`] = `"Updated RCP-14's run · parked · by orca"`;
+
 exports[`every tool has a renderer > update_step 1`] = `"Step wst_b done on RCP-14"`;
 
 exports[`every tool has a renderer > upsert_label 1`] = `"Saved label mobile in RCP"`;

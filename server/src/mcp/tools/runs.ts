@@ -51,7 +51,13 @@ function firstSignal(ctx: ToolContext, runId: string): void {
 
 export const runsHandlers: Pick<
   ToolHandlers,
-  'claim_lead' | 'release_lead' | 'start_run' | 'heartbeat' | 'finish_run' | 'park_run'
+  | 'claim_lead'
+  | 'release_lead'
+  | 'start_run'
+  | 'heartbeat'
+  | 'finish_run'
+  | 'park_run'
+  | 'update_run_status'
 > = {
   claim_lead: (args, ctx) => {
     // Reporting instructions must never block claiming (decision 30): a reported file
@@ -101,4 +107,7 @@ export const runsHandlers: Pick<
   },
   finish_run: (args, ctx) => ctx.mutate((w) => ctx.services.runs.finish(w, serviceArgs(args))),
   park_run: (args, ctx) => ctx.mutate((w) => ctx.services.runs.park(w, serviceArgs(args))),
+  // Decision 42: names the item, never a run_id, so it can't count as the run's own signal.
+  update_run_status: (args, ctx) =>
+    ctx.mutate((w) => ctx.services.runs.updateStatus(w, serviceArgs(args))),
 };

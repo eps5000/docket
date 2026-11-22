@@ -20,6 +20,7 @@ import {
   itemSchema,
   itemSummarySchema,
   itemTypeSchema,
+  runActivitySchema,
   runStateSchema,
   statusSchema,
 } from '../mcp/types.js';
@@ -492,6 +493,10 @@ export const agentRowSchema = z.object({
   provenance: z.enum([...PROVENANCES, ...SUBAGENT_PROVENANCES]).nullable(),
   /** What a parked run waits on (B20): "parked · waiting on the coordinator". */
   lead_parked: leadParkedSchema.nullable().optional(),
+  /** Decision 42: the story's producer, the activity flag, and who last set the status. */
+  producer: z.string().optional(),
+  activity: runActivitySchema.optional(),
+  updated_by: z.string().optional(),
   at: z.string(),
 });
 export type AgentRow = z.infer<typeof agentRowSchema>;

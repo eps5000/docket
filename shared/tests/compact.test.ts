@@ -691,6 +691,10 @@ const SAMPLES: Record<ToolName, { result: unknown; args?: Record<string, unknown
     result: { run_state: 'parked', resume_ready: false },
     args: { run_id: 'run_A', reason: 'Waiting for RCP-12', waiting_on: { items: ['RCP-12'] } },
   },
+  update_run_status: {
+    result: { id: 'RCP-14', run_state: 'parked', updated_by: 'orca', resume_ready: false },
+    args: { id: 'RCP-14', coordinator: 'orca', current_action: 'Checking' },
+  },
   set_plan: { result: { plan_version: 4, work: RCP14.checklist.work }, args: { id: 'RCP-14' } },
   update_step: {
     result: { step: { ...RCP14.checklist.work[1]!, state: 'done' } },

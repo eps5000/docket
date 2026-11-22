@@ -47,12 +47,19 @@
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { renderContext, type ContextBundle, type ContextShared, type Status } from '@docket/shared';
+import {
+  activityText,
+  renderContext,
+  type ContextBundle,
+  type ContextShared,
+  type Status,
+} from '@docket/shared';
 import type { ContextService, ReadContext, ServiceDeps } from './contracts.js';
 import { currentWorkflow } from './agent-files.js';
 import { inScopeOf, labelsOf } from './decisions.js';
-import { BlockIndex, currentSteps, requireItem } from './model.js';
+import { BlockIndex, activeLead, currentSteps, requireItem } from './model.js';
 import { contextResolutions } from './problems.js';
+import { storedActivity } from './run-activity.js';
 
 /** Approximate tokens per budget (BUILD_SPEC §5.15). */
 export const CONTEXT_BUDGETS = { small: 1_000, medium: 3_000, large: 8_000 } as const;
@@ -296,22 +303,45 @@ function gather(r: ReadContext, deps: ServiceDeps, id: string): Full {
     })(),
     shared: deps.services().sharedChanges.contextFor(r, { item_id: id, max_chars: Infinity }),
     // Decision 37: the item's open problems, acknowledged or not, in the owner's words.
-    problems: deps
-      .services()
-      .views.itemProblems(r, row.id)
-      .filter((p) => p.id && p.explanation)
-      .map((p) => ({
-        id: p.id!,
-        kind: p.kind,
-        what: p.explanation!.what,
-        fix: p.explanation!.fix,
-        who: p.explanation!.who,
-        who_text: p.explanation!.who_text,
-      })),
+    problems: [
+      ...deps
+        .services()
+        .views.itemProblems(r, row.id)
+        .filter((p) => p.id && p.explanation)
+        .map((p) => ({
+          id: p.id!,
+          kind: p.kind,
+          what: p.explanation!.what,
+          fix: p.explanation!.fix,
+          who: p.explanation!.who,
+          who_text: p.explanation!.who_text,
+        })),
+      ...runActivityRows(r, row.id),
+    ],
     resolutions: contextResolutions(db, row.id),
     docs,
     last_review: last_review && last_review.items.length > 0 ? last_review : null,
   };
+}
+
+/**
+ * Decision 42: newer activity on the item's lead run, for its coordinator. Not a
+ * Problem: it never reaches Needs you, and nothing here changes the run.
+ */
+function runActivityRows(r: ReadContext, id: string): NonNullable<Bundle['problems']> {
+  const lead = activeLead(r.db, id);
+  const flag = lead ? storedActivity(lead)?.flag : null;
+  if (!lead || !flag) return [];
+  return [
+    {
+      id: `run_activity:${lead.id}`,
+      kind: 'run_activity',
+      what: `${id}: ${activityText(flag)}. Its status may be out of date.`,
+      fix: 'Check what changed, then resume it or correct it with update_run_status.',
+      who: 'agent',
+      who_text: 'Its coordinator',
+    },
+  ];
 }
 
 /** Apply the budget: fill the sections in priority order, marking every cut. */

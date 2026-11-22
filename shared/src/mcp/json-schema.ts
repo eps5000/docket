@@ -58,7 +58,7 @@ export function toJsonSchema(schema: z.ZodType, io: 'input' | 'output'): JsonSch
  */
 const LONG_ENUM = 60;
 
-/** An input node without what validation already reports: `minLength: 1`, the item-ID pattern, a very long enum. */
+/** An input node without what validation already reports: `minLength: 1`, the item-ID and timestamp patterns, a very long enum. */
 function leanInput(node: unknown, isPropertyMap = false): unknown {
   if (Array.isArray(node)) return node.map((n) => leanInput(n));
   if (node === null || typeof node !== 'object') return node;
@@ -68,6 +68,8 @@ function leanInput(node: unknown, isPropertyMap = false): unknown {
     if (!isPropertyMap) {
       if (key === 'minLength' && value === 1) continue;
       if (key === 'pattern' && value === ITEM_ID_RE.source) continue;
+      // Decision 42: a timestamp's long regex repeats its `format`, and validation enforces it.
+      if (key === 'pattern' && (node as JsonSchema).format === 'date-time') continue;
       if (key === 'enum' && Array.isArray(value) && value.length > LONG_ENUM) continue;
     }
     out[key] = leanInput(value, !isPropertyMap && key === 'properties');

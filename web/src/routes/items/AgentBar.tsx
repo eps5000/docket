@@ -1,5 +1,10 @@
 import { useState } from 'react';
-import { RUN_STATE_LABELS, type ItemDetailResponse } from '@docket/shared';
+import {
+  RUN_STATE_LABELS,
+  activityText,
+  type ItemDetailResponse,
+  type RunActivity,
+} from '@docket/shared';
 import {
   Button,
   Chip,
@@ -8,7 +13,7 @@ import {
   leadName,
   parkedReason,
 } from '../../components/kit';
-import { formatAgo, formatSince, isoTitle } from '../../lib/format';
+import { formatAgo, formatClock, formatSince, isoTitle } from '../../lib/format';
 import {
   CopyResumeNoteButton,
   canCopyResumeNote,
@@ -18,6 +23,13 @@ import {
 } from './activity/leadActions';
 import { RunInstructionsLine } from './activity/RunInstructions';
 import { HelpLink } from '../../help/HelpLink';
+
+/** Decision 42: "Activity since parked: 2 commits", with what it means when the run is silent. */
+function activitySentence(activity: RunActivity): string {
+  const text = activityText(activity);
+  const line = text.charAt(0).toUpperCase() + text.slice(1);
+  return activity.kind === 'since_signal' ? `${line}. Its session may not have Docket.` : line;
+}
 
 /**
  * The agent bar (B20; UI_SPEC §6.3): on every tab, under the title row, the
@@ -59,9 +71,14 @@ export function AgentBar({ data }: { data: ItemDetailResponse }) {
   if (item.type === 'Epic') return null;
   if (!lead || !run) {
     if (item.status !== 'progress') return <div className="agentbar-none">{live}</div>;
+    const hold = item.producer_hold;
     return (
       <section className="agentbar quiet" aria-label="Lead agent" data-agent-bar="none">
-        <span className="src">No agent on this</span>
+        <span className="src" data-ab="between-workers">
+          {hold
+            ? `Between workers: ${hold.producer} holds this until ${formatClock(hold.until)}`
+            : 'No agent on this'}
+        </span>
         {live}
       </section>
     );
@@ -102,6 +119,21 @@ export function AgentBar({ data }: { data: ItemDetailResponse }) {
             <span title={isoTitle(parked.since)}>{formatSince(parked.since)}</span>
           </span>
           {parked.resume_ready && <Chip kind="ok">Ready to resume</Chip>}
+        </div>
+      )}
+      {(run.producer || run.status_update || run.activity) && (
+        <div className="ab-parked src" data-ab="status">
+          {run.producer && <span data-ab="producer">Producer {run.producer}</span>}
+          {run.status_update && (
+            <span data-ab="updated-by" title={isoTitle(run.status_update.at)}>
+              Status updated by {run.status_update.by}
+            </span>
+          )}
+          {run.activity && (
+            <span data-ab="activity" title={`Since ${isoTitle(run.activity.since)}`}>
+              {activitySentence(run.activity)}
+            </span>
+          )}
         </div>
       )}
       {live}

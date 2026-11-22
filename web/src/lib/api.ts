@@ -411,6 +411,8 @@ export const INVALIDATION: Record<EventType, readonly QueryFamily[]> = {
   // Recovery (US11). Parking changes the run state everywhere it shows and the
   // workspace state; resources and Handled change Problems and Workspaces.
   'run.parked': RUNS,
+  'run.status_updated': RUNS,
+  'run.activity': RUNS,
   'run.resumed': RUNS,
   'run.unpushed_handled': ['item', 'needsYou', 'bootstrap', 'workspaces'],
   'resource.declared': ['item', 'agents', 'workspaces'],

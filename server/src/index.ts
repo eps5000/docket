@@ -14,6 +14,7 @@ import {
   restartSweep,
   startDriftCheck,
   startRadar,
+  startRunActivity,
   startSweeper,
 } from './jobs/sweeper.js';
 import { createRuntime } from './runtime.js';
@@ -83,6 +84,8 @@ const sweeper = startSweeper(runtime);
 const driftCheck = startDriftCheck(runtime);
 // The conflict radar, every 15 minutes for projects with a repository (decision 36).
 const radar = startRadar(runtime);
+// Decision 42: newer activity on parked and silent runs, every two minutes.
+const runActivity = startRunActivity(runtime);
 
 const server = serve({ fetch: app.fetch, hostname: '0.0.0.0', port: config.port }, (info) => {
   console.log(`${APP_NAME} ${APP_VERSION} listening on 0.0.0.0:${info.port}`);
@@ -95,6 +98,7 @@ for (const signal of ['SIGTERM', 'SIGINT'] as const) {
     sweeper.stop();
     driftCheck.stop();
     radar.stop();
+    runActivity.stop();
     backups.stop();
     lock.stop();
     void runtime.close().finally(() => server.close(() => process.exit(0)));

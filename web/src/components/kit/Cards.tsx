@@ -27,7 +27,10 @@ export function leadName(lead: { client: string; label: string | null }): string
  */
 export function leadReason(parked: LeadParked | null | undefined): string | undefined {
   if (!parked) return undefined;
-  return parked.resume_ready ? 'ready to resume' : parkedReason(parked.waiting_on);
+  if (parked.resume_ready) return 'ready to resume';
+  // Decision 42: newer activity says the park may be out of date.
+  if (parked.activity) return 'activity since parked';
+  return parkedReason(parked.waiting_on);
 }
 
 /** "For you" on a list row: a packet is ready or a question is open (UI_SPEC §5). */
@@ -137,6 +140,13 @@ export function TicketCard({
           age={formatAge(item.last_activity_at, now)}
           ageTitle={`Last activity ${isoTitle(item.last_activity_at)}`}
         />
+      )}
+      {item.producer && (
+        <div className="meta src" data-card-producer={item.producer.name}>
+          {item.producer.between_workers
+            ? `Between workers · ${item.producer.name}`
+            : `Producer ${item.producer.name}`}
+        </div>
       )}
     </Link>
   );

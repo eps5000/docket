@@ -216,6 +216,7 @@ export const VALID_ARGS: Record<ToolName, Record<string, unknown>> = {
     reason: 'Waiting for RCP-12 (planner) to merge',
     waiting_on: { items: ['RCP-12'] },
   },
+  update_run_status: { id: 'RCP-14', coordinator: 'orca', current_action: 'Checking the build' },
   set_plan: { id: 'RCP-17', steps: [{ text: 'Reproduce the jump after reload' }] },
   update_step: { id: 'RCP-14', step_id: 'wst_a', state: 'done' },
   log_subagent: {

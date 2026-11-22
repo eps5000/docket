@@ -147,6 +147,11 @@ export const claimLeadInput = mutationInput({
    * conflict radar. Defaults to `workspace.branch`.
    */
   branch: branchInput.optional(),
+  /**
+   * Decision 42: the stable name of the session that owns this story. Workers
+   * under one producer hand it between them without it returning to Ready.
+   */
+  producer: text(LIMITS.orchestrator_name).optional(),
 }).superRefine(oneBrief);
 export const claimLeadOutput = mutationOutput({
   run_id: z.string(),
@@ -160,6 +165,8 @@ export const releaseLeadInput = mutationInput({
   id: itemId,
   run_id: runIdField,
   reason: text(TEXT_LIMITS.note),
+  /** Decision 42: under a producer, give the story up (back to Ready) instead of handing it on. */
+  release_story: z.boolean().optional(),
 });
 export const releaseLeadOutput = mutationOutput({ item: itemSummarySchema });
 
@@ -225,5 +232,52 @@ export const parkRunInput = mutationInput({
 });
 export const parkRunOutput = mutationOutput({
   run_state: z.literal('parked'),
+  resume_ready: z.boolean(),
+});
+
+// ---- update_run_status (decision 42) ----
+
+/**
+ * A named coordinator updates the status of an item's lead run without its
+ * `run_id`, so the call is never the run's own signal. It grants no claim,
+ * close, review or owner power.
+ */
+export const updateRunStatusInput = mutationInput({
+  id: itemId,
+  /** The run's recorded orchestrator, or a coordinator the owner registered for the project. */
+  coordinator: text(LIMITS.orchestrator_name),
+  /** Replaces the run's "doing" line. */
+  current_action: text(TEXT_LIMITS.note).optional(),
+  /** A parked run only. */
+  park_reason: text(LIMITS.park_reason).optional(),
+  /** A parked run only. Replaces what it waits on. */
+  waiting_on: waitingOnInput.optional(),
+  /** Resume a parked run. Not with `park_reason` or `waiting_on`. */
+  resume: z.literal(true).optional(),
+}).superRefine((value, ctx) => {
+  if (
+    value.current_action === undefined &&
+    value.park_reason === undefined &&
+    value.waiting_on === undefined &&
+    value.resume === undefined
+  ) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['current_action'],
+      message: 'Pass current_action, park_reason, waiting_on or resume.',
+    });
+  }
+  if (value.resume && (value.park_reason !== undefined || value.waiting_on !== undefined)) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['resume'],
+      message: 'Resume, or change what it waits on, not both.',
+    });
+  }
+});
+export const updateRunStatusOutput = mutationOutput({
+  id: z.string(),
+  run_state: runStateSchema,
+  updated_by: z.string(),
   resume_ready: z.boolean(),
 });

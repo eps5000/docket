@@ -12,6 +12,7 @@ import {
   itemSummarySchema,
   runStateSchema,
   satisfiedWhenSchema,
+  runActivitySchema,
   statusSchema,
   waitingOnSchema,
 } from '../mcp/types.js';
@@ -30,6 +31,8 @@ export const projectSchema = z.object({
    * · review" chip (decision 31; UI_SPEC §6.7d; optional; B29).
    */
   created_by: z.string().nullable().optional(),
+  /** Decision 42: coordinators the owner registered, who may use `update_run_status` here. */
+  coordinators: z.array(z.string()).optional(),
 });
 export type Project = z.infer<typeof projectSchema>;
 
@@ -61,6 +64,8 @@ export const leadParkedSchema = z.object({
   waiting_on: waitingOnSchema,
   since: z.string(),
   resume_ready: z.boolean(),
+  /** Decision 42: newer activity while it is parked. */
+  activity: runActivitySchema.optional(),
 });
 export type LeadParked = z.infer<typeof leadParkedSchema>;
 
@@ -68,6 +73,8 @@ export type LeadParked = z.infer<typeof leadParkedSchema>;
 export const workItemSchema = itemSummarySchema.extend({
   /** The lead's park, when it is parked (B20). */
   lead_parked: leadParkedSchema.nullable().optional(),
+  /** Decision 42: the story's producer, and whether it is between workers. */
+  producer: z.object({ name: z.string(), between_workers: z.boolean() }).optional(),
   /** Review cards with a ready packet open the packet screen directly (UI_SPEC §6.2.1). */
   packet_ready: z.boolean(),
   for_you: z.boolean(),

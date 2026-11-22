@@ -3,7 +3,8 @@
  * §5.2, §7; contracts/ui-api.md US4). Shared contract file (tasks.md, Slice rules).
  */
 import { z } from 'zod';
-import { objectId, projectKey } from '../mcp/common.js';
+import { objectId, projectKey, text } from '../mcp/common.js';
+import { LIMITS } from '../mcp/limits.js';
 import { satisfiedWhenSchema } from '../mcp/types.js';
 import { expectedVersion, input, noInput, ownerMutationOutput } from './common.js';
 import { json, route } from './route.js';
@@ -18,8 +19,12 @@ export const linkDeleteResponse = ownerMutationOutput({
 
 export const projectParams = input({ key: projectKey });
 export const projectPatchBody = input({
-  default_satisfied_when: satisfiedWhenSchema,
+  default_satisfied_when: satisfiedWhenSchema.optional(),
+  /** Decision 42: the coordinators who may use `update_run_status` on this project's runs. */
+  coordinators: z.array(text(LIMITS.orchestrator_name)).max(LIMITS.coordinators_max).optional(),
   expected_version: expectedVersion.optional(),
+}).refine((b) => b.default_satisfied_when !== undefined || b.coordinators !== undefined, {
+  error: 'Pass default_satisfied_when or coordinators.',
 });
 export const projectPatchResponse = ownerMutationOutput({
   project: projectSchema,

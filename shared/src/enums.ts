@@ -648,6 +648,9 @@ export const EVENT_TYPES = [
   'design_review.decided',
   // Docket restarted and kept its open runs (decision 41; B49): one event, not one per run
   'service.restarted',
+  // Status that follows the work (decision 42; B50): a coordinator's update, and newer activity
+  'run.status_updated',
+  'run.activity',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 

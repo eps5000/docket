@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
 import {
   AGENT_FILE_KEY_RE,
+  LAUNCH_SNIPPETS,
   PROJECT_KEY_RE,
   type AgentFileRow,
   type Drift,
@@ -18,6 +19,7 @@ import { HelpLink } from '../../help/HelpLink';
 import { queryKeys } from '../../lib/api';
 import { formatAgo, isoTitle } from '../../lib/format';
 import { paths } from '../../lib/paths';
+import { showToast } from '../../lib/undo';
 import { AgentFileView, type FileViewMode } from './AgentFileView';
 import { InstallDialog, InstallLog, InstallStateCard, SetUpPushLink } from './AgentInstall';
 import { usePushTarget } from './install-common';
@@ -138,6 +140,8 @@ export function AgentFiles() {
         )}
       </p>
 
+      <LaunchCard />
+
       <DriftSection project={project} projects={projects} shippedKeys={shippedKeys} />
 
       <ProposalsSection project={project} projectName={projectName} projects={projects} />
@@ -208,6 +212,60 @@ export function AgentFiles() {
         />
       )}
     </div>
+  );
+}
+
+/**
+ * Decision 42: a command that starts one session with Docket connected, for
+ * when a client hasn't loaded the repo's connection file (Codex skips it until
+ * the folder is trusted). It changes no config file.
+ */
+function LaunchCard() {
+  const rows = [
+    { key: 'claude', label: 'Claude Code', text: LAUNCH_SNIPPETS.claude },
+    { key: 'codex', label: 'Codex', text: LAUNCH_SNIPPETS.codex },
+    {
+      key: 'codex_protected',
+      label: 'Codex, protected mode',
+      text: LAUNCH_SNIPPETS.codex_protected,
+    },
+  ];
+  const copy = (text: string) => {
+    void navigator.clipboard?.writeText(text).then(
+      () => showToast('Copied.'),
+      () => showToast('Couldn’t copy. Select the text instead.'),
+    );
+  };
+  return (
+    <Card padded data-card="launch-snippets">
+      <h2 style={{ margin: 0 }}>Start a session with Docket connected</h2>
+      <p className="src" style={{ marginTop: 6 }}>
+        Run one in the repo when a session can’t see Docket. It applies to that session only and
+        changes no config file. In protected mode, set DOCKET_TOKEN first.
+      </p>
+      {rows.map((r) => (
+        <div key={r.key} className="row wrap" style={{ marginTop: 8 }} data-launch={r.key}>
+          <span className="src" style={{ minWidth: 150 }}>
+            {r.label}
+          </span>
+          <code
+            tabIndex={0}
+            aria-label={`${r.label} launch command`}
+            style={{ overflowWrap: 'anywhere', flex: 1 }}
+          >
+            {r.text}
+          </code>
+          <Button
+            size="sm"
+            icon="copy"
+            aria-label={`Copy the ${r.label} command`}
+            onClick={() => copy(r.text)}
+          >
+            Copy
+          </Button>
+        </div>
+      ))}
+    </Card>
   );
 }
 

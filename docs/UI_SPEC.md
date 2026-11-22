@@ -468,6 +468,7 @@ A `ProgressMap` of the filtered set, titled "Outside this view". When no epic or
 - **Size:** it's sized for long text (up to 960 px wide and 85 vh tall, with the body scrolling), and works at 1024 px.
 
 #### 6.3.2 Lead and runs
+- **Status line (decision 42):** under the agent bar, "Producer X", "Status updated by Y" and "Activity since parked: 2 commits, RCP-25 cleared", or "Commits while silent… Its session may not have Docket." A story between workers reads "Between workers: X holds this until 14:32" instead of "No agent on this". Board cards show "Producer X" or "Between workers · X".
 - **Run rows:** the run's `RunLine` (`state · reason · agent`, the agent in bold, the last-signal age), a "lead" chip, "started 30m ago", and "what" (current step or last report).
 - *Release lead claim…* and *Copy resume note* are shared with the agent bar (§6.3): one implementation, one dialog.
 - **Where the work lives** (owner decision 26), one compact block under each run row:
@@ -672,6 +673,7 @@ h1 "Settings".
 - **h2 "Projects":** one row per project:
   - colour swatch, name (+ "Current" chip), "KEY · n epics · n items · n documents · n for you";
   - label tags;
+  - **Coordinators** (decision 42): names, comma-separated, who may correct a run's status with `update_run_status` here, and nothing else;
   - a mini status bar with "n done · n active · n review · n planning";
   - "Blockers clear when": a select with **Done** (default), **PR merged** and **Verified by you**. Its `title` reads: "When a blocking item counts as finished for its dependents. Agents can override it per link. PR merged is reported by the agent." Changing it shows the toast "Blocker rule for Recipe App set to PR merged. 2 items are blocked again." with Undo;
   - "n decisions", a link to the project's Decisions page (§6.3.7; decision 38 replaced the dialog);
@@ -688,6 +690,8 @@ h1 "Settings".
 **Overlap handling** (decision 39; B46): a section after Projects. A default for all projects as three radios (*Agents resolve*, *Ask on shared data*, *Ask on every overlap*), each with one line saying what reaches the owner (a change to an approved design always does), and a table with one select per project ("Default (…)" or an override). Owner only: no MCP tool writes it. Leases, merge checks and decided overlaps are the same in every mode.
 
 ### 6.7b Agent files (`/agent-files`, decision 29; redesigned in B25)
+**Start a session with Docket connected (decision 42):** a card of copyable per-launch commands for Claude Code, Codex and Codex in protected mode. They apply to that session only and change no config file.
+
 Its own nav item, after Agents. It isn't under Settings and isn't marked service-wide: like the other pages it follows the project switcher (All projects, or one project). The screen shows **two ideas, not three layers**, and never uses the words bundled, layer, override, effective set or service-wide:
 - **Default:** what every project uses (stored as the bundled version plus the owner's service-wide edit). It reads "Docket's version", or "Edited" with a small marker when the owner edited it; *Reset to Docket's version* removes the edit (B23's revert of the service layer).
 - **<Project>'s copy:** exists only once the owner customizes a file for that project (the project layer). Its presence is the indicator.

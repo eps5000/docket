@@ -25,7 +25,8 @@ test.describe('e2e harness', () => {
     // 43 since decision 33 (B33): get_step;
     // 48 since decision 36 (B38): declare_shared_changes, list_shared_parts, take_lease, release_lease;
     // 49 since decision 37 (B42): propose_resolution.
-    expect(tools.length).toBe(50);
+    // 51 since decision 42 (B50): update_run_status.
+    expect(tools.length).toBe(51);
 
     const res = await agent.call('whoami');
     if (res.isError) {

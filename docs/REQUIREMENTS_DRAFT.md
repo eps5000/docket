@@ -178,6 +178,18 @@ Evidence from the Gameflow pilot. A restart marked every open run interrupted, s
 
 BUILD_SPEC §5.3, §5.13, §5.16 and §5.22, MCP_SPEC §5.9 and UI_SPEC §6.1 have the details.
 
+## Owner decision 42 (2026-11-22): status follows what agents are really doing
+
+Evidence from the Gameflow pilot, Nov 20-22 (GF-370). GF-269 and GF-270 still read "parked, waiting on a mailbox" after the route was replaced and the flag enabled. GF-336 sat parked about 22 hours on a memory check that passed as soon as someone asked. GF-254, GF-239, GF-348, GF-349 and GF-280 expired to Ready while their producers were working, and GF-280 flipped between In progress and Ready about five times in an hour as small workers claimed and released it. A read-only `get_item` with a `run_id` also silently un-parked GF-374 and GF-376.
+
+1. **Producers can reach Docket at launch,** with no credentials in shared or committed files and no change to user-level client config. Agent files and the coordinator skill give a copyable per-launch command. Where Docket can tell a session is working without it (commits on a silent run's branch), it says so.
+2. **A named coordinator can update a run's status without its run ID:** current action, park reason, waiting-on, or resume. Only the run's recorded orchestrator or a coordinator the owner registered for the project may. It grants no claim, close, review or owner power, never counts as the run's own signal, and is shown as "updated by X".
+3. **Docket notices drift.** After a park, new commits on the run's branches, updates on the item and cleared blockers show within a few minutes. When everything it waited on clears, it is ready to resume; anything less certain keeps the state and shows "activity since parked" to the coordinator. It reaches the owner only under decision 41's routing. A flag clears when the run or a coordinator speaks, and doesn't flap.
+4. **A story has a stable producer across worker handoffs.** Workers under one producer hand it on without it returning to Ready or looking abandoned. One active lead and every seam, lease, design-review and overlap protection stay, and attribution stays per worker. A real release by the producer, or its hold running out, returns it to Ready.
+5. **Only work resumes a parked run.** A read never resumes it, renews its lease or changes its park. `heartbeat` and other mutating calls naming the run do.
+
+BUILD_SPEC §5.16 and §5.23, MCP_SPEC §5.4 and UI_SPEC §6.3 and §6.7b have the details.
+
 ## Deferred choices
 
 Pilot project choice and Jira import strategy are deferred until V1 is ready for real work. Design should still settle the storage layout, supported document preview formats, the exact project gate configuration shape, and the minimum history needed before a velocity forecast is shown. These are implementation choices guided by the owner decisions above, not blockers to selecting a pilot now.

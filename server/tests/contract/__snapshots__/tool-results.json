@@ -1412,6 +1412,85 @@
                     "type": "string"
                   },
                   "additionalProperties": {}
+                },
+                "producer": {
+                  "type": "string"
+                },
+                "status_update": {
+                  "type": "object",
+                  "properties": {
+                    "by": {
+                      "type": "string"
+                    },
+                    "client": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "at": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "by",
+                    "client",
+                    "at"
+                  ],
+                  "additionalProperties": false
+                },
+                "activity": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "since_parked",
+                        "since_signal"
+                      ]
+                    },
+                    "since": {
+                      "type": "string"
+                    },
+                    "detected_at": {
+                      "type": "string"
+                    },
+                    "commits": {
+                      "type": "integer"
+                    },
+                    "last_commit": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "branch": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "events": {
+                      "type": "integer"
+                    },
+                    "cleared_items": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "since",
+                    "detected_at",
+                    "commits",
+                    "last_commit",
+                    "branch",
+                    "events",
+                    "cleared_items"
+                  ],
+                  "additionalProperties": false
                 }
               },
               "required": [
@@ -1651,6 +1730,29 @@
                 "type": "null"
               }
             ]
+          },
+          "producer_hold": {
+            "type": "object",
+            "properties": {
+              "producer": {
+                "type": "string"
+              },
+              "until": {
+                "type": "string"
+              },
+              "last_worker": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "producer",
+              "until",
+              "last_worker"
+            ],
+            "additionalProperties": false
           },
           "unread_owner_notes": {
             "type": "array",
@@ -1958,7 +2060,9 @@
                     "resolution.decided",
                     "design_review.raised",
                     "design_review.decided",
-                    "service.restarted"
+                    "service.restarted",
+                    "run.status_updated",
+                    "run.activity"
                   ]
                 },
                 "summary": {
@@ -3331,7 +3435,9 @@
                 "resolution.decided",
                 "design_review.raised",
                 "design_review.decided",
-                "service.restarted"
+                "service.restarted",
+                "run.status_updated",
+                "run.activity"
               ]
             },
             "summary": {
@@ -3466,6 +3572,15 @@
                     "string",
                     "null"
                   ]
+                },
+                "producer": {
+                  "type": "string"
+                },
+                "activity": {
+                  "type": "string"
+                },
+                "updated_by": {
+                  "type": "string"
                 }
               },
               "required": [
@@ -5088,6 +5203,49 @@
     ],
     "additionalProperties": false
   },
+  "update_run_status": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "run_state": {
+        "type": "string",
+        "enum": [
+          "live",
+          "reported",
+          "stale",
+          "parked",
+          "needs_input",
+          "failed",
+          "finished",
+          "interrupted"
+        ]
+      },
+      "updated_by": {
+        "type": "string"
+      },
+      "resume_ready": {
+        "type": "boolean"
+      },
+      "replayed": {
+        "type": "boolean"
+      },
+      "warnings": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "required": [
+      "id",
+      "run_state",
+      "updated_by",
+      "resume_ready"
+    ],
+    "additionalProperties": false
+  },
   "set_plan": {
     "type": "object",
     "properties": {
@@ -5945,7 +6103,9 @@
               "resolution.decided",
               "design_review.raised",
               "design_review.decided",
-              "service.restarted"
+              "service.restarted",
+              "run.status_updated",
+              "run.activity"
             ]
           },
           "summary": {
@@ -7488,6 +7648,85 @@
                     "type": "string"
                   },
                   "additionalProperties": {}
+                },
+                "producer": {
+                  "type": "string"
+                },
+                "status_update": {
+                  "type": "object",
+                  "properties": {
+                    "by": {
+                      "type": "string"
+                    },
+                    "client": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "at": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "by",
+                    "client",
+                    "at"
+                  ],
+                  "additionalProperties": false
+                },
+                "activity": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "since_parked",
+                        "since_signal"
+                      ]
+                    },
+                    "since": {
+                      "type": "string"
+                    },
+                    "detected_at": {
+                      "type": "string"
+                    },
+                    "commits": {
+                      "type": "integer"
+                    },
+                    "last_commit": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "branch": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "events": {
+                      "type": "integer"
+                    },
+                    "cleared_items": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "since",
+                    "detected_at",
+                    "commits",
+                    "last_commit",
+                    "branch",
+                    "events",
+                    "cleared_items"
+                  ],
+                  "additionalProperties": false
                 }
               },
               "required": [
@@ -8153,6 +8392,85 @@
                     "type": "string"
                   },
                   "additionalProperties": {}
+                },
+                "producer": {
+                  "type": "string"
+                },
+                "status_update": {
+                  "type": "object",
+                  "properties": {
+                    "by": {
+                      "type": "string"
+                    },
+                    "client": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "at": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "by",
+                    "client",
+                    "at"
+                  ],
+                  "additionalProperties": false
+                },
+                "activity": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "since_parked",
+                        "since_signal"
+                      ]
+                    },
+                    "since": {
+                      "type": "string"
+                    },
+                    "detected_at": {
+                      "type": "string"
+                    },
+                    "commits": {
+                      "type": "integer"
+                    },
+                    "last_commit": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "branch": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "events": {
+                      "type": "integer"
+                    },
+                    "cleared_items": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "since",
+                    "detected_at",
+                    "commits",
+                    "last_commit",
+                    "branch",
+                    "events",
+                    "cleared_items"
+                  ],
+                  "additionalProperties": false
                 }
               },
               "required": [
@@ -8743,6 +9061,85 @@
                     "type": "string"
                   },
                   "additionalProperties": {}
+                },
+                "producer": {
+                  "type": "string"
+                },
+                "status_update": {
+                  "type": "object",
+                  "properties": {
+                    "by": {
+                      "type": "string"
+                    },
+                    "client": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "at": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "by",
+                    "client",
+                    "at"
+                  ],
+                  "additionalProperties": false
+                },
+                "activity": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "since_parked",
+                        "since_signal"
+                      ]
+                    },
+                    "since": {
+                      "type": "string"
+                    },
+                    "detected_at": {
+                      "type": "string"
+                    },
+                    "commits": {
+                      "type": "integer"
+                    },
+                    "last_commit": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "branch": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "events": {
+                      "type": "integer"
+                    },
+                    "cleared_items": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "since",
+                    "detected_at",
+                    "commits",
+                    "last_commit",
+                    "branch",
+                    "events",
+                    "cleared_items"
+                  ],
+                  "additionalProperties": false
                 }
               },
               "required": [

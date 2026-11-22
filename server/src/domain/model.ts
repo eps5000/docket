@@ -141,6 +141,14 @@ export interface RunRow {
   unpushed_outcome: 'keep' | 'discard' | null;
   /** Decision 41: the last read-only git check of this run's worktree (worktree-check.ts). */
   worktree_check: string | null;
+  /** Decision 42: the stable owner of the story across worker handoffs. */
+  producer: string | null;
+  /** Decision 42: on an ended lead, the story waits for this producer's next worker until then. */
+  producer_hold_until: string | null;
+  /** Decision 42: `{by, client, at}`, the coordinator who last set this run's status. */
+  status_update: string | null;
+  /** Decision 42: `{since, flag}`, activity newer than the run's last word (run-activity.ts). */
+  park_activity: string | null;
   version: number;
   created_at: string;
   updated_at: string;
@@ -253,6 +261,14 @@ export function runView(
     resources,
   };
   if (opts.external) view.external = parseJson<Record<string, unknown>>(row.external) ?? {};
+  // Decision 42: present only when there is something to say, so other results stay as they were.
+  if (row.producer) view.producer = row.producer;
+  if (isRunOpen(row.state)) {
+    const update = parseJson<NonNullable<Run['status_update']>>(row.status_update);
+    if (update) view.status_update = update;
+    const flag = parseJson<{ flag: Run['activity'] | null }>(row.park_activity)?.flag;
+    if (flag) view.activity = flag;
+  }
   return view;
 }
 
@@ -423,12 +439,15 @@ export const endsOnOrAfter = (end: string, start: string): boolean => end >= sta
  * then sent back or interrupted): epic status is set by hand, so an epic
  * stays In progress while its children are worked, and agents told to take
  * resumable work first must not claim it. Stories, Tasks and Bugs follow the
- * literal rule. (Gate review of B7.)
+ * literal rule. (Gate review of B7.) A story between workers under one
+ * producer isn't resumable: it is held for that producer's next worker
+ * (decision 42).
  *
  * The SQL condition for items aliased `alias`; pair it with "no active lead".
  */
 export const RESUMABLE_SQL = (alias: string) =>
   `(${alias}.status = 'progress' AND NOT EXISTS (SELECT 1 FROM runs ra WHERE ra.item_id = ${alias}.id AND ra.is_lead = 1 AND ra.state IN ${OPEN_STORED_SQL})` +
+  ` AND NOT EXISTS (SELECT 1 FROM runs rh WHERE rh.item_id = ${alias}.id AND rh.producer_hold_until IS NOT NULL)` +
   ` AND (${alias}.type <> 'Epic' OR EXISTS (SELECT 1 FROM runs rl WHERE rl.item_id = ${alias}.id AND rl.is_lead = 1)))`;
 
 /** Whether one item is resumable (the same rule as `RESUMABLE_SQL`). */
