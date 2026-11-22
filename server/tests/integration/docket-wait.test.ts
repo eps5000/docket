@@ -132,7 +132,10 @@ beforeAll(() => {
 });
 afterAll(() => tmp.cleanup());
 
-describe.skipIf(available.length === 0).each(available)('docket-wait (%s)', (shell) => {
+// CI's no-network container has neither curl nor PowerShell: a file must still hold a test.
+it.skipIf(available.length > 0)('needs bash with curl, or PowerShell', () => {});
+
+describe.each(available)('docket-wait (%s)', (shell) => {
   let s: TestServer;
   let http: ServerType;
   let port: number;
