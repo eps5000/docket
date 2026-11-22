@@ -23,6 +23,13 @@ export const LIMITS = {
   page_max: 50,
   changes_default: 100,
   changes_max: 200,
+  /**
+   * Decision 40: the longest `get_changes` may hold a call. Below the shortest
+   * client limit measured (Claude Code 2.1.326 drops an HTTP tool call at 60 s).
+   */
+  changes_wait_s: 45,
+  /** Decision 40: the longest one `GET /agent/changes/wait` holds; docket-wait reconnects. */
+  changes_wait_route_s: 300,
   /** Largest document accepted inline over MCP (25 MB). */
   document_mcp_bytes: 26_214_400,
   idempotency_key: 100,

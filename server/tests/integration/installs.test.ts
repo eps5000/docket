@@ -153,7 +153,7 @@ describe('command install: the bundle and the single-use token (T155)', () => {
     // Not in the log until the token is used; one event, "Install command created".
     expect((await api('GET', '/api/installs')).body).toEqual({ installs: [] });
     expect(eventsOf(server).map((e) => e.summary)).toEqual([
-      'Install command created: Claude Code, RCP’s repo, 7 files'.replace('’', "'"),
+      'Install command created: Claude Code, RCP’s repo, 9 files'.replace('’', "'"),
     ]);
 
     // The download: no session, the system as actor.
@@ -268,7 +268,7 @@ describe('command install: the bundle and the single-use token (T155)', () => {
     expect(log.installs[0]).toMatchObject({
       id: body.install_id,
       method: 'command',
-      file_count: 7,
+      file_count: 9,
       token_used_at: server.clock.current.toISOString(),
     });
     expect(log.installs[0]!.manifest).toEqual(
@@ -276,8 +276,8 @@ describe('command install: the bundle and the single-use token (T155)', () => {
     );
     const events = eventsOf(server);
     expect(events.map((e) => e.summary)).toEqual([
-      "Install command created: Claude Code, RCP's repo, 7 files",
-      "Installed by command: Claude Code, RCP's repo, 7 files",
+      "Install command created: Claude Code, RCP's repo, 9 files",
+      "Installed by command: Claude Code, RCP's repo, 9 files",
     ]);
     expect(events.map((e) => (JSON.parse(e.data) as S).stage)).toEqual([
       'command_issued',
@@ -352,7 +352,7 @@ describe('command install: the bundle and the single-use token (T155)', () => {
     expect(files.get('docket-install/block.md')).toMatch(/^## Work tracking: Docket/);
     expect(files.get('docket-install/block.md')).not.toContain('{{');
     expect(eventsOf(server).at(-1)!.summary).toBe(
-      'Installed by command: Codex, user-wide, 6 files',
+      'Installed by command: Codex, user-wide, 8 files',
     );
   });
 
@@ -466,11 +466,11 @@ describe('push install and check (T156)', () => {
         id,
         method: 'push',
         path: 'C:\\Users\\me\\code\\recipes',
-        file_count: 7,
+        file_count: 9,
       }),
     ]);
     expect(eventsOf(server).map((e) => e.summary)).toEqual([
-      "Installed by push: Claude Code, RCP's repo at C:\\Users\\me\\code\\recipes, 7 files",
+      "Installed by push: Claude Code, RCP's repo at C:\\Users\\me\\code\\recipes, 9 files",
     ]);
 
     // Up to date.

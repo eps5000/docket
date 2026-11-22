@@ -88,6 +88,8 @@ while IFS= read -r l; do
   known="$known$k "
   # The connection file isn't reported (decision 32): an agent that claims is connected.
   [ "$k" = ${CONNECTION_KEY} ] && continue
+  # Nor are the installed scripts (decision 40): the push check and the check command cover them.
+  case $k in script:*) continue ;; esac
   f="$base/$p"
   [ -f "$f" ] || continue
   if [ "$k" = agents_block ]; then
@@ -157,7 +159,7 @@ function Add-File([string]$k, [string]$x, [bool]$withText) {
   [void]$out.Add($e)
 }
 foreach ($r in $j.files) {
-  if ($r.key -eq '${CONNECTION_KEY}') { continue }
+  if ($r.key -eq '${CONNECTION_KEY}' -or $r.key -like 'script:*') { continue }
   $f = Join-Path $base $r.path
   if (-not (Test-Path -LiteralPath $f -PathType Leaf)) { continue }
   $x = $enc.GetString([IO.File]::ReadAllBytes($f)).Replace("\`r", '')

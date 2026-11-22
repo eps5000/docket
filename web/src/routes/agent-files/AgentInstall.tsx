@@ -5,6 +5,8 @@ import {
   AGENTS_BLOCK_KEY,
   CONNECTION_FILES,
   CONNECTION_KEY,
+  isScriptKey,
+  scriptNameOf,
   INSTALL_CHECK_STATE_LABELS,
   INSTALL_CLIENT_LABELS,
   fillsProjectKey,
@@ -935,8 +937,8 @@ function SentVersions({ row, projectName }: { row: InstallRow; projectName: stri
     queries: row.manifest.map((m) => ({
       queryKey: queryKeys.agentFile(m.key, q),
       queryFn: () => apiClient['agentFiles.get']({ params: { key: m.key }, query: q }),
-      // The connection file has no stored versions (decision 32).
-      enabled: m.key !== CONNECTION_KEY,
+      // The connection file and installed scripts have no stored versions (decisions 32, 40).
+      enabled: m.key !== CONNECTION_KEY && !isScriptKey(m.key),
     })),
   });
   return (
@@ -951,6 +953,14 @@ function SentVersions({ row, projectName }: { row: InstallRow; projectName: stri
                 docket server,{' '}
                 {m.version_id === 'connection:protected' ? 'protected mode' : 'local trust'}
               </span>
+            </li>
+          );
+        }
+        if (isScriptKey(m.key)) {
+          return (
+            <li key={m.key} data-sent={m.key}>
+              <span className="mono">{scriptNameOf(m.key)}</span>{' '}
+              <span className="src">Docket script</span>
             </li>
           );
         }
@@ -1021,7 +1031,7 @@ function CheckFile({
   const detail = useQuery({
     queryKey: queryKeys.agentFile(file.key ?? '', q),
     queryFn: () => apiClient['agentFiles.get']({ params: { key: file.key! }, query: q }),
-    enabled: open && file.key !== null && file.key !== CONNECTION_KEY,
+    enabled: open && file.key !== null && file.key !== CONNECTION_KEY && !isScriptKey(file.key),
   });
   const version = sent ? findVersion(detail.data, sent.version_id) : null;
   const sentText =

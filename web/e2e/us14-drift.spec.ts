@@ -185,7 +185,7 @@ test.describe('Drift (US14)', () => {
     ownerPage: page,
   }) => {
     sh(`printf -- '- And squash on merge.\\n' >> ${WORKER_FILE}`);
-    const agent = await connectAgent('codex-mcp-client', '0.50.0');
+    const agent = await connectAgent('codex', '0.50.0');
     try {
       const report = docketcheck();
       const files = report.files as { key: string; content?: string }[];
@@ -255,7 +255,7 @@ test.describe('Drift (US14)', () => {
     ownerPage: page,
   }) => {
     sh(`printf -- '- One more local rule.\\n' >> ${WORKER_FILE}`);
-    const agent = await connectAgent('codex-mcp-client', '0.50.0');
+    const agent = await connectAgent('codex', '0.50.0');
     try {
       const claim = await agent.call('claim_lead', { id: 'RCP-25', instructions: docketcheck() });
       expect(claim.isError, claim.text).toBe(false);
@@ -281,7 +281,7 @@ test.describe('Drift (US14)', () => {
   }) => {
     const secret = `ghp_${'Q'.repeat(36)}`;
     sh(`printf -- '- Push with ${secret}\n' >> ${WORKER_FILE}`);
-    const agent = await connectAgent('codex-mcp-client', '0.50.0');
+    const agent = await connectAgent('codex', '0.50.0');
     try {
       const report = docketcheck();
       expect(JSON.stringify(report)).toContain(secret);

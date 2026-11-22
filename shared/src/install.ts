@@ -87,9 +87,28 @@ export function installLayout(client: InstallClient, target: InstallTargetKind):
   };
 }
 
+/**
+ * The installed `docket-wait` scripts (decision 40): manifest entries next to
+ * the skills, so *Check* and drift cover them. They aren't agent files: they
+ * have no stored versions, so an edit is restored or kept, never adopted, and
+ * like the connection file an agent's `docket-check` report leaves them out.
+ */
+export const WAIT_SCRIPT_SH = 'docket-wait.sh';
+export const WAIT_SCRIPT_PS1 = 'docket-wait.ps1';
+const SCRIPT_PREFIX = 'script:';
+export const WAIT_SCRIPT_KEYS = [
+  `${SCRIPT_PREFIX}${WAIT_SCRIPT_SH}`,
+  `${SCRIPT_PREFIX}${WAIT_SCRIPT_PS1}`,
+] as const;
+/** A manifest key for an installed script. */
+export const isScriptKey = (key: string): boolean => key.startsWith(SCRIPT_PREFIX);
+/** `docket-wait.sh`, from its manifest key. */
+export const scriptNameOf = (key: string): string => key.slice(SCRIPT_PREFIX.length);
+
 /** The path a file is installed at, relative to the base: `.claude/skills/docket-worker/SKILL.md`. */
 export function installPathOf(layout: InstallLayout, key: string): string {
   if (key.startsWith('skill:')) return `${layout.skillsDir}/${key.slice('skill:'.length)}/SKILL.md`;
+  if (isScriptKey(key)) return `${layout.dir}/${scriptNameOf(key)}`;
   return layout.instructions;
 }
 

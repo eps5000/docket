@@ -82,8 +82,10 @@ import {
   installedBlock,
   isLegacySkillName,
   isSafeCommandPath,
+  isScriptKey,
   mergeMarkedSection,
   renderAgentsBlock,
+  WAIT_SCRIPT_KEYS,
   withoutCr,
   type CreateInstallResponse,
   type InstallClientResult,
@@ -106,6 +108,7 @@ import {
 } from './contracts.js';
 import { newId } from './ids.js';
 import { CHECK_SCRIPT_PS1, CHECK_SCRIPT_SH, checkPs1, checkSh } from './check-scripts.js';
+import { waitPs1, waitSh } from './wait-scripts.js';
 import { installPs1, installSh, installWrapperPs1, installWrapperSh } from './install-scripts.js';
 import { PushRoot, SymlinkRefused } from './push-root.js';
 import type { WriteContext } from './write.js';
@@ -209,7 +212,7 @@ function filesFor(
   const layout = installLayout(client, target);
   const fill = fillsProjectKey(target, project);
   const files = keys
-    .filter(({ key }) => key !== CONNECTION_KEY)
+    .filter(({ key }) => key !== CONNECTION_KEY && !isScriptKey(key))
     .map(({ key, version_id, content }) => {
       const text = key === AGENTS_BLOCK_KEY ? renderAgentsBlock(content, fill) : content;
       return {
@@ -220,10 +223,33 @@ function filesFor(
         sha256: hashText(text),
       };
     });
+  for (const script of waitScriptFiles(layout)) files.push(script);
   if (target === 'repo') {
     files.push(connectionFileFor(client, connection.url, connection.protectedMode));
   }
   return files;
+}
+
+/** The `version_id` of an installed script: its text's hash (scripts have no stored versions). */
+const scriptVersionId = (text: string): string => `script:${hashText(text).slice(0, 12)}`;
+
+const WAIT_SCRIPTS: Record<(typeof WAIT_SCRIPT_KEYS)[number], () => string> = {
+  [WAIT_SCRIPT_KEYS[0]]: waitSh,
+  [WAIT_SCRIPT_KEYS[1]]: waitPs1,
+};
+
+/** `docket-wait` as installed (decision 40), one manifest entry per script. */
+function waitScriptFiles(layout: ReturnType<typeof installLayout>): InstallFile[] {
+  return WAIT_SCRIPT_KEYS.map((key) => {
+    const content = WAIT_SCRIPTS[key]();
+    return {
+      key,
+      version_id: scriptVersionId(content),
+      path: installPathOf(layout, key),
+      content,
+      sha256: hashText(content),
+    };
+  });
 }
 
 /**
@@ -522,7 +548,11 @@ export function outdatedKeys(
   for (const key of Object.keys(manifest)) {
     if (key === CONNECTION_KEY) {
       if (manifest[key]!.version_id !== connectionVersionId(protectedMode)) out.push(key);
-    } else if (!now.has(key)) out.push(key);
+    } else if (!isScriptKey(key) && !now.has(key)) out.push(key);
+  }
+  // Decision 40: an install without the current docket-wait is out of date.
+  for (const key of WAIT_SCRIPT_KEYS) {
+    if (manifest[key]?.version_id !== scriptVersionId(WAIT_SCRIPTS[key]())) out.push(key);
   }
   return out;
 }
@@ -592,7 +622,8 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
     const sentConnection = manifest[CONNECTION_KEY];
     const files = filesFor(
       Object.entries(manifest)
-        .filter(([key]) => key !== CONNECTION_KEY)
+        // Neither has a stored version: `filesFor` writes them.
+        .filter(([key]) => key !== CONNECTION_KEY && !isScriptKey(key))
         .map(([key, v]) => ({
           key,
           version_id: v.version_id,
@@ -608,7 +639,12 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
             ? sentConnection.version_id === connectionVersionId(true)
             : connection().protectedMode,
       },
-    ).filter((f) => f.key !== CONNECTION_KEY || sentConnection !== undefined);
+    ).filter(
+      (f) =>
+        (f.key !== CONNECTION_KEY || sentConnection !== undefined) &&
+        // An install recorded before docket-wait existed keeps the files its manifest lists.
+        (!isScriptKey(f.key) || manifest[f.key] !== undefined),
+    );
     const layout = installLayout(row.client, row.target_kind);
     const entry = (name: string, text: string, mode = 0o644) =>
       tarText(`${prefix}${name}`, text, now, mode);
@@ -623,7 +659,9 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
     const list = [...copied.map((f) => f.path), layout.manifest, ...scripts.map((x) => x.path)];
     const imports = importsAgentsMd(row.client, row.target_kind);
     return [
-      ...copied.map((f) => entry(`files/${f.path}`, f.content)),
+      ...copied.map((f) =>
+        entry(`files/${f.path}`, f.content, f.path.endsWith('.sh') ? 0o755 : 0o644),
+      ),
       entry(
         `files/${layout.manifest}`,
         manifestJson({

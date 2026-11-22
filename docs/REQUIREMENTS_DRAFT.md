@@ -153,6 +153,18 @@ Altering an approved design always needs the owner, whether or not anything over
 
 Automatic outcomes are recorded as Docket, never as the owner, on both tickets, and the owner can overrule them with undo. Settings → Overlap handling (*Agents resolve*, the default; *Ask on shared data*; *Ask on every overlap*) applies globally and per project. Single-writer leases, Mergify requiring `build` and `e2e`, owner-recorded decisions and overlaps the owner already decided are unchanged. BUILD_SPEC §5.21 B46 has the rules.
 
+## Owner decision 40 (2026-11-21): coordinators get what they need with far fewer tokens
+
+Docket's core features are good; this decision makes them cheaper to use. The orchestrator should get the information it needs with as few tokens and as little time as possible. Evidence from the Gameflow pilot's session logs: three subagents started at about 132k tokens because they inherited their parent's conversation, where a fresh agent starts at 24–30k; a long-running coordinator carried about 160k of context and made 29,625 model calls, waiting by polling, so every check resent that context even when Docket's answer was tiny; Docket's tool definitions measured about 40k tokens.
+
+1. **Wait without waking the model.** A waiting agent spends no model tokens until something relevant changes: a long-poll on the change feed, and an installed `docket-wait` script. No `sleep` loops.
+2. **One compact coordinator snapshot.** `get_digest` replaces the usual round of reads, within about 1,000 tokens for a Gameflow-sized project, and with a cursor returns only what changed.
+3. **Cheaper tool definitions.** At least 60% less than a client received before, with a contract test so it can't creep back, and without losing a rule agents depend on.
+4. **Skills teach the cheap path.** Dispatch fresh, brief with the item ID, worktree, branch and how to report, load small context first, wait with `docket-wait`, restart from Docket past about 100k tokens of context, and keep subagent results short. Each skill has a line and token cap.
+5. **Prove it.** A scripted coordinator scenario on a Gameflow-sized fixture reports the old path against the new one.
+
+BUILD_SPEC §5.11 and MCP_SPEC §3 and §5.2 have the details.
+
 ## Deferred choices
 
 Pilot project choice and Jira import strategy are deferred until V1 is ready for real work. Design should still settle the storage layout, supported document preview formats, the exact project gate configuration shape, and the minimum history needed before a velocity forecast is shown. These are implementation choices guided by the owner decisions above, not blockers to selecting a pilot now.

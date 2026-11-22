@@ -30,5 +30,5 @@ Follow [README.md](README.md) "Before you start" first. Commands run from the re
 
 - [ ] PASS or FAIL for each `check` line, and the run state you saw (live or reported).
 - [ ] Anything you had to change from the README to make it connect.
-- [ ] V6: does Codex show the model the text block, `structuredContent`, or both? (Ask it to quote a tool result verbatim.)
+- [x] V6: measured in B48 on Codex 0.171.0: it shows the model `structuredContent` when there is one, so Docket sends it text-only results.
 - [ ] V7: does Codex load skills from `~/.codex/skills/`?

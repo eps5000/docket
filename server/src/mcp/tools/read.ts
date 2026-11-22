@@ -19,6 +19,7 @@ export const readHandlers: Pick<
   | 'dependency_subgraph'
   | 'deferred_reviews'
   | 'get_changes'
+  | 'get_digest'
 > = {
   whoami: (_args, ctx) =>
     ctx.services.search.whoami(ctx.read, {
@@ -36,5 +37,19 @@ export const readHandlers: Pick<
   get_context: (args, ctx) => ({ context: ctx.services.context.getContext(ctx.read, args) }),
   dependency_subgraph: (args, ctx) => ctx.services.subgraph.dependencySubgraph(ctx.read, args),
   deferred_reviews: (args, ctx) => ctx.services.packets.deferredReviews(ctx.read, args),
-  get_changes: (args, ctx) => ctx.services.search.getChanges(ctx.read, args),
+  get_changes: async ({ wait_s, ...args }, ctx) => {
+    const first = ctx.services.search.getChanges(ctx.read, args);
+    // Decision 40: hold the call for a matching event. Without a cursor it answers at once.
+    if (wait_s === undefined || args.cursor === undefined || first.events.length > 0) return first;
+    const waited = await ctx.runtime.changes.wait({
+      cursor: Number(first.next_cursor),
+      project: args.project,
+      item_id: args.item_id,
+      types: args.types,
+      timeoutMs: wait_s * 1000,
+      signal: ctx.abort,
+    });
+    return ctx.services.search.getChanges(ctx.read, { ...args, cursor: String(waited.cursor) });
+  },
+  get_digest: (args, ctx) => ctx.services.digest.get(ctx.read, args),
 };

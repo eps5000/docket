@@ -55,7 +55,7 @@ let firstRead: { version_id: string; content: string; source: string };
 test.describe.configure({ mode: 'serial' });
 
 test.beforeAll(async () => {
-  agent = await connectAgent('codex-mcp-client', '0.50.0');
+  agent = await connectAgent('codex', '0.50.0');
   const claim = await agent.call('claim_lead', { id: 'RCP-17', agent_label: 'orca-w3' });
   expect(claim.isError, claim.text).toBe(false);
   run = claim.structured.run_id as string;

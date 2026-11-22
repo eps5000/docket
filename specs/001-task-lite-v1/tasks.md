@@ -546,6 +546,12 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T201 [US4] One status token set (`--st-<status>`, `-soft`, `-text`, light and dark) used by chips, the shared `StatusBar` (Map, epic cards, Settings), legends and card edges; `--teal` removed; Blocked is its own red, Canceled is hatched. `routing.ts`: a pure, deterministic layout with barycenter ordering, shared rows, lanes in gutters and channels, and ports spread across card edges.
 - [x] T202 [US4] Tests: the palette over the real tokens (CIEDE2000 at least 20, at least 12 under deuteranopia and protanopia, WCAG AA, both themes); sampled arrow geometry for a Gameflow-like epic, the STR epic's shape and 200 seeded DAGs; determinism; performance at 5,000 cards; e2e `b47-map-routing` (arrows clear of cards at every zoom and Fit, hover and keyboard tracing, shared tokens, axe in both themes); the sweep spec stays green.
 
+## Phase 28: Coordinators get what they need with far fewer tokens (owner decision 40)
+
+- [x] T203 [US1] Spec plus code in one PR: REQUIREMENTS_DRAFT decision 40, BUILD_SPEC (§2, §5.11, §12 V6, §14), MCP_SPEC (§3, §5.2, §10, §11), Help (Connect an agent), the skills and the AGENTS.md block.
+- [x] T204 [US1] Waiting: `GET /agent/changes/wait` on one event-driven waiter set, `get_changes { wait_s }` (≤ 45 s, below the measured client limit) and the installed `docket-wait` (`.sh`, `.ps1`), in the manifest and covered by *Check* and drift. `get_digest`: one capped snapshot with a cursor.
+- [x] T205 [US1] Compact tool definitions (shorter descriptions, lean input schemas, top-level output schemas, Codex text-only), a contract budget, skill line and token caps, and a scripted coordinator scenario on a Gameflow-sized fixture reporting old path against new.
+
 ## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.
@@ -646,6 +652,7 @@ Open a PR titled "<Bn>: <phase name>" with the checkpoint evidence. Do not queue
 | 25 Project decisions get their own page | B44 (after B43) |
 | 26 Overlaps reach the owner only when they need the owner | B46 (after B44) |
 | 27 One status colour system; map arrows route around cards | B47 (after B46) |
+| 28 Coordinators get what they need with far fewer tokens | B48 (after B47) |
 
 **Within a phase:** tests (failing) → services → replace stubs or fill handlers → fill screens → checkpoint.
 

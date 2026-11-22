@@ -34,7 +34,7 @@ The project has its own rules: who moves work to Ready, when human review is nee
 
    **Given a `run_id` by your coordinator** (you're resuming a parked run after a crash)? Don't claim. Pass that `run_id` on your first call, for example `heartbeat { run_id, note: "Resuming" }`. That resumes the run with its claim, workspace and brief. Then continue from step 3.
 
-3. **Get context:** `get_context { id }`. One call gathers the outcome, the acceptance criteria, the decisions you must follow, the epic and label briefs, blockers, the shared parts this item and other in-flight items will change, the project's Workflow notes and planning docs. Follow the Workflow notes like the project's `AGENTS.md`.
+3. **Get context:** `get_context { id, budget: "small" }`. One call gathers the outcome, the acceptance criteria, the decisions you must follow, the epic and label briefs, blockers, the shared parts this item and other in-flight items will change, the project's Workflow notes and planning docs. Widen to `"medium"` or `"large"` only when a `…truncated` line hides something you need. Follow the Workflow notes like the project's `AGENTS.md`.
 
 `whoami` isn't needed to start: `claim_lead` returns your lease's expiry. Call it once only when you need your client name or the windows (`lease_s`, `stale_after_s`).
 
@@ -95,6 +95,8 @@ The project has its own rules: who moves work to Ready, when human review is nee
 
 **Never just go quiet.** A silent run looks stale and loses its claim. A parked run keeps it, and its worktree is protected from pruning. Any later call with your `run_id` un-parks you.
 
+**Wait without spending tokens.** After `park_run`, end your turn if something will wake you. If you must stay running, block on the installed script, next to `docket-check`: `bash .claude/docket-wait.sh --item <id> --cursor <cursor> --timeout 540` (`docket-wait.ps1` on Windows without bash; keep your shell tool's timeout above `--timeout`). Exit 0 means something changed, 2 means it timed out. Never wait in a `sleep` loop.
+
 ## 5. Finish
 
 1. **Push everything** and report every commit with `pushed: true`.
@@ -121,7 +123,9 @@ To change these instructions, use `get_agent_files` then `propose_agent_file_cha
 - **Read small:**
   - `get_item { view: "summary" }` for status checks;
   - `fields: [...]` to trim reads further;
-  - `get_changes` with a cursor to watch for updates, instead of polling `get_item`.
+  - `docket-wait` to wait for updates, instead of polling `get_item` or `get_changes`.
+- **Start fresh.** Past about **100k tokens of context**, push, note where you are with `heartbeat`, and stop: a new session resumes from Docket more cheaply than carrying the history.
+- **Delegate fresh.** Subagents start as new agents, never as a fork of your conversation, and return short results.
 - **Write small.** `set_plan`, `set_checks` and `update_item` patch, so send only what changed.
 - **Pass an `idempotency_key`** on any write you might retry after a timeout.
 - **Keep text short:**

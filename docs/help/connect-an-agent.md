@@ -39,7 +39,16 @@ Headless runs: `claude -p` uses the project's servers without asking; `codex exe
 
 Ask the agent to call the `whoami` tool. Then look at the **Client compatibility** table in Settings → Connections: the client appears with *Last seen* just now.
 
-The **Status** column says *Not verified* until someone runs the smoke test (claim, plan, log, read back). An unverified client still works. The **Results** column says whether the client reads structured results or text only.
+The **Status** column says *Not verified* until someone runs the smoke test (claim, plan, log, read back). An unverified client still works. The **Results** column says whether the client reads structured results or text only. Claude Code and Codex both read text only, which costs far fewer tokens.
+
+## Keep agents cheap while they wait
+
+Every time an agent checks on something, its whole conversation is sent to the model again. So Docket gives agents a way to wait that costs nothing until something happens.
+
+- **`docket-wait`** is a small script the install puts next to the skills (`.claude/` or `.codex/`). An agent runs it and it simply blocks until a relevant change arrives, then prints one short line per change. It survives a Docket restart. *Check* and *Changed outside Docket* cover it like the other installed files, so an install from before this feature shows **Update available** until you install again.
+- **`get_digest`** gives a coordinator one short snapshot of a project: what's ready, what's running, stale or parked, what's blocked, what's waiting on you, leases and conflicts ahead.
+
+**If you run a coordinator,** the `docket-coordinator` skill already teaches this: start each worker fresh instead of forking the conversation, keep briefs to the item, worktree, branch and how to report, wait with `docket-wait`, and restart from Docket once a session passes about 100k tokens of context.
 
 ## Every repo at once (optional)
 

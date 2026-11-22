@@ -122,7 +122,7 @@ export const DEFAULTS = {
   DOCKET_BACKUP_AT: '03:00',
   DOCKET_BACKUP_KEEP: '14',
   // Claude Code gives the model `structuredContent`, not the text (BUILD_SPEC §12 V6).
-  DOCKET_TEXT_ONLY_CLIENTS: 'claude-code',
+  DOCKET_TEXT_ONLY_CLIENTS: 'claude-code,codex-mcp-client',
   // Decision 32: local trust by default; `on` restores the owner unlock and the agent token.
   DOCKET_PROTECTED_MODE: 'off',
 } as const;

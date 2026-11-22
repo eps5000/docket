@@ -2,8 +2,8 @@
  * Result modes (MCP_SPEC §3 Results; BUILD_SPEC §12 V6; owner decision 28).
  *
  * A session's mode is decided at `initialize` from `clientInfo.name`:
- * - listed in DOCKET_TEXT_ONLY_CLIENTS (default `claude-code`, the name
- *   Claude Code 2.1.318 reports) → text-only: `tools/list` has no
+ * - listed in DOCKET_TEXT_ONLY_CLIENTS (default `claude-code` and
+ *   `codex-mcp-client`, the names those clients report) → text-only: `tools/list` has no
  *   `outputSchema`, and results carry the text block alone, errors still
  *   `isError` with the full message;
  * - any other client → structured, unchanged.
@@ -45,21 +45,32 @@ const modeOf = (harness: ContractHarness, client: Client) =>
     (client.transport as { sessionId?: string } | undefined)?.sessionId ?? '',
   )?.result_mode;
 
-describe('the shipped default: claude-code is text-only', () => {
+/** A client that isn't on the text-only list. */
+const ANOTHER_CLIENT = { name: 'another-client', version: '1.0.0' };
+
+describe('the shipped default: claude-code and codex-mcp-client are text-only', () => {
+  it('Codex gets text-only results (decision 40: it gives its model structuredContent)', async () => {
+    h = await startHarness({ env: PRODUCT_RESULT_MODES });
+    expect(modeOf(h, h.b)).toBe('text');
+    expect((await h.b.listTools()).tools.every((t) => t.outputSchema === undefined)).toBe(true);
+    expectTextOnly(await call(h.b, 'whoami'));
+  });
+
   it('a client named like Claude Code gets text-only results', async () => {
     h = await startHarness({ env: PRODUCT_RESULT_MODES });
     expect(CLIENT_A.name).toBe('claude-code');
     expect(modeOf(h, h.a)).toBe('text');
 
     // tools/list: no outputSchema, everything else as for a structured client.
+    const other = await h.connect(ANOTHER_CLIENT);
     const text = (await h.a.listTools()).tools;
-    const structured = (await h.b.listTools()).tools;
+    const structured = (await other.listTools()).tools;
     expect(text.every((t) => t.outputSchema === undefined)).toBe(true);
     expect(text).toEqual(structured.map(({ outputSchema: _, ...t }) => t));
 
     // Reads and writes: the text block alone, the same text a structured client gets.
     const ctxA = expectTextOnly(await call(h.a, 'get_context', { id: 'RCP-14' }));
-    expect(ctxA).toBe(expectOk(await call(h.b, 'get_context', { id: 'RCP-14' })).text);
+    expect(ctxA).toBe(expectOk(await call(other, 'get_context', { id: 'RCP-14' })).text);
     const search = expectTextOnly(
       await call(h.a, 'search_items', { project: 'RCP', filter: 'ready_to_start', limit: 1 }),
     );
@@ -81,7 +92,8 @@ describe('the shipped default: claude-code is text-only', () => {
     const body = expectTextOnly(text);
 
     // The structured client's ToolError, for comparison: the text is its full rendering.
-    const err = expectNotFound(await call(h.b, 'get_item', { id: 'RCP-99' }));
+    const other = await h.connect(ANOTHER_CLIENT);
+    const err = expectNotFound(await call(other, 'get_item', { id: 'RCP-99' }));
     expect(body).toBe(renderError(err));
     expect(body).toBe(`not_found: ${err.message}`);
 
@@ -99,7 +111,7 @@ describe('the shipped default: claude-code is text-only', () => {
   it('another client name gets structured results, unchanged', async () => {
     h = await startHarness({ env: PRODUCT_RESULT_MODES });
     for (const info of [
-      { name: 'codex-mcp-client', version: '0.50.0' },
+      { name: 'codex', version: '0.50.0' },
       // Matching is exact: other Claude-family names keep structured output.
       { name: 'claude', version: '1.0.0' },
       { name: 'claude-code-sdk-test', version: '1.0.0' },

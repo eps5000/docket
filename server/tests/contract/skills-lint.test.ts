@@ -29,6 +29,15 @@ import { startHarness, type ContractHarness } from './harness.js';
 
 const SKILLS_DIR = fileURLToPath(new URL('../../../skills/', import.meta.url));
 
+/**
+ * Decision 40: line counts hide size, so each skill also has a token cap
+ * (characters ÷ 4, MCP_SPEC §3.2). 4,800 fits the largest today (docket-worker,
+ * about 4,300) with a little headroom. Move rarely used detail out instead of
+ * raising it.
+ */
+export const SKILL_MAX_LINES = 500;
+export const SKILL_MAX_TOKENS = 4_800;
+
 /** A snake_case word: lower case, at least one underscore. */
 const SNAKE = /\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/g;
 
@@ -142,10 +151,12 @@ export function vocabulary(tools: readonly Tool[]): Vocabulary {
   const properties = new Set<string>();
   for (const t of tools) {
     for (const f of Object.keys(t.inputSchema.properties ?? {})) fields.add(f);
+    // The full result, not the compact `outputSchema` clients get (decision 40).
+    const result = shared.resultJsonSchema(shared.getTool(t.name)!);
     schemaEnums(t.inputSchema, enums);
-    schemaEnums(t.outputSchema, enums);
+    schemaEnums(result, enums);
     schemaProperties(t.inputSchema, properties);
-    schemaProperties(t.outputSchema, properties);
+    schemaProperties(result, properties);
   }
   sharedEnums(enums);
   return { tools: new Set(tools.map((t) => t.name)), fields, enums, properties };
@@ -194,6 +205,11 @@ describe('skills lint (T148)', () => {
       it('names only registered tools, top-level input fields and shared enum values', () => {
         const bad = unknownNames(skill.text, vocab).map((u) => `${u.name} (line ${u.line})`);
         expect(bad, `Unknown names in ${skill.folder}/SKILL.md`).toEqual([]);
+      });
+
+      it(`stays within ${SKILL_MAX_LINES} lines and ${SKILL_MAX_TOKENS} tokens (decision 40)`, () => {
+        expect(skill.text.split('\n').length).toBeLessThanOrEqual(SKILL_MAX_LINES);
+        expect(Math.ceil(skill.text.length / 4)).toBeLessThanOrEqual(SKILL_MAX_TOKENS);
       });
     });
   }

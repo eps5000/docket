@@ -117,7 +117,7 @@ Environment variables, with defaults:
 | `DOCKET_BACKUP_AT` | `03:00` | Local time for the nightly backup. |
 | `DOCKET_BACKUP_KEEP` | `14` | Days of backups kept, in every location. |
 | `DOCKET_BACKUP_EXTRA_DIR` | (unset) | Opt-in extra backup location: the path *inside the container* of a host folder bind-mounted by the owner (e.g. `/backups-extra`). When it's set and writable, each nightly backup is also copied there (owner decision 24). |
-| `DOCKET_TEXT_ONLY_CLIENTS` | `claude-code` | MCP clients whose sessions get text-only tool results (MCP_SPEC §3 Results; owner decision 28): exact `clientInfo.name`s, comma-separated, ignoring case. `none` gives every client structured results. The default is the name Claude Code sends. |
+| `DOCKET_TEXT_ONLY_CLIENTS` | `claude-code,codex-mcp-client` | MCP clients whose sessions get text-only tool results (MCP_SPEC §3 Results; owner decision 28): exact `clientInfo.name`s, comma-separated, ignoring case. `none` gives every client structured results. The default is the name Claude Code sends. |
 | `DOCKET_SEED` | (unset) | `sample` loads the sample data into an empty database. |
 | `DOCKET_SEED_STRESS` | `0` | Tests only (B35). With `DOCKET_SEED=sample`, `1` also loads the stress project `STR` (§8). The e2e instance and CI set it. |
 | `TZ` | host TZ | Display time zone. Storage is always UTC. |
@@ -377,6 +377,7 @@ H10.
 - The UI shows Undo in a 6 s toast.
 - Agent mutations aren't undoable from the UI.
 - `get_changes(cursor)` and `/api/stream` both read from `events.seq`.
+- **Waiting on the feed (decision 40; MCP_SPEC §5.2).** `GET /agent/changes/wait`, `get_changes { wait_s }` and the installed `docket-wait` script (`.sh`, `.ps1`) share one waiter set (`domain/change-wait.ts`). A commit wakes it once: one query reads the new events and matches them to every waiter in memory, so waiters cost no database work. One shared 2 s scan catches writes from another process (the CLI), while anyone waits. A waiter ends on a match, at its timeout, on client disconnect, or at shutdown (503, and the script retries). `docket-wait` is in the manifest as `script:docket-wait.sh` and `script:docket-wait.ps1` (`version_id` `script:<hash>`), so *Check*, the scheduled drift check and *update available* cover it. Like the connection file it has no stored versions, an agent's `docket-check` report leaves it out, and an edit can be restored or kept but not adopted.
 
 ### 5.12 Delete project
 O10. Owner only; the UI asks the owner to type the project key.
@@ -720,7 +721,7 @@ For any overlap, Docket asks in order: **(1)** can they safely run at the same t
 
 ## 6. MCP tool contract
 
-**Overview only.** [MCP_SPEC.md](MCP_SPEC.md) is authoritative for the server instructions, every tool's description text, input and output schemas, error messages and worked flows. It defines 48 tools (38, plus `get_step` from decision 33, plus `get_agent_files` and `propose_agent_file_change` from decision 30, `onboard_project` and `finish_onboarding` from decision 31, `apply_batch` from decision 34, and `declare_shared_changes`, `list_shared_parts`, `take_lease` and `release_lease` from decision 36), and one prompt (`onboard`), including `unlink_items`, `update_check` and `update_human_review`, which are paired with their siblings below.
+**Overview only.** [MCP_SPEC.md](MCP_SPEC.md) is authoritative for the server instructions, every tool's description text, input and output schemas, error messages and worked flows. It defines 50 tools (`get_digest` from decision 40 and `propose_resolution` from decision 37 bring it from 48; 38, plus `get_step` from decision 33, plus `get_agent_files` and `propose_agent_file_change` from decision 30, `onboard_project` and `finish_onboarding` from decision 31, `apply_batch` from decision 34, and `declare_shared_changes`, `list_shared_parts`, `take_lease` and `release_lease` from decision 36), and one prompt (`onboard`), including `unlink_items`, `update_check` and `update_human_review`, which are paired with their siblings below.
 
 Tools are snake_case, with input and output schemas defined in `shared/` with zod, and every result returns `structuredContent`. Lists are paginated with `cursor` and `limit` (default 25, max 50) (A02).
 
@@ -758,7 +759,8 @@ Tools are snake_case, with input and output schemas defined in `shared/` with zo
 | `put_document` | | `item_id? \| project, name, kind, content_text? \| content_base64?, mime?` → `{document_id, version_no, document_version_id}` | H10 |
 | `link_artifact` | | `id, kind, label, url?, state?` | A08 |
 | `report_commit` | | `id, sha, branch?, message?, pr_url?` → commit, plus `stale_packets[]` if any went stale | decision 13 |
-| `get_changes` | Poll | `cursor?, project?, limit?` → `{events[], next_cursor}` | A13 |
+| `get_changes` | Read changes; optional bounded wait (decision 40) | `cursor?, project?, limit?, wait_s?` → `{events[], next_cursor}` | A13 |
+| `get_digest` | One compact coordinator snapshot (decision 40) | `project, cursor?` → capped sections and the change cursor | A13 |
 | `dependency_subgraph` | | `id, depth?=2 (1–5), direction?: up\|down\|both` → nodes with status and dates (each date labelled `entered` or `none`) and edges, plus the downstream items whose dates are at risk | A11 |
 | `deferred_reviews` | Cleanup list | `project?` → deferred items with follow-up status | decision 13 |
 | `recovery_report` | Restart list after a crash | `project?, since?, include_briefs?` → interrupted, stale and parked runs, workspaces, orphaned resources | decision 26 |
@@ -1061,7 +1063,7 @@ The milestones below group *capabilities*. The **execution order** is the batch 
 |---|---|---|
 | M0 | Workspace scaffold, lint, typecheck, Vitest, Dockerfile, compose, `/healthz` and `/readyz`, and the GitHub Actions CI workflow (§2 Stack) | `docker compose up` serves "Docket is running"; the CI check is green on the M0 PR, and Mergify waits for it |
 | M1 | Schema and migrations, domain services for §5 (including `satisfied_when`, decision records and the context bundle), event log, idempotency, undo, seed loader | Unit tests for every §5 rule pass; the seed loads deterministically |
-| M2 | MCP server per [MCP_SPEC.md](MCP_SPEC.md): auth, Host/Origin guards, identity, server instructions, all 48 tools and the `onboard` prompt, with the exact description text, compact text rendering, structured errors, sweeper, restart handling | The MCP_SPEC §10 contract tests pass, including the description snapshot and token budgets; two simultaneous SDK clients work |
+| M2 | MCP server per [MCP_SPEC.md](MCP_SPEC.md): auth, Host/Origin guards, identity, server instructions, all 50 tools and the `onboard` prompt, with the exact description text, compact text rendering, structured errors, sweeper, restart handling | The MCP_SPEC §10 contract tests pass, including the description snapshot and token budgets; two simultaneous SDK clients work |
 | M3 | Owner session and CSRF, UI API (§7, including owner text edits and the diagnostic log), SSE stream | API contract tests pass; the unlock flow works |
 | M4 | Web shell, tokens, Needs you, Work board and list, ticket and epic pages (four tabs, checklist editing, Decisions sections), open-item tabs, palette, quick capture | The e2e groups for Needs you, Tickets and epics, and Shell pass |
 | M5 | Packet screen and decisions, deferrals, questions and notes, archive, undo toasts, inline editing, desktop notifications and the tab-title count | The e2e groups for Packets and Work (archive) pass |
@@ -1084,6 +1086,8 @@ These can't be settled on paper. Each one has a default already, so none of them
 | V6 | Which part of a tool result each client gives the model: the text block, `structuredContent`, or both. This decides where the token savings land. | The text block is a complete compact rendering, so a text-only client loses nothing. If a client forwards both, measure, and consider an option to send a short text block. | M2, M8 |
 | V5 | SQLite WAL performance on a Docker Desktop named volume on Windows. | Named volume (not a bind mount). If writes are slow, measure before changing anything. | M1 |
 | V7 | Where each client loads skills from (Claude Code `~/.claude/skills/`; Codex `~/.codex/skills/` and its project path), and whether an Orca worker sees user-wide skills. | Document the paths that work in `skills/README.md`; fall back to pasting the skill into the worker's brief. | M8 |
+
+**V6 update (decision 40, B48):** measured with real clients against a local mock model and throwaway config. Codex 0.171.0 (`codex-mcp-client`) gives the model `structuredContent` when present, so it joins the text-only default; with text-only results its model reads the text block. Neither Codex nor Claude Code 2.1.326 sends `outputSchema` to the model. Claude Code drops an HTTP tool call at 60 s, and Codex ran a 200 s call to completion, so `get_changes` `wait_s` is capped at 45 s.
 
 ### Results (B18, 2026-11-17)
 
@@ -1169,9 +1173,10 @@ Owner decisions are marked **(owner)**. Every other entry is a technical choice 
 | T7 | Canceled blockers still block until someone removes the link. | §5.2 |
 | T8 | Agent checks are recorded but don't gate Done. Only human review items do. | §5.1 |
 | T9 | Document limits: 25 MB through MCP, 500 MB through bearer HTTP upload. Fixed list of preview formats. | §5.10 |
-| T10 | Live UI updates by SSE plus query invalidation. Agents poll `get_changes`. | §5.11, §7 |
+| T10 | Live UI updates by SSE plus query invalidation. Agents read `get_changes`, and wait with `docket-wait` (decision 40). | §5.11, §7 |
 | T11 | Forecast: last 4 weeks, at least 8 completed estimated items, 10,000-trial Monte Carlo, P50 and P85. | §5.9 |
 | T12 | Jira import reads the Jira Cloud REST API with a token held in memory only. No CSV path. | §9 |
+| 40 **(owner)** | Coordinators get what they need with far fewer tokens: wait with `docket-wait` and a long-poll instead of polling, `get_digest` instead of a round of reads, compact tool definitions under a contract budget, Codex text-only (measured), and skills that teach the cheap path with a line and token cap. | §5.11, MCP_SPEC §3, §5.2, §11 |
 | T13 | Nightly backup at 03:00, kept 14 days, restore by CLI only. | §5.13 |
 | T14 | Archive is owner-only and UI-only; agent queries include archived items. | §5.8 |
 | T15 | Scope resets to All projects on each visit (sessionStorage). Theme and collapsed sections persist (localStorage). | UI_SPEC §2 |

@@ -73,7 +73,7 @@ describe('0015_overlap_autonomy', () => {
     const migrated = openDb(copy);
     try {
       migrateDb(migrated);
-      expect(migrationStatus(migrated)).toEqual({ current: true, applied: 16, expected: 16 });
+      expect(migrationStatus(migrated)).toEqual({ current: true, applied: 17, expected: 17 });
 
       const overlaps = migrated.sqlite
         .prepare('SELECT * FROM part_overlaps ORDER BY id')

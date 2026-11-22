@@ -38,7 +38,15 @@ log_subagent { id: "RCP-14", run_id: "<lead>", step_id: "wst_…", name: "explor
 - **Divide work by step.** One subagent per step, or a clear part of one, makes logs and checks line up.
 - **Merge, then report.** Integrate subagents' commits on your branch, push, and `report_commit` on the item yourself.
 
-## 4. Keep things alive and tidy
+## 4. Delegate cheaply
+
+- **Start each subagent fresh.** Never fork it or let it inherit your conversation: inherited context started subagents at 132k tokens instead of 24–30k.
+- **Brief = item ID, worktree, branch, its step and how to report.** It loads the rest with `get_context { id, budget: "small" }`, and widens only if needed.
+- **Ask for a short result:** the outcome, the commit, anything blocking, in a few lines. Details go in Docket.
+- **Waiting on a connected subagent?** Block on `docket-wait --item <id> --cursor <cursor>` (next to `docket-check`) instead of polling, and keep your shell tool's timeout above its `--timeout`.
+- **Past about 100k tokens of context,** push, record where you are, and restart from Docket rather than carrying the history.
+
+## 5. Keep things alive and tidy
 
 - **Stay live while subagents work.** Waiting on your own subagents is active work, so don't `park_run`. Send `heartbeat { run_id, note: "waiting on 3 subagents: units, aisles, export" }` well inside the stale window.
 - **Resources belong to whoever started them.** A connected subagent declares its own dev servers and sessions on its child run, and releases them before its `finish_run`. Anything you start for an in-process subagent, you declare on your run.

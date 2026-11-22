@@ -112,6 +112,7 @@ import type { Db } from '../db/client.js';
 import type { CallLog } from '../jobs/logs.js';
 import type { Actor, WriteContext } from './write.js';
 import type { RadarPlan } from './radar.js';
+import type { DigestService } from './digest.js';
 import type { FoundProblem, ProblemsService } from './problems.js';
 
 export type { Actor, WriteContext } from './write.js';
@@ -938,6 +939,8 @@ export interface Services {
   reviewDecisions: ReviewDecisionsService;
   evidence: EvidenceService;
   search: SearchService;
+  /** Decision 40: `get_digest`, the coordinator's compact snapshot (digest.ts). */
+  digest: DigestService;
   views: ViewsService;
   links: LinksService;
   subgraph: SubgraphService;

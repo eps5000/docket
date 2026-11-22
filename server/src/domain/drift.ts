@@ -38,6 +38,7 @@ import {
   CONNECTION_KEY,
   INSTALL_CLIENT_LABELS,
   INSTALLED_FILE_KEY_RE,
+  isScriptKey,
   ToolError,
   findSecret,
   isLegacySkillKey,
@@ -162,7 +163,7 @@ export function differences(
 ): Difference[] {
   const out: Difference[] = [];
   for (const [key, sent] of Object.entries(manifest)) {
-    if (key === CONNECTION_KEY && !coversConnection) continue;
+    if ((key === CONNECTION_KEY || isScriptKey(key)) && !coversConnection) continue;
     const got = files[key];
     if (!got) out.push({ key, change: 'missing', local: null });
     else if (got.sha256 !== sent.sha256.toLowerCase()) {
@@ -411,7 +412,9 @@ function record(
   const diffs = differences(manifest, files, coversConnection);
   const open = new Map(
     openRowsOf(db, install.id)
-      .filter((r) => coversConnection || r.file_key !== CONNECTION_KEY)
+      .filter(
+        (r) => coversConnection || (r.file_key !== CONNECTION_KEY && !isScriptKey(r.file_key)),
+      )
       .map((r) => [r.file_key, r]),
   );
   const inserts: Difference[] = [];
@@ -581,7 +584,7 @@ export function runInstructions(db: Db, itemId: string): RunInstructions[] {
     const install = r.install_id ? installById(db, r.install_id) : undefined;
     const manifest = install ? manifestOf(install) : {};
     // An agent never reports the connection file (decision 32): the run lists the instruction files only.
-    const sentKeys = Object.keys(manifest).filter((k) => k !== CONNECTION_KEY);
+    const sentKeys = Object.keys(manifest).filter((k) => k !== CONNECTION_KEY && !isScriptKey(k));
     const keys = [...new Set([...sentKeys, ...Object.keys(files)])].sort(
       (a, b) =>
         (a === 'skill:docket-worker' ? -1 : 0) - (b === 'skill:docket-worker' ? -1 : 0) ||
@@ -695,7 +698,9 @@ export function createDriftService(deps: ServiceDeps): DriftService {
                 (f) =>
                   f.state !== 'missing' &&
                   f.sha256 &&
-                  (INSTALLED_FILE_KEY_RE.test(f.key) || f.key === CONNECTION_KEY),
+                  (INSTALLED_FILE_KEY_RE.test(f.key) ||
+                    f.key === CONNECTION_KEY ||
+                    isScriptKey(f.key)),
               )
               .map((f) => {
                 const text = f.state === 'ok' ? null : f.text;

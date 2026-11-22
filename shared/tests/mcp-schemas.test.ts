@@ -27,14 +27,14 @@ const fails = (name: string, args: unknown) => {
 };
 
 describe('the registry', () => {
-  it('has 49 tools with unique names: 13 read, 1 delivering (get_item), 35 mutating', () => {
-    expect(TOOLS).toHaveLength(49);
-    expect(new Set(TOOLS.map((t) => t.name)).size).toBe(49);
+  it('has 50 tools with unique names: 14 read, 1 delivering (get_item), 35 mutating', () => {
+    expect(TOOLS).toHaveLength(50);
+    expect(new Set(TOOLS.map((t) => t.name)).size).toBe(50);
     const kinds = TOOLS.reduce<Record<string, number>>(
       (acc, t) => ({ ...acc, [t.kind]: (acc[t.kind] ?? 0) + 1 }),
       {},
     );
-    expect(kinds).toEqual({ read: 13, delivering: 1, mutating: 35 });
+    expect(kinds).toEqual({ read: 14, delivering: 1, mutating: 35 });
   });
 
   it('groups tools into the thirteen server files', () => {
@@ -359,12 +359,10 @@ describe('JSON Schema for MCP', () => {
     for (const t of TOOLS) {
       const schema = outputJsonSchema(t);
       expect(schema.type, t.name).toBe('object');
-      const [result, error] = schema.anyOf as {
-        type: string;
-        properties: Record<string, unknown>;
-      }[];
+      const [result, error] = schema.anyOf as { type: string; required: string[] }[];
       expect(result!.type).toBe('object');
-      expect(Object.keys(error!.properties)).toEqual(['code', 'message', 'details', 'current']);
+      // Compact for clients (decision 40): the full ToolError is in MCP_SPEC §6.
+      expect(error!.required).toEqual(['code', 'message']);
     }
   });
 
