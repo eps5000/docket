@@ -266,7 +266,7 @@ describe('Agents in three sections (B20)', () => {
   it('filtered to one state, with Show all; the parked row says what it waits on', () => {
     wrap(<ActiveRunsSection rows={rows} only="parked" />);
     const sec = screen.getByRole('region', { name: 'Active now' });
-    expect(sec.querySelector('.sectog')!.textContent).toContain('1 parked');
+    expect(sec.querySelector('.sectog')!.textContent).toContain('1 parked run');
     expect(within(sec).getByRole('link', { name: 'Show all' }).getAttribute('href')).toBe(
       '/agents',
     );

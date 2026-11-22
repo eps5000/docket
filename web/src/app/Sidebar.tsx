@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
-import { OPEN_RUN_STATES } from '@docket/shared';
 import { Icon, isNotBuilt, type IconName } from '../components/kit';
 import { paths } from '../lib/paths';
 import { useShell } from './ShellState';
-import { useBootstrap, useNeedsYouCount } from './useBootstrap';
+import { useAgentsNow, useBootstrap, useNeedsYouCount } from './useBootstrap';
 
 /** Which nav item a path belongs to (UI_SPEC §2, §6.4: the packet keeps Overview active). */
 export function navSection(
@@ -36,7 +35,7 @@ function NavItem({
   icon: IconName;
   label: string;
   section: ReturnType<typeof navSection>;
-  badge?: { n: number; tone: 'red' | 'gray'; sr: string };
+  badge?: { n: number; tone: 'red' | 'gray'; sr: string; title?: string };
 }) {
   const { pathname } = useLocation();
   const current = navSection(pathname) === section;
@@ -51,7 +50,7 @@ function NavItem({
       <Icon name={icon} />
       <span className="nl">{label}</span>
       {badge && badge.n > 0 && (
-        <span className={`badge${badge.tone === 'gray' ? ' n' : ''}`}>
+        <span className={`badge${badge.tone === 'gray' ? ' n' : ''}`} title={badge.title}>
           {' '}
           {badge.n}
           <span className="sr"> {badge.sr}</span>
@@ -269,11 +268,10 @@ function HealthLine() {
 
 /** The 220px sidebar, a 64px icon rail at ≤ 1180px (UI_SPEC §2). */
 export function Sidebar() {
-  const boot = useBootstrap();
-  const counts = boot.data?.counts;
-  const activeRuns = counts ? OPEN_RUN_STATES.reduce((n, s) => n + (counts.runs[s] ?? 0), 0) : 0;
   // Decision 41: what the owner can act on on the page, from the page's own response.
   const forYou = useNeedsYouCount();
+  // Decision 43: stories being worked on in this project, the Overview card's number.
+  const working = useAgentsNow()?.working ?? 0;
   return (
     <nav className="side" aria-label="Primary">
       <div className="logo">
@@ -294,7 +292,12 @@ export function Sidebar() {
         icon="agents"
         label="Agents"
         section="agents"
-        badge={{ n: activeRuns, tone: 'gray', sr: 'active runs' }}
+        badge={{
+          n: working,
+          tone: 'gray',
+          sr: working === 1 ? 'story being worked on' : 'stories being worked on',
+          title: 'Stories being worked on in this project. Waiting stories aren’t counted.',
+        }}
       />
       <NavItem to={paths.agentFiles()} icon="doc" label="Agent files" section="agent-files" />
       <div className="navsec" aria-hidden="true">

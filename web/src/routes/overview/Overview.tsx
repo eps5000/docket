@@ -18,7 +18,7 @@ import { Button, Card, Skeleton } from '../../components/kit';
 import { QueryState } from '../../app/QueryState';
 import { apiClient } from '../../app/queryClient';
 import { useShell } from '../../app/ShellState';
-import { useNoProjects } from '../../app/useBootstrap';
+import { NEEDS_YOU_REFRESH_MS, useNoProjects } from '../../app/useBootstrap';
 import { HelpLink } from '../../help/HelpLink';
 import { queryKeys } from '../../lib/api';
 import { plural } from '../../lib/format';
@@ -63,6 +63,7 @@ export function Overview() {
   const needs = useQuery({
     queryKey: queryKeys.needsYou({ scope }),
     queryFn: () => apiClient['needsYou.get']({ query: { scope } }),
+    refetchInterval: NEEDS_YOU_REFRESH_MS,
   });
   const metrics = useQuery({
     queryKey: queryKeys.overview({ scope, window }),

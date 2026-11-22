@@ -575,6 +575,7 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T218 [US2] The read API: `GET /api/overview` and `/api/overview/items`, each metric defined once, read-only, with unit tests for handoffs, reopened and canceled tickets, epics and imports.
 - [x] T219 [US2] The page at `/`: four numbers, every owner action, Health, completed per day, workload by epic, the Planning and Deferred lists; the time window; `/overview/:metric`; `/needs-you` redirects.
 - [x] T220 [US2] Tests: every owner action from Overview, the badge invariant, links, e2e on the seeded and STR data, axe in both themes at 1440 and 1024 px, and the sweep.
+- [x] T221 [US2] One count of agents: the sidebar badge, the Overview card and the Agents page's line read `agents_now` from one response; the Agents lists are labelled as runs; invariant tests across All projects and one project, through handoffs and parks.
 
 ## How to run the build
 

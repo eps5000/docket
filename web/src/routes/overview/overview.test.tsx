@@ -113,6 +113,7 @@ const busy = (): NeedsYouResponse =>
       },
     ],
     agent_counts: { live: 3 },
+    agents_now: { working: 4, waiting: 3 },
     agent_file_proposals: 1,
     onboarding_reviews: [
       {
@@ -245,7 +246,6 @@ const metrics = (over: Partial<OverviewResponse> = {}): OverviewResponse => ({
       { key: '2026-11-20', label: 'Nov 20', count: 12 },
     ],
   },
-  agents: { working: 4, waiting: 3 },
   in_flight: { count: 23, progress: 15, review: 8 },
   blocked: 5,
   workload: [
@@ -270,12 +270,15 @@ const metrics = (over: Partial<OverviewResponse> = {}): OverviewResponse => ({
 
 let needs: NeedsYouResponse;
 let overview: OverviewResponse;
+/** A different Needs you for one project, by scope key. */
+let byScope: Record<string, NeedsYouResponse> = {};
 const sent: { method: string; path: string }[] = [];
 const asked: string[] = [];
 
 beforeEach(() => {
   needs = busy();
   overview = metrics();
+  byScope = {};
   sent.length = 0;
   asked.length = 0;
   sessionStorage.clear();
@@ -312,7 +315,11 @@ beforeEach(() => {
           health: { status: 'ready', checks: {} },
         });
       }
-      if (route === '/api/needs-you') return json(200, needs);
+      if (route === '/api/needs-you') {
+        const scope = new URL(path, 'http://docket.test').searchParams.get('scope') ?? 'all';
+        return json(200, byScope[scope] ?? needs);
+      }
+      if (route === '/api/agents') return json(200, { rows: [] });
       if (route === '/api/overview') {
         asked.push(path);
         return json(200, overview);
@@ -497,6 +504,51 @@ describe('every number links to what is behind it', () => {
     await section();
     expect(router.state.location.pathname).toBe('/');
     expect(router.state.location.hash).toBe('#needs-you');
+  });
+});
+
+describe('the Agents badge equals the card (decision 43)', () => {
+  const agentsLink = () => screen.getByRole('link', { name: /^Agents/ });
+
+  it.each([
+    ['all', 'All projects', 4, 3],
+    ['RCP', 'one project', 1, 2],
+  ])('%s (%s)', async (scope, _name, working, waiting) => {
+    byScope = { RCP: quiet({ agents_now: { working: 1, waiting: 2 } }) };
+    sessionStorage.setItem(STORAGE_KEYS.scope, scope);
+    renderAt();
+    const card = await screen.findByRole('link', { name: `${working} working` });
+    expect(card.closest('[data-stat="agents"]')).toBeTruthy();
+    expect(within(stat('agents')).getByRole('link', { name: `${waiting} waiting` })).toBeTruthy();
+    await waitFor(() =>
+      expect(agentsLink().querySelector('.badge')?.textContent).toContain(String(working)),
+    );
+    // Waiting isn't in the badge, and the badge says what it counts.
+    expect(agentsLink().textContent).toContain(working === 1 ? 'story being' : 'stories being');
+    expect(agentsLink().querySelector('.badge')?.getAttribute('title')).toContain(
+      'Waiting stories aren’t counted',
+    );
+  });
+
+  it('shows no badge when every story is parked, though the card says who waits', async () => {
+    needs = quiet({ agents_now: { working: 0, waiting: 2 }, agent_counts: { parked: 2 } });
+    renderAt();
+    await screen.findByRole('link', { name: '0 working' });
+    expect(screen.getByRole('link', { name: '2 waiting' })).toBeTruthy();
+    expect(agentsLink().querySelector('.badge')).toBeNull();
+  });
+
+  it('the Agents page says its lists are runs, beside the same story count', async () => {
+    renderAt('/agents');
+    const line = await waitFor(() => {
+      const el = document.querySelector('[data-agents-stories]');
+      expect(el).toBeTruthy();
+      return el as HTMLElement;
+    });
+    expect(line.textContent).toContain('4 stories being worked on');
+    expect(line.textContent).toContain('3 waiting');
+    expect(line.textContent).toContain('show individual runs');
+    await waitFor(() => expect(agentsLink().querySelector('.badge')?.textContent).toContain('4'));
   });
 });
 

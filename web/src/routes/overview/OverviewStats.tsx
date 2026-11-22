@@ -55,6 +55,8 @@ export function OverviewStats({
 }) {
   const parts = needs ? ownerActionParts(needs) : null;
   const count = needs ? needsYouCount(needs) : 0;
+  // The sidebar's Agents badge is `working`, from this same response (decision 43).
+  const agents = needs?.agents_now ?? { working: 0, waiting: 0 };
   const actionLines = parts
     ? (
         [
@@ -82,13 +84,13 @@ export function OverviewStats({
         )}
       </Stat>
       <Stat name="agents" label="Agents" extra={<HelpLink anchor="needs-you.agents-strip" />}>
-        {metrics ? (
+        {needs ? (
           <>
             <Link className="ov-num" to={paths.overviewList('agents_working')}>
-              <b>{metrics.agents.working}</b> working
+              <b>{agents.working}</b> working
             </Link>
             <Link className="ov-sub" to={paths.overviewList('agents_waiting')}>
-              {metrics.agents.waiting} waiting
+              {agents.waiting} waiting
             </Link>
           </>
         ) : (

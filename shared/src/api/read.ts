@@ -192,6 +192,12 @@ export const needsYouResponse = jsonResponse({
   deferred: z.array(deferredRowSchema),
   planning_queue: z.array(itemSummarySchema),
   agent_counts: runStateCountsSchema,
+  /**
+   * Decision 43 (B51; optional): stories, never raw runs, in this response's scope.
+   * `working` is the sidebar's Agents badge and the Overview card, from this one field.
+   * `waiting` is shown beside it on the card and is not in the badge.
+   */
+  agents_now: z.object({ working: z.number().int(), waiting: z.number().int() }).optional(),
   /** "n agent file changes proposed" (decision 30; UI_SPEC §6.7b-1): pending proposals in scope (optional; B26). */
   agent_file_proposals: z.number().int().optional(),
   /** Onboardings ready for the owner's review in scope: one card each (decision 31; UI_SPEC §6.7d; optional; B29). */

@@ -124,6 +124,16 @@ export function storyActivity(s: Scoped): Map<string, StoryActivity> {
   return out;
 }
 
+/**
+ * The one count of agents (decision 43): the sidebar badge and the Overview card
+ * both read it from `GET /api/needs-you`. The badge is `working`; `waiting` isn't in it.
+ */
+export function agentsNow(s: Scoped): { working: number; waiting: number } {
+  const out = { working: 0, waiting: 0 };
+  for (const a of storyActivity(s).values()) out[a.state]++;
+  return out;
+}
+
 // ---- Completed per hour or day ----
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -226,7 +236,6 @@ export function overviewOf(
   const items = [...s.items.values()];
   const done = completedIn(items, fromMs, toMs);
   const open = items.filter(isOpenTicket);
-  const activity = [...storyActivity(s).values()];
   const progress = open.filter((i) => i.status === 'progress').length;
   const review = open.filter((i) => i.status === 'review').length;
   return {
@@ -239,10 +248,6 @@ export function overviewOf(
       prior: completedIn(items, priorMs, fromMs).length,
       granularity: window === '24h' ? 'hour' : 'day',
       buckets: completedBuckets(done, window, fromMs, toMs, extra.tz),
-    },
-    agents: {
-      working: activity.filter((a) => a.state === 'working').length,
-      waiting: activity.filter((a) => a.state === 'waiting').length,
     },
     in_flight: { count: progress + review, progress, review },
     blocked: open.filter((i) => s.index.state(i.id).blocked).length,

@@ -614,7 +614,7 @@ Agents working in parallel worktrees declare the shared parts each item will cha
 - **FR-200**: A read-only tool call MUST NOT resume a parked run, renew its lease or change its park. Only a mutating call naming the run resumes it.
 - **FR-201** (owner decision 43): `/` MUST be the Overview page, for one project or All projects, with every owner action from Needs you still available and first among the page's sections. Old Needs you links MUST keep working.
 - **FR-202**: Overview's metrics MUST each be defined once on the server and be read-only. Completed MUST count tickets that entered Done in the window and are still Done, excluding epics, canceled tickets and imports.
-- **FR-203**: Agents MUST be counted per story at producer level, never as raw runs, so a story handed between workers counts once.
+- **FR-203**: Agents MUST be counted per story at producer level, never as raw runs, so a story handed between workers counts once. The sidebar's Agents badge MUST equal Overview's *working* count for the same project scope, from one server-side source. A view that lists raw runs MUST say so.
 - **FR-204**: Every number on Overview MUST link to a view showing exactly what it counts. The time window MUST offer 24 hours, 7 days and 30 days, default to 7 days, compare with the preceding window, and be remembered per browser, working when storage is unavailable.
 - **FR-205**: Overview MUST NOT show token use or any estimated metric. Charts MUST have text equivalents, and status MUST NOT be shown by colour alone.
 - **FR-195**: The Needs you badge MUST equal what the owner can act on on the page, from the same source, with no badge at 0.

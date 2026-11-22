@@ -13,7 +13,15 @@ import type {
   WorkResponse,
 } from '@docket/shared';
 import { emptyNeedsYou, mockGet } from './fixtures/api-mocks';
-import { expect, expectAxeClean, setTheme, test, unlock, useSeededContainer } from './fixtures';
+import {
+  connectAgent,
+  expect,
+  expectAxeClean,
+  setTheme,
+  test,
+  unlock,
+  useSeededContainer,
+} from './fixtures';
 
 useSeededContainer();
 
@@ -36,7 +44,25 @@ const api = <T>(page: Page, path: string) =>
 const overview = (page: Page, scope: string, window = '7d') =>
   api<OverviewResponse>(page, `/api/overview?scope=${scope}&window=${window}`);
 
+const needsYou = (page: Page, scope: string) =>
+  api<NeedsYouResponse>(page, `/api/needs-you?scope=${scope}`);
+
 const stat = (page: Page, name: string) => page.locator(`[data-stat="${name}"]`);
+
+/** The sidebar's Agents badge and the Overview card show the API's one number. */
+async function expectBadgeEqualsCard(page: Page, scope: string, working: number, waiting: number) {
+  await page.evaluate((s) => sessionStorage.setItem('docket.scope', s), scope);
+  await open(page);
+  expect((await needsYou(page, scope)).agents_now).toEqual({ working, waiting });
+  await expect(stat(page, 'agents').locator('a.ov-num')).toHaveText(`${working} working`);
+  await expect(stat(page, 'agents').locator('a.ov-sub')).toHaveText(`${waiting} waiting`);
+  const badge = page
+    .getByRole('navigation', { name: 'Primary' })
+    .getByRole('link', { name: /^Agents/ })
+    .locator('.badge');
+  if (working === 0) await expect(badge).toHaveCount(0);
+  else await expect(badge).toContainText(String(working));
+}
 
 async function open(page: Page) {
   await page.goto('/');
@@ -56,10 +82,11 @@ test('the seed: each number opens a list of exactly that many tickets', async ({
   await inScope(page, 'RCP');
   await open(page);
   const o = await overview(page, 'RCP');
+  const agents = (await needsYou(page, 'RCP')).agents_now!;
   const lists: [string, string, OverviewMetric, number][] = [
     ['completed', `${o.completed.count} ticket`, 'completed', o.completed.count],
-    ['agents', `${o.agents.working} working`, 'agents_working', o.agents.working],
-    ['agents', `${o.agents.waiting} waiting`, 'agents_waiting', o.agents.waiting],
+    ['agents', `${agents.working} working`, 'agents_working', agents.working],
+    ['agents', `${agents.waiting} waiting`, 'agents_waiting', agents.waiting],
     ['in-flight', `${o.in_flight.count} ticket`, 'in_flight', o.in_flight.count],
   ];
   for (const [card, name, metric, n] of lists) {
@@ -71,7 +98,7 @@ test('the seed: each number opens a list of exactly that many tickets', async ({
     await expect(page.getByRole('heading', { level: 1 })).toContainText(`· ${n}`);
     await expect(page.locator('tbody tr')).toHaveCount(n);
   }
-  expect(o.agents.working).toBeGreaterThan(0);
+  expect(agents.working).toBeGreaterThan(0);
 });
 
 test('the badge is the owner actions on the page, and old links land on them', async ({ page }) => {
@@ -152,6 +179,81 @@ test('the time window: 7 days first, the choice changes the numbers and is remem
   await expect(group.getByRole('button', { name: '30d' })).toHaveAttribute('aria-pressed', 'true');
   await group.getByRole('button', { name: '24h' }).click();
   await expect(page.locator('[data-card="completed-chart"] h3')).toHaveText('Completed per hour');
+});
+
+test('the Agents badge equals the card, in All projects and one project, through a handoff and a park', async ({
+  page,
+}) => {
+  await open(page);
+  const all = (await needsYou(page, 'all')).agents_now!;
+  const rcp = (await needsYou(page, 'RCP')).agents_now!;
+  await expectBadgeEqualsCard(page, 'all', all.working, all.waiting);
+  await expectBadgeEqualsCard(page, 'RCP', rcp.working, rcp.waiting);
+  await expectBadgeEqualsCard(page, 'STR', 0, 0);
+
+  const agent = await connectAgent('claude-agent-sdk');
+  let run: string | null = null;
+  try {
+    // A producer's worker starts a story: one more in its project and in All.
+    const first = await agent.call('claim_lead', {
+      id: 'RCP-17',
+      agent_label: 'b51-w1',
+      producer: 'b51-producer',
+    });
+    expect(first.isError, first.text).toBe(false);
+    run = first.structured.run_id as string;
+    await expectBadgeEqualsCard(page, 'RCP', rcp.working + 1, rcp.waiting);
+    await expectBadgeEqualsCard(page, 'all', all.working + 1, all.waiting);
+
+    // Handed on: held for the producer, so it still counts once.
+    const handoff = await agent.call('release_lead', {
+      id: 'RCP-17',
+      run_id: run,
+      reason: 'Slice done.',
+    });
+    expect(handoff.isError, handoff.text).toBe(false);
+    run = null;
+    await expectBadgeEqualsCard(page, 'RCP', rcp.working + 1, rcp.waiting);
+    const next = await agent.call('claim_lead', {
+      id: 'RCP-17',
+      agent_label: 'b51-w2',
+      producer: 'b51-producer',
+    });
+    expect(next.isError, next.text).toBe(false);
+    run = next.structured.run_id as string;
+    await expectBadgeEqualsCard(page, 'RCP', rcp.working + 1, rcp.waiting);
+
+    // Parked on the coordinator: waiting, and out of the badge.
+    const parked = await agent.call('park_run', {
+      run_id: run,
+      reason: 'Waiting on the coordinator.',
+      waiting_on: { orchestrator: true },
+    });
+    expect(parked.isError, parked.text).toBe(false);
+    await expectBadgeEqualsCard(page, 'RCP', rcp.working, rcp.waiting + 1);
+    await expectBadgeEqualsCard(page, 'all', all.working, all.waiting + 1);
+
+    // The Agents page keeps its runs, labelled as runs, beside the same story count.
+    await page.goto('/agents');
+    await expect(page.locator('[data-agents-stories]')).toContainText(
+      `${rcp.working === 1 ? '1 story' : `${rcp.working} stories`} being worked on`,
+    );
+    await expect(page.locator('[data-agents-stories]')).toContainText('individual runs');
+    await expect(
+      page.locator('[data-section="agents-active"]').getByRole('button', { name: /^Active now/ }),
+    ).toContainText(/\d+ runs?/);
+  } finally {
+    if (run) {
+      await agent.call('release_lead', {
+        id: 'RCP-17',
+        run_id: run,
+        reason: 'Test finished.',
+        release_story: true,
+      });
+    }
+    await agent.close();
+  }
+  await expectBadgeEqualsCard(page, 'RCP', rcp.working, rcp.waiting);
 });
 
 test('Nothing needs you: no badge, and problems agents handle stay on one line', async ({

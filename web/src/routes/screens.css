@@ -135,6 +135,13 @@
   align-items: center;
 }
 
+.tl .agents-stories {
+  margin: 0;
+}
+.tl .agents-stories a {
+  text-decoration: underline;
+}
+
 /* ---------- Needs you ---------- */
 .tl .pulse {
   display: flex;

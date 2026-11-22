@@ -48,7 +48,7 @@ Agents do almost all the writing. The owner verifies, decides, nudges and archiv
 - **Grid:** `220px minmax(0,1fr)`. Every grid child needs `min-width:0`. (Without it, wide maps and tables push the layout wider than the window.)
 - **Sidebar:**
   - **Project switcher** (*All projects* or one project): a menu of radio items, each with its for-you count. It scopes every page except Settings. Below the projects and the hint, after a separator, comes **Project decisions** (a `menuitem`, only with a project chosen; decision 38), which opens that project's Decisions page (§6.3.7), and the last item is **+ New project** (a `menuitem`; B32), which opens the New project dialog (§6.7d). Arrow keys, Home and End reach it like the projects.
-  - **Nav items:** Overview (red badge = the owner actions, decision 41), Work, Agents (gray badge = active runs), **Agent files** (B25: project-scoped like the others, so not under the divider), then the "Service-wide" divider, Settings and **Help** (decision 29).
+  - **Nav items:** Overview (red badge = the owner actions, decision 41), Work, Agents (gray badge = stories being worked on in the current project, the Overview card's *working*; waiting stories aren't counted; no badge at 0), **Agent files** (B25: project-scoped like the others, so not under the divider), then the "Service-wide" divider, Settings and **Help** (decision 29).
   - **Health line** at the bottom: "Healthy · N clients", linking to Settings. When unhealthy, it shows "Service problem" in `--bad` with the same link.
 - **Header:**
   - **Breadcrumb:**
@@ -279,7 +279,7 @@ Answers three questions in about ten seconds: are agents making progress, is any
 1. **h1 "Overview"**, "N things to act on" when there are any, and the **time window** (`24h | 7d | 30d`, a pressed-button group): 7d by default, remembered in this browser (`docket.overviewWindow`), and safe when storage is unavailable.
 2. **Four numbers**, each a link to the view behind it:
    - **Completed:** "18 tickets" → `/overview/completed?window=`, then "+6 vs the previous 7 days" (the sign and words carry the direction);
-   - **Agents:** "4 working" and "3 waiting" → `/overview/agents_working`, `/overview/agents_waiting`. Stories at producer level, never raw runs;
+   - **Agents:** "4 working" and "3 waiting" → `/overview/agents_working`, `/overview/agents_waiting`. Stories at producer level, never raw runs. *Working* is the sidebar badge, from the same `agents_now`;
    - **In flight:** "23 tickets" → `/overview/in_flight`, "5 blocked" → Work, *Blocked*;
    - **Needs you:** "3 to act on", then reviews, questions, decisions and problems, each linking to its section. "✓ Nothing" at zero.
 3. **Needs you and Health** (`2fr | 1fr`, one column at ≤ 1180 px). **Needs you · N** (`#needs-you`) holds every owner action, in the order below; a card with no rows isn't shown. With no actions, one line: "Nothing needs you". **Health** (`data-card="health"`): "n problems need you" (→ `#problems`) or "No problems need you"; the last backup (→ Settings; "!" when it failed, is overdue or never ran); "n workspaces at risk" (→ Agents → Workspaces); the collapsed lines "Agents are handling N problems" and "You acknowledged N problems"; "n agent file changes proposed"; "Docket handled N overlaps today"; and *All runs →*. Each state has a ✓ or ! as well as its words. None of these lines adds to the badge.
@@ -652,10 +652,10 @@ Not in the sidebar. It opens from *Open packet* (Needs you, the ticket banner, t
   - Decisions: the label's records (§6.3.5).
 
 ### 6.6 Agents (`/agents`)
-h1 "Agents", then three collapsible `Section`s (B20), in this order:
+h1 "Agents", then one line with the story counts the sidebar and Overview show and what this page lists instead: "2 stories being worked on · 0 waiting. The lists below show individual runs, so one story can have several." Then three collapsible `Section`s (B20), in this order:
 
-1. **Active now** (summary: the count). Runs in the order **needs input, failed, stale, parked, live, reported**, newest signal first within a state.
-   - `?state=parked` (the Needs you strip's links) shows that state only: the summary reads "1 parked" and the header has *Show all*.
+1. **Active now** (summary: "n runs"). Runs in the order **needs input, failed, stale, parked, live, reported**, newest signal first within a state.
+   - `?state=parked` shows that state only: the summary reads "1 parked run" and the header has *Show all*.
    - Empty: "No runs yet. Connect an agent from Settings." when nothing has ever run, else "No active runs." (or "No parked runs right now." when filtered).
 2. **Workspaces** (summary "n at risk"; anchor `#workspaces`), below.
 3. **Recent** (summary "n in the last 24 h"), **collapsed by default**, its open state remembered like any section: finished and interrupted runs that ended in the last 24 h, newest first. Empty: "No runs ended in the last 24 h."

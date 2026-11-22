@@ -197,7 +197,7 @@ Needs you did two jobs: it listed what requires the owner, and it was the only p
 1. **Overview is the home page,** for one project or All projects: four numbers (Completed, Agents, In flight, Needs you), the owner's actions, Health, completed per day, workload by epic, the Planning queue and Deferred reviews.
 2. **The owner's actions come first** and nothing is lost: every card and action from Needs you works here. The badge stays decision 41's shared count, and equals the owner actions on the page. With none, the section says "Nothing needs you" and the badge disappears.
 3. **Every number links** to the filtered view behind it. Long lists show a count and the top few, with *View all*.
-4. **Agents are counted by story, at producer level, never as raw runs,** so one story handed between small workers counts once. Problems agents own stay collapsed to one line.
+4. **Agents are counted by story, at producer level, never as raw runs,** so one story handed between small workers counts once. The sidebar's Agents badge is the same number as the Overview card's *working*, for the same project; waiting stories aren't in it. The Agents page still lists individual runs and says so. Problems agents own stay collapsed to one line.
 5. **The time window** is 24 hours, 7 days or 30 days, 7 days by default, remembered per browser, and compared with the preceding window of the same length.
 6. **No token use and no estimated metric,** because clients don't report tokens to Docket.
 7. **Insights have a place but aren't built.** Radar insights come later as proposals, and the page shows no empty placeholder for them.

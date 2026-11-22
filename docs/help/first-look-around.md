@@ -65,7 +65,7 @@ The filter is part of the page address, so you can share a link and use Back. Wo
 
 ## Agents
 
-Every open run, what it's doing and when it last signalled, then **Workspaces** (the worktrees agents reported) and **Recent** (runs that ended in the last 24 hours). The gray number next to **Agents** in the sidebar counts open runs.
+Every open run, what it's doing and when it last signalled, then **Workspaces** (the worktrees agents reported) and **Recent** (runs that ended in the last 24 hours). The gray number next to **Agents** in the sidebar is the number of stories being worked on in the current project, the same as *working* on Overview. Stories that are waiting aren't in it. The lists on this page show individual runs, so a story with a lead and two child runs is three rows.
 
 ## The project switcher
 

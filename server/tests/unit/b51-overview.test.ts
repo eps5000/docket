@@ -25,6 +25,8 @@ const overview = (scope = 'OV', window: '24h' | '7d' | '30d' = '7d'): OverviewRe
   d.services.views.overview(d.read(), { scope, window });
 const list = (metric: OverviewMetric, scope = 'OV'): OverviewItemsResponse =>
   d.services.views.overviewItems(d.read(), { scope, window: '7d', metric });
+/** The one count: what the sidebar badge and the Overview card both read. */
+const agentsNow = (scope = 'OV') => d.services.views.needsYou(d.read(), { scope }).agents_now!;
 const ids = (metric: OverviewMetric, scope = 'OV') => list(metric, scope).rows.map((r) => r.id);
 
 function ticket(
@@ -135,22 +137,22 @@ describe('Agents, per story and never per run', () => {
     d.write({ ...claude, run_id: lead }, (w, s) =>
       s.runs.startRun(w, { id, parent_run_id: lead, agent_label: 'sub-2' }),
     );
-    expect(overview().agents).toEqual({ working: 1, waiting: 0 });
+    expect(agentsNow()).toEqual({ working: 1, waiting: 0 });
     expect(ids('agents_working')).toEqual([id]);
   });
 
   it('a story handed between workers under a producer counts once throughout', () => {
     const id = ticket('Handed over', 'ready');
     const first = claim(id, { producer: 'p1' });
-    expect(overview().agents.working).toBe(1);
+    expect(agentsNow().working).toBe(1);
     d.write({ ...claude, run_id: first }, (w, s) =>
       s.runs.release(w, { id, run_id: first, reason: 'Slice done.' }),
     );
     // Between workers: held for the producer.
-    expect(overview().agents.working).toBe(1);
+    expect(agentsNow().working).toBe(1);
     expect(list('agents_working').rows[0]!.agent).toBe('p1');
     claim(id, { producer: 'p1', agent_label: 'w2' }, d.agent('codex', { label: 'w2' }));
-    expect(overview().agents.working).toBe(1);
+    expect(agentsNow().working).toBe(1);
   });
 
   it('a hold that ran out is no longer work', () => {
@@ -160,18 +162,18 @@ describe('Agents, per story and never per run', () => {
       s.runs.release(w, { id, run_id: run, reason: 'Slice done.' }),
     );
     d.clock.advance(d.server.runtime.config.producerGraceMs + minutes(1));
-    expect(overview().agents.working).toBe(0);
+    expect(agentsNow().working).toBe(0);
   });
 
   it('a stale lead and a lead waiting for the owner are neither working nor waiting', () => {
     const a = ticket('Stale', 'ready');
     claim(a);
     d.clock.advance(d.server.runtime.config.staleAfterMs + minutes(1));
-    expect(overview().agents).toEqual({ working: 0, waiting: 0 });
+    expect(agentsNow()).toEqual({ working: 0, waiting: 0 });
     const b = ticket('Asked the owner', 'ready');
     const run = claim(b);
     d.sql.prepare("UPDATE runs SET state = 'needs_input' WHERE id = ?").run(run);
-    expect(overview().agents).toEqual({ working: 0, waiting: 0 });
+    expect(agentsNow()).toEqual({ working: 0, waiting: 0 });
   });
 
   it('waiting means parked on a named dependency that has not cleared', () => {
@@ -179,27 +181,82 @@ describe('Agents, per story and never per run', () => {
     const a = ticket('Parked on it', 'ready');
     const run = claim(a);
     park(run, { items: [blocker] });
-    expect(overview().agents).toEqual({ working: 0, waiting: 1 });
+    expect(agentsNow()).toEqual({ working: 0, waiting: 1 });
     expect(ids('agents_waiting')).toEqual([a]);
     // The dependency clears: ready to resume, so no longer waiting on anything.
     move(blocker, 'done');
-    expect(overview().agents.waiting).toBe(0);
+    expect(agentsNow().waiting).toBe(0);
   });
 
   it('a park that names nothing is not waiting', () => {
     const a = ticket('Parked', 'ready');
     const run = claim(a);
     park(run, { orchestrator: true });
-    expect(overview().agents.waiting).toBe(1);
+    expect(agentsNow().waiting).toBe(1);
     d.sql.prepare('UPDATE runs SET waiting_on = NULL WHERE id = ?').run(run);
-    expect(overview().agents.waiting).toBe(0);
+    expect(agentsNow().waiting).toBe(0);
   });
 
   it('leaves out epics and other projects', () => {
     claim(ticket('An epic', 'ready', { type: 'Epic' }));
     claim(ticket('Elsewhere', 'ready', { project: 'OW' }));
-    expect(overview().agents.working).toBe(0);
-    expect(overview('all').agents.working).toBe(1);
+    expect(agentsNow().working).toBe(0);
+    expect(agentsNow('all').working).toBe(1);
+  });
+});
+
+describe('the Agents badge and card are one number', () => {
+  /** The badge's source, the card's list and the run table's rows, for one scope. */
+  function expectOneNumber(scope: string, working: number, waiting: number) {
+    expect(agentsNow(scope)).toEqual({ working, waiting });
+    expect(list('agents_working', scope).count).toBe(working);
+    expect(list('agents_waiting', scope).count).toBe(waiting);
+  }
+
+  it('holds across All projects and one project, through handoffs and parks', () => {
+    const blocker = ticket('Blocker', 'progress');
+    const handed = ticket('Handed between workers', 'ready');
+    const parked = ticket('Parked', 'ready', { project: 'OW' });
+    const busy = ticket('With child runs', 'ready', { project: 'OW' });
+
+    const first = claim(handed, { producer: 'p1' });
+    const wait = claim(parked);
+    const lead = claim(busy);
+    d.write({ ...claude, run_id: lead }, (w, s) =>
+      s.runs.startRun(w, { id: busy, parent_run_id: lead, agent_label: 'sub-1' }),
+    );
+    expectOneNumber('OV', 1, 0);
+    expectOneNumber('OW', 2, 0);
+    expectOneNumber('all', 3, 0);
+
+    // Raw runs say 4 here: that is the Agents page's list, and it isn't this number.
+    const runs = d.services.views
+      .agents(d.read(), { scope: 'all' })
+      .rows.filter((r) => r.row_kind === 'run' && ['live', 'reported'].includes(r.run_state!));
+    expect(runs).toHaveLength(4);
+    expect(agentsNow('all').working).toBe(3);
+
+    // A handoff: held for its producer, still one story.
+    d.write({ ...claude, run_id: first }, (w, s) =>
+      s.runs.release(w, { id: handed, run_id: first, reason: 'Slice done.' }),
+    );
+    expectOneNumber('OV', 1, 0);
+    expectOneNumber('all', 3, 0);
+
+    // The next worker takes it: still one.
+    claim(handed, { producer: 'p1', agent_label: 'w2' }, d.agent('codex', { label: 'w2' }));
+    expectOneNumber('OV', 1, 0);
+
+    // A park moves the story from working to waiting, in its project and in All.
+    park(wait, { items: [blocker] });
+    expectOneNumber('OW', 1, 1);
+    expectOneNumber('OV', 1, 0);
+    expectOneNumber('all', 2, 1);
+
+    // Its dependency clears: ready to resume, so neither.
+    move(blocker, 'done');
+    expectOneNumber('OW', 1, 0);
+    expectOneNumber('all', 2, 0);
   });
 });
 
@@ -266,8 +323,8 @@ describe('the API contract', () => {
     ticket('Review', 'review');
     const o = overview();
     expect(list('completed').count).toBe(o.completed.count);
-    expect(list('agents_working').count).toBe(o.agents.working);
-    expect(list('agents_waiting').count).toBe(o.agents.waiting);
+    expect(list('agents_working').count).toBe(agentsNow().working);
+    expect(list('agents_waiting').count).toBe(agentsNow().waiting);
     expect(list('in_flight').count).toBe(o.in_flight.count);
     expect(list('no_epic').count).toBe(o.workload.find((g) => g.epic_id === null)!.total);
   });

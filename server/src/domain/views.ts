@@ -87,7 +87,7 @@ import {
   type RecoveryRoute,
 } from './problems.js';
 import { inScopeOf, ofScope, projectReviews } from './decisions.js';
-import { overviewItemsOf, overviewOf } from './overview.js';
+import { agentsNow, overviewItemsOf, overviewOf } from './overview.js';
 import {
   BlockIndex,
   EVENT_COLUMNS,
@@ -1245,6 +1245,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         planning,
       ),
       agent_counts: runCounts(s, runs),
+      agents_now: agentsNow(s),
       agent_file_proposals: pendingProposalCount(r.db, scope),
       // Decision 31: each onboarding ready for review is one card (and counts as for you).
       onboarding_reviews: readySessions(r.db, scope),

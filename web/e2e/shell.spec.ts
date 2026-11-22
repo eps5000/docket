@@ -30,7 +30,7 @@ useSeededContainer();
 const nav = (page: Page) => page.getByRole('navigation', { name: 'Primary' });
 const h1 = (page: Page) => page.getByRole('heading', { level: 1 });
 const openTabs = (page: Page) => page.getByRole('navigation', { name: 'Open items' });
-/** A sidebar link by its label; badges ("3 for you", "5 active runs") follow it in the name. */
+/** A sidebar link by its label; badges ("3 for you", "2 stories being worked on") follow it in the name. */
 const navLink = (page: Page, name: string) =>
   nav(page).getByRole('link', { name: new RegExp(`^${name}(\\s|$)`) });
 /** A view tab by its label; counts and dots follow it in the name. */

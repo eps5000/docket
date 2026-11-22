@@ -1,8 +1,8 @@
 /**
  * The Overview page's read API (owner decision 43; BUILD_SPEC §5.24; UI_SPEC
  * §6.1). Each metric is defined once, on the server (`domain/overview.ts`).
- * Needs you keeps its own route and `needsYouCount`, so the badge and the page
- * read one number. Shared contract file (tasks.md, Slice rules).
+ * Needs you keeps its own route, `needsYouCount` and `agents_now`, so each
+ * sidebar badge and the page read one number from one response. Shared contract file (tasks.md, Slice rules).
  */
 import { z } from 'zod';
 import { itemTypeSchema, statusSchema } from '../mcp/types.js';
@@ -63,8 +63,6 @@ export const overviewResponse = jsonResponse({
     granularity: z.enum(['hour', 'day']),
     buckets: z.array(z.object({ key: z.string(), label: z.string(), count: z.number().int() })),
   }),
-  /** Stories, never raw runs: one story handed between workers counts once. */
-  agents: z.object({ working: z.number().int(), waiting: z.number().int() }),
   /** Open tickets in In progress or Review. */
   in_flight: z.object({
     count: z.number().int(),
