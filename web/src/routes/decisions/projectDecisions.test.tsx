@@ -242,9 +242,12 @@ describe('the project Decisions page', () => {
         name: 'Project decisions · Sample · Recipe App',
       }),
     ).toBeTruthy();
-    const sec = await waitFor(
-      () => document.querySelector('section[data-section="decisions"]') as HTMLElement,
-    );
+    // waitFor only retries on a throw, so a section not rendered yet must fail the check.
+    const sec = await waitFor(() => {
+      const el = document.querySelector<HTMLElement>('section[data-section="decisions"]');
+      expect(el).not.toBeNull();
+      return el!;
+    });
     await waitFor(() =>
       expect(rowTitles(sec)).toEqual(['Follow the constitution', 'Prototypes for owner review']),
     );
