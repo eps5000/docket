@@ -12,7 +12,11 @@
  * branches). They reach the owner's Problems only when nobody leads any of
  * the items, or when they're still open after `DOCKET_AGENT_PROBLEM_GRACE_HOURS`
  * (default 24) from when the radar first found them; until then Needs you
- * lists them under "Agents are handling N problems". Every other kind is the
+ * lists them under "Agents are handling N problems". Decision 41 adds
+ * `parked_too_long` and `unpushed_work`: they go to the item's lead or the
+ * run's coordinator first, and reach the owner when neither exists, when the
+ * work is canceled or deferred (only the owner can say what happens to it), or
+ * after the same grace period, each saying why. Every other kind is the
  * owner's (or the coordinator's, for recovery), and shows at once.
  *
  * **Acknowledging.** The owner acknowledges a problem (`problem_acks`,
@@ -100,10 +104,61 @@ export function agentWho(items: readonly string[], leading: ReadonlySet<string>)
   return { who: 'agent' as const, who_text: `An agent (${text})` };
 }
 
+/** Who a recovery problem goes to first (decision 41), and why it reached the owner, if it did. */
+export interface RecoveryRoute {
+  who: 'agent' | 'owner';
+  who_text: string;
+  reached: string | null;
+}
+
+/**
+ * Route a recovery problem: to the item's live lead, else the run's
+ * coordinator; to the owner at once when there's neither, or once it has been
+ * open for the grace period (it stays the agent's, and *Remind the agent* works).
+ */
+export function recoveryRoute(f: {
+  item: string;
+  lead: boolean;
+  coordinator: string | null;
+  since: string;
+  now: string;
+  graceMs: number;
+}): RecoveryRoute {
+  if (!f.lead && !f.coordinator) {
+    return {
+      who: 'owner',
+      who_text: 'You (no coordinator or lead is on it)',
+      reached: `No coordinator or lead is on ${f.item}`,
+    };
+  }
+  return {
+    who: 'agent',
+    who_text: f.lead ? `An agent (the lead of ${f.item})` : `Your coordinator (${f.coordinator})`,
+    reached:
+      ms(f.now) - ms(f.since) >= f.graceMs
+        ? `Not handled by an agent for ${graceText(f.graceMs)}`
+        : null,
+  };
+}
+
 // ---- Explanations, one per kind ----
 
 export const explain = {
-  stale_run(f: { item: string; silent: string; lease: string }): ProblemExplanation {
+  stale_run(f: {
+    item: string;
+    silent: string;
+    lease: string;
+    /** Decision 41: silent only because Docket restarted; it can still continue. */
+    restarted?: boolean;
+  }): ProblemExplanation {
+    if (f.restarted) {
+      return {
+        what: `Docket restarted, and ${f.item}'s lead hasn't called since (silent for ${f.silent}). It keeps its claim, and ${f.lease}.`,
+        fix: 'Nothing yet. Its next call continues the same run. If it never returns, the lease ends the run and the item goes back to Ready.',
+        who: 'agent',
+        who_text: `An agent (the lead of ${f.item})`,
+      };
+    }
     return {
       what: `${f.item}'s lead agent has been silent for ${f.silent} and ${f.lease}. Docket treats the run as unknown, not finished.`,
       fix: `Check whether the agent is still running. If it stopped, release its claim (Activity → Lead and runs) so another agent can pick ${f.item} up.`,
@@ -175,24 +230,56 @@ export const explain = {
     };
   },
 
+  /**
+   * Work an ended run left in its worktree (decision 41): commits and
+   * uncommitted changes separately, never a commit that's already on main, and
+   * "unverified" when git couldn't confirm it. Canceled or deferred work is
+   * never something to push: the owner keeps it or lets it go.
+   */
   unpushed_work(f: {
     item: string;
     facts: string[];
     path: string | null;
     ended: string;
+    onMain: boolean;
+    unverified: boolean;
+    /** Set when nobody will pick the work up: why, in the item's words. */
+    closed: string | null;
+    route: RecoveryRoute;
   }): ProblemExplanation {
+    const where = f.path ? `, in ${f.path}` : '';
+    const unverified = f.unverified
+      ? " Docket can't confirm this from the repository, so it's the last reported state (unverified)."
+      : '';
+    const who = { who: f.route.who, who_text: f.route.who_text };
+    if (f.closed) {
+      return {
+        what: `${f.item} ${f.closed}. Its worktree still has ${listText(f.facts)}${where}.${unverified}`,
+        fix: 'Keep them for later, or mark them safe to discard. Docket never deletes a worktree or files itself.',
+        ...who,
+      };
+    }
     return {
-      what: `${f.item}'s run ended (${f.ended}) with work that isn't on the remote: ${listText(f.facts)}${f.path ? `, in ${f.path}` : ''}.`,
-      fix: `Push or save the work from that folder, then mark it handled. Don't prune the worktree until then.`,
-      ...RECOVERY,
+      what: `${f.item}'s run ended (${f.ended}).${f.onMain ? ' Its commits are already on main.' : ''} Still in its worktree: ${listText(f.facts)}${where}.${unverified}`,
+      fix:
+        f.route.who === 'agent'
+          ? "Commit and push it from that worktree, or say it can go. Don't prune the worktree until then."
+          : 'Ask an agent to commit and push it, or choose Keep for later or Safe to discard. Neither button commits, pushes or deletes anything.',
+      ...who,
     };
   },
 
-  parked_too_long(f: { item: string; since: string; waiting: string }): ProblemExplanation {
+  parked_too_long(f: {
+    item: string;
+    since: string;
+    waiting: string;
+    route: RecoveryRoute;
+  }): ProblemExplanation {
     return {
       what: `${f.item}'s lead has been parked since ${f.since}, waiting on ${f.waiting}. It keeps its claim.`,
       fix: `Check that it's still waiting for something real. Resume it, or release its claim so another agent can take ${f.item}.`,
-      ...RECOVERY,
+      who: f.route.who,
+      who_text: f.route.who_text,
     };
   },
 
@@ -209,6 +296,26 @@ export const explain = {
       what: `The extra backup copy failed: ${f.error}`,
       fix: 'Check the extra backup folder in Settings: it must be mounted and writable. The next nightly backup tries again.',
       ...you('a setting'),
+    };
+  },
+
+  /** Decision 41: the nightly backup failed or is overdue. It clears on the next success. */
+  backup_missed(f: {
+    state: 'failed' | 'overdue';
+    error: string | null;
+    due: string;
+    last: string | null;
+  }): ProblemExplanation {
+    const newest = f.last
+      ? `Your newest good backup is from ${f.last}.`
+      : 'There is no good backup yet.';
+    return {
+      what:
+        f.state === 'failed'
+          ? `The last backup failed: ${f.error ?? 'unknown error'}. ${newest}`
+          : `The backup due at ${f.due} hasn't run, and Docket hasn't been able to catch up. ${newest}`,
+      fix: 'Check free space on the data volume in Settings, then take one now: docker compose exec docket docket backup now. This clears on the next good backup.',
+      ...you('your backups'),
     };
   },
 

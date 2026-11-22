@@ -391,7 +391,7 @@ type EventType =
   | 'plan.updated' | 'step.updated' | 'subagent.logged' | 'checks.updated' | 'check.updated'
   | 'human_review.declared' | 'human_review.updated' | 'human_review.removed'
   | 'claim.granted' | 'claim.rejected' | 'claim.released' | 'run.started' | 'run.ended'
-  | 'run.parked' | 'run.resumed' | 'run.unpushed_handled' | 'resource.declared' | 'resource.released'
+  | 'run.parked' | 'run.resumed' | 'run.unpushed_handled' | 'service.restarted' | 'resource.declared' | 'resource.released'
   | 'packet.submitted' | 'packet.stale' | 'packet.withdrawn' | 'review.decided'
   | 'question.asked' | 'question.answered' | 'owner_note.added' | 'note.added'
   | 'document.added' | 'commit.reported' | 'artifact.linked'
@@ -729,7 +729,7 @@ The format for each tool below:
 ### 5.9 Recovery
 
 #### `recovery_report`
-**Description:** "After a crash or restart, or before pruning worktrees, get the restart list: interrupted, stale and parked runs with brief, workspace, last pushed commit, checklist progress and open question; every workspace as in use, at risk or safe to prune; resources left running. Re-dispatch from this instead of guessing, and never prune a workspace marked in use or at risk."
+**Description:** "After a crash or restart, or before pruning worktrees, get the restart list: interrupted, stale and parked runs with brief, workspace, last pushed commit, checklist progress and open question; every workspace as in use, at risk or safe to prune; resources left running. A Docket restart keeps open runs open, so re-dispatch only what's interrupted, and never prune a workspace marked in use or at risk."
 - **Input:** `project?`, `since?` (ISO time; default the last 7 days), `include_briefs?: boolean = false` (include the brief text; otherwise only document version IDs), `cursor?`, `limit?`.
 - **Output:**
   ```ts
@@ -744,6 +744,7 @@ The format for each tool below:
   ```
 - **Text rendering:** one block per section. An interrupted entry reads like `RCP-15 Pantry inventory schema · interrupted (service_restart) · 2/4 done · ws C:/…/rcp-15 @ 4be1c09 (pushed) · brief dv_…`.
 - **Read-only.** It never changes state; the coordinator acts on it.
+- **After a Docket restart (decision 41; B49):** open runs stay open, so a restart adds nothing to `interrupted`. A run silent since the restart may be under `stale` with a `lease_expires_at` still ahead: leave it, because its agent's next call with its `run_id` continues. If it never returns, the lease ends it (`lease_expired`) and it moves to `interrupted`. A child run gets the same window: any call with its `run_id` continues it, and one still silent at the deadline ends as `interrupted` (`service_restart`) without affecting its parent. Children aren't listed under `interrupted`, which is for leads. On a lead, `service_restart` appears only on runs that ended before B49. The output shape is unchanged; the one addition to the contract is the event type `service.restarted` (one per restart that kept runs, with `runs_kept`).
 
 ---
 
@@ -1138,13 +1139,13 @@ heartbeat { run_id: "run_A", note: "Resuming after RCP-12" }    → run_state li
 ### 7.13 Crash recovery (coordinator)
 ```
 recovery_report { include_briefs: true }
-  → interrupted: RCP-15 (service_restart) · 2/4 done · ws C:/…/rcp-15 @ 4be1c09 (pushed) · dirty false
+  → interrupted: RCP-15 (lease_expired) · 2/4 done · ws C:/…/rcp-15 @ 4be1c09 (pushed) · dirty false
                RCP-21 (lease_expired) · 1/3 done · ws C:/…/rcp-21 @ 77aa001, pushed 6f00e12 · dirty true   ← at risk
   → parked:    RCP-23 waiting on RCP-12 · resume_ready true
   → workspaces: rcp-15 at_risk (interrupted, not yet re-dispatched); rcp-30 safe_to_prune
   → orphaned_resources: dev server :5173 (RCP-21, run ended 03:12)
 ```
-Then, for each entry:
+A Docket restart on its own needs none of this: open runs keep their claim and continue (decision 41). Then, for each interrupted entry, and each stale entry whose lease has run out:
 1. **Find the code.** If the worktree still exists, reuse it. If it's gone, recreate it from `pushed_sha` on its branch. If `dirty` was true or `head_sha` was ahead of `pushed_sha`, tell the owner that work may be lost (it already shows under their Problems).
 2. **Re-dispatch** a worker with the stored brief, unchanged, plus "Resume from the checklist; claim_lead first".
 3. **Clean up** the orphaned resources (stop the process, end the session). The new run, or the owner, marks them released.
@@ -1196,7 +1197,7 @@ These are part of M2 (BUILD_SPEC §11). Use the official MCP client SDK against 
 4. Every error code is reachable and well-formed: validation (cycle, transition, limits), conflict (version, claim, ended run), not_found, forbidden (owner-added item, someone else's run), unavailable (simulated lock).
 5. Idempotent replay returns the same result with `replayed: true`; a different payload under the same key gets `validation`.
 6. Two clients race `claim_lead`: exactly one wins, and the other gets `conflict` with `current`.
-7. Run states: *live* within the window with pings answered; *reported* when calls come from a different session; *stale* after `STALE_AFTER`; lease expiry → `interrupted` and the item back to Ready; restart → `interrupted`.
+7. Run states: *live* within the window with pings answered; *reported* when calls come from a different session; *stale* after `STALE_AFTER`; lease expiry → `interrupted` and the item back to Ready; a restart keeps open runs open (decision 41).
 8. `get_item` delivers owner notes and answers exactly once.
 9. `report_commit` after `submit_packet` marks the packet stale (ticket-level and epic-level).
 10. `get_changes` pages through events in order with no gaps, and an empty cursor returns the latest.
@@ -1208,7 +1209,7 @@ These are part of M2 (BUILD_SPEC §11). Use the official MCP client SDK against 
 16. `get_context` never marks notes read; `get_item` view `summary` doesn't either.
 17. Parking: a parked run never goes stale and keeps its claim. Its lease is suspended. It shows `resume_ready` when its items clear. A heartbeat resumes it. After `DOCKET_PARK_MAX` it is flagged but keeps its claim.
 18. Workspace state: in_use, parked, at_risk (dirty, unpushed, unreleased resources) and safe_to_prune are each reached from the right inputs; `report_commit pushed:true` moves `pushed_sha`.
-19. `recovery_report` after a simulated restart lists every interrupted run with its end reason, its brief (with `include_briefs`), its workspace, its checklist progress and its orphaned resources, and the §7.13 flow re-claims and resumes it.
+19. `recovery_report` after a simulated crash, once the leases have run out (a restart alone keeps runs open, decision 41), lists every interrupted run with its end reason, its brief (with `include_briefs`), its workspace, its checklist progress and its orphaned resources, and the §7.13 flow re-claims and resumes it.
 20. `finish_run` with unreleased resources or unpushed commits warns, and the owner sees the matching Problem.
 21. `apply_batch` (decision 34): at least 150 operations through batches in one session, each with its own result; a failing operation (secret, stale version, bad `$n`) fails alone and writes nothing; a retry with the same key replays what succeeded; within its budget. Imported steps take added details, and refuse rewrites.
 22. Shared changes (decision 36): the Ready gate refuses an undeclared item (`not_declared`) and takes the owner's override; two agents claiming overlapping items unattended: the second gets `seam_conflict`, one question is raised per pair, and *Run one after the other* and *They're compatible* each let work continue (SC-023); a held lease gets `lease_held`, and leases end on done, hand-off, release and expiry; changed files mapped to undeclared parts hold the packet, or refuse the close; `get_context.shared` stays within budget. B38 ships the contract and the registry; B39 (T183) the rest.

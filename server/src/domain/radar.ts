@@ -120,7 +120,7 @@ interface GitResult {
 }
 
 /** Run git read-only in `cwd`, with extra environment. */
-function git(cwd: string, args: string[], env: Record<string, string> = {}): GitResult {
+export function git(cwd: string, args: string[], env: Record<string, string> = {}): GitResult {
   const r = spawnSync(
     'git',
     ['-c', 'safe.directory=*', '-c', 'gc.auto=0', '-c', 'core.fsmonitor=false', ...args],

@@ -477,6 +477,8 @@ export const INVALIDATION: Record<EventType, readonly QueryFamily[]> = {
   // Decision 39: a design review is a Needs you card, a banner, and gates a held packet.
   'design_review.raised': ['itemShared', 'needsYou', 'bootstrap', 'item', 'review'],
   'design_review.decided': ['itemShared', 'needsYou', 'bootstrap', 'item', 'review', 'work'],
+  // Decision 41: runs stayed open, but their leases moved.
+  'service.restarted': RUNS,
 };
 
 /** Families narrowed to the event's items when it names any. */

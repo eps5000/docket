@@ -123,6 +123,8 @@ export interface RunRow {
   last_signal_at: string;
   last_signal_kind: SignalKind;
   lease_expires_at: string | null;
+  /** Decision 41: a child run's deadline to signal after a restart; null otherwise. */
+  restart_deadline_at: string | null;
   summary: string | null;
   error: string | null;
   current_step_id: string | null;
@@ -135,6 +137,10 @@ export interface RunRow {
   brief_document_version_id: string | null;
   external: string | null;
   unpushed_handled_at: string | null;
+  /** Decision 41: what the owner chose for the work left behind. */
+  unpushed_outcome: 'keep' | 'discard' | null;
+  /** Decision 41: the last read-only git check of this run's worktree (worktree-check.ts). */
+  worktree_check: string | null;
   version: number;
   created_at: string;
   updated_at: string;
@@ -151,14 +157,15 @@ export function activeLead(db: Db, itemId: string): RunRow | undefined {
     .get(itemId) as RunRow | undefined;
 }
 
-/** A lead run whose lease has run out (and isn't parked): the claim is over, swept or not. */
+/**
+ * A run whose time has run out (and isn't parked), swept or not: a lead's lease,
+ * or a child's deadline to signal after a restart (decision 41). A child has
+ * no lease, so outside a restart this is never true for one.
+ */
 export function leaseExpired(run: RunRow, now: string): boolean {
-  return (
-    run.is_lead === 1 &&
-    run.state !== 'parked' &&
-    run.lease_expires_at !== null &&
-    ms(run.lease_expires_at) <= ms(now)
-  );
+  if (run.state === 'parked') return false;
+  const until = run.is_lead === 1 ? run.lease_expires_at : run.restart_deadline_at;
+  return !!until && ms(until) <= ms(now);
 }
 
 const parseJson = <T>(text: string | null): T | null => {
@@ -616,7 +623,9 @@ export function endedRunState(db: Db, run: RunRow, now: string) {
     run_id: run.id,
     item_id: run.item_id,
     state: run.state === 'open' && leaseExpired(run, now) ? 'interrupted' : run.state,
-    end_reason: run.end_reason ?? (leaseExpired(run, now) ? 'lease_expired' : null),
+    end_reason:
+      run.end_reason ??
+      (leaseExpired(run, now) ? (run.is_lead === 1 ? 'lease_expired' : 'service_restart') : null),
     item_status: item?.status ?? null,
     lead:
       lead && lead.id !== run.id

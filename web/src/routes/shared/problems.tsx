@@ -34,8 +34,9 @@ export const PROBLEM_TITLES: Record<Problem['kind'], string> = {
   canceled_blocker: 'Blocked by a canceled item',
   deferred_verified_blocker: 'Blocker not verified',
   extra_backup_failed: 'Extra backup copy failed',
+  backup_missed: 'Backup failed or overdue',
   orphaned_resources: 'Left running after its run ended',
-  unpushed_work: 'Work that may be lost',
+  unpushed_work: 'Work left in a worktree',
   parked_too_long: 'Parked a long time',
   resume_unattended: 'Ready to resume, unattended',
   agent_files_drift: 'Agent files changed outside Docket',
@@ -254,7 +255,8 @@ export function ProblemActions({
           {branches.length > 1 ? `Not active: ${b.branch}` : 'Not an active branch'}
         </Button>
       ))}
-      {p.id && !p.acknowledged && (
+      {/* Decision 41: unpushed work has its own outcomes, which say what happens to it. */}
+      {p.id && !p.acknowledged && p.kind !== 'unpushed_work' && (
         <Button size="sm" variant="ghost" disabled={busy} onClick={acknowledge}>
           Acknowledge
         </Button>

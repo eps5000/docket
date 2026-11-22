@@ -35,6 +35,7 @@
  */
 import {
   ToolError,
+  type UnpushedOutcome,
   type AgentFileDetail,
   type AgentFilesResponse,
   type AgentsResponse,
@@ -240,6 +241,16 @@ export interface BackupLocationStatus {
   last_error: string | null;
 }
 
+/** Why the nightly backup needs the owner (decision 41); it clears on the next success. */
+export interface BackupTrouble {
+  state: 'failed' | 'overdue';
+  /** The last run's error, for `failed`. */
+  error: string | null;
+  last_success_at: string | null;
+  /** The scheduled time that should have a backup by now. */
+  due_at: string;
+}
+
 export interface BackupResult {
   archive_path: string;
   extra_copy: { path: string; ok: boolean; error: string | null } | null;
@@ -307,8 +318,18 @@ export interface RunsService {
   recordSignal(r: ReceiptContext, signal: RunSignalInput): void;
   /** The sweeper: expired leases → run `interrupted`, item back to Ready. */
   expireLeases(w: WriteContext): { interrupted: string[] };
-  /** Service start: every open run → `interrupted` ("service restarted"). */
-  interruptOpenRuns(w: WriteContext, input: { reason: string }): { interrupted: string[] };
+  /**
+   * Service start (decision 41): open runs stay open with their claim, and each
+   * lead's lease runs at least `graceMs` from now. A child, which has no lease,
+   * gets a deadline to signal instead; a deadline from an earlier restart stands.
+   * One `service.restarted` event when any were kept; none on a quiet database.
+   */
+  keepOpenRuns(w: WriteContext, input: { graceMs: number }): { kept: string[] };
+  /**
+   * Child runs still silent at their restart deadline → `interrupted`
+   * (`service_restart`), one `run.ended` each. Their parent and item are untouched.
+   */
+  endSilentChildren(w: WriteContext): { ended: string[] };
   /** Sessions of open runs, for the 60 s ping. */
   openRunSessions(r: ReadContext): { run_id: string; session_id: string }[];
 }
@@ -345,11 +366,16 @@ export interface RecoveryService {
     w: WriteContext,
     input: RouteParams<'resources.release'> & RouteBody<'resources.release'>,
   ): Resource;
-  /** *Handled* on "Unpushed work may be lost" (owner; sets `unpushed_handled_at`; event `run.unpushed_handled`). */
+  /**
+   * *Keep for later* or *Safe to discard* on unpushed work (owner; decision 41;
+   * sets `unpushed_handled_at` and `unpushed_outcome`; event
+   * `run.unpushed_handled`). Records a choice: nothing is committed, pushed,
+   * saved or deleted.
+   */
   markUnpushedHandled(
     w: WriteContext,
-    input: RouteParams<'runs.unpushedHandled'>,
-  ): { run_id: string; unpushed_handled_at: string };
+    input: RouteParams<'runs.unpushedHandled'> & RouteBody<'runs.unpushedHandled'>,
+  ): { run_id: string; unpushed_handled_at: string; outcome: UnpushedOutcome };
 }
 
 /** One agent file as shipped in the image (`skills/<name>/SKILL.md`, `docs/templates/AGENTS-docket.md`). */
@@ -899,6 +925,8 @@ export interface ProjectsService {
  */
 export interface BackupService {
   status(r: ReadContext): BackupLocationStatus[];
+  /** Decision 41: whether the nightly backup failed or is overdue; null when it's fine. */
+  trouble(r: ReadContext): BackupTrouble | null;
   runNow(r: ReadContext): Promise<BackupResult>;
 }
 

@@ -169,7 +169,9 @@ describe('screen tables', () => {
       'Mark released',
       'Open',
     ]);
-    expect(PROBLEM_ROWS.unpushed_work.actions.map((a) => a.label)).toEqual(['Handled', 'Open']);
+    // Decision 41: *Keep for later* and *Safe to discard* render beside this link.
+    expect(PROBLEM_ROWS.unpushed_work.actions.map((a) => a.label)).toEqual(['Open']);
+    expect(PROBLEM_ROWS.backup_missed.actions.map((a) => a.label)).toEqual(['Open']);
     expect(PROBLEM_ROWS.parked_too_long.actions.map((a) => a.label)).toEqual(['Open']);
     expect(PROBLEM_ROWS.resume_unattended.actions.map((a) => a.label)).toEqual(['Open']);
   });

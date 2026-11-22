@@ -131,20 +131,46 @@ describe('the explanation for every kind', () => {
         facts: ['1 commit not pushed', 'uncommitted changes'],
         path: 'C:/work/rcp-25',
         ended: 'lease expired',
+        onMain: false,
+        unverified: false,
+        closed: null,
+        route: { who: 'agent', who_text: 'Your coordinator (orca)', reached: null },
       }),
     ).toEqual({
-      what: "RCP-25's run ended (lease expired) with work that isn't on the remote: 1 commit not pushed and uncommitted changes, in C:/work/rcp-25.",
-      fix: "Push or save the work from that folder, then mark it handled. Don't prune the worktree until then.",
+      what: "RCP-25's run ended (lease expired). Still in its worktree: 1 commit not pushed and uncommitted changes, in C:/work/rcp-25.",
+      fix: "Commit and push it from that worktree, or say it can go. Don't prune the worktree until then.",
+      who: 'agent',
+      who_text: 'Your coordinator (orca)',
+    });
+    // Decision 41: a canceled item is the owner's to keep or let go, never to push.
+    expect(
+      explain.unpushed_work({
+        item: 'GF-336',
+        facts: ['6 uncommitted files'],
+        path: null,
+        ended: 'canceled',
+        onMain: false,
+        unverified: false,
+        closed: 'was canceled by your decision',
+        route: { who: 'owner', who_text: 'You', reached: 'x' },
+      }),
+    ).toMatchObject({
+      what: 'GF-336 was canceled by your decision. Its worktree still has 6 uncommitted files.',
+      fix: 'Keep them for later, or mark them safe to discard. Docket never deletes a worktree or files itself.',
       who: 'owner',
-      who_text: RECOVERY,
     });
     expect(
-      explain.parked_too_long({ item: 'RCP-11', since: 'Nov 14', waiting: 'the coordinator' }),
+      explain.parked_too_long({
+        item: 'RCP-11',
+        since: 'Nov 14',
+        waiting: 'the coordinator',
+        route: { who: 'agent', who_text: 'Your coordinator (orca)', reached: null },
+      }),
     ).toEqual({
       what: "RCP-11's lead has been parked since Nov 14, waiting on the coordinator. It keeps its claim.",
       fix: "Check that it's still waiting for something real. Resume it, or release its claim so another agent can take RCP-11.",
-      who: 'owner',
-      who_text: RECOVERY,
+      who: 'agent',
+      who_text: 'Your coordinator (orca)',
     });
     expect(
       explain.resume_unattended({ item: 'RCP-13', why: 'RCP-11 is done', parked: '40m' }),

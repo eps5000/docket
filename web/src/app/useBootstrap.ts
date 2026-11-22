@@ -1,6 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
+import { needsYouCount } from '@docket/shared';
 import { queryKeys } from '../lib/api';
 import { apiClient } from './queryClient';
+import { useShell } from './ShellState';
 
 /**
  * `GET /api/bootstrap`: projects, labels, sidebar counts, health and timing.
@@ -12,6 +14,23 @@ export function useBootstrap() {
     queryKey: queryKeys.bootstrap(),
     queryFn: () => apiClient['bootstrap.get']({}),
   });
+}
+
+/**
+ * What the owner can act on in the current project (owner decision 41): the
+ * sidebar badge and the tab title. It reads the same query as the Needs you
+ * page, so they always agree. Undefined until it has loaded.
+ */
+export function useNeedsYouCount(): number | undefined {
+  const { scope } = useShell();
+  // Not before bootstrap answers: a locked browser gets the unlock screen, not a failed count.
+  const boot = useBootstrap();
+  const query = useQuery({
+    queryKey: queryKeys.needsYou({ scope }),
+    queryFn: () => apiClient['needsYou.get']({ query: { scope } }),
+    enabled: boot.isSuccess,
+  });
+  return query.data ? needsYouCount(query.data) : undefined;
 }
 
 /**

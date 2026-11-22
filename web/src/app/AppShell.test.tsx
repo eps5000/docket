@@ -21,6 +21,8 @@ let locked = false;
 const calls: string[] = [];
 /** When set, `GET /api/bootstrap` answers with these projects (B32's first run). */
 let bootProjects: unknown[] | null = null;
+/** When set, `GET /api/needs-you` answers with this (decision 41's badge). */
+let needsYou: unknown = null;
 const bootstrap = () => ({
   server_version: '0.0.0',
   server_time: '2026-11-18T10:00:00.000Z',
@@ -34,6 +36,7 @@ const bootstrap = () => ({
 beforeEach(() => {
   locked = false;
   bootProjects = null;
+  needsYou = null;
   calls.length = 0;
   sessionStorage.clear();
   localStorage.clear();
@@ -47,6 +50,7 @@ beforeEach(() => {
       if (locked) return json(401, { error: { code: 'forbidden', message: 'Docket is locked.' } });
       const route = path.split('?')[0];
       if (route === '/api/bootstrap' && bootProjects) return json(200, bootstrap());
+      if (route === '/api/needs-you' && needsYou) return json(200, needsYou);
       return json(501, {
         error: {
           code: 'unavailable',
@@ -75,6 +79,64 @@ function renderAt(path: string) {
   );
   return router;
 }
+
+describe('the Needs you count (owner decision 41)', () => {
+  const project = {
+    key: 'GF',
+    name: 'Gameflow',
+    short_name: 'Gameflow',
+    color: '#336699',
+    default_satisfied_when: 'done',
+    version: 1,
+    created_by: null,
+  };
+  const problem = (id: string, who: 'owner' | 'agent') => ({
+    kind: 'parked_too_long',
+    id,
+    item_id: 'GF-1',
+    title: 'One',
+    reason: 'Parked',
+    related: [],
+    link_id: null,
+    run_id: 'run_1',
+    resource_ids: [],
+    explanation: { what: 'w', fix: 'f', who, who_text: who },
+    reached_you: who === 'owner' ? 'No coordinator or lead is on GF-1' : null,
+  });
+  const view = (over: Record<string, unknown>) => ({
+    for_you_now: [],
+    problems: [],
+    deferred: [],
+    planning_queue: [],
+    agent_counts: {},
+    ...over,
+  });
+  const nav = () => screen.getByRole('link', { name: /^Needs you/ });
+
+  it('the badge, the tab title and the page agree; problems agents handle are not counted', async () => {
+    bootProjects = [project];
+    needsYou = view({
+      problems: [problem('p1', 'owner'), problem('p2', 'owner')],
+      agent_problems: [problem('p3', 'agent')],
+    });
+    renderAt('/');
+    await waitFor(() => expect(nav().querySelector('.badge')?.textContent).toContain('2'));
+    expect(document.title).toBe('(2) Docket');
+    expect(
+      document.querySelector('[data-needs-you-count]')?.getAttribute('data-needs-you-count'),
+    ).toBe('2');
+  });
+
+  it('shows no badge at 0, even with problems agents are handling', async () => {
+    bootProjects = [project];
+    needsYou = view({ agent_problems: [problem('p3', 'agent')] });
+    renderAt('/');
+    await screen.findByRole('button', { name: 'Agents are handling 1 problem' });
+    expect(nav().querySelector('.badge')).toBeNull();
+    expect(document.title).toBe('Docket');
+    expect(document.querySelector('[data-needs-you-count]')).toBeNull();
+  });
+});
 
 describe('app shell', () => {
   it('renders the sidebar, header and a clean "not built yet" state for 501', async () => {

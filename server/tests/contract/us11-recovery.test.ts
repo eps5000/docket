@@ -19,7 +19,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { Hono } from 'hono';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
 import { createApp } from '../../src/app.js';
-import { restartSweep } from '../../src/jobs/sweeper.js';
+import { restartSweep, sweepOnce } from '../../src/jobs/sweeper.js';
 import { createRuntime, type Runtime } from '../../src/runtime.js';
 import { ORIGIN, STRUCTURED_FOR_ALL, parseSetCookies } from '../integration/harness.js';
 import {
@@ -28,6 +28,7 @@ import {
   expectForbidden,
   expectNotFound,
   expectOk,
+  expectToolError,
   expectValidation,
   startHarness,
   type ContractHarness,
@@ -102,7 +103,7 @@ async function connectTo(app: Hono, runtime: Runtime, info = CLIENT_A): Promise<
 /**
  * Crash and restart: every client is dropped, the runtime closes, a new one
  * opens the same data directory (env overrides apply to it) and runs the
- * boot sweep.
+ * boot sweep, which keeps open runs open (decision 41).
  */
 async function restart(harness: ContractHarness, env: Record<string, string> = {}) {
   await Promise.allSettled([harness.a.close(), harness.b.close()]);
@@ -114,9 +115,9 @@ async function restart(harness: ContractHarness, env: Record<string, string> = {
     log: () => {},
   });
   restarted = runtime;
-  const { interrupted } = restartSweep(runtime);
+  const { kept } = restartSweep(runtime);
   const app = createApp(runtime, { webRoot: join(dirname(harness.server.dataDir), 'web') });
-  return { runtime, app, interrupted };
+  return { runtime, app, kept };
 }
 
 const item = (s: S) => s.item as S & { runs: S[]; resume: S | null; checklist: { work: S[] } };
@@ -126,6 +127,57 @@ const runOf = (s: S, runId: string) =>
     parked: S | null;
     resources: S[];
   };
+
+describe('a Docket restart (owner decision 41)', () => {
+  it('an open run continues with the same run_id over a new MCP session', async () => {
+    h = await startHarness();
+    const { run_id } = (await step(
+      'claim_lead',
+      {
+        id: 'RCP-17',
+        agent_label: 'orca-w1',
+        workspace: { path: 'C:/work/rcp-17', branch: 'rcp-17-week-reload' },
+      },
+      h.a,
+    )) as { run_id: string };
+    const sub = (await step(
+      'start_run',
+      { id: 'RCP-17', parent_run_id: run_id, agent_label: 'orca-w1-sub' },
+      h.a,
+    )) as { run_id: string };
+    const { runtime, app, kept } = await restart(h);
+    expect(kept).toEqual(expect.arrayContaining([run_id, sub.run_id]));
+
+    // The same agent reconnects: its next call with the run_id simply continues.
+    const agent = await connectTo(app, runtime);
+    expectOk(await call(agent, 'heartbeat', { run_id, workspace: { dirty: false } }));
+    // Its child signals inside the window, so it outlives the deadline.
+    expectOk(await call(agent, 'heartbeat', { run_id: sub.run_id }));
+    h.server.clock.advance(runtime.config.restartGraceMs + minutes(1));
+    expect(sweepOnce(runtime).children).toEqual([]);
+    expectOk(await call(agent, 'heartbeat', { run_id }));
+    const got = expectOk(await call(agent, 'get_item', { id: 'RCP-17', run_id })).structured;
+    expect(runOf(got, sub.run_id)).toMatchObject({ end_reason: null, lease_expires_at: null });
+    expect(runOf(got, run_id)).toMatchObject({
+      run_state: expect.stringMatching(/^(live|reported)$/),
+      end_reason: null,
+      workspace: expect.objectContaining({ path: 'C:/work/rcp-17', state: 'in_use' }),
+    });
+
+    // It still holds the claim, and recovery_report has nothing to re-dispatch for it.
+    const other = await connectTo(app, runtime, { name: 'codex-mcp-client', version: '1.0.0' });
+    expectToolError(await call(other, 'claim_lead', { id: 'RCP-17' }), 'conflict');
+    const report = expectOk(await call(other, 'recovery_report', {})).structured as {
+      interrupted: { run: { run_id: string } }[];
+    };
+    expect(report.interrupted.map((e) => e.run.run_id)).not.toContain(run_id);
+    expectOk(
+      await call(agent, 'finish_run', { run_id: sub.run_id, result: 'finished', summary: 'Done.' }),
+    );
+    expectOk(await call(agent, 'finish_run', { run_id, result: 'finished', summary: 'Done.' }));
+    await Promise.allSettled([agent.close(), other.close()]);
+  });
+});
 
 describe('§7.12 parking while you wait (MCP_SPEC §10 test 17)', () => {
   it('claim → report_commit pushed → park_run → resume_ready → heartbeat resumes', async () => {
@@ -499,15 +551,18 @@ describe('§7.13 crash recovery and SC-014 (MCP_SPEC §10 test 19)', () => {
     expectOk(await call(third, 'heartbeat', { run_id: risky.run_id, workspace: { dirty: true } }));
     await third.close();
 
-    // Crash: the service restarts and nobody sends signals.
+    // Crash: the service restarts and the agents never come back (decision 41: their runs stay
+    // open until the lease runs out, then the normal expiry ends them).
     const orphanAfter = '2m';
-    const { runtime, app, interrupted } = await restart(h, { DOCKET_ORPHAN_AFTER: orphanAfter });
-    expect(interrupted.sort()).toEqual(
-      expect.arrayContaining([active.run_id, risky.run_id].sort()),
-    );
+    const { runtime, app, kept } = await restart(h, { DOCKET_ORPHAN_AFTER: orphanAfter });
+    expect(kept).toEqual(expect.arrayContaining([active.run_id, risky.run_id]));
+    expect(kept).not.toContain(parked.run_id);
+    h.server.clock.advance(runtime.config.leaseMs + minutes(1));
+    const { interrupted } = sweepOnce(runtime);
+    expect(interrupted).toEqual(expect.arrayContaining([active.run_id, risky.run_id]));
     expect(interrupted).not.toContain(parked.run_id);
     transcript.push(
-      `-- restart: boot sweep interrupted ${interrupted.length} open runs; the parked run stays parked --`,
+      `-- restart: ${kept.length} open runs kept; nobody returned, so ${interrupted.length} ended by lease expiry; the parked run stays parked --`,
       '',
     );
 
@@ -537,7 +592,7 @@ describe('§7.13 crash recovery and SC-014 (MCP_SPEC §10 test 19)', () => {
     };
     const byItem = (id: string) => report.interrupted.find((e) => e.item.id === id)!;
     const r17 = byItem('RCP-17');
-    expect(r17).toMatchObject({ end_reason: 'service_restart', checklist: { done: 2, total: 4 } });
+    expect(r17).toMatchObject({ end_reason: 'lease_expired', checklist: { done: 2, total: 4 } });
     expect(r17.brief).toBe(briefs['RCP-17']); // byte-identical
     expect(r17.run.workspace).toMatchObject({
       path: 'C:/work/rcp-17',
@@ -639,10 +694,14 @@ describe('§7.13 crash recovery and SC-014 (MCP_SPEC §10 test 19)', () => {
       }),
     ]);
     const api = await ownerApi(app, runtime.secrets.ownerKey());
-    const problems = (await api('GET', '/api/needs-you?scope=all')).body.problems as S[];
-    expect(problems.map((p) => `${p.kind as string}:${p.item_id as string}`)).toEqual(
-      expect.arrayContaining(['orphaned_resources:RCP-18', 'unpushed_work:RCP-18']),
-    );
+    const needsYou = (await api('GET', '/api/needs-you?scope=all')).body as {
+      problems: S[];
+      agent_problems: S[];
+    };
+    const keys = (list: S[]) => list.map((p) => `${p.kind as string}:${p.item_id as string}`);
+    expect(keys(needsYou.problems)).toContain('orphaned_resources:RCP-18');
+    // Decision 41: its run has a coordinator, so the unpushed work goes there first.
+    expect(keys(needsYou.agent_problems)).toContain('unpushed_work:RCP-18');
     // The resumed RCP-17 worktree is in use again.
     const ws = await api('GET', '/api/workspaces?scope=all');
     expect(ws.body.rows).toContainEqual(

@@ -142,7 +142,7 @@ describe('0009_step_details', () => {
     const migrated = openDb(copy);
     try {
       migrateDb(migrated);
-      expect(migrationStatus(migrated)).toEqual({ current: true, applied: 17, expected: 17 });
+      expect(migrationStatus(migrated)).toEqual({ current: true, applied: 18, expected: 18 });
       const after = steps(migrated);
       expect(after).toEqual(
         before.map((row) => ({ ...row, details_md: null, source: null, details_version: 0 })),
@@ -166,6 +166,9 @@ describe('0009_step_details', () => {
                 radar_branch: _rb,
                 radar_branch_matches: _rbm,
                 branches: _br,
+                unpushed_outcome: _uo,
+                worktree_check: _wc,
+                restart_deadline_at: _rd,
                 ...row
               }) => row,
             ),
@@ -198,7 +201,7 @@ describe('0009_step_details', () => {
 
       // Migrating again is a no-op.
       migrateDb(migrated);
-      expect(migrationStatus(migrated).applied).toBe(17);
+      expect(migrationStatus(migrated).applied).toBe(18);
     } finally {
       migrated.sqlite.close();
     }

@@ -32,7 +32,7 @@ MCP shapes in [MCP_SPEC §4](../../docs/MCP_SPEC.md). This file adds what tasks 
 | **DecisionRecord** | `scope_kind`/`scope_id`, `title`, `decision_md`, `rationale_md`, `authority`, `author`, `status`, `supersedes_id`, `confirmed_at`, `version` | in a project; scoped to a project, epic, label or item | title ≤ 120, decision ≤ 4,000; agents can't change owner records (FR-041–043) |
 | **Document / DocumentVersion** | `name`, `kind`; version `version_no`, `mime`, `size`, `sha256`, `path` | on an item or project | versions are immutable; 25 MB through MCP, 500 MB through HTTP (FR-070) |
 | **Commit / Artifact** | `sha`, `branch`, `pr_url` / `kind`, `label`, `url`, `state`, `provenance` | on an item | sha is 7–40 hex; a `pr` artifact with state `merged` satisfies `merged` (FR-031) |
-| **Workspace** *(columns on `runs`)* | `workspace` JSON (host, repo, path, branch, base_ref, base_sha, head_sha, pushed_sha, dirty), `orchestrator` JSON, `brief_document_version_id`, `end_reason`, `parked_reason`, `waiting_on`, `parked_at`, `external`, `unpushed_handled_at` | on a run; state derived per path | external ≤ 2 KB; brief ≤ 20,000 (FR-110 to FR-112, FR-114) |
+| **Workspace** *(columns on `runs`)* | `workspace` JSON (host, repo, path, branch, base_ref, base_sha, head_sha, pushed_sha, dirty), `orchestrator` JSON, `brief_document_version_id`, `end_reason`, `parked_reason`, `waiting_on`, `parked_at`, `external`, `unpushed_handled_at`, `unpushed_outcome` (keep, discard), `worktree_check` (decision 41) | on a run; state derived per path | external ≤ 2 KB; brief ≤ 20,000 (FR-110 to FR-112, FR-114) |
 | **RunResource** | `id` `rsc_…`, `kind`, `label`, `locator` JSON, `started_at`, `released_at`, `released_by`, `release_note` | on a run | label ≤ 120; ≤ 10 per heartbeat (FR-113) |
 | **AgentFile / AgentFileVersion** | `key` (`skill:<name>`, `agents_block`, or exactly `guide:onboarding`; B30), `layer` (bundled/service/project), `project_key`, `current_version_id`, `bundled_hash_at_edit`; version `version_no`, `content`, `sha256`, `author`, `note` | per project for the project layer | versions immutable; content ≤ 50,000; one row per key, layer and project (FR-121; B21) |
 | **ProjectWorkflow** | `project_key`, `version_no`, `content_md`, `author`, `note` | on a project | ≤ 10,000 characters, may be empty (clears the notes); the newest is current (FR-123) |
@@ -76,7 +76,7 @@ declared ──submit_packet──► ready ──approve──► approved   (c
 ### Run (FR-013 to FR-016; displayed state is derived, see BUILD_SPEC §5.4)
 - **Stored state:** `open` → `needs_input` (question asked) → `open` (answer read); then `finished`, `failed` or `interrupted`.
 - **Parked** (FR-112): `open` ──park_run──► `parked` ──any call with its `run_id`──► `open`. While parked the lease is suspended (never stale, claim kept). `resume_ready` is derived when every `waiting_on` item clears. Past `DOCKET_PARK_MAX` (24 h) it's a Problem, not an expiry.
-- **Interrupted** comes from lease expiry, owner release, or a service restart.
+- **Interrupted** comes from lease expiry or owner release. A service restart keeps open runs open (decision 41). `service_restart` is now set only on a child run silent past its restart deadline (`restart_deadline_at`), and remains on runs that ended before decision 41.
 - **`end_reason`** is set on every terminal transition: `finished`, `failed`, `released`, `lease_expired`, `owner_released`, `service_restart`, `canceled` (FR-114).
 - **Displayed state:**
   - live: a session signal within 2 min;

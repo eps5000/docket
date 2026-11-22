@@ -1,21 +1,23 @@
 import { useNoProjects } from '../../app/useBootstrap';
 import { Welcome } from './Welcome';
 import { useQuery } from '@tanstack/react-query';
-import type {
-  DecisionRecord,
-  DesignReviewRow,
-  OverlapRow,
-  Problem,
-  ProjectDecisionGroup,
-  ResolutionRow,
-  UndeclaredHoldRow,
-  WorkspaceRow,
+import {
+  needsYouCount,
+  type DecisionRecord,
+  type DesignReviewRow,
+  type OverlapRow,
+  type Problem,
+  type ProjectDecisionGroup,
+  type ResolutionRow,
+  type UndeclaredHoldRow,
+  type WorkspaceRow,
 } from '@docket/shared';
 import { Skeleton } from '../../components/kit';
 import { apiClient } from '../../app/queryClient';
 import { QueryState } from '../../app/QueryState';
 import { useShell } from '../../app/ShellState';
 import { queryKeys } from '../../lib/api';
+import { plural } from '../../lib/format';
 import { useWorkspaces } from '../agents/WorkspacesCard';
 import { AgentsStrip } from './AgentsStrip';
 import { NotificationsCallout } from './NotificationsCallout';
@@ -55,6 +57,12 @@ export function NeedsYou() {
       <div className="withhelp wh-h1">
         <h1>Needs you</h1>
         <HelpLink anchor="needs-you.page" />
+        {/* Decision 41: the same number as the sidebar badge, from the same response. */}
+        {query.data && needsYouCount(query.data) > 0 && (
+          <span className="src" data-needs-you-count={needsYouCount(query.data)}>
+            {plural(needsYouCount(query.data), 'thing')} to act on
+          </span>
+        )}
       </div>
       <NotificationsCallout />
       <QueryState query={query} skeleton={<NeedsYouSkeleton />}>

@@ -24,6 +24,12 @@ To take one now:
 docker compose exec docket docket backup now
 ```
 
+### If a backup is missed
+
+If Docket was stopped or your computer was asleep at 03:00, Docket takes **one** catch-up backup as soon as it's running again, however many nights it missed.
+
+If a backup fails, or one is still missing an hour after it was due, **Needs you** shows **Backup failed or overdue**. It says what went wrong and when your newest good backup is from. Check the free space on the data volume, then take one now. The problem clears on the next good backup. A failed backup is tried again at the next scheduled time, not over and over.
+
 ## An extra copy on your machine
 
 The volume copy is lost if the volume is. You can have each backup also copied to a folder on this machine, kept for the same 14 days:

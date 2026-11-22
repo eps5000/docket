@@ -92,7 +92,8 @@ For a detailed look at one worker, use `get_item { id, view: "summary" }`. Don't
 - **When a worker has to wait for you,** it calls `park_run { waiting_on: { orchestrator: true } }`. It keeps its claim, and its worktree counts as **in use**.
 - **When you're ready,** send it more work. Its next call un-parks it.
 - **Parked on items:** `get_digest` and `recovery_report` show `resume_ready` once those items clear. Resume it promptly: after 30 minutes the owner sees "ready to resume, unattended".
-- **Parked for over 24 hours:** the owner sees it under Problems. Resume it, or have it `release_lead`.
+- **Parked for over 24 hours:** it comes to you first, in `get_digest` problems. Resume it, or have it `release_lead`. Left for a day, it reaches the owner.
+- **Work left in an ended run's worktree** comes to you the same way. Commit and push it, or say it can go. Never push work on a canceled item: that's the owner's call.
 
 ## 6. Pruning and crash recovery
 
@@ -102,7 +103,9 @@ For a detailed look at one worker, use `get_item { id, view: "summary" }`. Don't
 2. **Prune only workspaces in `safe_to_prune`.** Never prune `in_use`, `parked` or `at_risk`, and treat `unknown` as not safe. **Idle is not finished.**
 3. Stop every entry in `orphaned_resources`, using its locator. The resumed run, or the owner, marks it released. (A resource only counts as orphaned 15 minutes after its run ended. Right after a crash, look at the interrupted runs' own unreleased `run.resources` too.)
 
-**After a crash (yours, a worker's or Docket's):** call `recovery_report { include_briefs: true }`. Then, for each interrupted or stale entry:
+**A Docket restart alone needs no re-dispatch.** Open runs keep their claim, and each worker's next call with its `run_id` continues. Leave a `stale` run whose `lease_expires_at` is still ahead: if it never returns, the lease ends it and it shows as interrupted.
+
+**After a crash (yours or a worker's):** call `recovery_report { include_briefs: true }`. Then, for each interrupted entry, and each stale entry whose lease has run out:
 
 Skip entries with no workspace and no brief: you didn't dispatch them, so leave them to the owner.
 

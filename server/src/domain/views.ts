@@ -31,6 +31,7 @@ import {
   ToolError,
   OPEN_STATUSES,
   LEGACY_WORK_FILTERS,
+  needsYouCount,
   workFilterCounts,
   workFilterFromParams,
   workFilterPasses,
@@ -63,6 +64,7 @@ import { migrationStatus, type Db } from '../db/client.js';
 import { APP_VERSION } from '../version.js';
 import {
   isNotImplemented,
+  type BackupTrouble,
   type ReadContext,
   type ServiceDeps,
   type ViewsService,
@@ -76,10 +78,13 @@ import {
   ackCovers,
   explain,
   latestResolutions,
+  leadingItems,
   loadAcks,
   openResolutions,
   radarProblems,
+  recoveryRoute,
   type FoundProblem,
+  type RecoveryRoute,
 } from './problems.js';
 import { inScopeOf, ofScope, projectReviews } from './decisions.js';
 import {
@@ -108,6 +113,7 @@ import {
   parkInfo,
   parseJson,
   storedWorkspace,
+  unpushedTruth,
   unpushedRisks,
   type RecoveryConfig,
 } from './recovery-model.js';
@@ -380,6 +386,8 @@ interface ProblemsInput {
   deferredCounts: Map<string, number>;
   /** Extra backup copy errors, when the backup service reports them (US10). */
   backupError: string | null;
+  /** Decision 41: the nightly backup failed or is overdue. */
+  backupTrouble: BackupTrouble | null;
   /** The recovery thresholds (BUILD_SPEC §5.16). */
   config: RecoveryConfig;
   /** Agent files changed outside Docket (decision 30), already scoped. */
@@ -446,7 +454,8 @@ function recoveryProblems(
     });
   }
 
-  // Ended runs (finished ones too) that left work off the remote.
+  // Ended runs (finished ones too) that left work off the remote. Decision 41: what git
+  // last saw when it could read the repository, and only what is really left.
   const ended = (
     db.sqlite
       .prepare(
@@ -454,32 +463,65 @@ function recoveryProblems(
       )
       .all() as RunRow[]
   ).filter((r) => items.has(r.item_id));
-  for (const risk of unpushedRisks(db, ended)) {
-    const n = risk.unpushed_commits ?? 0;
+  const risks = unpushedRisks(db, ended).flatMap((risk) => {
+    const truth = unpushedTruth(risk, now);
+    return truth ? [{ risk, truth }] : [];
+  });
+  const leading = leadingItems(db, [...new Set(risks.map((x) => x.risk.run.item_id))], now);
+  for (const { risk, truth } of risks) {
+    const id = risk.run.item_id;
     const path = storedWorkspace(risk.run)?.path;
+    const work = [
+      truth.commits > 0
+        ? `${truth.commits} ${truth.commits === 1 ? 'commit' : 'commits'} not pushed`
+        : null,
+      truth.files !== null && truth.files > 0
+        ? `${truth.files} uncommitted ${truth.files === 1 ? 'file' : 'files'}`
+        : truth.files === null && truth.dirty
+          ? 'uncommitted changes'
+          : null,
+    ].filter((x): x is string => !!x);
+    const closed = closedWords(db, items.get(id));
+    const route: RecoveryRoute = closed
+      ? {
+          who: 'owner',
+          who_text: 'You (only you can decide what happens to it)',
+          reached: `${id} isn't being worked on, so no agent will pick this up`,
+        }
+      : recoveryRoute({
+          item: id,
+          lead: leading.has(id),
+          coordinator: coordinatorOf(risk.run),
+          since: risk.ended_at,
+          now,
+          graceMs: config.agentProblemGraceMs,
+        });
     // Key fact first (B20): what may be lost, where, then how the run ended.
     const facts = [
-      n > 0 ? `${n} ${n === 1 ? 'commit' : 'commits'} not pushed` : null,
-      risk.dirty ? 'uncommitted changes' : null,
+      ...work,
+      truth.on_main ? 'commits already on main' : null,
+      truth.unverified ? 'unverified' : null,
       path ?? null,
-      `run ended (${END_REASON_LABELS[risk.run.end_reason!]})`,
+      closed ?? `run ended (${END_REASON_LABELS[risk.run.end_reason!]})`,
     ].filter(Boolean);
     push({
       ...base,
       kind: 'unpushed_work',
       id: `unpushed_work:${risk.run.id}`,
-      item_id: risk.run.item_id,
-      title: title(risk.run.item_id),
+      item_id: id,
+      title: title(id),
       reason: facts.join(' · '),
       run_id: risk.run.id,
+      reached_you: route.reached,
       explanation: explain.unpushed_work({
-        item: risk.run.item_id,
-        facts: [
-          n > 0 ? `${n} ${n === 1 ? 'commit' : 'commits'} not pushed` : null,
-          risk.dirty ? 'uncommitted changes' : null,
-        ].filter((x): x is string => !!x),
+        item: id,
+        facts: work,
         path: path ?? null,
         ended: END_REASON_LABELS[risk.run.end_reason!],
+        onMain: truth.on_main,
+        unverified: truth.unverified,
+        closed,
+        route,
       }),
     });
   }
@@ -510,6 +552,21 @@ function recoveryProblems(
       });
     }
     if (ms(now) - ms(since) >= config.parkMaxMs) {
+      // Decision 41: its coordinator first. Waiting on a person is the owner's at once.
+      const route: RecoveryRoute = waiting.person
+        ? {
+            who: 'owner',
+            who_text: 'You (it is waiting on a person)',
+            reached: 'It is waiting on a person',
+          }
+        : recoveryRoute({
+            item: run.item_id,
+            lead: false,
+            coordinator: coordinatorOf(run),
+            since: new Date(ms(since) + config.parkMaxMs).toISOString(),
+            now,
+            graceMs: config.agentProblemGraceMs,
+          });
       push({
         ...base,
         kind: 'parked_too_long',
@@ -518,21 +575,77 @@ function recoveryProblems(
         title: title(run.item_id),
         reason: `Parked since ${dayLabel(since)} · waiting on ${waitingLine(waiting)} · keeps its claim`,
         run_id: run.id,
+        reached_you: route.reached,
         explanation: explain.parked_too_long({
           item: run.item_id,
           since: dayLabel(since),
           waiting: waitingLine(waiting),
+          route,
         }),
       });
     }
   }
 }
 
+/** The coordinator named on a run (`orchestrator.name`), if it was dispatched by one. */
+function coordinatorOf(run: RunRow): string | null {
+  return parseJson<{ name?: string }>(run.orchestrator)?.name ?? null;
+}
+
+/**
+ * Words for an item nobody will pick up again (decision 41): "was canceled by
+ * your decision", "was canceled", "is deferred (in Planning)". Null for an item
+ * still in play. "Your decision" means the owner canceled it, or an active owner
+ * decision is scoped to it or names it.
+ */
+function closedWords(db: Db, item: ItemRow | undefined): string | null {
+  if (!item) return null;
+  if (item.status === 'inbox' || item.status === 'planning') {
+    return `is deferred (in ${item.status === 'inbox' ? 'Inbox' : 'Planning'})`;
+  }
+  if (item.status !== 'canceled') return null;
+  const canceledBy = db.sqlite
+    .prepare(
+      `SELECT actor_kind FROM events WHERE item_id = ? AND type = 'item.status_changed'
+       AND json_extract(data, '$.status.new') = 'canceled' ORDER BY seq DESC LIMIT 1`,
+    )
+    .get(item.id) as { actor_kind: string } | undefined;
+  if (canceledBy?.actor_kind === 'owner') return 'was canceled by your decision';
+  const named = new RegExp(`(?<![A-Za-z0-9-])${item.id}(?![A-Za-z0-9])`);
+  const decisions = db.sqlite
+    .prepare(
+      `SELECT scope_kind, scope_id, title, decision_md FROM decision_records
+       WHERE project_key = ? AND authority = 'owner' AND status = 'active'`,
+    )
+    .all(item.project_key) as {
+    scope_kind: string;
+    scope_id: string | null;
+    title: string;
+    decision_md: string;
+  }[];
+  const byDecision = decisions.some(
+    (d) =>
+      ((d.scope_kind === 'item' || d.scope_kind === 'epic') && d.scope_id === item.id) ||
+      named.test(d.title) ||
+      named.test(d.decision_md),
+  );
+  return byDecision ? 'was canceled by your decision' : 'was canceled';
+}
+
+/** "Nov 21, 3:00 AM", in the service's time zone (the one backups are scheduled in). */
+const STAMP: Intl.DateTimeFormatOptions = {
+  month: 'short',
+  day: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+};
+
 function problemsOf({
   s,
   runs,
   deferredCounts,
   backupError,
+  backupTrouble,
   config,
   drift,
 }: ProblemsInput): Problem[] {
@@ -559,6 +672,18 @@ function problemsOf({
       rejected.set(e.item_id, e.at);
     }
   }
+  // Decision 41: a run silent only because Docket restarted is its agent's, within the grace.
+  const restart = staleRuns.length
+    ? (sql.prepare("SELECT max(at) AS at FROM events WHERE type = 'service.restarted'").get() as {
+        at: string | null;
+      })
+    : null;
+  const inRestartGrace = (r: RunRow) =>
+    !!restart?.at &&
+    ms(r.last_signal_at) < ms(restart.at) &&
+    ms(now) < ms(restart.at) + config.restartGraceMs &&
+    !!r.lease_expires_at &&
+    ms(r.lease_expires_at) > ms(now);
   for (const r of staleRuns) {
     const silent = durationLabel(ms(now) - ms(r.last_signal_at));
     const lease = r.lease_expires_at
@@ -579,7 +704,12 @@ function problemsOf({
       title: title(r.item_id),
       reason: `Lead silent for ${silent} · ${lease} · treated as unknown, not finished${claim}`,
       run_id: r.id,
-      explanation: explain.stale_run({ item: r.item_id, silent, lease }),
+      explanation: explain.stale_run({
+        item: r.item_id,
+        silent,
+        lease,
+        restarted: inRestartGrace(r),
+      }),
     });
   }
 
@@ -697,6 +827,30 @@ function problemsOf({
       title: null,
       reason: `Extra backup copy failed: ${sentence(backupError)}`,
       explanation: explain.extra_backup_failed({ error: sentence(backupError) }),
+    });
+  }
+
+  if (backupTrouble) {
+    const t = backupTrouble;
+    const when = (at: string) => new Date(at).toLocaleString('en-US', STAMP);
+    const last = t.last_success_at ? when(t.last_success_at) : null;
+    push({
+      ...base,
+      kind: 'backup_missed',
+      // One per scheduled time, so acknowledging tonight's doesn't hide tomorrow's.
+      id: `backup_missed:${t.due_at}`,
+      item_id: null,
+      title: null,
+      reason:
+        t.state === 'failed'
+          ? `Last backup failed: ${sentence(t.error ?? 'unknown error')}`
+          : `The backup due at ${when(t.due_at)} hasn't run`,
+      explanation: explain.backup_missed({
+        state: t.state,
+        error: t.error ? sentence(t.error) : null,
+        due: when(t.due_at),
+        last,
+      }),
     });
   }
 
@@ -958,6 +1112,16 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
     }
   }
 
+  /** Decision 41: the nightly backup failed or is overdue. */
+  function backupTroubleOf(r: ReadContext): BackupTrouble | null {
+    try {
+      return deps.services().backup.trouble(r);
+    } catch (err) {
+      if (isNotImplemented(err)) return null;
+      throw err;
+    }
+  }
+
   function attention(s: Scoped) {
     const ids = [...s.items.keys()];
     return { packets: openPackets(s.db, ids), questions: openQuestions(s.db, ids) };
@@ -1011,6 +1175,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
       runs,
       deferredCounts: deferred.counts,
       backupError: backupError(r),
+      backupTrouble: backupTroubleOf(r),
       config: deps.config,
       drift: driftProblems(r.db, s.inScope, scope === 'all'),
     });
@@ -1110,15 +1275,8 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         projects,
         labels,
         counts: {
-          for_you:
-            view.for_you_now.length +
-            (view.onboarding_reviews?.length ?? 0) +
-            (view.overlaps?.length ?? 0) +
-            (view.undeclared_holds?.length ?? 0) +
-            (view.design_reviews?.length ?? 0) +
-            (view.resolutions?.length ?? 0) +
-            (view.project_decisions?.length ?? 0) +
-            (view.project_decision_groups?.length ?? 0),
+          // Cards only; Problems are counted next to it. The badge uses needsYouCount (decision 41).
+          for_you: needsYouCount(view) - view.problems.length,
           problems: view.problems.length,
           planning: view.planning_queue.length,
           runs: view.agent_counts,
@@ -1850,13 +2008,12 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
       }
       // The process start: the last time the service (re)started.
       const restartedAt = new Date(Date.now() - process.uptime() * 1000).toISOString();
-      const interrupted = (
-        sql
-          .prepare(
-            "SELECT count(*) AS n FROM runs WHERE end_reason = 'service_restart' AND updated_at >= ?",
-          )
-          .get(new Date(ms(restartedAt) - 60_000).toISOString()) as { n: number }
-      ).n;
+      // Decision 41: how many open runs the last restart kept, from its one event.
+      const restartEvent = sql
+        .prepare(
+          "SELECT json_extract(data, '$.runs_kept') AS n FROM events WHERE type = 'service.restarted' AND at >= ? ORDER BY seq DESC LIMIT 1",
+        )
+        .get(new Date(ms(restartedAt) - 60_000).toISOString()) as { n: number } | undefined;
       const host = config.allowedHosts[0]!;
       return {
         projects,
@@ -1884,7 +2041,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
           backups,
           extra_backup_configured: config.backupExtraDir !== null,
           restarted_at: restartedAt,
-          interrupted_at_restart: interrupted,
+          runs_kept_at_restart: restartEvent?.n ?? 0,
         },
       };
     },

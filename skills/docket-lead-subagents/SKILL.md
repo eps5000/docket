@@ -50,6 +50,7 @@ log_subagent { id: "RCP-14", run_id: "<lead>", step_id: "wst_…", name: "explor
 
 - **Stay live while subagents work.** Waiting on your own subagents is active work, so don't `park_run`. Send `heartbeat { run_id, note: "waiting on 3 subagents: units, aisles, export" }` well inside the stale window.
 - **Resources belong to whoever started them.** A connected subagent declares its own dev servers and sessions on its child run, and releases them before its `finish_run`. Anything you start for an in-process subagent, you declare on your run.
+- **After a Docket restart, a connected child has 15 minutes to call with its `run_id`.** If it does, it carries on. If not, its child run ends as interrupted; your run isn't affected.
 - **Wrap up children first.** Before you finish: every child run has finished, every child resource has been released, and everything is merged and pushed. Child runs left open, or child resources left running, show up in `recovery_report`.
 
 ## Don't

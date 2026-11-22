@@ -646,6 +646,8 @@ export const EVENT_TYPES = [
   // A declared change to an approved design (decision 39; B46)
   'design_review.raised',
   'design_review.decided',
+  // Docket restarted and kept its open runs (decision 41; B49): one event, not one per run
+  'service.restarted',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 

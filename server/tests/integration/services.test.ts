@@ -114,7 +114,8 @@ describe('the service stubs', () => {
       'finish',
       'recordSignal',
       'expireLeases',
-      'interruptOpenRuns',
+      'keepOpenRuns',
+      'endSilentChildren',
       'openRunSessions',
       // US11 (B10, T099).
       'updateResources',
@@ -177,7 +178,7 @@ describe('the service stubs', () => {
     // US4 (B11, T106) and US10 (B15, T130–T131).
     // US15 (B30, T164): create.
     projects: ['setDefaultSatisfiedWhen', 'delete', 'removeDeletedDocs', 'create'],
-    backup: ['status', 'runNow'],
+    backup: ['status', 'trouble', 'runNow'],
     diagnostics: ['calls'],
     // US5 (B12, T114).
     decisions: ['publish', 'list', 'withdraw', 'confirm', 'acknowledge'],

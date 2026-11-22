@@ -117,7 +117,7 @@ export const emptySettings: SettingsResponse = {
     backups: [],
     extra_backup_configured: false,
     restarted_at: '2026-11-06T08:00:00Z',
-    interrupted_at_restart: 0,
+    runs_kept_at_restart: 0,
   },
 };
 

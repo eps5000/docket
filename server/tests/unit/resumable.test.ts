@@ -6,8 +6,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { isResumable } from '../../src/domain/model.js';
-import { restartSweep } from '../../src/jobs/sweeper.js';
-import { startDomain, type Domain } from '../us1-helpers.js';
+import { endRunsAsOldRestart, startDomain, type Domain } from '../us1-helpers.js';
 
 let d: Domain;
 beforeEach(() => {
@@ -38,7 +37,7 @@ describe('resumable', () => {
   it('an epic whose lead run ended interrupted is resumable', () => {
     d.write(d.agent('claude'), (w, s) => s.runs.claim(w, { id: 'RCP-1' }));
     expect(resumable()).not.toContain('RCP-1'); // led now
-    restartSweep(d.server.runtime);
+    endRunsAsOldRestart(d.server.runtime);
     expect(
       d.row("SELECT state, end_reason FROM runs WHERE item_id = 'RCP-1' AND is_lead = 1"),
     ).toEqual({

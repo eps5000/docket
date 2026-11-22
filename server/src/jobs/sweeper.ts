@@ -1,9 +1,15 @@
 /**
  * The sweeper (BUILD_SPEC §5.3, §5.4; tasks.md T072).
  *
- * - **Restart sweep,** once at boot before anything else writes: every open
- *   run becomes `interrupted` (`end_reason: service_restart`). Runs are
- *   never shown as finished unless the agent finished them (FR-016).
+ * - **Restart sweep,** once at boot before anything else writes (owner
+ *   decision 41): open runs stay open, with their claim, workspace and
+ *   `run_id`, and each lead's lease runs at least
+ *   `DOCKET_RESTART_GRACE_MINUTES` from now. An agent's next call continues;
+ *   one that never returns ends by lease expiry. A child run has no lease,
+ *   so it gets a deadline the same distance away: any signal clears it, and
+ *   a child still silent at it ends with `end_reason: service_restart`,
+ *   without touching its parent. Runs are never shown as finished unless the
+ *   agent finished them (FR-016).
  * - **Lease expiry,** every `sweepMs`: an expired lead run is `interrupted`
  *   (`lease_expired`) and its item goes back to Ready with its plan kept.
  * - **Pings,** every `pingMs` (60 s): each open run whose MCP session has
@@ -41,6 +47,7 @@ import {
   radarTriggers,
 } from '../domain/radar.js';
 import { classifyLegacyOverlaps } from '../domain/shared-changes.js';
+import { checkProjectWorktrees } from '../domain/worktree-check.js';
 import { SYSTEM_ACTOR } from '../domain/write.js';
 import type { Runtime } from '../runtime.js';
 
@@ -49,18 +56,31 @@ export const PING_MS = 60_000;
 /** How long a ping may take before it doesn't count. */
 export const PING_TIMEOUT_MS = 10_000;
 
-/** At boot: every open run → interrupted (service restarted). */
-export function restartSweep(runtime: Runtime): { interrupted: string[] } {
-  return runtime.write.run({ actor: SYSTEM_ACTOR, operation: 'sweeper.restart', args: {} }, (w) =>
-    runtime.services.runs.interruptOpenRuns(w, { reason: 'service restarted' }),
-  ).result;
+/**
+ * At boot (decision 41): open runs keep their claim, with a lease of at least
+ * the grace, or for a child a deadline to signal. A child whose deadline passed
+ * while Docket was down ends first: another restart doesn't give it more time.
+ */
+export function restartSweep(runtime: Runtime): { kept: string[]; ended: string[] } {
+  return runtime.write.run({ actor: SYSTEM_ACTOR, operation: 'sweeper.restart', args: {} }, (w) => {
+    const { ended } = runtime.services.runs.endSilentChildren(w);
+    const { kept } = runtime.services.runs.keepOpenRuns(w, {
+      graceMs: runtime.config.restartGraceMs,
+    });
+    return { kept, ended };
+  }).result;
 }
 
-/** One lease sweep. A sweep with nothing to expire writes nothing. */
-export function sweepOnce(runtime: Runtime): { interrupted: string[] } {
-  return runtime.write.run({ actor: SYSTEM_ACTOR, operation: 'sweeper.leases', args: {} }, (w) =>
-    runtime.services.runs.expireLeases(w),
-  ).result;
+/**
+ * One sweep: expired leases (`interrupted`), and child runs silent past their
+ * restart deadline (`children`). A sweep with nothing to end writes nothing.
+ */
+export function sweepOnce(runtime: Runtime): { interrupted: string[]; children: string[] } {
+  return runtime.write.run({ actor: SYSTEM_ACTOR, operation: 'sweeper.leases', args: {} }, (w) => {
+    const { interrupted } = runtime.services.runs.expireLeases(w);
+    const { ended } = runtime.services.runs.endSilentChildren(w);
+    return { interrupted, children: ended };
+  }).result;
 }
 
 /**
@@ -149,9 +169,11 @@ export function startSweeper(
   const seen = new Set<string>();
   const sweep = setInterval(() => {
     try {
-      const { interrupted } = sweepOnce(runtime);
+      const { interrupted, children } = sweepOnce(runtime);
       if (interrupted.length > 0)
         runtime.log(`sweeper: lease expired for ${interrupted.join(', ')}`);
+      if (children.length > 0)
+        runtime.log(`sweeper: no signal after the restart from ${children.join(', ')}`);
     } catch (err) {
       report('lease sweep', err);
     }
@@ -293,6 +315,14 @@ export function startRadar(
       radarRunOnce(runtime, key);
     } catch (err) {
       runtime.log(`radar: ${key} failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    // Decision 41: what ended runs really left behind, with the same read-only git.
+    try {
+      checkProjectWorktrees(runtime.db, runtime.config, key, runtime.clock().toISOString());
+    } catch (err) {
+      runtime.log(
+        `worktree check: ${key} failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   };
   const tick = () => {

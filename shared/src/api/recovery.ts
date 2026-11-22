@@ -1,8 +1,9 @@
 /**
  * Recovery (owner decision 26; BUILD_SPEC §5.16, §7; UI_SPEC §6.1, §6.3.2,
- * §6.6; contracts/ui-api.md US11): the Agents → Workspaces card and the two
- * Problems actions, *Mark released* on an orphaned resource and *Handled* on
- * "Unpushed work may be lost". Shared contract file (tasks.md, Slice rules).
+ * §6.6; contracts/ui-api.md US11): the Agents → Workspaces card and the
+ * Problems actions, *Mark released* on an orphaned resource and *Keep for
+ * later* or *Safe to discard* on unpushed work (decision 41). Shared contract
+ * file (tasks.md, Slice rules).
  */
 import { z } from 'zod';
 import { objectId, text } from '../mcp/common.js';
@@ -57,9 +58,20 @@ export type ReleaseResourceResponse = z.infer<typeof releaseResourceResponse>;
 // ---- POST /api/runs/:runId/unpushed-handled ----
 
 export const runParams = input({ runId: objectId });
+/**
+ * What the owner decided about work left in a worktree (decision 41). Neither
+ * commits, pushes, saves or deletes anything.
+ * - `keep`: keep it for later. The worktree stays at risk, so it isn't pruned.
+ * - `discard`: it's safe to lose. The worktree can count as safe to prune.
+ */
+export const UNPUSHED_OUTCOMES = ['keep', 'discard'] as const;
+export type UnpushedOutcome = (typeof UNPUSHED_OUTCOMES)[number];
+/** Without `outcome`, `discard`: what *Handled* did before decision 41. */
+export const unpushedHandledBody = input({ outcome: z.enum(UNPUSHED_OUTCOMES).optional() });
 export const unpushedHandledResponse = ownerMutationOutput({
   run_id: z.string(),
   unpushed_handled_at: z.string(),
+  outcome: z.enum(UNPUSHED_OUTCOMES),
 });
 export type UnpushedHandledResponse = z.infer<typeof unpushedHandledResponse>;
 
@@ -89,7 +101,7 @@ export const recoveryRoutes = {
     group: 'recovery',
     params: runParams,
     query: noInput,
-    body: noInput,
+    body: unpushedHandledBody,
     response: json(unpushedHandledResponse),
     undoable: true,
   }),

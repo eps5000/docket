@@ -10,7 +10,14 @@
  */
 import type { Page } from '@playwright/test';
 import type { SearchResponse } from '@docket/shared';
-import { expect, test, unlock, useSeededContainer, connectAgent } from './fixtures/index';
+import {
+  connectAgent,
+  expect,
+  needsYouTitle,
+  test,
+  unlock,
+  useSeededContainer,
+} from './fixtures/index';
 
 useSeededContainer();
 
@@ -109,14 +116,28 @@ test.describe('Needs you', () => {
     await expect(page).toHaveURL(/\/items\/RCP-18\?tab=activity$/);
   });
 
-  test('the tab title and the sidebar badge show the for-you count', async ({ page }) => {
-    await page.goto('/work');
-    await expect(page).toHaveTitle('(3) Docket');
+  test('the tab title, the sidebar badge and the page show the same count (decision 41)', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    const title = await needsYouTitle(page);
+    await expect(page).toHaveTitle(title);
+    const n = /^\((\d+)\)/.exec(title)![1]!;
     const needsYou = page
       .getByRole('navigation', { name: 'Primary' })
       .getByRole('link', { name: /^Needs you/ });
-    await expect(needsYou).toContainText('3');
+    await expect(needsYou.locator('.badge')).toContainText(n);
     await expect(needsYou).toContainText('for you');
+    await expect(page.locator('[data-needs-you-count]')).toHaveAttribute('data-needs-you-count', n);
+    // Scoped to one project, all three follow that project.
+    await page.getByRole('button', { name: /^Project:?\s*All projects$/ }).click();
+    await page.getByRole('menuitemradio', { name: 'Docs Site' }).click();
+    await expect(page.getByRole('heading', { name: 'For you now · 1' })).toBeVisible();
+    const scoped = await page
+      .locator('[data-needs-you-count]')
+      .getAttribute('data-needs-you-count');
+    await expect(needsYou.locator('.badge')).toContainText(scoped!);
+    await expect(page).toHaveTitle(`(${scoped}) Docket`);
   });
 
   test('scoped to one project, Needs you counts that project only', async ({ page }) => {

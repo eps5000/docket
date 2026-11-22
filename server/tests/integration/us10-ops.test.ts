@@ -861,7 +861,7 @@ describe('container replacement (SC-008)', () => {
     const second = server({}, volume);
     restartSweep(second.runtime);
     await startupHousekeeping(second.runtime);
-    // The restart may append events (open runs end as interrupted); none before it change.
+    // The restart may append its one event (open runs stay open); none before it change.
     const after = liveChecksums(
       { db: join(volume, 'docket.db'), docs: join(volume, 'docs') },
       { throughSeq: before.events.max_seq },

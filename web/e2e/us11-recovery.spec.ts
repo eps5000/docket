@@ -6,7 +6,7 @@
  * a run that left a dev server, a run that stopped with work off the remote,
  * runs parked too long and ready to resume. The owner sees and acts on it in
  * the browser against the seeded container:
- * - the four recovery Problems rows, *Mark released* and *Handled* with Undo;
+ * - the four recovery Problems rows, *Mark released* and *Safe to discard* with Undo;
  * - "Where the work lives" and *Copy resume note*;
  * - Agents → Workspaces states, with "Hide safe to prune" on by default;
  * - axe on each, in both themes.
@@ -140,7 +140,7 @@ test.describe.serial('US11 recovery', () => {
     await expect(row(page, 'orphaned_resources', 'RCP-17')).toHaveCount(1);
   });
 
-  test('Unpushed work may be lost: Handled clears the row; Undo brings it back', async ({
+  test('Work left in a worktree goes to its coordinator; Safe to discard explains itself, and Undo brings it back', async ({
     ownerPage: page,
   }) => {
     const claim = await ok(agent, 'claim_lead', {
@@ -171,25 +171,37 @@ test.describe.serial('US11 recovery', () => {
     });
 
     await openNeedsYou(page);
-    const r = row(page, 'unpushed_work', 'RCP-25');
+    // Decision 41: it has a coordinator, so it waits under "Agents are handling".
+    await page.locator('[data-more-problems="agents"]').getByRole('button').first().click();
+    const r = page
+      .locator('[data-more-problems="agents"]')
+      .locator('[data-problem="unpushed_work"]', {
+        hasText: 'RCP-25',
+      });
     // Decision 37: what's wrong and what fixes it; the facts stay in `title`.
     await expect(r.locator('.prob-x dd').first()).toHaveAttribute(
       'title',
-      '1 commit not pushed · uncommitted changes · C:/work/rcp-25 · run ended (released by the agent)',
+      '1 commit not pushed · uncommitted changes · unverified · C:/work/rcp-25 · run ended (released by the agent)',
     );
     await expect(r).toContainText(
-      "RCP-25's run ended (released by the agent) with work that isn't on the remote: 1 commit not pushed and uncommitted changes, in C:/work/rcp-25.",
+      "RCP-25's run ended (released by the agent). Still in its worktree: 1 commit not pushed and uncommitted changes, in C:/work/rcp-25.",
     );
-    await expect(r).toContainText('Push or save the work from that folder, then mark it handled.');
+    await expect(r).toContainText('last reported state (unverified)');
+    await expect(r).toContainText('Commit and push it from that worktree, or say it can go.');
     // The worktree's state chip, as on Agents → Workspaces.
     await expect(r.locator('.chip', { hasText: 'At risk' })).toHaveText('At risk');
-    await r.getByRole('button', { name: 'Handled' }).click();
+    await r.getByRole('button', { name: 'Safe to discard' }).click();
+    const confirm = page.getByRole('dialog', { name: 'Mark this work safe to discard?' });
+    await expect(confirm).toContainText('can then count as Safe to prune');
+    await expect(confirm).toContainText('It doesn’t commit, push, save or delete anything.');
+    await expectAxeClean(page, 'safe to discard dialog');
+    await confirm.getByRole('button', { name: 'Safe to discard' }).click();
     const toast = page.getByRole('status');
-    await expect(toast).toContainText('Marked handled.');
+    await expect(toast).toContainText('Marked safe to discard.');
     await expect(r).toHaveCount(0);
     await toast.getByRole('button', { name: 'Undo' }).click();
     await expect(toast).toContainText('Undone.');
-    await expect(row(page, 'unpushed_work', 'RCP-25')).toHaveCount(1);
+    await expect(r).toHaveCount(1);
   });
 
   test('Parked for 24 h and Ready to resume, unattended, each opening Activity', async ({
@@ -238,7 +250,8 @@ test.describe.serial('US11 recovery', () => {
     await expect(
       row(page, 'resume_unattended', 'RCP-18').locator('.chip', { hasText: 'Parked' }),
     ).toHaveText('Parked');
-    // All four recovery rows fit the card at once.
+    // All four recovery rows are there; work with a coordinator is under "Agents are handling".
+    await page.locator('[data-more-problems="agents"]').getByRole('button').first().click();
     for (const kind of [
       'orphaned_resources',
       'unpushed_work',
