@@ -66,7 +66,7 @@ export function WorkloadCard({ workload }: { workload: OverviewResponse['workloa
           {workload.length > WORKLOAD_ROWS && (
             <div className="cardfoot">
               <span />
-              <Link to={paths.work({ quick: 'active' })}>View all {workload.length} →</Link>
+              <Link to={paths.work({ quick: 'active' })}>View all open work →</Link>
             </div>
           )}
         </div>

@@ -118,7 +118,9 @@ test('STR: the numbers, the Blocked link, and the read API stays fast', async ({
       const samples: number[] = [];
       for (let i = 0; i < 20; i++) {
         const t = performance.now();
-        await (await fetch(path, { cache: 'no-store' })).text();
+        const res = await fetch(path, { cache: 'no-store' });
+        if (!res.ok) throw new Error(`${path}: ${res.status}`);
+        await res.text();
         samples.push(performance.now() - t);
       }
       samples.sort((a, b) => a - b);
