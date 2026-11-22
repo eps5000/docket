@@ -66,6 +66,7 @@ describe('the service stubs', () => {
         'context',
         'decisions',
         'diagnostics',
+        'digest',
         'documents',
         'drift',
         'evidence',
@@ -141,6 +142,7 @@ describe('the service stubs', () => {
     ],
     evidence: ['addNote', 'linkArtifact', 'reportCommit'],
     search: ['whoami', 'listProjects', 'searchItems', 'getChanges', 'palette'],
+    digest: ['get'],
     // Decision 37 (B42): findProblem and itemProblems.
     views: [
       'bootstrap',

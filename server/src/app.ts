@@ -7,7 +7,7 @@ import { getCookie } from 'hono/cookie';
 import { createApiApp, errorResponse } from './api/app.js';
 import { allowedOriginsFor, bearerAuth, hostGuard, originGuard } from './api/guards.js';
 import { SESSION_COOKIE, ensureLocalCsrfCookie } from './api/session.js';
-import { changesWait } from './api/routes/agent-wait.js';
+import { changesWait } from './api/agent-wait.js';
 import { installRoutes } from './api/routes/install.js';
 import { uploadRoutes } from './api/routes/upload.js';
 import { migrationStatus } from './db/client.js';

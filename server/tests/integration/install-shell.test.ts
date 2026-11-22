@@ -270,7 +270,7 @@ describe.each(Object.keys(SHELLS) as ShellName[])('the %s commands', (shell) => 
       expect(manifest.files.some((f) => f.key === 'connection')).toBe(true);
       expect(r1.files).toEqual(
         manifest.files
-          .filter((f) => f.key !== 'connection')
+          .filter((f) => f.key !== 'connection' && !f.key.startsWith('script:'))
           .map((f) => ({ key: f.key, sha256: f.sha256 })),
       );
 

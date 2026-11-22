@@ -19,10 +19,10 @@ import {
   truncate,
   type EventRow,
 } from '@docket/shared';
-import { readContext } from '../../domain/contracts.js';
-import type { Actor } from '../../domain/write.js';
-import type { Runtime } from '../../runtime.js';
-import { errorBody } from '../guards.js';
+import { readContext } from '../domain/contracts.js';
+import type { Actor } from '../domain/write.js';
+import type { Runtime } from '../runtime.js';
+import { errorBody } from './guards.js';
 
 /** The default page: enough for one wake-up; the next wait returns the rest at once. */
 const DEFAULT_EVENTS = 20;

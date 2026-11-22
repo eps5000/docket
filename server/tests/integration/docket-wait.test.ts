@@ -198,6 +198,8 @@ describe.skipIf(available.length === 0).each(available)('docket-wait (%s)', (she
     const run = runWait(shell, ['--cursor', String(cursor), '--timeout', '30', '--url', url]);
     await until(() => s.runtime.changes.size === 1);
     await stop(http);
+    // A real socket going away releases the waiter.
+    await until(() => s.runtime.changes.size === 0);
     await new Promise((r) => setTimeout(r, 1_200));
     // The change lands while the server is down for the script.
     commit(s);

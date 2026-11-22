@@ -32,6 +32,7 @@ import {
 } from '@docket/shared';
 import { afterEach, describe, expect, it } from 'vitest';
 import { syncBundledFiles } from '../../src/jobs/bundled.js';
+import { waitPs1, waitSh } from '../../src/domain/wait-scripts.js';
 import { driftCheckOnce } from '../../src/jobs/sweeper.js';
 import { insertProject, tempDir, type TempDir } from '../helpers.js';
 import { createTestServer, parseSetCookies, type TestServer } from './harness.js';
@@ -170,9 +171,11 @@ describe('command install: the bundle and the single-use token (T155)', () => {
       [
         ...SKILLS.map((n) => `docket-install/files/.claude/skills/${n}/SKILL.md`),
         'docket-install/files/.claude/.docket-manifest.json',
-        // docket-check, next to the manifest (decision 30, B27b).
+        // docket-check, next to the manifest (decision 30, B27b), and docket-wait (decision 40).
         'docket-install/files/.claude/docket-check.sh',
         'docket-install/files/.claude/docket-check.ps1',
+        'docket-install/files/.claude/docket-wait.sh',
+        'docket-install/files/.claude/docket-wait.ps1',
         'docket-install/files.txt',
         'docket-install/block.md',
         // The connection file's docket entry (decision 32).
@@ -184,6 +187,8 @@ describe('command install: the bundle and the single-use token (T155)', () => {
     expect(files.get('docket-install/files.txt')).toBe(
       [
         ...SKILLS.map((n) => `.claude/skills/${n}/SKILL.md`),
+        '.claude/docket-wait.sh',
+        '.claude/docket-wait.ps1',
         '.claude/.docket-manifest.json',
         '.claude/docket-check.sh',
         '.claude/docket-check.ps1',
@@ -229,8 +234,16 @@ describe('command install: the bundle and the single-use token (T155)', () => {
     expect(manifest.files.map((f) => [f.key, f.path])).toEqual([
       ...SKILLS.map((n) => [`skill:${n}`, `.claude/skills/${n}/SKILL.md`]),
       ['agents_block', 'CLAUDE.md'],
+      // docket-wait (decision 40): in the manifest, so Check and drift cover it.
+      ['script:docket-wait.sh', '.claude/docket-wait.sh'],
+      ['script:docket-wait.ps1', '.claude/docket-wait.ps1'],
       ['connection', '.mcp.json'],
     ]);
+    expect(files.get('docket-install/files/.claude/docket-wait.sh')).toBe(waitSh());
+    expect(files.get('docket-install/files/.claude/docket-wait.ps1')).toBe(waitPs1());
+    for (const script of [waitSh(), waitPs1()]) {
+      expect([...script].every((c) => c.charCodeAt(0) < 0x80)).toBe(true);
+    }
     // The connection file (decision 32): the docket entry, no secret, the entry's canonical hash.
     expect(files.get('docket-install/connection.txt')).toBe(
       connectionEntry('claude', MCP_URL, false),
@@ -436,6 +449,8 @@ describe('push install and check (T156)', () => {
       files: [
         ...SKILLS.map((n) => ({ path: `.claude/skills/${n}/SKILL.md`, change: 'created' })),
         { path: 'CLAUDE.md', change: 'updated' },
+        { path: '.claude/docket-wait.sh', change: 'created' },
+        { path: '.claude/docket-wait.ps1', change: 'created' },
         { path: '.mcp.json', change: 'created' },
         { path: '.claude/.docket-manifest.json', change: 'created' },
         { path: '.claude/docket-check.sh', change: 'created' },

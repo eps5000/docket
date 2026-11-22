@@ -116,7 +116,9 @@ function checkReport(repo: string, opts: { withText?: string[] } = {}) {
   const manifest = JSON.parse(
     readFileSync(join(repo, '.claude/.docket-manifest.json'), 'utf8'),
   ) as { install_id: string; files: { key: string; path: string; sha256: string }[] };
-  const files = manifest.files.flatMap((f) => {
+  // Like docket-check, a report leaves out the installed scripts (decision 40).
+  const reported = manifest.files.filter((f) => !f.key.startsWith('script:'));
+  const files = reported.flatMap((f) => {
     // docket-check leaves the connection file out (decision 32).
     if (f.key === 'connection') return [];
     let text: string;
@@ -236,6 +238,51 @@ describe('the scheduled push check (SC-017: within one interval)', () => {
     await new Promise((r) => setTimeout(r, 50));
     job.stop();
     expect(calls).toBe(0);
+  });
+});
+
+describe('the installed docket-wait script (decision 40)', () => {
+  const WAIT = 'script:docket-wait.sh';
+  const waitPath = (repo: string) => join(repo, '.claude/docket-wait.sh');
+
+  it('an edit is drift: restore or keep it, never adopt it; an agent report leaves it alone', async () => {
+    const { owner, repo } = await start();
+    await pushInstall(owner);
+    expect((await driftCheckOnce(h!.server.runtime)).drift_ids).toEqual([]);
+
+    writeFileSync(waitPath(repo), `${readFileSync(waitPath(repo), 'utf8')}# hand edit\n`);
+    await driftCheckOnce(h!.server.runtime);
+    const [found] = await openDrift(owner);
+    expect(found).toMatchObject({ file_key: WAIT, change: 'edited', state: 'open' });
+
+    const adopt = await owner('POST', `/api/drift/${String(found!.id)}/adopt`, {});
+    expect(adopt.status).toBe(400);
+    expect(JSON.stringify(adopt.body)).toContain("isn't one of the files Docket ships");
+
+    // An agent's report doesn't cover scripts: it neither closes nor adds a record.
+    expectOk(
+      await h!.call('claim_lead', {
+        id: 'RCP-17',
+        agent_label: 'orca-w3',
+        instructions: checkReport(repo),
+      }),
+    );
+    expect((await openDrift(owner)).map((d) => d.file_key)).toEqual([WAIT]);
+
+    const restored = await owner('POST', `/api/drift/${String(found!.id)}/restore`, {});
+    expect(restored.status).toBe(200);
+    expect(readFileSync(waitPath(repo), 'utf8')).not.toContain('# hand edit');
+    expect(await openDrift(owner)).toEqual([]);
+  });
+
+  it('a deleted script is reported missing', async () => {
+    const { owner, repo } = await start();
+    await pushInstall(owner);
+    rmSync(waitPath(repo));
+    await driftCheckOnce(h!.server.runtime);
+    expect(await openDrift(owner)).toEqual([
+      expect.objectContaining({ file_key: WAIT, change: 'missing' }),
+    ]);
   });
 });
 

@@ -67,7 +67,7 @@ describe('loadConfig', () => {
       seed: null,
       seedStress: false,
       tz: null,
-      textOnlyClients: ['claude-code'],
+      textOnlyClients: ['claude-code', 'codex-mcp-client'],
     });
     expect(c.paths.db.replace(/\\/g, '/')).toBe('/data/docket.db');
     expect(c.paths.ownerKey.replace(/\\/g, '/')).toBe('/data/secrets/owner-key');
