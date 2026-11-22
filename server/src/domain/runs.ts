@@ -418,7 +418,8 @@ export function createRunsService(deps: ServiceDeps): RunsService {
       parked_at: renewing && run.parked_at ? run.parked_at : w.now,
       lease_expires_at: null,
       restart_deadline_at: null,
-      park_activity: { since: w.now, flag: null },
+      // Only a new park starts a baseline: renewing must not hide drift (BUILD_SPEC §5.25).
+      ...(renewing ? {} : { park_activity: { since: w.now, flag: null } }),
       status_update: stamp,
       coordinator_park: { by: stamp.by, client: stamp.client, at: w.now, until },
       ...(input.current_action !== undefined ? { summary: input.current_action } : {}),

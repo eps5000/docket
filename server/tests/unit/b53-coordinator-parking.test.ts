@@ -208,6 +208,102 @@ describe('renewing and ending early', () => {
     });
   });
 
+  it('a raised activity flag survives renewals, new reasons and the expiry', async () => {
+    const id = claim();
+    parkFor(60);
+    d.clock.advance(minutes(5));
+    d.write(coordinator, (w, s) => s.evidence.addNote(w, { id: 'RCP-17', text: 'Found it' }));
+    expect(await runActivityOnce(d.server.runtime)).toEqual([id]);
+    const raised = run(id).park_activity;
+    expect(JSON.parse(raised!).flag).toMatchObject({ events: 1 });
+
+    d.clock.advance(minutes(5));
+    update({ park_minutes: 120 });
+    expect(run(id).park_activity).toBe(raised);
+    d.clock.advance(minutes(5));
+    update({
+      park_minutes: 120,
+      park_reason: 'Now waiting on review',
+      waiting_on: { person: true },
+    });
+    expect(run(id).park_activity).toBe(raised);
+
+    d.clock.advance(minutes(120));
+    expect(sweepOnce(d.server.runtime).unparked).toEqual([id]);
+    expect(run(id).state).toBe('open');
+    expect(run(id).park_activity).toBe(raised);
+    expect(eventsOf('run.activity')).toHaveLength(1);
+  });
+
+  describe('activity before a renewal that no check has seen yet is still detected', () => {
+    const blocker = 'RCP-25';
+    const cases: [string, Record<string, unknown>, () => void, Record<string, unknown>][] = [
+      [
+        'a note',
+        { orchestrator: true },
+        () =>
+          d.write(coordinator, (w, s) => s.evidence.addNote(w, { id: 'RCP-17', text: 'Found it' })),
+        { events: 1 },
+      ],
+      [
+        'a reported commit',
+        { orchestrator: true },
+        () =>
+          d.write(coordinator, (w, s) =>
+            s.evidence.reportCommit(w, {
+              id: 'RCP-17',
+              sha: '4be1c09',
+              branch: 'rcp-17',
+              pushed: false,
+            }),
+          ),
+        { events: 1 },
+      ],
+      [
+        'a blocker clearing',
+        { items: [blocker] },
+        () =>
+          d.sql
+            .prepare("UPDATE items SET status = 'done', closed_at = ?, updated_at = ? WHERE id = ?")
+            .run(d.clock.now().toISOString(), d.clock.now().toISOString(), blocker),
+        { cleared_items: [blocker] },
+      ],
+    ];
+
+    it.each(cases)('%s', async (_name, waiting_on, happen, expected) => {
+      const id = claim();
+      update({ park_minutes: 60, park_reason: 'Waiting', waiting_on });
+      const baseline = run(id).park_activity;
+      d.clock.advance(minutes(5));
+      happen();
+      d.clock.advance(minutes(1));
+      update({ park_minutes: 120, park_reason: 'Still waiting', waiting_on });
+      expect(run(id).park_activity).toBe(baseline);
+      d.clock.advance(minutes(1));
+      update({ park_minutes: 120 });
+      expect(run(id).park_activity).toBe(baseline);
+
+      expect(await runActivityOnce(d.server.runtime)).toEqual([id]);
+      expect(run(id).state).toBe('parked');
+      expect(JSON.parse(run(id).park_activity!).flag).toMatchObject(expected);
+    });
+  });
+
+  it('a new park after the old one ran out starts from a fresh baseline', async () => {
+    const id = claim();
+    parkFor(60);
+    d.clock.advance(minutes(5));
+    d.write(coordinator, (w, s) => s.evidence.addNote(w, { id: 'RCP-17', text: 'Found it' }));
+    await runActivityOnce(d.server.runtime);
+    d.clock.advance(minutes(55));
+    sweepOnce(d.server.runtime);
+    parkFor(30);
+    expect(JSON.parse(run(id).park_activity!)).toEqual({
+      since: d.clock.now().toISOString(),
+      flag: null,
+    });
+  });
+
   it('changing the reason leaves the deadline alone', () => {
     const id = claim();
     parkFor(60);
