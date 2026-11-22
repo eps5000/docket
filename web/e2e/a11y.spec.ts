@@ -26,7 +26,7 @@ test.beforeEach(async ({ page }) => {
 
 /** Every route, and what says it has rendered. */
 const ROUTES: { name: string; path: string; ready: (p: Page) => Locator }[] = [
-  { name: 'Needs you', path: '/', ready: (p) => p.getByRole('heading', { name: /^For you now/ }) },
+  { name: 'Overview', path: '/', ready: (p) => p.getByRole('heading', { name: /^For you now/ }) },
   { name: 'Work board', path: '/work', ready: (p) => p.locator('[data-layout="board"]') },
   { name: 'Work list', path: '/work?layout=list', ready: (p) => p.locator('[data-layout="list"]') },
   { name: 'Work map', path: '/work?layout=map', ready: (p) => p.locator('.pm-node').first() },

@@ -25,7 +25,7 @@ test.describe('owner views at scale (T143)', () => {
 
   const views: { name: string; path: string; ready: (page: Page) => Promise<void> }[] = [
     {
-      name: 'Needs you',
+      name: 'Overview',
       path: '/',
       ready: (p) => expect(p.getByRole('heading', { name: /^For you now/ })).toBeVisible(),
     },
@@ -93,7 +93,7 @@ test.describe('owner views at scale (T143)', () => {
       await page.goto(v.path);
       await v.ready(page);
       const cold = Date.now() - t0;
-      // In-app: start from Needs you, then navigate with the router.
+      // In-app: start from Overview, then navigate with the router.
       await page.evaluate(() => window.history.pushState({}, '', '/'));
       await page.evaluate(() => window.dispatchEvent(new PopStateEvent('popstate')));
       await views[0]!.ready(page);

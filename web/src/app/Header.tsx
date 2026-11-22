@@ -6,7 +6,7 @@ import { nextTheme, useShell, type BreadcrumbSpec, type Crumb, type Theme } from
 import { useBootstrap, useNoProjects } from './useBootstrap';
 
 const PAGE_TITLES = {
-  'needs-you': 'Needs you',
+  overview: 'Overview',
   work: 'Work',
   agents: 'Agents',
   'agent-files': 'Agent files',

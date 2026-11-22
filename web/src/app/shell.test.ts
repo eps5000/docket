@@ -77,8 +77,9 @@ describe('persistence keys (UI_SPEC §2)', () => {
 
 describe('navigation', () => {
   it('maps paths to the active nav item (the packet keeps Needs you)', () => {
-    expect(navSection('/')).toBe('needs-you');
-    expect(navSection('/review/RCP-12')).toBe('needs-you');
+    expect(navSection('/')).toBe('overview');
+    expect(navSection('/review/RCP-12')).toBe('overview');
+    expect(navSection('/overview/completed')).toBe('overview');
     expect(navSection('/work')).toBe('work');
     expect(navSection('/items/RCP-14')).toBe('work');
     expect(navSection('/labels/RCP/ui-refresh')).toBe('work');

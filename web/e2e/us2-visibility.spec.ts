@@ -41,40 +41,23 @@ test.describe('Needs you', () => {
     await expect(forYou).toContainText('out of date: code changed after it was written');
     await expect(forYou.getByRole('link', { name: 'Open packet' })).toHaveCount(2);
 
-    // Only the action cards: For you now, Problems, Deferred, Planning queue (no Coming up,
+    // Only the owner's actions in Needs you; the two long lists sit below (no Coming up,
     // no Since you looked).
     const cards = await page
       .locator('.needs-you [data-card]')
       .evaluateAll((els) => els.map((e) => e.getAttribute('data-card')));
-    expect(cards.filter((c) => c !== 'notify-optin')).toEqual([
-      'agents-strip',
-      'for-you',
-      'problems',
-      'deferred',
-      'planning-queue',
-    ]);
+    expect(cards).toEqual(['for-you', 'problems']);
+    await expect(card(page, 'deferred')).toBeVisible();
+    await expect(card(page, 'planning-queue')).toBeVisible();
     await expect(page.getByText('Coming up')).toHaveCount(0);
     await expect(page.getByText('Since you looked')).toHaveCount(0);
     await expect(page.getByRole('heading', { name: /^Deferred, not verified · 2$/ })).toBeVisible();
     await expect(page.getByRole('heading', { name: /^Your Planning queue · 5$/ })).toBeVisible();
 
-    // The Agents strip counts runs by state, in words; each count links to Agents → that state.
-    const strip = card(page, 'agents-strip');
-    for (const s of ['live', 'reported', 'needs input', 'stale', 'failed']) {
-      await expect(strip).toContainText(s);
-    }
-    for (const s of ['live', 'reported', 'needs_input', 'stale', 'failed']) {
-      await expect(strip.locator(`a[data-state="${s}"]`)).toHaveAttribute(
-        'href',
-        `/agents?state=${s}`,
-      );
-    }
-
-    // One screen at 1440×900: nothing scrolls.
-    const overflow = await page.evaluate(
-      () => document.documentElement.scrollHeight - window.innerHeight,
-    );
-    expect(overflow).toBeLessThanOrEqual(0);
+    // SC-005 at 1440×900: the four numbers and the first action, without scrolling.
+    await expect(page.locator('[data-stat="needs-you"]')).toBeInViewport();
+    await expect(forYou.getByRole('link', { name: 'Open packet' }).first()).toBeInViewport();
+    expect(await page.evaluate(() => window.scrollY)).toBe(0);
   });
 
   test('Problems: each row has its reason and one action that opens the right place', async ({
@@ -125,7 +108,7 @@ test.describe('Needs you', () => {
     const n = /^\((\d+)\)/.exec(title)![1]!;
     const needsYou = page
       .getByRole('navigation', { name: 'Primary' })
-      .getByRole('link', { name: /^Needs you/ });
+      .getByRole('link', { name: /^Overview/ });
     await expect(needsYou.locator('.badge')).toContainText(n);
     await expect(needsYou).toContainText('for you');
     await expect(page.locator('[data-needs-you-count]')).toHaveAttribute('data-needs-you-count', n);
@@ -340,12 +323,8 @@ test.describe('Agents and the palette', () => {
     await expect(page).toHaveURL(/\/items\/RCP-14$/);
   });
 
-  test('a Needs you strip count opens Agents filtered to that state; Show all clears it', async ({
-    page,
-  }) => {
-    await page.goto('/');
-    await card(page, 'agents-strip').locator('a[data-state="stale"]').click();
-    await expect(page).toHaveURL(/\/agents\?state=stale$/);
+  test('Agents filtered to a state from a link; Show all clears it', async ({ page }) => {
+    await page.goto('/agents?state=stale');
     const active = page.locator('[data-section="agents-active"]');
     await expect(active.getByRole('button', { name: /^Active now/ })).toContainText('1 stale');
     await expect(active.locator('tbody tr')).toHaveCount(1);
@@ -467,7 +446,7 @@ test.describe('live updates', () => {
 
 test.describe('performance (SC-013)', () => {
   for (const [label, path, ready] of [
-    ['Needs you', '/', 'For you now · '],
+    ['Overview', '/', 'For you now · '],
     ['Work board', '/work', 'Epics · '],
     ['Work list', '/work?layout=list', 'Epics · '],
     ['Item page', '/items/RCP-14', 'Outcome'],

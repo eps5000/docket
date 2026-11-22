@@ -17,6 +17,15 @@ export function readRoutes<E extends Env>(api: Hono<E>, deps: RouteDeps): void {
     services.views.needsYou(read, query),
   );
 
+  // Decision 43: the Overview metrics, and the list behind each number.
+  defineRoute(api, 'overview.get', deps, ({ services, read, query }) =>
+    services.views.overview(read, query),
+  );
+
+  defineRoute(api, 'overview.items', deps, ({ services, read, query }) =>
+    services.views.overviewItems(read, query),
+  );
+
   defineRoute(api, 'work.get', deps, ({ services, read, query }) => {
     const work = services.views.work(read, query);
     if (query.layout !== 'timeline') return work;

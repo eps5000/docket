@@ -16,21 +16,39 @@ export function useBootstrap() {
   });
 }
 
-/**
- * What the owner can act on in the current project (owner decision 41): the
- * sidebar badge and the tab title. It reads the same query as the Needs you
- * page, so they always agree. Undefined until it has loaded.
- */
-export function useNeedsYouCount(): number | undefined {
+/** Agents fall silent with no event to say so, so the counts refresh on a timer too. */
+export const NEEDS_YOU_REFRESH_MS = 60_000;
+
+function useNeedsYouView() {
   const { scope } = useShell();
   // Not before bootstrap answers: a locked browser gets the unlock screen, not a failed count.
   const boot = useBootstrap();
-  const query = useQuery({
+  return useQuery({
     queryKey: queryKeys.needsYou({ scope }),
     queryFn: () => apiClient['needsYou.get']({ query: { scope } }),
     enabled: boot.isSuccess,
+    refetchInterval: NEEDS_YOU_REFRESH_MS,
   });
-  return query.data ? needsYouCount(query.data) : undefined;
+}
+
+/**
+ * What the owner can act on in the current project (owner decision 41): the
+ * sidebar badge and the tab title. It reads the same query as the Overview
+ * page, so they always agree. Undefined until it has loaded.
+ */
+export function useNeedsYouCount(): number | undefined {
+  const { data } = useNeedsYouView();
+  return data ? needsYouCount(data) : undefined;
+}
+
+/**
+ * Stories being worked on and waiting in the current project (decision 43): the
+ * sidebar's Agents badge (`working` only), the Overview card and the Agents page's
+ * line, all from the same query. Undefined until it has loaded.
+ */
+export function useAgentsNow(): { working: number; waiting: number } | undefined {
+  const { data } = useNeedsYouView();
+  return data ? (data.agents_now ?? { working: 0, waiting: 0 }) : undefined;
 }
 
 /**

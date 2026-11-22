@@ -87,7 +87,7 @@ test.describe('First run (UI_SPEC §6.0)', () => {
       await owner(page, 'DELETE', `/api/projects/${p.key}`, { confirm_key: p.key });
     }
 
-    // Needs you is the Welcome page.
+    // Overview is the Welcome page.
     await page.goto('/');
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Welcome to Docket');
     await expect(page.getByText('The shared record your AI agents work from.')).toBeVisible();
@@ -162,7 +162,7 @@ test.describe('First run (UI_SPEC §6.0)', () => {
     await next.getByRole('button', { name: 'Done' }).click();
 
     // Now: the Welcome page is gone, and + New item is one click with a caret.
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Needs you');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Overview');
     const newItem = page.getByRole('button', { name: '+ New item' });
     await expect(newItem).toHaveAttribute('title', 'New item: capture it in Inbox');
     await page.getByRole('button', { name: 'More to create' }).click();

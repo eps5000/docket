@@ -311,6 +311,14 @@ export const queryKeys = {
   family: (family: QueryFamily) => [ROOT, family] as const,
   bootstrap: () => [ROOT, 'bootstrap'] as const,
   needsYou: (query: RouteQueryInput<'needsYou.get'> = {}) => [ROOT, 'needsYou', query] as const,
+  /**
+   * Decision 43: Overview's numbers and lists sit in the needsYou family, so everything that
+   * refreshes Needs you refreshes them too.
+   */
+  overview: (query: RouteQueryInput<'overview.get'> = {}) =>
+    [ROOT, 'needsYou', 'overview', query] as const,
+  overviewItems: (query: RouteQueryInput<'overview.items'>) =>
+    [ROOT, 'needsYou', 'overview-items', query] as const,
   work: (query: RouteQueryInput<'work.get'> = {}) => [ROOT, 'work', query] as const,
   burndown: (query: RouteQueryInput<'burndown.get'> = {}) => [ROOT, 'burndown', query] as const,
   item: (id: string) => [ROOT, 'item', id] as const,

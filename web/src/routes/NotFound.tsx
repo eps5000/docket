@@ -10,7 +10,7 @@ export function NotFound() {
       <Card padded>
         <p style={{ margin: 0 }}>
           <span className="muted">There’s no page here. </span>
-          <Link to={paths.needsYou()}>Go to Needs you</Link>
+          <Link to={paths.overview()}>Go to Overview</Link>
         </p>
       </Card>
     </div>

@@ -340,16 +340,13 @@ test.describe.serial('US11 recovery', () => {
     await expect(page.locator('[data-ticket="RCP-16"]')).toContainText('Blocked by');
     await expectAxeClean(page, 'epic tickets with run state');
 
-    // The Needs you strip: a count opens Agents filtered to that state.
+    // Overview's Health links to workspaces at risk; Agents still filters by run state.
     await page.context().addInitScript(() => sessionStorage.setItem('docket.scope', 'RCP'));
     await page.goto('/');
-    const strip = page.locator('[data-card="agents-strip"]');
-    await expect(strip.locator('a[data-state="parked"]')).toContainText('× 2');
-    const risk = strip.locator('a[data-state="workspaces-at-risk"]');
+    const risk = page.locator('[data-card="health"] a[data-state="workspaces-at-risk"]');
     await expect(risk).toHaveText(/^\d+ workspaces? at risk$/);
     const n = Number((await risk.innerText()).split(' ')[0]);
-    await strip.locator('a[data-state="parked"]').click();
-    await expect(page).toHaveURL(/\/agents\?state=parked$/);
+    await page.goto('/agents?state=parked');
     const active = page.locator('[data-section="agents-active"]');
     await expect(active.locator('tbody tr')).toHaveCount(2);
     await expect(

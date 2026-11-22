@@ -11,7 +11,14 @@ import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { AgentRow, ItemDetailResponse, Problem, Run, WorkspaceRow } from '@docket/shared';
+import type {
+  AgentRow,
+  ItemDetailResponse,
+  NeedsYouResponse,
+  Problem,
+  Run,
+  WorkspaceRow,
+} from '@docket/shared';
 import { AgentBar } from './items/AgentBar';
 import {
   ActiveRunsSection,
@@ -20,7 +27,7 @@ import {
   recentRows,
   stateFilter,
 } from './agents/RunsCard';
-import { AgentsStrip } from './needs-you/AgentsStrip';
+import { HealthCard } from './overview/HealthCard';
 import { ProblemsCard, reasonFacts, workspaceFor } from './needs-you/ProblemsCard';
 
 const NOW = Date.now();
@@ -259,7 +266,7 @@ describe('Agents in three sections (B20)', () => {
   it('filtered to one state, with Show all; the parked row says what it waits on', () => {
     wrap(<ActiveRunsSection rows={rows} only="parked" />);
     const sec = screen.getByRole('region', { name: 'Active now' });
-    expect(sec.querySelector('.sectog')!.textContent).toContain('1 parked');
+    expect(sec.querySelector('.sectog')!.textContent).toContain('1 parked run');
     expect(within(sec).getByRole('link', { name: 'Show all' }).getAttribute('href')).toBe(
       '/agents',
     );
@@ -285,22 +292,39 @@ describe('Agents in three sections (B20)', () => {
 
 // ---- Needs you ----
 
-describe('the Needs you strip (B20)', () => {
-  it('links each state count to Agents filtered to it, and workspaces at risk to Workspaces', () => {
-    wrap(<AgentsStrip counts={{ live: 2, parked: 1, finished: 4 }} atRisk={2} />);
-    const strip = screen.getByRole('navigation', { name: 'Agents' });
-    const links = within(strip).getAllByRole('link');
-    expect(links.map((l) => [l.textContent, l.getAttribute('href')])).toEqual([
-      ['live× 2', '/agents?state=live'],
-      ['parked× 1', '/agents?state=parked'],
-      ['2 workspaces at risk', '/agents#workspaces'],
-      ['All runs →', '/agents'],
-    ]);
+describe('Overview Health (B20, decision 43)', () => {
+  const needs = (over: Partial<NeedsYouResponse> = {}): NeedsYouResponse => ({
+    for_you_now: [],
+    problems: [],
+    deferred: [],
+    planning_queue: [],
+    agent_counts: { live: 2 },
+    ...over,
+  });
+  const at = (state: WorkspaceRow['state']) => ({ state }) as WorkspaceRow;
+
+  it('links workspaces at risk, proposals and all runs, and shows no raw run counts', () => {
+    wrap(
+      <HealthCard
+        data={needs({ agent_file_proposals: 2 })}
+        lastBackupAt={ago(60)}
+        metricsLoaded
+        workspaces={[at('at_risk'), at('at_risk')]}
+      />,
+    );
+    const health = document.querySelector('[data-card="health"]') as HTMLElement;
+    const href = (name: string) => within(health).getByRole('link', { name }).getAttribute('href');
+    expect(href('2 workspaces at risk')).toBe('/agents#workspaces');
+    expect(href('2 agent file changes proposed')).toBe('/agent-files#proposals');
+    expect(href('All runs →')).toBe('/agents');
+    expect(href('Last backup 1h ago')).toBe('/settings');
+    expect(health.textContent).not.toContain('live');
   });
 
-  it('shows no at-risk link at zero', () => {
-    wrap(<AgentsStrip counts={{}} atRisk={0} />);
-    expect(screen.getByText('No active runs')).toBeTruthy();
+  it('shows no at-risk link at zero, and says when no backup has run', () => {
+    wrap(<HealthCard data={needs()} lastBackupAt={null} metricsLoaded workspaces={[]} />);
+    expect(screen.getByText('No problems need you')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'No backup yet' })).toBeTruthy();
     expect(screen.queryByText(/at risk/)).toBeNull();
   });
 });

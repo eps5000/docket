@@ -190,6 +190,20 @@ Evidence from the Gameflow pilot, Nov 20-22 (GF-370). GF-269 and GF-270 still re
 
 BUILD_SPEC §5.16 and §5.23, MCP_SPEC §5.4 and UI_SPEC §6.3 and §6.7b have the details.
 
+## Owner decision 43 (2026-11-22): Overview replaces Needs you at `/`
+
+Needs you did two jobs: it listed what requires the owner, and it was the only place to see how the work was going. The owner should be able to open Docket and answer three questions in about ten seconds: are agents making progress, is anything stuck, and do I need to do anything? `docs/design/overview-page.md` is the design.
+
+1. **Overview is the home page,** for one project or All projects: four numbers (Completed, Agents, In flight, Needs you), the owner's actions, Health, completed per day, workload by epic, the Planning queue and Deferred reviews.
+2. **The owner's actions come first** and nothing is lost: every card and action from Needs you works here. The badge stays decision 41's shared count, and equals the owner actions on the page. With none, the section says "Nothing needs you" and the badge disappears.
+3. **Every number links** to the filtered view behind it. Long lists show a count and the top few, with *View all*.
+4. **Agents are counted by story, at producer level, never as raw runs,** so one story handed between small workers counts once. The sidebar's Agents badge is the same number as the Overview card's *working*, for the same project; waiting stories aren't in it. The Agents page still lists individual runs and says so. Problems agents own stay collapsed to one line.
+5. **The time window** is 24 hours, 7 days or 30 days, 7 days by default, remembered per browser, and compared with the preceding window of the same length.
+6. **No token use and no estimated metric,** because clients don't report tokens to Docket.
+7. **Insights have a place but aren't built.** Radar insights come later as proposals, and the page shows no empty placeholder for them.
+
+BUILD_SPEC §5.24, UI_SPEC §6.1 and spec FR-201–FR-205 have the details.
+
 ## Deferred choices
 
 Pilot project choice and Jira import strategy are deferred until V1 is ready for real work. Design should still settle the storage layout, supported document preview formats, the exact project gate configuration shape, and the minimum history needed before a velocity forecast is shown. These are implementation choices guided by the owner decisions above, not blockers to selecting a pilot now.

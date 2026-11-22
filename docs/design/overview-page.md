@@ -1,6 +1,6 @@
 # Design: the Overview page
 
-**Status:** direction agreed with the owner on 2026-11-22. Not built. Build after B49 and B50.
+**Status:** built in B51 (owner decision 43, 2026-11-22). BUILD_SPEC §5.24 and UI_SPEC §6.1 hold the exact definitions. Radar insights (below) are not built.
 
 ## Why
 

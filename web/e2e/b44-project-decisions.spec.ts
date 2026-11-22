@@ -69,7 +69,7 @@ const toast = (page: Page, text: string) => page.locator('.toast').filter({ hasT
 
 async function openNeedsYou(page: Page) {
   await page.goto('/');
-  await expect(page.getByRole('heading', { level: 1, name: 'Needs you' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Overview' })).toBeVisible();
 }
 
 test('a ticket and an epic list their own scopes, with one line for the project ones', async ({

@@ -52,6 +52,7 @@ A claim comes with a lease (60 minutes by default), and every signal from the ag
 
 ## Where you see them
 
-- **Needs you:** the Agents line counts each state; click a count to see those runs.
-- **Agents → Active now:** every open run, needs input first.
+- **Overview:** the Agents card counts stories being worked on and stories waiting, not individual runs. *All runs →* under Health opens the full list.
+- **Sidebar:** the number next to Agents is the stories being worked on in this project, the same as *working* on Overview.
+- **Agents → Active now:** every open run, needs input first. These are runs, not stories, so a story can have several.
 - **On a ticket:** the agent bar under the header, and **Activity → Lead and runs** for the full history.

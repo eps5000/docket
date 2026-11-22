@@ -18,6 +18,7 @@ import { depsRoutes } from './deps.js';
 import { diagnosticsRoutes, undoRoutes, uploadRoutes } from './diagnostics.js';
 import { importRoutes } from './import.js';
 import { onboardingRoutes } from './onboarding.js';
+import { overviewRoutes } from './overview.js';
 import { planningRoutes } from './planning.js';
 import { problemRoutes } from './problems.js';
 import { readRoutes } from './read.js';
@@ -33,6 +34,7 @@ import { timelineRoutes } from './timeline.js';
 export const API_ROUTES = {
   ...sessionRoutes,
   ...readRoutes,
+  ...overviewRoutes,
   ...reviewRoutes,
   ...depsRoutes,
   ...decisionsRoutes,

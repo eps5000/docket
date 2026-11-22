@@ -58,7 +58,8 @@ test('the sweep is clean on the seeded instance, at 1024 dark and 1440 light', a
   for (const view of ['1024 dark', '1440 light']) {
     const screens = report.results.filter((r) => r.view === view).map((r) => r.screen);
     for (const s of [
-      'Needs you',
+      'Overview',
+      'Overview list',
       'Work board',
       'Work list',
       'Work map',

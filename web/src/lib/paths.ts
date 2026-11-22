@@ -2,7 +2,7 @@
  * Client routes (UI_SPEC §2 "Routes"). Every link builds its URL here, so
  * the route table in app/router.tsx and the links can't drift.
  */
-import type { WORK_LAYOUTS } from '@docket/shared';
+import type { OverviewMetric, OverviewWindow, WORK_LAYOUTS } from '@docket/shared';
 
 export type WorkLayout = (typeof WORK_LAYOUTS)[number];
 export type ItemTab = 'details' | 'checklist' | 'deps' | 'map' | 'activity';
@@ -19,7 +19,12 @@ function withQuery(path: string, query: Record<string, string | number | undefin
 }
 
 export const paths = {
+  /** Overview (decision 43), which holds the Needs you section. */
+  overview: () => '/',
   needsYou: () => '/',
+  /** The list behind an Overview number that no Work filter can show. */
+  overviewList: (metric: OverviewMetric, window?: OverviewWindow) =>
+    withQuery(`/overview/${metric}`, { window }),
   work: (
     q: {
       layout?: WorkLayout;

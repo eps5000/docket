@@ -61,7 +61,7 @@ export function PacketScreen() {
   });
   useBreadcrumb({
     crumbs: [
-      { kind: 'link', text: 'Needs you', to: paths.needsYou() },
+      { kind: 'link', text: 'Overview', to: paths.overview() },
       { kind: 'current', text: `Human review · ${id}` },
     ],
   });

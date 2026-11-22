@@ -51,11 +51,11 @@ An agent problem reaches your **Problems** only when:
 - it's still open after a day ("Not fixed by an agent for a day"). Your admin can change the day with `DOCKET_AGENT_PROBLEM_GRACE_HOURS`; or
 - only you can decide: a parked run is waiting on a person, or the work is on a canceled or deferred item.
 
-Until then, Needs you shows **Agents are handling N problems** under Problems. Open it to see them, so nothing is hidden.
+Until then, Overview shows **Agents are handling N problems** under Health. Open it to see them, so nothing is hidden.
 
 **Your problems** (everything else) show at once.
 
-**The number on Needs you** in the sidebar is what you can act on in the current project: the cards plus your Problems. Problems agents are handling aren't counted, and with nothing for you there's no number.
+**The number on Overview** in the sidebar is what you can act on in the current project: the cards plus your Problems. Problems agents are handling aren't counted, and with nothing for you there's no number.
 
 **Overlaps** between two items follow the same idea: Docket runs safe ones in parallel, puts the rest in order, and shows you one quiet line, **Docket handled N overlaps today**. You get a card only when an overlap needs you. See [Shared changes and conflicts](/help/shared-changes-and-conflicts).
 

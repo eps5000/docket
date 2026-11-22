@@ -52,7 +52,7 @@ export function DeferredCard({ rows }: { rows: readonly DeferredRow[] }) {
           </div>
         ))
       )}
-      {rows.length > LOWER_CARD_ROWS && (
+      {rows.length > 0 && (
         <div className="cardfoot">
           <span />
           <Link to={paths.work({ has: 'deferred_review', show: 'done' })}>

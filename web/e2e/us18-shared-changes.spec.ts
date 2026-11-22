@@ -331,7 +331,7 @@ test('the item’s Shared changes: declaration, lease with Release lease, and a 
   // says so and opens it. The agent sees it in its context.
   await page.goto('/');
   await page
-    .locator('[data-card="problems"]')
+    .locator('[data-card="health"]')
     .getByRole('button', { name: 'Agents are handling 1 problem' })
     .click();
   const row = page.locator('[data-more-problems="agents"] [data-problem="radar_conflict"]');
@@ -341,7 +341,7 @@ test('the item’s Shared changes: declaration, lease with Release lease, and a 
   await expect(row).toContainText('An agent (the leads of RCP-17 and RCP-25)');
   await settle(page);
   await expectAxeClean(page, 'Needs you, a radar finding in Problems');
-  await shoot(page, 'radar-finding', page.locator('[data-card="problems"]'));
+  await shoot(page, 'radar-finding', page.locator('[data-card="health"]'));
   const ctx = await codex.call('get_context', { id: 'RCP-17' });
   expect(ctx.text).toContain('conflict ahead with RCP-25 (feat/a vs feat/b) · 1 file · shared.txt');
 });

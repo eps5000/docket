@@ -9,8 +9,8 @@
  * article that says it links from a screen that has no "?".
  */
 export const HELP_ANCHORS = {
-  'needs-you.page': 'Needs you: next to the h1',
-  'needs-you.agents-strip': 'Needs you: the Agents strip',
+  'needs-you.page': 'Overview: next to the h1',
+  'needs-you.agents-strip': 'Overview: the Agents card',
   'needs-you.for-you': 'Needs you: For you now',
   'problems.stale_run': 'Problems row: stale run',
   'problems.failed_run': 'Problems row: failed run',
@@ -27,8 +27,7 @@ export const HELP_ANCHORS = {
   'problems.agent_files_drift': 'Problems row: agent files changed outside Docket',
   'problems.radar_conflict': 'Problems row: heading for a merge conflict (decision 36)',
   'needs-you.shared-questions': 'Needs you: overlap and undeclared-changes cards (decision 36)',
-  'needs-you.agent-problems':
-    'Needs you → Problems: "Agents are handling N problems" (decision 37)',
+  'needs-you.agent-problems': 'Overview → Health: "Agents are handling N problems" (decision 37)',
   'needs-you.resolutions': 'Needs you: a proposed resolution card (decision 37)',
   'item.problem-banner': 'Ticket: the problem banner (decision 37)',
   'item.shared-changes': 'Ticket → Details → Shared changes (decision 36)',

@@ -30,7 +30,7 @@ useSeededContainer();
 const nav = (page: Page) => page.getByRole('navigation', { name: 'Primary' });
 const h1 = (page: Page) => page.getByRole('heading', { level: 1 });
 const openTabs = (page: Page) => page.getByRole('navigation', { name: 'Open items' });
-/** A sidebar link by its label; badges ("3 for you", "5 active runs") follow it in the name. */
+/** A sidebar link by its label; badges ("3 for you", "2 stories being worked on") follow it in the name. */
 const navLink = (page: Page, name: string) =>
   nav(page).getByRole('link', { name: new RegExp(`^${name}(\\s|$)`) });
 /** A view tab by its label; counts and dots follow it in the name. */
@@ -77,7 +77,7 @@ test.describe('shell navigation', () => {
       ['Work', '/work', 'Work'],
       ['Agents', '/agents', 'Agents'],
       ['Settings', '/settings', 'Settings'],
-      ['Needs you', '/', 'Needs you'],
+      ['Overview', '/', 'Overview'],
     ] as const) {
       await navLink(page, name).click();
       await expect(page).toHaveURL(new RegExp(`${path === '/' ? '/' : path}$`));
@@ -104,7 +104,8 @@ test.describe('shell navigation', () => {
       ['Timeline (Work)', /\/work\?layout=timeline$/, 'Work'],
       ['Agents', /\/agents$/, 'Agents'],
       ['Settings: projects and connections', /\/settings$/, 'Settings'],
-      ['Needs you', /\/$/, 'Needs you'],
+      ['Overview', /\/$/, 'Overview'],
+      ['Needs you', /\/#needs-you$/, 'Overview'],
     ] as const) {
       await openPalette(page);
       await page.getByRole('option', { name: label, exact: true }).click();
@@ -126,8 +127,8 @@ test.describe('shell navigation', () => {
     await page.getByRole('link', { name: 'Open packet' }).click();
     await expect(page).toHaveURL(/\/review\/RCP-12$/);
     await expect(h1(page)).toHaveText('Human review');
-    // The packet keeps Needs you as the active nav item.
-    await expect(navLink(page, 'Needs you')).toHaveAttribute('aria-current', 'page');
+    // The packet keeps Overview as the active nav item.
+    await expect(navLink(page, 'Overview')).toHaveAttribute('aria-current', 'page');
 
     await openPalette(page);
     await search(page, 'rcp');
@@ -267,7 +268,7 @@ test.describe('shell navigation', () => {
     const box = await nav(page).boundingBox();
     expect(Math.round(box!.width)).toBe(64);
     // Labels leave the rail visually (1px, clipped) but still name the links.
-    const label = await nav(page).getByText('Needs you', { exact: true }).boundingBox();
+    const label = await nav(page).getByText('Overview', { exact: true }).boundingBox();
     expect(label!.width).toBeLessThanOrEqual(1);
     await expect(nav(page).getByRole('link', { name: 'Work', exact: true })).toBeVisible();
     await expectAxeClean(page, 'rail (1100px)');
@@ -280,7 +281,7 @@ test.describe('axe: every shell in both themes', () => {
   });
 
   for (const [label, path] of [
-    ['Needs you', '/'],
+    ['Overview', '/'],
     ['Work board', '/work'],
     ['Work list', '/work?layout=list'],
     ['Work map', '/work?layout=map'],
@@ -344,18 +345,13 @@ test.describe('axe: every shell in both themes', () => {
     await mockGet(page, '/api/settings', emptySettings);
 
     await page.goto('/');
-    await expect(page.getByText('No active runs')).toBeVisible();
-    await expect(
-      page.getByText('Nothing to verify. Agents will hand off when work is built.'),
-    ).toBeVisible();
-    await expect(
-      page.getByText('No stale or failed runs, cycles or date conflicts.'),
-    ).toBeVisible();
+    await expect(page.getByText('Nothing needs you')).toBeVisible();
+    await expect(page.getByText('No problems need you')).toBeVisible();
     await expect(page.getByText('Nothing deferred.')).toBeVisible();
     await expect(page.getByText('Nothing in Planning.')).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'For you now · 0' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Problems · 0' })).toBeVisible();
-    await expectAxeClean(page, 'Needs you (empty)');
+    await expect(page.getByRole('heading', { name: /^For you now/ })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: /^Problems · / })).toHaveCount(0);
+    await expectAxeClean(page, 'Overview (empty)');
 
     await page.goto('/work?layout=list');
     await expect(page.getByText('No items match.')).toBeVisible();

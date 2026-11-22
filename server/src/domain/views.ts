@@ -87,6 +87,7 @@ import {
   type RecoveryRoute,
 } from './problems.js';
 import { inScopeOf, ofScope, projectReviews } from './decisions.js';
+import { agentsNow, overviewItemsOf, overviewOf } from './overview.js';
 import {
   BlockIndex,
   EVENT_COLUMNS,
@@ -1124,6 +1125,22 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
     }
   }
 
+  /** Decision 43: the newest successful backup at any location. */
+  function lastBackupAt(r: ReadContext): string | null {
+    try {
+      const times = deps
+        .services()
+        .backup.status(r)
+        .map((b) => b.last_success_at)
+        .filter((t): t is string => t !== null)
+        .sort();
+      return times.at(-1) ?? null;
+    } catch (err) {
+      if (isNotImplemented(err)) return null;
+      throw err;
+    }
+  }
+
   function attention(s: Scoped) {
     const ids = [...s.items.keys()];
     return { packets: openPackets(s.db, ids), questions: openQuestions(s.db, ids) };
@@ -1228,6 +1245,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         planning,
       ),
       agent_counts: runCounts(s, runs),
+      agents_now: agentsNow(s),
       agent_file_proposals: pendingProposalCount(r.db, scope),
       // Decision 31: each onboarding ready for review is one card (and counts as for you).
       onboarding_reviews: readySessions(r.db, scope),
@@ -1295,6 +1313,17 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
 
     needsYou(r, input) {
       return needsYou(r, input.scope);
+    },
+
+    overview(r, input) {
+      return overviewOf(scoped(r, windows(), input.scope), input.window, {
+        tz: deps.config.tz,
+        lastBackupAt: lastBackupAt(r),
+      });
+    },
+
+    overviewItems(r, input) {
+      return overviewItemsOf(scoped(r, windows(), input.scope), input.metric, input.window);
     },
 
     findProblem(r, id): FoundProblem | null {

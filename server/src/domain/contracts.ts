@@ -81,6 +81,8 @@ import {
   type JiraImport,
   type LabelPageResponse,
   type NeedsYouResponse,
+  type OverviewItemsResponse,
+  type OverviewResponse,
   type OnboardingListResponse,
   type OnboardingSession,
   type OnboardPromptArgs,
@@ -818,6 +820,10 @@ export interface SearchService {
 export interface ViewsService {
   bootstrap(r: ReadContext): BootstrapResponse;
   needsYou(r: ReadContext, input: RouteQuery<'needsYou.get'>): NeedsYouResponse;
+  /** Decision 43: the Overview metrics for a project or All projects, over a time window. */
+  overview(r: ReadContext, input: RouteQuery<'overview.get'>): OverviewResponse;
+  /** Decision 43: the tickets behind an Overview number that no Work filter can show. */
+  overviewItems(r: ReadContext, input: RouteQuery<'overview.items'>): OverviewItemsResponse;
   /** Board, list and map. For `layout=timeline` the `timeline` section comes from `forecast.timeline`. */
   work(r: ReadContext, input: RouteQuery<'work.get'>): WorkResponse;
   itemDetail(r: ReadContext, input: RouteParams<'items.get'>): ItemDetailResponse;

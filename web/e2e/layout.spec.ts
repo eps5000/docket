@@ -28,7 +28,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 const SCREENS: [string, string][] = [
-  ['Needs you', '/'],
+  ['Overview', '/'],
   ['Work board', '/work'],
   ['Work list', '/work?layout=list'],
   ['Work map', '/work?layout=map'],
@@ -44,7 +44,7 @@ const SCREENS: [string, string][] = [
 
 /** The stress project's screens (B35), opened in its scope. */
 const STRESS_SCREENS: [string, string][] = [
-  ['Needs you', '/'],
+  ['Overview', '/'],
   ['Work board', '/work'],
   ['Work list', '/work?layout=list'],
   ['Work map', '/work?layout=map'],

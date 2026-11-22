@@ -168,7 +168,7 @@ test('two add-only branches at the same line: both keep working, with a merge or
   expect(earlier.text).toContain('you merge first');
 
   await page.goto('/');
-  await expect(page.getByRole('heading', { level: 1, name: 'Needs you' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Overview' })).toBeVisible();
   await expect(page.locator('[data-card="shared-questions"] [data-overlap]')).toHaveCount(0);
   const line = page.locator('[data-card="overlaps-handled"]');
   await expect(line.locator('summary')).toHaveText(/Docket handled \d+ overlaps? today/);

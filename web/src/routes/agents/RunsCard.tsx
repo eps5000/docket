@@ -143,7 +143,7 @@ export function RunsTable({ rows, label }: { rows: readonly AgentRow[]; label: s
 
 /**
  * Active now (B20): needs input, failed, stale, parked, live, reported. With
- * `?state=` (the Needs you strip's links) only that state, with *Show all*.
+ * `?state=` only that state, with *Show all*.
  * Empty: "No runs yet. Connect an agent from Settings." when nothing has ever
  * run, else "No active runs."
  */
@@ -161,7 +161,7 @@ export function ActiveRunsSection({
     <Section
       sectionKey="agents-active"
       title="Active now"
-      summary={label ? `${active.length} ${label}` : String(active.length)}
+      summary={`${active.length} ${label ? `${label} ` : ''}${active.length === 1 ? 'run' : 'runs'}`}
       extraHead={
         <>
           {only && (

@@ -25,7 +25,7 @@ test.describe('smoke', () => {
   }) => {
     await page.goto('/unlock?next=%2Fagents');
     await expect(page).toHaveURL(/\/$/);
-    await expect(page.getByRole('heading', { level: 1, name: 'Needs you' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Overview' })).toBeVisible();
     await page.goto('/work?layout=list');
     await expect(page).toHaveURL(/\/work\?layout=list$/);
     await expect(page.getByRole('heading', { level: 1, name: 'Unlock Docket' })).toHaveCount(0);

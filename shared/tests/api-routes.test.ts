@@ -58,6 +58,8 @@ const EXPECTED = [
   'POST /api/session/rotate-key',
   'GET /api/bootstrap',
   'GET /api/needs-you',
+  'GET /api/overview',
+  'GET /api/overview/items',
   'GET /api/work',
   'GET /api/burndown',
   'GET /api/items/:id',
@@ -176,7 +178,7 @@ describe('the route table', () => {
     const labels = ROUTE_IDS.map((id) => routeLabel(API_ROUTES[id]));
     expect(new Set(labels).size).toBe(labels.length);
     expect([...labels].sort()).toEqual([...EXPECTED].sort());
-    expect(labels).toHaveLength(98);
+    expect(labels).toHaveLength(100);
   });
 
   it('puts each route in a known group, and every group has a route', () => {
