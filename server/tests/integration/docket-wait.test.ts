@@ -79,7 +79,9 @@ function runWait(shell: Shell, args: string[], env: Record<string, string | unde
           join(dir, 'docket-wait.ps1'),
           ...args,
         ];
-  const { DOCKET_TOKEN: _token, DOCKET_URL: _url, ...base } = process.env;
+  const base = { ...process.env };
+  delete base.DOCKET_TOKEN;
+  delete base.DOCKET_URL;
   return new Promise<{ code: number | null; out: string; err: string }>((resolve) => {
     const child = spawn(exe, argv, { env: { ...base, ...env } });
     let out = '';
