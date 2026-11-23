@@ -407,7 +407,7 @@ test.describe('Install and check (US13)', () => {
     // Decision 50: no user-wide action; All projects asks which project.
     await expect(page.getByRole('button', { name: /user-wide/i })).toHaveCount(0);
     const choose = page.locator('[data-install-choose]');
-    await choose.getByLabel('Project').selectOption({ label: 'Recipe App' });
+    await choose.getByLabel('Project', { exact: true }).selectOption({ label: 'Recipe App' });
     await choose.getByRole('button', { name: 'Install into its repo' }).click();
     const d = dialog(page, 'Install into Recipe App’s repo');
     await expect(d.getByLabel(/Repo folder/)).toBeVisible();

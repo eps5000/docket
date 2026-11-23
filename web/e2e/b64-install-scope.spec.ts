@@ -86,7 +86,7 @@ test.describe('Installs stay in scope (decision 50)', () => {
     await page.goto('/agent-files?project=all');
     const card = overviewCard(page);
     await expect(card).toContainText('Nothing is installed yet. Choose a project');
-    await expect(card.getByLabel('Project')).toBeVisible();
+    await expect(card.getByLabel('Project', { exact: true })).toBeVisible();
     await expect(card.getByRole('button', { name: 'Install into its repo' })).toBeVisible();
     await expect(page.getByRole('button', { name: /user-wide/i })).toHaveCount(0);
     await card.scrollIntoViewIfNeeded();
