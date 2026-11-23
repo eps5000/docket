@@ -32,7 +32,7 @@ Start here. In about ten seconds it tells you whether agents are making progress
 
 - **Completed:** tickets that reached Done in this period and are still Done, compared with the period before. Epics, canceled tickets and items imported as Done don't count, and a reopened ticket drops out.
 - **Tickets with agents:** tickets being worked now, and tickets whose agent is parked or waiting on something named. A ticket counts once, however many workers or child runs it has. This counts tickets in Docket, not agent sessions. Orca can show more sessions, because coordinators and helpers don't each hold a ticket.
-- **In flight:** open tickets in In progress or Review, and how many open tickets are blocked.
+- **In flight:** open tickets in In progress or Review, how many open tickets are blocked, and how many Ready tickets can really start. That last link opens Work's **Startable** view.
 - **Needs you:** how many things are waiting on you.
 
 **Needs you** lists every one of those things. When there are none, it says "Nothing needs you":

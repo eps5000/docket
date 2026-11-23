@@ -94,7 +94,7 @@ Each choice reaches the agent as a note from you, and in its context. Each also 
 | Parked a long time | Your coordinator first | Check it's still waiting for something real; resume it or release its claim. |
 | Ready to resume, unattended | You or your coordinator | Ask your coordinator to resume it. |
 | Waiting, with no next step | Your coordinator first | A parked story waits on a ticket nobody is moving. Dispatch the ticket, or shape it or assign it. This holds nothing. |
-| Waiting on a decision nobody asked for | Your coordinator first | The coordinator asks you a real question. If it reaches you, no agent is there to ask: record your decision on the ticket, or start a coordinator. |
+| Waiting on a decision nobody asked for | Your coordinator first | Its text says your decision is still needed, and nobody has asked. The coordinator asks you a real question. If it reaches you, no agent is there to ask: record your decision on the ticket, or start a coordinator. A ticket that is only waiting on a person doesn't raise this. |
 | Left running after its run ended | You or your coordinator | Stop it, then **Mark released**. See [Workspace states](/help/workspaces-and-pruning). |
 | Work left in a worktree | Its lead or coordinator first | They commit and push it, or say it can go. If it reaches you: ask an agent to push it, or choose **Keep for later** or **Safe to discard**. On a canceled item, there's nothing to push: keep it or let it go. See [Crash recovery](/help/crash-recovery). |
 | Dependency cycle | You | Remove one link. See [Blockers and dependencies](/help/blockers-and-dependencies). |

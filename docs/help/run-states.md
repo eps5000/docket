@@ -66,3 +66,7 @@ A claim comes with a lease (60 minutes by default), and every signal from the ag
 
 **Why Orca can show more.** These numbers count tickets in Docket, not agent sessions. Orca can show more sessions, because coordinators and helpers don't each hold a ticket. A worker can also be busy while its ticket's lead is parked, so "0 being worked" doesn't mean nothing is running.
 - **On a ticket:** the agent bar under the header, and **Activity → Lead and runs** for the full history.
+
+## Held by your decision
+
+When an agent parks a ticket and cites a decision you recorded, the ticket says **Held by your decision**, with a link to it. It stays parked without raising alerts or coming back to you. Withdraw or replace the decision to lift it. The usual waiting clocks then start from that moment, so lifting a pause doesn't set off a wall of alerts. An agent's own decision doesn't do this.

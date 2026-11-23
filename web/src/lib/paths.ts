@@ -30,8 +30,8 @@ export const paths = {
       layout?: WorkLayout;
       epic?: string;
       label?: string;
-      /** B43: the quick filter (`blocked`, `progress`; Active when omitted). */
-      quick?: 'active' | 'blocked' | 'progress';
+      /** B43: the quick filter (Active when omitted); decision 48 adds Startable and Waiting. */
+      quick?: 'active' | 'startable' | 'waiting' | 'blocked' | 'progress';
       /** B43: ticked checks, comma-separated (`for_you,live_run`). */
       has?: string;
       /** B43: `done`, `canceled` or both, comma-separated. */

@@ -11,7 +11,9 @@
  *   without touching its parent. Runs are never shown as finished unless the
  *   agent finished them (FR-016).
  * - **Lease expiry,** every `sweepMs`: an expired lead run is `interrupted`
- *   (`lease_expired`) and its item goes back to Ready with its plan kept.
+ *   (`lease_expired`) and its item goes back to Ready with its plan kept. A
+ *   part lease past its stored expiry ends as `expired`, even with a parked
+ *   holder, with one `lease.ended` naming the holder's coordinator (decision 48).
  * - **Pings,** every `pingMs` (60 s): each open run whose MCP session has
  *   an open `GET` stream is pinged; an answered ping is a *session* signal.
  *   A session without a stream can't be pinged, so its run can only show
@@ -41,6 +43,7 @@
  * those signals and leases current.
  */
 import { readContext } from '../domain/contracts.js';
+import { agingFrom, decisionHold, heldByOwner } from '../domain/decision-hold.js';
 import { ms } from '../domain/model.js';
 import type { RunRow } from '../domain/model.js';
 import { orphans, parkInfo } from '../domain/recovery-model.js';
@@ -60,7 +63,7 @@ import {
   planWaitCheck,
   storeWaitBookkeeping,
 } from '../domain/wait.js';
-import { classifyLegacyOverlaps } from '../domain/shared-changes.js';
+import { classifyLegacyOverlaps, expirePartLeases } from '../domain/shared-changes.js';
 import { checkProjectWorktrees } from '../domain/worktree-check.js';
 import { SYSTEM_ACTOR } from '../domain/write.js';
 import type { Runtime } from '../runtime.js';
@@ -106,6 +109,8 @@ export function sweepOnce(runtime: Runtime): {
   returned: string[];
   /** Decision 44: coordinator parks past their deadline, back on a short lease. */
   unparked: string[];
+  /** Decision 48: part leases past their stored expiry, now ended. */
+  part_leases: string[];
 } {
   return runtime.write.run({ actor: SYSTEM_ACTOR, operation: 'sweeper.leases', args: {} }, (w) => {
     // First: a run coming off a park has a fresh lease, so this sweep can't end it.
@@ -113,7 +118,8 @@ export function sweepOnce(runtime: Runtime): {
     const { interrupted } = runtime.services.runs.expireLeases(w);
     const { ended } = runtime.services.runs.endSilentChildren(w);
     const { returned } = runtime.services.runs.expireProducerHolds(w);
-    return { interrupted, children: ended, returned, unparked };
+    const { ended: part_leases } = expirePartLeases(w);
+    return { interrupted, children: ended, returned, unparked, part_leases };
   }).result;
 }
 
@@ -237,7 +243,9 @@ export function recoveryFlags(runtime: Runtime): Map<string, string> {
           `${run.item_id} (${run.id}) is ready to resume, unattended`,
         );
     }
-    if (ms(now) - ms(since) >= config.parkMaxMs)
+    // Decision 48: an owner's decision holds it, and aging restarts when the owner lifts it.
+    const hold = decisionHold(db, run);
+    if (!heldByOwner(hold) && ms(now) - ms(agingFrom(since, hold)) >= config.parkMaxMs)
       flags.set(`parked_too_long:${run.id}`, `${run.item_id} (${run.id}) is parked too long`);
   }
   for (const o of orphans(db, now, config.orphanAfterMs)) {
@@ -302,7 +310,7 @@ export function startSweeper(
   const seen = new Set<string>();
   const sweep = setInterval(() => {
     try {
-      const { interrupted, children, returned, unparked } = sweepOnce(runtime);
+      const { interrupted, children, returned, unparked, part_leases } = sweepOnce(runtime);
       if (unparked.length > 0)
         runtime.log(`sweeper: coordinator park ran out for ${unparked.join(', ')}`);
       if (interrupted.length > 0)
@@ -311,6 +319,8 @@ export function startSweeper(
         runtime.log(`sweeper: no signal after the restart from ${children.join(', ')}`);
       if (returned.length > 0)
         runtime.log(`sweeper: producer hold ran out on ${returned.join(', ')}`);
+      if (part_leases.length > 0)
+        runtime.log(`sweeper: part lease expired: ${part_leases.join(', ')}`);
     } catch (err) {
       report('lease sweep', err);
     }

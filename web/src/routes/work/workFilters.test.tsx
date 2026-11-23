@@ -105,7 +105,7 @@ describe('the remembered choice (localStorage, per project)', () => {
 });
 
 const counts = (archived = 0): WorkResponse['filter_counts'] => ({
-  quick: { active: 9, blocked: 2, progress: 3 },
+  quick: { active: 9, startable: 1, waiting: 1, blocked: 2, progress: 3 },
   has: {
     for_you: 3,
     human_review_later: 1,

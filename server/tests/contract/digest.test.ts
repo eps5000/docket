@@ -127,6 +127,20 @@ describe('get_digest', () => {
       project: 'STR',
       cursor: '999999',
       since: null,
+      next_work: many(
+        { id: 'STR-1000', title: long, priority: 1, unlocks: 99, reason: long },
+        DIGEST_CAPS.next_work,
+      ),
+      bottlenecks: many(
+        {
+          id: 'STR-1000',
+          title: long,
+          status: 'planning' as const,
+          unlocks: 99,
+          next: 'shape it or assign it',
+        },
+        DIGEST_CAPS.bottlenecks,
+      ),
       ready: many({ id: 'STR-1000', title: long, priority: 1, unblocks: 99 }, DIGEST_CAPS.ready),
       runs: many(
         {

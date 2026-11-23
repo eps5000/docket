@@ -21,7 +21,8 @@ import {
 } from '@docket/shared';
 import { activityText } from '@docket/shared';
 import type { ReadContext, ServiceDeps } from './contracts.js';
-import { getRun } from './model.js';
+import { BlockIndex, getRun } from './model.js';
+import { nextWorkOf } from './next-work.js';
 import { WaitReader, digestWait } from './wait.js';
 
 export interface DigestService {
@@ -171,7 +172,10 @@ export function createDigestService(deps: ServiceDeps): DigestService {
       const touched = new Set(events.flatMap((e) => (e.item_id ? [e.item_id] : [])));
       const keep = (id: string | null) => since === null || (id !== null && touched.has(id));
 
-      const ready = allOf(deps, r, input.project, 'ready_to_start').filter((x) => keep(x.id));
+      const startable = allOf(deps, r, input.project, 'ready_to_start');
+      const ready = startable.filter((x) => keep(x.id));
+      // Decision 48: what to start next, and the unowned tickets holding work up.
+      const ranked = nextWorkOf(r.db, new BlockIndex(r.db), input.project, startable, r.now);
       const blocked = allOf(deps, r, input.project, 'blocked')
         .filter((x) => keep(x.id))
         .sort(
@@ -266,6 +270,14 @@ export function createDigestService(deps: ServiceDeps): DigestService {
         project: input.project,
         cursor: String(latest),
         since: since === null ? null : String(since),
+        next_work: section(
+          ranked.next_work.filter((x) => keep(x.id)),
+          DIGEST_CAPS.next_work,
+        ),
+        bottlenecks: section(
+          ranked.bottlenecks.filter((x) => keep(x.id)),
+          DIGEST_CAPS.bottlenecks,
+        ),
         ready: section(
           ready.map((x) => ({
             id: x.id,

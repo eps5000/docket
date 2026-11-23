@@ -623,6 +623,15 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T247 [US6] `docket-worker`, `docket-coordinator`, `docket-lead-subagents` and the MCP instructions: check first, decide what you can, ask only what needs the owner, write for someone who has not seen the work.
 - [x] T248 [US6] Tests: contract, limits, guard, old shape, delivery, the dialog by mouse and keyboard, older questions, token budgets, e2e and axe in both themes.
 
+## Phase 37: Truthful waits, expired leases and a true Ready (owner decision 48, B58)
+
+- [x] T249 [US18] Spec plus code in one PR: decision 48 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.21, §5.26 and §5.29; MCP_SPEC §5.2; UI_SPEC §6.1 and §6.2; spec FR-230–FR-235; Help and the coordinator skill.
+- [x] T250 [US18] Waits: a bare person wait is never an unasked decision, a cited active decision settles a wait, and `WaitCard.held_by` carries an active owner decision.
+- [x] T251 [US18] An owner-held run doesn't escalate or get told to resume; lifting the decision restarts aging; existing false flags clear once.
+- [x] T252 [US18] The sweeper ends expired part leases, parked holders included, with one `lease.ended` naming the coordinator.
+- [x] T253 [US18] Startable and Waiting on Work's board, filters and counts; ranked `next_work` and `bottlenecks` in `get_digest`; Overview's link.
+- [x] T254 [US18] Tests and replays with synthetic text, token budgets, unit and e2e on CI, and evidence at 1440 x 900 and 1024 px in both themes.
+
 ## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.
