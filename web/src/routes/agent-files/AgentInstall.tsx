@@ -1001,7 +1001,7 @@ function InstallLogRow({ row }: { row: InstallRow }) {
             size="sm"
             onClick={() => void markRemoved()}
             disabled={marking}
-            aria-label={`Mark ${uninstallName} as removed`}
+            aria-label={`Mark as removed: ${uninstallName}`}
           >
             {marking ? 'Working…' : 'Mark as removed'}
           </Button>

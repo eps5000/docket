@@ -207,7 +207,7 @@ export function UninstallButton({
         size="sm"
         variant="ghost"
         onClick={() => setOpen(true)}
-        aria-label={`Uninstall ${name}`}
+        aria-label={`${again ? 'Uninstall again' : 'Uninstall'} ${name}`}
       >
         {again ? 'Uninstall again' : 'Uninstall'}
       </Button>

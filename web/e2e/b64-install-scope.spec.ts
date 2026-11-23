@@ -149,7 +149,7 @@ test.describe('Installs stay in scope (decision 50)', () => {
   test('4. Mark as removed on a legacy row, with Undo', async ({ ownerPage: page }) => {
     await page.goto('/agent-files?project=all');
     const row = page.locator(`[data-install-row="${LEGACY}"]`);
-    await row.getByRole('button', { name: /^Mark .* as removed$/ }).click();
+    await row.getByRole('button', { name: /^Mark as removed/ }).click();
     await expect(row).toHaveAttribute('data-removed', 'true');
     await expect(row).toContainText('You marked this as removed outside Docket');
     await expect(row).toBeFocused();
@@ -159,7 +159,7 @@ test.describe('Installs stay in scope (decision 50)', () => {
     });
     await page.locator('.toast').getByRole('button', { name: 'Undo' }).click();
     await expect(row).not.toHaveAttribute('data-removed', 'true');
-    await expect(row.getByRole('button', { name: /^Mark .* as removed$/ })).toBeVisible();
+    await expect(row.getByRole('button', { name: /^Mark as removed/ })).toBeVisible();
   });
 
   test('5. Uninstall: the rules, then a reviewable command', async ({ ownerPage: page }) => {
