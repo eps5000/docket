@@ -41,6 +41,11 @@ export function readRoutes<E extends Env>(api: Hono<E>, deps: RouteDeps): void {
     services.views.itemDetail(read, params),
   );
 
+  // Decision 48: the longest chain of open blockers to a goal.
+  defineRoute(api, 'items.criticalPath', deps, ({ services, read, params }) =>
+    services.subgraph.criticalPath(read, params),
+  );
+
   defineRoute(api, 'agents.list', deps, ({ services, read, query }) =>
     services.views.agents(read, query),
   );

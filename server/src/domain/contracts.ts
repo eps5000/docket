@@ -45,6 +45,8 @@ import {
   type Check,
   type CreateInstallResponse,
   type ContextBundle,
+  type CriticalPathResponse,
+  type WorktreeCleanupResponse,
   type ContextShared,
   type ItemSharedResponse,
   type LeaseRow,
@@ -383,6 +385,15 @@ export interface RecoveryService {
   itemResume(r: ReadContext, input: { item_id: string }): ItemResume | null;
   /** `GET /api/workspaces`: Agents → Workspaces. */
   workspaces(r: ReadContext, input: RouteQuery<'workspaces.list'>): WorkspacesResponse;
+  /**
+   * `GET /api/workspaces/cleanup` (decision 48): every worktree of the project's
+   * repository with a verdict. Starts a background read when the last is old.
+   */
+  worktreeCleanup(r: ReadContext, input: RouteQuery<'workspaces.cleanup'>): WorktreeCleanupResponse;
+  /** Resolves when the project's running worktree read has ended. */
+  worktreeScanSettled(project: string): Promise<void>;
+  /** Stop running worktree reads, before the database closes. */
+  stopWorktreeScans(): Promise<void>;
   /** *Mark released* on an orphaned resource (owner; event `resource.released`). */
   ownerReleaseResource(
     w: WriteContext,
@@ -868,6 +879,8 @@ export interface SubgraphService {
   dependencySubgraph(r: ReadContext, input: In<'dependency_subgraph'>): Out<'dependency_subgraph'>;
   /** Cycles (SCCs larger than one node), computed on read. */
   cycles(r: ReadContext, input: { project?: string }): string[][];
+  /** Decision 48: the longest chain of open blockers to a goal, and the ticket to move next. */
+  criticalPath(r: ReadContext, input: { id: string }): CriticalPathResponse;
 }
 
 /** Decision records (§5.14): authority from the actor; owner records are authoritative. */

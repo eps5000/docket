@@ -33,45 +33,66 @@ import {
   type WorktreeCheck,
 } from './recovery-model.js';
 
-const samePath = (a: string, b: string) => pathKey(a).toLowerCase() === pathKey(b).toLowerCase();
+const samePath = (a: string, b: string) => treeKey(a) === treeKey(b);
 
-interface Tree {
+export interface Tree {
   path: string;
   head: string | null;
+  /** Short branch name; null on a detached HEAD. */
+  branch: string | null;
+  /** `git worktree lock` was used on it. */
+  locked: boolean;
+  bare: boolean;
 }
 
 /** `git worktree list --porcelain`; the main worktree comes first. */
-async function listTrees(dir: string, signal?: AbortSignal): Promise<Tree[]> {
+export async function listTrees(dir: string, signal?: AbortSignal): Promise<Tree[]> {
   const r = known(await git(dir, ['worktree', 'list', '--porcelain'], {}, signal));
   if (r.status !== 0) return [];
   const out: Tree[] = [];
   for (const line of r.stdout.split('\n')) {
-    if (line.startsWith('worktree ')) out.push({ path: line.slice(9).trim(), head: null });
-    else if (line.startsWith('HEAD ') && out.length > 0) {
-      out[out.length - 1]!.head = line.slice(5).trim();
+    if (line.startsWith('worktree ')) {
+      out.push({
+        path: line.slice(9).trim(),
+        head: null,
+        branch: null,
+        locked: false,
+        bare: false,
+      });
+      continue;
     }
+    const tree = out[out.length - 1];
+    if (!tree) continue;
+    if (line.startsWith('HEAD ')) tree.head = line.slice(5).trim();
+    else if (line.startsWith('branch refs/heads/')) tree.branch = line.slice(18).trim();
+    else if (line === 'locked' || line.startsWith('locked ')) tree.locked = true;
+    else if (line === 'bare') tree.bare = true;
   }
   return out;
 }
 
-/** The admin folder (`.git/worktrees/<name>`) of the linked worktree at `path`. */
-async function adminDir(common: string, path: string): Promise<string | null> {
+/** How two spellings of one worktree path compare. */
+export const treeKey = (path: string) => pathKey(path).toLowerCase();
+
+/** Every linked worktree's admin folder (`.git/worktrees/<name>`), by `treeKey`. */
+export async function adminDirs(common: string): Promise<Map<string, string>> {
   const base = join(common, 'worktrees');
+  const out = new Map<string, string>();
   let names: string[];
   try {
     names = await readdir(base);
   } catch {
-    return null;
+    return out;
   }
   for (const name of names) {
     try {
       const gitFile = (await readFile(join(base, name, 'gitdir'), 'utf8')).trim();
-      if (samePath(dirname(gitFile), path)) return join(base, name);
+      out.set(treeKey(dirname(gitFile)), join(base, name));
     } catch {
       // A broken entry is another worktree's problem.
     }
   }
-  return null;
+  return out;
 }
 
 /**
@@ -121,8 +142,20 @@ async function uncommittedFiles(
   } catch {
     return null;
   }
-  const gitDir = tree === trees[0] ? common : await adminDir(common, tree.path);
+  const gitDir = tree === trees[0] ? common : (await adminDirs(common)).get(treeKey(tree.path));
   if (!gitDir) return null;
+  return statusCount(folder, gitDir, signal);
+}
+
+/**
+ * How many files `git status` lists for the worktree at `folder`, whose admin
+ * folder is `gitDir`; null when it can't be read. Throws `GitUnknown` on no answer.
+ */
+export async function statusCount(
+  folder: string,
+  gitDir: string,
+  signal?: AbortSignal,
+): Promise<number | null> {
   const env = { GIT_DIR: gitDir, GIT_WORK_TREE: folder };
   const off = await filtersOff(folder, env, signal);
   if (!off) return null;
@@ -152,7 +185,7 @@ async function uncommittedFiles(
 }
 
 /** The main branch's refs that exist, local and origin's. */
-async function mainRefs(dir: string, main: string, signal?: AbortSignal): Promise<string[]> {
+export async function mainRefs(dir: string, main: string, signal?: AbortSignal): Promise<string[]> {
   if (!validBranch(main)) return [];
   const out: string[] = [];
   for (const ref of [`refs/heads/${main}`, `refs/remotes/origin/${main}`]) {

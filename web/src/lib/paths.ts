@@ -41,6 +41,8 @@ export const paths = {
       /** The onboarding review card's links (decision 31; B30): one session's items. */
       onboarding?: string;
       onboarding_change?: 'created' | 'enriched';
+      /** Decision 48: the Map's goal, whose critical path it highlights. */
+      goal?: string;
     } = {},
   ) => withQuery('/work', q),
   /**
@@ -49,6 +51,11 @@ export const paths = {
    */
   item: (id: string, tab?: ItemTab, step?: string, problem?: string) =>
     withQuery(`/items/${encodeURIComponent(id)}`, { tab, step, problem }),
+  /** Decision 48: the critical path to a ticket or epic, on its epic's Map when it has one. */
+  criticalPath: (id: string, epic: string | null) =>
+    epic
+      ? withQuery(`/items/${encodeURIComponent(epic)}`, { tab: 'map', goal: id })
+      : withQuery('/work', { layout: 'map', goal: id }),
   review: (id: string, round?: number) => withQuery(`/review/${encodeURIComponent(id)}`, { round }),
   label: (project: string, name: string) =>
     `/labels/${encodeURIComponent(project)}/${encodeURIComponent(name)}`,

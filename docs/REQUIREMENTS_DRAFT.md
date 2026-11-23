@@ -283,6 +283,15 @@ BUILD_SPEC §5.29, UI_SPEC §6.1 and §6.1b, spec FR-230–FR-235 and Help (A fi
 
 BUILD_SPEC §5.21, §5.26 and §5.30, MCP_SPEC §5.2, UI_SPEC §6.1 and §6.2, spec FR-236–FR-241, Help and the coordinator skill have the details.
 
+**Critical path and worktree cleanup (B60):**
+
+1. **Critical path.** Choose a ticket or epic as a goal. The Map highlights the longest chain of open hard blockers to it, mutes the rest and names the one ticket to move next, with why: startable, unowned, parked, waiting on the owner, or another plain reason. The same chain is an ordered list, and status is never colour alone. There is no new status or link type.
+2. **Every worktree.** Agents → Workspaces can show every worktree of a project's repository, read with bounded git inside the push folder: no fetch, nothing written. Worktrees Docket has no run for are labeled "Not tracked by Docket".
+3. **A plain verdict.** Each is **Safe to remove**, **Holds work**, **In use**, **Kept for later** or **Unknown**. Unknown is never safe, and a read that times out is Unknown. A worktree outside the push folder says it can't be checked.
+4. **Docket never deletes or prunes a worktree.** A Safe to remove row offers a copyable command, without `--force`, and a note to check it first. No other row offers one.
+
+BUILD_SPEC §5.31 and §5.32, UI_SPEC §6.3.4 and §6.6, spec FR-242–FR-249 and SC-029, and Help have the details.
+
 ## Deferred choices
 
 Pilot project choice and Jira import strategy are deferred until V1 is ready for real work. Design should still settle the storage layout, supported document preview formats, the exact project gate configuration shape, and the minimum history needed before a velocity forecast is shown. These are implementation choices guided by the owner decisions above, not blockers to selecting a pilot now.
