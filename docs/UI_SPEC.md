@@ -688,7 +688,7 @@ Rows link to the item. **Subagent log entries aren't listed here;** they show on
 - **A filter chip** "Hide safe to prune", in the section header, is on by default.
 - **Empty:** "No workspaces recorded yet. Agents report theirs when they claim work."
 - **Every worktree (decision 48, B60).** A switch in the header, *Recorded by agents* / *Every worktree* (`?worktrees=all`), shows every worktree of the project's repository. With All projects in scope, a Project menu picks one.
-  - **Columns:** Verdict (labelled chip and why), Branch and folder, Ticket or "Not tracked by Docket", Last activity, Uncommitted files, Commits not on a remote, Merged to main, What to do. A value git couldn't read says "Unknown", never 0.
+  - **Columns:** Verdict (labelled chip and why), Branch and folder, Ticket or "Not tracked by Docket", Last activity, What it holds (uncommitted files, commits not on a remote and merged to main, each labelled), What to do. A value git couldn't read says "Unknown", never 0.
   - **Groups,** in order: Holds work, In use, Unknown, Kept for later, Safe to remove, 50 rows each until *Show all*.
   - **Filters:** a chip per verdict with its count, *Not tracked by Docket*, and text over branch, ticket and folder.
   - **What to do:** the at-risk owner's words (B56) on Holds work. *Show command*, with the full command on its own row to read and copy, on Safe to remove only, under a note that Docket never removes a worktree, to check each command first, and that ignored files go with the folder.

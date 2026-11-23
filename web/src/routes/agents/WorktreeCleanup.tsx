@@ -75,7 +75,7 @@ function WhatToDo({ row }: { row: RepoWorktreeRow }) {
   return <span className="muted">—</span>;
 }
 
-function WorktreeRow({ row }: { row: RepoWorktreeRow }) {
+function WorktreeRow({ row, main }: { row: RepoWorktreeRow; main: string }) {
   const v = VERDICT_LABEL[row.verdict];
   const name = row.branch ?? row.path;
   const commandId = useId();
@@ -103,9 +103,17 @@ function WorktreeRow({ row }: { row: RepoWorktreeRow }) {
           )}
         </td>
         <td className="muted">{row.last_activity_at ? formatAge(row.last_activity_at) : '—'}</td>
-        <td>{known(row.uncommitted_files)}</td>
-        <td>{known(row.unpushed_commits)}</td>
-        <td>{yesNo(row.merged)}</td>
+        <td className="wc-facts">
+          <span>
+            Uncommitted files: <b>{known(row.uncommitted_files)}</b>
+          </span>
+          <span>
+            Commits not on a remote: <b>{known(row.unpushed_commits)}</b>
+          </span>
+          <span>
+            Merged to {main}: <b>{yesNo(row.merged)}</b>
+          </span>
+        </td>
         <td className="wc-next">
           {command ? (
             <button
@@ -125,7 +133,7 @@ function WorktreeRow({ row }: { row: RepoWorktreeRow }) {
       </tr>
       {command && open && (
         <tr className="wc-command-row" id={commandId}>
-          <td colSpan={8}>
+          <td colSpan={6}>
             <span className="row" style={{ gap: 4 }}>
               <code>{command}</code>
               <IconButton
@@ -142,13 +150,21 @@ function WorktreeRow({ row }: { row: RepoWorktreeRow }) {
   );
 }
 
-function WorktreeGroup({ verdict, rows }: { verdict: WorktreeVerdict; rows: RepoWorktreeRow[] }) {
+function WorktreeGroup({
+  verdict,
+  rows,
+  main,
+}: {
+  verdict: WorktreeVerdict;
+  rows: RepoWorktreeRow[];
+  main: string;
+}) {
   const [all, setAll] = useState(false);
   const shown = all ? rows : rows.slice(0, GROUP_LIMIT);
   return (
     <tbody data-verdict-group={verdict}>
       <tr className="wc-group">
-        <th colSpan={8} scope="rowgroup">
+        <th colSpan={6} scope="rowgroup">
           {VERDICT_LABEL[verdict].label} · {rows.length}
           {verdict === 'safe_to_remove' && (
             <span className="src wc-note">
@@ -160,11 +176,11 @@ function WorktreeGroup({ verdict, rows }: { verdict: WorktreeVerdict; rows: Repo
         </th>
       </tr>
       {shown.map((r) => (
-        <WorktreeRow key={r.path} row={r} />
+        <WorktreeRow key={r.path} row={r} main={main} />
       ))}
       {rows.length > shown.length && (
         <tr>
-          <td colSpan={8}>
+          <td colSpan={6}>
             <Button size="sm" onClick={() => setAll(true)}>
               Show all {rows.length}
               <span className="sr"> {VERDICT_LABEL[verdict].label} worktrees</span>
@@ -210,6 +226,7 @@ function CleanupTable({ data }: { data: WorktreeCleanupResponse }) {
         </label>
         <input
           id={filterId}
+          className="input"
           type="search"
           placeholder="Branch, ticket or folder"
           value={text}
@@ -232,15 +249,15 @@ function CleanupTable({ data }: { data: WorktreeCleanupResponse }) {
                 <th scope="col">Branch</th>
                 <th scope="col">Ticket</th>
                 <th scope="col">Last activity</th>
-                <th scope="col">Uncommitted files</th>
-                <th scope="col">Commits not on a remote</th>
-                <th scope="col">Merged to {data.main_branch}</th>
+                <th scope="col">What it holds</th>
                 <th scope="col">What to do</th>
               </tr>
             </thead>
             {WORKTREE_VERDICTS.map((v) => {
               const group = rows.filter((r) => r.verdict === v);
-              return group.length > 0 ? <WorktreeGroup key={v} verdict={v} rows={group} /> : null;
+              return group.length > 0 ? (
+                <WorktreeGroup key={v} verdict={v} rows={group} main={data.main_branch} />
+              ) : null;
             })}
           </table>
         </div>

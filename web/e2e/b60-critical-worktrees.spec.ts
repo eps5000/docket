@@ -241,6 +241,10 @@ for (const size of SIZES) {
     await expectAxeClean(page, `Every worktree at ${size.name}`);
     const width = await page.evaluate(() => document.documentElement.scrollWidth);
     expect(width).toBeLessThanOrEqual(size.width);
+    // Every column fits, so the verdict and the command are never scrolled away.
+    const wrap = page.locator('[data-worktree-cleanup] .tablewrap');
+    const fits = await wrap.evaluate((el) => el.scrollWidth <= el.clientWidth + 1);
+    expect(fits).toBe(true);
     if (out) {
       await page.locator('#workspaces').evaluate((el) => el.scrollIntoView({ block: 'start' }));
       for (const theme of ['light', 'dark'] as const) {
