@@ -19,6 +19,7 @@ Connecting an agent gives it Docket's tools. The **agent files** teach it the wo
 - **Skills**, one folder each with a `SKILL.md`:
   - `docket-worker`, for every agent that works on items;
   - `docket-coordinator`, for whatever dispatches agents: an Orca coordinator, a script, or you;
+  - `docket-delivery`, for taking work through PR, CI, merge and deployment in any stack. Your project's rules come first, and it never grants permission to merge or deploy;
   - optional: `docket-planner`, `docket-review-packet` and `docket-lead-subagents`.
 - **The AGENTS.md block:** a short section for the repo's `AGENTS.md` (Codex) or `CLAUDE.md` (Claude Code). It's the same for every project: it says the work lives in Docket, to follow `docket-worker`, and the rules every agent keeps (claim first, push at every step, park instead of going quiet, and so on).
 
