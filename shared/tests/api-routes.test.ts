@@ -148,6 +148,13 @@ const EXPECTED = [
   'POST /api/design-reviews/:id/decide',
   'GET /api/settings/overlap-handling',
   'PUT /api/settings/overlap-handling',
+  // Decision 49 (B62): the host collector and the GitHub connection.
+  'GET /api/sync/:source',
+  'POST /api/sync/:source',
+  'GET /api/settings/github',
+  'PUT /api/settings/github',
+  'PUT /api/settings/github/projects/:key',
+  'GET /api/items/:id/github',
   'POST /api/undeclared-holds/:id/decide',
   'POST /api/leases/:id/release',
   'GET /api/projects/:key/radar',
