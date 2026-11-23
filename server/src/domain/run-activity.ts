@@ -48,6 +48,19 @@ export const storedStatusUpdate = (run: Pick<RunRow, 'status_update'>): RunStatu
 
 export { projectCoordinators };
 
+/** Is `name` this run's recorded orchestrator, or a coordinator registered for its project? */
+export function namesCoordinator(
+  db: Db,
+  project: string,
+  run: Pick<RunRow, 'orchestrator'>,
+  name: string,
+): boolean {
+  return (
+    parseJson<{ name?: string }>(run.orchestrator)?.name === name ||
+    projectCoordinators(db, project).includes(name)
+  );
+}
+
 // ---- Producer holds ----
 
 export interface HoldRow extends ProducerHold {

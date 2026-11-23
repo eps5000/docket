@@ -116,7 +116,7 @@ function progress(r: ReadContext, itemId: string): { done: number; total: number
 function openQuestion(r: ReadContext, itemId: string): Question | null {
   const q = r.db.sqlite
     .prepare(
-      'SELECT id, text, created_at, answer, answered_at FROM questions WHERE item_id = ? AND answered_at IS NULL ORDER BY created_at DESC LIMIT 1',
+      'SELECT id, text, created_at, answer, answered_at FROM questions WHERE item_id = ? AND answered_at IS NULL AND withdrawn_at IS NULL ORDER BY created_at DESC LIMIT 1',
     )
     .get(itemId) as
     | {

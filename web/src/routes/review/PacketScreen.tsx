@@ -399,10 +399,20 @@ function StaleCallout({ data }: { data: ReviewResponse }) {
     <Callout tone="bad" className="pkt-callout">
       <div className="row wrap">
         <span className="grow">
-          <b>Out of date.</b> This packet was built from{' '}
-          <span className="mono">{data.packet.built_from_commit.slice(0, 7)}</span>, but {agent}{' '}
-          reported a newer commit for this {data.item.type === 'Epic' ? 'epic' : 'ticket'}. What you
-          verify may not match the code.
+          {data.packet.criteria_changed ? (
+            <>
+              <b>Out of date.</b> This ticket was split after the packet was built, so its
+              acceptance criteria changed. What you verify may not match what’s still on this
+              ticket.
+            </>
+          ) : (
+            <>
+              <b>Out of date.</b> This packet was built from{' '}
+              <span className="mono">{data.packet.built_from_commit.slice(0, 7)}</span>, but {agent}{' '}
+              reported a newer commit for this {data.item.type === 'Epic' ? 'epic' : 'ticket'}. What
+              you verify may not match the code.
+            </>
+          )}
         </span>
         <Button size="sm" onClick={() => void ask()} disabled={busy}>
           Ask for a fresh packet

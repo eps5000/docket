@@ -30,6 +30,13 @@ export function steerRoutes<E extends Env>(api: Hono<E>, deps: RouteDeps): void 
     return { mutation_id, question: result };
   });
 
+  defineRoute(api, 'items.split', deps, ({ services, mutate, params, body }) => {
+    const { result, mutation_id } = mutate((w) =>
+      services.items.split(w, { id: params.id, ...body }),
+    );
+    return { mutation_id, ...result };
+  });
+
   defineRoute(api, 'items.addNote', deps, ({ services, mutate, params, body }) => {
     const { result, mutation_id } = mutate((w) =>
       services.messages.addOwnerNote(w, { id: params.id, ...body }),

@@ -106,6 +106,8 @@ describe('the service stubs', () => {
       'ownerPatch',
       'upsertLabel',
       'moveLabelToReady',
+      // Decision 48 (B61).
+      'split',
     ],
     runs: [
       'claim',
@@ -173,7 +175,7 @@ describe('the service stubs', () => {
     humanReview: ['declare', 'update', 'ownerAdd', 'ownerUpdate', 'ownerRemove'],
     packets: ['submit', 'getReview', 'deferredReviews', 'screen', 'refresh', 'markStale'],
     reviewDecisions: ['decide', 'createFollowUp'],
-    messages: ['markDelivered', 'askOwner', 'answer', 'addOwnerNote'],
+    messages: ['markDelivered', 'askOwner', 'answer', 'addOwnerNote', 'withdraw'],
     // US11 (B10, T100).
     recovery: [
       'report',

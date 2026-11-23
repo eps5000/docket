@@ -28,7 +28,10 @@ export function PacketBanner({
         {packet.stale && (
           <>
             {' '}
-            <b className="bad-text">Out of date:</b> a newer commit was reported after it.
+            <b className="bad-text">Out of date:</b>{' '}
+            {packet.criteria_changed
+              ? 'this ticket was split, so its acceptance criteria changed.'
+              : 'a newer commit was reported after it.'}
           </>
         )}
       </div>

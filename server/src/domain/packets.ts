@@ -58,6 +58,8 @@ export interface PacketRow {
   changed_files?: string | null;
   branch?: string | null;
   held_undeclared?: string | null;
+  /** Decision 48: a split moved acceptance criteria after it was built. */
+  criteria_changed_at?: string | null;
   version: number;
   created_at: string;
   updated_at: string;
@@ -578,6 +580,7 @@ export function createPacketsService(deps: ServiceDeps): PacketsService {
           round: packet.round,
           state: packet.state,
           stale: packet.state === 'open' && (open.get(item.id)?.stale ?? false),
+          criteria_changed: packet.state === 'open' && !!open.get(item.id)?.criteria_changed,
           built_from_commit: packet.built_from_commit ?? '',
           estimate: packet.estimate ?? '',
           created_by: packet.created_by,
@@ -637,7 +640,9 @@ export function createPacketsService(deps: ServiceDeps): PacketsService {
           inverse: [inverse],
         });
       }
-      const text = `Please submit a fresh packet; code changed after ${short(packet.built_from_commit)}.`;
+      const text = packet.criteria_changed_at
+        ? 'Please submit a fresh packet; this ticket was split, so its acceptance criteria changed.'
+        : `Please submit a fresh packet; code changed after ${short(packet.built_from_commit)}.`;
       const noteId = newId('note', ms(w.now));
       const noteInverse = w.insert('owner_notes', { id: noteId, item_id: item.id, text });
       w.event({

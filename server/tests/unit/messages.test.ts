@@ -125,7 +125,7 @@ describe('ask_owner', () => {
       'validation',
     );
     expect(err.message).toBe(
-      'RCP-17 already has an open question: “First?”. Wait for the answer in get_item (open_question).',
+      'RCP-17 already has an open question: “First?”. Wait for the answer in get_item (open_question), or if it is out of date, retract it with withdraw_decision (question_id, reason).',
     );
     expect(
       d.row<{ n: number }>("SELECT count(*) AS n FROM questions WHERE item_id = 'RCP-17'").n,

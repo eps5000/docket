@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "257150a4-f23f-43ec-9f8a-8b01513b6972",
+  "id": "a38f623a-21fb-4255-808f-1e5165130829",
   "prevId": "a6295c54-6f97-4472-8084-7c9d85ec2a08",
   "tables": {
     "acceptance_criteria": {
@@ -2515,6 +2515,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "split_from": {
+          "name": "split_from",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "version": {
           "name": "version",
           "type": "integer",
@@ -2544,6 +2551,11 @@
           "columns": ["project_key", "status"],
           "isUnique": false
         },
+        "items_split_from": {
+          "name": "items_split_from",
+          "columns": ["split_from"],
+          "isUnique": false
+        },
         "items_epic": {
           "name": "items_epic",
           "columns": ["epic_id"],
@@ -2565,6 +2577,15 @@
           "tableFrom": "items",
           "tableTo": "items",
           "columnsFrom": ["epic_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "items_split_from_items_id_fk": {
+          "name": "items_split_from_items_id_fk",
+          "tableFrom": "items",
+          "tableTo": "items",
+          "columnsFrom": ["split_from"],
           "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
@@ -3346,6 +3367,13 @@
         },
         "held_undeclared": {
           "name": "held_undeclared",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "criteria_changed_at": {
+          "name": "criteria_changed_at",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -4287,6 +4315,27 @@
           "notNull": false,
           "autoincrement": false
         },
+        "withdrawn_at": {
+          "name": "withdrawn_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "withdrawn_by": {
+          "name": "withdrawn_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "withdrawn_reason": {
+          "name": "withdrawn_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "text",
@@ -4312,7 +4361,7 @@
           "name": "questions_one_open",
           "columns": ["item_id"],
           "isUnique": true,
-          "where": "\"answered_at\" IS NULL"
+          "where": "\"answered_at\" IS NULL AND \"withdrawn_at\" IS NULL"
         }
       },
       "foreignKeys": {
@@ -5730,180 +5779,6 @@
         "undeclared_holds_decided": {
           "name": "undeclared_holds_decided",
           "value": "(\"state\" = 'open') = (\"decided_at\" IS NULL)"
-        }
-      }
-    },
-    "usage_turns": {
-      "name": "usage_turns",
-      "columns": {
-        "key": {
-          "name": "key",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "project_key": {
-          "name": "project_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "item_id": {
-          "name": "item_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "link": {
-          "name": "link",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "client": {
-          "name": "client",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "session_id": {
-          "name": "session_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "at": {
-          "name": "at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "workspace": {
-          "name": "workspace",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "model": {
-          "name": "model",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "fresh_input": {
-          "name": "fresh_input",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "cached_input": {
-          "name": "cached_input",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "cache_write": {
-          "name": "cache_write",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "cache_write_1h": {
-          "name": "cache_write_1h",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "output": {
-          "name": "output",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "received_at": {
-          "name": "received_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "usage_turns_at": {
-          "name": "usage_turns_at",
-          "columns": ["at"],
-          "isUnique": false
-        },
-        "usage_turns_project_at": {
-          "name": "usage_turns_project_at",
-          "columns": ["project_key", "at"],
-          "isUnique": false
-        },
-        "usage_turns_item": {
-          "name": "usage_turns_item",
-          "columns": ["item_id"],
-          "isUnique": false
-        },
-        "usage_turns_link_at": {
-          "name": "usage_turns_link_at",
-          "columns": ["link", "at"],
-          "isUnique": false
-        },
-        "usage_turns_workspace": {
-          "name": "usage_turns_workspace",
-          "columns": ["workspace"],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "usage_turns_project_key_projects_key_fk": {
-          "name": "usage_turns_project_key_projects_key_fk",
-          "tableFrom": "usage_turns",
-          "tableTo": "projects",
-          "columnsFrom": ["project_key"],
-          "columnsTo": ["key"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "usage_turns_item_id_items_id_fk": {
-          "name": "usage_turns_item_id_items_id_fk",
-          "tableFrom": "usage_turns",
-          "tableTo": "items",
-          "columnsFrom": ["item_id"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {
-        "usage_turns_link": {
-          "name": "usage_turns_link",
-          "value": "\"link\" IN ('ticket', 'overhead', 'unlinked')"
-        },
-        "usage_turns_client": {
-          "name": "usage_turns_client",
-          "value": "\"client\" IN ('claude-code', 'codex')"
         }
       }
     },

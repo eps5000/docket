@@ -405,14 +405,14 @@ type DocKind = 'planning'|'packet_attachment'|'import_report'|'brief'|'other';  
 type DocVersionRef = { document_version_id: string; version_no: number; mime: string; size: number; sha256: string; created_at: string; created_by: string };
 type EventRow = { cursor: string; at: string; actor: string; item_id: string|null; type: EventType; summary: string };
 type EventType =
-  | 'item.created' | 'item.updated' | 'item.status_changed' | 'item.archived' | 'item.unarchived'
+  | 'item.created' | 'item.updated' | 'item.status_changed' | 'item.archived' | 'item.unarchived' | 'item.split'
   | 'link.added' | 'link.removed' | 'label.upserted'
   | 'plan.updated' | 'step.updated' | 'subagent.logged' | 'checks.updated' | 'check.updated'
   | 'human_review.declared' | 'human_review.updated' | 'human_review.removed'
   | 'claim.granted' | 'claim.rejected' | 'claim.released' | 'run.started' | 'run.ended'
   | 'run.parked' | 'run.resumed' | 'run.unpushed_handled' | 'service.restarted' | 'resource.declared' | 'resource.released'
   | 'packet.submitted' | 'packet.stale' | 'packet.withdrawn' | 'review.decided'
-  | 'question.asked' | 'question.answered' | 'owner_note.added' | 'note.added'
+  | 'question.asked' | 'question.answered' | 'question.withdrawn' | 'owner_note.added' | 'note.added'
   | 'document.added' | 'commit.reported' | 'artifact.linked'
   | 'link.updated' | 'project.updated'
   | 'decision.published' | 'decision.confirmed' | 'decision.superseded' | 'decision.withdrawn'
@@ -490,7 +490,7 @@ The format for each tool below:
 - **Errors:** `not_found`.
 
 #### `get_context`
-**Description:** "Everything needed to work on an item in one call: outcome and acceptance, decisions to follow (owner's first), epic and label briefs, blockers, the project's workflow notes, planning documents, the last review's notes. Sized to a budget; cuts are marked. Start with budget 'small' and widen only if needed. Read-only: owner notes are counted here but delivered by get_item."
+**Description:** "Everything needed to work on an item in one call: outcome and acceptance, decisions to follow (owner's first), epic and label briefs, blockers, the project's workflow notes, planning documents, the last review's notes. Sized to a budget; cuts are marked. Read-only: owner notes are counted here but delivered by get_item."
 - **Input:** `id`, `budget?: 'small'|'medium'|'large' = 'medium'` (about 1k, 3k and 8k tokens).
 - **Output:** `{ context: ContextBundle }`. The text block renders the bundle in the compact format, in the BUILD_SPEC §5.15 priority order, with `…truncated; …` lines where it was cut.
 - **Note (decision 29):** the bundle includes the project's Workflow notes (`ContextBundle.workflow`, §4; BUILD_SPEC §5.15 section 5), rendered as a `workflow:` section after the blockers and dependents, before the planning documents (the §5.15 order), with a `…truncated` line when cut. Shipped in B21 (tasks T151): the description above names "the project's workflow notes", in `mcp-copy.ts` and the snapshot too. The server returns `workflow: null` until T157 fills it.
@@ -530,10 +530,18 @@ The format for each tool below:
 ### 5.3 Creating and editing items
 
 #### `create_item`
-**Description:** "Create an Epic, Story, Task or Bug. It starts in Inbox (or Planning if you are shaping it now). Put small steps in the checklist (set_plan), not in new tickets."
-- **Input:** `project`, `type`, `title`, `description_md?`, `outcome_md?`, `acceptance?: string[]`, `priority?: 1|2|3 = 2`, `epic?` (an Epic in the same project), `labels?: string[]` (created if missing), `status?: 'inbox'|'planning' = 'inbox'`, `planned_start?`, `planned_end?`, `effort?: number ≥ 0`, `blocked_by?: string[]` (creates `blocks` links; cycle-checked).
+**Description:** "Create an Epic, Story, Task or Bug, in Inbox (or Planning if you are shaping it). Small steps go in the checklist (set_plan). To split a ticket, pass split_from: move and copy are 1-based acceptance positions; also brings blockers, parts or steps."
+- **Input:** `project`, `type`, `title`, `description_md?`, `outcome_md?`, `acceptance?: string[]`, `priority?: 1|2|3` (default 2, or the original's in a split), `epic?` (an Epic in the same project), `labels?: string[]` (created if missing), `status?: 'inbox'|'planning' = 'inbox'`, `planned_start?`, `planned_end?`, `effort?: number ≥ 0`, `blocked_by?: string[]` (creates `blocks` links; cycle-checked), `split_from?` (decision 48, below).
 - **Output:** `{ item: ItemSummary }`.
 - **Errors:** `validation` (bad epic, wrong project, cycle, limits), `not_found` (project).
+- **Splitting a ticket** (decision 48; BUILD_SPEC §5.33): `split_from: { id, expected_version, move: number[], copy?: number[], relation: 'after_original'|'before_original'|'none', also?: [{ kind: 'blocker'|'part'|'step', id, copy? }], coordinator? }`.
+  - The rest of the call describes the new ticket, in the original's project. It keeps the original's epic, labels and priority unless `priority` is given. `labels`, `blocked_by` and `acceptance` can't be combined with it.
+  - `move` and `copy` are 1-based positions in `get_item`'s `acceptance`. Anything not moved stays, and the original must keep at least one.
+  - `after_original`: the new ticket depends on the original. `before_original`: the original depends on it.
+  - `also[].id` is the blocker's item ID, the part's key or the step's ID.
+  - A claimed ticket: only its lead's run, its coordinator (name it in `coordinator`) or the owner, else `forbidden`. A stale `expected_version` is `conflict`. The step a live run is on can't move.
+  - A parked run stops waiting on a blocker that moved off its ticket; if none is left, it can resume.
+  - An open packet is marked out of date if criteria moved. `get_item` then shows `split_from` and `split_into`.
 
 #### `update_item`
 **Description:** "Edit an item's fields. Pass expected_version from your last read. Dates you set are labelled as set by you. Status goes through set_status, the plan through set_plan."
@@ -553,7 +561,7 @@ The format for each tool below:
 - **Notes:** Moving to `done` ends your open lead run as `finished` if you haven't. Moving to `progress` doesn't claim the item; use `claim_lead`.
 
 #### `link_items`
-**Description:** "Link two items. type 'blocks': from must finish before to can start; 'relates' is informational. For blocks, satisfied_when sets what 'finished' means: done (default, or the project's default), merged (done and a PR reported merged with link_artifact) or verified (done and every human review item approved). Calling again updates satisfied_when. A link that would create a cycle is rejected with the cycle path."
+**Description:** "Link two items. type 'blocks': from must finish before to can start; 'relates' is informational. For blocks, satisfied_when sets what 'finished' means: done (default, or the project's default), merged (done and a PR reported merged with link_artifact) or verified (done and every human review item approved). Calling again updates it. A cycle is rejected with its path."
 - **Input:** `from`, `to`, `type: 'blocks'|'relates'`, `satisfied_when?: 'done'|'merged'|'verified'` (blocks only; omit to use the project default).
 - **Output:** `{ link_id, from, to, type, satisfied_when, updated: boolean }`.
 - **Errors:** `validation`:
@@ -633,7 +641,7 @@ The format for each tool below:
 ### 5.5 Checklist
 
 #### `set_plan`
-**Description:** "Publish or revise your plan as one-line steps, optionally with details (Markdown) and a source such as a Jira key. Patches by default: steps with an id are updated (text changes record the old text and your reason), steps without one are added, nothing is removed unless listed in remove. mode 'replace' restates the plan. Owner-added steps are always kept; on Jira-imported steps you may add details, keeping the current text at the start. Revisions are kept as history."
+**Description:** "Publish or revise your plan as one-line steps, optionally with details (Markdown) and a source such as a Jira key. Patches by default: steps with an id are updated, others added, and nothing is removed unless listed in remove. mode 'replace' restates the plan. Owner-added steps are always kept; on Jira-imported steps you may only add details. Revisions are kept."
 - **Input:**
   - `id`, `reason` (required unless this is the first plan);
   - `mode?: 'patch'|'replace' = 'patch'`;
@@ -668,7 +676,7 @@ The format for each tool below:
 - **Output:** `{ check: Check }`.
 
 #### `declare_human_review`
-**Description:** "Declare what the owner must verify by hand before this item can close, one plain instruction each ('On your phone, drag a recipe between days. Does it feel right?'). Declare early, usually in Planning. For one PR across an epic, declare once on the epic. With none, you may close the item yourself once your checks pass."
+**Description:** "Declare what the owner must verify by hand before this item can close, one plain instruction each ('On your phone, drag a recipe. Does it feel right?'). Declare early, usually in Planning. For one PR across an epic, declare once on the epic. With none, you may close the item yourself once your checks pass."
 - **Input:** `id`, `items: string[]` (1–10, each ≤ 500).
 - **Output:** `{ human_review: HumanReviewItem[] }`.
 
@@ -706,7 +714,7 @@ The format for each tool below:
 ### 5.7 Review and the owner
 
 #### `submit_packet`
-**Description:** "Hand finished work to the owner for human review, once it is built, checks pass and everything is committed and reported. The packet must let the owner verify without asking you anything: what to check, exact steps (URLs, builds, commands), what you verified and how, known gaps, attachments. Pass changed_files (every file changed) and branch: undeclared shared-part changes, or an unapproved change to an approved design, hold it for the owner. The item moves to Review; read the decision with get_review or get_item."
+**Description:** "Hand finished work to the owner for human review, once built, checks pass and all commits are reported. The packet must let the owner verify without asking you anything: what to check, exact steps (URLs, builds, commands), what you verified and how, known gaps, attachments. Pass changed_files (every file changed) and branch: undeclared shared-part changes, or an unapproved change to an approved design, hold it for the owner. The item moves to Review; read the decision with get_review or get_item."
 - **Input:**
   - `id`, `built_from_commit` (recorded with `report_commit` if not already), `estimate` (for example `"10 min"`);
   - `hr_item_ids?` (defaults to every declared item);
@@ -735,7 +743,7 @@ The format for each tool below:
 - **Input:** (decision 47) `id`, `question` (one plain sentence ending in `?`), `context` (what is going on, for someone who has not seen this work), `why_it_matters` (what is affected and why it needs the owner), `options` (2 to 4 of `{ label, description, consequences, recommended? }`, with `recommended: true` on exactly one and labels that differ), `recommendation_reason`, `details?` (technical notes, IDs and links). Limits are in §3 Types.
 - **Plain-language guard:** every field except `details` is refused if it contains a Docket or tool ID (`dec_…`, `dv_…`, `run_…`, `q_…`, `ctx_…` and the other prefixes), a commit hash of 7 to 40 hex characters, a code path or a link. Ticket keys such as GF-243 are allowed. The check is deterministic and never judges reading level.
 - **Output:** `{ question_id }`.
-- **Errors:** `validation` (a question is already open on this item; a field breaks the contract, named with what to fix). A call in the old single-text shape gets a `validation` error that spells out the new shape.
+- **Errors:** `validation` (a question is already open on this item, and the message says how to withdraw it; a field breaks the contract, named with what to fix). A call in the old single-text shape gets a `validation` error that spells out the new shape.
 - **The answer** arrives in `get_item` `open_question`. `answer` is always readable text; a picked option reads `Chose: <label> (the recommended option). Note: <note>`, so text-only clients see it. Structured clients also get `choice: { option, recommended, note }`, absent for a free-text answer. Questions asked before decision 47 keep their text and have no `choice`.
 
 ### 5.8 Decisions
@@ -755,10 +763,11 @@ The format for each tool below:
 - **Output:** `{ items: DecisionRecord[], next_cursor }`, with owner records first, then newest.
 
 #### `withdraw_decision`
-**Description:** "Withdraw a decision you or another agent recorded when it no longer applies. Agents can't withdraw owner decisions."
-- **Input:** `decision_id`, `reason` (≤ 500).
-- **Output:** `{ decision: DecisionRecord }`.
-- **Errors:** `forbidden` (an owner decision), `not_found`.
+**Description:** "Withdraw a decision you or another agent recorded when it no longer applies (not an owner decision). Or pass question_id to retract an outdated, unanswered question."
+- **Input:** `decision_id` or `question_id` (one of the two), `reason` (≤ 500), `coordinator?` (with `question_id`).
+- **Output:** `{ decision: DecisionRecord }`, or `{ question: { id, text, withdrawn_at } }`.
+- **Errors:** `forbidden` (an owner decision; a question you didn't ask and don't coordinate), `not_found`, `conflict` (a question already answered or withdrawn), `validation` (a question's reason with an ID, hash, path or link: the owner reads it).
+- **Withdrawing a question** (decision 48): the run that asked, its recorded coordinator or a coordinator registered for the project (name it in `coordinator`). It leaves Needs you at once, a `needs_input` run returns to `open`, and you can `ask_owner` again. The owner sees it in the ticket's history, marked Withdrawn, with the reason. This never answers for the owner.
 
 **Decision 38 (B44):** no tool changes. An agent's project-scope record now reaches the owner's Needs you for review; the owner may confirm, withdraw or supersede it, or acknowledge it (it stays `authority: 'agent'`; event `decision.acknowledged`, owner only). `get_context`, `get_item` and `list_decisions in_scope_of` still include every record in scope, project ones included.
 
@@ -789,7 +798,7 @@ The format for each tool below:
 Agents read the agent files and Workflow notes in effect for a project, and change them only by proposing (BUILD_SPEC §5.19; FR-128–FR-130). Shipped in B26 (tasks T159): the two descriptions below, `claim_lead`'s `instructions` (§5.4, with its description), and the server-instructions bullet (§2), in MCP_SPEC, `mcp-copy.ts` and the snapshot together. Both tools answer `unavailable` until B27 (T160) implements them.
 
 #### `get_agent_files`
-**Description:** "Read the agent files (skills, AGENTS.md block) and Workflow notes in effect for a project, with version_id and source. Pass file for its full text. Read-only. Call before propose_agent_file_change, and propose from this text, not your installed copy."
+**Description:** "Read the agent files (skills, AGENTS.md block) and Workflow notes in effect for a project, with version_id and source. Pass file for its full text. Read-only. Propose changes from this text, not your installed copy."
 - **Input:** `project`, `file?` (one key: `agents_block`, `workflow` or `skill:<name>`; otherwise all).
 - **Output:** `{ project, files: [{ key, kind: 'skill'|'agents_block'|'workflow', version_id: string|null, sha256, source: 'default'|'project', content: string|null }] }`.
 - **Listing and full text** (B26, for token cost): without `file`, every file is listed with `content: null`, and the text block prints one header line per file. With `file`, only that file is returned, and its full `content` is printed after its header line.
@@ -815,7 +824,7 @@ An agent sets up a project, or onboards a repo into one, from a fresh install wi
 - **Never Ready:** while its session is in progress, the client's `set_status` to `ready` on that project is `forbidden` ("You're onboarding GF: leave GF-3 in planning. The owner moves items to Ready after reviewing the onboarding.").
 
 #### `onboard_project`
-**Description:** "Set up a project or onboard a repo into one. Creates the project when the key is free (pass name) or adopts the existing one, starts an onboarding session, and returns session_id, what the project holds and the onboarding guide. Follow the guide step by step; it works with no agent files installed. Not retry-safe: pass idempotency_key."
+**Description:** "Set up a project or onboard a repo into one. Creates the project when the key is free (pass name) or adopts the existing one, starts an onboarding session, and returns session_id, what the project holds and the onboarding guide. Follow it step by step. Not retry-safe: pass idempotency_key."
 - **Input:** `key` (2–5 uppercase letters, the project key rule), `name?` (≤ 100; required when creating), `color?` (`#rrggbb`), plus `run_id?` and `idempotency_key?`.
 - **Limits** (B29 resolutions): `name` is 1–100 characters, trimmed, and ignored when adopting; whether it is required depends on the key, so the service checks it (`validation`), not the schema.
 - **Output:** `{ project: { key, name, created: boolean }, session_id, guide, existing: { items, jira_items, documents } }`.
@@ -825,7 +834,7 @@ An agent sets up a project, or onboards a repo into one, from a fresh install wi
 - **Not retry-safe** (`idempotentHint: false`): pass `idempotency_key` when you might retry.
 
 #### `finish_onboarding`
-**Description:** "Finish an onboarding session and hand it to the owner for review, with a short summary and any open questions. Pass session_id from onboard_project. The owner reviews everything from one card; stop there and wait."
+**Description:** "Finish an onboarding session and hand it to the owner for review, with a short summary and any open questions. Pass session_id from onboard_project. Then stop and wait."
 - **Input:** `session_id`, `summary` (≤ 4,000), `questions?: string[]` (≤ 20, each ≤ 500), plus `run_id?` and `idempotency_key?`.
 - **Limits** (B29 resolutions): `summary` is 1–4,000 characters and each question 1–500, all trimmed. Session IDs are `onb_…`.
 - **Output:** `{ session_id, state: 'ready_for_review', changes: { created, enriched, documents, decisions, proposals } }`.
@@ -881,7 +890,7 @@ B33 also stores details and source through `set_plan`, `update_step` and the own
 The Gameflow onboarding (305 matches, 44 enrichments, 39 documents) didn't fit single calls, so the agent fell back to a script on a second MCP connection. `apply_batch` lets one session do it (BUILD_SPEC §5.20; FR-151–FR-153). Contracts shipped in B36 (T177), in MCP_SPEC, `mcp-copy.ts` and the snapshot together: the description below, the descriptions of `set_plan` and `update_step` (imported steps, §5.5), and the tool count (43 → 44).
 
 #### `apply_batch`
-**Description:** "Run up to 100 writes in one call, for large onboardings: each operation names a tool (create_item, update_item, link_items, upsert_label, set_plan, update_step, put_document or publish_decision) and its arguments. Each runs the same checks as its single call and applies on its own, in order: a failure doesn't undo the others, and the result lists each operation's ID or error. "$1" in an argument means the ID operation 1 wrote. Pass idempotency_key, so a retry replays what succeeded and runs only the rest."
+**Description:** "Run up to 100 writes in one call, for large onboardings: each operation names a tool and its arguments. Each runs as its single call would, in order: a failure doesn't undo the others, and the result lists each operation's ID or error. "$1" means the ID operation 1 wrote. Pass idempotency_key, so a retry runs only what failed."
 - **Input:** `operations: [{ op, args, idempotency_key? }]` (1–100), plus `run_id?` and `idempotency_key?`.
   - `op` is one of `create_item`, `update_item`, `link_items`, `upsert_label`, `set_plan`, `update_step`, `put_document`, `publish_decision`.
   - `args` are that tool's arguments as §5 defines them, without `run_id` (the batch's applies to every operation).
@@ -942,7 +951,7 @@ B38 implemented the registry, `declare_shared_changes` and `list_shared_parts`. 
 - **`set_status` to `done` with undeclared parts** is refused with `not_declared` (`details.undeclared`, `details.files`), raises the same owner question as a held packet (*Add to the declaration* or *Send back*), and leaves the item where it was. Reusing `not_declared` keeps three new codes (coordinator).
 
 #### `declare_shared_changes`
-**Description:** "Declare the shared parts this item will change (tables, models, endpoints, shared files), each with add, change or remove and a short note, or none: true. An item can't move to Ready until it has declared. Each call replaces the whole declaration. Name parts by their keys from list_shared_parts; register a missing one with new_parts. Name the member when you can (model:Token.expiresAt, table:decks.archived_at): different members run in parallel, while a bare part may touch anything in it and is sequenced. Set design_impact: changes_approved_design with a design_note when the change alters an approved design: it reaches the owner and this item pauses until approved, while others continue. Set disputed: true when agents disagree about who owns a part; that reaches the owner too. Pass branches, every branch the work is on (or branch for one), so the conflict radar can check them; they replace the reported branches, and an empty list clears them. Returns in-flight items changing the same parts, each with outcome parallel, sequence or owner."
+**Description:** "Declare the shared parts this item will change (tables, models, endpoints, shared files), each with add, change or remove and a short note, or none: true. Required before Ready. Each call replaces the whole declaration. Use keys from list_shared_parts; register a missing one with new_parts. Name the member when you can (model:Token.expiresAt): different members run in parallel; a bare part is sequenced. Set design_impact: changes_approved_design with a design_note when it alters an approved design: this item pauses until the owner approves. Set disputed: true when agents disagree who owns a part. Pass branches, every branch the work is on (or branch for one); they replace those reported, and an empty list clears them. Returns in-flight items on the same parts, each with outcome parallel, sequence or owner."
 - **Input:** `id`, and either `changes?: [{ part, change: 'add'|'change'|'remove', note?, design_impact?, design_note?, disputed? }]` (1–50; `note` and `design_note` ≤ 500; B46) or `none?: true`; with `changes`, optionally `new_parts?: [{ key, kind?, paths?, note? }]` (1–20; `paths` ≤ 20 globs of ≤ 300; `note` ≤ 1,000); `branch?` (≤ 200, B40) or `branches?: string[]` (0–10, each ≤ 200, B41), not both, plus `run_id?` and `idempotency_key?`.
 - **Output:** `{ declaration: Declaration, registered: string[], overlaps: [{ with: { id, title, status }, parts: string[], outcome?, reason? }], design_hold?: DesignHold }` (§4). `design_hold` (decision 39) is present while the owner's review of a change to an approved design pauses this item. `registered` lists the keys `new_parts` added to the registry.
 - **Rules:**
@@ -958,7 +967,7 @@ B38 implemented the registry, `declare_shared_changes` and `list_shared_parts`. 
 - **Not retry-safe** (`idempotentHint: false`): pass `idempotency_key` when you might retry.
 
 #### `list_shared_parts`
-**Description:** "List a project's shared parts: each key, the file paths mapped to it, whether it is single-writer, who holds its lease, and in-flight items declaring changes to it. Read-only. Call before declare_shared_changes, to use registered keys."
+**Description:** "List a project's shared parts: each key, the file paths mapped to it, whether it is single-writer, who holds its lease, and in-flight items declaring changes to it. Read-only."
 - **Input:** `project`, `include_archived?: boolean = false`, plus `run_id?`.
 - **Output:** `{ project, parts: [SharedPart & { in_flight: InFlightChange[], lease: { item_id, held_until } | null }] }` (§4), sorted by key; each part's `in_flight` is sorted by item ID.
 - **Text rendering:** a header line (`Shared parts in GF: 12`), then one line per part (`- model:Token · single-writer · lease GF-240 until 14:05Z · paths src/Domain/Token.cs · <note>`), with its in-flight declarations indented under it (`GF-240 Token refresh · progress · change · <note>`).
@@ -1005,7 +1014,7 @@ Every problem says what's wrong, what fixes it and who acts, in the words the ow
 **Problem IDs** are `rdf_…` for a radar finding, and otherwise `<kind>:<run, link or item>` (`stale_run:run_…`, `date_risk:GF-12`, `cycle:GF-1+GF-2`), stable while the problem lasts.
 
 #### `propose_resolution`
-**Description:** "Propose how to resolve a problem that needs the owner: split, rescope, reorder or other, with a plan in Markdown and a reason. Pass problem (its ID from get_context problems), or id for the item in general. The owner approves it, asks for a different way with a note, or acknowledges it; the choice arrives as an owner note and in get_context. Routine fixes need no proposal: rebase onto main, or remove an old branch with declare_shared_changes; Docket records it."
+**Description:** "Propose how to resolve a problem that needs the owner: split, rescope, reorder or other, with a plan in Markdown and a reason. Pass problem (its ID from get_context problems), or id for the item in general. The owner approves it, asks for a different way with a note, or acknowledges it; the choice arrives as an owner note and in get_context. Routine fixes (a rebase, dropping an old branch) need no proposal."
 - **Input:** `problem?` (a problem ID, ≤ 300), `id?` (the item), at least one of them; `kind: 'split'|'rescope'|'reorder'|'other'`, `plan_md` (Markdown, ≤ 10,000), `reason` (≤ 1,000), plus `run_id?` and `idempotency_key?`.
 - **Output:** `{ resolution: { id, item_id, problem_id, kind, state, created_at }, superseded: string[] }`. `superseded` lists your earlier open proposals for the same problem (or the item, without one), which this one replaces.
 - **Rules:**

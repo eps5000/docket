@@ -164,7 +164,7 @@ describe('common fields', () => {
 
 describe('defaults (§5)', () => {
   it.each([
-    ['create_item', { project: 'RCP', type: 'Task', title: 'x' }, { priority: 2, status: 'inbox' }],
+    ['create_item', { project: 'RCP', type: 'Task', title: 'x' }, { status: 'inbox' }],
     ['search_items', {}, { include_archived: true, limit: 25 }],
     ['report_commit', { id: 'RCP-14', sha: '4be1c09' }, { pushed: false }],
     ['recovery_report', {}, { include_briefs: false, limit: 25 }],
@@ -367,7 +367,8 @@ describe('JSON Schema for MCP', () => {
     const create = inputJsonSchema(getTool('create_item')) as {
       properties: Record<string, Record<string, unknown>>;
     };
-    expect(create.properties.priority).toEqual({ default: 2, type: 'number', enum: [1, 2, 3] });
+    expect(create.properties.priority).toEqual({ type: 'number', enum: [1, 2, 3] });
+    expect(create.properties.status).toMatchObject({ default: 'inbox' });
     expect(
       JSON.stringify(TOOLS.map((t) => [inputJsonSchema(t), outputJsonSchema(t)])),
     ).not.toContain('9007199254740991');
