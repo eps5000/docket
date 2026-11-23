@@ -39,7 +39,12 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  /* A model ID or ticket title reads as written, not as a column heading. */
+  color: inherit;
+  font-size: inherit;
   font-weight: 500;
+  letter-spacing: normal;
+  text-transform: none;
 }
 .tl .usage-table .num {
   text-align: right;

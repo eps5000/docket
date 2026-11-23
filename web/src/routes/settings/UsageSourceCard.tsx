@@ -6,7 +6,7 @@ import { apiClient } from '../../app/queryClient';
 import { QueryState } from '../../app/QueryState';
 import { HelpLink } from '../../help/HelpLink';
 import { queryKeys } from '../../lib/api';
-import { formatAgo, isoTitle, plural } from '../../lib/format';
+import { formatAgo, isoTitle } from '../../lib/format';
 import { showToast } from '../../lib/undo';
 import { errorText } from '../agent-files/install-common';
 import { USAGE_SOURCE_NOTE, USAGE_SOURCE_OFF_NOTE, USAGE_SOURCE_TITLE } from '../usage/usageText';
@@ -103,7 +103,7 @@ export function UsageSourceCard({ projects }: { projects: SettingsResponse['proj
                 <p className="src usage-source-note">
                   {USAGE_SOURCE_OFF_NOTE}
                   {d.turns_stored > 0
-                    ? ` Docket holds ${plural(d.turns_stored, 'recorded response')}.`
+                    ? ` Docket holds ${d.turns_stored.toLocaleString('en-US')} recorded ${d.turns_stored === 1 ? 'response' : 'responses'}.`
                     : ''}
                 </p>
               </div>
