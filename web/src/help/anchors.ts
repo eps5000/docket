@@ -22,6 +22,8 @@ export const HELP_ANCHORS = {
   'problems.unpushed_work': 'Problems row: work left in a worktree',
   'problems.parked_too_long': 'Problems row: parked for 24 h',
   'problems.resume_unattended': 'Problems row: ready to resume, unattended',
+  'problems.wait_no_next_step': 'Problems row: waiting, with no next step',
+  'problems.wait_owner_unasked': 'Problems row: waiting on a decision nobody asked for',
   'problems.extra_backup_failed': 'Problems row: extra backup copy failed',
   'problems.backup_missed': 'Problems row: the nightly backup failed or is overdue',
   'problems.agent_files_drift': 'Problems row: agent files changed outside Docket',

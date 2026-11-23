@@ -6,6 +6,7 @@
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
+import { waitCheckOnce } from '../../src/jobs/sweeper.js';
 import { tempDir, type TempDir } from '../helpers.js';
 import { ORIGIN } from '../integration/harness.js';
 import { expectOk, startHarness, type ContractHarness } from './harness.js';
@@ -256,6 +257,48 @@ describe('docket-relay on the real server', () => {
     expect(sent).toEqual([]);
     expect(relay.state.counters.no_live_lead).toBe(1);
     expect(relay.state.undelivered).toEqual([]);
+  });
+
+  it('wakes a parked lead on the real run.resume_ready, and leaves it parked', async () => {
+    h = await startHarness();
+    await claim();
+    const runId = (
+      (await detail('RCP-17')).item.runs[0] as unknown as {
+        run_id: string;
+      }
+    ).run_id;
+    expectOk(
+      await h.call('park_run', {
+        run_id: runId,
+        reason: 'Waiting for RCP-16.',
+        waiting_on: { items: ['RCP-16'] },
+      }),
+    );
+    const sent: Sent[] = [];
+    const relay = makeRelay(sent);
+    await relay.pollOnce(undefined, 0);
+
+    h.server.clock.advance(60_000);
+    const doneAt = h.server.clock.now().toISOString();
+    h.server.runtime.db.sqlite
+      .prepare("UPDATE items SET status = 'done', closed_at = ?, updated_at = ? WHERE id = ?")
+      .run(doneAt, doneAt, 'RCP-16');
+    h.server.clock.advance(60_000);
+    waitCheckOnce(h.server.runtime);
+
+    const events = await feedSince('0');
+    const ready = events.filter((event) => event.type === 'run.resume_ready');
+    expect(ready).toHaveLength(1);
+    expect(ready[0]).toMatchObject({ item_id: 'RCP-17', actor: 'system' });
+
+    await step(relay);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({
+      to: 'dispatch:ctx_real1',
+      subject: 'Docket: RCP-17 can resume',
+      body: 'What RCP-17 was waiting for has cleared in Docket. Call get_context RCP-17 and get_item RCP-17.',
+    });
+    expect((await detail('RCP-17')).item.runs[0]!.run_state).toBe('parked');
   });
 
   it('starts at the end of the real feed', async () => {

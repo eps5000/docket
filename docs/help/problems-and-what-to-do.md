@@ -14,6 +14,8 @@ anchors:
   - problems.unpushed_work
   - problems.parked_too_long
   - problems.resume_unattended
+  - problems.wait_no_next_step
+  - problems.wait_owner_unasked
   - problems.extra_backup_failed
   - problems.backup_missed
   - problems.agent_files_drift
@@ -43,6 +45,7 @@ Agents read the same words in `get_context`, so you and they agree on what to do
 
 - the conflict radar's findings: a branch that is out of date with main, or two items' branches that change the same lines. The leads of the items involved get them in their context and as one note on the item ("Docket's conflict radar: …");
 - a run **parked** too long, which goes to its coordinator;
+- a **wait with no next step**, or on a decision nobody has asked you for, which goes to the run's coordinator;
 - **work left in a worktree** after a run ended, which goes to the item's lead or the run's coordinator.
 
 An agent problem reaches your **Problems** only when:
@@ -90,6 +93,8 @@ Each choice reaches the agent as a note from you, and in its context. Each also 
 | Lead run failed | You or your coordinator | Read the error in Activity, then restart the work or move it back to Ready. |
 | Parked a long time | Your coordinator first | Check it's still waiting for something real; resume it or release its claim. |
 | Ready to resume, unattended | You or your coordinator | Ask your coordinator to resume it. |
+| Waiting, with no next step | Your coordinator first | A parked story waits on a ticket nobody is moving. Dispatch the ticket, or shape it or assign it. This holds nothing. |
+| Waiting on a decision nobody asked for | Your coordinator first | The coordinator asks you a real question. If it reaches you, no agent is there to ask: record your decision on the ticket, or start a coordinator. |
 | Left running after its run ended | You or your coordinator | Stop it, then **Mark released**. See [Workspace states](/help/workspaces-and-pruning). |
 | Work left in a worktree | Its lead or coordinator first | They commit and push it, or say it can go. If it reaches you: ask an agent to push it, or choose **Keep for later** or **Safe to discard**. On a canceled item, there's nothing to push: keep it or let it go. See [Crash recovery](/help/crash-recovery). |
 | Dependency cycle | You | Remove one link. See [Blockers and dependencies](/help/blockers-and-dependencies). |

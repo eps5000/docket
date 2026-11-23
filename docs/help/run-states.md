@@ -39,6 +39,12 @@ Hover a state to see its meaning. Parked runs also say what they wait on, like "
 
 **Parked by X until T** means a coordinator parked the run for a limited time, because the agent stopped to wait. A park like this lasts at most 4 hours, can be renewed up to 24 hours after the agent last spoke, and always ends by itself. When it ends, the agent has 15 minutes to call back. If it does, it carries on. If it doesn't, it loses its claim the normal way and the item goes back to Ready. A park the agent set itself has no time limit.
 
+**Waiting for** on a parked ticket says what it needs, how long it has waited, who has the next step, and how the same agent resumes. A short resume and re-park doesn't restart the clock. Docket flags a wait when nobody is moving the blocker for 15 minutes, or when it needs a decision from you that nobody has asked for. These flags go to the coordinator first and never hold up any work.
+
+**Added after work started** means the blocker was linked after this agent had already claimed the ticket, which often means scope was added. Check that it really holds the whole story. If it holds only part, split that part out and let the rest go ahead.
+
+**When the blocker clears,** Docket tells the coordinator which run and dispatch can continue. Docket can't message an agent's session itself, so the coordinator passes it on. If nobody does within 30 minutes, you see "Ready to resume, unattended".
+
 ## Leases
 
 A claim comes with a lease (60 minutes by default), and every signal from the agent extends it. If the lease runs out, Docket ends the run as **interrupted**, releases the claim and moves the item back to Ready. The checklist, logs and partial work stay on the ticket. A parked run's lease is paused. If Docket restarts, open runs stay open and each lease lasts at least 15 more minutes, so the agent can simply continue.

@@ -217,6 +217,22 @@ Decision 42 deliberately stopped a coordinator from parking an open run, because
 
 BUILD_SPEC §5.25, MCP_SPEC §5.4, UI_SPEC §6.3 and spec FR-206–FR-210 have the details.
 
+## Owner decision 45 (2026-11-23): a parked story's wait is visible and has a next step
+
+In the Gameflow pilot two stories sat parked for about five hours on prerequisites in Planning. Nobody owned the prerequisite's next step, and one of them said it needed an owner decision that nobody had asked for. Every alert stayed quiet: `parked_too_long` waits a day, `resume_ready` and `resume_unattended` fire only after the blocker clears, and `run.activity` reports motion, not its absence. The owner asked for the smallest improvement that would have exposed it.
+
+1. **Every parked lead has a wait card,** derived from what Docket already stores: what it waits for and what clears it, how long since this run **first** parked on it (a short resume and re-park doesn't reset the clock), who owns the next action, and one exact sentence on how the same run resumes. It appears in the `park_run` result, `get_digest`, `get_context` on the parked item **and on its blocker**, and the item page, inside the token budgets.
+2. **The next action's owner** is the blocker's live lead, else the waiting run's recorded orchestrator, else a project coordinator, else the owner. Docket follows an uncleared blocker chain to the item that can actually move, with a bounded depth, and survives a cycle.
+3. **Two advisory flags,** checked every two minutes with no git. `wait_no_next_step`: an uncleared blocker has no live lead, no open question, no pending packet or owner action, and no real activity for 15 minutes. `wait_owner_unasked`: the run waits on a person, or its park reason or a direct blocker's text says an owner decision is pending, and nothing has been put to the owner. The match is narrow: text citing a recorded decision doesn't count. Each flag raises once and clears when its condition ends.
+4. **They go to whoever can act.** Agents first, through `get_digest`, `get_context` and one `run.wait_flagged` event that wakes `docket-wait`. They reach Needs you and the badge only under decision 41's routing, saying why. An unasked decision goes to the coordinator **to ask**, because the owner can't answer a question that doesn't exist.
+5. **When every named blocker clears,** one `run.resume_ready` event names the same run, label, client, dispatch and the resume instruction, and the digest shows it first. **Docket can't push into an agent's session,** so the coordinator relays it. The 30-minute `resume_unattended` fallback stays.
+6. **A blocker added after work started gets a prompt.** When a named blocker was linked after this run claimed the item, the card says to confirm it holds the whole story and, if only part is held, to split that part out and let the rest proceed. It is one line of advice, with no new link type, flag, event or gate.
+7. **Advisory only.** Nothing here blocks a claim, a status change, a queue or a delivery, and `satisfied_when` doesn't change.
+
+`docs/design/wait-and-backlog-followups.md` records what this leaves open, proposed and not built. Which kind of dependency a link is stays an open question until the types are designed with the owner.
+
+BUILD_SPEC §5.26, MCP_SPEC §4 and §5.4, UI_SPEC §6.3.2 and spec FR-211–FR-216 have the details.
+
 ## Owner decision 46 (2026-11-23): wake the right session when the owner changes a ticket
 
 The owner answers a question in Docket, but the agent sees it only on its next Docket call. The last 7 answered questions took 1 to 80 minutes to be picked up (median 8), and the owner has had to open the session and tell it to check. Neither Claude Code nor Codex offers a usable way for Docket to push into a running session. Orca messages do wake idle sessions, and Docket's container can't call the host's `orca` CLI, so a small host process bridges them.

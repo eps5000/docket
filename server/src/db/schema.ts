@@ -454,6 +454,8 @@ export const runs = sqliteTable(
     park_activity: text('park_activity', { mode: 'json' }),
     /** Decision 44: `{by, client, at, until, ended_at?}`, a coordinator's time-limited park. */
     coordinator_park: text('coordinator_park', { mode: 'json' }),
+    /** Decision 45: `{flags, resume_key?}`, the wait flags raised and the last resume told. */
+    wait_flags: text('wait_flags', { mode: 'json' }),
     version: version(),
     ...timestamps,
   },

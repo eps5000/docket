@@ -21,6 +21,8 @@ import {
 } from '@docket/shared';
 import { activityText } from '@docket/shared';
 import type { ReadContext, ServiceDeps } from './contracts.js';
+import { getRun } from './model.js';
+import { WaitReader, digestWait } from './wait.js';
 
 export interface DigestService {
   get(r: ReadContext, input: ToolInput<'get_digest'>): Digest;
@@ -206,6 +208,16 @@ export function createDigestService(deps: ServiceDeps): DigestService {
             (RUN_ORDER[a.state] ?? 9) - (RUN_ORDER[b.state] ?? 9) ||
             a.item_id.localeCompare(b.item_id),
         );
+
+      // Decision 45: the wait card's short form, only on the parked rows the digest lists.
+      const listed = runs.slice(0, DIGEST_CAPS.runs);
+      const waits = listed.some((x) => x.state === 'parked') ? new WaitReader(r.db, r.now) : null;
+      for (const row of listed) {
+        if (!waits || row.state !== 'parked') continue;
+        const run = getRun(r.db, row.run_id);
+        if (run?.is_lead === 1)
+          (row as Digest['runs']['rows'][number]).wait = digestWait(waits.card(run));
+      }
 
       const view = deps.services().views.needsYou(r, { scope: input.project });
       const owner = ownerRows(view).filter((x) => since === null || keep(x.item_id));

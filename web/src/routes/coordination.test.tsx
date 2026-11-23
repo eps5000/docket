@@ -156,6 +156,81 @@ describe('the agent bar (B20)', () => {
     expect(within(b).getByRole('button', { name: 'Copy resume note' })).toBeTruthy();
   });
 
+  it('a parked lead shows its wait card, with the next step and how it resumes (decision 45)', () => {
+    const parked = run({
+      run_state: 'parked',
+      parked: {
+        reason: 'Waiting for the prerequisite',
+        waiting_on: { items: ['RCP-12'] },
+        since: ago(5),
+        resume_ready: false,
+      },
+    });
+    const wait: NonNullable<ItemDetailResponse['wait']> = {
+      run_id: parked.run_id,
+      item_id: 'RCP-17',
+      label: 'orca-w4',
+      client: 'claude',
+      orchestrator: { name: 'orca', dispatch_id: 'ctx_1', task_id: null, run_id: null },
+      blockers: [
+        {
+          id: 'RCP-12',
+          status: 'planning',
+          clears_when: 'done',
+          cleared: false,
+          waited_since: ago(40),
+          lead: null,
+          moves: null,
+        },
+      ],
+      more_blockers: 0,
+      person: false,
+      coordinator: false,
+      until: null,
+      waited_since: ago(40),
+      next_owner: {
+        kind: 'orchestrator',
+        name: 'orca',
+        item_id: 'RCP-12',
+        step: 'RCP-12: shape it or assign it',
+      },
+      resumes_when: 'Resumes when RCP-12 is done: orca relays it to dispatch ctx_1.',
+      resume_ready: false,
+      flags: [
+        {
+          kind: 'wait_no_next_step',
+          on: 'RCP-12',
+          since: ago(1),
+          step: 'RCP-12: shape it or assign it',
+        },
+      ],
+    };
+    wrap(<AgentBar data={{ ...detail({ runs: [parked] }), wait }} />);
+    const card = bar().querySelector('[data-ab="wait"]')!;
+    expect(card.textContent).toContain('Waiting for RCP-12 (planning, clears when done)');
+    expect(card.textContent).toContain('Next: orca · RCP-12: shape it or assign it');
+    expect(card.textContent).toContain('Resumes when RCP-12 is done');
+    expect(
+      within(card as HTMLElement).getByText(/Waiting, with no next step: RCP-12/),
+    ).toBeTruthy();
+  });
+
+  it('a blocker nobody leads still says which parked run it frees (decision 45)', () => {
+    const data = {
+      ...detail({ runs: [], leadOf: null, status: 'planning' }),
+      waiting_runs: {
+        total: 1,
+        rows: [
+          { item_id: 'RCP-20', run_id: 'run_2', label: 'w2', waited_since: ago(30), via: null },
+        ],
+      },
+    };
+    wrap(<AgentBar data={data} />);
+    expect(bar().querySelector('[data-ab="waiting-runs"]')!.textContent).toMatch(
+      /^Unblocks RCP-20, waiting since/,
+    );
+  });
+
   it("a coordinator's park says who and until when, in place of 'Status updated by' (decision 44)", () => {
     const until = new Date(Date.now() + 3_600_000).toISOString();
     const parked = run({

@@ -108,6 +108,7 @@ import {
   type StoredEvent,
 } from './model.js';
 import { producersByItem, storedActivity, storedStatusUpdate } from './run-activity.js';
+import { WaitReader, openWaitFlags, waitCoordinator } from './wait.js';
 import { UNDO_WINDOW_MS } from './undo.js';
 import { allowedOriginsFor } from '../api/guards.js';
 import {
@@ -588,7 +589,57 @@ function recoveryProblems(
         }),
       });
     }
+    // Decision 45: the flags the two-minute check raised. Agents first, by the same routing.
+    if (run.is_lead !== 1) continue;
+    for (const flag of openWaitFlags(run)) {
+      const route = recoveryRoute({
+        item: run.item_id,
+        lead: false,
+        coordinator: waitCoordinator(db, run, items.get(run.item_id)!.project_key),
+        since: flag.since,
+        now,
+        graceMs: config.agentProblemGraceMs,
+      });
+      const waited = durationLabel(ms(now) - ms(since));
+      push({
+        ...base,
+        kind: flag.kind,
+        id: `${flag.kind}:${run.id}:${flag.on}`,
+        item_id: run.item_id,
+        title: title(run.item_id),
+        reason:
+          flag.kind === 'wait_no_next_step'
+            ? `Waiting on ${flag.on} with no next step · ${flag.step}`
+            : `Waiting on an owner decision nobody has asked for · ${flag.step}`,
+        related: flag.on === run.item_id ? [] : [flag.on],
+        run_id: run.id,
+        reached_you: route.reached,
+        explanation:
+          flag.kind === 'wait_no_next_step'
+            ? explain.wait_no_next_step({
+                item: run.item_id,
+                on: flag.on,
+                waited,
+                step: flag.step,
+                route,
+              })
+            : explain.wait_owner_unasked({ item: run.item_id, on: flag.on, route }),
+      });
+    }
   }
+}
+
+/** Decision 45: the item page's wait card, and the parked runs waiting on this item. */
+function waitOf(r: ReadContext, id: string, index: BlockIndex) {
+  const reader = new WaitReader(r.db, r.now, index);
+  const lead = r.db.sqlite
+    .prepare("SELECT * FROM runs WHERE item_id = ? AND is_lead = 1 AND state = 'parked'")
+    .get(id) as RunRow | undefined;
+  const waiting = reader.waitersOn(id);
+  return {
+    wait: lead ? reader.card(lead) : null,
+    ...(waiting.total > 0 ? { waiting_runs: waiting } : {}),
+  };
 }
 
 /** The coordinator named on a run (`orchestrator.name`), if it was dispatched by one. */
@@ -1694,6 +1745,8 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         // Decision 37: the item's open problems for its banner, and proposals about the item.
         problems: itemProblemsOf(problemSet(r, row.project_key).all, row.id),
         resolutions: openResolutions(r.db, new Set([row.id])).filter((x) => x.problem_id === null),
+        // Decision 45: what its parked lead waits for, and the parked runs it would free.
+        ...waitOf(r, row.id, index),
       };
     },
 

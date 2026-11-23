@@ -375,6 +375,18 @@ type Run = { run_id: string; parent_run_id: string|null; client: string; label: 
   coordinator_park?: { by: string; at: string; until: string; ended_at?: string };   // decision 44: holding, or just run out
   external?: Record<string, unknown> };                  // view 'full' and recovery_report only
 
+// Decision 45 (BUILD_SPEC §5.26): what a parked lead waits for. Advisory; it gates nothing.
+type WaitCard = { run_id: string; item_id: string; label: string|null; client: string;
+  orchestrator: { name: string; dispatch_id: string|null; task_id: string|null; run_id: string|null } | null;
+  blockers: { id: string; status: Status; clears_when: 'done'|'merged'|'verified'; cleared: boolean;
+    waited_since: string; lead: string|null; moves: string|null }[];   // at most 3, uncleared first
+  more_blockers: number; person: boolean; coordinator: boolean; until: string|null;
+  waited_since: string;                                 // when this run first parked on it
+  next_owner: { kind: 'lead'|'orchestrator'|'coordinator'|'owner'; name: string; item_id: string|null; step: string };
+  resumes_when: string; resume_ready: boolean;
+  flags: { kind: 'wait_no_next_step'|'wait_owner_unasked'; on: string; since: string; step: string }[];
+  scope_hint?: string };                                // a blocker linked after this run's claim: check it holds the whole story
+
 type Workspace = { host: string|null; repo: string|null; path: string|null; branch: string|null;
   base_ref: string|null; base_sha: string|null; head_sha: string|null; pushed_sha: string|null; dirty: boolean|null;
   state: 'in_use'|'parked'|'at_risk'|'safe_to_prune'|'unknown'; updated_at: string };
@@ -406,7 +418,8 @@ type EventType =
   | 'undeclared.held' | 'undeclared.decided' | 'radar.found' | 'radar.cleared'   // decision 36
   | 'branch.reported' | 'branch.discovered'    // decision 36, B40
   | 'run.status_updated' | 'run.activity'      // decision 42
-  | 'run.park_expired';                        // decision 44
+  | 'run.park_expired'                         // decision 44
+  | 'run.wait_flagged' | 'run.wait_cleared' | 'run.resume_ready';   // decision 45
 
 // Decision 36 (§5.15; BUILD_SPEC §5.21).
 type SharedPartKind = 'table'|'model'|'endpoint'|'file'|'other';
@@ -477,6 +490,7 @@ The format for each tool below:
 - **Note (decision 29):** the bundle includes the project's Workflow notes (`ContextBundle.workflow`, §4; BUILD_SPEC §5.15 section 5), rendered as a `workflow:` section after the blockers and dependents, before the planning documents (the §5.15 order), with a `…truncated` line when cut. Shipped in B21 (tasks T151): the description above names "the project's workflow notes", in `mcp-copy.ts` and the snapshot too. The server returns `workflow: null` until T157 fills it.
 - **Note (decision 33; B34):** the bundle includes the step to work on (`ContextBundle.current_step`: the step in state `current`, else the first `todo`; null when none is open) with its details, rendered as a `step:` section after the blockers and dependents, before the workflow notes (BUILD_SPEC §5.15 section 4b): a header line `step: wst_… <text> · <state> · source GF-123 · details v2`, then the details indented. They count in the budget; when they don't fit they're cut inline, followed by `…truncated; read it with get_step RCP-14 wst_…`, and when not even the header fits, a `…truncated; current step wst_… and its details; read it with get_step RCP-14 wst_…` line takes its place. The description is unchanged; the output schema gains the optional field (snapshot, B34).
 - **Note (decision 36; B38):** the bundle gains `shared` (`ContextBundle.shared`, §4; §5.15; BUILD_SPEC §5.21 Context): the item's declaration, other in-flight items' declarations of the same parts, up to 30 other in-flight declarations in the project, the leases it holds and radar findings, rendered as a `shared:` section after the Workflow notes, before the planning documents, and counted in the budget. Optional and absent until B39 (T183) fills it; the description is unchanged.
+- **Note (decision 45; B54):** the bundle gains `wait` (the parked lead's `WaitCard`) and `waiting_runs` (`{ total, rows: [{ item_id, run_id, label, waited_since, via }] }`, at most 5: the parked runs this item would free, directly or through a chain). Both travel with the unresolved blockers and are never cut.
 - **Errors:** `not_found`.
 
 #### `dependency_subgraph`
@@ -501,6 +515,7 @@ The format for each tool below:
 **Description:** "One compact snapshot for coordinators, instead of many reads: top ready items, running, stale and parked runs (resume_ready flagged), blocked items and why, what waits on the owner, agent-actionable problems, leases, conflicts ahead, and the change cursor. Pass cursor for only what changed since then. Long sections end in '+N more'. Read-only."
 - **Input:** `project`, `cursor?`, plus `run_id?`.
 - **Output:** `{ project, cursor, since, ready, runs, blocked, owner, problems, leases, conflicts, changed }`. `cursor` is the current change cursor; `since` is the cursor passed, or null. Each section is `{ total, rows }`, with at most `ready` 8, `runs` 8, `blocked` 5, `owner` 6, `problems` 4, `leases` 4, `conflicts` 4 and `changed` 6 rows: `ready` `{ id, title, priority, unblocks }`; `runs` `{ item_id, run_id, state, label, resume_ready, waiting }` (open runs, stale and parked first); `blocked` `{ id, title, priority, unblocks, blocked_by }`; `owner` `{ kind, item_id, text }`; `problems` `{ id, kind, item_id, fix }` (those an agent can act on); `leases` `{ part, item_id, until }`; `conflicts` `{ items, parts, outcome }`; `changed` `{ cursor, item_id, type }`, newest first.
+- **Parked rows (decision 45):** `wait: { since, next, flags, relay? }`, the card's short form. `relay` appears once it can resume and names the same run and dispatch. A row with `resume_ready` sorts first. Docket can't deliver it: the coordinator relays it.
 - **With `cursor`:** each section keeps only items that events after it touched, and `changed` lists those events.
 - **Text rendering:** a header (`Digest GF · cursor 812`), then each non-empty section as `ready 42:` with one `- ` line per row and `  +34 more` when it holds more. The text never exceeds 4,000 characters (1,000 tokens): past that, rows drop from the last section, and `+N more` still counts them. Run IDs are in `structuredContent` only.
 - **Read-only.**
@@ -593,11 +608,12 @@ The format for each tool below:
 #### `park_run`
 **Description:** "Park only when the work itself stops: waiting on another item, the coordinator or a person. Don't park while your own CI or tests run or while you review them: stay live and log a note. A parked run keeps its claim and its workspace stays in use, so it is never mistaken for finished or stale. Say what you wait on; Docket flags it resume_ready when that clears. Any write with your run_id resumes it; reads don't."
 - **Input:** `run_id`, `reason` (≤ 500), `waiting_on?: { items?: string[], orchestrator?: boolean, person?: boolean, until? }`.
-- **Output:** `{ run_state: 'parked', resume_ready: boolean }`.
+- **Output:** `{ run_state: 'parked', resume_ready: boolean, wait?: WaitCard }` (decision 45; §4). `wait` is left out only on an idempotent replay stored before B54.
 - **Errors:** `conflict` (the run has ended), `validation` (unknown item in `waiting_on.items`).
 - **Rules:**
   - A parked run doesn't go stale, and its lease is suspended. After `DOCKET_PARK_MAX` (default 24 h) it shows under the owner's Problems but keeps its claim.
   - `resume_ready` becomes true when every `waiting_on.items` entry is done or cleared, or `until` passes. A run parked only on the orchestrator or a person stays false until it is resumed.
+  - **The wait card (decision 45; BUILD_SPEC §5.26):** the result carries `wait`, and its text adds a `wait:` line, the next action's owner, and the sentence that says how the same run resumes.
   - **Only work resumes it (decision 42):** `heartbeat` or any other mutating tool with its `run_id`. A read tool, `get_item` included, leaves its state, lease and park unchanged and writes no event.
 
 #### `update_run_status`
@@ -1227,6 +1243,7 @@ These are part of M2 (BUILD_SPEC §11). Use the official MCP client SDK against 
 22. Shared changes (decision 36): the Ready gate refuses an undeclared item (`not_declared`) and takes the owner's override; two agents claiming overlapping items unattended: the second gets `seam_conflict`, one question is raised per pair, and *Run one after the other* and *They're compatible* each let work continue (SC-023); a held lease gets `lease_held`, and leases end on done, hand-off, release and expiry; changed files mapped to undeclared parts hold the packet, or refuse the close; `get_context.shared` stays within budget. B38 ships the contract and the registry; B39 (T183) the rest.
 
 23. Waiting and digest (decision 40): the long-poll wakes on a commit, times out with the same cursor, releases on disconnect and shutdown, and follows both trust modes; both `docket-wait` scripts return the right exit codes and survive a restart; `get_digest` stays within its cap on a Gameflow-sized project and honours `cursor`; tool definitions stay within their budgets.
+24. Waits (decision 45): replays of the pilot's stall raise each flag on the first check after the 15-minute grace, keep the waited-since time through re-parks, route to the coordinator, clear on a real question, and emit one `run.resume_ready` naming the same run and dispatch. A cited decision, a pending proposal, a live lead, a blocker being shaped and a cycle raise nothing.
 
 ---
 

@@ -2086,7 +2086,10 @@
                     "service.restarted",
                     "run.status_updated",
                     "run.activity",
-                    "run.park_expired"
+                    "run.park_expired",
+                    "run.wait_flagged",
+                    "run.wait_cleared",
+                    "run.resume_ready"
                   ]
                 },
                 "summary": {
@@ -2938,6 +2941,284 @@
             ],
             "additionalProperties": false
           },
+          "wait": {
+            "type": "object",
+            "properties": {
+              "run_id": {
+                "type": "string"
+              },
+              "item_id": {
+                "type": "string"
+              },
+              "label": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "client": {
+                "type": "string"
+              },
+              "orchestrator": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "dispatch_id": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "task_id": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "run_id": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "dispatch_id",
+                      "task_id",
+                      "run_id"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "blockers": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "inbox",
+                        "planning",
+                        "ready",
+                        "progress",
+                        "review",
+                        "done",
+                        "canceled"
+                      ]
+                    },
+                    "clears_when": {
+                      "type": "string",
+                      "enum": [
+                        "done",
+                        "merged",
+                        "verified"
+                      ]
+                    },
+                    "cleared": {
+                      "type": "boolean"
+                    },
+                    "waited_since": {
+                      "type": "string"
+                    },
+                    "lead": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "moves": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "status",
+                    "clears_when",
+                    "cleared",
+                    "waited_since",
+                    "lead",
+                    "moves"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "more_blockers": {
+                "type": "integer"
+              },
+              "person": {
+                "type": "boolean"
+              },
+              "coordinator": {
+                "type": "boolean"
+              },
+              "until": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "waited_since": {
+                "type": "string"
+              },
+              "next_owner": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "lead",
+                      "orchestrator",
+                      "coordinator",
+                      "owner"
+                    ]
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "item_id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "step": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "name",
+                  "item_id",
+                  "step"
+                ],
+                "additionalProperties": false
+              },
+              "resumes_when": {
+                "type": "string"
+              },
+              "resume_ready": {
+                "type": "boolean"
+              },
+              "flags": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "wait_no_next_step",
+                        "wait_owner_unasked"
+                      ]
+                    },
+                    "on": {
+                      "type": "string"
+                    },
+                    "since": {
+                      "type": "string"
+                    },
+                    "step": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "on",
+                    "since",
+                    "step"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "scope_hint": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "run_id",
+              "item_id",
+              "label",
+              "client",
+              "orchestrator",
+              "blockers",
+              "more_blockers",
+              "person",
+              "coordinator",
+              "until",
+              "waited_since",
+              "next_owner",
+              "resumes_when",
+              "resume_ready",
+              "flags"
+            ],
+            "additionalProperties": false
+          },
+          "waiting_runs": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "integer"
+              },
+              "rows": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "item_id": {
+                      "type": "string"
+                    },
+                    "run_id": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "waited_since": {
+                      "type": "string"
+                    },
+                    "via": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "item_id",
+                    "run_id",
+                    "label",
+                    "waited_since",
+                    "via"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "total",
+              "rows"
+            ],
+            "additionalProperties": false
+          },
           "problems": {
             "type": "array",
             "items": {
@@ -3462,7 +3743,10 @@
                 "service.restarted",
                 "run.status_updated",
                 "run.activity",
-                "run.park_expired"
+                "run.park_expired",
+                "run.wait_flagged",
+                "run.wait_cleared",
+                "run.resume_ready"
               ]
             },
             "summary": {
@@ -3627,6 +3911,36 @@
                     "by",
                     "at",
                     "until"
+                  ],
+                  "additionalProperties": false
+                },
+                "wait": {
+                  "type": "object",
+                  "properties": {
+                    "since": {
+                      "type": "string"
+                    },
+                    "next": {
+                      "type": "string"
+                    },
+                    "flags": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "wait_no_next_step",
+                          "wait_owner_unasked"
+                        ]
+                      }
+                    },
+                    "relay": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "since",
+                    "next",
+                    "flags"
                   ],
                   "additionalProperties": false
                 }
@@ -5235,6 +5549,234 @@
       "resume_ready": {
         "type": "boolean"
       },
+      "wait": {
+        "type": "object",
+        "properties": {
+          "run_id": {
+            "type": "string"
+          },
+          "item_id": {
+            "type": "string"
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "client": {
+            "type": "string"
+          },
+          "orchestrator": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "dispatch_id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "task_id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "run_id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "name",
+                  "dispatch_id",
+                  "task_id",
+                  "run_id"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "blockers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "inbox",
+                    "planning",
+                    "ready",
+                    "progress",
+                    "review",
+                    "done",
+                    "canceled"
+                  ]
+                },
+                "clears_when": {
+                  "type": "string",
+                  "enum": [
+                    "done",
+                    "merged",
+                    "verified"
+                  ]
+                },
+                "cleared": {
+                  "type": "boolean"
+                },
+                "waited_since": {
+                  "type": "string"
+                },
+                "lead": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "moves": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "status",
+                "clears_when",
+                "cleared",
+                "waited_since",
+                "lead",
+                "moves"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "more_blockers": {
+            "type": "integer"
+          },
+          "person": {
+            "type": "boolean"
+          },
+          "coordinator": {
+            "type": "boolean"
+          },
+          "until": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "waited_since": {
+            "type": "string"
+          },
+          "next_owner": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "lead",
+                  "orchestrator",
+                  "coordinator",
+                  "owner"
+                ]
+              },
+              "name": {
+                "type": "string"
+              },
+              "item_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "step": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "name",
+              "item_id",
+              "step"
+            ],
+            "additionalProperties": false
+          },
+          "resumes_when": {
+            "type": "string"
+          },
+          "resume_ready": {
+            "type": "boolean"
+          },
+          "flags": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "wait_no_next_step",
+                    "wait_owner_unasked"
+                  ]
+                },
+                "on": {
+                  "type": "string"
+                },
+                "since": {
+                  "type": "string"
+                },
+                "step": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "on",
+                "since",
+                "step"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "scope_hint": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "item_id",
+          "label",
+          "client",
+          "orchestrator",
+          "blockers",
+          "more_blockers",
+          "person",
+          "coordinator",
+          "until",
+          "waited_since",
+          "next_owner",
+          "resumes_when",
+          "resume_ready",
+          "flags"
+        ],
+        "additionalProperties": false
+      },
       "replayed": {
         "type": "boolean"
       },
@@ -6157,7 +6699,10 @@
               "service.restarted",
               "run.status_updated",
               "run.activity",
-              "run.park_expired"
+              "run.park_expired",
+              "run.wait_flagged",
+              "run.wait_cleared",
+              "run.resume_ready"
             ]
           },
           "summary": {

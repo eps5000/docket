@@ -19,7 +19,7 @@ import {
 import { instructionsInput } from './agent-files.js';
 import { COORDINATOR_PARK, LIMITS, TEXT_LIMITS } from './limits.js';
 import { branchInput } from './shared-changes.js';
-import { itemSummarySchema, runStateSchema } from './types.js';
+import { itemSummarySchema, runStateSchema, waitCardSchema } from './types.js';
 
 // ---- Recovery building blocks (MCP_SPEC §3; BUILD_SPEC §5.16) ----
 
@@ -233,6 +233,8 @@ export const parkRunInput = mutationInput({
 export const parkRunOutput = mutationOutput({
   run_state: z.literal('parked'),
   resume_ready: z.boolean(),
+  /** Decision 45: what it waits for, who can move that, and how it resumes. */
+  wait: waitCardSchema.optional(),
 });
 
 // ---- update_run_status (decision 42) ----
