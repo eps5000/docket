@@ -8,10 +8,12 @@ import {
   copyFileSync,
   existsSync,
   linkSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
   readdirSync,
+  readlinkSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -2650,6 +2652,84 @@ process.exit(c === 'stop' ? ${stopCode} : 0);
       expect(calls).toContain('Register-ScheduledTask');
       expect(calls).not.toContain('Start-ScheduledTask');
     }, 40_000);
+
+    it('Install can update a plain earlier install', async () => {
+      const m = managed();
+      expect((await m.run('Install', {})).code).toBe(0);
+      const again = await m.run('Install', {});
+      expect(again.out).toContain('Installed to');
+      expect(again.code).toBe(0);
+    }, 40_000);
+
+    /** Every entry under `dir`, without following a link. */
+    const snapshot = (dir: string): string[] =>
+      readdirSync(dir)
+        .sort()
+        .flatMap((name) => {
+          const path = join(dir, name);
+          const info = lstatSync(path);
+          if (info.isSymbolicLink()) return [`${path} -> ${readlinkSync(path)}`];
+          if (info.isDirectory()) return [`${path}/`, ...snapshot(path)];
+          return [`${path}: ${readFileSync(path, 'utf8')}`];
+        });
+
+    const INSTALL_TARGETS: [string, string, boolean][] = [
+      ['the root folder', '', true],
+      ['the app folder', 'app', true],
+      ['the lib folder', join('app', 'lib'), true],
+      ...readdirSync(TOOL)
+        .filter((name) => name !== 'lib')
+        .map((name): [string, string, boolean] => [`app file ${name}`, join('app', name), false]),
+      ...readdirSync(join(TOOL, 'lib')).map((name): [string, string, boolean] => [
+        `lib file ${name}`,
+        join('app', 'lib', name),
+        false,
+      ]),
+    ];
+
+    const expectInstallRefused = async (m: ReturnType<typeof managed>, path: string) => {
+      // Windows PowerShell keeps its own cache under LOCALAPPDATA.
+      const relayEntries = () =>
+        snapshot(m.local).filter((entry) => !entry.startsWith(join(m.local, 'Microsoft')));
+      const before = relayEntries();
+      const result = await m.run('Install', {});
+      expect(result.code).toBe(1);
+      expect(result.out).toContain('Install changed nothing');
+      expect(result.out).toContain(path);
+      expect(relayEntries()).toEqual(before);
+      expect(m.calls()).not.toContain('Register-ScheduledTask');
+    };
+
+    it.each(INSTALL_TARGETS)(
+      'Install refuses a link at %s',
+      async (_name, where, isFolder) => {
+        const m = managed();
+        const outside = join(m.local, 'outside');
+        const keep = join(outside, 'keep.txt');
+        mkdirSync(outside);
+        writeFileSync(keep, 'keep');
+        const path = join(m.root, where);
+        mkdirSync(dirname(path), { recursive: true });
+        if (isFolder) symlinkSync(outside, path, 'junction');
+        else symlinkSync(keep, path, process.platform === 'win32' ? 'junction' : 'file');
+        await expectInstallRefused(m, path);
+        expect(readFileSync(keep, 'utf8')).toBe('keep');
+      },
+      30_000,
+    );
+
+    it.each(INSTALL_TARGETS)(
+      'Install refuses the wrong type at %s',
+      async (_name, where, isFolder) => {
+        const m = managed();
+        const path = join(m.root, where);
+        mkdirSync(dirname(path), { recursive: true });
+        if (isFolder) writeFileSync(path, 'keep');
+        else mkdirSync(path);
+        await expectInstallRefused(m, path);
+      },
+      30_000,
+    );
 
     it('Remove deletes only the known files, then the empty folders', async () => {
       const m = managed();

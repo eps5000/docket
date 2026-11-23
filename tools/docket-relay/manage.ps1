@@ -153,10 +153,40 @@ function Resolve-NodePath([string]$Given) {
   return $null
 }
 
+# True when something exists at $Path that Install must not write through: a link or
+# other reparse point, even a broken one, or a file where a folder belongs or the reverse.
+function Test-UnsafeEntry([string]$Path, [bool]$IsFolder) {
+  try {
+    $attributes = [IO.File]::GetAttributes($Path)
+  } catch [IO.FileNotFoundException] {
+    return $false
+  } catch [IO.DirectoryNotFoundException] {
+    return $false
+  }
+  return $attributes.HasFlag([IO.FileAttributes]::ReparsePoint) -or
+    ($attributes.HasFlag([IO.FileAttributes]::Directory) -ne $IsFolder)
+}
+
+# The first unsafe folder, or else every unsafe destination file.
+function Get-UnsafeInstallEntry($Paths) {
+  foreach ($dir in @($Paths.Root, $Paths.App, $Paths.Lib)) {
+    if (Test-UnsafeEntry $dir $true) { return $dir }
+  }
+  $files = @($script:AppFiles | ForEach-Object { Join-Path $Paths.App $_ }) +
+    @($script:LibFiles | ForEach-Object { Join-Path $Paths.Lib $_ })
+  return $files | Where-Object { Test-UnsafeEntry $_ $false }
+}
+
 function Invoke-Install($Paths, [string]$Name, [string]$NodePath) {
   if (-not $NodePath) { Write-Line 'FAILED: Node was not found.'; return 1 }
   if ($PSScriptRoot.TrimEnd('\', '/') -ieq $Paths.App.TrimEnd('\', '/')) {
     Write-Line 'FAILED: run Install from a checkout of the repository, not the installed copy.'
+    return 1
+  }
+  $unsafe = @(Get-UnsafeInstallEntry $Paths)
+  if ($unsafe.Count -gt 0) {
+    Write-Line 'FAILED: Install changed nothing. These are links or the wrong type:'
+    foreach ($entry in $unsafe) { Write-Line "  $entry" }
     return 1
   }
   if ((Invoke-Verify 'Stopped' $Paths $Name) -ne 0) {
