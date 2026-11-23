@@ -159,7 +159,8 @@ describe('docket-relay on the real server', () => {
     h.server.clock.advance(60_000);
     await step(relay);
     expect(sent.map((message) => message.to)).toEqual(['run:run_home1']);
-    expect(sent[0]!.body).toContain('(dispatch ctx_real1)');
+    expect(sent[0]!.body).toContain('for information only: Docket run');
+    expect(sent[0]!.body).toContain('dispatch ctx_real1.');
     expect(JSON.stringify(sent)).not.toContain(SECRET);
   });
 
