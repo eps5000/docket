@@ -341,6 +341,19 @@ This changes the earlier requirement that Docket offers user-wide installs (deci
 
 BUILD_SPEC §5.36 and §7, UI_SPEC §6.7b, spec FR-278–FR-284 and SC-031, Help and the skills have the details.
 
+## Owner decision 51 (2026-11-23): CI is fast, and the merge gate stays safe
+
+A small change took about 95 minutes, roughly 70 of them in the pipeline. One CI run took about 22 minutes because the browser tests ran one at a time, each pushed fix restarted everything, and `main` then retested the code the PR had just proven. CI stays on free GitHub-hosted runners.
+
+1. **Parallel jobs.** Lint and typecheck, shared and web tests, server tests, the API and MCP contract suite, and browser tests run side by side. The Docker image is built once per run and reused.
+2. **Isolated browser shards.** Browser tests run in four shards balanced by real duration, each with its own container and data. Protected mode and container replacement keep their checks in a job of their own.
+3. **A gate that can't pass by accident.** `build` and `e2e` stay the required checks. Each succeeds only if every job it covers ended as planned, and fails if one failed, was cancelled or was skipped unexpectedly.
+4. **Fast PR checks, the full suite in the queue.** A PR runs every non-browser job and the browser specs its change affects, and everything if it can't tell or if shared code, config, CI or dependencies changed. Nothing merges until the full suite has passed on the exact combined code in Mergify's queue, shown by a separate `full-suite` check.
+5. **No retest of identical code.** A push to `main` whose tree exactly matches a commit that passed the full suite skips the duplicate tests and says why. Any other push runs everything. Every `main` commit still publishes an image.
+6. **Cancelling.** A new push cancels the older run of the same PR. A queue or `main` run is never cancelled.
+
+BUILD_SPEC §2 (Stack) has the details.
+
 ## Owner decision 52 (2026-11-23): a bundled delivery skill
 
 The lessons about getting work tested, merged and deployed quickly ship with Docket, so every onboarded project gets them through its agent files.

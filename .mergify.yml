@@ -1,5 +1,10 @@
 # Mergify merges only what CI has proven (owner pilot finding, 2026-11-20:
 # without this file the default queue merged #89 while its e2e job had failed).
+#
+# Owner decision 51: a PR's own `build` and `e2e` may cover only the browser specs it affects, so
+# they are enough to enter the queue but never to merge. `full-suite` is produced only by a run
+# of everything. Because merge_conditions differ from queue_conditions, Mergify tests every PR on
+# a draft holding the exact combined code, and these checks are read from that draft.
 queue_rules:
   - name: default
     queue_conditions:
@@ -8,4 +13,5 @@ queue_rules:
     merge_conditions:
       - check-success=build
       - check-success=e2e
+      - check-success=full-suite
     merge_method: merge

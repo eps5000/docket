@@ -14,9 +14,11 @@ permissions:
   contents: read
   packages: write
 
+# One group per commit: every main commit is published, and a newer merge never cancels an older
+# build (owner decision 51). This workflow doesn't depend on the ci workflow's tests.
 concurrency:
-  group: image-main
-  cancel-in-progress: true
+  group: image-${{ github.sha }}
+  cancel-in-progress: false
 
 jobs:
   publish:
@@ -34,7 +36,6 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
-            type=raw,value=main
             type=sha,prefix=sha-,format=short
           labels: |
             org.opencontainers.image.title=Docket
@@ -48,3 +49,16 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      # Builds can finish out of order now that none is cancelled, so `main` moves only to the
+      # commit that is still the newest.
+      - name: Move the main tag to the newest commit
+        env:
+          IMAGE: ${{ steps.meta.outputs.tags }}
+        run: |
+          tip=$(git ls-remote origin refs/heads/main | cut -f1)
+          if [ "$tip" = "$GITHUB_SHA" ]; then
+            docker buildx imagetools create -t "ghcr.io/${GITHUB_REPOSITORY,,}:main" "$IMAGE"
+            echo "main now points at $GITHUB_SHA."
+          else
+            echo "main is at $tip, so $GITHUB_SHA keeps only its sha tag."
+          fi

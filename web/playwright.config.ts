@@ -10,6 +10,8 @@ const ci = !!process.env.CI;
  * only the `@protected` specs, against an instance with DOCKET_PROTECTED_MODE=on.
  */
 const protectedRun = process.env.DOCKET_E2E_PROTECTED === '1';
+/** CI's shards without kit.spec.ts set this to 0, so they don't start the Vite server. */
+const kitServer = process.env.DOCKET_E2E_KIT !== '0';
 
 /**
  * End-to-end tests run against the container, never a dev server (the
@@ -18,7 +20,9 @@ const protectedRun = process.env.DOCKET_E2E_PROTECTED === '1';
  * explicitly before running.
  *
  * Spec files reset the container's sample seed (fixtures/container.ts), so
- * files run one at a time: `workers: 1`.
+ * files sharing a container run one at a time: `workers: 1`. CI gets its
+ * parallelism from shards, each a runner with its own container and data
+ * (.github/workflows/ci.yml, owner decision 51).
  *
  * The `kit` project runs web/e2e/kit.spec.ts against `vite` (dev mode), the
  * only place `/dev/kit` exists; production images never route it.
@@ -53,12 +57,16 @@ export default defineConfig({
       },
     },
   ],
-  webServer: {
-    command: `pnpm exec vite --port ${kitPort} --strictPort --host 127.0.0.1`,
-    url: `${kitURL}/dev/kit`,
-    reuseExistingServer: !ci,
-    timeout: 120_000,
-    stdout: 'ignore',
-    stderr: 'pipe',
-  },
+  ...(kitServer
+    ? {
+        webServer: {
+          command: `pnpm exec vite --port ${kitPort} --strictPort --host 127.0.0.1`,
+          url: `${kitURL}/dev/kit`,
+          reuseExistingServer: !ci,
+          timeout: 120_000,
+          stdout: 'ignore' as const,
+          stderr: 'pipe' as const,
+        },
+      }
+    : {}),
 });
