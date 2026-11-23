@@ -179,7 +179,7 @@ describe('the route table', () => {
     const labels = ROUTE_IDS.map((id) => routeLabel(API_ROUTES[id]));
     expect(new Set(labels).size).toBe(labels.length);
     expect([...labels].sort()).toEqual([...EXPECTED].sort());
-    expect(labels).toHaveLength(100);
+    expect(labels).toHaveLength(101);
   });
 
   it('puts each route in a known group, and every group has a route', () => {
