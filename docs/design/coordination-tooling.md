@@ -1,6 +1,6 @@
 # Design: coordination tooling
 
-**Status:** proposed on 2026-11-23, for the owner's review. Not approved to build. Compare it with the separate Gameflow workflow audit before starting anything beyond the bug fixes.
+**Status:** partly approved by the owner on 2026-11-23 (owner decision 48). **Approved to build:** Part 1, the bug fixes and the seven additions below. **Still proposed:** Parts 2 and 3, to compare with the separate Gameflow workflow audit, and all of Part 4. The relay is installed but switched off.
 
 ## Why
 
@@ -80,6 +80,16 @@ Docket's helper starts the top Startable ticket. This has the largest payoff and
 1. An expired part lease stays open in the database and raises no event. It should end as `expired` and tell the holder's coordinator.
 2. `wait_owner_unasked` says "owner decision" for a run that only waits on "a person". It should use the wording the record supports.
 
+## Approved additions
+
+1. **Flow trends on Overview:** finished, merged and parked per day.
+2. **Split ticket:** move acceptance criteria, blockers and shared parts to a new ticket in one step.
+3. **Critical path view:** the chain holding up a goal, and the one ticket to move next.
+4. **Real cost per ticket and epic:** measured token use only, never an estimate shown as measured. First confirm what Orca reports for ordinary workers.
+5. **Daily brief:** what finished, what's stuck, what needs the owner and what it cost.
+6. **Worktree cleanup view:** which worktrees are safe to remove. Docket never deletes one itself.
+7. **Withdraw question:** an agent can retract its own outdated question.
+
 ## Suggested order
 
 1. The two bugs, and Part 1.
@@ -89,7 +99,6 @@ Docket's helper starts the top Startable ticket. This has the largest payoff and
 
 ## Decisions for the owner
 
-1. Approve Part 1 and the bug fixes to build.
-2. Approve Stage 1 of Part 4 as the relay's next step.
-3. After seeing the workflow audit, decide which of Parts 2 and 3 to keep.
-4. Whether to change owner decision 18 for Stage 2, after the spike.
+1. Approve Stage 1 of Part 4 as the relay's next step.
+2. After seeing the workflow audit, decide which of Parts 2 and 3 to keep.
+3. Whether to change owner decision 18 for Stage 2, after the spike.
