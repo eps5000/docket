@@ -17,6 +17,9 @@
  *   *More* pills show when content overflows, with a "Drag to pan" hint.
  * - Zoom: − / percentage (reset to 100%) / + / Fit; steps 50, 67, 80, 100,
  *   125%; Fit shows everything, down to 40%.
+ * - Critical path (decision 48): with a goal, the chain is outlined and numbered
+ *   on its cards, everything else is muted, and the ticket to move next is
+ *   scrolled into view. Muted cards keep their text contrast (no opacity).
  */
 import {
   useCallback,
@@ -46,6 +49,21 @@ export interface ProgressMapProps {
   outsideTitle: string;
   /** The epic whose map this is: outside cards in the same project say "other epic". */
   home?: { project: string } | null;
+  /** The chain to highlight (decision 48). Keep it stable between renders. */
+  critical?: CriticalOverlay | null;
+}
+
+/** A critical path on the map (routes/shared/GoalMap.tsx). */
+export interface CriticalOverlay {
+  /** Item → its 1-based place on the chain. */
+  steps: ReadonlyMap<string, number>;
+  total: number;
+  next: string | null;
+  linkIds: ReadonlySet<string>;
+  /** Chain tickets the view doesn't include. */
+  extras: readonly MapItem[];
+  /** The view's links plus the chain's. */
+  links: readonly LinkEdge[];
 }
 
 /** How a card outside the scope is labelled: "other epic ↗" or its project. */
@@ -82,6 +100,7 @@ const barName = (s: (typeof MAP_BAR)[number]) =>
 
 /** One shared empty `outside`: a fresh `[]` default would change the layout every render and loop. */
 const NO_OUTSIDE: readonly MapItem[] = [];
+const NO_EXTRAS: readonly MapItem[] = [];
 
 export function ProgressMap({
   items,
@@ -89,11 +108,17 @@ export function ProgressMap({
   links,
   outsideTitle,
   home,
+  critical = null,
 }: ProgressMapProps) {
-  const layout = useMemo(() => layoutMap(items, outside, links), [items, outside, links]);
+  const extras = critical?.extras ?? NO_EXTRAS;
+  const layout = useMemo(
+    () => layoutMap(items, outside, links, extras),
+    [items, outside, links, extras],
+  );
+  const extraIds = useMemo(() => new Set(extras.map((i) => i.id)), [extras]);
   // A whole workspace on one map (thousands of cards) renders each column's first cards at
   // once and the rest right after (lib/progressive.ts); arrows redraw as cards arrive.
-  const limit = useRenderLimit(items.length + outside.length);
+  const limit = useRenderLimit(items.length + outside.length + extras.length);
   const uid = useId().replace(/:/g, '');
   const mapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -277,17 +302,40 @@ export function ProgressMap({
     setDragging(false);
   };
 
-  // ---- Hover tracing ----
+  // Bring the ticket to move next into view when a chain appears.
+  const nextId = critical?.next ?? null;
+  const routedReady = geo.routed !== null;
+  useEffect(() => {
+    const c = canvasRef.current;
+    if (!nextId || !routedReady || !c?.scrollBy) return;
+    const card = c.querySelector<HTMLElement>(`[data-pid="${nextId}"]`);
+    if (!card) return;
+    const box = c.getBoundingClientRect();
+    const at = card.getBoundingClientRect();
+    c.scrollBy({
+      left: at.left - box.left - (box.width - at.width) / 2,
+      top: at.top - box.top - (box.height - at.height) / 2,
+    });
+  }, [nextId, routedReady]);
+
+  // ---- Hover tracing (off while a chain is shown: one highlight at a time) ----
   const related = useMemo(() => {
-    if (!traced) return null;
+    if (!traced || critical) return null;
     const ids = new Set([traced]);
     for (const e of layout.edges) {
       if (e.from === traced) ids.add(e.to);
       if (e.to === traced) ids.add(e.from);
     }
     return ids;
-  }, [traced, layout.edges]);
+  }, [traced, layout.edges, critical]);
   const tracedOf = (id: string) => (related ? (related.has(id) ? 'on' : 'dim') : null);
+  const criticalOf = (id: string) => {
+    if (!critical) return null;
+    const step = critical.steps.get(id);
+    return step === undefined
+      ? ('off' as const)
+      : { step, total: critical.total, next: id === critical.next };
+  };
 
   const { counts } = layout;
   // Ready splits into what can start and what can't, so the bar adds up to the total.
@@ -440,7 +488,13 @@ export function ProgressMap({
                   return (
                     <path
                       key={a.link_id}
-                      className={['pm-edge', a.cleared && 'ok', on && 'hl', related && !on && 'dim']
+                      className={[
+                        'pm-edge',
+                        a.cleared && 'ok',
+                        on && 'hl',
+                        related && !on && 'dim',
+                        critical && (critical.linkIds.has(a.link_id) ? 'crit' : 'critoff'),
+                      ]
                         .filter(Boolean)
                         .join(' ')}
                       data-from={a.from}
@@ -470,7 +524,10 @@ export function ProgressMap({
                     <MapCard
                       key={i.id}
                       item={i}
-                      outside={c.ext ? { label: outsideLabel(i, home) } : null}
+                      outside={
+                        c.ext || extraIds.has(i.id) ? { label: outsideLabel(i, home) } : null
+                      }
+                      critical={criticalOf(i.id)}
                       traced={tracedOf(i.id)}
                       onTrace={setTraced}
                       top={geo.routed?.cards.get(i.id)?.y}
@@ -508,7 +565,8 @@ export function ProgressMap({
       </div>
 
       <div className="src pm-key">
-        Arrow = blocks · dashed green = cleared · hover to trace
+        Arrow = blocks · dashed green = cleared ·{' '}
+        {critical ? 'numbered cards = the chain, muted cards aren’t on it' : 'hover to trace'}
         <span className="pm-keyitem">
           <span className="pm-hr now" aria-hidden="true">
             <Icon name="person" small />

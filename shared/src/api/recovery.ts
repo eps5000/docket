@@ -6,7 +6,7 @@
  * file (tasks.md, Slice rules).
  */
 import { z } from 'zod';
-import { objectId, text } from '../mcp/common.js';
+import { objectId, projectKey, text } from '../mcp/common.js';
 import { LIMITS } from '../mcp/limits.js';
 import { resourceSchema, runStateSchema, workspaceStateSchema } from '../mcp/types.js';
 import { input, jsonResponse, noInput, ownerMutationOutput, scopeSchema } from './common.js';
@@ -59,6 +59,65 @@ export type WorkspaceRow = z.infer<typeof workspaceRowSchema>;
 export const workspacesResponse = jsonResponse({ rows: z.array(workspaceRowSchema) });
 export type WorkspacesResponse = z.infer<typeof workspacesResponse>;
 
+// ---- GET /api/workspaces/cleanup ----
+
+/**
+ * The plain verdict on each worktree (owner decision 48). `unknown` is never
+ * safe: it covers a read that timed out and a folder Docket can't reach.
+ */
+export const WORKTREE_VERDICTS = [
+  'holds_work',
+  'in_use',
+  'unknown',
+  'kept_for_later',
+  'safe_to_remove',
+] as const;
+export type WorktreeVerdict = (typeof WORKTREE_VERDICTS)[number];
+
+export const worktreeCleanupQuery = input({
+  project: projectKey,
+  /** `1` starts a new read of the repository now. */
+  refresh: z.enum(['1']).optional(),
+});
+
+/** One worktree of the project's repository, recorded by Docket or not. */
+export const repoWorktreeRowSchema = z.object({
+  path: z.string(),
+  /** Null on a detached HEAD. */
+  branch: z.string().nullable(),
+  last_activity_at: z.string().nullable(),
+  /** False: "Not tracked by Docket", no run ever reported this folder. */
+  tracked: z.boolean(),
+  item_id: z.string().nullable(),
+  item_title: z.string().nullable(),
+  /** Null when it couldn't be read. */
+  uncommitted_files: z.number().int().nullable(),
+  /** Commits on no remote and not in main. Null when it couldn't be read. */
+  unpushed_commits: z.number().int().nullable(),
+  merged: z.boolean().nullable(),
+  verdict: z.enum(WORKTREE_VERDICTS),
+  /** One plain sentence: why this verdict. */
+  why: z.string(),
+  /** Who it waits on, for a worktree Docket has at risk (B56). */
+  owner: z.enum(AT_RISK_OWNERS).nullable(),
+  /** To check and run by hand. Only ever set on `safe_to_remove`; never `--force`. */
+  command: z.string().nullable(),
+});
+export type RepoWorktreeRow = z.infer<typeof repoWorktreeRowSchema>;
+
+export const worktreeCleanupResponse = jsonResponse({
+  project: z.string(),
+  main_branch: z.string(),
+  /** `not_set`: no repository folder. `unreadable`: outside the push folder, or not a repository. */
+  repo: z.enum(['ok', 'not_set', 'unreadable']),
+  /** When git was last read; null before the first read ends. */
+  checked_at: z.string().nullable(),
+  /** A read in progress. */
+  scanning: z.object({ done: z.number().int(), total: z.number().int() }).nullable(),
+  rows: z.array(repoWorktreeRowSchema),
+});
+export type WorktreeCleanupResponse = z.infer<typeof worktreeCleanupResponse>;
+
 // ---- POST /api/resources/:id/release ----
 
 export const resourceParams = input({ id: objectId });
@@ -95,6 +154,15 @@ export const recoveryRoutes = {
     query: workspacesQuery,
     body: null,
     response: json(workspacesResponse),
+  }),
+  'workspaces.cleanup': route({
+    method: 'GET',
+    path: '/api/workspaces/cleanup',
+    group: 'recovery',
+    params: noInput,
+    query: worktreeCleanupQuery,
+    body: null,
+    response: json(worktreeCleanupResponse),
   }),
   'resources.release': route({
     method: 'POST',

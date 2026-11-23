@@ -121,6 +121,11 @@ export function DependenciesTab({ data }: { data: ItemDetailResponse }) {
           See it on the epic map →
         </Link>
       )}
+      {waits.length > 0 && (
+        <Link className="btn ghost sm seemap" to={paths.criticalPath(item.id, item.epic)}>
+          See what’s holding this up →
+        </Link>
+      )}
     </Card>
   );
 }

@@ -1461,6 +1461,60 @@
   text-decoration: underline;
 }
 
+/* ---------- Decision 48: every worktree, with a verdict ---------- */
+.tl .wc {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 14px 12px;
+}
+.tl .wc-head,
+.tl .wc-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+.tl .wc-filters input {
+  min-width: 200px;
+}
+.tl .wc-table td {
+  vertical-align: top;
+}
+.tl .wc-verdict {
+  min-width: 190px;
+  max-width: 260px;
+  white-space: normal;
+}
+.tl .wc-verdict .src,
+.tl .wc-branch .src {
+  display: block;
+  margin-top: 2px;
+}
+.tl .wc-branch {
+  max-width: 240px;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+.tl .wc-next {
+  min-width: 140px;
+  white-space: normal;
+}
+.tl .wc-group th {
+  background: var(--panel-2);
+  text-align: left;
+  white-space: normal;
+}
+.tl .wc-note {
+  display: block;
+  font-weight: 400;
+  max-width: 90ch;
+}
+.tl .wc-command code {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
 /* ---------- B20: the Needs you strip's counts are links ---------- */
 .tl .pulse .pulselink {
   display: inline-flex;

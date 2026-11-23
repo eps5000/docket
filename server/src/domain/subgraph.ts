@@ -13,8 +13,9 @@
  */
 import { ToolError, type Status } from '@docket/shared';
 import type { ServiceDeps, SubgraphService } from './contracts.js';
+import { criticalPath } from './critical-path.js';
 import { compareIds, cyclesOf } from './links.js';
-import { BlockIndex, endsOnOrAfter, requireItem } from './model.js';
+import { BlockIndex, endsOnOrAfter, requireItem, windowsOf } from './model.js';
 
 const DAY = 86_400_000;
 const dayMs = (date: string) => Date.parse(`${date}T00:00:00Z`);
@@ -50,7 +51,7 @@ function walk(root: string, depth: number, next: (id: string) => string[]): stri
   return out;
 }
 
-export function createSubgraphService(_deps: ServiceDeps): SubgraphService {
+export function createSubgraphService(deps: ServiceDeps): SubgraphService {
   return {
     dependencySubgraph(r, input) {
       const root = requireItem(r.db, input.id);
@@ -152,6 +153,9 @@ export function createSubgraphService(_deps: ServiceDeps): SubgraphService {
 
       return { nodes, edges, cycles, at_risk };
     },
+
+    criticalPath: (r, input) =>
+      criticalPath({ db: r.db, windows: windowsOf(deps.config), now: r.now }, input.id),
 
     cycles(r, input) {
       const index = new BlockIndex(r.db);

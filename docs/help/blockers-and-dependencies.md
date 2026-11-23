@@ -6,6 +6,7 @@ order: 1
 anchors:
   - item.dependencies
   - settings.blocker-rule
+  - map.criticalPath
 related:
   - review-a-packet
   - dates-effort-forecast
