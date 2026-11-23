@@ -410,7 +410,12 @@ export async function collect(ctx, options = {}) {
 
   const seen = new Set();
   const work = [];
+  let listed = completeCodex && completeClaude;
   for (const file of logs) {
+    if (signal?.aborted || Date.now() - started >= limits.maxMs) {
+      listed = false;
+      break;
+    }
     const id = shortHash(file.path);
     seen.add(id);
     let info;
@@ -447,7 +452,7 @@ export async function collect(ctx, options = {}) {
   }
 
   // Forget files that are gone, but only when the listing was complete.
-  if (completeCodex && completeClaude) {
+  if (listed) {
     for (const id of Object.keys(files)) if (!seen.has(id)) delete files[id];
   }
 

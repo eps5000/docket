@@ -7,7 +7,7 @@ import { QueryState } from '../../app/QueryState';
 import { HelpLink } from '../../help/HelpLink';
 import { queryKeys } from '../../lib/api';
 import { formatAgo, isoTitle, plural } from '../../lib/format';
-import { runOwnerMutation, showToast } from '../../lib/undo';
+import { showToast } from '../../lib/undo';
 import { errorText } from '../agent-files/install-common';
 import { USAGE_SOURCE_NOTE, USAGE_SOURCE_OFF_NOTE, USAGE_SOURCE_TITLE } from '../usage/usageText';
 import '../usage/usage.css';
@@ -39,13 +39,11 @@ export function UsageSourceCard({ projects }: { projects: SettingsResponse['proj
 
   const save = async (enabled: boolean, folders: CoordinatorFolder[] | undefined, ok: string) => {
     try {
-      await runOwnerMutation(
-        () =>
-          apiClient['usageSettings.set']({
-            body: { enabled, ...(folders ? { coordinator_folders: folders } : {}) },
-          }),
-        { success: ok, refetch: [queryKeys.usageSettings()] },
-      );
+      // Not undoable: the switch is its own undo, so the toast offers none.
+      await apiClient['usageSettings.set']({
+        body: { enabled, ...(folders ? { coordinator_folders: folders } : {}) },
+      });
+      showToast(ok);
       await Promise.all([
         qc.invalidateQueries({ queryKey: queryKeys.usageSettings() }),
         qc.invalidateQueries({ queryKey: queryKeys.family('needsYou') }),
