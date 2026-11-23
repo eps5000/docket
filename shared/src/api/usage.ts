@@ -1,5 +1,5 @@
 /**
- * Token use per ticket and epic (owner decision 48; B63; BUILD_SPEC §5.31;
+ * Token use per ticket and epic (owner decision 48; B63; BUILD_SPEC §5.34;
  * UI_SPEC §6.1c). Tokens are measured from the agents' local session logs by the
  * optional `usage` collector in `tools/docket-sync`. Dollars are an
  * API-equivalent estimate (`usage-prices.ts`). Off by default, and when it's off

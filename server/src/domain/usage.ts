@@ -1,5 +1,5 @@
 /**
- * Token use per ticket and epic (owner decision 48; B63; BUILD_SPEC §5.31).
+ * Token use per ticket and epic (owner decision 48; B63; BUILD_SPEC §5.34).
  *
  * The `usage` collector (`tools/docket-sync/sources/usage.mjs`) reads the local
  * agent logs and posts one record per model response. This file stores them,

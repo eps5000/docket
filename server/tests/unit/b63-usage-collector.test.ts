@@ -1,5 +1,5 @@
 /**
- * The token-use collector (owner decision 48; B63; BUILD_SPEC §5.31), called
+ * The token-use collector (owner decision 48; B63; BUILD_SPEC §5.34), called
  * directly with synthetic logs built from the documented field names. It never
  * reads a real log: every test passes its own temporary roots.
  */

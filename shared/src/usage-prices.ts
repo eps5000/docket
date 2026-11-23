@@ -1,6 +1,6 @@
 /**
  * API list prices for the token-use estimate (owner decision 48; B63;
- * BUILD_SPEC §5.31). Tokens are measured. Dollars are an **API-equivalent
+ * BUILD_SPEC §5.34). Tokens are measured. Dollars are an **API-equivalent
  * estimate** from this table: what the same tokens would cost at list price.
  * A subscription plan may cost less.
  *

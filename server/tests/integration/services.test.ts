@@ -88,6 +88,7 @@ describe('the service stubs', () => {
         'sharedChanges',
         'subgraph',
         'undo',
+        'usage',
         'views',
       ].sort(),
     );

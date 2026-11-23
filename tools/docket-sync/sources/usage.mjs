@@ -1,6 +1,6 @@
 /**
  * The token-use source for the docket-sync runner (owner decision 48; B63;
- * BUILD_SPEC §5.31). Off by default. It reads the local Codex and Claude Code
+ * BUILD_SPEC §5.34). Off by default. It reads the local Codex and Claude Code
  * session logs and reports how many tokens each model response used.
  *
  * Privacy is the point of how this file is written:

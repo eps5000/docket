@@ -1,5 +1,5 @@
 /**
- * Token use on the server (owner decision 48; B63; BUILD_SPEC §5.31): off by
+ * Token use on the server (owner decision 48; B63; BUILD_SPEC §5.34): off by
  * default, attribution that never guesses, overhead and unlinked, missing
  * prices, rollups, and that a sync can carry nothing but numbers and identifiers.
  * All fixture text is made up.

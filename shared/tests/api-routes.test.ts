@@ -61,6 +61,12 @@ const EXPECTED = [
   'GET /api/overview',
   'GET /api/overview/items',
   'GET /api/brief',
+  'GET /api/usage',
+  'GET /api/usage/items/:id',
+  'GET /api/usage/settings',
+  'PUT /api/usage/settings',
+  'GET /api/sync/usage',
+  'POST /api/sync/usage',
   'GET /api/work',
   'GET /api/burndown',
   'GET /api/items/:id',
@@ -179,7 +185,7 @@ describe('the route table', () => {
     const labels = ROUTE_IDS.map((id) => routeLabel(API_ROUTES[id]));
     expect(new Set(labels).size).toBe(labels.length);
     expect([...labels].sort()).toEqual([...EXPECTED].sort());
-    expect(labels).toHaveLength(101);
+    expect(labels).toHaveLength(107);
   });
 
   it('puts each route in a known group, and every group has a route', () => {

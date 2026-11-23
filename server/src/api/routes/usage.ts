@@ -1,5 +1,5 @@
 /**
- * Token use (owner decision 48; B63; BUILD_SPEC §5.31). Everything sits behind
+ * Token use (owner decision 48; B63; BUILD_SPEC §5.34). Everything sits behind
  * the owner guards. The two `/api/sync/usage` routes are the docket-sync
  * collector's, in its `{ settings, status }` and `{ records, run }` shapes.
  */
