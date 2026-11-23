@@ -12,6 +12,12 @@
  *   (`owner_note.added`, undoable). Answering doesn't touch the run: it
  *   stays `needs_input` until the agent reads the answer.
  *
+ * Decision 48 (B61): `withdraw` retracts an unanswered question, for the run
+ * that asked it, its recorded coordinator or a registered one. It needs a plain
+ * reason, leaves Needs you at once and stays in the item's history. A withdrawn
+ * question is never open and is never delivered: `read_by_agent_at` applies only
+ * to answers, as before.
+ *
  * `markDelivered` is filled by US3 (B9, agreed with the coordinator): the
  * owner note a fresh-packet request posts (§5.6) is delivered by
  * `get_item`, which calls it. US6 reuses it as is. It is a receipt, not an
@@ -20,10 +26,17 @@
  * question's `needs_input` run back to `open`. Only `get_item`'s standard
  * and full views deliver (MCP_SPEC §3.2); summary and `get_context` don't.
  */
-import { ToolError, formatChoice, type QuestionChoice, type QuestionForm } from '@docket/shared';
+import {
+  ToolError,
+  findInternalRef,
+  formatChoice,
+  type QuestionChoice,
+  type QuestionForm,
+} from '@docket/shared';
 import type { MessagesService, ServiceDeps } from './contracts.js';
 import { newId } from './ids.js';
-import { activeLead, assertCallerRun, callerName, ms, requireItem } from './model.js';
+import { activeLead, assertCallerRun, callerName, getRun, ms, requireItem } from './model.js';
+import { namesCoordinator, projectCoordinators } from './run-activity.js';
 import { choiceField, parseQuestionForm } from './question-form.js';
 
 interface QuestionRow {
@@ -37,6 +50,8 @@ interface QuestionRow {
   read_by_agent_at: string | null;
   form: string | null;
   answer_choice: string | null;
+  withdrawn_at: string | null;
+  withdrawn_reason: string | null;
   created_at: string;
 }
 
@@ -99,13 +114,13 @@ export function createMessagesService(_deps: ServiceDeps): MessagesService {
       const item = requireItem(w.db, input.id);
       const open = w.db.sqlite
         .prepare(
-          'SELECT * FROM questions WHERE item_id = ? AND answered_at IS NULL ORDER BY created_at DESC LIMIT 1',
+          'SELECT * FROM questions WHERE item_id = ? AND answered_at IS NULL AND withdrawn_at IS NULL ORDER BY created_at DESC LIMIT 1',
         )
         .get(item.id) as QuestionRow | undefined;
       if (open) {
         throw new ToolError(
           'validation',
-          `${item.id} already has an open question: ${quote(open.text)}. Wait for the answer in get_item (open_question).`,
+          `${item.id} already has an open question: ${quote(open.text)}. Wait for the answer in get_item (open_question), or if it is out of date, retract it with withdraw_decision (question_id, reason).`,
           { details: { question_id: open.id } },
         );
       }
@@ -183,6 +198,13 @@ export function createMessagesService(_deps: ServiceDeps): MessagesService {
           `No question ${input.question_id} on ${item.id}. Reload the item to see its question.`,
         );
       }
+      if (q.withdrawn_at !== null) {
+        throw new ToolError(
+          'conflict',
+          `This question was withdrawn: ${quote(q.withdrawn_reason ?? '', 200)} It no longer needs an answer.`,
+          { current: questionView(q) },
+        );
+      }
       if (q.answered_at !== null) {
         throw new ToolError(
           'conflict',
@@ -206,6 +228,78 @@ export function createMessagesService(_deps: ServiceDeps): MessagesService {
         inverse: [inverse],
       });
       return questionView(w.require('questions', q.id) as unknown as QuestionRow);
+    },
+
+    withdraw(w, input) {
+      const q = w.get('questions', input.question_id) as QuestionRow | undefined;
+      if (!q) {
+        throw new ToolError(
+          'not_found',
+          `No question ${input.question_id}. Use the ID in get_item.`,
+        );
+      }
+      const item = requireItem(w.db, q.item_id);
+      assertCallerRun(w.db, w.actor, w.now);
+      const internal = findInternalRef(input.reason);
+      if (internal) {
+        throw new ToolError(
+          'validation',
+          `reason contains "${internal}". The owner reads it: say it in everyday words.`,
+          { details: { fields: { reason: 'plain words, no IDs, hashes, paths or links' } } },
+        );
+      }
+      if (q.withdrawn_at !== null) {
+        throw new ToolError('conflict', `This question was already withdrawn.`, {
+          current: questionView(q),
+        });
+      }
+      if (q.answered_at !== null) {
+        throw new ToolError(
+          'conflict',
+          "The owner already answered this question, so it can't be withdrawn. Read the answer in get_item.",
+          { current: questionView(q) },
+        );
+      }
+      const run = q.run_id ? getRun(w.db, q.run_id) : undefined;
+      const asker =
+        w.actor.kind === 'agent' &&
+        !!run &&
+        w.actor.run_id === run.id &&
+        w.actor.client === run.client;
+      const name = input.coordinator;
+      const coordinator =
+        w.actor.kind === 'agent' &&
+        name !== undefined &&
+        (run
+          ? namesCoordinator(w.db, item.project_key, run, name)
+          : projectCoordinators(w.db, item.project_key).includes(name));
+      if (!asker && !coordinator) {
+        throw new ToolError(
+          'forbidden',
+          `Only the run that asked this question, its coordinator or a coordinator registered for ${item.project_key} can withdraw it. To add to it, leave a note.`,
+          { details: { question_id: q.id } },
+        );
+      }
+      const who = asker ? callerName(w.db, w.actor) : `${name!} (coordinator)`;
+      const reason = input.reason.trim();
+      w.update('questions', q.id, {
+        withdrawn_at: w.now,
+        withdrawn_by: who,
+        withdrawn_reason: reason,
+      });
+      if (run?.state === 'needs_input') w.update('runs', run.id, { state: 'open' });
+      w.event({
+        type: 'question.withdrawn',
+        summary: `${who} withdrew a question: ${quote(q.text, 200)} Reason: ${reason}`,
+        item_id: item.id,
+        project_key: item.project_key,
+        data: { question_id: q.id, run_id: q.run_id, withdrawn_by: who, reason },
+        objects: [
+          { kind: 'question', id: q.id },
+          ...(run ? [{ kind: 'run' as const, id: run.id }] : []),
+        ],
+      });
+      return { id: q.id, text: q.text, withdrawn_at: w.now };
     },
 
     addOwnerNote(w, input) {

@@ -3,7 +3,7 @@
  * Shared contract file (tasks.md, Slice rules).
  */
 import { z } from 'zod';
-import { LINK_TYPES } from '../enums.js';
+import { LINK_TYPES, SPLIT_CARRY_KINDS, SPLIT_RELATIONS } from '../enums.js';
 import {
   date,
   itemId,
@@ -35,6 +35,30 @@ const acceptance = z.array(text(TEXT_LIMITS.step));
 const labels = z.array(labelNameSchema);
 const expectedVersion = z.number().int().min(0);
 
+// ---- Splitting a ticket (decision 48; MCP_SPEC §5.3) ----
+
+/** 1-based positions in the original's acceptance list, as `get_item` shows them. */
+const criteria = z.array(z.number().int());
+
+export const splitCarry = z.strictObject({
+  kind: z.enum(SPLIT_CARRY_KINDS),
+  /** The blocker's item ID, the shared part's key, or the step's ID. */
+  id: text(LIMITS.shared_part_key),
+  /** Copy instead of move. */
+  copy: z.boolean().optional(),
+});
+
+export const splitFromInput = z.strictObject({
+  id: itemId,
+  expected_version: expectedVersion,
+  move: criteria,
+  copy: criteria.optional(),
+  relation: z.enum(SPLIT_RELATIONS),
+  also: z.array(splitCarry).optional(),
+  /** Your name, when you split a claimed ticket as its coordinator. */
+  coordinator: text(LIMITS.orchestrator_name).optional(),
+});
+
 // ---- create_item ----
 
 export const createItemInput = mutationInput({
@@ -44,7 +68,8 @@ export const createItemInput = mutationInput({
   description_md: longText(TEXT_LIMITS.markdown).optional(),
   outcome_md: longText(TEXT_LIMITS.markdown).optional(),
   acceptance: acceptance.optional(),
-  priority: prioritySchema.default(2),
+  /** Defaults to 2, or to the original's priority in a split. */
+  priority: prioritySchema.optional(),
   /** An Epic in the same project. */
   epic: itemId.optional(),
   /** Created if missing. */
@@ -55,6 +80,8 @@ export const createItemInput = mutationInput({
   effort: z.number().min(0).optional(),
   /** Creates `blocks` links; cycle-checked. */
   blocked_by: z.array(itemId).optional(),
+  /** Decision 48: create this ticket by splitting an existing one, in one step. */
+  split_from: splitFromInput.optional(),
 });
 export const createItemOutput = mutationOutput({ item: itemSummarySchema });
 

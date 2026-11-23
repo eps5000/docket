@@ -128,6 +128,22 @@ export function ItemHeader({ id, data }: { id: string; data?: ItemDetailResponse
             <Label key={l} project={item.project} name={l} />
           ))}
           {item.jira_key && <Chip kind="neutral">Imported from Jira</Chip>}
+          {item.split_from && (
+            <span className="src split-prov" data-split-from={item.split_from}>
+              Split from <Link to={paths.item(item.split_from)}>{item.split_from}</Link>
+            </span>
+          )}
+          {item.split_into && item.split_into.length > 0 && (
+            <span className="src split-prov" data-split-into={item.split_into.join(' ')}>
+              Split into{' '}
+              {item.split_into.map((id, i) => (
+                <span key={id}>
+                  {i > 0 && ', '}
+                  <Link to={paths.item(id)}>{id}</Link>
+                </span>
+              ))}
+            </span>
+          )}
         </div>
         <div style={{ marginTop: 4 }}>
           <InlineTextEdit item={item} field="title" name="title" value={item.title} pencil>

@@ -651,6 +651,15 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T266 [US11] Agents → Workspaces → Every worktree: grouped, filterable, hundreds of rows.
 - [x] T267 [US11] Tests: chain selection, ties, cycles, reasons; each verdict on fixture repositories, timeouts, paths outside the root, `.git` hash proof; e2e and axe in both themes at 1440 × 900 and 1024 px on the stress data.
 
+## Phase 40: Split a ticket and withdraw a question (owner decision 48)
+
+- [x] T268 [US6] Spec plus code in one PR: decision 48 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.33; MCP_SPEC §4, §5.3 and §5.8; UI_SPEC §6.3; spec FR-250–FR-255; Help and the skills.
+- [x] T269 [US6] Migration 0023 (`items.split_from`, `packets.criteria_changed_at`, the `questions` withdrawal columns, the rebuilt one-open index).
+- [x] T270 [US6] Withdraw a question through `withdraw_decision`: authority, reason, event, Needs you and every "open question" read. Still 51 tools.
+- [x] T271 [US6] Split a ticket through `create_item` `split_from` and `POST /api/items/:id/split`: atomic, no criterion lost, relations, live lead, packets, overlaps and undo.
+- [x] T272 [US6] The split dialog on the item page, provenance in the header, Withdrawn in History: keyboard, both themes, 1024 px and 1440 × 900.
+- [x] T273 [US6] Tests: authority, withdraw then ask again, atomicity and rollback, every criterion preserved, each relation, live lead, stale version, out-of-date packets, undo, token budget, e2e and axe in both themes.
+
 ## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.
@@ -761,6 +770,7 @@ Open a PR titled "<Bn>: <phase name>" with the checkpoint evidence. Do not queue
 | 35 Overview fixes from the owner's feedback | B56 (after B55) |
 | 36 Questions the owner can actually read | B57 (after B56) |
 | 37 Flow trends and a daily brief | B59 (decision 48; alongside B58, B60 and B61) |
+| 40 Split a ticket and withdraw a question | B61 (decision 48, in parallel with B58–B60) |
 
 **Within a phase:** tests (failing) → services → replace stubs or fill handlers → fill screens → checkpoint.
 

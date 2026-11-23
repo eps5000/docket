@@ -190,6 +190,7 @@ const INPUTS: Record<string, [string[], string[]]> = {
       'planned_end',
       'effort',
       'blocked_by',
+      'split_from',
     ],
   ],
   update_item: [
@@ -291,7 +292,7 @@ const INPUTS: Record<string, [string[], string[]]> = {
     ['rationale', 'supersedes'],
   ],
   list_decisions: [['project'], ['scope', 'in_scope_of', 'include_inactive', 'cursor', 'limit']],
-  withdraw_decision: [['decision_id', 'reason'], []],
+  withdraw_decision: [['reason'], ['decision_id', 'question_id', 'coordinator']],
   recovery_report: [[], ['project', 'since', 'include_briefs', 'cursor', 'limit']],
   get_agent_files: [['project'], ['file']],
   propose_agent_file_change: [['file', 'content', 'reason', 'based_on_version_id'], ['project']],
@@ -372,7 +373,7 @@ const OUTPUTS: Record<string, string[]> = {
   ask_owner: ['question_id'],
   publish_decision: ['decision'],
   list_decisions: ['items', 'next_cursor'],
-  withdraw_decision: ['decision'],
+  withdraw_decision: [],
   recovery_report: [
     'interrupted',
     'stale',
@@ -400,6 +401,7 @@ const OPTIONAL_OUTPUTS: Record<string, string[]> = {
   declare_shared_changes: ['design_hold'],
   update_run_status: ['parked_until'], // decision 44: while a coordinator's park holds
   park_run: ['wait'], // decision 45: left out only on a replay stored before it
+  withdraw_decision: ['decision', 'question'], // decision 48: one or the other
 };
 
 const MUTATING = specDescriptions()
@@ -459,7 +461,6 @@ describe('tools/list: input schemas (§3, §5)', () => {
       ['dependency_subgraph', 'direction', 'both'],
       ['deferred_reviews', 'limit', 25],
       ['get_changes', 'limit', 100],
-      ['create_item', 'priority', 2],
       ['create_item', 'status', 'inbox'],
       ['set_plan', 'mode', 'patch'],
       ['set_checks', 'mode', 'patch'],

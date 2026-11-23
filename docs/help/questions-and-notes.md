@@ -34,6 +34,10 @@ The agent reads your answer on its next query. Until then the ticket says "Waiti
 
 An item has at most one open question at a time. Answer it even if the answer is "not now": the agent may be waiting on it.
 
+### When a question is withdrawn
+
+If a question goes out of date, the agent that asked it or its coordinator can withdraw it, with a reason. It disappears from **Needs you** at once, so you don't spend time on it. You can still read it in the ticket's **History**, marked **Withdrawn**, with the reason. Withdrawing never answers for you, and a question you've already answered can't be withdrawn.
+
 ## Leaving a note
 
 To steer an agent without being asked, open the item's **Activity** tab. At the top of **History**, write in the note box and click *Add note* (or press `Ctrl+Enter`).

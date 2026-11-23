@@ -80,6 +80,7 @@ const EXPECTED = [
   'PATCH /api/items/:id/human-review/:hrId',
   'DELETE /api/items/:id/human-review/:hrId',
   'POST /api/items/:id/notes',
+  'POST /api/items/:id/split',
   'POST /api/items/:id/answer',
   'POST /api/items/:id/release',
   'POST /api/items/:id/return-to-ready',
@@ -181,7 +182,7 @@ describe('the route table', () => {
     const labels = ROUTE_IDS.map((id) => routeLabel(API_ROUTES[id]));
     expect(new Set(labels).size).toBe(labels.length);
     expect([...labels].sort()).toEqual([...EXPECTED].sort());
-    expect(labels).toHaveLength(103);
+    expect(labels).toHaveLength(104);
   });
 
   it('puts each route in a known group, and every group has a route', () => {

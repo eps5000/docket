@@ -449,6 +449,8 @@ export const itemDetailResponse = jsonResponse({
       packet_id: z.string(),
       round: z.number().int(),
       stale: z.boolean(),
+      /** Decision 48: a split moved acceptance criteria after this packet was built. */
+      criteria_changed: z.boolean().optional(),
       to_verify: z.number().int(),
       /** The agent's estimate, for "about 10 min" (UI_SPEC §6.3). */
       estimate: z.string().nullable(),

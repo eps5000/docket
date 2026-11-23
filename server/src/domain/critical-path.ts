@@ -330,7 +330,9 @@ export function criticalPath(
     const holds = present[1] ?? null;
     const link = holds ? index.blockers.get(holds)?.find((l) => l.from_id === head.id) : undefined;
     const question = db.sqlite
-      .prepare('SELECT 1 FROM questions WHERE item_id = ? AND answered_at IS NULL LIMIT 1')
+      .prepare(
+        'SELECT 1 FROM questions WHERE item_id = ? AND answered_at IS NULL AND withdrawn_at IS NULL LIMIT 1',
+      )
       .get(head.id);
     const run = head.lead
       ? (db.sqlite.prepare('SELECT waiting_on FROM runs WHERE id = ?').get(head.lead.run_id) as

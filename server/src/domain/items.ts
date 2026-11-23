@@ -62,6 +62,7 @@ import type { Db } from '../db/client.js';
 import { choiceField } from './question-form.js';
 import { addReportedBranch } from './radar.js';
 import { producerHold } from './run-activity.js';
+import { splitItem } from './split.js';
 
 /** Decision 42: `producer_hold`, only while the story is between workers. */
 function holdField(db: Db, id: string, openRuns: number) {
@@ -274,8 +275,61 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
     ).map((r) => r.id);
   }
 
+  /** `create_item` with `split_from` (decision 48): the rest of the call describes the new ticket. */
+  function splitFromCreate(
+    w: WriteContext,
+    input: In<'create_item'>,
+    from: NonNullable<In<'create_item'>['split_from']>,
+  ): ItemSummary {
+    const source = requireItem(w.db, from.id);
+    if (input.project !== source.project_key) {
+      throw new ToolError(
+        'validation',
+        `A split stays in ${source.project_key}. Pass project ${source.project_key}.`,
+        { details: { fields: { project: 'must be the original ticket project' } } },
+      );
+    }
+    if (input.type === 'Epic') {
+      throw new ToolError('validation', 'A split creates a Story, Task or Bug.', {
+        details: { fields: { type: 'must not be Epic' } },
+      });
+    }
+    if (input.epic !== undefined && input.epic !== source.epic_id) {
+      throw new ToolError('validation', "A split keeps the original's epic. Leave epic out.", {
+        details: { fields: { epic: 'a split keeps the epic' } },
+      });
+    }
+    for (const field of ['labels', 'blocked_by', 'acceptance'] as const) {
+      if (input[field] !== undefined) {
+        const hint =
+          field === 'labels'
+            ? "A split keeps the original's labels; change them afterwards with update_item."
+            : field === 'blocked_by'
+              ? 'In a split, choose blockers with split_from.also.'
+              : 'In a split, acceptance comes from split_from.move and copy.';
+        throw new ToolError('validation', hint, {
+          details: { fields: { [field]: 'not with split_from' } },
+        });
+      }
+    }
+    checkDates(input.planned_start, input.planned_end);
+    return splitItem(w, deps.services().links, (id) => summary(w, id), {
+      ...from,
+      type: input.type,
+      title: input.title,
+      description_md: input.description_md,
+      outcome_md: input.outcome_md,
+      priority: input.priority,
+      status: input.status,
+      planned_start: input.planned_start,
+      planned_end: input.planned_end,
+      effort: input.effort,
+    }).item;
+  }
+
   return {
     create(w, input) {
+      if (input.split_from) return splitFromCreate(w, input, input.split_from);
       assertCallerRun(w.db, w.actor, w.now);
       const project = w.db.sqlite
         .prepare('SELECT key FROM projects WHERE key = ? AND deleted_at IS NULL')
@@ -346,6 +400,10 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
         });
       }
       return summary(w, id);
+    },
+
+    split(w, input) {
+      return splitItem(w, deps.services().links, (id) => summary(w, id), input);
     },
 
     update(w, input) {
@@ -888,7 +946,7 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
     const openQuestion = sql
       .prepare(
         `SELECT id, text, created_at, answer, answered_at, answer_choice FROM questions
-         WHERE item_id = ? AND (answered_at IS NULL OR read_by_agent_at IS NULL)
+         WHERE item_id = ? AND withdrawn_at IS NULL AND (answered_at IS NULL OR read_by_agent_at IS NULL)
          ORDER BY created_at DESC LIMIT 1`,
       )
       .get(row.id) as
@@ -1075,7 +1133,7 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
     const packets = (
       sql
         .prepare(
-          'SELECT id, round, state, built_from_commit, created_at FROM packets WHERE item_id = ? ORDER BY round',
+          'SELECT id, round, state, built_from_commit, created_at, criteria_changed_at FROM packets WHERE item_id = ? ORDER BY round',
         )
         .all(row.id) as {
         id: string;
@@ -1083,6 +1141,7 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
         state: 'open' | 'decided' | 'withdrawn';
         built_from_commit: string | null;
         created_at: string;
+        criteria_changed_at: string | null;
       }[]
     ).map((p) => ({
       packet_id: p.id,
@@ -1090,11 +1149,12 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
       state: p.state,
       stale:
         p.state === 'open' &&
-        commitsFor.some(
-          (c) =>
-            ms(c.reported_at) > ms(p.created_at) &&
-            !sameSha(c.sha.toLowerCase(), (p.built_from_commit ?? '').toLowerCase()),
-        ),
+        (p.criteria_changed_at !== null ||
+          commitsFor.some(
+            (c) =>
+              ms(c.reported_at) > ms(p.created_at) &&
+              !sameSha(c.sha.toLowerCase(), (p.built_from_commit ?? '').toLowerCase()),
+          )),
       built_from_commit: p.built_from_commit ?? '',
       created_at: p.created_at,
     }));
@@ -1118,6 +1178,13 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
         .all(row.id, full ? 20 : 5) as StoredEvent[]
     ).map(eventRow);
 
+    const splitInto = (
+      sql
+        .prepare(
+          "SELECT id FROM items WHERE split_from = ? ORDER BY CAST(substr(id, instr(id, '-') + 1) AS INTEGER)",
+        )
+        .all(row.id) as { id: string }[]
+    ).map((x) => x.id);
     const recovery = new RecoveryReader(db, windows(), now);
     const item: ItemView = {
       ...base,
@@ -1148,6 +1215,8 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
             ...choiceField(openQuestion.answer_choice),
           }
         : null,
+      ...(row.split_from ? { split_from: row.split_from } : {}),
+      ...(splitInto.length > 0 ? { split_into: splitInto } : {}),
       resume: wanted('resume') ? deps.services().recovery.itemResume(r, { item_id: row.id }) : null,
       ...holdField(db, row.id, openRuns.length),
       unread_owner_notes: notes.map((n) => ({ id: n.id, text: n.text, at: n.created_at })),

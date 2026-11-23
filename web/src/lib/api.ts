@@ -402,6 +402,8 @@ export const INVALIDATION: Record<EventType, readonly QueryFamily[]> = {
   'item.status_changed': [...ITEM_VIEWS, 'review', 'agents', 'bootstrap', 'settings', 'itemShared'],
   'item.archived': ['item', 'work', 'labels', 'burndown', 'settings'],
   'item.unarchived': ['item', 'work', 'labels', 'burndown', 'settings'],
+  // Decision 48: a split changes two tickets, their links and possibly a packet.
+  'item.split': [...ITEM_VIEWS, 'review', 'needsYou', 'bootstrap', 'itemShared'],
   'link.added': ['item', 'work', 'needsYou', 'bootstrap'],
   'link.removed': ['item', 'work', 'needsYou', 'bootstrap'],
   'link.updated': ['item', 'work', 'needsYou', 'bootstrap'],
@@ -441,6 +443,7 @@ export const INVALIDATION: Record<EventType, readonly QueryFamily[]> = {
   'review.decided': ['item', 'review', 'work', 'needsYou', 'bootstrap', 'labels', 'burndown'],
   'question.asked': ['item', 'needsYou', 'bootstrap', 'agents', 'work'],
   'question.answered': ['item', 'needsYou', 'bootstrap', 'agents'],
+  'question.withdrawn': ['item', 'needsYou', 'bootstrap', 'agents', 'work'],
   'owner_note.added': ['item'],
   'note.added': ['item'],
   'document.added': ['item'],
