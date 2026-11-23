@@ -11,7 +11,7 @@ import {
 import { Button, Card, Skeleton } from '../../components/kit';
 import { QueryState } from '../../app/QueryState';
 import { apiClient } from '../../app/queryClient';
-import { useShell } from '../../app/ShellState';
+import { useBreadcrumb, useShell } from '../../app/ShellState';
 import { NEEDS_YOU_REFRESH_MS } from '../../app/useBootstrap';
 import { HelpLink } from '../../help/HelpLink';
 import { queryKeys } from '../../lib/api';
@@ -48,7 +48,8 @@ function Line({
   return (
     <li className="brief-line" data-brief-line={id ?? undefined}>
       <Link to={to} title={id ? `${id} ${title}` : title}>
-        {id && <span className="mono">{id}</span>} <span className="brief-t">{title}</span>
+        {id && <span className="mono">{id}</span>}{' '}
+        <span className={id ? 'brief-t' : 'brief-t brief-t-link'}>{title}</span>
       </Link>
       <span className="src brief-meta" title={metaTitle}>
         {meta}
@@ -143,7 +144,7 @@ function Stuck({ data }: { data: BriefResponse }) {
                 to={paths.item(r.id)}
                 id={r.id}
                 title={r.title}
-                meta={`${waitedText(r.since)}. Next: ${r.next}`}
+                meta={`${waitedText(r.since)}. ${r.next}`}
                 metaTitle={isoTitle(r.since)}
               />
             ))}
@@ -257,6 +258,12 @@ function Decisions({ data }: { data: BriefResponse }) {
  */
 export function Brief() {
   const { scope } = useShell();
+  useBreadcrumb({
+    crumbs: [
+      { kind: 'link', text: 'Overview', to: paths.overview() },
+      { kind: 'current', text: 'Daily brief' },
+    ],
+  });
   const [params, setParams] = useSearchParams();
   const asked = params.get('day');
   const day = asked && isCalendarDay(asked) ? asked : undefined;
@@ -311,25 +318,29 @@ export function Brief() {
       <QueryState query={brief} skeleton={<Skeleton lines={8} label="Loading the brief" />}>
         {(data) => (
           <div className="brief-grid">
-            <Finished data={data} />
-            <Stuck data={data} />
-            {needs.data ? (
-              <NeedsYou view={needs.data} past={data.day !== data.today} />
-            ) : (
-              <Section id="needs-you" title="What needs you">
-                {needs.isError ? (
-                  <p className="brief-none" role="status">
-                    Couldn’t load this.{' '}
-                    <Button size="sm" onClick={() => void needs.refetch()}>
-                      Retry
-                    </Button>
-                  </p>
-                ) : (
-                  <Skeleton lines={3} label="Loading what needs you" />
-                )}
-              </Section>
-            )}
-            <Decisions data={data} />
+            <div className="brief-col">
+              <Finished data={data} />
+              <Stuck data={data} />
+            </div>
+            <div className="brief-col">
+              {needs.data ? (
+                <NeedsYou view={needs.data} past={data.day !== data.today} />
+              ) : (
+                <Section id="needs-you" title="What needs you">
+                  {needs.isError ? (
+                    <p className="brief-none" role="status">
+                      Couldn’t load this.{' '}
+                      <Button size="sm" onClick={() => void needs.refetch()}>
+                        Retry
+                      </Button>
+                    </p>
+                  ) : (
+                    <Skeleton lines={3} label="Loading what needs you" />
+                  )}
+                </Section>
+              )}
+              <Decisions data={data} />
+            </div>
           </div>
         )}
       </QueryState>

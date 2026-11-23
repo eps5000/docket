@@ -17,6 +17,15 @@
   gap: 12px;
   align-items: start;
 }
+.tl .brief-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.tl .brief-col > * {
+  margin: 0;
+}
 .tl .brief-grid h2 {
   margin: 0;
   font-size: 14px;
@@ -71,6 +80,8 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* With no ticket key to carry the underline, the title shows it is a link. */
+.tl .brief-t-link,
 .tl .brief-line a:hover .brief-t {
   text-decoration: underline;
 }

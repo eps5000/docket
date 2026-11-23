@@ -51,6 +51,16 @@ async function withTrend(page: Page) {
   const sum = (key: 'finished' | 'merged' | 'parked') => buckets.reduce((n, b) => n + b[key], 0);
   await mockGet(page, '/api/overview', {
     ...real,
+    // The Completed chart shows the same finished tickets as Flow.
+    completed: {
+      ...real.completed,
+      count: sum('finished'),
+      buckets: real.completed.buckets.map((b, k) => ({
+        ...b,
+        count: buckets[k]?.finished ?? 0,
+        tickets: [],
+      })),
+    },
     flow: {
       ...real.flow,
       buckets,
@@ -83,7 +93,7 @@ const fullBrief = (real: BriefResponse): BriefResponse => ({
       rows: Array.from({ length: 8 }, (_, k) => ({
         ...line(k + 10),
         since: new Date(Date.parse(real.to) - (k + 2) * 86_400_000).toISOString(),
-        next: `STR-${70 + k}: shape it or assign it`,
+        next: `Next step on STR-${70 + k}: shape it or assign it`,
       })),
     },
     unowned_blockers: {
@@ -253,9 +263,10 @@ test.describe('screenshots', () => {
       const card = flowCard(page);
       await expect(card.locator('[data-flow-note]')).toBeVisible();
       await card.scrollIntoViewIfNeeded();
+      await shoot(page, 'overview-flow', size);
       await page.locator(`[data-flow-bar="${buckets.at(-1)!.key}"]`).focus();
       await expect(tip(page)).toBeVisible();
-      await shoot(page, 'overview-flow', size);
+      await shoot(page, 'overview-flow-tooltip', size);
       await page.keyboard.press('Escape');
 
       await page.goto('/brief');

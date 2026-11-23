@@ -76,7 +76,7 @@ function stuckNow(s: Scoped): BriefResponse['stuck'] {
         // The step for a run that can resume names its run ID, which means nothing to the owner.
         next: card.resume_ready
           ? 'What it waited for has cleared, so it can resume.'
-          : card.next_owner.step,
+          : `Next step on ${card.next_owner.step}`,
       });
     }
   }

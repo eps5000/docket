@@ -53,7 +53,7 @@ const full = (): BriefResponse =>
             title: 'Parked ticket',
             project: 'RCP',
             since: '2026-11-20T10:00:00.000Z',
-            next: 'RCP-5: shape it or assign it',
+            next: 'Next step on RCP-5: shape it or assign it',
           },
         ],
       },
