@@ -660,6 +660,15 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T272 [US6] The split dialog on the item page, provenance in the header, Withdrawn in History: keyboard, both themes, 1024 px and 1440 × 900.
 - [x] T273 [US6] Tests: authority, withdraw then ask again, atomicity and rollback, every criterion preserved, each relation, live lead, stale version, out-of-date packets, undo, token budget, e2e and axe in both themes.
 
+## Phase 42: Real token use per ticket and epic (owner decision 48, B63)
+
+- [x] T278 [US2] Spec plus code in one PR: decision 48 (B63's part) in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §4, §5.34 and §7; UI_SPEC §6.1, §6.1b, §6.1c and §6.7; spec FR-205, FR-235, FR-259–FR-268 and SC-030; Help (Token use, A first look around). No MCP tool changes.
+- [x] T279 [US2] `tools/docket-sync/sources/usage.mjs`: Codex and Claude Code logs, allowlisted fields only, known workspaces only, byte offsets, partial lines, rotation and per-pass limits.
+- [x] T280 [US2] Migration, `domain/usage.ts` and the routes: the switch, the sync contract, attribution, overhead and not linked, rollups.
+- [x] T281 [US2] `usage-prices.ts`: a dated table citing its source per model; "Cost not available" with no sourced price.
+- [x] T282 [US2] The Settings switch with the owner's note and status; Overview's card; a ticket's and an epic's Token use; the brief's *What it cost*. Keyboard, text, both themes, 1024 px and 1440 × 900.
+- [x] T283 [US2] Tests: both log formats from fixtures, duplicate and cumulative counting, partial lines and offsets, privacy, no file call when off, unknown workspaces, attribution, overhead and not linked, missing prices, rollups, empty and off states, e2e and axe in both themes.
+
 ## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.
@@ -771,6 +780,7 @@ Open a PR titled "<Bn>: <phase name>" with the checkpoint evidence. Do not queue
 | 36 Questions the owner can actually read | B57 (after B56) |
 | 37 Flow trends and a daily brief | B59 (decision 48; alongside B58, B60 and B61) |
 | 40 Split a ticket and withdraw a question | B61 (decision 48, in parallel with B58–B60) |
+| 42 Real token use per ticket and epic | B63 (decision 48; alongside B60, B61 and B62) |
 
 **Within a phase:** tests (failing) → services → replace stubs or fill handlers → fill screens → checkpoint.
 

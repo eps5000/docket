@@ -29,6 +29,7 @@ This index groups the routes by user story.
 | `POST /api/decisions/acknowledge` `{decision_ids}`; `GET /api/needs-you` adds `project_decisions` and `project_decision_groups` (decision 38; B44) | US5 | FR-173–FR-176 |
 | `GET`/`POST /api/projects/:key/shared-parts`, `PATCH /api/shared-parts/:id`, `GET`/`PUT /api/items/:id/shared`, `POST /api/items/:id/shared/branches` (B41; replaces B40's `PUT …/shared/branch`; B45: optional `not_active` on a remove), `POST /api/overlaps/:id/decide`, `POST /api/undeclared-holds/:id/decide`, `POST /api/leases/:id/release`, `GET`/`PUT /api/projects/:key/radar`, `POST /api/projects/:key/radar/run` | US18 | FR-158–FR-164 |
 | `GET /api/brief` (decision 48; B59; read-only; shapes in `shared/src/api/brief.ts`) | US2 | FR-234, FR-235 |
+| `GET /api/usage`, `GET /api/usage/items/:id`, `GET`/`PUT /api/usage/settings`, `GET`/`POST /api/sync/usage` (decision 48; B63; shapes in `shared/src/api/usage.ts`) | US2 | FR-259–FR-268 |
 | `GET /api/overview`, `GET /api/overview/items` (decision 43; B51; read-only; shapes in `shared/src/api/overview.ts`) | US2 | FR-201–FR-205 |
 | `PATCH /api/items/:id/work/:stepId/details` | US16 | FR-145, FR-146 |
 | `GET /api/items/:id/work/:stepId` | US16 | FR-146 |

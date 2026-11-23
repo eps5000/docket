@@ -180,6 +180,13 @@ const B2_ROUTES: readonly RouteId[] = [
   // Decision 38 (B44, T193): acknowledging agents' project decisions (content in
   // project-decision-review.test.ts).
   'decisions.acknowledge',
+  // Decision 48 (B63): token use (content in b63-usage.test.ts).
+  'usage.get',
+  'usage.item',
+  'usageSettings.get',
+  'usageSettings.set',
+  'usageSync.config',
+  'usageSync.post',
 ];
 
 interface Req {
@@ -381,6 +388,12 @@ const VALID: Record<RouteId, Req> = {
     params: { id: 'prs_01JNOSUCHPROPOSAL' },
     body: { decision: 'acknowledge' },
   },
+  'usage.get': { query: { scope: 'RCP', window: '7d' } },
+  'usage.item': { params: { id: 'RCP-1' } },
+  'usageSettings.get': {},
+  'usageSettings.set': { body: { enabled: false } },
+  'usageSync.config': {},
+  'usageSync.post': { body: { records: [], run: { ok: true, interval_ms: 300_000 } } },
 };
 
 /** A path parameter value that fails its schema: a lower-cased item ID or key, a bad label, or blank. */

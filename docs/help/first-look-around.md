@@ -46,7 +46,7 @@ Start here. In about ten seconds it tells you whether agents are making progress
 
 **Below that:** completed per day (hover over or tab to a bar to see which tickets finished), **flow** (below), open work per epic, **Your Planning queue** (click *Move to Ready* when an item is ready for an agent) and **Deferred, not verified** (checks you deferred that nobody has verified yet).
 
-The red number next to **Overview** in the sidebar is the number of things under Needs you. Docket doesn't show token use, because clients don't report it.
+The red number next to **Overview** in the sidebar is the number of things under Needs you. Token use appears only if you turn it on. See [Token use](/help/token-use).
 
 ### Flow
 

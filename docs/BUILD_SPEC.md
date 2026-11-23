@@ -207,6 +207,7 @@ SQLite tables. Every row has `id`, `created_at` and `updated_at`; all timestamps
 | `part_leases` | `id` (`pls_…`), `project_key`, `part_key`, `item_id`, `run_id`, `taken_at`, `expires_at`, `ended_at`, `end_reason` (released\|owner_released\|done\|handed_off\|expired) | §5.21. One live lease per part. |
 | `undeclared_holds` | `id` (`udh_…`), `item_id`, `packet_id` (nullable), `via` (submit_packet\|set_status), `parts` (JSON), `files` (JSON, ≤ 2,000), `state` (open\|added\|sent_back), `note`, `decided_by`, `decided_at`, `version` | §5.21 (B38 resolution). One open per item; the row is the owner question. |
 | `radar_findings` | `id` (`rdf_…`), `project_key`, `branch_a`, `branch_b`, `item_a`, `item_b` (null for the main branch), `source_a`, `source_b` (reported\|discovered; B40), `files` (JSON), `seen_at`, `cleared_at`, `merge_first` (B46) | §5.21. One open finding per branch pair. |
+| `usage_turns` | `key` (PK), `project_key`, `item_id`, `link` (ticket\|overhead\|unlinked), `client`, `session_id`, `at`, `workspace`, `model`, `fresh_input`, `cached_input`, `cache_write`, `cache_write_1h`, `output`, `received_at` | §5.34. One row per model response. Never message content. Deleted with the project. |
 | `artifacts` | `item_id`, `kind` (url\|pr\|ci\|deploy\|test), `label`, `url`, `state`, `provenance` | A08 evidence links. |
 | `documents` | `project_key`, `item_id` (nullable), `name`, `kind` (planning\|packet_attachment\|import_report\|brief\|other; `brief` is written only through `claim_lead`/`start_run`) | Unique `(item_id, name)`. |
 | `document_versions` | `document_id`, `version_no`, `mime`, `size`, `sha256`, `path`, `created_by` | Immutable. |
@@ -886,7 +887,6 @@ Read-only and advisory (`server/src/domain/next-work.ts`). The stored status nev
 - **Owners** come from `atRiskOwner` (B56) for worktrees Docket has at risk.
 - **The command** is `git -C '<repo>' worktree remove '<path>'`, only on Safe to remove and never with `--force`, so git still refuses a folder that changed. A path with characters a shell might act on gets no command.
 
-
 ### 5.33 Split a ticket and withdraw a question (decision 48; B61)
 
 **Withdraw a question.** `withdraw_decision` takes `question_id` instead of `decision_id`, so there is no new tool. It already means "retract this, with a reason", and `ask_owner`'s required contract stays required.
@@ -908,6 +908,43 @@ Read-only and advisory (`server/src/domain/next-work.ts`). The stored status nev
 - **Overlaps.** Moving a declaration re-runs `syncOverlaps` on the original, so a pair that no longer shares a part resolves.
 - **Undo.** Each change stores its inverse on the last event (`item.split`), which undo applies first. An owner's split restores both tickets, within the usual 60 seconds and if nothing touched them since. Agent changes stay out of undo.
 - **Migration 0023** adds `items.split_from`, `packets.criteria_changed_at` and the three `questions` columns, and rebuilds `questions_one_open`.
+
+### 5.34 Real token use (decision 48; B63)
+
+Advisory and read-only for everything else: nothing here adds a gate, blocks a claim, queue or delivery, or changes `needsYouCount`. No MCP tool changes. The collector is `tools/docket-sync/sources/usage.mjs`, the server side is `domain/usage.ts`, and prices are in `shared/src/usage-prices.ts`.
+
+**The switch** is the `usage_source` setting, `{enabled, coordinator_folders}`, off until the owner sets it (`PUT /api/usage/settings`, an owner mutation that records `project.updated` without folder paths). Off:
+
+- `GET /api/sync/usage` returns `settings: {enabled: false, workspaces: []}`, so the runner never calls `collect`. `collect` checks again before any file call, so **no log file is opened, listed or stat'd**.
+- `POST /api/sync/usage` stores nothing.
+- Every read returns `enabled: false` and no numbers, and no card, section or placeholder renders.
+- Counts already stored are kept and hidden. They return if it's turned back on, and are deleted with their project.
+
+**Status** beside the switch: `off`, `not_running` (on, with no finished pass in 20 minutes) or `running`, with the last read. Last read is the last batch with `run.ok` and not `partial`, so a helper that keeps failing can't look healthy.
+
+**What the collector reads.** Codex `~/.codex/sessions/**/*.jsonl` (`CODEX_HOME`) and Claude Code `~/.claude/projects/**/*.jsonl` (`CLAUDE_CONFIG_DIR`).
+
+- **Privacy.** A line is parsed only if it can hold usage, the allowed fields are copied out and validated (IDs and model by pattern, numbers as safe integers), and the parsed line is dropped. Parse errors aren't logged, because they can quote input. Log lines hold counts only. The saved state holds offsets, hashes of file paths and, for a folder that isn't known, hashes of it and its parents, so its turns can be picked up if it becomes known. The sync body is strict: any other field is a 400.
+- **Known workspaces** are the paths on runs in live projects plus the coordinator folders, in `normalizeWorkspace` form (forward slashes, no trailing slash, lower case for a Windows drive path). A subfolder reports as its workspace. Anything else is never sent, and the server refuses it too.
+- **Bounds per pass:** 64 MiB, 8 seconds, 1,000 records, 20,000 files, 4 MiB per line (a longer line is skipped without being kept), and a first look at files changed in the last 60 days. It resumes from the byte offset.
+- **Incremental.** Offsets advance only past complete lines. A partial last line waits. A file that shrank or has a new inode starts again, which is harmless because keys are stable. The runner saves state only after the post succeeds.
+
+**Counting.**
+
+| Log | Key | Numbers |
+|---|---|---|
+| Codex | `codex:<session>:<cumulative total>`, so a repeated event is one turn | `last_token_usage` only. Input includes cached tokens unless the reported total shows they were on top. Cumulative totals are never added. |
+| Claude Code | `claude-code:<message.id>`, in any file, so subagent logs and resumed sessions count once | `input_tokens`, `cache_read_input_tokens`, `cache_creation_input_tokens` (with its one-hour part), `output_tokens`. Across lines of one response, the largest value of each. |
+
+**Attribution** happens when a turn arrives, and each sync looks again at up to 5,000 recent unlinked turns, because a run's workspace can be recorded late.
+
+1. A turn in a **coordinator folder** is that project's **overhead**, even during a run there: the owner said what that folder is for.
+2. A turn in a run's recorded workspace, between the run's start and end, with **exactly one ticket** matching, is **linked** to it.
+3. Anything else in a known workspace is **not linked to a ticket** for the project, including two tickets sharing the folder at that moment. Its project is that of the latest run started there before the turn, else the first.
+
+Matching by the ticket key in a branch name isn't built: the collector doesn't read branch names, and B62's GitHub links are a separate source.
+
+**Estimates.** Tokens are measured. Dollars are an API-equivalent estimate from `usage-prices.ts`, which is dated and cites its source per model. Prices match on the exact model ID, by prompt-length tier per turn (Haiku 5.5 over 100,000 tokens, OpenAI over 272,000). A model with no price, or a token type with none, stays out of the estimate, and the response says how many tokens that is. OpenAI lists 30-minute and 12-hour cache write prices and Codex logs don't say which applied, so Codex cache writes are unpriced.
 
 ## 6. MCP tool contract
 
@@ -983,6 +1020,9 @@ Every route requires the owner session (§3). JSON bodies **and query strings** 
 | `GET /api/bootstrap` | Shell: projects, labels, sidebar counts, settings, health |
 | `GET /api/needs-you?scope` | Needs you: `for_you_now[]` (packets, questions), `problems[]`, `deferred[]`, `planning_queue[]`, `agent_counts{}` (raw runs), `agents_now{working, waiting}` (stories; §5.24) |
 | `GET /api/brief?scope&day` | The daily brief (decision 48, §5.29): one day's finished tickets and decision changes, and what's stuck now. Read-only |
+| `GET /api/usage?scope&window\|day`, `GET /api/usage/items/:id` | Token use (decision 48, §5.34): a window or day with linked, overhead and not linked; a ticket, or an epic with its tickets, by kind, model and session. Read-only |
+| `GET`/`PUT /api/usage/settings` | The token use switch, its status and the coordinator folders. Owner only |
+| `GET`/`POST /api/sync/usage` | The `docket-sync` collector: `{name, settings, status}` and `{records, run}`. Strict records of numbers and identifiers only |
 | `GET /api/overview?scope&window` · `GET /api/overview/items?scope&window&metric` | Overview (decision 43, §5.24): the metrics for `24h`, `7d` (default) or `30d`, and the tickets behind a number no Work filter can show (`completed`, `agents_working`, `agents_waiting`, `in_flight`, `no_epic`; at most 500 rows, with the full `count`) |
 | `GET /api/work?scope&epic&label&quick&has&show&layout` | Work board/list/map; Timeline adds dates and forecast. B43 (UI_SPEC §6.2): `quick` (`active`, `blocked`, `progress`), `has` (checks, comma-separated) and `show` (`done`, `canceled`) filter the items, and `filter_counts` counts the chips and the menu; the old `filter` still works when none of the three is given (mapped by `legacyWorkFilter`; none of the four keeps the old All). Each item carries `lead_parked: {waiting_on, since, resume_ready} \| null` (optional; B20), so a parked card's run line says what it waits on |
 | `GET /api/burndown?scope&epic&label` | Timeline burn-down card |
@@ -1377,7 +1417,7 @@ Owner decisions are marked **(owner)**. Every other entry is a technical choice 
 | 45 **(owner)** | A parked story's wait is visible and has a next step: a wait card derived from stored facts, advisory `wait_no_next_step` and `wait_owner_unasked` flags routed to agents first, and one `run.resume_ready` the coordinator relays to the same run, because Docket can't push into a session. Nothing here gates work. | §5.26, MCP_SPEC §4, §5.4 |
 | 46 **(owner)** | A host process, `docket-relay`, tells the coordinator of a ticket's live lead through Orca when the ticket changes from the owner side (narrowed by T26). It sends a pointer naming the kinds of change, never the content; batches edits (60 s quiet, 2 min at most) and sends answers at once; never sends to a dispatch address; and never writes to Docket. No server change. | §5.27, `tools/docket-relay` |
 | 47 **(owner)** | Questions the owner can read: `ask_owner` requires a plain question, background, why it matters, 2 to 4 options with consequences and one recommendation; internals go in `details`. Answered in a dialog, in two actions for the recommendation. Skills tell agents to ask less and write for someone who hasn't seen the work. | §5.28 |
-| 48 **(owner)** | Coordination tooling (`docs/design/coordination-tooling.md`), advisory, with no new gates. B59: flow trends on Overview (finished, recorded merges and parks, with a quiet note when they diverge) and a read-only daily brief; merges are never estimated, and cost appears only once measured. B58: a bare person wait is not an unasked decision; a wait citing an active decision is settled; an owner decision holds the run without escalating until it is lifted, and aging restarts then; expired part leases end with one event to the holder's coordinator; Work splits Ready into Startable and Waiting; `get_digest` adds ranked next work and bottlenecks. B60: a critical path to a ticket or epic on the Map with the one ticket to move next, and every worktree of a repository with a plain verdict. Advisory and read-only: Docket never deletes or prunes a worktree. B61: agents retract an outdated question through `withdraw_decision`, and a ticket splits in one undoable write through `create_item` `split_from` or the item page. No criterion is lost, a live lead keeps its claim, and an open packet is marked out of date, never changed. | §5.29, UI_SPEC §6.1, §6.1b, §5.21, §5.26, §5.30, §5.31, §5.32, UI_SPEC §6.3.4, §6.6, §5.33, UI_SPEC §6.3 |
+| 48 **(owner)** | Coordination tooling (`docs/design/coordination-tooling.md`), advisory, with no new gates. B59: flow trends on Overview (finished, recorded merges and parks, with a quiet note when they diverge) and a read-only daily brief; merges are never estimated, and cost appears only once measured. B58: a bare person wait is not an unasked decision; a wait citing an active decision is settled; an owner decision holds the run without escalating until it is lifted, and aging restarts then; expired part leases end with one event to the holder's coordinator; Work splits Ready into Startable and Waiting; `get_digest` adds ranked next work and bottlenecks. B60: a critical path to a ticket or epic on the Map with the one ticket to move next, and every worktree of a repository with a plain verdict. Advisory and read-only: Docket never deletes or prunes a worktree. B61: agents retract an outdated question through `withdraw_decision`, and a ticket splits in one undoable write through `create_item` `split_from` or the item page. No criterion is lost, a live lead keeps its claim, and an open packet is marked out of date, never changed. B63: real token use per ticket and epic from the agents' local logs, off by default behind a Settings switch with the owner's note; only numbers, model, session ID, time and working folder are kept; attribution never guesses; dollars are a labelled API-equivalent estimate from a dated, sourced price table. | §5.29, UI_SPEC §6.1, §6.1b, §5.21, §5.26, §5.30, §5.31, §5.32, UI_SPEC §6.3.4, §6.6, §5.33, UI_SPEC §6.3, UI_SPEC §6.1c, §6.7, §5.34 |
 | T13 | Nightly backup at 03:00, kept 14 days, restore by CLI only. | §5.13 |
 | T14 | Archive is owner-only and UI-only; agent queries include archived items. | §5.8 |
 | T15 | Scope resets to All projects on each visit (sessionStorage). Theme and collapsed sections persist (localStorage). | UI_SPEC §2 |

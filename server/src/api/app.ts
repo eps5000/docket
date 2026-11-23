@@ -39,6 +39,7 @@ import { setupRoutes } from './routes/setup.js';
 import { steerRoutes } from './routes/steer.js';
 import { timelineRoutes } from './routes/timeline.js';
 import { undoRoutes } from './routes/undo.js';
+import { usageRoutes, usageSyncRoutes } from './routes/usage.js';
 import {
   requireCsrf,
   requireSession,
@@ -110,6 +111,9 @@ export function createApiApp(deps: ApiDeps): Hono<ApiEnv> {
     keepAliveMs: deps.streamKeepAliveMs,
   });
 
+  // Before any general `/api/sync/:source` route, so the usage source keeps its own contract.
+  usageSyncRoutes(api, routeDeps);
+
   // One file per group (contracts/ui-api.md); slices fill in the services behind them.
   readRoutes(api, routeDeps);
   reviewRoutes(api, routeDeps);
@@ -125,6 +129,7 @@ export function createApiApp(deps: ApiDeps): Hono<ApiEnv> {
   setupRoutes(api, routeDeps);
   onboardingRoutes(api, routeDeps);
   sharedRoutes(api, routeDeps);
+  usageRoutes(api, routeDeps);
 
   return api;
 }
