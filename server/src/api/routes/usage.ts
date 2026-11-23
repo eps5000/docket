@@ -1,8 +1,7 @@
 /**
- * Token use (owner decision 48; B63; BUILD_SPEC §5.30). The owner's reads and the
- * Settings toggle sit behind the owner session. The collector's two routes are
- * mounted beside the UI API (`usageSyncRoutes`), behind the same rule as `/mcp`:
- * the agent token in protected mode, nothing in local trust.
+ * Token use (owner decision 48; B63; BUILD_SPEC §5.31). Everything sits behind
+ * the owner guards. The two `/api/sync/usage` routes are the docket-sync
+ * collector's, in its `{ settings, status }` and `{ records, run }` shapes.
  */
 import type { Env, Hono } from 'hono';
 import { defineRoute, type RouteDeps } from '../define.js';
@@ -26,19 +25,11 @@ export function usageRoutes<E extends Env>(api: Hono<E>, deps: RouteDeps): void 
   );
 }
 
-export function usageSyncRoutes<E extends Env>(app: Hono<E>, deps: RouteDeps): void {
-  defineRoute(
-    app,
-    'usageSync.config',
-    deps,
-    ({ services, read }) => services.usage.syncConfig(read),
-    { prefix: '' },
+export function usageSyncRoutes<E extends Env>(api: Hono<E>, deps: RouteDeps): void {
+  defineRoute(api, 'usageSync.config', deps, ({ services, read }) =>
+    services.usage.syncConfig(read),
   );
-  defineRoute(
-    app,
-    'usageSync.post',
-    deps,
-    ({ services, read, body }) => services.usage.ingest(read, body.records),
-    { prefix: '' },
+  defineRoute(api, 'usageSync.post', deps, ({ services, read, body }) =>
+    services.usage.ingest(read, body),
   );
 }

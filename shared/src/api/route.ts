@@ -47,8 +47,7 @@ export type ApiGroup = (typeof API_GROUPS)[number];
  * - `session`: the `docket_owner` cookie (every `/api` route but unlock), plus
  *   the CSRF header on mutations;
  * - `none`: `POST /api/session/unlock` only;
- * - `bearer`: the agent token (`/agent-upload`, `/api/sync/usage`), never the owner
- *   session;
+ * - `bearer`: the agent token (`/agent-upload`), never the owner session;
  * - `token`: `GET /install/:token` only: no session, CSRF or bearer; the
  *   single-use token in the path is the credential (checked by the handler),
  *   behind the app's Host and Origin guards (loopback only; decision 29).

@@ -1,0 +1,119 @@
+/* Token use (owner decision 48; UI_SPEC §6.1c). */
+.tl .usage-kinds {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px 12px;
+  margin: 0 0 8px;
+}
+.tl .usage-kinds > div {
+  min-width: 0;
+}
+.tl .usage-kinds dt {
+  font-size: 12px;
+  color: var(--muted);
+}
+.tl .usage-kinds dd {
+  margin: 0;
+}
+.tl .usage-n {
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.tl .usage-cost p {
+  margin: 0 0 2px;
+}
+.tl .usage-split {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 16px;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+.tl .usage-table {
+  margin-top: 8px;
+}
+.tl .usage-table th[scope='row'] {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+.tl .usage-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.tl .usage-sub {
+  margin: 12px 0 0;
+  font-size: 13px;
+}
+.tl .ov-usage {
+  margin-bottom: 12px;
+}
+.tl .usage-body {
+  padding: 0 14px 12px;
+}
+
+/* Settings: the switch, its status and the owner's note. */
+.tl .usage-source-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.tl .usage-source-head h3 {
+  margin: 0;
+}
+.tl .usage-source-switch {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+}
+.tl .usage-source-note {
+  margin: 8px 0;
+}
+.tl .usage-folders {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.tl .usage-folders li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 2px 0;
+}
+.tl .usage-folders .mono {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tl .usage-folder-add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+.tl .usage-folder-add label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+}
+.tl .usage-folder-add .usage-folder-path {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+@media (max-width: 1180px) {
+  .tl .usage-kinds {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

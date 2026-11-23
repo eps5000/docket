@@ -384,7 +384,7 @@ const VALID: Record<RouteId, Req> = {
   'usageSettings.get': {},
   'usageSettings.set': { body: { enabled: false } },
   'usageSync.config': {},
-  'usageSync.post': { body: { records: [] } },
+  'usageSync.post': { body: { records: [], run: { ok: true, interval_ms: 300_000 } } },
 };
 
 /** A path parameter value that fails its schema: a lower-cased item ID or key, a bad label, or blank. */

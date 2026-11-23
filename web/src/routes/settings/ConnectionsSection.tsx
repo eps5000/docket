@@ -20,6 +20,7 @@ import { formatAgo, formatStamp, isoTitle, plural } from '../../lib/format';
 import { paths } from '../../lib/paths';
 import { showToast } from '../../lib/undo';
 import { HelpLink } from '../../help/HelpLink';
+import { UsageSourceCard } from './UsageSourceCard';
 
 /**
  * The user-wide client setup snippets, exactly as MCP_SPEC §11 gives them. In
@@ -60,6 +61,8 @@ const RESULT_MODE = {
 } as const;
 
 type Health = SettingsResponse['health'];
+
+const NO_PROJECTS: SettingsResponse['projects'] = [];
 
 /**
  * h2 "Connections" (UI_SPEC §6.7): client compatibility, client setup with
@@ -149,6 +152,7 @@ export function ConnectionsSection({ query }: { query: UseQueryResult<SettingsRe
             </QueryState>
           </Card>
           <ClientSetupCard protectedMode={query.data?.connections.protected_mode} />
+          <UsageSourceCard projects={query.data?.projects ?? NO_PROJECTS} />
         </div>
         <div className="stack">
           <SecurityCard query={query} />

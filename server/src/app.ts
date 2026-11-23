@@ -10,7 +10,6 @@ import { SESSION_COOKIE, ensureLocalCsrfCookie } from './api/session.js';
 import { changesWait } from './api/agent-wait.js';
 import { installRoutes } from './api/routes/install.js';
 import { uploadRoutes } from './api/routes/upload.js';
-import { usageSyncRoutes } from './api/routes/usage.js';
 import { migrationStatus } from './db/client.js';
 import type { Runtime } from './runtime.js';
 
@@ -144,22 +143,6 @@ export function createApp(runtime: Runtime, { webRoot }: AppOptions): Hono {
   installApp.onError((err, c) => errorResponse(c, err, runtime.log));
   installRoutes(installApp, { services: runtime.services, write: runtime.write, log: runtime.log });
   app.route('/', installApp);
-
-  // The token-use collector on the host (decision 48), behind the same rule as /mcp.
-  if (config.protectedMode) {
-    app.use(
-      '/api/sync/usage',
-      bearerAuth(() => runtime.secrets.agentToken()),
-    );
-  }
-  const syncApp = new Hono();
-  syncApp.onError((err, c) => errorResponse(c, err, runtime.log));
-  usageSyncRoutes(syncApp, {
-    services: runtime.services,
-    write: runtime.write,
-    log: runtime.log,
-  });
-  app.route('/', syncApp);
 
   // The owner: the UI API, behind the owner session.
   app.route(

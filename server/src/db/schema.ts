@@ -1647,7 +1647,7 @@ export const decision_records = sqliteTable(
 
 /**
  * Token use, one row per model response (owner decision 48; B63; BUILD_SPEC
- * §5.30). Only numbers, model, session ID, time and working folder: never
+ * §5.31). Only numbers, model, session ID, time and working folder: never
  * message content. `key` makes a repeated report of a turn the same row.
  * Sits outside the write path and events: it's measured data, like the radar's
  * bookkeeping. Deleting a project deletes its rows.

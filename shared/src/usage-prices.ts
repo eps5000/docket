@@ -1,6 +1,6 @@
 /**
  * API list prices for the token-use estimate (owner decision 48; B63;
- * BUILD_SPEC §5.30). Tokens are measured. Dollars are an **API-equivalent
+ * BUILD_SPEC §5.31). Tokens are measured. Dollars are an **API-equivalent
  * estimate** from this table: what the same tokens would cost at list price.
  * A subscription plan may cost less.
  *
@@ -170,9 +170,7 @@ export function estimateCost(
   const price = modelPrice(model);
   if (!price) return { usd: null, unpriced_tokens: all };
   const rates: TokenRates =
-    price.long_context && promptTokens > price.long_context.over
-      ? price.long_context.rates
-      : price;
+    price.long_context && promptTokens > price.long_context.over ? price.long_context.rates : price;
   const parts: [number, number | null][] = [
     [tokens.fresh_input, rates.input],
     [tokens.cached_input, rates.cached],

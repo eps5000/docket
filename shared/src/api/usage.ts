@@ -1,5 +1,5 @@
 /**
- * Token use per ticket and epic (owner decision 48; B63; BUILD_SPEC §5.30;
+ * Token use per ticket and epic (owner decision 48; B63; BUILD_SPEC §5.31;
  * UI_SPEC §6.1c). Tokens are measured from the agents' local session logs by the
  * optional `usage` collector in `tools/docket-sync`. Dollars are an
  * API-equivalent estimate (`usage-prices.ts`). Off by default, and when it's off
@@ -25,12 +25,14 @@ export const USAGE_LINKS = ['ticket', 'overhead', 'unlinked'] as const;
 export type UsageLink = (typeof USAGE_LINKS)[number];
 
 /** The most records one sync call may carry. */
-export const USAGE_SYNC_MAX_RECORDS = 1000;
+export const USAGE_SYNC_MAX_RECORDS = 500;
 /** The most coordinator folders the owner can register. */
 export const USAGE_MAX_FOLDERS = 50;
 /** The longest working folder path Docket stores. */
 export const USAGE_MAX_PATH = 500;
-/** The helper counts as not running after this long without checking in. */
+/** How often the collector runs. */
+export const USAGE_INTERVAL_MS = 5 * 60_000;
+/** The helper counts as not running after this long without a finished pass. */
 export const USAGE_HELPER_STALE_MS = 20 * 60_000;
 /** Rows in the top-ticket and session lists; `count` is always the whole number. */
 export const USAGE_TOP_ROWS = 5;
@@ -43,7 +45,10 @@ export const USAGE_SESSION_ROWS = 12;
  * holds the two together.
  */
 export function normalizeWorkspace(path: string): string {
-  let out = path.trim().replace(/\\/g, '/').replace(/\/{2,}/g, '/');
+  let out = path
+    .trim()
+    .replace(/\\/g, '/')
+    .replace(/\/{2,}/g, '/');
   if (out.length > 1) out = out.replace(/\/+$/, '');
   if (/^[A-Za-z]:(\/|$)/.test(out)) out = out.toLowerCase();
   return out;
@@ -195,10 +200,21 @@ export const putUsageSettingsBody = input({
 });
 export const putUsageSettingsResponse = ownerMutationOutput(usageSettingsShape);
 
-/** What the collector needs: whether to read at all, and the only folders it may report. */
+/**
+ * `GET /api/sync/usage`, in the docket-sync runner's shape: `settings` is what
+ * `enabled(settings)` and `collect` receive. Off, `workspaces` is empty.
+ */
 export const usageSyncConfigResponse = jsonResponse({
-  enabled: z.boolean(),
-  workspaces: z.array(z.string()),
+  name: z.literal('usage'),
+  settings: z.object({ enabled: z.boolean(), workspaces: z.array(z.string()) }),
+  status: z.object({
+    last_report_at: z.string().nullable(),
+    last_success_at: z.string().nullable(),
+    last_error: z.string().nullable(),
+    interval_ms: z.number().int().nullable(),
+    records_total: count,
+    stale: z.boolean(),
+  }),
 });
 export type UsageSyncConfigResponse = z.infer<typeof usageSyncConfigResponse>;
 
@@ -225,17 +241,26 @@ export type UsageRecord = z.infer<typeof usageRecordSchema>;
 
 export const usageSyncBody = input({
   records: z.array(usageRecordSchema).max(USAGE_SYNC_MAX_RECORDS),
+  /** How the pass went. The last batch of a pass has `ok: true` and no `partial`. */
+  run: z.strictObject({
+    ok: z.boolean(),
+    partial: z.boolean().optional(),
+    error: z
+      .string()
+      .regex(/^[a-z0-9_]{1,40}$/)
+      .optional(),
+    interval_ms: z.number().int().min(1000).max(86_400_000),
+  }),
 });
+export type UsageSyncBody = z.infer<typeof usageSyncBody>;
 
 export const usageSyncResponse = jsonResponse({
-  /** New or grown turns. */
+  /** Records stored or already held. */
   accepted: count,
-  /** Already held with the same numbers. */
-  unchanged: count,
-  /** Refused because the folder isn't a known workspace. */
-  unknown_workspace: count,
-  /** True when the source is off: nothing was stored. */
-  disabled: z.boolean(),
+  /** New turns, or turns whose numbers grew. */
+  changed: count,
+  /** Refused: the source is off, or the folder isn't a known workspace. */
+  ignored: count,
 });
 export type UsageSyncResponse = z.infer<typeof usageSyncResponse>;
 
@@ -277,12 +302,11 @@ export const usageRoutes = {
     body: putUsageSettingsBody,
     response: json(putUsageSettingsResponse),
   }),
-  /** The collector, on the host: the agent token in protected mode, like `/mcp`. */
+  /** The docket-sync collector on the host, behind the owner guards like every `/api` route. */
   'usageSync.config': route({
     method: 'GET',
     path: '/api/sync/usage',
     group: 'usage',
-    auth: 'bearer',
     params: noInput,
     query: noInput,
     body: null,
@@ -292,7 +316,6 @@ export const usageRoutes = {
     method: 'POST',
     path: '/api/sync/usage',
     group: 'usage',
-    auth: 'bearer',
     params: noInput,
     query: noInput,
     body: usageSyncBody,

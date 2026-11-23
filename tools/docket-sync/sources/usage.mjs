@@ -1,10 +1,11 @@
 /**
  * The token-use source for the docket-sync runner (owner decision 48; B63;
- * BUILD_SPEC §5.30). Off by default. It reads the local Codex and Claude Code
+ * BUILD_SPEC §5.31). Off by default. It reads the local Codex and Claude Code
  * session logs and reports how many tokens each model response used.
  *
  * Privacy is the point of how this file is written:
- * - With the source off it opens no log file. It asks Docket first.
+ * - With the source off it opens no log file: the runner doesn't call `collect`,
+ *   and `collect` checks again before touching the disk.
  * - It keeps only numbers, model, session ID, time and working folder. A line is
  *   parsed, the allowed fields are copied out one by one and validated, and the
  *   parsed line is dropped. No message text is put in a record, the state or a
@@ -32,9 +33,9 @@ import { join } from 'node:path';
 export const name = 'usage';
 export const intervalMs = 5 * 60_000;
 
-/** The runner's check. Docket's answer in `collect` is what really decides. */
+/** On in Settings. `settings` is what `GET /api/sync/usage` returned. */
 export function enabled(settings) {
-  return settings?.usage?.enabled === true;
+  return settings?.enabled === true && Array.isArray(settings.workspaces);
 }
 
 export const DEFAULT_LIMITS = Object.freeze({
@@ -64,7 +65,10 @@ const shortHash = (text) => createHash('sha256').update(text).digest('hex').slic
 
 /** Identical to `normalizeWorkspace` in shared/src/api/usage.ts (a test holds them together). */
 export function normalizeWorkspace(path) {
-  let out = path.trim().replace(/\\/g, '/').replace(/\/{2,}/g, '/');
+  let out = path
+    .trim()
+    .replace(/\\/g, '/')
+    .replace(/\/{2,}/g, '/');
   if (out.length > 1) out = out.replace(/\/+$/, '');
   if (/^[A-Za-z]:(\/|$)/.test(out)) out = out.toLowerCase();
   return out;
@@ -202,7 +206,9 @@ function codexLine(line, entry, known, records, lineOffset) {
   }
   if (line.type !== 'event_msg' || payload.type !== 'token_count') return;
   const last = payload.info?.last_token_usage;
-  if (!last || typeof last !== 'object' || !entry.ws || !entry.sid) return;
+  if (!last || typeof last !== 'object' || !entry.sid) return;
+  // `entry.ws` comes from an earlier pass, and that folder may no longer be known.
+  if (!entry.ws || !known.set.has(entry.ws)) return;
   const at = timeOf(line.timestamp);
   if (!at) return;
   const cumulative = payload.info.total_token_usage;
@@ -358,25 +364,19 @@ function becameKnown(entry, known) {
   return Array.isArray(entry.u) && entry.u.some((hash) => known.hashes.has(hash));
 }
 
-function say(log, line) {
-  if (typeof log === 'function') log(line);
-  else log?.info?.(line);
-}
-
 /**
  * One pass. `options` is for tests: `roots`, `limits`, `now` and `io` (the file calls).
  * Returns `{ records, state }`. The runner saves `state` only after it has
  * posted the records, so a failed post just reads the same lines again.
  */
 export async function collect(ctx, options = {}) {
-  const { state, log, signal, docket } = ctx;
+  const { state, log, signal, settings } = ctx;
   const previous = state && state.v === 1 && state.files ? state : { v: 1, files: {} };
 
-  // Ask first. With the source off, no log file is opened or even listed.
-  const config = await docket.get('/api/sync/usage');
-  if (config?.enabled !== true) return { records: [], state: previous };
+  // Checked before anything touches the disk. Off, no log file is opened or even listed.
+  if (!enabled(settings)) return { records: [], state: previous };
 
-  const workspaces = (config.workspaces ?? []).map(normalizeWorkspace);
+  const workspaces = settings.workspaces.map(normalizeWorkspace);
   const known = {
     set: new Set(workspaces),
     hashes: new Set(workspaces.map(shortHash)),
@@ -452,11 +452,13 @@ export async function collect(ctx, options = {}) {
   }
 
   const out = [...records.values()];
-  say(
-    log,
-    `usage: read ${read} of ${work.length} changed logs, ${out.length} turns` +
-      (budget.longLines > 0 ? `, skipped ${budget.longLines} very long lines` : ''),
-  );
+  // Counts only: no path, session or line ever reaches the log.
+  log?.('usage_read', {
+    files: read,
+    changed: work.length,
+    turns: out.length,
+    long_lines: budget.longLines,
+  });
   return { records: out, state: { v: 1, files } };
 }
 

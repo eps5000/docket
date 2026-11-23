@@ -1,5 +1,5 @@
 /**
- * Token use on the server (owner decision 48; B63; BUILD_SPEC §5.30): off by
+ * Token use on the server (owner decision 48; B63; BUILD_SPEC §5.31): off by
  * default, attribution that never guesses, overhead and unlinked, missing
  * prices, rollups, and that a sync can carry nothing but numbers and identifiers.
  * All fixture text is made up.
@@ -85,7 +85,10 @@ const record = (over: Partial<UsageRecord> = {}): UsageRecord => {
     ...over,
   };
 };
-const ingest = (...records: UsageRecord[]) => d.services.usage.ingest(d.read(), records);
+const RUN = { ok: true, interval_ms: 300_000 };
+const ingest = (...records: UsageRecord[]) =>
+  d.services.usage.ingest(d.read(), { records, run: RUN });
+const syncSettings = () => d.services.usage.syncConfig(d.read()).settings;
 const summary = (scope = 'OV', window: '24h' | '7d' | '30d' = '7d') =>
   d.services.usage.summary(d.read(), { scope, window });
 const itemUsage = (id: string) => d.services.usage.item(d.read(), { id });
@@ -100,8 +103,8 @@ describe('off by default', () => {
       last_read_at: null,
       turns_stored: 0,
     });
-    expect(d.services.usage.syncConfig(d.read())).toEqual({ enabled: false, workspaces: [] });
-    expect(ingest(record())).toMatchObject({ accepted: 0, disabled: true });
+    expect(syncSettings()).toEqual({ enabled: false, workspaces: [] });
+    expect(ingest(record())).toEqual({ accepted: 0, changed: 0, ignored: 1 });
     expect(d.row<{ n: number }>('SELECT COUNT(*) AS n FROM usage_turns').n).toBe(0);
     expect(summary()).toMatchObject({ enabled: false, linked_pct: null, models: [] });
     expect(itemUsage(id)).toMatchObject({ enabled: false, models: [], children: [] });
@@ -112,11 +115,11 @@ describe('off by default', () => {
     claim(id);
     turnOn();
     d.clock.advance(minutes(1));
-    expect(ingest(record()).accepted).toBe(1);
+    expect(ingest(record()).changed).toBe(1);
     d.write(OWNER_ACTOR, (w, s) => s.usage.setSettings(w, { enabled: false }));
     expect(summary().enabled).toBe(false);
     expect(summary().total.turns).toBe(0);
-    expect(ingest(record()).disabled).toBe(true);
+    expect(ingest(record()).ignored).toBe(1);
     expect(d.services.usage.settings(d.read())).toMatchObject({ helper: 'off', turns_stored: 1 });
     turnOn();
     expect(summary().total.turns).toBe(1);
@@ -134,10 +137,21 @@ describe('off by default', () => {
 });
 
 describe('the helper status', () => {
-  it('is not running until it checks in, running after, and not running once silent', () => {
+  it('is not running until a pass finishes, running after, and not running once silent', () => {
     turnOn();
     expect(d.services.usage.settings(d.read()).helper).toBe('not_running');
+    // Reading the settings, a failed pass and an unfinished batch don't count as reading.
     d.services.usage.syncConfig(d.read());
+    d.services.usage.ingest(d.read(), {
+      records: [],
+      run: { ok: false, error: 'read_failed', interval_ms: 300_000 },
+    });
+    d.services.usage.ingest(d.read(), {
+      records: [],
+      run: { ok: false, partial: true, interval_ms: 300_000 },
+    });
+    expect(d.services.usage.settings(d.read()).helper).toBe('not_running');
+    ingest();
     const running = d.services.usage.settings(d.read());
     expect(running.helper).toBe('running');
     expect(running.last_read_at).toBe(d.clock.now().toISOString());
@@ -151,16 +165,17 @@ describe('known workspaces', () => {
     const id = ticket('A');
     claim(id, 'C:\\Work\\Feature-A\\');
     turnOn([{ project: 'OV', path: 'C:\\Work\\Coordinator' }]);
-    expect(d.services.usage.syncConfig(d.read()).workspaces).toEqual([COORD, FOLDER]);
+    expect(syncSettings().workspaces).toEqual([COORD, FOLDER]);
   });
 
   it('refuses a record for a folder Docket does not know', () => {
     claim(ticket('A'));
     turnOn();
     d.clock.advance(minutes(1));
-    expect(ingest(record({ workspace: 'c:/private/other' }))).toMatchObject({
+    expect(ingest(record({ workspace: 'c:/private/other' }))).toEqual({
       accepted: 0,
-      unknown_workspace: 1,
+      changed: 0,
+      ignored: 1,
     });
     expect(d.row<{ n: number }>('SELECT COUNT(*) AS n FROM usage_turns').n).toBe(0);
   });
@@ -300,10 +315,10 @@ describe('counting', () => {
     turnOn();
     d.clock.advance(minutes(1));
     const r = record({ output: 10 });
-    expect(ingest(r).accepted).toBe(1);
-    expect(ingest(r)).toMatchObject({ accepted: 0, unchanged: 1 });
-    expect(ingest({ ...r, output: 25 }).accepted).toBe(1);
-    expect(ingest({ ...r, output: 5 }).unchanged).toBe(1);
+    expect(ingest(r)).toMatchObject({ accepted: 1, changed: 1 });
+    expect(ingest(r)).toMatchObject({ accepted: 1, changed: 0 });
+    expect(ingest({ ...r, output: 25 }).changed).toBe(1);
+    expect(ingest({ ...r, output: 5 }).changed).toBe(0);
     expect(summary().total).toMatchObject({ turns: 1, tokens: { output: 25 } });
   });
 
@@ -476,7 +491,13 @@ describe('prices', () => {
     d.clock.advance(minutes(1));
     ingest(
       record({ fresh_input: 1_000_000, cached_input: 0, cache_write: 0, output: 0 }),
-      record({ model: 'made-up-model', fresh_input: 7, cached_input: 0, cache_write: 0, output: 0 }),
+      record({
+        model: 'made-up-model',
+        fresh_input: 7,
+        cached_input: 0,
+        cache_write: 0,
+        output: 0,
+      }),
     );
     const { cost } = itemUsage(id).total;
     expect(cost.usd).toBeCloseTo(4, 6);
@@ -489,10 +510,10 @@ describe('the sync contract', () => {
   const body = API_ROUTES['usageSync.post'].body!;
 
   it('refuses any field beyond numbers and identifiers', () => {
-    const good = { records: [record()] };
+    const good = { records: [record()], run: RUN };
     expect(body.safeParse(good).success).toBe(true);
     for (const extra of ['content', 'text', 'message', 'prompt', 'cwd', 'branch']) {
-      const bad = { records: [{ ...record(), [extra]: 'PLANTED' }] };
+      const bad = { records: [{ ...record(), [extra]: 'PLANTED' }], run: RUN };
       expect(body.safeParse(bad).success, extra).toBe(false);
     }
   });
@@ -504,7 +525,7 @@ describe('the sync contract', () => {
       { model: 'a secret sentence' },
       { at: 'yesterday' },
     ]) {
-      expect(body.safeParse({ records: [{ ...record(), ...over }] }).success).toBe(false);
+      expect(body.safeParse({ records: [{ ...record(), ...over }], run: RUN }).success).toBe(false);
     }
   });
 });

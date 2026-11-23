@@ -1,5 +1,5 @@
 /**
- * The token-use collector (owner decision 48; B63; BUILD_SPEC §5.30), called
+ * The token-use collector (owner decision 48; B63; BUILD_SPEC §5.31), called
  * directly with synthetic logs built from the documented field names. It never
  * reads a real log: every test passes its own temporary roots.
  */
@@ -53,12 +53,11 @@ beforeEach(() => {
 });
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
-const docket = (workspaces: string[] = [WORK], on = true) => ({
-  get: async (path: string) => {
-    expect(path).toBe('/api/sync/usage');
-    return { enabled: on, workspaces: on ? workspaces : [] };
-  },
+const settingsFor = (workspaces: string[] = [WORK], on = true) => ({
+  enabled: on,
+  workspaces: on ? workspaces : [],
 });
+const logTo = (event: string, fields: unknown) => logs.push(JSON.stringify({ event, fields }));
 
 const run = (
   state: unknown = undefined,
@@ -67,10 +66,10 @@ const run = (
   collect(
     {
       state,
-      log: (line: string) => logs.push(line),
+      log: logTo,
       signal: new AbortController().signal,
-      settings: { usage: { enabled: true } },
-      docket: docket(over.workspaces, over.on ?? true),
+      settings: settingsFor(over.workspaces, over.on ?? true),
+      docket: { get: () => Promise.reject(new Error('The usage source reads no Docket route.')) },
     },
     { roots, now: Date.parse('2026-11-21T00:00:00.000Z'), limits: over.limits },
   );
@@ -107,7 +106,10 @@ const usage = (input: number, output: number, read = 0, write = 0, oneHour = 0) 
   output_tokens: output,
   cache_read_input_tokens: read,
   cache_creation_input_tokens: write,
-  cache_creation: { ephemeral_5m_input_tokens: write - oneHour, ephemeral_1h_input_tokens: oneHour },
+  cache_creation: {
+    ephemeral_5m_input_tokens: write - oneHour,
+    ephemeral_1h_input_tokens: oneHour,
+  },
 });
 
 const codexMeta = (cwd = WORK, id = 'sess-codex-1') => ({
@@ -138,8 +140,9 @@ describe('the source contract', () => {
   it('has the runner interface, and is off unless Settings turned it on', () => {
     expect(name).toBe('usage');
     expect(intervalMs).toBeGreaterThan(0);
-    expect(enabled({ usage: { enabled: true } })).toBe(true);
-    expect(enabled({ usage: { enabled: false } })).toBe(false);
+    expect(enabled({ enabled: true, workspaces: [] })).toBe(true);
+    expect(enabled({ enabled: false, workspaces: [WORK] })).toBe(false);
+    expect(enabled({ enabled: true })).toBe(false);
     expect(enabled({})).toBe(false);
     expect(enabled(undefined)).toBe(false);
   });
@@ -174,7 +177,7 @@ describe('with the source off', () => {
     });
     const state = { v: 1, files: { keep: { o: 5, i: '1' } } };
     const out = (await collect(
-      { state, log: (l: string) => logs.push(l), docket: docket([WORK], false) },
+      { state, log: logTo, settings: settingsFor([WORK], false) },
       { roots: watched, io },
     )) as Result;
     expect(out.records).toEqual([]);
@@ -185,7 +188,7 @@ describe('with the source off', () => {
 
     // The same fixture with it on does read the file, so the check above can fail.
     const on = (await collect(
-      { state: undefined, log: () => {}, docket: docket([WORK], true) },
+      { state: undefined, log: () => {}, settings: settingsFor([WORK], true) },
       { roots, io, now: Date.parse(AT) },
     )) as Result;
     expect(on.records).toHaveLength(1);
@@ -353,7 +356,7 @@ describe('reading incrementally', () => {
       limits: { maxLineBytes: 2000, chunkBytes: 512 },
     });
     expect(records.map((r) => r.key)).toEqual(['claude-code:msg_1', 'claude-code:msg_2']);
-    expect(logs.join('\n')).toMatch(/skipped 1 very long/);
+    expect(logs.join('\n')).toContain('"long_lines":1');
   });
 
   it('stays inside a very long unfinished line between passes', async () => {
@@ -392,7 +395,7 @@ describe('reading incrementally', () => {
   it('leaves an old file it has not seen before alone', async () => {
     write(roots.claude, 'p/a.jsonl', [claudeLine('msg_1', usage(1, 2))]);
     const out = (await collect(
-      { log: () => {}, docket: docket() },
+      { log: () => {}, settings: settingsFor() },
       { roots, now: Date.now() + 90 * 86_400_000 },
     )) as Result;
     expect(out.records).toEqual([]);

@@ -217,13 +217,13 @@ describe('the route table', () => {
     if (r.response.kind === 'json') expect(keysOf(r.response.schema)).toContain('mutation_id');
   });
 
-  it('auth: unlock has none, /agent-upload and the usage collector the bearer token, /install/:token its token, everything else the session', () => {
+  it('auth: unlock has none, /agent-upload the bearer token, /install/:token its token, everything else the session', () => {
     for (const id of ROUTE_IDS) {
       const r = API_ROUTES[id];
       const expected =
         r.path === '/api/session/unlock'
           ? 'none'
-          : r.path === '/agent-upload' || r.path === '/api/sync/usage'
+          : r.path === '/agent-upload'
             ? 'bearer'
             : r.path === '/install/:token'
               ? 'token'

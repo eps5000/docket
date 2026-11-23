@@ -1,5 +1,5 @@
 /**
- * Token use per ticket and epic (owner decision 48; B63; BUILD_SPEC §5.30).
+ * Token use per ticket and epic (owner decision 48; B63; BUILD_SPEC §5.31).
  *
  * The `usage` collector (`tools/docket-sync/sources/usage.mjs`) reads the local
  * agent logs and posts one record per model response. This file stores them,
@@ -24,6 +24,7 @@ import {
   LONG_CONTEXT_THRESHOLDS,
   ToolError,
   USAGE_HELPER_STALE_MS,
+  USAGE_INTERVAL_MS,
   USAGE_PRICES_AS_OF,
   USAGE_SESSION_ROWS,
   USAGE_TOP_ROWS,
@@ -40,10 +41,10 @@ import {
   type UsageItemResponse,
   type UsageLink,
   type UsageModelRow,
-  type UsageRecord,
   type UsageSessionRow,
   type UsageSettingsResponse,
   type UsageSummaryResponse,
+  type UsageSyncBody,
   type UsageSyncConfigResponse,
   type UsageSyncResponse,
   type UsageTicketRow,
@@ -60,8 +61,6 @@ import { endedAt, parseJson } from './recovery-model.js';
 
 const SETTING_KEY = 'usage_source';
 const SEEN_KEY = 'usage_helper_seen_at';
-/** How often the helper's check-in is written. */
-const SEEN_WRITE_MS = 30_000;
 /** Unlinked turns looked at again on each sync. */
 const RELINK_LIMIT = 5000;
 
@@ -99,8 +98,7 @@ export function usageSetting(db: Db): UsageSetting {
   return {
     enabled: value?.enabled === true,
     coordinator_folders: folders.filter(
-      (f): f is CoordinatorFolder =>
-        typeof f?.project === 'string' && typeof f?.path === 'string',
+      (f): f is CoordinatorFolder => typeof f?.project === 'string' && typeof f?.path === 'string',
     ),
   };
 }
@@ -171,7 +169,10 @@ export interface TurnLink {
 }
 
 /** Where one turn belongs; null when its folder isn't a known workspace. */
-export function attribute(turn: { workspace: string; at: string }, a: Attribution): TurnLink | null {
+export function attribute(
+  turn: { workspace: string; at: string },
+  a: Attribution,
+): TurnLink | null {
   const coordinator = a.coordinators.get(turn.workspace);
   if (coordinator) return { project_key: coordinator, item_id: null, link: 'overhead' };
   const windows = a.windows.get(turn.workspace);
@@ -289,7 +290,13 @@ function tallyBy<K>(rows: readonly (SumRow & { group: K })[]): Map<K, Tally> {
 function modelRows(rows: readonly SumRow[]): UsageModelRow[] {
   const byModel = tallyBy(rows.map((r) => ({ ...r, group: r.model })));
   return [...byModel]
-    .map(([model, t]) => ({ model, tokens: t.tokens(), cost: t.cost(), turns: t.turns, w: t.weight }))
+    .map(([model, t]) => ({
+      model,
+      tokens: t.tokens(),
+      cost: t.cost(),
+      turns: t.turns,
+      w: t.weight,
+    }))
     .sort((a, b) => b.w - a.w || (a.model ?? '').localeCompare(b.model ?? ''))
     .map(({ w: _w, ...row }) => row);
 }
@@ -344,9 +351,9 @@ export interface UsageService {
   item(r: ReadContext, input: RouteParams<'usage.item'>): UsageItemResponse;
   settings(r: ReadContext): UsageSettingsResponse;
   setSettings(w: WriteContext, input: RouteBody<'usageSettings.set'>): UsageSettingsResponse;
-  /** The collector's check-in: whether to read, and which folders it may report. */
+  /** What the collector reads first: whether to read at all, and the folders it may report. */
   syncConfig(r: ReadContext): UsageSyncConfigResponse;
-  ingest(r: ReadContext, records: readonly UsageRecord[]): UsageSyncResponse;
+  ingest(r: ReadContext, body: UsageSyncBody): UsageSyncResponse;
 }
 
 function spanOf(
@@ -557,7 +564,9 @@ export function createUsageService(deps: ServiceDeps): UsageService {
         sessions.set(key, held);
       }
       const sessionList: UsageSessionRow[] = [...sessions.values()]
-        .sort((a, b) => b.last_at.localeCompare(a.last_at) || a.session_id.localeCompare(b.session_id))
+        .sort(
+          (a, b) => b.last_at.localeCompare(a.last_at) || a.session_id.localeCompare(b.session_id),
+        )
         .map((s) => ({
           session_id: s.session_id,
           client: s.client,
@@ -634,24 +643,28 @@ export function createUsageService(deps: ServiceDeps): UsageService {
     },
 
     syncConfig(r) {
-      const seen = readSettingValue(r.db, SEEN_KEY);
-      if (typeof seen !== 'string' || ms(r.now) - ms(seen) >= SEEN_WRITE_MS) {
-        writeSettingValue(r.db, SEEN_KEY, r.now, r.now);
-      }
-      if (!usageSetting(r.db).enabled) return { enabled: false, workspaces: [] };
-      return { enabled: true, workspaces: knownWorkspaces(attributionOf(r.db)) };
+      const view = settingsView(r.db, r.now);
+      return {
+        name: 'usage',
+        settings: view.enabled
+          ? { enabled: true, workspaces: knownWorkspaces(attributionOf(r.db)) }
+          : { enabled: false, workspaces: [] },
+        status: {
+          last_report_at: view.last_read_at,
+          last_success_at: view.last_read_at,
+          last_error: null,
+          interval_ms: USAGE_INTERVAL_MS,
+          records_total: view.turns_stored,
+          stale: view.helper === 'not_running' && view.last_read_at !== null,
+        },
+      };
     },
 
-    ingest(r, records) {
+    ingest(r, { records, run }) {
       const db = r.db;
-      const out: UsageSyncResponse = {
-        accepted: 0,
-        unchanged: 0,
-        unknown_workspace: 0,
-        disabled: false,
-      };
+      const out: UsageSyncResponse = { accepted: 0, changed: 0, ignored: 0 };
       // Checked here too: turning the source off stops storage even if a pass is in flight.
-      if (!usageSetting(db).enabled) return { ...out, disabled: true };
+      if (!usageSetting(db).enabled) return { ...out, ignored: records.length };
       const attribution = attributionOf(db);
       const upsert = db.sqlite.prepare(
         `INSERT INTO usage_turns (key, project_key, item_id, link, client, session_id, at,
@@ -678,7 +691,7 @@ export function createUsageService(deps: ServiceDeps): UsageService {
             const workspace = normalizeWorkspace(record.workspace);
             const link = attribute({ workspace, at }, attribution);
             if (!link) {
-              out.unknown_workspace += 1;
+              out.ignored += 1;
               continue;
             }
             const { changes } = upsert.run({
@@ -688,10 +701,12 @@ export function createUsageService(deps: ServiceDeps): UsageService {
               workspace,
               received_at: r.now,
             });
-            if (changes > 0) out.accepted += 1;
-            else out.unchanged += 1;
+            out.accepted += 1;
+            if (changes > 0) out.changed += 1;
           }
           relink(db, attribution, "link = 'unlinked'");
+          // "Last read" is the last pass that finished, so a failing helper can't look healthy.
+          if (run.ok && !run.partial) writeSettingValue(db, SEEN_KEY, r.now, r.now);
         })
         .immediate();
       return out;
