@@ -6,12 +6,11 @@
  */
 import { join } from 'node:path';
 import type { Page } from '@playwright/test';
-import {
-  needsYouCount,
-  type NeedsYouResponse,
-  type OverviewResponse,
-  type WorkspaceRow,
-  type WorkspacesResponse,
+import type {
+  NeedsYouResponse,
+  OverviewResponse,
+  WorkspaceRow,
+  WorkspacesResponse,
 } from '@docket/shared';
 import { mockGet } from './fixtures/api-mocks';
 import {
@@ -199,6 +198,11 @@ test('the chart: whole-number axis, and a tooltip by mouse and by keyboard', asy
 });
 
 const healthTone = (page: Page) => riskLine(page).locator('xpath=ancestor::li');
+/** The Needs you number beside the h1, the badge's number. The spec can't import shared code. */
+const badgeCount = async (page: Page) => {
+  const count = page.locator('[data-needs-you-count]');
+  return (await count.count()) ? await count.getAttribute('data-needs-you-count') : '0';
+};
 
 for (const [name, rows, tone, text] of [
   [
@@ -240,7 +244,8 @@ test('a real worktree an agent left: at risk, owned by its coordinator, badge un
   page,
 }) => {
   await open(page);
-  const before = needsYouCount(await api<NeedsYouResponse>(page, '/api/needs-you?scope=all'));
+  await expect(page.locator('[data-card="health"]')).toBeVisible();
+  const before = await badgeCount(page);
   const agent = await connectAgent('claude-agent-sdk');
   try {
     const claim = await agent.call('claim_lead', {
@@ -266,7 +271,7 @@ test('a real worktree an agent left: at risk, owned by its coordinator, badge un
   });
   await expect(riskLine(page)).toContainText('an agent owns it');
   await expect(healthTone(page)).toHaveAttribute('data-health', 'ok');
-  expect(needsYouCount(await api<NeedsYouResponse>(page, '/api/needs-you?scope=all'))).toBe(before);
+  expect(await badgeCount(page)).toBe(before);
 });
 
 for (const size of SIZES) {
