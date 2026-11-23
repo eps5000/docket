@@ -45,9 +45,11 @@ jobs:
         with:
           fetch-depth: 2
 
+      # No pnpm in this job, so no package-manager cache either.
       - uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
+          package-manager-cache: false
 
       - name: Decide what this run must prove
         id: plan
