@@ -13,7 +13,7 @@ This index groups the routes by user story.
 | `DELETE /api/links/:linkId`, `PATCH /api/projects/:key {default_satisfied_when}` | US4 | FR-031 to FR-035 |
 | `GET/POST /api/decisions…` (confirm, withdraw) | US5 | FR-043 |
 | `POST /api/items/:id/answer`, `POST /api/items/:id/notes`, `POST /api/items/:id/release`, `POST /api/items/:id/return-to-ready`, `POST/DELETE` work, checks and human-review | US6 | FR-064 |
-| `POST /api/items/:id/split` | Decision 48: split a ticket in one undoable write (BUILD_SPEC §5.29). |
+| `POST /api/items/:id/split` | Decision 48: split a ticket in one undoable write (BUILD_SPEC §5.30). |
 | `POST /api/items` (quick capture); `PATCH /api/items/:id` (priority, status, **title, description, outcome, acceptance**); archive and unarchive; `POST /api/items/:id/cancel` (owner decision 23); `GET /api/labels…` and move-to-ready; `GET /api/documents/:versionId/content` | US7 | FR-064, FR-064a, FR-070, FR-071 |
 | `GET /api/work?layout=timeline`, `GET /api/burndown` | US8 | FR-080 to FR-082 |
 | `POST /api/import/jira/dry-run`, `GET …/:id`, `POST …/:id/commit`, `DELETE …/:id` | US9 | FR-090 to FR-092 |
@@ -27,6 +27,7 @@ This index groups the routes by user story.
 | `POST /api/problems/acknowledge`, `POST /api/resolutions/:id/decide` (decision 37; B42) | US18 | FR-165–FR-172 |
 | `POST /api/decisions/acknowledge` `{decision_ids}`; `GET /api/needs-you` adds `project_decisions` and `project_decision_groups` (decision 38; B44) | US5 | FR-173–FR-176 |
 | `GET`/`POST /api/projects/:key/shared-parts`, `PATCH /api/shared-parts/:id`, `GET`/`PUT /api/items/:id/shared`, `POST /api/items/:id/shared/branches` (B41; replaces B40's `PUT …/shared/branch`; B45: optional `not_active` on a remove), `POST /api/overlaps/:id/decide`, `POST /api/undeclared-holds/:id/decide`, `POST /api/leases/:id/release`, `GET`/`PUT /api/projects/:key/radar`, `POST /api/projects/:key/radar/run` | US18 | FR-158–FR-164 |
+| `GET /api/brief` (decision 48; B59; read-only; shapes in `shared/src/api/brief.ts`) | US2 | FR-234, FR-235 |
 | `GET /api/overview`, `GET /api/overview/items` (decision 43; B51; read-only; shapes in `shared/src/api/overview.ts`) | US2 | FR-201–FR-205 |
 | `PATCH /api/items/:id/work/:stepId/details` | US16 | FR-145, FR-146 |
 | `GET /api/items/:id/work/:stepId` | US16 | FR-146 |

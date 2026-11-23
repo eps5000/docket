@@ -85,6 +85,7 @@ Agents do almost all the writing. The owner verifies, decides, nudges and archiv
 
 **Routes:**
 - `/` Overview (decision 43); `/needs-you` redirects to its Needs you section (`/#needs-you`)
+- `/brief?day=` the daily brief (decision 48; §6.1b)
 - `/overview/:metric` the list behind a number: `completed` (`?window=`), `agents_working`, `agents_waiting`, `in_flight`, `no_epic`
 - `/work?layout=board|list|map|timeline&epic=&label=&quick=&has=&show=` (B43: `quick` is `blocked` or `progress`, Active when omitted; `has` and `show` are comma-separated. An old `filter=` link is mapped and rewritten in place, §6.2)
 - `/items/:id?tab=details|checklist|deps|map|activity`
@@ -277,7 +278,7 @@ What a Docket with **no projects** shows. Deleted projects don't count: the test
 ### 6.1 Overview (`/`; decision 43)
 Answers three questions in about ten seconds: are agents making progress, is anything stuck, do I need to do anything? For one project or All projects. At 1440×900 the four numbers and the first owner action show without scrolling. Metric definitions are in BUILD_SPEC §5.24. Contents, top to bottom:
 
-1. **h1 "Overview"**, "N things to act on" when there are any, and the **time window** (`24h | 7d | 30d`, a pressed-button group): 7d by default, remembered in this browser (`docket.overviewWindow`), and safe when storage is unavailable.
+1. **h1 "Overview"**, "N things to act on" when there are any, a **Daily brief** link (§6.1b; decision 48), and the **time window** (`24h | 7d | 30d`, a pressed-button group): 7d by default, remembered in this browser (`docket.overviewWindow`), and safe when storage is unavailable.
 2. **Four numbers**, each a link to the view behind it:
    - **Completed:** "18 tickets" → `/overview/completed?window=`, then "+6 vs the previous 7 days" (the sign and words carry the direction);
    - **Tickets with agents (B56):** "4 being worked" and "3 parked/waiting" → `/overview/agents_working`, `/overview/agents_waiting`. Tickets at producer level, never raw runs or sessions. *Being worked* is the sidebar badge, from the same `agents_now`, and the badge uses the same words. One line under the four cards says: "Counts tickets in Docket, not agent sessions. Orca can show more sessions, because coordinators and helpers don't each hold a ticket." No session count is shown or estimated;
@@ -285,6 +286,7 @@ Answers three questions in about ten seconds: are agents making progress, is any
    - **Needs you:** "3 to act on", then reviews, questions, decisions and problems, each linking to its section. "✓ Nothing" at zero.
 3. **Needs you and Health** (`2fr | 1fr`, one column at ≤ 1180 px). **Needs you · N** (`#needs-you`) holds every owner action, in the order below; a card with no rows isn't shown. With no actions, one line: "Nothing needs you". **Health** (`data-card="health"`): "n problems need you" (→ `#problems`) or "No problems need you"; the last backup (→ Settings; "!" when it failed, is overdue or never ran); the **at-risk worktrees line** (→ Agents → Workspaces; B56), which separates what needs the owner from what doesn't, such as "3 worktrees hold unsaved work. None need you: agents own 2, and you kept 1 for later." It has a ✓ when none need the owner, a ? when Docket can't tell who owns one (it says so), and a ! only when one needs an owner choice under decision 41's routing; the collapsed lines "Agents are handling N problems" and "You acknowledged N problems"; "n agent file changes proposed"; "Docket handled N overlaps today"; and *All runs →*. Each state has a ✓ or ! as well as its words. None of these lines adds to the badge.
 4. **Completed per day** (per hour for 24h): one series in the Done token, with a one-sentence summary, a **vertical axis** of whole-number ticks from 0 (steps of 1, 2 or 5 times a power of ten, at most four intervals) with gridlines, the first and last date, and a screen-reader table of the same values and tickets. **Each bar opens a tooltip (B56)** on hover or keyboard focus: the date or hour, the count, and up to 6 tickets (newest first, ID and title, each a link), then "and N more"; an empty bucket says "None completed". The bars are one tab stop: ←, →, Home and End move between them, Tab goes into the tooltip's links, and Esc closes it. The tooltip stays inside the window at every edge. **Workload · N open:** a status bar per epic (`StatusBar`, B47 tokens) with a legend and a text label, its count linking to Work filtered to that epic ("No epic" → `/overview/no_epic`). The top 6 epics, then *View all open work →*.
+   **Flow per day** (per hour for 24h; decision 48, BUILD_SPEC §5.29; `data-card="flow-chart"`) sits between the two: three small panels, **Finished**, **Merged** and **Parked**, over one time axis, each named with its total and its own whole-number scale from 0, because parks can far outnumber finished tickets. A one-sentence summary comes first, then the divergence note when there is one, in plain text with no colour or badge. Under the chart, one line always says "Merged counts only PRs an agent recorded in Docket", and adds how many finished tickets have none recorded. Each time slot is **one button across the panels**, one tab stop (←, →, Home, End), whose tooltip gives all three values on hover or focus; Esc closes it. Assistive tech gets the summary and a table of the same values. The three cards share a row above 1320 px. Below that, Completed and Flow share one and Workload takes the next.
 5. **Your Planning queue** and **Deferred, not verified:** a count and the top 3, with *View all N →* whenever the list has anything, so each count links to its view.
 
 Radar insights get their own section between 4 and 5 when they exist; nothing renders there until then. Token use and estimated metrics are not shown. `/overview/:metric` is a small table (ticket, title, status, epic, plus when completed or the producer) with the same count as the number.
@@ -331,6 +333,18 @@ Radar insights get their own section between 4 and 5 when they exist; nothing re
    - **Your Planning queue · N:** item + type and epic, with *Move to Ready*. *View all* goes to Work with the In planning filter. Empty: "Nothing in Planning."
 
 **Rows are one or two lines**; truncate with an ellipsis (Problems: whole facts, above) and put the full text in `title`. Reviews that are coming up do **not** appear here (they're the *Human review later* filter on Work).
+
+### 6.1b Daily brief (`/brief`; decision 48)
+Answers in about a minute what finished, what's stuck, what needs the owner and what changed in decisions, for one day and the current project or All. Read-only, with no notifications or scheduled sends. Definitions are in BUILD_SPEC §5.29.
+
+- **Header:** *← Overview*, h1 "Daily brief" with its "?", a labelled **Day** date field (latest: today in the configured timezone), *Today*, and a line naming the day and timezone ("Nov 23, in Europe/London, so far."). `?day=` holds the choice, and a value that isn't a real day is ignored.
+- **Four cards** (two columns, one at ≤ 1180 px), each with an h2:
+  - **What finished · N:** ticket and the time it finished.
+  - **What's stuck:** **Parked longest · N** (how long, and the next step), **Blockers nobody owns · N** (status, and how many tickets it holds up) and **Held by your decision · N**, which says "These are waiting as you decided. Nothing is wrong." and names the decision. It appears only when a run has one (B58). On a past day the card says it's shown as it is now.
+  - **What needs you · N:** the same number as the badge, from the same query, one line per action.
+  - **What changed in decisions · N:** the title, what happened and who did it.
+- **Every line is a link** to its ticket. A decision wider than one ticket links to the project's Decisions page, and an action with no ticket to where it's handled. Each list shows up to 8 lines, then "and N more". An empty section says so in one line.
+- **What it cost** isn't shown until measured data exists: no section, placeholder or estimate.
 
 ### 6.2 Work (`/work`)
 - **Header row:** h1 "Work", and on the right a segmented control: Board | List | Map | Timeline.

@@ -1,5 +1,5 @@
 /**
- * Split a ticket and withdraw a question (owner decision 48; BUILD_SPEC §5.29;
+ * Split a ticket and withdraw a question (owner decision 48; BUILD_SPEC §5.30;
  * B61): authority, atomicity, no criterion lost, each relation, a live lead,
  * stale versions, out-of-date packets, and undo. All content is synthetic.
  */

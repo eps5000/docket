@@ -1,5 +1,5 @@
 /**
- * Splitting a ticket (owner decision 48; BUILD_SPEC §5.29; B61).
+ * Splitting a ticket (owner decision 48; BUILD_SPEC §5.30; B61).
  *
  * One write creates a new ticket from an existing one and moves the chosen
  * acceptance criteria to it. Blockers, shared-part declarations and steps can

@@ -81,6 +81,7 @@ import {
   type JiraImport,
   type LabelPageResponse,
   type NeedsYouResponse,
+  type BriefResponse,
   type OverviewItemsResponse,
   type OverviewResponse,
   type OnboardingListResponse,
@@ -839,6 +840,8 @@ export interface ViewsService {
   overview(r: ReadContext, input: RouteQuery<'overview.get'>): OverviewResponse;
   /** Decision 43: the tickets behind an Overview number that no Work filter can show. */
   overviewItems(r: ReadContext, input: RouteQuery<'overview.items'>): OverviewItemsResponse;
+  /** Decision 48: one day's brief. Read-only. */
+  brief(r: ReadContext, input: RouteQuery<'brief.get'>): BriefResponse;
   /** Board, list and map. For `layout=timeline` the `timeline` section comes from `forecast.timeline`. */
   work(r: ReadContext, input: RouteQuery<'work.get'>): WorkResponse;
   itemDetail(r: ReadContext, input: RouteParams<'items.get'>): ItemDetailResponse;

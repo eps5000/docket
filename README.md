@@ -137,7 +137,7 @@ docker compose up -d
 `docker compose up -d --build` still builds locally from the checkout, if you'd rather.
 
 ### After an update or import: the UI sweep
-After you update Docket or import a big project, run the read-only UI sweep against your instance. It opens every main screen (Overview; Work as board, list, map and timeline; Agents; Agent files; Settings; Help), six sample items on each of their tabs, the palette and a step dialog, at 1024 px dark and 1440 px light. It only loads pages and opens and closes dialogs: it blocks anything that would write.
+After you update Docket or import a big project, run the read-only UI sweep against your instance. It opens every main screen (Overview; the daily brief; Work as board, list, map and timeline; Agents; Agent files; Settings; Help), six sample items on each of their tabs, the palette and a step dialog, at 1024 px dark and 1440 px light. It only loads pages and opens and closes dialogs: it blocks anything that would write.
 ```bash
 pnpm install                                            # once, from the repository root
 pnpm --filter @docket/web exec playwright install chromium   # once
