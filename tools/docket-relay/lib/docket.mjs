@@ -76,18 +76,22 @@ export function createDocket({ baseUrl, fetchImpl = fetch }) {
       return page.next_cursor;
     },
 
-    /** Waits for events after `cursor`. Null when the wait was cut off. */
-    async wait({ cursor, timeoutS, signal }) {
+    /**
+     * Waits for events after `cursor`. Null when the wait was cut off. `full`
+     * means the page hit its limit, so more may follow at once.
+     */
+    async wait({ cursor, timeoutS, limit = PAGE, signal }) {
       const query = new URLSearchParams({
         cursor,
         timeout_s: String(timeoutS),
-        limit: String(PAGE),
+        limit: String(limit),
       });
       const response = await get(`/agent/changes/wait?${query}`, {
         signal,
         timeoutMs: (timeoutS + 15) * 1000,
       });
-      return readPage(response);
+      const page = await readPage(response);
+      return page && { ...page, full: page.events.length >= limit };
     },
 
     /** `{ runs, activity }` (cursor to actor kind), or null when the item is gone. */
@@ -114,9 +118,7 @@ export function createDocket({ baseUrl, fetchImpl = fetch }) {
           run_id: run?.run_id,
           is_lead: run?.is_lead,
           run_state: run?.run_state,
-          orchestrator: run?.orchestrator
-            ? { dispatch_id: run.orchestrator.dispatch_id, run_id: run.orchestrator.run_id }
-            : null,
+          orchestrator: run?.orchestrator ? { dispatch_id: run.orchestrator.dispatch_id } : null,
         })),
         activity,
       };

@@ -48,11 +48,12 @@ For lasting changes, edit the ticket itself: the title, outcome, description and
 
 ## Waking the agent
 
-If the optional **docket-relay** is running on your computer, the agent working on a ticket doesn't have to stumble on your change. The relay sends its Orca session a short message saying which ticket changed and what kind of change it was, such as "acceptance, decision". The agent then reads the details from Docket, so your words never travel in the message.
+If the optional **docket-relay** is running on your computer, a change you make doesn't have to wait for an agent to stumble on it. The relay sends the ticket's Orca **coordinator** a short message saying which ticket changed and what kind of change it was, such as "acceptance, decision". The coordinator decides whether and when to pass it on to the agent doing the work, and the agent reads the details from Docket, so your words never travel in the message.
 
 - An answer goes straight away, along with anything else waiting on that ticket.
 - Edits, notes and other changes wait until the ticket has been quiet for a minute, and at most two minutes, so a burst of saves is one message.
 - A ticket with no agent working on it gets no message.
-- If the agent's session has gone, its coordinator is told instead.
+- The relay never messages the working agent directly. If it can't find a coordinator, it records the change as undelivered.
+- If the relay was stopped for 24 hours or more, or can't trust where it stopped, it holds: it sends nothing until someone runs its `reconcile` command, and nothing is dropped without a record.
 
 The message says the ticket was updated "from the owner side", because an agent using the owner API is recorded as you and Docket can't always tell them apart. The relay never changes anything in Docket. To set it up, see `tools/docket-relay/README.md` in the repository.

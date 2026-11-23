@@ -1,11 +1,13 @@
 /**
  * The relay's local files: state written atomically, a small log with no
- * message content, and the one-instance lock.
+ * message content, an append-only audit of skipped tickets, and the
+ * one-instance lock, which also carries the graceful `stop`.
  */
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import {
   appendFileSync,
   closeSync,
+  copyFileSync,
   fsyncSync,
   mkdirSync,
   openSync,
@@ -18,9 +20,12 @@ import {
 import net from 'node:net';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { holdRecord } from './hold.mjs';
 
 const STATE_VERSION = 1;
 const LOG_LIMIT = 256 * 1024;
+const AUDIT_FILE = 'reconcile-audit.jsonl';
+const INSTANCE_FILE = 'instance.json';
 
 export function defaultHome(env = process.env, platform = process.platform) {
   if (env.DOCKET_RELAY_HOME) return env.DOCKET_RELAY_HOME;
@@ -31,19 +36,26 @@ export function defaultHome(env = process.env, platform = process.platform) {
 export const emptyState = () => ({
   version: STATE_VERSION,
   cursor: null,
+  /** The feed row at the cursor, to tell a replaced feed from the one we read. */
+  anchor: null,
+  /** When the relay last read the feed. A gap of 24 hours or more means a hold. */
+  active_at: null,
+  /** Set while in `hold_reconcile`. Only the `reconcile` command clears it. */
+  hold: null,
+  /** What each `reconcile` did, newest last. */
+  reconciles: [],
   seen: {},
   batches: {},
   rate: {},
   undelivered: [],
   counters: {
     ignored: 0,
-    expired: 0,
     delivered: 0,
-    via_coordinator: 0,
     no_live_lead: 0,
     not_owner: 0,
     undelivered: 0,
     send_failures: 0,
+    skipped: 0,
   },
   docket: { connected: false, at: null, error: null },
   last_event: null,
@@ -76,43 +88,111 @@ function writeAtomic(path, text) {
   }
 }
 
-export function openStore(home) {
+const isMap = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
+
+/** The state in `text` with defaults filled in, or null when it can't be trusted. */
+function parseState(text) {
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (!isMap(parsed) || parsed.version !== STATE_VERSION) return null;
+  const cursorOk =
+    parsed.cursor === null ||
+    (typeof parsed.cursor === 'string' && /^\d{1,15}$/.test(parsed.cursor));
+  const batchesOk =
+    isMap(parsed.batches) &&
+    Object.values(parsed.batches).every(
+      (batch) => isMap(batch) && Array.isArray(batch.events) && Number.isFinite(batch.first_at),
+    );
+  if (
+    !cursorOk ||
+    !batchesOk ||
+    !isMap(parsed.seen) ||
+    !isMap(parsed.rate) ||
+    !isMap(parsed.counters) ||
+    !Array.isArray(parsed.undelivered)
+  ) {
+    return null;
+  }
+  const base = emptyState();
+  return { ...base, ...parsed, counters: { ...base.counters, ...parsed.counters } };
+}
+
+/** One line per call, flushed to disk. The file is only ever appended to. */
+function appendDurably(path, text) {
+  const bytes = Buffer.from(text, 'utf8');
+  const fd = openSync(path, 'a', 0o600);
+  try {
+    let written = 0;
+    while (written < bytes.length) written += writeSync(fd, bytes, written);
+    fsyncSync(fd);
+  } finally {
+    closeSync(fd);
+  }
+}
+
+function readWithRetry(path) {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return readFileSync(path, 'utf8');
+    } catch (err) {
+      if (attempt >= 8 || !['EPERM', 'EBUSY', 'EACCES'].includes(err.code)) throw err;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 25 * (attempt + 1));
+    }
+  }
+}
+
+/**
+ * Opens the state. A missing file is a first run. A file that can't be parsed
+ * is kept as a copy and replaced by a state in `hold_reconcile`, in that order,
+ * so a crash between the two can't turn it into a first run. A file the OS
+ * won't let us read is left alone: this throws `state_unavailable`.
+ */
+export function openStore(home, now = Date.now) {
   mkdirSync(home, { recursive: true });
   const path = join(home, 'state.json');
   let state = emptyState();
-  let recovered = false;
+  let text = null;
   try {
-    const parsed = JSON.parse(readFileSync(path, 'utf8'));
-    if (parsed?.version !== STATE_VERSION) throw new Error('version');
-    const base = emptyState();
-    state = { ...base, ...parsed, counters: { ...base.counters, ...parsed.counters } };
+    text = readWithRetry(path);
   } catch (err) {
     if (err.code !== 'ENOENT') {
-      // An unreadable file can't say where it stopped: start at the end, never replay.
-      recovered = true;
-      try {
-        renameSync(path, `${path}.corrupt`);
-      } catch {
-        // Nothing to keep.
-      }
+      throw Object.assign(new Error('state_unavailable'), { code: 'state_unavailable' });
+    }
+  }
+  if (text !== null) {
+    const parsed = parseState(text);
+    if (parsed) {
+      state = parsed;
+    } else {
+      const t = now();
+      copyFileSync(path, `${path}.corrupt-${t}`);
+      state.hold = holdRecord('state_unreadable', t);
+      writeAtomic(path, JSON.stringify(state));
     }
   }
   return {
     path,
     state,
-    recovered,
     save: () => writeAtomic(path, JSON.stringify(state)),
+    appendAudit: (record) => appendDurably(join(home, AUDIT_FILE), `${JSON.stringify(record)}\n`),
   };
 }
 
 /** Read-only, for `status`: never moves or rewrites anything. */
-export function readState(home) {
+export function inspectState(home) {
+  let text;
   try {
-    const parsed = JSON.parse(readFileSync(join(home, 'state.json'), 'utf8'));
-    return parsed?.version === STATE_VERSION ? parsed : null;
-  } catch {
-    return null;
+    // With retries: on Windows the relay's atomic save can briefly block a reader.
+    text = readWithRetry(join(home, 'state.json'));
+  } catch (err) {
+    return { state: null, unreadable: err.code !== 'ENOENT' };
   }
+  const state = parseState(text);
+  return { state, unreadable: state === null };
 }
 
 /** `log(event, fields)`: ids, kinds and error codes only. Never a summary or message body. */
@@ -161,16 +241,72 @@ const connects = (address) =>
 /** Whether an instance holds the lock. */
 export const isRunning = (home) => connects(lockAddress(home));
 
+const sameText = (a, b) => {
+  const left = Buffer.from(a);
+  const right = Buffer.from(b);
+  return left.length === right.length && timingSafeEqual(left, right);
+};
+
+/**
+ * Asks the running instance to stop, over its lock. The token sits in the
+ * user's own state folder, so only someone who can read that folder can ask.
+ * Resolves to `stopping`, `refused` or `unreachable`.
+ */
+export function requestStop(home, timeoutMs = 3000) {
+  let token;
+  try {
+    token = JSON.parse(readFileSync(join(home, INSTANCE_FILE), 'utf8')).stop_token;
+  } catch {
+    return Promise.resolve('refused');
+  }
+  return new Promise((resolve) => {
+    const socket = net.connect(lockAddress(home));
+    let reply = '';
+    const done = (answer) => {
+      socket.destroy();
+      resolve(answer);
+    };
+    socket.setEncoding('utf8');
+    socket.setTimeout(timeoutMs, () => done('unreachable'));
+    socket.once('connect', () => socket.write(`stop ${token}\n`));
+    socket.on('data', (chunk) => {
+      reply += chunk;
+      if (reply.includes('\n')) done(reply.trim() === 'stopping' ? 'stopping' : 'refused');
+    });
+    socket.once('error', () => done('unreachable'));
+    socket.once('end', () => done(reply.trim() === 'stopping' ? 'stopping' : 'refused'));
+  });
+}
+
 /**
  * The lock is a listening pipe or socket: the OS frees it when the process
  * dies, so a crash can't leave a stale lock or be fooled by a reused PID.
  * Resolves to a release function, or null when another instance holds it.
+ * With `onStop`, a client holding the stop token can ask this instance to stop.
  */
-export async function acquireLock(home) {
+export async function acquireLock(home, { onStop } = {}) {
   const address = lockAddress(home);
+  const token = onStop ? randomBytes(24).toString('hex') : null;
+  const answer = (socket) => {
+    let text = '';
+    socket.setEncoding('utf8');
+    socket.setTimeout(2000, () => socket.destroy());
+    socket.on('error', () => {});
+    socket.on('data', (chunk) => {
+      text += chunk;
+      if (text.length > 256) {
+        socket.destroy();
+        return;
+      }
+      if (!text.includes('\n')) return;
+      const accepted = token !== null && sameText(text.trim(), `stop ${token}`);
+      socket.end(accepted ? 'stopping\n' : 'refused\n');
+      if (accepted) onStop();
+    });
+  };
   const listen = () =>
     new Promise((resolve, reject) => {
-      const server = net.createServer((socket) => socket.end());
+      const server = net.createServer(answer);
       server.once('error', reject);
       server.listen(address, () => {
         server.removeAllListeners('error');
@@ -192,5 +328,24 @@ export async function acquireLock(home) {
       return null;
     }
   }
-  return () => new Promise((resolve) => server.close(() => resolve()));
+  // Who this instance is, for `stop` and for manage.ps1. A hard kill leaves it behind.
+  const instancePath = join(home, INSTANCE_FILE);
+  if (token) {
+    mkdirSync(home, { recursive: true });
+    writeAtomic(
+      instancePath,
+      JSON.stringify({
+        pid: process.pid,
+        started_ms: Math.round(Date.now() - process.uptime() * 1000),
+        exe: process.execPath,
+        script: process.argv[1],
+        stop_token: token,
+      }),
+    );
+  }
+  return () =>
+    new Promise((resolve) => {
+      if (token) rmSync(instancePath, { force: true });
+      server.close(() => resolve());
+    });
 }

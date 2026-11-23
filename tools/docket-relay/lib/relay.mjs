@@ -1,25 +1,32 @@
 /**
- * The relay (owner decision 46): watch the feed, batch what concerns each
- * ticket, and send its live lead a pointer through Orca.
+ * The relay (owner decision 46, B55b): watch the feed, batch what concerns each
+ * ticket, and send its coordinator a pointer through Orca.
  *
  * It never writes to Docket and never calls MCP `get_item`, so it can't resume,
  * park, claim or use up a one-time delivery. Everything it owes is in the state
- * file before the cursor moves past it, so a restart neither loses nor repeats it.
+ * file before the cursor moves past it, so a restart neither loses nor repeats
+ * it. After a long stop, or when it can't trust its position, it enters
+ * `hold_reconcile` (hold.mjs): nothing is sent and the cursor stays put.
  */
 import { randomUUID } from 'node:crypto';
-import { buildMessage, classifyEvent, orderKinds } from './classify.mjs';
+import { recordEvent } from './batch.mjs';
+import { buildMessage, orderKinds } from './classify.mjs';
+import { checkFeed, holdRecord, pageIsCoherent, readAnchor } from './hold.mjs';
+import { stateProblem } from './invariants.mjs';
 import { requestIdFor } from './orca.mjs';
-import { liveLead, resolveTarget } from './target.mjs';
+import { liveLead, resolveCoordinator } from './target.mjs';
 
 export const DEFAULTS = {
   /** A ticket's edits go out once it has been quiet this long… */
   quietMs: 60_000,
   /** …and no later than this after its first change. */
   maxWaitMs: 120_000,
-  /** How far back a catch-up delivers, and how long an undeliverable batch is kept. */
+  /** A gap this long since the last feed read, or a batch held this long, means a hold. */
   windowMs: 24 * 60 * 60 * 1000,
+  /** A stored time further ahead of the clock than this can't be trusted. */
+  clockSkewMs: 5 * 60 * 1000,
   pollTimeoutS: 50,
-  /** Tries per address before moving to the next one. */
+  /** Tries before holding the message for later. */
   sendAttempts: 3,
   retryDelayMs: 750,
   /** Per address. */
@@ -69,12 +76,67 @@ export function createRelay({
   let wake = null;
   let woken = false;
   let flushing = null;
+  let halt = null;
+  /** A hold waiting for the send in flight to finish and be recorded. */
+  let pendingHold = null;
+  let sendInFlight = false;
+  /** The whole state file is checked once, before the relay first acts on it. */
+  let invariantsChecked = false;
+  /** The feed must be re-checked after every start and every lost connection. */
+  let feedVerified = false;
+  /** Nothing goes out until the backlog is read, so a catch-up is one message per ticket. */
+  let draining = true;
 
   const notify = () => {
     woken = true;
     wake?.();
     wake = null;
   };
+
+  /** Once true, no new send starts, nothing is ingested and the cursor stays put. */
+  const blocked = () => s.hold !== null || pendingHold !== null;
+
+  /** Writes the hold, unless a send is in flight: its result is recorded first. */
+  function commitHold() {
+    if (!pendingHold || s.hold || sendInFlight) return;
+    const { reason, detail } = pendingHold;
+    pendingHold = null;
+    s.hold = holdRecord(reason, now(), s.cursor, detail);
+    log('hold_reconcile', { reason, detail, cursor: s.cursor ?? 'none' });
+    store.save();
+  }
+
+  function enterHold(reason, detail = null) {
+    if (!blocked()) pendingHold = { reason, detail };
+    commitHold();
+    halt?.();
+    notify();
+    return true;
+  }
+
+  /** True when in a hold, entering one if the stored position or a held batch calls for it. */
+  function assess(t = now()) {
+    if (blocked()) {
+      halt?.();
+      notify();
+      return true;
+    }
+    if (!invariantsChecked) {
+      invariantsChecked = true;
+      const problem = stateProblem(s);
+      if (problem) return enterHold('state_untrusted', problem);
+    }
+    if (s.cursor === null) return false;
+    if (!Number.isFinite(s.active_at)) return enterHold('state_untrusted', 'no_activity_time');
+    if (s.active_at > t + opts.clockSkewMs) {
+      return enterHold('state_untrusted', 'activity_in_future');
+    }
+    if (t - s.active_at >= opts.windowMs) return enterHold('stale');
+    if (Object.values(s.batches).some((batch) => t - batch.first_at >= opts.windowMs)) {
+      return enterHold('batch_past_window');
+    }
+    return false;
+  }
 
   function prune(t) {
     const horizon = t - opts.windowMs - 60 * 60 * 1000;
@@ -92,48 +154,16 @@ export function createRelay({
 
   /** Records a page and moves the cursor in one atomic write. */
   function ingest(page) {
+    if (blocked()) return;
     const t = now();
-    const previous = s.cursor === null ? null : Number(s.cursor);
-    if (previous !== null && Number(page.next_cursor) < previous) {
-      log('feed_reset', { from: s.cursor, to: page.next_cursor });
-    }
     let immediate = false;
     for (const event of page.events) {
-      const key = `${event.cursor}:${event.at}`;
-      if (s.seen[key] !== undefined) continue;
-      const meaning = classifyEvent(event);
-      if (!meaning) {
-        s.counters.ignored += 1;
-        continue;
-      }
-      s.seen[key] = t;
-      const eventMs = Date.parse(event.at);
-      if (!Number.isFinite(eventMs) || t - eventMs > opts.windowMs) {
-        s.counters.expired += 1;
-        continue;
-      }
-      const batch = (s.batches[event.item_id] ??= {
-        id: randomUUID(),
-        item_id: event.item_id,
-        events: [],
-        first_at: t,
-        last_at: t,
-        next_attempt_at: 0,
-        defers: 0,
-      });
-      batch.events.push({
-        key,
-        cursor: String(event.cursor),
-        kinds: meaning.kinds,
-        immediate: meaning.immediate,
-        expect: meaning.expect,
-        event_ms: eventMs,
-      });
-      batch.last_at = t;
-      immediate ||= meaning.immediate;
-      s.last_event = { at: event.at, item: event.item_id, kinds: meaning.kinds };
+      immediate = recordEvent(s, event, t)?.immediate === true || immediate;
     }
+    const last = page.events.at(-1);
+    if (last) s.anchor = { cursor: String(last.cursor), at: last.at };
     s.cursor = page.next_cursor;
+    s.active_at = t;
     prune(t);
     store.save();
     if (immediate) notify();
@@ -147,8 +177,10 @@ export function createRelay({
 
   /** Removes what was handled. Anything that arrived meanwhile stays, on a fresh clock. */
   function settle(batch, handled) {
+    if (s.hold) return;
     const keys = new Set(handled.map((event) => event.key));
     batch.events = batch.events.filter((event) => !keys.has(event.key));
+    delete batch.in_flight;
     if (batch.events.length === 0) {
       delete s.batches[batch.item_id];
     } else {
@@ -164,6 +196,7 @@ export function createRelay({
   }
 
   function undeliver(batch, handled, reason) {
+    if (s.hold) return;
     s.counters.undelivered += 1;
     s.undelivered.push({
       at: new Date(now()).toISOString(),
@@ -176,11 +209,13 @@ export function createRelay({
     settle(batch, handled);
   }
 
-  /** Try again later, unless the batch has outlived the catch-up window. */
-  function defer(batch, handled, reason, untilMs) {
+  /** Try again later. A batch past the window is never expired: it puts the relay in a hold. */
+  function defer(batch, reason, untilMs) {
+    if (s.hold) return;
     const t = now();
     if (t - batch.first_at >= opts.windowMs) {
-      undeliver(batch, handled, `${reason}_expired`);
+      s.last_failure = { at: new Date(t).toISOString(), reason };
+      enterHold('batch_past_window');
       return;
     }
     batch.defers = (batch.defers ?? 0) + 1;
@@ -196,36 +231,54 @@ export function createRelay({
     return recent.length < opts.rateLimit ? null : recent[0] + opts.rateWindowMs;
   };
 
-  async function sendWithRetries(route, message, batch, signal) {
-    const requestId = requestIdFor(batch.id, route.to, message.subject, message.body);
+  async function sendWithRetries(pending, signal) {
     let result = { ok: false, code: 'not_sent', transient: true };
     for (let attempt = 1; attempt <= opts.sendAttempts; attempt += 1) {
-      result = await orca.send({ to: route.to, ...message, requestId });
+      // A hold or a stop lets the current attempt finish, and starts no other.
+      if (attempt > 1 && (blocked() || signal?.aborted)) return result;
+      result = await orca.send({
+        to: pending.to,
+        subject: pending.subject,
+        body: pending.body,
+        requestId: pending.request_id,
+      });
       if (result.ok || !result.transient) return result;
       s.counters.send_failures += 1;
-      if (attempt < opts.sendAttempts) await sleep(opts.retryDelayMs * attempt, signal);
-      if (signal?.aborted) return result;
+      if (attempt < opts.sendAttempts && !blocked()) {
+        await sleep(opts.retryDelayMs * attempt, signal);
+      }
     }
     return result;
   }
 
-  async function deliver(batch, signal) {
-    const events = [...batch.events];
+  /**
+   * Works out the message from what Docket and Orca say now, or handles the
+   * batch and returns null. Stored state supplies only which events to name:
+   * never a recipient and never message text. The request ID comes from the
+   * batch and recipient alone, so a rebuilt message can't be delivered twice to
+   * the same coordinator; if the coordinator changed, the old send is gone.
+   */
+  async function prepare(batch, signal) {
+    const flying = batch.in_flight ? new Set(batch.in_flight.keys) : null;
+    const events = flying
+      ? batch.events.filter((event) => flying.has(event.key))
+      : [...batch.events];
     const item = batch.item_id;
 
     let detail;
     try {
       detail = await docket.readItem(item, { signal });
     } catch (err) {
-      if (signal?.aborted) return;
+      if (signal?.aborted || blocked()) return null;
       if (err.code === 'needs_local_trust') undeliver(batch, events, 'needs_local_trust');
-      else defer(batch, events, 'docket_unavailable');
-      return;
+      else defer(batch, 'docket_unavailable');
+      return null;
     }
+    if (blocked()) return null;
     if (detail === null) {
       s.counters.no_live_lead += 1;
       settle(batch, events);
-      return;
+      return null;
     }
 
     // The feed has no actor kind; the item's activity does.
@@ -239,7 +292,7 @@ export function createRelay({
     }
     if (genuine.length === 0) {
       settle(batch, events);
-      return;
+      return null;
     }
 
     const lead = liveLead(detail.runs);
@@ -247,75 +300,96 @@ export function createRelay({
       s.counters.no_live_lead += 1;
       log('no_live_lead', { item, kinds: kindsOf(genuine) });
       settle(batch, events);
-      return;
+      return null;
     }
 
     let target;
     try {
-      target = await resolveTarget(lead, (id) => orca.showDispatch(id));
+      target = await resolveCoordinator(lead, (id) => orca.showDispatch(id));
     } catch {
-      if (!signal?.aborted) defer(batch, events, 'orca_unavailable');
-      return;
+      if (!signal?.aborted && !blocked()) defer(batch, 'orca_unavailable');
+      return null;
     }
-
-    const routes = [];
-    if (target.implementer) routes.push({ to: target.implementer, role: 'implementer' });
-    if (target.coordinator) routes.push({ to: target.coordinator, role: 'coordinator' });
-    if (routes.length === 0) {
+    if (blocked()) return null;
+    if (!target.coordinator) {
       undeliver(batch, events, 'no_target');
-      return;
+      return null;
     }
 
     const kinds = kindsOf(genuine);
-    let anyTransient = false;
-    for (const route of routes) {
-      const t = now();
-      const freeAt = rateSlot(route.to, t);
-      if (freeAt !== null) {
-        defer(batch, events, 'rate_limited', freeAt);
-        return;
-      }
-      const message = buildMessage({
+    const message = buildMessage({ item, kinds, implementer: target.implementer });
+    return {
+      to: target.coordinator,
+      ...message,
+      kinds,
+      handled: events,
+      keys: events.map((event) => event.key),
+      newest_ms: Math.max(...genuine.map((event) => event.event_ms)),
+      request_id: requestIdFor(batch.id, target.coordinator),
+    };
+  }
+
+  function recordResult(batch, pending, result, startedAt) {
+    const item = batch.item_id;
+    // `request_mismatch`: Orca already took this request ID with other text, so it was sent.
+    if (result.ok || result.code === 'request_mismatch') {
+      const sentAt = now();
+      (s.rate[pending.to] ??= []).push(sentAt);
+      s.counters.delivered += 1;
+      const latencyMs = sentAt - pending.newest_ms;
+      s.last_delivery = {
+        at: new Date(sentAt).toISOString(),
         item,
-        kinds,
-        role: route.role,
-        implementer: target.implementerName,
-      });
-      const result = await sendWithRetries(route, message, batch, signal);
-      if (signal?.aborted && !result.ok) return;
-      if (result.ok) {
-        const sentAt = now();
-        (s.rate[route.to] ??= []).push(sentAt);
-        s.counters.delivered += 1;
-        if (route.role === 'coordinator') s.counters.via_coordinator += 1;
-        const latencyMs = sentAt - Math.max(...genuine.map((event) => event.event_ms));
-        s.last_delivery = {
-          at: new Date(sentAt).toISOString(),
-          item,
-          kinds,
-          role: route.role,
-          latency_ms: latencyMs,
-        };
-        log('delivered', { item, kinds, role: route.role, latency_ms: latencyMs });
-        settle(batch, events);
-        return;
-      }
-      if (result.transient) anyTransient = true;
-      else s.counters.send_failures += 1;
-      s.last_failure = { at: new Date(t).toISOString(), reason: result.code, role: route.role };
-      log('send_failed', { item, role: route.role, code: result.code });
+        kinds: pending.kinds,
+        to: pending.to,
+        latency_ms: latencyMs,
+      };
+      log('delivered', { item, kinds: pending.kinds, to: pending.to, latency_ms: latencyMs });
+      settle(batch, pending.handled);
+      return;
     }
-    // Orca may only be busy: keep it for later. A refusal from every address is final.
-    if (anyTransient) defer(batch, events, 'orca_unavailable');
-    else undeliver(batch, events, 'send_failed');
+    s.last_failure = { at: new Date(startedAt).toISOString(), reason: result.code };
+    log('send_failed', { item, to: pending.to, code: result.code });
+    // Orca may only be busy: keep it for later. A refusal is final.
+    if (result.transient) {
+      defer(batch, 'orca_unavailable');
+      return;
+    }
+    s.counters.send_failures += 1;
+    undeliver(batch, pending.handled, 'send_failed');
+  }
+
+  async function deliver(batch, signal) {
+    const pending = await prepare(batch, signal);
+    if (!pending || blocked()) return;
+
+    const t = now();
+    const freeAt = rateSlot(pending.to, t);
+    if (freeAt !== null) {
+      defer(batch, 'rate_limited', freeAt);
+      return;
+    }
+    batch.in_flight = { keys: pending.keys };
+    store.save();
+
+    // From here a hold waits: the send finishes, and its result is saved, before it is written.
+    sendInFlight = true;
+    try {
+      const result = await sendWithRetries(pending, signal);
+      recordResult(batch, pending, result, t);
+    } finally {
+      sendInFlight = false;
+      commitHold();
+    }
   }
 
   /** Sends everything due, one at a time. */
   function flushDue(signal) {
     if (flushing) return flushing;
     const current = (async () => {
+      if (draining || assess()) return;
       for (const batch of Object.values(s.batches)) {
-        if (signal?.aborted) break;
+        if (signal?.aborted || blocked()) break;
         if (s.batches[batch.item_id] === batch && isDue(batch, now())) {
           await deliver(batch, signal);
         }
@@ -341,16 +415,56 @@ export function createRelay({
   /** The first run starts at the end of the feed, so old history is never replayed. */
   async function ensureCursor(signal) {
     if (s.cursor !== null) return;
-    s.cursor = await docket.currentCursor({ signal });
-    log('started_at_cursor', { cursor: s.cursor });
+    const cursor = await docket.currentCursor({ signal });
+    const anchor = await readAnchor(docket, cursor, signal);
+    s.cursor = cursor;
+    s.anchor = anchor;
+    s.active_at = now();
+    feedVerified = true;
+    log('started_at_cursor', { cursor });
     store.save();
   }
 
-  async function pollOnce(signal, timeoutS = opts.pollTimeoutS) {
+  async function readPage(signal, timeoutS) {
     await ensureCursor(signal);
-    const page = await docket.wait({ cursor: s.cursor, timeoutS, signal });
+    if (!feedVerified) {
+      const problem = await checkFeed(docket, s, signal);
+      if (blocked()) return null;
+      if (problem) {
+        enterHold(problem);
+        return null;
+      }
+      feedVerified = true;
+    }
+    // While catching up, don't wait: what's already held shouldn't sit behind a long-poll.
+    return docket.wait({ cursor: s.cursor, timeoutS: draining ? 0 : timeoutS, signal });
+  }
+
+  async function pollOnce(signal, timeoutS = opts.pollTimeoutS) {
+    if (assess()) return null;
+    let page;
+    try {
+      page = await readPage(signal, timeoutS);
+    } catch (err) {
+      feedVerified = false;
+      draining = true;
+      throw err;
+    }
+    if (blocked()) return null;
     setDocket(true);
-    if (page) ingest(page);
+    if (!page) return null;
+    // The host may have slept through that wait, or the feed may have shrunk under it.
+    if (assess()) return null;
+    if (Number(page.next_cursor) < Number(s.cursor)) {
+      enterHold('cursor_ahead');
+      return null;
+    }
+    if (!pageIsCoherent(page, s.cursor)) {
+      enterHold('feed_reset', 'incoherent_page');
+      return null;
+    }
+    ingest(page);
+    draining = page.full === true;
     return page;
   }
 
@@ -389,13 +503,26 @@ export function createRelay({
     }
   }
 
-  /** Runs until `signal` aborts. */
+  /** Runs until `signal` aborts or the relay enters a hold. Resolves to the hold, or null. */
   async function run(signal) {
-    const stop = () => notify();
-    signal.addEventListener('abort', stop, { once: true });
-    await Promise.all([pollLoop(signal), flushLoop(signal)]);
+    const loops = new AbortController();
+    const stop = () => {
+      loops.abort();
+      notify();
+    };
+    halt = stop;
+    if (signal.aborted) stop();
+    else signal.addEventListener('abort', stop, { once: true });
+    if (!assess()) {
+      await Promise.all([pollLoop(loops.signal), flushLoop(loops.signal)]);
+    }
+    // Whatever was in flight has finished and been recorded before the hold is reported.
     await flushing;
+    commitHold();
     store.save();
+    signal.removeEventListener('abort', stop);
+    halt = null;
+    return s.hold;
   }
 
   return { ingest, flushDue, pollOnce, run, state: s };

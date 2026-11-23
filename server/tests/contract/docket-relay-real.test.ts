@@ -31,7 +31,12 @@ interface Sent {
 interface Relay {
   pollOnce: (signal?: AbortSignal, timeoutS?: number) => Promise<unknown>;
   flushDue: () => Promise<void>;
-  state: { counters: Record<string, number>; undelivered: unknown[] };
+  state: {
+    cursor: string | null;
+    hold: { reason: string } | null;
+    counters: Record<string, number>;
+    undelivered: unknown[];
+  };
 }
 
 interface FeedRow {
@@ -72,12 +77,12 @@ const detail = async (id: string) =>
 const fetchImpl = (url: string, init: RequestInit) =>
   h!.server.request(url.slice(ORIGIN.length), init);
 
-function makeRelay(sent: Sent[], live = true): Relay {
+function makeRelay(sent: Sent[]): Relay {
   dir ??= tempDir('docket-relay-real-');
   return createRelay({
     docket: createDocket({ baseUrl: ORIGIN, fetchImpl }),
     orca: {
-      showDispatch: () => Promise.resolve({ found: true, live, runId: 'run_home1' }),
+      showDispatch: () => Promise.resolve({ found: true, runId: 'run_home1' }),
       send: (message: Sent) => {
         sent.push(message);
         return Promise.resolve({ ok: true });
@@ -108,7 +113,7 @@ const claim = async (id = 'RCP-17') =>
   expectOk(await h!.call('claim_lead', { id, agent_label: 'orca-w3', orchestrator: ORCHESTRATOR }));
 
 describe('docket-relay on the real server', () => {
-  it('wakes the lead on an answer, and the answer stays unread until the agent reads it', async () => {
+  it('tells the coordinator of an answer, which stays unread until the agent reads it', async () => {
     h = await startHarness();
     await claim();
     const sent: Sent[] = [];
@@ -126,10 +131,10 @@ describe('docket-relay on the real server', () => {
     await step(relay);
 
     expect(sent).toHaveLength(1);
-    expect(sent[0]).toMatchObject({
-      to: 'dispatch:ctx_real1',
-      body: 'RCP-17 was updated from the owner side in Docket (answer). Call get_context RCP-17 and get_item RCP-17.',
-    });
+    expect(sent[0]!.to).toBe('run:run_home1');
+    expect(sent[0]!.body).toContain('RCP-17 was updated from the owner side in Docket (answer).');
+    expect(sent[0]!.body).toContain('dispatch ctx_real1');
+    expect(sent[0]!.body).toContain("Don't call get_item RCP-17");
     expect(JSON.stringify(sent)).not.toContain(SECRET);
 
     // The relay's read delivered nothing, and left the run as it was.
@@ -142,11 +147,11 @@ describe('docket-relay on the real server', () => {
     expect((await detail('RCP-17')).answer_unread).toBe(false);
   });
 
-  it('falls back to the coordinator when the dispatch has closed', async () => {
+  it('batches an owner note for the coordinator, naming the dispatch as information', async () => {
     h = await startHarness();
     await claim();
     const sent: Sent[] = [];
-    const relay = makeRelay(sent, false);
+    const relay = makeRelay(sent);
     await relay.pollOnce(undefined, 0);
     await api('POST', '/api/items/RCP-17/notes', { text: SECRET });
     await step(relay);
@@ -154,7 +159,8 @@ describe('docket-relay on the real server', () => {
     h.server.clock.advance(60_000);
     await step(relay);
     expect(sent.map((message) => message.to)).toEqual(['run:run_home1']);
-    expect(sent[0]!.body).toContain('(dispatch ctx_real1)');
+    expect(sent[0]!.body).toContain('for information only: Docket run');
+    expect(sent[0]!.body).toContain('dispatch ctx_real1.');
     expect(JSON.stringify(sent)).not.toContain(SECRET);
   });
 
@@ -259,7 +265,7 @@ describe('docket-relay on the real server', () => {
     expect(relay.state.undelivered).toEqual([]);
   });
 
-  it('wakes a parked lead on the real run.resume_ready, and leaves it parked', async () => {
+  it('tells the coordinator of the real run.resume_ready, and leaves the lead parked', async () => {
     h = await startHarness();
     await claim();
     const runId = (
@@ -293,12 +299,24 @@ describe('docket-relay on the real server', () => {
 
     await step(relay);
     expect(sent).toHaveLength(1);
-    expect(sent[0]).toMatchObject({
-      to: 'dispatch:ctx_real1',
-      subject: 'Docket: RCP-17 can resume',
-      body: 'What RCP-17 was waiting for has cleared in Docket. Call get_context RCP-17 and get_item RCP-17.',
-    });
+    expect(sent[0]).toMatchObject({ to: 'run:run_home1', subject: 'Docket: RCP-17 can resume' });
+    expect(sent[0]!.body).toMatch(/^What RCP-17 was waiting for has cleared in Docket\. /);
     expect((await detail('RCP-17')).item.runs[0]!.run_state).toBe('parked');
+  });
+
+  it('holds on the real feed when its cursor is ahead, without moving it', async () => {
+    h = await startHarness();
+    await claim();
+    const sent: Sent[] = [];
+    const relay = makeRelay(sent);
+    await step(relay);
+    const cursor = relay.state.cursor!;
+    relay.state.cursor = String(Number(cursor) + 50);
+    await api('POST', '/api/items/RCP-17/notes', { text: SECRET });
+    await step(relay);
+    expect(relay.state.hold?.reason).toBe('cursor_ahead');
+    expect(relay.state.cursor).toBe(String(Number(cursor) + 50));
+    expect(sent).toEqual([]);
   });
 
   it('starts at the end of the real feed', async () => {
