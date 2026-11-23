@@ -623,9 +623,18 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T247 [US6] `docket-worker`, `docket-coordinator`, `docket-lead-subagents` and the MCP instructions: check first, decide what you can, ask only what needs the owner, write for someone who has not seen the work.
 - [x] T248 [US6] Tests: contract, limits, guard, old shape, delivery, the dialog by mouse and keyboard, older questions, token budgets, e2e and axe in both themes.
 
+## Phase 37: Flow trends and a daily brief (owner decision 48)
+
+- [x] T249 [US2] Spec plus code in one PR: decision 48 (B59's part) in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.29 and §7; UI_SPEC §6.1 and §6.1b; spec FR-230–FR-235 and SC-028; Help (A first look around). No MCP tool changes.
+- [x] T250 [US2] `domain/flow.ts`: finished, recorded merges and parks over Overview's buckets, what's missing from the merge record, and the divergence note.
+- [x] T251 [US2] `GET /api/brief` and `domain/brief.ts`: local day boundaries, finished, what's stuck, decision changes, and `held_by` read as optional until B58 lands.
+- [x] T252 [US2] The Flow chart on Overview, sharing its tooltip behaviour with Completed: keyboard, focus, text alternative, both themes, 1024 px and 1440 × 900.
+- [x] T253 [US2] The daily brief page: day picker, four sections, every line linked, no cost section.
+- [x] T254 [US2] Tests: metrics with empty windows, timezone boundaries and excluded epics; the chart's tooltip and table; the brief with and without data; e2e and axe in both themes.
+
 ## Phase 38: Critical path and worktree cleanup (owner decision 48, B60)
 
-- [x] T255 [US4] Spec plus code in one PR: decision 48's B60 part in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.30 and §5.31; MCP_SPEC (no tool change); UI_SPEC §6.3.4 and §6.6; spec FR-236–FR-243 and SC-028; Help.
+- [x] T255 [US4] Spec plus code in one PR: decision 48's B60 part in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.30 and §5.31; MCP_SPEC (no tool change); UI_SPEC §6.3.4 and §6.6; spec FR-236–FR-243 and SC-029; Help.
 - [x] T256 [US4] The critical path read on `BlockIndex`: longest chain, cycles, ties and the reason for the ticket to move next.
 - [x] T257 [US4] The Map: choose a goal, highlight and mute, step labels, the ordered list, and links from the ticket and epic pages.
 - [x] T258 [US11] The worktree scan: bounded read-only git in the push folder, batched commit facts, per-worktree and whole-scan time limits.
@@ -742,6 +751,7 @@ Open a PR titled "<Bn>: <phase name>" with the checkpoint evidence. Do not queue
 | 34 Wake the right session when the owner answers | B55 (after B54) |
 | 35 Overview fixes from the owner's feedback | B56 (after B55) |
 | 36 Questions the owner can actually read | B57 (after B56) |
+| 37 Flow trends and a daily brief | B59 (decision 48; alongside B58, B60 and B61) |
 
 **Within a phase:** tests (failing) → services → replace stubs or fill handlers → fill screens → checkpoint.
 

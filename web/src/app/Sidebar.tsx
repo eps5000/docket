@@ -9,7 +9,12 @@ import { useAgentsNow, useBootstrap, useNeedsYouCount } from './useBootstrap';
 export function navSection(
   pathname: string,
 ): 'overview' | 'work' | 'agents' | 'agent-files' | 'settings' | 'help' | null {
-  if (pathname === '/' || pathname.startsWith('/review/') || pathname.startsWith('/overview'))
+  if (
+    pathname === '/' ||
+    pathname === '/brief' ||
+    pathname.startsWith('/review/') ||
+    pathname.startsWith('/overview')
+  )
     return 'overview';
   if (
     pathname.startsWith('/work') ||

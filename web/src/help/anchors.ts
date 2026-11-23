@@ -10,6 +10,7 @@
  */
 export const HELP_ANCHORS = {
   'needs-you.page': 'Overview: next to the h1',
+  'overview.brief': 'Daily brief: next to the h1 (decision 48)',
   'needs-you.agents-strip': 'Overview: the Agents card',
   'needs-you.for-you': 'Needs you: For you now',
   'problems.stale_run': 'Problems row: stale run',

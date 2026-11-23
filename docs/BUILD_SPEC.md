@@ -828,6 +828,30 @@ The owner is not the implementer, so a question must make sense to someone who h
 - **Answer.** `POST /api/items/:id/answer` takes `text`, or `option` (a label of this question) with an optional `note`. A picked option is stored as a choice and as readable `answer` text (`Chose: <label>…`), so text-only clients see it. Undo, delivery once and `read_by_agent_at` are unchanged.
 - **What an agent reads.** `get_item` and `get_context` add `choice` when the owner picked an option. The form itself goes only to the web UI (`for_you_now[].form`, `question_form`), so it costs agents no tokens on reads.
 
+### 5.29 Flow trends and the daily brief (decision 48; B59)
+
+Read-only and advisory: nothing here adds a gate, blocks a claim, queue or delivery, or changes `needsYouCount`. No MCP tool changes. Flow metrics are defined once in `domain/flow.ts`, and the brief in `domain/brief.ts`.
+
+**Flow trends** are the `flow` field of `GET /api/overview`, over the same window and buckets as Completed.
+
+| Metric | Definition |
+|---|---|
+| Finished | The Completed set (§5.24). |
+| Merged | Distinct PRs with a `pr` artifact in state `merged` (any case), each at the time Docket **first** recorded it. A PR is its URL, ignoring case and a trailing slash, or the ticket and label when it has no URL, so one PR linked to two tickets counts once. Docket doesn't watch the forge, so this is the time it was recorded, not the time it merged, and it can be low. It is never estimated. |
+| `finished_without_merge` | Tickets in Finished with no merged PR on record. The chart says "N of M finished tickets have none recorded, so the real number may be higher". Some tickets need no PR, so this is a limit on what's known, not a count of missing PRs. |
+| Parked | `run.parked` events in the window on tickets in scope. Events on epics are excluded. |
+
+**The divergence note** compares the first and second half of the activity in the window: from the first finished, merged or parked event to now, split into two equal spans. So a project two days old can show a trend in a 30-day window, and a day still in progress can't read as a drop. It needs at least 12 hours of activity and a change of at least 2. If finished fell and parked rose, it says "Parking is up while finished tickets are down". Otherwise, if finished fell and merged held or rose with at least 2 in the second half, it says "PRs are still merging while finished tickets are down". Otherwise there is no note.
+
+**The daily brief** is `GET /api/brief?scope&day`. `day` is `YYYY-MM-DD` in the configured timezone (`TZ`), and defaults to today. A future day reads as today. A day runs from its first local instant, found by search so a clock change at midnight is handled, to the next day's, or to now.
+
+- **Finished:** the Completed definition on that day, newest first.
+- **Decisions:** `decision.published`, `.confirmed`, `.withdrawn` and `.acknowledged` events on that day, newest first. A replacement is one line, on the new record. An undone change and its undo are both left out.
+- **Stuck, as of now whichever day is chosen,** because Docket keeps no day-by-day record of it: **parked** leads on open tickets, longest wait first (the wait card's `waited_since` and next step); **blockers nobody owns**, open tickets holding up at least one open ticket with no live lead or producer hold, most blocking first; and **held**, parked leads whose wait card has a non-null `held_by` (B58), listed apart from parked. Until B58 lands the card has no such field, and the group is empty.
+- **What needs the owner** isn't in this response. The page reads `GET /api/needs-you`, the query the badge reads, so the two can't disagree.
+- Each list returns at most `BRIEF_ROWS` (8) rows and the whole `count`.
+- **No cost field** exists until measured data does.
+
 ### 5.30 Critical path (decision 48, B60)
 
 `GET /api/items/:id/critical-path` (`server/src/domain/critical-path.ts`). A read for the owner's Map. It adds no MCP tool, status, link type or gate.
@@ -847,6 +871,7 @@ The owner is not the implementer, so a question must make sense to someone who h
 - **Verdict, first match wins:** an open or parked run, or the main folder, is **In use**; the owner's *Keep for later* or a git lock is **Kept for later**; any read with no answer, a folder outside the push root or gone, or an old scan is **Unknown**; uncommitted files, commits on no remote and not in main, unreleased resources or a run awaiting restart is **Holds work**; a worktree with no run that changed in the last 24 hours is **Unknown**; anything else is **Safe to remove**.
 - **Owners** come from `atRiskOwner` (B56) for worktrees Docket has at risk.
 - **The command** is `git -C '<repo>' worktree remove '<path>'`, only on Safe to remove and never with `--force`, so git still refuses a folder that changed. A path with characters a shell might act on gets no command.
+
 
 ## 6. MCP tool contract
 
@@ -921,6 +946,7 @@ Every route requires the owner session (§3). JSON bodies **and query strings** 
 | `POST /api/session/unlock` `{key}` · `POST /api/session/lock` · `POST /api/session/rotate-key` | Unlock screen, Settings. Rotate-key writes a new owner key (0600), ends every owner session including the caller's, clears the cookies, and returns `{rotated: true}`. It never returns the key; the owner reads it with `docket owner-key` (decided in B2). |
 | `GET /api/bootstrap` | Shell: projects, labels, sidebar counts, settings, health |
 | `GET /api/needs-you?scope` | Needs you: `for_you_now[]` (packets, questions), `problems[]`, `deferred[]`, `planning_queue[]`, `agent_counts{}` (raw runs), `agents_now{working, waiting}` (stories; §5.24) |
+| `GET /api/brief?scope&day` | The daily brief (decision 48, §5.29): one day's finished tickets and decision changes, and what's stuck now. Read-only |
 | `GET /api/overview?scope&window` · `GET /api/overview/items?scope&window&metric` | Overview (decision 43, §5.24): the metrics for `24h`, `7d` (default) or `30d`, and the tickets behind a number no Work filter can show (`completed`, `agents_working`, `agents_waiting`, `in_flight`, `no_epic`; at most 500 rows, with the full `count`) |
 | `GET /api/work?scope&epic&label&quick&has&show&layout` | Work board/list/map; Timeline adds dates and forecast. B43 (UI_SPEC §6.2): `quick` (`active`, `blocked`, `progress`), `has` (checks, comma-separated) and `show` (`done`, `canceled`) filter the items, and `filter_counts` counts the chips and the menu; the old `filter` still works when none of the three is given (mapped by `legacyWorkFilter`; none of the four keeps the old All). Each item carries `lead_parked: {waiting_on, since, resume_ready} \| null` (optional; B20), so a parked card's run line says what it waits on |
 | `GET /api/burndown?scope&epic&label` | Timeline burn-down card |
@@ -1314,7 +1340,7 @@ Owner decisions are marked **(owner)**. Every other entry is a technical choice 
 | 45 **(owner)** | A parked story's wait is visible and has a next step: a wait card derived from stored facts, advisory `wait_no_next_step` and `wait_owner_unasked` flags routed to agents first, and one `run.resume_ready` the coordinator relays to the same run, because Docket can't push into a session. Nothing here gates work. | §5.26, MCP_SPEC §4, §5.4 |
 | 46 **(owner)** | A host process, `docket-relay`, tells the coordinator of a ticket's live lead through Orca when the ticket changes from the owner side (narrowed by T26). It sends a pointer naming the kinds of change, never the content; batches edits (60 s quiet, 2 min at most) and sends answers at once; never sends to a dispatch address; and never writes to Docket. No server change. | §5.27, `tools/docket-relay` |
 | 47 **(owner)** | Questions the owner can read: `ask_owner` requires a plain question, background, why it matters, 2 to 4 options with consequences and one recommendation; internals go in `details`. Answered in a dialog, in two actions for the recommendation. Skills tell agents to ask less and write for someone who hasn't seen the work. | §5.28 |
-| 48 **(owner)** | Coordination tooling (`docs/design/coordination-tooling.md`). B60: a critical path to a ticket or epic on the Map with the one ticket to move next, and every worktree of a repository with a plain verdict. Advisory and read-only: Docket never deletes or prunes a worktree. | §5.30, §5.31, UI_SPEC §6.3.4, §6.6 |
+| 48 **(owner)** | Coordination tooling (`docs/design/coordination-tooling.md`), advisory, with no new gates. B59: flow trends on Overview (finished, recorded merges and parks, with a quiet note when they diverge) and a read-only daily brief; merges are never estimated, and cost appears only once measured. B60: a critical path to a ticket or epic on the Map with the one ticket to move next, and every worktree of a repository with a plain verdict. Advisory and read-only: Docket never deletes or prunes a worktree. | §5.29, UI_SPEC §6.1, §6.1b, §5.30, §5.31, UI_SPEC §6.3.4, §6.6 |
 | T13 | Nightly backup at 03:00, kept 14 days, restore by CLI only. | §5.13 |
 | T14 | Archive is owner-only and UI-only; agent queries include archived items. | §5.8 |
 | T15 | Scope resets to All projects on each visit (sessionStorage). Theme and collapsed sections persist (localStorage). | UI_SPEC §2 |

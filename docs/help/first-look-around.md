@@ -6,6 +6,7 @@ order: 2
 anchors:
   - needs-you.page
   - needs-you.welcome
+  - overview.brief
 related:
   - review-a-packet
   - questions-and-notes
@@ -43,9 +44,30 @@ Start here. In about ten seconds it tells you whether agents are making progress
 
 **Health** shows the problems agents are handling on one line (open it to see them), your last backup, any worktrees holding unsaved work and whether they need you, and proposed agent file changes.
 
-**Below that:** completed per day (hover over or tab to a bar to see which tickets finished), open work per epic, **Your Planning queue** (click *Move to Ready* when an item is ready for an agent) and **Deferred, not verified** (checks you deferred that nobody has verified yet).
+**Below that:** completed per day (hover over or tab to a bar to see which tickets finished), **flow** (below), open work per epic, **Your Planning queue** (click *Move to Ready* when an item is ready for an agent) and **Deferred, not verified** (checks you deferred that nobody has verified yet).
 
 The red number next to **Overview** in the sidebar is the number of things under Needs you. Docket doesn't show token use, because clients don't report it.
+
+### Flow
+
+**Flow** shows three things per day (per hour for 24h), each on its own scale. Hover over or tab to a day to read all three.
+
+- **Finished:** the same tickets as Completed.
+- **Merged:** PRs an agent recorded as merged in Docket, on the day it was recorded. Docket doesn't watch GitHub, so this can be lower than the real number, and the chart says when finished tickets have no merge recorded. It's never an estimate.
+- **Parked:** how many times an agent parked a ticket to wait for something. Epics don't count.
+
+When these move in opposite directions, one sentence says so, such as "Parking is up while finished tickets are down". That usually means work is waiting on coordination rather than being built. It's only a note, and it never adds to Needs you.
+
+### Daily brief
+
+**Daily brief** at the top of Overview answers four questions in about a minute, for the day you choose and the current project:
+
+- **What finished** that day.
+- **What's stuck:** tickets parked longest, blockers nobody owns, and work held by one of your decisions, which is listed separately because nothing is wrong with it.
+- **What needs you:** the same list as Needs you.
+- **What changed in decisions** that day.
+
+What's stuck and what needs you always show the situation now, even for an earlier day, because Docket doesn't keep a daily record of them. Every line opens its ticket. The brief only reads: it changes nothing and sends nothing.
 
 ## Work
 

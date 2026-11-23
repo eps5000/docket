@@ -4,6 +4,8 @@
 
 **B56 (the owner's review of the live page):** the open-ticket tab strip no longer shows here. The Agents card is now **Tickets with agents** ("N being worked", "M parked/waiting"), because it counts tickets and not sessions. The chart has a whole-number axis and a tooltip naming each bar's tickets. "Workspaces at risk" became a plain line saying which worktrees need the owner and which don't. The sketch below shows the original B51 layout.
 
+**B59 (owner decision 48):** Overview adds flow trends (finished, recorded merges and parks) and links to a daily brief. See `docs/design/coordination-tooling.md`, BUILD_SPEC §5.29 and UI_SPEC §6.1b.
+
 ## Why
 
 Needs you currently does two jobs: it lists what requires the owner, and it is the only place to see how the work is going. The owner should be able to open Docket and answer three questions in about ten seconds:
