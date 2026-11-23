@@ -41,6 +41,8 @@ Hover a state to see its meaning. Parked runs also say what they wait on, like "
 
 **Waiting for** on a parked ticket says what it needs, how long it has waited, who has the next step, and how the same agent resumes. A short resume and re-park doesn't restart the clock. Docket flags a wait when nobody is moving the blocker for 15 minutes, or when it needs a decision from you that nobody has asked for. These flags go to the coordinator first and never hold up any work.
 
+**Added after work started** means the blocker was linked after this agent had already claimed the ticket, which often means scope was added. Check that it really holds the whole story. If it holds only part, split that part out and let the rest go ahead.
+
 **When the blocker clears,** Docket tells the coordinator which run and dispatch can continue. Docket can't message an agent's session itself, so the coordinator passes it on. If nobody does within 30 minutes, you see "Ready to resume, unattended".
 
 ## Leases

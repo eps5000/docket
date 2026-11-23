@@ -27,7 +27,33 @@ So the blocker's type alone may not say **which step of the blocked story is hel
 
 **Nothing is to be built until the types are designed with the owner.** B54 doesn't add a stage or a type, and doesn't change `satisfied_when` or start gating.
 
-## 2. Missing-link suggestions
+## 2. Hard and soft dependencies
+
+**The definitions and the test below are owner-approved (2026-11-23).** The data model, UI and build of hard and soft links stay **proposed**. They aren't part of B54, and nothing is to be built until the owner approves that design. Today every `blocks` link stops a ticket from starting, whether the other work holds all of it or only a corner of it.
+
+**The definitions (owner-approved):**
+
+- **Hard.** The ticket's current acceptance criteria can't be met without the other work. It blocks.
+- **Soft.** The other work affects part of the ticket or how it's implemented. It doesn't block. Whoever starts the ticket records one outcome:
+  - proceed as designed;
+  - adjust the implementation;
+  - split the affected part into its own ticket, which is hard-blocked; or
+  - upgrade the dependency to hard.
+
+**The test for agents adding a blocker (owner-approved):** does it hold **every** acceptance criterion, or only some? If only some, prefer a split, so the rest of the ticket can proceed.
+
+**A signal worth surfacing (proposed).** A much newer ticket becoming a prerequisite of an older, already-shaped or already-claimed ticket usually means scope was added. In both stalls behind decision 45, a new prerequisite was linked after the waiting story had been claimed: one story could still do part of its work, and the other already had a PR.
+
+**What B54 does and doesn't do.** The wait card now says when a blocker was linked after the claim, and suggests checking whether it holds the whole story. That is one line of advice. B54 adds no hard or soft link type, no recorded outcome and no gate.
+
+**Questions for the design of hard and soft links:**
+
+- Does soft replace part of what section 1's dependency types would say, or do the two answer different questions?
+- Who may mark a dependency soft, and can an import ever set it?
+- Where is the recorded outcome kept, and does anyone review it?
+- How much newer is "much newer", and should the signal reach the planner while shaping, rather than only the waiting run?
+
+## 3. Missing-link suggestions
 
 **The gap.** The conflict radar and shared-part declarations see two stories touching the same files. They can't see "this story relies on behavior another story must deliver", which is how a prerequisite is often discovered only after a worker has started and has to park.
 
@@ -40,7 +66,36 @@ So the blocker's type alone may not say **which step of the blocked story is hel
 
 **Why optional.** A required field would be filled with noise. The note earns its place only where a planner knows something the file overlap can't show.
 
-## 3. Workflow stamping and re-shaping
+## 4. First Radar Insight: possible split
+
+**Status: proposed. Nothing is to be built until the owner approves the design.**
+
+**The owner's idea.** Radar flags a ticket whose dependency lies outside its epic and is shared by no other ticket in that epic, and Overview suggests the work may need splitting.
+
+**Backtest on one live snapshot (2026-11-23):**
+
+| Pattern | Matches |
+|---|---|
+| Open `blocks` links | 96 |
+| Links that cross epics | 28 |
+| The plain pattern: outside the epic, and shared by no other ticket in it | 22 of the 28 |
+| Also: the ticket is active, and the link was added after it was claimed | 3 tickets |
+| Also: the blocker has no live run | 2 tickets, exactly the two stalled stories |
+
+The plain pattern is too noisy to show on its own.
+
+**Proposed rule.** Show the 3-ticket tier as **"check whether this should split"**, and rank those with an idle blocker first.
+
+**It follows the Overview design's Insight rules** (`docs/design/overview-page.md`):
+
+- it cites the evidence and links to the affected work;
+- it is a proposal only, and Radar never changes a ticket, link or plan by itself;
+- the owner can accept or dismiss it, and a dismissed insight doesn't return;
+- it adds nothing to the Needs you badge.
+
+**The limit.** The rule was tuned on the two known cases and one snapshot. It needs more real history before its precision can be trusted.
+
+## 5. Workflow stamping and re-shaping
 
 **The gap.** When a project's workflow changes materially, older items remain sliced for the old rules. Nothing says which items those are, so an agent can pick one up and follow instructions that no longer fit how it was shaped.
 
@@ -59,5 +114,6 @@ So the blocker's type alone may not say **which step of the blocked story is hel
 
 1. The display label for workflow versions: small, and useful alone.
 2. Workflow stamping and the breaking-version advisory.
-3. Missing-link suggestions, once there's enough `relies_on` data to judge the match.
-4. Dependency types, only after the design conversation in section 1.
+3. The possible-split Insight, once more real history supports its precision.
+4. Missing-link suggestions, once there's enough `relies_on` data to judge the match.
+5. Dependency types and the build of hard and soft links, only after the design conversation in sections 1 and 2.

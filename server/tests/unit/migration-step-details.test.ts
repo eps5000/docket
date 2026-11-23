@@ -174,6 +174,7 @@ describe('0009_step_details', () => {
                 status_update: _su,
                 park_activity: _pa,
                 coordinator_park: _cp,
+                wait_flags: _wf,
                 coordinators: _co,
                 ...row
               }) => row,

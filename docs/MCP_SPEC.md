@@ -384,7 +384,8 @@ type WaitCard = { run_id: string; item_id: string; label: string|null; client: s
   waited_since: string;                                 // when this run first parked on it
   next_owner: { kind: 'lead'|'orchestrator'|'coordinator'|'owner'; name: string; item_id: string|null; step: string };
   resumes_when: string; resume_ready: boolean;
-  flags: { kind: 'wait_no_next_step'|'wait_owner_unasked'; on: string; since: string; step: string }[] };
+  flags: { kind: 'wait_no_next_step'|'wait_owner_unasked'; on: string; since: string; step: string }[];
+  scope_hint?: string };                                // a blocker linked after this run's claim: check it holds the whole story
 
 type Workspace = { host: string|null; repo: string|null; path: string|null; branch: string|null;
   base_ref: string|null; base_sha: string|null; head_sha: string|null; pushed_sha: string|null; dirty: boolean|null;

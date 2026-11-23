@@ -62,6 +62,7 @@ function WaitCardLines({ wait }: { wait: WaitCard }) {
         Next: {wait.next_owner.name} · {wait.next_owner.step}
       </span>
       <span data-ab="wait-resume">{wait.resumes_when}</span>
+      {wait.scope_hint && <span data-ab="wait-scope">{wait.scope_hint}</span>}
       {wait.flags.map((f) => (
         <Chip key={`${f.kind}:${f.on}`} kind="warn">
           {PROBLEM_TITLES[f.kind]}: {f.on}

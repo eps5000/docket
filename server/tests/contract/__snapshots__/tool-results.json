@@ -3145,6 +3145,9 @@
                   ],
                   "additionalProperties": false
                 }
+              },
+              "scope_hint": {
+                "type": "string"
               }
             },
             "required": [
@@ -5750,6 +5753,9 @@
               ],
               "additionalProperties": false
             }
+          },
+          "scope_hint": {
+            "type": "string"
           }
         },
         "required": [

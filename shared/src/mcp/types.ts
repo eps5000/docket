@@ -349,6 +349,8 @@ export const waitCardSchema = z.object({
   resumes_when: z.string(),
   resume_ready: z.boolean(),
   flags: z.array(waitFlagSchema),
+  /** A named blocker was linked after this run claimed the item: check it holds the whole story. */
+  scope_hint: z.string().optional(),
 });
 export type WaitCard = z.infer<typeof waitCardSchema>;
 

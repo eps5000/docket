@@ -588,7 +588,7 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 ## Phase 33: Make a parked story's wait visible (owner decision 45)
 
 - [x] T227 [US11] Spec plus code in one PR: decision 45 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.26; MCP_SPEC §4, §5.2, §5.4; UI_SPEC §6.3.2; spec FR-211–FR-216; Help (Problems, Run states); the coordinator and worker skills; `docs/design/wait-and-backlog-followups.md` (proposed, not built).
-- [x] T228 [US11] The wait card, derived from stored facts: what it waits for, first-parked time through re-parks, next action's owner along a bounded, cycle-safe chain, and the exact resume sentence, in `park_run`, `get_digest`, `get_context` (the item and its blocker) and the item page.
+- [x] T228 [US11] The wait card, derived from stored facts: what it waits for, first-parked time through re-parks, next action's owner along a bounded, cycle-safe chain, the exact resume sentence, and a one-line hint when a blocker was linked after the claim, in `park_run`, `get_digest`, `get_context` (the item and its blocker) and the item page.
 - [x] T229 [US11] `wait_no_next_step` and `wait_owner_unasked` in the two-minute job, with no git and migration `0021`: raised once, cleared when the condition ends, kept through a short re-park.
 - [x] T230 [US11] Routing through decision 41's Problems, one `run.wait_flagged` per flag, and one `run.resume_ready` the coordinator relays to the same run and dispatch.
 - [x] T231 [US11] Replays of GF-243 → GF-381 and GF-229 → GF-382 with real IDs and times and synthetic text, failing before B54, plus the negatives: a cited decision, a pending proposal, a live lead, a blocker being shaped and a cycle. Token budgets hold.

@@ -284,6 +284,7 @@ export function waitCardLines(c: WaitCard, now: Date, indent = ''): string[] {
     `${indent}wait: ${named.join(', ') || 'nothing named'}${SEP}waited ${waitedText(c.waited_since, now)} since ${parkClock(c.waited_since, now)}`,
     `${indent}  next: ${truncate(c.next_owner.name, 40)}: ${truncate(c.next_owner.step)}`,
     `${indent}  ${truncate(c.resumes_when)}`,
+    ...(c.scope_hint ? [`${indent}  ${truncate(c.scope_hint)}`] : []),
     ...c.flags.map((f) => `${indent}  ! ${f.kind} on ${f.on}: ${truncate(f.step)}`),
   ];
 }

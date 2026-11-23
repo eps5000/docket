@@ -427,6 +427,29 @@ export class WaitReader {
       resumes_when: resumeSentence(run, open, waiting, orchestrator, info.resume_ready),
       resume_ready: info.resume_ready,
       flags: flagsNow,
+      ...this.scopeHint(run, open),
+    };
+  }
+
+  /**
+   * A blocker linked after this run claimed the item often means scope was added.
+   * Only a prompt to check: it is no link type, flag, event or gate.
+   */
+  private scopeHint(run: RunRow, open: readonly Named[]): { scope_hint?: string } {
+    const linked = this.db.sqlite.prepare(
+      "SELECT created_at FROM links WHERE from_id = ? AND to_id = ? AND type = 'blocks'",
+    );
+    const late = open
+      .filter((b) => {
+        const link = linked.get(b.id, run.item_id) as { created_at: string } | undefined;
+        return !!link && ms(link.created_at) > ms(run.created_at);
+      })
+      .map((b) => b.id);
+    if (late.length === 0) return {};
+    const shown = late.slice(0, WAIT_FLAGS.card_blockers).join(', ');
+    const names = late.length > WAIT_FLAGS.card_blockers ? `${shown} and others` : shown;
+    return {
+      scope_hint: `${names} ${late.length === 1 ? 'was' : 'were'} added after work started: confirm ${late.length === 1 ? 'it holds' : 'they hold'} the whole story. If only part is held, split that part out and let the rest proceed.`,
     };
   }
 

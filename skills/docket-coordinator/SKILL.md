@@ -101,6 +101,7 @@ For a detailed look at one worker, use `get_item { id, view: "summary" }`. Don't
 - **When that time runs out** (`run.park_expired`), it's open again on a 15-minute lease: a live worker's next call continues, and a dead one loses its claim by `lease_expired`. Its own `park_run` replaces your limit, and you can't put a limit on a park it set itself.
 - **"Activity since parked"** in `get_digest` or `get_context` means commits, updates or a cleared blocker arrived. Check, then resume it or update it, which clears the flag. Renewing a park doesn't. "Commits while silent" means that session may have no Docket tools.
 - **A wait card** is on `park_run`, digest parked rows and `get_context`: what it waits for, since when, who moves it next, and how the same run resumes. `get_context` on a blocker lists the parked runs it frees.
+- **"Added after work started"** on a card: check the blocker really holds the whole story. If only part is held, split that part out and let the rest proceed.
 - **`wait_no_next_step`:** nobody is moving a blocker. Do its step: dispatch it, or shape or assign it.
 - **`wait_owner_unasked`:** it needs an owner decision nobody asked for. **Ask it** with `ask_owner` on that item. The owner can't answer a question that doesn't exist.
 - **`run.resume_ready`:** Docket **can't push into a session and hasn't told the worker.** Send its recorded dispatch the event's `instruction`: continue under the same `run_id`, `heartbeat` first, don't claim.

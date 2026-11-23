@@ -27,10 +27,11 @@ interface CardLike {
   blockers: { id: string; status: string; clears_when: string }[];
   person: boolean;
   flags: unknown[];
+  scope_hint?: string;
 }
 
 beforeEach(() => {
-  d = startDomain({ seed: false, now: new Date('2026-11-22T20:30:00.000Z') });
+  d = startDomain({ seed: false, now: new Date('2026-11-22T19:00:00.000Z') });
   addProject(d, 'GF');
   worker = d.agent('claude', { label: 'implementer' });
   planner = d.agent('codex', { label: 'planner' });
@@ -136,8 +137,13 @@ describe('the five-hour stall, replayed (decision 45)', () => {
     const gf381 = item(381, 'Synthetic prerequisite in planning', 'planning', 'First draft.');
     expect([gf243, gf381]).toEqual(['GF-243', 'GF-381']);
 
-    at('2026-11-22T20:47:00.000Z');
-    const run = claim(gf243, 'ctx_gf243', [gf381]);
+    at('2026-11-22T19:13:59.000Z');
+    const run = claim(gf243, 'ctx_gf243');
+    // It works for an hour and a half before the prerequisite is found, renewing its lease.
+    at('2026-11-22T20:05:00.000Z');
+    d.services.runs.heartbeat(d.read({ ...worker, run_id: run }), { run_id: run });
+    at('2026-11-22T20:47:22.000Z');
+    blocks(gf381, gf243);
 
     // The producer sees the whole wait in the park result.
     at('2026-11-22T20:48:00.000Z');
@@ -157,6 +163,10 @@ describe('the five-hour stall, replayed (decision 45)', () => {
     });
     expect(parked.wait!.resumes_when).toBe(
       `Resumes when GF-381 is done: ${COORDINATOR} relays it to dispatch ctx_gf243, the same run ${run} (claude · implementer).`,
+    );
+
+    expect(parked.wait!.scope_hint, 'GF-381 was linked after the claim').toBe(
+      'GF-381 was added after work started: confirm it holds the whole story. If only part is held, split that part out and let the rest proceed.',
     );
 
     // Someone shapes GF-381 for a few minutes, then stops.
@@ -221,14 +231,20 @@ describe('the five-hour stall, replayed (decision 45)', () => {
     const gf229 = item(229, 'Synthetic story that can do some work', 'ready');
     const gf382 = item(382, 'Synthetic prerequisite awaiting a call', 'planning', 'Early notes.');
 
+    at('2026-11-22T20:52:32.000Z');
+    const run = claim(gf229, 'ctx_gf229');
+
     at('2026-11-22T21:13:50.000Z');
     touch(gf382, 'A separate owner decision is still needed. Wait for it before building.');
 
-    at('2026-11-22T21:14:00.000Z');
-    const run = claim(gf229, 'ctx_gf229', [gf382]);
     at('2026-11-22T21:14:27.000Z');
     expect(park(run, 'Needs GF-382 first', { items: [gf382] }).wait?.waited_since).toBe(
       '2026-11-22T21:14:27.000Z',
+    );
+    at('2026-11-22T21:14:59.000Z');
+    blocks(gf382, gf229);
+    expect(context(gf229).wait?.scope_hint, 'GF-382 was linked after the claim').toContain(
+      'GF-382 was added after work started',
     );
 
     // It does some non-body work, and parks again.
@@ -362,6 +378,21 @@ describe('what must not be flagged (decision 45)', () => {
     d.clock.advance(minutes(15));
     check();
     expect(flagKinds(a)).toEqual(['wait_no_next_step']);
+  });
+
+  it('a blocker linked before the claim gets no scope hint', () => {
+    const a = item(308, 'Synthetic waiter', 'ready');
+    const b = item(309, 'Synthetic blocker', 'planning');
+    // A claim is refused while blocked, so the blocker is clear at the claim and reopens later.
+    forceStatus(d, b, 'done');
+    blocks(b, a);
+    d.clock.advance(minutes(1));
+    const run = claim(a, 'ctx_a');
+    forceStatus(d, b, 'planning');
+    d.clock.advance(minutes(1));
+    const parked = park(run, 'Waiting on the blocker', { items: [b] });
+    expect(parked.wait?.blockers[0]).toMatchObject({ id: b });
+    expect(parked.wait?.scope_hint).toBeUndefined();
   });
 
   it('a dependency cycle ends the chain, and its own Problem owns the fix', () => {
