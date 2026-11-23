@@ -1,5 +1,5 @@
 /**
- * The worktree cleanup view (owner decision 48; BUILD_SPEC §5.30; UI_SPEC
+ * The worktree cleanup view (owner decision 48; BUILD_SPEC §5.31; UI_SPEC
  * §6.6): every worktree of a project's repository, with a plain verdict.
  *
  * **Docket never deletes or prunes a worktree.** This file only reads, with

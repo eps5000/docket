@@ -828,6 +828,26 @@ The owner is not the implementer, so a question must make sense to someone who h
 - **Answer.** `POST /api/items/:id/answer` takes `text`, or `option` (a label of this question) with an optional `note`. A picked option is stored as a choice and as readable `answer` text (`Chose: <label>…`), so text-only clients see it. Undo, delivery once and `read_by_agent_at` are unchanged.
 - **What an agent reads.** `get_item` and `get_context` add `choice` when the owner picked an option. The form itself goes only to the web UI (`for_you_now[].form`, `question_form`), so it costs agents no tokens on reads.
 
+### 5.30 Critical path (decision 48, B60)
+
+`GET /api/items/:id/critical-path` (`server/src/domain/critical-path.ts`). A read for the owner's Map. It adds no MCP tool, status, link type or gate.
+
+- **The graph** is the unresolved `blocks` links from `BlockIndex`, so it agrees with every other blocked state. A canceled blocker stays on it because it never clears, and a done blocker stays while its link waits for a merge or verification.
+- **The goal.** For a ticket, the chain ends at it. For an epic, it ends at any open child, or at the epic if something blocks the epic itself.
+- **The longest chain** is found over strongly connected components, iteratively, so cycles and very deep chains are safe. A cycle counts as all its members, and every cycle upstream of the goal is reported.
+- **Ties** go to the chain whose first ticket can start now, then higher priority, then lower ID. The order doesn't depend on the order links were read. It doesn't use unlock counts, which belong to B58's next-work ranking.
+- **The ticket to move next** is the chain's first. Its reason is the first that applies: `cycle`, `canceled`, `waiting_merge`, `waiting_on_owner` (a verification, an open question or a ready packet), `parked`, `active`, `startable`, `unowned`.
+
+### 5.31 Worktree cleanup (decision 48, B60)
+
+`GET /api/workspaces/cleanup?project=KEY[&refresh=1]` (`server/src/domain/worktree-cleanup.ts`). **Docket never deletes or prunes a worktree.**
+
+- **Reading.** Git runs through the bounded `git-read.ts`, inside `DOCKET_PUSH_ROOT`, with `GIT_OPTIONAL_LOCKS=0`, content filters and signature checks off, and no fetch. Commit facts for every worktree take a few batched calls; each folder takes a `git status`, two at a time, with 20 seconds per worktree and 5 minutes per scan.
+- **In the background.** A read returns the last scan at once and starts a new one if it's over 2 minutes old, one per project, held in memory only. Facts over 10 minutes old count as unknown. The verdict is computed on every read, so a run that starts is In use at once.
+- **Verdict, first match wins:** an open or parked run, or the main folder, is **In use**; the owner's *Keep for later* or a git lock is **Kept for later**; any read with no answer, a folder outside the push root or gone, or an old scan is **Unknown**; uncommitted files, commits on no remote and not in main, unreleased resources or a run awaiting restart is **Holds work**; a worktree with no run that changed in the last 24 hours is **Unknown**; anything else is **Safe to remove**.
+- **Owners** come from `atRiskOwner` (B56) for worktrees Docket has at risk.
+- **The command** is `git -C '<repo>' worktree remove '<path>'`, only on Safe to remove and never with `--force`, so git still refuses a folder that changed. A path with characters a shell might act on gets no command.
+
 ## 6. MCP tool contract
 
 **Overview only.** [MCP_SPEC.md](MCP_SPEC.md) is authoritative for the server instructions, every tool's description text, input and output schemas, error messages and worked flows. It defines 51 tools (`get_digest` from decision 40 and `propose_resolution` from decision 37 bring it from 48; 38, plus `get_step` from decision 33, plus `get_agent_files` and `propose_agent_file_change` from decision 30, `onboard_project` and `finish_onboarding` from decision 31, `apply_batch` from decision 34, and `declare_shared_changes`, `list_shared_parts`, `take_lease` and `release_lease` from decision 36), and one prompt (`onboard`), including `unlink_items`, `update_check` and `update_human_review`, which are paired with their siblings below.
@@ -1294,6 +1314,7 @@ Owner decisions are marked **(owner)**. Every other entry is a technical choice 
 | 45 **(owner)** | A parked story's wait is visible and has a next step: a wait card derived from stored facts, advisory `wait_no_next_step` and `wait_owner_unasked` flags routed to agents first, and one `run.resume_ready` the coordinator relays to the same run, because Docket can't push into a session. Nothing here gates work. | §5.26, MCP_SPEC §4, §5.4 |
 | 46 **(owner)** | A host process, `docket-relay`, tells the coordinator of a ticket's live lead through Orca when the ticket changes from the owner side (narrowed by T26). It sends a pointer naming the kinds of change, never the content; batches edits (60 s quiet, 2 min at most) and sends answers at once; never sends to a dispatch address; and never writes to Docket. No server change. | §5.27, `tools/docket-relay` |
 | 47 **(owner)** | Questions the owner can read: `ask_owner` requires a plain question, background, why it matters, 2 to 4 options with consequences and one recommendation; internals go in `details`. Answered in a dialog, in two actions for the recommendation. Skills tell agents to ask less and write for someone who hasn't seen the work. | §5.28 |
+| 48 **(owner)** | Coordination tooling (`docs/design/coordination-tooling.md`). B60: a critical path to a ticket or epic on the Map with the one ticket to move next, and every worktree of a repository with a plain verdict. Advisory and read-only: Docket never deletes or prunes a worktree. | §5.30, §5.31, UI_SPEC §6.3.4, §6.6 |
 | T13 | Nightly backup at 03:00, kept 14 days, restore by CLI only. | §5.13 |
 | T14 | Archive is owner-only and UI-only; agent queries include archived items. | §5.8 |
 | T15 | Scope resets to All projects on each visit (sessionStorage). Theme and collapsed sections persist (localStorage). | UI_SPEC §2 |

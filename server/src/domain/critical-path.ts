@@ -1,5 +1,5 @@
 /**
- * The critical path to a goal (owner decision 48; BUILD_SPEC §5.29): the
+ * The critical path to a goal (owner decision 48; BUILD_SPEC §5.30): the
  * longest chain of unresolved `blocks` links into a ticket or epic, and the
  * one ticket to move next. Read-only, advisory, and built on the one blocker
  * evaluator (`BlockIndex`), so it agrees with every other blocked state.

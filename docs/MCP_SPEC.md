@@ -1018,6 +1018,8 @@ Every problem says what's wrong, what fixes it and who acts, in the words the ow
 - **Errors:** `validation` (neither `problem` nor `id`, limits, `id` not an item of `problem`, a secret), `not_found` (problem or item).
 - **Not retry-safe** (`idempotentHint: false`): pass `idempotency_key` when you might retry.
 
+> **Decision 48 (B60):** the critical path and worktree cleanup views are owner UI reads (BUILD_SPEC §5.30, §5.31). They add no MCP tool or field, so the tool list and its token budgets are unchanged.
+
 ## 6. Errors
 
 Every error is returned as a tool result: `isError: true`, a `text` block holding the message, and `structuredContent: ToolError`. Messages are one or two sentences: what happened, then what to do.

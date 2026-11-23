@@ -40,6 +40,14 @@ An epic's **Map** tab puts its tickets in waves, left to right: wave 1 can start
 
 Arrows run through the gaps between cards and never across one, so several can share a gap. **Hover or focus a card** to pick out its arrows: they light up and the rest fade. A dashed green arrow is a blocker that's already cleared. Use − / + or **Fit** to zoom, and drag the background to pan.
 
+## What's holding up a goal?
+
+When a long chain of tickets is in the way, pick a ticket or epic under **What's holding up** on the Map, or use *See what's holding this up* on its page. Docket finds the longest chain of open blockers to it, numbers those cards and mutes the rest.
+
+**Move next** names the one ticket at the start of that chain and why: it's ready to start, nobody owns it, its agent is parked, it's waiting on you, it's waiting to merge, it was canceled but still blocks, or it's in a loop of blockers. *The chain as a list* gives the same chain in order. If two chains are equally long, Docket picks the one that can start now, then the higher priority.
+
+This only shows you where to look. It doesn't change any ticket or stop anyone from working.
+
 ## Problems you may see
 
 - **Cycle:** items block each other in a loop, so none can start. Agents can't create one, but imported data can contain them. Click *Fix*: the Dependencies tab shows the loop with a *Remove “A blocks B”* button for each of its links. Remove the one that’s wrong.

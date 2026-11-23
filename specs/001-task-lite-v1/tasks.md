@@ -623,6 +623,16 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T247 [US6] `docket-worker`, `docket-coordinator`, `docket-lead-subagents` and the MCP instructions: check first, decide what you can, ask only what needs the owner, write for someone who has not seen the work.
 - [x] T248 [US6] Tests: contract, limits, guard, old shape, delivery, the dialog by mouse and keyboard, older questions, token budgets, e2e and axe in both themes.
 
+## Phase 38: Critical path and worktree cleanup (owner decision 48, B60)
+
+- [x] T255 [US4] Spec plus code in one PR: decision 48's B60 part in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.30 and §5.31; MCP_SPEC (no tool change); UI_SPEC §6.3.4 and §6.6; spec FR-236–FR-243 and SC-028; Help.
+- [x] T256 [US4] The critical path read on `BlockIndex`: longest chain, cycles, ties and the reason for the ticket to move next.
+- [x] T257 [US4] The Map: choose a goal, highlight and mute, step labels, the ordered list, and links from the ticket and epic pages.
+- [x] T258 [US11] The worktree scan: bounded read-only git in the push folder, batched commit facts, per-worktree and whole-scan time limits.
+- [x] T259 [US11] The verdicts, reusing the at-risk rules and owners, and a command only for Safe to remove.
+- [x] T260 [US11] Agents → Workspaces → Every worktree: grouped, filterable, hundreds of rows.
+- [x] T261 [US11] Tests: chain selection, ties, cycles, reasons; each verdict on fixture repositories, timeouts, paths outside the root, `.git` hash proof; e2e and axe in both themes at 1440 × 900 and 1024 px on the stress data.
+
 ## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.

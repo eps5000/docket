@@ -1,5 +1,5 @@
 /**
- * The critical path to a goal (owner decision 48; BUILD_SPEC §5.29; UI_SPEC
+ * The critical path to a goal (owner decision 48; BUILD_SPEC §5.30; UI_SPEC
  * §6.3.4): the longest chain of open hard blockers holding up a ticket or
  * epic, and the one ticket to move next. A read: it adds no status, no link
  * type and no gate.

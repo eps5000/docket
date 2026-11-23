@@ -259,6 +259,19 @@ The owner is not the implementer. Agents were sending one dense block that assum
 
 BUILD_SPEC §5.28, MCP_SPEC §3 and §5.7, UI_SPEC §6.1 and §6.3, spec FR-224–FR-229, Help (Questions and notes) and the skills have the details.
 
+## Owner decision 48 (2026-11-23): coordination tooling
+
+The pilot's bottleneck is coordination, so the owner approved Part 1 of `docs/design/coordination-tooling.md`, its two bug fixes and seven additions. Everything here is advisory: nothing adds a gate or blocks a claim, queue or delivery.
+
+**Critical path and worktree cleanup (B60):**
+
+1. **Critical path.** Choose a ticket or epic as a goal. The Map highlights the longest chain of open hard blockers to it, mutes the rest and names the one ticket to move next, with why: startable, unowned, parked, waiting on the owner, or another plain reason. The same chain is an ordered list, and status is never colour alone. There is no new status or link type.
+2. **Every worktree.** Agents → Workspaces can show every worktree of a project's repository, read with bounded git inside the push folder: no fetch, nothing written. Worktrees Docket has no run for are labeled "Not tracked by Docket".
+3. **A plain verdict.** Each is **Safe to remove**, **Holds work**, **In use**, **Kept for later** or **Unknown**. Unknown is never safe, and a read that times out is Unknown. A worktree outside the push folder says it can't be checked.
+4. **Docket never deletes or prunes a worktree.** A Safe to remove row offers a copyable command, without `--force`, and a note to check it first. No other row offers one.
+
+BUILD_SPEC §5.30 and §5.31, UI_SPEC §6.3.4 and §6.6, spec FR-236–FR-243 and SC-028, and Help have the details.
+
 ## Deferred choices
 
 Pilot project choice and Jira import strategy are deferred until V1 is ready for real work. Design should still settle the storage layout, supported document preview formats, the exact project gate configuration shape, and the minimum history needed before a velocity forecast is shown. These are implementation choices guided by the owner decisions above, not blockers to selecting a pilot now.
