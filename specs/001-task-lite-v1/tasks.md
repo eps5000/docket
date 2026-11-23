@@ -585,6 +585,14 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T225 [US11] Show it: "Parked by X until T" on the item, in `get_item`, `get_digest` and `get_context`, within their token budgets. An expired park is the coordinator's until the normal routing applies.
 - [x] T226 [US11] Tests: authority, each limit, renewal, early end, expiry for a dead and a live run, restart before and after the deadline, own park, reads, digest and token budget, no double processing, and part leases.
 
+## Phase 34: Wake the right session when the owner answers (owner decision 46)
+
+- [x] T232 [US6] Spec plus code in one PR: decision 46 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.27; spec FR-217–FR-223; Help (Questions and notes); `tools/docket-relay/README.md`. No skill change: the message says what to do.
+- [x] T233 [US6] `tools/docket-relay`: the long-poll with reconnect, the owner-side filter, per-ticket batching, and the immediate path for answers and `run.resume_ready`. No server change.
+- [x] T234 [US6] The target resolver and delivery: a live dispatch, then its coordinator, then undelivered; a pointer with no content; no shell; bounded retries; a rate limit per session.
+- [x] T235 [US6] Reliability and visibility: atomic state outside the repo, no replay on first run, 24-hour catch-up, no duplicates across restarts, one instance, `status`, a capped log, `test-send`, and the Windows auto-start steps.
+- [x] T236 [US6] Tests with a fake feed and a fake `orca`, plus the real app for the event wording and to prove a relay read delivers nothing; event-to-send latency measured.
+
 ## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.
