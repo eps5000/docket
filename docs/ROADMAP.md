@@ -95,3 +95,4 @@ If token cost turns out to matter in the pilot, run the ChatGPT conversation's c
 3. a TERSL encoding of the same state.
 
 **Compare:** tokens per task, tool calls per item, task completion and correctness across the §7 flows in MCP_SPEC, and recovery after a conflict. Adopt TERSL as an *output encoding* only if it clearly beats the compact text on both tokens and correctness. Its database isn't in question.
+b65 proof line
