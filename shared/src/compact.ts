@@ -29,6 +29,7 @@ import type { ToolName, ToolOutput } from './mcp/tools.js';
 import type {
   Check,
   ContextBundle,
+  CoordinatorPark,
   DecisionRecord,
   EventRow,
   HumanReviewItem,
@@ -241,6 +242,21 @@ export function activityText(a: RunActivity): string {
   return `${head}: ${parts.join(', ')}`;
 }
 
+/** A time a park ends: today's clock, or the date and clock when it's another day. */
+function parkClock(iso: string, now: Date): string {
+  const clock = iso.slice(11, 16);
+  return iso.slice(0, 10) === now.toISOString().slice(0, 10)
+    ? `${clock}Z`
+    : `${iso.slice(5, 10)} ${clock}Z`;
+}
+
+/** Decision 44: "Parked by orca until 14:20Z", or that it ran out and the run has a short lease. */
+export function coordinatorParkText(park: CoordinatorPark, now: Date = new Date()): string {
+  return park.ended_at
+    ? `Park by ${park.by} ran out ${parkClock(park.ended_at, now)}: short lease, next call continues`
+    : `Parked by ${park.by} until ${parkClock(park.until, now)}`;
+}
+
 /** The recovery facts under a run: parked, end reason, workspace, orchestrator, brief, resources. */
 function runRecoveryLines(run: Run, now: Date, indent: string): string[] {
   const out: string[] = [];
@@ -256,7 +272,8 @@ function runRecoveryLines(run: Run, now: Date, indent: string): string[] {
     );
   }
   if (run.producer) out.push(`${indent}producer: ${run.producer}`);
-  if (run.status_update) {
+  if (run.coordinator_park) out.push(`${indent}${coordinatorParkText(run.coordinator_park, now)}`);
+  else if (run.status_update) {
     out.push(
       `${indent}status updated by ${run.status_update.by} ${formatTime(run.status_update.at, now)}`,
     );
@@ -878,7 +895,11 @@ function renderDigest(d: Digest, now: Date): string {
         x.label ? clip(x.label, 20) : null,
         x.producer ? `producer ${clip(x.producer, 20)}` : null,
         x.activity ? clip(x.activity, 40) : null,
-        x.updated_by ? `by ${clip(x.updated_by, 20)}` : null,
+        x.coordinator_park
+          ? coordinatorParkText({ ...x.coordinator_park, by: clip(x.coordinator_park.by, 20) }, now)
+          : x.updated_by
+            ? `by ${clip(x.updated_by, 20)}`
+            : null,
       ]),
     ),
   };
@@ -1072,11 +1093,12 @@ const RENDERERS: { [N in ToolName]: Renderer<N> } = {
       ready: r.resume_ready ? 'ready to resume' : 'resume_ready false',
     });
   },
-  update_run_status: (r) =>
+  update_run_status: (r, _a, now) =>
     s('update_run_status', {
       id: r.id,
       run_state: r.run_state,
       by: r.updated_by,
+      until: r.parked_until ? `${SEP}until ${parkClock(r.parked_until, now)}` : '',
       ready: r.resume_ready ? `${SEP}ready to resume` : '',
     }),
   set_plan: (r, a) =>

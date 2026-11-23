@@ -651,6 +651,8 @@ export const EVENT_TYPES = [
   // Status that follows the work (decision 42; B50): a coordinator's update, and newer activity
   'run.status_updated',
   'run.activity',
+  // A coordinator's time-limited park ran out (decision 44; B53)
+  'run.park_expired',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 

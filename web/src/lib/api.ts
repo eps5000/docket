@@ -421,6 +421,7 @@ export const INVALIDATION: Record<EventType, readonly QueryFamily[]> = {
   'run.parked': RUNS,
   'run.status_updated': RUNS,
   'run.activity': RUNS,
+  'run.park_expired': RUNS,
   'run.resumed': RUNS,
   'run.unpushed_handled': ['item', 'needsYou', 'bootstrap', 'workspaces'],
   'resource.declared': ['item', 'agents', 'workspaces'],

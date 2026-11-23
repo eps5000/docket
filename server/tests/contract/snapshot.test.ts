@@ -243,7 +243,7 @@ const INPUTS: Record<string, [string[], string[]]> = {
   park_run: [['run_id', 'reason'], ['waiting_on']],
   update_run_status: [
     ['id', 'coordinator'],
-    ['current_action', 'park_reason', 'waiting_on', 'resume'],
+    ['current_action', 'park_reason', 'waiting_on', 'park_minutes', 'resume'],
   ],
   set_plan: [['id'], ['reason', 'mode', 'steps', 'remove']],
   update_step: [
@@ -393,6 +393,7 @@ const OUTPUTS: Record<string, string[]> = {
 const OPTIONAL_OUTPUTS: Record<string, string[]> = {
   submit_packet: ['held_undeclared', 'held_design'],
   declare_shared_changes: ['design_hold'],
+  update_run_status: ['parked_until'], // decision 44: while a coordinator's park holds
 };
 
 const MUTATING = specDescriptions()

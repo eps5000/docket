@@ -122,6 +122,8 @@ describe('the service stubs', () => {
       'recordActivity',
       'refreshActivity',
       'expireProducerHolds',
+      // Decision 44 (B53).
+      'expireCoordinatorParks',
       // US11 (B10, T099).
       'updateResources',
       'park',

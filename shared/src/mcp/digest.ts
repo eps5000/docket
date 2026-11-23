@@ -6,7 +6,7 @@
  */
 import { z } from 'zod';
 import { cursor, projectKey, readInput, readOutput } from './common.js';
-import { prioritySchema, runStateSchema } from './types.js';
+import { coordinatorParkSchema, prioritySchema, runStateSchema } from './types.js';
 
 /** The most rows each section lists. */
 export const DIGEST_CAPS = {
@@ -48,6 +48,8 @@ export const digestRunSchema = z.object({
   activity: z.string().optional(),
   /** Decision 42: the coordinator who last set this run's status. */
   updated_by: z.string().optional(),
+  /** Decision 44: a coordinator's time-limited park, holding or just run out. */
+  coordinator_park: coordinatorParkSchema.optional(),
 });
 
 export const digestBlockedSchema = z.object({

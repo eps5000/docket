@@ -452,6 +452,8 @@ export const runs = sqliteTable(
     status_update: text('status_update', { mode: 'json' }),
     /** Decision 42: `{since, flag}`, activity newer than the run's last word. */
     park_activity: text('park_activity', { mode: 'json' }),
+    /** Decision 44: `{by, client, at, until, ended_at?}`, a coordinator's time-limited park. */
+    coordinator_park: text('coordinator_park', { mode: 'json' }),
     version: version(),
     ...timestamps,
   },

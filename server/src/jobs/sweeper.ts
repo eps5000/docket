@@ -26,6 +26,11 @@
  *   like *stale*, so the owner and `recovery_report` see them whether or
  *   not a sweep has run.
  *
+ * - **Coordinator parks** (owner decision 44), at boot and every `sweepMs`: a
+ *   park past its deadline goes back to open on a restart-grace lease, before
+ *   the lease sweep, so a live agent continues and a dead one ends by lease
+ *   expiry. A deadline that passed while Docket was down is handled at boot.
+ *
  * - **The drift check** (owner decision 30; BUILD_SPEC §5.19), at startup and
  *   every `DOCKET_DRIFT_CHECK_INTERVAL`: each push install's location is
  *   read (never written) and compared with its manifest; see
@@ -68,13 +73,19 @@ export const RUN_ACTIVITY_FIRST_MS = 30_000;
  * the grace, or for a child a deadline to signal. A child whose deadline passed
  * while Docket was down ends first: another restart doesn't give it more time.
  */
-export function restartSweep(runtime: Runtime): { kept: string[]; ended: string[] } {
+export function restartSweep(runtime: Runtime): {
+  kept: string[];
+  ended: string[];
+  /** Decision 44: coordinator parks whose deadline passed while Docket was down. */
+  unparked: string[];
+} {
   return runtime.write.run({ actor: SYSTEM_ACTOR, operation: 'sweeper.restart', args: {} }, (w) => {
     const { ended } = runtime.services.runs.endSilentChildren(w);
+    const { expired: unparked } = runtime.services.runs.expireCoordinatorParks(w);
     const { kept } = runtime.services.runs.keepOpenRuns(w, {
       graceMs: runtime.config.restartGraceMs,
     });
-    return { kept, ended };
+    return { kept, ended, unparked };
   }).result;
 }
 
@@ -87,12 +98,16 @@ export function sweepOnce(runtime: Runtime): {
   children: string[];
   /** Decision 42: stories whose producer's hold ran out with no worker, back in Ready. */
   returned: string[];
+  /** Decision 44: coordinator parks past their deadline, back on a short lease. */
+  unparked: string[];
 } {
   return runtime.write.run({ actor: SYSTEM_ACTOR, operation: 'sweeper.leases', args: {} }, (w) => {
+    // First: a run coming off a park has a fresh lease, so this sweep can't end it.
+    const { expired: unparked } = runtime.services.runs.expireCoordinatorParks(w);
     const { interrupted } = runtime.services.runs.expireLeases(w);
     const { ended } = runtime.services.runs.endSilentChildren(w);
     const { returned } = runtime.services.runs.expireProducerHolds(w);
-    return { interrupted, children: ended, returned };
+    return { interrupted, children: ended, returned, unparked };
   }).result;
 }
 
@@ -249,7 +264,9 @@ export function startSweeper(
   const seen = new Set<string>();
   const sweep = setInterval(() => {
     try {
-      const { interrupted, children, returned } = sweepOnce(runtime);
+      const { interrupted, children, returned, unparked } = sweepOnce(runtime);
+      if (unparked.length > 0)
+        runtime.log(`sweeper: coordinator park ran out for ${unparked.join(', ')}`);
       if (interrupted.length > 0)
         runtime.log(`sweeper: lease expired for ${interrupted.join(', ')}`);
       if (children.length > 0)

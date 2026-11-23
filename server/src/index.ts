@@ -32,7 +32,10 @@ const { config } = runtime;
 
 // Service start (BUILD_SPEC §5.3; decision 41): runs still open from before stay open, and
 // each lead's lease runs at least DOCKET_RESTART_GRACE_MINUTES from now.
-const { kept, ended } = restartSweep(runtime);
+const { kept, ended, unparked } = restartSweep(runtime);
+if (unparked.length > 0) {
+  console.log(`Service restarted: ${unparked.length} coordinator park(s) ran out while down.`);
+}
 if (kept.length > 0) {
   console.log(`Service restarted: kept ${kept.length} open run(s); their agents can continue.`);
 }

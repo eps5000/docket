@@ -20,6 +20,7 @@ import {
   itemSchema,
   itemSummarySchema,
   itemTypeSchema,
+  coordinatorParkSchema,
   runActivitySchema,
   runStateSchema,
   statusSchema,
@@ -503,6 +504,8 @@ export const agentRowSchema = z.object({
   producer: z.string().optional(),
   activity: runActivitySchema.optional(),
   updated_by: z.string().optional(),
+  /** Decision 44: a coordinator's time-limited park, holding or just run out. */
+  coordinator_park: coordinatorParkSchema.optional(),
   at: z.string(),
 });
 export type AgentRow = z.infer<typeof agentRowSchema>;

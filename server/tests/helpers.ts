@@ -161,6 +161,8 @@ export function without0010<T>(rows: T): T {
       delete out.producer_hold_until;
       delete out.status_update;
       delete out.park_activity;
+      // Decision 44 (0020): null on every row from before it.
+      delete out.coordinator_park;
     }
     return out;
   }) as T;

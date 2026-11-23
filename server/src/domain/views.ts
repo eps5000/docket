@@ -94,6 +94,7 @@ import {
   dateRiskBlockers,
   EVENT_FROM,
   OPEN_STORED_SQL,
+  coordinatorParkOf,
   displayRunState,
   eventRow,
   isRunOpen,
@@ -712,6 +713,11 @@ function problemsOf({
         silent,
         lease,
         restarted: inRestartGrace(r),
+        // Decision 44: silent because a coordinator parked it; its short lease decides.
+        parkEndedBy:
+          r.lease_expires_at && ms(r.lease_expires_at) > ms(now) && coordinatorParkOf(r)?.ended_at
+            ? coordinatorParkOf(r)!.by
+            : undefined,
       }),
     });
   }
@@ -1823,6 +1829,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
             ...(x.producer ? { producer: x.producer } : {}),
             ...(open && storedActivity(x)?.flag ? { activity: storedActivity(x)!.flag! } : {}),
             ...(open && storedStatusUpdate(x) ? { updated_by: storedStatusUpdate(x)!.by } : {}),
+            ...(open && coordinatorParkOf(x) ? { coordinator_park: coordinatorParkOf(x)! } : {}),
             at: open ? x.last_signal_at : x.updated_at,
           },
         });

@@ -16,6 +16,7 @@ These match the `EventType` union in [MCP_SPEC §4](../../../docs/MCP_SPEC.md):
 | Restart (decision 41) | `service.restarted`: one per restart that kept open runs, with `runs_kept`. |
 | Recovery (US11) | `run.parked`, `run.resumed`, `run.unpushed_handled`, `resource.declared`, `resource.released`. A heartbeat that declares or releases resources appends these events; the heartbeat itself still doesn't. |
 | Status follows the work (decision 42) | `run.status_updated` (a coordinator set a run's status, with `updated_by`), `run.activity` (newer activity on a parked or silent run; one per flag). |
+| Time-limited parking (decision 44) | `run.park_expired`: a coordinator's park reached its deadline and the run went back to a short lease, with `parked_by`, `until`, `resume_ready` and `lease_expires_at`. A coordinator's park is `run.parked` with `parked_by` and `until`; a renewal is `run.status_updated` with `renewed: true`. |
 | Review | `packet.submitted`, `packet.stale`, `packet.withdrawn`, `review.decided` |
 | Messages | `question.asked`, `question.answered`, `owner_note.added`, `note.added` |
 | Evidence | `document.added`, `commit.reported`, `artifact.linked` |

@@ -78,7 +78,7 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   park_run:
     "Park only when the work itself stops: waiting on another item, the coordinator or a person. Don't park while your own CI or tests run or while you review them: stay live and log a note. A parked run keeps its claim and its workspace stays in use, so it is never mistaken for finished or stale. Say what you wait on; Docket flags it resume_ready when that clears. Any write with your run_id resumes it; reads don't.",
   update_run_status:
-    "Coordinators: set an item's lead run's current action, park reason or waiting_on, or resume it, without its run_id. coordinator is your name: the run's orchestrator or one registered for the project. Grants no other power.",
+    "Coordinators: set an item's lead run's current action, park reason or waiting_on, resume it, or park it for park_minutes (a new park needs park_reason and waiting_on; 240 at most, and 24 hours since its last own signal). When the time ends it returns to a short lease. No run_id. coordinator is your name: the run's orchestrator or one registered for the project. Grants no other power.",
   set_plan:
     "Publish or revise your plan as one-line steps, optionally with details (Markdown) and a source such as a Jira key. Patches by default: steps with an id are updated (text changes record the old text and your reason), steps without one are added, nothing is removed unless listed in remove. mode 'replace' restates the plan. Owner-added steps are always kept; on Jira-imported steps you may add details, keeping the current text at the start. Revisions are kept as history.",
   update_step:
@@ -165,7 +165,7 @@ export const TOOL_SUMMARIES: Record<ToolName, string> = {
   heartbeat: 'Run {run_id} {run_state} · lease until {lease}{resources}',
   finish_run: 'Run {run_id} {run_state}',
   park_run: 'Parked run {run_id}{waiting} · {ready}',
-  update_run_status: "Updated {id}'s run · {run_state} · by {by}{ready}",
+  update_run_status: "Updated {id}'s run · {run_state} · by {by}{until}{ready}",
   set_plan: 'Plan v{plan_version} on {id} · {done}/{total} done',
   update_step: 'Step {step_id} {state} on {id}',
   log_subagent: 'Logged {provenance} {name} on {target}',

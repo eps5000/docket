@@ -577,6 +577,14 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T220 [US2] Tests: every owner action from Overview, the badge invariant, links, e2e on the seeded and STR data, axe in both themes at 1440 and 1024 px, and the sweep.
 - [x] T221 [US2] One count of agents: the sidebar badge, the Overview card and the Agents page's line read `agents_now` from one response; the Agents lists are labelled as runs; invariant tests across All projects and one project, through handoffs and parks.
 
+## Phase 32: Time-limited coordinator parking (owner decision 44)
+
+- [x] T222 [US11] Spec plus code in one PR: decision 44 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.25; MCP_SPEC §5.4; UI_SPEC §6.3.2; spec FR-206–FR-210; Help (Run states, Connect an agent); the coordinator and worker skills.
+- [x] T223 [US11] `update_run_status` gains `park_minutes` (no new tool): park, renew and end early, with decision 42's authority, the two named limits refused rather than clamped, and migration `0020` (`runs.coordinator_park`).
+- [x] T224 [US11] Expiry in the sweep and at boot: back to open on the restart-grace lease, one `run.park_expired`, then the normal `lease_expired` path for a dead run. The run's own `park_run` replaces the limit.
+- [x] T225 [US11] Show it: "Parked by X until T" on the item, in `get_item`, `get_digest` and `get_context`, within their token budgets. An expired park is the coordinator's until the normal routing applies.
+- [x] T226 [US11] Tests: authority, each limit, renewal, early end, expiry for a dead and a live run, restart before and after the deadline, own park, reads, digest and token budget, no double processing, and part leases.
+
 ## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.
@@ -681,6 +689,7 @@ Open a PR titled "<Bn>: <phase name>" with the checkpoint evidence. Do not queue
 | 29 Survive restarts, catch up backups, truthful Needs you | B49 (after B48) |
 | 30 Status follows what agents are doing | B50 (after B49) |
 | 31 The Overview page | B51 (after B50) |
+| 32 Time-limited coordinator parking | B53 (after B52) |
 
 **Within a phase:** tests (failing) → services → replace stubs or fill handlers → fill screens → checkpoint.
 

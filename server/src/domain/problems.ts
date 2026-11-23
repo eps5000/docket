@@ -150,7 +150,17 @@ export const explain = {
     lease: string;
     /** Decision 41: silent only because Docket restarted; it can still continue. */
     restarted?: boolean;
+    /** Decision 44: the coordinator whose time-limited park just ran out. */
+    parkEndedBy?: string | undefined;
   }): ProblemExplanation {
+    if (f.parkEndedBy) {
+      return {
+        what: `${f.parkEndedBy}'s park on ${f.item} ran out, and its lead hasn't called since (silent for ${f.silent}). It keeps its claim, and ${f.lease}.`,
+        fix: 'Nothing yet. Its next call continues the same run. To give it longer, park it again with update_run_status; if it never returns, the lease ends it.',
+        who: 'agent',
+        who_text: `Its coordinator (${f.parkEndedBy})`,
+      };
+    }
     if (f.restarted) {
       return {
         what: `Docket restarted, and ${f.item}'s lead hasn't called since (silent for ${f.silent}). It keeps its claim, and ${f.lease}.`,

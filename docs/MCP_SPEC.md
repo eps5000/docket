@@ -372,6 +372,7 @@ type Run = { run_id: string; parent_run_id: string|null; client: string; label: 
   workspace: Workspace|null; orchestrator: { name: string; dispatch_id: string|null; task_id: string|null; run_id: string|null } | null;
   brief_document_version_id: string|null;
   resources: Resource[];
+  coordinator_park?: { by: string; at: string; until: string; ended_at?: string };   // decision 44: holding, or just run out
   external?: Record<string, unknown> };                  // view 'full' and recovery_report only
 
 type Workspace = { host: string|null; repo: string|null; path: string|null; branch: string|null;
@@ -403,7 +404,9 @@ type EventType =
   | 'project.created' | 'onboarding.started' | 'onboarding.finished' | 'onboarding.reviewed'    // decision 31
   | 'shared_part.saved' | 'shared.declared' | 'overlap.raised' | 'overlap.decided' | 'lease.taken' | 'lease.ended'
   | 'undeclared.held' | 'undeclared.decided' | 'radar.found' | 'radar.cleared'   // decision 36
-  | 'branch.reported' | 'branch.discovered';   // decision 36, B40
+  | 'branch.reported' | 'branch.discovered'    // decision 36, B40
+  | 'run.status_updated' | 'run.activity'      // decision 42
+  | 'run.park_expired';                        // decision 44
 
 // Decision 36 (§5.15; BUILD_SPEC §5.21).
 type SharedPartKind = 'table'|'model'|'endpoint'|'file'|'other';
@@ -598,11 +601,12 @@ The format for each tool below:
   - **Only work resumes it (decision 42):** `heartbeat` or any other mutating tool with its `run_id`. A read tool, `get_item` included, leaves its state, lease and park unchanged and writes no event.
 
 #### `update_run_status`
-**Description:** "Coordinators: set an item's lead run's current action, park reason or waiting_on, or resume it, without its run_id. coordinator is your name: the run's orchestrator or one registered for the project. Grants no other power."
-- **Input:** `id`, `coordinator` (≤ 40), `current_action?` (≤ 2,000), `park_reason?` (≤ 500), `waiting_on?`, `resume?` (`true`). At least one of the last four; `resume` not with `park_reason` or `waiting_on`.
-- **Output:** `{ id, run_state, updated_by, resume_ready }`.
-- **Errors:** `forbidden` (not the run's recorded orchestrator or a coordinator registered for the project), `validation` (no active lead; a park change or resume on a run that isn't parked; unknown item in `waiting_on.items`), `conflict` (the run's lease has run out).
-- **Rules:** names the item and takes no `run_id`, so it never counts as the run's signal and renews no lease. It grants no claim, close, review or owner power, and can't park a run. Recorded as `run.status_updated` (or `run.resumed`) naming the coordinator and the calling client. Runs show it as `status_update`, and the run's own next note replaces it.
+**Description:** "Coordinators: set an item's lead run's current action, park reason or waiting_on, resume it, or park it for park_minutes (a new park needs park_reason and waiting_on; 240 at most, and 24 hours since its last own signal). When the time ends it returns to a short lease. No run_id. coordinator is your name: the run's orchestrator or one registered for the project. Grants no other power."
+- **Input:** `id`, `coordinator` (≤ 40), `current_action?` (≤ 2,000), `park_reason?` (≤ 500), `waiting_on?`, `park_minutes?` (1–240; decision 44), `resume?` (`true`). At least one of the last five; `resume` not with `park_reason`, `waiting_on` or `park_minutes`. A new park needs `park_minutes`, `park_reason` and `waiting_on`.
+- **Output:** `{ id, run_state, updated_by, resume_ready, parked_until? }`.
+- **Errors:** `forbidden` (not the run's recorded orchestrator or a coordinator registered for the project), `validation` (no active lead; a park change or resume on a run that isn't parked; `park_minutes` over 240, past 24 hours since the run's last own signal, or on a run that parked itself; a new park without a reason or waiting-on; unknown item in `waiting_on.items`), `conflict` (the run's lease has run out).
+- **Rules:** names the item and takes no `run_id`, so it never counts as the run's signal and renews no lease. It grants no claim, close, review or owner power. Recorded as `run.status_updated` (or `run.parked`, `run.resumed`) naming the coordinator and the calling client. Runs show it as `status_update`, and the run's own next note replaces it.
+- **Time-limited park (decision 44; BUILD_SPEC §5.25):** `park_minutes` parks an open lead, or renews a coordinator's park. A limit is never clamped. `resume` ends it early on the short lease. At the deadline the sweeper returns the run to `open` on a restart-grace lease and appends `run.park_expired`, and a run that stays silent ends by `lease_expired`. The run's own `park_run` replaces the limit, its next write resumes it, and reads don't. Runs and digest rows show `coordinator_park`.
 
 ### 5.5 Checklist
 

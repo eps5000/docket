@@ -156,6 +156,41 @@ describe('the agent bar (B20)', () => {
     expect(within(b).getByRole('button', { name: 'Copy resume note' })).toBeTruthy();
   });
 
+  it("a coordinator's park says who and until when, in place of 'Status updated by' (decision 44)", () => {
+    const until = new Date(Date.now() + 3_600_000).toISOString();
+    const parked = run({
+      run_state: 'parked',
+      parked: {
+        reason: 'Waiting for the producer',
+        waiting_on: { orchestrator: true },
+        since: ago(5),
+        resume_ready: false,
+      },
+      status_update: { by: 'orca', client: 'codex', at: ago(5) },
+      coordinator_park: { by: 'orca', at: ago(5), until },
+    });
+    wrap(<AgentBar data={detail({ runs: [parked] })} />);
+    const line = bar().querySelector('[data-ab="coordinator-park"]')!;
+    expect(line.textContent).toMatch(/^Parked by orca until \w+ \d+ \d\d:\d\d$/);
+    expect(line.getAttribute('title')).toBe(until);
+    expect(bar().querySelector('[data-ab="updated-by"]')).toBeNull();
+  });
+
+  it("a coordinator's park that ran out says the run has a short lease (decision 44)", () => {
+    const ended = run({
+      coordinator_park: {
+        by: 'orca',
+        at: ago(65),
+        until: ago(5),
+        ended_at: ago(5),
+      },
+    });
+    wrap(<AgentBar data={detail({ runs: [ended] })} />);
+    expect(bar().querySelector('[data-ab="coordinator-park"]')!.textContent).toMatch(
+      /^Park by orca ran out at \d\d:\d\d\. It has a short lease to call back\.$/,
+    );
+  });
+
   it('a live lead: no parked line and no recovery actions', () => {
     wrap(<AgentBar data={detail({ runs: [run()] })} />);
     const b = bar();

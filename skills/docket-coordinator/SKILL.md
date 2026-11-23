@@ -65,7 +65,7 @@ Block in one shell call. It spends no model tokens until a matching event arrive
 
 ```bash
 bash .claude/docket-wait.sh --cursor <cursor> --project RCP --timeout 540 \
-  --types run.parked,run.activity,question.asked,packet.submitted,review.decided,run.ended
+  --types run.parked,run.park_expired,run.activity,question.asked,packet.submitted,review.decided,run.ended
 ```
 
 - **Where it is:** next to `docket-check` (`.codex/` for Codex, `~/.claude/` for a user-wide install). On Windows without bash: `powershell -NoProfile -ExecutionPolicy Bypass -File .claude/docket-wait.ps1`, with the same flags.
@@ -80,6 +80,7 @@ Watch for:
 | ----------------------------------------- | ------------------------------------------------------------------------------------------ |
 | `claim.rejected`                          | Two workers raced for one item. Re-assign the loser.                                       |
 | `run.parked`                              | A worker is waiting on purpose. Leave it, and send work when you're ready.                 |
+| `run.park_expired`                        | Your time-limited park ran out. Renew it, or let its short lease decide (§5).              |
 | `run.activity`                            | Work moved while it was parked or silent. Check it (§5).                                   |
 | `question.asked`                          | Owner input is needed. **Don't answer for the owner**; that worker's dependent work waits. |
 | `packet.submitted`                        | Handed to the owner. The worker should finish its run.                                     |
@@ -94,7 +95,9 @@ For a detailed look at one worker, use `get_item { id, view: "summary" }`. Don't
 - **When a worker has to wait for you,** it calls `park_run { waiting_on: { orchestrator: true } }`. It keeps its claim, and its worktree counts as **in use**.
 - **When you're ready,** send it more work. Its next `heartbeat` or other write un-parks it; a read doesn't.
 - **When the status is wrong,** fix it yourself without its `run_id`: `update_run_status { id, coordinator: "<your name>", current_action?, park_reason?, waiting_on?, resume? }`. You must be the run's `orchestrator` or registered for the project. It's recorded as you, and grants no claim, close or review power.
-- **"Activity since parked"** in `get_digest` or `get_context` means commits, updates or a cleared blocker arrived. Check, then resume it or update it, which clears the flag. "Commits while silent" means that session may have no Docket tools.
+- **When a worker stops to wait and goes quiet,** don't keep it alive or watch its lease. Park it for a limited time: `update_run_status { id, coordinator, park_minutes: 120, park_reason, waiting_on }`. The limits are 240 minutes a park and 24 hours since its last own signal, and a request over them is refused. Call again to renew, or pass `resume: true` to end it early.
+- **When that time runs out** (`run.park_expired`), it's open again on a 15-minute lease: a live worker's next call continues, and a dead one loses its claim by `lease_expired`. Its own `park_run` replaces your limit, and you can't put a limit on a park it set itself.
+- **"Activity since parked"** in `get_digest` or `get_context` means commits, updates or a cleared blocker arrived. Check, then resume it or update it, which clears the flag. Renewing a park doesn't. "Commits while silent" means that session may have no Docket tools.
 - **Parked on items:** `get_digest` and `recovery_report` show `resume_ready` once those items clear. Resume it promptly: after 30 minutes the owner sees "ready to resume, unattended".
 - **Parked for over 24 hours:** it comes to you first, in `get_digest` problems. Resume it, or have it `release_lead`. Left for a day, it reaches the owner.
 - **Work left in an ended run's worktree** comes to you the same way. Commit and push it, or say it can go. Never push work on a canceled item: that's the owner's call.

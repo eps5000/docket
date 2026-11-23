@@ -49,6 +49,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   activityText,
+  coordinatorParkText,
   renderContext,
   type ContextBundle,
   type ContextShared,
@@ -57,7 +58,7 @@ import {
 import type { ContextService, ReadContext, ServiceDeps } from './contracts.js';
 import { currentWorkflow } from './agent-files.js';
 import { inScopeOf, labelsOf } from './decisions.js';
-import { BlockIndex, activeLead, currentSteps, requireItem } from './model.js';
+import { BlockIndex, activeLead, coordinatorParkOf, currentSteps, requireItem } from './model.js';
 import { contextResolutions } from './problems.js';
 import { storedActivity } from './run-activity.js';
 
@@ -317,6 +318,7 @@ function gather(r: ReadContext, deps: ServiceDeps, id: string): Full {
           who_text: p.explanation!.who_text,
         })),
       ...runActivityRows(r, row.id),
+      ...coordinatorParkRows(r, row.id),
     ],
     resolutions: contextResolutions(db, row.id),
     docs,
@@ -340,6 +342,28 @@ function runActivityRows(r: ReadContext, id: string): NonNullable<Bundle['proble
       fix: 'Check what changed, then resume it or correct it with update_run_status.',
       who: 'agent',
       who_text: 'Its coordinator',
+    },
+  ];
+}
+
+/**
+ * Decision 44: a coordinator's time-limited park on the item's lead, holding or
+ * just run out. Like the activity row, it isn't a Problem and never reaches Needs you.
+ */
+function coordinatorParkRows(r: ReadContext, id: string): NonNullable<Bundle['problems']> {
+  const lead = activeLead(r.db, id);
+  const park = lead ? coordinatorParkOf(lead) : null;
+  if (!lead || !park) return [];
+  return [
+    {
+      id: `coordinator_park:${lead.id}`,
+      kind: 'coordinator_park',
+      what: `${id}: ${coordinatorParkText(park, new Date(r.now))}.`,
+      fix: park.ended_at
+        ? 'If you hold this run, make any write with its run_id to continue.'
+        : "If you hold this run, any write with its run_id resumes it; reads don't. Its coordinator can renew or end the park with update_run_status.",
+      who: 'agent',
+      who_text: `Its coordinator (${park.by})`,
     },
   ];
 }
