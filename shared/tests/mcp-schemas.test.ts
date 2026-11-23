@@ -200,7 +200,6 @@ describe('limits and formats (§3 Types)', () => {
       title: 'x',
       description_md: 'd'.repeat(20_001),
     });
-    fails('ask_owner', { id: 'RCP-14', question: 'q'.repeat(2_001) });
     fails('add_note', { id: 'RCP-14', text: 'n'.repeat(4_001) });
     fails('upsert_label', { project: 'RCP', name: 'mobile', brief_md: 'b'.repeat(10_001) });
     fails('set_plan', { id: 'RCP-14', steps: [{ text: 's'.repeat(501) }] });

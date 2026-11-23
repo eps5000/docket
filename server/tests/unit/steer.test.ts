@@ -17,6 +17,7 @@ import { endLeadForOwner } from '../../src/domain/runs.js';
 import { undoMutation } from '../../src/domain/undo.js';
 import { OWNER_ACTOR, type Actor, type WriteContext } from '../../src/domain/write.js';
 import { startDomain, type Domain } from '../us1-helpers.js';
+import { askForm } from '../helpers.js';
 
 let d: Domain;
 beforeEach(() => {
@@ -190,9 +191,7 @@ describe('Release lead claim (owner)', () => {
 
   it('a lead in needs_input is released, and its open question stays for the next agent', () => {
     const actor = claim();
-    d.write(actor, (w, s) =>
-      s.messages.askOwner(w, { id: 'RCP-17', question: 'Grams?' } as In<'ask_owner'>),
-    );
+    d.write(actor, (w, s) => s.messages.askOwner(w, { id: 'RCP-17', ...askForm('Grams?') }));
     release('RCP-17');
     expect(run(actor.run_id!)).toMatchObject({
       state: 'interrupted',

@@ -1,11 +1,12 @@
 import { Link } from 'react-router';
-import type { ItemDetailResponse } from '@docket/shared';
+import type { ItemDetailResponse, QuestionForm } from '@docket/shared';
 import { Button, Callout, Icon } from '../../components/kit';
 import { useShell } from '../../app/ShellState';
 import { useBootstrap } from '../../app/useBootstrap';
 import { paths } from '../../lib/paths';
 import { formatClock, isoTitle, plural } from '../../lib/format';
 import { AnswerBox } from '../shared/AnswerBox';
+import { QuestionAnswer, RecommendedLine } from '../shared/QuestionAnswer';
 import { HelpLink } from '../../help/HelpLink';
 import { ProblemBanners } from './ProblemBanners';
 
@@ -48,6 +49,7 @@ export function QuestionBanner({
   question,
   agent,
   unread,
+  form = null,
 }: {
   itemId: string;
   question: NonNullable<ItemDetailResponse['item']['open_question']>;
@@ -55,6 +57,8 @@ export function QuestionBanner({
   agent: string;
   /** The answer hasn't been delivered yet (BUILD_SPEC §5.7). */
   unread: boolean;
+  /** Decision 47: the answer dialog's content; null on an older question. */
+  form?: QuestionForm | null;
 }) {
   if (question.answer) {
     return (
@@ -72,13 +76,28 @@ export function QuestionBanner({
           <span title={isoTitle(question.asked_at)}>{formatClock(question.asked_at)}</span>:
         </b>{' '}
         “{question.text}”
-        <AnswerBox
-          itemId={itemId}
-          questionId={question.id}
-          agent={agent}
-          label="Your answer"
-          hint={`The run stays paused until ${agent} reads it.`}
-        />
+        {form ? (
+          <div className="q-banner-action">
+            <RecommendedLine form={form} />
+            <QuestionAnswer
+              key={question.id}
+              itemId={itemId}
+              questionId={question.id}
+              question={question.text}
+              form={form}
+              agent={agent}
+              buttonLabel={`Answer ${agent} on ${itemId}`}
+            />
+          </div>
+        ) : (
+          <AnswerBox
+            itemId={itemId}
+            questionId={question.id}
+            agent={agent}
+            label="Your answer"
+            hint={`The run stays paused until ${agent} reads it.`}
+          />
+        )}
       </div>
       <HelpLink anchor="item.question" />
     </div>
@@ -145,6 +164,7 @@ export function ItemBanners({ data }: { data: ItemDetailResponse }) {
           question={item.open_question}
           agent={askerOf(data)}
           unread={data.answer_unread}
+          form={data.question_form ?? null}
         />
       )}
       {data.from_review && <FromReviewBanner from={data.from_review} />}

@@ -4,6 +4,7 @@ import type { ForYouRow } from '@docket/shared';
 import { Button, Card, CardHeader, EmptyState, Icon } from '../../components/kit';
 import { paths } from '../../lib/paths';
 import { AnswerBox } from '../shared/AnswerBox';
+import { QuestionAnswer, RecommendedLine } from '../shared/QuestionAnswer';
 import { HelpLink } from '../../help/HelpLink';
 
 const rowKey = (r: ForYouRow) => `${r.kind}:${r.item_id}`;
@@ -62,6 +63,8 @@ function ForYouRowView({ row, fresh }: { row: ForYouRow; fresh: boolean }) {
     row.kind === 'packet'
       ? `Round ${row.round} packet · ${row.to_verify} to verify · about ${row.estimate}`
       : `${row.asked_by} asks: “${row.text}”`;
+  // Decision 47: a question with the new contract answers in the dialog; older ones reply inline.
+  const form = row.kind === 'question' ? (row.form ?? null) : null;
   const stale = row.kind === 'packet' && row.stale;
   const full = stale ? `${line} · out of date: code changed after it was written` : line;
   return (
@@ -70,8 +73,9 @@ function ForYouRowView({ row, fresh }: { row: ForYouRow; fresh: boolean }) {
       data-row={row.kind}
       data-item={row.item_id}
       onClick={(e) => {
-        // The row opens the item; its links, buttons and the inline reply do their own thing.
-        if ((e.target as HTMLElement).closest('a, button, .reply')) return;
+        // The row opens the item; its links, buttons, inline reply and answer dialog (a portal,
+        // whose clicks still bubble here through React) do their own thing.
+        if ((e.target as HTMLElement).closest('a, button, .reply, .ov')) return;
         navigate(paths.item(row.item_id));
       }}
     >
@@ -85,7 +89,7 @@ function ForYouRowView({ row, fresh }: { row: ForYouRow; fresh: boolean }) {
           </Link>
           <span className="mono muted">{row.item_id}</span>
         </div>
-        <div className="why one" title={full}>
+        <div className={form ? 'why' : 'why one'} title={full}>
           {line}
           {stale && (
             <>
@@ -94,6 +98,7 @@ function ForYouRowView({ row, fresh }: { row: ForYouRow; fresh: boolean }) {
             </>
           )}
         </div>
+        {form && <RecommendedLine form={form} />}
         {row.kind === 'question' && replying && (
           <>
             <div className="src prewrap">“{row.text}”</div>
@@ -115,6 +120,16 @@ function ForYouRowView({ row, fresh }: { row: ForYouRow; fresh: boolean }) {
         <Link className="btn sm primary" to={paths.review(row.item_id)}>
           Open packet
         </Link>
+      ) : form ? (
+        <QuestionAnswer
+          key={row.question_id}
+          itemId={row.item_id}
+          questionId={row.question_id}
+          question={row.text}
+          form={form}
+          agent={row.asked_by}
+          buttonLabel={`Answer ${row.asked_by} on ${row.item_id}`}
+        />
       ) : replying ? (
         <span />
       ) : (

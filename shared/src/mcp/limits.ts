@@ -29,12 +29,30 @@ export const WAIT_FLAGS = {
   context_waiters: 5,
 } as const;
 
+/**
+ * Decision 47: the question contract's limits (MCP_SPEC §5.7). `note` is the
+ * owner's optional note on a chosen option.
+ */
+export const QUESTION_FORM = {
+  question: 200,
+  context: 700,
+  why_it_matters: 400,
+  label: 80,
+  option_text: 300,
+  recommendation_reason: 300,
+  details: 2_000,
+  options_min: 2,
+  options_max: 4,
+  note: 1_000,
+} as const;
+
 export const TEXT_LIMITS = {
   title: 200,
   /** Step, check and human review item text. */
   step: 500,
   /** `note`, `outcome` and other summary lines. */
   note: 4_000,
+  /** A stored question (older ones are this long) and the owner's free-text answer. */
   question: 2_000,
   /** `description_md`, `outcome_md`. */
   markdown: 20_000,

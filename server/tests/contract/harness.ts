@@ -28,7 +28,7 @@ import { expect } from 'vitest';
 import { loadSampleSeed } from '../../src/db/seed/loader.js';
 import type { ServiceOverrides } from '../../src/domain/services.js';
 import type { ToolHandlers } from '../../src/mcp/register.js';
-import { TestClock } from '../helpers.js';
+import { askForm, TestClock } from '../helpers.js';
 import { ORIGIN, createTestServer, type TestServer } from '../integration/harness.js';
 
 /** "Now" for contract tests: the prototype clock, so seed times are as in the spec examples. */
@@ -257,7 +257,7 @@ export const VALID_ARGS: Record<ToolName, Record<string, unknown>> = {
     checked: [{ text: '214 tests pass', provenance: 'ci', evidence: 'CI build #91' }],
   },
   get_review: { id: 'RCP-12' },
-  ask_owner: { id: 'RCP-14', question: 'Per serving or per 100 g?' },
+  ask_owner: { id: 'RCP-14', ...askForm('Per serving or per 100 g?') },
   publish_decision: {
     project: 'RCP',
     scope: { kind: 'epic', id: 'RCP-1' },

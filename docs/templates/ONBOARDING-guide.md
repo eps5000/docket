@@ -49,7 +49,7 @@ Skip done work unless an open item depends on it. Never copy secrets or credenti
 Send the whole text with `propose_agent_file_change {project: "{{KEY}}", file: "workflow", content, reason, based_on_version_id}`. The owner approves it.
 
 ## 5. Ask
-Ask only what the repo can't answer and the owner must decide (scope, priority, conflicting sources). Use `ask_owner` on the relevant epic: one open question per item, so combine related ones. Put the rest in `finish_onboarding`'s `questions`.
+Ask only what the repo can't answer and the owner must decide (scope, priority, conflicting sources). Use `ask_owner` on the relevant epic: one open question per item, so ask the most important one, in plain words with options and your recommendation. Put the rest in `finish_onboarding`'s `questions`.
 
 ## 6. Finish
 `finish_onboarding {session_id, summary, questions}`. The summary is honest and short:

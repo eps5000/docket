@@ -24,7 +24,8 @@ import {
   readOutput,
   text,
 } from './common.js';
-import { LIMITS, TEXT_LIMITS } from './limits.js';
+import { LIMITS, QUESTION_FORM, TEXT_LIMITS } from './limits.js';
+import { checkQuestionForm, questionOptionInput } from './question-form.js';
 import { branchInput, changedFilesInput, designHoldSchema } from './shared-changes.js';
 import {
   artifactSchema,
@@ -207,8 +208,16 @@ export const getReviewOutput = readOutput({
 
 export const askOwnerInput = mutationInput({
   id: itemId,
-  question: text(TEXT_LIMITS.question),
-});
+  question: text(QUESTION_FORM.question),
+  context: text(QUESTION_FORM.context),
+  why_it_matters: text(QUESTION_FORM.why_it_matters),
+  options: z
+    .array(questionOptionInput)
+    .min(QUESTION_FORM.options_min)
+    .max(QUESTION_FORM.options_max),
+  recommendation_reason: text(QUESTION_FORM.recommendation_reason),
+  details: text(QUESTION_FORM.details).optional(),
+}).superRefine(checkQuestionForm);
 export const askOwnerOutput = mutationOutput({ question_id: z.string() });
 
 // ---- publish_decision ----

@@ -600,9 +600,10 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T234 [US6] The target resolver and delivery: a live dispatch, then its coordinator, then undelivered; a pointer with no content; no shell; bounded retries; a rate limit per session.
 - [x] T235 [US6] Reliability and visibility: atomic state outside the repo, no replay on first run, 24-hour catch-up, no duplicates across restarts, one instance, `status`, a capped log, `test-send`, and the Windows auto-start steps.
 - [x] T236 [US6] Tests with a fake feed and a fake `orca`, plus the real app for the event wording and to prove a relay read delivers nothing; event-to-send latency measured.
-- [x] T237 [US6] B55b, coordinators only: remove the implementer route; use only a Run Orca confirms, from the recorded dispatch or a stored `run_…`, and never a stored session address; always use the coordinator wording; refuse anything but a `run:` address in `orca.send` and `test-send`. BUILD_SPEC §5.27 and T26, the README and Help in the same PR.
-- [x] T238 [US6] B55b, `hold_reconcile`: at 24 hours or more since the last feed read, or with an untrusted state or cursor, send nothing and keep the cursor; `status` reports what waits with no content; `reconcile --deliver` or `reconcile --skip-to-end --reason <text>` is the only way out; held batches never expire quietly.
-- [x] T239 [US6] B55b tests: every routing fallback, no `dispatch:` send on any path, `test-send` refusal, the hold at and over 24 hours, untrusted state, no send or cursor move in a hold, both reconcile paths, a coalesced restart inside the window, and a hard kill mid-send.
+- [x] T249 [US6] B55b, coordinators only: remove the implementer route; use only a Run Orca confirms, from the recorded dispatch or a stored `run_…`, and never a stored session address; always use the coordinator wording; refuse anything but a `run:` address in `orca.send` and `test-send`. BUILD_SPEC §5.27 and T26, the README and Help in the same PR.
+- [x] T250 [US6] B55b, `hold_reconcile`: at 24 hours or more since the last feed read, or with an untrusted state or cursor, send nothing and keep the cursor; `status` reports what waits with no content; `reconcile --deliver` or `reconcile --skip-to-end --reason <text>` is the only way out; held batches never expire quietly.
+- [x] T251 [US6] B55b tests: every routing fallback, no `dispatch:` send on any path, `test-send` refusal, the hold at and over 24 hours, untrusted state, no send or cursor move in a hold, both reconcile paths, a coalesced restart inside the window, and a hard kill mid-send.
+- [x] T252 [US6] B55b review fixes: never trust a persisted send; check state invariants; make entering a hold atomic with sending; an uncapped append-only skip audit; a hidden launcher that returns Node's exit code; a graceful `stop` over the pipe; and scripted stop, disable, verify and remove with proofs. What only the real host can prove is listed as required post-install checks in the README.
 
 ## Phase 35: Overview fixes from the owner's feedback (polish within owner decision 43)
 
@@ -612,7 +613,15 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T240 [US2] The Completed chart: a whole-number vertical axis, and a tooltip by hover and keyboard naming each bucket's tickets (bounded in the read API), which stays on-screen and is in the text alternative.
 - [x] T241 [US11] The at-risk line says which worktrees need the owner: `at_risk_owner` on `GET /api/workspaces`, from the existing Problems routing, with a *What to do* column. The Needs you badge doesn't change.
 - [x] T242 [US2] Tests: unit, API, e2e and axe in both themes at 1440 × 900 and 1024 px, the UI sweep, and screenshots on the stress data.
-- [x] T240 [US6] B55b review fixes: never trust a persisted send; check state invariants; make entering a hold atomic with sending; an uncapped append-only skip audit; a hidden launcher that returns Node's exit code; a graceful `stop` over the pipe; and scripted stop, disable, verify and remove with proofs. What only the real host can prove is listed as required post-install checks in the README.
+
+## Phase 36: Questions the owner can actually read (owner decision 47)
+
+- [x] T243 [US6] Spec plus code in one PR: decision 47 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.28; MCP_SPEC §2, §3, §5.7 and §7.5; UI_SPEC §6.1 and §6.3; spec FR-224–FR-229 and SC-027; Help (Questions and notes).
+- [x] T244 [US6] The `ask_owner` contract, its limits, the plain-language guard and the error that teaches the old shape. Still 51 tools.
+- [x] T245 [US6] Migration 0022 (`questions.form`, `questions.answer_choice`), the option answer, and delivery to text-only and structured clients.
+- [x] T246 [US6] The answer dialog on Needs you and the item page: option cards, note, *Something else*, Undo, keyboard and focus, both themes, 1024 px and 1440 × 900.
+- [x] T247 [US6] `docket-worker`, `docket-coordinator`, `docket-lead-subagents` and the MCP instructions: check first, decide what you can, ask only what needs the owner, write for someone who has not seen the work.
+- [x] T248 [US6] Tests: contract, limits, guard, old shape, delivery, the dialog by mouse and keyboard, older questions, token budgets, e2e and axe in both themes.
 
 ## How to run the build
 
@@ -720,7 +729,9 @@ Open a PR titled "<Bn>: <phase name>" with the checkpoint evidence. Do not queue
 | 31 The Overview page | B51 (after B50) |
 | 32 Time-limited coordinator parking | B53 (after B52) |
 | 33 Make a parked story's wait visible | B54 (after B53) |
+| 34 Wake the right session when the owner answers | B55 (after B54) |
 | 35 Overview fixes from the owner's feedback | B56 (after B55) |
+| 36 Questions the owner can actually read | B57 (after B56) |
 
 **Within a phase:** tests (failing) → services → replace stubs or fill handlers → fill screens → checkpoint.
 

@@ -53,6 +53,18 @@ log_subagent { id: "RCP-14", run_id: "<lead>", step_id: "wst_…", name: "explor
 - **After a Docket restart, a connected child has 15 minutes to call with its `run_id`.** If it does, it carries on. If not, its child run ends as interrupted; your run isn't affected.
 - **Wrap up children first.** Before you finish: every child run has finished, every child resource has been released, and everything is merged and pushed. Child runs left open, or child resources left running, show up in `recovery_report`.
 
+## 6. Questions for the owner
+
+Subagents bring questions to you; only you call `ask_owner`.
+
+- **First check** decisions, the ticket, the plan and design docs, Workflow notes, the code and what other agents recorded.
+- **Decide it yourself** if it's technical, reversible, inside an approved design or follows a decision. Use `publish_decision` when others must follow it.
+- **Ask only** about product behavior, privacy or security, cost, irreversible or outward-facing actions, conflicting owner decisions, or a real change to an approved design.
+- **Write for someone who hasn't seen the work.** Rewrite a subagent's question in everyday words, name what a user would notice, offer real alternatives, and state the recommended option's downside. IDs and paths go in `details`.
+
+> Bad: "Per dec_12, should `getNutrition` keep the v2 DTO or fork for RCP-16?"
+> Good: "Should recipe cards show nutrition per serving or per 100 g?" Per serving is easy to read, but portions differ between recipes.
+
 ## Don't
 
 - Run two leads on one item, or have a subagent claim it.

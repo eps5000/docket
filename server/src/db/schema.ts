@@ -724,6 +724,10 @@ export const questions = sqliteTable(
     answer: text('answer'),
     answered_at: text('answered_at'),
     read_by_agent_at: text('read_by_agent_at'),
+    /** Decision 47: the question contract as JSON. Null on questions asked before it. */
+    form: text('form'),
+    /** Decision 47: the option the owner picked, as JSON. Null for a free-text answer. */
+    answer_choice: text('answer_choice'),
     ...timestamps,
   },
   (t) => [
