@@ -1,5 +1,5 @@
 /**
- * Which feed events wake a session, and the pointer it gets (owner decision 46).
+ * Which feed events count, and the pointer the coordinator gets (owner decision 46).
  *
  * The feed row has no `data` and no `actor_kind`, so an event is judged by its
  * type, its `actor` and the fixed start of its summary. A summary can quote
@@ -115,11 +115,12 @@ export const orderKinds = (kinds) => {
 };
 
 /**
- * The pointer. It names the item and the kinds of change, never their text.
+ * The pointer, always worded for the coordinator. It names the item, the kinds
+ * of change and, as information only, the implementer; never the change's text.
  * "From the owner side" because an agent using the owner API is recorded as
  * the owner too, and Docket can't always tell them apart.
  */
-export function buildMessage({ item, kinds, role, implementer }) {
+export function buildMessage({ item, kinds, implementer }) {
   const resume = kinds.includes('resume');
   const changes = orderKinds(kinds);
   const parts = [];
@@ -129,20 +130,12 @@ export function buildMessage({ item, kinds, role, implementer }) {
   } else {
     parts.push(`What ${item} was waiting for has cleared in Docket.`);
   }
-  const read = `call get_context ${item} and get_item ${item}.`;
-  if (role === 'coordinator') {
-    parts.push(
-      `Docket couldn't reach the session working on it (${implementer}). Tell that session to ${read}`,
-      "If you only coordinate it, don't call get_item yourself, because that uses up its one-time delivery.",
-    );
-  } else {
-    parts.push(`C${read.slice(1)}`);
-  }
-  const subject =
-    role === 'coordinator'
-      ? `Docket: pass on an update to ${item}`
-      : changes.length > 0
-        ? `Docket: ${item} updated`
-        : `Docket: ${item} can resume`;
+  parts.push(
+    `The implementer, for information only: ${implementer}.`,
+    "You're told as its coordinator, and this notice carries no owner authority.",
+    'Decide whether and when to relay it, under your own gates.',
+    `Don't call get_item ${item} on the implementer's behalf, because that uses up its one-time delivery.`,
+  );
+  const subject = changes.length > 0 ? `Docket: ${item} updated` : `Docket: ${item} can resume`;
   return { subject, body: parts.join(' ') };
 }

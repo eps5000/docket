@@ -1,6 +1,6 @@
 # docket-relay
 
-A small Node process on the host. When a ticket with a live lead changes from the owner side in Docket, it tells that lead's Orca session to go and look (owner decision 46, BUILD_SPEC §5.27).
+A small Node process on the host. When a ticket with a live lead changes from the owner side in Docket, it tells that ticket's Orca **coordinator** (owner decision 46, B55b, BUILD_SPEC §5.27). It never messages a worker's dispatch.
 
 Docket runs in a container and can't call the host's `orca` CLI, so this bridges the two. It needs Node 22 and has no dependencies.
 
@@ -9,9 +9,9 @@ Docket runs in a container and can't call the host's `orca` CLI, so this bridges
 1. Long-polls `GET /agent/changes/wait`, which costs no tokens.
 2. Keeps the owner-side events that can change what the lead should do, and ignores agent events and housekeeping.
 3. Reads the item with `GET /api/items/:id` to find its live lead. That read records no delivery, so the answer stays unread for the agent.
-4. Sends a pointer with `orca orchestration send`. It names the ticket and the kinds of change, never their text:
+4. Sends the coordinator a pointer with `orca orchestration send`. It names the ticket, the kinds of change and, as information only, the implementer. It never carries their text:
 
-   > GF-243 was updated from the owner side in Docket (acceptance, decision). Call get_context GF-243 and get_item GF-243.
+   > GF-243 was updated from the owner side in Docket (acceptance, decision). The implementer, for information only: Docket run r_12, dispatch ctx_34. You're told as its coordinator, and this notice carries no owner authority. Decide whether and when to relay it, under your own gates. Don't call get_item GF-243 on the implementer's behalf, because that uses up its one-time delivery.
 
 It never writes to Docket. It doesn't resume, park, claim, change a status or call MCP `get_item`.
 
@@ -27,11 +27,49 @@ It never writes to Docket. It doesn't resume, park, claim, change a status or ca
 
 ## Who gets the message
 
-1. **The implementer:** `orchestrator.dispatch_id`, only while Orca reports that dispatch as live. A finished dispatch is never mailed, because Orca would reopen it as a follow-up task.
-2. **Its coordinator**, named with the implementer, if the implementer can't be reached: the dispatch's Orca Run, or a stored `run_…` ID. A stored `orca_session_id:…` may be a coordinator or the implementer, so it gets the coordinator wording.
-3. **Nobody:** it's recorded as undelivered in `status`. Needs you is never touched.
+Only a coordinator, the first of:
 
-If Orca is down, a message is held and retried for up to 24 hours.
+1. **The dispatch's Orca Run** (`run:<id>`), read from `orchestrator.dispatch_id` with `worker-show`.
+2. **A stored `run_…` ID.**
+3. **A stored `orca_session_id:…`.**
+4. **Nobody:** it's recorded as undelivered in `status`. Needs you is never touched.
+
+**A `dispatch:` address is never used**, on any path. Orca can reopen a one-shot worker that finished between a check and the send, and a pointer can't carry source authority. The send call and `test-send` both refuse one. If Orca can't answer `worker-show`, the message waits and is retried.
+
+## After a stop
+
+- **First run:** starts at the end of the feed, with no replay.
+- **Stopped for under 24 hours:** catches up once, one message per ticket, within the rate limit, with no duplicates. A hard kill mid-send repeats that message under the same request ID, so Orca replays it.
+- **Stopped for 24 hours or more, or the position can't be trusted:** enters `hold_reconcile`.
+
+| Hold reason | Meaning | Ways out |
+| --- | --- | --- |
+| `stale` | The last feed read was 24 hours or more ago, including a sleeping host or a long Docket outage | `--deliver` or `--skip-to-end` |
+| `batch_past_window` | A message has been waiting 24 hours, usually because Orca was down | `--deliver` or `--skip-to-end` |
+| `state_untrusted` | The stored activity time or feed position can't be believed | `--deliver` if the feed still matches, or `--skip-to-end` |
+| `state_unreadable` | `state.json` can't be parsed. It's kept as `state.json.corrupt-<ms>` | `--skip-to-end` |
+| `cursor_ahead` | The cursor is past the end of the feed | `--skip-to-end` |
+| `feed_reset` | The row at the cursor has changed, so the feed was replaced | `--skip-to-end` |
+
+In a hold the relay **sends nothing and doesn't move its cursor**, and `start` exits with code 3. Nothing leaves the hold automatically. `status` shows the reason, how many events wait on how many tickets, and their time range, with no content.
+
+Stop the relay, then run exactly one of these:
+
+```powershell
+Stop-ScheduledTask -TaskName 'Docket Relay'
+$relay = "$env:LOCALAPPDATA\docket-relay\app\docket-relay.mjs"
+node $relay status
+
+# Queue the backlog, one message per ticket. The next start sends it within the rate limit.
+node $relay reconcile --deliver
+
+# Or skip it. The reason, cursors, counts, time range, ticket ids and kinds are recorded.
+node $relay reconcile --skip-to-end --reason "Owner reviewed the backlog"
+
+Start-ScheduledTask -TaskName 'Docket Relay'
+```
+
+Keep the reason to one line of at most 200 characters, with no ticket text. If Docket can't be read, `reconcile` changes nothing.
 
 ## Install on Windows
 
@@ -56,7 +94,7 @@ Register-ScheduledTask -TaskName 'Docket Relay' -Action $action -Trigger $trigge
 Start-ScheduledTask -TaskName 'Docket Relay'
 ```
 
-Then check it, and prove the Orca path once with a mailbox you own:
+Then check it, and prove the Orca path once with a coordinator mailbox you own:
 
 ```powershell
 node "$env:LOCALAPPDATA\docket-relay\app\docket-relay.mjs" status
@@ -74,8 +112,10 @@ Unregister-ScheduledTask -TaskName 'Docket Relay' -Confirm:$false
 
 ```text
 node docket-relay.mjs start              Run in the foreground; one instance per state folder
-node docket-relay.mjs status [--json]    Last event, last delivery, failures, undelivered
-node docket-relay.mjs test-send <addr>   Send one fixed test message
+node docket-relay.mjs status [--json]    Last event, last delivery, failures, undelivered, any hold
+node docket-relay.mjs reconcile --deliver
+node docket-relay.mjs reconcile --skip-to-end --reason <text>
+node docket-relay.mjs test-send <addr>   Send one fixed test message: run:<id> or orca_session_id:<id>
 ```
 
 | Setting | Default |
@@ -84,8 +124,6 @@ node docket-relay.mjs test-send <addr>   Send one fixed test message
 | `DOCKET_RELAY_HOME` | `%LOCALAPPDATA%\docket-relay` |
 | `DOCKET_RELAY_ORCA` | `orca.exe` on `PATH`, then Orca's install folder. Never `orca.cmd`, which refuses to send. |
 
-`state.json` holds the cursor, what's waiting and what was delivered. It's written atomically. `relay.log` is capped at 256 KB with one rotation. Neither holds ticket text, answers or notes.
+`state.json` holds the cursor, what's waiting, what was delivered and any hold. It's written atomically. `relay.log` is capped at 256 KB with one rotation. Neither holds ticket text, answers or notes; the only free text is an operator's skip reason.
 
-- **First run** starts at the end of the feed, so old history is never replayed.
-- **After downtime** it delivers what it missed from the last 24 hours, once.
 - **Docket needs local trust.** In protected mode the relay has no owner session, so it records the ticket as undelivered with `needs_local_trust`.

@@ -8,11 +8,10 @@ import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { accessSync, constants, statSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
+import { isCoordinatorAddress } from './target.mjs';
 
 const SENDER = 'docket-relay';
 const TIMEOUT_MS = 20_000;
-const LIVE_DISPATCH = new Set(['pending', 'dispatched']);
-const LIVE_WORKER = new Set(['starting', 'start_unknown', 'ready']);
 /** Worth another try: Orca is busy or restarting, or the outcome isn't known. */
 const TRANSIENT = new Set([
   'runtime_unavailable',
@@ -113,7 +112,7 @@ export function createOrca({ exe, env = process.env, timeoutMs = TIMEOUT_MS }) {
     });
 
   return {
-    /** `{ found, live, runId }`. Throws when Orca can't answer. */
+    /** `{ found, runId }`. Throws when Orca can't answer. */
     async showDispatch(id) {
       // `--full`: the default JSON is a concise view with no `dispatch` record.
       const reply = await run([
@@ -126,20 +125,22 @@ export function createOrca({ exe, env = process.env, timeoutMs = TIMEOUT_MS }) {
       ]);
       if (!reply.ok) {
         if (reply.transient) throw Object.assign(new Error(reply.code), { code: reply.code });
-        return { found: false, live: false, runId: null };
+        return { found: false, runId: null };
       }
-      const { dispatch, worker } = reply.result;
-      // A reply we can't read says nothing about the dispatch, so it isn't "closed".
+      const { dispatch } = reply.result;
+      // A reply we can't read says nothing about the dispatch, so it isn't "unknown".
       if (!dispatch) throw Object.assign(new Error('unreadable'), { code: 'unreadable' });
-      const live =
-        LIVE_DISPATCH.has(dispatch.status) &&
-        !dispatch.capabilityRevokedAt &&
-        (!worker || LIVE_WORKER.has(worker.state));
-      return { found: true, live, runId: dispatch.runId ?? null };
+      return { found: true, runId: dispatch.runId ?? null };
     },
 
-    /** `{ ok }`, or `{ ok: false, code, transient }`. */
+    /**
+     * `{ ok }`, or `{ ok: false, code, transient }`. The one place that builds
+     * `--to`: anything but a coordinator address is refused before Orca runs.
+     */
     async send({ to, subject, body, requestId }) {
+      if (!isCoordinatorAddress(to)) {
+        return { ok: false, code: 'address_refused', transient: false };
+      }
       const reply = await run([
         'orchestration',
         'send',

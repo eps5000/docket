@@ -1,14 +1,13 @@
 /**
- * Who to tell (owner decision 46). One small resolver, so an explicit stored
- * session address can later be added as the first rule.
+ * Who to tell (owner decision 46, narrowed by B55b): the coordinator, and only
+ * the coordinator. One small resolver, so a later reviewed change can add a
+ * safe direct address as its first rule.
  *
- * - `orchestrator.dispatch_id`, when Orca confirms that dispatch is still live,
- *   is the implementer. A finished one must not be mailed: Orca would reopen it
- *   as a follow-up task.
- * - The dispatch's Orca Run is its coordinator's mailbox.
- * - `orchestrator.run_id` never proves an implementer. A `run_…` value is an
- *   Orca Run, so a coordinator. An `orca_session_id:…` value may be either, so
- *   it only ever gets the coordinator wording.
+ * - The relay never sends to a dispatch address. Orca can reopen a one-shot
+ *   worker that finished between a liveness check and the send, and a pointer
+ *   can't carry source authority.
+ * - In order: the dispatch's Orca Run (`run:<id>`, read with `worker-show`), a
+ *   stored `run_…` ID, a stored `orca_session_id:…`.
  * - `orchestrator.name` and Docket's `session_id` are not addresses.
  */
 
@@ -16,7 +15,12 @@ const LIVE_RUN_STATES = new Set(['live', 'reported', 'stale', 'needs_input', 'pa
 const DISPATCH_ID = /^ctx_[A-Za-z0-9_-]{1,96}$/;
 const ORCA_RUN_ID = /^run_[A-Za-z0-9_-]{1,96}$/;
 const SESSION_ADDRESS = /^orca_session_id:[A-Za-z0-9_-]{1,84}$/;
+const RUN_ADDRESS = /^run:run_[A-Za-z0-9_-]{1,96}$/;
 const DOCKET_RUN_ID = /^[A-Za-z0-9_-]{1,64}$/;
+
+/** The only addresses the relay may send to. `orca.send` refuses everything else. */
+export const isCoordinatorAddress = (to) =>
+  typeof to === 'string' && (RUN_ADDRESS.test(to) || SESSION_ADDRESS.test(to));
 
 /** The item's lead while it is open, needs input or is parked. */
 export function liveLead(runs) {
@@ -25,30 +29,30 @@ export function liveLead(runs) {
 }
 
 /**
- * `showDispatch(id)` returns `{ found, live, runId }` and throws when Orca
- * can't answer, so the caller retries instead of treating it as closed.
+ * `showDispatch(id)` returns `{ found, runId }` and throws when Orca can't
+ * answer, so the caller retries instead of skipping to a lower rule.
+ * `implementer` is text for the message, never an address.
  */
-export async function resolveTarget(run, showDispatch) {
+export async function resolveCoordinator(run, showDispatch) {
   const stored = run?.orchestrator ?? {};
   const dispatchId = DISPATCH_ID.test(stored.dispatch_id ?? '') ? stored.dispatch_id : null;
-  let implementer = null;
+  const storedId = stored.run_id ?? '';
   let coordinator = null;
 
   if (dispatchId) {
     const dispatch = await showDispatch(dispatchId);
-    if (dispatch?.found && dispatch.live) implementer = `dispatch:${dispatchId}`;
     if (dispatch?.found && ORCA_RUN_ID.test(dispatch.runId ?? '')) {
       coordinator = `run:${dispatch.runId}`;
     }
   }
-  const runId = stored.run_id ?? '';
-  if (!coordinator && ORCA_RUN_ID.test(runId)) coordinator = `run:${runId}`;
-  if (!coordinator && SESSION_ADDRESS.test(runId)) coordinator = runId;
+  if (!coordinator && ORCA_RUN_ID.test(storedId)) coordinator = `run:${storedId}`;
+  if (!coordinator && SESSION_ADDRESS.test(storedId)) coordinator = storedId;
 
-  const name = dispatchId
-    ? `dispatch ${dispatchId}`
-    : DOCKET_RUN_ID.test(run?.run_id ?? '')
-      ? `Docket run ${run.run_id}`
-      : 'its lead run';
-  return { implementer, coordinator, implementerName: name };
+  const names = [];
+  if (DOCKET_RUN_ID.test(run?.run_id ?? '')) names.push(`Docket run ${run.run_id}`);
+  if (dispatchId) names.push(`dispatch ${dispatchId}`);
+  return {
+    coordinator: isCoordinatorAddress(coordinator) ? coordinator : null,
+    implementer: names.length > 0 ? names.join(', ') : 'not recorded',
+  };
 }

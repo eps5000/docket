@@ -19,7 +19,7 @@ import {
 import { createServer, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
@@ -29,16 +29,18 @@ const lib = (name: string) =>
   import(/* @vite-ignore */ pathToFileURL(join(TOOL, 'lib', name)).href);
 
 const { classifyEvent, buildMessage } = await lib('classify.mjs');
-const { liveLead, resolveTarget } = await lib('target.mjs');
+const { isCoordinatorAddress, liveLead, resolveCoordinator } = await lib('target.mjs');
 const { childEnv, createOrca, findOrca, requestIdFor } = await lib('orca.mjs');
 const { createDocket } = await lib('docket.mjs');
 const { acquireLock, openStore } = await lib('store.mjs');
+const { reconcileDeliver, reconcileSkip } = await lib('hold.mjs');
 const { createRelay } = await lib('relay.mjs');
 
 const SECRET = 'PRIVATE-OWNER-TEXT';
 const START = Date.parse('2026-11-23T12:00:00.000Z');
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
 
 /** Runs before Node would load a script, so the copied binary acts as `orca`. */
 const FAKE_ORCA = `
@@ -75,6 +77,11 @@ if (path.basename(process.argv[1] ?? '') === 'orchestration') {
     const count = prior.filter((c) => c.args[0] === 'send' && c.args[c.args.indexOf('--to') + 1] === to).length;
     const code = Array.isArray(fail) ? fail[count] : fail;
     if (code) refuse(code);
+    // Stays in the send until told, so a test can kill the relay here.
+    const until = Date.now() + 30000;
+    while (plan.blockSendUntil && !fs.existsSync(plan.blockSendUntil) && Date.now() < until) {
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 25);
+    }
     reply({ ok: true, result: { message: { id: 'msg_fake' } } }, 0);
   }
   refuse('unknown_command');
@@ -261,9 +268,13 @@ interface Relay {
     batches: Record<string, unknown>;
     undelivered: { item: string; reason: string; kinds: string[] }[];
     counters: Record<string, number>;
-    last_delivery: { role: string; latency_ms: number } | null;
+    last_delivery: { to: string; latency_ms: number } | null;
+    hold: { state: string; reason: string } | null;
+    reconciles: Record<string, unknown>[];
   };
 }
+
+type Json = Record<string, unknown>;
 
 const cleanups: (() => Promise<void> | void)[] = [];
 
@@ -339,6 +350,15 @@ async function started(h: Harness, options?: Record<string, unknown>): Promise<R
   await h.step(relay);
   return relay;
 }
+
+const currentPlan = (h: Harness) =>
+  JSON.parse(readFileSync(h.env.FAKE_ORCA_PLAN!, 'utf8')) as Record<string, unknown>;
+
+const orchestratorWith = (stored: string | null) => ({
+  name: 'producer-x',
+  dispatch_id: 'ctx_live',
+  run_id: stored,
+});
 
 const ANSWER = { type: 'question.answered', summary: `You answered codex: “${SECRET}”` };
 const ACCEPTANCE = { type: 'item.updated', summary: 'You edited the acceptance criteria' };
@@ -437,45 +457,35 @@ describe('which events count', () => {
 });
 
 describe('the message', () => {
-  it('points at the item and names kinds, in the owner-side wording', () => {
+  const implementer = 'Docket run r_lead1, dispatch ctx_a';
+
+  it('names the ticket, the kinds and the implementer, in the coordinator wording', () => {
     expect(
-      buildMessage({ item: 'GF-243', kinds: ['decision', 'acceptance'], role: 'implementer' }),
+      buildMessage({ item: 'GF-243', kinds: ['decision', 'acceptance'], implementer }),
     ).toEqual({
       subject: 'Docket: GF-243 updated',
-      body: 'GF-243 was updated from the owner side in Docket (decision, acceptance). Call get_context GF-243 and get_item GF-243.',
+      body: "GF-243 was updated from the owner side in Docket (decision, acceptance). The implementer, for information only: Docket run r_lead1, dispatch ctx_a. You're told as its coordinator, and this notice carries no owner authority. Decide whether and when to relay it, under your own gates. Don't call get_item GF-243 on the implementer's behalf, because that uses up its one-time delivery.",
     });
   });
 
   it('says a wait cleared without claiming the owner did it', () => {
-    const { subject, body } = buildMessage({
-      item: 'GF-243',
-      kinds: ['resume'],
-      role: 'implementer',
-    });
+    const { subject, body } = buildMessage({ item: 'GF-243', kinds: ['resume'], implementer });
     expect(subject).toBe('Docket: GF-243 can resume');
-    expect(body).toBe(
-      'What GF-243 was waiting for has cleared in Docket. Call get_context GF-243 and get_item GF-243.',
-    );
+    expect(body).toMatch(/^What GF-243 was waiting for has cleared in Docket\. /);
+    expect(body).not.toContain('owner side');
   });
 
-  it('tells a coordinator who to pass it to, and not to read it itself', () => {
-    const { body } = buildMessage({
-      item: 'GF-243',
-      kinds: ['answer'],
-      role: 'coordinator',
-      implementer: 'dispatch ctx_old',
-    });
-    expect(body).toContain('(dispatch ctx_old)');
-    expect(body).toContain('Tell that session to call get_context GF-243 and get_item GF-243.');
-    expect(body).toContain("don't call get_item yourself");
+  it('never tells the coordinator to read it, and never writes an address', () => {
+    const { body } = buildMessage({ item: 'GF-243', kinds: ['answer'], implementer });
+    expect(body).not.toMatch(/call get_context|Tell that session/i);
+    expect(body).toContain("Don't call get_item GF-243");
+    expect(body).not.toContain('dispatch:');
   });
 });
 
-describe('finding the target', () => {
-  const show = (found: Record<string, { live: boolean; runId: string | null }>) => (id: string) =>
-    Promise.resolve(
-      found[id] ? { found: true, ...found[id] } : { found: false, live: false, runId: null },
-    );
+describe('finding the coordinator', () => {
+  const show = (found: Record<string, { runId: string | null }>) => (id: string) =>
+    Promise.resolve(found[id] ? { found: true, ...found[id] } : { found: false, runId: null });
 
   it('picks the live lead only', () => {
     const child = { ...lead(), run_id: 'r_child', is_lead: false };
@@ -489,31 +499,41 @@ describe('finding the target', () => {
     expect(liveLead([child])).toBeNull();
   });
 
-  it('uses a live dispatch, with its Run as the fallback', async () => {
-    const target = await resolveTarget(
-      lead({ dispatch: 'ctx_a', runId: 'orca_session_id:coord' }),
-      show({ ctx_a: { live: true, runId: 'run_home' } }),
+  it('1: the Run of the dispatch, before anything stored', async () => {
+    const target = await resolveCoordinator(
+      lead({ dispatch: 'ctx_a', runId: 'run_stored' }),
+      show({ ctx_a: { runId: 'run_home' } }),
     );
-    expect(target).toMatchObject({ implementer: 'dispatch:ctx_a', coordinator: 'run:run_home' });
+    expect(target).toEqual({
+      coordinator: 'run:run_home',
+      implementer: 'Docket run r_lead1, dispatch ctx_a',
+    });
   });
 
-  it('never treats a closed dispatch as reachable', async () => {
-    const target = await resolveTarget(
-      lead({ dispatch: 'ctx_a' }),
-      show({ ctx_a: { live: false, runId: 'run_home' } }),
-    );
-    expect(target).toMatchObject({ implementer: null, coordinator: 'run:run_home' });
-  });
-
-  it('never presents orchestrator.run_id as the implementer', async () => {
-    for (const runId of ['orca_session_id:abc', 'run_abc']) {
-      const target = await resolveTarget(lead({ runId }), show({}));
-      expect(target.implementer).toBeNull();
-      expect(target.coordinator).toBe(runId.startsWith('run_') ? 'run:run_abc' : runId);
+  it('2: a stored run ID when the dispatch is unknown or has no Run', async () => {
+    const replies: Record<string, { runId: string | null }>[] = [
+      {},
+      { ctx_a: { runId: null } },
+      { ctx_a: { runId: 'not-a-run' } },
+    ];
+    for (const found of replies) {
+      const target = await resolveCoordinator(
+        lead({ dispatch: 'ctx_a', runId: 'run_stored' }),
+        show(found),
+      );
+      expect(target.coordinator).toBe('run:run_stored');
     }
   });
 
-  it('ignores a bare UUID, a name, and anything that could be an option', async () => {
+  it('3: a stored session address last', async () => {
+    const target = await resolveCoordinator(lead({ runId: 'orca_session_id:abc-1' }), show({}));
+    expect(target).toEqual({
+      coordinator: 'orca_session_id:abc-1',
+      implementer: 'Docket run r_lead1',
+    });
+  });
+
+  it('finds nobody from a bare UUID, a name, or anything that could be an option', async () => {
     for (const run of [
       lead({ runId: '4f22790a-dd53-4c2b-bf0e-fa9bceb755b8' }),
       lead({ runId: '--to=dispatch:evil' }),
@@ -521,24 +541,114 @@ describe('finding the target', () => {
       lead({ dispatch: 'ctx_a b' }),
       { ...lead(), orchestrator: { name: 'orca', dispatch_id: null, run_id: null } },
     ]) {
-      expect(await resolveTarget(run, show({}))).toMatchObject({
-        implementer: null,
-        coordinator: null,
-      });
+      expect((await resolveCoordinator(run, show({}))).coordinator).toBeNull();
     }
   });
 
-  it('passes on an Orca failure instead of calling the dispatch closed', async () => {
+  it('passes on an Orca failure instead of skipping to a lower rule', async () => {
     await expect(
-      resolveTarget(lead({ dispatch: 'ctx_a' }), () =>
+      resolveCoordinator(lead({ dispatch: 'ctx_a', runId: 'run_stored' }), () =>
         Promise.reject(new Error('runtime_unavailable')),
       ),
     ).rejects.toThrow('runtime_unavailable');
   });
+
+  it('accepts only coordinator addresses', () => {
+    for (const good of ['run:run_a-1', 'orca_session_id:abc_1']) {
+      expect(isCoordinatorAddress(good)).toBe(true);
+    }
+    for (const bad of [
+      'dispatch:ctx_a',
+      'DISPATCH:ctx_a',
+      ' dispatch:ctx_a',
+      'run:dispatch:ctx_a',
+      'orca_session_id:dispatch:ctx_a',
+      'run:run_a\ndispatch:ctx_a',
+      'run_a',
+      '--to=run:run_a',
+      '',
+      null,
+      undefined,
+    ]) {
+      expect(isCoordinatorAddress(bad)).toBe(false);
+    }
+  });
+});
+
+describe('no code path can send to a dispatch', () => {
+  const toolFiles = () => [
+    join(TOOL, 'docket-relay.mjs'),
+    ...readdirSync(join(TOOL, 'lib')).map((name) => join(TOOL, 'lib', name)),
+  ];
+
+  it('the real send refuses a dispatch before Orca runs', async () => {
+    const h = await harness();
+    const orca = createOrca({ exe: fakeExe, env: h.env });
+    for (const to of ['dispatch:ctx_live', 'DISPATCH:ctx_live', 'run:dispatch:ctx_live']) {
+      expect(
+        await orca.send({ to, subject: 's', body: 'b', requestId: requestIdFor('x') }),
+      ).toEqual({ ok: false, code: 'address_refused', transient: false });
+    }
+    expect(h.calls()).toEqual([]);
+  });
+
+  it('builds --to in one place and never spells a dispatch address', () => {
+    const uses = toolFiles().flatMap((file) =>
+      (readFileSync(file, 'utf8').match(/'--to'/g) ?? []).map(() => file),
+    );
+    expect(uses).toEqual([join(TOOL, 'lib', 'orca.mjs')]);
+    for (const file of toolFiles().filter((path) => path.includes(`${sep}lib${sep}`))) {
+      expect(readFileSync(file, 'utf8')).not.toMatch(/[`'"]dispatch:/);
+    }
+  });
+
+  const DISPATCHES = [
+    ['live', { status: 'dispatched', runId: 'run_coord', workerState: 'ready' }],
+    ['finished', { status: 'completed', runId: 'run_coord', workerState: 'succeeded' }],
+    ['failed', { status: 'failed', runId: 'run_coord', workerState: 'failed' }],
+    ['broken', { status: 'circuit_broken', runId: 'run_coord', workerState: null }],
+    ['released', { status: 'dispatched', runId: 'run_coord', workerState: 'stopped' }],
+    ['no Run', { status: 'dispatched', runId: null, workerState: 'ready' }],
+    ['a hostile Run', { status: 'dispatched', runId: 'dispatch:ctx_live', workerState: 'ready' }],
+    ['unknown', null],
+  ] as const;
+  const STORED = [
+    null,
+    'run_stored',
+    'orca_session_id:stored-1',
+    'dispatch:ctx_live',
+    'ctx_live',
+    'run:dispatch:ctx_live',
+  ];
+
+  it.each(DISPATCHES)(
+    'a %s dispatch, with every stored fallback',
+    async (_name, dispatch) => {
+      const h = await harness();
+      h.plan({ dispatches: dispatch ? { ctx_live: dispatch } : {} });
+      for (const [index, stored] of STORED.entries()) {
+        const item = `GF-${index + 1}`;
+        h.docket.runs.set(item, [
+          { ...lead({ dispatch: 'ctx_live' }), orchestrator: orchestratorWith(stored) },
+        ]);
+      }
+      const relay = await started(h, { rateLimit: 1000 });
+      for (const index of STORED.keys()) {
+        h.docket.push({ ...ANSWER, item_id: `GF-${index + 1}` }, h.clock.t);
+      }
+      await h.step(relay);
+      for (const send of h.sends()) expect(send.to).toMatch(/^(run:run_|orca_session_id:)/);
+      expect(JSON.stringify(h.calls().filter((c) => c.args[0] === 'send'))).not.toContain(
+        '"--to","dispatch:',
+      );
+      expect(relay.state.batches).toEqual({});
+    },
+    30_000,
+  );
 });
 
 describe('delivery', () => {
-  it('sends an answer at once, as a pointer through the exact command', async () => {
+  it('sends an answer at once to the coordinator, through the exact command', async () => {
     const h = await harness();
     const relay = await started(h);
     h.docket.push(ANSWER, h.clock.t);
@@ -546,21 +656,20 @@ describe('delivery', () => {
 
     const [send, ...rest] = h.sends();
     expect(rest).toEqual([]);
-    expect(send!.to).toBe('dispatch:ctx_live');
-    expect(send!.body).toBe(
-      'GF-243 was updated from the owner side in Docket (answer). Call get_context GF-243 and get_item GF-243.',
-    );
+    expect(send!.to).toBe('run:run_coord');
+    expect(send!.body).toContain('GF-243 was updated from the owner side in Docket (answer).');
+    expect(send!.body).toContain('Docket run r_lead1, dispatch ctx_live');
     expect(send!.args.slice(0, 8)).toEqual([
       'send',
       '--to',
-      'dispatch:ctx_live',
+      'run:run_coord',
       '--from',
       'docket-relay',
       '--type',
       'status',
       '--subject',
     ]);
-    expect(relay.state.last_delivery?.role).toBe('implementer');
+    expect(relay.state.last_delivery?.to).toBe('run:run_coord');
   });
 
   it('never puts private text in a message, the state or the log', async () => {
@@ -724,44 +833,21 @@ describe('delivery', () => {
 });
 
 describe('fallbacks', () => {
-  it('goes to the coordinator for a closed dispatch, without mailing the dispatch', async () => {
-    const h = await harness();
-    h.plan({
-      dispatches: {
-        ctx_live: { status: 'completed', runId: 'run_coord', workerState: 'succeeded' },
-      },
-    });
-    const relay = await started(h);
-    h.docket.push(ANSWER, h.clock.t);
-    await h.step(relay);
-    expect(h.sends().map((send) => send.to)).toEqual(['run:run_coord']);
-    expect(h.sends()[0]!.body).toContain('(dispatch ctx_live)');
-    expect(relay.state.counters.via_coordinator).toBe(1);
-  });
-
   it.each([
+    ['completed', 'succeeded'],
     ['failed', 'failed'],
     ['circuit_broken', null],
-  ])('treats a %s dispatch as closed', async (status, workerState) => {
+    ['dispatched', 'stopped'],
+    ['dispatched', 'ready'],
+  ])('a %s dispatch (worker %s) still goes to its Run', async (status, workerState) => {
     const h = await harness();
     h.plan({ dispatches: { ctx_live: { status, runId: 'run_coord', workerState } } });
     const relay = await started(h);
     h.docket.push(ANSWER, h.clock.t);
     await h.step(relay);
     expect(h.sends().map((send) => send.to)).toEqual(['run:run_coord']);
-  });
-
-  it('treats a released worker as closed', async () => {
-    const h = await harness();
-    h.plan({
-      dispatches: {
-        ctx_live: { status: 'dispatched', runId: 'run_coord', workerState: 'stopped' },
-      },
-    });
-    const relay = await started(h);
-    h.docket.push(ANSWER, h.clock.t);
-    await h.step(relay);
-    expect(h.sends().map((send) => send.to)).toEqual(['run:run_coord']);
+    expect(h.sends()[0]!.body).toContain('Docket run r_lead1, dispatch ctx_live');
+    expect(relay.state.last_delivery?.to).toBe('run:run_coord');
   });
 
   it('uses the stored Run when the dispatch is unknown', async () => {
@@ -773,7 +859,7 @@ describe('fallbacks', () => {
     expect(h.sends().map((send) => send.to)).toEqual(['run:run_stored']);
   });
 
-  it('gives a session address the coordinator wording', async () => {
+  it('uses a stored session address last, in the same wording', async () => {
     const h = await harness();
     h.docket.runs.set('GF-243', [lead({ runId: 'orca_session_id:abc-1' })]);
     const relay = await started(h);
@@ -781,49 +867,43 @@ describe('fallbacks', () => {
     await h.step(relay);
     const [send] = h.sends();
     expect(send!.to).toBe('orca_session_id:abc-1');
-    expect(send!.body).toContain('(Docket run r_lead1)');
-    expect(send!.body).toContain("don't call get_item yourself");
+    expect(send!.body).toContain('for information only: Docket run r_lead1.');
+    expect(send!.body).toContain("Don't call get_item GF-243");
   });
 
-  it('retries a few times, then tells the coordinator', async () => {
+  it('retries with one request ID, then holds it while Orca is busy', async () => {
     const h = await harness();
     h.plan({
       dispatches: { ctx_live: { status: 'dispatched', runId: 'run_coord', workerState: 'ready' } },
-      fail: { 'dispatch:ctx_live': 'runtime_unavailable' },
+      fail: { 'run:run_coord': 'runtime_unavailable' },
     });
     const relay = await started(h);
     h.docket.push(ANSWER, h.clock.t);
     await h.step(relay);
     expect(h.sends().map((send) => send.to)).toEqual([
-      'dispatch:ctx_live',
-      'dispatch:ctx_live',
-      'dispatch:ctx_live',
+      'run:run_coord',
+      'run:run_coord',
       'run:run_coord',
     ]);
-    expect(
-      new Set(
-        h
-          .sends()
-          .slice(0, 3)
-          .map((send) => send.requestId),
-      ).size,
-    ).toBe(1);
-    expect(relay.state.last_delivery?.role).toBe('coordinator');
+    expect(new Set(h.sends().map((send) => send.requestId)).size).toBe(1);
+    expect(Object.keys(relay.state.batches)).toEqual(['GF-243']);
   });
 
-  it('does not retry a refusal', async () => {
+  it('does not retry a refusal, and records it', async () => {
     const h = await harness();
     h.plan({
       dispatches: { ctx_live: { status: 'dispatched', runId: 'run_coord', workerState: 'ready' } },
-      fail: { 'dispatch:ctx_live': 'dispatch_inactive' },
+      fail: { 'run:run_coord': 'run_not_found' },
     });
     const relay = await started(h);
     h.docket.push(ANSWER, h.clock.t);
     await h.step(relay);
-    expect(h.sends().map((send) => send.to)).toEqual(['dispatch:ctx_live', 'run:run_coord']);
+    expect(h.sends()).toHaveLength(1);
+    expect(relay.state.undelivered).toMatchObject([{ reason: 'send_failed' }]);
+    expect(relay.state.batches).toEqual({});
   });
 
-  it('records undelivered when there is nobody to tell', async () => {
+  it('records undelivered when there is no coordinator', async () => {
     const h = await harness();
     h.docket.runs.set('GF-243', [lead()]);
     const relay = await started(h);
@@ -835,26 +915,20 @@ describe('fallbacks', () => {
     ]);
   });
 
-  it('records undelivered when every address refuses', async () => {
+  it('records undelivered for an unknown dispatch with nothing stored', async () => {
     const h = await harness();
-    h.plan({
-      dispatches: { ctx_live: { status: 'dispatched', runId: 'run_coord', workerState: 'ready' } },
-      fail: { 'dispatch:ctx_live': 'dispatch_inactive', 'run:run_coord': 'run_not_found' },
-    });
+    h.docket.runs.set('GF-243', [lead({ dispatch: 'ctx_gone' })]);
     const relay = await started(h);
     h.docket.push(ANSWER, h.clock.t);
     await h.step(relay);
-    expect(relay.state.undelivered).toMatchObject([{ reason: 'send_failed' }]);
-    expect(relay.state.batches).toEqual({});
+    expect(h.sends()).toHaveLength(0);
+    expect(relay.state.undelivered).toMatchObject([{ reason: 'no_target' }]);
   });
 
   it('holds a message while Orca is down and sends it when Orca is back', async () => {
     const h = await harness();
     const relay = await started(h);
-    const working = JSON.parse(readFileSync(h.env.FAKE_ORCA_PLAN!, 'utf8')) as Record<
-      string,
-      unknown
-    >;
+    const working = currentPlan(h);
     h.plan({ ...working, down: true });
     h.docket.push(ANSWER, h.clock.t);
     await h.step(relay);
@@ -869,13 +943,11 @@ describe('fallbacks', () => {
     expect(h.sends()).toHaveLength(1);
   });
 
-  it('holds a message when it cannot read Orca, rather than calling the dispatch closed', async () => {
+  it('holds a message when it cannot read Orca, rather than skip to a lower rule', async () => {
     const h = await harness();
+    h.docket.runs.set('GF-243', [lead({ dispatch: 'ctx_live', runId: 'run_stored' })]);
     const relay = await started(h);
-    const working = JSON.parse(readFileSync(h.env.FAKE_ORCA_PLAN!, 'utf8')) as Record<
-      string,
-      unknown
-    >;
+    const working = currentPlan(h);
     h.plan({ ...working, conciseOnly: true });
     h.docket.push(ANSWER, h.clock.t);
     await h.step(relay);
@@ -884,23 +956,423 @@ describe('fallbacks', () => {
     h.plan(working);
     h.clock.t += 5_000;
     await h.step(relay);
-    expect(h.sends().map((send) => send.to)).toEqual(['dispatch:ctx_live']);
+    expect(h.sends().map((send) => send.to)).toEqual(['run:run_coord']);
+  });
+});
+
+describe('hold_reconcile', () => {
+  /** A relay that read the feed at START, then stopped. */
+  const stopped = async (h: Harness) => {
+    await started(h);
+    return readFileSync(join(h.home, 'state.json'), 'utf8');
+  };
+  const saved = (h: Harness) =>
+    JSON.parse(readFileSync(join(h.home, 'state.json'), 'utf8')) as Relay['state'];
+  const reconcileArgs = (h: Harness) => ({
+    store: openStore(h.home),
+    docket: createDocket({ baseUrl: h.docket.url }),
+    log: () => {},
+    now: () => h.clock.t,
   });
 
-  it('gives up on a held message after the 24-hour window', async () => {
+  it('does not hold just under 24 hours, and catches up', async () => {
+    const h = await harness();
+    await stopped(h);
+    h.clock.t += DAY - 1;
+    h.docket.push(ANSWER, h.clock.t - HOUR);
+    const relay = h.make();
+    await h.step(relay);
+    expect(relay.state.hold).toBeNull();
+    expect(h.sends()).toHaveLength(1);
+  });
+
+  it.each([
+    ['exactly 24 hours', DAY],
+    ['over 24 hours', DAY + 1],
+    ['many days', 30 * DAY],
+  ])('holds after %s, sending nothing and keeping the cursor', async (_name, gap) => {
+    const h = await harness();
+    await stopped(h);
+    h.docket.push(ANSWER, h.clock.t + HOUR);
+    h.docket.push(NOTE, h.clock.t + gap - MINUTE);
+    h.clock.t += gap;
+    const before = saved(h).cursor;
+    const reads = h.docket.itemReads;
+    const relay = h.make();
+    await h.step(relay);
+    h.clock.t += HOUR;
+    await h.step(relay);
+    expect(relay.state.hold).toMatchObject({ state: 'hold_reconcile', reason: 'stale' });
+    expect(relay.state.cursor).toBe(before);
+    expect(saved(h).cursor).toBe(before);
+    expect(h.sends()).toHaveLength(0);
+    expect(h.docket.itemReads).toBe(reads);
+    expect(relay.state.batches).toEqual({});
+  });
+
+  it('holds when the host sleeps through a running relay', async () => {
     const h = await harness();
     const relay = await started(h);
-    const working = JSON.parse(readFileSync(h.env.FAKE_ORCA_PLAN!, 'utf8')) as Record<
-      string,
-      unknown
-    >;
+    h.docket.push(ANSWER, h.clock.t);
+    h.clock.t += DAY;
+    await h.step(relay);
+    expect(relay.state.hold?.reason).toBe('stale');
+    expect(relay.state.cursor).toBe('0');
+    expect(h.sends()).toHaveLength(0);
+  });
+
+  it('nothing leaves the hold on its own', async () => {
+    const h = await harness();
+    await stopped(h);
+    h.clock.t += DAY;
+    for (let i = 0; i < 3; i += 1) {
+      h.docket.push(ANSWER, h.clock.t);
+      const relay = h.make();
+      await h.step(relay);
+      h.clock.t += HOUR;
+      expect(relay.state.hold?.reason).toBe('stale');
+    }
+    expect(saved(h).cursor).toBe('0');
+    expect(h.sends()).toHaveLength(0);
+  });
+
+  it('a corrupt state file holds and is kept, and a restart stays in the hold', async () => {
+    const h = await harness();
+    mkdirSync(h.home, { recursive: true });
+    writeFileSync(join(h.home, 'state.json'), '{not json');
+    h.docket.push(ANSWER, h.clock.t);
+    const relay = h.make();
+    await h.step(relay);
+    expect(relay.state.hold?.reason).toBe('state_unreadable');
+    expect(relay.state.cursor).toBeNull();
+    expect(h.sends()).toHaveLength(0);
+    const kept = readdirSync(h.home).filter((name) => name.startsWith('state.json.corrupt-'));
+    expect(kept).toHaveLength(1);
+    expect(readFileSync(join(h.home, kept[0]!), 'utf8')).toBe('{not json');
+
+    const again = h.make();
+    await h.step(again);
+    expect(again.state.hold?.reason).toBe('state_unreadable');
+    expect(again.state.cursor).toBeNull();
+  });
+
+  it.each<[string, (s: Json) => Json]>([
+    ['another version', (s: Json) => ({ ...s, version: 99 })],
+    ['a bad cursor', (s: Json) => ({ ...s, cursor: 12 })],
+    ['a bad batch', (s: Json) => ({ ...s, batches: { 'GF-1': { events: 'x' } } })],
+    ['no seen map', (s: Json) => ({ ...s, seen: [] })],
+  ])('a state with %s holds', async (_name, change) => {
+    const h = await harness();
+    await stopped(h);
+    writeFileSync(join(h.home, 'state.json'), JSON.stringify(change(saved(h) as Json)));
+    const relay = h.make();
+    await h.step(relay);
+    expect(relay.state.hold?.reason).toBe('state_unreadable');
+    expect(h.sends()).toHaveLength(0);
+  });
+
+  it.each<[string, (s: Json) => Json]>([
+    ['no activity time', (s: Json) => ({ ...s, active_at: null })],
+    ['an activity time in the future', (s: Json) => ({ ...s, active_at: START + HOUR })],
+    ['a cursor with no anchor', (s: Json) => ({ ...s, cursor: '5', anchor: null })],
+  ])('a state with %s is untrusted', async (_name, change) => {
+    const h = await harness();
+    await stopped(h);
+    writeFileSync(join(h.home, 'state.json'), JSON.stringify(change(saved(h) as Json)));
+    const before = saved(h).cursor;
+    h.docket.push(ANSWER, h.clock.t);
+    const relay = h.make();
+    await h.step(relay);
+    expect(relay.state.hold?.reason).toBe('state_untrusted');
+    expect(relay.state.cursor).toBe(before);
+    expect(h.sends()).toHaveLength(0);
+  });
+
+  it('a cursor ahead of the feed holds at start', async () => {
+    const h = await harness();
+    h.docket.push(NOTE, h.clock.t);
+    h.docket.push(NOTE, h.clock.t);
+    await started(h);
+    h.docket.rows = h.docket.rows.slice(0, 1);
+    const relay = h.make();
+    await h.step(relay);
+    expect(relay.state.hold?.reason).toBe('cursor_ahead');
+    expect(relay.state.cursor).toBe('2');
+    expect(h.sends()).toHaveLength(0);
+  });
+
+  it('a feed that shrinks under a running relay holds', async () => {
+    const h = await harness();
+    const relay = await started(h);
+    h.docket.push(NOTE, h.clock.t);
+    h.docket.push(NOTE, h.clock.t);
+    await h.step(relay);
+    h.docket.rows = [];
+    await h.step(relay);
+    expect(relay.state.hold?.reason).toBe('cursor_ahead');
+    expect(relay.state.cursor).toBe('2');
+  });
+
+  it('a replaced feed that has grown past the cursor holds as a reset', async () => {
+    const h = await harness();
+    h.docket.push(NOTE, h.clock.t - HOUR);
+    h.docket.push(NOTE, h.clock.t - HOUR);
+    await started(h);
+    h.docket.rows = [];
+    h.docket.push(ANSWER, h.clock.t - MINUTE);
+    h.docket.push(ANSWER, h.clock.t - 30_000);
+    h.docket.push(ANSWER, h.clock.t);
+    const relay = h.make();
+    await h.step(relay);
+    expect(relay.state.hold?.reason).toBe('feed_reset');
+    expect(relay.state.cursor).toBe('2');
+    expect(h.sends()).toHaveLength(0);
+  });
+
+  it('a batch past the window holds, is kept, and is never expired', async () => {
+    const h = await harness();
+    const relay = await started(h);
+    const working = currentPlan(h);
     h.plan({ ...working, down: true });
     h.docket.push(ANSWER, h.clock.t);
     await h.step(relay);
-    h.clock.t += 24 * HOUR;
+    for (let i = 1; i < 24; i += 1) {
+      h.clock.t += HOUR;
+      await h.step(relay);
+    }
+    expect(relay.state.hold).toBeNull();
+    h.clock.t += HOUR;
     await h.step(relay);
-    expect(relay.state.undelivered).toMatchObject([{ reason: 'orca_unavailable_expired' }]);
-    expect(relay.state.batches).toEqual({});
+    expect(relay.state.hold?.reason).toBe('batch_past_window');
+    expect(Object.keys(relay.state.batches)).toEqual(['GF-243']);
+    expect(relay.state.undelivered).toEqual([]);
+    expect(saved(h).hold).toMatchObject({ reason: 'batch_past_window' });
+  });
+
+  it('--deliver queues the backlog per ticket and the next start sends it once', async () => {
+    const h = await harness();
+    h.docket.runs.set('GF-9', [lead({ dispatch: 'ctx_live' })]);
+    await stopped(h);
+    h.docket.push(ACCEPTANCE, h.clock.t + HOUR);
+    h.docket.push(NOTE, h.clock.t + 2 * HOUR);
+    h.docket.push(ANSWER, h.clock.t + 3 * HOUR);
+    h.docket.push({ ...NOTE, item_id: 'GF-9' }, h.clock.t + 4 * HOUR);
+    h.docket.push({ type: 'plan.updated', actor: 'codex' }, h.clock.t + 5 * HOUR);
+    h.clock.t += 2 * DAY;
+    await h.step(h.make());
+    expect(h.sends()).toHaveLength(0);
+
+    const result = await reconcileDeliver(reconcileArgs(h));
+    expect(result).toMatchObject({ ok: true, events: 4, tickets: 2 });
+    expect(h.sends()).toHaveLength(0);
+    expect(saved(h)).toMatchObject({ hold: null, cursor: '5' });
+    expect(saved(h).reconciles.at(-1)).toMatchObject({
+      action: 'deliver',
+      hold_reason: 'stale',
+      from_cursor: '0',
+      to_cursor: '5',
+      events: 4,
+    });
+    expect(h.files()).not.toContain(SECRET);
+
+    const relay = h.make();
+    await h.step(relay);
+    expect(h.sends().map((send) => send.subject)).toEqual(['Docket: GF-243 updated']);
+    expect(h.sends()[0]!.body).toContain('(answer, note, acceptance)');
+    h.clock.t += MINUTE;
+    await h.step(relay);
+    expect(
+      h
+        .sends()
+        .map((send) => send.subject)
+        .sort(),
+    ).toEqual(['Docket: GF-243 updated', 'Docket: GF-9 updated']);
+    h.clock.t += HOUR;
+    await h.step(relay);
+    expect(h.sends()).toHaveLength(2);
+  });
+
+  it('--deliver keeps to the rate limit', async () => {
+    const h = await harness();
+    for (let i = 1; i <= 3; i += 1) h.docket.runs.set(`GF-${i}`, [lead({ dispatch: 'ctx_live' })]);
+    await stopped(h);
+    for (let i = 1; i <= 3; i += 1) h.docket.push({ ...ANSWER, item_id: `GF-${i}` }, h.clock.t);
+    h.clock.t += DAY;
+    await h.step(h.make());
+    await reconcileDeliver(reconcileArgs(h));
+    const relay = h.make({ rateLimit: 2 });
+    await h.step(relay);
+    expect(h.sends()).toHaveLength(2);
+    expect(Object.keys(relay.state.batches)).toHaveLength(1);
+    h.clock.t += 10 * MINUTE;
+    await h.step(relay);
+    expect(h.sends()).toHaveLength(3);
+  });
+
+  it('--deliver re-queues a batch past the window', async () => {
+    const h = await harness();
+    const relay = await started(h);
+    const working = currentPlan(h);
+    h.plan({ ...working, down: true });
+    h.docket.push(ANSWER, h.clock.t);
+    await h.step(relay);
+    h.clock.t += DAY - HOUR;
+    await h.step(relay);
+    h.clock.t += HOUR;
+    await h.step(relay);
+    expect(relay.state.hold?.reason).toBe('batch_past_window');
+    h.plan(working);
+    expect(await reconcileDeliver(reconcileArgs(h))).toMatchObject({ ok: true, events: 1 });
+    await h.step(h.make());
+    expect(h.sends()).toHaveLength(1);
+  });
+
+  it.each<[string, (h: Harness) => void]>([
+    ['cursor_ahead', (h: Harness) => void (h.docket.rows = h.docket.rows.slice(0, 1))],
+    [
+      'feed_reset',
+      (h: Harness) => {
+        h.docket.rows = [];
+        h.docket.push(NOTE, h.clock.t - 5);
+        h.docket.push(NOTE, h.clock.t - 4);
+      },
+    ],
+  ])('--deliver refuses after %s, and --skip-to-end leaves it', async (reason, breakFeed) => {
+    const h = await harness();
+    h.docket.push(NOTE, h.clock.t - HOUR);
+    h.docket.push(NOTE, h.clock.t - HOUR);
+    await started(h);
+    breakFeed(h);
+    await h.step(h.make());
+    expect(saved(h).hold?.reason).toBe(reason);
+
+    expect(await reconcileDeliver(reconcileArgs(h))).toMatchObject({
+      ok: false,
+      code: 'needs_skip',
+    });
+    expect(saved(h).hold?.reason).toBe(reason);
+    expect(saved(h).cursor).toBe('2');
+
+    expect(await reconcileSkip({ ...reconcileArgs(h), reason: 'Feed restored' })).toMatchObject({
+      ok: true,
+      backlog_known: false,
+    });
+    expect(saved(h).hold).toBeNull();
+    expect(saved(h).cursor).toBe(String(h.docket.rows.length));
+    expect(h.sends()).toHaveLength(0);
+  });
+
+  it('--skip-to-end records what it skipped, in the state and the log', async () => {
+    const h = await harness();
+    const lines: [string, Record<string, unknown>][] = [];
+    h.docket.runs.set('GF-9', [lead({ dispatch: 'ctx_live' })]);
+    await stopped(h);
+    const firstAt = h.clock.t + HOUR;
+    const lastAt = h.clock.t + 2 * HOUR;
+    h.docket.push(ANSWER, firstAt);
+    h.docket.push({ ...NOTE, item_id: 'GF-9' }, lastAt);
+    h.clock.t += DAY;
+    await h.step(h.make());
+
+    const result = await reconcileSkip({
+      ...reconcileArgs(h),
+      log: (event: string, fields: Record<string, unknown>) => lines.push([event, fields]),
+      reason: 'Owner reviewed the backlog',
+    });
+    expect(result).toMatchObject({ ok: true, events: 2, tickets: 2, backlog_known: true });
+    const state = saved(h);
+    expect(state).toMatchObject({ hold: null, cursor: '2', batches: {} });
+    expect(state.counters.skipped).toBe(2);
+    expect(state.reconciles.at(-1)).toMatchObject({
+      action: 'skip',
+      reason: 'Owner reviewed the backlog',
+      hold_reason: 'stale',
+      from_cursor: '0',
+      to_cursor: '2',
+      events: 2,
+      tickets: 2,
+      first_at: new Date(firstAt).toISOString(),
+      last_at: new Date(lastAt).toISOString(),
+      items: [
+        { item: 'GF-243', kinds: ['answer'] },
+        { item: 'GF-9', kinds: ['note'] },
+      ],
+    });
+    expect(lines[0]![0]).toBe('reconcile_skip');
+    expect(lines[0]![1]).toMatchObject({ reason: 'Owner reviewed the backlog', events: 2 });
+    expect(JSON.stringify(lines)).not.toContain(SECRET);
+    expect(h.files()).not.toContain(SECRET);
+
+    const relay = h.make();
+    await h.step(relay);
+    h.clock.t += HOUR;
+    await h.step(relay);
+    expect(h.sends()).toHaveLength(0);
+    h.docket.push(ANSWER, h.clock.t);
+    await h.step(relay);
+    expect(h.sends()).toHaveLength(1);
+  });
+
+  it('--skip-to-end records a held batch', async () => {
+    const h = await harness();
+    const relay = await started(h);
+    h.plan({ ...currentPlan(h), down: true });
+    h.docket.push(ANSWER, h.clock.t);
+    await h.step(relay);
+    h.clock.t += DAY - HOUR;
+    await h.step(relay);
+    h.clock.t += HOUR;
+    await h.step(relay);
+    expect(await reconcileSkip({ ...reconcileArgs(h), reason: 'Orca was replaced' })).toMatchObject(
+      { ok: true, events: 1, tickets: 1 },
+    );
+    expect(saved(h).batches).toEqual({});
+    expect(saved(h).reconciles.at(-1)).toMatchObject({
+      hold_reason: 'batch_past_window',
+      items: [{ item: 'GF-243', kinds: ['answer'] }],
+    });
+  });
+
+  it.each(['', '   ', 'two\nlines', 'x'.repeat(201), undefined])(
+    '--skip-to-end needs a one-line reason (%j)',
+    async (reason) => {
+      const h = await harness();
+      await stopped(h);
+      h.clock.t += DAY;
+      await h.step(h.make());
+      expect(await reconcileSkip({ ...reconcileArgs(h), reason })).toEqual({
+        ok: false,
+        code: 'reason_required',
+      });
+      expect(saved(h).hold?.reason).toBe('stale');
+    },
+  );
+
+  it('reconcile needs a hold', async () => {
+    const h = await harness();
+    await stopped(h);
+    expect(await reconcileDeliver(reconcileArgs(h))).toEqual({ ok: false, code: 'not_in_hold' });
+    expect(await reconcileSkip({ ...reconcileArgs(h), reason: 'x' })).toEqual({
+      ok: false,
+      code: 'not_in_hold',
+    });
+  });
+
+  it('a failed read leaves the hold and the cursor as they were', async () => {
+    const h = await harness();
+    await stopped(h);
+    h.docket.push(ANSWER, h.clock.t);
+    h.clock.t += DAY;
+    await h.step(h.make());
+    const before = readFileSync(join(h.home, 'state.json'), 'utf8');
+    await h.docket.stop();
+    await expect(reconcileDeliver(reconcileArgs(h))).rejects.toMatchObject({
+      code: 'unreachable',
+    });
+    await expect(
+      reconcileSkip({ ...reconcileArgs(h), reason: 'Docket is down' }),
+    ).rejects.toMatchObject({ code: 'unreachable' });
+    expect(readFileSync(join(h.home, 'state.json'), 'utf8')).toBe(before);
   });
 });
 
@@ -953,25 +1425,131 @@ describe('reliability', () => {
     await h.step(first);
     writeFileSync(join(h.home, 'state.json'), before);
     const second = h.make();
-    await second.flushDue();
+    await h.step(second);
     const sends = h.sends();
     expect(sends).toHaveLength(2);
     // Orca replays a repeated request ID instead of delivering it again.
     expect(sends[1]!.requestId).toBe(sends[0]!.requestId);
   });
 
-  it('catches up after downtime, within 24 hours only', async () => {
+  it('a message cut off mid-send is repeated exactly, even with new events', async () => {
     const h = await harness();
-    h.docket.runs.set('GF-9', [lead({ dispatch: 'ctx_live' })]);
     const first = await started(h);
-    h.clock.t += 30 * HOUR;
-    h.docket.push({ ...ANSWER, item_id: 'GF-9' }, h.clock.t - 25 * HOUR);
-    h.docket.push(ANSWER, h.clock.t - 23 * HOUR);
+    h.docket.push(ANSWER, h.clock.t);
+    await h.step(first);
+    const [original] = h.sends();
+
+    // The state as a hard kill leaves it: the message recorded, the outcome unknown.
+    const state = JSON.parse(readFileSync(join(h.home, 'state.json'), 'utf8')) as Json;
+    const key = `1:${h.docket.rows[0]!.at}`;
+    state.batches = {
+      'GF-243': {
+        id: 'b1',
+        item_id: 'GF-243',
+        events: [
+          {
+            key,
+            cursor: '1',
+            kinds: ['answer'],
+            immediate: true,
+            expect: 'owner',
+            event_ms: h.clock.t,
+          },
+        ],
+        first_at: h.clock.t,
+        last_at: h.clock.t,
+        next_attempt_at: 0,
+        defers: 0,
+        sending: {
+          to: original!.to,
+          subject: original!.subject,
+          body: original!.body,
+          kinds: ['answer'],
+          keys: [key],
+          newest_ms: h.clock.t,
+          request_id: original!.requestId,
+        },
+      },
+    };
+    writeFileSync(join(h.home, 'state.json'), JSON.stringify(state));
+    h.docket.push(NOTE, h.clock.t);
+
     const second = h.make();
     await h.step(second);
-    expect(h.sends().map((send) => send.subject)).toEqual(['Docket: GF-243 updated']);
-    expect(second.state.counters.expired).toBe(1);
+    expect(h.sends()).toHaveLength(2);
+    expect(h.sends()[1]).toMatchObject({
+      to: original!.to,
+      body: original!.body,
+      requestId: original!.requestId,
+    });
+    // The note goes separately, once the ticket is quiet.
+    h.clock.t += MINUTE;
+    await h.step(second);
+    expect(h.sends()).toHaveLength(3);
+    expect(h.sends()[2]!.body).toContain('(note)');
+    expect(h.sends()[2]!.requestId).not.toBe(original!.requestId);
+    expect(second.state.batches).toEqual({});
+  });
+
+  it('a restart inside the window catches up once, per ticket, within the rate limit', async () => {
+    const h = await harness();
+    for (let i = 1; i <= 3; i += 1) h.docket.runs.set(`GF-${i}`, [lead({ dispatch: 'ctx_live' })]);
+    const first = await started(h);
+    h.docket.push({ ...ACCEPTANCE, item_id: 'GF-1' }, h.clock.t);
+    await h.step(first);
+    expect(h.sends()).toHaveLength(0);
+
+    h.clock.t += 23 * HOUR;
+    h.docket.push({ ...NOTE, item_id: 'GF-1' }, h.clock.t - HOUR);
+    h.docket.push({ ...ANSWER, item_id: 'GF-1' }, h.clock.t - MINUTE);
+    h.docket.push({ ...ANSWER, item_id: 'GF-2' }, h.clock.t - MINUTE);
+    h.docket.push({ ...ANSWER, item_id: 'GF-3' }, h.clock.t - MINUTE);
+
+    const second = h.make({ rateLimit: 2 });
+    await h.step(second);
+    expect(second.state.hold).toBeNull();
+    expect(h.sends()).toHaveLength(2);
+    expect(h.sends()[0]!.body).toContain('GF-1 was updated');
+    expect(h.sends()[0]!.body).toContain('(answer, note, acceptance)');
+
+    h.clock.t += 10 * MINUTE;
+    await h.step(second);
+    expect(h.sends()).toHaveLength(3);
+
+    const third = h.make({ rateLimit: 2 });
+    h.clock.t += HOUR;
+    await h.step(third);
+    expect(h.sends()).toHaveLength(3);
+    expect(third.state.batches).toEqual({});
+  });
+
+  it('coalesces a catch-up that spans several pages into one message', async () => {
+    const h = await harness();
+    const first = await started(h);
+    h.clock.t += HOUR;
+    h.docket.push(ANSWER, h.clock.t);
+    for (let i = 0; i < 250; i += 1) {
+      h.docket.push({ type: 'plan.updated', actor: 'codex' }, h.clock.t);
+    }
+    h.docket.push(NOTE, h.clock.t);
     expect(first).toBeDefined();
+
+    const second = h.make();
+    await second.pollOnce(undefined, 0);
+    await second.flushDue();
+    expect(h.sends()).toHaveLength(0);
+    await h.step(second);
+    expect(h.sends()).toHaveLength(1);
+    expect(h.sends()[0]!.body).toContain('(answer, note)');
+  });
+
+  it('delivers an event whose time cannot be read, rather than dropping it', async () => {
+    const h = await harness();
+    const relay = await started(h);
+    const row = h.docket.push(ANSWER, h.clock.t);
+    row.at = 'not-a-time';
+    await h.step(relay);
+    expect(h.sends()).toHaveLength(1);
   });
 
   it('reads a long backlog page by page', async () => {
@@ -986,34 +1564,6 @@ describe('reliability', () => {
     await h.step(relay);
     expect(relay.state.cursor).toBe('451');
     expect(h.sends()).toHaveLength(1);
-  });
-
-  it('follows the feed when Docket comes back with an older database', async () => {
-    const h = await harness();
-    const relay = await started(h);
-    h.docket.push(NOTE, h.clock.t);
-    h.docket.push(NOTE, h.clock.t);
-    await h.step(relay);
-    expect(relay.state.cursor).toBe('2');
-    h.docket.rows = [];
-    await h.step(relay);
-    expect(relay.state.cursor).toBe('0');
-    h.clock.t += 1_000;
-    h.docket.push(ANSWER, h.clock.t);
-    await h.step(relay);
-    expect(h.sends().some((send) => send.body.includes('answer'))).toBe(true);
-  });
-
-  it('survives a corrupt state file by starting at the end, without replay', async () => {
-    const h = await harness();
-    mkdirSync(h.home, { recursive: true });
-    writeFileSync(join(h.home, 'state.json'), '{not json');
-    h.docket.push(ANSWER, h.clock.t);
-    const relay = h.make();
-    await h.step(relay);
-    expect(relay.state.cursor).toBe('1');
-    expect(h.sends()).toHaveLength(0);
-    expect(existsSync(join(h.home, 'state.json.corrupt'))).toBe(true);
   });
 
   it('leaves no temp file behind', async () => {
@@ -1118,7 +1668,7 @@ describe('running it', () => {
     const text = await finish(cli(h, ['status']));
     expect(text.code).toBe(0);
     expect(text.out).toContain('docket-relay: running');
-    expect(text.out).toContain('GF-243 to implementer (answer)');
+    expect(text.out).toContain('GF-243 to run:run_coord (answer)');
     expect(text.out).not.toContain(SECRET);
 
     const json = await finish(cli(h, ['status', '--json']));
@@ -1142,7 +1692,7 @@ describe('running it', () => {
     await again();
   });
 
-  it('test-send uses the same path, and only takes a real address', async () => {
+  it('test-send uses the same path, and only takes a coordinator address', async () => {
     const h = await harness();
     const sent = await finish(cli(h, ['test-send', 'run:run_coord']));
     expect(sent.code).toBe(0);
@@ -1153,6 +1703,199 @@ describe('running it', () => {
     }
     expect(h.sends()).toHaveLength(1);
   });
+
+  it.each(['dispatch:ctx_live', 'DISPATCH:ctx_live', 'run:dispatch:ctx_live'])(
+    'test-send refuses %s without calling Orca',
+    async (address) => {
+      const h = await harness();
+      const refused = await finish(cli(h, ['test-send', address]));
+      expect(refused.code).toBe(1);
+      expect(refused.err).toContain('A dispatch address is refused');
+      expect(h.calls()).toEqual([]);
+    },
+  );
+
+  /** A state file for a relay that stopped `ageMs` ago at the end of the feed. */
+  const stoppedState = (h: Harness, ageMs: number) => {
+    const last = h.docket.rows.at(-1);
+    mkdirSync(h.home, { recursive: true });
+    writeFileSync(
+      join(h.home, 'state.json'),
+      JSON.stringify({
+        version: 1,
+        cursor: String(h.docket.rows.length),
+        anchor: last ? { cursor: last.cursor, at: last.at } : null,
+        active_at: Date.now() - ageMs,
+        hold: null,
+        reconciles: [],
+        seen: {},
+        batches: {},
+        rate: {},
+        undelivered: [],
+        counters: {},
+        docket: { connected: false, at: null, error: null },
+        last_event: null,
+        last_delivery: null,
+        last_failure: null,
+      }),
+    );
+  };
+  const savedState = (h: Harness) =>
+    JSON.parse(readFileSync(join(h.home, 'state.json'), 'utf8')) as Relay['state'];
+
+  it('start exits clearly in a hold, and status shows the count and range only', async () => {
+    const h = await harness();
+    stoppedState(h, 2 * DAY);
+    const firstAt = Date.now() - DAY;
+    const lastAt = Date.now() - HOUR;
+    h.docket.push(ANSWER, firstAt);
+    h.docket.push(NOTE, lastAt);
+
+    const run = await finish(cli(h, ['start']));
+    expect(run.code).toBe(3);
+    expect(run.err).toContain('hold_reconcile (stale)');
+    expect(run.err).toContain('reconcile --deliver');
+    expect(h.calls()).toEqual([]);
+    expect(savedState(h).cursor).toBe('0');
+
+    const text = await finish(cli(h, ['status']));
+    expect(text.code).toBe(0);
+    expect(text.out).toContain('HOLD: hold_reconcile (stale)');
+    expect(text.out).toContain(
+      `waiting: 2 event(s) on 1 ticket(s), from ${new Date(firstAt).toISOString()} to ${new Date(lastAt).toISOString()}`,
+    );
+    expect(text.out).not.toContain(SECRET);
+
+    const json = JSON.parse((await finish(cli(h, ['status', '--json']))).out) as {
+      hold: { reason: string; waiting: Record<string, unknown> };
+    };
+    expect(json.hold).toMatchObject({
+      state: 'hold_reconcile',
+      reason: 'stale',
+      waiting: { events: 2, tickets: 1, complete: true },
+    });
+    expect(JSON.stringify(json)).not.toContain(SECRET);
+    expect(savedState(h).cursor).toBe('0');
+  }, 30_000);
+
+  it('status says when Docket cannot be counted, and when the state is unreadable', async () => {
+    const h = await harness();
+    stoppedState(h, 2 * DAY);
+    await finish(cli(h, ['start']));
+    await h.docket.stop();
+    const down = await finish(cli(h, ['status']));
+    expect(down.out).toContain('waiting: at least 0 event(s)');
+
+    writeFileSync(join(h.home, 'state.json'), '{not json');
+    const broken = await finish(cli(h, ['status']));
+    expect(broken.out).toContain('HOLD: hold_reconcile (state_unreadable)');
+    // Status is read-only, so the damaged file is still there for the next start.
+    expect(readFileSync(join(h.home, 'state.json'), 'utf8')).toBe('{not json');
+  }, 30_000);
+
+  it('reconcile --deliver through the CLI, then start sends it', async () => {
+    const h = await harness();
+    stoppedState(h, 2 * DAY);
+    h.docket.push(ANSWER, Date.now() - HOUR);
+    expect((await finish(cli(h, ['start']))).code).toBe(3);
+
+    const left = await finish(cli(h, ['reconcile', '--deliver']));
+    expect(left.code).toBe(0);
+    expect(left.out).toContain('1 event(s) on 1 ticket(s) are queued');
+    expect(h.calls()).toEqual([]);
+
+    const child = cli(h, ['start']);
+    const done = finish(child);
+    cleanups.push(async () => {
+      child.kill();
+      await done;
+    });
+    await until(() => h.sends().length === 1, 15_000);
+    expect(h.sends()[0]!.to).toBe('run:run_coord');
+  }, 40_000);
+
+  it('reconcile --skip-to-end through the CLI, and its refusals', async () => {
+    const h = await harness();
+    stoppedState(h, 2 * DAY);
+    h.docket.push(ANSWER, Date.now() - HOUR);
+    await finish(cli(h, ['start']));
+
+    for (const bad of [
+      ['reconcile'],
+      ['reconcile', '--deliver', '--skip-to-end'],
+      ['reconcile', '--deliver', '--reason', 'x'],
+      ['reconcile', '--skip-to-end', '--force'],
+    ]) {
+      expect((await finish(cli(h, bad))).code).toBe(1);
+    }
+    expect((await finish(cli(h, ['reconcile', '--skip-to-end']))).code).toBe(1);
+    expect(savedState(h).hold?.reason).toBe('stale');
+
+    const left = await finish(
+      cli(h, ['reconcile', '--skip-to-end', '--reason', 'Owner read the backlog']),
+    );
+    expect(left.code).toBe(0);
+    expect(left.out).toContain('Skipped 1 event(s) on 1 ticket(s)');
+    expect(savedState(h)).toMatchObject({ hold: null, cursor: '1' });
+    expect(h.calls()).toEqual([]);
+    const log = readFileSync(join(h.home, 'relay.log'), 'utf8');
+    expect(log).toContain('reconcile_skip reason=Owner read the backlog');
+    expect(log).not.toContain(SECRET);
+  }, 40_000);
+
+  it('reconcile refuses while the relay is running', async () => {
+    const h = await harness();
+    const child = cli(h, ['start']);
+    const done = finish(child);
+    cleanups.push(async () => {
+      child.kill();
+      await done;
+    });
+    await until(() => openStoreCursor(h.home) !== null, 15_000);
+    const refused = await finish(cli(h, ['reconcile', '--deliver']));
+    expect(refused.code).toBe(2);
+    expect(refused.err).toContain('Stop it first');
+  }, 30_000);
+
+  it('a hard kill mid-send resends the same message once on restart', async () => {
+    const h = await harness();
+    const release = join(h.home, '..', 'release-send');
+    const working = currentPlan(h);
+    h.plan({ ...working, blockSendUntil: release });
+    const first = cli(h, ['start']);
+    const firstDone = finish(first);
+    cleanups.push(async () => {
+      writeFileSync(release, '');
+      first.kill('SIGKILL');
+      await firstDone;
+    });
+    await until(() => openStoreCursor(h.home) !== null, 15_000);
+    h.docket.push(ANSWER, Date.now());
+    await until(() => h.sends().length === 1, 15_000);
+
+    first.kill('SIGKILL');
+    await firstDone;
+    const cut = savedState(h).batches['GF-243'] as { sending?: { request_id: string } };
+    expect(cut.sending?.request_id).toBe(h.sends()[0]!.requestId);
+    writeFileSync(release, '');
+    h.plan(working);
+
+    const second = cli(h, ['start']);
+    const secondDone = finish(second);
+    cleanups.push(async () => {
+      second.kill();
+      await secondDone;
+    });
+    await until(() => h.sends().length === 2, 15_000);
+    await until(() => Object.keys(savedState(h).batches).length === 0, 15_000);
+    expect(h.sends()[1]).toMatchObject({
+      to: h.sends()[0]!.to,
+      body: h.sends()[0]!.body,
+      requestId: h.sends()[0]!.requestId,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(h.sends()).toHaveLength(2);
+  }, 60_000);
 
   it('prints help and refuses an unknown command', async () => {
     const h = await harness();
@@ -1186,9 +1929,9 @@ describe('calling Orca safely', () => {
   });
 
   it('makes stable request IDs in the form Orca accepts', () => {
-    const id = requestIdFor('batch', 'dispatch:ctx_a', 'subject', 'body');
+    const id = requestIdFor('batch', 'run:run_b', 'subject', 'body');
     expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
-    expect(requestIdFor('batch', 'dispatch:ctx_a', 'subject', 'body')).toBe(id);
+    expect(requestIdFor('batch', 'run:run_b', 'subject', 'body')).toBe(id);
     expect(requestIdFor('batch', 'run:run_a', 'subject', 'body')).not.toBe(id);
   });
 
@@ -1208,7 +1951,7 @@ describe('calling Orca safely', () => {
   it('reports a missing CLI as something to retry', async () => {
     const orca = createOrca({ exe: null, env: {} });
     expect(
-      await orca.send({ to: 'run:x', subject: 's', body: 'b', requestId: requestIdFor('m') }),
+      await orca.send({ to: 'run:run_x', subject: 's', body: 'b', requestId: requestIdFor('m') }),
     ).toMatchObject({
       ok: false,
       code: 'spawn_failed',
