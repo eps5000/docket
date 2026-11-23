@@ -20,7 +20,8 @@ import { appRoutes } from '../../app/router';
 import { ShellStateProvider } from '../../app/ShellState';
 import { STORAGE_KEYS } from '../../lib/persistence';
 import { toasts } from '../../lib/undo';
-import { axisTicks, bucketTicketsText, completedSummary, placeTip } from './CompletedChart';
+import { axisTicks, bucketTicketsText, completedSummary } from './CompletedChart';
+import { placeTip } from './useChartTip';
 import { AGENTS_NOTE, deltaText } from './OverviewStats';
 import { ownerActionParts, readOverviewWindow } from './overviewWindow';
 import { workloadText } from './WorkloadCard';
@@ -264,6 +265,19 @@ const metrics = (over: Partial<OverviewResponse> = {}): OverviewResponse => ({
         })),
       },
     ],
+  },
+  flow: {
+    granularity: 'day',
+    buckets: [
+      { key: '2026-11-18', label: 'Nov 18', finished: 0, merged: 0, parked: 0 },
+      { key: '2026-11-19', label: 'Nov 19', finished: 6, merged: 2, parked: 3 },
+      { key: '2026-11-20', label: 'Nov 20', finished: 12, merged: 1, parked: 9 },
+    ],
+    finished: 18,
+    merged: 3,
+    parked: 12,
+    finished_without_merge: 5,
+    note: null,
   },
   in_flight: { count: 23, progress: 15, review: 8 },
   blocked: 5,

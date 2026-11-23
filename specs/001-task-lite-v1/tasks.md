@@ -623,14 +623,23 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T247 [US6] `docket-worker`, `docket-coordinator`, `docket-lead-subagents` and the MCP instructions: check first, decide what you can, ask only what needs the owner, write for someone who has not seen the work.
 - [x] T248 [US6] Tests: contract, limits, guard, old shape, delivery, the dialog by mouse and keyboard, older questions, token budgets, e2e and axe in both themes.
 
-## Phase 37: Truthful waits, expired leases and a true Ready (owner decision 48, B58)
+## Phase 37: Flow trends and a daily brief (owner decision 48)
 
-- [x] T249 [US18] Spec plus code in one PR: decision 48 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.21, §5.26 and §5.29; MCP_SPEC §5.2; UI_SPEC §6.1 and §6.2; spec FR-230–FR-235; Help and the coordinator skill.
-- [x] T250 [US18] Waits: a bare person wait is never an unasked decision, a cited active decision settles a wait, and `WaitCard.held_by` carries an active owner decision.
-- [x] T251 [US18] An owner-held run doesn't escalate or get told to resume; lifting the decision restarts aging; existing false flags clear once.
-- [x] T252 [US18] The sweeper ends expired part leases, parked holders included, with one `lease.ended` naming the coordinator.
-- [x] T253 [US18] Startable and Waiting on Work's board, filters and counts; ranked `next_work` and `bottlenecks` in `get_digest`; Overview's link.
-- [x] T254 [US18] Tests and replays with synthetic text, token budgets, unit and e2e on CI, and evidence at 1440 x 900 and 1024 px in both themes.
+- [x] T249 [US2] Spec plus code in one PR: decision 48 (B59's part) in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.29 and §7; UI_SPEC §6.1 and §6.1b; spec FR-230–FR-235 and SC-028; Help (A first look around). No MCP tool changes.
+- [x] T250 [US2] `domain/flow.ts`: finished, recorded merges and parks over Overview's buckets, what's missing from the merge record, and the divergence note.
+- [x] T251 [US2] `GET /api/brief` and `domain/brief.ts`: local day boundaries, finished, what's stuck, decision changes, and `held_by` read as optional until B58 lands.
+- [x] T252 [US2] The Flow chart on Overview, sharing its tooltip behaviour with Completed: keyboard, focus, text alternative, both themes, 1024 px and 1440 × 900.
+- [x] T253 [US2] The daily brief page: day picker, four sections, every line linked, no cost section.
+- [x] T254 [US2] Tests: metrics with empty windows, timezone boundaries and excluded epics; the chart's tooltip and table; the brief with and without data; e2e and axe in both themes.
+
+## Phase 38: Truthful waits, expired leases and a true Ready (owner decision 48, B58)
+
+- [x] T255 [US18] Spec plus code in one PR: decision 48 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.21, §5.26 and §5.30; MCP_SPEC §5.2; UI_SPEC §6.1 and §6.2; spec FR-236–FR-241; Help and the coordinator skill.
+- [x] T256 [US18] Waits: a bare person wait is never an unasked decision, a cited active decision settles a wait, and `WaitCard.held_by` carries an active owner decision.
+- [x] T257 [US18] An owner-held run doesn't escalate or get told to resume; lifting the decision restarts aging; existing false flags clear once.
+- [x] T258 [US18] The sweeper ends expired part leases, parked holders included, with one `lease.ended` naming the coordinator.
+- [x] T259 [US18] Startable and Waiting on Work's board, filters and counts; ranked `next_work` and `bottlenecks` in `get_digest`; Overview's link.
+- [x] T260 [US18] Tests and replays with synthetic text, token budgets, unit and e2e on CI, and evidence at 1440 x 900 and 1024 px in both themes.
 
 ## How to run the build
 
@@ -741,6 +750,7 @@ Open a PR titled "<Bn>: <phase name>" with the checkpoint evidence. Do not queue
 | 34 Wake the right session when the owner answers | B55 (after B54) |
 | 35 Overview fixes from the owner's feedback | B56 (after B55) |
 | 36 Questions the owner can actually read | B57 (after B56) |
+| 37 Flow trends and a daily brief | B59 (decision 48; alongside B58, B60 and B61) |
 
 **Within a phase:** tests (failing) → services → replace stubs or fill handlers → fill screens → checkpoint.
 

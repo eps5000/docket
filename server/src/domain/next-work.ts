@@ -1,5 +1,5 @@
 /**
- * A true Ready and "start this next" (owner decision 48; BUILD_SPEC §5.29).
+ * A true Ready and "start this next" (owner decision 48; BUILD_SPEC §5.30).
  *
  * - **Startable** is the rule `search_items` `ready_to_start` uses: Ready,
  *   unblocked, unclaimed, and not waiting on the owner's overlap or design

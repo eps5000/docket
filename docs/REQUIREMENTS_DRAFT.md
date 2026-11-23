@@ -261,7 +261,16 @@ BUILD_SPEC §5.28, MCP_SPEC §3 and §5.7, UI_SPEC §6.1 and §6.3, spec FR-224�
 
 ## Owner decision 48 (2026-11-23): coordination tooling
 
-The pilot's bottleneck is coordination: code kept landing while tickets stopped closing, and agents spent most of their time waiting. The owner approved Part 1 of `docs/design/coordination-tooling.md`, its two bug fixes and seven additions. Everything here is advisory: it adds no gate and blocks no claim, queue or delivery.
+The owner approved the bug fixes and additions in `docs/design/coordination-tooling.md`. In the pilot, code kept landing while tickets stopped closing, and agents spent most of their time waiting. Docket states facts and checks conditions, adds no new gates, and everything here is advisory. Batches B58 to B61 each add their part below.
+
+**Flow trends and a daily brief (B59).**
+
+1. **Flow trends on Overview.** Tickets finished, PRs merged and times parked, per day or hour, for the selected window and project. Each metric is defined once on the server. Finished is the Completed definition. Merged counts only PRs an agent recorded as merged, says so, and says when finished tickets have none recorded. It is never estimated. Parked counts `run.parked` events and excludes epics.
+2. **A quiet note when the trends diverge,** such as "Parking is up while finished tickets are down". It never touches the Needs you badge.
+3. **A daily brief,** linked from Overview: what finished, what's stuck, what needs the owner and what changed in decisions, for a chosen day in the configured timezone, per project or All. Stuck means parked longest, blockers nobody owns, and runs held by an owner decision, listed separately and calmly. Every line links to its ticket, or to the Decisions page for a decision wider than one ticket. It is read-only, with no notifications or scheduled sends.
+4. **What it cost appears only when measured data exists.** Until a later batch adds it, the section is left out, with no placeholder or estimate.
+
+BUILD_SPEC §5.29, UI_SPEC §6.1 and §6.1b, spec FR-230–FR-235 and Help (A first look around) have the details.
 
 **Truthful waits, expired leases and a true Ready (B58):**
 
@@ -272,7 +281,7 @@ The pilot's bottleneck is coordination: code kept landing while tickets stopped 
 5. **A true Ready.** Work splits Ready into **Startable** and **Waiting**, and each waiting ticket says what it waits on. The stored status doesn't change.
 6. **Start this next.** `get_digest` gains a short ranked next-work list (priority, then how many open tickets it transitively unlocks, then age) and **bottlenecks**: unowned Inbox or Planning tickets holding up real work, with "shape it or assign it". Overview's In flight card links to Startable.
 
-BUILD_SPEC §5.21, §5.26 and §5.29, MCP_SPEC §5.2, UI_SPEC §6.1 and §6.2, spec FR-230–FR-235, Help and the coordinator skill have the details.
+BUILD_SPEC §5.21, §5.26 and §5.30, MCP_SPEC §5.2, UI_SPEC §6.1 and §6.2, spec FR-236–FR-241, Help and the coordinator skill have the details.
 
 ## Deferred choices
 

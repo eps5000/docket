@@ -60,6 +60,30 @@ const completedBucket = z.object({
   tickets: z.array(z.object({ id: z.string(), title: z.string() })),
 });
 
+const flowBucket = z.object({
+  key: z.string(),
+  label: z.string(),
+  finished: z.number().int(),
+  merged: z.number().int(),
+  parked: z.number().int(),
+});
+
+/** Flow trends (owner decision 48; BUILD_SPEC §5.29), over the same window and buckets. */
+const flowSchema = z.object({
+  granularity: z.enum(['hour', 'day']),
+  buckets: z.array(flowBucket),
+  /** The Completed count. */
+  finished: z.number().int(),
+  /** Distinct PRs first recorded as merged in the window. Never estimated. */
+  merged: z.number().int(),
+  /** `run.parked` events on tickets. Epics are excluded. */
+  parked: z.number().int(),
+  /** Tickets finished in the window with no merged PR recorded, so `merged` may be low. */
+  finished_without_merge: z.number().int(),
+  /** One plain sentence when the trends diverge; null when they don't. */
+  note: z.string().nullable(),
+});
+
 export const overviewResponse = jsonResponse({
   window: overviewWindowSchema,
   /** The window is `(from, to]`; the one before it is `(prior_from, from]`. */
@@ -74,6 +98,7 @@ export const overviewResponse = jsonResponse({
     granularity: z.enum(['hour', 'day']),
     buckets: z.array(completedBucket),
   }),
+  flow: flowSchema,
   /** Open tickets in In progress or Review. */
   in_flight: z.object({
     count: z.number().int(),

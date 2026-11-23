@@ -90,6 +90,7 @@ import {
 import { agingFrom, decisionHold, heldByOwner } from './decision-hold.js';
 import { inScopeOf, ofScope, projectReviews } from './decisions.js';
 import { agentsNow, overviewItemsOf, overviewOf } from './overview.js';
+import { briefOf } from './brief.js';
 import {
   BlockIndex,
   EVENT_COLUMNS,
@@ -1385,6 +1386,10 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
 
     overviewItems(r, input) {
       return overviewItemsOf(scoped(r, windows(), input.scope), input.metric, input.window);
+    },
+
+    brief(r, input) {
+      return briefOf(scoped(r, windows(), input.scope), input, deps.config.tz);
     },
 
     findProblem(r, id): FoundProblem | null {
