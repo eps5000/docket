@@ -88,6 +88,7 @@ const B2_ROUTES: readonly RouteId[] = [
   'burndown.get',
   // US6 (B13, T120): steering a ticket (content in the US6 tests).
   'items.answer',
+  'items.split',
   'items.addNote',
   'items.release',
   'items.returnToReady',
@@ -237,6 +238,10 @@ const VALID: Record<RouteId, Req> = {
   'items.answer': {
     params: { id: 'RCP-14' },
     body: { question_id: 'q_1', text: 'Per serving.' },
+  },
+  'items.split': {
+    params: { id: 'RCP-1' },
+    body: { expected_version: 1, type: 'Task', title: 'Split part', move: [1], relation: 'none' },
   },
   'items.addNote': { params: { id: 'RCP-14' }, body: { text: 'Check the units table first.' } },
   'items.release': { params: { id: 'RCP-14' }, body: {} },

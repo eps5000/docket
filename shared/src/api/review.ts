@@ -47,6 +47,8 @@ export const packetViewSchema = z.object({
   round: z.number().int(),
   state: z.enum(PACKET_STATES),
   stale: z.boolean(),
+  /** Decision 48: a split moved acceptance criteria after this packet was built. */
+  criteria_changed: z.boolean().optional(),
   built_from_commit: z.string(),
   estimate: z.string(),
   /** `codex · orca-w3`. */

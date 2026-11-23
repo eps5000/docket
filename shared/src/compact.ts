@@ -498,6 +498,8 @@ export function renderItem(
   if (lead) lines.push(lead);
   const links = linksLine(item);
   if (links) lines.push(links);
+  if (item.split_from) lines.push(`${I1}split from: ${item.split_from}`);
+  if (item.split_into?.length) lines.push(`${I1}split into: ${item.split_into.join(', ')}`);
 
   if (item.description_md) lines.push(...block('description', item.description_md));
   if (item.outcome_md) lines.push(...block('outcome', item.outcome_md));
@@ -1249,7 +1251,9 @@ const RENDERERS: { [N in ToolName]: Renderer<N> } = {
       ...r.items.flatMap((d) => [decisionRow(d), `${I1}${truncate(d.decision_md)}`]),
     ].join('\n'),
   withdraw_decision: (r) =>
-    s('withdraw_decision', { decision_id: r.decision.id, title: title80(r.decision.title) }),
+    r.question
+      ? s('withdraw_decision', { decision_id: r.question.id, title: title80(r.question.text) })
+      : s('withdraw_decision', { decision_id: r.decision!.id, title: title80(r.decision!.title) }),
   recovery_report: (r, _a, now) => {
     const lines = [
       s('recovery_report', {

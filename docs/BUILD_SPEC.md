@@ -828,6 +828,27 @@ The owner is not the implementer, so a question must make sense to someone who h
 - **Answer.** `POST /api/items/:id/answer` takes `text`, or `option` (a label of this question) with an optional `note`. A picked option is stored as a choice and as readable `answer` text (`Chose: <label>…`), so text-only clients see it. Undo, delivery once and `read_by_agent_at` are unchanged.
 - **What an agent reads.** `get_item` and `get_context` add `choice` when the owner picked an option. The form itself goes only to the web UI (`for_you_now[].form`, `question_form`), so it costs agents no tokens on reads.
 
+### 5.29 Split a ticket and withdraw a question (decision 48)
+
+**Withdraw a question.** `withdraw_decision` takes `question_id` instead of `decision_id`, so there is no new tool. It already means "retract this, with a reason", and `ask_owner`'s required contract stays required.
+
+- **Who.** The run that asked (its own `run_id` and client), that run's recorded orchestrator, or a coordinator registered for the project, named in `coordinator`. Anyone else gets `forbidden`.
+- **What it does.** Sets `questions.withdrawn_at`, `withdrawn_by` and `withdrawn_reason`, returns a `needs_input` run to `open`, and records `question.withdrawn`. The reason is shown to the owner, so the plain-language guard applies. An answered or already withdrawn question is a `conflict`, and so is the owner answering a withdrawn one.
+- **Open means unanswered and not withdrawn,** everywhere: the one-open-question index, Needs you, `get_item`, `get_context`, recovery and the wait card. `read_by_agent_at` still applies only to answers.
+
+**Split a ticket.** `create_item` takes `split_from`, and the owner uses `POST /api/items/:id/split`. Both call `splitItem` (`server/src/domain/split.ts`) in one write.
+
+- **Criteria.** `move` and `copy` are 1-based positions in the acceptance list. A moved row keeps its ID. The original must keep at least one, and a position can't be in both lists.
+- **`also`** carries blockers (with their `satisfied_when`), shared-part declarations and steps, each moved or, with `copy: true`, copied. A blocker Docket added to sequence an overlap can't move, and an agent can't move an owner's step.
+- **Steps.** A moved step leaves the original's plan as `set_plan`'s `remove` does: its row stays in the old plan version for history, the original gets a new plan version, and the new ticket gets its own row. The step a live run is on can't move.
+- **Relation.** `after_original` (the original blocks the new ticket), `before_original` (the new ticket blocks the original) or `none`. A new ticket has no other outgoing links, so this can't create a cycle.
+- **Provenance.** `items.split_from` on the new ticket; "Split into" is the reverse lookup. The epic, labels and priority carry over.
+- **A live lead.** The claim, runs, reviews and decisions stay on the original. Only the lead's own run, its coordinator or the owner may split a claimed ticket, and `expected_version` is required.
+- **Packets.** If criteria moved, an open packet gets `criteria_changed_at` and a `packet.stale` event. Its content doesn't change. Asking for a fresh packet says why.
+- **Overlaps.** Moving a declaration re-runs `syncOverlaps` on the original, so a pair that no longer shares a part resolves.
+- **Undo.** Each change stores its inverse on the last event (`item.split`), which undo applies first. An owner's split restores both tickets, within the usual 60 seconds and if nothing touched them since. Agent changes stay out of undo.
+- **Migration 0023** adds `items.split_from`, `packets.criteria_changed_at` and the three `questions` columns, and rebuilds `questions_one_open`.
+
 ## 6. MCP tool contract
 
 **Overview only.** [MCP_SPEC.md](MCP_SPEC.md) is authoritative for the server instructions, every tool's description text, input and output schemas, error messages and worked flows. It defines 51 tools (`get_digest` from decision 40 and `propose_resolution` from decision 37 bring it from 48; 38, plus `get_step` from decision 33, plus `get_agent_files` and `propose_agent_file_change` from decision 30, `onboard_project` and `finish_onboarding` from decision 31, `apply_batch` from decision 34, and `declare_shared_changes`, `list_shared_parts`, `take_lease` and `release_lease` from decision 36), and one prompt (`onboard`), including `unlink_items`, `update_check` and `update_human_review`, which are paired with their siblings below.
@@ -916,6 +937,7 @@ Every route requires the owner session (§3). JSON bodies **and query strings** 
 | `POST /api/items/:id/human-review` · `PATCH`/`DELETE …/human-review/:hrId` | Human review items |
 | `POST /api/items/:id/notes` `{text}` | Note for the agent |
 | `POST /api/items/:id/answer` `{question_id, text}` | Answer a question |
+| `POST /api/items/:id/split` `{expected_version, type, title, move, copy?, relation, also?}` | Split a ticket (decision 48; undoable) |
 | `POST /api/items/:id/release` · `POST /api/items/:id/return-to-ready` | Lead and runs actions |
 | `DELETE /api/links/:linkId` | Cycle fix, and removing a canceled blocker |
 | `GET /api/review/:id?round` · `POST /api/review/:id/decisions` · `POST /api/review/:id/refresh` | Packet screen |
@@ -1294,6 +1316,7 @@ Owner decisions are marked **(owner)**. Every other entry is a technical choice 
 | 45 **(owner)** | A parked story's wait is visible and has a next step: a wait card derived from stored facts, advisory `wait_no_next_step` and `wait_owner_unasked` flags routed to agents first, and one `run.resume_ready` the coordinator relays to the same run, because Docket can't push into a session. Nothing here gates work. | §5.26, MCP_SPEC §4, §5.4 |
 | 46 **(owner)** | A host process, `docket-relay`, tells the coordinator of a ticket's live lead through Orca when the ticket changes from the owner side (narrowed by T26). It sends a pointer naming the kinds of change, never the content; batches edits (60 s quiet, 2 min at most) and sends answers at once; never sends to a dispatch address; and never writes to Docket. No server change. | §5.27, `tools/docket-relay` |
 | 47 **(owner)** | Questions the owner can read: `ask_owner` requires a plain question, background, why it matters, 2 to 4 options with consequences and one recommendation; internals go in `details`. Answered in a dialog, in two actions for the recommendation. Skills tell agents to ask less and write for someone who hasn't seen the work. | §5.28 |
+| 48 **(owner)** | Coordination tooling (`docs/design/coordination-tooling.md`). B61: agents retract an outdated question through `withdraw_decision`, and a ticket splits in one undoable write through `create_item` `split_from` or the item page. No criterion is lost, a live lead keeps its claim, and an open packet is marked out of date, never changed. | §5.29 |
 | T13 | Nightly backup at 03:00, kept 14 days, restore by CLI only. | §5.13 |
 | T14 | Archive is owner-only and UI-only; agent queries include archived items. | §5.8 |
 | T15 | Scope resets to All projects on each visit (sessionStorage). Theme and collapsed sections persist (localStorage). | UI_SPEC §2 |

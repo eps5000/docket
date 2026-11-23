@@ -78,6 +78,7 @@ const EXPECTED = [
   'PATCH /api/items/:id/human-review/:hrId',
   'DELETE /api/items/:id/human-review/:hrId',
   'POST /api/items/:id/notes',
+  'POST /api/items/:id/split',
   'POST /api/items/:id/answer',
   'POST /api/items/:id/release',
   'POST /api/items/:id/return-to-ready',

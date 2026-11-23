@@ -116,6 +116,7 @@ import type { CallLog } from '../jobs/logs.js';
 import type { Actor, WriteContext } from './write.js';
 import type { RadarApplied, RadarPlan, RadarRunInput, RadarRunResult } from './radar.js';
 import type { ActivityFinding } from './run-activity.js';
+import type { SplitInput } from './split.js';
 import type { DigestService } from './digest.js';
 import type { FoundProblem, ProblemsService } from './problems.js';
 
@@ -264,6 +265,8 @@ export interface BackupResult {
 /** Items: create, edit, status (§5.1), labels, the owner's field and text edits (decision 22). */
 export interface ItemsService {
   create(w: WriteContext, input: In<'create_item'>): ItemSummary;
+  /** Decision 48: split a ticket in one write. `create_item` with `split_from` lands here too. */
+  split(w: WriteContext, input: SplitInput): { item: ItemSummary; source: ItemSummary };
   update(w: WriteContext, input: In<'update_item'>): ItemSummary;
   /** `PATCH /api/items/:id`: priority, planning/ready moves, and inline text edits. */
   ownerPatch(w: WriteContext, input: { id: string } & RouteBody<'items.patch'>): ItemText;
@@ -896,6 +899,11 @@ export interface ContextService {
 export interface MessagesService {
   askOwner(w: WriteContext, input: In<'ask_owner'>): Out<'ask_owner'>;
   answer(w: WriteContext, input: { id: string } & RouteBody<'items.answer'>): Question;
+  /** Decision 48: the asker or a coordinator retracts an unanswered question, with a reason. */
+  withdraw(
+    w: WriteContext,
+    input: { question_id: string; reason: string; coordinator?: string | undefined },
+  ): { id: string; text: string; withdrawn_at: string };
   addOwnerNote(
     w: WriteContext,
     input: { id: string } & RouteBody<'items.addNote'>,

@@ -152,7 +152,7 @@ function gather(r: ReadContext, deps: ServiceDeps, id: string): Full {
   const question = sql
     .prepare(
       `SELECT id, text, created_at, answer, answered_at, answer_choice FROM questions
-       WHERE item_id = ? AND (answered_at IS NULL OR read_by_agent_at IS NULL)
+       WHERE item_id = ? AND withdrawn_at IS NULL AND (answered_at IS NULL OR read_by_agent_at IS NULL)
        ORDER BY created_at DESC LIMIT 1`,
     )
     .get(row.id) as

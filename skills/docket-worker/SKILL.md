@@ -81,15 +81,17 @@ The project has its own rules: who moves work to Ready, when human review is nee
 
 ## 4. When you can't carry on
 
-| Situation                                            | Do this                                                                                                                                       |
-| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| Only the owner can decide (see below)                | `ask_owner`, then stop the work that depends on it. If you're ending the session, `finish_run` with a summary saying what you're waiting for. |
-| You're waiting for another item to land              | `park_run { reason, waiting_on: { items: [...] } }`                                                                                           |
-| You're waiting for the coordinator to send more work | `park_run { reason, waiting_on: { orchestrator: true } }`                                                                                     |
-| A single step is blocked                             | `update_step { state: "blocked", note }`, and carry on with other steps                                                                       |
-| You're stopping before the work is done              | Push, `report_commit`, release your resources, then `release_lead { reason }`. The item goes back to Ready with your plan kept.               |
-| Something broke and you can't continue               | `finish_run { result: "failed", error }`                                                                                                      |
-| A write returns `conflict`                           | Read `current` in the error. Re-apply your change only if it still makes sense.                                                               |
+| Situation                                            | Do this                                                                                                                                        |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Only the owner can decide (see below)                | `ask_owner`, then stop the work that depends on it. If you're ending the session, `finish_run` with a summary saying what you're waiting for.  |
+| Your open question is out of date                    | `withdraw_decision { question_id, reason }` with your `run_id`, in plain words, then `ask_owner` again if you still need to.                   |
+| A blocker holds only some acceptance criteria        | **Prefer a split:** `create_item` with `split_from { id, expected_version, move: [positions], relation, also? }`. Keep working on what's free. |
+| You're waiting for another item to land              | `park_run { reason, waiting_on: { items: [...] } }`                                                                                            |
+| You're waiting for the coordinator to send more work | `park_run { reason, waiting_on: { orchestrator: true } }`                                                                                      |
+| A single step is blocked                             | `update_step { state: "blocked", note }`, and carry on with other steps                                                                        |
+| You're stopping before the work is done              | Push, `report_commit`, release your resources, then `release_lead { reason }`. The item goes back to Ready with your plan kept.                |
+| Something broke and you can't continue               | `finish_run { result: "failed", error }`                                                                                                       |
+| A write returns `conflict`                           | Read `current` in the error. Re-apply your change only if it still makes sense.                                                                |
 
 **Ask less, ask better.**
 

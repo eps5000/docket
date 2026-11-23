@@ -45,7 +45,7 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   get_item:
     "Get one item: description, acceptance, blockers, checklist (plan, checks, human review), runs, open question and answer, unread owner notes, documents, packets, recent activity. Owner notes and answers are returned once, then marked delivered: read them now. Use view 'summary' for status only, and get_context when starting work. Step details show as '· details' unless view is 'full'; read one with get_step.",
   get_context:
-    "Everything needed to work on an item in one call: outcome and acceptance, decisions to follow (owner's first), epic and label briefs, blockers, the project's workflow notes, planning documents, the last review's notes. Sized to a budget; cuts are marked. Start with budget 'small' and widen only if needed. Read-only: owner notes are counted here but delivered by get_item.",
+    "Everything needed to work on an item in one call: outcome and acceptance, decisions to follow (owner's first), epic and label briefs, blockers, the project's workflow notes, planning documents, the last review's notes. Sized to a budget; cuts are marked. Read-only: owner notes are counted here but delivered by get_item.",
   dependency_subgraph:
     'Show what blocks an item and what it blocks, with status and planned dates. Set delay_days to see which downstream items a slip would push past their planned start.',
   deferred_reviews:
@@ -55,13 +55,13 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   get_digest:
     "One compact snapshot for coordinators, instead of many reads: top ready items, running, stale and parked runs (resume_ready flagged), blocked items and why, what waits on the owner, agent-actionable problems, leases, conflicts ahead, and the change cursor. Pass cursor for only what changed since then. Long sections end in '+N more'. Read-only.",
   create_item:
-    'Create an Epic, Story, Task or Bug. It starts in Inbox (or Planning if you are shaping it now). Put small steps in the checklist (set_plan), not in new tickets.',
+    'Create an Epic, Story, Task or Bug, in Inbox (or Planning if you are shaping it). Small steps go in the checklist (set_plan). To split a ticket, pass split_from: move and copy are 1-based acceptance positions; also brings blockers, parts or steps.',
   update_item:
     "Edit an item's fields. Pass expected_version from your last read. Dates you set are labelled as set by you. Status goes through set_status, the plan through set_plan.",
   set_status:
     'Move an item. Allowed: inbox→planning; planning↔ready; ready→progress; progress→ready (gives up the work); progress or review→done (only with no undecided human review item); any open status→canceled (reason required); done→progress (reopen, reason required). Moving to ready needs shared changes declared (declare_shared_changes), else not_declared. When closing as done, pass changed_files and branch. An unapproved change to an approved design refuses starting or closing with design_review. Hand off for review with submit_packet, not this.',
   link_items:
-    "Link two items. type 'blocks': from must finish before to can start; 'relates' is informational. For blocks, satisfied_when sets what 'finished' means: done (default, or the project's default), merged (done and a PR reported merged with link_artifact) or verified (done and every human review item approved). Calling again updates satisfied_when. A link that would create a cycle is rejected with the cycle path.",
+    "Link two items. type 'blocks': from must finish before to can start; 'relates' is informational. For blocks, satisfied_when sets what 'finished' means: done (default, or the project's default), merged (done and a PR reported merged with link_artifact) or verified (done and every human review item approved). Calling again updates it. A cycle is rejected with its path.",
   unlink_items: 'Remove a link between two items.',
   upsert_label:
     'Create a label or update its brief. Use a label for an initiative spanning several epics; the brief holds the shared decisions.',
@@ -80,7 +80,7 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   update_run_status:
     "Coordinators: set an item's lead run's current action, park reason or waiting_on, resume it, or park it for park_minutes (a new park needs park_reason and waiting_on; 240 at most, and 24 hours since its last own signal). When the time ends it returns to a short lease. No run_id. coordinator is your name: the run's orchestrator or one registered for the project. Grants no other power.",
   set_plan:
-    "Publish or revise your plan as one-line steps, optionally with details (Markdown) and a source such as a Jira key. Patches by default: steps with an id are updated (text changes record the old text and your reason), steps without one are added, nothing is removed unless listed in remove. mode 'replace' restates the plan. Owner-added steps are always kept; on Jira-imported steps you may add details, keeping the current text at the start. Revisions are kept as history.",
+    "Publish or revise your plan as one-line steps, optionally with details (Markdown) and a source such as a Jira key. Patches by default: steps with an id are updated, others added, and nothing is removed unless listed in remove. mode 'replace' restates the plan. Owner-added steps are always kept; on Jira-imported steps you may only add details. Revisions are kept.",
   update_step:
     "Update a step's state: current when you start, done when finished, blocked or skipped with a note. details replaces its details (null clears), with expected_details_version from get_step. On a Jira-imported step you may only add to details: keep the current text at the start.",
   log_subagent:
@@ -89,7 +89,7 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
     'Publish what you will verify yourself (tests, measurements, reviews), with state and evidence. Patches like set_plan: nothing is removed unless listed in remove. Owner-added checks are always kept.',
   update_check: "Update one check's state and evidence, for example when tests pass.",
   declare_human_review:
-    "Declare what the owner must verify by hand before this item can close, one plain instruction each ('On your phone, drag a recipe between days. Does it feel right?'). Declare early, usually in Planning. For one PR across an epic, declare once on the epic. With none, you may close the item yourself once your checks pass.",
+    "Declare what the owner must verify by hand before this item can close, one plain instruction each ('On your phone, drag a recipe. Does it feel right?'). Declare early, usually in Planning. For one PR across an epic, declare once on the epic. With none, you may close the item yourself once your checks pass.",
   update_human_review:
     "Edit or remove a human review item you declared. Items in an open packet are locked; owner-added items are the owner's.",
   add_note:
@@ -101,7 +101,7 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   report_commit:
     'Report every commit for its item, including fixes after a review, and set pushed true once it is on the remote: an unpushed commit can be lost in a crash. A packet built from an older commit is marked out of date.',
   submit_packet:
-    'Hand finished work to the owner for human review, once it is built, checks pass and everything is committed and reported. The packet must let the owner verify without asking you anything: what to check, exact steps (URLs, builds, commands), what you verified and how, known gaps, attachments. Pass changed_files (every file changed) and branch: undeclared shared-part changes, or an unapproved change to an approved design, hold it for the owner. The item moves to Review; read the decision with get_review or get_item.',
+    'Hand finished work to the owner for human review, once built, checks pass and all commits are reported. The packet must let the owner verify without asking you anything: what to check, exact steps (URLs, builds, commands), what you verified and how, known gaps, attachments. Pass changed_files (every file changed) and branch: undeclared shared-part changes, or an unapproved change to an approved design, hold it for the owner. The item moves to Review; read the decision with get_review or get_item.',
   get_review:
     "Read the owner's review decisions, round by round. 'changes' notes say what to fix; each became a checklist step or a new Bug (see result_ref). Approved items stay approved in later rounds. Deferred items are not verified; leave them unless doing cleanup.",
   ask_owner:
@@ -111,31 +111,31 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   list_decisions:
     "List a project's decision records, optionally for one scope. Active only unless include_inactive. get_context already includes those that apply to an item.",
   withdraw_decision:
-    "Withdraw a decision you or another agent recorded when it no longer applies. Agents can't withdraw owner decisions.",
+    'Withdraw a decision you or another agent recorded when it no longer applies (not an owner decision). Or pass question_id to retract an outdated, unanswered question.',
   recovery_report:
     "After a crash or restart, or before pruning worktrees, get the restart list: interrupted, stale and parked runs with brief, workspace, last pushed commit, checklist progress and open question; every workspace as in use, at risk or safe to prune; resources left running. A Docket restart keeps open runs open, so re-dispatch only what's interrupted, and never prune a workspace marked in use or at risk.",
   get_agent_files:
-    'Read the agent files (skills, AGENTS.md block) and Workflow notes in effect for a project, with version_id and source. Pass file for its full text. Read-only. Call before propose_agent_file_change, and propose from this text, not your installed copy.',
+    'Read the agent files (skills, AGENTS.md block) and Workflow notes in effect for a project, with version_id and source. Pass file for its full text. Read-only. Propose changes from this text, not your installed copy.',
   propose_agent_file_change:
     "Propose new content for an agent file (skill or AGENTS.md block) or a project's Workflow notes, with a short reason. Nothing changes until the owner approves; they may edit or decline it. Send the whole new text and based_on_version_id from get_agent_files. Omit project to propose a change to the default.",
   onboard_project:
-    'Set up a project or onboard a repo into one. Creates the project when the key is free (pass name) or adopts the existing one, starts an onboarding session, and returns session_id, what the project holds and the onboarding guide. Follow the guide step by step; it works with no agent files installed. Not retry-safe: pass idempotency_key.',
+    'Set up a project or onboard a repo into one. Creates the project when the key is free (pass name) or adopts the existing one, starts an onboarding session, and returns session_id, what the project holds and the onboarding guide. Follow it step by step. Not retry-safe: pass idempotency_key.',
   finish_onboarding:
-    'Finish an onboarding session and hand it to the owner for review, with a short summary and any open questions. Pass session_id from onboard_project. The owner reviews everything from one card; stop there and wait.',
+    'Finish an onboarding session and hand it to the owner for review, with a short summary and any open questions. Pass session_id from onboard_project. Then stop and wait.',
   get_step:
     "Read one checklist step in full: text, state, source, details (Markdown), history and subagent notes. Call before working on a step get_item shows with '· details'. Read-only.",
   apply_batch:
-    'Run up to 100 writes in one call, for large onboardings: each operation names a tool (create_item, update_item, link_items, upsert_label, set_plan, update_step, put_document or publish_decision) and its arguments. Each runs the same checks as its single call and applies on its own, in order: a failure doesn\'t undo the others, and the result lists each operation\'s ID or error. "$1" in an argument means the ID operation 1 wrote. Pass idempotency_key, so a retry replays what succeeded and runs only the rest.',
+    'Run up to 100 writes in one call, for large onboardings: each operation names a tool and its arguments. Each runs as its single call would, in order: a failure doesn\'t undo the others, and the result lists each operation\'s ID or error. "$1" means the ID operation 1 wrote. Pass idempotency_key, so a retry runs only what failed.',
   declare_shared_changes:
-    "Declare the shared parts this item will change (tables, models, endpoints, shared files), each with add, change or remove and a short note, or none: true. An item can't move to Ready until it has declared. Each call replaces the whole declaration. Name parts by their keys from list_shared_parts; register a missing one with new_parts. Name the member when you can (model:Token.expiresAt, table:decks.archived_at): different members run in parallel, while a bare part may touch anything in it and is sequenced. Set design_impact: changes_approved_design with a design_note when the change alters an approved design: it reaches the owner and this item pauses until approved, while others continue. Set disputed: true when agents disagree about who owns a part; that reaches the owner too. Pass branches, every branch the work is on (or branch for one), so the conflict radar can check them; they replace the reported branches, and an empty list clears them. Returns in-flight items changing the same parts, each with outcome parallel, sequence or owner.",
+    'Declare the shared parts this item will change (tables, models, endpoints, shared files), each with add, change or remove and a short note, or none: true. Required before Ready. Each call replaces the whole declaration. Use keys from list_shared_parts; register a missing one with new_parts. Name the member when you can (model:Token.expiresAt): different members run in parallel; a bare part is sequenced. Set design_impact: changes_approved_design with a design_note when it alters an approved design: this item pauses until the owner approves. Set disputed: true when agents disagree who owns a part. Pass branches, every branch the work is on (or branch for one); they replace those reported, and an empty list clears them. Returns in-flight items on the same parts, each with outcome parallel, sequence or owner.',
   list_shared_parts:
-    "List a project's shared parts: each key, the file paths mapped to it, whether it is single-writer, who holds its lease, and in-flight items declaring changes to it. Read-only. Call before declare_shared_changes, to use registered keys.",
+    "List a project's shared parts: each key, the file paths mapped to it, whether it is single-writer, who holds its lease, and in-flight items declaring changes to it. Read-only.",
   take_lease:
     'Take the lease on a single-writer part (such as a migrations snapshot) for an item you lead, before changing it; call again to renew. It lasts 2 hours and ends when the item is done or handed off, or you release it. If another item holds it you get lease_held with holder and expiry: work on something else rather than waiting in a loop.',
   release_lease:
     'Release your lease on a single-writer part as soon as your change is committed and pushed, so other items can take it.',
   propose_resolution:
-    'Propose how to resolve a problem that needs the owner: split, rescope, reorder or other, with a plan in Markdown and a reason. Pass problem (its ID from get_context problems), or id for the item in general. The owner approves it, asks for a different way with a note, or acknowledges it; the choice arrives as an owner note and in get_context. Routine fixes need no proposal: rebase onto main, or remove an old branch with declare_shared_changes; Docket records it.',
+    'Propose how to resolve a problem that needs the owner: split, rescope, reorder or other, with a plan in Markdown and a reason. Pass problem (its ID from get_context problems), or id for the item in general. The owner approves it, asks for a different way with a note, or acknowledges it; the choice arrives as an owner note and in get_context. Routine fixes (a rebase, dropping an old branch) need no proposal.',
 };
 
 /**

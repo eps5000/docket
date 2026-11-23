@@ -259,6 +259,21 @@ The owner is not the implementer. Agents were sending one dense block that assum
 
 BUILD_SPEC §5.28, MCP_SPEC §3 and §5.7, UI_SPEC §6.1 and §6.3, spec FR-224–FR-229, Help (Questions and notes) and the skills have the details.
 
+## Owner decision 48 (2026-11-23): coordination tooling
+
+The owner approved part of the coordination tooling design (`docs/design/coordination-tooling.md`). Each batch adds its part here.
+
+**Split a ticket and withdraw a question (B61).**
+
+1. **Withdraw a question.** The run that asked, its recorded coordinator or a coordinator registered for the project can retract an unanswered question, with a short plain reason. It leaves Needs you at once and the agent can ask again. The owner still sees it in the ticket's history, marked **Withdrawn**, with the reason. Nobody answers for the owner, and an answered question can't be withdrawn.
+2. **Split a ticket.** One step creates a new ticket from an existing one and moves the chosen acceptance criteria, and can move or copy blockers, shared-part declarations and checklist steps. Every criterion ends up on exactly one ticket unless it was explicitly copied, and the original keeps at least one.
+3. **How they relate.** The new ticket waits for the original, the original waits for it, or neither. It keeps the epic and labels, and both tickets show where the work went ("Split from", "Split into").
+4. **A live lead is safe.** Its claim, runs, reviews and decisions stay on the original. Only the lead, its coordinator or the owner may split a claimed ticket, always against the version they read. An open review packet is never rewritten: if criteria moved, it is marked out of date.
+5. **Undo** restores both tickets for 60 seconds after the owner's own split, as with other owner changes. An agent's split isn't undoable from the UI.
+6. **When to split:** if a blocker holds only some acceptance criteria, prefer a split. Nothing here adds a gate.
+
+BUILD_SPEC §5.29, MCP_SPEC §5.3 and §5.8, UI_SPEC §6.3, spec FR-230–FR-235, Help and the skills have the details.
+
 ## Deferred choices
 
 Pilot project choice and Jira import strategy are deferred until V1 is ready for real work. Design should still settle the storage layout, supported document preview formats, the exact project gate configuration shape, and the minimum history needed before a velocity forecast is shown. These are implementation choices guided by the owner decisions above, not blockers to selecting a pilot now.

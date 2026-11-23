@@ -225,6 +225,8 @@ export interface OpenPacket {
   built_from_commit: string | null;
   created_at: string;
   stale: boolean;
+  /** Decision 48: a split moved acceptance criteria after it was built. */
+  criteria_changed: boolean;
   to_verify: number;
 }
 
@@ -241,10 +243,12 @@ export function openPackets(db: Db, itemIds: string[]): Map<string, OpenPacket> 
   const sql = db.sqlite;
   const rows = sql
     .prepare(
-      `SELECT id, item_id, round, estimate, built_from_commit, created_at FROM packets
+      `SELECT id, item_id, round, estimate, built_from_commit, created_at, criteria_changed_at FROM packets
        WHERE state = 'open' AND item_id IN ${placeholders(itemIds.length)}`,
     )
-    .all(...itemIds) as Omit<OpenPacket, 'stale' | 'to_verify'>[];
+    .all(...itemIds) as (Omit<OpenPacket, 'stale' | 'criteria_changed' | 'to_verify'> & {
+    criteria_changed_at: string | null;
+  })[];
   if (rows.length === 0) return out;
   const packetItems = rows.map((p) => p.item_id);
   const list = placeholders(packetItems.length);
@@ -268,15 +272,18 @@ export function openPackets(db: Db, itemIds: string[]): Map<string, OpenPacket> 
         .all(...packetItems) as { item_id: string; n: number }[]
     ).map((x) => [x.item_id, x.n]),
   );
-  for (const p of rows) {
+  for (const { criteria_changed_at, ...p } of rows) {
     const built = (p.built_from_commit ?? '').toLowerCase();
-    const stale = commits.some(
-      (c) =>
-        (c.item_id === p.item_id || c.epic_id === p.item_id) &&
-        ms(c.reported_at) > ms(p.created_at) &&
-        !sameSha(c.sha.toLowerCase(), built),
-    );
-    out.set(p.item_id, { ...p, stale, to_verify: ready.get(p.item_id) ?? 0 });
+    const criteria_changed = criteria_changed_at !== null;
+    const stale =
+      criteria_changed ||
+      commits.some(
+        (c) =>
+          (c.item_id === p.item_id || c.epic_id === p.item_id) &&
+          ms(c.reported_at) > ms(p.created_at) &&
+          !sameSha(c.sha.toLowerCase(), built),
+      );
+    out.set(p.item_id, { ...p, stale, criteria_changed, to_verify: ready.get(p.item_id) ?? 0 });
   }
   return out;
 }
@@ -297,7 +304,7 @@ function openQuestions(db: Db, itemIds: string[]): Map<string, OpenQuestion> {
   for (const q of db.sqlite
     .prepare(
       `SELECT id, item_id, text, asked_by, form, created_at FROM questions
-       WHERE answered_at IS NULL AND item_id IN ${placeholders(itemIds.length)}`,
+       WHERE answered_at IS NULL AND withdrawn_at IS NULL AND item_id IN ${placeholders(itemIds.length)}`,
     )
     .all(...itemIds) as OpenQuestion[]) {
     out.set(q.item_id, q);
@@ -1664,6 +1671,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
             packet_id: packet.packet_id,
             round: packet.round,
             stale: packet.stale,
+            criteria_changed: openPackets(r.db, [row.id]).get(row.id)?.criteria_changed ?? false,
             to_verify: item.checklist.human_review.filter((h) => h.state === 'ready').length,
             estimate:
               (
@@ -1697,7 +1705,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
 
       const question = sql
         .prepare(
-          'SELECT answered_at, read_by_agent_at, form FROM questions WHERE item_id = ? ORDER BY created_at DESC LIMIT 1',
+          'SELECT answered_at, read_by_agent_at, form FROM questions WHERE item_id = ? AND withdrawn_at IS NULL ORDER BY created_at DESC LIMIT 1',
         )
         .get(row.id) as
         | { answered_at: string | null; read_by_agent_at: string | null; form: string | null }

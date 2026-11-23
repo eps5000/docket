@@ -125,7 +125,7 @@ describe('0010_shared_changes', () => {
     const migrated = openDb(copy);
     try {
       migrateDb(migrated);
-      expect(migrationStatus(migrated)).toEqual({ current: true, applied: 23, expected: 23 });
+      expect(migrationStatus(migrated)).toEqual({ current: true, applied: 24, expected: 24 });
 
       // Every existing row is unchanged, plus the new columns at their defaults.
       expect(all(migrated, 'items')).toEqual(
@@ -140,6 +140,8 @@ describe('0010_shared_changes', () => {
           radar_branch_matches: null,
           // 0012_item_branches (B41): no B40 branch to move, so none.
           branches: null,
+          // 0023 (decision 48): not split from anything.
+          split_from: null,
         })),
       );
       expect(all(migrated, 'packets')).toEqual(
@@ -148,6 +150,7 @@ describe('0010_shared_changes', () => {
           changed_files: null,
           branch: null,
           held_undeclared: null,
+          criteria_changed_at: null,
         })),
       );
       expect(all(migrated, 'projects')).toEqual(
@@ -317,7 +320,7 @@ describe('0010_shared_changes', () => {
 
       // Migrating again is a no-op.
       migrateDb(migrated);
-      expect(migrationStatus(migrated).applied).toBe(23);
+      expect(migrationStatus(migrated).applied).toBe(24);
     } finally {
       migrated.sqlite.close();
     }

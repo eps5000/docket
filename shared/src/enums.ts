@@ -562,6 +562,8 @@ export const EVENT_TYPES = [
   'item.status_changed',
   'item.archived',
   'item.unarchived',
+  // Decision 48 (B61): a ticket was split; recorded on the original
+  'item.split',
   // Links and projects
   'link.added',
   'link.removed',
@@ -597,6 +599,8 @@ export const EVENT_TYPES = [
   // Messages
   'question.asked',
   'question.answered',
+  // Decision 48 (B61): the asker or a coordinator retracted an unanswered question
+  'question.withdrawn',
   'owner_note.added',
   'note.added',
   // Evidence
@@ -660,6 +664,18 @@ export const EVENT_TYPES = [
   'run.resume_ready',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
+
+/**
+ * Decision 48 (B61): how a split's new ticket relates to the original.
+ * `after_original`: the new ticket depends on it. `before_original`: it depends
+ * on the new ticket. `none`: no dependency.
+ */
+export const SPLIT_RELATIONS = ['after_original', 'before_original', 'none'] as const;
+export type SplitRelation = (typeof SPLIT_RELATIONS)[number];
+
+/** What a split can carry besides acceptance criteria. */
+export const SPLIT_CARRY_KINDS = ['blocker', 'part', 'step'] as const;
+export type SplitCarryKind = (typeof SPLIT_CARRY_KINDS)[number];
 
 /**
  * The only event types that make something "for you" on the stream (owner

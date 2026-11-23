@@ -46,6 +46,19 @@ export function projectCoordinators(db: Db, project: string): string[] {
   return Array.isArray(names) ? names.filter((n): n is string => typeof n === 'string') : [];
 }
 
+/** Is `name` this run's recorded orchestrator, or a coordinator registered for its project? */
+export function namesCoordinator(
+  db: Db,
+  project: string,
+  run: Pick<RunRow, 'orchestrator'>,
+  name: string,
+): boolean {
+  return (
+    parseJson<{ name?: string }>(run.orchestrator)?.name === name ||
+    projectCoordinators(db, project).includes(name)
+  );
+}
+
 // ---- Producer holds ----
 
 export interface HoldRow extends ProducerHold {

@@ -268,7 +268,29 @@ export const listDecisionsOutput = readOutput({
 // ---- withdraw_decision ----
 
 export const withdrawDecisionInput = mutationInput({
-  decision_id: objectId,
+  decision_id: objectId.optional(),
+  /** Decision 48: withdraw this unanswered question instead of a decision. */
+  question_id: objectId.optional(),
   reason: text(LIMITS.withdraw_reason),
+  /** Your name, when you withdraw a question as a coordinator. */
+  coordinator: text(LIMITS.orchestrator_name).optional(),
+}).superRefine((value, ctx) => {
+  if ((value.decision_id === undefined) === (value.question_id === undefined)) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['decision_id'],
+      message: 'Pass decision_id or question_id (one of the two).',
+    });
+  }
+  if (value.coordinator !== undefined && value.question_id === undefined) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['coordinator'],
+      message: 'coordinator goes with question_id.',
+    });
+  }
 });
-export const withdrawDecisionOutput = mutationOutput({ decision: decisionRecordSchema });
+export const withdrawDecisionOutput = mutationOutput({
+  decision: decisionRecordSchema.optional(),
+  question: z.object({ id: z.string(), text: z.string(), withdrawn_at: z.string() }).optional(),
+});

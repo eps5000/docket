@@ -7,10 +7,11 @@ import { apiClient } from '../../app/queryClient';
 import { queryKeys } from '../../lib/api';
 import { paths } from '../../lib/paths';
 import { runOwnerMutation, showToast } from '../../lib/undo';
+import { SplitDialog } from './SplitItem';
 
 /**
- * The item header's "⋯" overflow with *Cancel item…* (UI_SPEC §6.3; owner
- * decision 23; FR-064b). It opens an inline confirm, "Cancel RCP-31?
+ * The item header's "⋯" overflow with *Split ticket…* (decision 48) and
+ * *Cancel item…* (UI_SPEC §6.3; owner decision 23; FR-064b). Cancel opens an inline confirm, "Cancel RCP-31?
  * Optional reason", with *Keep item* focused and *Cancel item*:
  * - an epic with open children lists them instead, with no Cancel button;
  * - an item an agent leads adds "codex is working on this; its run will be
@@ -20,6 +21,7 @@ import { runOwnerMutation, showToast } from '../../lib/undo';
 export function CancelMenu({ data }: { data: ItemDetailResponse }) {
   const [menu, setMenu] = useState(false);
   const [confirm, setConfirm] = useState(false);
+  const [split, setSplit] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
   const first = useRef<HTMLButtonElement>(null);
 
@@ -66,8 +68,22 @@ export function CancelMenu({ data }: { data: ItemDetailResponse }) {
               }
             }}
           >
+            {data.item.type !== 'Epic' && (
+              <button
+                ref={first}
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  // Focus returns here when the dialog closes.
+                  closeMenu();
+                  setSplit(true);
+                }}
+              >
+                Split ticket…
+              </button>
+            )}
             <button
-              ref={first}
+              ref={data.item.type === 'Epic' ? first : undefined}
               type="button"
               role="menuitem"
               onClick={() => {
@@ -80,6 +96,7 @@ export function CancelMenu({ data }: { data: ItemDetailResponse }) {
           </div>
         )}
       </span>
+      {split && <SplitDialog data={data} onClose={() => setSplit(false)} />}
       {confirm && (
         <CancelConfirm
           data={data}
