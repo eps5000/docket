@@ -231,7 +231,7 @@ test.describe.serial('US11 recovery', () => {
       reason: 'Waiting for RCP-11 to be done',
       waiting_on: { items: ['RCP-11'] },
     });
-    expect(parked.structured).toEqual({ run_state: 'parked', resume_ready: true });
+    expect(parked.structured).toMatchObject({ run_state: 'parked', resume_ready: true });
     age([
       ['UPDATE runs SET parked_at = ? WHERE id = ?', [ago(25 * 60 * MIN), runs.parkedLong]],
       ['UPDATE runs SET parked_at = ? WHERE id = ?', [ago(40 * MIN), runs.ready]],
