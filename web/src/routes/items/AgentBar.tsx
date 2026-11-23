@@ -5,6 +5,7 @@ import {
   type CoordinatorPark,
   type ItemDetailResponse,
   type RunActivity,
+  type WaitCard,
 } from '@docket/shared';
 import {
   Button,
@@ -24,6 +25,7 @@ import {
 } from './activity/leadActions';
 import { RunInstructionsLine } from './activity/RunInstructions';
 import { HelpLink } from '../../help/HelpLink';
+import { PROBLEM_TITLES } from '../shared/problems';
 
 /** Decision 44: who parked it and until when, or that their park just ran out. */
 function coordinatorParkSentence(park: CoordinatorPark): string {
@@ -37,6 +39,59 @@ function activitySentence(activity: RunActivity): string {
   const text = activityText(activity);
   const line = text.charAt(0).toUpperCase() + text.slice(1);
   return activity.kind === 'since_signal' ? `${line}. Its session may not have Docket.` : line;
+}
+
+/** Decision 45: what the parked lead waits for, who moves it, and how the same run resumes. */
+function WaitCardLines({ wait }: { wait: WaitCard }) {
+  const named = [
+    ...wait.blockers.map((b) =>
+      b.cleared ? `${b.id} cleared` : `${b.id} (${b.status}, clears when ${b.clears_when})`,
+    ),
+    wait.more_blockers > 0 ? `${wait.more_blockers} more` : null,
+    wait.person ? 'a person' : null,
+    wait.coordinator ? 'the coordinator' : null,
+    wait.until ? `until ${formatStamp(wait.until)}` : null,
+  ].filter(Boolean);
+  return (
+    <div className="ab-parked src" data-ab="wait">
+      <span data-ab="wait-for">Waiting for {named.join(', ') || 'nothing named'}</span>
+      <span data-ab="wait-since" title={isoTitle(wait.waited_since)}>
+        Waited since {formatSince(wait.waited_since)}
+      </span>
+      <span data-ab="wait-next">
+        Next: {wait.next_owner.name} · {wait.next_owner.step}
+      </span>
+      <span data-ab="wait-resume">{wait.resumes_when}</span>
+      {wait.scope_hint && <span data-ab="wait-scope">{wait.scope_hint}</span>}
+      {wait.flags.map((f) => (
+        <Chip key={`${f.kind}:${f.on}`} kind="warn">
+          {PROBLEM_TITLES[f.kind]}: {f.on}
+        </Chip>
+      ))}
+    </div>
+  );
+}
+
+/** Decision 45: whoever picks this item up sees which parked runs it frees. */
+function WaitingRunsLine({
+  waiting,
+}: {
+  waiting: NonNullable<ItemDetailResponse['waiting_runs']>;
+}) {
+  return (
+    <div className="ab-parked src" data-ab="waiting-runs">
+      <span>
+        Unblocks{' '}
+        {waiting.rows
+          .map(
+            (x) =>
+              `${x.item_id}${x.via ? ` (via ${x.via})` : ''}, waiting since ${formatSince(x.waited_since)}`,
+          )
+          .join('; ')}
+        {waiting.total > waiting.rows.length ? `; ${waiting.total - waiting.rows.length} more` : ''}
+      </span>
+    </div>
+  );
 }
 
 /**
@@ -78,15 +133,20 @@ export function AgentBar({ data }: { data: ItemDetailResponse }) {
 
   if (item.type === 'Epic') return null;
   if (!lead || !run) {
-    if (item.status !== 'progress') return <div className="agentbar-none">{live}</div>;
+    // Decision 45: a blocker nobody leads is exactly where "this frees a parked run" matters.
+    const frees = data.waiting_runs ? <WaitingRunsLine waiting={data.waiting_runs} /> : null;
+    if (item.status !== 'progress' && !frees) return <div className="agentbar-none">{live}</div>;
     const hold = item.producer_hold;
     return (
       <section className="agentbar quiet" aria-label="Lead agent" data-agent-bar="none">
-        <span className="src" data-ab="between-workers">
-          {hold
-            ? `Between workers: ${hold.producer} holds this until ${formatClock(hold.until)}`
-            : 'No agent on this'}
-        </span>
+        {item.status === 'progress' && (
+          <span className="src" data-ab="between-workers">
+            {hold
+              ? `Between workers: ${hold.producer} holds this until ${formatClock(hold.until)}`
+              : 'No agent on this'}
+          </span>
+        )}
+        {frees}
         {live}
       </section>
     );
@@ -129,6 +189,8 @@ export function AgentBar({ data }: { data: ItemDetailResponse }) {
           {parked.resume_ready && <Chip kind="ok">Ready to resume</Chip>}
         </div>
       )}
+      {parked && data.wait && <WaitCardLines wait={data.wait} />}
+      {data.waiting_runs && <WaitingRunsLine waiting={data.waiting_runs} />}
       {(run.producer || run.status_update || run.coordinator_park || run.activity) && (
         <div className="ab-parked src" data-ab="status">
           {run.producer && <span data-ab="producer">Producer {run.producer}</span>}

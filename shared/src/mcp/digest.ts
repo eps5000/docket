@@ -6,7 +6,7 @@
  */
 import { z } from 'zod';
 import { cursor, projectKey, readInput, readOutput } from './common.js';
-import { coordinatorParkSchema, prioritySchema, runStateSchema } from './types.js';
+import { WAIT_FLAG_KINDS, coordinatorParkSchema, prioritySchema, runStateSchema } from './types.js';
 
 /** The most rows each section lists. */
 export const DIGEST_CAPS = {
@@ -50,6 +50,17 @@ export const digestRunSchema = z.object({
   updated_by: z.string().optional(),
   /** Decision 44: a coordinator's time-limited park, holding or just run out. */
   coordinator_park: coordinatorParkSchema.optional(),
+  /** Decision 45: on a parked row, how long it has waited, who moves it and how it resumes. */
+  wait: z
+    .object({
+      since: z.string(),
+      /** "orca: shape GF-381 or assign it". */
+      next: z.string(),
+      flags: z.array(z.enum(WAIT_FLAG_KINDS)),
+      /** Once it can resume: the same run and dispatch to tell. */
+      relay: z.string().optional(),
+    })
+    .optional(),
 });
 
 export const digestBlockedSchema = z.object({

@@ -292,6 +292,79 @@ export const runActivitySchema = z.object({
 });
 export type RunActivity = z.infer<typeof runActivitySchema>;
 
+/** Decision 45: the two advisory flags on a parked run's wait. */
+export const WAIT_FLAG_KINDS = ['wait_no_next_step', 'wait_owner_unasked'] as const;
+export type WaitFlagKind = (typeof WAIT_FLAG_KINDS)[number];
+
+export const waitFlagSchema = z.object({
+  kind: z.enum(WAIT_FLAG_KINDS),
+  /** The item the flag is about: the blocker, or the run's own item. */
+  on: z.string(),
+  /** When it was raised. */
+  since: z.string(),
+  /** What moves it: "shape GF-381 or assign it". */
+  step: z.string(),
+});
+export type WaitFlag = z.infer<typeof waitFlagSchema>;
+
+/**
+ * Decision 45: what a parked lead waits for, who can move it and how it
+ * resumes, derived from what Docket stores. Advisory: it gates nothing.
+ */
+export const waitCardSchema = z.object({
+  run_id: z.string(),
+  item_id: z.string(),
+  label: z.string().nullable(),
+  client: z.string(),
+  orchestrator: orchestratorRefSchema.nullable(),
+  /** Named blockers, uncleared first, at most `WAIT_FLAGS.card_blockers`. */
+  blockers: z.array(
+    z.object({
+      id: z.string(),
+      status: statusSchema,
+      clears_when: z.enum(['done', 'merged', 'verified']),
+      cleared: z.boolean(),
+      /** When this run first parked on it: a re-park doesn't move it. */
+      waited_since: z.string(),
+      /** Its live lead's name, if it has one. */
+      lead: z.string().nullable(),
+      /** The item further down the chain that can actually move, when it isn't this one. */
+      moves: z.string().nullable(),
+    }),
+  ),
+  /** How many named blockers aren't listed. */
+  more_blockers: z.number().int(),
+  person: z.boolean(),
+  coordinator: z.boolean(),
+  until: z.string().nullable(),
+  /** The earliest first-park among what it still waits for. */
+  waited_since: z.string(),
+  next_owner: z.object({
+    kind: z.enum(['lead', 'orchestrator', 'coordinator', 'owner']),
+    name: z.string(),
+    item_id: z.string().nullable(),
+    step: z.string(),
+  }),
+  /** One exact sentence: what clears it, and who continues under which run. */
+  resumes_when: z.string(),
+  resume_ready: z.boolean(),
+  flags: z.array(waitFlagSchema),
+  /** A named blocker was linked after this run claimed the item: check it holds the whole story. */
+  scope_hint: z.string().optional(),
+});
+export type WaitCard = z.infer<typeof waitCardSchema>;
+
+/** Decision 45: a parked run waiting on this item, shown to whoever picks the item up. */
+export const waitingRunSchema = z.object({
+  item_id: z.string(),
+  run_id: z.string(),
+  label: z.string().nullable(),
+  waited_since: z.string(),
+  /** It waits on this item through another: the direct blocker. */
+  via: z.string().nullable(),
+});
+export type WaitingRun = z.infer<typeof waitingRunSchema>;
+
 export const runSchema = z.object({
   run_id: z.string(),
   parent_run_id: z.string().nullable(),
@@ -566,6 +639,10 @@ export const contextBundleSchema = z.object({
    * 4d): what's wrong, what fixes it and who acts, in the words the owner
    * reads, with the ID `propose_resolution` takes. Optional (B42).
    */
+  /** Decision 45: the wait card of the item's parked lead. */
+  wait: waitCardSchema.optional(),
+  /** Decision 45: parked runs this item would unblock, at most `WAIT_FLAGS.context_waiters`. */
+  waiting_runs: z.object({ total: z.number().int(), rows: z.array(waitingRunSchema) }).optional(),
   problems: z
     .array(
       z.object({

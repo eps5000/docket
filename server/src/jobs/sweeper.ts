@@ -54,6 +54,12 @@ import {
   type RadarRunResult,
 } from '../domain/radar.js';
 import { planRunActivity } from '../domain/run-activity.js';
+import {
+  applyWaitCheck,
+  hasWaitEvent,
+  planWaitCheck,
+  storeWaitBookkeeping,
+} from '../domain/wait.js';
 import { classifyLegacyOverlaps } from '../domain/shared-changes.js';
 import { checkProjectWorktrees } from '../domain/worktree-check.js';
 import { SYSTEM_ACTOR } from '../domain/write.js';
@@ -139,8 +145,32 @@ export async function runActivityOnce(runtime: Runtime, signal?: AbortSignal): P
 }
 
 /**
+ * Decision 45 (wait.ts): raise and clear the wait flags, and tell a coordinator
+ * once when a parked run can resume. Database only, so slow git can't delay it.
+ * Finding nothing new writes nothing.
+ */
+export function waitCheckOnce(runtime: Runtime): {
+  raised: string[];
+  cleared: string[];
+  resumable: string[];
+} {
+  const all = planWaitCheck(runtime.db, runtime.clock().toISOString());
+  // A flag's step or left-the-park time is bookkeeping: no event, so not a mutation.
+  storeWaitBookkeeping(
+    runtime.db,
+    all.filter((c) => !hasWaitEvent(c)),
+  );
+  const changes = all.filter(hasWaitEvent);
+  if (changes.length === 0) return { raised: [], cleared: [], resumable: [] };
+  return runtime.write.run({ actor: SYSTEM_ACTOR, operation: 'run.wait', args: {} }, (w) =>
+    applyWaitCheck(w, changes),
+  ).result;
+}
+
+/**
  * Check parked and silent runs soon after startup and every two minutes, so a
  * flag shows within a few minutes (decision 42). Skips a tick still running.
+ * The wait check (decision 45) runs on every tick, even while git is still busy.
  */
 export function startRunActivity(
   runtime: Runtime,
@@ -150,7 +180,15 @@ export function startRunActivity(
   let running: Promise<void> | null = null;
   const stopping = new AbortController();
   const tick = () => {
-    if (stopped || running) return;
+    if (stopped) return;
+    try {
+      const { raised, resumable } = waitCheckOnce(runtime);
+      if (raised.length > 0) runtime.log(`wait check: flagged ${raised.join(', ')}`);
+      if (resumable.length > 0) runtime.log(`wait check: can resume ${resumable.join(', ')}`);
+    } catch (err) {
+      runtime.log(`wait check: failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    if (running) return;
     running = runActivityOnce(runtime, stopping.signal)
       .then((raised) => {
         if (raised.length > 0) runtime.log(`run activity: flagged ${raised.join(', ')}`);

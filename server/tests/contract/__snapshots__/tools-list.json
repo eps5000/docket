@@ -2010,6 +2010,9 @@
             "resume_ready": {
               "type": "boolean"
             },
+            "wait": {
+              "type": "object"
+            },
             "replayed": {
               "type": "boolean"
             },

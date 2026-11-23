@@ -301,6 +301,35 @@ export const explain = {
     };
   },
 
+  /** Decision 45: nobody has the next step on what a parked run waits for. */
+  wait_no_next_step(f: {
+    item: string;
+    on: string;
+    waited: string;
+    step: string;
+    route: RecoveryRoute;
+  }): ProblemExplanation {
+    return {
+      what: `${f.item} has waited ${f.waited} on ${f.on}, and nobody has the next step: no live lead, no open question or review, and no recent activity.`,
+      fix: `${f.step}. This is advisory: nothing is held by it.`,
+      who: f.route.who,
+      who_text: f.route.who_text,
+    };
+  },
+
+  /** Decision 45: a wait on an owner decision that nobody has actually asked for. */
+  wait_owner_unasked(f: { item: string; on: string; route: RecoveryRoute }): ProblemExplanation {
+    return {
+      what: `${f.item} is waiting on an owner decision about ${f.on}, but nobody has asked: there is no question, proposal or review for the owner.`,
+      fix:
+        f.route.who === 'agent'
+          ? `Ask it with ask_owner on ${f.on}. The owner can't answer a question that doesn't exist.`
+          : `No agent is there to ask. Record your decision on ${f.on}, or start a coordinator to ask it.`,
+      who: f.route.who,
+      who_text: f.route.who_text,
+    };
+  },
+
   extra_backup_failed(f: { error: string }): ProblemExplanation {
     return {
       what: `The extra backup copy failed: ${f.error}`,

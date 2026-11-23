@@ -13,6 +13,22 @@
  */
 export const COORDINATOR_PARK = { max_minutes: 240, total_minutes: 1_440 } as const;
 
+/**
+ * Decision 45: when a parked run's wait is flagged. `grace_minutes` of no real
+ * activity keeps a flag quiet while someone shapes the blocker.
+ * `repark_minutes` is how long a flag survives its run being out of its park,
+ * so a short resume and re-park doesn't clear and raise it again.
+ */
+export const WAIT_FLAGS = {
+  grace_minutes: 15,
+  repark_minutes: 15,
+  /** How far an uncleared blocker chain is followed to the item that can move. */
+  chain_depth: 6,
+  /** Blockers named on one wait card, and waiting runs listed on a blocker's context. */
+  card_blockers: 3,
+  context_waiters: 5,
+} as const;
+
 export const TEXT_LIMITS = {
   title: 200,
   /** Step, check and human review item text. */

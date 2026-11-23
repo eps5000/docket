@@ -48,6 +48,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
+  WAIT_FLAG_KINDS,
   activityText,
   coordinatorParkText,
   renderContext,
@@ -61,6 +62,9 @@ import { inScopeOf, labelsOf } from './decisions.js';
 import { BlockIndex, activeLead, coordinatorParkOf, currentSteps, requireItem } from './model.js';
 import { contextResolutions } from './problems.js';
 import { storedActivity } from './run-activity.js';
+import { WaitReader } from './wait.js';
+
+const WAIT_KINDS: ReadonlySet<string> = new Set(WAIT_FLAG_KINDS);
 
 /** Approximate tokens per budget (BUILD_SPEC §5.15). */
 export const CONTEXT_BUDGETS = { small: 1_000, medium: 3_000, large: 8_000 } as const;
@@ -134,6 +138,8 @@ interface Full {
   resolutions: NonNullable<Bundle['resolutions']>;
   docs: (Doc & { full: string | null })[];
   last_review: Bundle['last_review'];
+  wait?: NonNullable<Bundle['wait']>;
+  waiting_runs?: NonNullable<Bundle['waiting_runs']>;
 }
 
 function gather(r: ReadContext, deps: ServiceDeps, id: string): Full {
@@ -308,7 +314,8 @@ function gather(r: ReadContext, deps: ServiceDeps, id: string): Full {
       ...deps
         .services()
         .views.itemProblems(r, row.id)
-        .filter((p) => p.id && p.explanation)
+        // Decision 45: a wait flag is on the card below, with its next step.
+        .filter((p) => p.id && p.explanation && !WAIT_KINDS.has(p.kind))
         .map((p) => ({
           id: p.id!,
           kind: p.kind,
@@ -323,6 +330,22 @@ function gather(r: ReadContext, deps: ServiceDeps, id: string): Full {
     resolutions: contextResolutions(db, row.id),
     docs,
     last_review: last_review && last_review.items.length > 0 ? last_review : null,
+    ...waitSections(r, row.id, index),
+  };
+}
+
+/** Decision 45: the item's parked lead's wait, and the parked runs this item would free. */
+function waitSections(
+  r: ReadContext,
+  id: string,
+  index: BlockIndex,
+): Pick<Full, 'wait' | 'waiting_runs'> {
+  const reader = new WaitReader(r.db, r.now, index);
+  const lead = activeLead(r.db, id);
+  const waiting = reader.waitersOn(id);
+  return {
+    ...(lead?.state === 'parked' ? { wait: reader.card(lead) } : {}),
+    ...(waiting.total > 0 ? { waiting_runs: waiting } : {}),
   };
 }
 
@@ -396,6 +419,9 @@ export function assemble(
     last_review: null,
     budget,
     truncated_sections: [],
+    // Decision 45: short and bounded, and with the blockers, so it is never cut.
+    ...(full.wait ? { wait: full.wait } : {}),
+    ...(full.waiting_runs ? { waiting_runs: full.waiting_runs } : {}),
   };
   const larger = budget === 'large' ? ' left out' : '; ask get_context with a larger budget';
 

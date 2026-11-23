@@ -209,7 +209,7 @@ describe('§7.12 parking while you wait (MCP_SPEC §10 test 17)', () => {
       },
       h.a,
     );
-    expect(parked).toEqual({ run_state: 'parked', resume_ready: false });
+    expect(parked).toMatchObject({ run_state: 'parked', resume_ready: false });
 
     // Hours later: never stale, lease suspended, claim kept.
     h.server.clock.advance(minutes(180));

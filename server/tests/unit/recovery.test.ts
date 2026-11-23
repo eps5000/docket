@@ -147,7 +147,7 @@ describe('park_run (BUILD_SPEC §5.16)', () => {
       { orchestrator: true },
       'Waiting for the coordinator to send more work',
     );
-    expect(out).toEqual({ run_state: 'parked', resume_ready: false });
+    expect(out).toMatchObject({ run_state: 'parked', resume_ready: false });
     expect(run(run_id)).toMatchObject({
       state: 'parked',
       lease_expires_at: null,

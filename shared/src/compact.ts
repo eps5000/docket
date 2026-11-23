@@ -41,6 +41,7 @@ import type {
   Resource,
   Run,
   StepHistoryEntry,
+  WaitCard,
   WaitingOn,
   WorkStep,
   Workspace,
@@ -255,6 +256,37 @@ export function coordinatorParkText(park: CoordinatorPark, now: Date = new Date(
   return park.ended_at
     ? `Park by ${park.by} ran out ${parkClock(park.ended_at, now)}: short lease, next call continues`
     : `Parked by ${park.by} until ${parkClock(park.until, now)}`;
+}
+
+/** Decision 45: "2h 13m", "40m", "3d 2h": how long a run has waited. */
+export function waitedText(since: string, now: Date): string {
+  const min = Math.max(0, Math.floor((now.getTime() - Date.parse(since)) / 60_000));
+  if (min < 60) return `${min}m`;
+  const h = Math.floor(min / 60);
+  if (h < 48) return min % 60 ? `${h}h ${min % 60}m` : `${h}h`;
+  return h % 24 ? `${Math.floor(h / 24)}d ${h % 24}h` : `${Math.floor(h / 24)}d`;
+}
+
+/** Decision 45: the wait card as compact lines (`park_run`, `get_context`). */
+export function waitCardLines(c: WaitCard, now: Date, indent = ''): string[] {
+  const named = [
+    ...c.blockers.map((b) =>
+      b.cleared
+        ? `${b.id} cleared`
+        : `${b.id} ${b.status}, clears when ${b.clears_when}${b.moves ? `, moves at ${b.moves}` : ''}`,
+    ),
+    c.more_blockers > 0 ? `+${c.more_blockers} more` : null,
+    c.person ? 'a person' : null,
+    c.coordinator ? 'the coordinator' : null,
+    c.until ? `until ${parkClock(c.until, now)}` : null,
+  ].filter((x): x is string => !!x);
+  return [
+    `${indent}wait: ${named.join(', ') || 'nothing named'}${SEP}waited ${waitedText(c.waited_since, now)} since ${parkClock(c.waited_since, now)}`,
+    `${indent}  next: ${truncate(c.next_owner.name, 40)}: ${truncate(c.next_owner.step)}`,
+    `${indent}  ${truncate(c.resumes_when)}`,
+    ...(c.scope_hint ? [`${indent}  ${truncate(c.scope_hint)}`] : []),
+    ...c.flags.map((f) => `${indent}  ! ${f.kind} on ${f.on}: ${truncate(f.step)}`),
+  ];
 }
 
 /** The recovery facts under a run: parked, end reason, workspace, orchestrator, brief, resources. */
@@ -661,6 +693,19 @@ export function renderContext(ctx: ContextBundle, opts: RenderOptions = {}): str
   if (ctx.dependents.length > 0) {
     lines.push(`blocks: ${ctx.dependents.map((d) => `${d.id} ${d.status}`).join(', ')}`);
   }
+  // Decision 45: what its parked lead waits for, and the parked runs this item would free.
+  if (ctx.wait) lines.push(...waitCardLines(ctx.wait, now));
+  if (ctx.waiting_runs) {
+    const w = ctx.waiting_runs;
+    lines.push(
+      `unblocks waiting runs: ${w.rows
+        .map(
+          (x) =>
+            `${x.item_id} ${x.run_id}${x.label ? ` ${truncate(x.label, 20)}` : ''} waited ${waitedText(x.waited_since, now)}${x.via ? ` via ${x.via}` : ''}`,
+        )
+        .join(', ')}${w.total > w.rows.length ? ` +${w.total - w.rows.length} more` : ''}`,
+    );
+  }
   // Section 4b (decision 33): the step to work on, with its details.
   const st = ctx.current_step;
   if (st) {
@@ -894,6 +939,10 @@ function renderDigest(d: Digest, now: Date): string {
         x.waiting ? `waiting ${clip(x.waiting, 30)}` : null,
         x.label ? clip(x.label, 20) : null,
         x.producer ? `producer ${clip(x.producer, 20)}` : null,
+        x.wait ? `waited ${waitedText(x.wait.since, now)}` : null,
+        x.wait ? `next ${clip(x.wait.next, 56)}` : null,
+        ...(x.wait?.flags ?? []),
+        x.wait?.relay ? `relay ${clip(x.wait.relay, 70)}` : null,
         x.activity ? clip(x.activity, 40) : null,
         x.coordinator_park
           ? coordinatorParkText({ ...x.coordinator_park, by: clip(x.coordinator_park.by, 20) }, now)
@@ -1087,11 +1136,13 @@ const RENDERERS: { [N in ToolName]: Renderer<N> } = {
   finish_run: (r, a) => s('finish_run', { run_id: str(a.run_id), run_state: r.run_state }),
   park_run: (r, a, now) => {
     const waiting = a.waiting_on ? waitingOnText(a.waiting_on as WaitingOn, now) : null;
-    return s('park_run', {
+    const line = s('park_run', {
       run_id: str(a.run_id),
       waiting: waiting ? `${SEP}${waiting}` : '',
       ready: r.resume_ready ? 'ready to resume' : 'resume_ready false',
     });
+    // Decision 45: said where the agent reads it, so it knows who moves the wait.
+    return r.wait ? [line, ...waitCardLines(r.wait, now, I1)].join('\n') : line;
   },
   update_run_status: (r, _a, now) =>
     s('update_run_status', {

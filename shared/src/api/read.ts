@@ -24,6 +24,8 @@ import {
   runActivitySchema,
   runStateSchema,
   statusSchema,
+  waitCardSchema,
+  waitingRunSchema,
 } from '../mcp/types.js';
 import { input, jsonResponse, noInput, scopeSchema } from './common.js';
 import { onboardingSessionSchema } from './onboarding.js';
@@ -124,6 +126,9 @@ export const PROBLEM_KINDS = [
   'agent_files_drift',
   // Two in-flight branches heading for a merge conflict (owner decision 36; BUILD_SPEC §5.21; B39)
   'radar_conflict',
+  // A parked run's wait has no next step, or an owner decision nobody asked for (decision 45; B54)
+  'wait_no_next_step',
+  'wait_owner_unasked',
 ] as const;
 
 export const problemSchema = z.object({
@@ -475,6 +480,10 @@ export const itemDetailResponse = jsonResponse({
   problems: z.array(problemSchema).optional(),
   /** Decision 37 (B42; optional): open proposed resolutions about the item in general. */
   resolutions: z.array(resolutionRowSchema).optional(),
+  /** Decision 45 (B54; optional): the wait card of the item's parked lead. */
+  wait: waitCardSchema.nullable().optional(),
+  /** Decision 45 (B54; optional): parked runs this item would unblock. */
+  waiting_runs: z.object({ total: z.number().int(), rows: z.array(waitingRunSchema) }).optional(),
 });
 export type ItemDetailResponse = z.infer<typeof itemDetailResponse>;
 

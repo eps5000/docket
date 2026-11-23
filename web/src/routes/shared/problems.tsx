@@ -39,6 +39,8 @@ export const PROBLEM_TITLES: Record<Problem['kind'], string> = {
   unpushed_work: 'Work left in a worktree',
   parked_too_long: 'Parked a long time',
   resume_unattended: 'Ready to resume, unattended',
+  wait_no_next_step: 'Waiting, with no next step',
+  wait_owner_unasked: 'Waiting on a decision nobody asked for',
   agent_files_drift: 'Agent files changed outside Docket',
   radar_conflict: 'Heading for a merge conflict',
 };

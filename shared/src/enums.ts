@@ -653,6 +653,11 @@ export const EVENT_TYPES = [
   'run.activity',
   // A coordinator's time-limited park ran out (decision 44; B53)
   'run.park_expired',
+  // A parked run's wait (decision 45; B54): one event per flag raised or cleared, and one when
+  // what it waits for has cleared, which a coordinator relays to the same run
+  'run.wait_flagged',
+  'run.wait_cleared',
+  'run.resume_ready',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 
