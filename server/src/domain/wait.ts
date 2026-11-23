@@ -6,9 +6,13 @@
  *   it next, and the one sentence that says how the same run resumes.
  * - **Two advisory flags,** evaluated by the two-minute job with no git:
  *   `wait_no_next_step` (nobody owns the blocker's next step) and
- *   `wait_owner_unasked` (it waits on an owner decision nobody has asked for).
- *   Each raises one event and clears when its condition ends. A short resume
- *   and re-park keeps it raised, so it can't flap.
+ *   `wait_owner_unasked` (text says an owner decision is pending and nobody has
+ *   asked for it; a bare wait on a person never raises it). Each raises one
+ *   event and clears when its condition ends. A short resume and re-park keeps
+ *   it raised, so it can't flap.
+ * - **A wait held by a recorded decision** (decision 48; decision-hold.ts) is
+ *   settled. An active owner decision also stops the run escalating, until the
+ *   owner lifts it; aging then restarts from that moment.
  * - **`run.resume_ready`** is one event when what it waits for clears. Docket
  *   can't push into an agent's session: a coordinator relays it to the dispatch.
  *
@@ -25,6 +29,7 @@ import {
   type WaitingRun,
 } from '@docket/shared';
 import type { Db } from '../db/client.js';
+import { agingFrom, decisionHold, heldByOwner } from './decision-hold.js';
 import { BlockIndex, actorName, leaseExpired, ms, type RunRow } from './model.js';
 import { clearedAt, parkInfo, parseJson, waitLink } from './recovery-model.js';
 import { ACTIVITY_EVENTS, projectCoordinators } from './run-activity.js';
@@ -172,6 +177,9 @@ interface Condition {
 }
 
 const CLEARS_WORD = { done: 'done', merged: 'merged', verified: 'verified' } as const;
+
+/** Decision 48: the next step of a run held by an active owner decision. */
+const HELD_STEP = 'Resumes when the owner lifts it';
 
 export class WaitReader {
   readonly index: BlockIndex;
@@ -412,6 +420,10 @@ export class WaitReader {
     const project = this.index.project(run.item_id) ?? '';
     const orchestrator = orchestratorOf(run);
     const info = parkInfo(this.db, run, this.now, this.index);
+    const hold = decisionHold(this.db, run);
+    const held_by = heldByOwner(hold)
+      ? { decision_id: hold.decision!.id, title: hold.decision!.title }
+      : null;
 
     const since = [
       ...(open.length > 0 ? open : named).map((b) => b.waited_since),
@@ -424,8 +436,9 @@ export class WaitReader {
     const blocker = open[0];
     const live = blocker ? this.lead(blocker.moves.id) : null;
     const registered = projectCoordinators(this.db, project)[0];
-    const who: Pick<WaitCard['next_owner'], 'kind' | 'name'> =
-      live && live.state !== 'parked'
+    const who: Pick<WaitCard['next_owner'], 'kind' | 'name'> = held_by
+      ? { kind: 'owner', name: 'the owner' }
+      : live && live.state !== 'parked'
         ? {
             kind: 'lead',
             name: actorName({ kind: 'agent', client: live.client, label: live.label }),
@@ -435,17 +448,19 @@ export class WaitReader {
           : registered
             ? { kind: 'coordinator', name: registered }
             : { kind: 'owner', name: 'the owner' };
-    const step = info.resume_ready
-      ? `tell run ${run.id} to continue`
-      : blocker
-        ? this.stepFor(blocker.moves, blocker.waiting)
-        : waiting.person
-          ? this.personStep(run.item_id, first.get('person') ?? parkedAt)
-          : waiting.orchestrator
-            ? `${run.item_id}: send it more work or resume it`
-            : waiting.until
-              ? `${run.item_id}: it can resume at ${waiting.until}`
-              : `${run.item_id}: resume it or say what it waits for`;
+    const step = held_by
+      ? HELD_STEP
+      : info.resume_ready
+        ? `tell run ${run.id} to continue`
+        : blocker
+          ? this.stepFor(blocker.moves, blocker.waiting)
+          : waiting.person
+            ? this.personStep(run.item_id, first.get('person') ?? parkedAt)
+            : waiting.orchestrator
+              ? `${run.item_id}: send it more work or resume it`
+              : waiting.until
+                ? `${run.item_id}: it can resume at ${waiting.until}`
+                : `${run.item_id}: resume it or say what it waits for`;
 
     const flagsNow = openWaitFlags(run).map((f) => ({
       kind: f.kind,
@@ -477,10 +492,13 @@ export class WaitReader {
       coordinator: waiting.orchestrator === true,
       until: waiting.until ?? null,
       waited_since: since ?? parkedAt,
-      next_owner: { ...who, item_id: blocker?.moves.id ?? null, step },
-      resumes_when: resumeSentence(run, open, waiting, orchestrator, info.resume_ready),
+      next_owner: { ...who, item_id: held_by ? null : (blocker?.moves.id ?? null), step },
+      resumes_when: held_by
+        ? `${HELD_STEP}: ${relayText(run, orchestrator)}.`
+        : resumeSentence(run, open, waiting, orchestrator, info.resume_ready),
       resume_ready: info.resume_ready,
       flags: flagsNow,
+      held_by,
       ...this.scopeHint(run, open),
     };
   }
@@ -510,12 +528,16 @@ export class WaitReader {
   /** The flag conditions true for a parked lead right now. */
   conditions(run: RunRow): Map<string, Condition> {
     const out = new Map<string, Condition>();
+    // Decision 48: an owner's decision holds this wait, so it raises nothing until it's lifted.
+    const hold = decisionHold(this.db, run);
+    if (heldByOwner(hold)) return out;
     const waiting = parseJson<WaitingOn>(run.waiting_on) ?? {};
     const first = this.firstParked(run);
     const parkedAt = run.parked_at ?? run.updated_at;
     const open = this.named(run, waiting, first).filter((b) => !b.cleared);
     const nowMs = ms(this.now);
-    const quiet = (at: string) => nowMs - ms(at) >= GRACE_MS;
+    // Once the owner lifts a decision, the quiet period counts from that moment.
+    const quiet = (at: string) => nowMs - ms(agingFrom(at, hold)) >= GRACE_MS;
 
     // wait_no_next_step: nobody owns the blocker's next step, and nothing has moved on it.
     for (const b of open) {
@@ -549,7 +571,8 @@ export class WaitReader {
         continue;
       if (quiet(this.lastActivity(b.id))) unasked(b.id, b.waited_since, [run.item_id]);
     }
-    if (waiting.person || saysOwnerDecisionPending(run.parked_reason)) {
+    // Decision 48: a bare wait on a person is not a decision, and a cited decision is settled.
+    if (!hold.decision && saysOwnerDecisionPending(run.parked_reason)) {
       const since = waiting.person ? (first.get('person') ?? parkedAt) : parkedAt;
       const latest =
         ms(this.lastActivity(run.item_id)) > ms(since) ? this.lastActivity(run.item_id) : since;
@@ -635,6 +658,7 @@ export function digestWait(card: WaitCard) {
     since: card.waited_since,
     next: `${card.next_owner.name}: ${card.next_owner.step}`,
     flags: card.flags.map((f) => f.kind),
+    ...(card.held_by ? { held_by: card.held_by } : {}),
     ...(card.resume_ready
       ? { relay: `run ${card.run_id}${dispatch ? ` via dispatch ${dispatch}` : ''}` }
       : {}),

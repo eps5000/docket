@@ -189,6 +189,14 @@ const parseJson = <T>(text: string | null): T | null => {
   }
 };
 
+/** The coordinators the owner registered for a project. */
+export function projectCoordinators(db: Db, project: string): string[] {
+  const row = db.sqlite.prepare('SELECT coordinators FROM projects WHERE key = ?').get(project) as
+    { coordinators: string | null } | undefined;
+  const names = parseJson<unknown>(row?.coordinators ?? null);
+  return Array.isArray(names) ? names.filter((n): n is string => typeof n === 'string') : [];
+}
+
 /** Decision 44: the coordinator's park as it is shown (the calling client stays in the event). */
 export function coordinatorParkOf(
   row: Pick<RunRow, 'coordinator_park'>,

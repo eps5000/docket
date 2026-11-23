@@ -401,6 +401,16 @@
   gap: 4px;
   padding: 0 4px 6px;
 }
+/* Decision 48: a waiting ticket says what it waits on, wrapping inside the column. */
+.tl .colmini-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 .tl .tl-row {
   display: grid;
   grid-template-columns: 120px 1fr;
@@ -1335,7 +1345,7 @@
   flex: none;
 }
 
-/* B20: "Waiting on blockers · n · Show" is one button, the full column width. */
+/* B20: "Waiting · n · Show" is one button, the full column width. */
 .tl button.subtog {
   width: 100%;
   min-height: 32px;

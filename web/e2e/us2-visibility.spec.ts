@@ -142,7 +142,7 @@ test.describe('Work', () => {
     }
     const ready = board.getByRole('region', { name: 'Ready' });
     await expect(ready).toContainText(/Startable · \d+/);
-    await expect(ready).toContainText(/Waiting on blockers · \d+/);
+    await expect(ready).toContainText(/Waiting · \d+/);
     // B43: the quick filters are chips; For you moved into the Filters menu.
     await expect(page.getByRole('button', { name: /^Active/ })).toHaveAttribute(
       'aria-pressed',

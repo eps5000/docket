@@ -1,5 +1,5 @@
 /**
- * Splitting a ticket (owner decision 48; BUILD_SPEC §5.30; B61).
+ * Splitting a ticket (owner decision 48; BUILD_SPEC §5.31; B61).
  *
  * One write creates a new ticket from an existing one and moves the chosen
  * acceptance criteria to it. Blockers, shared-part declarations and steps can
@@ -14,6 +14,9 @@
  *   gets its own row.
  * - **A live lead.** Only the lead's own run, its coordinator or the owner may
  *   split a claimed ticket, with `expected_version`. The step it is on can't move.
+ * - **Waits.** A parked run stops waiting on a blocker that moved off its
+ *   ticket. If none is left it can resume, through the usual `until` rule, so
+ *   `run.resume_ready` tells its coordinator and an owner's hold still holds.
  * - **Packets.** An open packet is never edited. If criteria move it is marked
  *   out of date (`criteria_changed_at`, `packet.stale`).
  * - **Undo.** Every change returns its inverse. They all ride on the last event,
@@ -28,6 +31,7 @@ import {
   type Priority,
   type SplitCarryKind,
   type SplitRelation,
+  type WaitingOn,
 } from '@docket/shared';
 import { allocateItemId, newId } from './ids.js';
 import {
@@ -44,6 +48,7 @@ import {
   type ItemRow,
   type StepRow,
 } from './model.js';
+import { parseJson } from './recovery-model.js';
 import { namesCoordinator } from './run-activity.js';
 import { syncOverlaps, type OverlapLinks } from './shared-changes.js';
 import type { InverseOp, WriteContext } from './write.js';
@@ -327,6 +332,26 @@ export function splitItem(
       linkEvents.push({ from: row.from_id, to: id, link: row.id });
     }
   }
+  // A parked run no longer waits on a blocker that left its ticket. With none left it can
+  // resume now, by the same `until` rule a timed wait uses.
+  const left = blockers.filter((b) => !b.copy).map((b) => b.row.from_id);
+  const freed: string[] = [];
+  if (left.length > 0) {
+    for (const run of sql
+      .prepare("SELECT id, waiting_on FROM runs WHERE item_id = ? AND state = 'parked'")
+      .all(source.id) as { id: string; waiting_on: string | null }[]) {
+      const waiting = parseJson<WaitingOn>(run.waiting_on);
+      if (!waiting?.items?.some((x) => left.includes(x))) continue;
+      const { items, ...rest } = waiting;
+      const still = items!.filter((x) => !left.includes(x));
+      ops.push(
+        w.update('runs', run.id, {
+          waiting_on: still.length > 0 ? { ...rest, items: still } : { ...rest, until: w.now },
+        }),
+      );
+      freed.push(run.id);
+    }
+  }
   if (input.relation !== 'none') {
     const [from, to] = input.relation === 'after_original' ? [source.id, id] : [id, source.id];
     const linkId = newId('lnk', ms(w.now));
@@ -505,6 +530,7 @@ export function splitItem(
       blockers: blockers.length,
       parts: parts.length,
       steps: steps.length,
+      ...(freed.length > 0 ? { waits_updated: freed } : {}),
     },
     objects: [{ kind: 'item', id }],
     inverse: ops,

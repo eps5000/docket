@@ -33,11 +33,11 @@ Every model call resends your whole context, so the cheapest turn is the one you
 
 1. Call `whoami`, then `list_projects` if you don't know the project key.
 2. Call `recovery_report`. It's read-only and cheap. If anything is interrupted, stale, parked and ready to resume, or orphaned, handle it first (§6).
-3. Call `get_digest { project }`: ready work, runs, blockers, what waits on the owner, problems, leases and conflicts in one short read. Save its `cursor`: that's your watch position (§4).
+3. Call `get_digest { project }`: what to start next, bottlenecks, ready work, runs, blockers, what waits on the owner, problems, leases and conflicts in one short read. Save its `cursor`: that's your watch position (§4).
 
 ## 2. Choosing work
 
-- **Find candidates:** the digest's `ready` section lists the top items. For more, `search_items { project, filter: "ready_to_start" }`. Results are sorted by priority, then by how many items each would unblock, so take them in order.
+- **Find candidates:** the digest's `next_work` ranks what can start by priority, tickets unlocked and age, and `bottlenecks` names unowned Inbox or Planning tickets holding up real work (shape or assign those first). Its `ready` section lists the top items. For more, `search_items { project, filter: "ready_to_start" }`. Results are sorted by priority, then by how many items each would unblock, so take them in order.
 - **Ready means unblocked and unclaimed.** Two Ready items never block each other in Docket. They can still collide in code, though: same files, same migration. Use your judgement, and keep items from the same epic in one worker when they touch the same area.
 - **Mind the owner's review queue.** If `search_items { filter: "waiting_for_review" }` is long, prefer work that doesn't add another packet, such as items with no human review. The owner's attention is the scarcest resource.
 - **Resumable work comes first:** `filter: "resumable"` is work the owner sent back.
@@ -65,7 +65,7 @@ Block in one shell call. It spends no model tokens until a matching event arrive
 
 ```bash
 bash .claude/docket-wait.sh --cursor <cursor> --project RCP --timeout 540 \
-  --types run.parked,run.park_expired,run.wait_flagged,run.resume_ready,run.activity,question.asked,packet.submitted,review.decided,run.ended
+  --types run.parked,run.park_expired,run.wait_flagged,run.resume_ready,run.activity,question.asked,packet.submitted,review.decided,run.ended,lease.ended
 ```
 
 - **Where it is:** next to `docket-check` (`.codex/` for Codex, `~/.claude/` for a user-wide install). On Windows without bash: `powershell -NoProfile -ExecutionPolicy Bypass -File .claude/docket-wait.ps1`, with the same flags.
@@ -83,6 +83,7 @@ Watch for:
 | `run.park_expired`                        | Your time-limited park ran out. Renew it, or let its short lease decide (§5).              |
 | `run.wait_flagged`                        | A wait has no next step, or needs an unasked owner decision. Act on it (§5).               |
 | `run.resume_ready`                        | Its blockers cleared. **You** tell that dispatch to continue (§5).                         |
+| `lease.ended`                             | With `end_reason: expired`, your worker's part lease ran out. It takes it again to go on.  |
 | `run.activity`                            | Work moved while it was parked or silent. Check it (§5).                                   |
 | `question.asked`                          | Owner input is needed. **Don't answer for the owner**; that worker's dependent work waits. |
 | `packet.submitted`                        | Handed to the owner. The worker should finish its run.                                     |
@@ -104,7 +105,8 @@ For a detailed look at one worker, use `get_item { id, view: "summary" }`. Don't
 - **"Added after work started"** on a card: check the blocker really holds the whole story. **If a blocker holds only some acceptance criteria, prefer a split:** `create_item` with `split_from { id, expected_version, move: [positions], relation, also?, coordinator: "<your name>" }`. The lead keeps its claim on the original, and the rest proceeds.
 - **An outdated question** is blocking a new one: `withdraw_decision { question_id, reason, coordinator: "<your name>" }`, in plain words. It never answers for the owner.
 - **`wait_no_next_step`:** nobody is moving a blocker. Do its step: dispatch it, or shape or assign it.
-- **`wait_owner_unasked`:** it needs an owner decision nobody asked for. If it truly needs the owner (below), **ask it** with `ask_owner` on that item. The owner can't answer a question that doesn't exist.
+- **`wait_owner_unasked`:** its text says an owner decision is pending and nobody asked. If it truly needs the owner (below), **ask it** with `ask_owner` on that item. The owner can't answer a question that doesn't exist. A bare wait on a person doesn't raise it.
+- **Held by the owner's decision:** a park reason citing an active owner decision (`dec_…`) holds the run: no alerts, and it isn't `resume_ready`. Leave it until the owner lifts it. Citing an agent's decision silences nothing.
 - **Before you or a worker asks the owner,** check decisions, the ticket, plan and design docs, Workflow notes, the code and other agents' records. **Decide** what is technical, reversible, inside an approved design or follows a decision (`publish_decision` if others must follow). **Ask only** about product behavior, privacy or security, cost, irreversible or outward-facing actions, conflicting owner decisions, or a real change to an approved design.
 - **Write for someone who hasn't seen the work:** everyday words, what a user would notice, real alternatives, and the recommended option's downside. IDs and paths go in `details`. Bad: "Per dec_12, keep the v2 DTO for RCP-16?" Good: "Should recipe cards show nutrition per serving or per 100 g?"
 - **`run.resume_ready`:** Docket **can't push into a session and hasn't told the worker.** Send its recorded dispatch the event's `instruction`: continue under the same `run_id`, `heartbeat` first, don't claim.

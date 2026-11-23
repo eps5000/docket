@@ -272,6 +272,17 @@ The owner approved the bug fixes and additions in `docs/design/coordination-tool
 
 BUILD_SPEC §5.29, UI_SPEC §6.1 and §6.1b, spec FR-230–FR-235 and Help (A first look around) have the details.
 
+**Truthful waits, expired leases and a true Ready (B58):**
+
+1. **A pause is not an unasked decision.** A bare wait on a person never says an owner decision is missing. Only text saying one is still pending does.
+2. **A wait held by a recorded decision is settled.** If the park reason cites an active decision that applies to the item at any scope, it is never flagged as unasked, whenever that decision was made.
+3. **The owner's own decision holds the run.** The wait card and item page say "Held by your decision", with a link, and the next step is that it resumes when the owner lifts it. The run raises no parked or no-next-step alert and doesn't reach the owner for being parked. An agent's decision can't silence an alert. When the owner withdraws or supersedes the decision, normal aging restarts from that moment, so lifting a pause doesn't raise a wall of alerts.
+4. **Expired part leases end.** The sweeper ends a lease past its stored expiry, even for a parked holder, with one event that names the holder's coordinator.
+5. **A true Ready.** Work splits Ready into **Startable** and **Waiting**, and each waiting ticket says what it waits on. The stored status doesn't change.
+6. **Start this next.** `get_digest` gains a short ranked next-work list (priority, then how many open tickets it transitively unlocks, then age) and **bottlenecks**: unowned Inbox or Planning tickets holding up real work, with "shape it or assign it". Overview's In flight card links to Startable.
+
+BUILD_SPEC §5.21, §5.26 and §5.30, MCP_SPEC §5.2, UI_SPEC §6.1 and §6.2, spec FR-236–FR-241, Help and the coordinator skill have the details.
+
 **Split a ticket and withdraw a question (B61).**
 
 1. **Withdraw a question.** The run that asked, its recorded coordinator or a coordinator registered for the project can retract an unanswered question, with a short plain reason. It leaves Needs you at once and the agent can ask again. The owner still sees it in the ticket's history, marked **Withdrawn**, with the reason. Nobody answers for the owner, and an answered question can't be withdrawn.
@@ -281,7 +292,7 @@ BUILD_SPEC §5.29, UI_SPEC §6.1 and §6.1b, spec FR-230–FR-235 and Help (A fi
 5. **Undo** restores both tickets for 60 seconds after the owner's own split, as with other owner changes. An agent's split isn't undoable from the UI.
 6. **When to split:** if a blocker holds only some acceptance criteria, prefer a split. Nothing here adds a gate.
 
-BUILD_SPEC §5.30, MCP_SPEC §5.3 and §5.8, UI_SPEC §6.3, spec FR-236–FR-241, Help and the skills have the details.
+BUILD_SPEC §5.31, MCP_SPEC §5.3 and §5.8, UI_SPEC §6.3, spec FR-242–FR-247, Help and the skills have the details.
 
 ## Deferred choices
 

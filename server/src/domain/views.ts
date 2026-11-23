@@ -73,6 +73,7 @@ import { compareIds, cycleText, cyclesOf } from './links.js';
 import { pendingProposalCount } from './agent-proposals.js';
 import { CREATED_BY_SQL, onboardingItemIds, readySessions } from './onboarding.js';
 import { driftProblems, runInstructions } from './drift.js';
+import { readyStates } from './next-work.js';
 import { needsYouShared, sharedFlagsOf } from './shared-changes.js';
 import {
   ackCovers,
@@ -86,6 +87,7 @@ import {
   type FoundProblem,
   type RecoveryRoute,
 } from './problems.js';
+import { agingFrom, decisionHold, heldByOwner } from './decision-hold.js';
 import { inScopeOf, ofScope, projectReviews } from './decisions.js';
 import { agentsNow, overviewItemsOf, overviewOf } from './overview.js';
 import { briefOf } from './brief.js';
@@ -567,7 +569,10 @@ function recoveryProblems(
         explanation: explain.resume_unattended({ item: run.item_id, why, parked }),
       });
     }
-    if (ms(now) - ms(since) >= config.parkMaxMs) {
+    // Decision 48: an owner's decision holds it, and aging restarts when the owner lifts it.
+    const hold = decisionHold(db, run);
+    const aging = agingFrom(since, hold);
+    if (!heldByOwner(hold) && ms(now) - ms(aging) >= config.parkMaxMs) {
       // Decision 41: its coordinator first. Waiting on a person is the owner's at once.
       const route: RecoveryRoute = waiting.person
         ? {
@@ -579,7 +584,7 @@ function recoveryProblems(
             item: run.item_id,
             lead: false,
             coordinator: coordinatorOf(run),
-            since: new Date(ms(since) + config.parkMaxMs).toISOString(),
+            since: new Date(ms(aging) + config.parkMaxMs).toISOString(),
             now,
             graceMs: config.agentProblemGraceMs,
           });
@@ -1449,13 +1454,21 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
       const parked = leadParkedOf(s.db, summaries, s.now, s.index);
       const sharedFlags = sharedFlagsOf(r.db);
       const producers = producersByItem(r.db);
+      // Decision 48: Ready, split into what can start and what waits, and on what.
+      const ready = readyStates(
+        r.db,
+        s.index,
+        summaries.filter((i) => i.status === 'ready').map((i) => i.id),
+      );
       const rows: WorkItem[] = summaries.map((i) => {
         const packet_ready = att.packets.has(i.id);
         const flags = sharedFlags.get(i.id);
         const producer = producers.get(i.id);
+        const ready_state = ready.get(i.id);
         return {
           ...i,
           lead_parked: parked(i),
+          ...(ready_state ? { ready_state } : {}),
           ...(producer ? { producer } : {}),
           packet_ready,
           for_you: packet_ready || att.questions.has(i.id),
@@ -1484,7 +1497,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         has_problem: (i) => withProblems.has(i.id),
         archived: (i) => i.archived,
         planning: (i) => i.status === 'planning',
-        ready_to_start: (i) => i.status === 'ready' && !i.blocked && i.lead === null,
+        ready_to_start: (i) => i.ready_state?.startable === true,
       };
       const facts = rows.map((i) => ({
         status: i.status,

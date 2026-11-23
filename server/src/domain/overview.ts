@@ -37,6 +37,7 @@ import {
 import { compareIds } from './links.js';
 import { bucketFrame, flowOf } from './flow.js';
 import { actorName, displayRunState, ms, type ItemRow, type RunRow } from './model.js';
+import { readyStates } from './next-work.js';
 import { parkInfo, parseJson } from './recovery-model.js';
 import type { Scoped } from './views.js';
 
@@ -213,6 +214,11 @@ export function overviewOf(
   const open = items.filter(isOpenTicket);
   const progress = open.filter((i) => i.status === 'progress').length;
   const review = open.filter((i) => i.status === 'review').length;
+  // Decision 48: the same split as Work's Startable and Waiting.
+  const readyIds = open.filter((i) => i.status === 'ready').map((i) => i.id);
+  const startable = [...readyStates(s.db, s.index, readyIds).values()].filter(
+    (x) => x.startable,
+  ).length;
   return {
     window,
     from: new Date(fromMs).toISOString(),
@@ -227,6 +233,7 @@ export function overviewOf(
     flow: flowOf(s, done, window, fromMs, toMs, extra.tz),
     in_flight: { count: progress + review, progress, review },
     blocked: open.filter((i) => s.index.state(i.id).blocked).length,
+    ready: { startable, waiting: readyIds.length - startable },
     workload: workloadOf(s, open),
     last_backup_at: extra.lastBackupAt,
   };

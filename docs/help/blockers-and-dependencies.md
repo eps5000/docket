@@ -56,3 +56,7 @@ If an agent is working on the ticket, it keeps its claim, and the dialog warns y
 - **A blocker that needs your verification closed with a deferred check:** under **Verified by you**, a deferred check doesn't count as verified. Click *Open* to see the link, then verify the deferred check or change the rule.
 
 Docket never silently unblocks work.
+
+## Startable and Waiting
+
+Ready doesn't always mean something can start. Work splits Ready in two. **Startable** tickets have nothing in their way. **Waiting** tickets are held by a blocker, a lead already on them, or your overlap or design decision, and each one says which. The ticket's status stays Ready either way.

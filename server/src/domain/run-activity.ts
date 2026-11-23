@@ -19,7 +19,15 @@
 import type { ProducerHold, RunActivity, RunStatusUpdate, WaitingOn } from '@docket/shared';
 import type { Config } from '../config.js';
 import type { Db } from '../db/client.js';
-import { BlockIndex, actorName, displayRunState, ms, windowsOf, type RunRow } from './model.js';
+import {
+  BlockIndex,
+  actorName,
+  displayRunState,
+  ms,
+  projectCoordinators,
+  windowsOf,
+  type RunRow,
+} from './model.js';
 import { git, GitUnknown, known } from './git-read.js';
 import { probeRepo, reportedBranches, resolveRepoPath, validBranch } from './radar.js';
 import { clearedSince, parkInfo, parseJson, storedWorkspace } from './recovery-model.js';
@@ -38,13 +46,7 @@ export const storedActivity = (run: Pick<RunRow, 'park_activity'>): StoredActivi
 export const storedStatusUpdate = (run: Pick<RunRow, 'status_update'>): RunStatusUpdate | null =>
   parseJson<RunStatusUpdate>(run.status_update);
 
-/** The coordinators the owner registered for a project. */
-export function projectCoordinators(db: Db, project: string): string[] {
-  const row = db.sqlite.prepare('SELECT coordinators FROM projects WHERE key = ?').get(project) as
-    { coordinators: string | null } | undefined;
-  const names = parseJson<unknown>(row?.coordinators);
-  return Array.isArray(names) ? names.filter((n): n is string => typeof n === 'string') : [];
-}
+export { projectCoordinators };
 
 /** Is `name` this run's recorded orchestrator, or a coordinator registered for its project? */
 export function namesCoordinator(

@@ -24,8 +24,8 @@ const CANCELED_COLUMN: { status: Status; note?: string } = { status: 'canceled' 
 
 /**
  * Board (UI_SPEC §6.2.1): six columns; Ready splits into Startable and
- * Waiting on blockers; Done keeps every done item until it's archived: each
- * card has *Archive* (or *Unarchive* under the Archived filter), the column
+ * Waiting, each waiting ticket saying on what (decision 48); Done keeps every
+ * done item until it's archived: each card has *Archive* (or *Unarchive* under the Archived filter), the column
  * header has *Archive all* for the visible done items, and each toasts with
  * Undo (US7, T127). B43: done items show only under *Shows done*; until then
  * the Done column says how many are hidden, with *Show N done*.
@@ -59,8 +59,10 @@ export function BoardLayout({
             </div>
           );
           if (status === 'ready') {
-            const go = cards.filter((i) => !i.blocked);
-            const wait = cards.filter((i) => i.blocked);
+            // Decision 48: the server says what can start, by the same rule agents get.
+            const canStart = (i: WorkItem) => i.ready_state?.startable ?? !i.blocked;
+            const go = cards.filter(canStart);
+            const wait = cards.filter((i) => !canStart(i));
             return (
               <section className="col" key={status} aria-label={STATUS_LABELS[status]}>
                 {head}
@@ -79,10 +81,7 @@ export function BoardLayout({
                       aria-expanded={showWaiting}
                       onClick={() => setShowWaiting(!showWaiting)}
                     >
-                      {/* Wraps as "Waiting on / blockers · 5", never with the count alone. */}
-                      <span>
-                        Waiting on <span className="nowrap">blockers · {wait.length}</span>
-                      </span>
+                      <span className="nowrap">Waiting · {wait.length}</span>
                       <span className="subtog-act">
                         {showWaiting ? 'Hide' : 'Show'}
                         <span className={`chev${showWaiting ? '' : ' shut'}`} aria-hidden="true">
@@ -95,14 +94,18 @@ export function BoardLayout({
                     ) : (
                       <div className="colmini">
                         {wait.slice(0, limit).map((i) => (
-                          <Link
-                            key={i.id}
-                            to={paths.item(i.id)}
-                            className="chip st-blocked mono"
-                            title={i.title}
-                          >
-                            {i.id}
-                          </Link>
+                          <span className="colmini-row" key={i.id} data-waiting={i.id}>
+                            <Link
+                              to={paths.item(i.id)}
+                              className="chip st-blocked mono"
+                              title={i.title}
+                            >
+                              {i.id}
+                            </Link>
+                            {i.ready_state?.waiting_on && (
+                              <span className="src">waits on {i.ready_state.waiting_on}</span>
+                            )}
+                          </span>
                         ))}
                       </div>
                     )}
