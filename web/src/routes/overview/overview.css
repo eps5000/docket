@@ -26,8 +26,8 @@
   font-size: 12px;
   font-weight: 650;
   color: var(--ink-2);
-  /* The same height with or without a "?", so the four numbers line up. */
-  min-height: 20px;
+  /* The same height with or without the 24px "?", so the four numbers line up. */
+  min-height: 24px;
 }
 .tl .ov-num {
   font-size: 13px;

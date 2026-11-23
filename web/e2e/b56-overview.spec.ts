@@ -139,6 +139,11 @@ test('the tab strip stays off Overview, and the open tabs survive it', async ({ 
 
 test('the card and the sidebar badge say the same thing', async ({ page }) => {
   await open(page);
+  // The "?" in this card's heading must not push its number out of line with the others.
+  const tops = await page
+    .locator('.ov-stat .ov-num')
+    .evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().top)));
+  expect(new Set(tops).size).toBe(1);
   const { working, waiting } = (await api<NeedsYouResponse>(page, '/api/needs-you?scope=all'))
     .agents_now!;
   const card = page.getByRole('group', { name: 'Tickets with agents' });
@@ -345,7 +350,12 @@ test.describe('screenshots', () => {
 
       await riskLine(page).click();
       await expect(page.locator('[data-at-risk-note]')).toBeVisible();
-      await shoot(page, 'workspaces', size);
+      for (const theme of ['light', 'dark'] as const) {
+        await setTheme(page, theme);
+        await page.locator('#workspaces').screenshot({
+          path: join(out!, `b56-workspaces-${size.name}-${theme}.png`),
+        });
+      }
     });
   }
 });
