@@ -9,8 +9,9 @@
  *   (DOCKET_SEED=sample).
  *
  * Call `useSeededContainer()` at the top of a spec file to reset once before
- * its tests. Files run one at a time (playwright.config.ts `workers: 1`), so
- * a reset never pulls the database out from under another file.
+ * its tests. Files sharing a container run one at a time (playwright.config.ts
+ * `workers: 1`), so a reset never pulls the database out from under another
+ * file. CI's shards each have their own container (owner decision 51).
  *
  * DOCKET_E2E_CONTAINER names the container (default `docket`, the
  * compose `container_name`; the global setup sets `docket-e2e` when it

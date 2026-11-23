@@ -1,0 +1,41 @@
+name: Set up a browser job
+description: Chromium (browser cached), the image built once by the image job, and the Jira fixture's certificates.
+runs:
+  using: composite
+  steps:
+    - name: Playwright version
+      id: playwright
+      shell: bash
+      run: echo "version=$(pnpm --filter @docket/web exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+
+    - name: Restore Chromium
+      id: browsers
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}-chromium
+
+    - name: Install Chromium
+      if: steps.browsers.outputs.cache-hit != 'true'
+      shell: bash
+      run: pnpm --filter @docket/web exec playwright install chromium
+
+    - name: Install Chromium's system libraries
+      shell: bash
+      run: pnpm --filter @docket/web exec playwright install-deps chromium
+
+    - name: Download the image
+      uses: actions/download-artifact@v5
+      with:
+        name: docket-image
+        path: ${{ runner.temp }}/image
+
+    - name: Load the image
+      shell: bash
+      run: zstd -dc "$RUNNER_TEMP/image/docket-image.tar.zst" | docker load
+
+    # US9 (T141): a synthetic Jira site on the compose network for the import dialog's
+    # e2e (docker/compose.jira-fixture.yaml), with a throwaway test CA. No internet.
+    - name: Jira fixture certificates
+      shell: bash
+      run: docker/jira-fixture/make-certs.sh

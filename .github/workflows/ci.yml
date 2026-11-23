@@ -1,5 +1,10 @@
 name: ci
 
+# Owner decision 51 (B65). What each kind of run proves:
+# - pull request: every non-browser job, plus the browser specs the change reaches.
+# - Mergify queue draft (mergify/merge-queue/*): everything, on the exact code that will land.
+# - push to main: skipped only when a commit with the identical tree already passed everything.
+# .github/ci/plan.mjs decides; .github/ci/gate.mjs turns the results into the checks below.
 on:
   pull_request:
   push:
@@ -8,29 +13,63 @@ on:
 permissions:
   contents: read
 
+# Only an ordinary PR run can be superseded. Queue and main runs each get a group of their own,
+# because a shared group would also replace a pending run.
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ${{ github.event_name == 'pull_request' && !startsWith(github.head_ref, 'mergify/merge-queue/') && format('ci-pr-{0}', github.event.pull_request.number) || format('ci-run-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && !startsWith(github.head_ref, 'mergify/merge-queue/') }}
 
-# Job names `build` and `e2e` are the check names the Mergify queue requires.
-# Rename them only together with the Mergify configuration.
+env:
+  STACK: -f docker/compose.yaml -f docker/compose.jira-fixture.yaml -f docker/compose.push-e2e.yaml -f docker/compose.no-egress.yaml
+
+# The check names `build`, `e2e` and `full-suite` are what the Mergify queue requires.
+# Rename them only together with .mergify.yml and .github/ci/gate.mjs.
 jobs:
-  build:
-    name: build
+  plan:
+    name: plan
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      mode: ${{ steps.plan.outputs.mode }}
+      sha: ${{ steps.plan.outputs.sha }}
+      reason: ${{ steps.plan.outputs.reason }}
+      run_e2e: ${{ steps.plan.outputs.run_e2e }}
+      run_system: ${{ steps.plan.outputs.run_system }}
+      matrix: ${{ steps.plan.outputs.matrix }}
+      specs: ${{ steps.plan.outputs.specs }}
     steps:
       - uses: actions/checkout@v5
-
-      - uses: pnpm/action-setup@v4
+        with:
+          fetch-depth: 2
 
       - uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
-          cache: pnpm
 
-      - name: Install
-        run: pnpm install --frozen-lockfile
+      - name: Decide what this run must prove
+        id: plan
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node .github/ci/plan.mjs
+
+  lint:
+    name: lint and typecheck
+    needs: plan
+    if: needs.plan.outputs.mode != 'tree-match'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+
+      - uses: ./.github/actions/setup
+
+      - name: CI planner and gates
+        run: node --test .github/ci/ci.test.mjs
 
       - name: Lint
         run: |
@@ -40,15 +79,83 @@ jobs:
       - name: Typecheck
         run: pnpm -r typecheck
 
-      - name: Vitest
-        run: pnpm -r test
+  unit:
+    name: shared and web tests
+    needs: plan
+    if: needs.plan.outputs.mode != 'tree-match'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+
+      - uses: ./.github/actions/setup
+
+      - name: Vitest (shared, web)
+        run: pnpm --filter @docket/shared --filter @docket/web test
+
+  server-unit:
+    name: server unit tests
+    needs: plan
+    if: needs.plan.outputs.mode != 'tree-match'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+
+      - uses: ./.github/actions/setup
+
+      - name: Vitest (server unit)
+        run: pnpm --filter @docket/server exec vitest run tests/unit
+
+  server-integration:
+    name: server integration tests
+    needs: plan
+    if: needs.plan.outputs.mode != 'tree-match'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+
+      - uses: ./.github/actions/setup
+
+      # On the host, where git and the shells exist: the sealed run below skips those tests.
+      - name: Vitest (server integration)
+        run: pnpm --filter @docket/server exec vitest run tests/integration
+
+  contract:
+    name: API and MCP contract
+    needs: plan
+    if: needs.plan.outputs.mode != 'tree-match'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+
+      - uses: ./.github/actions/setup
+
+      - name: Vitest (contract)
+        run: pnpm --filter @docket/server exec vitest run tests/contract
 
       # FR-106 (T145): the contract and integration suites again, in a container with no
       # network at all, with every outbound attempt recorded by the egress audit. Any
-      # attempt fails the step. (The audit's own probe test runs in the step above.)
+      # attempt fails the step. (The audit's own probe test runs in server-integration.)
       - name: Contract suite with no network (FR-106)
         run: |
-          docker run --rm --network none --user "$(id -u):$(id -g)" -e HOME=/tmp             -v "$PWD:/w" -w /w/server             -e NODE_OPTIONS=--import=/w/docker/no-egress/egress-audit.mjs             -e DOCKET_EGRESS_LOG=/w/egress-contract.jsonl             node:22-bookworm-slim             node node_modules/vitest/vitest.mjs run tests/contract tests/integration               --exclude tests/integration/no-egress.test.ts
+          docker run --rm --network none --user "$(id -u):$(id -g)" -e HOME=/tmp \
+            -v "$PWD:/w" -w /w/server \
+            -e NODE_OPTIONS=--import=/w/docker/no-egress/egress-audit.mjs \
+            -e DOCKET_EGRESS_LOG=/w/egress-contract.jsonl \
+            node:22-bookworm-slim \
+            node node_modules/vitest/vitest.mjs run tests/contract tests/integration \
+              --exclude tests/integration/no-egress.test.ts
           if [ -s egress-contract.jsonl ]; then
             echo "Outbound connection attempts during the contract suite:"
             cat egress-contract.jsonl
@@ -56,94 +163,231 @@ jobs:
           fi
           echo "No outbound connection attempts."
 
-      - name: Docker build
-        run: docker build -f docker/Dockerfile -t docket:ci .
-
-  e2e:
-    name: e2e
+  # The one Docker build of the run. Every browser job loads this image.
+  image:
+    name: docker image
+    needs: plan
+    if: needs.plan.outputs.mode != 'tree-match'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
-
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v5
         with:
-          node-version-file: .nvmrc
-          cache: pnpm
+          ref: ${{ needs.plan.outputs.sha }}
 
-      - name: Install
-        run: pnpm install --frozen-lockfile
+      - uses: docker/setup-buildx-action@v3
 
-      - name: Install Chromium
-        run: pnpm --filter @docket/web exec playwright install --with-deps chromium
+      # Reads the layers the image workflow caches from main; PR runs don't add to the cache.
+      - name: Docker build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          tags: docket:local
+          cache-from: type=gha
+          outputs: type=docker,dest=${{ runner.temp }}/docket-image.tar
 
-      # US9 (T141): a synthetic Jira site on the compose network for the import dialog's
-      # e2e (docker/compose.jira-fixture.yaml), with a throwaway test CA. No internet.
-      - name: Jira fixture certificates
-        run: docker/jira-fixture/make-certs.sh
+      - name: Compress the image
+        run: zstd -T0 -3 --rm "$RUNNER_TEMP/docket-image.tar" -o "$RUNNER_TEMP/docket-image.tar.zst"
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: docket-image
+          path: ${{ runner.temp }}/docket-image.tar.zst
+          compression-level: 0
+          retention-days: 1
+          overwrite: true
+          if-no-files-found: error
+
+  # Each shard is its own runner, so its own container, volume and Jira fixture.
+  e2e-shard:
+    name: e2e shard ${{ matrix.shard }} of ${{ matrix.of }}
+    needs: [plan, image]
+    if: needs.plan.outputs.run_e2e == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    env:
+      DOCKET_SEED: sample
+      DOCKET_SEED_STRESS: '1'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+
+      - uses: ./.github/actions/setup
+
+      - uses: ./.github/actions/e2e-setup
 
       # FR-106 (T145): the container runs on an internal network with no route out
       # (docker/compose.no-egress.yaml). Only the Jira fixture is reachable from it; the
       # browser comes in through a loopback-published gateway.
-      - name: Build and start the container (sealed, no egress)
-        env:
-          DOCKET_SEED: sample
-          DOCKET_SEED_STRESS: '1'
-        run: docker compose -f docker/compose.yaml -f docker/compose.jira-fixture.yaml -f docker/compose.push-e2e.yaml -f docker/compose.no-egress.yaml up -d --build --wait --wait-timeout 120
+      - name: Start the container (sealed, no egress)
+        run: docker compose $STACK up -d --no-build --wait --wait-timeout 120
 
       - name: Playwright
+        working-directory: web
         env:
           DOCKET_E2E_NO_START: '1'
           # The runner's fresh docket-data volume is disposable (fixtures/container.ts).
           DOCKET_E2E_ALLOW_RESET: '1'
-        run: pnpm --filter @docket/web e2e
+          DOCKET_E2E_KIT: ${{ matrix.kit && '1' || '0' }}
+          PLAYWRIGHT_JSON_OUTPUT_NAME: e2e-results.json
+          PLAYWRIGHT_HTML_OPEN: never
+          SPECS: ${{ matrix.specs }}
+        run: pnpm exec playwright test --reporter=list,html,json $SPECS
 
-      # Decision 32 (T167): the specs tagged @protected, against the same container restarted
-      # with DOCKET_PROTECTED_MODE=on (owner unlock and agent token), then back to local trust.
-      - name: Playwright, protected mode (decision 32)
-        env:
-          DOCKET_SEED: sample
-          DOCKET_SEED_STRESS: '1'
-          DOCKET_PROTECTED_MODE: 'on'
-          DOCKET_E2E_NO_START: '1'
-          DOCKET_E2E_ALLOW_RESET: '1'
-          DOCKET_E2E_PROTECTED: '1'
-        run: |
-          docker compose -f docker/compose.yaml -f docker/compose.jira-fixture.yaml -f docker/compose.push-e2e.yaml -f docker/compose.no-egress.yaml up -d --wait --wait-timeout 120
-          pnpm --filter @docket/web e2e
+      - name: Summarize the shard
+        if: always()
+        run: node .github/ci/shard-report.mjs web/e2e-results.json ${{ matrix.shard }} shard-summaries/shard-${{ matrix.shard }}.json
 
-      - name: Back to local trust
-        env:
-          DOCKET_SEED: sample
-          DOCKET_SEED_STRESS: '1'
-        run: docker compose -f docker/compose.yaml -f docker/compose.jira-fixture.yaml -f docker/compose.push-e2e.yaml -f docker/compose.no-egress.yaml up -d --wait --wait-timeout 120
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: shard-summary-${{ matrix.shard }}
+          path: shard-summaries/
+          retention-days: 7
+          overwrite: true
 
-      # FR-106 (T145): nothing in the container tried to reach another host during the
-      # whole e2e run, and a deliberate probe is caught (so the check can fail).
+      # FR-106 (T145): nothing in this shard's container tried to reach another host, and a
+      # deliberate probe is caught (so the check can fail).
       - name: No egress (FR-106)
-        run: docker/no-egress/check.sh -f docker/compose.yaml -f docker/compose.jira-fixture.yaml -f docker/compose.push-e2e.yaml -f docker/compose.no-egress.yaml
-
-      # SC-008 (T128): `docker compose down && up` keeps every item, event and document,
-      # and a backup restores identically into a scratch volume.
-      - name: Container replacement keeps the data (SC-008)
-        run: docker/check-replacement.sh -f docker/compose.yaml -f docker/compose.jira-fixture.yaml -f docker/compose.push-e2e.yaml -f docker/compose.no-egress.yaml
+        run: docker/no-egress/check.sh $STACK
 
       - name: Container logs
         if: failure()
-        run: docker compose -f docker/compose.yaml -f docker/compose.jira-fixture.yaml -f docker/compose.push-e2e.yaml -f docker/compose.no-egress.yaml logs --no-color
+        run: docker compose $STACK logs --no-color
 
       - name: Upload Playwright report and traces
         if: failure()
         uses: actions/upload-artifact@v5
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.shard }}
           path: |
             web/playwright-report/
             web/test-results/
           retention-days: 14
+          overwrite: true
 
-      - name: Stop the container
-        if: always()
-        run: docker compose -f docker/compose.yaml -f docker/compose.jira-fixture.yaml -f docker/compose.push-e2e.yaml -f docker/compose.no-egress.yaml down --volumes
+  # The checks that restart or replace the container, on a stack of their own.
+  e2e-system:
+    name: e2e protected mode and replacement
+    needs: [plan, image]
+    if: needs.plan.outputs.run_system == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DOCKET_SEED: sample
+      DOCKET_SEED_STRESS: '1'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+
+      - uses: ./.github/actions/setup
+
+      - uses: ./.github/actions/e2e-setup
+
+      # Decision 32 (T167): the specs tagged @protected, with DOCKET_PROTECTED_MODE=on
+      # (owner unlock and agent token).
+      - name: Playwright, protected mode (decision 32)
+        env:
+          DOCKET_PROTECTED_MODE: 'on'
+          DOCKET_E2E_NO_START: '1'
+          DOCKET_E2E_ALLOW_RESET: '1'
+          DOCKET_E2E_PROTECTED: '1'
+          DOCKET_E2E_KIT: '0'
+        run: |
+          docker compose $STACK up -d --no-build --wait --wait-timeout 120
+          pnpm --filter @docket/web e2e
+
+      - name: Back to local trust
+        run: docker compose $STACK up -d --no-build --wait --wait-timeout 120
+
+      - name: No egress (FR-106)
+        run: docker/no-egress/check.sh $STACK
+
+      # SC-008 (T128): `docker compose down && up` keeps every item, event and document,
+      # and a backup restores identically into a scratch volume.
+      - name: Container replacement keeps the data (SC-008)
+        run: docker/check-replacement.sh $STACK
+
+      - name: Container logs
+        if: failure()
+        run: docker compose $STACK logs --no-color
+
+      - name: Upload Playwright report and traces
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: playwright-report-system
+          path: |
+            web/playwright-report/
+            web/test-results/
+          retention-days: 14
+          overwrite: true
+
+  # Aggregate checks. `always()` makes them report even when a job they need failed, was
+  # cancelled or was skipped; the gate script then fails them.
+  build:
+    name: build
+    needs: [plan, lint, unit, server-unit, server-integration, contract, image]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.plan.outputs.sha || github.sha }}
+
+      - name: Every build job ended as planned
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: node .github/ci/gate.mjs build
+
+  e2e:
+    name: e2e
+    needs: [plan, image, e2e-shard, e2e-system]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.plan.outputs.sha || github.sha }}
+
+      - name: Download the shard summaries
+        if: needs.plan.outputs.run_e2e == 'true'
+        uses: actions/download-artifact@v5
+        with:
+          pattern: shard-summary-*
+          path: shard-summaries
+          merge-multiple: true
+
+      - name: Every browser job ended as planned, and every planned spec ran once
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: node .github/ci/gate.mjs e2e shard-summaries
+
+  # Only the queue and main can prove the whole suite. It is skipped on an ordinary PR, and
+  # Mergify's merge conditions require it, so a partial PR run can never satisfy them.
+  full-suite:
+    name: full-suite
+    needs: [plan, build, e2e]
+    if: always() && needs.plan.outputs.mode != 'pr'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.plan.outputs.sha || github.sha }}
+
+      - name: The full suite passed on this exact tree
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          echo "Tree: $(git rev-parse 'HEAD^{tree}')"
+          node .github/ci/gate.mjs full-suite
