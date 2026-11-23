@@ -85,6 +85,9 @@ import {
   type NeedsYouResponse,
   type BriefResponse,
   type OverviewItemsResponse,
+  type InstallOverviewResponse,
+  type InstallRow,
+  type UninstallResponse,
   type OverviewResponse,
   type OnboardingListResponse,
   type OnboardingSession,
@@ -512,6 +515,24 @@ export interface InstallsService {
   bundleForToken(r: ReadContext, input: RouteParams<'install.download'>): Promise<InstallBundle>;
   /** Step 2: mark the token used and log the install (event `install.recorded`). */
   markDownloaded(w: WriteContext, input: { install_id: string }): void;
+  /** `GET /api/install-overview`: every project's repo installs (decision 50). */
+  overview(r: ReadContext): InstallOverviewResponse;
+  /** `POST /api/installs/:id/uninstall`: a single-use uninstall command and its script. */
+  issueUninstall(
+    w: WriteContext,
+    input: RouteParams<'installs.uninstall'>,
+  ): UninstallResponse;
+  /** `GET /uninstall/:token`, step 1: the uninstall step for a valid, unused token. */
+  uninstallBundle(r: ReadContext, input: RouteParams<'uninstall.download'>): Promise<InstallBundle>;
+  /** Step 2: mark the uninstall token downloaded; its report is accepted once after that. */
+  markUninstallDownloaded(w: WriteContext, input: { install_id: string }): void;
+  /** `POST /uninstall/:token/report`: record what the step did, so status updates. */
+  recordUninstall(
+    w: WriteContext,
+    input: { token: string; report: RouteBody<'uninstall.report'> },
+  ): { recorded: true };
+  /** `POST /api/installs/:id/mark-removed`: a legacy user-wide install removed by hand; undoable. */
+  markRemoved(w: WriteContext, input: RouteParams<'installs.markRemoved'>): InstallRow;
   /** `GET /api/push-target`: whether `DOCKET_PUSH_ROOT` is set and writable, with both paths. */
   pushTarget(r: ReadContext): Promise<PushTargetResponse>;
   /** `POST /api/push-target/test`: write and remove a probe file. Not an event. */
@@ -585,6 +606,8 @@ export interface PreparedRestore {
  * changes again.
  */
 export interface DriftService {
+  /** Decision 50: an uninstalled install's open records are closed; there's nothing left to compare. */
+  closeForRemovedInstall(w: WriteContext, installId: string): void;
   /** Store a report and raise or refresh drift against its install's manifest. Runs inside `claim_lead`'s write. */
   recordReport(
     w: WriteContext,

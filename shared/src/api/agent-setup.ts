@@ -180,6 +180,36 @@ export const manifestEntrySchema = z.object({
   sha256: z.string(),
 });
 
+/** Why the uninstall left a file in place (decision 50). */
+export const UNINSTALL_KEPT_REASONS = [
+  'modified',
+  'link',
+  'not_a_file',
+  'damaged_markers',
+  'other_files',
+  'has_kept_files',
+] as const;
+export type UninstallKeptReason = (typeof UNINSTALL_KEPT_REASONS)[number];
+
+const uninstallPath = text(AGENT_SETUP_LIMITS.install_path);
+const uninstallPaths = z.array(uninstallPath).max(200);
+const uninstallKept = z
+  .array(z.object({ path: uninstallPath, why: z.enum(UNINSTALL_KEPT_REASONS) }))
+  .max(200);
+
+/**
+ * How an install was removed (decision 50): `command`, by its uninstall
+ * command, which lists each file; or `marked`, the owner saying a legacy
+ * user-wide install was removed outside Docket, with no file lists.
+ */
+export const installRemovalSchema = z.object({
+  how: z.enum(['command', 'marked']),
+  removed: z.array(z.string()),
+  kept: z.array(z.object({ path: z.string(), why: z.enum(UNINSTALL_KEPT_REASONS) })),
+  gone: z.array(z.string()),
+});
+export type InstallRemoval = z.infer<typeof installRemovalSchema>;
+
 /** An install log row (UI_SPEC §6.7b; FR-126). */
 export const installRowSchema = z.object({
   id: z.string(),
@@ -194,6 +224,10 @@ export const installRowSchema = z.object({
   manifest: z.array(manifestEntrySchema),
   /** When the command's download used the token; null for push. */
   token_used_at: z.string().nullable(),
+  /** Decision 50: when this install was removed; null while it's in place. */
+  removed_at: z.string().nullable(),
+  /** Decision 50: how it was removed and what happened to each file. */
+  removal: installRemovalSchema.nullable(),
 });
 export type InstallRow = z.infer<typeof installRowSchema>;
 
@@ -257,6 +291,10 @@ export type PutWorkflowResponse = z.infer<typeof putWorkflowResponse>;
 
 // ---- POST /api/installs ----
 
+/** Decision 50: why a new user-wide install is refused. */
+export const USER_WIDE_REFUSED =
+  'User-wide installs are no longer supported because they reach unrelated projects. Choose a project and install into its repo.';
+
 export const createInstallBody = input({
   /** One client: the original form (B21), still accepted. */
   client: z.enum(INSTALL_CLIENTS).optional(),
@@ -267,13 +305,23 @@ export const createInstallBody = input({
     .max(INSTALL_CLIENTS.length)
     .refine((v) => new Set(v).size === v.length, { error: 'lists a client twice' })
     .optional(),
+  /** Decision 50: only `repo`. `user` stays in the enum so the refusal can say why. */
   target_kind: z.enum(INSTALL_TARGET_KINDS),
-  /** The project whose effective files to install; omitted for the service-wide set. */
+  /** The project whose effective files to install (decision 50: required). */
   project: projectKey.optional(),
   /** The host path. Required for push; optional for a command (it runs where it's pasted). */
   path: text(AGENT_SETUP_LIMITS.install_path).optional(),
   method: z.enum(INSTALL_METHODS),
 }).superRefine((v, ctx) => {
+  if (v.target_kind === 'user') {
+    ctx.addIssue({ code: 'custom', path: ['target_kind'], message: USER_WIDE_REFUSED });
+  } else if (v.project === undefined) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['project'],
+      message: 'is required: choose a project to install into its repo',
+    });
+  }
   if (v.method === 'push' && v.path === undefined) {
     ctx.addIssue({ code: 'custom', path: ['path'], message: 'is required for method push' });
   }
@@ -386,6 +434,18 @@ export const INSTALL_STATES = [
 ] as const;
 export type InstallState = (typeof INSTALL_STATES)[number];
 
+/**
+ * Where a repo install lives when it's a separate worktree (decision 50), from
+ * what agents reported on their runs. Docket adds no Git read for this.
+ * `merged`: that run's ticket has a merged PR recorded.
+ */
+export const installWorktreeSchema = z.object({
+  name: z.string(),
+  branch: z.string(),
+  merged: z.boolean(),
+});
+export type InstallWorktree = z.infer<typeof installWorktreeSchema>;
+
 export const installStateQuery = input({
   /** A project's repo installs; omitted: user-wide. */
   project: projectKey.optional(),
@@ -407,6 +467,8 @@ export const installStateResponse = jsonResponse({
       drift_ids: z.array(z.string()),
       /** The folder has this client's markers; null when Docket can't see the folder. */
       markers: z.boolean().nullable(),
+      /** Decision 50: the install is in a separate worktree, as Docket's runs recorded it. */
+      worktree: installWorktreeSchema.nullable(),
     }),
   ),
   /**
@@ -417,6 +479,60 @@ export const installStateResponse = jsonResponse({
   defaults: z.array(z.enum(INSTALL_CLIENTS)),
 });
 export type InstallStateResponse = z.infer<typeof installStateResponse>;
+
+// ---- GET /api/install-overview ----
+
+/**
+ * Every project's repo installs (decision 50), for All projects: the latest
+ * install of each client at each folder. Legacy user-wide installs never
+ * appear here, so they can't count as installed for a project.
+ */
+export const installOverviewResponse = jsonResponse({
+  rows: z.array(
+    z.object({
+      project: z.string(),
+      client: z.enum(INSTALL_CLIENTS),
+      state: z.enum(INSTALL_STATES),
+      install: installRowSchema,
+      outdated: z.array(z.string()),
+      drift_ids: z.array(z.string()),
+      worktree: installWorktreeSchema.nullable(),
+    }),
+  ),
+});
+export type InstallOverviewResponse = z.infer<typeof installOverviewResponse>;
+
+// ---- POST /api/installs/:id/uninstall ----
+
+export const uninstallResponse = jsonResponse({
+  install_id: z.string(),
+  /** The one-liners that download `GET /uninstall/:token` and run it. */
+  command: z.object({ powershell: z.string(), bash: z.string() }),
+  /** The exact step each command runs, to read before running it. */
+  script: z.object({ powershell: z.string(), bash: z.string() }),
+  /** What it may remove, as shown. */
+  files: z.array(z.object({ path: z.string(), what: z.enum(['file', 'block', 'connection']) })),
+  expires_at: z.string(),
+});
+export type UninstallResponse = z.infer<typeof uninstallResponse>;
+
+// ---- POST /uninstall/:token/report ----
+
+/** What the uninstall step did (decision 50). Paths must be ones this install wrote. */
+export const uninstallReportBody = input({
+  removed: uninstallPaths,
+  kept: uninstallKept,
+  gone: uninstallPaths,
+});
+export const uninstallReportResponse = jsonResponse({ recorded: z.literal(true) });
+
+// ---- POST /api/installs/:id/mark-removed ----
+
+export const markInstallRemovedResponse = jsonResponse({
+  mutation_id: z.string(),
+  install: installRowSchema,
+});
+export type MarkInstallRemovedResponse = z.infer<typeof markInstallRemovedResponse>;
 
 // ---- GET /api/push-target, POST /api/push-target/test ----
 
@@ -533,6 +649,34 @@ export const agentSetupRoutes = {
     body: noInput,
     response: json(installCheckResponse),
   }),
+  'installs.overview': route({
+    method: 'GET',
+    path: '/api/install-overview',
+    group: 'setup',
+    params: noInput,
+    query: noInput,
+    body: null,
+    response: json(installOverviewResponse),
+  }),
+  'installs.uninstall': route({
+    method: 'POST',
+    path: '/api/installs/:id/uninstall',
+    group: 'setup',
+    params: installParams,
+    query: noInput,
+    body: noInput,
+    response: json(uninstallResponse),
+  }),
+  'installs.markRemoved': route({
+    method: 'POST',
+    path: '/api/installs/:id/mark-removed',
+    group: 'setup',
+    params: installParams,
+    query: noInput,
+    body: noInput,
+    response: json(markInstallRemovedResponse),
+    undoable: true,
+  }),
   'pushTarget.get': route({
     method: 'GET',
     path: '/api/push-target',
@@ -565,5 +709,27 @@ export const agentSetupRoutes = {
     query: noInput,
     body: null,
     response: { kind: 'file' },
+  }),
+  /** Decision 50: the uninstall step's bundle, with the same single-use token rules. */
+  'uninstall.download': route({
+    method: 'GET',
+    path: '/uninstall/:token',
+    group: 'install',
+    auth: 'token',
+    params: installTokenParams,
+    query: noInput,
+    body: null,
+    response: { kind: 'file' },
+  }),
+  /** Decision 50: the step reports what it did, once, with the token it downloaded with. */
+  'uninstall.report': route({
+    method: 'POST',
+    path: '/uninstall/:token/report',
+    group: 'install',
+    auth: 'token',
+    params: installTokenParams,
+    query: noInput,
+    body: uninstallReportBody,
+    response: json(uninstallReportResponse),
   }),
 } as const;

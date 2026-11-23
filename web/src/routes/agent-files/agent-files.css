@@ -506,3 +506,37 @@
 .tl .instates .mono {
   overflow-wrap: anywhere;
 }
+
+/* Decision 50: All projects shows each project, and asks which to install into. */
+.tl .afchoose {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.tl .afchoose p {
+  margin: 0;
+}
+.tl .afchooseselect {
+  width: auto;
+  min-width: 200px;
+  max-width: 100%;
+}
+.tl .afoverview .afwhere {
+  overflow-wrap: anywhere;
+  max-width: 280px;
+}
+.tl .afoverview th[scope="row"] {
+  font-weight: 600;
+  text-align: left;
+}
+.tl .afuninstallrules {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+}
+.tl .inlog > li:focus {
+  outline: 2px solid var(--focus, currentColor);
+  outline-offset: -2px;
+}

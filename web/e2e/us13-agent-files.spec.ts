@@ -144,7 +144,9 @@ test.describe('Agent files (US13)', () => {
       'aria-current',
       'page',
     );
-    await expect(page.getByRole('button', { name: 'Install user-wide' })).toBeVisible();
+    // Decision 50: installs are per project, so this view asks which one.
+    await expect(page.getByRole('button', { name: 'Install into its repo' })).toBeVisible();
+    await expect(page.getByRole('button', { name: /user-wide/i })).toHaveCount(0);
 
     const table = page.getByRole('table', { name: 'Default agent files' });
     // Five skills, the AGENTS.md block and the onboarding guide (B30), plus the header row.

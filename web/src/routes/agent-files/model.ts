@@ -1,4 +1,9 @@
-import { connectionCanonical, type InstallClient, type InstallState } from '@docket/shared';
+import {
+  connectionCanonical,
+  type InstallClient,
+  type InstallState,
+  type InstallWorktree,
+} from '@docket/shared';
 /**
  * How Agent files presents the stored layers (UI_SPEC §6.7b; BUILD_SPEC
  * §5.17, B25). The storage model is unchanged: bundled, the service-wide
@@ -167,6 +172,24 @@ export const INSTALL_STATE_VIEW: Record<
   changed: { label: 'Changed outside Docket', kind: 'warn' },
   not_installed: { label: 'Not installed', kind: 'neutral' },
 };
+
+/**
+ * Decision 50: where a repo install lives, when it's a separate worktree.
+ * Docket can't see the main branch, so it never calls such an install simply current.
+ */
+export const worktreeText = (w: InstallWorktree): string =>
+  w.merged
+    ? `In worktree ${w.name}, whose ticket has a merged PR`
+    : `Installed in worktree ${w.name}, not merged yet`;
+
+/** The state chip, which names the worktree instead of saying "up to date". */
+export function installStateChip(
+  state: InstallState,
+  worktree: InstallWorktree | null | undefined,
+): { label: string; kind: 'ok' | 'info' | 'warn' | 'neutral' } {
+  if (state === 'up_to_date' && worktree) return { label: worktreeText(worktree), kind: 'info' };
+  return INSTALL_STATE_VIEW[state];
+}
 
 /** What installing does to a client in each state: never a plain Install once it's installed. */
 export type InstallVerb = 'Install' | 'Update' | 'Reinstall';

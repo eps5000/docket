@@ -25,6 +25,7 @@ const SERVER_PREFIXES = [
   '/agent',
   '/agent-upload',
   '/install',
+  '/uninstall',
   '/healthz',
   '/readyz',
 ];

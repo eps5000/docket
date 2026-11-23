@@ -84,17 +84,24 @@ import {
   isSafeCommandPath,
   isScriptKey,
   mergeMarkedSection,
+  normalizeWorkspace,
   renderAgentsBlock,
+  uninstallCommands,
+  USER_WIDE_REFUSED,
   WAIT_SCRIPT_KEYS,
   withoutCr,
   type CreateInstallResponse,
   type InstallClientResult,
+  type InstallOverviewResponse,
+  type InstallRemoval,
   type InstallStateResponse,
   type InstallCheckResponse,
   type InstallClient,
   type InstallMethod,
   type InstallRow,
   type InstallTargetKind,
+  type InstallWorktree,
+  type UninstallResponse,
 } from '@docket/shared';
 import type { Db } from '../db/client.js';
 import { tarGzBytes, type TarFileEntry } from '../jobs/tar.js';
@@ -111,6 +118,7 @@ import { CHECK_SCRIPT_PS1, CHECK_SCRIPT_SH, checkPs1, checkSh } from './check-sc
 import { waitPs1, waitSh } from './wait-scripts.js';
 import { installPs1, installSh, installWrapperPs1, installWrapperSh } from './install-scripts.js';
 import { PushRoot, SymlinkRefused } from './push-root.js';
+import { uninstallPs1, uninstallSh, type UninstallEntry, type UninstallPlan } from './uninstall-scripts.js';
 import type { WriteContext } from './write.js';
 
 // ---- Rows and helpers ----
@@ -125,7 +133,15 @@ export interface InstallDbRow {
   method: InstallMethod;
   manifest: string;
   token_used_at: string | null;
+  /** Decision 50: set once the install is removed. */
+  removed_at: string | null;
+  /** Decision 50: `InstallRemoval` as JSON. */
+  removal: string | null;
 }
+
+/** The columns every install read selects, so a removed install is always seen as removed. */
+export const INSTALL_COLUMNS =
+  'id, at, client, target_kind, project_key, path, method, manifest, token_used_at, removed_at, removal';
 
 /** The `installs.manifest` column: key → version and sha256, in install order. */
 /**
@@ -170,6 +186,11 @@ function requireProject(db: Db, key: string): void {
     .get(key);
   if (!p) throw new ToolError('not_found', `No project ${key}. Check the key in Settings.`);
 }
+
+const installRowById = (db: Db, id: string) =>
+  db.sqlite.prepare(`SELECT ${INSTALL_COLUMNS} FROM installs WHERE id = ?`).get(id) as
+    | InstallDbRow
+    | undefined;
 
 /** The version texts, by ID (immutable, so a command install's bundle matches its manifest). */
 function versionContent(db: Db, id: string): string {
@@ -322,7 +343,98 @@ function toRow(r: InstallDbRow): InstallRow {
     file_count: entries.length,
     manifest: entries,
     token_used_at: r.token_used_at,
+    removed_at: r.removed_at,
+    removal: r.removal ? (JSON.parse(r.removal) as InstallRemoval) : null,
   };
+}
+
+/**
+ * Which recorded folders are separate worktrees (decision 50), from what
+ * agents reported on their runs. No Git read: a folder no run reported, or one
+ * on its repo's main branch, isn't called a worktree. A folder that is the
+ * run's own repo root is the main checkout, whatever branch it's on.
+ */
+function worktreesByPath(db: Db): Map<string, InstallWorktree> {
+  const runs = db.sqlite
+    .prepare(
+      `SELECT item_id, workspace FROM runs WHERE workspace IS NOT NULL
+       ORDER BY coalesce(json_extract(workspace, '$.updated_at'), updated_at) DESC, id DESC`,
+    )
+    .all() as { item_id: string; workspace: string }[];
+  const merged = new Set(
+    (
+      db.sqlite
+        .prepare("SELECT DISTINCT item_id FROM artifacts WHERE kind = 'pr' AND lower(state) = 'merged'")
+        .all() as { item_id: string }[]
+    ).map((a) => a.item_id),
+  );
+  const seen = new Set<string>();
+  const out = new Map<string, InstallWorktree>();
+  for (const run of runs) {
+    let w: { path?: unknown; branch?: unknown; base_ref?: unknown; repo?: unknown };
+    try {
+      w = JSON.parse(run.workspace) as typeof w;
+    } catch {
+      continue;
+    }
+    if (typeof w.path !== 'string' || !w.path) continue;
+    const key = normalizeWorkspace(w.path);
+    // The latest run in a folder speaks for it.
+    if (seen.has(key)) continue;
+    seen.add(key);
+    if (typeof w.branch !== 'string' || !w.branch) continue;
+    const base = typeof w.base_ref === 'string' ? w.base_ref.replace(/^(refs\/heads\/|origin\/)/, '') : '';
+    if (w.branch === 'main' || w.branch === 'master' || w.branch === base) continue;
+    if (typeof w.repo === 'string' && normalizeWorkspace(w.repo) === key) continue;
+    out.set(key, {
+      name: key.slice(key.lastIndexOf('/') + 1),
+      branch: w.branch,
+      merged: merged.has(run.item_id),
+    });
+  }
+  return out;
+}
+
+/** What an install's uninstall step may remove, from its stored manifest. */
+function uninstallEntries(row: InstallDbRow): UninstallEntry[] {
+  const layout = installLayout(row.client, row.target_kind);
+  const manifest = JSON.parse(row.manifest) as ManifestMap;
+  const entries: UninstallEntry[] = Object.entries(manifest).map(([key, sent]) => ({
+    kind: key === AGENTS_BLOCK_KEY ? 'block' : key === CONNECTION_KEY ? 'connection' : 'file',
+    path: sent.installed_as
+      ? `${layout.skillsDir}/${sent.installed_as}/SKILL.md`
+      : key === CONNECTION_KEY
+        ? CONNECTION_FILES[row.client]
+        : installPathOf(layout, key),
+    sha256: sent.sha256.toLowerCase(),
+  }));
+  // docket-check isn't in the manifest: it's removed only while it matches this Docket's copy.
+  for (const [name, text] of checkScripts()) {
+    entries.push({ kind: 'script', path: `${layout.dir}/${name}`, sha256: hashText(text) });
+  }
+  return entries;
+}
+
+function uninstallPlan(row: InstallDbRow): UninstallPlan {
+  return {
+    install_id: row.id,
+    client: row.client,
+    dir: installLayout(row.client, row.target_kind).dir,
+    // A user-wide install's folder is always home; a repo install's is known if it was given.
+    recordedBase: row.target_kind === 'user' || row.path !== null,
+    entries: uninstallEntries(row),
+  };
+}
+
+/** Every path a report may name for this install: its entries, their folders and its manifest. */
+function reportablePaths(row: InstallDbRow): Set<string> {
+  const layout = installLayout(row.client, row.target_kind);
+  const out = new Set<string>([layout.manifest, layout.legacyManifest]);
+  for (const e of uninstallEntries(row)) {
+    out.add(e.path);
+    if (e.path.endsWith('/SKILL.md')) out.add(e.path.slice(0, -'SKILL.md'.length));
+  }
+  return out;
 }
 
 /** One installed file as the push check read it (B24's check; reused by drift, B27b). */
@@ -792,6 +904,8 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
 
   return {
     async prepare(r, input) {
+      // Decision 50: also covers Restore on an old user-wide drift record.
+      if (input.target_kind === 'user') throw new ToolError('validation', USER_WIDE_REFUSED);
       const project = input.project ?? null;
       if (project) requireProject(r.db, project);
       if (
@@ -948,7 +1062,7 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
     list(r, query) {
       const rows = r.db.sqlite
         .prepare(
-          `SELECT id, at, client, target_kind, project_key, path, method, manifest, token_used_at
+          `SELECT ${INSTALL_COLUMNS}
            FROM installs
            WHERE (method = 'push' OR token_used_at IS NOT NULL) AND (? IS NULL OR project_key = ?)
            ORDER BY coalesce(token_used_at, at) DESC, id DESC
@@ -961,21 +1075,27 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
     async state(r, query): Promise<InstallStateResponse> {
       const project = query.project ?? null;
       if (project) requireProject(r.db, project);
-      const target: InstallTargetKind = project ? 'repo' : 'user';
+      // Decision 50: installs are per project, so without one nothing counts as installed.
+      const target: InstallTargetKind = 'repo';
       const effective = effectiveAgentFiles(r.db, project);
       const markers = await clientMarkers(target, query.path);
+      const worktrees = worktreesByPath(r.db);
       const clients = INSTALL_CLIENTS.map((client) => {
         // The latest install of this client there: push, or a command that was downloaded.
-        const row = r.db.sqlite
-          .prepare(
-            `SELECT id, at, client, target_kind, project_key, path, method, manifest, token_used_at
-             FROM installs
-             WHERE client = ? AND target_kind = ? AND project_key IS ?
-               AND (method = 'push' OR token_used_at IS NOT NULL)
-             ORDER BY coalesce(token_used_at, at) DESC, id DESC
-             LIMIT 1`,
-          )
-          .get(client, target, project) as InstallDbRow | undefined;
+        const latest = project
+          ? (r.db.sqlite
+              .prepare(
+                `SELECT ${INSTALL_COLUMNS}
+                 FROM installs
+                 WHERE client = ? AND target_kind = ? AND project_key = ?
+                   AND (method = 'push' OR token_used_at IS NOT NULL)
+                 ORDER BY coalesce(token_used_at, at) DESC, id DESC
+                 LIMIT 1`,
+              )
+              .get(client, target, project) as InstallDbRow | undefined)
+          : undefined;
+        // Decision 50: a removed install is no longer there.
+        const row = latest && !latest.removed_at ? latest : undefined;
         const has = markers === null ? null : markers[client];
         if (!row) {
           return {
@@ -985,6 +1105,7 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
             outdated: [],
             drift_ids: [],
             markers: has,
+            worktree: null,
           };
         }
         const drift = (
@@ -1005,6 +1126,7 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
           outdated,
           drift_ids: drift,
           markers: has,
+          worktree: row.path ? (worktrees.get(normalizeWorkspace(row.path)) ?? null) : null,
         };
       });
       const marked = INSTALL_CLIENTS.filter((c) => markers?.[c]);
@@ -1018,13 +1140,239 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
       };
     },
 
-    async check(r, { id }): Promise<InstallCheckResponse> {
+    overview(r): InstallOverviewResponse {
+      const rows = r.db.sqlite
+        .prepare(
+          `SELECT ${INSTALL_COLUMNS.split(', ')
+            .map((c) => `i.${c}`)
+            .join(', ')}
+           FROM installs i JOIN projects p ON p.key = i.project_key AND p.deleted_at IS NULL
+           WHERE i.target_kind = 'repo' AND (i.method = 'push' OR i.token_used_at IS NOT NULL)
+           ORDER BY coalesce(i.token_used_at, i.at) DESC, i.id DESC`,
+        )
+        .all() as InstallDbRow[];
+      const worktrees = worktreesByPath(r.db);
+      const effective = new Map<string, ReturnType<typeof effectiveAgentFiles>>();
+      const seen = new Set<string>();
+      const out: InstallOverviewResponse['rows'] = [];
+      for (const row of rows) {
+        const project = row.project_key!;
+        // The latest install of each client at each folder; a removed one hides older ones there.
+        const where = row.path ? normalizeWorkspace(row.path) : '';
+        const key = `${project}|${row.client}|${where}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        if (row.removed_at) continue;
+        if (!effective.has(project)) effective.set(project, effectiveAgentFiles(r.db, project));
+        const drift = (
+          r.db.sqlite
+            .prepare(`SELECT id FROM drift WHERE install_id = ? AND state = 'open' ORDER BY id`)
+            .all(row.id) as { id: string }[]
+        ).map((d) => d.id);
+        const outdated = outdatedKeys(row, effective.get(project)!, connection().protectedMode);
+        out.push({
+          project,
+          client: row.client,
+          state: drift.length > 0 ? 'changed' : outdated.length > 0 ? 'update_available' : 'up_to_date',
+          install: toRow(row),
+          outdated,
+          drift_ids: drift,
+          worktree: row.path ? (worktrees.get(where) ?? null) : null,
+        });
+      }
+      return { rows: out };
+    },
+
+    issueUninstall(w, { id }): UninstallResponse {
+      const row = installRowById(w.db, id);
+      if (!row || (row.method === 'command' && !row.token_used_at)) {
+        throw new ToolError('not_found', `No install ${id}.`);
+      }
+      const token = randomBytes(32).toString('base64url');
+      const expires = new Date(
+        Date.parse(w.now) + AGENT_SETUP_LIMITS.install_token_ttl_ms,
+      ).toISOString();
+      w.update('installs', id, {
+        removal_token_sha256: tokenHash(token),
+        removal_token_expires_at: expires,
+        removal_token_used_at: null,
+      });
+      const count = Object.keys(JSON.parse(row.manifest) as ManifestMap).length;
+      w.event({
+        type: 'install.recorded',
+        summary: `Uninstall command created: ${describe({ ...row, count })}`,
+        project_key: row.project_key,
+        objects: [{ kind: 'install', id }],
+        data: {
+          method: 'command',
+          client: row.client,
+          target_kind: row.target_kind,
+          files: count,
+          stage: 'uninstall_issued',
+        },
+      });
+      const plan = uninstallPlan(row);
+      const url = `http://${config.allowedHosts[0] ?? '127.0.0.1:7420'}/uninstall/${token}`;
+      return {
+        install_id: id,
+        command: uninstallCommands({
+          client: row.client,
+          target_kind: row.target_kind,
+          path: row.path,
+          url,
+        }),
+        script: { powershell: uninstallPs1(plan), bash: uninstallSh(plan) },
+        files: plan.entries.map((e) => ({
+          path: e.path,
+          what: e.kind === 'block' || e.kind === 'connection' ? e.kind : 'file',
+        })),
+        expires_at: expires,
+      };
+    },
+
+    async uninstallBundle(r, { token }): Promise<InstallBundle> {
       const row = r.db.sqlite
         .prepare(
-          `SELECT id, at, client, target_kind, project_key, path, method, manifest, token_used_at
-           FROM installs WHERE id = ?`,
+          `SELECT ${INSTALL_COLUMNS} FROM installs
+           WHERE removal_token_sha256 = ? AND removal_token_used_at IS NULL AND removal_token_expires_at > ?`,
         )
-        .get(id) as InstallDbRow | undefined;
+        .get(tokenHash(token), r.now) as InstallDbRow | undefined;
+      if (!row) throw new ToolError('not_found', NOT_FOUND);
+      const plan = uninstallPlan(row);
+      const now = new Date(r.now);
+      const entry = (name: string, text: string, mode = 0o644): TarFileEntry => {
+        const bytes = Buffer.from(text, 'utf8');
+        return {
+          name: `docket-uninstall/${name}`,
+          size: bytes.length,
+          mtime: now,
+          mode,
+          source: { bytes },
+        };
+      };
+      return {
+        install_id: row.id,
+        install_ids: [row.id],
+        filename: `docket-uninstall-${row.id}.tar.gz`,
+        bytes: await tarGzBytes([
+          entry('uninstall.sh', uninstallSh(plan), 0o755),
+          entry('uninstall.ps1', uninstallPs1(plan)),
+        ]),
+      };
+    },
+
+    markUninstallDownloaded(w, { install_id }) {
+      const row = w.require('installs', install_id) as unknown as InstallDbRow & {
+        removal_token_used_at: string | null;
+      };
+      // Checked again inside the write: of two racing downloads, only one gets the step.
+      if (row.removal_token_used_at !== null) throw new ToolError('not_found', NOT_FOUND);
+      w.update('installs', install_id, {
+        removal_token_used_at: w.now,
+        // The report comes after the step has run, so the window restarts at the download.
+        removal_token_expires_at: new Date(
+          Date.parse(w.now) + AGENT_SETUP_LIMITS.install_token_ttl_ms,
+        ).toISOString(),
+      });
+      const count = Object.keys(JSON.parse(row.manifest) as ManifestMap).length;
+      w.event({
+        type: 'install.recorded',
+        summary: `Uninstall command downloaded: ${describe({ ...row, count })}`,
+        project_key: row.project_key,
+        objects: [{ kind: 'install', id: install_id }],
+        data: {
+          method: 'command',
+          client: row.client,
+          target_kind: row.target_kind,
+          files: count,
+          stage: 'uninstall_downloaded',
+        },
+      });
+    },
+
+    recordUninstall(w, { token, report }) {
+      const row = w.db.sqlite
+        .prepare(
+          `SELECT ${INSTALL_COLUMNS} FROM installs
+           WHERE removal_token_sha256 = ? AND removal_token_used_at IS NOT NULL AND removal_token_expires_at > ?`,
+        )
+        .get(tokenHash(token), w.now) as InstallDbRow | undefined;
+      if (!row) throw new ToolError('not_found', NOT_FOUND);
+      const known = reportablePaths(row);
+      for (const p of [...report.removed, ...report.gone, ...report.kept.map((k) => k.path)]) {
+        if (!known.has(p)) {
+          throw new ToolError('validation', `${p} isn't a file this install wrote.`);
+        }
+      }
+      const removal: InstallRemoval = { how: 'command', ...report };
+      w.update('installs', row.id, {
+        removed_at: w.now,
+        removal: JSON.stringify(removal),
+        // Single use: the report can't be replayed.
+        removal_token_sha256: null,
+        removal_token_expires_at: null,
+        removal_token_used_at: null,
+      });
+      const count = Object.keys(JSON.parse(row.manifest) as ManifestMap).length;
+      w.event({
+        type: 'install.recorded',
+        summary: `Removed by command: ${describe({ ...row, count })}: ${report.removed.length} removed, ${report.kept.length} kept`,
+        project_key: row.project_key,
+        objects: [{ kind: 'install', id: row.id }],
+        data: {
+          method: 'command',
+          client: row.client,
+          target_kind: row.target_kind,
+          files: count,
+          stage: 'removed',
+          removed: report.removed.length,
+          kept: report.kept.length,
+          gone: report.gone.length,
+        },
+      });
+      deps.services().drift.closeForRemovedInstall(w, row.id);
+      return { recorded: true as const };
+    },
+
+    markRemoved(w, { id }) {
+      const row = installRowById(w.db, id);
+      if (!row || (row.method === 'command' && !row.token_used_at)) {
+        throw new ToolError('not_found', `No install ${id}.`);
+      }
+      if (row.target_kind !== 'user') {
+        throw new ToolError(
+          'validation',
+          'Only a legacy user-wide install can be marked as removed. Use Uninstall for a repo install.',
+        );
+      }
+      if (row.removed_at) {
+        throw new ToolError('validation', 'This install is already marked as removed.');
+      }
+      const removal: InstallRemoval = { how: 'marked', removed: [], kept: [], gone: [] };
+      const inverse = w.update('installs', id, {
+        removed_at: w.now,
+        removal: JSON.stringify(removal),
+      });
+      const count = Object.keys(JSON.parse(row.manifest) as ManifestMap).length;
+      w.event({
+        type: 'install.recorded',
+        summary: `You marked as removed: ${describe({ ...row, count })}`,
+        project_key: null,
+        objects: [{ kind: 'install', id }],
+        data: {
+          method: row.method,
+          client: row.client,
+          target_kind: row.target_kind,
+          files: count,
+          stage: 'marked_removed',
+        },
+        inverse: [inverse],
+      });
+      return toRow(installRowById(w.db, id)!);
+    },
+
+    async check(r, { id }): Promise<InstallCheckResponse> {
+      const row = installRowById(r.db, id);
       if (!row || (row.method === 'command' && !row.token_used_at)) {
         throw new ToolError('not_found', `No install ${id}.`);
       }
@@ -1057,7 +1405,7 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
       const rows = (
         r.db.sqlite
           .prepare(
-            `SELECT id, at, client, target_kind, project_key, path, method, manifest, token_used_at, token_sha256
+            `SELECT ${INSTALL_COLUMNS}, token_sha256
              FROM installs
              WHERE token_sha256 IN (?, ?, ?) AND method = 'command' AND token_used_at IS NULL AND token_expires_at > ?`,
           )

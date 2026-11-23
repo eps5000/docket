@@ -37,4 +37,34 @@ export function installRoutes<E extends Env>(app: Hono<E>, deps: RouteDeps): voi
     },
     { prefix: '' },
   );
+
+  // Decision 50: the uninstall step, with the same single-use token rules.
+  defineRoute(
+    app,
+    'uninstall.download',
+    deps,
+    async ({ services, read, mutate, params }) => {
+      const bundle = await services.installs.uninstallBundle(read, params);
+      mutate((w) => services.installs.markUninstallDownloaded(w, { install_id: bundle.install_id }));
+      return new Response(bundle.bytes, {
+        headers: {
+          'content-type': 'application/gzip',
+          'content-disposition': `attachment; filename="${bundle.filename}"`,
+          'cache-control': 'no-store',
+          'x-content-type-options': 'nosniff',
+        },
+      });
+    },
+    { prefix: '' },
+  );
+
+  defineRoute(
+    app,
+    'uninstall.report',
+    deps,
+    ({ services, mutate, params, body }) =>
+      mutate((w) => services.installs.recordUninstall(w, { token: params.token, report: body }))
+        .result,
+    { prefix: '' },
+  );
 }

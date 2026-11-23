@@ -317,11 +317,11 @@ describe('install state (decision 34)', () => {
     expect(changed.drift_ids.length).toBe(1);
   });
 
-  it('user-wide state, and markers only for a folder inside the push folder', async () => {
+  it('without a project nothing is installed; markers only inside the push folder', async () => {
     const { api, repo } = await start();
-    const user = await state(api, '');
-    expect(user.target_kind).toBe('user');
-    expect(user.clients.every((c) => c.markers === null)).toBe(true);
+    const none = await state(api, '');
+    expect(none.target_kind).toBe('repo');
+    expect(none.clients.every((c) => c.state === 'not_installed' && c.markers === null)).toBe(true);
     mkdirSync(join(repo, '.claude'));
     const inside = await state(api, `project=RCP&path=${encodeURIComponent(repo)}`);
     expect(inside.defaults).toEqual(['claude']);

@@ -574,6 +574,7 @@ describe('the guide is an agent file (guide:onboarding; FR-137)', () => {
       project: 'RCP',
       client: 'claude',
       target_kind: 'repo',
+      project: 'RCP',
       method: 'command',
       path: '/tmp/repo',
     });

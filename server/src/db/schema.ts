@@ -927,12 +927,24 @@ export const installs = sqliteTable(
     token_sha256: text('token_sha256'),
     token_expires_at: text('token_expires_at'),
     token_used_at: text('token_used_at'),
+    /** Decision 50: when the install was removed; null while it's in place. */
+    removed_at: text('removed_at'),
+    /** Decision 50: `{how, removed, kept, gone}`. */
+    removal: text('removal'),
+    /** Decision 50: the uninstall command's single-use token, as its sha256. */
+    removal_token_sha256: text('removal_token_sha256'),
+    removal_token_expires_at: text('removal_token_expires_at'),
+    /** When the uninstall step was downloaded; its report is accepted once after that. */
+    removal_token_used_at: text('removal_token_used_at'),
     ...timestamps,
   },
   (t) => [
     index('installs_at').on(t.at),
     index('installs_project').on(t.project_key),
     uniqueIndex('installs_token').on(t.token_sha256).where(sql.raw(`"token_sha256" IS NOT NULL`)),
+    uniqueIndex('installs_removal_token')
+      .on(t.removal_token_sha256)
+      .where(sql.raw(`"removal_token_sha256" IS NOT NULL`)),
     check('installs_client', oneOf('client', INSTALL_CLIENTS)),
     check('installs_target_kind', oneOf('target_kind', INSTALL_TARGET_KINDS)),
     check('installs_method', oneOf('method', INSTALL_METHODS)),

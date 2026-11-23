@@ -62,7 +62,12 @@ import type {
   ServiceDeps,
 } from './contracts.js';
 import { newId } from './ids.js';
-import { inspectPushInstall, type InstallDbRow, type ManifestMap } from './installs.js';
+import {
+  INSTALL_COLUMNS,
+  inspectPushInstall,
+  type InstallDbRow,
+  type ManifestMap,
+} from './installs.js';
 import { actorName } from './model.js';
 import { PushRoot } from './push-root.js';
 import type { InverseOp, WriteContext } from './write.js';
@@ -107,11 +112,12 @@ interface Difference {
 
 const installById = (db: Db, id: string) =>
   db.sqlite
-    .prepare(
-      `SELECT id, at, client, target_kind, project_key, path, method, manifest, token_used_at
-       FROM installs WHERE id = ?`,
-    )
+    .prepare(`SELECT ${INSTALL_COLUMNS} FROM installs WHERE id = ?`)
     .get(id) as InstallDbRow | undefined;
+
+/** Decision 50: only a repo install still in place can drift. */
+const canDrift = (row: InstallDbRow | undefined): row is InstallDbRow =>
+  !!row && row.target_kind === 'repo' && !row.removed_at;
 
 const manifestOf = (row: InstallDbRow): ManifestMap => JSON.parse(row.manifest) as ManifestMap;
 
@@ -375,7 +381,9 @@ function record(
   ifChanged: boolean,
 ): { report_id: string | null; drift_ids: string[] } {
   const db = w.db;
-  const install = input.install_id ? installById(db, input.install_id) : undefined;
+  // Decision 50: a report from a legacy user-wide or removed install is kept, and raises nothing.
+  const reported = input.install_id ? installById(db, input.install_id) : undefined;
+  const install = canDrift(reported) ? reported : undefined;
   const manifest = install ? manifestOf(install) : undefined;
   const files = normalise(mapReportKeys(input.files, manifest), manifest);
   const runItem = input.run_id
@@ -531,6 +539,7 @@ export function driftProblems(
   const rows = db.sqlite
     .prepare(
       `SELECT d.* FROM drift d LEFT JOIN projects p ON p.key = d.project_key
+       JOIN installs i ON i.id = d.install_id AND i.target_kind = 'repo' AND i.removed_at IS NULL
        WHERE d.state = 'open' AND (d.project_key IS NULL OR p.deleted_at IS NULL)
        ORDER BY d.detected_at DESC, d.id DESC`,
     )
@@ -663,19 +672,22 @@ export function createDriftService(deps: ServiceDeps): DriftService {
       const rows = (
         r.db.sqlite
           .prepare(
-            `SELECT id, at, client, target_kind, project_key, path, method, manifest, token_used_at
+            `SELECT ${INSTALL_COLUMNS}
              FROM installs WHERE method = 'push' AND path IS NOT NULL ORDER BY at DESC, id DESC`,
           )
           .all() as InstallDbRow[]
-      ).filter(
-        (row, i, all) =>
-          all.findIndex(
-            (o) =>
-              o.client === row.client &&
-              o.target_kind === row.target_kind &&
-              o.path!.toLowerCase() === row.path!.toLowerCase(),
-          ) === i,
-      );
+      )
+        .filter(
+          (row, i, all) =>
+            all.findIndex(
+              (o) =>
+                o.client === row.client &&
+                o.target_kind === row.target_kind &&
+                o.path!.toLowerCase() === row.path!.toLowerCase(),
+            ) === i,
+        )
+        // Decision 50: picked after the latest, so a removed install doesn't revive an older one.
+        .filter((row) => canDrift(row));
       if (rows.length === 0) return [];
       let root: PushRoot;
       try {
@@ -728,7 +740,11 @@ export function createDriftService(deps: ServiceDeps): DriftService {
     },
 
     list(r, input) {
-      const where: string[] = ['(d.project_key IS NULL OR p.deleted_at IS NULL)'];
+      // Decision 50: a legacy user-wide install's records are history, not something to act on.
+      const where: string[] = [
+        '(d.project_key IS NULL OR p.deleted_at IS NULL)',
+        `d.install_id IN (SELECT id FROM installs WHERE target_kind = 'repo')`,
+      ];
       const args: unknown[] = [];
       if (input.project) {
         where.push('d.project_key = ?');
@@ -846,6 +862,17 @@ export function createDriftService(deps: ServiceDeps): DriftService {
         );
       }
       return { drift: toDrift(w.db, driftRow(w.db, p.drift_id)), install: result };
+    },
+
+    closeForRemovedInstall(w, installId) {
+      for (const open of openRowsOf(w.db, installId)) {
+        resolve(
+          w,
+          open,
+          'restored',
+          `${agentFileName(open.file_key)}: the install was removed · ${projectName(w.db, open.project_key)}`,
+        );
+      }
     },
 
     keepLocal(w, { id }) {

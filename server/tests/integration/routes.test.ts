@@ -140,6 +140,12 @@ const B2_ROUTES: readonly RouteId[] = [
   'pushTarget.get',
   'pushTarget.test',
   'install.download',
+  // Decision 50 (B64): every project's state, uninstall, and marking a legacy install removed.
+  'installs.overview',
+  'installs.uninstall',
+  'installs.markRemoved',
+  'uninstall.download',
+  'uninstall.report',
   // US14 (B27a, T160): proposals (content in us14-proposals.test.ts).
   'proposals.list',
   'proposals.approve',
@@ -336,6 +342,11 @@ const VALID: Record<RouteId, Req> = {
   'pushTarget.get': {},
   'pushTarget.test': { body: {} },
   'install.download': { params: { token: TOKEN } },
+  'installs.overview': {},
+  'installs.uninstall': { params: { id: 'ins_1' }, body: {} },
+  'installs.markRemoved': { params: { id: 'ins_1' }, body: {} },
+  'uninstall.download': { params: { token: TOKEN } },
+  'uninstall.report': { params: { token: TOKEN }, body: { removed: [], kept: [], gone: [] } },
   // Proposals and drift (decision 30; B26 placeholders until US14, T160–T161).
   'proposals.list': { query: { project: 'RCP', state: 'pending' } },
   'proposals.approve': {
