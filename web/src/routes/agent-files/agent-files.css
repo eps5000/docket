@@ -526,7 +526,7 @@
   overflow-wrap: anywhere;
   max-width: 280px;
 }
-.tl .afoverview th[scope="row"] {
+.tl .afoverview th[scope='row'] {
   font-weight: 600;
   text-align: left;
 }

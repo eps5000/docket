@@ -122,9 +122,9 @@ test.describe('Installs stay in scope (decision 50)', () => {
     await page.goto('/agent-files?project=all');
     const card = overviewCard(page);
     const table = card.getByRole('table', { name: 'Install state by project' });
-    await expect(table.locator('[data-overview-project="RCP"][data-overview-client="claude"]')).toContainText(
-      'C:/code/synthetic-recipes',
-    );
+    await expect(
+      table.locator('[data-overview-project="RCP"][data-overview-client="claude"]'),
+    ).toContainText('C:/code/synthetic-recipes');
     await expect(table.locator('[data-worktree="synthetic-feature"]')).toContainText(
       'Installed in worktree synthetic-feature, not merged yet',
     );

@@ -835,8 +835,8 @@ function RemovalNote({ row }: { row: InstallRow }) {
   return (
     <div className="indetail" data-install-removal="command">
       <span className="src">
-        Uninstalled · {at} · {plural(removal.removed.length, 'item')} removed,{' '}
-        {removal.kept.length} kept, {removal.gone.length} already gone
+        Uninstalled · {at} · {plural(removal.removed.length, 'item')} removed, {removal.kept.length}{' '}
+        kept, {removal.gone.length} already gone
       </span>
       {removal.kept.length > 0 && (
         <ul className="inchanges" aria-label="Files kept">
@@ -984,7 +984,9 @@ function InstallLogRow({ row }: { row: InstallRow }) {
           Versions sent
         </Button>
         {removed ? (
-          <Chip kind="neutral">{row.removal?.how === 'marked' ? 'Marked as removed' : 'Removed'}</Chip>
+          <Chip kind="neutral">
+            {row.removal?.how === 'marked' ? 'Marked as removed' : 'Removed'}
+          </Chip>
         ) : row.method === 'push' ? (
           <Button size="sm" onClick={() => void runCheck()} disabled={checking}>
             {checking ? 'Checking…' : 'Check'}

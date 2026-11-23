@@ -203,7 +203,12 @@ export function UninstallButton({
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Button size="sm" variant="ghost" onClick={() => setOpen(true)} aria-label={`Uninstall ${name}`}>
+      <Button
+        size="sm"
+        variant="ghost"
+        onClick={() => setOpen(true)}
+        aria-label={`Uninstall ${name}`}
+      >
         {again ? 'Uninstall again' : 'Uninstall'}
       </Button>
       {open && <UninstallDialog row={row} name={name} onClose={() => setOpen(false)} />}
@@ -317,9 +322,7 @@ function UninstallDialog({
               In CLAUDE.md or AGENTS.md, only the Docket section goes. The file is deleted only if
               nothing else is in it.
             </li>
-            <li>
-              In a connection file, only the docket server goes, and only if it’s unchanged.
-            </li>
+            <li>In a connection file, only the docket server goes, and only if it’s unchanged.</li>
             <li>It never follows links, and removes a skill folder only when it’s empty.</li>
           </ul>
           {error && (

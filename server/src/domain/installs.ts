@@ -118,7 +118,12 @@ import { CHECK_SCRIPT_PS1, CHECK_SCRIPT_SH, checkPs1, checkSh } from './check-sc
 import { waitPs1, waitSh } from './wait-scripts.js';
 import { installPs1, installSh, installWrapperPs1, installWrapperSh } from './install-scripts.js';
 import { PushRoot, SymlinkRefused } from './push-root.js';
-import { uninstallPs1, uninstallSh, type UninstallEntry, type UninstallPlan } from './uninstall-scripts.js';
+import {
+  uninstallPs1,
+  uninstallSh,
+  type UninstallEntry,
+  type UninstallPlan,
+} from './uninstall-scripts.js';
 import type { WriteContext } from './write.js';
 
 // ---- Rows and helpers ----
@@ -189,8 +194,7 @@ function requireProject(db: Db, key: string): void {
 
 const installRowById = (db: Db, id: string) =>
   db.sqlite.prepare(`SELECT ${INSTALL_COLUMNS} FROM installs WHERE id = ?`).get(id) as
-    | InstallDbRow
-    | undefined;
+    InstallDbRow | undefined;
 
 /** The version texts, by ID (immutable, so a command install's bundle matches its manifest). */
 function versionContent(db: Db, id: string): string {
@@ -364,7 +368,9 @@ function worktreesByPath(db: Db): Map<string, InstallWorktree> {
   const merged = new Set(
     (
       db.sqlite
-        .prepare("SELECT DISTINCT item_id FROM artifacts WHERE kind = 'pr' AND lower(state) = 'merged'")
+        .prepare(
+          "SELECT DISTINCT item_id FROM artifacts WHERE kind = 'pr' AND lower(state) = 'merged'",
+        )
         .all() as { item_id: string }[]
     ).map((a) => a.item_id),
   );
@@ -383,7 +389,8 @@ function worktreesByPath(db: Db): Map<string, InstallWorktree> {
     if (seen.has(key)) continue;
     seen.add(key);
     if (typeof w.branch !== 'string' || !w.branch) continue;
-    const base = typeof w.base_ref === 'string' ? w.base_ref.replace(/^(refs\/heads\/|origin\/)/, '') : '';
+    const base =
+      typeof w.base_ref === 'string' ? w.base_ref.replace(/^(refs\/heads\/|origin\/)/, '') : '';
     if (w.branch === 'main' || w.branch === 'master' || w.branch === base) continue;
     if (typeof w.repo === 'string' && normalizeWorkspace(w.repo) === key) continue;
     out.set(key, {
@@ -1173,7 +1180,8 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
         out.push({
           project,
           client: row.client,
-          state: drift.length > 0 ? 'changed' : outdated.length > 0 ? 'update_available' : 'up_to_date',
+          state:
+            drift.length > 0 ? 'changed' : outdated.length > 0 ? 'update_available' : 'up_to_date',
           install: toRow(row),
           outdated,
           drift_ids: drift,

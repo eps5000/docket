@@ -1,5 +1,5 @@
 /**
- * Installs stay in scope (owner decision 50; B64; BUILD_SPEC §5.17b):
+ * Installs stay in scope (owner decision 50; B64; BUILD_SPEC §5.36):
  * - a new user-wide install is refused, and an old one never counts as
  *   installed for a project, raises drift or reaches Problems;
  * - All projects shows each project's real state, and a worktree install says
@@ -12,14 +12,7 @@
  */
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  rmSync,
-  symlinkSync,
-  writeFileSync,
-} from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createServer, type AddressInfo } from 'node:net';
 import { join } from 'node:path';
 import { serve, type ServerType } from '@hono/node-server';

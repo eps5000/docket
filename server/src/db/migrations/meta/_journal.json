@@ -183,6 +183,13 @@
       "when": 1795465774801,
       "tag": "0025_b62_github_link",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1795468293025,
+      "tag": "0026_b64_install_removal",
+      "breakpoints": true
     }
   ]
 }

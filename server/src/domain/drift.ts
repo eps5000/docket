@@ -111,9 +111,8 @@ interface Difference {
 }
 
 const installById = (db: Db, id: string) =>
-  db.sqlite
-    .prepare(`SELECT ${INSTALL_COLUMNS} FROM installs WHERE id = ?`)
-    .get(id) as InstallDbRow | undefined;
+  db.sqlite.prepare(`SELECT ${INSTALL_COLUMNS} FROM installs WHERE id = ?`).get(id) as
+    InstallDbRow | undefined;
 
 /** Decision 50: only a repo install still in place can drift. */
 const canDrift = (row: InstallDbRow | undefined): row is InstallDbRow =>

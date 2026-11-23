@@ -519,10 +519,7 @@ export interface InstallsService {
   /** `GET /api/install-overview`: every project's repo installs (decision 50). */
   overview(r: ReadContext): InstallOverviewResponse;
   /** `POST /api/installs/:id/uninstall`: a single-use uninstall command and its script. */
-  issueUninstall(
-    w: WriteContext,
-    input: RouteParams<'installs.uninstall'>,
-  ): UninstallResponse;
+  issueUninstall(w: WriteContext, input: RouteParams<'installs.uninstall'>): UninstallResponse;
   /** `GET /uninstall/:token`, step 1: the uninstall step for a valid, unused token. */
   uninstallBundle(r: ReadContext, input: RouteParams<'uninstall.download'>): Promise<InstallBundle>;
   /** Step 2: mark the uninstall token downloaded; its report is accepted once after that. */

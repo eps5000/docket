@@ -680,6 +680,14 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T290 [US2] The ticket's GitHub panel, Overview's Merged source and Settings → Connections → GitHub: keyboard, focus, both themes, 1024 px and 1440 × 900.
 - [x] T291 [US2] Tests with a fake `gh` only: matching, multi-mention PRs, exemptions, merge-queue PRs, idempotent ingest, down and recovery, rate limits, no secrets, no connection, every Settings state; e2e and axe in both themes.
 
+## Phase 44: Installs stay in scope (owner decision 50)
+
+- [x] T292 [US13] Spec plus code in one PR: decision 50 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.36 and §7; UI_SPEC §6.7b; spec FR-124 and FR-278–FR-284, SC-031; Help and the skills.
+- [x] T293 [US13] Refuse new user-wide installs; legacy rows stay in the log, count for no project and raise no drift or Problems.
+- [x] T294 [US13] `GET /api/install-overview`, the All projects card with a choice of project, and worktree wording from recorded runs only.
+- [x] T295 [US13] The uninstall command in PowerShell and bash: hash-checked, marker-only, no links, no recursion, repeatable, and recorded. *Mark as removed* with Undo.
+- [x] T296 [US13] Tests in temporary folders only: status, worktree wording, uninstall with unchanged, modified, missing, link and surrounding content, in each shell; e2e and axe in both themes at 1024 px and 1440 × 900.
+
 ## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.
@@ -793,6 +801,7 @@ Open a PR titled "<Bn>: <phase name>" with the checkpoint evidence. Do not queue
 | 40 Split a ticket and withdraw a question | B61 (decision 48, in parallel with B58–B60) |
 | 42 Real token use per ticket and epic | B63 (decision 48; alongside B60, B61 and B62) |
 | 43 An optional GitHub connection | B62 (decision 49; alongside B63) |
+| 44 Installs stay in scope | B64 (decision 50) |
 
 **Within a phase:** tests (failing) → services → replace stubs or fill handlers → fill screens → checkpoint.
 

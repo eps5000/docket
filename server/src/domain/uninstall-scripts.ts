@@ -1,6 +1,6 @@
 /**
  * The uninstall step inside an uninstall command's bundle (owner decision 50;
- * BUILD_SPEC §5.17b): `uninstall.sh` (bash) and `uninstall.ps1` (PowerShell
+ * BUILD_SPEC §5.36): `uninstall.sh` (bash) and `uninstall.ps1` (PowerShell
  * 5.1 and 7). The list of files and hashes is written into the script, so what
  * the owner reads in the dialog is everything it will do.
  *
@@ -281,9 +281,7 @@ fi
 
 export function uninstallPs1(plan: UninstallPlan): string {
   checkPlan(plan);
-  const entries = plan.entries
-    .map((e) => `  '${e.kind}|${e.path}|${e.sha256}'`)
-    .join(',\n');
+  const entries = plan.entries.map((e) => `  '${e.kind}|${e.path}|${e.sha256}'`).join(',\n');
   const folders = skillFolders(plan)
     .map((d) => `'${d}'`)
     .join(', ');

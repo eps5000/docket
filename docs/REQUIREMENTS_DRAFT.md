@@ -328,6 +328,19 @@ This changes the earlier "no GitHub dependency" rule. GitHub is now an **optiona
 
 BUILD_SPEC §5.35, MCP_SPEC §5.4, UI_SPEC §6.1, §6.3 and §6.7, spec FR-269–FR-277, Help (GitHub connection) and `tools/docket-sync/README.md` have the details.
 
+## Owner decision 50 (2026-11-23): installs are per project
+
+This changes the earlier requirement that Docket offers user-wide installs (decision 29, FR-124). A user-wide install put Docket's instructions in the home folder, where they reached every project on the computer, including projects with no Docket connection. Nothing in Docket depends on it.
+
+1. **Installs are per project.** Docket no longer creates a user-wide install. The UI has no such action, and the API and command path refuse it with a clear message. A new install must name a project.
+2. **All projects shows the real state.** Each project's installs, with client, folder, and current or out of date, and a choice of project to install into. It never says "Not installed" for a project that has an install.
+3. **Where a repo install lives.** An install in a separate worktree says "Installed in worktree X, not merged yet" instead of "up to date". This uses only what agents reported on their runs, with no new Git read.
+4. **Old user-wide installs stay as history.** The install log shows them as "User-wide (no longer supported)". They count as installed for no project and raise no drift or Problems. A download link issued before this change keeps working until it expires.
+5. **A safe uninstall** for any repo install or old user-wide install, by a generated command the owner can read first, in PowerShell or bash. It removes only files that still match their recorded hash and keeps and lists the rest. From `CLAUDE.md` or `AGENTS.md` it removes only the Docket section, and deletes the file only if nothing else remains. It never follows links, never deletes recursively, removes a skill folder only when empty, and removes the `docket` connection entry only if that install wrote it and it's unchanged. It can be repeated, reports what it did, and records the removal.
+6. **Mark as removed.** Docket can't see the home folder, so an old user-wide row has an owner action for an install removed by hand, with an event and Undo.
+
+BUILD_SPEC §5.36 and §7, UI_SPEC §6.7b, spec FR-278–FR-284 and SC-031, Help and the skills have the details.
+
 ## Deferred choices
 
 Pilot project choice and Jira import strategy are deferred until V1 is ready for real work. Design should still settle the storage layout, supported document preview formats, the exact project gate configuration shape, and the minimum history needed before a velocity forecast is shown. These are implementation choices guided by the owner decisions above, not blockers to selecting a pilot now.

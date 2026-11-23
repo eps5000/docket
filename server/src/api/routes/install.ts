@@ -45,7 +45,9 @@ export function installRoutes<E extends Env>(app: Hono<E>, deps: RouteDeps): voi
     deps,
     async ({ services, read, mutate, params }) => {
       const bundle = await services.installs.uninstallBundle(read, params);
-      mutate((w) => services.installs.markUninstallDownloaded(w, { install_id: bundle.install_id }));
+      mutate((w) =>
+        services.installs.markUninstallDownloaded(w, { install_id: bundle.install_id }),
+      );
       return new Response(bundle.bytes, {
         headers: {
           'content-type': 'application/gzip',

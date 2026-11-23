@@ -68,7 +68,7 @@ bash .claude/docket-wait.sh --cursor <cursor> --project RCP --timeout 540 \
   --types run.parked,run.park_expired,run.wait_flagged,run.resume_ready,run.activity,question.asked,packet.submitted,review.decided,run.ended,lease.ended
 ```
 
-- **Where it is:** next to `docket-check` (`.codex/` for Codex, `~/.claude/` for a user-wide install). On Windows without bash: `powershell -NoProfile -ExecutionPolicy Bypass -File .claude/docket-wait.ps1`, with the same flags.
+- **Where it is:** next to `docket-check` (`.codex/` for Codex). On Windows without bash: `powershell -NoProfile -ExecutionPolicy Bypass -File .claude/docket-wait.ps1`, with the same flags.
 - **Set your shell tool's timeout above `--timeout`,** or run it as a background command that wakes you when it exits.
 - **It prints** `changed cursor=<n> events=<k>`, then one line per event. Exit 0 is changed, 2 is timed out (wait again with the printed cursor), 1 is an error.
 - **Then** act on those lines, or call `get_digest { project, cursor }` for what changed, and wait again with the new cursor.
