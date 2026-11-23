@@ -16,6 +16,7 @@
  */
 import {
   WAIT_FLAGS,
+  WORKFLOW_KEY,
   type OrchestratorRef,
   type Status,
   type WaitCard,
@@ -46,8 +47,18 @@ const REAL_ACTIVITY = [
 
 // ---- Does this text say an owner decision is still pending? ----
 
-const OWNER_THING = "owner(?:'s|’s)?\\s+(?:decision|call|ruling|choice|sign-?off|approval|input)";
+/** A decision word, singular or plural. */
+const DECISION_WORD = '(?:decisions?|rulings?|choices?|sign-?offs?|approvals?)';
+/** One short word between "owner" and the decision ("owner scope decision"), never a verb or a negation. */
+const QUALIFIER =
+  '(?:(?!has\\b|had\\b|made\\b|took\\b|gave\\b|and\\b|or\\b|of\\b|to\\b|the\\b|no\\b|not\\b)[a-z-]{2,12}\\s+)?';
+const OWNER_THING = `owner(?:'s|’s)?\\s+(?:calls?|input|${QUALIFIER}${DECISION_WORD})`;
 const PENDING_TEXT = [
+  // "these options remain a separate owner scope decision and WAIT"
+  new RegExp(
+    `\\bremains?\\s+(?:an?\\s+|the\\s+)?(?:\\w+\\s+)?${OWNER_THING}\\b[^.;\\n]{0,40}\\b(?:wait|hold)\\b`,
+    'i',
+  ),
   // "a separate owner decision is still needed"
   new RegExp(
     `\\b${OWNER_THING}\\b[^.;\\n]{0,30}\\b(?:needed|required|pending|outstanding)\\b`,
@@ -65,11 +76,15 @@ const PENDING_TEXT = [
 /** A sentence citing a decision already made, or saying none is needed. */
 const SETTLED_TEXT = [
   /\bdec_[a-z0-9]+/i,
-  /\bdecision\s+#?\d+\b/i,
-  /\b(?:recorded|confirmed|published|existing|prior|previous|already)\b[^.;\n]{0,30}\bdecision\b/i,
-  /\bdecision\b[^.;\n]{0,30}\b(?:recorded|made|confirmed|published|taken|settled|resolved|answered)\b/i,
+  /\bdecisions?\s+#?\d+\b/i,
+  /\b(?:recorded|confirmed|published|existing|prior|previous|already)\b[^.;\n]{0,30}\bdecisions?\b/i,
+  /\bdecisions?\b[^.;\n]{0,30}\b(?:recorded|made|confirmed|published|taken|settled|resolved|answered)\b/i,
   /\bowner\s+(?:has\s+|already\s+)?(?:decided|approved|confirmed|chose|ruled|answered|signed\s+off)\b/i,
-  /\b(?:no|without|not)\s+(?:an?\s+)?(?:\w+\s+)?owner(?:'s|’s)?\s+(?:decision|call|input|approval)/i,
+  new RegExp(`\\b(?:no|without|not)\\s+(?:an?\\s+)?(?:\\w+\\s+)?${OWNER_THING}`, 'i'),
+  new RegExp(
+    `${OWNER_THING}\\b[^.;\\n]{0,30}\\b(?:not|no longer)\\s+(?:needed|required|pending)\\b`,
+    'i',
+  ),
   /\bcode\s+owners?\b/i,
 ];
 
@@ -211,34 +226,62 @@ export class WaitReader {
     if (this.owner.has(id)) return this.owner.get(id)!;
     const sql = this.db.sqlite;
     const has = (query: string, ...args: string[]) => !!sql.prepare(query).get(...args);
+    // A Workflow or agent-file proposal has no item of its own: it's linked by its run.
+    const proposal = sql
+      .prepare(
+        `SELECT p.file_key FROM agent_file_proposals p JOIN runs r ON r.id = p.run_id
+         WHERE r.item_id = ? AND p.state = 'pending' ORDER BY p.created_at, p.id LIMIT 1`,
+      )
+      .get(id) as { file_key: string } | undefined;
     const action = has('SELECT 1 FROM questions WHERE item_id = ? AND answered_at IS NULL', id)
-      ? 'an open question'
+      ? 'an open question to answer'
       : has("SELECT 1 FROM packets WHERE item_id = ? AND state = 'open'", id)
-        ? 'a review packet'
+        ? 'a review packet to decide'
         : has("SELECT 1 FROM resolutions WHERE item_id = ? AND state = 'open'", id)
-          ? 'a pending proposal'
-          : has("SELECT 1 FROM design_reviews WHERE item_id = ? AND state = 'open'", id)
-            ? 'a design review'
-            : has("SELECT 1 FROM undeclared_holds WHERE item_id = ? AND state = 'open'", id)
-              ? 'a held hand-off'
-              : has(
-                    "SELECT 1 FROM part_overlaps WHERE state = 'open' AND (item_a = ? OR item_b = ?)",
-                    id,
-                    id,
-                  )
-                ? 'an overlap question'
-                : null;
+          ? 'a proposed resolution to decide'
+          : proposal
+            ? proposal.file_key === WORKFLOW_KEY
+              ? 'a Workflow notes proposal to approve'
+              : 'an agent-file proposal to approve'
+            : has("SELECT 1 FROM design_reviews WHERE item_id = ? AND state = 'open'", id)
+              ? 'a design review to decide'
+              : has("SELECT 1 FROM undeclared_holds WHERE item_id = ? AND state = 'open'", id)
+                ? 'a held hand-off to decide'
+                : has(
+                      "SELECT 1 FROM part_overlaps WHERE state = 'open' AND (item_a = ? OR item_b = ?)",
+                      id,
+                      id,
+                    )
+                  ? 'an overlap question to answer'
+                  : null;
     this.owner.set(id, action);
     return action;
   }
 
-  /** A question or a recorded decision on the item since `since`: it was asked. */
+  /**
+   * The owner was asked during this wait: a question or proposal raised or
+   * decided since `since`, or a decision recorded on the item. Once answered it
+   * isn't "never asked", even when it was raised just before the run parked.
+   */
   private askedSince(id: string, since: string): boolean {
     const sql = this.db.sqlite;
     return (
       !!sql
-        .prepare('SELECT 1 FROM questions WHERE item_id = ? AND created_at >= ? LIMIT 1')
-        .get(id, since) ||
+        .prepare(
+          'SELECT 1 FROM questions WHERE item_id = ? AND (created_at >= ? OR answered_at >= ?) LIMIT 1',
+        )
+        .get(id, since, since) ||
+      !!sql
+        .prepare(
+          'SELECT 1 FROM resolutions WHERE item_id = ? AND (created_at >= ? OR decided_at >= ?) LIMIT 1',
+        )
+        .get(id, since, since) ||
+      !!sql
+        .prepare(
+          `SELECT 1 FROM agent_file_proposals p JOIN runs r ON r.id = p.run_id
+           WHERE r.item_id = ? AND (p.created_at >= ? OR p.decided_at >= ?) LIMIT 1`,
+        )
+        .get(id, since, since) ||
       !!sql
         .prepare(
           `SELECT 1 FROM decision_records WHERE scope_kind = 'item' AND scope_id = ?
@@ -246,6 +289,14 @@ export class WaitReader {
         )
         .get(id, since)
     );
+  }
+
+  /** The next step of a wait on a person: what's in front of the owner, or that it was answered. */
+  private personStep(id: string, since: string): string {
+    const pending = this.ownerAction(id);
+    if (pending) return `${id}: the owner has ${pending}`;
+    if (this.askedSince(id, since)) return `${id}: the owner has answered; resume it`;
+    return `${id}: ask the owner what it waits for`;
   }
 
   /** Every recorded wait of a run, oldest first: its parks and a coordinator's changes. */
@@ -332,7 +383,7 @@ export class WaitReader {
     const id = m.id;
     if (m.cycle) return `${id}: remove one link of its dependency loop`;
     const pending = this.ownerAction(id);
-    if (pending) return `${id}: the owner has ${pending} to answer`;
+    if (pending) return `${id}: the owner has ${pending}`;
     const lead = this.lead(id);
     if (lead) {
       return lead.state === 'parked'
@@ -386,7 +437,7 @@ export class WaitReader {
       : blocker
         ? this.stepFor(blocker.moves, blocker.waiting)
         : waiting.person
-          ? `${run.item_id}: ask the owner what it waits for`
+          ? this.personStep(run.item_id, first.get('person') ?? parkedAt)
           : waiting.orchestrator
             ? `${run.item_id}: send it more work or resume it`
             : waiting.until

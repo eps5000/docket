@@ -63,6 +63,11 @@ describe('saysOwnerDecisionPending', () => {
     "Waiting on the owner's call about pricing.",
     'Requires a decision from the owner.',
     'Owner approval is pending.',
+    // The live sentence's shape, with a synthetic subject.
+    'The synthetic export options remain a separate owner scope decision and WAIT.',
+    'This remains an owner product decision, so hold.',
+    'An owner design decision is required.',
+    'Needs an owner scope decision.',
   ])('counts %s', (text) => expect(saysOwnerDecisionPending(text)).toBe(true));
 
   it.each([
@@ -74,6 +79,18 @@ describe('saysOwnerDecisionPending', () => {
     'Needs code owner approval.',
     'The recorded owner decision is needed for context.',
     'Add a decision log to the settings page.',
+    // Widening must keep every exclusion.
+    'These remain a code owner scope decision and WAIT.',
+    'These remain owner scope decision dec_01abc and WAIT.',
+    'The owner decided the scope, so these remain and WAIT.',
+    'No owner scope decision is needed.',
+    'The owner scope decision is not needed.',
+    'The owner scope decision was made, so these remain and hold.',
+    // Remain alone, with no wait or hold, isn't pending.
+    'These remain a separate owner scope decision.',
+    // A phrase with a word between that isn't a qualifier.
+    'The owner has decision rights here.',
+    'The owner phone call is needed.',
     '',
   ])('does not count %s', (text) => expect(saysOwnerDecisionPending(text)).toBe(false));
 
@@ -187,6 +204,76 @@ describe('routing and advice (decision 45)', () => {
       d.row<{ wait_flags: string | null }>('SELECT wait_flags FROM runs WHERE id = ?', run_id)
         .wait_flags,
     ).toBeNull();
+  });
+});
+
+describe('an agent-file proposal as an owner action (decision 45)', () => {
+  const OWNER: Actor = { kind: 'owner', client: null, label: null, session_id: null, run_id: null };
+  const proposeFrom = (run_id: string) =>
+    d.write({ ...worker, run_id }, (w, s) =>
+      s.agentProposals.propose(w, {
+        project: 'TST',
+        file: 'workflow',
+        content: 'Synthetic workflow text.',
+        reason: 'Synthetic reason.',
+        based_on_version_id: null,
+        run_id,
+      }),
+    ).proposal_id;
+  const kinds = () => flagged().map((e) => (JSON.parse(e.data) as { kind: string }).kind);
+  const cleared = () => d.rows("SELECT seq FROM events WHERE type = 'run.wait_cleared'");
+
+  it('a raised flag clears when the run proposes, and stays cleared once approved', () => {
+    const waiter = item('Waiter', true);
+    const { run_id } = parkOn(waiter, { person: true });
+    d.clock.advance(minutes(WAIT_FLAGS.grace_minutes));
+    waitCheckOnce(d.server.runtime);
+    expect(kinds()).toEqual(['wait_owner_unasked']);
+    const id = proposeFrom(run_id);
+    waitCheckOnce(d.server.runtime);
+    expect(cleared()).toHaveLength(1);
+    d.write(OWNER, (w, s) => s.agentProposals.approve(w, { id }));
+    d.clock.advance(minutes(WAIT_FLAGS.grace_minutes * 2));
+    waitCheckOnce(d.server.runtime);
+    expect(kinds(), 'no second raise').toHaveLength(1);
+  });
+
+  it('a proposal decided before the wait began does not count', () => {
+    const waiter = item('Waiter', true);
+    const { run_id } = d.write(worker, (w, s) =>
+      s.runs.claim(w, { id: waiter, agent_label: 'worker', orchestrator: { name: 'orca' } }),
+    );
+    const id = proposeFrom(run_id);
+    d.write(OWNER, (w, s) => s.agentProposals.approve(w, { id }));
+    d.clock.advance(minutes(5));
+    d.write({ ...worker, run_id }, (w, s) =>
+      s.runs.park(w, { run_id, reason: 'Waiting', waiting_on: { person: true } }),
+    );
+    d.clock.advance(minutes(WAIT_FLAGS.grace_minutes));
+    waitCheckOnce(d.server.runtime);
+    expect(kinds()).toEqual(['wait_owner_unasked']);
+  });
+
+  it("another item's pending proposal does not count", () => {
+    const other_item = item('Other', true);
+    const { run_id: otherRun } = d.write(other, (w, s) =>
+      s.runs.claim(w, { id: other_item, agent_label: 'other' }),
+    );
+    d.write({ ...other, run_id: otherRun }, (w, s) =>
+      s.agentProposals.propose(w, {
+        project: 'TST',
+        file: 'workflow',
+        content: 'Synthetic text from another story.',
+        reason: 'Synthetic reason.',
+        based_on_version_id: null,
+        run_id: otherRun,
+      }),
+    );
+    const waiter = item('Waiter', true);
+    parkOn(waiter, { person: true });
+    d.clock.advance(minutes(WAIT_FLAGS.grace_minutes));
+    waitCheckOnce(d.server.runtime);
+    expect(kinds()).toEqual(['wait_owner_unasked']);
   });
 });
 

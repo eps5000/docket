@@ -235,7 +235,8 @@ describe('the five-hour stall, replayed (decision 45)', () => {
     const run = claim(gf229, 'ctx_gf229');
 
     at('2026-11-22T21:13:50.000Z');
-    touch(gf382, 'A separate owner decision is still needed. Wait for it before building.');
+    // The real sentence's shape, with a synthetic subject.
+    touch(gf382, 'The synthetic export options remain a separate owner scope decision and WAIT.');
 
     at('2026-11-22T21:14:27.000Z');
     expect(park(run, 'Needs GF-382 first', { items: [gf382] }).wait?.waited_since).toBe(
@@ -321,22 +322,36 @@ describe('what must not be flagged (decision 45)', () => {
     expect(flagKinds(a), 'the wait itself is still flagged').toEqual(['wait_no_next_step']);
   });
 
-  it("GF-379's pending proposal is a real owner action", () => {
+  it("GF-379's pending Workflow proposal is a real owner action, before and after approval", () => {
     const a = item(379, 'Synthetic story waiting on a person', 'ready');
     const run = claim(a, 'ctx_379');
-    d.write({ ...worker, run_id: run }, (w, s) =>
-      s.problems.propose(w, {
-        id: a,
-        kind: 'other',
-        plan_md: 'Synthetic plan.',
-        reason: 'Needs the owner to choose.',
+    const { proposal_id } = d.write({ ...worker, run_id: run }, (w, s) =>
+      s.agentProposals.propose(w, {
+        project: 'GF',
+        file: 'workflow',
+        content: 'Synthetic workflow text.',
+        reason: 'Synthetic reason for the change.',
+        based_on_version_id: null,
+        run_id: run,
       }),
     );
+    d.clock.advance(minutes(1));
     const parked = park(run, 'Waiting on the owner to pick', { person: true });
-    expect(parked.wait, 'it still shows the wait').toMatchObject({ person: true, flags: [] });
+    expect(parked.wait, 'it still shows the wait').toMatchObject({
+      person: true,
+      flags: [],
+      next_owner: { step: `${a}: the owner has a Workflow notes proposal to approve` },
+    });
     d.clock.advance(minutes(120));
     check();
-    expect(flagKinds(a)).toEqual([]);
+    expect(flagKinds(a), 'not flagged while the proposal is pending').toEqual([]);
+
+    // Approved during the wait: the owner was asked and answered, so it stays unflagged.
+    d.write(OWNER, (w, s) => s.agentProposals.approve(w, { id: proposal_id }));
+    d.clock.advance(minutes(30));
+    check();
+    expect(flagKinds(a), 'not flagged after the approval').toEqual([]);
+    expect(context(a).wait?.next_owner.step).toBe(`${a}: the owner has answered; resume it`);
   });
 
   it('a person wait with nothing to answer is flagged, and goes to the coordinator', () => {
