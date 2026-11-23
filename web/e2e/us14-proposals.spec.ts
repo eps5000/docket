@@ -158,7 +158,7 @@ test.describe('Agent proposals (US14)', () => {
     );
     await page.goto('/agent-files?project=RCP#proposals');
     const c = card(page);
-    await expect(c.getByText('Changed since the agent read it')).toBeVisible();
+    await expect(c.getByText('Changed since the agent read it', { exact: true })).toBeVisible();
     const three = c.locator('[data-three-way]');
     await expect(
       three.getByRole('region', { name: 'docket-worker: what changed since the agent read it' }),
