@@ -21,6 +21,7 @@ import {
   textOf,
   type ContractHarness,
 } from './harness.js';
+import { askForm } from '../helpers.js';
 
 let h: ContractHarness | undefined;
 afterEach(async () => {
@@ -112,7 +113,7 @@ describe('flow §7.5: question round trip', () => {
     expectValidation(
       await fails(
         'ask_owner',
-        { id: 'DOC-4', run_id: runId, question: 'Another question?' },
+        { id: 'DOC-4', run_id: runId, ...askForm('Another question?') },
         codex,
       ),
     );
@@ -136,8 +137,7 @@ describe('flow §7.5: question round trip', () => {
       {
         id: 'DOC-4',
         run_id: runId,
-        question:
-          "Document nutrition per serving or per 100 g? The API returns both; RCP-16 needs one. I'd use per serving with 100 g in a footnote.",
+        ...askForm('Should nutrition be documented per serving or per 100 g?'),
       },
       codex,
     );
@@ -151,7 +151,7 @@ describe('flow §7.5: question round trip', () => {
       'needs_input',
     );
     expectValidation(
-      await fails('ask_owner', { id: 'DOC-4', run_id: runId, question: 'Also: units?' }, codex),
+      await fails('ask_owner', { id: 'DOC-4', run_id: runId, ...askForm('Also: units?') }, codex),
     );
     await step(
       'finish_run',
@@ -208,7 +208,7 @@ describe('flow §7.5: question round trip', () => {
     const claimed = await step('claim_lead', { id: 'RCP-17', agent_label: 'orca-w3' });
     const runId = claimed.structured.run_id as string;
     const ask = async (question: string) =>
-      (await step('ask_owner', { id: 'RCP-17', run_id: runId, question })).structured
+      (await step('ask_owner', { id: 'RCP-17', run_id: runId, ...askForm(question) })).structured
         .question_id as string;
 
     // Unread: undo takes the answer back, and the question is open again.
@@ -246,7 +246,7 @@ describe('flow §7.5: question round trip', () => {
     const { structured } = await step('ask_owner', {
       id: 'RCP-17',
       run_id: runId,
-      question: 'Keep the week in the URL or in local storage?',
+      ...askForm('Keep the week in the URL or in local storage?'),
     });
     expect(runState(runId)).toBe('needs_input');
     await owner('POST', '/api/items/RCP-17/answer', {
@@ -271,21 +271,21 @@ describe('flow §7.5: question round trip', () => {
     const first = await step('ask_owner', {
       id: 'RCP-17',
       run_id: runId,
-      question: 'Keep the week in the URL or in local storage?',
+      ...askForm('Keep the week in the URL or in local storage?'),
     });
     await owner('POST', '/api/items/RCP-17/answer', {
       question_id: first.structured.question_id,
       text: 'In the URL.',
     });
     const refused = expectValidation(
-      await fails('ask_owner', { id: 'RCP-17', run_id: runId, question: 'And the day too?' }),
+      await fails('ask_owner', { id: 'RCP-17', run_id: runId, ...askForm('And the day too?') }),
     );
     expect(refused.message).toBe("RCP-17 has an answer you haven't read. Call get_item first.");
     expect(refused.details).toEqual({ question_id: first.structured.question_id });
     // Summary doesn't deliver, so it doesn't unlock asking either.
     await step('get_item', { id: 'RCP-17', view: 'summary', run_id: runId });
     expectValidation(
-      await fails('ask_owner', { id: 'RCP-17', run_id: runId, question: 'And the day too?' }),
+      await fails('ask_owner', { id: 'RCP-17', run_id: runId, ...askForm('And the day too?') }),
     );
 
     const got = await step('get_item', { id: 'RCP-17', run_id: runId });
@@ -293,7 +293,7 @@ describe('flow §7.5: question round trip', () => {
     const again = await step('ask_owner', {
       id: 'RCP-17',
       run_id: runId,
-      question: 'And the day too?',
+      ...askForm('And the day too?'),
     });
     expect(again.structured.question_id).not.toBe(first.structured.question_id);
     expect(runState(runId)).toBe('needs_input');

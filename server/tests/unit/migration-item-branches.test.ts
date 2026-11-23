@@ -145,7 +145,7 @@ describe('0012_item_branches', () => {
     const migrated = openDb(copy);
     try {
       migrateDb(migrated);
-      expect(migrationStatus(migrated)).toEqual({ current: true, applied: 22, expected: 22 });
+      expect(migrationStatus(migrated)).toEqual({ current: true, applied: 23, expected: 23 });
       const after = migrated.sqlite.prepare('SELECT * FROM items ORDER BY id').all() as Record<
         string,
         unknown
@@ -167,7 +167,7 @@ describe('0012_item_branches', () => {
       expect(migrated.sqlite.pragma('foreign_key_check')).toEqual([]);
       // Migrating again is a no-op.
       migrateDb(migrated);
-      expect(migrationStatus(migrated).applied).toBe(22);
+      expect(migrationStatus(migrated).applied).toBe(23);
     } finally {
       migrated.sqlite.close();
     }

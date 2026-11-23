@@ -336,7 +336,7 @@ Decision 13, H04.
 - **Deferred, not verified:** a deferred item whose follow-up isn't done, or that has no follow-up. The list is visible to the owner (Needs you, Work filter) and to agents (`deferred_reviews`). A deferred item clears when the owner or an agent re-declares it and it later gets approved, or when its follow-up ticket reaches done with its own review approved.
 
 ### 5.7 Questions and owner notes
-- `ask_owner` creates an open question and sets the run to `needs_input`. An item has at most one open question at a time.
+- `ask_owner` creates an open question and sets the run to `needs_input`. An item has at most one open question at a time. Since decision 47 it carries a required contract (§5.28).
 - The owner answers in Needs you or on the ticket.
 - The next `get_item` (or `get_changes` event) delivers the answer and sets `read_by_agent_at`. Until then the UI says "Waiting for <agent> to read it". Reading it puts the run back to `open`.
 - Owner notes are delivered the same way and listed under `unread_owner_notes` in `get_item`.
@@ -809,6 +809,16 @@ A stale lead or one waiting for the owner's answer is neither working nor waitin
 - **Reliability.** State is written atomically to `%LOCALAPPDATA%\docket-relay`, with what is owed saved in the same write that moves the cursor. The first run starts at the end of the feed. After downtime it delivers the last 24 hours. Three tries per address, then the next address. If Orca is unavailable, the batch is held with backoff for up to 24 hours. Six messages per address per 10 minutes. One instance per state folder, held by a named pipe (a socket on POSIX) that the OS frees on a crash.
 - **Visibility.** `docket-relay status [--json]` and a capped `relay.log`, with ids, kinds and error codes only. Install steps are in `tools/docket-relay/README.md`.
 
+### 5.28 Questions the owner can read (decision 47)
+
+The owner is not the implementer, so a question must make sense to someone who has not seen the work.
+
+- **Contract.** `ask_owner` requires `question`, `context`, `why_it_matters`, 2 to 4 `options` (`label`, `description`, `consequences`, exactly one `recommended`) and `recommendation_reason`, with optional `details`. Limits and the error wording are in MCP_SPEC §3 and §5.7. An old single-text call gets a `validation` error that teaches the new shape.
+- **Plain-language guard.** `findInternalRef` (`shared/src/mcp/question-form.ts`) refuses Docket and tool IDs, commit hashes, code paths and links everywhere but `details`. It is narrow and deterministic, never judges reading level, and allows ticket keys.
+- **Storage.** Migration 0022 adds `questions.form` (the contract as JSON) and `questions.answer_choice` (the picked option as JSON). `text` stays the plain question, so every existing reader keeps working. A question with no `form` renders and answers as before.
+- **Answer.** `POST /api/items/:id/answer` takes `text`, or `option` (a label of this question) with an optional `note`. A picked option is stored as a choice and as readable `answer` text (`Chose: <label>…`), so text-only clients see it. Undo, delivery once and `read_by_agent_at` are unchanged.
+- **What an agent reads.** `get_item` and `get_context` add `choice` when the owner picked an option. The form itself goes only to the web UI (`for_you_now[].form`, `question_form`), so it costs agents no tokens on reads.
+
 ## 6. MCP tool contract
 
 **Overview only.** [MCP_SPEC.md](MCP_SPEC.md) is authoritative for the server instructions, every tool's description text, input and output schemas, error messages and worked flows. It defines 51 tools (`get_digest` from decision 40 and `propose_resolution` from decision 37 bring it from 48; 38, plus `get_step` from decision 33, plus `get_agent_files` and `propose_agent_file_change` from decision 30, `onboard_project` and `finish_onboarding` from decision 31, `apply_batch` from decision 34, and `declare_shared_changes`, `list_shared_parts`, `take_lease` and `release_lease` from decision 36), and one prompt (`onboard`), including `unlink_items`, `update_check` and `update_human_review`, which are paired with their siblings below.
@@ -844,7 +854,7 @@ Tools are snake_case, with input and output schemas defined in `shared/` with zo
 | `declare_human_review` / `update_human_review` | | `id, items:[text]` / `id, hr_item_id, text?, remove?` (rejected while `ready`) | decision 13 |
 | `submit_packet` | Hand off | `id, built_from_commit, estimate, hr_item_ids?, how[], checked[{text, provenance, evidence}], gaps[], attachments[{document_version_id, caption}]` → packet | decision 13 |
 | `get_review` | Read decisions | `id` → rounds with per-item decisions and notes | A09 |
-| `ask_owner` | | `id, run_id?, question` → question | H02 |
+| `ask_owner` | | `id, run_id?, question, context, why_it_matters, options, recommendation_reason, details?` → question | H02 |
 | `add_note` | Progress note / comment | `id, text, run_id?` → event | A08 |
 | `put_document` | | `item_id? \| project, name, kind, content_text? \| content_base64?, mime?` → `{document_id, version_no, document_version_id}` | H10 |
 | `link_artifact` | | `id, kind, label, url?, state?` | A08 |
@@ -1274,6 +1284,7 @@ Owner decisions are marked **(owner)**. Every other entry is a technical choice 
 | 44 **(owner)** | A coordinator can park a run for a limited time through `update_run_status`: at most 4 hours per park and 24 hours since the run's last own signal, refused rather than clamped. At the deadline the run returns to open on the restart-grace lease, so a live agent continues and a dead one ends by lease expiry. The run's own park stays unlimited and replaces the limit. | §5.25, MCP_SPEC §5.4 |
 | 45 **(owner)** | A parked story's wait is visible and has a next step: a wait card derived from stored facts, advisory `wait_no_next_step` and `wait_owner_unasked` flags routed to agents first, and one `run.resume_ready` the coordinator relays to the same run, because Docket can't push into a session. Nothing here gates work. | §5.26, MCP_SPEC §4, §5.4 |
 | 46 **(owner)** | A host process, `docket-relay`, wakes a ticket's live lead through Orca when the ticket changes from the owner side. It sends a pointer naming the kinds of change, never the content; batches edits (60 s quiet, 2 min at most) and sends answers at once; falls back to the coordinator; and never writes to Docket. No server change. | §5.27, `tools/docket-relay` |
+| 47 **(owner)** | Questions the owner can read: `ask_owner` requires a plain question, background, why it matters, 2 to 4 options with consequences and one recommendation; internals go in `details`. Answered in a dialog, in two actions for the recommendation. Skills tell agents to ask less and write for someone who hasn't seen the work. | §5.28 |
 | T13 | Nightly backup at 03:00, kept 14 days, restore by CLI only. | §5.13 |
 | T14 | Archive is owner-only and UI-only; agent queries include archived items. | §5.8 |
 | T15 | Scope resets to All projects on each visit (sessionStorage). Theme and collapsed sections persist (localStorage). | UI_SPEC §2 |

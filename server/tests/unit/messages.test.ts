@@ -13,6 +13,7 @@ import { undoMutation } from '../../src/domain/undo.js';
 import { OWNER_ACTOR, type Actor, type WriteContext } from '../../src/domain/write.js';
 import type { Services } from '../../src/domain/contracts.js';
 import { startDomain, type Domain } from '../us1-helpers.js';
+import { askForm } from '../helpers.js';
 
 let d: Domain;
 beforeEach(() => {
@@ -68,9 +69,9 @@ function ask(actor: Actor, id: string, text: string) {
   return d.write(actor, (w, s) =>
     s.messages.askOwner(w, {
       id,
-      question: text,
+      ...askForm(text),
       run_id: actor.run_id ?? undefined,
-    } as In<'ask_owner'>),
+    }),
   );
 }
 
@@ -120,7 +121,7 @@ describe('ask_owner', () => {
     ask(actor, 'RCP-17', 'First?');
     const err = d.fails(
       actor,
-      (w, s) => s.messages.askOwner(w, { id: 'RCP-17', question: 'Second?' } as In<'ask_owner'>),
+      (w, s) => s.messages.askOwner(w, { id: 'RCP-17', ...askForm('Second?') }),
       'validation',
     );
     expect(err.message).toBe(
@@ -134,7 +135,7 @@ describe('ask_owner', () => {
   it('the seeded DOC-4 question is open, so asking on DOC-4 is refused until it is answered', () => {
     d.fails(
       d.agent('codex'),
-      (w, s) => s.messages.askOwner(w, { id: 'DOC-4', question: 'Another?' } as In<'ask_owner'>),
+      (w, s) => s.messages.askOwner(w, { id: 'DOC-4', ...askForm('Another?') }),
       'validation',
     );
     const q = d.row<QuestionRow>("SELECT * FROM questions WHERE item_id = 'DOC-4'");
@@ -150,8 +151,7 @@ describe('ask_owner', () => {
     answer('RCP-17', question_id, 'Grams.');
     const err = d.fails(
       actor,
-      (w, s) =>
-        s.messages.askOwner(w, { id: 'RCP-17', question: 'And volumes?' } as In<'ask_owner'>),
+      (w, s) => s.messages.askOwner(w, { id: 'RCP-17', ...askForm('And volumes?') }),
       'validation',
     );
     expect(err.message).toBe("RCP-17 has an answer you haven't read. Call get_item first.");
@@ -160,8 +160,7 @@ describe('ask_owner', () => {
     getItem({ id: 'RCP-17', view: 'summary' }, actor);
     d.fails(
       actor,
-      (w, s) =>
-        s.messages.askOwner(w, { id: 'RCP-17', question: 'And volumes?' } as In<'ask_owner'>),
+      (w, s) => s.messages.askOwner(w, { id: 'RCP-17', ...askForm('And volumes?') }),
       'validation',
     );
     expect(
@@ -183,7 +182,7 @@ describe('ask_owner', () => {
     );
     const err = d.fails(
       actor,
-      (w, s) => s.messages.askOwner(w, { id: 'RCP-17', question: 'Late?' } as In<'ask_owner'>),
+      (w, s) => s.messages.askOwner(w, { id: 'RCP-17', ...askForm('Late?') }),
       'conflict',
     );
     expect(err.message).toContain(`Run ${runId} has ended (finished).`);
@@ -195,7 +194,7 @@ describe('ask_owner', () => {
   it('an unknown item is not_found', () => {
     d.fails(
       d.agent('codex'),
-      (w, s) => s.messages.askOwner(w, { id: 'RCP-99', question: 'Hello?' } as In<'ask_owner'>),
+      (w, s) => s.messages.askOwner(w, { id: 'RCP-99', ...askForm('Hello?') }),
       'not_found',
     );
   });

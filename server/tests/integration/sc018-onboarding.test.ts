@@ -25,6 +25,7 @@ import { syncBundledFiles } from '../../src/jobs/bundled.js';
 import { expectOk, startHarness, type ContractHarness } from '../contract/harness.js';
 import { createJiraSite } from '../fixtures/jira/site.mjs';
 import { ORIGIN, parseSetCookies } from './harness.js';
+import { askForm } from '../helpers.js';
 
 const REPO = join(import.meta.dirname, '..', 'fixtures', 'onboarding', 'specs-repo');
 const read = (rel: string) => readFileSync(join(REPO, rel), 'utf8').replace(/\r\n/g, '\n');
@@ -334,8 +335,9 @@ async function onboardRepo(opts: { ask: boolean }): Promise<Report> {
   if (opts.ask && newEpic) {
     await ok('ask_owner', {
       id: newEpic,
-      question:
+      ...askForm(
         'TL-5 is closed in Jira but T010 is still open in the receipts tasks: is the rounding bug fixed?',
+      ),
     });
     questions.push('Should fraud scoring (TL-6) stay in this release?');
   }

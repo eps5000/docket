@@ -247,6 +247,18 @@ The owner answers a question in Docket, but the agent sees it only on its next D
 
 BUILD_SPEC §5.27, spec FR-217–FR-223, Help (Questions and notes) and `tools/docket-relay/README.md` have the details.
 
+## Owner decision 47 (2026-11-23): questions the owner can actually read
+
+The owner is not the implementer. Agents were sending one dense block that assumed knowledge of their private decisions and jargon, so the owner was pasting questions into another AI to decode them, and many could have been answered by the agent. Of 11 live questions the median was 917 characters, the longest 1,899, 7 were over 600, and only 7 included a recommendation at all.
+
+1. **A required question contract on `ask_owner`,** with no new tool: one plain question, what is going on, why it matters, 2 to 4 options that each say what they mean and what happens if chosen, including the downside, exactly one recommendation with its reason, and optional technical details.
+2. **Plain language is enforced narrowly.** Docket and tool internals (object IDs, commit hashes, code paths, links) are refused outside the details. Ticket keys are allowed. Nothing tries to judge reading level.
+3. **An answer dialog.** Needs you and the item page show the plain question, the recommended option and *Answer*. The dialog shows the background, why it matters and each option as a card, with a note and *Something else* for a free-text answer. Technical details stay collapsed. Picking the recommendation takes two actions.
+4. **Agents receive the choice** in a structured form and as readable text, so text-only clients see it. Undo, delivery once and the read receipt are unchanged, and older questions keep rendering as they are.
+5. **Agents ask less and ask better.** Before asking, they check decisions, the ticket, the plan and design docs, Workflow notes, the code and what other agents recorded. They decide what is technical, reversible, inside an approved design or follows an existing decision. They ask the owner only about product behavior, privacy or security boundaries, cost, irreversible or outward-facing actions, a conflict between owner decisions, or a real change to an approved design.
+
+BUILD_SPEC §5.28, MCP_SPEC §3 and §5.7, UI_SPEC §6.1 and §6.3, spec FR-224–FR-229, Help (Questions and notes) and the skills have the details.
+
 ## Deferred choices
 
 Pilot project choice and Jira import strategy are deferred until V1 is ready for real work. Design should still settle the storage layout, supported document preview formats, the exact project gate configuration shape, and the minimum history needed before a velocity forecast is shown. These are implementation choices guided by the owner decisions above, not blockers to selecting a pilot now.

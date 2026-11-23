@@ -44,7 +44,7 @@ Workflow: Inbox → Planning → Ready → In progress → Review → Done.
 - Record what you verify yourself with set_checks. Record subagent work with log_subagent; say whether you observed it or are relaying it.
 - If the owner must verify something by hand, declare it with declare_human_review, ideally during Planning. The item cannot close while any human review item is undecided.
 - Report each commit for the item it belongs to (report_commit). When the work is built and your checks pass, hand off with submit_packet. If there is no human review, close it with set_status "done".
-- If you need a decision from the owner, ask_owner and stop; the answer arrives in get_item.
+- Decide technical, reversible choices yourself. If only the owner can decide, ask_owner in plain words for someone who hasn't seen this work, then stop; the answer arrives in get_item.
 - Pass run_id on every call while you are working; it keeps your claim alive and shows you as live. Call finish_run when you stop.
 - Say where your work lives: pass workspace (worktree path, branch, base) to claim_lead, push work in progress at every checklist step, and report_commit with pushed true.
 - If you must wait (on another item, the coordinator or a person), call park_run with what you are waiting on. Never just go quiet: a silent run looks stale and loses its claim; a parked run keeps it.
@@ -76,7 +76,12 @@ Errors are structured (code: validation | conflict | not_found | forbidden | una
   | `title` | 200 |
   | step, check and human review item text | 500 |
   | `note`, `outcome` (summary lines) | 4,000 |
-  | `question` | 2,000 |
+  | `question` | 200 |
+  | `context` | 700 |
+  | `why_it_matters` | 400 |
+  | option `label` | 80 |
+  | option `description`, `consequences`; `recommendation_reason` | 300 |
+  | `ask_owner.details` | 2,000 |
   | `description_md`, `outcome_md` | 20,000 |
   | `brief_md` | 10,000 |
   | check `evidence` (`set_checks`, `update_check`, `submit_packet.checked[].evidence`), `how[]` steps, `gaps[]`, `checked[].text` | 500 |
@@ -256,6 +261,7 @@ RCP-14 Generate shopping list from week plan
 | Any mutation result | 60 |
 | `apply_batch` with n operations (decision 34) | 30 + 25 × n |
 | `list_shared_parts` with 20 parts, 10 of them with an in-flight declaration (decision 36) | 1,100 |
+| `ask_owner` tool definition: description plus input schema (decision 47) | 390 |
 
 `onboard_project` is exempt from the mutation budget: its text block carries the whole onboarding guide, verbatim, because a text-only client's model sees nothing else. Its own row (B30) is measured on the bundled `docs/templates/ONBOARDING-guide.md`, set at the measured size plus 20% (1,164 → 1,400), so the guide can't grow unnoticed. `finish_onboarding` is an ordinary mutation (≤ 60). `apply_batch` (§5.13) is exempt from the mutation budget too: its text block holds one line per operation, so its own row scales with n. Measured in B36 on 100 operations (an epic, 60 items, 39 documents) at 1,612 tokens, and on 60 (44 enrichments, 2 step details, 13 links, a failure) at 865. `declare_shared_changes`, `take_lease` and `release_lease` are ordinary mutations (≤ 60); `list_shared_parts` (§5.15) gets its own row, measured in B38 at 908 tokens and set at that plus 20% (908 → 1,100). `get_context`'s `shared` section (decision 36) counts against the `get_context` budget like every other section.
 
@@ -725,10 +731,12 @@ The format for each tool below:
 - **Output:** `{ rounds: [{ packet_id, round, state, stale, built_from_commit, submitted_at, decided_at, items: [{ hr_item_id, text, decision: { kind, note, into, follow, result_ref }|null }] }] }`.
 
 #### `ask_owner`
-**Description:** "Ask the owner a question you can't answer yourself, such as a product decision: one clear question with the options you see. Your run shows as needs input; stop work that depends on it. The answer appears in get_item (open_question) and as a question.answered event."
-- **Input:** `id`, `question` (≤ 2,000).
+**Description:** "Ask the owner a decision only they can make: product behavior, privacy or security, cost, irreversible or outward-facing actions, conflicting owner decisions, or a real design change. Decide technical, reversible choices yourself. Write for someone who hasn't seen this work; IDs, hashes, paths and links go in details. Your run shows as needs input; stop work that depends on it. The answer appears in get_item (open_question) and as a question.answered event."
+- **Input:** (decision 47) `id`, `question` (one plain sentence ending in `?`), `context` (what is going on, for someone who has not seen this work), `why_it_matters` (what is affected and why it needs the owner), `options` (2 to 4 of `{ label, description, consequences, recommended? }`, with `recommended: true` on exactly one and labels that differ), `recommendation_reason`, `details?` (technical notes, IDs and links). Limits are in §3 Types.
+- **Plain-language guard:** every field except `details` is refused if it contains a Docket or tool ID (`dec_…`, `dv_…`, `run_…`, `q_…`, `ctx_…` and the other prefixes), a commit hash of 7 to 40 hex characters, a code path or a link. Ticket keys such as GF-243 are allowed. The check is deterministic and never judges reading level.
 - **Output:** `{ question_id }`.
-- **Errors:** `validation` (a question is already open on this item).
+- **Errors:** `validation` (a question is already open on this item; a field breaks the contract, named with what to fix). A call in the old single-text shape gets a `validation` error that spells out the new shape.
+- **The answer** arrives in `get_item` `open_question`. `answer` is always readable text; a picked option reads `Chose: <label> (the recommended option). Note: <note>`, so text-only clients see it. Structured clients also get `choice: { option, recommended, note }`, absent for a free-text answer. Questions asked before decision 47 keep their text and have no `choice`.
 
 ### 5.8 Decisions
 
@@ -1093,11 +1101,21 @@ The owner sees "out of date" and may *Ask for a fresh packet*. If they do, the i
 
 ### 7.5 Question round trip
 ```
-ask_owner { id: "DOC-4", run_id, question: "Document nutrition per serving or per 100 g? The API returns both; RCP-16 needs one. I'd use per serving with 100 g in a footnote." }
+ask_owner { id: "DOC-4", run_id,
+  question: "Should the recipe card show nutrition per serving or per 100 g?",
+  context: "The card has room for one nutrition figure on a phone, and our data has both.",
+  why_it_matters: "People compare recipes by this number, and changing it later would confuse them.",
+  options: [
+    { label: "Per serving", description: "Show the amount in one portion.",
+      consequences: "Easy to read, but portion sizes differ between recipes.", recommended: true },
+    { label: "Per 100 g", description: "Show the amount in a fixed weight.",
+      consequences: "Easy to compare, but people must work out their own portion." } ],
+  recommendation_reason: "Most people cook one recipe and want the amount they actually eat." }
 finish_run { run_id, result: "finished", summary: "Waiting on the owner: per serving vs per 100 g." }
   (later)
 get_changes { cursor, item_id: "DOC-4", types: ["question.answered"] } → 1 event
-get_item { id: "DOC-4" } → open_question.answer: "Per serving; put 100 g in a footnote." (now marked read)
+get_item { id: "DOC-4" } → open_question.answer: "Chose: Per serving (the recommended option). Note: Put 100 g in a footnote."
+  open_question.choice: { option: "Per serving", recommended: true, note: "Put 100 g in a footnote." } (now marked read)
 ```
 
 ### 7.6 Claim conflict

@@ -11,6 +11,7 @@
  */
 import type { z } from 'zod';
 import { ToolError } from '../errors.js';
+import { ASK_OWNER_SHAPE, isOldAskOwnerCall } from './question-form.js';
 
 export interface UnknownField {
   field: string;
@@ -179,7 +180,10 @@ export function validationError(tool: string, schema: z.ZodType, error: z.ZodErr
   const shown = sentences.slice(0, 6);
   if (sentences.length > shown.length)
     shown.push(`(${sentences.length - shown.length} more in details.fields.)`);
-  const message = `Invalid arguments for ${tool}: ${shown.join(' ')} Fix ${sentences.length === 1 ? 'it' : 'them'} and retry.`;
+  // Decision 47: a call in the old single-text shape learns the new one from this error.
+  const teach =
+    tool === 'ask_owner' && isOldAskOwnerCall(error.issues) ? ` ${ASK_OWNER_SHAPE}` : '';
+  const message = `Invalid arguments for ${tool}: ${shown.join(' ')} Fix ${sentences.length === 1 ? 'it' : 'them'} and retry.${teach}`;
   const details: Record<string, unknown> = { fields };
   if (unknown.length > 0) details.unknown = unknown;
   return new ToolError('validation', message, { details });

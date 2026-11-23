@@ -23,6 +23,7 @@
 import type { Page } from '@playwright/test';
 import {
   clickNotification,
+  askForm,
   connectAgent,
   denyNotifications,
   expect,
@@ -130,7 +131,7 @@ test.describe('notifications', () => {
 
       const asked = await agent.call('ask_owner', {
         id: 'RCP-16',
-        question: 'Should the card round to whole grams?',
+        ...askForm('Should the card round to whole grams?'),
       });
       expect(asked.isError, asked.text).toBe(false);
       await expect.poll(async () => (await recordedNotifications(page)).length).toBe(1);
@@ -138,7 +139,10 @@ test.describe('notifications', () => {
       expect(await needsYouTitle(page)).not.toBe(before);
 
       // A second question while one is open is refused; another note isn't for you.
-      const second = await agent.call('ask_owner', { id: 'RCP-16', question: 'And for drinks?' });
+      const second = await agent.call('ask_owner', {
+        id: 'RCP-16',
+        ...askForm('And for drinks?'),
+      });
       expect(second.structured).toMatchObject({ code: 'validation' });
       await agent.call('add_note', { id: 'RCP-16', text: 'Still waiting on rounding.' });
       await page.waitForTimeout(1500);
@@ -154,8 +158,8 @@ test.describe('notifications', () => {
 
       // Answered in the banner, it's no longer for you.
       const banner = page.locator('[data-banner="question"]');
-      await banner.getByLabel('Your answer').fill('Yes, whole grams.');
-      await banner.getByRole('button', { name: 'Send answer' }).click();
+      await banner.getByRole('button', { name: /^Answer/ }).click();
+      await page.getByRole('dialog').getByRole('button', { name: 'Send answer' }).click();
       await expect(page.locator('.callout.answered')).toBeVisible();
       await expect(page).toHaveTitle(before);
     } finally {

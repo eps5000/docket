@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Actor } from '../../src/domain/write.js';
 import * as sweeper from '../../src/jobs/sweeper.js';
 import { addProject, forceStatus, minutes, startDomain, type Domain } from '../us1-helpers.js';
+import { askForm } from '../helpers.js';
 
 const COORDINATOR = 'pilot-coordinator';
 const OWNER: Actor = { kind: 'owner', client: null, label: null, session_id: null, run_id: null };
@@ -284,7 +285,10 @@ describe('the five-hour stall, replayed (decision 45)', () => {
     // The coordinator asks the real question: the owner now has something to answer.
     at('2026-11-22T21:40:00.000Z');
     const { question_id } = d.write(planner, (w, s) =>
-      s.messages.askOwner(w, { id: gf382, question: 'Which option should the prerequisite use?' }),
+      s.messages.askOwner(w, {
+        id: gf382,
+        ...askForm('Which option should the prerequisite use?'),
+      }),
     );
     check();
     expect(

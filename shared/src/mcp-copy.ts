@@ -23,7 +23,7 @@ export const SERVER_INSTRUCTIONS = [
   '- Record what you verify yourself with set_checks. Record subagent work with log_subagent; say whether you observed it or are relaying it.',
   '- If the owner must verify something by hand, declare it with declare_human_review, ideally during Planning. The item cannot close while any human review item is undecided.',
   '- Report each commit for the item it belongs to (report_commit). When the work is built and your checks pass, hand off with submit_packet. If there is no human review, close it with set_status "done".',
-  '- If you need a decision from the owner, ask_owner and stop; the answer arrives in get_item.',
+  "- Decide technical, reversible choices yourself. If only the owner can decide, ask_owner in plain words for someone who hasn't seen this work, then stop; the answer arrives in get_item.",
   '- Pass run_id on every call while you are working; it keeps your claim alive and shows you as live. Call finish_run when you stop.',
   '- Say where your work lives: pass workspace (worktree path, branch, base) to claim_lead, push work in progress at every checklist step, and report_commit with pushed true.',
   '- If you must wait (on another item, the coordinator or a person), call park_run with what you are waiting on. Never just go quiet: a silent run looks stale and loses its claim; a parked run keeps it.',
@@ -105,7 +105,7 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   get_review:
     "Read the owner's review decisions, round by round. 'changes' notes say what to fix; each became a checklist step or a new Bug (see result_ref). Approved items stay approved in later rounds. Deferred items are not verified; leave them unless doing cleanup.",
   ask_owner:
-    "Ask the owner a question you can't answer yourself, such as a product decision: one clear question with the options you see. Your run shows as needs input; stop work that depends on it. The answer appears in get_item (open_question) and as a question.answered event.",
+    "Ask the owner a decision only they can make: product behavior, privacy or security, cost, irreversible or outward-facing actions, conflicting owner decisions, or a real design change. Decide technical, reversible choices yourself. Write for someone who hasn't seen this work; IDs, hashes, paths and links go in details. Your run shows as needs input; stop work that depends on it. The answer appears in get_item (open_question) and as a question.answered event.",
   publish_decision:
     'Record a decision other agents must follow (a convention, design choice or interface rule) with a short rationale. Scope it as narrowly as it applies: item, epic, label or project. You can supersede an agent decision; only the owner changes owner decisions (use ask_owner to challenge one).',
   list_decisions:

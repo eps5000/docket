@@ -59,6 +59,7 @@ import {
 } from './shared-changes.js';
 import type { InverseOp, WriteContext } from './write.js';
 import type { Db } from '../db/client.js';
+import { choiceField } from './question-form.js';
 import { addReportedBranch } from './radar.js';
 import { producerHold } from './run-activity.js';
 
@@ -886,7 +887,7 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
 
     const openQuestion = sql
       .prepare(
-        `SELECT id, text, created_at, answer, answered_at FROM questions
+        `SELECT id, text, created_at, answer, answered_at, answer_choice FROM questions
          WHERE item_id = ? AND (answered_at IS NULL OR read_by_agent_at IS NULL)
          ORDER BY created_at DESC LIMIT 1`,
       )
@@ -897,6 +898,7 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
           created_at: string;
           answer: string | null;
           answered_at: string | null;
+          answer_choice: string | null;
         }
       | undefined;
     const notes = sql
@@ -1143,6 +1145,7 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
             asked_at: openQuestion.created_at,
             answer: openQuestion.answer,
             answered_at: openQuestion.answered_at,
+            ...choiceField(openQuestion.answer_choice),
           }
         : null,
       resume: wanted('resume') ? deps.services().recovery.itemResume(r, { item_id: row.id }) : null,

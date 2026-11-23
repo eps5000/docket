@@ -3346,7 +3346,7 @@
   },
   {
     "name": "ask_owner",
-    "description": "Ask the owner a question you can't answer yourself, such as a product decision: one clear question with the options you see. Your run shows as needs input; stop work that depends on it. The answer appears in get_item (open_question) and as a question.answered event.",
+    "description": "Ask the owner a decision only they can make: product behavior, privacy or security, cost, irreversible or outward-facing actions, conflicting owner decisions, or a real design change. Decide technical, reversible choices yourself. Write for someone who hasn't seen this work; IDs, hashes, paths and links go in details. Your run shows as needs input; stop work that depends on it. The answer appears in get_item (open_question) and as a question.answered event.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -3354,6 +3354,53 @@
           "type": "string"
         },
         "question": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "context": {
+          "type": "string",
+          "maxLength": 700
+        },
+        "why_it_matters": {
+          "type": "string",
+          "maxLength": 400
+        },
+        "options": {
+          "minItems": 2,
+          "maxItems": 4,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string",
+                "maxLength": 80
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 300
+              },
+              "consequences": {
+                "type": "string",
+                "maxLength": 300
+              },
+              "recommended": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "label",
+              "description",
+              "consequences"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "recommendation_reason": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "details": {
           "type": "string",
           "maxLength": 2000
         },
@@ -3365,8 +3412,12 @@
         }
       },
       "required": [
+        "context",
         "id",
-        "question"
+        "options",
+        "question",
+        "recommendation_reason",
+        "why_it_matters"
       ],
       "additionalProperties": false
     },

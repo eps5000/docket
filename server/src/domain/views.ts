@@ -107,6 +107,7 @@ import {
   type RunWindows,
   type StoredEvent,
 } from './model.js';
+import { parseQuestionForm } from './question-form.js';
 import { producersByItem, storedActivity, storedStatusUpdate } from './run-activity.js';
 import { WaitReader, openWaitFlags, waitCoordinator } from './wait.js';
 import { UNDO_WINDOW_MS } from './undo.js';
@@ -284,6 +285,7 @@ interface OpenQuestion {
   item_id: string;
   text: string;
   asked_by: string;
+  form: string | null;
   created_at: string;
 }
 
@@ -293,7 +295,7 @@ function openQuestions(db: Db, itemIds: string[]): Map<string, OpenQuestion> {
   if (itemIds.length === 0) return out;
   for (const q of db.sqlite
     .prepare(
-      `SELECT id, item_id, text, asked_by, created_at FROM questions
+      `SELECT id, item_id, text, asked_by, form, created_at FROM questions
        WHERE answered_at IS NULL AND item_id IN ${placeholders(itemIds.length)}`,
     )
     .all(...itemIds) as OpenQuestion[]) {
@@ -1230,6 +1232,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         asked_by: q.asked_by,
         text: q.text,
         asked_at: q.created_at,
+        form: parseQuestionForm(q.form),
       }));
     return [...packets, ...questions];
   }
@@ -1698,9 +1701,11 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
 
       const question = sql
         .prepare(
-          'SELECT answered_at, read_by_agent_at FROM questions WHERE item_id = ? ORDER BY created_at DESC LIMIT 1',
+          'SELECT answered_at, read_by_agent_at, form FROM questions WHERE item_id = ? ORDER BY created_at DESC LIMIT 1',
         )
-        .get(row.id) as { answered_at: string | null; read_by_agent_at: string | null } | undefined;
+        .get(row.id) as
+        | { answered_at: string | null; read_by_agent_at: string | null; form: string | null }
+        | undefined;
       const notes = sql
         .prepare(
           'SELECT count(*) AS n FROM owner_notes WHERE item_id = ? AND read_by_agent_at IS NULL',
@@ -1737,6 +1742,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         open_packet,
         from_review,
         answer_unread: !!question?.answered_at && question.read_by_agent_at === null,
+        question_form: question && !question.answered_at ? parseQuestionForm(question.form) : null,
         notes_unread: notes.n,
         label_briefs,
         links,

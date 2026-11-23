@@ -4,6 +4,7 @@
  * §4 exactly. Shared contract file (tasks.md, Slice rules).
  */
 import { z } from 'zod';
+import { questionChoiceSchema } from './question-form.js';
 import { contextSharedSchema } from './shared-changes.js';
 import {
   ADDED_BY,
@@ -420,8 +421,11 @@ export const questionSchema = z.object({
   id: z.string(),
   text: z.string(),
   asked_at: z.string(),
+  /** Always readable: a chosen option reads "Chose: <label>", so text-only clients see it. */
   answer: z.string().nullable(),
   answered_at: z.string().nullable(),
+  /** Decision 47: present when the owner picked one of the question's options. */
+  choice: questionChoiceSchema.optional(),
 });
 export type Question = z.infer<typeof questionSchema>;
 

@@ -27,6 +27,7 @@ import {
   tokens,
   type ContractHarness,
 } from './harness.js';
+import { askForm } from '../helpers.js';
 
 const BASE_CONTEXT = 30_000;
 const WAIT_MINUTES = 30;
@@ -112,7 +113,7 @@ async function workerEvent(s: Scene, n: 0 | 1 | 2, ids: string[], runs: string[]
     expectOk(
       await s.h.call(
         'ask_owner',
-        { id: ids[1], run_id: runs[1], question: 'Keep the old save format?' },
+        { id: ids[1], run_id: runs[1], ...askForm('Keep the old save format?') },
         worker,
       ),
     );

@@ -3,6 +3,27 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { migrateDb, openDb, type Db } from '../src/db/client.js';
 
+/** A valid `ask_owner` question (decision 47), synthetic, with the given sentence. */
+export const askForm = (question: string) => ({
+  question,
+  context: 'The recipe card can show nutrition in two ways, and only one fits on a phone.',
+  why_it_matters: 'People compare recipes by this number, and changing it later confuses them.',
+  options: [
+    {
+      label: 'Per serving',
+      description: 'Show the amount in one portion.',
+      consequences: 'Easy to read, but portions differ between recipes.',
+      recommended: true,
+    },
+    {
+      label: 'Per 100 g',
+      description: 'Show the amount in a fixed weight.',
+      consequences: 'Easy to compare, but people must work out their own portion.',
+    },
+  ],
+  recommendation_reason: 'Most people cook one recipe at a time and want the amount they eat.',
+});
+
 /** A clock tests can move. */
 export class TestClock {
   constructor(public current = new Date('2026-11-14T12:00:00.000Z')) {}

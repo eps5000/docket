@@ -1,5 +1,6 @@
 /** MCP contract: shared types, tool schemas, the registry and JSON Schema output. */
 export * from './limits.js';
+export * from './question-form.js';
 export * from './types.js';
 export * from './common.js';
 export * from './read.js';

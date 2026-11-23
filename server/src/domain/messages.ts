@@ -20,10 +20,11 @@
  * question's `needs_input` run back to `open`. Only `get_item`'s standard
  * and full views deliver (MCP_SPEC §3.2); summary and `get_context` don't.
  */
-import { ToolError } from '@docket/shared';
+import { ToolError, formatChoice, type QuestionChoice, type QuestionForm } from '@docket/shared';
 import type { MessagesService, ServiceDeps } from './contracts.js';
 import { newId } from './ids.js';
 import { activeLead, assertCallerRun, callerName, ms, requireItem } from './model.js';
+import { choiceField, parseQuestionForm } from './question-form.js';
 
 interface QuestionRow {
   id: string;
@@ -34,6 +35,8 @@ interface QuestionRow {
   answer: string | null;
   answered_at: string | null;
   read_by_agent_at: string | null;
+  form: string | null;
+  answer_choice: string | null;
   created_at: string;
 }
 
@@ -46,7 +49,48 @@ const questionView = (q: QuestionRow) => ({
   asked_at: q.created_at,
   answer: q.answer,
   answered_at: q.answered_at,
+  ...choiceField(q.answer_choice),
 });
+
+/**
+ * Decision 47: what the owner's answer stores. A picked option is stored both
+ * as a choice and as readable text, so text-only clients see it too.
+ */
+function resolveAnswer(
+  q: QuestionRow,
+  input: { text?: string | undefined; option?: string | undefined; note?: string | undefined },
+): { answer: string; choice: QuestionChoice | null } {
+  if ((input.text === undefined) === (input.option === undefined)) {
+    throw new ToolError('validation', 'Pick one of the options or write an answer.', {
+      details: { fields: { text: 'pass text or option (one of the two)' } },
+    });
+  }
+  if (input.text !== undefined) {
+    if (input.note !== undefined) {
+      throw new ToolError('validation', 'A note goes with a picked option. Put it in the answer.', {
+        details: { fields: { note: 'only with option' } },
+      });
+    }
+    return { answer: input.text, choice: null };
+  }
+  const options = parseQuestionForm(q.form)?.options ?? [];
+  const picked = options.find((o) => o.label === input.option);
+  if (!picked) {
+    throw new ToolError(
+      'validation',
+      options.length > 0
+        ? `“${input.option}” isn't one of this question's options. Reload and pick again.`
+        : 'This question has no options. Write an answer instead.',
+      { details: { fields: { option: 'not an option of this question' } } },
+    );
+  }
+  const choice: QuestionChoice = {
+    option: picked.label,
+    recommended: picked.recommended === true,
+    note: input.note ?? null,
+  };
+  return { answer: formatChoice(choice), choice };
+}
 
 export function createMessagesService(_deps: ServiceDeps): MessagesService {
   return {
@@ -88,6 +132,18 @@ export function createMessagesService(_deps: ServiceDeps): MessagesService {
       }
       const id = newId('q', ms(w.now));
       const who = callerName(w.db, w.actor);
+      const form: QuestionForm = {
+        context: input.context,
+        why_it_matters: input.why_it_matters,
+        options: input.options.map(({ label, description, consequences, recommended }) => ({
+          label,
+          description,
+          consequences,
+          ...(recommended ? { recommended: true } : {}),
+        })),
+        recommendation_reason: input.recommendation_reason,
+        details: input.details ?? null,
+      };
       w.insert('questions', {
         id,
         item_id: item.id,
@@ -97,6 +153,8 @@ export function createMessagesService(_deps: ServiceDeps): MessagesService {
         answer: null,
         answered_at: null,
         read_by_agent_at: null,
+        form: JSON.stringify(form),
+        answer_choice: null,
       });
       if (runId) {
         const run = w.get('runs', runId) as { state: string } | undefined;
@@ -132,10 +190,15 @@ export function createMessagesService(_deps: ServiceDeps): MessagesService {
           { current: questionView(q) },
         );
       }
-      const inverse = w.update('questions', q.id, { answer: input.text, answered_at: w.now });
+      const { answer, choice } = resolveAnswer(q, input);
+      const inverse = w.update('questions', q.id, {
+        answer,
+        answer_choice: choice ? JSON.stringify(choice) : null,
+        answered_at: w.now,
+      });
       w.event({
         type: 'question.answered',
-        summary: `You answered ${q.asked_by}: ${quote(input.text, 200)}`,
+        summary: `You answered ${q.asked_by}: ${quote(answer, 200)}`,
         item_id: item.id,
         project_key: item.project_key,
         data: { question_id: q.id, run_id: q.run_id },

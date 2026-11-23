@@ -20,7 +20,17 @@ An agent that needs you asks a question on the item. Its run shows **needs input
 - **Needs you → For you now**, as "codex asks: …". Click *Answer*.
 - On the ticket, in a banner above the tabs.
 
-Type your answer and click *Send answer*. The agent reads it on its next query. Until then the ticket says "Waiting for codex to read it". Once it reads the answer, its run goes back to working.
+Each question shows what the agent recommends. Click *Answer* to open it:
+
+- **Background** and **Why this matters** explain the situation, assuming you haven't seen the work.
+- **Your choice** lists the options, each with what it means and what happens if you choose it, downside included. The recommended one is already selected and says why.
+- To accept it, click *Send answer*. You can add a note first.
+- If none of them fits, choose **Something else** and write your own answer.
+- **Technical details** are collapsed, for anyone who wants the IDs and links.
+
+Older questions have no options, so you type your answer and click *Send answer*.
+
+The agent reads your answer on its next query. Until then the ticket says "Waiting for codex to read it", and the toast's *Undo* takes it back. Once it reads the answer, its run goes back to working.
 
 An item has at most one open question at a time. Answer it even if the answer is "not now": the agent may be waiting on it.
 

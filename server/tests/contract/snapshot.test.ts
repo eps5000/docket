@@ -282,7 +282,10 @@ const INPUTS: Record<string, [string[], string[]]> = {
     ['hr_item_ids', 'gaps', 'attachments', 'changed_files', 'branch'],
   ],
   get_review: [['id'], []],
-  ask_owner: [['id', 'question'], []],
+  ask_owner: [
+    ['id', 'question', 'context', 'why_it_matters', 'options', 'recommendation_reason'],
+    ['details'],
+  ],
   publish_decision: [
     ['project', 'scope', 'title', 'decision'],
     ['rationale', 'supersedes'],
