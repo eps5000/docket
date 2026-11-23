@@ -1,6 +1,6 @@
 # docket-sync
 
-A small Node process on the host that collects data for Docket (owner decision 49, B62, BUILD_SPEC §5.33). Docket runs in a container and can't use the host's tools, so this bridges the two. It needs Node 22 and has no dependencies.
+A small Node process on the host that collects data for Docket (owner decision 49, B62, BUILD_SPEC §5.34). Docket runs in a container and can't use the host's tools, so this bridges the two. It needs Node 22 and has no dependencies.
 
 It is separate from `tools/docket-relay`. Docket starts and works fully without it.
 

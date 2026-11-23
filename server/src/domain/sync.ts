@@ -1,6 +1,6 @@
 /**
  * The host collector's ingest, and the optional GitHub connection (owner
- * decision 49; BUILD_SPEC §5.33).
+ * decision 49; BUILD_SPEC §5.34).
  *
  * - Docket stores no GitHub token and calls nothing outside itself.
  *   `tools/docket-sync` reads through the host's `gh` login and posts here.

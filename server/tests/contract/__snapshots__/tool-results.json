@@ -1630,6 +1630,15 @@
               }
             ]
           },
+          "split_from": {
+            "type": "string"
+          },
+          "split_into": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "resume": {
             "anyOf": [
               {
@@ -2038,6 +2047,7 @@
                     "item.status_changed",
                     "item.archived",
                     "item.unarchived",
+                    "item.split",
                     "link.added",
                     "link.removed",
                     "link.updated",
@@ -2067,6 +2077,7 @@
                     "review.decided",
                     "question.asked",
                     "question.answered",
+                    "question.withdrawn",
                     "owner_note.added",
                     "note.added",
                     "document.added",
@@ -3744,6 +3755,7 @@
                 "item.status_changed",
                 "item.archived",
                 "item.unarchived",
+                "item.split",
                 "link.added",
                 "link.removed",
                 "link.updated",
@@ -3773,6 +3785,7 @@
                 "review.decided",
                 "question.asked",
                 "question.answered",
+                "question.withdrawn",
                 "owner_note.added",
                 "note.added",
                 "document.added",
@@ -6844,6 +6857,7 @@
               "item.status_changed",
               "item.archived",
               "item.unarchived",
+              "item.split",
               "link.added",
               "link.removed",
               "link.updated",
@@ -6873,6 +6887,7 @@
               "review.decided",
               "question.asked",
               "question.answered",
+              "question.withdrawn",
               "owner_note.added",
               "note.added",
               "document.added",
@@ -7887,6 +7902,26 @@
         ],
         "additionalProperties": false
       },
+      "question": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "withdrawn_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "text",
+          "withdrawn_at"
+        ],
+        "additionalProperties": false
+      },
       "replayed": {
         "type": "boolean"
       },
@@ -7897,9 +7932,6 @@
         }
       }
     },
-    "required": [
-      "decision"
-    ],
     "additionalProperties": false
   },
   "recovery_report": {

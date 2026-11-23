@@ -1,7 +1,7 @@
 import { useId, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { TEXT_LIMITS, type ItemDetailResponse } from '@docket/shared';
-import { Button, EmptyState, Section } from '../../../components/kit';
+import { Button, Chip, EmptyState, Section } from '../../../components/kit';
 import { apiClient } from '../../../app/queryClient';
 import { formatAge, isoTitle, plural } from '../../../lib/format';
 import { paths } from '../../../lib/paths';
@@ -131,6 +131,12 @@ export function HistorySection({ kind, data }: { kind: ItemKind; data: ItemDetai
               {formatAge(a.at)}
             </span>
             <div className="act-body">
+              {/* Decision 48: a question an agent retracted stays visible, marked. */}
+              {a.type === 'question.withdrawn' && (
+                <Chip kind="neutral" className="act-chip">
+                  Withdrawn
+                </Chip>
+              )}
               {(() => {
                 const note = parseImportedNote(a.summary);
                 return note ? <ImportedNoteView note={note} /> : a.summary;

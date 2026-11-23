@@ -76,7 +76,7 @@ import { claimBranchHint } from './project-git.js';
 import { addReportedBranch } from './radar.js';
 import {
   producerHold,
-  projectCoordinators,
+  namesCoordinator,
   storedActivity,
   type ActivityFinding,
 } from './run-activity.js';
@@ -218,8 +218,7 @@ export function createRunsService(deps: ServiceDeps): RunsService {
     run: RunRow,
     name: string,
   ): void {
-    const recorded = parseJson<{ name?: string }>(run.orchestrator)?.name;
-    if (name === recorded || projectCoordinators(w.db, item.project_key).includes(name)) return;
+    if (namesCoordinator(w.db, item.project_key, run, name)) return;
     throw new ToolError(
       'forbidden',
       `${name} isn't ${item.id}'s coordinator. Only the run's recorded orchestrator, or a coordinator the owner registered for ${item.project_key} in Settings, can update its status.`,
@@ -269,7 +268,9 @@ export function createRunsService(deps: ServiceDeps): RunsService {
   function resumeRun(w: WriteContext, run: RunRow, by?: RunStatusUpdate): void {
     const item = requireItem(w.db, run.item_id);
     const asked = w.db.sqlite
-      .prepare('SELECT 1 FROM questions WHERE run_id = ? AND answered_at IS NULL')
+      .prepare(
+        'SELECT 1 FROM questions WHERE run_id = ? AND answered_at IS NULL AND withdrawn_at IS NULL',
+      )
       .get(run.id);
     const since = run.parked_at ?? run.updated_at;
     const ready = parkInfo(w.db, run, w.now).resume_ready;
@@ -326,7 +327,9 @@ export function createRunsService(deps: ServiceDeps): RunsService {
     const park = activeCoordinatorPark(run)!;
     const item = requireItem(w.db, run.item_id);
     const asked = w.db.sqlite
-      .prepare('SELECT 1 FROM questions WHERE run_id = ? AND answered_at IS NULL')
+      .prepare(
+        'SELECT 1 FROM questions WHERE run_id = ? AND answered_at IS NULL AND withdrawn_at IS NULL',
+      )
       .get(run.id);
     const stored = parseJson<Record<string, unknown>>(run.coordinator_park)!;
     const activity = storedActivity(run);

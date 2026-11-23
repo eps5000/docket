@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "eb8ce943-c23d-4725-a1c4-5fb43e61d414",
+  "id": "a38f623a-21fb-4255-808f-1e5165130829",
   "prevId": "a6295c54-6f97-4472-8084-7c9d85ec2a08",
   "tables": {
     "acceptance_criteria": {
@@ -1613,224 +1613,6 @@
         }
       }
     },
-    "github_pr_links": {
-      "name": "github_pr_links",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "pr_id": {
-          "name": "pr_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "item_id": {
-          "name": "item_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "run_id": {
-          "name": "run_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "github_pr_links_item": {
-          "name": "github_pr_links_item",
-          "columns": ["item_id"],
-          "isUnique": false
-        },
-        "github_pr_links_pr": {
-          "name": "github_pr_links_pr",
-          "columns": ["pr_id"],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "github_pr_links_pr_id_github_prs_id_fk": {
-          "name": "github_pr_links_pr_id_github_prs_id_fk",
-          "tableFrom": "github_pr_links",
-          "tableTo": "github_prs",
-          "columnsFrom": ["pr_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "github_pr_links_item_id_items_id_fk": {
-          "name": "github_pr_links_item_id_items_id_fk",
-          "tableFrom": "github_pr_links",
-          "tableTo": "items",
-          "columnsFrom": ["item_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "github_pr_links_run_id_runs_id_fk": {
-          "name": "github_pr_links_run_id_runs_id_fk",
-          "tableFrom": "github_pr_links",
-          "tableTo": "runs",
-          "columnsFrom": ["run_id"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "github_prs": {
-      "name": "github_prs",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "repo": {
-          "name": "repo",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "number": {
-          "name": "number",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "title": {
-          "name": "title",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "head_branch": {
-          "name": "head_branch",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "state": {
-          "name": "state",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "draft": {
-          "name": "draft",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": false
-        },
-        "head_sha": {
-          "name": "head_sha",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "merged_at": {
-          "name": "merged_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "ci": {
-          "name": "ci",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "opened_at": {
-          "name": "opened_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "remote_updated_at": {
-          "name": "remote_updated_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "github_prs_repo": {
-          "name": "github_prs_repo",
-          "columns": ["repo"],
-          "isUnique": false
-        },
-        "github_prs_merged": {
-          "name": "github_prs_merged",
-          "columns": ["merged_at"],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
     "hr_items": {
       "name": "hr_items",
       "columns": {
@@ -2733,6 +2515,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "split_from": {
+          "name": "split_from",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "version": {
           "name": "version",
           "type": "integer",
@@ -2762,6 +2551,11 @@
           "columns": ["project_key", "status"],
           "isUnique": false
         },
+        "items_split_from": {
+          "name": "items_split_from",
+          "columns": ["split_from"],
+          "isUnique": false
+        },
         "items_epic": {
           "name": "items_epic",
           "columns": ["epic_id"],
@@ -2783,6 +2577,15 @@
           "tableFrom": "items",
           "tableTo": "items",
           "columnsFrom": ["epic_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "items_split_from_items_id_fk": {
+          "name": "items_split_from_items_id_fk",
+          "tableFrom": "items",
+          "tableTo": "items",
+          "columnsFrom": ["split_from"],
           "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
@@ -3569,6 +3372,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "criteria_changed_at": {
+          "name": "criteria_changed_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "version": {
           "name": "version",
           "type": "integer",
@@ -4171,74 +3981,6 @@
         }
       }
     },
-    "project_git": {
-      "name": "project_git",
-      "columns": {
-        "project_key": {
-          "name": "project_key",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "github_repo": {
-          "name": "github_repo",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "branch_rule": {
-          "name": "branch_rule",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'warn'"
-        },
-        "branch_exempt": {
-          "name": "branch_exempt",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "project_git_project_key_projects_key_fk": {
-          "name": "project_git_project_key_projects_key_fk",
-          "tableFrom": "project_git",
-          "tableTo": "projects",
-          "columnsFrom": ["project_key"],
-          "columnsTo": ["key"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {
-        "project_git_branch_rule": {
-          "name": "project_git_branch_rule",
-          "value": "\"branch_rule\" IN ('off', 'warn')"
-        }
-      }
-    },
     "project_workflows": {
       "name": "project_workflows",
       "columns": {
@@ -4573,6 +4315,27 @@
           "notNull": false,
           "autoincrement": false
         },
+        "withdrawn_at": {
+          "name": "withdrawn_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "withdrawn_by": {
+          "name": "withdrawn_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "withdrawn_reason": {
+          "name": "withdrawn_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "text",
@@ -4598,7 +4361,7 @@
           "name": "questions_one_open",
           "columns": ["item_id"],
           "isUnique": true,
-          "where": "\"answered_at\" IS NULL"
+          "where": "\"answered_at\" IS NULL AND \"withdrawn_at\" IS NULL"
         }
       },
       "foreignKeys": {
@@ -5864,80 +5627,6 @@
           "value": "\"provenance\" IN ('observed', 'relayed')"
         }
       }
-    },
-    "sync_sources": {
-      "name": "sync_sources",
-      "columns": {
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "interval_ms": {
-          "name": "interval_ms",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "last_report_at": {
-          "name": "last_report_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "last_success_at": {
-          "name": "last_success_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "last_error": {
-          "name": "last_error",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "records_total": {
-          "name": "records_total",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "detail": {
-          "name": "detail",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
     },
     "undeclared_holds": {
       "name": "undeclared_holds",

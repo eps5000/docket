@@ -2138,3 +2138,88 @@
   width: 100%;
   min-width: 120px;
 }
+
+/* ---------- B61: split a ticket (decision 48) ---------- */
+.tl .split-prov a {
+  text-decoration: underline;
+}
+.tl .act-chip {
+  margin-right: 6px;
+}
+.tl .split-dlg .body {
+  display: grid;
+  gap: 12px;
+  max-height: min(62vh, 620px);
+  overflow-y: auto;
+  position: relative;
+}
+.tl .split-dlg > footer {
+  flex-wrap: wrap;
+}
+.tl .split-error {
+  flex: 1 1 100%;
+}
+.tl .split-note {
+  margin: 0;
+}
+.tl .split-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+.tl .split-fields label {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+.tl .split-fields .input {
+  width: 100%;
+}
+.tl .split-group {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 8px 10px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.tl .split-group legend {
+  padding: 0 4px;
+  font-weight: 600;
+}
+.tl .split-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+.tl .split-row label {
+  overflow-wrap: anywhere;
+}
+.tl .split-radio {
+  display: block;
+}
+.tl .split-preview {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.tl .split-preview h3 {
+  margin: 0;
+  font-size: inherit;
+}
+.tl .split-preview p {
+  margin: 2px 0 4px;
+}
+.tl .split-preview ul {
+  margin: 0;
+  padding-left: 16px;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 560px) {
+  .tl .split-fields,
+  .tl .split-preview {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

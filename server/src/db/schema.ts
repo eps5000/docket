@@ -252,11 +252,16 @@ export const items = sqliteTable(
      * is reported again.
      */
     branches: text('branches', { mode: 'json' }),
+    /** Decision 48 (B61): the ticket this one was split from. "Split into" is the reverse. */
+    split_from: text('split_from').references((): AnySQLiteColumn => items.id, {
+      onDelete: 'set null',
+    }),
     version: version(),
     ...timestamps,
   },
   (t) => [
     index('items_project_status').on(t.project_key, t.status),
+    index('items_split_from').on(t.split_from),
     index('items_epic').on(t.epic_id),
     check('items_type', oneOf('type', ITEM_TYPES)),
     check('items_status', oneOf('status', STATUSES)),
@@ -600,6 +605,8 @@ export const packets = sqliteTable(
     changed_files: text('changed_files', { mode: 'json' }),
     branch: text('branch'),
     held_undeclared: text('held_undeclared', { mode: 'json' }),
+    /** Decision 48 (B61): a split moved acceptance criteria after this packet was built. */
+    criteria_changed_at: text('criteria_changed_at'),
     version: version(),
     ...timestamps,
   },
@@ -729,12 +736,18 @@ export const questions = sqliteTable(
     form: text('form'),
     /** Decision 47: the option the owner picked, as JSON. Null for a free-text answer. */
     answer_choice: text('answer_choice'),
+    /** Decision 48 (B61): set when the asker or a coordinator retracted it, unanswered. */
+    withdrawn_at: text('withdrawn_at'),
+    withdrawn_by: text('withdrawn_by'),
+    withdrawn_reason: text('withdrawn_reason'),
     ...timestamps,
   },
   (t) => [
     index('questions_item').on(t.item_id),
-    // At most one open question per item (FR-022).
-    uniqueIndex('questions_one_open').on(t.item_id).where(sql.raw(`"answered_at" IS NULL`)),
+    // At most one open question per item (FR-022). A withdrawn question isn't open.
+    uniqueIndex('questions_one_open')
+      .on(t.item_id)
+      .where(sql.raw(`"answered_at" IS NULL AND "withdrawn_at" IS NULL`)),
     check('questions_text', lenBetween('text', 1, QUESTION_MAX)),
     check('questions_answer', maxLen('answer', NOTE_MAX)),
   ],

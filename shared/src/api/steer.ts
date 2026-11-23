@@ -4,7 +4,9 @@
  * US6). Shared contract file (tasks.md, Slice rules).
  */
 import { z } from 'zod';
+import { SPLIT_RELATIONS } from '../enums.js';
 import { itemId, objectId, text } from '../mcp/common.js';
+import { splitCarry } from '../mcp/items.js';
 import { QUESTION_FORM, TEXT_LIMITS } from '../mcp/limits.js';
 import { getStepOutput, stepDetails } from '../mcp/checklist.js';
 import {
@@ -34,6 +36,23 @@ export const answerBody = input({
   note: text(QUESTION_FORM.note).optional(),
 });
 export const answerResponse = ownerMutationOutput({ question: questionSchema });
+
+/** Decision 48: split this ticket; the same fields as `create_item`'s `split_from`. */
+export const splitItemBody = input({
+  expected_version: expectedVersion,
+  type: z.enum(['Story', 'Task', 'Bug']),
+  title: text(TEXT_LIMITS.title),
+  move: z.array(z.number().int()),
+  copy: z.array(z.number().int()).optional(),
+  relation: z.enum(SPLIT_RELATIONS),
+  also: z.array(splitCarry).optional(),
+});
+export const splitItemResponse = ownerMutationOutput({
+  /** The new ticket. */
+  item: itemSummarySchema,
+  /** The original, after the split. */
+  source: itemSummarySchema,
+});
 
 export const noteBody = input({ text: text(TEXT_LIMITS.note) });
 export const noteResponse = ownerMutationOutput({
@@ -109,6 +128,16 @@ export const steerRoutes = {
     query: noInput,
     body: answerBody,
     response: json(answerResponse),
+    undoable: true,
+  }),
+  'items.split': route({
+    method: 'POST',
+    path: '/api/items/:id/split',
+    group: 'steer',
+    params: itemParams,
+    query: noInput,
+    body: splitItemBody,
+    response: json(splitItemResponse),
     undoable: true,
   }),
   'items.addNote': route({

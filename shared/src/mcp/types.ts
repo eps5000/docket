@@ -487,6 +487,10 @@ export const itemSchema = itemSummarySchema.extend({
     z.object({ id: z.string(), title: z.string(), authority: z.enum(DECISION_AUTHORITIES) }),
   ),
   open_question: questionSchema.nullable(),
+  /** Decision 48: the ticket this one was split from, when it was. */
+  split_from: z.string().optional(),
+  /** Decision 48: the tickets split from this one. */
+  split_into: z.array(z.string()).optional(),
   /** Set when the item is resumable or its last run was interrupted (MCP_SPEC §4). */
   resume: itemResumeSchema.nullable(),
   /** Decision 42: present while the story is between workers under one producer. */

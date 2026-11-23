@@ -292,6 +292,17 @@ BUILD_SPEC §5.21, §5.26 and §5.30, MCP_SPEC §5.2, UI_SPEC §6.1 and §6.2, s
 
 BUILD_SPEC §5.31 and §5.32, UI_SPEC §6.3.4 and §6.6, spec FR-242–FR-249 and SC-029, and Help have the details.
 
+**Split a ticket and withdraw a question (B61).**
+
+1. **Withdraw a question.** The run that asked, its recorded coordinator or a coordinator registered for the project can retract an unanswered question, with a short plain reason. It leaves Needs you at once and the agent can ask again. The owner still sees it in the ticket's history, marked **Withdrawn**, with the reason. Nobody answers for the owner, and an answered question can't be withdrawn.
+2. **Split a ticket.** One step creates a new ticket from an existing one and moves the chosen acceptance criteria, and can move or copy blockers, shared-part declarations and checklist steps. Every criterion ends up on exactly one ticket unless it was explicitly copied, and the original keeps at least one.
+3. **How they relate.** The new ticket waits for the original, the original waits for it, or neither. It keeps the epic and labels, and both tickets show where the work went ("Split from", "Split into").
+4. **A live lead is safe.** Its claim, runs, reviews and decisions stay on the original. Only the lead, its coordinator or the owner may split a claimed ticket, always against the version they read. An open review packet is never rewritten: if criteria moved, it is marked out of date.
+5. **Undo** restores both tickets for 60 seconds after the owner's own split, as with other owner changes. An agent's split isn't undoable from the UI.
+6. **When to split:** if a blocker holds only some acceptance criteria, prefer a split. Nothing here adds a gate.
+
+BUILD_SPEC §5.33, MCP_SPEC §5.3 and §5.8, UI_SPEC §6.3, spec FR-250–FR-255, Help and the skills have the details.
+
 ## Owner decision 49 (2026-11-23): an optional GitHub connection
 
 This changes the earlier "no GitHub dependency" rule. GitHub is now an **optional** connection, off by default and turned on in service-wide Settings. Docket must start and work fully without it.
@@ -303,7 +314,7 @@ This changes the earlier "no GitHub dependency" rule. GitHub is now an **optiona
 5. **In Docket.** The ticket shows a compact GitHub panel with branch, PR, state, CI and merge, each linking out, Related kept apart, and how fresh the data is. Overview's Merged count uses synced merges when connected and recorded ones otherwise, says which, and never counts a PR twice. Settings → Connections → GitHub shows the switch, the status and plain steps. Stale data is labeled and never treated as current.
 6. **Unchanged:** the `merged` blocker rule still reads what agents report. Nothing here adds a gate.
 
-BUILD_SPEC §5.33, MCP_SPEC §5.4, UI_SPEC §6.1, §6.3 and §6.7, spec FR-250–FR-258, Help (GitHub connection) and `tools/docket-sync/README.md` have the details.
+BUILD_SPEC §5.34, MCP_SPEC §5.4, UI_SPEC §6.1, §6.3 and §6.7, spec FR-256–FR-264, Help (GitHub connection) and `tools/docket-sync/README.md` have the details.
 
 ## Deferred choices
 

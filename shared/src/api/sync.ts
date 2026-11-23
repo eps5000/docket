@@ -1,6 +1,6 @@
 /**
  * The host collector and the optional GitHub connection (owner decision 49;
- * BUILD_SPEC §5.33). Docket stores no GitHub token: `tools/docket-sync` reads
+ * BUILD_SPEC §5.34). Docket stores no GitHub token: `tools/docket-sync` reads
  * through the `gh` login on the host and posts here.
  *
  * - `GET /api/sync/:source`: the source's settings and status.

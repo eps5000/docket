@@ -257,7 +257,7 @@ Workflow (owner decision 8): `inbox → planning → ready → progress → revi
   | `satisfied_when` | Cleared when the blocker is… |
   |---|---|
   | `done` | in status done |
-  | `merged` | done, **and** has a `pr` artifact with state `merged`. This is agent-reported, and the UI says "reported merged". The optional GitHub connection (§5.33) deliberately doesn't change it: nothing it syncs can hold or release a blocker. |
+  | `merged` | done, **and** has a `pr` artifact with state `merged`. This is agent-reported, and the UI says "reported merged". The optional GitHub connection (§5.34) deliberately doesn't change it: nothing it syncs can hold or release a blocker. |
   | `verified` | done, **and** every human review item on it is approved (none deferred) |
 
   - Until then the predecessor is **unresolved**.
@@ -841,7 +841,7 @@ Read-only and advisory: nothing here adds a gate, blocks a claim, queue or deliv
 | Metric | Definition |
 |---|---|
 | Finished | The Completed set (§5.24). |
-| Merged | Distinct PRs with a `pr` artifact in state `merged` (any case), each at the time Docket **first** recorded it. A PR is its URL, ignoring case and a trailing slash, or the ticket and label when it has no URL, so one PR linked to two tickets counts once. Without the GitHub connection this is the time it was recorded, not the time it merged, and it can be low. With it, see §5.33. It is never estimated. |
+| Merged | Distinct PRs with a `pr` artifact in state `merged` (any case), each at the time Docket **first** recorded it. A PR is its URL, ignoring case and a trailing slash, or the ticket and label when it has no URL, so one PR linked to two tickets counts once. Without the GitHub connection this is the time it was recorded, not the time it merged, and it can be low. With it, see §5.34. It is never estimated. |
 | `finished_without_merge` | Tickets in Finished with no merged PR on record. The chart says "N of M finished tickets have none recorded, so the real number may be higher". Some tickets need no PR, so this is a limit on what's known, not a count of missing PRs. |
 | Parked | `run.parked` events in the window on tickets in scope. Events on epics are excluded. |
 
@@ -886,7 +886,29 @@ Read-only and advisory (`server/src/domain/next-work.ts`). The stored status nev
 - **Owners** come from `atRiskOwner` (B56) for worktrees Docket has at risk.
 - **The command** is `git -C '<repo>' worktree remove '<path>'`, only on Safe to remove and never with `--force`, so git still refuses a folder that changed. A path with characters a shell might act on gets no command.
 
-### 5.33 The host collector and an optional GitHub connection (decision 49; B62)
+### 5.33 Split a ticket and withdraw a question (decision 48; B61)
+
+**Withdraw a question.** `withdraw_decision` takes `question_id` instead of `decision_id`, so there is no new tool. It already means "retract this, with a reason", and `ask_owner`'s required contract stays required.
+
+- **Who.** The run that asked (its own `run_id` and client), that run's recorded orchestrator, or a coordinator registered for the project, named in `coordinator`. Anyone else gets `forbidden`.
+- **What it does.** Sets `questions.withdrawn_at`, `withdrawn_by` and `withdrawn_reason`, returns a `needs_input` run to `open`, and records `question.withdrawn`. The reason is shown to the owner, so the plain-language guard applies. An answered or already withdrawn question is a `conflict`, and so is the owner answering a withdrawn one.
+- **Open means unanswered and not withdrawn,** everywhere: the one-open-question index, Needs you, `get_item`, `get_context`, recovery and the wait card. `read_by_agent_at` still applies only to answers.
+
+**Split a ticket.** `create_item` takes `split_from`, and the owner uses `POST /api/items/:id/split`. Both call `splitItem` (`server/src/domain/split.ts`) in one write.
+
+- **Criteria.** `move` and `copy` are 1-based positions in the acceptance list. A moved row keeps its ID. The original must keep at least one, and a position can't be in both lists.
+- **`also`** carries blockers (with their `satisfied_when`), shared-part declarations and steps, each moved or, with `copy: true`, copied. A blocker Docket added to sequence an overlap can't move, and an agent can't move an owner's step.
+- **Steps.** A moved step leaves the original's plan as `set_plan`'s `remove` does: its row stays in the old plan version for history, the original gets a new plan version, and the new ticket gets its own row. The step a live run is on can't move.
+- **Relation.** `after_original` (the original blocks the new ticket), `before_original` (the new ticket blocks the original) or `none`. A new ticket has no other outgoing links, so this can't create a cycle.
+- **Provenance.** `items.split_from` on the new ticket; "Split into" is the reverse lookup. The epic, labels and priority carry over.
+- **A live lead.** The claim, runs, reviews and decisions stay on the original. Only the lead's own run, its coordinator or the owner may split a claimed ticket, and `expected_version` is required.
+- **Waits (B58).** A parked run stops waiting on a blocker that moved off its ticket. If that was its last named item, it can resume from the moment of the split (`waiting_on.until`), so the usual `run.resume_ready` tells its coordinator, and a wait held by an owner's decision stays held. A copied blocker changes nothing. A withdrawn question is not an open owner action, doesn't count as the owner having been asked, and isn't a critical path reason (§5.31).
+- **Packets.** If criteria moved, an open packet gets `criteria_changed_at` and a `packet.stale` event. Its content doesn't change. Asking for a fresh packet says why.
+- **Overlaps.** Moving a declaration re-runs `syncOverlaps` on the original, so a pair that no longer shares a part resolves.
+- **Undo.** Each change stores its inverse on the last event (`item.split`), which undo applies first. An owner's split restores both tickets, within the usual 60 seconds and if nothing touched them since. Agent changes stay out of undo.
+- **Migration 0023** adds `items.split_from`, `packets.criteria_changed_at` and the three `questions` columns, and rebuilds `questions_one_open`.
+
+### 5.34 The host collector and an optional GitHub connection (decision 49; B62)
 
 Off by default. Docket starts and works fully with no GitHub access, stores no GitHub token, makes no outbound call for this, and adds no gate.
 
@@ -979,7 +1001,7 @@ Every route requires the owner session (§3). JSON bodies **and query strings** 
 | `POST /api/session/unlock` `{key}` · `POST /api/session/lock` · `POST /api/session/rotate-key` | Unlock screen, Settings. Rotate-key writes a new owner key (0600), ends every owner session including the caller's, clears the cookies, and returns `{rotated: true}`. It never returns the key; the owner reads it with `docket owner-key` (decided in B2). |
 | `GET /api/bootstrap` | Shell: projects, labels, sidebar counts, settings, health |
 | `GET /api/needs-you?scope` | Needs you: `for_you_now[]` (packets, questions), `problems[]`, `deferred[]`, `planning_queue[]`, `agent_counts{}` (raw runs), `agents_now{working, waiting}` (stories; §5.24) |
-| `GET/POST /api/sync/:source` | The host collector (decision 49, §5.33): a source's settings and status; an idempotent batch of records |
+| `GET/POST /api/sync/:source` | The host collector (decision 49, §5.34): a source's settings and status; an idempotent batch of records |
 | `GET/PUT /api/settings/github`, `PUT /api/settings/github/projects/:key` | Settings → Connections → GitHub: the switch and status; a project's repository and naming rule |
 | `GET /api/items/:id/github` | The ticket's GitHub panel |
 | `GET /api/brief?scope&day` | The daily brief (decision 48, §5.29): one day's finished tickets and decision changes, and what's stuck now. Read-only |
@@ -998,6 +1020,7 @@ Every route requires the owner session (§3). JSON bodies **and query strings** 
 | `POST /api/items/:id/human-review` · `PATCH`/`DELETE …/human-review/:hrId` | Human review items |
 | `POST /api/items/:id/notes` `{text}` | Note for the agent |
 | `POST /api/items/:id/answer` `{question_id, text}` | Answer a question |
+| `POST /api/items/:id/split` `{expected_version, type, title, move, copy?, relation, also?}` | Split a ticket (decision 48; undoable) |
 | `POST /api/items/:id/release` · `POST /api/items/:id/return-to-ready` | Lead and runs actions |
 | `DELETE /api/links/:linkId` | Cycle fix, and removing a canceled blocker |
 | `GET /api/review/:id?round` · `POST /api/review/:id/decisions` · `POST /api/review/:id/refresh` | Packet screen |
@@ -1376,8 +1399,8 @@ Owner decisions are marked **(owner)**. Every other entry is a technical choice 
 | 45 **(owner)** | A parked story's wait is visible and has a next step: a wait card derived from stored facts, advisory `wait_no_next_step` and `wait_owner_unasked` flags routed to agents first, and one `run.resume_ready` the coordinator relays to the same run, because Docket can't push into a session. Nothing here gates work. | §5.26, MCP_SPEC §4, §5.4 |
 | 46 **(owner)** | A host process, `docket-relay`, tells the coordinator of a ticket's live lead through Orca when the ticket changes from the owner side (narrowed by T26). It sends a pointer naming the kinds of change, never the content; batches edits (60 s quiet, 2 min at most) and sends answers at once; never sends to a dispatch address; and never writes to Docket. No server change. | §5.27, `tools/docket-relay` |
 | 47 **(owner)** | Questions the owner can read: `ask_owner` requires a plain question, background, why it matters, 2 to 4 options with consequences and one recommendation; internals go in `details`. Answered in a dialog, in two actions for the recommendation. Skills tell agents to ask less and write for someone who hasn't seen the work. | §5.28 |
-| 48 **(owner)** | Coordination tooling (`docs/design/coordination-tooling.md`), advisory, with no new gates. B59: flow trends on Overview (finished, recorded merges and parks, with a quiet note when they diverge) and a read-only daily brief; merges are never estimated, and cost appears only once measured. B58: a bare person wait is not an unasked decision; a wait citing an active decision is settled; an owner decision holds the run without escalating until it is lifted, and aging restarts then; expired part leases end with one event to the holder's coordinator; Work splits Ready into Startable and Waiting; `get_digest` adds ranked next work and bottlenecks. B60: a critical path to a ticket or epic on the Map with the one ticket to move next, and every worktree of a repository with a plain verdict. Advisory and read-only: Docket never deletes or prunes a worktree. | §5.29, UI_SPEC §6.1, §6.1b, §5.21, §5.26, §5.30, §5.31, §5.32, UI_SPEC §6.3.4, §6.6 |
-| 49 **(owner)** | An optional GitHub connection, changing the earlier "no GitHub dependency" rule. Off by default; Docket stores no token and a host process reads through the existing `gh` login, read-only. A shared collector (`tools/docket-sync`), a branch naming rule that warns and never blocks, exact primary links with related mentions kept apart, a ticket panel, Merged from GitHub when connected, and Settings → Connections → GitHub. | §5.33, MCP_SPEC §5.4, UI_SPEC §6.1, §6.3, §6.7 |
+| 48 **(owner)** | Coordination tooling (`docs/design/coordination-tooling.md`), advisory, with no new gates. B59: flow trends on Overview (finished, recorded merges and parks, with a quiet note when they diverge) and a read-only daily brief; merges are never estimated, and cost appears only once measured. B58: a bare person wait is not an unasked decision; a wait citing an active decision is settled; an owner decision holds the run without escalating until it is lifted, and aging restarts then; expired part leases end with one event to the holder's coordinator; Work splits Ready into Startable and Waiting; `get_digest` adds ranked next work and bottlenecks. B60: a critical path to a ticket or epic on the Map with the one ticket to move next, and every worktree of a repository with a plain verdict. Advisory and read-only: Docket never deletes or prunes a worktree. B61: agents retract an outdated question through `withdraw_decision`, and a ticket splits in one undoable write through `create_item` `split_from` or the item page. No criterion is lost, a live lead keeps its claim, and an open packet is marked out of date, never changed. | §5.29, UI_SPEC §6.1, §6.1b, §5.21, §5.26, §5.30, §5.31, §5.32, UI_SPEC §6.3.4, §6.6, §5.33, UI_SPEC §6.3 |
+| 49 **(owner)** | An optional GitHub connection, changing the earlier "no GitHub dependency" rule. Off by default; Docket stores no token and a host process reads through the existing `gh` login, read-only. A shared collector (`tools/docket-sync`), a branch naming rule that warns and never blocks, exact primary links with related mentions kept apart, a ticket panel, Merged from GitHub when connected, and Settings → Connections → GitHub. | §5.34, MCP_SPEC §5.4, UI_SPEC §6.1, §6.3, §6.7 |
 | T13 | Nightly backup at 03:00, kept 14 days, restore by CLI only. | §5.13 |
 | T14 | Archive is owner-only and UI-only; agent queries include archived items. | §5.8 |
 | T15 | Scope resets to All projects on each visit (sessionStorage). Theme and collapsed sections persist (localStorage). | UI_SPEC §2 |

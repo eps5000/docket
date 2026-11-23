@@ -402,6 +402,8 @@ A `ProgressMap` of the filtered set, titled "Outside this view". When no epic or
     - Planning: *Move to Ready* (primary) with "Planning is yours. Move it when you're satisfied, or ask an agent to.";
     - Done: *Archive*, or "Archived" chip + *Unarchive*;
     - any open status: *Cancel item…* in a "⋯" overflow menu at the end of the actions row. It opens an inline confirm, "Cancel RCP-31? Optional reason", with *Keep item* (focused) and *Cancel item*. Afterwards there's a toast with Undo. For an epic with open children, the confirm instead lists them and offers no Cancel button. For an item an agent leads, the confirm adds: "codex is working on this; its run will be interrupted."
+    - any open Story, Task or Bug: *Split ticket…* in the same menu (decision 48). The dialog asks for the new ticket's title and type; each acceptance criterion, blocker, shared part and step is a labelled select (*Keep here*, *Move*, *Copy*); a radio group says how the tickets relate; and a live preview lists what stays and what goes. It warns when a lead is working on the ticket and when moving criteria will mark an open packet out of date. A toast offers Undo. The header then shows "Split from RCP-12" or "Split into RCP-33" as links.
+    - History marks a question an agent retracted with a **Withdrawn** chip and its reason (decision 48).
     - Canceled items show the status chip "Canceled" and a struck-through title, and they leave the board, list and timeline (they're still in search).
 - **Epic header:** status chip; "Project · N items · n done"; on a Planning epic, *Move to Ready* with "This epic is still a brief."
 

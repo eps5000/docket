@@ -241,7 +241,10 @@ export class WaitReader {
          WHERE r.item_id = ? AND p.state = 'pending' ORDER BY p.created_at, p.id LIMIT 1`,
       )
       .get(id) as { file_key: string } | undefined;
-    const action = has('SELECT 1 FROM questions WHERE item_id = ? AND answered_at IS NULL', id)
+    const action = has(
+      'SELECT 1 FROM questions WHERE item_id = ? AND answered_at IS NULL AND withdrawn_at IS NULL',
+      id,
+    )
       ? 'an open question to answer'
       : has("SELECT 1 FROM packets WHERE item_id = ? AND state = 'open'", id)
         ? 'a review packet to decide'
@@ -276,7 +279,7 @@ export class WaitReader {
     return (
       !!sql
         .prepare(
-          'SELECT 1 FROM questions WHERE item_id = ? AND (created_at >= ? OR answered_at >= ?) LIMIT 1',
+          'SELECT 1 FROM questions WHERE item_id = ? AND withdrawn_at IS NULL AND (created_at >= ? OR answered_at >= ?) LIMIT 1',
         )
         .get(id, since, since) ||
       !!sql

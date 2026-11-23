@@ -160,6 +160,9 @@ export const COLUMNS_0010 = [
   'coordinators',
   // 0019 (B52): how long the last radar run took.
   'radar_last_duration_ms',
+  // 0023 (decision 48): where a split ticket came from, and a packet whose criteria moved.
+  'split_from',
+  'criteria_changed_at',
 ] as const;
 
 /** Rows without the columns 0010 added to `items`, `projects` and `packets`. */
@@ -172,6 +175,10 @@ export function without0010<T>(rows: T): T {
     if ('shared_none_at' in out || 'main_branch' in out || 'held_undeclared' in out) {
       for (const c of COLUMNS_0010) delete out[c];
     }
+    // Decision 48 (0023): null on every question from before it.
+    delete out.withdrawn_at;
+    delete out.withdrawn_by;
+    delete out.withdrawn_reason;
     // Decision 41 (0017): two more columns on runs, null on every row from before it.
     if ('unpushed_handled_at' in out) {
       delete out.unpushed_outcome;

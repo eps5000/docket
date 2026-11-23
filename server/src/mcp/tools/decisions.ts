@@ -19,9 +19,24 @@ export const decisionsHandlers: Pick<
     ),
   }),
   list_decisions: (args, ctx) => ctx.services.decisions.list(ctx.read, omit(args, 'run_id')),
-  withdraw_decision: (args, ctx) => ({
-    decision: ctx.mutate((w) =>
-      ctx.services.decisions.withdraw(w, { decision_id: args.decision_id, reason: args.reason }),
-    ),
-  }),
+  // Decision 48: the same tool retracts an unanswered question.
+  withdraw_decision: (args, ctx) => {
+    const { question_id: questionId, decision_id: decisionId, reason, coordinator } = args;
+    if (questionId !== undefined) {
+      return {
+        question: ctx.mutate((w) =>
+          ctx.services.messages.withdraw(w, {
+            question_id: questionId,
+            reason,
+            ...(coordinator !== undefined ? { coordinator } : {}),
+          }),
+        ),
+      };
+    }
+    return {
+      decision: ctx.mutate((w) =>
+        ctx.services.decisions.withdraw(w, { decision_id: decisionId!, reason }),
+      ),
+    };
+  },
 };
