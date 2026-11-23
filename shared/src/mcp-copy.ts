@@ -51,7 +51,7 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   deferred_reviews:
     'List human review checks the owner deferred (not verified), with any follow-up ticket. For cleanup: finish the check, or propose a plan in a note.',
   get_changes:
-    "Read changes since a cursor instead of re-reading items. Without a cursor, returns the latest cursor; then pass next_cursor. Watch for review.decided, question.answered and owner_note.added on your items. To wait, run the installed docket-wait script: it costs no tokens until something changes. Only if you can't run a shell, pass wait_s (at most 45) to hold this call until a matching event. Never poll in a sleep loop.",
+    'Read changes since a cursor instead of re-reading items. Without a cursor, returns the latest cursor; then pass next_cursor. Watch for review.decided, question.answered and owner_note.added on your items. To wait, run the installed docket-wait script, which costs no tokens. Without a shell, pass wait_s (at most 45) to hold this call. Never poll in a sleep loop.',
   get_digest:
     "One compact snapshot for coordinators, instead of many reads: top ready items, running, stale and parked runs (resume_ready flagged), blocked items and why, what waits on the owner, agent-actionable problems, leases, conflicts ahead, and the change cursor. Pass cursor for only what changed since then. Long sections end in '+N more'. Read-only.",
   create_item:
@@ -66,17 +66,17 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   upsert_label:
     'Create a label or update its brief. Use a label for an initiative spanning several epics; the brief holds the shared decisions.',
   claim_lead:
-    "Claim an item as its lead before working on it. Works on Ready items (moves them to In progress) and In progress items with no lead (resuming sent-back or interrupted work). Pass workspace and, if a coordinator briefed you, brief, so the work can restart after a crash; instructions with the installed docket-check script's output; and branch, so conflicts are spotted early. Returns run_id: pass it on every later call. Errors: conflict (someone holds it, with who and until when: do not work on it); seam_conflict (its shared parts collide with an item in flight: Docket queued it or asked the owner, so pick other work and leave it); design_review (it changes an approved design awaiting the owner: pause it and take other work). Parts that can safely run together don't refuse the claim.",
+    "Claim an item as its lead before working on it. Works on Ready items (moves them to In progress) and In progress items with no lead (resuming sent-back or interrupted work). Pass workspace and, if a coordinator briefed you, brief, so the work can restart after a crash; instructions with the installed docket-check script's output; and branch, so conflicts are spotted early. Returns run_id: pass it on every later call. Errors: conflict (someone holds it, with who and until when: do not work on it); seam_conflict (its shared parts collide with an item in flight: Docket queued it or asked the owner, so pick other work and leave it); design_review (it changes an approved design awaiting the owner: pause it and take other work).",
   release_lead:
     'Give up the lead claim without finishing. The item returns to Ready; your plan and notes stay. Under a producer it waits for the next worker unless you pass release_story.',
   start_run:
     'Start a child run under your lead run when delegating to a subagent that has its own Docket connection. Pass its workspace and brief as for claim_lead; the subagent passes the child run_id on its calls. For subagents without a connection, use log_subagent.',
   heartbeat:
-    'Tell Docket you are still working and update your current step, workspace (head and pushed commits, uncommitted changes) and long-lived resources started or released. Any call with run_id keeps you live, so use this only when you have nothing else to record or something changed.',
+    'Tell Docket you are still working and update your current step, workspace (head and pushed commits, uncommitted changes) and long-lived resources started or released. Any call with run_id keeps you live, so use this only when nothing else applies or something changed.',
   finish_run:
     "End your run: result 'finished' when you stopped normally, 'failed' with an error when something broke. Finishing a lead run releases the claim but doesn't change the item's status: hand off with submit_packet or close with set_status first.",
   park_run:
-    "Park only when the work itself stops: waiting on another item, the coordinator or a person. Don't park while your own CI or tests run or while you review them: stay live and log a note. A parked run keeps its claim and its workspace stays in use, so it is never mistaken for finished or stale. Say what you wait on; Docket flags it resume_ready when that clears. Any write with your run_id resumes it; reads don't.",
+    "Park only when the work itself stops: waiting on another item, the coordinator or a person. Don't park while your own CI or tests run or while you review them: stay live and log a note. A parked run keeps its claim and workspace. Say what you wait on; Docket flags it resume_ready when that clears. Any write with your run_id resumes it; reads don't.",
   update_run_status:
     "Coordinators: set an item's lead run's current action, park reason or waiting_on, resume it, or park it for park_minutes (a new park needs park_reason and waiting_on; 240 at most, and 24 hours since its last own signal). When the time ends it returns to a short lease. No run_id. coordinator is your name: the run's orchestrator or one registered for the project. Grants no other power.",
   set_plan:
@@ -99,13 +99,13 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   link_artifact:
     'Link external evidence: a PR, CI run, deployment, test report or URL. A link is evidence, never approval.',
   report_commit:
-    'Report every commit for its item, including fixes after a review, and set pushed true once it is on the remote: an unpushed commit can be lost in a crash. A handoff packet built from an older commit is marked out of date automatically.',
+    'Report every commit for its item, including fixes after a review, and set pushed true once it is on the remote: an unpushed commit can be lost in a crash. A packet built from an older commit is marked out of date.',
   submit_packet:
     'Hand finished work to the owner for human review, once it is built, checks pass and everything is committed and reported. The packet must let the owner verify without asking you anything: what to check, exact steps (URLs, builds, commands), what you verified and how, known gaps, attachments. Pass changed_files (every file changed) and branch: undeclared shared-part changes, or an unapproved change to an approved design, hold it for the owner. The item moves to Review; read the decision with get_review or get_item.',
   get_review:
     "Read the owner's review decisions, round by round. 'changes' notes say what to fix; each became a checklist step or a new Bug (see result_ref). Approved items stay approved in later rounds. Deferred items are not verified; leave them unless doing cleanup.",
   ask_owner:
-    "Ask the owner a decision only they can make: product behavior, privacy or security, cost, irreversible or outward-facing actions, conflicting owner decisions, or a real design change. Decide technical, reversible choices yourself. Write for someone who hasn't seen this work; IDs, hashes, paths and links go in details. Your run shows as needs input; stop work that depends on it. The answer appears in get_item (open_question) and as a question.answered event.",
+    'Ask the owner what only they can decide, in plain words for someone new to this work; IDs, paths and links go in details. Your run shows needs input: stop dependent work. The answer arrives in get_item.',
   publish_decision:
     'Record a decision other agents must follow (a convention, design choice or interface rule) with a short rationale. Scope it as narrowly as it applies: item, epic, label or project. You can supersede an agent decision; only the owner changes owner decisions (use ask_owner to challenge one).',
   list_decisions:
@@ -135,7 +135,7 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   release_lease:
     'Release your lease on a single-writer part as soon as your change is committed and pushed, so other items can take it.',
   propose_resolution:
-    'Propose how to resolve a problem that needs the owner: split, rescope, reorder or other, with a plan in Markdown and a reason. Pass problem (its ID from get_context problems), or id for the item in general. The owner approves it, asks for a different way with a note, or acknowledges it; the choice arrives as an owner note and in get_context. After a different way, propose again. Routine fixes need no proposal: rebase onto main, or remove an old branch with declare_shared_changes; Docket records it.',
+    'Propose how to resolve a problem that needs the owner: split, rescope, reorder or other, with a plan in Markdown and a reason. Pass problem (its ID from get_context problems), or id for the item in general. The owner approves it, asks for a different way with a note, or acknowledges it; the choice arrives as an owner note and in get_context. Routine fixes need no proposal: rebase onto main, or remove an old branch with declare_shared_changes; Docket records it.',
 };
 
 /**

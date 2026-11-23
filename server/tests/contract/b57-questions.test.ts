@@ -136,8 +136,8 @@ describe('ask_owner (decision 47)', () => {
   it('the tool definition stays inside its token budget', () => {
     const schema = JSON.stringify(inputJsonSchema(getTool('ask_owner')!));
     const n = tokens(`${TOOL_DESCRIPTIONS.ask_owner}${schema}`);
-    console.log(`ask_owner tool definition: ${n} tokens (budget 390)`);
-    expect(n).toBeLessThanOrEqual(390);
+    console.log(`ask_owner tool definition: ${n} tokens (budget 310)`);
+    expect(n).toBeLessThanOrEqual(310);
   });
 });
 

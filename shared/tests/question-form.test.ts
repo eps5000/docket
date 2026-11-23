@@ -220,6 +220,6 @@ describe('schema cost', () => {
     const schema = JSON.stringify(inputJsonSchema(getTool('ask_owner')!));
     const tokens = Math.ceil((schema.length + TOOL_DESCRIPTIONS.ask_owner.length) / 4);
     console.log(`ask_owner definition: ${tokens} tokens`);
-    expect(tokens).toBeLessThanOrEqual(390);
+    expect(tokens).toBeLessThanOrEqual(310);
   });
 });

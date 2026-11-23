@@ -550,7 +550,7 @@
   },
   {
     "name": "get_changes",
-    "description": "Read changes since a cursor instead of re-reading items. Without a cursor, returns the latest cursor; then pass next_cursor. Watch for review.decided, question.answered and owner_note.added on your items. To wait, run the installed docket-wait script: it costs no tokens until something changes. Only if you can't run a shell, pass wait_s (at most 45) to hold this call until a matching event. Never poll in a sleep loop.",
+    "description": "Read changes since a cursor instead of re-reading items. Without a cursor, returns the latest cursor; then pass next_cursor. Watch for review.decided, question.answered and owner_note.added on your items. To wait, run the installed docket-wait script, which costs no tokens. Without a shell, pass wait_s (at most 45) to hold this call. Never poll in a sleep loop.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1315,7 +1315,7 @@
   },
   {
     "name": "claim_lead",
-    "description": "Claim an item as its lead before working on it. Works on Ready items (moves them to In progress) and In progress items with no lead (resuming sent-back or interrupted work). Pass workspace and, if a coordinator briefed you, brief, so the work can restart after a crash; instructions with the installed docket-check script's output; and branch, so conflicts are spotted early. Returns run_id: pass it on every later call. Errors: conflict (someone holds it, with who and until when: do not work on it); seam_conflict (its shared parts collide with an item in flight: Docket queued it or asked the owner, so pick other work and leave it); design_review (it changes an approved design awaiting the owner: pause it and take other work). Parts that can safely run together don't refuse the claim.",
+    "description": "Claim an item as its lead before working on it. Works on Ready items (moves them to In progress) and In progress items with no lead (resuming sent-back or interrupted work). Pass workspace and, if a coordinator briefed you, brief, so the work can restart after a crash; instructions with the installed docket-check script's output; and branch, so conflicts are spotted early. Returns run_id: pass it on every later call. Errors: conflict (someone holds it, with who and until when: do not work on it); seam_conflict (its shared parts collide with an item in flight: Docket queued it or asked the owner, so pick other work and leave it); design_review (it changes an approved design awaiting the owner: pause it and take other work).",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1699,7 +1699,7 @@
   },
   {
     "name": "heartbeat",
-    "description": "Tell Docket you are still working and update your current step, workspace (head and pushed commits, uncommitted changes) and long-lived resources started or released. Any call with run_id keeps you live, so use this only when you have nothing else to record or something changed.",
+    "description": "Tell Docket you are still working and update your current step, workspace (head and pushed commits, uncommitted changes) and long-lived resources started or released. Any call with run_id keeps you live, so use this only when nothing else applies or something changed.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1953,7 +1953,7 @@
   },
   {
     "name": "park_run",
-    "description": "Park only when the work itself stops: waiting on another item, the coordinator or a person. Don't park while your own CI or tests run or while you review them: stay live and log a note. A parked run keeps its claim and its workspace stays in use, so it is never mistaken for finished or stale. Say what you wait on; Docket flags it resume_ready when that clears. Any write with your run_id resumes it; reads don't.",
+    "description": "Park only when the work itself stops: waiting on another item, the coordinator or a person. Don't park while your own CI or tests run or while you review them: stay live and log a note. A parked run keeps its claim and workspace. Say what you wait on; Docket flags it resume_ready when that clears. Any write with your run_id resumes it; reads don't.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -3044,7 +3044,7 @@
   },
   {
     "name": "report_commit",
-    "description": "Report every commit for its item, including fixes after a review, and set pushed true once it is on the remote: an unpushed commit can be lost in a crash. A handoff packet built from an older commit is marked out of date automatically.",
+    "description": "Report every commit for its item, including fixes after a review, and set pushed true once it is on the remote: an unpushed commit can be lost in a crash. A packet built from an older commit is marked out of date.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -3346,7 +3346,7 @@
   },
   {
     "name": "ask_owner",
-    "description": "Ask the owner a decision only they can make: product behavior, privacy or security, cost, irreversible or outward-facing actions, conflicting owner decisions, or a real design change. Decide technical, reversible choices yourself. Write for someone who hasn't seen this work; IDs, hashes, paths and links go in details. Your run shows as needs input; stop work that depends on it. The answer appears in get_item (open_question) and as a question.answered event.",
+    "description": "Ask the owner what only they can decide, in plain words for someone new to this work; IDs, paths and links go in details. Your run shows needs input: stop dependent work. The answer arrives in get_item.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -4593,7 +4593,7 @@
   },
   {
     "name": "propose_resolution",
-    "description": "Propose how to resolve a problem that needs the owner: split, rescope, reorder or other, with a plan in Markdown and a reason. Pass problem (its ID from get_context problems), or id for the item in general. The owner approves it, asks for a different way with a note, or acknowledges it; the choice arrives as an owner note and in get_context. After a different way, propose again. Routine fixes need no proposal: rebase onto main, or remove an old branch with declare_shared_changes; Docket records it.",
+    "description": "Propose how to resolve a problem that needs the owner: split, rescope, reorder or other, with a plan in Markdown and a reason. Pass problem (its ID from get_context problems), or id for the item in general. The owner approves it, asks for a different way with a note, or acknowledges it; the choice arrives as an owner note and in get_context. Routine fixes need no proposal: rebase onto main, or remove an old branch with declare_shared_changes; Docket records it.",
     "inputSchema": {
       "type": "object",
       "properties": {
