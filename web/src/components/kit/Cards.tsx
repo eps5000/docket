@@ -132,6 +132,12 @@ export function TicketCard({
           <SharedFlags flags={item.shared_flags} />
         </div>
       )}
+      {/* Decision 48: a blocked card's chip already names its blockers. */}
+      {!item.blocked && item.ready_state?.waiting_on && (
+        <div className="meta src" data-card-waiting="">
+          Waits on {item.ready_state.waiting_on}
+        </div>
+      )}
       {item.lead && (
         <RunLine
           state={item.lead.run_state}

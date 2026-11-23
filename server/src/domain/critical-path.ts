@@ -1,13 +1,14 @@
 /**
- * The critical path to a goal (owner decision 48; BUILD_SPEC §5.30): the
+ * The critical path to a goal (owner decision 48; BUILD_SPEC §5.31): the
  * longest chain of unresolved `blocks` links into a ticket or epic, and the
  * one ticket to move next. Read-only, advisory, and built on the one blocker
  * evaluator (`BlockIndex`), so it agrees with every other blocked state.
  *
  * - **Cycle-safe.** Blockers are condensed into strongly connected components
  *   first, so the longest path is over a DAG. A loop counts as all its members.
- * - **Ties** go to the chain whose first ticket can start now, then the higher
- *   priority, then the lower ID, so the answer is stable between reads.
+ * - **Ties** go to the chain whose first ticket can start now (B58's one
+ *   Startable rule, `readyStates`), then the higher priority, then the lower
+ *   ID, so the answer is stable between reads. Unlock counts stay in B58's ranking.
  * - **Iterative**, so a very deep chain can't overflow the stack.
  */
 import type {
@@ -19,14 +20,8 @@ import type {
 } from '@docket/shared';
 import type { Db } from '../db/client.js';
 import { compareIds } from './links.js';
-import {
-  BlockIndex,
-  OPEN_STORED_SQL,
-  requireItem,
-  summarize,
-  type ItemRow,
-  type RunWindows,
-} from './model.js';
+import { BlockIndex, requireItem, summarize, type ItemRow, type RunWindows } from './model.js';
+import { readyStates } from './next-work.js';
 import { parseJson } from './recovery-model.js';
 
 export interface ChainInput {
@@ -199,6 +194,8 @@ export function nextReason(input: {
   /** The ticket it directly holds up, if any. */
   holds: string | null;
   openQuestion: boolean;
+  /** Why a Ready ticket can't start, from `readyStates`; null when it can. */
+  readyWait?: string | null;
   parkedOn: WaitingOn | null;
 }): { reason: CriticalNextReason; why: string } {
   const { item, inCycle, waitingFor, holds, openQuestion } = input;
@@ -235,6 +232,10 @@ export function nextReason(input: {
     return item.lead.run_state === 'stale'
       ? { reason: 'active', why: 'Its agent has gone quiet. Check on it.' }
       : { reason: 'active', why: 'An agent is working on it.' };
+  }
+  if (item.status === 'ready' && input.readyWait) {
+    // With no blocker and no lead, only the owner's overlap or design review is left.
+    return { reason: 'waiting_on_owner', why: `It’s waiting on ${input.readyWait}.` };
   }
   if (item.status === 'ready') {
     return {
@@ -289,18 +290,12 @@ export function criticalPath(
         .all(json) as ItemRow[]
     ).map((r) => [r.id, r]),
   );
-  const held = new Set(
-    (
-      db.sqlite
-        .prepare(
-          `SELECT item_id FROM runs WHERE is_lead = 1 AND state IN ${OPEN_STORED_SQL}
-           AND item_id IN (SELECT value FROM json_each(?))`,
-        )
-        .all(json) as { item_id: string }[]
-    ).map((r) => r.item_id),
+  const ready = readyStates(
+    db,
+    index,
+    upstream.filter((x) => rows.get(x)?.status === 'ready'),
   );
-  const startable = (x: string) =>
-    rows.get(x)?.status === 'ready' && blockersOf(x).length === 0 && !held.has(x);
+  const startable = (x: string) => ready.get(x)?.startable === true;
   const better = (a: string, b: string) =>
     Number(startable(b)) - Number(startable(a)) ||
     (rows.get(a)?.priority ?? 9) - (rows.get(b)?.priority ?? 9);
@@ -352,6 +347,7 @@ export function criticalPath(
         waitingFor: link ? index.waitingFor(link) : null,
         holds,
         openQuestion: !!question,
+        readyWait: ready.get(head.id)?.waiting_on ?? null,
         parkedOn: parseJson<WaitingOn>(run?.waiting_on),
       }),
     };

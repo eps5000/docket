@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router';
 import {
   RUN_STATE_LABELS,
   activityText,
@@ -16,6 +17,7 @@ import {
   parkedReason,
 } from '../../components/kit';
 import { formatAgo, formatClock, formatSince, formatStamp, isoTitle } from '../../lib/format';
+import { paths } from '../../lib/paths';
 import {
   CopyResumeNoteButton,
   canCopyResumeNote,
@@ -42,7 +44,7 @@ function activitySentence(activity: RunActivity): string {
 }
 
 /** Decision 45: what the parked lead waits for, who moves it, and how the same run resumes. */
-function WaitCardLines({ wait }: { wait: WaitCard }) {
+function WaitCardLines({ wait, project }: { wait: WaitCard; project: string }) {
   const named = [
     ...wait.blockers.map((b) =>
       b.cleared ? `${b.id} cleared` : `${b.id} (${b.status}, clears when ${b.clears_when})`,
@@ -54,14 +56,27 @@ function WaitCardLines({ wait }: { wait: WaitCard }) {
   ].filter(Boolean);
   return (
     <div className="ab-parked src" data-ab="wait">
-      <span data-ab="wait-for">Waiting for {named.join(', ') || 'nothing named'}</span>
+      {wait.held_by && (
+        <span data-ab="wait-held">
+          Held by your decision:{' '}
+          <Link
+            to={paths.projectDecisions(project, { decision: wait.held_by.decision_id })}
+            style={{ textDecoration: 'underline' }}
+          >
+            {wait.held_by.title}
+          </Link>
+        </span>
+      )}
+      <span data-ab="wait-for">Waiting on {named.join(', ') || 'nothing named'}</span>
       <span data-ab="wait-since" title={isoTitle(wait.waited_since)}>
         Waited since {formatSince(wait.waited_since)}
       </span>
       <span data-ab="wait-next">
-        Next: {wait.next_owner.name} · {wait.next_owner.step}
+        {wait.held_by
+          ? `Next: ${wait.next_owner.step}`
+          : `Next: ${wait.next_owner.name} · ${wait.next_owner.step}`}
       </span>
-      <span data-ab="wait-resume">{wait.resumes_when}</span>
+      {!wait.held_by && <span data-ab="wait-resume">{wait.resumes_when}</span>}
       {wait.scope_hint && <span data-ab="wait-scope">{wait.scope_hint}</span>}
       {wait.flags.map((f) => (
         <Chip key={`${f.kind}:${f.on}`} kind="warn">
@@ -189,7 +204,7 @@ export function AgentBar({ data }: { data: ItemDetailResponse }) {
           {parked.resume_ready && <Chip kind="ok">Ready to resume</Chip>}
         </div>
       )}
-      {parked && data.wait && <WaitCardLines wait={data.wait} />}
+      {parked && data.wait && <WaitCardLines wait={data.wait} project={item.project} />}
       {data.waiting_runs && <WaitingRunsLine waiting={data.waiting_runs} />}
       {(run.producer || run.status_update || run.coordinator_park || run.activity) && (
         <div className="ab-parked src" data-ab="status">

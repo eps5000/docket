@@ -160,6 +160,15 @@ describe('nextReason', () => {
     expect(out.why).toMatch(/[.]$/);
   });
 
+  it.each(['your overlap decision', 'your design review'])(
+    'a Ready ticket held by %s waits on the owner, and is not startable',
+    (readyWait) => {
+      const out = nextReason({ item: item({}), ...base, readyWait });
+      expect(out.reason).toBe('waiting_on_owner');
+      expect(out.why).toBe(`It’s waiting on ${readyWait}.`);
+    },
+  );
+
   it('says what a parked agent is waiting on, in words', () => {
     const out = nextReason({
       item: item({ status: 'progress', lead: lead('parked') }),

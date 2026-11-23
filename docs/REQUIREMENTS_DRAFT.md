@@ -272,6 +272,17 @@ The owner approved the bug fixes and additions in `docs/design/coordination-tool
 
 BUILD_SPEC §5.29, UI_SPEC §6.1 and §6.1b, spec FR-230–FR-235 and Help (A first look around) have the details.
 
+**Truthful waits, expired leases and a true Ready (B58):**
+
+1. **A pause is not an unasked decision.** A bare wait on a person never says an owner decision is missing. Only text saying one is still pending does.
+2. **A wait held by a recorded decision is settled.** If the park reason cites an active decision that applies to the item at any scope, it is never flagged as unasked, whenever that decision was made.
+3. **The owner's own decision holds the run.** The wait card and item page say "Held by your decision", with a link, and the next step is that it resumes when the owner lifts it. The run raises no parked or no-next-step alert and doesn't reach the owner for being parked. An agent's decision can't silence an alert. When the owner withdraws or supersedes the decision, normal aging restarts from that moment, so lifting a pause doesn't raise a wall of alerts.
+4. **Expired part leases end.** The sweeper ends a lease past its stored expiry, even for a parked holder, with one event that names the holder's coordinator.
+5. **A true Ready.** Work splits Ready into **Startable** and **Waiting**, and each waiting ticket says what it waits on. The stored status doesn't change.
+6. **Start this next.** `get_digest` gains a short ranked next-work list (priority, then how many open tickets it transitively unlocks, then age) and **bottlenecks**: unowned Inbox or Planning tickets holding up real work, with "shape it or assign it". Overview's In flight card links to Startable.
+
+BUILD_SPEC §5.21, §5.26 and §5.30, MCP_SPEC §5.2, UI_SPEC §6.1 and §6.2, spec FR-236–FR-241, Help and the coordinator skill have the details.
+
 **Critical path and worktree cleanup (B60):**
 
 1. **Critical path.** Choose a ticket or epic as a goal. The Map highlights the longest chain of open hard blockers to it, mutes the rest and names the one ticket to move next, with why: startable, unowned, parked, waiting on the owner, or another plain reason. The same chain is an ordered list, and status is never colour alone. There is no new status or link type.
@@ -279,7 +290,7 @@ BUILD_SPEC §5.29, UI_SPEC §6.1 and §6.1b, spec FR-230–FR-235 and Help (A fi
 3. **A plain verdict.** Each is **Safe to remove**, **Holds work**, **In use**, **Kept for later** or **Unknown**. Unknown is never safe, and a read that times out is Unknown. A worktree outside the push folder says it can't be checked.
 4. **Docket never deletes or prunes a worktree.** A Safe to remove row offers a copyable command, without `--force`, and a note to check it first. No other row offers one.
 
-BUILD_SPEC §5.30 and §5.31, UI_SPEC §6.3.4 and §6.6, spec FR-236–FR-243 and SC-029, and Help have the details.
+BUILD_SPEC §5.31 and §5.32, UI_SPEC §6.3.4 and §6.6, spec FR-242–FR-249 and SC-029, and Help have the details.
 
 ## Deferred choices
 

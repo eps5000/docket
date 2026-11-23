@@ -332,6 +332,8 @@ const OUTPUTS: Record<string, string[]> = {
     'project',
     'cursor',
     'since',
+    'next_work',
+    'bottlenecks',
     'ready',
     'runs',
     'blocked',
