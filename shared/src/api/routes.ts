@@ -31,6 +31,7 @@ import { sessionRoutes } from './session.js';
 import { settingsRoutes } from './settings.js';
 import { sharedChangesRoutes } from './shared-changes.js';
 import { steerRoutes } from './steer.js';
+import { syncRoutes } from './sync.js';
 import { timelineRoutes } from './timeline.js';
 import { usageRoutes } from './usage.js';
 
@@ -49,6 +50,7 @@ export const API_ROUTES = {
   ...timelineRoutes,
   ...importRoutes,
   ...settingsRoutes,
+  ...syncRoutes,
   ...diagnosticsRoutes,
   ...recoveryRoutes,
   ...agentSetupRoutes,

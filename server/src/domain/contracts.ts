@@ -126,6 +126,7 @@ import type { ActivityFinding } from './run-activity.js';
 import type { SplitInput } from './split.js';
 import type { DigestService } from './digest.js';
 import type { FoundProblem, ProblemsService } from './problems.js';
+import type { SyncService } from './sync.js';
 
 export type { Actor, WriteContext } from './write.js';
 
@@ -1070,6 +1071,8 @@ export interface Services {
   sharedChanges: SharedChangesService;
   /** Decision 37: acknowledging problems and proposed resolutions (problems.ts). */
   problems: ProblemsService;
+  /** Decision 49: the host collector's ingest and the GitHub connection (sync.ts). */
+  sync: SyncService;
   /** Decision 48 (B63): token use from the local agent logs (usage.ts). */
   usage: UsageService;
   undo: UndoService;

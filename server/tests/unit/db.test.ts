@@ -32,9 +32,9 @@ describe('database client', () => {
   });
 
   it('applies every migration, and migrating again is a no-op', () => {
-    expect(migrationStatus(t.db)).toEqual({ current: true, applied: 25, expected: 25 });
+    expect(migrationStatus(t.db)).toEqual({ current: true, applied: 26, expected: 26 });
     migrateDb(t.db);
-    expect(migrationStatus(t.db).applied).toBe(25);
+    expect(migrationStatus(t.db).applied).toBe(26);
   });
 
   it('creates every BUILD_SPEC §4 table', () => {

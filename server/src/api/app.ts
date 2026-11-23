@@ -16,7 +16,8 @@
  */
 import type { EventEmitter } from 'node:events';
 import { Hono, type Context } from 'hono';
-import { HTTP_STATUS, isToolError } from '@docket/shared';
+import { bodyLimit } from 'hono/body-limit';
+import { HTTP_STATUS, SYNC_BODY_MAX_BYTES, isToolError } from '@docket/shared';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import type { Db } from '../db/client.js';
 import type { Services } from '../domain/contracts.js';
@@ -37,6 +38,7 @@ import { reviewRoutes } from './routes/review.js';
 import { settingsRoutes } from './routes/settings.js';
 import { setupRoutes } from './routes/setup.js';
 import { steerRoutes } from './routes/steer.js';
+import { syncRoutes } from './routes/sync.js';
 import { timelineRoutes } from './routes/timeline.js';
 import { undoRoutes } from './routes/undo.js';
 import { usageRoutes, usageSyncRoutes } from './routes/usage.js';
@@ -111,6 +113,14 @@ export function createApiApp(deps: ApiDeps): Hono<ApiEnv> {
     keepAliveMs: deps.streamKeepAliveMs,
   });
 
+  // Decision 49: the collector's batches are capped while they are read, however they're framed.
+  api.post(
+    '/sync/*',
+    bodyLimit({
+      maxSize: SYNC_BODY_MAX_BYTES,
+      onError: (c) => c.json(errorBody('validation', 'This sync batch is too large.'), 413),
+    }),
+  );
   // Before any general `/api/sync/:source` route, so the usage source keeps its own contract.
   usageSyncRoutes(api, routeDeps);
 
@@ -129,6 +139,7 @@ export function createApiApp(deps: ApiDeps): Hono<ApiEnv> {
   setupRoutes(api, routeDeps);
   onboardingRoutes(api, routeDeps);
   sharedRoutes(api, routeDeps);
+  syncRoutes(api, routeDeps);
   usageRoutes(api, routeDeps);
 
   return api;

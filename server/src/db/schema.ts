@@ -16,6 +16,7 @@
  * they live in the hand-written migration 0001_search_fts.sql.
  */
 import {
+  BRANCH_RULES,
   AGENT_FILE_LAYERS,
   AGENT_SETUP_LIMITS,
   AGENTS_BLOCK_KEY,
@@ -1717,6 +1718,82 @@ export const owner_sessions = sqliteTable('owner_sessions', {
   id: id(),
   last_seen_at: text('last_seen_at').notNull(),
   user_agent: text('user_agent'),
+  ...timestamps,
+});
+
+/**
+ * Owner decision 49 (B62): a project's GitHub repository and branch naming rule.
+ * No row means the defaults: no repository, rule `warn`, the default exemptions.
+ */
+export const project_git = sqliteTable(
+  'project_git',
+  {
+    project_key: text('project_key')
+      .primaryKey()
+      .references(() => projects.key, { onDelete: 'cascade' }),
+    /** `owner/name`. */
+    github_repo: text('github_repo'),
+    branch_rule: text('branch_rule', { enum: BRANCH_RULES }).notNull().default('warn'),
+    /** A JSON array of patterns; null is the default list. */
+    branch_exempt: text('branch_exempt', { mode: 'json' }),
+    ...timestamps,
+  },
+  () => [check('project_git_branch_rule', oneOf('branch_rule', BRANCH_RULES))],
+);
+
+/** Decision 49: a pull request as last synced. Its body is never stored. */
+export const github_prs = sqliteTable(
+  'github_prs',
+  {
+    /** `owner/name#12`, the record's idempotency key. */
+    id: id(),
+    repo: text('repo').notNull(),
+    number: integer('number').notNull(),
+    title: text('title').notNull(),
+    head_branch: text('head_branch').notNull(),
+    state: text('state', { enum: ['open', 'closed', 'merged'] }).notNull(),
+    draft: integer('draft', { mode: 'boolean' }).notNull().default(false),
+    head_sha: text('head_sha'),
+    merged_at: text('merged_at'),
+    ci: text('ci', { enum: ['passed', 'failed', 'pending', 'none'] }).notNull(),
+    opened_at: text('opened_at').notNull(),
+    remote_updated_at: text('remote_updated_at').notNull(),
+    ...timestamps,
+  },
+  (t) => [index('github_prs_repo').on(t.repo), index('github_prs_merged').on(t.merged_at)],
+);
+
+/**
+ * Decision 49: a PR on a ticket. `primary`: its head branch names only this ticket.
+ * `related`: its title or body mentions it, or its branch names several tickets.
+ */
+export const github_pr_links = sqliteTable(
+  'github_pr_links',
+  {
+    /** `<pr id>|<item id>`. */
+    id: id(),
+    pr_id: text('pr_id')
+      .notNull()
+      .references(() => github_prs.id, { onDelete: 'cascade' }),
+    item_id: itemRef('item_id'),
+    kind: text('kind', { enum: ['primary', 'related'] }).notNull(),
+    /** The run active on the ticket when the PR was opened, when one is known. */
+    run_id: text('run_id').references((): AnySQLiteColumn => runs.id, { onDelete: 'set null' }),
+    ...timestamps,
+  },
+  (t) => [index('github_pr_links_item').on(t.item_id), index('github_pr_links_pr').on(t.pr_id)],
+);
+
+/** Decision 49: the host collector's last report per source. Bookkeeping, with no events. */
+export const sync_sources = sqliteTable('sync_sources', {
+  name: text('name').primaryKey(),
+  interval_ms: integer('interval_ms'),
+  last_report_at: text('last_report_at'),
+  last_success_at: text('last_success_at'),
+  last_error: text('last_error'),
+  records_total: integer('records_total').notNull().default(0),
+  /** Per-source facts, such as each repository's last result. */
+  detail: text('detail', { mode: 'json' }),
   ...timestamps,
 });
 

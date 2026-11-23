@@ -10,7 +10,7 @@ Status: ready to build, 2026-11-07. This is the implementation contract for MVP 
 5. [design/sample-data.json](../design/sample-data.json): the seed data, exported from the prototype.
 6. [templates/AGENTS-docket.md](templates/AGENTS-docket.md): the block each project adds to its `AGENTS.md` or `CLAUDE.md`. Ship it in the repo; the README tells owners to use it.
    - [../skills/](../skills/README.md): the agent skills (owner decision 27). Ship them in the repo; CI lint-checks them against the tool contract.
-7. [ROADMAP.md](ROADMAP.md): what is deliberately *not* in V1 (dispatching, GitHub-observed merges, contracts, a knowledge layer), the pre-pilot checklist, and the TERSL reference notes. Don't build anything from it.
+7. [ROADMAP.md](ROADMAP.md): what is deliberately *not* in V1 (dispatching, contracts, a knowledge layer), the pre-pilot checklist, and the TERSL reference notes. Don't build anything from it.
 8. Background only, not instructions: [REQUIREMENTS_DRAFT.md](REQUIREMENTS_DRAFT.md) (requirement IDs such as A05 and H04 cited below), [UI_DESIGN.md](UI_DESIGN.md) (design rationale and revision history) and [JIRA_RESEARCH.md](JIRA_RESEARCH.md).
 
 **Where the docs disagree:** this file and UI_SPEC.md win over the requirements draft and UI_DESIGN.md. Where the prototype and UI_SPEC.md disagree, UI_SPEC.md wins. Every place this spec deliberately departs from the draft is listed in [Decisions](#14-decisions-log).
@@ -258,7 +258,7 @@ Workflow (owner decision 8): `inbox → planning → ready → progress → revi
   | `satisfied_when` | Cleared when the blocker is… |
   |---|---|
   | `done` | in status done |
-  | `merged` | done, **and** has a `pr` artifact with state `merged`. This is agent-reported in V1, and the UI says "reported merged". A GitHub integration would make it observed (ROADMAP.md). |
+  | `merged` | done, **and** has a `pr` artifact with state `merged`. This is agent-reported, and the UI says "reported merged". The optional GitHub connection (§5.35) deliberately doesn't change it: nothing it syncs can hold or release a blocker. |
   | `verified` | done, **and** every human review item on it is approved (none deferred) |
 
   - Until then the predecessor is **unresolved**.
@@ -842,7 +842,7 @@ Read-only and advisory: nothing here adds a gate, blocks a claim, queue or deliv
 | Metric | Definition |
 |---|---|
 | Finished | The Completed set (§5.24). |
-| Merged | Distinct PRs with a `pr` artifact in state `merged` (any case), each at the time Docket **first** recorded it. A PR is its URL, ignoring case and a trailing slash, or the ticket and label when it has no URL, so one PR linked to two tickets counts once. Docket doesn't watch the forge, so this is the time it was recorded, not the time it merged, and it can be low. It is never estimated. |
+| Merged | Distinct PRs with a `pr` artifact in state `merged` (any case), each at the time Docket **first** recorded it. A PR is its URL, ignoring case and a trailing slash, or the ticket and label when it has no URL, so one PR linked to two tickets counts once. Without the GitHub connection this is the time it was recorded, not the time it merged, and it can be low. With it, see §5.35. It is never estimated. |
 | `finished_without_merge` | Tickets in Finished with no merged PR on record. The chart says "N of M finished tickets have none recorded, so the real number may be higher". Some tickets need no PR, so this is a limit on what's known, not a count of missing PRs. |
 | Parked | `run.parked` events in the window on tickets in scope. Events on epics are excluded. |
 
@@ -946,6 +946,26 @@ Matching by the ticket key in a branch name isn't built: the collector doesn't r
 
 **Estimates.** Tokens are measured. Dollars are an API-equivalent estimate from `usage-prices.ts`, which is dated and cites its source per model. Prices match on the exact model ID, by prompt-length tier per turn (Haiku 5.5 over 100,000 tokens, OpenAI over 272,000). A model with no price, or a token type with none, stays out of the estimate, and the response says how many tokens that is. OpenAI lists 30-minute and 12-hour cache write prices and Codex logs don't say which applied, so Codex cache writes are unpriced.
 
+### 5.35 The host collector and an optional GitHub connection (decision 49; B62)
+
+Off by default. Docket starts and works fully with no GitHub access, stores no GitHub token, makes no outbound call for this, and adds no gate.
+
+**`tools/docket-sync`** is a dependency-free Node process on the host, separate from `docket-relay`: `start | once | status | stop`, state outside the repo written atomically, one instance, backoff, and no shell. Its README holds the **source contract**: each `sources/<name>.mjs` exports `{ name, intervalMs, enabled(settings), async collect({ state, log, signal, settings, docket }) }` and returns `{ records: [{ key, ...fields }], state }`. The runner posts batches and saves `state` only after every batch succeeded. It's installed by `manage.ps1`, which Docket never runs.
+
+**Ingest.** `POST /api/sync/:source` sits behind `/api`'s guards (Host, Origin, the owner session in protected mode, CSRF from a browser), caps the body at 2 MB while reading it and takes at most 500 records. It writes as the system through the write path. A malformed record is dropped and counted, so one bad record can't stall a source. A secret-looking title or branch is withheld rather than failing the batch. An unchanged batch changes nothing and records no event. A changed one records a single `sync.ingested`, a **quiet** event type: a wait with no type filter doesn't wake for it, so a sync costs no agent a turn. The run's status is bookkeeping in `sync_sources`, with no event. `GET /api/sync/:source` returns its settings and status. A new source adds one entry to `HANDLERS` in `domain/sync.ts`.
+
+**Data.** `project_git` (repository, naming rule, exempt patterns; no row means the defaults), `github_prs` (never the PR body), `github_pr_links` (`primary` or `related`, and the run) and `sync_sources`.
+
+**Naming** (`domain/git-naming.ts`). A key is a whole token, ignoring case, after the `<owner>/` segment. Rule **Warn** (the default) or **Off** per project, with exempt patterns where `*` is any text. A claim with no branch gets `branch_hint`. A reported branch that lacks the key adds one `!` warning line for the agent and shows on the ticket. It never refuses anything.
+
+**Matching.** Primary: the branch names exactly one ticket of the repository's projects, by ID or imported Jira key. A branch naming several makes each one related. Keys in the title or body are related only. The link's run is the lead run on that branch, or else the lead active when the PR opened. Mergify's `merge queue:` PRs are excluded by the source and again on ingest.
+
+**The GitHub source** uses GraphQL through `gh`: at most 20 requests per run, repositories in turn, a pause below 500 points left, and no call while Docket is down or the connection is off.
+
+**Status.** `off`, `no_repos`, `helper_not_running` (no report for three intervals, at least 15 minutes), `gh_missing`, `gh_signed_out`, `rate_limited`, `network`, `error` or `connected`. Data past the same limit is `stale`, labeled wherever it shows.
+
+**Merged on Overview.** With a successful sync and a repository in scope, `flow.merged` counts synced merges at their merge time, plus recorded PRs GitHub didn't return, matched on the PR's URL so none counts twice. A recorded PR with no URL in a connected project is left out of the count, because it can't be told from a synced one. Projects with no repository keep recorded merges. `merged_source` is `github`, `github_stale` or `recorded`, and the chart's note says which. Related PRs never count as a ticket's merge.
+
 ## 6. MCP tool contract
 
 **Overview only.** [MCP_SPEC.md](MCP_SPEC.md) is authoritative for the server instructions, every tool's description text, input and output schemas, error messages and worked flows. It defines 51 tools (`get_digest` from decision 40 and `propose_resolution` from decision 37 bring it from 48; 38, plus `get_step` from decision 33, plus `get_agent_files` and `propose_agent_file_change` from decision 30, `onboard_project` and `finish_onboarding` from decision 31, `apply_batch` from decision 34, and `declare_shared_changes`, `list_shared_parts`, `take_lease` and `release_lease` from decision 36), and one prompt (`onboard`), including `unlink_items`, `update_check` and `update_human_review`, which are paired with their siblings below.
@@ -1019,6 +1039,9 @@ Every route requires the owner session (§3). JSON bodies **and query strings** 
 | `POST /api/session/unlock` `{key}` · `POST /api/session/lock` · `POST /api/session/rotate-key` | Unlock screen, Settings. Rotate-key writes a new owner key (0600), ends every owner session including the caller's, clears the cookies, and returns `{rotated: true}`. It never returns the key; the owner reads it with `docket owner-key` (decided in B2). |
 | `GET /api/bootstrap` | Shell: projects, labels, sidebar counts, settings, health |
 | `GET /api/needs-you?scope` | Needs you: `for_you_now[]` (packets, questions), `problems[]`, `deferred[]`, `planning_queue[]`, `agent_counts{}` (raw runs), `agents_now{working, waiting}` (stories; §5.24) |
+| `GET/POST /api/sync/:source` | The host collector (decision 49, §5.35): a source's settings and status; an idempotent batch of records |
+| `GET/PUT /api/settings/github`, `PUT /api/settings/github/projects/:key` | Settings → Connections → GitHub: the switch and status; a project's repository and naming rule |
+| `GET /api/items/:id/github` | The ticket's GitHub panel |
 | `GET /api/brief?scope&day` | The daily brief (decision 48, §5.29): one day's finished tickets and decision changes, and what's stuck now. Read-only |
 | `GET /api/usage?scope&window\|day`, `GET /api/usage/items/:id` | Token use (decision 48, §5.34): a window or day with linked, overhead and not linked; a ticket, or an epic with its tickets, by kind, model and session. Read-only |
 | `GET`/`PUT /api/usage/settings` | The token use switch, its status and the coordinator folders. Owner only |
@@ -1418,6 +1441,7 @@ Owner decisions are marked **(owner)**. Every other entry is a technical choice 
 | 46 **(owner)** | A host process, `docket-relay`, tells the coordinator of a ticket's live lead through Orca when the ticket changes from the owner side (narrowed by T26). It sends a pointer naming the kinds of change, never the content; batches edits (60 s quiet, 2 min at most) and sends answers at once; never sends to a dispatch address; and never writes to Docket. No server change. | §5.27, `tools/docket-relay` |
 | 47 **(owner)** | Questions the owner can read: `ask_owner` requires a plain question, background, why it matters, 2 to 4 options with consequences and one recommendation; internals go in `details`. Answered in a dialog, in two actions for the recommendation. Skills tell agents to ask less and write for someone who hasn't seen the work. | §5.28 |
 | 48 **(owner)** | Coordination tooling (`docs/design/coordination-tooling.md`), advisory, with no new gates. B59: flow trends on Overview (finished, recorded merges and parks, with a quiet note when they diverge) and a read-only daily brief; merges are never estimated, and cost appears only once measured. B58: a bare person wait is not an unasked decision; a wait citing an active decision is settled; an owner decision holds the run without escalating until it is lifted, and aging restarts then; expired part leases end with one event to the holder's coordinator; Work splits Ready into Startable and Waiting; `get_digest` adds ranked next work and bottlenecks. B60: a critical path to a ticket or epic on the Map with the one ticket to move next, and every worktree of a repository with a plain verdict. Advisory and read-only: Docket never deletes or prunes a worktree. B61: agents retract an outdated question through `withdraw_decision`, and a ticket splits in one undoable write through `create_item` `split_from` or the item page. No criterion is lost, a live lead keeps its claim, and an open packet is marked out of date, never changed. B63: real token use per ticket and epic from the agents' local logs, off by default behind a Settings switch with the owner's note; only numbers, model, session ID, time and working folder are kept; attribution never guesses; dollars are a labelled API-equivalent estimate from a dated, sourced price table. | §5.29, UI_SPEC §6.1, §6.1b, §5.21, §5.26, §5.30, §5.31, §5.32, UI_SPEC §6.3.4, §6.6, §5.33, UI_SPEC §6.3, UI_SPEC §6.1c, §6.7, §5.34 |
+| 49 **(owner)** | An optional GitHub connection, changing the earlier "no GitHub dependency" rule. Off by default; Docket stores no token and a host process reads through the existing `gh` login, read-only. A shared collector (`tools/docket-sync`), a branch naming rule that warns and never blocks, exact primary links with related mentions kept apart, a ticket panel, Merged from GitHub when connected, and Settings → Connections → GitHub. | §5.35, MCP_SPEC §5.4, UI_SPEC §6.1, §6.3, §6.7 |
 | T13 | Nightly backup at 03:00, kept 14 days, restore by CLI only. | §5.13 |
 | T14 | Archive is owner-only and UI-only; agent queries include archived items. | §5.8 |
 | T15 | Scope resets to All projects on each visit (sessionStorage). Theme and collapsed sections persist (localStorage). | UI_SPEC §2 |

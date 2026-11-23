@@ -157,6 +157,13 @@ const EXPECTED = [
   'POST /api/design-reviews/:id/decide',
   'GET /api/settings/overlap-handling',
   'PUT /api/settings/overlap-handling',
+  // Decision 49 (B62): the host collector and the GitHub connection.
+  'GET /api/sync/:source',
+  'POST /api/sync/:source',
+  'GET /api/settings/github',
+  'PUT /api/settings/github',
+  'PUT /api/settings/github/projects/:key',
+  'GET /api/items/:id/github',
   'POST /api/undeclared-holds/:id/decide',
   'POST /api/leases/:id/release',
   'GET /api/projects/:key/radar',
@@ -188,7 +195,7 @@ describe('the route table', () => {
     const labels = ROUTE_IDS.map((id) => routeLabel(API_ROUTES[id]));
     expect(new Set(labels).size).toBe(labels.length);
     expect([...labels].sort()).toEqual([...EXPECTED].sort());
-    expect(labels).toHaveLength(110);
+    expect(labels).toHaveLength(116);
   });
 
   it('puts each route in a known group, and every group has a route', () => {

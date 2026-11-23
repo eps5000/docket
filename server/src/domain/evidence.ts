@@ -27,6 +27,7 @@ import {
   type RunRow,
   type StoredEvent,
 } from './model.js';
+import { reportedBranches, warnBranchName } from './radar.js';
 import { storedWorkspace, type StoredWorkspace } from './recovery-model.js';
 import type { WriteContext } from './write.js';
 
@@ -119,6 +120,14 @@ export function createEvidenceService(deps: ServiceDeps): EvidenceService {
           });
         }
         return { recorded: true as const, stale_packets: [] };
+      }
+      // Decision 49: once per branch on this ticket, so a run of commits costs one warning.
+      if (input.branch) {
+        const seen = w.db.sqlite
+          .prepare('SELECT 1 FROM commits WHERE item_id = ? AND branch = ? LIMIT 1')
+          .get(item.id, input.branch);
+        const reported = reportedBranches(w.db, item.id).some((b) => b.name === input.branch);
+        if (!seen && !reported) warnBranchName(w, item.id, input.branch);
       }
       w.insert('commits', {
         id: newId('cmt', ms(w.now)),
