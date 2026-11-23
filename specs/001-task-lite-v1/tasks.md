@@ -688,6 +688,13 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T295 [US13] The uninstall command in PowerShell and bash: hash-checked, marker-only, no links, no recursion, repeatable, and recorded. *Mark as removed* with Undo.
 - [x] T296 [US13] Tests in temporary folders only: status, worktree wording, uninstall with unchanged, modified, missing, link and surrounding content, in each shell; e2e and axe in both themes at 1024 px and 1440 × 900.
 
+## Phase 45: A bundled delivery skill (owner decision 52)
+
+- [x] T297 [US13] Spec plus code in one PR: decision 52 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.17; spec FR-285–FR-289 and SC-032; Help; `skills/README.md`.
+- [x] T298 [US13] `skills/docket-delivery/SKILL.md`: project-agnostic, subordinate to the project, the twelve delivery lessons, within the skill limits. No MCP tool.
+- [x] T299 [US13] One short pointer each from `docket-worker` and `docket-coordinator`.
+- [x] T300 [US13] Tests: listing, install for both clients, drift, uninstall in each shell, update available from an older install, skills lint, a guard against project-specific names, token budgets.
+
 ## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.
@@ -802,6 +809,7 @@ Open a PR titled "<Bn>: <phase name>" with the checkpoint evidence. Do not queue
 | 42 Real token use per ticket and epic | B63 (decision 48; alongside B60, B61 and B62) |
 | 43 An optional GitHub connection | B62 (decision 49; alongside B63) |
 | 44 Installs stay in scope | B64 (decision 50) |
+| 45 A bundled delivery skill | B66 (decision 52) |
 
 **Within a phase:** tests (failing) → services → replace stubs or fill handlers → fill screens → checkpoint.
 

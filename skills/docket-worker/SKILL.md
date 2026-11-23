@@ -113,6 +113,8 @@ The project has its own rules: who moves work to Ready, when human review is nee
 
 ## 5. Finish
 
+**Reaching a PR, CI, a merge or a deploy?** Follow `docket-delivery`.
+
 1. **Push everything** and report every commit with `pushed: true`.
 2. **Release every resource** you declared: `heartbeat { resources_released: [{ resource_id }] }`.
 3. **Then hand off or close,** passing `changed_files` (the output of `git diff --name-only <main>...HEAD`) and `branch` either way:
