@@ -113,6 +113,7 @@ import {
   validBranch,
   writeBranches,
   type Reported,
+  warnBranchName,
 } from './radar.js';
 import {
   activeLead,
@@ -671,6 +672,7 @@ function replaceBranches(
     (name) => before.find((b) => b.name === name) ?? { name, by, at: w.now },
   );
   const inverse = writeBranches(w, item.id, next);
+  for (const name of names) if (!was.includes(name)) warnBranchName(w, item.id, name);
   const who = w.actor.kind === 'owner' ? 'You' : by;
   w.event({
     type: 'branch.reported',

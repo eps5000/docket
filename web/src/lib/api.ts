@@ -300,6 +300,10 @@ export const QUERY_FAMILIES = [
   'itemShared',
   /** Settings → Shared parts: the radar card (decision 36). */
   'radar',
+  /** Settings → Connections → GitHub (decision 49). */
+  'github',
+  /** A ticket's GitHub panel (decision 49). */
+  'itemGithub',
 ] as const;
 export type QueryFamily = (typeof QUERY_FAMILIES)[number];
 
@@ -336,6 +340,10 @@ export const queryKeys = {
   settings: () => [ROOT, 'settings'] as const,
   /** Decision 39: Settings → Overlap handling. */
   overlapHandling: () => [ROOT, 'overlapHandling'] as const,
+  /** Decision 49: Settings → Connections → GitHub. */
+  github: () => [ROOT, 'github'] as const,
+  /** Decision 49: the ticket's GitHub panel. */
+  itemGithub: (id: string) => [ROOT, 'itemGithub', id] as const,
   jiraImport: (id: string) => [ROOT, 'jiraImport', id] as const,
   /** The effective set, service-wide or for one project. */
   agentFiles: (query: RouteQueryInput<'agentFiles.list'> = {}) =>
@@ -495,10 +503,13 @@ export const INVALIDATION: Record<EventType, readonly QueryFamily[]> = {
   'design_review.decided': ['itemShared', 'needsYou', 'bootstrap', 'item', 'review', 'work'],
   // Decision 41: runs stayed open, but their leases moved.
   'service.restarted': RUNS,
+  // Decision 49: a sync's new data, on Settings, tickets and Overview's Merged count.
+  'sync.ingested': ['item', 'github', 'itemGithub', 'needsYou'],
+  'github.settings_changed': ['item', 'github', 'itemGithub', 'needsYou'],
 };
 
 /** Families narrowed to the event's items when it names any. */
-const PER_ITEM: readonly QueryFamily[] = ['item', 'review', 'itemShared'];
+const PER_ITEM: readonly QueryFamily[] = ['item', 'review', 'itemShared', 'itemGithub'];
 
 /**
  * The query keys to invalidate for one stream message: the event type's

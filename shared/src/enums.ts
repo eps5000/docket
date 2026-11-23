@@ -658,8 +658,18 @@ export const EVENT_TYPES = [
   'run.wait_flagged',
   'run.wait_cleared',
   'run.resume_ready',
+  // The host collector (decision 49; B62): one event per batch that changed something, which
+  // never wakes a waiter (QUIET_EVENT_TYPES), and the owner's GitHub settings
+  'sync.ingested',
+  'github.settings_changed',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
+
+/**
+ * Bookkeeping on the change feed: an unfiltered wait doesn't wake for these, so a
+ * background sync costs no agent a turn (decision 49). Asking for the type by name still works.
+ */
+export const QUIET_EVENT_TYPES: readonly string[] = ['sync.ingested'] satisfies EventType[];
 
 /**
  * The only event types that make something "for you" on the stream (owner

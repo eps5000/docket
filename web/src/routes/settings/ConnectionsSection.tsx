@@ -20,6 +20,7 @@ import { formatAgo, formatStamp, isoTitle, plural } from '../../lib/format';
 import { paths } from '../../lib/paths';
 import { showToast } from '../../lib/undo';
 import { HelpLink } from '../../help/HelpLink';
+import { GitHubCard } from './GitHubCard';
 
 /**
  * The user-wide client setup snippets, exactly as MCP_SPEC §11 gives them. In
@@ -181,6 +182,7 @@ export function ConnectionsSection({ query }: { query: UseQueryResult<SettingsRe
           <ServiceHealthCard query={query} />
         </div>
       </div>
+      <GitHubCard protectedMode={query.data?.connections.protected_mode} />
     </section>
   );
 }

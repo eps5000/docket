@@ -177,6 +177,14 @@ const B2_ROUTES: readonly RouteId[] = [
   // Decision 38 (B44, T193): acknowledging agents' project decisions (content in
   // project-decision-review.test.ts).
   'decisions.acknowledge',
+  // Decision 49 (B62): the host collector and the GitHub connection (content in
+  // b62-github.test.ts).
+  'sync.source',
+  'sync.ingest',
+  'github.get',
+  'github.set',
+  'github.setProject',
+  'items.github',
 ];
 
 interface Req {
@@ -358,6 +366,18 @@ const VALID: Record<RouteId, Req> = {
   },
   'overlapHandling.get': {},
   'overlapHandling.set': { body: { mode: 'ask_every' } },
+  'sync.source': { params: { source: 'github' } },
+  'sync.ingest': {
+    params: { source: 'github' },
+    body: { records: [], run: { ok: true, interval_ms: 300_000 } },
+  },
+  'github.get': {},
+  'github.set': { body: { enabled: false } },
+  'github.setProject': {
+    params: { key: 'RCP' },
+    body: { github_repo: null, branch_rule: 'warn', branch_exempt: [] },
+  },
+  'items.github': { params: { id: 'RCP-1' } },
   'undeclaredHolds.decide': { params: { id: 'udh_1' }, body: { decision: 'add' } },
   'leases.release': { params: { id: 'pls_1' }, body: {} },
   'radar.get': { params: { key: 'RCP' } },

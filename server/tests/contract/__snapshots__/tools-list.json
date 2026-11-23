@@ -1471,6 +1471,9 @@
             "lease_expires_at": {
               "type": "string"
             },
+            "branch_hint": {
+              "type": "string"
+            },
             "replayed": {
               "type": "boolean"
             },

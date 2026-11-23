@@ -9,6 +9,7 @@
  * ends on a match, at its timeout, when its client goes away, or on shutdown.
  */
 import type { EventEmitter } from 'node:events';
+import { QUIET_EVENT_TYPES } from '@docket/shared';
 import type { Db } from '../db/client.js';
 
 /** How often the shared scan catches writes from another process. */
@@ -49,10 +50,11 @@ interface Waiter {
   finish: (status: WaitStatus) => void;
 }
 
+/** Decision 49: a wait with no type filter doesn't wake for background bookkeeping. */
 const matches = (f: ChangeFilter, e: EventKey) =>
   (f.project === undefined || e.project_key === f.project) &&
   (f.item_id === undefined || e.item_id === f.item_id) &&
-  (f.types === undefined || f.types.includes(e.type));
+  (f.types === undefined ? !QUIET_EVENT_TYPES.includes(e.type) : f.types.includes(e.type));
 
 export class ChangeWaiters {
   private readonly waiters = new Set<Waiter>();
@@ -98,10 +100,9 @@ export class ChangeWaiters {
       where.push('item_id = ?');
       params.push(filter.item_id);
     }
-    if (filter.types !== undefined) {
-      where.push(`type IN (${filter.types.map(() => '?').join(', ')})`);
-      params.push(...filter.types);
-    }
+    const types = filter.types ?? QUIET_EVENT_TYPES;
+    where.push(`type ${filter.types ? '' : 'NOT '}IN (${types.map(() => '?').join(', ')})`);
+    params.push(...types);
     return (
       this.db.sqlite
         .prepare(`SELECT 1 FROM events WHERE ${where.join(' AND ')} LIMIT 1`)

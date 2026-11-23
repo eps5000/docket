@@ -4,10 +4,11 @@
  * Needs you badge or blocks anything.
  *
  * - **Finished:** the Completed set (`completedIn`), passed in.
- * - **Merged:** distinct PRs an agent recorded as merged (`pr` artifacts in state
- *   `merged`), at the time Docket first recorded it. A PR linked to two tickets
- *   counts once. Docket doesn't watch the forge, so this can be low, and
- *   `finished_without_merge` says by how many tickets. Never estimated.
+ * - **Merged:** with GitHub connected (decision 49), the synced merges at their
+ *   merge time, plus any recorded PR GitHub didn't return. Otherwise distinct PRs
+ *   an agent recorded as merged (`pr` artifacts in state `merged`), at the time
+ *   Docket first recorded it, which can be low: `finished_without_merge` says by
+ *   how many tickets. A PR counts once however it arrived. Never estimated.
  * - **Parked:** `run.parked` events on tickets. Epics are excluded.
  * - **The note:** one sentence when the first and second half of the activity
  *   in the window move in opposite directions.
@@ -15,6 +16,7 @@
 import type { OverviewResponse, OverviewWindow } from '@docket/shared';
 import { effectiveZone, localDay } from './forecast.js';
 import { ms, type ItemRow } from './model.js';
+import { prUrlKey, syncedMerges } from './sync.js';
 import type { Scoped } from './views.js';
 
 const HOUR_MS = 3_600_000;
@@ -74,23 +76,39 @@ export function bucketFrame(
   return { slots, indexOf: (iso) => byDay.get(localDay(iso, tz))! };
 }
 
+/** A GitHub PR's URL, whatever page of the PR it points at. */
+const GITHUB_PR = /^https?:\/\/(?:www\.)?github\.com\/([^/]+\/[^/]+)\/pull\/(\d+)(?:[/?#].*)?$/i;
+
 /** One PR however it was linked: its URL, or the ticket and label when it has none. */
-const prKey = (a: { item_id: string; url: string | null; label: string }) =>
-  a.url?.trim()
-    ? a.url.trim().toLowerCase().replace(/\/+$/, '')
-    : `${a.item_id}:${a.label.trim().toLowerCase()}`;
+const prKey = (a: { item_id: string; url: string | null; label: string }) => {
+  const url = a.url?.trim();
+  if (!url) return `${a.item_id}:${a.label.trim().toLowerCase()}`;
+  const github = GITHUB_PR.exec(url);
+  return github ? prUrlKey(github[1]!, Number(github[2])) : url.toLowerCase().replace(/\/+$/, '');
+};
+
+interface RecordedRow {
+  item_id: string;
+  url: string | null;
+  label: string;
+  created_at: string;
+}
 
 /**
  * The merges Docket has on record in scope: each PR once, at its first record,
- * and every ticket with a merged PR.
+ * and every ticket with a merged PR. `skip` leaves a row out of the count only: its
+ * ticket still has a merge.
  */
-export function recordedMerges(s: Scoped): { at: string[]; items: Set<string> } {
+export function recordedMerges(
+  s: Scoped,
+  skip: (row: RecordedRow) => boolean = () => false,
+): { at: string[]; items: Set<string> } {
   const rows = s.db.sqlite
     .prepare(
       `SELECT item_id, url, label, created_at FROM artifacts
        WHERE kind = 'pr' AND lower(state) = 'merged' ORDER BY created_at, id`,
     )
-    .all() as { item_id: string; url: string | null; label: string; created_at: string }[];
+    .all() as RecordedRow[];
   const seen = new Set<string>();
   const items = new Set<string>();
   const at: string[] = [];
@@ -100,9 +118,36 @@ export function recordedMerges(s: Scoped): { at: string[]; items: Set<string> } 
     const key = prKey(row);
     if (seen.has(key)) continue;
     seen.add(key);
-    at.push(row.created_at);
+    if (!skip(row)) at.push(row.created_at);
   }
   return { at, items };
+}
+
+/**
+ * Merges from GitHub where it's connected, and the recorded ones elsewhere (decision
+ * 49), each PR once. In a connected project a recorded PR with no URL is left out of
+ * the count, because it can't be told apart from a synced one.
+ */
+function mergesInScope(s: Scoped) {
+  const synced = syncedMerges(
+    s.db,
+    s.now,
+    (project) => s.inScope(project),
+    new Set(s.items.keys()),
+  );
+  if (!synced) return { ...recordedMerges(s), source: 'recorded' as const, synced_at: null };
+  const keys = new Set(synced.rows.map((r) => r.key));
+  const recorded = recordedMerges(s, (row) => {
+    const project = s.items.get(row.item_id)?.project_key;
+    if (!project || !synced.projects.has(project)) return false;
+    return !row.url?.trim() || keys.has(prKey(row));
+  });
+  return {
+    at: [...synced.rows.map((r) => r.at), ...recorded.at],
+    items: new Set([...recorded.items, ...synced.items]),
+    source: synced.stale ? ('github_stale' as const) : ('github' as const),
+    synced_at: synced.synced_at,
+  };
 }
 
 /** When tickets were parked in `(from, to]`. Epics are excluded. */
@@ -167,7 +212,7 @@ export function flowOf(
 ): OverviewResponse['flow'] {
   const frame = bucketFrame(window, fromMs, toMs, tz);
   const buckets = frame.slots.map((slot) => ({ ...slot, finished: 0, merged: 0, parked: 0 }));
-  const merges = recordedMerges(s);
+  const merges = mergesInScope(s);
   const merged = merges.at.filter((at) => ms(at) > fromMs && ms(at) <= toMs);
   const parked = parkedTimes(s, fromMs, toMs);
   for (const i of done) buckets[frame.indexOf(i.closed_at!)]!.finished++;
@@ -180,6 +225,8 @@ export function flowOf(
     merged: merged.length,
     parked: parked.length,
     finished_without_merge: done.filter((i) => !merges.items.has(i.id)).length,
+    merged_source: merges.source,
+    merged_synced_at: merges.synced_at,
     note: flowNote(
       {
         finished: done.map((i) => ms(i.closed_at!)),

@@ -32,6 +32,7 @@ import { createRunsService } from './runs.js';
 import { createSearchService } from './search.js';
 import { createSharedChangesService } from './shared-changes.js';
 import { createSubgraphService } from './subgraph.js';
+import { createSyncService } from './sync.js';
 import { createUndoService } from './undo.js';
 import { createViewsService } from './views.js';
 
@@ -75,6 +76,7 @@ export function createServices(
     onboarding: createOnboardingService(full),
     sharedChanges: createSharedChangesService(full),
     problems: createProblemsService(full),
+    sync: createSyncService(full),
     undo: createUndoService(full),
   };
   for (const [name, methods] of Object.entries(overrides)) {

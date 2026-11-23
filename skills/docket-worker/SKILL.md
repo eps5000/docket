@@ -20,7 +20,7 @@ The project has its own rules: who moves work to Ready, when human review is nee
 2. **Claim it:** `claim_lead`, with:
    - `agent_label`: your worker name, if you have one;
    - `workspace`: `repo`, `path` (your worktree), `branch`, `base_ref`, `base_sha`;
-   - `branch`: the branch you'll work on, so the conflict radar can trial-merge it;
+   - `branch`: the branch you'll work on, so the conflict radar can trial-merge it. Name it `<owner>/GF-243-short-description`, with this one ticket's key, and name the worktree folder the same. If you claim without one, the result suggests it. A warning about the name never blocks you;
    - `brief` and `orchestrator`: if a coordinator dispatched you, the brief text exactly as you received it, plus its IDs;
    - `instructions`: the output of the installed `docket-check`, so the owner knows which instructions you work from. Run it once per session, before your first claim, in one shell call: `bash .claude/docket-check.sh` (`.codex/` for Codex, `~/.claude/` for a user-wide install; on Windows without bash, `powershell -NoProfile -ExecutionPolicy Bypass -File .claude/docket-check.ps1`). It prints one line of JSON: pass it as it is, and reuse it for later claims in the session. No script there? Skip it.
 

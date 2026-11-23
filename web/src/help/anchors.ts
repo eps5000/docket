@@ -56,6 +56,8 @@ export const HELP_ANCHORS = {
   'settings.client-setup': 'Settings → Connections → Client setup',
   'settings.service-health': 'Settings → Connections → Service health',
   'settings.security': 'Settings → Connections → Security (the trust mode)',
+  'settings.github': 'Settings → Connections → GitHub (decision 49)',
+  'item.github': 'Ticket → Details → GitHub (decision 49)',
   'settings.blocker-rule': 'Settings → Projects → Blockers clear when',
   'agent-files.page': 'Agent files: next to the h1',
   'agent-files.workflow': 'Agent files (one project): the Workflow notes card',

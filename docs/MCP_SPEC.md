@@ -578,7 +578,8 @@ The format for each tool below:
 **Description:** "Claim an item as its lead before working on it. Works on Ready items (moves them to In progress) and In progress items with no lead (resuming sent-back or interrupted work). Pass workspace and, if a coordinator briefed you, brief, so the work can restart after a crash; instructions with the installed docket-check script's output; and branch, so conflicts are spotted early. Returns run_id: pass it on every later call. Errors: conflict (someone holds it, with who and until when: do not work on it); seam_conflict (its shared parts collide with an item in flight: Docket queued it or asked the owner, so pick other work and leave it); design_review (it changes an approved design awaiting the owner: pause it and take other work)."
 - **Input:** `id`, `agent_label?` (≤ 40, for example `orca-w3`), `workspace?: { host?, repo?, path?, branch?, base_ref?, base_sha? }`, `orchestrator?: { name, dispatch_id?, task_id?, run_id? }`, `brief?` (text, ≤ 20,000) or `brief_document_version_id?`, `external?` (≤ 2 KB JSON), `instructions?: { install_id?, files: [{ key, sha256, content? }] }` (decision 30: the output of the installed `docket-check` script; `content` ≤ 50,000 only for files that differ from the manifest), `branch?` (decision 36: ≤ 200, the branch the conflict radar trial-merges; defaults to `workspace.branch`), `producer?` (decision 42: ≤ 40, the stable owner of the story across worker handoffs).
 - **`instructions` limits** (B26 resolutions): strict; `files` holds 0–20 entries (empty, with `install_id`, means every installed file is missing); `key` is `agents_block` or `skill:<name>`; `sha256` is 64 hex characters, either case (compared lowercased); `content` is 0–50,000 characters, not trimmed. `start_run` doesn't take it.
-- **Output:** `{ run_id, item: ItemSummary, lease_expires_at }`.
+- **Output:** `{ run_id, item: ItemSummary, lease_expires_at, branch_hint? }`. `branch_hint` (decision 49; BUILD_SPEC §5.33) is the branch to use, such as `<owner>/GF-243-fix-login`, given only when the claim named no branch and the project's naming rule is Warn. Its last segment names the worktree folder. The compact result adds one line: `branch <owner>/GF-243-fix-login · worktree GF-243-fix-login`.
+- **Naming warning:** a reported branch (`branch` or `workspace.branch` here, or `branch` on `set_status` or `submit_packet`) that lacks the ticket's key adds one `!` warning under Warn, unless it's exempt. It never refuses the call.
 - **Errors:**
   - `conflict` with `current: { lead_client, lead_label, run_id, last_signal_at, lease_expires_at }`, recorded as a rejected claim the owner can see. Between workers, a claim that doesn't name the holding producer gets `conflict` with `current: { producer, hold_until, last_worker }` (decision 42);
   - `validation`: the status isn't ready or progress, or the item is blocked (`details.blocked_by`);
@@ -1167,7 +1168,7 @@ get_item { id: "RCP-16", view: "summary" } → blocked_by: DOC-4, RCP-19 (waitin
 link_artifact { id: "RCP-19", kind: "pr", label: "PR #52", url: "…", state: "merged" }
 get_item { id: "RCP-16", view: "summary" } → blocked_by: DOC-4          (RCP-19 cleared; DOC-4 still open)
 ```
-In V1 the merge is agent-reported, and the UI says so. A GitHub integration would observe it instead (ROADMAP.md).
+The merge is agent-reported, and the UI says so. The optional GitHub connection (decision 49) shows synced merges on the ticket and on Overview, and deliberately doesn't change this rule.
 
 ---
 

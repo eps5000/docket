@@ -1,6 +1,6 @@
 import type { OverviewResponse } from '@docket/shared';
 import { Card, CardHeader } from '../../components/kit';
-import { plural } from '../../lib/format';
+import { formatAgo, plural } from '../../lib/format';
 import { axisTicks } from './CompletedChart';
 import { useChartTip } from './useChartTip';
 
@@ -24,8 +24,14 @@ export function flowSummary(flow: Flow): string {
   return `${plural(flow.finished, 'ticket')} finished, ${plural(flow.merged, 'PR')} merged, parked ${plural(flow.parked, 'time')}.`;
 }
 
-/** Merged is only what Docket has on record, and this line says so. */
+/** Where Merged came from (decision 49), and how much to trust it. */
 export function mergedNote(flow: Flow): string {
+  if (flow.merged_source === 'github' || flow.merged_source === 'github_stale') {
+    const ago = flow.merged_synced_at ? formatAgo(flow.merged_synced_at) : 'a while ago';
+    return flow.merged_source === 'github'
+      ? `Merged counts PRs from GitHub, last synced ${ago}.`
+      : `Merged counts PRs from GitHub, but the last sync was ${ago}, so recent merges may be missing.`;
+  }
   const base = 'Merged counts only PRs an agent recorded in Docket.';
   if (flow.finished_without_merge === 0) return base;
   return `${base} ${flow.finished_without_merge} of ${plural(flow.finished, 'finished ticket')} ${flow.finished_without_merge === 1 ? 'has' : 'have'} none recorded, so the real number may be higher.`;

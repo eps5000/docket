@@ -196,10 +196,13 @@ export interface WriteContext {
   restore(table: string, row: Row): void;
   /** Append an event in this transaction; returns its seq. */
   event(input: EventInput): number;
+  /** An advisory line for the caller's result (`! …`). It never stops the write. */
+  warn(text: string): void;
 }
 
 class Context implements WriteContext {
   readonly seqs: number[] = [];
+  readonly advisories: string[] = [];
 
   constructor(
     readonly db: Db,
@@ -208,6 +211,10 @@ class Context implements WriteContext {
     readonly mutationId: string,
     readonly idempotencyKey: string | null,
   ) {}
+
+  warn(text: string): void {
+    if (!this.advisories.includes(text)) this.advisories.push(text);
+  }
 
   get(table: string, id: string): Row | undefined {
     const meta = tableMeta(table);
@@ -499,7 +506,7 @@ export class WritePath {
           }
           // Item IDs in the text that don't exist: accepted, with a warning (§3.4). After
           // the change, so an item this call created counts as existing.
-          const warnings = referenceWarnings(this.db, opts.args);
+          const warnings = [...ctx.advisories, ...referenceWarnings(this.db, opts.args)];
           const response = {
             result,
             mutation_id: ctx.mutationId,

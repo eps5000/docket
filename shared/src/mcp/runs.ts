@@ -157,6 +157,8 @@ export const claimLeadOutput = mutationOutput({
   run_id: z.string(),
   item: itemSummarySchema,
   lease_expires_at: z.string(),
+  /** Decision 49: the branch to use, when none was given; its last segment names the worktree. */
+  branch_hint: z.string().optional(),
 });
 
 // ---- release_lead ----

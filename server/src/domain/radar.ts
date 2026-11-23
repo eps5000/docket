@@ -96,7 +96,8 @@ import type { ReadContext } from './contracts.js';
 import { git, GitUnknown, known } from './git-read.js';
 import { newId } from './ids.js';
 import { explain } from './problems.js';
-import { callerName, ms } from './model.js';
+import { callerName, ms, requireItem } from './model.js';
+import { branchWarning } from './project-git.js';
 import { isInside, rootSegments } from './push-root.js';
 import type { InverseOp, WriteContext } from './write.js';
 
@@ -476,6 +477,14 @@ export function addReportedBranch(
   if (list.some((b) => b.name === name)) return;
   const next = [...list, { name, by: callerName(w.db, w.actor), at: w.now }];
   void writeBranches(w, itemId, next.slice(-LIMITS.item_branches_max));
+  warnBranchName(w, itemId, name);
+}
+
+/** Decision 49: advisory, and only to the agent that reported it. It never stops the write. */
+export function warnBranchName(w: WriteContext, itemId: string, branch: string): void {
+  if (w.actor.kind !== 'agent') return;
+  const warning = branchWarning(w.db, requireItem(w.db, itemId), branch);
+  if (warning) w.warn(warning);
 }
 
 /**

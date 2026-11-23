@@ -648,6 +648,15 @@ Agents working in parallel worktrees declare the shared parts each item will cha
 - **FR-233**: When the trends diverge, Overview MUST say so in one plain sentence, and MUST NOT change the Needs you badge.
 - **FR-234**: A read-only daily brief, linked from Overview, MUST show what finished, what's stuck, what needs the owner and what changed in decisions, for a chosen day in the configured timezone, per project or All, with every line linking to its ticket, or to the Decisions page for a decision wider than one ticket.
 - **FR-235**: The brief MUST show a cost section only when measured data exists, and MUST NOT show a placeholder or an estimate.
+- **FR-250**: Docket MUST start and work fully with no GitHub access. The GitHub connection MUST be off by default and enabled in service-wide Settings.
+- **FR-251**: Docket MUST NOT store or ask for a GitHub token. A host process MUST read through the existing `gh` login and MUST NOT write to GitHub.
+- **FR-252**: The host collector MUST run sources under one contract, post idempotent records to a local, owner-guarded, validated and size-capped route that uses the write path, and save a source's state only after a successful post.
+- **FR-253**: `claim_lead` MUST suggest a branch and worktree name holding the ticket key. Each project MUST be able to set the naming rule to Off or Warn (default) and set exempt patterns. The rule MUST NOT block anything.
+- **FR-254**: A PR MUST be primary on a ticket only when its head branch names exactly that one ticket by exact key or imported Jira key. Keys in a title or body MUST be related only.
+- **FR-255**: Mergify's temporary merge-queue PRs MUST NOT be stored or counted.
+- **FR-256**: The ticket MUST show its GitHub links, with Related apart and how fresh the data is. Stale data MUST be labeled and never treated as current.
+- **FR-257**: Overview's Merged count MUST use synced merges when connected and recorded ones otherwise, MUST say which, and MUST NOT count a PR twice.
+- **FR-258**: Settings MUST show the connection's control, its status (helper not running, `gh` not signed in, connected, repositories, last sync, last error) and plain steps to connect.
 - **FR-195**: The Needs you badge MUST equal what the owner can act on on the page, from the same source, with no badge at 0.
 - **FR-184**: Automatic outcomes MUST be recorded as Docket (`decided_by: docket`), never as the owner, on both tickets with their reason and evidence. The owner MUST be able to overrule them from the ticket with undo, and Needs you MUST show at most one quiet line, "Docket handled N overlaps today", linking to them. Single-writer leases, the required merge checks, owner-recorded decisions and overlaps the owner already decided MUST be unchanged in every mode.
 
