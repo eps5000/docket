@@ -330,6 +330,10 @@ export const queryKeys = {
   agents: (query: RouteQueryInput<'agents.list'> = {}) => [ROOT, 'agents', query] as const,
   workspaces: (query: RouteQueryInput<'workspaces.list'> = {}) =>
     [ROOT, 'workspaces', query] as const,
+  /** Decision 48. Under `workspaces`, so a run or commit event refreshes its verdicts. */
+  workspaceCleanup: (project: string) => [ROOT, 'workspaces', 'cleanup', project] as const,
+  /** Decision 48. Under `work`, so any change to an item or link refreshes the chain. */
+  criticalPath: (id: string) => [ROOT, 'work', 'critical-path', id] as const,
   search: (q: string) => [ROOT, 'search', q] as const,
   label: (project: string, name: string) => [ROOT, 'labels', project, name] as const,
   decisions: (query: RouteQueryInput<'decisions.list'>) => [ROOT, 'decisions', query] as const,

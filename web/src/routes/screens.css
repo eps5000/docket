@@ -1471,6 +1471,67 @@
   text-decoration: underline;
 }
 
+/* ---------- Decision 48: every worktree, with a verdict ---------- */
+.tl .wc {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 14px 12px;
+}
+.tl .wc-head,
+.tl .wc-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+.tl .wc-filters input {
+  width: 220px;
+  max-width: 100%;
+}
+.tl .wc-table th,
+.tl .wc-table td {
+  vertical-align: top;
+  white-space: normal;
+}
+.tl .wc-verdict {
+  min-width: 150px;
+  max-width: 210px;
+}
+.tl .wc-facts {
+  min-width: 170px;
+}
+.tl .wc-facts span {
+  display: block;
+}
+.tl .wc-verdict .src,
+.tl .wc-branch .src {
+  display: block;
+  margin-top: 2px;
+}
+.tl .wc-table .wc-branch {
+  max-width: 200px;
+  overflow-wrap: anywhere;
+}
+.tl .wc-next {
+  min-width: 118px;
+}
+.tl .wc-group th {
+  background: var(--panel-2);
+  text-align: left;
+  white-space: normal;
+}
+.tl .wc-note {
+  display: block;
+  font-weight: 400;
+  letter-spacing: normal;
+  max-width: 90ch;
+  text-transform: none;
+}
+.tl .wc-command-row code {
+  overflow-wrap: anywhere;
+}
+
 /* ---------- B20: the Needs you strip's counts are links ---------- */
 .tl .pulse .pulselink {
   display: inline-flex;

@@ -15,6 +15,7 @@ import {
   ToolError,
   type ItemResume,
   type Question,
+  type RepoWorktreeRow,
   type WorkspaceRow,
   type WorkspaceState,
 } from '@docket/shared';
@@ -35,6 +36,7 @@ import {
 } from './model.js';
 import {
   RecoveryReader,
+  awaitsRestart,
   endedAt,
   orphans,
   pathKey,
@@ -44,6 +46,8 @@ import {
   type WorkspaceFacts,
 } from './recovery-model.js';
 import { leadingItems } from './problems.js';
+import { treeKey } from './worktree-check.js';
+import { WorktreeScans, removeCommand, worktreeVerdict } from './worktree-cleanup.js';
 import { atRiskOwner } from './worktree-owner.js';
 
 /** `recovery_report` looks back this far by default (MCP_SPEC §5.9). */
@@ -143,6 +147,7 @@ const byPriority = (items: Map<string, ItemRow>) => (a: RunRow, b: RunRow) => {
 export function createRecoveryService(deps: ServiceDeps): RecoveryService {
   const windows = () => windowsOf(deps.config);
   const reader = (r: ReadContext) => new RecoveryReader(r.db, windows(), r.now);
+  const worktreeScans = new WorktreeScans(deps.config, () => deps.clock().toISOString(), deps.log);
 
   /** The brief's text, byte for byte as stored; null if its file is gone. */
   function briefText(r: ReadContext, versionId: string): string | null {
@@ -404,6 +409,92 @@ export function createRecoveryService(deps: ServiceDeps): RecoveryService {
       });
       return { rows };
     },
+
+    worktreeCleanup(r, input) {
+      const project = r.db.sqlite
+        .prepare(
+          'SELECT key, repo_path, main_branch FROM projects WHERE key = ? AND deleted_at IS NULL',
+        )
+        .get(input.project) as
+        { key: string; repo_path: string | null; main_branch: string } | undefined;
+      if (!project) throw new ToolError('not_found', `No project ${input.project}.`);
+      const base = { project: project.key, main_branch: project.main_branch };
+      if (!project.repo_path) {
+        return { ...base, repo: 'not_set', checked_at: null, scanning: null, rows: [] };
+      }
+      const { scan, running } = worktreeScans.read(
+        project.key,
+        { path: project.repo_path, main: project.main_branch },
+        input.refresh === '1',
+      );
+      if (!scan || scan.status !== 'ok') {
+        return {
+          ...base,
+          repo: scan ? 'unreadable' : 'ok',
+          checked_at: scan?.checked_at ?? null,
+          scanning: running,
+          rows: [],
+        };
+      }
+
+      const rr = reader(r);
+      const items = liveItems(r);
+      // Agents and git can spell one folder differently.
+      const groupKeys = new Map<string, string>();
+      for (const key of rr.allGroups().keys()) {
+        if (!key.startsWith('run:')) groupKeys.set(treeKey(key), key);
+      }
+      const judged = scan.trees.map((tree) => {
+        const key = groupKeys.get(treeKey(tree.path));
+        const facts = key ? rr.factsOf(key) : null;
+        const { verdict, why } = worktreeVerdict({
+          tree,
+          facts,
+          awaitsRestart: !!facts && awaitsRestart(r.db, facts.runs),
+          checkedAt: scan.checked_at,
+          now: r.now,
+        });
+        return { tree, facts, verdict, why };
+      });
+
+      // B56: the owner of each worktree Docket has at risk, from the one Problems routing.
+      const risky = judged.filter((j) => j.facts?.state === 'at_risk');
+      const view =
+        risky.length > 0 ? deps.services().views.needsYou(r, { scope: project.key }) : null;
+      const leading = leadingItems(
+        r.db,
+        [...new Set(risky.map((j) => j.facts!.latest.item_id))],
+        r.now,
+      );
+
+      const rows: RepoWorktreeRow[] = judged.map(({ tree, facts, verdict, why }) => {
+        const item = facts ? items.get(facts.latest.item_id) : undefined;
+        const seen = facts ? lastActivity(facts) : null;
+        const git = tree.last_git_at;
+        return {
+          path: tree.path,
+          branch: tree.branch,
+          last_activity_at: !seen ? git : !git ? seen : seen > git ? seen : git,
+          tracked: facts !== null,
+          item_id: item?.id ?? null,
+          item_title: item?.title ?? null,
+          uncommitted_files: tree.uncommitted_files,
+          unpushed_commits: tree.unpushed_commits,
+          merged: tree.merged,
+          verdict,
+          why,
+          owner:
+            view && facts?.state === 'at_risk'
+              ? atRiskOwner(facts, view, leading, (id) => items.get(id)?.status)
+              : null,
+          command: verdict === 'safe_to_remove' ? removeCommand(scan.main_path, tree.path) : null,
+        };
+      });
+      return { ...base, repo: 'ok', checked_at: scan.checked_at, scanning: running, rows };
+    },
+
+    worktreeScanSettled: (project) => worktreeScans.settled(project),
+    stopWorktreeScans: () => worktreeScans.stop(),
 
     ownerReleaseResource(w, input) {
       const row = w.get('run_resources', input.id) as unknown as ResourceRow | undefined;

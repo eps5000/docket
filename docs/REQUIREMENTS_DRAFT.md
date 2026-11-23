@@ -283,6 +283,15 @@ BUILD_SPEC §5.29, UI_SPEC §6.1 and §6.1b, spec FR-230–FR-235 and Help (A fi
 
 BUILD_SPEC §5.21, §5.26 and §5.30, MCP_SPEC §5.2, UI_SPEC §6.1 and §6.2, spec FR-236–FR-241, Help and the coordinator skill have the details.
 
+**Critical path and worktree cleanup (B60):**
+
+1. **Critical path.** Choose a ticket or epic as a goal. The Map highlights the longest chain of open hard blockers to it, mutes the rest and names the one ticket to move next, with why: startable, unowned, parked, waiting on the owner, or another plain reason. The same chain is an ordered list, and status is never colour alone. There is no new status or link type.
+2. **Every worktree.** Agents → Workspaces can show every worktree of a project's repository, read with bounded git inside the push folder: no fetch, nothing written. Worktrees Docket has no run for are labeled "Not tracked by Docket".
+3. **A plain verdict.** Each is **Safe to remove**, **Holds work**, **In use**, **Kept for later** or **Unknown**. Unknown is never safe, and a read that times out is Unknown. A worktree outside the push folder says it can't be checked.
+4. **Docket never deletes or prunes a worktree.** A Safe to remove row offers a copyable command, without `--force`, and a note to check it first. No other row offers one.
+
+BUILD_SPEC §5.31 and §5.32, UI_SPEC §6.3.4 and §6.6, spec FR-242–FR-249 and SC-029, and Help have the details.
+
 **Split a ticket and withdraw a question (B61).**
 
 1. **Withdraw a question.** The run that asked, its recorded coordinator or a coordinator registered for the project can retract an unanswered question, with a short plain reason. It leaves Needs you at once and the agent can ask again. The owner still sees it in the ticket's history, marked **Withdrawn**, with the reason. Nobody answers for the owner, and an answered question can't be withdrawn.
@@ -292,7 +301,7 @@ BUILD_SPEC §5.21, §5.26 and §5.30, MCP_SPEC §5.2, UI_SPEC §6.1 and §6.2, s
 5. **Undo** restores both tickets for 60 seconds after the owner's own split, as with other owner changes. An agent's split isn't undoable from the UI.
 6. **When to split:** if a blocker holds only some acceptance criteria, prefer a split. Nothing here adds a gate.
 
-BUILD_SPEC §5.31, MCP_SPEC §5.3 and §5.8, UI_SPEC §6.3, spec FR-242–FR-247, Help and the skills have the details.
+BUILD_SPEC §5.33, MCP_SPEC §5.3 and §5.8, UI_SPEC §6.3, spec FR-250–FR-255, Help and the skills have the details.
 
 ## Deferred choices
 

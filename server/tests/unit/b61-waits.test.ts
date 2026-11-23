@@ -1,6 +1,6 @@
 /**
  * Split and withdraw with B58's wait logic (owner decision 48; BUILD_SPEC
- * §5.26, §5.31): a withdrawn question is not an open owner action, and a split
+ * §5.26, §5.33): a withdrawn question is not an open owner action, and a split
  * keeps `held_by` and the wait flags true. All content is synthetic.
  */
 import { WAIT_FLAGS, type WaitingOn } from '@docket/shared';
@@ -130,6 +130,18 @@ describe('a withdrawn question and the wait', () => {
     expect(card(id).next_owner.step).toBe(`${blocker}: shape it or assign it`);
   });
 
+  it("B60's critical path stops saying the owner holds it", () => {
+    const blocker = ticket('A synthetic blocker', 'planning');
+    const goal = ticket('A synthetic goal', 'planning');
+    blocks(blocker, goal);
+    const question = askUnowned(blocker);
+    const next = () => d.services.subgraph.criticalPath(d.read(), { id: goal }).next!;
+    expect(next()).toMatchObject({ id: blocker, reason: 'waiting_on_owner' });
+
+    withdraw(question);
+    expect(next()).toMatchObject({ id: blocker, reason: 'unowned' });
+  });
+
   it('a parked run stays parked, and resumes as open rather than needing input', () => {
     const id = ticket('A parked synthetic story');
     const run = claim(id);
@@ -167,6 +179,8 @@ describe('a split and the wait', () => {
     expect(flags(id)).toEqual([]);
     check();
     expect(count('run.resume_ready', id)).toBe(1);
+    // B60's critical path follows the links: nothing holds the original any more.
+    expect(d.services.subgraph.criticalPath(d.read(), { id }).state).toBe('clear');
     // The blocker now holds the new ticket.
     expect(
       d.services.items.get(d.read(), { id: item.id, view: 'standard' } as never).item,

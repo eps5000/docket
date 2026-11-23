@@ -534,7 +534,7 @@ The format for each tool below:
 - **Input:** `project`, `type`, `title`, `description_md?`, `outcome_md?`, `acceptance?: string[]`, `priority?: 1|2|3` (default 2, or the original's in a split), `epic?` (an Epic in the same project), `labels?: string[]` (created if missing), `status?: 'inbox'|'planning' = 'inbox'`, `planned_start?`, `planned_end?`, `effort?: number ≥ 0`, `blocked_by?: string[]` (creates `blocks` links; cycle-checked), `split_from?` (decision 48, below).
 - **Output:** `{ item: ItemSummary }`.
 - **Errors:** `validation` (bad epic, wrong project, cycle, limits), `not_found` (project).
-- **Splitting a ticket** (decision 48; BUILD_SPEC §5.31): `split_from: { id, expected_version, move: number[], copy?: number[], relation: 'after_original'|'before_original'|'none', also?: [{ kind: 'blocker'|'part'|'step', id, copy? }], coordinator? }`.
+- **Splitting a ticket** (decision 48; BUILD_SPEC §5.33): `split_from: { id, expected_version, move: number[], copy?: number[], relation: 'after_original'|'before_original'|'none', also?: [{ kind: 'blocker'|'part'|'step', id, copy? }], coordinator? }`.
   - The rest of the call describes the new ticket, in the original's project. It keeps the original's epic, labels and priority unless `priority` is given. `labels`, `blocked_by` and `acceptance` can't be combined with it.
   - `move` and `copy` are 1-based positions in `get_item`'s `acceptance`. Anything not moved stays, and the original must keep at least one.
   - `after_original`: the new ticket depends on the original. `before_original`: the original depends on it.
@@ -1026,6 +1026,8 @@ Every problem says what's wrong, what fixes it and who acts, in the words the ow
 - **Events:** `resolution.proposed` on the item.
 - **Errors:** `validation` (neither `problem` nor `id`, limits, `id` not an item of `problem`, a secret), `not_found` (problem or item).
 - **Not retry-safe** (`idempotentHint: false`): pass `idempotency_key` when you might retry.
+
+> **Decision 48 (B60):** the critical path and worktree cleanup views are owner UI reads (BUILD_SPEC §5.31, §5.32). They add no MCP tool or field, so the tool list and its token budgets are unchanged.
 
 ## 6. Errors
 

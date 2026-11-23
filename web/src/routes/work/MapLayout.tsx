@@ -1,6 +1,7 @@
+import { useSearchParams } from 'react-router';
 import type { WorkResponse } from '@docket/shared';
 import { Callout, EmptyState } from '../../components/kit';
-import { ProgressMap } from '../../components/ProgressMap';
+import { GoalMap } from '../shared/GoalMap';
 
 /**
  * Map (UI_SPEC §6.2.3): a ProgressMap of the filtered set, with blockers
@@ -8,6 +9,8 @@ import { ProgressMap } from '../../components/ProgressMap';
  * the tip callout.
  */
 export function MapLayout({ data, scoped }: { data: WorkResponse; scoped: boolean }) {
+  // A goal's chain can sit entirely outside the current filters.
+  const [params] = useSearchParams();
   return (
     <div className="card pad" data-layout="map">
       {!scoped && (
@@ -15,14 +18,15 @@ export function MapLayout({ data, scoped }: { data: WorkResponse; scoped: boolea
           Tip: pick an epic or label above. A whole project on one map gets busy.
         </Callout>
       )}
-      {data.items.length === 0 ? (
+      {data.items.length === 0 && !params.get('goal') ? (
         <EmptyState text="No items match." />
       ) : (
-        <ProgressMap
+        <GoalMap
           items={data.items}
           outside={data.outside}
           links={data.links}
           outsideTitle="Outside this view"
+          goals={data.epics}
         />
       )}
     </div>

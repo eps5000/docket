@@ -3,6 +3,7 @@
  * US4 (tasks.md T108): the epic Map tab, label pages, Work → Map and the
  * Dependencies tab's 1-hop view use it.
  */
+export type { CriticalOverlay } from './ProgressMap';
 export { ProgressMap, outsideLabel } from './ProgressMap';
 export type { ProgressMapProps } from './ProgressMap';
 export { MapCard, reviewMark } from './MapCard';

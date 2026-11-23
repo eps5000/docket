@@ -28,6 +28,8 @@ export interface MapCardProps {
   onTrace?: (id: string | null) => void;
   /** Its top on the routed map (routing.ts). */
   top?: number;
+  /** Decision 48: its place on the critical path, or `off` when it isn't on it. */
+  critical?: { step: number; total: number; next: boolean } | 'off' | null;
 }
 
 /** Packet ready (filled) or human review later (outlined); none otherwise (UI_SPEC §5). */
@@ -39,7 +41,16 @@ export function reviewMark(item: MapItem): 'now' | 'later' | null {
   return null;
 }
 
-export function MapCard({ item, outside, current, waiting, traced, onTrace, top }: MapCardProps) {
+export function MapCard({
+  item,
+  outside,
+  current,
+  waiting,
+  traced,
+  onTrace,
+  top,
+  critical,
+}: MapCardProps) {
   const navigate = useNavigate();
   const blockedReady = item.status === 'ready' && item.blocked;
   const after =
@@ -62,6 +73,9 @@ export function MapCard({ item, outside, current, waiting, traced, onTrace, top 
         current && 'cur',
         traced === 'on' && 'hl',
         traced === 'dim' && 'dim',
+        critical === 'off' && 'critoff',
+        critical && critical !== 'off' && 'crit',
+        critical && critical !== 'off' && critical.next && 'critnext',
       ]
         .filter(Boolean)
         .join(' ')}
@@ -120,6 +134,11 @@ export function MapCard({ item, outside, current, waiting, traced, onTrace, top 
           </>
         )}
       </span>{' '}
+      {critical && critical !== 'off' && (
+        <span className="pm-crit">
+          {critical.next ? 'Move next · ' : ''}Step {critical.step} of {critical.total}
+        </span>
+      )}{' '}
       {item.status === 'done' ? (
         <span className="pm-done" aria-hidden="true">
           ✓
