@@ -21,6 +21,7 @@
 import { join } from 'node:path';
 import type { Locator, Page } from '@playwright/test';
 import {
+  askForm,
   connectAgent,
   expect,
   expectAxeClean,
@@ -76,7 +77,7 @@ test.describe('questions', () => {
     await ok(codex, 'ask_owner', {
       id: 'RCP-17',
       run_id,
-      question: 'Keep the selected week in the URL or in local storage?',
+      ...askForm('Keep the selected week in the URL or in local storage?'),
     });
 
     await page.goto('/');
@@ -85,17 +86,18 @@ test.describe('questions', () => {
       'codex · e2e-w1 asks: “Keep the selected week in the URL or in local storage?”',
     );
     await row.getByRole('button', { name: 'Answer codex · e2e-w1 on RCP-17' }).click();
-    const answer = row.getByLabel('Your answer to codex · e2e-w1');
-    await expect(answer).toBeFocused();
-    await expect(row).toContainText('codex · e2e-w1 reads it on its next query.');
-    await expectAxeClean(page, 'Needs you inline answer', { include: '[data-card="for-you"]' });
+    const dialog = page.getByRole('dialog');
+    await expect(dialog.getByRole('radio', { name: /In the URL/ })).toBeFocused();
+    await expect(dialog).toContainText('codex · e2e-w1 reads it on its next query.');
+    await expectAxeClean(page, 'answer dialog', { include: '.dlg' });
 
-    // Cancel closes it and puts focus back on Answer; Enter is a new line, Ctrl+Enter sends.
-    await row.getByRole('button', { name: 'Cancel' }).click();
+    // Cancel closes it and puts focus back on Answer; Ctrl+Enter sends from the note.
+    await dialog.getByRole('button', { name: 'Cancel' }).click();
     await expect(row.getByRole('button', { name: /^Answer/ })).toBeFocused();
     await row.getByRole('button', { name: /^Answer/ }).click();
-    await answer.fill('In the URL, so a reload keeps it.');
-    await answer.press('Control+Enter');
+    const note = dialog.getByLabel('Add a note (optional)');
+    await note.fill('So a reload keeps it.');
+    await note.press('Control+Enter');
     await expect(
       toast(page, 'Answer posted to RCP-17. codex · e2e-w1 reads it on its next query.'),
     ).toBeVisible();
@@ -104,13 +106,16 @@ test.describe('questions', () => {
     // The ticket says it's waiting for the agent to read it.
     await page.goto('/items/RCP-17');
     await expect(page.locator('.callout.answered')).toHaveText(
-      'You answered: “In the URL, so a reload keeps it.”. Waiting for codex · e2e-w1 to read it.',
+      'You answered: “Chose: In the URL (the recommended option). Note: So a reload keeps it.”. Waiting for codex · e2e-w1 to read it.',
     );
 
     // The agent's next get_item delivers it, once; its run goes back to open.
     const got = await ok(codex, 'get_item', { id: 'RCP-17', run_id });
     expect(got.structured.item).toMatchObject({
-      open_question: { answer: 'In the URL, so a reload keeps it.' },
+      open_question: {
+        answer: 'Chose: In the URL (the recommended option). Note: So a reload keeps it.',
+        choice: { option: 'In the URL', recommended: true, note: 'So a reload keeps it.' },
+      },
     });
     const again = await ok(codex, 'get_item', { id: 'RCP-17', run_id, view: 'summary' });
     expect((again.structured.item as { lead: { run_state: string } }).lead.run_state).not.toBe(

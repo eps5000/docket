@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { waitCheckOnce } from '../../src/jobs/sweeper.js';
-import { tempDir, type TempDir } from '../helpers.js';
+import { askForm, tempDir, type TempDir } from '../helpers.js';
 import { ORIGIN } from '../integration/harness.js';
 import { expectOk, startHarness, type ContractHarness } from './harness.js';
 
@@ -115,7 +115,7 @@ describe('docket-relay on the real server', () => {
     const relay = makeRelay(sent);
     await relay.pollOnce(undefined, 0);
 
-    const asked = expectOk(await h.call('ask_owner', { id: 'RCP-17', question: 'Which unit?' }));
+    const asked = expectOk(await h.call('ask_owner', { id: 'RCP-17', ...askForm('Which unit?') }));
     await step(relay);
     expect(sent).toEqual([]);
 

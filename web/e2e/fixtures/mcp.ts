@@ -25,6 +25,27 @@ export interface McpAgent {
   close(): Promise<void>;
 }
 
+/** A valid `ask_owner` question (decision 47), synthetic, with the given sentence. */
+export const askForm = (question: string) => ({
+  question,
+  context: 'The planner can remember the week you were looking at in two different places.',
+  why_it_matters: 'It decides whether a shared link and a page reload keep your place.',
+  options: [
+    {
+      label: 'In the URL',
+      description: 'The week is part of the page address.',
+      consequences: 'Reloads and shared links keep the week, but the address gets longer.',
+      recommended: true,
+    },
+    {
+      label: 'In this browser',
+      description: 'The browser remembers the week.',
+      consequences: 'The address stays short, but a shared link opens on the current week.',
+    },
+  ],
+  recommendation_reason: 'People expect a link they share to open on what they were seeing.',
+});
+
 /** Connect as an agent named `name` (e.g. `codex`), optionally with a version. */
 export async function connectAgent(name = 'e2e-agent', version = '0.0.0'): Promise<McpAgent> {
   const client = new Client({ name, version });

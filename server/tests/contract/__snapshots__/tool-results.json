@@ -1591,6 +1591,29 @@
                       "string",
                       "null"
                     ]
+                  },
+                  "choice": {
+                    "type": "object",
+                    "properties": {
+                      "option": {
+                        "type": "string"
+                      },
+                      "recommended": {
+                        "type": "boolean"
+                      },
+                      "note": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "option",
+                      "recommended",
+                      "note"
+                    ],
+                    "additionalProperties": false
                   }
                 },
                 "required": [
@@ -2228,6 +2251,29 @@
                           "string",
                           "null"
                         ]
+                      },
+                      "choice": {
+                        "type": "object",
+                        "properties": {
+                          "option": {
+                            "type": "string"
+                          },
+                          "recommended": {
+                            "type": "boolean"
+                          },
+                          "note": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "option",
+                          "recommended",
+                          "note"
+                        ],
+                        "additionalProperties": false
                       }
                     },
                     "required": [
@@ -8424,6 +8470,29 @@
                         "string",
                         "null"
                       ]
+                    },
+                    "choice": {
+                      "type": "object",
+                      "properties": {
+                        "option": {
+                          "type": "string"
+                        },
+                        "recommended": {
+                          "type": "boolean"
+                        },
+                        "note": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "option",
+                        "recommended",
+                        "note"
+                      ],
+                      "additionalProperties": false
                     }
                   },
                   "required": [

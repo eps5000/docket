@@ -61,6 +61,7 @@ import { currentWorkflow } from './agent-files.js';
 import { inScopeOf, labelsOf } from './decisions.js';
 import { BlockIndex, activeLead, coordinatorParkOf, currentSteps, requireItem } from './model.js';
 import { contextResolutions } from './problems.js';
+import { choiceField } from './question-form.js';
 import { storedActivity } from './run-activity.js';
 import { WaitReader } from './wait.js';
 
@@ -150,7 +151,7 @@ function gather(r: ReadContext, deps: ServiceDeps, id: string): Full {
 
   const question = sql
     .prepare(
-      `SELECT id, text, created_at, answer, answered_at FROM questions
+      `SELECT id, text, created_at, answer, answered_at, answer_choice FROM questions
        WHERE item_id = ? AND (answered_at IS NULL OR read_by_agent_at IS NULL)
        ORDER BY created_at DESC LIMIT 1`,
     )
@@ -161,6 +162,7 @@ function gather(r: ReadContext, deps: ServiceDeps, id: string): Full {
         created_at: string;
         answer: string | null;
         answered_at: string | null;
+        answer_choice: string | null;
       }
     | undefined;
   // Counted, never delivered (§5.15): `get_item` marks them read.
@@ -293,6 +295,7 @@ function gather(r: ReadContext, deps: ServiceDeps, id: string): Full {
             asked_at: question.created_at,
             answer: question.answer,
             answered_at: question.answered_at,
+            ...choiceField(question.answer_choice),
           }
         : null,
       version: row.version,

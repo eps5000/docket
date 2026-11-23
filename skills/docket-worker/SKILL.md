@@ -81,15 +81,25 @@ The project has its own rules: who moves work to Ready, when human review is nee
 
 ## 4. When you can't carry on
 
-| Situation                                            | Do this                                                                                                                                                                                              |
-| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| You need a product decision                          | `ask_owner`: one question, the options you see, and your recommendation. Stop the work that depends on it. If you're ending the session, `finish_run` with a summary saying what you're waiting for. |
-| You're waiting for another item to land              | `park_run { reason, waiting_on: { items: [...] } }`                                                                                                                                                  |
-| You're waiting for the coordinator to send more work | `park_run { reason, waiting_on: { orchestrator: true } }`                                                                                                                                            |
-| A single step is blocked                             | `update_step { state: "blocked", note }`, and carry on with other steps                                                                                                                              |
-| You're stopping before the work is done              | Push, `report_commit`, release your resources, then `release_lead { reason }`. The item goes back to Ready with your plan kept.                                                                      |
-| Something broke and you can't continue               | `finish_run { result: "failed", error }`                                                                                                                                                             |
-| A write returns `conflict`                           | Read `current` in the error. Re-apply your change only if it still makes sense.                                                                                                                      |
+| Situation                                            | Do this                                                                                                                                       |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Only the owner can decide (see below)                | `ask_owner`, then stop the work that depends on it. If you're ending the session, `finish_run` with a summary saying what you're waiting for. |
+| You're waiting for another item to land              | `park_run { reason, waiting_on: { items: [...] } }`                                                                                           |
+| You're waiting for the coordinator to send more work | `park_run { reason, waiting_on: { orchestrator: true } }`                                                                                     |
+| A single step is blocked                             | `update_step { state: "blocked", note }`, and carry on with other steps                                                                       |
+| You're stopping before the work is done              | Push, `report_commit`, release your resources, then `release_lead { reason }`. The item goes back to Ready with your plan kept.               |
+| Something broke and you can't continue               | `finish_run { result: "failed", error }`                                                                                                      |
+| A write returns `conflict`                           | Read `current` in the error. Re-apply your change only if it still makes sense.                                                               |
+
+**Ask less, ask better.**
+
+- **First check** decisions, the ticket, the plan and design docs, Workflow notes, the code and what other agents recorded.
+- **Decide it yourself** if it's technical, reversible, inside an approved design or follows a decision. Use `publish_decision` when others must follow it.
+- **Ask only** about product behavior, privacy or security, cost, irreversible or outward-facing actions, conflicting owner decisions, or a real change to an approved design.
+- **Write for someone who hasn't seen the work:** no private decisions, branches or tooling, any needed term in everyday words, concrete things a user would notice. Offer real alternatives and state the recommended option's downside. IDs and paths go in `details`.
+
+> Bad: "Per dec_12, should `getNutrition` keep the v2 DTO or fork for RCP-16?"
+> Good: "Should recipe cards show nutrition per serving or per 100 g?" Per serving is easy to read, but portions differ between recipes.
 
 **Park only when the work itself stops.** Running CI or tests, or reviewing their results, is still work in progress: stay live and `log` a short note ("PR #784 checks running") instead of parking.
 

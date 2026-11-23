@@ -14,6 +14,7 @@ import {
 } from '../enums.js';
 import { itemId, longText, objectId } from '../mcp/common.js';
 import { labelNameSchema } from '../mcp/items.js';
+import { questionFormSchema } from '../mcp/question-form.js';
 import { deferredReviewsOutput } from '../mcp/read.js';
 import {
   decisionRecordSchema,
@@ -103,6 +104,8 @@ export const forYouRowSchema = z.discriminatedUnion('kind', [
     asked_by: z.string(),
     text: z.string(),
     asked_at: z.string(),
+    /** Decision 47: the answer dialog's content. Null on a question asked before it. */
+    form: questionFormSchema.nullable().optional(),
   }),
 ]);
 export type ForYouRow = z.infer<typeof forYouRowSchema>;
@@ -463,6 +466,8 @@ export const itemDetailResponse = jsonResponse({
     .nullable(),
   /** "Waiting for <agent> to read it" (BUILD_SPEC §5.7). */
   answer_unread: z.boolean(),
+  /** Decision 47: the open question's answer dialog content; null on an older question. */
+  question_form: questionFormSchema.nullable().optional(),
   notes_unread: z.number().int(),
   label_briefs: z.array(z.object({ name: z.string(), brief_md: z.string() })),
   links: z.array(linkEdgeSchema),

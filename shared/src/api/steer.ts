@@ -5,7 +5,7 @@
  */
 import { z } from 'zod';
 import { itemId, objectId, text } from '../mcp/common.js';
-import { TEXT_LIMITS } from '../mcp/limits.js';
+import { QUESTION_FORM, TEXT_LIMITS } from '../mcp/limits.js';
 import { getStepOutput, stepDetails } from '../mcp/checklist.js';
 import {
   checkSchema,
@@ -22,7 +22,17 @@ const removed = ownerMutationOutput({ removed: z.literal(true) });
 
 // ---- Messages ----
 
-export const answerBody = input({ question_id: objectId, text: text(TEXT_LIMITS.question) });
+/**
+ * Either `text` (a free-text answer) or `option` (the label of one of the
+ * question's options, with an optional `note`; decision 47). The service
+ * checks which, because only it knows the question's options.
+ */
+export const answerBody = input({
+  question_id: objectId,
+  text: text(TEXT_LIMITS.question).optional(),
+  option: text(QUESTION_FORM.label).optional(),
+  note: text(QUESTION_FORM.note).optional(),
+});
 export const answerResponse = ownerMutationOutput({ question: questionSchema });
 
 export const noteBody = input({ text: text(TEXT_LIMITS.note) });

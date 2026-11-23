@@ -10,6 +10,7 @@ import { getRun } from '../../src/domain/model.js';
 import type { Actor } from '../../src/domain/write.js';
 import { restartSweep, runActivityOnce, sweepOnce } from '../../src/jobs/sweeper.js';
 import { minutes, startDomain, type Domain } from '../us1-helpers.js';
+import { askForm } from '../helpers.js';
 
 const CO = 'orca-coordinator';
 const OWNER: Actor = { kind: 'owner', client: null, label: null, session_id: null, run_id: null };
@@ -415,7 +416,7 @@ describe('at the deadline', () => {
   it('a run with a question still open goes back to needs_input', () => {
     const id = claim();
     d.write({ ...worker, run_id: id }, (w, s) =>
-      s.messages.askOwner(w, { id: 'RCP-17', run_id: id, question: 'Which one?' }),
+      s.messages.askOwner(w, { id: 'RCP-17', run_id: id, ...askForm('Which one?') }),
     );
     expect(run(id).state).toBe('needs_input');
     parkFor(60);
