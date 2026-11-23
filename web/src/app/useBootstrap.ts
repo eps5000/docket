@@ -42,7 +42,7 @@ export function useNeedsYouCount(): number | undefined {
 }
 
 /**
- * Stories being worked on and waiting in the current project (decision 43): the
+ * Tickets being worked and parked/waiting in the current project (decision 43): the
  * sidebar's Agents badge (`working` only), the Overview card and the Agents page's
  * line, all from the same query. Undefined until it has loaded.
  */

@@ -117,6 +117,7 @@ import {
   parkInfo,
   parseJson,
   storedWorkspace,
+  coordinatorOf,
   unpushedTruth,
   unpushedRisks,
   type RecoveryConfig,
@@ -640,11 +641,6 @@ function waitOf(r: ReadContext, id: string, index: BlockIndex) {
     wait: lead ? reader.card(lead) : null,
     ...(waiting.total > 0 ? { waiting_runs: waiting } : {}),
   };
-}
-
-/** The coordinator named on a run (`orchestrator.name`), if it was dispatched by one. */
-function coordinatorOf(run: RunRow): string | null {
-  return parseJson<{ name?: string }>(run.orchestrator)?.name ?? null;
 }
 
 /**

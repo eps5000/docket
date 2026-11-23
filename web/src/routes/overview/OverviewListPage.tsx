@@ -20,16 +20,17 @@ import './overview.css';
 
 const TITLES: Record<OverviewMetric, string> = {
   completed: 'Completed',
-  agents_working: 'Agents working',
-  agents_waiting: 'Agents waiting',
+  agents_working: 'Tickets being worked',
+  agents_waiting: 'Tickets parked or waiting',
   in_flight: 'In flight',
   no_epic: 'Open tickets with no epic',
 };
 
 const MEANING: Record<OverviewMetric, (w: OverviewWindow) => string> = {
   completed: (w) => `Tickets that entered Done in the last ${WINDOW_WORDS[w]} and are still Done.`,
-  agents_working: () => 'Stories with live, current work. A story counts once, however many runs.',
-  agents_waiting: () => 'Stories whose producer is parked on a dependency that hasn’t cleared.',
+  agents_working: () =>
+    'Tickets with live, current work. A ticket counts once, however many runs or sessions it has.',
+  agents_waiting: () => 'Tickets whose producer is parked on a dependency that hasn’t cleared.',
   in_flight: () => 'Open tickets in In progress or Review.',
   no_epic: () => 'Open tickets that aren’t in an epic.',
 };

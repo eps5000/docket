@@ -23,6 +23,7 @@
  */
 import {
   OPEN_STATUSES,
+  OVERVIEW_BUCKET_TICKETS,
   OVERVIEW_ITEMS_LIMIT,
   type OverviewItemRow,
   type OverviewItemsResponse,
@@ -154,41 +155,58 @@ const dayText = (day: string) => {
   return `${MONTHS[Number(m) - 1] ?? m} ${Number(d)}`;
 };
 
-/** The chart's buckets over `(from, to]`. They always sum to the number of `done` rows. */
+type CompletedBucket = OverviewResponse['completed']['buckets'][number];
+
+/** Counts every ticket, and keeps only the first few: callers add them newest first. */
+function addToBucket(bucket: CompletedBucket, item: ItemRow): void {
+  bucket.count++;
+  if (bucket.tickets.length < OVERVIEW_BUCKET_TICKETS) {
+    bucket.tickets.push({ id: item.id, title: item.title });
+  }
+}
+
+/**
+ * The chart's buckets over `(from, to]`. They always sum to the number of `done`
+ * rows, and each lists its newest tickets, so the response stays bounded however
+ * many tickets closed.
+ */
 export function completedBuckets(
   done: readonly ItemRow[],
   window: OverviewWindow,
   fromMs: number,
   toMs: number,
   tz: string | null,
-): OverviewResponse['completed']['buckets'] {
+): CompletedBucket[] {
+  const newestFirst = [...done].sort(
+    (a, b) => ms(b.closed_at!) - ms(a.closed_at!) || compareIds(a.id, b.id),
+  );
   if (window === '24h') {
     const format = new Intl.DateTimeFormat('en-GB', {
       hour: '2-digit',
       hourCycle: 'h23',
       timeZone: effectiveZone(tz),
     });
-    const buckets = Array.from({ length: 24 }, (_, k) => {
+    const buckets = Array.from({ length: 24 }, (_, k): CompletedBucket => {
       const start = new Date(fromMs + k * HOUR_MS).toISOString();
-      return { key: start, label: hourLabel(start, format), count: 0 };
+      return { key: start, label: hourLabel(start, format), count: 0, tickets: [] };
     });
-    for (const i of done) {
+    for (const i of newestFirst) {
       const k = Math.ceil((ms(i.closed_at!) - fromMs) / HOUR_MS) - 1;
-      buckets[Math.min(23, Math.max(0, k))]!.count++;
+      addToBucket(buckets[Math.min(23, Math.max(0, k))]!, i);
     }
     return buckets;
   }
   // `from` itself is outside the window, so the first day starts just after it.
   const first = localDay(new Date(fromMs + 1).toISOString(), tz);
   const last = localDay(new Date(toMs).toISOString(), tz);
-  const buckets: OverviewResponse['completed']['buckets'] = [];
-  const byDay = new Map<string, (typeof buckets)[number]>();
+  const buckets: CompletedBucket[] = [];
+  const byDay = new Map<string, CompletedBucket>();
   for (let day = first; day <= last; day = nextDay(day)) {
-    const bucket = { key: day, label: dayText(day), count: 0 };
+    const bucket: CompletedBucket = { key: day, label: dayText(day), count: 0, tickets: [] };
     buckets.push(bucket);
     byDay.set(day, bucket);
   }
-  for (const i of done) byDay.get(localDay(i.closed_at!, tz))!.count++;
+  for (const i of newestFirst) addToBucket(byDay.get(localDay(i.closed_at!, tz))!, i);
   return buckets;
 }
 

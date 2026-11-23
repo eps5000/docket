@@ -49,6 +49,17 @@ const workloadCounts = z.object({
   inbox: z.number().int(),
 });
 
+/** A chart bucket lists at most this many tickets, newest first; `count` is always the whole number. */
+export const OVERVIEW_BUCKET_TICKETS = 6;
+
+const completedBucket = z.object({
+  key: z.string(),
+  label: z.string(),
+  count: z.number().int(),
+  /** The newest `OVERVIEW_BUCKET_TICKETS` of the tickets in `count`. */
+  tickets: z.array(z.object({ id: z.string(), title: z.string() })),
+});
+
 export const overviewResponse = jsonResponse({
   window: overviewWindowSchema,
   /** The window is `(from, to]`; the one before it is `(prior_from, from]`. */
@@ -61,7 +72,7 @@ export const overviewResponse = jsonResponse({
     prior: z.number().int(),
     /** 24h is by hour; 7d and 30d by the server's calendar day. The buckets sum to `count`. */
     granularity: z.enum(['hour', 'day']),
-    buckets: z.array(z.object({ key: z.string(), label: z.string(), count: z.number().int() })),
+    buckets: z.array(completedBucket),
   }),
   /** Open tickets in In progress or Review. */
   in_flight: z.object({

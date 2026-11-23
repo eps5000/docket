@@ -22,16 +22,24 @@ export function deltaText(count: number, prior: number, window: OverviewWindow):
 function Stat({
   name,
   label,
+  describedBy,
   extra,
   children,
 }: {
   name: string;
   label: string;
+  describedBy?: string;
   extra?: ReactNode;
   children: ReactNode;
 }) {
   return (
-    <div className="card ov-stat" data-stat={name} role="group" aria-label={label}>
+    <div
+      className="card ov-stat"
+      data-stat={name}
+      role="group"
+      aria-label={label}
+      aria-describedby={describedBy}
+    >
       <div className="ov-k">
         {label}
         {extra}
@@ -42,6 +50,10 @@ function Stat({
 }
 
 const WAITING = '…';
+const AGENTS_NOTE_ID = 'ov-agents-note';
+/** B56: the card counts tickets. Never estimate sessions here; a later batch adds real ones. */
+export const AGENTS_NOTE =
+  'Counts tickets in Docket, not agent sessions. Orca can show more sessions, because coordinators and helpers don’t each hold a ticket.';
 
 /** The four numbers. Each one is a link to the list behind it. */
 export function OverviewStats({
@@ -68,75 +80,87 @@ export function OverviewStats({
       ).filter(([n]) => n > 0)
     : [];
   return (
-    <div className="ov-stats">
-      <Stat name="completed" label="Completed">
-        {metrics ? (
-          <Link className="ov-num" to={paths.overviewList('completed', window)}>
-            <b>{metrics.completed.count}</b> {metrics.completed.count === 1 ? 'ticket' : 'tickets'}
-          </Link>
-        ) : (
-          <span className="ov-num">{WAITING}</span>
-        )}
-        {metrics && (
-          <span className="ov-sub" data-delta>
-            {deltaText(metrics.completed.count, metrics.completed.prior, window)}
-          </span>
-        )}
-      </Stat>
-      <Stat name="agents" label="Agents" extra={<HelpLink anchor="needs-you.agents-strip" />}>
-        {needs ? (
-          <>
-            <Link className="ov-num" to={paths.overviewList('agents_working')}>
-              <b>{agents.working}</b> working
+    <>
+      <div className="ov-stats">
+        <Stat name="completed" label="Completed">
+          {metrics ? (
+            <Link className="ov-num" to={paths.overviewList('completed', window)}>
+              <b>{metrics.completed.count}</b>{' '}
+              {metrics.completed.count === 1 ? 'ticket' : 'tickets'}
             </Link>
-            <Link className="ov-sub" to={paths.overviewList('agents_waiting')}>
-              {agents.waiting} waiting
-            </Link>
-          </>
-        ) : (
-          <span className="ov-num">{WAITING}</span>
-        )}
-      </Stat>
-      <Stat name="in-flight" label="In flight">
-        {metrics ? (
-          <>
-            <Link className="ov-num" to={paths.overviewList('in_flight')}>
-              <b>{metrics.in_flight.count}</b>{' '}
-              {metrics.in_flight.count === 1 ? 'ticket' : 'tickets'}
-            </Link>
-            <Link className="ov-sub" to={paths.work({ quick: 'blocked' })}>
-              {metrics.blocked} blocked
-            </Link>
-          </>
-        ) : (
-          <span className="ov-num">{WAITING}</span>
-        )}
-      </Stat>
-      <Stat name="needs-you" label="Needs you">
-        {!needs ? (
-          <span className="ov-num">{WAITING}</span>
-        ) : count === 0 ? (
-          <span className="ov-num ov-clear">
-            <span aria-hidden="true">✓ </span>Nothing
-          </span>
-        ) : (
-          <>
-            <Link className="ov-num" to="#needs-you">
-              <b>{count}</b> to act on
-            </Link>
-            <span className="ov-sub">
-              {actionLines.map(([n, one, many], i) => (
-                <span key={one}>
-                  {i > 0 && ' · '}
-                  <Link to={one === 'problem' ? '#problems' : '#needs-you'}>
-                    {plural(n, one, many)}
-                  </Link>
-                </span>
-              ))}
+          ) : (
+            <span className="ov-num">{WAITING}</span>
+          )}
+          {metrics && (
+            <span className="ov-sub" data-delta>
+              {deltaText(metrics.completed.count, metrics.completed.prior, window)}
             </span>
-          </>
-        )}
-      </Stat>
-    </div>
+          )}
+        </Stat>
+        <Stat
+          name="agents"
+          label="Tickets with agents"
+          describedBy={AGENTS_NOTE_ID}
+          extra={<HelpLink anchor="needs-you.agents-strip" />}
+        >
+          {needs ? (
+            <>
+              <Link className="ov-num" to={paths.overviewList('agents_working')}>
+                <b>{agents.working}</b> being worked
+              </Link>
+              <Link className="ov-sub" to={paths.overviewList('agents_waiting')}>
+                {agents.waiting} parked/waiting
+              </Link>
+            </>
+          ) : (
+            <span className="ov-num">{WAITING}</span>
+          )}
+        </Stat>
+        <Stat name="in-flight" label="In flight">
+          {metrics ? (
+            <>
+              <Link className="ov-num" to={paths.overviewList('in_flight')}>
+                <b>{metrics.in_flight.count}</b>{' '}
+                {metrics.in_flight.count === 1 ? 'ticket' : 'tickets'}
+              </Link>
+              <Link className="ov-sub" to={paths.work({ quick: 'blocked' })}>
+                {metrics.blocked} blocked
+              </Link>
+            </>
+          ) : (
+            <span className="ov-num">{WAITING}</span>
+          )}
+        </Stat>
+        <Stat name="needs-you" label="Needs you">
+          {!needs ? (
+            <span className="ov-num">{WAITING}</span>
+          ) : count === 0 ? (
+            <span className="ov-num ov-clear">
+              <span aria-hidden="true">✓ </span>Nothing
+            </span>
+          ) : (
+            <>
+              <Link className="ov-num" to="#needs-you">
+                <b>{count}</b> to act on
+              </Link>
+              <span className="ov-sub">
+                {actionLines.map(([n, one, many], i) => (
+                  <span key={one}>
+                    {i > 0 && ' · '}
+                    <Link to={one === 'problem' ? '#problems' : '#needs-you'}>
+                      {plural(n, one, many)}
+                    </Link>
+                  </span>
+                ))}
+              </span>
+            </>
+          )}
+        </Stat>
+      </div>
+      {/* One line under the row, so the four cards stay short and level. */}
+      <p className="src ov-note" id={AGENTS_NOTE_ID} data-agents-note>
+        <b>Tickets with agents:</b> {AGENTS_NOTE}
+      </p>
+    </>
   );
 }
