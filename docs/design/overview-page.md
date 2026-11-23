@@ -62,7 +62,7 @@ Top 3 items                     Top 3 items
 
 Counts of agents must be by **producer-level ownership**, not raw runs, so one story handed between small workers counts once. That is why this page depends on B50.
 
-**Not included yet:** token use, because clients don't report it to Docket. Don't show an estimate as if it were measured.
+**Token use** was left out here because clients don't report it to Docket. B63 (decision 48) reverses that with measured data from the local agent logs, off by default. Dollars are always labelled as an estimate. See BUILD_SPEC §5.34.
 
 ## Build order
 

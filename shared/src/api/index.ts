@@ -23,4 +23,5 @@ export * from './onboarding.js';
 export * from './problems.js';
 export * from './shared-changes.js';
 export * from './sync.js';
+export * from './usage.js';
 export * from './routes.js';

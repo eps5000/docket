@@ -1,5 +1,5 @@
 /**
- * The branch naming rule (owner decision 49; BUILD_SPEC §5.34): a branch is
+ * The branch naming rule (owner decision 49; BUILD_SPEC §5.35): a branch is
  * `<owner>/GF-243-short-description`, with one ticket key, and its worktree
  * folder has the same name. Pure functions, so every case is tested alone.
  *

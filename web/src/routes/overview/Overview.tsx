@@ -39,6 +39,7 @@ import { FlowChart } from './FlowChart';
 import { HealthCard } from './HealthCard';
 import { OverviewStats } from './OverviewStats';
 import { useOverviewWindow, WINDOW_LABELS, WINDOW_WORDS } from './overviewWindow';
+import { UsageCard } from './UsageCard';
 import { WorkloadCard } from './WorkloadCard';
 import '../screens.css';
 import './overview.css';
@@ -153,6 +154,7 @@ export function Overview() {
         )}
       </QueryState>
       {metrics.data && <OverviewCharts metrics={metrics.data} />}
+      <UsageCard scope={scope} window={metrics.data?.window ?? window} />
       {/* Radar insights go here (design: "Later: Radar insights"). */}
       {needs.data && (
         <div className="dash-row two">

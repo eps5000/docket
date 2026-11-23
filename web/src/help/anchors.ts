@@ -11,6 +11,9 @@
 export const HELP_ANCHORS = {
   'needs-you.page': 'Overview: next to the h1',
   'overview.brief': 'Daily brief: next to the h1 (decision 48)',
+  'overview.token-use': 'Overview: the Token use card (decision 48)',
+  'item.token-use': 'Ticket or epic → Details → Token use (decision 48)',
+  'settings.token-use': 'Settings → Connections → Measure token use (decision 48)',
   'needs-you.agents-strip': 'Overview: the Agents card',
   'needs-you.for-you': 'Needs you: For you now',
   'problems.stale_run': 'Problems row: stale run',

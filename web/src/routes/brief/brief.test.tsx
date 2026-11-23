@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 /**
  * The daily brief (owner decision 48): each section with and without data, the
- * owner-decision group only when the wait card reports one, no cost section,
+ * owner-decision group only when the wait card reports one, a cost section only
+ * when the token use source is on (B63),
  * and one line per owner action, so the brief and the badge can't disagree.
  */
 import { QueryClientProvider } from '@tanstack/react-query';
@@ -9,7 +10,12 @@ import { cleanup, render, screen, waitFor, within } from '@testing-library/react
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { needsYouCount, type BriefResponse, type NeedsYouResponse } from '@docket/shared';
+import {
+  needsYouCount,
+  type BriefResponse,
+  type NeedsYouResponse,
+  type UsageSummaryResponse,
+} from '@docket/shared';
 import { createAppQueryClient } from '../../app/queryClient';
 import { ShellStateProvider } from '../../app/ShellState';
 import { Brief } from './Brief';
@@ -126,13 +132,19 @@ const asking: NeedsYouResponse = {
 
 let requests: string[] = [];
 
-function show(brief: BriefResponse, needs: NeedsYouResponse, entry = '/brief') {
+function show(
+  brief: BriefResponse,
+  needs: NeedsYouResponse,
+  entry = '/brief',
+  usage: Partial<UsageSummaryResponse> = { enabled: false },
+) {
   requests = [];
   vi.stubGlobal(
     'fetch',
     vi.fn((input: RequestInfo | URL) => {
       const url = String(input);
       requests.push(url);
+      if (url.includes('/api/usage')) return Promise.resolve(json(usage));
       return Promise.resolve(json(url.includes('/api/brief') ? brief : needs));
     }),
   );
@@ -216,11 +228,65 @@ describe('the sections', () => {
     expect(stuck.querySelector('[data-brief-group="held"]')).toBeNull();
   });
 
-  it('never shows a cost section or an estimate', async () => {
+  it('shows no cost section or estimate with the token use source off', async () => {
     show(full(), asking);
     await section('decisions');
+    await waitFor(() => expect(requests.some((r) => r.includes('/api/usage'))).toBe(true));
     const page = document.querySelector('.brief')!.textContent!;
     expect(page).not.toMatch(/cost|estimate|token|\$/i);
+    expect(document.querySelector('[data-brief-section="cost"]')).toBeNull();
+  });
+
+  it('shows what the day cost, labelled as an estimate, with the source on', async () => {
+    const tokens = { fresh_input: 1200, cached_input: 340_000, cache_write: 5000, output: 800 };
+    const cost = { usd: 2.5, unpriced_tokens: 0, unpriced_models: [] };
+    const bucket = { tokens, cost, turns: 4, sessions: 1 };
+    show(full(), asking, '/brief', {
+      enabled: true,
+      prices_as_of: '2026-11-23',
+      total: bucket,
+      linked: bucket,
+      overhead: {
+        ...bucket,
+        tokens: { ...tokens, fresh_input: 0, cached_input: 0, cache_write: 0, output: 0 },
+      },
+      unlinked: {
+        ...bucket,
+        tokens: { ...tokens, fresh_input: 0, cached_input: 0, cache_write: 0, output: 0 },
+      },
+      linked_pct: 100,
+      top_tickets: {
+        count: 1,
+        rows: [{ id: 'RCP-1', title: 'A ticket', project: 'RCP', status: 'done', tokens, cost }],
+      },
+    });
+    const card = await section('cost');
+    expect(card.textContent).toContain('$2.50 API-equivalent estimate.');
+    expect(card.textContent).toContain('A subscription plan may cost less.');
+    expect(card.textContent).toContain('100% linked to tickets');
+    expect(within(card).getByRole('link', { name: /RCP-1/ }).getAttribute('href')).toBe(
+      '/items/RCP-1',
+    );
+    await waitFor(() =>
+      expect(requests.some((r) => r.includes('/api/usage') && r.includes('day=2026-11-23'))).toBe(
+        true,
+      ),
+    );
+  });
+
+  it('says so when the source is on and the day has no token use', async () => {
+    const none = { fresh_input: 0, cached_input: 0, cache_write: 0, output: 0 };
+    show(empty(), quiet, '/brief', {
+      enabled: true,
+      prices_as_of: '2026-11-23',
+      total: {
+        tokens: none,
+        cost: { usd: null, unpriced_tokens: 0, unpriced_models: [] },
+        turns: 0,
+        sessions: 0,
+      },
+    });
+    expect((await section('cost')).textContent).toContain('No token use recorded on Nov 23.');
   });
 
   it('says a past day still shows what is stuck now', async () => {

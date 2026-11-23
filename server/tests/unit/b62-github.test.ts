@@ -1,5 +1,5 @@
 /**
- * The optional GitHub connection (owner decision 49; BUILD_SPEC §5.34): exact
+ * The optional GitHub connection (owner decision 49; BUILD_SPEC §5.35): exact
  * key matching, PRs that mention several tickets, the naming rule, idempotent
  * ingest, every status, and Docket working with no connection at all. Nothing
  * here reaches GitHub: records are posted the way the collector posts them.

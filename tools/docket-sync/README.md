@@ -1,6 +1,6 @@
 # docket-sync
 
-A small Node process on the host that collects data for Docket (owner decision 49, B62, BUILD_SPEC §5.34). Docket runs in a container and can't use the host's tools, so this bridges the two. It needs Node 22 and has no dependencies.
+A small Node process on the host that collects data for Docket (owner decision 49, B62, BUILD_SPEC §5.35). Docket runs in a container and can't use the host's tools, so this bridges the two. It needs Node 22 and has no dependencies.
 
 It is separate from `tools/docket-relay`. Docket starts and works fully without it.
 
@@ -41,8 +41,13 @@ To fail a run, throw an error with a short `code` such as `network`. The code go
 **To add a source:**
 
 1. Add `sources/<name>.mjs`.
-2. Add a handler to `HANDLERS` in `server/src/domain/sync.ts`: its `settings`, how to check a record (`clean`) and how to store it (`ingest`). Until then Docket answers 404 and the runner skips the source.
+2. Give it a server side. Either add a handler to `HANDLERS` in `server/src/domain/sync.ts` (its `settings`, how to check a record with `clean`, how to store it with `ingest`), or register its own `GET` and `POST /api/sync/<name>` before the general route, in the same `{ settings, status }` and `{ records, run }` shapes, as `usage` does. Until then Docket answers 404 and the runner skips the source.
 3. Add the file to `$script:SourceFiles` in `manage.ps1`.
+
+## The sources
+
+- **`github`** (below): pull requests through `gh`.
+- **`usage`** (B63, BUILD_SPEC §5.34): token use from the local Codex and Claude Code logs. Off by default, and with it off no log file is opened.
 
 ## The GitHub source
 

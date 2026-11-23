@@ -325,6 +325,11 @@ export const queryKeys = {
     [ROOT, 'needsYou', 'overview-items', query] as const,
   /** Decision 48: in the needsYou family too, so it refreshes with Overview. */
   brief: (query: RouteQueryInput<'brief.get'> = {}) => [ROOT, 'needsYou', 'brief', query] as const,
+  /** Decision 48 (B63): token use for a window or a day, refreshed with Overview. */
+  usage: (query: RouteQueryInput<'usage.get'> = {}) => [ROOT, 'needsYou', 'usage', query] as const,
+  /** Under the item, so it refreshes with the ticket. */
+  usageItem: (id: string) => [ROOT, 'item', id, 'usage'] as const,
+  usageSettings: () => [ROOT, 'settings', 'usage'] as const,
   work: (query: RouteQueryInput<'work.get'> = {}) => [ROOT, 'work', query] as const,
   burndown: (query: RouteQueryInput<'burndown.get'> = {}) => [ROOT, 'burndown', query] as const,
   item: (id: string) => [ROOT, 'item', id] as const,

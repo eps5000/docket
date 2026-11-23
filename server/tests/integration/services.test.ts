@@ -89,6 +89,7 @@ describe('the service stubs', () => {
         'subgraph',
         'sync',
         'undo',
+        'usage',
         'views',
       ].sort(),
     );
@@ -236,6 +237,8 @@ describe('the service stubs', () => {
       'restoreRecord',
       'keepLocal',
     ],
+    // Decision 48 (B63): token use.
+    usage: ['summary', 'item', 'settings', 'setSettings', 'syncConfig', 'ingest'],
     // US15 (B30, T164): onboarding.
     onboarding: ['start', 'finish', 'guide', 'list', 'markReviewed'],
     // Decision 36 (B38, T182; B39, T183–T184; B40, B41: the owner's branches): all of it.

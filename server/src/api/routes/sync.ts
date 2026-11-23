@@ -1,6 +1,6 @@
 /**
  * The host collector and the GitHub connection (owner decision 49;
- * BUILD_SPEC §5.34). These routes sit behind `/api`'s owner guards, and the
+ * BUILD_SPEC §5.35). These routes sit behind `/api`'s owner guards, and the
  * ingest body is size-capped in app.ts. Docket calls nothing outside itself.
  */
 import type { Env, Hono } from 'hono';

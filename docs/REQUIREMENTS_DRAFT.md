@@ -199,7 +199,7 @@ Needs you did two jobs: it listed what requires the owner, and it was the only p
 3. **Every number links** to the filtered view behind it. Long lists show a count and the top few, with *View all*.
 4. **Agents are counted by story, at producer level, never as raw runs,** so one story handed between small workers counts once. The sidebar's Agents badge is the same number as the Overview card's *working*, for the same project; waiting stories aren't in it. The Agents page still lists individual runs and says so. Problems agents own stay collapsed to one line.
 5. **The time window** is 24 hours, 7 days or 30 days, 7 days by default, remembered per browser, and compared with the preceding window of the same length.
-6. **No token use and no estimated metric,** because clients don't report tokens to Docket.
+6. **No token use and no estimated metric,** because clients don't report tokens to Docket. *(Reversed for measured data by decision 48, B63: token use appears when the owner turns it on, with dollars labelled as an estimate.)*
 7. **Insights have a place but aren't built.** Radar insights come later as proposals, and the page shows no empty placeholder for them.
 
 BUILD_SPEC §5.24, UI_SPEC §6.1 and spec FR-201–FR-205 have the details.
@@ -268,7 +268,7 @@ The owner approved the bug fixes and additions in `docs/design/coordination-tool
 1. **Flow trends on Overview.** Tickets finished, PRs merged and times parked, per day or hour, for the selected window and project. Each metric is defined once on the server. Finished is the Completed definition. Merged counts only PRs an agent recorded as merged, says so, and says when finished tickets have none recorded. It is never estimated. Parked counts `run.parked` events and excludes epics.
 2. **A quiet note when the trends diverge,** such as "Parking is up while finished tickets are down". It never touches the Needs you badge.
 3. **A daily brief,** linked from Overview: what finished, what's stuck, what needs the owner and what changed in decisions, for a chosen day in the configured timezone, per project or All. Stuck means parked longest, blockers nobody owns, and runs held by an owner decision, listed separately and calmly. Every line links to its ticket, or to the Decisions page for a decision wider than one ticket. It is read-only, with no notifications or scheduled sends.
-4. **What it cost appears only when measured data exists.** Until a later batch adds it, the section is left out, with no placeholder or estimate.
+4. **What it cost appears only when measured data exists.** B63 adds it. With the token use source off, the section is left out, with no placeholder or estimate.
 
 BUILD_SPEC §5.29, UI_SPEC §6.1 and §6.1b, spec FR-230–FR-235 and Help (A first look around) have the details.
 
@@ -303,6 +303,18 @@ BUILD_SPEC §5.31 and §5.32, UI_SPEC §6.3.4 and §6.6, spec FR-242–FR-249 an
 
 BUILD_SPEC §5.33, MCP_SPEC §5.3 and §5.8, UI_SPEC §6.3, spec FR-250–FR-255, Help and the skills have the details.
 
+**Real token use per ticket and epic (B63).** This reverses the Overview design's "don't show token use" now that real data exists.
+
+1. **Measured from the agents' local session logs.** Orca reports token use only for automation runs, so an optional `usage` source in the `docket-sync` helper reads the Codex and Claude Code logs on this computer.
+2. **Off by default, as a clear switch in Settings → Connections,** titled "Measure token use from local agent logs", with a note visible before it's turned on. The note says the logs include the owner's conversations with those agents, that Docket doesn't use that content, and that only token counts, model, session ID, time and working folder are kept. Beside the switch is its status: off, helper not running, or the last read time.
+3. **With it off, the helper doesn't open the log files at all.** Turning it off stops reading on the next cycle and does nothing else. Counts already collected stay, hidden, until it's turned back on or their project is deleted.
+4. **Nothing else leaves the logs.** No message text reaches a record, the helper's state or its log. A session whose working folder isn't a known workspace of a Docket project is never sent.
+5. **Counted correctly.** Codex by per-turn usage, never cumulative totals. Claude Code by `message.id`, once, including subagent logs. New input, cache reads, cache writes and output stay separate, and no single total hides that most tokens are cheap cache reads.
+6. **Attribution never guesses.** A turn belongs to a ticket when it ran in that run's recorded workspace during the run and exactly one ticket matches. Sessions in a coordinator folder the owner registers are project overhead. Everything else is *Not linked to a ticket*, per project, and the page reports what percentage is linked.
+7. **Honest labels.** Tokens are measured. Dollars are an **API-equivalent estimate** from a dated price table in the repo that cites its source for each model. A model with no sourced price shows its tokens and "Cost not available". The UI says a subscription plan may cost less.
+
+BUILD_SPEC §5.34, UI_SPEC §6.1c and §6.7, spec FR-259–FR-268 and Help (Token use) have the details.
+
 ## Owner decision 49 (2026-11-23): an optional GitHub connection
 
 This changes the earlier "no GitHub dependency" rule. GitHub is now an **optional** connection, off by default and turned on in service-wide Settings. Docket must start and work fully without it.
@@ -314,7 +326,7 @@ This changes the earlier "no GitHub dependency" rule. GitHub is now an **optiona
 5. **In Docket.** The ticket shows a compact GitHub panel with branch, PR, state, CI and merge, each linking out, Related kept apart, and how fresh the data is. Overview's Merged count uses synced merges when connected and recorded ones otherwise, says which, and never counts a PR twice. Settings → Connections → GitHub shows the switch, the status and plain steps. Stale data is labeled and never treated as current.
 6. **Unchanged:** the `merged` blocker rule still reads what agents report. Nothing here adds a gate.
 
-BUILD_SPEC §5.34, MCP_SPEC §5.4, UI_SPEC §6.1, §6.3 and §6.7, spec FR-256–FR-264, Help (GitHub connection) and `tools/docket-sync/README.md` have the details.
+BUILD_SPEC §5.35, MCP_SPEC §5.4, UI_SPEC §6.1, §6.3 and §6.7, spec FR-269–FR-277, Help (GitHub connection) and `tools/docket-sync/README.md` have the details.
 
 ## Deferred choices
 

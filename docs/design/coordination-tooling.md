@@ -85,7 +85,7 @@ Docket's helper starts the top Startable ticket. This has the largest payoff and
 1. **Flow trends on Overview:** finished, merged and parked per day.
 2. **Split ticket:** move acceptance criteria, blockers and shared parts to a new ticket in one step.
 3. **Critical path view:** the chain holding up a goal, and the one ticket to move next.
-4. **Real cost per ticket and epic:** measured token use only, never an estimate shown as measured. First confirm what Orca reports for ordinary workers.
+4. **Real cost per ticket and epic:** measured token use only, never an estimate shown as measured. Orca reports it only for automation runs, so B63 reads the agents' local logs, off by default (BUILD_SPEC §5.34).
 5. **Daily brief:** what finished, what's stuck, what needs the owner and what it cost.
 6. **Worktree cleanup view:** which worktrees are safe to remove. Docket never deletes one itself.
 7. **Withdraw question:** an agent can retract its own outdated question.

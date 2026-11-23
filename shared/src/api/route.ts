@@ -17,7 +17,8 @@ export type ApiMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
  * (decision 29, BUILD_SPEC §5.17); `install` is `GET /install/:token`, the
  * session-less bundle download. `onboarding` is the onboarding review
  * (decision 31, BUILD_SPEC §5.20). `shared` is shared changes and the
- * conflict radar (decision 36, BUILD_SPEC §5.21).
+ * conflict radar (decision 36, BUILD_SPEC §5.21). `usage` is token use
+ * (decision 48, BUILD_SPEC §5.34).
  */
 export const API_GROUPS = [
   'session',
@@ -36,6 +37,7 @@ export const API_GROUPS = [
   'install',
   'onboarding',
   'shared',
+  'usage',
   'undo',
   'upload',
 ] as const;

@@ -41,6 +41,7 @@ import { steerRoutes } from './routes/steer.js';
 import { syncRoutes } from './routes/sync.js';
 import { timelineRoutes } from './routes/timeline.js';
 import { undoRoutes } from './routes/undo.js';
+import { usageRoutes, usageSyncRoutes } from './routes/usage.js';
 import {
   requireCsrf,
   requireSession,
@@ -120,6 +121,8 @@ export function createApiApp(deps: ApiDeps): Hono<ApiEnv> {
       onError: (c) => c.json(errorBody('validation', 'This sync batch is too large.'), 413),
     }),
   );
+  // Before any general `/api/sync/:source` route, so the usage source keeps its own contract.
+  usageSyncRoutes(api, routeDeps);
 
   // One file per group (contracts/ui-api.md); slices fill in the services behind them.
   readRoutes(api, routeDeps);
@@ -137,6 +140,7 @@ export function createApiApp(deps: ApiDeps): Hono<ApiEnv> {
   onboardingRoutes(api, routeDeps);
   sharedRoutes(api, routeDeps);
   syncRoutes(api, routeDeps);
+  usageRoutes(api, routeDeps);
 
   return api;
 }

@@ -114,6 +114,7 @@ import {
   type Problem,
 } from '@docket/shared';
 import type { Config, SecretStore } from '../config.js';
+import type { UsageService } from './usage.js';
 import type { Db } from '../db/client.js';
 import type { CallLog } from '../jobs/logs.js';
 import type { Actor, WriteContext } from './write.js';
@@ -1049,6 +1050,8 @@ export interface Services {
   problems: ProblemsService;
   /** Decision 49: the host collector's ingest and the GitHub connection (sync.ts). */
   sync: SyncService;
+  /** Decision 48 (B63): token use from the local agent logs (usage.ts). */
+  usage: UsageService;
   undo: UndoService;
 }
 

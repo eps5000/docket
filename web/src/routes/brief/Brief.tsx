@@ -17,6 +17,8 @@ import { HelpLink } from '../../help/HelpLink';
 import { queryKeys } from '../../lib/api';
 import { formatAge, formatClock, formatStamp, isoTitle, plural } from '../../lib/format';
 import { paths } from '../../lib/paths';
+import { CostLine, TokenKinds } from '../usage/UsageParts';
+import { allTokens, formatTokens } from '../usage/usageText';
 import {
   briefDayText,
   decisionChangeText,
@@ -251,10 +253,65 @@ function Decisions({ data }: { data: BriefResponse }) {
 }
 
 /**
+ * What it cost (B63): measured tokens for the day, the labelled estimate, and
+ * the tickets that used the most. With the source off the section isn't there.
+ */
+function WhatItCost({ scope, day }: { scope: string; day: string }) {
+  const query = { scope, day };
+  const { data } = useQuery({
+    queryKey: queryKeys.usage(query),
+    queryFn: () => apiClient['usage.get']({ query }),
+    refetchInterval: NEEDS_YOU_REFRESH_MS,
+  });
+  if (data?.enabled !== true) return null;
+  const top = data.top_tickets;
+  return (
+    <Section id="cost" title="What it cost">
+      {data.total.turns === 0 ? (
+        <p className="brief-none">No token use recorded on {briefDayText(day)}.</p>
+      ) : (
+        <>
+          <TokenKinds tokens={data.total.tokens} />
+          <ul className="usage-split" data-usage-split>
+            <li>
+              <b>{data.linked_pct ?? 0}%</b> linked to tickets
+            </li>
+            <li>
+              <b>{formatTokens(allTokens(data.overhead.tokens))}</b> project overhead
+            </li>
+            <li>
+              <b>{formatTokens(allTokens(data.unlinked.tokens))}</b> not linked to a ticket
+            </li>
+          </ul>
+          <CostLine cost={data.total.cost} asOf={data.prices_as_of} />
+          {top.count > 0 && (
+            <div data-brief-group="top-cost">
+              <h3>Used the most</h3>
+              <ul className="brief-list">
+                {top.rows.map((r) => (
+                  <Line
+                    key={r.id}
+                    to={paths.item(r.id)}
+                    id={r.id}
+                    title={r.title}
+                    meta={`${formatTokens(r.tokens.fresh_input + r.tokens.cache_write + r.tokens.output)} new tokens, ${formatTokens(r.tokens.cached_input)} cache reads`}
+                  />
+                ))}
+              </ul>
+              <More count={top.count} shown={top.rows.length} />
+            </div>
+          )}
+        </>
+      )}
+    </Section>
+  );
+}
+
+/**
  * The daily brief (`/brief`; owner decision 48; UI_SPEC §6.1b): what finished,
  * what's stuck, what needs you and what changed in decisions, for one day and
- * the current project. Read-only. "What it cost" isn't here until Docket has
- * measured data, and no estimate stands in for it.
+ * the current project. Read-only. "What it cost" appears only when the token
+ * use source is on (B63).
  */
 export function Brief() {
   const { scope } = useShell();
@@ -340,6 +397,7 @@ export function Brief() {
                 </Section>
               )}
               <Decisions data={data} />
+              <WhatItCost scope={scope} day={data.day} />
             </div>
           </div>
         )}

@@ -65,6 +65,8 @@ import {
   UNDECLARED_HOLD_VIA,
   RESOLUTION_KINDS,
   RESOLUTION_STATES,
+  USAGE_CLIENTS,
+  USAGE_LINKS,
 } from '@docket/shared';
 import { sql, type SQL } from 'drizzle-orm';
 import {
@@ -1654,6 +1656,48 @@ export const decision_records = sqliteTable(
       'decision_records_scope_id',
       sql.raw(`("scope_kind" = 'project') = ("scope_id" IS NULL)`),
     ),
+  ],
+);
+
+/**
+ * Token use, one row per model response (owner decision 48; B63; BUILD_SPEC
+ * §5.34). Only numbers, model, session ID, time and working folder: never
+ * message content. `key` makes a repeated report of a turn the same row.
+ * Sits outside the write path and events: it's measured data, like the radar's
+ * bookkeeping. Deleting a project deletes its rows.
+ */
+export const usage_turns = sqliteTable(
+  'usage_turns',
+  {
+    key: text('key').primaryKey(),
+    project_key: text('project_key')
+      .notNull()
+      .references(() => projects.key, { onDelete: 'cascade' }),
+    /** The ticket it matched; null for overhead and unlinked turns. */
+    item_id: text('item_id').references((): AnySQLiteColumn => items.id, { onDelete: 'set null' }),
+    link: text('link', { enum: USAGE_LINKS }).notNull(),
+    client: text('client', { enum: USAGE_CLIENTS }).notNull(),
+    session_id: text('session_id').notNull(),
+    at: text('at').notNull(),
+    /** The known workspace it ran in, in `normalizeWorkspace` form. */
+    workspace: text('workspace').notNull(),
+    model: text('model'),
+    fresh_input: integer('fresh_input').notNull().default(0),
+    cached_input: integer('cached_input').notNull().default(0),
+    /** All cache writes, including `cache_write_1h`. */
+    cache_write: integer('cache_write').notNull().default(0),
+    cache_write_1h: integer('cache_write_1h').notNull().default(0),
+    output: integer('output').notNull().default(0),
+    received_at: text('received_at').notNull(),
+  },
+  (t) => [
+    index('usage_turns_at').on(t.at),
+    index('usage_turns_project_at').on(t.project_key, t.at),
+    index('usage_turns_item').on(t.item_id),
+    index('usage_turns_link_at').on(t.link, t.at),
+    index('usage_turns_workspace').on(t.workspace),
+    check('usage_turns_link', oneOf('link', USAGE_LINKS)),
+    check('usage_turns_client', oneOf('client', USAGE_CLIENTS)),
   ],
 );
 
