@@ -1478,27 +1478,31 @@
 .tl .wc-filters input {
   min-width: 200px;
 }
+.tl .wc-table th,
 .tl .wc-table td {
   vertical-align: top;
-}
-.tl .wc-verdict {
-  min-width: 190px;
-  max-width: 260px;
   white-space: normal;
+}
+/* The verdict stays in view if the table scrolls sideways. */
+.tl .wc-verdict {
+  min-width: 150px;
+  max-width: 210px;
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--panel);
 }
 .tl .wc-verdict .src,
 .tl .wc-branch .src {
   display: block;
   margin-top: 2px;
 }
-.tl .wc-branch {
-  max-width: 240px;
+.tl .wc-table .wc-branch {
+  max-width: 200px;
   overflow-wrap: anywhere;
-  white-space: normal;
 }
 .tl .wc-next {
-  min-width: 140px;
-  white-space: normal;
+  min-width: 118px;
 }
 .tl .wc-group th {
   background: var(--panel-2);
@@ -1508,11 +1512,12 @@
 .tl .wc-note {
   display: block;
   font-weight: 400;
+  letter-spacing: normal;
   max-width: 90ch;
+  text-transform: none;
 }
-.tl .wc-command code {
+.tl .wc-command-row code {
   overflow-wrap: anywhere;
-  white-space: normal;
 }
 
 /* ---------- B20: the Needs you strip's counts are links ---------- */

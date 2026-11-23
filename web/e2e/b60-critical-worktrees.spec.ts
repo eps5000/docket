@@ -223,6 +223,9 @@ for (const size of SIZES) {
     const width = await page.evaluate(() => document.documentElement.scrollWidth);
     expect(width).toBeLessThanOrEqual(size.width);
     if (out) {
+      // The panel and the highlighted map together, with the list folded away.
+      await panel(page).locator('summary').click();
+      await panel(page).evaluate((el) => el.scrollIntoView({ block: 'start' }));
       for (const theme of ['light', 'dark'] as const) {
         await setTheme(page, theme);
         await page.screenshot({ path: join(out, `b60-critical-path-${size.name}-${theme}.png`) });
@@ -233,12 +236,13 @@ for (const size of SIZES) {
   test(`worktrees: axe, no overflow and screenshots at ${size.name}`, async ({ page }) => {
     await page.setViewportSize({ width: size.width, height: size.height });
     await openWorktrees(page);
-    await page.locator('.wc-command summary').first().click();
+    await page.locator('button.wc-command').first().click();
+    await expect(page.locator('.wc-command-row code').first()).toContainText('worktree remove');
     await expectAxeClean(page, `Every worktree at ${size.name}`);
     const width = await page.evaluate(() => document.documentElement.scrollWidth);
     expect(width).toBeLessThanOrEqual(size.width);
     if (out) {
-      await page.locator('[data-worktree-cleanup]').scrollIntoViewIfNeeded();
+      await page.locator('#workspaces').evaluate((el) => el.scrollIntoView({ block: 'start' }));
       for (const theme of ['light', 'dark'] as const) {
         await setTheme(page, theme);
         await page.screenshot({ path: join(out, `b60-worktrees-${size.name}-${theme}.png`) });

@@ -435,6 +435,7 @@
   opacity: 0.15;
 }
 .tl .cp-panel {
+  scroll-margin-top: 72px;
   display: flex;
   flex-direction: column;
   gap: 6px;

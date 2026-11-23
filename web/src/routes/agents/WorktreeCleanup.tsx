@@ -66,60 +66,79 @@ const known = (n: number | null) =>
   n === null ? 'Unknown' : n >= COUNT_CAP ? `${COUNT_CAP}+` : String(n);
 const yesNo = (b: boolean | null) => (b === null ? 'Unknown' : b ? 'Yes' : 'No');
 
-/** A command to check and run. Only a *Safe to remove* row has one. */
-function CommandCell({ row }: { row: RepoWorktreeRow }) {
-  if (row.verdict === 'holds_work' && row.owner) return <>{AT_RISK_NEXT[row.owner]}</>;
-  if (row.verdict !== 'safe_to_remove') return <span className="muted">—</span>;
-  if (!row.command) {
+/** What the row asks of you, when it isn't a command to show. */
+function WhatToDo({ row }: { row: RepoWorktreeRow }) {
+  if (row.verdict === 'holds_work') return <>{AT_RISK_NEXT[row.owner ?? 'unknown']}</>;
+  if (row.verdict === 'safe_to_remove') {
     return <>Its path has unusual characters, so Docket won’t write a command for it.</>;
   }
-  return (
-    <details className="wc-command">
-      <summary>
-        Command<span className="sr"> to remove {row.branch ?? row.path}</span>
-      </summary>
-      <span className="row" style={{ gap: 4 }}>
-        <code>{row.command}</code>
-        <IconButton
-          icon="copy"
-          bare
-          aria-label={`Copy the command to remove ${row.branch ?? row.path}`}
-          onClick={() => copyText(row.command!, 'the command')}
-        />
-      </span>
-    </details>
-  );
+  return <span className="muted">—</span>;
 }
 
 function WorktreeRow({ row }: { row: RepoWorktreeRow }) {
   const v = VERDICT_LABEL[row.verdict];
+  const name = row.branch ?? row.path;
+  const commandId = useId();
+  const [open, setOpen] = useState(false);
+  // Only a *Safe to remove* row ever has a command.
+  const command = row.verdict === 'safe_to_remove' ? row.command : null;
   return (
-    <tr data-worktree={row.path} data-verdict={row.verdict}>
-      <td className="wc-verdict">
-        <Chip kind={v.kind}>{v.label}</Chip>
-        <span className="src">{row.why}</span>
-      </td>
-      <td className="wc-branch" title={row.path}>
-        <span className="mono">{row.branch ?? 'No branch (detached)'}</span>
-        <span className="src mono">{middleTruncate(row.path)}</span>
-      </td>
-      <td>
-        {row.item_id ? (
-          <Link className="mono" to={paths.item(row.item_id)}>
-            {row.item_id}
-          </Link>
-        ) : (
-          <span className="muted">{row.tracked ? '—' : 'Not tracked by Docket'}</span>
-        )}
-      </td>
-      <td className="muted">{row.last_activity_at ? formatAge(row.last_activity_at) : '—'}</td>
-      <td>{known(row.uncommitted_files)}</td>
-      <td>{known(row.unpushed_commits)}</td>
-      <td>{yesNo(row.merged)}</td>
-      <td className="wc-next">
-        <CommandCell row={row} />
-      </td>
-    </tr>
+    <>
+      <tr data-worktree={row.path} data-verdict={row.verdict}>
+        <td className="wc-verdict">
+          <Chip kind={v.kind}>{v.label}</Chip>
+          <span className="src">{row.why}</span>
+        </td>
+        <td className="wc-branch" title={row.path}>
+          <span className="mono">{row.branch ?? 'No branch (detached)'}</span>
+          <span className="src mono">{middleTruncate(row.path)}</span>
+        </td>
+        <td>
+          {row.item_id ? (
+            <Link className="mono" to={paths.item(row.item_id)}>
+              {row.item_id}
+            </Link>
+          ) : (
+            <span className="muted">{row.tracked ? '—' : 'Not tracked by Docket'}</span>
+          )}
+        </td>
+        <td className="muted">{row.last_activity_at ? formatAge(row.last_activity_at) : '—'}</td>
+        <td>{known(row.uncommitted_files)}</td>
+        <td>{known(row.unpushed_commits)}</td>
+        <td>{yesNo(row.merged)}</td>
+        <td className="wc-next">
+          {command ? (
+            <button
+              type="button"
+              className="btn sm wc-command"
+              aria-expanded={open}
+              aria-controls={open ? commandId : undefined}
+              onClick={() => setOpen(!open)}
+            >
+              {open ? 'Hide command' : 'Show command'}
+              <span className="sr"> to remove {name}</span>
+            </button>
+          ) : (
+            <WhatToDo row={row} />
+          )}
+        </td>
+      </tr>
+      {command && open && (
+        <tr className="wc-command-row" id={commandId}>
+          <td colSpan={8}>
+            <span className="row" style={{ gap: 4 }}>
+              <code>{command}</code>
+              <IconButton
+                icon="copy"
+                bare
+                aria-label={`Copy the command to remove ${name}`}
+                onClick={() => copyText(command, 'the command')}
+              />
+            </span>
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 

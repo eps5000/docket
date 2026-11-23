@@ -691,7 +691,7 @@ Rows link to the item. **Subagent log entries aren't listed here;** they show on
   - **Columns:** Verdict (labelled chip and why), Branch and folder, Ticket or "Not tracked by Docket", Last activity, Uncommitted files, Commits not on a remote, Merged to main, What to do. A value git couldn't read says "Unknown", never 0.
   - **Groups,** in order: Holds work, In use, Unknown, Kept for later, Safe to remove, 50 rows each until *Show all*.
   - **Filters:** a chip per verdict with its count, *Not tracked by Docket*, and text over branch, ticket and folder.
-  - **What to do:** the at-risk owner's words (B56) on Holds work. A *Command* to read and copy on Safe to remove only, under a note that Docket never removes a worktree, to check each command first, and that ignored files go with the folder.
+  - **What to do:** the at-risk owner's words (B56) on Holds work. *Show command*, with the full command on its own row to read and copy, on Safe to remove only, under a note that Docket never removes a worktree, to check each command first, and that ignored files go with the folder.
   - A status line gives the check's progress or age and says remotes are as of the last fetch, with *Check again*.
 
 ### 6.7 Settings (`/settings`)
