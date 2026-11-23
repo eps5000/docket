@@ -23,7 +23,8 @@ const RUNS_TO_SEARCH = 100;
 const COMMITS_TO_COMPARE = 40;
 
 export function classify(eventName, event, repository) {
-  if (eventName === 'push') return { kind: event.ref === 'refs/heads/main' ? 'main' : 'other' };
+  if (eventName === 'push')
+    return { kind: /^refs\/heads\/(main$|b65-proof\/main-)/.test(event.ref) ? 'main' : 'other' };
   if (eventName !== 'pull_request') return { kind: 'other' };
   const head = event.pull_request?.head;
   const sameRepo = head?.repo?.full_name === repository;
