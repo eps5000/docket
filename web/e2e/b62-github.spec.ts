@@ -170,66 +170,61 @@ test.describe.serial('the GitHub connection', () => {
     await put(request, '/api/settings/github', { enabled: true });
   });
 
-  for (const size of SIZES) {
+  /** After axe, which leaves the page in its last theme: each shot sets its own. */
+  async function shoot(page: Page, name: string, size: (typeof SIZES)[number], onCard: boolean) {
+    if (!out) return;
     for (const theme of ['light', 'dark'] as const) {
-      test(`is axe clean at ${size.name}, ${theme}`, async ({ page, request }) => {
-        await connect(request);
-        await post(request, [
-          repoRecord(),
-          pr(41, { ci: 'failed' }),
-          pr(43, { state: 'merged', merged_at: at(30), ci: 'passed' }),
-          pr(9041, {
-            title: 'Shared cleanup across screens',
-            head_branch: 'sample-dev/shared-cleanup',
-            related_keys: ['STR-41', 'STR-42'],
-          }),
-        ]);
-        await page.setViewportSize({ width: size.width, height: size.height });
-        await setTheme(page, theme);
-
-        await page.goto('/settings');
-        await card(page).scrollIntoViewIfNeeded();
-        await expect(card(page).locator('[data-github-status="connected"]')).toBeVisible();
-        await expectAxeClean(page, `b62 ${size.name} ${theme}`);
-        const over = () =>
-          page.evaluate(
-            () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-          );
-        expect(await over()).toBeLessThanOrEqual(0);
-        if (out) {
-          await card(page).screenshot({
-            path: join(out, `b62-settings-github-${size.name}-${theme}.png`),
-          });
-        }
-
-        await page.goto('/items/STR-41');
-        await expect(section(page).getByRole('list').first()).toBeVisible();
-        await section(page).scrollIntoViewIfNeeded();
-        await expectAxeClean(page, `b62 ${size.name} ${theme}`);
-        expect(await over()).toBeLessThanOrEqual(0);
-        if (out) {
-          await page.screenshot({
-            path: join(out, `b62-ticket-github-${size.name}-${theme}.png`),
-          });
-        }
-      });
-
-      test(`the setup steps are axe clean at ${size.name}, ${theme}`, async ({ page, request }) => {
-        await connect(request);
-        await post(request, [], { ok: false, error: 'gh_signed_out', interval_ms: 300_000 });
-        await page.setViewportSize({ width: size.width, height: size.height });
-        await setTheme(page, theme);
-        await page.goto('/settings');
-        await expect(card(page).locator('[data-github-steps]')).toBeVisible();
-        await card(page).scrollIntoViewIfNeeded();
-        await expectAxeClean(page, `b62 ${size.name} ${theme}`);
-        if (out) {
-          await card(page).screenshot({
-            path: join(out, `b62-settings-steps-${size.name}-${theme}.png`),
-          });
-        }
-        await post(request, [repoRecord()]);
-      });
+      await setTheme(page, theme);
+      const path = join(out, `b62-${name}-${size.name}-${theme}.png`);
+      if (onCard) await card(page).screenshot({ path });
+      else await page.screenshot({ path });
     }
+  }
+
+  const noSideScroll = async (page: Page) => {
+    const over = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(over).toBeLessThanOrEqual(0);
+  };
+
+  for (const size of SIZES) {
+    test(`axe and layout at ${size.name} on the stress data`, async ({ page, request }) => {
+      await connect(request);
+      await post(request, [
+        repoRecord(),
+        pr(41, { ci: 'failed' }),
+        pr(43, { state: 'merged', merged_at: at(30), ci: 'passed' }),
+        pr(9041, {
+          title: 'Shared cleanup across screens',
+          head_branch: 'sample-dev/shared-cleanup',
+          related_keys: ['STR-41', 'STR-42'],
+        }),
+      ]);
+      await page.setViewportSize({ width: size.width, height: size.height });
+
+      await page.goto('/settings');
+      await expect(card(page).locator('[data-github-status="connected"]')).toBeVisible();
+      await card(page).scrollIntoViewIfNeeded();
+      await noSideScroll(page);
+      await expectAxeClean(page, `GitHub settings: ${size.name}`);
+      await shoot(page, 'settings-github', size, true);
+
+      await page.goto('/items/STR-41');
+      await expect(section(page).getByRole('list').first()).toBeVisible();
+      await section(page).scrollIntoViewIfNeeded();
+      await noSideScroll(page);
+      await expectAxeClean(page, `Ticket GitHub panel: ${size.name}`);
+      await shoot(page, 'ticket-github', size, false);
+
+      await post(request, [], { ok: false, error: 'gh_signed_out', interval_ms: 300_000 });
+      await page.goto('/settings');
+      await expect(card(page).locator('[data-github-steps]')).toBeVisible();
+      await card(page).scrollIntoViewIfNeeded();
+      await noSideScroll(page);
+      await expectAxeClean(page, `GitHub setup steps: ${size.name}`);
+      await shoot(page, 'settings-steps', size, true);
+      await post(request, [repoRecord()]);
+    });
   }
 });

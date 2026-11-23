@@ -60,6 +60,19 @@ export const GITHUB_STATUS: Record<GithubState, { kind: ChipKind; label: string;
   connected: { kind: 'ok', label: '✓ Connected', help: 'Reading pull requests from GitHub.' },
 };
 
+/** The helper's error codes, in words. An unknown code is still shown, so it can be looked up. */
+const ERROR_TEXT: Record<string, string> = {
+  gh_missing: 'The GitHub CLI isn’t installed',
+  gh_signed_out: 'gh isn’t signed in',
+  rate_limited: 'GitHub’s hourly limit is close',
+  network: 'GitHub couldn’t be reached',
+  gh_error: 'gh reported an error',
+  collect_failed: 'The helper hit an unexpected error',
+  repo_not_found: 'not found, or your gh login can’t see it',
+  repo_forbidden: 'your gh login doesn’t have access',
+};
+export const errorWords = (code: string) => ERROR_TEXT[code] ?? `Error: ${code}`;
+
 const RULE_TEXT: Record<BranchRule, string> = { off: 'Off', warn: 'Warn' };
 
 const STEPS = [
@@ -168,7 +181,7 @@ function GitHubBody({
             {data.last_error && (
               <>
                 <dt>Last error</dt>
-                <dd className="mono">{data.last_error}</dd>
+                <dd>{errorWords(data.last_error)}</dd>
               </>
             )}
             <dt>Repositories</dt>
@@ -183,7 +196,7 @@ function GitHubBody({
                       <span className="src">
                         {' '}
                         · {r.projects.join(', ')}
-                        {r.error ? ` · couldn’t read it (${r.error})` : ''}
+                        {r.error ? ` · ${errorWords(r.error)}` : ''}
                       </span>
                     </li>
                   ))}

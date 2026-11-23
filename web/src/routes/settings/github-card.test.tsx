@@ -125,6 +125,22 @@ describe('the GitHub card', () => {
     expect(await screen.findByText('Out of date')).toBeTruthy();
   });
 
+  it('says errors in words, never as a bare code', async () => {
+    showCard(
+      settings({
+        state: 'gh_signed_out',
+        last_error: 'gh_signed_out',
+        repos: [
+          { repo: 'acme/web-app', projects: ['RCP'], last_sync_at: null, error: 'repo_not_found' },
+        ],
+      }),
+    );
+    expect(await screen.findByText('gh isn’t signed in')).toBeTruthy();
+    expect(screen.getByText(/not found, or your gh login can’t see it/)).toBeTruthy();
+    expect(screen.queryByText('gh_signed_out')).toBeNull();
+    expect(screen.queryByText(/repo_not_found/)).toBeNull();
+  });
+
   it('turns on from the checkbox', async () => {
     const set = vi
       .spyOn(apiClient, 'github.set')
