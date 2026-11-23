@@ -23,10 +23,10 @@ const TRANSIENT = new Set([
   'unreadable',
 ]);
 
-const isFile = (path) => {
+const isFile = (path, platform = process.platform) => {
   try {
     if (!statSync(path).isFile()) return false;
-    accessSync(path, process.platform === 'win32' ? constants.F_OK : constants.X_OK);
+    accessSync(path, platform === 'win32' ? constants.F_OK : constants.X_OK);
     return true;
   } catch {
     return false;
@@ -35,7 +35,9 @@ const isFile = (path) => {
 
 /** The executable, or null. On Linux, `/usr/bin/orca` is the GNOME screen reader. */
 export function findOrca(env = process.env, platform = process.platform) {
-  if (env.DOCKET_RELAY_ORCA) return isFile(env.DOCKET_RELAY_ORCA) ? env.DOCKET_RELAY_ORCA : null;
+  if (env.DOCKET_RELAY_ORCA) {
+    return isFile(env.DOCKET_RELAY_ORCA, platform) ? env.DOCKET_RELAY_ORCA : null;
+  }
   const pathValue = env.PATH ?? env.Path ?? '';
   const dirs = pathValue.split(delimiter).filter(Boolean);
   const names = platform === 'win32' ? ['orca.exe'] : ['orca-ide', 'orca'];
@@ -43,12 +45,12 @@ export function findOrca(env = process.env, platform = process.platform) {
     for (const dir of dirs) {
       const candidate = join(dir, name);
       if (platform === 'linux' && /^\/(usr\/)?bin\/orca$/.test(candidate)) continue;
-      if (isFile(candidate)) return candidate;
+      if (isFile(candidate, platform)) return candidate;
     }
   }
   if (platform === 'win32' && env.LOCALAPPDATA) {
     const installed = join(env.LOCALAPPDATA, 'Programs', 'orca', 'resources', 'bin', 'orca.exe');
-    if (isFile(installed)) return installed;
+    if (isFile(installed, platform)) return installed;
   }
   return null;
 }
