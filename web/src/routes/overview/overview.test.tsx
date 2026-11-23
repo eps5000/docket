@@ -281,6 +281,7 @@ const metrics = (over: Partial<OverviewResponse> = {}): OverviewResponse => ({
   },
   in_flight: { count: 23, progress: 15, review: 8 },
   blocked: 5,
+  ready: { startable: 2, waiting: 3 },
   workload: [
     {
       epic_id: 'RCP-40',

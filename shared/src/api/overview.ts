@@ -114,6 +114,8 @@ export const overviewResponse = jsonResponse({
   }),
   /** Open tickets with an uncleared blocker: the same set as Work's *Blocked* filter. */
   blocked: z.number().int(),
+  /** Decision 48: Ready tickets that can start now, and those waiting on something. */
+  ready: z.object({ startable: z.number().int(), waiting: z.number().int() }),
   /** Open tickets by status, grouped by epic, largest first. `epic_id` null is "No epic". */
   workload: z.array(
     z.object({

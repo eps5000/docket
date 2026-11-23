@@ -3,12 +3,11 @@
  * metric's definition, empty windows, timezone day boundaries, excluded epics,
  * that merged is never estimated, and the brief's sections with and without data.
  */
-import { BRIEF_ROWS, needsYouCount, type BriefResponse, type WaitCard } from '@docket/shared';
+import { BRIEF_ROWS, needsYouCount, type BriefResponse } from '@docket/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { dayStart } from '../../src/domain/brief.js';
 import { bucketFrame, flowNote } from '../../src/domain/flow.js';
 import { undoMutation } from '../../src/domain/undo.js';
-import { WaitReader } from '../../src/domain/wait.js';
 import { OWNER_ACTOR, type Actor } from '../../src/domain/write.js';
 import { addProject, forceStatus, minutes, startDomain, type Domain } from '../us1-helpers.js';
 
@@ -337,29 +336,23 @@ describe('the brief', () => {
     ]);
   });
 
-  it('lists a run held by an owner decision separately, once B58 reports it', () => {
+  it('lists a run held by an owner decision separately', () => {
     start();
     const heldId = ticket('Held', 'ready');
     const parkedId = ticket('Parked', 'ready');
     park(claim(heldId));
     park(claim(parkedId));
-    // Until B58 lands, the card has no `held_by`, and the group stays empty.
+    // A park reason that cites no decision isn't held.
     expect(brief().stuck.held.count).toBe(0);
     expect(brief().stuck.parked.count).toBe(2);
 
-    const real = WaitReader.prototype.card;
-    vi.spyOn(WaitReader.prototype, 'card').mockImplementation(function (
-      this: WaitReader,
-      run: Parameters<typeof real>[0],
-    ) {
-      const card = real.call(this, run) as WaitCard & { held_by?: unknown };
-      card.held_by =
-        run.item_id === heldId ? { decision_id: 'dec_1', title: 'Wait for the launch' } : null;
-      return card;
-    });
+    const hold = decide('Wait for the launch');
+    d.sql
+      .prepare('UPDATE runs SET parked_reason = ? WHERE item_id = ? AND is_lead = 1')
+      .run(`Paused by ${hold.id}.`, heldId);
     const b = brief();
     expect(b.stuck.held.rows).toMatchObject([
-      { id: heldId, decision_id: 'dec_1', decision_title: 'Wait for the launch' },
+      { id: heldId, decision_id: hold.id, decision_title: 'Wait for the launch' },
     ]);
     expect(b.stuck.parked.rows.map((r) => r.id)).toEqual([parkedId]);
   });

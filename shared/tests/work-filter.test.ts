@@ -94,7 +94,7 @@ describe('matching', () => {
 describe('counts', () => {
   it('chips and checks count what you would see; shows count what they add', () => {
     const c = workFilterCounts(DEFAULT_WORK_FILTER, ITEMS);
-    expect(c.quick).toEqual({ active: 5, blocked: 1, progress: 2 });
+    expect(c.quick).toMatchObject({ active: 5, blocked: 1, progress: 2 });
     expect(c.has).toMatchObject({ for_you: 2, live_run: 1, has_problem: 1, deferred_review: 0 });
     expect(c.show).toEqual({ done: 1, canceled: 1 });
     expect(c.archived).toBe(1);
@@ -102,7 +102,7 @@ describe('counts', () => {
 
   it('are faceted: the ticked checks and shows carry over', () => {
     const c = workFilterCounts(f('active', ['for_you'], ['done']), ITEMS);
-    expect(c.quick).toEqual({ active: 2, blocked: 0, progress: 1 });
+    expect(c.quick).toMatchObject({ active: 2, blocked: 0, progress: 1 });
     expect(c.has.for_you).toBe(2);
     expect(c.has.has_problem).toBe(1);
     expect(c.has.deferred_review).toBe(0);

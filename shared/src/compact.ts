@@ -282,6 +282,11 @@ export function waitCardLines(c: WaitCard, now: Date, indent = ''): string[] {
   ].filter((x): x is string => !!x);
   return [
     `${indent}wait: ${named.join(', ') || 'nothing named'}${SEP}waited ${waitedText(c.waited_since, now)} since ${parkClock(c.waited_since, now)}`,
+    ...(c.held_by
+      ? [
+          `${indent}  held by the owner's decision ${c.held_by.decision_id}: ${truncate(c.held_by.title)}`,
+        ]
+      : []),
     `${indent}  next: ${truncate(c.next_owner.name, 40)}: ${truncate(c.next_owner.step)}`,
     `${indent}  ${truncate(c.resumes_when)}`,
     ...(c.scope_hint ? [`${indent}  ${truncate(c.scope_hint)}`] : []),
@@ -923,6 +928,18 @@ function renderDigest(d: Digest, now: Date): string {
     cursor: d.cursor,
     since: d.since === null ? '' : `${SEP}since ${d.since}`,
   });
+  const nextWork = {
+    title: 'next work',
+    total: d.next_work.total,
+    rows: d.next_work.rows.map((x) => `${x.id}: ${x.reason}${SEP}${clip(x.title, 30)}`),
+  };
+  const bottlenecks = {
+    title: 'bottlenecks',
+    total: d.bottlenecks.total,
+    rows: d.bottlenecks.rows.map(
+      (x) => `${x.id} ${x.status} unlocks ${x.unlocks}: ${x.next}${SEP}${clip(x.title, 30)}`,
+    ),
+  };
   const ready = {
     title: 'ready',
     total: d.ready.total,
@@ -940,6 +957,9 @@ function renderDigest(d: Digest, now: Date): string {
         x.label ? clip(x.label, 20) : null,
         x.producer ? `producer ${clip(x.producer, 20)}` : null,
         x.wait ? `waited ${waitedText(x.wait.since, now)}` : null,
+        x.wait?.held_by
+          ? `held by the owner's decision ${x.wait.held_by.decision_id}: ${clip(x.wait.held_by.title, 40)}`
+          : null,
         x.wait ? `next ${clip(x.wait.next, 56)}` : null,
         ...(x.wait?.flags ?? []),
         x.wait?.relay ? `relay ${clip(x.wait.relay, 70)}` : null,
@@ -989,7 +1009,7 @@ function renderDigest(d: Digest, now: Date): string {
     total: d.changed.total,
     rows: d.changed.rows.map((x) => [x.cursor, x.item_id, x.type].filter(Boolean).join(' ')),
   };
-  const rest = [ready, runs, blocked, owner, problems, leases, conflicts];
+  const rest = [nextWork, bottlenecks, ready, runs, blocked, owner, problems, leases, conflicts];
   const parts = d.since === null ? [...rest, changed] : [changed, ...rest];
   const build = () =>
     [

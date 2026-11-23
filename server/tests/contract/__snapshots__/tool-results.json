@@ -3194,6 +3194,29 @@
                   "additionalProperties": false
                 }
               },
+              "held_by": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "decision_id": {
+                        "type": "string"
+                      },
+                      "title": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "decision_id",
+                      "title"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
               "scope_hint": {
                 "type": "string"
               }
@@ -3213,7 +3236,8 @@
               "next_owner",
               "resumes_when",
               "resume_ready",
-              "flags"
+              "flags",
+              "held_by"
             ],
             "additionalProperties": false
           },
@@ -3842,6 +3866,103 @@
           "null"
         ]
       },
+      "next_work": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "priority": {
+                  "type": "number",
+                  "enum": [
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                "unlocks": {
+                  "type": "integer"
+                },
+                "reason": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "priority",
+                "unlocks",
+                "reason"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "total",
+          "rows"
+        ],
+        "additionalProperties": false
+      },
+      "bottlenecks": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "inbox",
+                    "planning"
+                  ]
+                },
+                "unlocks": {
+                  "type": "integer"
+                },
+                "next": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "status",
+                "unlocks",
+                "next"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "total",
+          "rows"
+        ],
+        "additionalProperties": false
+      },
       "ready": {
         "type": "object",
         "properties": {
@@ -3982,6 +4103,22 @@
                           "wait_owner_unasked"
                         ]
                       }
+                    },
+                    "held_by": {
+                      "type": "object",
+                      "properties": {
+                        "decision_id": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "decision_id",
+                        "title"
+                      ],
+                      "additionalProperties": false
                     },
                     "relay": {
                       "type": "string"
@@ -4269,6 +4406,8 @@
       "project",
       "cursor",
       "since",
+      "next_work",
+      "bottlenecks",
       "ready",
       "runs",
       "blocked",
@@ -5807,6 +5946,29 @@
               "additionalProperties": false
             }
           },
+          "held_by": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "decision_id": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "decision_id",
+                  "title"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "scope_hint": {
             "type": "string"
           }
@@ -5826,7 +5988,8 @@
           "next_owner",
           "resumes_when",
           "resume_ready",
-          "flags"
+          "flags",
+          "held_by"
         ],
         "additionalProperties": false
       },

@@ -621,7 +621,7 @@
   },
   {
     "name": "get_digest",
-    "description": "One compact snapshot for coordinators, instead of many reads: top ready items, running, stale and parked runs (resume_ready flagged), blocked items and why, what waits on the owner, agent-actionable problems, leases, conflicts ahead, and the change cursor. Pass cursor for only what changed since then. Long sections end in '+N more'. Read-only.",
+    "description": "One compact snapshot for coordinators, instead of many reads: what to start next, bottlenecks, ready items, running, stale and parked runs (resume_ready flagged), blocked items and why, what waits on the owner, agent-actionable problems, leases, conflicts ahead, and the change cursor. Pass cursor for only what changed since then. Long sections end in '+N more'. Read-only.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -655,6 +655,12 @@
               "type": "string"
             },
             "since": {},
+            "next_work": {
+              "type": "object"
+            },
+            "bottlenecks": {
+              "type": "object"
+            },
             "ready": {
               "type": "object"
             },
@@ -684,6 +690,8 @@
             "project",
             "cursor",
             "since",
+            "next_work",
+            "bottlenecks",
             "ready",
             "runs",
             "blocked",

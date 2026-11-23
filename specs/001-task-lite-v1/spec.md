@@ -648,6 +648,12 @@ Agents working in parallel worktrees declare the shared parts each item will cha
 - **FR-233**: When the trends diverge, Overview MUST say so in one plain sentence, and MUST NOT change the Needs you badge.
 - **FR-234**: A read-only daily brief, linked from Overview, MUST show what finished, what's stuck, what needs the owner and what changed in decisions, for a chosen day in the configured timezone, per project or All, with every line linking to its ticket, or to the Decisions page for a decision wider than one ticket.
 - **FR-235**: The brief MUST show a cost section only when measured data exists, and MUST NOT show a placeholder or an estimate.
+- **FR-236**: A wait on a person MUST NOT raise `wait_owner_unasked` unless text says an owner decision is still pending.
+- **FR-237**: A park reason citing an active decision that applies to the item at any scope MUST NOT raise `wait_owner_unasked`, whenever that decision was made.
+- **FR-238**: A run held by an active owner decision MUST show "Held by your decision" with a link, MUST NOT raise `parked_too_long` or `wait_no_next_step`, and MUST NOT reach the owner for being parked. An agent's decision MUST NOT silence an alert. When the owner lifts the decision, aging MUST restart from that moment.
+- **FR-239**: The sweeper MUST end a part lease past its stored expiry, even for a parked holder, with `end_reason: expired` and one `lease.ended` event naming the holder's coordinator.
+- **FR-240**: Work MUST split Ready into Startable and Waiting on its board, filters and counts without changing the stored status, and each waiting ticket MUST say what it waits on.
+- **FR-241**: `get_digest` MUST list ranked next work (priority, transitive unlocks, age, each with a reason) and bottlenecks (unowned Inbox or Planning tickets blocking real work), and Overview's In flight card MUST link to Startable. Both MUST stay fast at 300 items and be cycle-safe.
 - **FR-250**: Docket MUST start and work fully with no GitHub access. The GitHub connection MUST be off by default and enabled in service-wide Settings.
 - **FR-251**: Docket MUST NOT store or ask for a GitHub token. A host process MUST read through the existing `gh` login and MUST NOT write to GitHub.
 - **FR-252**: The host collector MUST run sources under one contract, post idempotent records to a local, owner-guarded, validated and size-capped route that uses the write path, and save a source's state only after a successful post.

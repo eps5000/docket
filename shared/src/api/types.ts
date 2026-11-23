@@ -85,6 +85,11 @@ export const workItemSchema = itemSummarySchema.extend({
    * Present only when one is true.
    */
   shared_flags: z.object({ overlap: z.boolean(), conflict: z.boolean() }).optional(),
+  /**
+   * Decision 48, on Ready items only: whether it can start now, and if not,
+   * what it waits on in words. Derived; the stored status doesn't change.
+   */
+  ready_state: z.object({ startable: z.boolean(), waiting_on: z.string().nullable() }).optional(),
 });
 export type WorkItem = z.infer<typeof workItemSchema>;
 

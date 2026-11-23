@@ -84,6 +84,10 @@ planning_docs:
 
 exports[`every tool has a renderer > get_digest 1`] = `
 "Digest RCP · cursor 812
+next work 1:
+- RCP-17: Priority 1, unlocks 3 tickets, open 2d · Week view reload
+bottlenecks 1:
+- RCP-30 planning unlocks 4: shape it or assign it · Shape the import
 ready 9:
 - RCP-17 p1 unblocks 2 · Week view reload
   +8 more

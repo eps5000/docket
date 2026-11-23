@@ -122,10 +122,12 @@ import {
   isoPlus,
   leaseExpired,
   ms,
+  projectCoordinators,
   requireItem,
   utcTime,
   type RunRow,
 } from './model.js';
+import { coordinatorOf } from './recovery-model.js';
 import type { InverseOp, WriteContext } from './write.js';
 import { explain, graceText } from './problems.js';
 
@@ -1212,9 +1214,47 @@ function endLease(
     summary: `Lease on ${row.part_key} for ${row.item_id} ended: ${LEASE_END_TEXT[reason]}`,
     item_id: row.item_id,
     project_key: row.project_key,
-    data: { lease_id: row.id, part: row.part_key, end_reason: reason },
+    data: {
+      lease_id: row.id,
+      part: row.part_key,
+      end_reason: reason,
+      ...(reason === 'expired' ? expiryNote(w.db, row) : {}),
+    },
     objects: [{ kind: 'lease', id: row.id }],
   });
+}
+
+/**
+ * Decision 48: who hears that a lease ran out, by the wait flags' routing: the
+ * holder's recorded orchestrator, else the project's first registered
+ * coordinator. It travels on the `lease.ended` event coordinators watch.
+ */
+function expiryNote(db: Db, row: LeaseDbRow) {
+  const run = row.run_id
+    ? (db.sqlite.prepare('SELECT * FROM runs WHERE id = ?').get(row.run_id) as RunRow | undefined)
+    : undefined;
+  return {
+    run_id: row.run_id,
+    coordinator:
+      (run ? coordinatorOf(run) : null) ?? projectCoordinators(db, row.project_key)[0] ?? null,
+    note: `${row.item_id}'s lease on ${row.part_key} ran out. If the work continues, take it again before changing that part.`,
+  };
+}
+
+/**
+ * Decision 48: end every lease past its stored expiry, parked holder or not.
+ * Each gets one `lease.ended`; reads and takes already treat it as free.
+ */
+export function expirePartLeases(w: WriteContext): { ended: string[] } {
+  const rows = w.db.sqlite
+    .prepare(
+      `SELECT l.* FROM part_leases l JOIN projects p ON p.key = l.project_key
+       WHERE l.ended_at IS NULL AND l.expires_at <= ? AND p.deleted_at IS NULL
+       ORDER BY l.expires_at, l.id`,
+    )
+    .all(w.now) as LeaseDbRow[];
+  for (const row of rows) endLease(w, row, 'expired');
+  return { ended: rows.map((r) => r.id) };
 }
 
 /**

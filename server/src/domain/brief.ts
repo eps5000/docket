@@ -4,7 +4,7 @@
  * now. Read-only and advisory. What needs the owner is `GET /api/needs-you`.
  * There is no cost section until measured data exists, and never an estimate.
  */
-import { BRIEF_ROWS, type BriefDecision, type BriefResponse, type WaitCard } from '@docket/shared';
+import { BRIEF_ROWS, type BriefDecision, type BriefResponse } from '@docket/shared';
 import { effectiveZone, localDay } from './forecast.js';
 import { nextDay } from './flow.js';
 import { leaseExpired, ms, type RunRow } from './model.js';
@@ -37,9 +37,6 @@ const capped = <T>(rows: readonly T[]) => ({
   rows: rows.slice(0, BRIEF_ROWS),
 });
 
-/** Until B58 lands the wait card has no `held_by`, and this group stays empty. */
-type HeldCard = WaitCard & { held_by?: { decision_id: string; title: string } | null };
-
 function stuckNow(s: Scoped): BriefResponse['stuck'] {
   const now = ms(s.now);
   const leads = s.db.sqlite
@@ -60,7 +57,7 @@ function stuckNow(s: Scoped): BriefResponse['stuck'] {
     }
     const item = s.items.get(run.item_id);
     if (run.state !== 'parked' || !item || !isOpenTicket(item)) continue;
-    const card = reader.card(run) as HeldCard;
+    const card = reader.card(run);
     const base = { id: item.id, title: item.title, project: item.project_key };
     if (card.held_by) {
       held.push({
