@@ -23,6 +23,8 @@ docs/*
 !docs/templates/WORKFLOW-starter.md
 !docs/help
 specs
+# Host-side tools (docket-relay) never run in the container.
+tools
 # design/ is reference material, except the sample data the seed loader
 # reads (T031, DOCKET_SEED=sample and `docket seed sample`).
 design

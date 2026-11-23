@@ -233,6 +233,20 @@ In the Gameflow pilot two stories sat parked for about five hours on prerequisit
 
 BUILD_SPEC §5.26, MCP_SPEC §4 and §5.4, UI_SPEC §6.3.2 and spec FR-211–FR-216 have the details.
 
+## Owner decision 46 (2026-11-23): wake the right session when the owner changes a ticket
+
+The owner answers a question in Docket, but the agent sees it only on its next Docket call. The last 7 answered questions took 1 to 80 minutes to be picked up (median 8), and the owner has had to open the session and tell it to check. Neither Claude Code nor Codex offers a usable way for Docket to push into a running session. Orca messages do wake idle sessions, and Docket's container can't call the host's `orca` CLI, so a small host process bridges them.
+
+1. **`docket-relay` watches the change feed from the host,** at no token cost, and survives Docket restarts. It needs no server change.
+2. **It reacts to owner-side changes that can affect the live lead:** edits to the title, description, outcome or acceptance; status changes, cancel and archive; decisions published or confirmed on the item; owner notes; answered questions; review, overlap and hold decisions; blocker links added or removed; and `run.resume_ready`. Agent events and housekeeping are ignored, so it can't create a message loop. A ticket with no live lead gets no message.
+3. **A burst is one wake-up.** Edits wait for 60 seconds of quiet, and at most 2 minutes after the first change. An answered question goes immediately and carries whatever is waiting on that ticket.
+4. **The message is a pointer, never the content.** It names the ticket and the kinds of change. The agent reads the rest from Docket, which stays the source of truth and keeps `read_by_agent_at` honest. The relay never resumes, parks, claims, changes status or calls `get_item`.
+5. **It reaches the implementer, or says who should.** A live Orca dispatch is the implementer. Otherwise its coordinator is told, naming the implementer. A stored session ID that may be a coordinator is never presented as the implementer. With nobody to tell, it's recorded as undelivered, and Needs you isn't touched.
+6. **Honest wording.** Owner-kind events can also come from an agent using the owner API, and Docket can't always tell them apart, so the message says "updated from the owner side".
+7. **Reliable and local.** A durable cursor and ledger outside the repo, no replay on first run, catch-up within 24 hours, no duplicates across restarts, bounded retries, a rate limit per session, one instance, and a status command with no message content.
+
+BUILD_SPEC §5.27, spec FR-217–FR-223, Help (Questions and notes) and `tools/docket-relay/README.md` have the details.
+
 ## Deferred choices
 
 Pilot project choice and Jira import strategy are deferred until V1 is ready for real work. Design should still settle the storage layout, supported document preview formats, the exact project gate configuration shape, and the minimum history needed before a velocity forecast is shown. These are implementation choices guided by the owner decisions above, not blockers to selecting a pilot now.
