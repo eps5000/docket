@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
-import { useLocation } from 'react-router';
+import { Link, useLocation } from 'react-router';
 import {
   needsYouCount,
   OVERVIEW_WINDOWS,
@@ -22,6 +22,7 @@ import { NEEDS_YOU_REFRESH_MS, useNoProjects } from '../../app/useBootstrap';
 import { HelpLink } from '../../help/HelpLink';
 import { queryKeys } from '../../lib/api';
 import { plural } from '../../lib/format';
+import { paths } from '../../lib/paths';
 import { useWorkspaces } from '../agents/WorkspacesCard';
 import { DeferredCard } from '../needs-you/DeferredCard';
 import { ForYouNow } from '../needs-you/ForYouNow';
@@ -34,6 +35,7 @@ import { ResolutionCards } from '../needs-you/ResolutionCards';
 import { SharedQuestions } from '../needs-you/SharedQuestions';
 import { Welcome } from '../needs-you/Welcome';
 import { CompletedChart } from './CompletedChart';
+import { FlowChart } from './FlowChart';
 import { HealthCard } from './HealthCard';
 import { OverviewStats } from './OverviewStats';
 import { useOverviewWindow, WINDOW_LABELS, WINDOW_WORDS } from './overviewWindow';
@@ -103,18 +105,23 @@ export function Overview() {
             </span>
           )}
         </div>
-        <div className="seg" role="group" aria-label="Time window" data-overview-window={window}>
-          {OVERVIEW_WINDOWS.map((w) => (
-            <button
-              key={w}
-              type="button"
-              aria-pressed={w === window}
-              title={`The last ${WINDOW_WORDS[w]}`}
-              onClick={() => setWindow(w)}
-            >
-              {WINDOW_LABELS[w]}
-            </button>
-          ))}
+        <div className="ov-head-actions">
+          <Link to={paths.brief()} data-brief-link>
+            Daily brief
+          </Link>
+          <div className="seg" role="group" aria-label="Time window" data-overview-window={window}>
+            {OVERVIEW_WINDOWS.map((w) => (
+              <button
+                key={w}
+                type="button"
+                aria-pressed={w === window}
+                title={`The last ${WINDOW_WORDS[w]}`}
+                onClick={() => setWindow(w)}
+              >
+                {WINDOW_LABELS[w]}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
       <NotificationsCallout />
@@ -161,6 +168,7 @@ function OverviewCharts({ metrics }: { metrics: OverviewResponse }) {
   return (
     <div className="ov-charts">
       <CompletedChart completed={metrics.completed} />
+      <FlowChart flow={metrics.flow} />
       <WorkloadCard workload={metrics.workload} />
     </div>
   );

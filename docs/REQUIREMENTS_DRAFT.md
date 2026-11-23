@@ -259,6 +259,19 @@ The owner is not the implementer. Agents were sending one dense block that assum
 
 BUILD_SPEC §5.28, MCP_SPEC §3 and §5.7, UI_SPEC §6.1 and §6.3, spec FR-224–FR-229, Help (Questions and notes) and the skills have the details.
 
+## Owner decision 48 (2026-11-23): coordination tooling
+
+The owner approved the bug fixes and additions in `docs/design/coordination-tooling.md`. In the pilot, code kept landing while tickets stopped closing, and agents spent most of their time waiting. Docket states facts and checks conditions, adds no new gates, and everything here is advisory. Batches B58 to B61 each add their part below.
+
+**Flow trends and a daily brief (B59).**
+
+1. **Flow trends on Overview.** Tickets finished, PRs merged and times parked, per day or hour, for the selected window and project. Each metric is defined once on the server. Finished is the Completed definition. Merged counts only PRs an agent recorded as merged, says so, and says when finished tickets have none recorded. It is never estimated. Parked counts `run.parked` events and excludes epics.
+2. **A quiet note when the trends diverge,** such as "Parking is up while finished tickets are down". It never touches the Needs you badge.
+3. **A daily brief,** linked from Overview: what finished, what's stuck, what needs the owner and what changed in decisions, for a chosen day in the configured timezone, per project or All. Stuck means parked longest, blockers nobody owns, and runs held by an owner decision, listed separately and calmly. Every line links to its ticket, or to the Decisions page for a decision wider than one ticket. It is read-only, with no notifications or scheduled sends.
+4. **What it cost appears only when measured data exists.** Until a later batch adds it, the section is left out, with no placeholder or estimate.
+
+BUILD_SPEC §5.29, UI_SPEC §6.1 and §6.1b, spec FR-230–FR-235 and Help (A first look around) have the details.
+
 ## Deferred choices
 
 Pilot project choice and Jira import strategy are deferred until V1 is ready for real work. Design should still settle the storage layout, supported document preview formats, the exact project gate configuration shape, and the minimum history needed before a velocity forecast is shown. These are implementation choices guided by the owner decisions above, not blockers to selecting a pilot now.

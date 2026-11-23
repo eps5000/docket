@@ -1,0 +1,103 @@
+/* The daily brief (owner decision 48; UI_SPEC §6.1b). */
+.tl .brief-day {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.tl .brief-day input {
+  width: auto;
+}
+.tl .brief-zone {
+  margin: 4px 0 10px;
+}
+.tl .brief-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+.tl .brief-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.tl .brief-col > * {
+  margin: 0;
+}
+.tl .brief-grid h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+.tl .brief-body {
+  padding: 0 14px 12px;
+}
+.tl .brief-body h3 {
+  margin: 10px 0 2px;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--ink-2);
+}
+.tl .brief-body > div:first-child h3,
+.tl .brief-note + div h3 {
+  margin-top: 0;
+}
+.tl .brief-note {
+  margin: 0 0 4px;
+}
+.tl .brief-none {
+  margin: 0;
+  font-size: 13px;
+}
+.tl .brief-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.tl .brief-line {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 3px 0;
+}
+.tl .brief-line a {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--ink);
+}
+.tl .brief-line .mono {
+  flex: none;
+  text-decoration: underline;
+}
+.tl .brief-t {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* With no ticket key to carry the underline, the title shows it is a link. */
+.tl .brief-t-link,
+.tl .brief-line a:hover .brief-t {
+  text-decoration: underline;
+}
+.tl .brief-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tl .brief-more {
+  margin: 2px 0 0;
+}
+.tl .brief-more a {
+  text-decoration: underline;
+}
+@media (max-width: 1180px) {
+  .tl .brief-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

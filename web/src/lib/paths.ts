@@ -25,6 +25,8 @@ export const paths = {
   /** The list behind an Overview number that no Work filter can show. */
   overviewList: (metric: OverviewMetric, window?: OverviewWindow) =>
     withQuery(`/overview/${metric}`, { window }),
+  /** The daily brief (decision 48); without `day`, today in the configured timezone. */
+  brief: (day?: string) => withQuery('/brief', { day }),
   work: (
     q: {
       layout?: WorkLayout;

@@ -6,6 +6,15 @@
   gap: 10px 16px;
   flex-wrap: wrap;
 }
+.tl .ov-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.tl .ov-head-actions > a {
+  font-size: 13px;
+  text-decoration: underline;
+}
 .tl .ov-stats {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -148,7 +157,7 @@
 }
 .tl .ov-charts {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   align-items: stretch;
   margin-bottom: 12px;
@@ -340,6 +349,134 @@
 .tl .ov-table .ov-title {
   max-width: 380px;
   overflow-wrap: anywhere;
+}
+/* Flow trends (decision 48): three panels over one time axis, one button per slot. */
+.tl .ov-flow-note {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.tl .ov-flow {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  grid-template-rows: repeat(3, 34px) auto;
+  gap: 6px;
+  margin-top: 8px;
+}
+.tl .ov-flow-row {
+  display: contents;
+}
+.tl .ov-flow-name {
+  grid-column: 1;
+  align-self: center;
+  font-size: 11.5px;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.tl .ov-flow-name b {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.tl .ov-flow-y {
+  grid-column: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  text-align: right;
+  font-size: 10.5px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+}
+.tl .ov-flow-bars {
+  position: relative;
+  z-index: 1;
+  grid-column: 3;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  min-width: 0;
+  border-bottom: 1px solid var(--line-2);
+  pointer-events: none;
+}
+.tl .ov-flow-bars > span {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.tl .ov-flow-bars i {
+  display: block;
+  width: 100%;
+  max-width: 24px;
+  min-height: 2px;
+  border-radius: 3px 3px 0 0;
+  background: var(--brand);
+}
+.tl .ov-flow-hits {
+  grid-column: 3;
+  grid-row: 1 / 4;
+  display: flex;
+  gap: 2px;
+  min-width: 0;
+}
+.tl .ov-flow-hit {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  cursor: default;
+}
+.tl .ov-flow-hit:hover,
+.tl .ov-flow-hit[aria-expanded='true'] {
+  background: var(--panel-2);
+}
+.tl .ov-flow-hit:focus-visible {
+  position: relative;
+  z-index: 2;
+  outline-offset: -2px;
+}
+.tl .ov-flow-axis {
+  grid-column: 3;
+  grid-row: 4;
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--ink-2);
+}
+.tl .ov-chart-body > .ov-flow-merged {
+  margin-top: 6px;
+  font-size: 11.5px;
+}
+.tl .ov-flow-tip {
+  margin: 4px 0 0;
+}
+.tl .ov-flow-tip > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+.tl .ov-flow-tip dt {
+  color: var(--ink-2);
+}
+.tl .ov-flow-tip dd {
+  margin: 0;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 1320px) {
+  .tl .ov-charts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .tl .ov-charts > [data-card='workload'] {
+    grid-column: 1 / -1;
+  }
 }
 @media (max-width: 1180px) {
   .tl .ov-main {

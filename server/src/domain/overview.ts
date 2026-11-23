@@ -20,6 +20,7 @@
  * - **Blocked:** open tickets with an uncleared blocker (Work's *Blocked*).
  * - **Workload:** open tickets by status per epic; a blocked ticket counts once,
  *   as Blocked.
+ * - **Flow trends** (decision 48): finished, merged and parked, in `flow.ts`.
  */
 import {
   OPEN_STATUSES,
@@ -34,7 +35,7 @@ import {
   type WorkloadBucket,
 } from '@docket/shared';
 import { compareIds } from './links.js';
-import { effectiveZone, localDay } from './forecast.js';
+import { bucketFrame, flowOf } from './flow.js';
 import { actorName, displayRunState, ms, type ItemRow, type RunRow } from './model.js';
 import { parkInfo, parseJson } from './recovery-model.js';
 import type { Scoped } from './views.js';
@@ -47,12 +48,10 @@ export const OVERVIEW_WINDOW_MS: Record<OverviewWindow, number> = {
   '30d': 30 * DAY_MS,
 };
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
 const isOpen = (status: string) => (OPEN_STATUSES as readonly string[]).includes(status);
 
 /** A ticket the open-work metrics count: not an epic, not archived, still open. */
-const isOpenTicket = (i: ItemRow) =>
+export const isOpenTicket = (i: ItemRow) =>
   i.type !== 'Epic' && i.archived_at === null && isOpen(i.status);
 
 /** Entered Done in `(from, to]`, still Done. Epics and imports are never completed work. */
@@ -137,24 +136,6 @@ export function agentsNow(s: Scoped): { working: number; waiting: number } {
 
 // ---- Completed per hour or day ----
 
-const pad = (n: number) => String(n).padStart(2, '0');
-
-function hourLabel(iso: string, format: Intl.DateTimeFormat): string {
-  const parts = format.formatToParts(new Date(iso));
-  return `${parts.find((p) => p.type === 'hour')?.value ?? '00'}:00`;
-}
-
-function nextDay(day: string): string {
-  const [y, m, d] = day.split('-').map(Number) as [number, number, number];
-  const t = new Date(Date.UTC(y, m - 1, d + 1));
-  return `${t.getUTCFullYear()}-${pad(t.getUTCMonth() + 1)}-${pad(t.getUTCDate())}`;
-}
-
-const dayText = (day: string) => {
-  const [, m, d] = day.split('-');
-  return `${MONTHS[Number(m) - 1] ?? m} ${Number(d)}`;
-};
-
 type CompletedBucket = OverviewResponse['completed']['buckets'][number];
 
 /** Counts every ticket, and keeps only the first few: callers add them newest first. */
@@ -180,33 +161,9 @@ export function completedBuckets(
   const newestFirst = [...done].sort(
     (a, b) => ms(b.closed_at!) - ms(a.closed_at!) || compareIds(a.id, b.id),
   );
-  if (window === '24h') {
-    const format = new Intl.DateTimeFormat('en-GB', {
-      hour: '2-digit',
-      hourCycle: 'h23',
-      timeZone: effectiveZone(tz),
-    });
-    const buckets = Array.from({ length: 24 }, (_, k): CompletedBucket => {
-      const start = new Date(fromMs + k * HOUR_MS).toISOString();
-      return { key: start, label: hourLabel(start, format), count: 0, tickets: [] };
-    });
-    for (const i of newestFirst) {
-      const k = Math.ceil((ms(i.closed_at!) - fromMs) / HOUR_MS) - 1;
-      addToBucket(buckets[Math.min(23, Math.max(0, k))]!, i);
-    }
-    return buckets;
-  }
-  // `from` itself is outside the window, so the first day starts just after it.
-  const first = localDay(new Date(fromMs + 1).toISOString(), tz);
-  const last = localDay(new Date(toMs).toISOString(), tz);
-  const buckets: CompletedBucket[] = [];
-  const byDay = new Map<string, CompletedBucket>();
-  for (let day = first; day <= last; day = nextDay(day)) {
-    const bucket: CompletedBucket = { key: day, label: dayText(day), count: 0, tickets: [] };
-    buckets.push(bucket);
-    byDay.set(day, bucket);
-  }
-  for (const i of newestFirst) addToBucket(byDay.get(localDay(i.closed_at!, tz))!, i);
+  const frame = bucketFrame(window, fromMs, toMs, tz);
+  const buckets = frame.slots.map((slot): CompletedBucket => ({ ...slot, count: 0, tickets: [] }));
+  for (const i of newestFirst) addToBucket(buckets[frame.indexOf(i.closed_at!)]!, i);
   return buckets;
 }
 
@@ -267,6 +224,7 @@ export function overviewOf(
       granularity: window === '24h' ? 'hour' : 'day',
       buckets: completedBuckets(done, window, fromMs, toMs, extra.tz),
     },
+    flow: flowOf(s, done, window, fromMs, toMs, extra.tz),
     in_flight: { count: progress + review, progress, review },
     blocked: open.filter((i) => s.index.state(i.id).blocked).length,
     workload: workloadOf(s, open),
