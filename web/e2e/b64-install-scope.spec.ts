@@ -60,12 +60,28 @@ async function noSideScroll(page: Page) {
 }
 
 /** axe in both themes and no sideways scroll at each size, with the PR's screenshots. */
-async function checkSizes(page: Page, name: string, label: string, include?: string) {
+async function checkSizes(
+  page: Page,
+  name: string,
+  label: string,
+  opts: { include?: string; at?: string } = {},
+) {
   for (const size of SIZES) {
     await page.setViewportSize({ width: size.width, height: size.height });
     await noSideScroll(page);
-    await expectAxeClean(page, `${label} at ${size.name}`, include ? { include } : {});
+    await expectAxeClean(
+      page,
+      `${label} at ${size.name}`,
+      opts.include ? { include: opts.include } : {},
+    );
     if (out) {
+      // Each shot opens on the part of the page it's evidence for.
+      if (opts.at) {
+        await page
+          .locator(opts.at)
+          .first()
+          .evaluate((el) => el.scrollIntoView({ block: 'start' }));
+      }
       for (const theme of ['light', 'dark'] as const) {
         await setTheme(page, theme);
         await page.screenshot({ path: join(out, `b64-${name}-${size.name}-${theme}.png`) });
@@ -89,8 +105,9 @@ test.describe('Installs stay in scope (decision 50)', () => {
     await expect(card.getByLabel('Project', { exact: true })).toBeVisible();
     await expect(card.getByRole('button', { name: 'Install into its repo' })).toBeVisible();
     await expect(page.getByRole('button', { name: /user-wide/i })).toHaveCount(0);
-    await card.scrollIntoViewIfNeeded();
-    await checkSizes(page, 'none', 'All projects, nothing installed');
+    await checkSizes(page, 'none', 'All projects, nothing installed', {
+      at: '[data-install-overview]',
+    });
     await page.unroute('**/api/install-overview');
   });
 
@@ -134,16 +151,19 @@ test.describe('Installs stay in scope (decision 50)', () => {
     await expect(page.locator(`[data-install-row="${LEGACY}"]`)).toContainText(
       'User-wide (no longer supported)',
     );
-    await card.scrollIntoViewIfNeeded();
-    await checkSizes(page, 'overview', 'All projects, install state');
+    await checkSizes(page, 'overview', 'All projects, install state', {
+      at: '[data-install-overview]',
+    });
+    await checkSizes(page, 'legacy-log', 'Install log with a legacy row', {
+      at: '[data-install-log]',
+    });
   });
 
   test('3. a project’s card names the worktree', async ({ ownerPage: page }) => {
     await page.goto('/agent-files?project=RCP');
     const row = page.locator('[data-install-state-row="codex"]');
     await expect(row).toContainText('Installed in worktree synthetic-feature, not merged yet');
-    await row.scrollIntoViewIfNeeded();
-    await checkSizes(page, 'project', 'One project, install state');
+    await checkSizes(page, 'project', 'One project, install state', { at: '[data-install-state]' });
   });
 
   test('4. Mark as removed on a legacy row, with Undo', async ({ ownerPage: page }) => {
@@ -168,7 +188,7 @@ test.describe('Installs stay in scope (decision 50)', () => {
     await row.getByRole('button', { name: /^Uninstall Claude Code/ }).click();
     const d = page.getByRole('dialog', { name: /^Uninstall Claude Code/ });
     await expect(d.locator('[data-uninstall-dialog]')).toContainText('A file you changed is kept');
-    await checkSizes(page, 'uninstall-rules', 'Uninstall dialog', '[role="dialog"]');
+    await checkSizes(page, 'uninstall-rules', 'Uninstall dialog', { include: '[role="dialog"]' });
     await d.getByRole('button', { name: 'Create the command' }).click();
     const result = d.locator('[data-uninstall-result]');
     await expect(result).toBeFocused();
@@ -177,7 +197,9 @@ test.describe('Installs stay in scope (decision 50)', () => {
     await expect(result.locator('[data-uninstall-script]')).toContainText(
       'never deletes a folder that still holds anything',
     );
-    await checkSizes(page, 'uninstall-command', 'Uninstall command', '[role="dialog"]');
+    await checkSizes(page, 'uninstall-command', 'Uninstall command', {
+      include: '[role="dialog"]',
+    });
     await d.getByRole('button', { name: 'Done' }).click();
     await expect(d).toHaveCount(0);
   });
