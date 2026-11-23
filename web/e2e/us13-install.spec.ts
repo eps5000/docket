@@ -25,7 +25,7 @@
  *    the check command;
  * 5. a project copy of the block with a `{{…}}` placeholder: the warning
  *    names it (not `{{KEY}}`, which is filled), and *Edit block* opens it;
- * 6. All projects without a push folder (stubbed): *Install user-wide* is a
+ * 6. All projects without a push folder (stubbed): choosing a project gives a
  *    command, says why, and links to the set-up.
  *
  * axe is clean on each screen, both themes. Set DOCKET_E2E_SCREENSHOTS to
@@ -395,7 +395,7 @@ test.describe('Install and check (US13)', () => {
     await expect(dialog(page).locator('[data-placeholder-warning]')).toHaveCount(0);
   });
 
-  test('6. All projects without a push folder: Install user-wide is a command, and says why', async ({
+  test('6. All projects without a push folder: choose a project, get a command, and see why', async ({
     ownerPage: page,
   }) => {
     await page.route('**/api/push-target', (route) =>
@@ -404,9 +404,13 @@ test.describe('Install and check (US13)', () => {
     await page.goto('/agent-files?project=all');
     // The full install log: Recipe App's installs show here too.
     await expect(logRows(page).first()).toBeVisible();
-    await page.getByRole('button', { name: 'Install user-wide' }).click();
-    const d = dialog(page, 'Install user-wide');
-    await expect(d.getByLabel('Repo folder')).toHaveCount(0);
+    // Decision 50: no user-wide action; All projects asks which project.
+    await expect(page.getByRole('button', { name: /user-wide/i })).toHaveCount(0);
+    const choose = page.locator('[data-install-choose]');
+    await choose.getByLabel('Project', { exact: true }).selectOption({ label: 'Recipe App' });
+    await choose.getByRole('button', { name: 'Install into its repo' }).click();
+    const d = dialog(page, 'Install into Recipe App’s repo');
+    await expect(d.getByLabel(/Repo folder/)).toBeVisible();
     await expect(method(page)).toHaveAttribute('data-install-method', 'command');
     await expect(method(page)).toContainText(
       'With a push folder set up, Docket can write the files for you.',
@@ -415,11 +419,10 @@ test.describe('Install and check (US13)', () => {
       method(page).getByRole('link', { name: 'Set up one-click install' }),
     ).toBeVisible();
     await d.locator('[data-install-what] summary').click();
-    await expect(d.locator('[data-install-what]')).toContainText('~/.claude/CLAUDE.md');
-    // The default block has no placeholders, not even {{KEY}}, so no warning user-wide either.
+    await expect(d.locator('[data-install-what]')).not.toContainText('~/');
     await expect(d.locator('[data-placeholder-warning]')).toHaveCount(0);
-    await shoot(page, '6-dialog-user-wide-no-push', d);
-    await expectAxeClean(page, 'Install dialog: user-wide, no push folder', {
+    await shoot(page, '6-dialog-choose-project-no-push', d);
+    await expectAxeClean(page, 'Install dialog: chosen project, no push folder', {
       include: '[role="dialog"]',
     });
     await d.getByRole('button', { name: 'Create the command' }).click();

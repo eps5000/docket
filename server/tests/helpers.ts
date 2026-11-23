@@ -179,6 +179,12 @@ export function without0010<T>(rows: T): T {
     delete out.withdrawn_at;
     delete out.withdrawn_by;
     delete out.withdrawn_reason;
+    // Decision 50 (0026): null on every install from before it.
+    delete out.removed_at;
+    delete out.removal;
+    delete out.removal_token_sha256;
+    delete out.removal_token_expires_at;
+    delete out.removal_token_used_at;
     // Decision 41 (0017): two more columns on runs, null on every row from before it.
     if ('unpushed_handled_at' in out) {
       delete out.unpushed_outcome;

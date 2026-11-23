@@ -771,7 +771,7 @@ Install log · Recipe App
 - ***Customize for <project>*** opens the editor on a new copy, starting from the current default; saving (note required) creates it. ***Use default*** removes the copy (B23's revert of the project layer); its versions stay in History, and the toast has Undo.
 - **"The default changed since <project>'s copy was made"** shows when Docket shipped a new version since the copy (the server's bundled-updated flag on the project layer) or the default was edited after the copy's current version. *Compare* opens the file on that comparison.
 
-**With All projects selected** (h1 "Agent files · Defaults", with *Install user-wide*):
+**With All projects selected** (h1 "Agent files · Defaults"; decision 50: no install button in the header, and the install card below asks which project):
 ```
 FILE                 DEFAULT                          CUSTOMIZED IN
 docket-worker      Docket's version              Recipe App
@@ -782,17 +782,17 @@ AGENTS.md block      Docket's version              —
 
 **Opening a file** (`?file=`, under the list): the rendered text and a *Raw* toggle; *Edit* (or *Customize for …*) with a required note; *Use default* or *Reset to Docket's version*; *History* (the copy's versions, or the default's edits and Docket's versions, each with *View* and *Compare with the one before*); and *Compare with*: the default, or any earlier version. A flagged file has a warning callout with the two comparisons (what changed in the default, and the default next to the copy; B23's three-way view, relabelled). Versions are named "Docket's version v2", "Edited default v1", "Recipe App's copy v3". With a project selected and no copy, a line links to All projects to edit the default.
 
-**Install dialog** (*Install into <project>'s repo*, or *Install user-wide* from All projects):
+**Install dialog** (*Install into <project>'s repo*, from a project or from All projects after choosing one; decision 50 removed user-wide):
 - **Clients** (decision 34): a checkbox each for Claude Code and Codex, each with its install-state chip (below) and "found in the repo" when Docket saw that client's markers. The ticked defaults come from `GET /api/install-state` (`defaults`): the clients the repo has markers for (`.claude/`, `CLAUDE.md`; `.codex/`, `.agents/`, `AGENTS.md`) or that are installed, else both; a state row's *Install*, *Update* or *Reinstall* opens it with only that client ticked. With none ticked, the button is disabled and "Tick at least one client." shows. A ticked client whose files changed outside Docket shows a warning with *Review changes*;
 - *Repo folder*, prefilled from that project's last install that had a path (the install log has it), so it is remembered without new storage;
-- the method is automatic: **push** when the push folder is ready and the folder is inside it ("Docket writes the files into this folder itself", with a *Copy a command instead* link), otherwise the command, with a line saying why and, when push isn't set up, *Set up one-click install* (to Settings → General → One-click install). A user-wide install is always a command;
+- the method is automatic: **push** when the push folder is ready and the folder is inside it ("Docket writes the files into this folder itself", with a *Copy a command instead* link), otherwise the command, with a line saying why and, when push isn't set up, *Set up one-click install* (to Settings → General → One-click install).;
 - **What will be written** is a collapsed disclosure; it says that only the marked Docket section of AGENTS.md/CLAUDE.md is touched;
 - the **placeholder warning** fires only when the block being installed still has a `{{…}}` (the shipped block has none; `{{KEY}}` is filled for a repo install), with *Edit block* and *Install anyway*;
 - **the button** (push) says what happens to the ticked clients: *Install* (not installed), *Update* (update available), *Reinstall* (up to date, or changed outside Docket), or the verbs joined when they differ (*Install and update*), so an installed client is never offered a plain *Install*. A command install's button stays *Create the command*; one command installs every ticked client;
 - **What will be written** lists each ticked client's files, and with Claude Code ticked says that a new CLAUDE.md starts with `@AGENTS.md` when the repo has an AGENTS.md (decision 34);
 - the result is **one summary**: a section per client listing its files, each with what changed (push: *Created*, *Updated*, *Unchanged*) or what the command will write, with notes ("its Docket section only", "starts with @AGENTS.md…"); for a command, the PowerShell and bash commands come first, each with *Copy*, and "Run from the repo folder" when no folder was given.
 
-**Install state** (decision 34; the card *Installed in <project>'s repo*, or *Installed user-wide*, above the install log): one row per client, with its chip and one action:
+**Install state** (decision 34; the card *Installed in <project>'s repo*, above the install log): one row per client, with its chip and one action:
 ```
 Claude Code   [Installed · up to date]        pushed Nov 19 10:40  C:/code/recipes   [Check] [Reinstall]
 Codex         [Installed · update available]  2 files newer in Docket · …            [Update]
@@ -803,7 +803,11 @@ Codex         [Installed · update available]  2 files newer in Docket · …   
 - **Not installed** (neutral): *Install* opens the dialog with that client.
 The state comes from `GET /api/install-state` (BUILD_SPEC §5.17b); it is refreshed by installs, agent-file edits and drift events.
 
-**Install log** (bottom): one project's installs with a project selected, every install with All projects. Each row has the time, client, target, method and file count, *Versions sent* (linked to each file), and *Check* (push) or *Check command* (command); an edited file in a check result has *Show diff*.
+**Installed in your projects** (decision 50; All projects, above the install log): a *Project* select with *Install into its repo*, saying "Nothing is installed yet. Choose a project to install into its repo." when nothing is, then a table of Project, Client, Where and State. A project with no install shows *Not installed* and *Install*. Others have *Open* and *Uninstall*. An install in a worktree says "Installed in worktree X, not merged yet" (`GET /api/install-overview`).
+
+**Uninstall dialog** (decision 50): the rules in plain words, then *Create the command*. The result has the PowerShell and bash commands, what it may remove, and *Read the script it runs*. Focus moves to the result.
+
+**Install log** (bottom): one project's installs with a project selected, every install with All projects. A legacy row reads *User-wide (no longer supported)* and has *Mark as removed* (toast with Undo) and *Uninstall*. A removed row shows what was removed and each file kept, with why. Each row has the time, client, target, method and file count, *Versions sent* (linked to each file), and *Check* (push) or *Check command* (command); an edited file in a check result has *Show diff*.
 
 **The push folder card** stays in Settings → General, under "One-click install" (`/settings#push-folder`), because it's service setup: the status (*Not set up*, *Ready*, *Not writable*), the host and container paths, *Test*, and the plain-language how-to that fills in the `compose.yaml` line, the `.env` lines and the restart command. Settings has no tabs any more.
 

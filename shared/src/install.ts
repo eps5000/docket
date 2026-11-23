@@ -338,6 +338,49 @@ export function installCommands(input: InstallCommandInput & { url: string }): {
   return { powershell, bash };
 }
 
+const REFUSED_UNINSTALL =
+  'Docket refused the download: this uninstall command was already used or is more than 10 minutes old. Make a new one in Agent files.';
+
+/**
+ * The uninstall one-liners (decision 50): the same flow as install. Download
+ * the single-use bundle, unpack it into a temporary folder, run its step on
+ * the install's folder, and remove the temporary folder. The step reports what
+ * it did to `<url>/report`. A repo uninstall refuses a folder without `.git`
+ * before the download uses the token.
+ */
+export function uninstallCommands(input: InstallCommandInput & { url: string }): {
+  powershell: string;
+  bash: string;
+} {
+  const repo = input.target_kind === 'repo';
+  const bash = [
+    `( set -e; d=${bashBase(input)}`,
+    ...(repo
+      ? [
+          `[ -e "$d/.git" ] || { echo "Run this from the repo folder: there is no .git in $d" >&2; exit 1; }`,
+        ]
+      : []),
+    `t=$(mktemp -d); trap 'rm -rf "$t"' EXIT`,
+    `curl -fsS --noproxy '*' -o "$t/b.tgz" ${bashQuote(input.url)} || { echo ${bashQuote(REFUSED_UNINSTALL)} >&2; exit 1; }`,
+    `tar -xzf "$t/b.tgz" -C "$t"`,
+    `bash "$t/docket-uninstall/uninstall.sh" "$d" ${bashQuote(input.url)} )`,
+  ].join('; ');
+  const powershell = [
+    `& { $ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue'; $d = ${psBase(input)}`,
+    ...(repo
+      ? [
+          `if (-not (Test-Path -LiteralPath (Join-Path $d '.git'))) { throw "Run this from the repo folder: there is no .git in $d" }`,
+        ]
+      : []),
+    `$t = Join-Path ([IO.Path]::GetTempPath()) ('docket-' + [guid]::NewGuid()); New-Item -ItemType Directory -Path $t | Out-Null`,
+    `try { $b = Join-Path $t 'b.tgz'; try { Invoke-WebRequest -UseBasicParsing -Uri ${psQuote(input.url)} -OutFile $b } catch { throw ${psQuote(REFUSED_UNINSTALL)} }`,
+    // Windows' own tar.exe: a GNU tar from Git on the PATH would read `C:` as a remote host.
+    `$x = 'tar'; if ($env:SystemRoot) { $w = Join-Path $env:SystemRoot 'System32/tar.exe'; if (Test-Path -LiteralPath $w) { $x = $w } }; & $x -xzf $b -C $t; if ($LASTEXITCODE) { throw 'Could not unpack the download.' }`,
+    `$i = Join-Path (Join-Path $t 'docket-uninstall') 'uninstall.ps1'; & ([scriptblock]::Create((Get-Content -Raw -LiteralPath $i))) $d ${psQuote(input.url)} } finally { Remove-Item -Recurse -Force -LiteralPath $t } }`,
+  ].join('; ');
+  return { powershell, bash };
+}
+
 /**
  * The check one-liners (FR-127, without push): read the manifest the install
  * left, hash each file as the check defines it, and print the files that

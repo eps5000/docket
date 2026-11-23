@@ -223,6 +223,13 @@ describe('the service stubs', () => {
       'testPushTarget',
       // Decision 34 (B36, T175): install state.
       'state',
+      // Decision 50 (B64): every project's state, uninstall, and marking a legacy install removed.
+      'overview',
+      'issueUninstall',
+      'uninstallBundle',
+      'markUninstallDownloaded',
+      'recordUninstall',
+      'markRemoved',
     ],
     // US14 (B27a, T160): proposals.
     agentProposals: ['files', 'propose', 'list', 'approve', 'decline'],
@@ -236,6 +243,8 @@ describe('the service stubs', () => {
       'restorePrepare',
       'restoreRecord',
       'keepLocal',
+      // Decision 50 (B64).
+      'closeForRemovedInstall',
     ],
     // Decision 48 (B63): token use.
     usage: ['summary', 'item', 'settings', 'setSettings', 'syncConfig', 'ingest'],

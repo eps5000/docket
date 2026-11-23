@@ -1,5 +1,5 @@
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useId, useMemo, useState } from 'react';
+import { useId, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import {
   AGENTS_BLOCK_KEY,
@@ -43,17 +43,20 @@ import { HelpLink } from '../../help/HelpLink';
 import { ApiError, queryKeys } from '../../lib/api';
 import { formatClock, formatStamp, isoTitle, plural } from '../../lib/format';
 import { paths } from '../../lib/paths';
-import { showToast } from '../../lib/undo';
+import { runOwnerMutation, showToast } from '../../lib/undo';
 import { DiffView } from './DiffView';
 import { CopyBlock, errorText, usePushTarget } from './install-common';
+import { UninstallButton } from './InstallScope';
 import {
   INSTALL_STATE_VIEW,
   insidePushFolder,
   installButtonLabel,
+  installStateChip,
   possessive,
   pushReady,
   versionLabel,
   connectionSentText,
+  worktreeText,
 } from './model';
 
 /*
@@ -109,8 +112,8 @@ function whyCommand(
 // ---- The Install dialog ----
 
 export interface InstallDialogProps {
-  /** The project whose files to install into its repo; null installs the defaults user-wide. */
-  project: string | null;
+  /** The project whose files to install into its repo (decision 50: installs are per project). */
+  project: string;
   projectName: string | null;
   /** The clients to tick (a state row's *Install*, *Update* or *Reinstall*); else the defaults. */
   initialClients?: readonly InstallClient[];
@@ -127,9 +130,8 @@ export function useInstallState(project: string | null, path?: string) {
 }
 
 /**
- * *Install into <project>’s repo* (one project selected) or *Install
- * user-wide* (All projects), for one client or several in one go (decision
- * 34). Each client is a checkbox with its install state; the defaults are the
+ * *Install into <project>’s repo*, for one client or several in one go
+ * (decision 34). Each client is a checkbox with its install state; the defaults are the
  * clients the repo has markers for (or that are installed), else both. The
  * repo folder is prefilled from that project's last install. The method is
  * automatic: push when the push folder is ready and the folder is inside it,
@@ -145,8 +147,8 @@ export function InstallDialog({
   const qc = useQueryClient();
   const navigate = useNavigate();
   const pathId = useId();
-  const target: InstallTargetKind = project ? 'repo' : 'user';
-  const name = projectName ?? project ?? '';
+  const target: InstallTargetKind = 'repo';
+  const name = projectName ?? project;
   /** Null until the owner ticks: the defaults (or the row's client) show meanwhile. */
   const [picked, setPicked] = useState<InstallClient[] | null>(
     initialClients ? [...initialClients] : null,
@@ -161,14 +163,13 @@ export function InstallDialog({
   const [result, setResult] = useState<CreateInstallResponse | null>(null);
 
   const installs = useQuery({
-    queryKey: queryKeys.installs(project ? { project } : {}),
-    queryFn: () => apiClient['installs.list']({ query: project ? { project } : {} }),
-    enabled: project !== null,
+    queryKey: queryKeys.installs({ project }),
+    queryFn: () => apiClient['installs.list']({ query: { project } }),
   });
   const remembered =
     installs.data?.installs.find((r) => r.target_kind === 'repo' && r.path)?.path ?? '';
   const path = (typed ?? remembered).trim();
-  const state = useInstallState(project, target === 'repo' ? (looked ?? remembered) : undefined);
+  const state = useInstallState(project, looked ?? remembered);
   const stateOf = (c: InstallClient) => state.data?.clients.find((x) => x.client === c);
   const clients = picked ?? state.data?.defaults ?? [];
   const ticked = CLIENTS.filter((c) => clients.includes(c.key)).map((c) => c.key);
@@ -177,11 +178,11 @@ export function InstallDialog({
 
   const pushTarget = usePushTarget();
   const pt = pushTarget.data;
-  const canPush = target === 'repo' && pushReady(pt) && (path === '' || insidePushFolder(path, pt));
+  const canPush = pushReady(pt) && (path === '' || insidePushFolder(path, pt));
   const method: 'push' | 'command' = canPush && !forced ? 'push' : 'command';
   const why = whyCommand(pt, path, forced && canPush);
 
-  const filesQuery = project ? { project } : {};
+  const filesQuery = { project };
   const files = useQuery({
     queryKey: queryKeys.agentFiles(filesQuery),
     queryFn: () => apiClient['agentFiles.list']({ query: filesQuery }),
@@ -199,14 +200,7 @@ export function InstallDialog({
     return placeholdersIn(renderAgentsBlock(content, fillsProjectKey(target, project)));
   }, [block.data, target, project]);
 
-  const where =
-    target === 'user'
-      ? 'your home folder'
-      : method === 'push'
-        ? 'the repo folder'
-        : path
-          ? 'the repo folder'
-          : 'the folder you run it in';
+  const where = method === 'push' || path ? 'the repo folder' : 'the folder you run it in';
   const writtenFor = (client: InstallClient) => {
     const layout = installLayout(client, target);
     const out = (files.data?.files ?? [])
@@ -221,7 +215,7 @@ export function InstallDialog({
   const changed = ticked.filter((c) => stateOf(c)?.state === 'changed');
   const reviewChanges = () => {
     onClose();
-    void navigate(`${paths.agentFiles({ project: project ?? 'all' })}#drift`);
+    void navigate(`${paths.agentFiles({ project })}#drift`);
   };
 
   const install = async () => {
@@ -242,8 +236,8 @@ export function InstallDialog({
           clients: ticked,
           target_kind: target,
           method,
-          ...(project ? { project } : {}),
-          ...(target === 'repo' && path ? { path } : {}),
+          project,
+          ...(path ? { path } : {}),
         },
       });
       setResult(out);
@@ -257,7 +251,7 @@ export function InstallDialog({
     }
   };
 
-  const title = project ? `Install into ${possessive(name)} repo` : 'Install user-wide';
+  const title = `Install into ${possessive(name)} repo`;
   const actionLabel =
     method === 'push'
       ? installButtonLabel(ticked.map((c) => stateOf(c)?.state))
@@ -289,9 +283,7 @@ export function InstallDialog({
       ) : (
         <div className="inform" data-install-dialog="" data-method={method}>
           <p className="src" style={{ margin: 0 }}>
-            {project
-              ? `Installs the skills and the AGENTS.md block ${possessive(name)} agents use (its copies where you customized a file, the defaults elsewhere), for each client you tick.`
-              : `Installs the default skills and AGENTS.md block into your home folder, for every project on this computer. A project’s own copies aren’t included: install those into its repo.`}
+            {`Installs the skills and the AGENTS.md block ${possessive(name)} agents use (its copies where you customized a file, the defaults elsewhere), for each client you tick.`}
           </p>
           <fieldset className="inclients" data-install-clients="">
             <legend className="inlabel">Clients</legend>
@@ -453,18 +445,17 @@ export function InstallDialog({
                   </span>
                 ))}
                 {placeholders.length > 3 && ` and ${placeholders.length - 3} more`}. Fill{' '}
-                {placeholders.length === 1 ? 'it' : 'them'} in first, in{' '}
-                {project ? `${possessive(name)} AGENTS.md block` : 'the default AGENTS.md block'}.
+                {placeholders.length === 1 ? 'it' : 'them'} in first, in {possessive(name)}{' '}
+                AGENTS.md block.
               </div>
               <div className="row" style={{ gap: 8, marginTop: 8 }}>
                 <Button
                   size="sm"
                   onClick={() => {
                     onClose();
-                    void navigate(
-                      paths.agentFiles({ project: project ?? 'all', file: AGENTS_BLOCK_KEY }),
-                      { state: { mode: 'edit', n: Date.now() } },
-                    );
+                    void navigate(paths.agentFiles({ project, file: AGENTS_BLOCK_KEY }), {
+                      state: { mode: 'edit', n: Date.now() },
+                    });
                   }}
                 >
                   Edit block
@@ -624,7 +615,7 @@ export function InstallStateCard({
   projectName,
   onInstall,
 }: {
-  project: string | null;
+  project: string;
   projectName: string | null;
   onInstall: (client: InstallClient) => void;
 }) {
@@ -634,9 +625,7 @@ export function InstallStateCard({
       <CardHeader
         title={
           <span className="withhelp">
-            {project
-              ? `Installed in ${possessive(projectName ?? project)} repo`
-              : 'Installed user-wide'}
+            {`Installed in ${possessive(projectName ?? project)} repo`}
             <HelpLink anchor="agent-files.install-state" />
           </span>
         }
@@ -652,7 +641,13 @@ export function InstallStateCard({
         {(d) => (
           <ul className="instates" aria-label="Install state">
             {d.clients.map((c) => (
-              <InstallStateRow key={c.client} row={c} project={project} onInstall={onInstall} />
+              <InstallStateRow
+                key={c.client}
+                row={c}
+                project={project}
+                projectName={projectName ?? project}
+                onInstall={onInstall}
+              />
             ))}
           </ul>
         )}
@@ -664,10 +659,12 @@ export function InstallStateCard({
 function InstallStateRow({
   row,
   project,
+  projectName,
   onInstall,
 }: {
   row: InstallStateResponse['clients'][number];
-  project: string | null;
+  project: string;
+  projectName: string;
   onInstall: (client: InstallClient) => void;
 }) {
   const navigate = useNavigate();
@@ -675,7 +672,7 @@ function InstallStateRow({
   const [checking, setChecking] = useState(false);
   const [showCmd, setShowCmd] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const view = INSTALL_STATE_VIEW[row.state];
+  const view = installStateChip(row.state, row.worktree);
   const install = row.install;
   const label = INSTALL_CLIENT_LABELS[row.client];
   const runCheck = async () => {
@@ -699,7 +696,7 @@ function InstallStateRow({
     if (el) {
       el.scrollIntoView({ block: 'start' });
       el.focus();
-    } else void navigate(`${paths.agentFiles({ project: project ?? 'all' })}#drift`);
+    } else void navigate(`${paths.agentFiles({ project })}#drift`);
   };
   const at = install ? (install.token_used_at ?? install.at) : null;
   const cmds = install
@@ -710,11 +707,16 @@ function InstallStateRow({
       })
     : null;
   return (
-    <li data-install-state-row={row.client} data-state={row.state}>
+    <li
+      data-install-state-row={row.client}
+      data-state={row.state}
+      data-worktree={row.worktree?.name}
+    >
       <div className="row wrap inrow">
         <span className="instatename">{label}</span>
         <Chip kind={view.kind}>{view.label}</Chip>
         <span className="src">
+          {row.state !== 'up_to_date' && row.worktree && `${worktreeText(row.worktree)} · `}
           {row.state === 'update_available' &&
             `${plural(row.outdated.length, 'file')} newer in Docket · `}
           {row.state === 'changed' && `${plural(row.drift_ids.length, 'file')} changed · `}
@@ -769,6 +771,9 @@ function InstallStateRow({
             Install
           </Button>
         )}
+        {install && (
+          <UninstallButton row={install} name={`${label} from ${possessive(projectName)} repo`} />
+        )}
       </div>
       {showCmd && cmds && (
         <div className="indetail">
@@ -799,7 +804,53 @@ function useProjectName() {
 }
 
 const targetLabel = (r: InstallRow, name: string | null) =>
-  r.target_kind === 'user' ? 'User-wide' : name ? `${possessive(name)} repo` : 'A repo';
+  r.target_kind === 'user'
+    ? 'User-wide (no longer supported)'
+    : name
+      ? `${possessive(name)} repo`
+      : 'A repo';
+
+/** Why a file was left in place, in plain words (decision 50). */
+const KEPT_REASON = {
+  modified: 'changed after Docket wrote it',
+  link: 'a link, which uninstall never follows',
+  not_a_file: 'not a regular file',
+  damaged_markers: 'its Docket markers are damaged',
+  other_files: 'it holds other files',
+  has_kept_files: 'it still describes the files kept',
+} as const;
+
+/** What happened to a removed install, on its log row. */
+function RemovalNote({ row }: { row: InstallRow }) {
+  const removal = row.removal;
+  if (!row.removed_at || !removal) return null;
+  const at = <span title={isoTitle(row.removed_at)}>{formatStamp(row.removed_at)}</span>;
+  if (removal.how === 'marked') {
+    return (
+      <div className="indetail" data-install-removal="marked">
+        <span className="src">You marked this as removed outside Docket · {at}</span>
+      </div>
+    );
+  }
+  return (
+    <div className="indetail" data-install-removal="command">
+      <span className="src">
+        Uninstalled · {at} · {plural(removal.removed.length, 'item')} removed, {removal.kept.length}{' '}
+        kept, {removal.gone.length} already gone
+      </span>
+      {removal.kept.length > 0 && (
+        <ul className="inchanges" aria-label="Files kept">
+          {removal.kept.map((k) => (
+            <li key={k.path}>
+              <Chip kind="warn">Kept</Chip> <span className="mono">{k.path}</span>{' '}
+              <span className="src">({KEPT_REASON[k.why]})</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 /**
  * The install log (UI_SPEC §6.7b): one project's installs with a project
@@ -855,6 +906,9 @@ export function InstallLog({
 
 function InstallLogRow({ row }: { row: InstallRow }) {
   const nameOf = useProjectName();
+  const qc = useQueryClient();
+  const rowRef = useRef<HTMLLIElement>(null);
+  const [marking, setMarking] = useState(false);
   const [check, setCheck] = useState<InstallCheckResponse | null>(null);
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -875,9 +929,42 @@ function InstallLogRow({ row }: { row: InstallRow }) {
     }
   };
   const cmds = checkCommands({ client: row.client, target_kind: row.target_kind, path: row.path });
+  const removed = row.removed_at !== null;
+  const legacy = row.target_kind === 'user';
+  const client = INSTALL_CLIENT_LABELS[row.client];
+  const uninstallName = legacy
+    ? `${client} user-wide install`
+    : `${client} from ${targetLabel(row, nameOf(row.project))}`;
+  const markRemoved = async () => {
+    setMarking(true);
+    setError(null);
+    try {
+      await runOwnerMutation(
+        () => apiClient['installs.markRemoved']({ params: { id: row.id }, body: {} }),
+        {
+          success: 'Marked as removed.',
+          refetch: [queryKeys.installs(), queryKeys.agentFiles()],
+        },
+      );
+      await qc.invalidateQueries({ queryKey: [...queryKeys.installs()].slice(0, 2) });
+      // The button is gone: keep the keyboard on this row.
+      rowRef.current?.focus();
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setMarking(false);
+    }
+  };
 
   return (
-    <li data-install-row={row.id} data-method={row.method}>
+    <li
+      ref={rowRef}
+      tabIndex={-1}
+      data-install-row={row.id}
+      data-method={row.method}
+      data-target={row.target_kind}
+      data-removed={removed ? 'true' : undefined}
+    >
       <div className="row wrap inrow">
         <span title={isoTitle(at)}>{formatStamp(at)}</span>
         <span>{INSTALL_CLIENT_LABELS[row.client]}</span>
@@ -896,7 +983,11 @@ function InstallLogRow({ row }: { row: InstallRow }) {
         >
           Versions sent
         </Button>
-        {row.method === 'push' ? (
+        {removed ? (
+          <Chip kind="neutral">
+            {row.removal?.how === 'marked' ? 'Marked as removed' : 'Removed'}
+          </Chip>
+        ) : row.method === 'push' ? (
           <Button size="sm" onClick={() => void runCheck()} disabled={checking}>
             {checking ? 'Checking…' : 'Check'}
           </Button>
@@ -905,7 +996,21 @@ function InstallLogRow({ row }: { row: InstallRow }) {
             Check command
           </Button>
         )}
+        {legacy && !removed && (
+          <Button
+            size="sm"
+            onClick={() => void markRemoved()}
+            disabled={marking}
+            aria-label={`Mark as removed: ${uninstallName}`}
+          >
+            {marking ? 'Working…' : 'Mark as removed'}
+          </Button>
+        )}
+        {(!removed || (row.removal?.how === 'command' && row.removal.kept.length > 0)) && (
+          <UninstallButton row={row} name={uninstallName} again={removed} />
+        )}
       </div>
+      <RemovalNote row={row} />
       {showSent && <SentVersions row={row} projectName={nameOf(row.project)} />}
       {showCmd && (
         <div className="indetail">

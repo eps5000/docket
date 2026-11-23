@@ -22,6 +22,7 @@ import { paths } from '../../lib/paths';
 import { showToast } from '../../lib/undo';
 import { AgentFileView, type FileViewMode } from './AgentFileView';
 import { InstallDialog, InstallLog, InstallStateCard, SetUpPushLink } from './AgentInstall';
+import { InstallOverviewCard } from './InstallScope';
 import { usePushTarget } from './install-common';
 import { kindLabel, possessive, rowCopyOutdated, rowDefaultOutdated } from './model';
 import { DriftChip, DriftSection, driftCounts, useOpenDrift } from './Drift';
@@ -46,7 +47,8 @@ interface OpenState {
  *   it, the default or the project's own copy (*Customize for …*, *Edit*,
  *   *Use default*), *Install into …’s repo*, and that project's install log;
  * - **All projects:** each file's default (*Reset* to Docket's version),
- *   where it's customized, *Install user-wide*, and the full install log.
+ *   where it's customized, each project's real install state with a choice
+ *   of project to install into (decision 50), and the full install log.
  *
  * `?project=<KEY|all>` switches the scope (links from elsewhere), then drops
  * out of the URL; `?file=<key>` opens a file under the list.
@@ -57,8 +59,11 @@ export function AgentFiles() {
   const location = useLocation();
   const navigate = useNavigate();
   const boot = useBootstrap();
-  /** The Install dialog: open with no client (the defaults) or the state row's client. */
-  const [installing, setInstalling] = useState<{ client?: InstallClient } | null>(null);
+  /** The Install dialog: for a project, with no client (the defaults) or the state row's client. */
+  const [installing, setInstalling] = useState<{
+    project: string;
+    client?: InstallClient;
+  } | null>(null);
 
   const rawProject = params.get('project');
   const fromUrl =
@@ -121,9 +126,11 @@ export function AgentFiles() {
           <HelpLink anchor="agent-files.page" />
         </div>
         <span className="grow" />
-        <Button variant="primary" icon="upload" onClick={() => setInstalling({})}>
-          {project ? `Install into ${possessive(projectName!)} repo` : 'Install user-wide'}
-        </Button>
+        {project && (
+          <Button variant="primary" icon="upload" onClick={() => setInstalling({ project })}>
+            {`Install into ${possessive(projectName!)} repo`}
+          </Button>
+        )}
       </div>
       {/* First run (B32): the defaults still show, with a pointer to the Welcome page. */}
       {boot.isSuccess && projects.length === 0 && <NoProjectsPointer />}
@@ -195,18 +202,28 @@ export function AgentFiles() {
         />
       )}
 
-      <InstallStateCard
-        project={project}
-        projectName={projectName}
-        onInstall={(client) => setInstalling({ client })}
-      />
+      {project ? (
+        <InstallStateCard
+          project={project}
+          projectName={projectName}
+          onInstall={(client) => setInstalling({ project, client })}
+        />
+      ) : (
+        <InstallOverviewCard
+          projects={projects}
+          onInstall={(key) => setInstalling({ project: key })}
+        />
+      )}
 
       <InstallLog project={project} projectName={projectName} />
 
       {installing && (
         <InstallDialog
-          project={project}
-          projectName={projectName}
+          key={installing.project}
+          project={installing.project}
+          projectName={
+            projects.find((p) => p.key === installing.project)?.short_name ?? installing.project
+          }
           {...(installing.client ? { initialClients: [installing.client] } : {})}
           onClose={() => setInstalling(null)}
         />

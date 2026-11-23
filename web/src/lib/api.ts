@@ -366,6 +366,8 @@ export const queryKeys = {
    */
   installState: (query: RouteQueryInput<'installs.state'> = {}) =>
     [ROOT, 'agentFiles', 'install-state', query] as const,
+  /** Every project's installs (decision 50): the same family, so it refreshes the same way. */
+  installOverview: () => [ROOT, 'agentFiles', 'install-overview'] as const,
   workflow: (project: string) => [ROOT, 'workflow', project] as const,
   installs: (query: RouteQueryInput<'installs.list'> = {}) => [ROOT, 'installs', query] as const,
   pushTarget: () => [ROOT, 'pushTarget'] as const,

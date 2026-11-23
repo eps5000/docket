@@ -324,7 +324,7 @@ describe('agent setup (decision 29; BUILD_SPEC §5.17, §7)', () => {
       body: { content_md: '- Branch per item.', expected_version: 0 },
     });
     await client['installs.create']({
-      body: { client: 'codex', target_kind: 'user', method: 'command' },
+      body: { client: 'codex', target_kind: 'repo', project: 'RCP', method: 'command' },
     });
     await client['installs.check']({ params: { id: 'ins_1' } });
     await client['pushTarget.test']({});

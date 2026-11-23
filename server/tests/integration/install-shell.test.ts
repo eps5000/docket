@@ -540,6 +540,7 @@ describe.each(Object.keys(SHELLS) as ShellName[])('the %s commands', (shell) => 
     const created = await request('POST', '/api/installs', {
       client: 'claude',
       target_kind: 'repo',
+      project: 'RCP',
       method: 'command',
     });
     const key = shell === 'bash' ? 'bash' : 'powershell';
@@ -564,6 +565,7 @@ describe.each(Object.keys(SHELLS) as ShellName[])('the %s commands', (shell) => 
       const created = await request('POST', '/api/installs', {
         client: 'claude',
         target_kind: 'repo',
+        project: 'RCP',
         method: 'command',
       });
       const key = shell === 'bash' ? 'bash' : 'powershell';
@@ -638,6 +640,7 @@ describe.each(Object.keys(SHELLS) as ShellName[])('the %s commands', (shell) => 
       const created = await request('POST', '/api/installs', {
         clients: ['claude', 'codex'],
         target_kind: 'repo',
+        project: 'RCP',
         method: 'command',
       });
       const key = shell === 'bash' ? 'bash' : 'powershell';

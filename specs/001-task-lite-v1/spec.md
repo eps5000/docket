@@ -257,7 +257,7 @@ The owner can open short how-to articles from the sidebar, from the search palet
 
 ### User Story 13 - See, tailor and install the agent files (Priority: P2)
 
-The owner can see exactly which instructions agents get: the bundled skills and AGENTS.md block, the owner's service-wide edits, and each project's overrides and Workflow notes, with history and diffs. They install them into a repo or user-wide with one command, or with one click when they've mounted a folder, and later see whether the installed copy was edited locally.
+The owner can see exactly which instructions agents get: the bundled skills and AGENTS.md block, the owner's service-wide edits, and each project's overrides and Workflow notes, with history and diffs. They install them into a project's repo with one command, or with one click when they've mounted a folder, and later see whether the installed copy was edited locally.
 
 **Why this priority**: different projects run different workflows (some also use Spec Kit), and when an agent misbehaves the owner needs to see which instructions it had.
 
@@ -537,7 +537,7 @@ Agents working in parallel worktrees declare the shared parts each item will cha
 - **FR-121**: The system MUST keep the agent files it ships (each skill and the AGENTS.md block) in three layers: bundled (read-only, updated by upgrades), service-wide edits, and per-project overrides. Each edit is a new version with an author, note, history and diff, and can be reverted to the layer below.
 - **FR-122**: For each project, the system MUST show the effective agent files (which version of each file applies and from which layer), and MUST flag files whose bundled version changed after the owner edited them, without overwriting the owner's version.
 - **FR-123**: Each project MUST be able to hold Workflow notes (Markdown, ≤ 10,000 characters), versioned like the agent files, and `get_context` MUST include them for that project's items.
-- **FR-124**: The system MUST offer installing a project's or the service-wide effective agent files, for Claude Code or Codex, into a repo or user-wide, by a copy-paste command that downloads them from Docket with a short-lived single-use link.
+- **FR-124** (changed by owner decision 50): The system MUST offer installing a project's effective agent files, for Claude Code or Codex, into that project's repo, by a copy-paste command that downloads them from Docket with a short-lived single-use link. It MUST refuse a new user-wide install.
 - **FR-125**: The system MUST offer an opt-in push install into a host folder the owner mounts for that purpose. It writes only skill folders and the marked Docket section of AGENTS.md/CLAUDE.md, and never deletes, except folders Docket itself installed and recorded, when unmodified (B28: the `tasklite-*` skill folders an install from before the rename recorded in its manifest, removed only while each still matches the recorded hash; an edited one is kept and reported).
 - **FR-126**: Every install MUST be logged with its time, client, target, method and the exact version of every file, and installed files MUST carry a manifest of those versions.
 - **FR-127**: The system MUST show whether installed copies differ from what was sent: in the UI for pushed installs, and through a copy-paste check command for others.
@@ -687,6 +687,13 @@ Agents working in parallel worktrees declare the shared parts each item will cha
 - **FR-275**: The ticket MUST show its GitHub links, with Related apart and how fresh the data is. Stale data MUST be labeled and never treated as current.
 - **FR-276**: Overview's Merged count MUST use synced merges when connected and recorded ones otherwise, MUST say which, and MUST NOT count a PR twice.
 - **FR-277**: Settings MUST show the connection's control, its status (helper not running, `gh` not signed in, connected, repositories, last sync, last error) and plain steps to connect.
+- **FR-278** (owner decision 50): With All projects selected, the system MUST show each project's real install state (client, where, current or out of date) and ask which project to install into. It MUST NOT say "Not installed" for a project that has an install.
+- **FR-279**: A repo install in a separate worktree, as agents reported it on their runs, MUST say it's in that worktree and not merged yet instead of up to date. This MUST NOT add a Git read.
+- **FR-280**: Existing user-wide installs MUST stay in the install log, labelled as no longer supported, and MUST NOT count as installed for any project or create drift or Problems.
+- **FR-281**: The system MUST offer a generated, reviewable uninstall for any install, in PowerShell and POSIX shell, that removes only that install's files still matching their recorded hash and keeps and lists the rest.
+- **FR-282**: From `CLAUDE.md` or `AGENTS.md` the uninstall MUST remove only the block between the Docket markers, and delete the file only if nothing else remains. It MUST NOT change a connection entry unless that install wrote it and it's unchanged.
+- **FR-283**: The uninstall MUST NOT follow links or delete recursively, MUST remove a skill folder only when empty, MUST be safe to repeat, and MUST report and record what it did.
+- **FR-284**: The owner MUST be able to mark a legacy user-wide install as removed, with an event and Undo, because Docket can't see the home folder.
 - **FR-195**: The Needs you badge MUST equal what the owner can act on on the page, from the same source, with no badge at 0.
 - **FR-184**: Automatic outcomes MUST be recorded as Docket (`decided_by: docket`), never as the owner, on both tickets with their reason and evidence. The owner MUST be able to overrule them from the ticket with undo, and Needs you MUST show at most one quiet line, "Docket handled N overlaps today", linking to them. Single-writer leases, the required merge checks, owner-recorded decisions and overlaps the owner already decided MUST be unchanged in every mode.
 
@@ -710,7 +717,7 @@ Agents working in parallel worktrees declare the shared parts each item will cha
 - **Resource**: a long-lived thing a run started (a process, dev server, session, container, temp directory or port), with how to find it, and when it was released and by whom.
 - **AgentFile / AgentFileVersion**: a skill or the AGENTS.md block, in a layer (bundled, service, or project), with immutable versions, content hash, author and note.
 - **ProjectWorkflow**: a project's Workflow notes, versioned, delivered in `get_context`.
-- **Install**: one install of an effective file set: when, client, target (repo or user-wide, path), method (command or push), and the version of every file sent.
+- **Install**: one install of an effective file set: when, client, target (a repo and path; older rows may be user-wide), method (command or push), and the version of every file sent.
 - **AgentFileProposal**: an agent's proposed new content for a file or Workflow notes, with its reason, the version it was based on, its state (pending, approved, declined) and who decided.
 - **InstructionReport / Drift**: the instruction hashes reported for an installed location (by a scheduled push-folder check or an agent's claim), the differences from what was sent, and the owner's remedy (adopted, restored, kept local).
 - **Onboarding**: a project's onboarding session: who started it, when, its state (in progress, ready for review, reviewed), the agent's summary, and the changes it made.
@@ -748,6 +755,7 @@ Agents working in parallel worktrees declare the shared parts each item will cha
 - **SC-028** (owner decision 48): On a project whose finished tickets fall while parks rise, the owner can see the divergence on Overview by the second day, and can read the day's brief in about a minute, with no change to the Needs you count.
 - **SC-029** (owner decision 48): On the 300-item stress project, the owner can see what holds up a goal and which ticket to move next, by map or by list, and can tell which worktrees are safe to remove, at 1024 px and 1440 × 900 with no axe violations in either theme. No check writes to a repository.
 - **SC-030** (owner decision 48, B63): With the source off, the collector makes no file call on the agents' logs. With it on, planted secret text in a fixture log reaches no record, state or log line, and a ticket's tokens match the fixture's per-turn numbers exactly, with repeated lines and cumulative totals counted once.
+- **SC-031** (owner decision 50): No action in Docket can create an install outside a project, and an uninstall in a temporary folder removes only unchanged files Docket wrote, leaving surrounding content byte-identical.
 - **SC-027** (owner decision 47): On a question at the contract's longest limits, the owner can read the background, compare the options and pick the recommendation in two actions at 1024 px and 1440 × 900, with no decoding and no axe violations in either theme.
 - **SC-026** (owner decision 39): In every Overlap handling mode, with or without an overlap, an item declaring a change to an approved design never starts or closes before the owner approves it, while unrelated items start and finish.
 - **SC-025** (owner decision 39): In an unattended multi-agent run, agents keep working on everything that can safely run, and Needs you shows only overlaps that need the owner. Two add-only branches inserting at the same line are a text conflict with a merge order: no owner card, and neither agent stops.

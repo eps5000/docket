@@ -41,7 +41,7 @@ For one project, you can **customize** a file: the project gets **its own copy**
 
 Click a file's name to open it. Here, *Edit* changes **the default**, for every project without its own copy.
 
-*Install user-wide* installs the defaults into your home folder (see **Install the files**). The **Install log** at the bottom lists every install.
+**Installed in your projects** shows each project's installs: the client, the folder, and whether it's current. Choose a project there to install into its repo. Installs are per project, because files in your home folder would reach every project on the computer. The **Install log** at the bottom lists every install.
 
 ## With one project selected
 
@@ -121,12 +121,12 @@ A file that goes back to exactly what Docket sent closes its entry by itself. Fi
 
 ## Install the files
 
-Agents only follow the files once they're in the right folder. With a project selected, **Install into Recipe App's repo** puts that project's files (its copies where you customized a file, the defaults elsewhere) into its repository. With **All projects**, **Install user-wide** puts the defaults in your home folder, for every project on that computer.
+Agents only follow the files once they're in the right folder. With a project selected, **Install into Recipe App's repo** puts that project's files (its copies where you customized a file, the defaults elsewhere) into its repository. With **All projects**, choose the project first.
 
 In the dialog:
 
 1. **Clients:** tick *Claude Code*, *Codex*, or both; one install writes every client you tick. Each shows its state there (see **What's installed**). Docket ticks the clients the repo already has signs of (`.claude/` or `CLAUDE.md` for Claude Code; `.codex/`, `.agents/` or `AGENTS.md` for Codex), and both when it finds none or can't see the folder. Clients already installed are ticked too.
-2. **Repo folder** (repo installs): the repo's folder on your computer, like `C:/Users/you/code/recipes`. Docket fills in the folder from the project's last install.
+2. **Repo folder:** the repo's folder on your computer, like `C:/Users/you/code/recipes`. Docket fills in the folder from the project's last install.
 3. The method is chosen for you:
    - **Docket writes the files into this folder itself** when a push folder is set up and the folder is inside it. *Copy a command instead* switches to a command.
    - **You'll get a command to paste in a terminal** otherwise. The dialog says why, and offers *Set up one-click install* when no push folder is set up.
@@ -136,7 +136,7 @@ In the dialog:
 | | Claude Code | Codex |
 |---|---|---|
 | Skills | `.claude/skills/<name>/SKILL.md` | `.codex/skills/<name>/SKILL.md` |
-| The AGENTS.md block | `CLAUDE.md` (user-wide: `~/.claude/CLAUDE.md`) | `AGENTS.md` (user-wide: `~/.codex/AGENTS.md`) |
+| The AGENTS.md block | `CLAUDE.md` | `AGENTS.md` |
 | The manifest | `.claude/.docket-manifest.json` | `.codex/.docket-manifest.json` |
 
 **CLAUDE.md reads AGENTS.md:** when the repo has an `AGENTS.md` but no `CLAUDE.md`, the Claude Code install creates `CLAUDE.md` starting with the line `@AGENTS.md`, then the Docket section, so Claude agents also follow the project's own rules. The line sits outside the Docket section, so checks never count it, and Docket never adds it to a `CLAUDE.md` that already exists.
@@ -155,14 +155,14 @@ The button says what happens: *Install* for clients not installed yet, *Update* 
 
 *Create the command* shows a **PowerShell (Windows)** and a **bash (macOS, Linux, Git Bash)** command, each with *Copy*.
 
-- **Run from the repo folder** (when you left the folder empty): open a terminal in the repo, then paste one. It refuses a folder without `.git`, before it downloads anything. A user-wide command runs anywhere and installs into your home folder.
+- **Run from the repo folder** (when you left the folder empty): open a terminal in the repo, then paste one. It refuses a folder without `.git`, before it downloads anything.
 - The command downloads the files from Docket, puts them in place and fills in the Docket section. It needs nothing else installed.
 - It works **once**, for **10 minutes**. If it says *Docket refused the download*, make a new one.
 - With both clients ticked, one command installs both, checking both first. The summary under it lists the files each client gets.
 
 ## What's installed
 
-**Installed in Recipe App's repo** (or **Installed user-wide** with **All projects**), above the install log, shows each client's state there, and the Install dialog shows the same next to each client:
+**Installed in Recipe App's repo**, above the install log, shows each client's state there, and the Install dialog shows the same next to each client:
 
 - **Installed · up to date:** the files match what Docket would install now. *Check* compares them with the repo (or gives the check command for a command install); *Reinstall* writes them again.
 - **Installed · update available:** Docket would now install something newer: a new version it shipped, your edit of the default or the project's copy, a skill added or removed, or another trust mode for the connection file. *Update* opens the dialog with that client ticked.
@@ -170,6 +170,19 @@ The button says what happens: *Install* for clients not installed yet, *Update* 
 - **Not installed:** nothing installed by push, and no command run. *Install* opens the dialog with that client ticked.
 
 The state comes from the latest install's versions and the change checks, so it's as current as the last scheduled check or agent report for a command install.
+
+**Installed in worktree X, not merged yet** means an agent reported that folder as a separate worktree on its own branch, so the files may not be on the repo's main branch. Docket doesn't read Git for this.
+
+## Remove an install
+
+*Uninstall* makes a command for you to read and run, in PowerShell or bash. *Read the script it runs* shows exactly what it does. It works once, for 10 minutes, and it's safe to make a new one and run it again.
+
+- It removes only files that still match what Docket wrote. A file you changed is kept and listed.
+- In `CLAUDE.md` or `AGENTS.md`, it removes only the Docket section, and deletes the file only if nothing else is in it.
+- In `.mcp.json` or `.codex/config.toml`, it removes only the docket server, and only if that install wrote it and it's unchanged.
+- It never follows links, and removes a skill folder only when it's empty.
+
+**Older user-wide installs.** Docket no longer makes these. They stay in the install log as *User-wide (no longer supported)*, don't count as installed for any project, and raise no problems. Use *Uninstall* to remove one, or if you already removed it by hand, *Mark as removed*. Docket can't see your home folder, so it takes your word for it, and the toast has *Undo*.
 
 ## The install log and Check
 

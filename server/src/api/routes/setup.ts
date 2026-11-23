@@ -69,6 +69,24 @@ export function setupRoutes<E extends Env>(api: Hono<E>, deps: RouteDeps): void 
     services.installs.check(read, params),
   );
 
+  // Decision 50: every project's state, uninstall, and marking a legacy install removed.
+  defineRoute(api, 'installs.overview', deps, ({ services, read }) =>
+    services.installs.overview(read),
+  );
+
+  defineRoute(
+    api,
+    'installs.uninstall',
+    deps,
+    ({ services, mutate, params }) =>
+      mutate((w) => services.installs.issueUninstall(w, params)).result,
+  );
+
+  defineRoute(api, 'installs.markRemoved', deps, ({ services, mutate, params }) => {
+    const { result, mutation_id } = mutate((w) => services.installs.markRemoved(w, params));
+    return { mutation_id, install: result };
+  });
+
   defineRoute(api, 'pushTarget.get', deps, ({ services, read }) =>
     services.installs.pushTarget(read),
   );

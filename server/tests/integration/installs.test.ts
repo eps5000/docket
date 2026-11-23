@@ -12,15 +12,7 @@
  * - the push folder's status and *Test*, set and unset.
  */
 import { createHash } from 'node:crypto';
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  readdirSync,
-  rmSync,
-  statSync,
-  writeFileSync,
-} from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
 import {
@@ -335,7 +327,8 @@ describe('command install: the bundle and the single-use token (T155)', () => {
     const { api, server } = await start();
     const created = await api('POST', '/api/installs', {
       client: 'codex',
-      target_kind: 'user',
+      target_kind: 'repo',
+      project: 'RCP',
       method: 'command',
     });
     const token = tokenOf((created.body.command as { bash: string }).bash);
@@ -347,25 +340,62 @@ describe('command install: the bundle and the single-use token (T155)', () => {
     expect(eventsOf(server)).toHaveLength(1);
   });
 
-  it('lays out a user-wide Codex install (no project)', async () => {
+  it('refuses a new user-wide install, or one with no project (decision 50)', async () => {
     const { api, server } = await start();
-    const created = await api('POST', '/api/installs', {
-      client: 'codex',
-      target_kind: 'user',
+    for (const body of [
+      { client: 'codex', target_kind: 'user', method: 'command' },
+      { client: 'claude', target_kind: 'user', project: 'RCP', method: 'command' },
+    ]) {
+      const res = await api('POST', '/api/installs', body);
+      expect(res.status).toBe(400);
+      expect((res.body.error as S).code).toBe('validation');
+      expect(JSON.stringify(res.body.error)).toContain('no longer supported');
+    }
+    const none = await api('POST', '/api/installs', {
+      client: 'claude',
+      target_kind: 'repo',
       method: 'command',
     });
-    const cmd = created.body.command as { bash: string; powershell: string };
-    expect(cmd.bash).toContain('d="$HOME"');
-    expect(cmd.bash).not.toContain('.git');
-    const res = await server.request(`/install/${tokenOf(cmd.bash)}`);
+    expect(none.status).toBe(400);
+    expect(JSON.stringify(none.body.error)).toContain('choose a project');
+    expect(eventsOf(server)).toHaveLength(0);
+  });
+
+  it('a user-wide token issued before decision 50 still downloads, with no connection file', async () => {
+    const { server } = await start();
+    const db = server.runtime.db.sqlite;
+    const versions = db
+      .prepare(
+        `SELECT f.key AS key, v.id AS id FROM agent_file_versions v
+         JOIN agent_files f ON f.id = v.file_id
+         WHERE f.layer = 'bundled' AND (f.key LIKE 'skill:docket-%' OR f.key = 'agents_block')`,
+      )
+      .all() as { key: string; id: string }[];
+    const manifest = Object.fromEntries(
+      versions.map((v) => [v.key, { version_id: v.id, sha256: '0'.repeat(64) }]),
+    );
+    const token = 'L'.repeat(43);
+    const now = server.clock.now().toISOString();
+    db.prepare(
+      `INSERT INTO installs (id, at, client, target_kind, project_key, path, method, manifest,
+         token_sha256, token_expires_at, created_at, updated_at)
+       VALUES ('ins_legacytoken', ?, 'codex', 'user', NULL, NULL, 'command', ?, ?, ?, ?, ?)`,
+    ).run(
+      now,
+      JSON.stringify(manifest),
+      createHash('sha256').update(token, 'utf8').digest('hex'),
+      new Date(server.clock.now().getTime() + 60_000).toISOString(),
+      now,
+      now,
+    );
+    const res = await server.request(`/install/${token}`);
+    expect(res.status).toBe(200);
     const files = untar(Buffer.from(await res.arrayBuffer()));
     expect(files.has('docket-install/files/.codex/skills/docket-worker/SKILL.md')).toBe(true);
-    expect(files.has('docket-install/files/.codex/.docket-manifest.json')).toBe(true);
     expect(files.get('docket-install/install.sh')).toContain('instr="$base/.codex/AGENTS.md"');
-    expect(files.get('docket-install/block.md')).toMatch(/^## Work tracking: Docket/);
-    expect(files.get('docket-install/block.md')).not.toContain('{{');
-    expect(eventsOf(server).at(-1)!.summary).toBe(
-      'Installed by command: Codex, user-wide, 8 files',
+    expect(files.has('docket-install/connection.txt')).toBe(false);
+    expect(files.get('docket-install/files/.codex/.docket-manifest.json')).not.toContain(
+      'connection',
     );
   });
 
@@ -406,6 +436,7 @@ describe('command install: the bundle and the single-use token (T155)', () => {
     const bad = await api('POST', '/api/installs', {
       client: 'claude',
       target_kind: 'repo',
+      project: 'RCP',
       method: 'command',
       path: 'C:/code\u0007x',
     });
@@ -417,6 +448,7 @@ describe('command install: the bundle and the single-use token (T155)', () => {
     const created = await api('POST', '/api/installs', {
       client: 'claude',
       target_kind: 'repo',
+      project: 'RCP',
       method: 'command',
     });
     const id = created.body.install_id as string;
@@ -588,6 +620,7 @@ describe('push install and check (T156)', () => {
     const res = await api('POST', '/api/installs', {
       client: 'claude',
       target_kind: 'repo',
+      project: 'RCP',
       method: 'push',
       path: 'recipes',
     });
@@ -606,6 +639,7 @@ describe('push install and check (T156)', () => {
     const res = await api('POST', '/api/installs', {
       client: 'codex',
       target_kind: 'repo',
+      project: 'RCP',
       method: 'push',
       path,
     });
@@ -615,7 +649,7 @@ describe('push install and check (T156)', () => {
     expect((await api('GET', '/api/installs')).body).toEqual({ installs: [] });
   });
 
-  it('a user-wide push writes into .codex/ under the folder given', async () => {
+  it('a user-wide push is refused and writes nothing (decision 50)', async () => {
     const { api, root } = await start({ push: 'set' });
     const res = await api('POST', '/api/installs', {
       client: 'codex',
@@ -623,11 +657,9 @@ describe('push install and check (T156)', () => {
       method: 'push',
       path: 'recipes',
     });
-    expect(res.status).toBe(200);
-    expect(statSync(join(root, 'recipes/.codex/AGENTS.md')).isFile()).toBe(true);
-    expect((res.body.result as { files: { path: string }[] }).files.map((f) => f.path)).toContain(
-      '~/.codex/AGENTS.md',
-    );
+    expect(res.status).toBe(400);
+    expect(JSON.stringify(res.body.error)).toContain('no longer supported');
+    expect(filesUnder(root)).toEqual([]);
   });
 });
 
@@ -649,6 +681,7 @@ describe('the push folder: status and Test', () => {
     const push = await api('POST', '/api/installs', {
       client: 'claude',
       target_kind: 'repo',
+      project: 'RCP',
       method: 'push',
       path: 'recipes',
     });
@@ -822,23 +855,6 @@ describe('connection files (decision 32; BUILD_SPEC §5.17a; T168)', () => {
     const log = (await api('GET', '/api/installs')).body.installs as { manifest: S[] }[];
     expect(log[0]!.manifest).toContainEqual(
       expect.objectContaining({ key: 'connection', version_id: 'connection:protected' }),
-    );
-  });
-
-  it('a user-wide install writes no connection file', async () => {
-    const { api } = await start();
-    const created = await api('POST', '/api/installs', {
-      client: 'claude',
-      target_kind: 'user',
-      method: 'command',
-    });
-    const download = await s!.request(
-      `/install/${tokenOf((created.body.command as S).bash as string)}`,
-    );
-    const files = untar(Buffer.from(await download.arrayBuffer()));
-    expect(files.has('docket-install/connection.txt')).toBe(false);
-    expect(files.get('docket-install/files/.claude/.docket-manifest.json')).not.toContain(
-      'connection',
     );
   });
 });

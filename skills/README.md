@@ -12,28 +12,28 @@ These are agent skills that teach the **workflow** for using Docket well. The MC
 
 ## Install
 
-**From Docket (recommended):** open **Agent files**, pick the project in the project switcher, and click *Install into <project>'s repo* (with All projects, *Install user-wide*). It installs the skills and the AGENTS.md block that project uses (its own copies where you customized a file, the defaults elsewhere), either by a copy-paste command (PowerShell or bash, single use, 10 minutes) or by writing them into a folder you've mounted (**Settings → One-click install**). Every install is logged with the exact version of each file, and *Check* (or the check command) shows whether an installed copy was edited by hand.
+**From Docket (recommended):** open **Agent files**, pick the project in the project switcher, and click *Install into <project>'s repo* (with All projects, choose the project first). Installs are per project (owner decision 50). It installs the skills and the AGENTS.md block that project uses (its own copies where you customized a file, the defaults elsewhere), either by a copy-paste command (PowerShell or bash, single use, 10 minutes) or by writing them into a folder you've mounted (**Settings → One-click install**). Every install is logged with the exact version of each file, and *Check* (or the check command) shows whether an installed copy was edited by hand.
 
 **Connecting comes with it** (owner decision 32). A repo install also writes the repo's connection file: `.mcp.json` for Claude Code, `.codex/config.toml` for Codex, adding or updating only the `docket` server and never a token. Open the client in the repo and approve Docket when it asks (Claude Code: use the `docket` server from `.mcp.json`; Codex: trust the folder); there's nothing to configure by hand. Docket uses local trust by default, so agents need no token; in protected mode the file names the `DOCKET_TOKEN` environment variable instead (see the README, "Protected mode"). A user-wide install writes no connection file: use the README's "A user-wide connection instead".
 
-| Client | Skills (repo / user-wide) | The AGENTS.md block |
+| Client | Skills | The AGENTS.md block |
 |---|---|---|
-| Claude Code | `.claude/skills/<name>/` / `~/.claude/skills/<name>/` | `CLAUDE.md` / `~/.claude/CLAUDE.md` |
-| Codex | `.codex/skills/<name>/` / `~/.codex/skills/<name>/` | `AGENTS.md` / `~/.codex/AGENTS.md` |
+| Claude Code | `.claude/skills/<name>/` | `CLAUDE.md` |
+| Codex | `.codex/skills/<name>/` | `AGENTS.md` |
 
 The block goes between `<!-- docket:begin -->` and `<!-- docket:end -->`; nothing else in the file changes. A `.docket-manifest.json` in `.claude/` or `.codex/` records what was sent.
 
-**By hand:** each skill is a folder with a `SKILL.md`, in the standard skill format. Copy the folders you want into the agent's skills directory (this copies Docket's versions, without your edits in Agent files):
+**By hand:** each skill is a folder with a `SKILL.md`, in the standard skill format. Copy the folders you want into the repo's skills directory (this copies Docket's versions, without your edits in Agent files). Keep them in the repo: a copy in your home folder reaches every project on the computer.
 
-| Client | User-wide | One project |
-|---|---|---|
-| Claude Code | `~/.claude/skills/` | `.claude/skills/` in the repo |
-| Codex | `~/.codex/skills/` | see Codex's skills documentation |
-| Orca workers | Orca starts the installed Claude Code or Codex, so the folders above apply | |
+| Client | One project |
+|---|---|
+| Claude Code | `.claude/skills/` in the repo |
+| Codex | see Codex's skills documentation |
+| Orca workers | Orca starts the installed Claude Code or Codex, so the folders above apply |
 
 ```bash
-# Example: the core skills, user-wide, for Claude Code
-cp -r skills/docket-worker skills/docket-coordinator ~/.claude/skills/
+# Example: the core skills, for Claude Code, from this folder into a repo
+cp -r skills/docket-worker skills/docket-coordinator /path/to/repo/.claude/skills/
 ```
 
 Claude Code's project path (`.claude/skills/`) is verified: the B18 skills eval ran with it, headless, and Claude Code invoked both core skills. The user-wide paths, Codex's, and whether Orca workers see user-wide skills are checked in the real-client smoke test (BUILD_SPEC §12, V7; `docker/smoke/OWNER-CHECKLIST.md`).

@@ -131,6 +131,11 @@ const EXPECTED = [
   'GET /api/push-target',
   'POST /api/push-target/test',
   'GET /install/:token',
+  'GET /api/install-overview',
+  'POST /api/installs/:id/uninstall',
+  'POST /api/installs/:id/mark-removed',
+  'GET /uninstall/:token',
+  'POST /uninstall/:token/report',
   // Decision 30 (BUILD_SPEC §7): proposals and drift
   'GET /api/agent-file-proposals',
   'POST /api/agent-file-proposals/:id/approve',
@@ -195,7 +200,7 @@ describe('the route table', () => {
     const labels = ROUTE_IDS.map((id) => routeLabel(API_ROUTES[id]));
     expect(new Set(labels).size).toBe(labels.length);
     expect([...labels].sort()).toEqual([...EXPECTED].sort());
-    expect(labels).toHaveLength(116);
+    expect(labels).toHaveLength(121);
   });
 
   it('puts each route in a known group, and every group has a route', () => {
@@ -241,7 +246,7 @@ describe('the route table', () => {
           ? 'none'
           : r.path === '/agent-upload'
             ? 'bearer'
-            : r.path === '/install/:token'
+            : r.path === '/install/:token' || r.path.startsWith('/uninstall/')
               ? 'token'
               : 'session';
       expect(r.auth, id).toBe(expected);
@@ -322,7 +327,18 @@ describe('field rules', () => {
   });
 
   it('installs: push needs a path; the token is 43 base64url characters', () => {
-    const base = { client: 'codex', target_kind: 'user', method: 'command' } as const;
+    const base = {
+      client: 'codex',
+      target_kind: 'repo',
+      project: 'RCP',
+      method: 'command',
+    } as const;
+    // Decision 50: installs are per project.
+    expect(createInstallBody.safeParse({ ...base, target_kind: 'user' }).success).toBe(false);
+    expect(
+      createInstallBody.safeParse({ client: 'codex', target_kind: 'repo', method: 'command' })
+        .success,
+    ).toBe(false);
     expect(createInstallBody.safeParse(base).success).toBe(true);
     expect(createInstallBody.safeParse({ ...base, method: 'push' }).success).toBe(false);
     expect(
