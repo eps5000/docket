@@ -186,6 +186,8 @@ export interface WorkspaceFacts {
   unpushed_commits: number | null;
   /** The owner marked its unpushed work handled, and nothing newer was reported since. */
   handled: boolean;
+  /** The owner chose *Keep for later*, and nothing newer was reported since (B56). */
+  kept: boolean;
 }
 
 const FIELDS = [
@@ -260,6 +262,13 @@ export function workspaceFacts(
     .sort()
     .pop();
   const handled = !!handledAt && handledAt >= (merged.updated_at ?? '');
+  const keptAt = ordered
+    .filter((r) => r.unpushed_outcome === 'keep')
+    .map((r) => r.unpushed_handled_at)
+    .filter((t): t is string => !!t)
+    .sort()
+    .pop();
+  const kept = !!keptAt && keptAt >= (merged.updated_at ?? '');
 
   let state: WorkspaceState;
   if (ordered.some((r) => ACTIVE.has(r.state))) state = 'in_use';
@@ -280,7 +289,13 @@ export function workspaceFacts(
     unreleased: left,
     unpushed_commits,
     handled,
+    kept,
   };
+}
+
+/** The coordinator named on a run (`orchestrator.name`), if it was dispatched by one. */
+export function coordinatorOf(run: RunRow): string | null {
+  return parseJson<{ name?: string }>(run.orchestrator)?.name ?? null;
 }
 
 /** End reasons after which an interrupted run's work waits to be restarted. */

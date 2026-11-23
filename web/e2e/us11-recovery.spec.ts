@@ -340,11 +340,11 @@ test.describe.serial('US11 recovery', () => {
     await expect(page.locator('[data-ticket="RCP-16"]')).toContainText('Blocked by');
     await expectAxeClean(page, 'epic tickets with run state');
 
-    // Overview's Health links to workspaces at risk; Agents still filters by run state.
+    // Overview's Health says who has the worktrees at risk; Agents still filters by run state.
     await page.context().addInitScript(() => sessionStorage.setItem('docket.scope', 'RCP'));
     await page.goto('/');
     const risk = page.locator('[data-card="health"] a[data-state="workspaces-at-risk"]');
-    await expect(risk).toHaveText(/^\d+ workspaces? at risk$/);
+    await expect(risk).toHaveText(/^\d+ worktrees? holds? unsaved/);
     const n = Number((await risk.innerText()).split(' ')[0]);
     await page.goto('/agents?state=parked');
     const active = page.locator('[data-section="agents-active"]');
@@ -354,7 +354,7 @@ test.describe.serial('US11 recovery', () => {
     ).toHaveText(/^parked\s· ready to resume$/);
     await expectAxeClean(page, 'agents filtered to parked');
 
-    // "n workspaces at risk" opens Agents → Workspaces, whose header says the same n.
+    // The line opens Agents → Workspaces, whose header says the same n.
     await page.goto('/');
     await risk.click();
     await expect(page).toHaveURL(/\/agents#workspaces$/);

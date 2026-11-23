@@ -601,14 +601,23 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T235 [US6] Reliability and visibility: atomic state outside the repo, no replay on first run, 24-hour catch-up, no duplicates across restarts, one instance, `status`, a capped log, `test-send`, and the Windows auto-start steps.
 - [x] T236 [US6] Tests with a fake feed and a fake `orca`, plus the real app for the event wording and to prove a relay read delivers nothing; event-to-send latency measured.
 
-## Phase 35: Questions the owner can actually read (owner decision 47)
+## Phase 35: Overview fixes from the owner's feedback (polish within owner decision 43)
 
-- [x] T237 [US6] Spec plus code in one PR: decision 47 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.28; MCP_SPEC §2, §3, §5.7 and §7.5; UI_SPEC §6.1 and §6.3; spec FR-224–FR-229 and SC-027; Help (Questions and notes).
-- [x] T238 [US6] The `ask_owner` contract, its limits, the plain-language guard and the error that teaches the old shape. Still 51 tools.
-- [x] T239 [US6] Migration 0022 (`questions.form`, `questions.answer_choice`), the option answer, and delivery to text-only and structured clients.
-- [x] T240 [US6] The answer dialog on Needs you and the item page: option cards, note, *Something else*, Undo, keyboard and focus, both themes, 1024 px and 1440 × 900.
-- [x] T241 [US6] `docket-worker`, `docket-coordinator`, `docket-lead-subagents` and the MCP instructions: check first, decide what you can, ask only what needs the owner, write for someone who has not seen the work.
-- [x] T242 [US6] Tests: contract, limits, guard, old shape, delivery, the dialog by mouse and keyboard, older questions, token budgets, e2e and axe in both themes.
+- [x] T237 [US2] Spec plus code in one PR: UI_SPEC §2, §6.1, §6.6; BUILD_SPEC §5.24; the Overview design note; Help (First look around, Run states, Workspace states). No MCP tool or migration change.
+- [x] T238 [US2] The open-ticket tab strip doesn't show on Overview, and the open tabs survive going there and back.
+- [x] T239 [US2] The Agents card becomes **Tickets with agents** ("N being worked", "M parked/waiting"), from the same `agents_now`; the sidebar badge, Agents page and lists use the same words, with a note that it counts tickets, not sessions. No session count.
+- [x] T240 [US2] The Completed chart: a whole-number vertical axis, and a tooltip by hover and keyboard naming each bucket's tickets (bounded in the read API), which stays on-screen and is in the text alternative.
+- [x] T241 [US11] The at-risk line says which worktrees need the owner: `at_risk_owner` on `GET /api/workspaces`, from the existing Problems routing, with a *What to do* column. The Needs you badge doesn't change.
+- [x] T242 [US2] Tests: unit, API, e2e and axe in both themes at 1440 × 900 and 1024 px, the UI sweep, and screenshots on the stress data.
+
+## Phase 36: Questions the owner can actually read (owner decision 47)
+
+- [x] T243 [US6] Spec plus code in one PR: decision 47 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.28; MCP_SPEC §2, §3, §5.7 and §7.5; UI_SPEC §6.1 and §6.3; spec FR-224–FR-229 and SC-027; Help (Questions and notes).
+- [x] T244 [US6] The `ask_owner` contract, its limits, the plain-language guard and the error that teaches the old shape. Still 51 tools.
+- [x] T245 [US6] Migration 0022 (`questions.form`, `questions.answer_choice`), the option answer, and delivery to text-only and structured clients.
+- [x] T246 [US6] The answer dialog on Needs you and the item page: option cards, note, *Something else*, Undo, keyboard and focus, both themes, 1024 px and 1440 × 900.
+- [x] T247 [US6] `docket-worker`, `docket-coordinator`, `docket-lead-subagents` and the MCP instructions: check first, decide what you can, ask only what needs the owner, write for someone who has not seen the work.
+- [x] T248 [US6] Tests: contract, limits, guard, old shape, delivery, the dialog by mouse and keyboard, older questions, token budgets, e2e and axe in both themes.
 
 ## How to run the build
 
@@ -717,7 +726,8 @@ Open a PR titled "<Bn>: <phase name>" with the checkpoint evidence. Do not queue
 | 32 Time-limited coordinator parking | B53 (after B52) |
 | 33 Make a parked story's wait visible | B54 (after B53) |
 | 34 Wake the right session when the owner answers | B55 (after B54) |
-| 35 Questions the owner can actually read | B57 (after B55) |
+| 35 Overview fixes from the owner's feedback | B56 (after B55) |
+| 36 Questions the owner can actually read | B57 (after B56) |
 
 **Within a phase:** tests (failing) → services → replace stubs or fill handlers → fill screens → checkpoint.
 

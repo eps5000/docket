@@ -5,16 +5,19 @@ import { Card, CardHeader } from '../../components/kit';
 import { formatAgo, plural } from '../../lib/format';
 import { paths } from '../../lib/paths';
 import { ProposalsLine } from '../agent-files/Proposals';
+import { atRiskSummary, type AtRiskTone } from '../agents/atRisk';
 import { MoreProblems } from '../needs-you/ProblemsCard';
 import { OverlapsHandled } from '../needs-you/SharedQuestions';
 
 const NO_PROBLEMS: NeedsYouResponse['problems'] = [];
 
-function Line({ tone, children }: { tone: 'ok' | 'warn'; children: ReactNode }) {
+const MARKS: Record<AtRiskTone, string> = { ok: '✓', info: '?', warn: '!' };
+
+function Line({ tone, children }: { tone: AtRiskTone; children: ReactNode }) {
   return (
     <li className={`ov-hl ${tone}`} data-health={tone}>
       {/* The mark and the words carry the state; colour only repeats it. */}
-      <i aria-hidden="true">{tone === 'ok' ? '✓' : '!'}</i>
+      <i aria-hidden="true">{MARKS[tone]}</i>
       <span>{children}</span>
     </li>
   );
@@ -42,7 +45,8 @@ function BackupLine({
 /**
  * Health: problems agents are handling stay on one line until opened, then
  * what you acknowledged, backups, and the quiet signals that aren't counted as
- * owner actions (workspaces at risk, agent file proposals, handled overlaps).
+ * owner actions (worktrees at risk and who has them, agent file proposals,
+ * handled overlaps).
  */
 export function HealthCard({
   data,
@@ -55,7 +59,7 @@ export function HealthCard({
   metricsLoaded: boolean;
   workspaces: readonly WorkspaceRow[];
 }) {
-  const atRisk = workspaces.filter((w) => w.state === 'at_risk').length;
+  const atRisk = atRiskSummary(workspaces);
   const agentProblems = data.agent_problems ?? NO_PROBLEMS;
   const acknowledged = data.acknowledged ?? NO_PROBLEMS;
   const mine = data.problems.length;
@@ -73,10 +77,10 @@ export function HealthCard({
           )}
         </Line>
         {metricsLoaded && <BackupLine data={data} lastBackupAt={lastBackupAt ?? null} />}
-        {atRisk > 0 && (
-          <Line tone="warn">
+        {atRisk && (
+          <Line tone={atRisk.tone}>
             <Link to={paths.agents({ section: 'workspaces' })} data-state="workspaces-at-risk">
-              {plural(atRisk, 'workspace')} at risk
+              {atRisk.text}
             </Link>
           </Line>
         )}
