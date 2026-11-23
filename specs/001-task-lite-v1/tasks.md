@@ -600,7 +600,7 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T234 [US6] The target resolver and delivery: a live dispatch, then its coordinator, then undelivered; a pointer with no content; no shell; bounded retries; a rate limit per session.
 - [x] T235 [US6] Reliability and visibility: atomic state outside the repo, no replay on first run, 24-hour catch-up, no duplicates across restarts, one instance, `status`, a capped log, `test-send`, and the Windows auto-start steps.
 - [x] T236 [US6] Tests with a fake feed and a fake `orca`, plus the real app for the event wording and to prove a relay read delivers nothing; event-to-send latency measured.
-- [x] T237 [US6] B55b, coordinators only: remove the implementer route; resolve the dispatch's Orca Run, a stored `run_…`, then a stored `orca_session_id:…`; always use the coordinator wording; refuse a `dispatch:` address in `orca.send` and `test-send`. BUILD_SPEC §5.27 and T26, the README and Help in the same PR.
+- [x] T237 [US6] B55b, coordinators only: remove the implementer route; use only a Run Orca confirms, from the recorded dispatch or a stored `run_…`, and never a stored session address; always use the coordinator wording; refuse anything but a `run:` address in `orca.send` and `test-send`. BUILD_SPEC §5.27 and T26, the README and Help in the same PR.
 - [x] T238 [US6] B55b, `hold_reconcile`: at 24 hours or more since the last feed read, or with an untrusted state or cursor, send nothing and keep the cursor; `status` reports what waits with no content; `reconcile --deliver` or `reconcile --skip-to-end --reason <text>` is the only way out; held batches never expire quietly.
 - [x] T239 [US6] B55b tests: every routing fallback, no `dispatch:` send on any path, `test-send` refusal, the hold at and over 24 hours, untrusted state, no send or cursor move in a hold, both reconcile paths, a coalesced restart inside the window, and a hard kill mid-send.
 
@@ -612,6 +612,7 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T240 [US2] The Completed chart: a whole-number vertical axis, and a tooltip by hover and keyboard naming each bucket's tickets (bounded in the read API), which stays on-screen and is in the text alternative.
 - [x] T241 [US11] The at-risk line says which worktrees need the owner: `at_risk_owner` on `GET /api/workspaces`, from the existing Problems routing, with a *What to do* column. The Needs you badge doesn't change.
 - [x] T242 [US2] Tests: unit, API, e2e and axe in both themes at 1440 × 900 and 1024 px, the UI sweep, and screenshots on the stress data.
+- [x] T240 [US6] B55b review fixes: never trust a persisted send; check state invariants; make entering a hold atomic with sending; an uncapped append-only skip audit; a hidden launcher that returns Node's exit code; a graceful `stop` over the pipe; and scripted stop, disable, verify and remove with proofs. What only the real host can prove is listed as required post-install checks in the README.
 
 ## How to run the build
 

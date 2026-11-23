@@ -59,6 +59,9 @@ const KIND_ORDER = [
   'undo',
 ];
 
+/** Every kind a message may name. Anything else in a state file is refused. */
+export const KNOWN_KINDS = new Set([...KIND_ORDER, 'resume']);
+
 function editKinds(summary) {
   const words = EDITED.exec(summary)?.[1];
   if (!words) return [];
@@ -121,6 +124,9 @@ export const orderKinds = (kinds) => {
  * the owner too, and Docket can't always tell them apart.
  */
 export function buildMessage({ item, kinds, implementer }) {
+  if (!ITEM_RE.test(item ?? '') || !kinds.every((kind) => KNOWN_KINDS.has(kind))) {
+    throw new Error('invalid_message_fields');
+  }
   const resume = kinds.includes('resume');
   const changes = orderKinds(kinds);
   const parts = [];

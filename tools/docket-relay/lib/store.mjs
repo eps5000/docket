@@ -1,8 +1,9 @@
 /**
  * The relay's local files: state written atomically, a small log with no
- * message content, and the one-instance lock.
+ * message content, an append-only audit of skipped tickets, and the
+ * one-instance lock, which also carries the graceful `stop`.
  */
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import {
   appendFileSync,
   closeSync,
@@ -23,6 +24,8 @@ import { holdRecord } from './hold.mjs';
 
 const STATE_VERSION = 1;
 const LOG_LIMIT = 256 * 1024;
+const AUDIT_FILE = 'reconcile-audit.jsonl';
+const STOP_TOKEN_FILE = 'stop.token';
 
 export function defaultHome(env = process.env, platform = process.platform) {
   if (env.DOCKET_RELAY_HOME) return env.DOCKET_RELAY_HOME;
@@ -114,8 +117,23 @@ function parseState(text) {
   ) {
     return null;
   }
+  // A send recorded by an older build named its own recipient and text. Neither is ever used.
+  for (const batch of Object.values(parsed.batches)) delete batch.sending;
   const base = emptyState();
   return { ...base, ...parsed, counters: { ...base.counters, ...parsed.counters } };
+}
+
+/** One line per call, flushed to disk. The file is only ever appended to. */
+function appendDurably(path, text) {
+  const bytes = Buffer.from(text, 'utf8');
+  const fd = openSync(path, 'a', 0o600);
+  try {
+    let written = 0;
+    while (written < bytes.length) written += writeSync(fd, bytes, written);
+    fsyncSync(fd);
+  } finally {
+    closeSync(fd);
+  }
 }
 
 function readWithRetry(path) {
@@ -162,6 +180,7 @@ export function openStore(home, now = Date.now) {
     path,
     state,
     save: () => writeAtomic(path, JSON.stringify(state)),
+    appendAudit: (record) => appendDurably(join(home, AUDIT_FILE), `${JSON.stringify(record)}\n`),
   };
 }
 
@@ -224,16 +243,72 @@ const connects = (address) =>
 /** Whether an instance holds the lock. */
 export const isRunning = (home) => connects(lockAddress(home));
 
+const sameText = (a, b) => {
+  const left = Buffer.from(a);
+  const right = Buffer.from(b);
+  return left.length === right.length && timingSafeEqual(left, right);
+};
+
+/**
+ * Asks the running instance to stop, over its lock. The token sits in the
+ * user's own state folder, so only someone who can read that folder can ask.
+ * Resolves to `stopping`, `refused` or `unreachable`.
+ */
+export function requestStop(home, timeoutMs = 3000) {
+  let token;
+  try {
+    token = readFileSync(join(home, STOP_TOKEN_FILE), 'utf8').trim();
+  } catch {
+    return Promise.resolve('refused');
+  }
+  return new Promise((resolve) => {
+    const socket = net.connect(lockAddress(home));
+    let reply = '';
+    const done = (answer) => {
+      socket.destroy();
+      resolve(answer);
+    };
+    socket.setEncoding('utf8');
+    socket.setTimeout(timeoutMs, () => done('unreachable'));
+    socket.once('connect', () => socket.write(`stop ${token}\n`));
+    socket.on('data', (chunk) => {
+      reply += chunk;
+      if (reply.includes('\n')) done(reply.trim() === 'stopping' ? 'stopping' : 'refused');
+    });
+    socket.once('error', () => done('unreachable'));
+    socket.once('end', () => done(reply.trim() === 'stopping' ? 'stopping' : 'refused'));
+  });
+}
+
 /**
  * The lock is a listening pipe or socket: the OS frees it when the process
  * dies, so a crash can't leave a stale lock or be fooled by a reused PID.
  * Resolves to a release function, or null when another instance holds it.
+ * With `onStop`, a client holding the stop token can ask this instance to stop.
  */
-export async function acquireLock(home) {
+export async function acquireLock(home, { onStop } = {}) {
   const address = lockAddress(home);
+  const token = onStop ? randomBytes(24).toString('hex') : null;
+  const answer = (socket) => {
+    let text = '';
+    socket.setEncoding('utf8');
+    socket.setTimeout(2000, () => socket.destroy());
+    socket.on('error', () => {});
+    socket.on('data', (chunk) => {
+      text += chunk;
+      if (text.length > 256) {
+        socket.destroy();
+        return;
+      }
+      if (!text.includes('\n')) return;
+      const accepted = token !== null && sameText(text.trim(), `stop ${token}`);
+      socket.end(accepted ? 'stopping\n' : 'refused\n');
+      if (accepted) onStop();
+    });
+  };
   const listen = () =>
     new Promise((resolve, reject) => {
-      const server = net.createServer((socket) => socket.end());
+      const server = net.createServer(answer);
       server.once('error', reject);
       server.listen(address, () => {
         server.removeAllListeners('error');
@@ -255,5 +330,14 @@ export async function acquireLock(home) {
       return null;
     }
   }
-  return () => new Promise((resolve) => server.close(() => resolve()));
+  const tokenPath = join(home, STOP_TOKEN_FILE);
+  if (token) {
+    mkdirSync(home, { recursive: true });
+    writeAtomic(tokenPath, token);
+  }
+  return () =>
+    new Promise((resolve) => {
+      if (token) rmSync(tokenPath, { force: true });
+      server.close(() => resolve());
+    });
 }

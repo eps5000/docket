@@ -3,14 +3,15 @@
  * docket-relay (owner decision 46, B55b): when the owner changes a ticket in
  * Docket, tell its coordinator through Orca. It never messages a dispatch.
  *
- *   node docket-relay.mjs start    Run in the foreground (the Scheduled Task runs this)
+ *   node docket-relay.mjs start    Run in the foreground (launch.ps1 runs this for the task)
+ *   node docket-relay.mjs stop     Ask the running instance to finish its send and exit
  *   node docket-relay.mjs status   Show a compact status, with no message content
  *   node docket-relay.mjs reconcile --deliver | --skip-to-end --reason <text>
  *                                  Leave hold_reconcile
- *   node docket-relay.mjs test-send <address>   Send one fixed test message through Orca
+ *   node docket-relay.mjs test-send run:<id>    Send one fixed test message to a confirmed Run
  *   node docket-relay.mjs help     Show this
  *
- * README.md has the install steps. Settings: DOCKET_RELAY_URL, DOCKET_RELAY_HOME,
+ * README.md has the install steps and manage.ps1 the task steps. Settings: DOCKET_RELAY_URL, DOCKET_RELAY_HOME,
  * DOCKET_RELAY_ORCA.
  */
 import { randomUUID } from 'node:crypto';
@@ -25,17 +26,22 @@ import {
   inspectState,
   isRunning,
   openStore,
+  requestStop,
 } from './lib/store.mjs';
 import { isCoordinatorAddress } from './lib/target.mjs';
 
 const DEFAULT_URL = 'http://127.0.0.1:7420';
 /** `start` found or entered a hold, or can't read its state: nothing was sent. */
 const EXIT_HOLD = 3;
+/** Long enough for one Orca call to finish or time out. */
+const STOP_WAIT_MS = 60_000;
 
 const HELP = `docket-relay: tell a ticket's Orca coordinator when it changes from the owner side.
 
   start    Run in the foreground. Only one instance runs per state folder.
            Exits with code ${EXIT_HOLD} in hold_reconcile, having sent nothing.
+  stop     Ask the running instance to stop new work, finish or abort its
+           current send, save and exit. Waits until it has gone.
   status   Show the last event, last delivery, failures, undelivered tickets
            and any hold. Add --json for the same facts as JSON.
   reconcile --deliver
@@ -43,10 +49,10 @@ const HELP = `docket-relay: tell a ticket's Orca coordinator when it changes fro
            start sends it, within the rate limit.
   reconcile --skip-to-end --reason <text>
            Leave the hold at the end of the feed, recording what was skipped.
-  test-send <address>
+  test-send run:<id>
            Send one fixed test message the way the relay does, to prove the
-           Orca path after an install. Address: run:<id> or orca_session_id:<id>.
-           A dispatch address is refused.
+           Orca path after an install. Orca must confirm the Run. Any other
+           address is refused.
   help     Show this.
 
   DOCKET_RELAY_URL    Docket's address (default ${DEFAULT_URL})
@@ -58,7 +64,9 @@ const baseUrl = (env) => env.DOCKET_RELAY_URL || DEFAULT_URL;
 
 async function start(env) {
   const home = defaultHome(env);
-  const release = await acquireLock(home);
+  const controller = new AbortController();
+  const stop = () => controller.abort();
+  const release = await acquireLock(home, { onStop: stop });
   if (!release) {
     process.stderr.write(`docket-relay is already running for ${home}.\n`);
     return 2;
@@ -83,8 +91,6 @@ async function start(env) {
     store,
     log,
   });
-  const controller = new AbortController();
-  const stop = () => controller.abort();
   process.once('SIGINT', stop);
   process.once('SIGTERM', stop);
   process.once('SIGBREAK', stop);
@@ -247,11 +253,32 @@ async function reconcile(env, args) {
   }
 }
 
+async function stopRunning(env) {
+  const home = defaultHome(env);
+  if (!(await isRunning(home))) {
+    process.stdout.write('docket-relay is not running.\n');
+    return 0;
+  }
+  const answer = await requestStop(home);
+  if (answer !== 'stopping') {
+    process.stderr.write(`docket-relay did not accept the stop (${answer}).\n`);
+    return 1;
+  }
+  const deadline = Date.now() + STOP_WAIT_MS;
+  while (await isRunning(home)) {
+    if (Date.now() > deadline) {
+      process.stderr.write('docket-relay accepted the stop but is still running.\n');
+      return 1;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  process.stdout.write('docket-relay stopped.\n');
+  return 0;
+}
+
 async function testSend(env, [to]) {
   if (!isCoordinatorAddress(to)) {
-    process.stderr.write(
-      'Give one coordinator address: run:<id> or orca_session_id:<id>. A dispatch address is refused.\n',
-    );
+    process.stderr.write('Give one Run address: run:<id>. Any other address is refused.\n');
     return 1;
   }
   const exe = findOrca(env);
@@ -259,7 +286,21 @@ async function testSend(env, [to]) {
     process.stderr.write('Orca CLI not found. Set DOCKET_RELAY_ORCA to orca.exe.\n');
     return 1;
   }
-  const result = await createOrca({ exe, env }).send({
+  const orca = createOrca({ exe, env });
+  let shown;
+  try {
+    shown = await orca.showRun(to.slice('run:'.length));
+  } catch (err) {
+    process.stderr.write(
+      `Orca could not confirm that Run (${err.code ?? 'error'}). Nothing sent.\n`,
+    );
+    return 1;
+  }
+  if (!shown.found || !shown.active) {
+    process.stderr.write('Orca does not report that Run as active. Nothing sent.\n');
+    return 1;
+  }
+  const result = await orca.send({
     to,
     subject: 'Docket relay test',
     body: 'This is a test from docket-relay. No action is needed.',
@@ -276,6 +317,7 @@ async function testSend(env, [to]) {
 const [command = 'help', ...args] = process.argv.slice(2);
 let code;
 if (command === 'start') code = await start(process.env);
+else if (command === 'stop') code = await stopRunning(process.env);
 else if (command === 'status') code = await status(process.env, args);
 else if (command === 'reconcile') code = await reconcile(process.env, args);
 else if (command === 'test-send') code = await testSend(process.env, args);

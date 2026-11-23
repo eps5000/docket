@@ -134,6 +134,28 @@ export function createOrca({ exe, env = process.env, timeoutMs = TIMEOUT_MS }) {
     },
 
     /**
+     * `{ found, active }`. Throws when Orca can't answer. Orca has no "closed"
+     * Run, so active means it exists, isn't a legacy Run and has been bound to
+     * a coordinator. It can't prove that coordinator is still running.
+     */
+    async showRun(id) {
+      const reply = await run(['orchestration', 'run-show', '--id', id, '--json', '--full']);
+      if (!reply.ok) {
+        if (reply.transient) throw Object.assign(new Error(reply.code), { code: reply.code });
+        return { found: false, active: false };
+      }
+      const shown = reply.result?.run;
+      if (!shown || shown.id !== id) {
+        throw Object.assign(new Error('unreadable'), { code: 'unreadable' });
+      }
+      const active =
+        (shown.legacy === 0 || shown.legacy === false) &&
+        Number.isInteger(shown.consumer_generation) &&
+        shown.consumer_generation >= 1;
+      return { found: true, active };
+    },
+
+    /**
      * `{ ok }`, or `{ ok: false, code, transient }`. The one place that builds
      * `--to`: anything but a coordinator address is refused before Orca runs.
      */

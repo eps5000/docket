@@ -4,27 +4,40 @@
  * runs `reconcile`. Nothing leaves the hold automatically, and no event is
  * dropped without a record. Only ids, kinds, counts and times are kept here.
  */
+import { randomUUID } from 'node:crypto';
 import { recordEvent } from './batch.mjs';
-import { classifyEvent } from './classify.mjs';
+import { classifyEvent, ITEM_RE, KNOWN_KINDS } from './classify.mjs';
 import { DocketError } from './docket.mjs';
+import { stateProblem } from './invariants.mjs';
 
 export const HOLD_STATE = 'hold_reconcile';
 /** The stored position can't be proved, so only `--skip-to-end` can leave the hold. */
 const NO_POSITION = new Set(['state_unreadable', 'feed_reset', 'cursor_ahead']);
 const RECORDS_KEPT = 20;
-const ITEMS_RECORDED = 100;
 const REASON_MAX = 200;
 
-export const holdRecord = (reason, t, cursor = null) => ({
+export const holdRecord = (reason, t, cursor = null, detail = null) => ({
   state: HOLD_STATE,
   reason,
   since: new Date(t).toISOString(),
   cursor,
+  ...(detail ? { detail } : {}),
 });
 
 /** Whether `--deliver` has a position it can read the backlog from. */
 export const canDeliver = (s) =>
-  s.cursor !== null && !NO_POSITION.has(s.hold?.reason) && (s.anchor !== null || s.cursor === '0');
+  s.cursor !== null && !NO_POSITION.has(s.hold?.reason) && stateProblem(s) === null;
+
+/** A page must continue exactly from `cursor`, in order, and end at its `next_cursor`. */
+export function pageIsCoherent(page, cursor) {
+  let previous = Number(cursor);
+  for (const event of page.events) {
+    const at = Number(event?.cursor);
+    if (!Number.isSafeInteger(at) || at <= previous) return false;
+    previous = at;
+  }
+  return Number(page.next_cursor) === previous;
+}
 
 /** The feed's row at `cursor`, kept so a replaced feed can be told from the one we read. */
 export async function readAnchor(docket, cursor, signal) {
@@ -64,6 +77,7 @@ async function scanFeed(docket, from, onEvent, signal) {
     const page = await docket.wait({ cursor, timeoutS: 0, signal });
     if (!page) throw new DocketError('bad_response');
     if (Number(page.next_cursor) < Number(cursor)) throw new DocketError('cursor_ahead');
+    if (!pageIsCoherent(page, cursor)) throw new DocketError('feed_reset');
     for (const event of page.events) {
       total += 1;
       last = event;
@@ -75,6 +89,7 @@ async function scanFeed(docket, from, onEvent, signal) {
   }
 }
 
+/** Counts by ticket. A state file's text never reaches a record: only valid ids and kinds do. */
 function createTally() {
   const items = new Map();
   let events = 0;
@@ -83,17 +98,21 @@ function createTally() {
   return {
     add(item, kinds, ms) {
       events += 1;
-      const seen = items.get(item) ?? new Set();
-      for (const kind of kinds) seen.add(kind);
-      items.set(item, seen);
+      const name = typeof item === 'string' && ITEM_RE.test(item) ? item : 'invalid';
+      const entry = items.get(name) ?? { kinds: new Set(), events: 0 };
+      entry.events += 1;
+      for (const kind of Array.isArray(kinds) ? kinds : []) {
+        if (KNOWN_KINDS.has(kind)) entry.kinds.add(kind);
+      }
+      items.set(name, entry);
       if (Number.isFinite(ms)) {
         first = first === null ? ms : Math.min(first, ms);
         latest = latest === null ? ms : Math.max(latest, ms);
       }
     },
     addBatches(s) {
-      for (const batch of Object.values(s.batches)) {
-        for (const event of batch.events) this.add(batch.item_id, event.kinds, event.event_ms);
+      for (const [item, batch] of Object.entries(s.batches)) {
+        for (const event of batch.events) this.add(item, event?.kinds, event?.event_ms);
       }
     },
     addFeedEvent(event) {
@@ -106,10 +125,13 @@ function createTally() {
       first_at: first === null ? null : new Date(first).toISOString(),
       last_at: latest === null ? null : new Date(latest).toISOString(),
     }),
+    /** Every ticket, with no cap. */
     items: () =>
-      [...items.entries()]
-        .slice(0, ITEMS_RECORDED)
-        .map(([item, kinds]) => ({ item, kinds: [...kinds] })),
+      [...items.entries()].map(([item, entry]) => ({
+        item,
+        kinds: [...entry.kinds],
+        events: entry.events,
+      })),
   };
 }
 
@@ -124,8 +146,11 @@ export async function holdFacts(s, docket, signal) {
   if (canDeliver(s)) {
     try {
       if ((await checkFeed(docket, s, signal)) === null) {
-        await scanFeed(docket, s.cursor, (event) => tally.addFeedEvent(event), signal);
+        const counted = createTally();
+        counted.addBatches(s);
+        await scanFeed(docket, s.cursor, (event) => counted.addFeedEvent(event), signal);
         complete = true;
+        return { ...counted.facts(), complete };
       }
     } catch {
       // Docket is down: report what the state file holds.
@@ -138,18 +163,21 @@ function remember(s, record) {
   s.reconciles = [...(s.reconciles ?? []), record].slice(-RECORDS_KEPT);
 }
 
+function recordProblem(store, log, problem) {
+  const s = store.state;
+  s.hold.reason = problem;
+  store.save();
+  log('hold_reconcile', { reason: problem, cursor: s.cursor });
+  return { ok: false, code: 'needs_skip', reason: problem };
+}
+
 /** Leaves the hold by queueing the backlog per ticket. The next `start` sends it. */
 export async function reconcileDeliver({ store, docket, log, now = Date.now, signal }) {
   const s = store.state;
   if (!s.hold) return { ok: false, code: 'not_in_hold' };
   if (!canDeliver(s)) return { ok: false, code: 'needs_skip', reason: s.hold.reason };
   const problem = await checkFeed(docket, s, signal);
-  if (problem) {
-    s.hold.reason = problem;
-    store.save();
-    log('hold_reconcile', { reason: problem, cursor: s.cursor });
-    return { ok: false, code: 'needs_skip', reason: problem };
-  }
+  if (problem) return recordProblem(store, log, problem);
   // Read everything first: a failure part-way leaves the hold and the cursor as they were.
   const found = [];
   let scan;
@@ -163,11 +191,8 @@ export async function reconcileDeliver({ store, docket, log, now = Date.now, sig
       signal,
     );
   } catch (err) {
-    if (err.code !== 'cursor_ahead') throw err;
-    s.hold.reason = 'cursor_ahead';
-    store.save();
-    log('hold_reconcile', { reason: 'cursor_ahead', cursor: s.cursor });
-    return { ok: false, code: 'needs_skip', reason: 'cursor_ahead' };
+    if (err.code !== 'cursor_ahead' && err.code !== 'feed_reset') throw err;
+    return recordProblem(store, log, err.code);
   }
 
   const t = now();
@@ -215,7 +240,10 @@ const cleanReason = (reason) => {
   return text;
 };
 
-/** Leaves the hold at the end of the feed, recording what was skipped. */
+/**
+ * Leaves the hold at the end of the feed. Every skipped ticket and its kinds go
+ * to the append-only audit file first: if that write fails, nothing changes.
+ */
 export async function reconcileSkip({ store, docket, log, now = Date.now, reason, signal }) {
   const s = store.state;
   if (!s.hold) return { ok: false, code: 'not_in_hold' };
@@ -232,7 +260,7 @@ export async function reconcileSkip({ store, docket, log, now = Date.now, reason
       end = scan.end;
       backlogKnown = true;
     } catch (err) {
-      if (err.code !== 'cursor_ahead') throw err;
+      if (err.code !== 'cursor_ahead' && err.code !== 'feed_reset') throw err;
       // A partial count would mislead: go back to what the state file holds.
       tally = createTally();
       tally.addBatches(s);
@@ -245,7 +273,8 @@ export async function reconcileSkip({ store, docket, log, now = Date.now, reason
   const facts = tally.facts();
   const from = s.cursor;
   const heldFor = s.hold.reason;
-  remember(s, {
+  const summary = {
+    audit_id: randomUUID(),
     at: new Date(t).toISOString(),
     action: 'skip',
     reason: why,
@@ -254,8 +283,10 @@ export async function reconcileSkip({ store, docket, log, now = Date.now, reason
     to_cursor: end,
     backlog_known: backlogKnown,
     ...facts,
-    items: tally.items(),
-  });
+  };
+  store.appendAudit({ ...summary, items: tally.items() });
+
+  remember(s, summary);
   s.counters.skipped = (s.counters.skipped ?? 0) + facts.events;
   s.batches = {};
   s.cursor = end;
@@ -264,6 +295,7 @@ export async function reconcileSkip({ store, docket, log, now = Date.now, reason
   s.active_at = t;
   store.save();
   log('reconcile_skip', {
+    audit_id: summary.audit_id,
     reason: why,
     hold_reason: heldFor,
     from: from ?? 'unknown',
@@ -273,7 +305,6 @@ export async function reconcileSkip({ store, docket, log, now = Date.now, reason
     first_at: facts.first_at,
     last_at: facts.last_at,
     backlog_known: backlogKnown,
-    items: tally.items().map((entry) => entry.item),
   });
-  return { ok: true, ...facts, backlog_known: backlogKnown };
+  return { ok: true, ...facts, backlog_known: backlogKnown, audit_id: summary.audit_id };
 }
