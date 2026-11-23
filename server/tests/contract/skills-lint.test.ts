@@ -172,6 +172,24 @@ export function unknownNames(text: string, v: Vocabulary): { name: string; line:
   );
 }
 
+/**
+ * What a skill shipped to every project must not name (decision 52): the
+ * pilot, a ticket ID, this repo or its owner, a specific CI or merge tool, a
+ * batch, PR or decision number, or this service's port.
+ */
+const PROJECT_SPECIFIC = [
+  /gameflow/gi,
+  /\b[A-Z][A-Z0-9]+-\d+\b/g,
+  /task-?lite|eps5000|\borca\b/gi,
+  /github|gitlab|bitbucket|jenkins|circleci|mergify/gi,
+  /\bB\d{2}\b/g,
+  /\bPR #\d+|\bdecision \d+/gi,
+  /\b7420\b/g,
+];
+
+export const projectSpecific = (text: string): string[] =>
+  PROJECT_SPECIFIC.flatMap((re) => [...text.matchAll(re)].map((m) => m[0]));
+
 let h: ContractHarness;
 let vocab: Vocabulary;
 
@@ -186,9 +204,10 @@ afterAll(async () => {
 const skills = skillFiles();
 
 describe('skills lint (T148)', () => {
-  it('finds the five shipped skills', () => {
+  it('finds the six shipped skills', () => {
     expect(skills.map((s) => s.folder).sort()).toEqual([
       'docket-coordinator',
+      'docket-delivery',
       'docket-lead-subagents',
       'docket-planner',
       'docket-review-packet',
@@ -216,6 +235,33 @@ describe('skills lint (T148)', () => {
       });
     });
   }
+
+  // Decision 52: it ships to every project, so it names none of them.
+  describe('docket-delivery stays project-agnostic', () => {
+    const delivery = () => skills.find((s) => s.folder === 'docket-delivery')!.text;
+
+    it('names no pilot, ticket, repo, provider or number of this project', () => {
+      expect(projectSpecific(delivery())).toEqual([]);
+    });
+
+    it('stays subordinate to the project and grants no authority', () => {
+      expect(delivery()).toContain("**The project's rules come first.**");
+      expect(delivery()).toContain('**This skill grants no authority.**');
+    });
+
+    it('the guard catches a planted name', () => {
+      expect(
+        projectSpecific('See Gameflow, GF-243, PR #120, B64, decision 50, Mergify and port 7420.'),
+      ).toHaveLength(7);
+    });
+
+    it('is pointed to from the worker and coordinator skills', () => {
+      for (const folder of ['docket-worker', 'docket-coordinator']) {
+        const text = skills.find((s) => s.folder === folder)!.text;
+        expect(text.split('`docket-delivery`').length - 1, folder).toBe(1);
+      }
+    });
+  });
 
   // The lint itself: a deliberate stale name and a missing frontmatter are caught.
   it('catches a renamed tool, an unknown field and missing frontmatter', () => {

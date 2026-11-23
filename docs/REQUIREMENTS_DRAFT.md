@@ -354,6 +354,18 @@ A small change took about 95 minutes, roughly 70 of them in the pipeline. One CI
 
 BUILD_SPEC §2 (Stack) has the details.
 
+## Owner decision 52 (2026-11-23): a bundled delivery skill
+
+The lessons about getting work tested, merged and deployed quickly ship with Docket, so every onboarded project gets them through its agent files.
+
+1. **A sixth bundled skill, `docket-delivery`.** It is defined, versioned, listed, linted, installed, checked for drift and uninstalled like the other five, for Claude Code and Codex. An existing install shows "update available". No MCP tool is added.
+2. **Project-agnostic.** It names no pilot, ticket, repo or number from this project, and applies to any language, CI provider and host. It says what to do and how to adapt when a project lacks something.
+3. **Subordinate to the project.** The project's Workflow notes, approvals and protected-environment rules take precedence. The skill never grants authority to deploy, merge or touch production. Where a project allows it, the implementer goes all the way through.
+4. **What it teaches:** own the task through delivery; keep parallel work from colliding; make CI parallel; fast feedback with full safety; protect the merge gate; don't waste runs; deploy each merge promptly by immutable version; respect shared systems; test against real data or formats; review where it counts; weigh cost against time; report honestly.
+5. **Short and reachable.** It aims for under 200 lines, inside the skill limits of decision 40. `docket-worker` and `docket-coordinator` each carry one short pointer to it for when work reaches a PR, CI, a merge or a deploy.
+
+BUILD_SPEC §5.17, spec FR-285–FR-289 and SC-032, Help (Agent files) and `skills/README.md` have the details.
+
 ## Deferred choices
 
 Pilot project choice and Jira import strategy are deferred until V1 is ready for real work. Design should still settle the storage layout, supported document preview formats, the exact project gate configuration shape, and the minimum history needed before a velocity forecast is shown. These are implementation choices guided by the owner decisions above, not blockers to selecting a pilot now.
