@@ -2123,7 +2123,9 @@
                     "run.park_expired",
                     "run.wait_flagged",
                     "run.wait_cleared",
-                    "run.resume_ready"
+                    "run.resume_ready",
+                    "sync.ingested",
+                    "github.settings_changed"
                   ]
                 },
                 "summary": {
@@ -3829,7 +3831,9 @@
                 "run.park_expired",
                 "run.wait_flagged",
                 "run.wait_cleared",
-                "run.resume_ready"
+                "run.resume_ready",
+                "sync.ingested",
+                "github.settings_changed"
               ]
             },
             "summary": {
@@ -5394,6 +5398,9 @@
       "lease_expires_at": {
         "type": "string"
       },
+      "branch_hint": {
+        "type": "string"
+      },
       "replayed": {
         "type": "boolean"
       },
@@ -6926,7 +6933,9 @@
               "run.park_expired",
               "run.wait_flagged",
               "run.wait_cleared",
-              "run.resume_ready"
+              "run.resume_ready",
+              "sync.ingested",
+              "github.settings_changed"
             ]
           },
           "summary": {

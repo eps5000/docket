@@ -669,6 +669,17 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T282 [US2] The Settings switch with the owner's note and status; Overview's card; a ticket's and an epic's Token use; the brief's *What it cost*. Keyboard, text, both themes, 1024 px and 1440 × 900.
 - [x] T283 [US2] Tests: both log formats from fixtures, duplicate and cumulative counting, partial lines and offsets, privacy, no file call when off, unknown workspaces, attribution, overhead and not linked, missing prices, rollups, empty and off states, e2e and axe in both themes.
 
+## Phase 43: An optional GitHub connection (owner decision 49)
+
+- [x] T284 [US2] Spec plus code in one PR: decision 49 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.35 and §7; MCP_SPEC §5.4; UI_SPEC §6.1, §6.3.6a and §6.7; spec FR-269–FR-277; Help; the worker skill.
+- [x] T285 [US2] `tools/docket-sync`: the runner, the source contract, durable state, one instance, backoff and install steps. Not installed, started or scheduled.
+- [x] T286 [US2] `sources/github.mjs`: read-only through `gh`, GraphQL with a request budget, rate-limit backoff, no merge-queue PRs, no token and no PR body kept.
+- [x] T287 [US2] Migration, `domain/sync.ts`: the validated, size-capped, idempotent ingest route, status per source and the quiet event.
+- [x] T288 [US2] The naming rule: `claim_lead`'s suggestion, a warning on a reported branch, exemptions, and never a block.
+- [x] T289 [US2] Matching: exact primary links, related mentions, and the run active at the time.
+- [x] T290 [US2] The ticket's GitHub panel, Overview's Merged source and Settings → Connections → GitHub: keyboard, focus, both themes, 1024 px and 1440 × 900.
+- [x] T291 [US2] Tests with a fake `gh` only: matching, multi-mention PRs, exemptions, merge-queue PRs, idempotent ingest, down and recovery, rate limits, no secrets, no connection, every Settings state; e2e and axe in both themes.
+
 ## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.
@@ -781,6 +792,7 @@ Open a PR titled "<Bn>: <phase name>" with the checkpoint evidence. Do not queue
 | 37 Flow trends and a daily brief | B59 (decision 48; alongside B58, B60 and B61) |
 | 40 Split a ticket and withdraw a question | B61 (decision 48, in parallel with B58–B60) |
 | 42 Real token use per ticket and epic | B63 (decision 48; alongside B60, B61 and B62) |
+| 43 An optional GitHub connection | B62 (decision 49; alongside B63) |
 
 **Within a phase:** tests (failing) → services → replace stubs or fill handlers → fill screens → checkpoint.
 

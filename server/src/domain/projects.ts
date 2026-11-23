@@ -291,6 +291,8 @@ export function createProjectsService(deps: ServiceDeps): ProjectsService {
       sql.prepare('DELETE FROM documents WHERE project_key = ?').run(row.key);
       sql.prepare('DELETE FROM labels WHERE project_key = ?').run(row.key);
       sql.prepare('DELETE FROM decision_records WHERE project_key = ?').run(row.key);
+      // Decision 49: a revived key must not inherit this project's repository.
+      sql.prepare('DELETE FROM project_git WHERE project_key = ?').run(row.key);
       w.update('projects', row.id, { deleted_at: w.now });
       w.event({
         type: 'project.updated',

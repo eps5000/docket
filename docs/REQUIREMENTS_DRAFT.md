@@ -315,6 +315,19 @@ BUILD_SPEC §5.33, MCP_SPEC §5.3 and §5.8, UI_SPEC §6.3, spec FR-250–FR-255
 
 BUILD_SPEC §5.34, UI_SPEC §6.1c and §6.7, spec FR-259–FR-268 and Help (Token use) have the details.
 
+## Owner decision 49 (2026-11-23): an optional GitHub connection
+
+This changes the earlier "no GitHub dependency" rule. GitHub is now an **optional** connection, off by default and turned on in service-wide Settings. Docket must start and work fully without it.
+
+1. **Docket stores no GitHub token and never asks for one.** A small process on the host, `tools/docket-sync`, reads through the `gh` login already on the machine. It is read-only: it never comments, labels, merges or writes to GitHub.
+2. **A shared collector.** `docket-sync` runs a set of sources, each a file with one contract, and posts idempotent records to a local, owner-guarded, size-capped route that writes through the normal write path. It is separate from `docket-relay`. It is not installed, started or scheduled for the owner; the install steps are provided.
+3. **A naming rule.** A branch is `<owner>/GF-243-short-description`, with exactly one primary ticket key, and its worktree folder matches. `claim_lead` suggests the name. Each project sets **Off** or **Warn** (the default) and its exempt patterns (default `mergify/*`, `main`, `*docket-agent-files*`). Warn tells the agent and shows on the ticket. It **never blocks**. A required GitHub check is a later step.
+4. **Matching.** A PR's primary ticket is the key in its head branch, matched exactly (GF-243 never matches GF-2430), or an imported Jira key. Keys in a title or body are only **related**, so a PR naming several tickets is never primary for all of them. The link also records the run active at the time, when one is known.
+5. **In Docket.** The ticket shows a compact GitHub panel with branch, PR, state, CI and merge, each linking out, Related kept apart, and how fresh the data is. Overview's Merged count uses synced merges when connected and recorded ones otherwise, says which, and never counts a PR twice. Settings → Connections → GitHub shows the switch, the status and plain steps. Stale data is labeled and never treated as current.
+6. **Unchanged:** the `merged` blocker rule still reads what agents report. Nothing here adds a gate.
+
+BUILD_SPEC §5.35, MCP_SPEC §5.4, UI_SPEC §6.1, §6.3 and §6.7, spec FR-269–FR-277, Help (GitHub connection) and `tools/docket-sync/README.md` have the details.
+
 ## Deferred choices
 
 Pilot project choice and Jira import strategy are deferred until V1 is ready for real work. Design should still settle the storage layout, supported document preview formats, the exact project gate configuration shape, and the minimum history needed before a velocity forecast is shown. These are implementation choices guided by the owner decisions above, not blockers to selecting a pilot now.

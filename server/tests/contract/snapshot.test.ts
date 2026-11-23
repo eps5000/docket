@@ -401,6 +401,7 @@ const OPTIONAL_OUTPUTS: Record<string, string[]> = {
   declare_shared_changes: ['design_hold'],
   update_run_status: ['parked_until'], // decision 44: while a coordinator's park holds
   park_run: ['wait'], // decision 45: left out only on a replay stored before it
+  claim_lead: ['branch_hint'], // decision 49: only when the claim named no branch
   withdraw_decision: ['decision', 'question'], // decision 48: one or the other
 };
 

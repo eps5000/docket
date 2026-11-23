@@ -82,6 +82,13 @@ const flowSchema = z.object({
   finished_without_merge: z.number().int(),
   /** One plain sentence when the trends diverge; null when they don't. */
   note: z.string().nullable(),
+  /**
+   * Decision 49: where `merged` came from. `github` is synced merges, `github_stale` the same
+   * with a sync too old to treat as current, `recorded` what agents recorded in Docket.
+   */
+  merged_source: z.enum(['recorded', 'github', 'github_stale']).optional(),
+  /** When the GitHub data was last synced, when it's the source. */
+  merged_synced_at: z.string().nullable().optional(),
 });
 
 export const overviewResponse = jsonResponse({

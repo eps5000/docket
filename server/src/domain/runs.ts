@@ -72,6 +72,7 @@ import { WaitReader } from './wait.js';
 import { assertDesignCleared } from './design-review.js';
 import { settleClaim } from './shared-changes.js';
 import type { InverseOp, WriteContext } from './write.js';
+import { claimBranchHint } from './project-git.js';
 import { addReportedBranch } from './radar.js';
 import {
   producerHold,
@@ -772,7 +773,13 @@ export function createRunsService(deps: ServiceDeps): RunsService {
           files: input.instructions.files as InstructionReportInput['files'],
         });
       }
-      return { run_id: runId, item: summary(w, item.id), lease_expires_at: leaseUntil };
+      const hint = claimBranchHint(w.db, item, input.branch ?? input.workspace?.branch);
+      return {
+        run_id: runId,
+        item: summary(w, item.id),
+        lease_expires_at: leaseUntil,
+        ...(hint ? { branch_hint: hint } : {}),
+      };
     },
 
     release(w, input) {

@@ -126,7 +126,7 @@ describe('0007_onboarding_guide_key on a B29-era database (0000–0006, with dat
     tmp = tempDir('docket-migrate-');
     db = openDb(join(tmp.dir, 'docket.db'));
     migrate(drizzle(db.sqlite), { migrationsFolder: beforeB30(tmp.dir) });
-    expect(migrationStatus(db)).toEqual({ current: false, applied: 7, expected: 25 });
+    expect(migrationStatus(db)).toEqual({ current: false, applied: 7, expected: 26 });
     expect(() => agentFile(db, 'af_x', 'guide:onboarding', 'bundled', null)).toThrow(
       /agent_files_key/,
     );
@@ -181,9 +181,9 @@ describe('0007_onboarding_guide_key on a B29-era database (0000–0006, with dat
 
   it('migrates to current, and migrating again is a no-op', () => {
     migrateDb(db);
-    expect(migrationStatus(db)).toEqual({ current: true, applied: 25, expected: 25 });
+    expect(migrationStatus(db)).toEqual({ current: true, applied: 26, expected: 26 });
     migrateDb(db);
-    expect(migrationStatus(db).applied).toBe(25);
+    expect(migrationStatus(db).applied).toBe(26);
   });
 
   it('keeps every agent file, version and reference; foreign_key_check is clean', () => {

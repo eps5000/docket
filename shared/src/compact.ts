@@ -1136,13 +1136,18 @@ const RENDERERS: { [N in ToolName]: Renderer<N> } = {
   unlink_items: (_r, a) =>
     s('unlink_items', { link: str(a.link_id) ?? `${str(a.from)} ${str(a.type)} ${str(a.to)}` }),
   upsert_label: (r) => s('upsert_label', r),
-  claim_lead: (r, _a, now) =>
-    s('claim_lead', {
+  claim_lead: (r, _a, now) => {
+    const line = s('claim_lead', {
       id: r.item.id,
       run_id: r.run_id,
       lease: formatTime(r.lease_expires_at, now),
       version: r.item.version,
-    }),
+    });
+    // Decision 49: one short line, only when the claim named no branch.
+    return r.branch_hint
+      ? `${line}\nbranch ${r.branch_hint} · worktree ${r.branch_hint.split('/').pop()}`
+      : line;
+  },
   release_lead: (r) => s('release_lead', r.item),
   start_run: (r, a) => s('start_run', { run_id: r.run_id, id: str(a.id) }),
   heartbeat: (r, a, now) =>
