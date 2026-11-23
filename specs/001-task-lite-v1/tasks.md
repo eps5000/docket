@@ -641,6 +641,16 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T259 [US18] Startable and Waiting on Work's board, filters and counts; ranked `next_work` and `bottlenecks` in `get_digest`; Overview's link.
 - [x] T260 [US18] Tests and replays with synthetic text, token budgets, unit and e2e on CI, and evidence at 1440 x 900 and 1024 px in both themes.
 
+## Phase 39: Critical path and worktree cleanup (owner decision 48, B60)
+
+- [x] T261 [US4] Spec plus code in one PR: decision 48's B60 part in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.31 and §5.32; MCP_SPEC (no tool change); UI_SPEC §6.3.4 and §6.6; spec FR-242–FR-249 and SC-029; Help.
+- [x] T262 [US4] The critical path read on `BlockIndex`: longest chain, cycles, ties and the reason for the ticket to move next.
+- [x] T263 [US4] The Map: choose a goal, highlight and mute, step labels, the ordered list, and links from the ticket and epic pages.
+- [x] T264 [US11] The worktree scan: bounded read-only git in the push folder, batched commit facts, per-worktree and whole-scan time limits.
+- [x] T265 [US11] The verdicts, reusing the at-risk rules and owners, and a command only for Safe to remove.
+- [x] T266 [US11] Agents → Workspaces → Every worktree: grouped, filterable, hundreds of rows.
+- [x] T267 [US11] Tests: chain selection, ties, cycles, reasons; each verdict on fixture repositories, timeouts, paths outside the root, `.git` hash proof; e2e and axe in both themes at 1440 × 900 and 1024 px on the stress data.
+
 ## Phase 41: An optional GitHub connection (owner decision 49)
 
 - [x] T270 [US2] Spec plus code in one PR: decision 49 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.33 and §7; MCP_SPEC §5.4; UI_SPEC §6.1, §6.3.6a and §6.7; spec FR-250–FR-258; Help; the worker skill.

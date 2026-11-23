@@ -13,6 +13,7 @@
 import type { z } from 'zod';
 import { agentProposalsRoutes } from './agent-proposals.js';
 import { agentSetupRoutes } from './agent-setup.js';
+import { criticalPathRoutes } from './critical-path.js';
 import { decisionsRoutes } from './decisions.js';
 import { depsRoutes } from './deps.js';
 import { diagnosticsRoutes, undoRoutes, uploadRoutes } from './diagnostics.js';
@@ -36,6 +37,7 @@ import { timelineRoutes } from './timeline.js';
 export const API_ROUTES = {
   ...sessionRoutes,
   ...readRoutes,
+  ...criticalPathRoutes,
   ...overviewRoutes,
   ...briefRoutes,
   ...reviewRoutes,

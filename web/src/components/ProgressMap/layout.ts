@@ -150,16 +150,20 @@ export function layoutMap(
   items: readonly MapItem[],
   outsideItems: readonly MapItem[],
   links: readonly LinkEdge[],
+  /** Critical-path tickets the view doesn't include: placed in waves, left out of the counts. */
+  extras: readonly MapItem[] = [],
 ): MapLayout {
   const blocks = links.filter((l) => l.type === 'blocks');
-  const inScope = new Map(items.map((i) => [i.id, i]));
+  const extraIds = new Set(extras.map((i) => i.id));
+  const onMap = extras.length > 0 ? [...items, ...extras] : items;
+  const inScope = new Map(onMap.map((i) => [i.id, i]));
   // A canceled item stays on the map only while it still blocks something here.
   const blocksHere = new Set(
     blocks
       .filter((l) => inScope.has(l.to) && inScope.get(l.to)!.status !== 'canceled')
       .map((l) => l.from),
   );
-  const placed = items.filter((i) => i.status !== 'canceled' || blocksHere.has(i.id));
+  const placed = onMap.filter((i) => i.status !== 'canceled' || blocksHere.has(i.id));
   const placedIds = new Set(placed.map((i) => i.id));
   const among = blocks.filter((l) => placedIds.has(l.from) && placedIds.has(l.to));
 
@@ -205,7 +209,7 @@ export function layoutMap(
     )
     .map((l) => ({ link_id: l.link_id, from: l.from, to: l.to, cleared: l.cleared === true }));
 
-  const counted = placed.filter((i) => i.status !== 'canceled');
+  const counted = placed.filter((i) => i.status !== 'canceled' && !extraIds.has(i.id));
   const byStatus: Partial<Record<Status, number>> = {};
   for (const i of counted) byStatus[i.status] = (byStatus[i.status] ?? 0) + 1;
   const next = denseWaves.findIndex((w) => w.some((i) => i.status !== 'done'));

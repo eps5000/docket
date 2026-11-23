@@ -62,6 +62,7 @@ const B2_ROUTES: readonly RouteId[] = [
   'brief.get',
   'work.get',
   'items.get',
+  'items.criticalPath',
   'agents.list',
   'search.get',
   // US3 (B9, T094): the packet screen, the deferred follow-up and human review items.
@@ -74,6 +75,7 @@ const B2_ROUTES: readonly RouteId[] = [
   'humanReview.remove',
   // US11 (B10, T100): Agents → Workspaces and the two recovery Problems actions.
   'workspaces.list',
+  'workspaces.cleanup',
   'resources.release',
   'runs.unpushedHandled',
   // US4 (B11, T107): removing a link, the project's blocker rule, and Settings (its project rows).
@@ -208,6 +210,7 @@ const VALID: Record<RouteId, Req> = {
   'brief.get': { query: { scope: 'RCP', day: '2026-11-20' } },
   'work.get': { query: { scope: 'all', layout: 'board', filter: 'blocked' } },
   'items.get': { params: { id: 'RCP-14' } },
+  'items.criticalPath': { params: { id: 'RCP-14' } },
   'agents.list': { query: { scope: 'all' } },
   'search.get': { query: { q: 'pantry' } },
   'stream.get': {},
@@ -297,6 +300,7 @@ const VALID: Record<RouteId, Req> = {
   'diagnostics.calls': { query: { days: '7' } },
   'mutations.undo': { params: { id: 'mut_01JAAAAAAAAAAAAAAAAAAAAAAA' }, body: {} },
   'workspaces.list': { query: { scope: 'RCP', state: 'at_risk' } },
+  'workspaces.cleanup': { query: { project: 'RCP' } },
   'resources.release': { params: { id: 'rsc_1' }, body: { note: 'Stopped the dev server.' } },
   'runs.unpushedHandled': { params: { runId: 'run_21' }, body: {} },
   'agentUpload.post': { body: { item_id: 'RCP-2', kind: 'planning' } },

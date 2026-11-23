@@ -403,3 +403,71 @@
     transition: none;
   }
 }
+
+/* ---------- critical path (decision 48) ---------- */
+.tl .pm-node.crit {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+}
+.tl .pm-node.critnext {
+  outline-width: 3px;
+}
+/* Muted without opacity, so its text keeps its contrast. */
+.tl .pm-node.critoff {
+  background: var(--panel-2);
+  border-color: var(--line);
+  font-weight: 400;
+}
+.tl .pm-node.critoff .pm-title {
+  font-weight: 400;
+}
+.tl .pm-node .pm-crit {
+  display: block;
+  margin-top: 3px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.tl .pm-edge.crit {
+  stroke: var(--brand);
+  stroke-width: 2.5;
+}
+.tl .pm-edge.critoff {
+  opacity: 0.15;
+}
+.tl .cp-panel {
+  scroll-margin-top: 72px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.tl .cp-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.tl .cp-head label {
+  font-weight: 600;
+}
+.tl .cp-head select {
+  max-width: min(420px, 100%);
+}
+.tl .cp-panel p {
+  margin: 0;
+}
+.tl .cp-next a,
+.tl .cp-list a {
+  text-decoration: underline;
+}
+.tl .cp-why {
+  display: block;
+  margin-top: 2px;
+}
+.tl .cp-list ol {
+  margin: 6px 0 0;
+  padding-left: 26px;
+  max-height: 240px;
+  overflow-y: auto;
+  position: relative;
+}
