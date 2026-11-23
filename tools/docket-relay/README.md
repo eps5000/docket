@@ -109,7 +109,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File $manage -Action Remove
 ```
 
 - **Stop** asks the relay over its pipe to stop new work, finish or abort its current send, save and exit, then waits for it. If it doesn't exit in time, Stop reports failure and changes nothing else. **Nothing ever kills a process.**
-- **The relay is identified only by the PID it records at start** in `instance.json`, together with that process's start time and its exact executable and script path. Any other process, including one with a reused PID or one that can't be read, is neither touched nor counted.
+- **The relay is identified only by the PID it records at start** in `instance.json`, together with that process's start time and its exact executable and script path. Any other process, including one with a reused PID or one that can't be read, is neither touched nor counted. So `Verify` doesn't see a relay started by hand with a relative path, though `Stop` still reaches it over the pipe.
 - A child `orca.exe` isn't tracked. Once the recorded PID is gone, Stop waits out the 20-second Orca call timeout.
 - **Every action ends with a proof** of the task's state and that the recorded relay is gone. **A failed proof exits 1.**
 - **Remove** unregisters the task, then deletes only the known file names in the app and state folders, then those folders if they're empty. It never deletes recursively. If any entry is a link or isn't a known relay file, it deletes no file, lists the entry and exits 1.

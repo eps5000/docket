@@ -2472,7 +2472,6 @@ describe('running it', () => {
         writeFileSync(
           relayPath,
           `const c = process.argv[2];
-if (c === 'status') console.log('{"running":false}');
 process.exit(c === 'stop' ? ${stopCode} : 0);
 `,
         );

@@ -80,15 +80,6 @@ function Test-RelayAlive($Record) {
     (Test-HasExactPath ([string]$p.CommandLine) ([string]$Record.script))
 }
 
-# The single-instance pipe, as `status` reports it.
-function Test-RelayPipe($Paths, [string]$NodePath) {
-  if (-not $NodePath -or -not (Test-Path -LiteralPath $Paths.Relay)) { return $false }
-  $env:DOCKET_RELAY_HOME = $Paths.Root
-  $text = & $NodePath $Paths.Relay status --json
-  if ($LASTEXITCODE -ne 0) { throw 'status failed.' }
-  return [bool](($text | Out-String | ConvertFrom-Json).running)
-}
-
 function Get-RelayTask([string]$Name) {
   return @(Get-ScheduledTask -ErrorAction Stop |
       Where-Object { $_.TaskName -eq $Name -and $_.TaskPath -eq '\' })
@@ -99,7 +90,7 @@ function Test-TaskBusy([string]$Name) {
   return $task.Count -gt 0 -and ([string]$task[0].State) -in @('Running', 'Queued')
 }
 
-function Invoke-Verify([string]$Want, $Paths, [string]$Name, [string]$NodePath) {
+function Invoke-Verify([string]$Want, $Paths, [string]$Name) {
   $failures = New-Object System.Collections.ArrayList
   $taskText = 'unknown'
   try {
@@ -122,7 +113,6 @@ function Invoke-Verify([string]$Want, $Paths, [string]$Name, [string]$NodePath) 
   try {
     $record = Read-RelayRecord $Paths
     if (Test-RelayAlive $record) { [void]$failures.Add("the relay is still running (PID $($record.pid))") }
-    if (Test-RelayPipe $Paths $NodePath) { [void]$failures.Add('a relay still holds its pipe') }
   } catch {
     [void]$failures.Add("could not check the relay: $($_.Exception.Message)")
   }
@@ -144,9 +134,6 @@ function Stop-Relay($Paths, [string]$Name, [string]$NodePath) {
       Write-Line "FAILED: the relay did not stop (exit $LASTEXITCODE). Nothing else was changed."
       return 1
     }
-  } elseif (Test-RelayAlive $record) {
-    Write-Line 'FAILED: the relay is running but Node or its script is missing. Nothing else was changed.'
-    return 1
   }
   for ($i = 0; ($i -lt 60) -and ((Test-RelayAlive $record) -or (Test-TaskBusy $Name)); $i += 1) {
     Start-Sleep -Milliseconds 500
@@ -172,7 +159,7 @@ function Invoke-Install($Paths, [string]$Name, [string]$NodePath) {
     Write-Line 'FAILED: run Install from a checkout of the repository, not the installed copy.'
     return 1
   }
-  if ((Invoke-Verify 'Stopped' $Paths $Name $NodePath) -ne 0) {
+  if ((Invoke-Verify 'Stopped' $Paths $Name) -ne 0) {
     Write-Line 'FAILED: stop the relay before installing over it.'
     return 1
   }
@@ -261,14 +248,14 @@ function Invoke-Remove($Paths, [string]$Name, [string]$NodePath) {
     Write-Line 'FAILED: nothing was removed.'
     return 1
   }
-  if ((Invoke-Verify 'Stopped' $Paths $Name $NodePath) -ne 0) {
+  if ((Invoke-Verify 'Stopped' $Paths $Name) -ne 0) {
     Write-Line 'FAILED: nothing was removed.'
     return 1
   }
   if (@(Get-RelayTask $Name).Count -gt 0) {
     Unregister-ScheduledTask -TaskName $Name -TaskPath '\' -Confirm:$false -ErrorAction Stop
   }
-  if ((Invoke-Verify 'Removed' $Paths $Name $NodePath) -ne 0) {
+  if ((Invoke-Verify 'Removed' $Paths $Name) -ne 0) {
     Write-Line 'FAILED: the folder was not removed.'
     return 1
   }
@@ -282,10 +269,10 @@ function Invoke-RelayAction {
     $nodePath = Resolve-NodePath $NodeGiven
     switch ($Do) {
       'Install' { return (Invoke-Install $paths $Name $nodePath) }
-      'Verify' { return (Invoke-Verify $Want $paths $Name $nodePath) }
+      'Verify' { return (Invoke-Verify $Want $paths $Name) }
       'Stop' {
         if ((Stop-Relay $paths $Name $nodePath) -ne 0) { return 1 }
-        return (Invoke-Verify 'Stopped' $paths $Name $nodePath)
+        return (Invoke-Verify 'Stopped' $paths $Name)
       }
       'Disable' {
         if (@(Get-RelayTask $Name).Count -eq 0) {
@@ -294,7 +281,7 @@ function Invoke-RelayAction {
         }
         if ((Stop-Relay $paths $Name $nodePath) -ne 0) { return 1 }
         Disable-ScheduledTask -TaskName $Name -TaskPath '\' -ErrorAction Stop | Out-Null
-        return (Invoke-Verify 'Disabled' $paths $Name $nodePath)
+        return (Invoke-Verify 'Disabled' $paths $Name)
       }
       'Remove' { return (Invoke-Remove $paths $Name $nodePath) }
       default {
