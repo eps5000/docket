@@ -17,7 +17,8 @@ export type ApiMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
  * (decision 29, BUILD_SPEC §5.17); `install` is `GET /install/:token`, the
  * session-less bundle download. `onboarding` is the onboarding review
  * (decision 31, BUILD_SPEC §5.20). `shared` is shared changes and the
- * conflict radar (decision 36, BUILD_SPEC §5.21).
+ * conflict radar (decision 36, BUILD_SPEC §5.21). `usage` is token use
+ * (decision 48, BUILD_SPEC §5.30).
  */
 export const API_GROUPS = [
   'session',
@@ -36,6 +37,7 @@ export const API_GROUPS = [
   'install',
   'onboarding',
   'shared',
+  'usage',
   'undo',
   'upload',
 ] as const;
@@ -45,7 +47,8 @@ export type ApiGroup = (typeof API_GROUPS)[number];
  * - `session`: the `docket_owner` cookie (every `/api` route but unlock), plus
  *   the CSRF header on mutations;
  * - `none`: `POST /api/session/unlock` only;
- * - `bearer`: the agent token (`/agent-upload`), never the owner session;
+ * - `bearer`: the agent token (`/agent-upload`, `/api/sync/usage`), never the owner
+ *   session;
  * - `token`: `GET /install/:token` only: no session, CSRF or bearer; the
  *   single-use token in the path is the credential (checked by the handler),
  *   behind the app's Host and Origin guards (loopback only; decision 29).

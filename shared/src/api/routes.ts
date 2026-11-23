@@ -31,6 +31,7 @@ import { settingsRoutes } from './settings.js';
 import { sharedChangesRoutes } from './shared-changes.js';
 import { steerRoutes } from './steer.js';
 import { timelineRoutes } from './timeline.js';
+import { usageRoutes } from './usage.js';
 
 export const API_ROUTES = {
   ...sessionRoutes,
@@ -52,6 +53,7 @@ export const API_ROUTES = {
   ...agentProposalsRoutes,
   ...onboardingRoutes,
   ...sharedChangesRoutes,
+  ...usageRoutes,
   ...undoRoutes,
   ...uploadRoutes,
 } as const;

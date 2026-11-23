@@ -39,6 +39,7 @@ import { setupRoutes } from './routes/setup.js';
 import { steerRoutes } from './routes/steer.js';
 import { timelineRoutes } from './routes/timeline.js';
 import { undoRoutes } from './routes/undo.js';
+import { usageRoutes } from './routes/usage.js';
 import {
   requireCsrf,
   requireSession,
@@ -125,6 +126,7 @@ export function createApiApp(deps: ApiDeps): Hono<ApiEnv> {
   setupRoutes(api, routeDeps);
   onboardingRoutes(api, routeDeps);
   sharedRoutes(api, routeDeps);
+  usageRoutes(api, routeDeps);
 
   return api;
 }

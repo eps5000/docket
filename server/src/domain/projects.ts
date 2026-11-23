@@ -286,6 +286,7 @@ export function createProjectsService(deps: ServiceDeps): ProjectsService {
           'DELETE FROM events WHERE project_key = @key OR item_id IN (SELECT id FROM items WHERE project_key = @key)',
         )
         .run({ key: row.key });
+      sql.prepare('DELETE FROM usage_turns WHERE project_key = ?').run(row.key);
       sql.prepare('DELETE FROM items WHERE project_key = ?').run(row.key);
       sql.prepare('DELETE FROM documents WHERE project_key = ?').run(row.key);
       sql.prepare('DELETE FROM labels WHERE project_key = ?').run(row.key);
