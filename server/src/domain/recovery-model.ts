@@ -355,6 +355,16 @@ export interface ParkInfo {
   ready_since: string | null;
 }
 
+/** The `blocks` link from a waited-on item to the run's item, else the project default's. */
+export const waitLink = (index: BlockIndex, itemId: string, blockerId: string) =>
+  index.blockers.get(itemId)?.find((l) => l.from_id === blockerId) ?? {
+    id: '',
+    from_id: blockerId,
+    to_id: itemId,
+    type: 'blocks' as const,
+    satisfied_when: null,
+  };
+
 /**
  * `resume_ready`: every `waiting_on.items` entry cleared, or `until` passed.
  * An item clears by the data model's "blocker cleared?" rule: through the
@@ -378,13 +388,7 @@ export function parkInfo(
     let all = true;
     let last = parkedAt;
     for (const id of items) {
-      const link = index.blockers.get(run.item_id)?.find((l) => l.from_id === id) ?? {
-        id: '',
-        from_id: id,
-        to_id: run.item_id,
-        type: 'blocks' as const,
-        satisfied_when: null,
-      };
+      const link = waitLink(index, run.item_id, id);
       if (!index.cleared(link)) {
         all = false;
         break;
@@ -410,13 +414,7 @@ export function clearedSince(
   index: BlockIndex,
 ): string[] {
   return (waiting.items ?? []).filter((id) => {
-    const link = index.blockers.get(run.item_id)?.find((l) => l.from_id === id) ?? {
-      id: '',
-      from_id: id,
-      to_id: run.item_id,
-      type: 'blocks' as const,
-      satisfied_when: null,
-    };
+    const link = waitLink(index, run.item_id, id);
     if (!index.cleared(link)) return false;
     const at = clearedAt(db, id, index.rule(link));
     return !!at && ms(at) > ms(since);
@@ -424,7 +422,7 @@ export function clearedSince(
 }
 
 /** When a cleared item cleared: closed, then merged or verified when the rule asks for it. */
-function clearedAt(db: Db, id: string, rule: 'done' | 'merged' | 'verified'): string | null {
+export function clearedAt(db: Db, id: string, rule: 'done' | 'merged' | 'verified'): string | null {
   const row = db.sqlite.prepare('SELECT closed_at, updated_at FROM items WHERE id = ?').get(id) as
     { closed_at: string | null; updated_at: string } | undefined;
   if (!row) return null;

@@ -151,6 +151,8 @@ export interface RunRow {
   park_activity: string | null;
   /** Decision 44: `{by, client, at, until, ended_at?}`, a coordinator's time-limited park. */
   coordinator_park: string | null;
+  /** Decision 45: `{flags, resume_key?}`, the wait flags raised and the last resume told (wait.ts). */
+  wait_flags: string | null;
   version: number;
   created_at: string;
   updated_at: string;

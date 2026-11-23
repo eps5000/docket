@@ -585,6 +585,14 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T225 [US11] Show it: "Parked by X until T" on the item, in `get_item`, `get_digest` and `get_context`, within their token budgets. An expired park is the coordinator's until the normal routing applies.
 - [x] T226 [US11] Tests: authority, each limit, renewal, early end, expiry for a dead and a live run, restart before and after the deadline, own park, reads, digest and token budget, no double processing, and part leases.
 
+## Phase 33: Make a parked story's wait visible (owner decision 45)
+
+- [x] T227 [US11] Spec plus code in one PR: decision 45 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.26; MCP_SPEC §4, §5.2, §5.4; UI_SPEC §6.3.2; spec FR-211–FR-216; Help (Problems, Run states); the coordinator and worker skills; `docs/design/wait-and-backlog-followups.md` (proposed, not built).
+- [x] T228 [US11] The wait card, derived from stored facts: what it waits for, first-parked time through re-parks, next action's owner along a bounded, cycle-safe chain, and the exact resume sentence, in `park_run`, `get_digest`, `get_context` (the item and its blocker) and the item page.
+- [x] T229 [US11] `wait_no_next_step` and `wait_owner_unasked` in the two-minute job, with no git and migration `0021`: raised once, cleared when the condition ends, kept through a short re-park.
+- [x] T230 [US11] Routing through decision 41's Problems, one `run.wait_flagged` per flag, and one `run.resume_ready` the coordinator relays to the same run and dispatch.
+- [x] T231 [US11] Replays of GF-243 → GF-381 and GF-229 → GF-382 with real IDs and times and synthetic text, failing before B54, plus the negatives: a cited decision, a pending proposal, a live lead, a blocker being shaped and a cycle. Token budgets hold.
+
 ## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.
@@ -690,6 +698,7 @@ Open a PR titled "<Bn>: <phase name>" with the checkpoint evidence. Do not queue
 | 30 Status follows what agents are doing | B50 (after B49) |
 | 31 The Overview page | B51 (after B50) |
 | 32 Time-limited coordinator parking | B53 (after B52) |
+| 33 Make a parked story's wait visible | B54 (after B53) |
 
 **Within a phase:** tests (failing) → services → replace stubs or fill handlers → fill screens → checkpoint.
 

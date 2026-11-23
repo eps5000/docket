@@ -394,6 +394,7 @@ const OPTIONAL_OUTPUTS: Record<string, string[]> = {
   submit_packet: ['held_undeclared', 'held_design'],
   declare_shared_changes: ['design_hold'],
   update_run_status: ['parked_until'], // decision 44: while a coordinator's park holds
+  park_run: ['wait'], // decision 45: left out only on a replay stored before it
 };
 
 const MUTATING = specDescriptions()

@@ -119,6 +119,19 @@ export const PROBLEM_ROWS: Record<
     tone: 'warn',
     actions: [{ label: 'Open', kind: 'link', to: onBanner('activity'), banner: true }],
   },
+  // Decision 45: they reach the owner only when no agent can act.
+  wait_no_next_step: {
+    help: 'problems.wait_no_next_step',
+    icon: 'pause',
+    tone: 'warn',
+    actions: [{ label: 'Open', kind: 'link', to: onBanner('activity'), banner: true }],
+  },
+  wait_owner_unasked: {
+    help: 'problems.wait_owner_unasked',
+    icon: 'clock',
+    tone: 'warn',
+    actions: [{ label: 'Open', kind: 'link', to: onBanner('activity'), banner: true }],
+  },
   extra_backup_failed: {
     help: 'problems.extra_backup_failed',
     icon: 'server',

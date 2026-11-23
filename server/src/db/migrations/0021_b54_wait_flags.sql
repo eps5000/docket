@@ -1,0 +1,1 @@
+ALTER TABLE `runs` ADD `wait_flags` text;

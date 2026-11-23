@@ -98,7 +98,7 @@ export function producersByItem(db: Db): Map<string, { name: string; between_wor
 // ---- Activity detection ----
 
 /** Item events that show real work happened. The park and resume bookkeeping isn't one. */
-const ACTIVITY_EVENTS = [
+export const ACTIVITY_EVENTS = [
   'note.added',
   'owner_note.added',
   'commit.reported',

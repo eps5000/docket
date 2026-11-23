@@ -68,6 +68,7 @@ import {
   type ItemRow,
   type RunRow,
 } from './model.js';
+import { WaitReader } from './wait.js';
 import { assertDesignCleared } from './design-review.js';
 import { settleClaim } from './shared-changes.js';
 import type { InverseOp, WriteContext } from './write.js';
@@ -1150,8 +1151,14 @@ export function createRunsService(deps: ServiceDeps): RunsService {
         data: { run_id: run.id, reason: input.reason, waiting_on: waiting, from: run.state },
         objects: [{ kind: 'run', id: run.id }],
       });
-      const info = parkInfo(w.db, getRun(w.db, run.id)!, w.now);
-      return { run_state: 'parked' as const, resume_ready: info.resume_ready };
+      const parked = getRun(w.db, run.id)!;
+      const info = parkInfo(w.db, parked, w.now);
+      return {
+        run_state: 'parked' as const,
+        resume_ready: info.resume_ready,
+        // Decision 45: what it waits for, who can move that, and how it resumes.
+        wait: new WaitReader(w.db, w.now).card(parked),
+      };
     },
 
     resume(w, input) {
