@@ -336,3 +336,7 @@ test.describe('the owner’s checklist entries', () => {
     await expect(check).toHaveCount(0);
   });
 });
+
+test('b65 proof: deliberate failure', () => {
+  throw new Error('b65 proof');
+});
