@@ -157,6 +157,7 @@ describe('the service stubs', () => {
       'needsYou',
       'overview',
       'overviewItems',
+      'brief',
       'work',
       'itemDetail',
       'agents',

@@ -20,6 +20,7 @@ import { LabelPage } from '../routes/labels/LabelPage';
 import { NotFound } from '../routes/NotFound';
 import { Overview } from '../routes/overview/Overview';
 import { OverviewListPage } from '../routes/overview/OverviewListPage';
+import { Brief } from '../routes/brief/Brief';
 import { PacketScreen } from '../routes/review/PacketScreen';
 import { Settings } from '../routes/settings/Settings';
 import { SharedPartsPage } from '../routes/settings/SharedPartsPage';
@@ -41,6 +42,7 @@ export const shellRoutes: RouteObject[] = [
   { index: true, element: <Overview /> },
   { path: 'overview', element: <Navigate replace to="/" /> },
   { path: 'overview/:metric', element: <OverviewListPage /> },
+  { path: 'brief', element: <Brief /> },
   // Decision 43: Needs you is a section of Overview now; old links land on it.
   { path: 'needs-you', element: <LegacyNeedsYou /> },
   { path: 'work', element: <Work /> },

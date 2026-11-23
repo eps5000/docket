@@ -26,6 +26,11 @@ export function readRoutes<E extends Env>(api: Hono<E>, deps: RouteDeps): void {
     services.views.overviewItems(read, query),
   );
 
+  // Decision 48: one day's brief.
+  defineRoute(api, 'brief.get', deps, ({ services, read, query }) =>
+    services.views.brief(read, query),
+  );
+
   defineRoute(api, 'work.get', deps, ({ services, read, query }) => {
     const work = services.views.work(read, query);
     if (query.layout !== 'timeline') return work;
