@@ -350,6 +350,11 @@ export const waitCardSchema = z.object({
   resumes_when: z.string(),
   resume_ready: z.boolean(),
   flags: z.array(waitFlagSchema),
+  /**
+   * Decision 48: the active owner-authority decision the park reason cites that
+   * applies to this item at any scope. Derived; null for an agent's decision.
+   */
+  held_by: z.object({ decision_id: z.string(), title: z.string() }).nullable(),
   /** A named blocker was linked after this run claimed the item: check it holds the whole story. */
   scope_hint: z.string().optional(),
 });

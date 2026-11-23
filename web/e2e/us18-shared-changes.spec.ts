@@ -220,8 +220,11 @@ test('an overlap: the refused claim asks you once, Work shows it, and They’re 
   await expectAxeClean(page, 'Needs you, an overlap card');
   await shoot(page, 'overlap-card', card);
 
-  // The Work card's marker.
+  // Decision 48: it can't start, so it sits under Waiting and says why. Its card keeps the marker.
   await page.goto('/work?layout=board');
+  const ready = page.locator('[data-layout="board"]').getByRole('region', { name: 'Ready' });
+  await expect(ready.locator('[data-waiting="RCP-17"]')).toContainText('your overlap decision');
+  await ready.getByRole('button', { name: /^Waiting/ }).click();
   await expect(page.locator('a[data-item="RCP-17"]')).toContainText('overlap');
 
   // They're compatible, with a note: the note box takes focus.

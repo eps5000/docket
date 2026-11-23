@@ -207,10 +207,11 @@ describe('the agent bar (B20)', () => {
           step: 'RCP-12: shape it or assign it',
         },
       ],
+      held_by: null,
     };
     wrap(<AgentBar data={{ ...detail({ runs: [parked] }), wait }} />);
     const card = bar().querySelector('[data-ab="wait"]')!;
-    expect(card.textContent).toContain('Waiting for RCP-12 (planning, clears when done)');
+    expect(card.textContent).toContain('Waiting on RCP-12 (planning, clears when done)');
     expect(card.textContent).toContain('Next: orca · RCP-12: shape it or assign it');
     expect(card.textContent).toContain('Resumes when RCP-12 is done');
     expect(

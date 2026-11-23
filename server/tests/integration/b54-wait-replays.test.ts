@@ -358,10 +358,10 @@ describe('what must not be flagged (decision 45)', () => {
     expect(context(a).wait?.next_owner.step).toBe(`${a}: the owner has answered; resume it`);
   });
 
-  it('a person wait with nothing to answer is flagged, and goes to the coordinator', () => {
+  it('a person wait saying an owner decision is pending is flagged, for the coordinator', () => {
     const a = item(300, 'Synthetic story waiting on a person', 'ready');
     const run = claim(a, 'ctx_300');
-    park(run, 'Waiting on a person', { person: true });
+    park(run, 'This needs an owner decision on the scope', { person: true });
     d.clock.advance(minutes(14));
     check();
     expect(flagKinds(a)).toEqual([]);

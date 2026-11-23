@@ -126,6 +126,11 @@ export function OverviewStats({
               <Link className="ov-sub" to={paths.work({ quick: 'blocked' })}>
                 {metrics.blocked} blocked
               </Link>
+              {/* Decision 48: of everything in Ready, how much can really start. */}
+              <Link className="ov-sub" to={paths.work({ quick: 'startable' })} data-ready-link>
+                {metrics.ready.startable} of {metrics.ready.startable + metrics.ready.waiting} Ready
+                can start
+              </Link>
             </>
           ) : (
             <span className="ov-num">{WAITING}</span>

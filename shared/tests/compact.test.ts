@@ -571,6 +571,30 @@ const SAMPLES: Record<ToolName, { result: unknown; args?: Record<string, unknown
       project: 'RCP',
       cursor: '812',
       since: null,
+      next_work: {
+        total: 1,
+        rows: [
+          {
+            id: 'RCP-17',
+            title: 'Week view reload',
+            priority: 1,
+            unlocks: 3,
+            reason: 'Priority 1, unlocks 3 tickets, open 2d',
+          },
+        ],
+      },
+      bottlenecks: {
+        total: 1,
+        rows: [
+          {
+            id: 'RCP-30',
+            title: 'Shape the import',
+            status: 'planning',
+            unlocks: 4,
+            next: 'shape it or assign it',
+          },
+        ],
+      },
       ready: {
         total: 9,
         rows: [{ id: 'RCP-17', title: 'Week view reload', priority: 1, unblocks: 2 }],

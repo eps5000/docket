@@ -38,7 +38,14 @@ const item = (title: string, ready = false, description_md?: string) => {
 };
 const blocks = (from: string, to: string) =>
   d.write(other, (w, s) => s.links.link(w, { from, to, type: 'blocks' }));
-const parkOn = (id: string, waiting_on: Record<string, unknown>, orchestrator = true) => {
+/** Decision 48: only text saying an owner decision is pending raises the flag. */
+const PENDING = 'Waiting: this needs an owner decision on the scope.';
+const parkOn = (
+  id: string,
+  waiting_on: Record<string, unknown>,
+  orchestrator = true,
+  reason = 'Waiting',
+) => {
   const { run_id } = d.write(worker, (w, s) =>
     s.runs.claim(w, {
       id,
@@ -49,7 +56,7 @@ const parkOn = (id: string, waiting_on: Record<string, unknown>, orchestrator = 
   // A claim is refused on a blocked item, so the blocker is linked after it.
   for (const from of (waiting_on.items as string[] | undefined) ?? []) blocks(from, id);
   const out = d.write({ ...worker, run_id }, (w, s) =>
-    s.runs.park(w, { run_id, reason: 'Waiting', waiting_on }),
+    s.runs.park(w, { run_id, reason, waiting_on }),
   );
   return { run_id, wait: out.wait! };
 };
@@ -225,7 +232,7 @@ describe('an agent-file proposal as an owner action (decision 45)', () => {
 
   it('a raised flag clears when the run proposes, and stays cleared once approved', () => {
     const waiter = item('Waiter', true);
-    const { run_id } = parkOn(waiter, { person: true });
+    const { run_id } = parkOn(waiter, { person: true }, true, PENDING);
     d.clock.advance(minutes(WAIT_FLAGS.grace_minutes));
     waitCheckOnce(d.server.runtime);
     expect(kinds()).toEqual(['wait_owner_unasked']);
@@ -247,7 +254,7 @@ describe('an agent-file proposal as an owner action (decision 45)', () => {
     d.write(OWNER, (w, s) => s.agentProposals.approve(w, { id }));
     d.clock.advance(minutes(5));
     d.write({ ...worker, run_id }, (w, s) =>
-      s.runs.park(w, { run_id, reason: 'Waiting', waiting_on: { person: true } }),
+      s.runs.park(w, { run_id, reason: PENDING, waiting_on: { person: true } }),
     );
     d.clock.advance(minutes(WAIT_FLAGS.grace_minutes));
     waitCheckOnce(d.server.runtime);
@@ -270,7 +277,7 @@ describe('an agent-file proposal as an owner action (decision 45)', () => {
       }),
     );
     const waiter = item('Waiter', true);
-    parkOn(waiter, { person: true });
+    parkOn(waiter, { person: true }, true, PENDING);
     d.clock.advance(minutes(WAIT_FLAGS.grace_minutes));
     waitCheckOnce(d.server.runtime);
     expect(kinds()).toEqual(['wait_owner_unasked']);

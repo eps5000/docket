@@ -272,6 +272,17 @@ The owner approved the bug fixes and additions in `docs/design/coordination-tool
 
 BUILD_SPEC §5.29, UI_SPEC §6.1 and §6.1b, spec FR-230–FR-235 and Help (A first look around) have the details.
 
+**Truthful waits, expired leases and a true Ready (B58):**
+
+1. **A pause is not an unasked decision.** A bare wait on a person never says an owner decision is missing. Only text saying one is still pending does.
+2. **A wait held by a recorded decision is settled.** If the park reason cites an active decision that applies to the item at any scope, it is never flagged as unasked, whenever that decision was made.
+3. **The owner's own decision holds the run.** The wait card and item page say "Held by your decision", with a link, and the next step is that it resumes when the owner lifts it. The run raises no parked or no-next-step alert and doesn't reach the owner for being parked. An agent's decision can't silence an alert. When the owner withdraws or supersedes the decision, normal aging restarts from that moment, so lifting a pause doesn't raise a wall of alerts.
+4. **Expired part leases end.** The sweeper ends a lease past its stored expiry, even for a parked holder, with one event that names the holder's coordinator.
+5. **A true Ready.** Work splits Ready into **Startable** and **Waiting**, and each waiting ticket says what it waits on. The stored status doesn't change.
+6. **Start this next.** `get_digest` gains a short ranked next-work list (priority, then how many open tickets it transitively unlocks, then age) and **bottlenecks**: unowned Inbox or Planning tickets holding up real work, with "shape it or assign it". Overview's In flight card links to Startable.
+
+BUILD_SPEC §5.21, §5.26 and §5.30, MCP_SPEC §5.2, UI_SPEC §6.1 and §6.2, spec FR-236–FR-241, Help and the coordinator skill have the details.
+
 ## Deferred choices
 
 Pilot project choice and Jira import strategy are deferred until V1 is ready for real work. Design should still settle the storage layout, supported document preview formats, the exact project gate configuration shape, and the minimum history needed before a velocity forecast is shown. These are implementation choices guided by the owner decisions above, not blockers to selecting a pilot now.

@@ -74,7 +74,7 @@ export const emptyWork: WorkResponse = {
   items: [],
   epics: [],
   filter_counts: {
-    quick: { active: 0, blocked: 0, progress: 0 },
+    quick: { active: 0, startable: 0, waiting: 0, blocked: 0, progress: 0 },
     has: {
       for_you: 0,
       human_review_later: 0,
