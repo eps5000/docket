@@ -21,7 +21,7 @@ $script:AppFiles = @('docket-sync.mjs', 'launch.ps1', 'manage.ps1', 'README.md')
 $script:LibFiles = @('docket.mjs', 'gh.mjs', 'github.mjs', 'runner.mjs', 'store.mjs')
 # A new source file is added here too, so Install copies it and Remove knows it.
 $script:SourceFiles = @('github.mjs')
-$script:StateFiles = @('state.json', 'sync.log', 'sync.log.1', 'instance.json')
+$script:StateFiles = @('state.json', 'sync.log', 'sync.log.1', 'instance.json', 'sync.sock')
 $script:StatePattern = '^(state\.json\.corrupt-\d+|(state|instance)\.json\.\d+\.tmp)$'
 # How far the recorded start may be from the one Windows reports.
 $script:StartToleranceMs = 60000

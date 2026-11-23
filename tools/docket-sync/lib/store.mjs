@@ -185,10 +185,19 @@ export function createLog(home, { echo = false } = {}) {
   };
 }
 
+/** POSIX limits a socket's path to about 104 bytes. */
+const SOCKET_PATH_MAX = 100;
+
+/**
+ * Per state folder. On POSIX it sits in that folder, so two processes with
+ * different temp folders still share one lock.
+ */
 export function lockAddress(home, platform = process.platform) {
   const id = createHash('sha256').update(home.toLowerCase()).digest('hex').slice(0, 24);
-  return platform === 'win32'
-    ? `\\\\.\\pipe\\docket-sync-${id}`
+  if (platform === 'win32') return `\\\\.\\pipe\\docket-sync-${id}`;
+  const inHome = join(home, 'sync.sock');
+  return Buffer.byteLength(inHome) < SOCKET_PATH_MAX
+    ? inHome
     : join(tmpdir(), `docket-sync-${id}.sock`);
 }
 
@@ -251,6 +260,7 @@ export function requestStop(home, timeoutMs = 3000) {
  * With `onStop`, a client holding the stop token can ask this instance to stop.
  */
 export async function acquireLock(home, { onStop } = {}) {
+  mkdirSync(home, { recursive: true });
   const address = lockAddress(home);
   const token = onStop ? randomBytes(24).toString('hex') : null;
   const answer = (socket) => {
