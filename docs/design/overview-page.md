@@ -2,6 +2,8 @@
 
 **Status:** built in B51 (owner decision 43, 2026-11-22). BUILD_SPEC §5.24 and UI_SPEC §6.1 hold the exact definitions. Radar insights (below) are not built.
 
+**B56 (the owner's review of the live page):** the open-ticket tab strip no longer shows here. The Agents card is now **Tickets with agents** ("N being worked", "M parked/waiting"), because it counts tickets and not sessions. The chart has a whole-number axis and a tooltip naming each bar's tickets. "Workspaces at risk" became a plain line saying which worktrees need the owner and which don't. The sketch below shows the original B51 layout.
+
 ## Why
 
 Needs you currently does two jobs: it lists what requires the owner, and it is the only place to see how the work is going. The owner should be able to open Docket and answer three questions in about ten seconds:

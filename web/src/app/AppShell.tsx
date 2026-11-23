@@ -128,7 +128,8 @@ export function AppShell() {
         <Sidebar />
         <div className="mainwrap">
           <Header />
-          <TabStrip activeId={activeId} />
+          {/* B56: not on Overview. The tabs stay in ShellState, so they're back on the next page. */}
+          {location.pathname !== paths.overview() && <TabStrip activeId={activeId} />}
           <main className="view" id="main" ref={viewRef} tabIndex={-1}>
             {connection !== 'ok' && (
               <div

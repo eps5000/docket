@@ -455,6 +455,21 @@ async function sweep(opts) {
       });
       await page.keyboard.press('Escape');
 
+      // B56: the items above left tabs open, and Overview must not show them. The chart's
+      // tooltip must open from the keyboard. With no projects there's no chart to check.
+      await record('Overview chart tooltip', async () => {
+        await page.goto('/');
+        await settle(page);
+        if ((await page.locator('.tabstrip').count()) > 0) {
+          throw new Error('The open-ticket tab strip shows on Overview');
+        }
+        const bar = page.locator('[data-bar][tabindex="0"]');
+        if ((await bar.count()) === 0) return;
+        await bar.focus();
+        await page.locator('[data-chart-tip]').waitFor({ state: 'visible', timeout: READY_MS });
+      });
+      await page.keyboard.press('Escape');
+
       // Review packets (Gameflow pilot: long agent-check evidence squeezed the
       // check text into a one-word column and overlapped it).
       // Only items with a packet: an item can be in Review before its packet exists.

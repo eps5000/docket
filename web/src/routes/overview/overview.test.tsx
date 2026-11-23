@@ -20,8 +20,8 @@ import { appRoutes } from '../../app/router';
 import { ShellStateProvider } from '../../app/ShellState';
 import { STORAGE_KEYS } from '../../lib/persistence';
 import { toasts } from '../../lib/undo';
-import { completedSummary } from './CompletedChart';
-import { deltaText } from './OverviewStats';
+import { axisTicks, bucketTicketsText, completedSummary, placeTip } from './CompletedChart';
+import { AGENTS_NOTE, deltaText } from './OverviewStats';
 import { ownerActionParts, readOverviewWindow } from './overviewWindow';
 import { workloadText } from './WorkloadCard';
 
@@ -242,8 +242,27 @@ const metrics = (over: Partial<OverviewResponse> = {}): OverviewResponse => ({
     prior: 12,
     granularity: 'day',
     buckets: [
-      { key: '2026-11-19', label: 'Nov 19', count: 6 },
-      { key: '2026-11-20', label: 'Nov 20', count: 12 },
+      { key: '2026-11-18', label: 'Nov 18', count: 0, tickets: [] },
+      {
+        key: '2026-11-19',
+        label: 'Nov 19',
+        count: 6,
+        tickets: [
+          { id: 'RCP-31', title: 'Pantry screen' },
+          { id: 'RCP-32', title: 'Shopping list' },
+        ].concat(
+          ['RCP-33', 'RCP-34', 'RCP-35', 'RCP-36'].map((id) => ({ id, title: `Title ${id}` })),
+        ),
+      },
+      {
+        key: '2026-11-20',
+        label: 'Nov 20',
+        count: 12,
+        tickets: ['RCP-41', 'RCP-42', 'RCP-43', 'RCP-44', 'RCP-45', 'RCP-46'].map((id) => ({
+          id,
+          title: `Title ${id}`,
+        })),
+      },
     ],
   },
   in_flight: { count: 23, progress: 15, review: 8 },
@@ -482,8 +501,8 @@ describe('every number links to what is behind it', () => {
     const href = (root: HTMLElement, name: string | RegExp) =>
       within(root).getByRole('link', { name }).getAttribute('href');
     expect(href(stat('completed'), '18 tickets')).toBe('/overview/completed?window=7d');
-    expect(href(stat('agents'), '4 working')).toBe('/overview/agents_working');
-    expect(href(stat('agents'), '3 waiting')).toBe('/overview/agents_waiting');
+    expect(href(stat('agents'), '4 being worked')).toBe('/overview/agents_working');
+    expect(href(stat('agents'), '3 parked/waiting')).toBe('/overview/agents_waiting');
     expect(href(stat('in-flight'), '23 tickets')).toBe('/overview/in_flight');
     expect(href(stat('in-flight'), '5 blocked')).toBe('/work?quick=blocked');
     const work = document.querySelector('[data-card="workload"]') as HTMLElement;
@@ -494,9 +513,22 @@ describe('every number links to what is behind it', () => {
   it('counts agents as stories, and never shows raw run counts', async () => {
     renderAt();
     await section();
-    await screen.findByRole('link', { name: '4 working' });
+    await screen.findByRole('link', { name: '4 being worked' });
     expect(document.querySelector('[data-card="agents-strip"]')).toBeNull();
     expect(document.querySelector('.overview')?.textContent).not.toMatch(/× 3/);
+  });
+
+  it('names the card for what it counts, explains it, and estimates no sessions', async () => {
+    renderAt();
+    await section();
+    await screen.findByRole('link', { name: '4 being worked' });
+    const card = screen.getByRole('group', { name: 'Tickets with agents' });
+    expect(card.getAttribute('data-stat')).toBe('agents');
+    const note = document.getElementById(card.getAttribute('aria-describedby')!)!;
+    expect(note.textContent).toContain(AGENTS_NOTE);
+    expect(AGENTS_NOTE).toContain('Counts tickets in Docket, not agent sessions.');
+    // No number of sessions anywhere on the card or in its note.
+    expect(`${card.textContent} ${note.textContent}`).not.toMatch(/\d+\s+(agent )?sessions?/i);
   });
 
   it('an old /needs-you link lands on the section', async () => {
@@ -517,36 +549,40 @@ describe('the Agents badge equals the card (decision 43)', () => {
     byScope = { RCP: quiet({ agents_now: { working: 1, waiting: 2 } }) };
     sessionStorage.setItem(STORAGE_KEYS.scope, scope);
     renderAt();
-    const card = await screen.findByRole('link', { name: `${working} working` });
+    const card = await screen.findByRole('link', { name: `${working} being worked` });
     expect(card.closest('[data-stat="agents"]')).toBeTruthy();
-    expect(within(stat('agents')).getByRole('link', { name: `${waiting} waiting` })).toBeTruthy();
+    expect(
+      within(stat('agents')).getByRole('link', { name: `${waiting} parked/waiting` }),
+    ).toBeTruthy();
     await waitFor(() =>
       expect(agentsLink().querySelector('.badge')?.textContent).toContain(String(working)),
     );
-    // Waiting isn't in the badge, and the badge says what it counts.
-    expect(agentsLink().textContent).toContain(working === 1 ? 'story being' : 'stories being');
-    expect(agentsLink().querySelector('.badge')?.getAttribute('title')).toContain(
-      'Waiting stories aren’t counted',
+    // Parked isn't in the badge, and the badge uses the card's words.
+    expect(agentsLink().textContent).toContain(
+      working === 1 ? 'ticket being worked' : 'tickets being worked',
     );
+    const title = agentsLink().querySelector('.badge')?.getAttribute('title');
+    expect(title).toContain('Parked or waiting tickets aren’t counted');
+    expect(title).toContain('not agent sessions');
   });
 
-  it('shows no badge when every story is parked, though the card says who waits', async () => {
+  it('shows no badge when every ticket is parked, though the card says who waits', async () => {
     needs = quiet({ agents_now: { working: 0, waiting: 2 }, agent_counts: { parked: 2 } });
     renderAt();
-    await screen.findByRole('link', { name: '0 working' });
-    expect(screen.getByRole('link', { name: '2 waiting' })).toBeTruthy();
+    await screen.findByRole('link', { name: '0 being worked' });
+    expect(screen.getByRole('link', { name: '2 parked/waiting' })).toBeTruthy();
     expect(agentsLink().querySelector('.badge')).toBeNull();
   });
 
-  it('the Agents page says its lists are runs, beside the same story count', async () => {
+  it('the Agents page says its lists are runs, beside the same ticket count', async () => {
     renderAt('/agents');
     const line = await waitFor(() => {
       const el = document.querySelector('[data-agents-stories]');
       expect(el).toBeTruthy();
       return el as HTMLElement;
     });
-    expect(line.textContent).toContain('4 stories being worked on');
-    expect(line.textContent).toContain('3 waiting');
+    expect(line.textContent).toContain('4 tickets being worked');
+    expect(line.textContent).toContain('3 parked/waiting');
     expect(line.textContent).toContain('show individual runs');
     await waitFor(() => expect(agentsLink().querySelector('.badge')?.textContent).toContain('4'));
   });
@@ -583,6 +619,159 @@ describe('the time window', () => {
     expect(within(group).getByRole('button', { name: '24h' }).getAttribute('aria-pressed')).toBe(
       'true',
     );
+  });
+});
+
+describe('the Completed chart (B56)', () => {
+  const bar = (key: string) => document.querySelector(`[data-bar="${key}"]`) as HTMLButtonElement;
+  const tip = () => document.querySelector('[data-chart-tip]') as HTMLElement | null;
+  const chart = async () => {
+    renderAt();
+    await screen.findByRole('table', { name: /Tickets completed per day/ });
+  };
+
+  it.each([
+    [0, [0, 1]],
+    [1, [0, 1]],
+    [2, [0, 1, 2]],
+    [3, [0, 1, 2, 3]],
+    [4, [0, 1, 2, 3, 4]],
+    [5, [0, 2, 4, 6]],
+    [9, [0, 5, 10]],
+    [12, [0, 5, 10, 15]],
+    [137, [0, 50, 100, 150]],
+    [1000, [0, 500, 1000]],
+    [12345, [0, 5000, 10000, 15000]],
+  ])('axis ticks for a peak of %i', (max, ticks) => {
+    expect(axisTicks(max)).toEqual(ticks);
+  });
+
+  it('axis ticks are always whole, reach the peak, and stay few', () => {
+    for (let max = 0; max <= 2500; max++) {
+      const ticks = axisTicks(max);
+      expect(ticks.every(Number.isInteger)).toBe(true);
+      expect(ticks[0]).toBe(0);
+      expect(ticks.at(-1)!).toBeGreaterThanOrEqual(max);
+      expect(ticks.length).toBeLessThanOrEqual(5);
+    }
+  });
+
+  it('draws the axis, and scales the bars to its top tick', async () => {
+    await chart();
+    const labels = [...document.querySelectorAll('.ov-yaxis span')].map((s) => s.textContent);
+    expect(labels).toEqual(['0', '5', '10', '15']);
+    expect((bar('2026-11-20').querySelector('i') as HTMLElement).style.height).toBe('80%');
+    expect(bar('2026-11-18').querySelector('i')).toBeNull();
+  });
+
+  it('hover shows the date, count and linked tickets, with "and N more"', async () => {
+    const user = userEvent.setup();
+    await chart();
+    await user.hover(bar('2026-11-20'));
+    const open = tip()!;
+    expect(open.textContent).toContain('Nov 20');
+    expect(open.textContent).toContain('12 tickets completed');
+    const links = within(open).getAllByRole('link');
+    expect(links).toHaveLength(6);
+    expect(links[0]!.getAttribute('href')).toBe('/items/RCP-41');
+    expect(links[0]!.textContent).toContain('Title RCP-41');
+    expect(open.textContent).toContain('and 6 more');
+    expect(bar('2026-11-20').getAttribute('aria-expanded')).toBe('true');
+    expect(bar('2026-11-20').getAttribute('aria-controls')).toBe(open.id);
+  });
+
+  it('shows no "more" when every ticket fits, and says none for an empty bucket', async () => {
+    const user = userEvent.setup();
+    await chart();
+    await user.hover(bar('2026-11-19'));
+    expect(tip()!.textContent).not.toContain('more');
+    await user.hover(bar('2026-11-18'));
+    expect(tip()!.textContent).toContain('None completed');
+    expect(within(tip()!).queryByRole('link')).toBeNull();
+  });
+
+  it('stays open while the pointer moves onto it, and closes after it leaves', async () => {
+    const user = userEvent.setup();
+    await chart();
+    await user.hover(bar('2026-11-20'));
+    await user.hover(tip()!);
+    await new Promise((r) => setTimeout(r, 260));
+    expect(tip()).toBeTruthy();
+    await user.unhover(tip()!);
+    await waitFor(() => expect(tip()).toBeNull());
+  });
+
+  it('the keyboard: one tab stop, arrows move, Tab reaches the links, Esc returns', async () => {
+    const user = userEvent.setup();
+    await chart();
+    const stops = [...document.querySelectorAll('[data-bar]')].filter(
+      (b) => (b as HTMLElement).tabIndex === 0,
+    );
+    // The newest bar with tickets is the way in.
+    expect(stops).toEqual([bar('2026-11-20')]);
+    bar('2026-11-20').focus();
+    await waitFor(() => expect(tip()?.dataset.chartTip).toBe('2026-11-20'));
+    await user.keyboard('{ArrowLeft}');
+    expect(document.activeElement).toBe(bar('2026-11-19'));
+    await waitFor(() => expect(tip()?.dataset.chartTip).toBe('2026-11-19'));
+    expect(bar('2026-11-19').tabIndex).toBe(0);
+    expect(bar('2026-11-20').tabIndex).toBe(-1);
+    await user.keyboard('{Home}');
+    expect(document.activeElement).toBe(bar('2026-11-18'));
+    await user.keyboard('{End}');
+    expect(document.activeElement).toBe(bar('2026-11-20'));
+
+    await user.tab();
+    expect(document.activeElement?.getAttribute('href')).toBe('/items/RCP-41');
+    expect(tip()).toBeTruthy();
+    await user.keyboard('{Escape}');
+    expect(tip()).toBeNull();
+    expect(document.activeElement).toBe(bar('2026-11-20'));
+  });
+
+  it('closes when focus leaves the chart', async () => {
+    const user = userEvent.setup();
+    await chart();
+    bar('2026-11-18').focus();
+    await waitFor(() => expect(tip()).toBeTruthy());
+    await user.tab();
+    await waitFor(() => expect(tip()).toBeNull());
+  });
+
+  it('stays inside the window at every edge', () => {
+    const view = { width: 1024, height: 768 };
+    const size = { width: 300, height: 200 };
+    const at = (left: number, top: number) => ({
+      left,
+      width: 12,
+      top,
+      bottom: top + 132,
+    });
+    expect(placeTip(at(500, 400), size, view)).toEqual({ left: 356, top: 194 });
+    expect(placeTip(at(0, 400), size, view).left).toBe(8);
+    expect(placeTip(at(1012, 400), size, view).left).toBe(716);
+    // No room above: below it.
+    expect(placeTip(at(500, 60), size, view).top).toBe(198);
+    // No room either way: as high as fits.
+    const short = placeTip(at(500, 60), size, { width: 1024, height: 300 });
+    expect(short.top).toBe(92);
+  });
+
+  it('the text alternative names the tickets, the overflow and an empty bucket', async () => {
+    await chart();
+    const table = screen.getByRole('table', { name: /Tickets completed per day/ });
+    const row = (name: string) => within(table).getByRole('rowheader', { name }).closest('tr')!;
+    expect(row('Nov 18').textContent).toContain('None');
+    expect(row('Nov 19').textContent).toContain('RCP-31 Pantry screen');
+    expect(row('Nov 20').textContent).toContain('and 6 more');
+    expect(
+      bucketTicketsText({
+        key: 'k',
+        label: 'Nov 1',
+        count: 3,
+        tickets: [{ id: 'RCP-1', title: 'One' }],
+      }),
+    ).toBe('RCP-1 One; and 2 more');
   });
 });
 

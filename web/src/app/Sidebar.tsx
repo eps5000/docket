@@ -270,7 +270,7 @@ function HealthLine() {
 export function Sidebar() {
   // Decision 41: what the owner can act on on the page, from the page's own response.
   const forYou = useNeedsYouCount();
-  // Decision 43: stories being worked on in this project, the Overview card's number.
+  // Decision 43: tickets being worked in this project, the Overview card's number.
   const working = useAgentsNow()?.working ?? 0;
   return (
     <nav className="side" aria-label="Primary">
@@ -295,8 +295,9 @@ export function Sidebar() {
         badge={{
           n: working,
           tone: 'gray',
-          sr: working === 1 ? 'story being worked on' : 'stories being worked on',
-          title: 'Stories being worked on in this project. Waiting stories aren’t counted.',
+          sr: working === 1 ? 'ticket being worked' : 'tickets being worked',
+          title:
+            'Tickets being worked in this project. Parked or waiting tickets aren’t counted. This counts tickets in Docket, not agent sessions.',
         }}
       />
       <NavItem to={paths.agentFiles()} icon="doc" label="Agent files" section="agent-files" />

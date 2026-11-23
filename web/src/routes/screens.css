@@ -1447,6 +1447,19 @@
   /* Clips the kit's absolutely positioned .sr text too (B35). */
   position: relative;
 }
+/* B56: what at risk means, and whether a row needs the owner. */
+.tl .ws-risk-note {
+  margin: 0;
+  padding: 2px 14px 8px;
+  max-width: 90ch;
+}
+.tl .ws-next {
+  min-width: 170px;
+  white-space: normal;
+}
+.tl .ws-next a {
+  text-decoration: underline;
+}
 
 /* ---------- B20: the Needs you strip's counts are links ---------- */
 .tl .pulse .pulselink {

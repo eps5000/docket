@@ -26,8 +26,8 @@
   font-size: 12px;
   font-weight: 650;
   color: var(--ink-2);
-  /* The same height with or without a "?", so the four numbers line up. */
-  min-height: 20px;
+  /* The same height with or without the 24px "?", so the four numbers line up. */
+  min-height: 24px;
 }
 .tl .ov-num {
   font-size: 13px;
@@ -56,6 +56,10 @@
 .tl a.ov-sub {
   color: var(--ink-2);
   text-decoration: underline;
+}
+.tl .ov-note {
+  margin: -6px 0 12px;
+  color: var(--ink-2);
 }
 .tl .ov-metrics-error {
   margin: 0 0 12px;
@@ -119,6 +123,9 @@
 .tl .ov-hl.warn i {
   color: var(--st-blocked-text);
 }
+.tl .ov-hl.info i {
+  color: var(--ink-2);
+}
 .tl .ov-hl a {
   text-decoration: underline;
 }
@@ -160,14 +167,52 @@
   padding-left: 0;
   padding-right: 0;
 }
+/* The plot (B56): whole-number axis on the left, bars and gridlines, dates underneath. */
+.tl .ov-plot {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 6px;
+  margin-top: 10px;
+}
+.tl .ov-yaxis {
+  position: relative;
+  height: 132px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+}
+.tl .ov-yaxis span {
+  position: absolute;
+  right: 0;
+  line-height: 1;
+  transform: translateY(50%);
+}
+.tl .ov-plotarea {
+  position: relative;
+  min-width: 0;
+  height: 132px;
+}
+.tl .ov-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.tl .ov-grid i {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px dashed var(--line);
+}
+.tl .ov-grid i[data-zero] {
+  border-top: 1px solid var(--line-2);
+}
 .tl .ov-bars {
+  position: relative;
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
   gap: 2px;
-  height: 132px;
-  margin-top: 6px;
-  border-bottom: 1px solid var(--line);
+  height: 100%;
 }
 .tl .ov-bar {
   flex: 1 1 0;
@@ -176,9 +221,60 @@
   display: flex;
   align-items: flex-end;
   justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 3px 3px 0 0;
+  background: transparent;
+  cursor: default;
 }
-.tl .ov-bar:hover {
+.tl .ov-bar:hover,
+.tl .ov-bar[aria-expanded='true'] {
   background: var(--panel-2);
+}
+.tl .ov-bar:focus-visible {
+  outline-offset: -2px;
+}
+.tl .ov-tip {
+  position: fixed;
+  z-index: 35;
+  width: min(300px, calc(100vw - 16px));
+  padding: 8px 10px;
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+  font-size: 12px;
+}
+.tl .ov-tip p {
+  margin: 0;
+}
+.tl .ov-tip ul {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+}
+.tl .ov-tip li a {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  min-width: 0;
+  padding: 2px 0;
+  color: var(--ink);
+}
+.tl .ov-tip li .mono {
+  flex: none;
+  text-decoration: underline;
+}
+.tl .ov-tip-t {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tl .ov-tip-more {
+  padding-top: 2px;
+  color: var(--ink-2);
 }
 .tl .ov-bar i {
   display: block;
@@ -189,6 +285,7 @@
   background: var(--st-done);
 }
 .tl .ov-axis {
+  grid-column: 2;
   display: flex;
   justify-content: space-between;
   margin-top: 3px;

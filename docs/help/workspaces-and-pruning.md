@@ -31,8 +31,21 @@ Docket only records what agents report. It never looks at your folders or stops 
 - **Pushed:** ✓ when the latest commit is pushed, or "n behind" when it isn't.
 - **Resources:** how many things the agent started and hasn't released (a dev server, a container).
 - **Hide safe to prune** is on by default, so the list shows what needs attention. Click it to see everything.
+- **What to do:** whether an at-risk worktree needs you (below).
 
-At-risk workspaces sort first, and the section header counts them. Needs you shows "n workspaces at risk" in the Agents line.
+At-risk workspaces sort first, and the section header counts them.
+
+## Does an at-risk worktree need you?
+
+Usually not. Overview's Health card says so in one line, for example "3 worktrees hold unsaved work. None need you: agents own 2, and you kept 1 for later." The **What to do** column gives the answer for each one:
+
+- **Needs your choice:** no agent has it, or agents didn't deal with it in time. *See Problems* takes you to the choice.
+- **An agent owns it:** its lead or coordinator will deal with it. There's nothing for you to do.
+- **You kept it for later:** you chose *Keep for later*. It stays At risk on purpose, so nothing prunes it.
+- **You acknowledged it:** you've seen its problem, and it won't ask again unless something changes.
+- **Docket can't tell who owns it:** nobody is recorded on it. Ask your coordinator to check it.
+
+In every case, leave the worktree where it is until the work is dealt with.
 
 ## Orphaned resources
 

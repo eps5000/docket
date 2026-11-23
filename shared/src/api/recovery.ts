@@ -20,10 +20,21 @@ export const workspacesQuery = input({
   state: workspaceStateSchema.optional(),
 });
 
+/**
+ * Who an at-risk worktree is waiting on (B56), from the Problems routing
+ * (decision 41): `you` when its Problem is on Needs you, `kept` after *Keep for
+ * later*, `acknowledged` when you acknowledged its Problem, `agents` when a lead
+ * or coordinator has it, and `unknown` when Docket can't tell.
+ */
+export const AT_RISK_OWNERS = ['you', 'agents', 'kept', 'acknowledged', 'unknown'] as const;
+export type AtRiskOwner = (typeof AT_RISK_OWNERS)[number];
+
 /** One recorded worktree (UI_SPEC §6.6 Workspaces), from its latest run. */
 export const workspaceRowSchema = z.object({
   path: z.string(),
   state: workspaceStateSchema,
+  /** Null unless `state` is `at_risk`. */
+  at_risk_owner: z.enum(AT_RISK_OWNERS).nullable(),
   branch: z.string().nullable(),
   host: z.string().nullable(),
   repo: z.string().nullable(),

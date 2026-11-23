@@ -604,6 +604,15 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T238 [US6] B55b, `hold_reconcile`: at 24 hours or more since the last feed read, or with an untrusted state or cursor, send nothing and keep the cursor; `status` reports what waits with no content; `reconcile --deliver` or `reconcile --skip-to-end --reason <text>` is the only way out; held batches never expire quietly.
 - [x] T239 [US6] B55b tests: every routing fallback, no `dispatch:` send on any path, `test-send` refusal, the hold at and over 24 hours, untrusted state, no send or cursor move in a hold, both reconcile paths, a coalesced restart inside the window, and a hard kill mid-send.
 
+## Phase 35: Overview fixes from the owner's feedback (polish within owner decision 43)
+
+- [x] T237 [US2] Spec plus code in one PR: UI_SPEC §2, §6.1, §6.6; BUILD_SPEC §5.24; the Overview design note; Help (First look around, Run states, Workspace states). No MCP tool or migration change.
+- [x] T238 [US2] The open-ticket tab strip doesn't show on Overview, and the open tabs survive going there and back.
+- [x] T239 [US2] The Agents card becomes **Tickets with agents** ("N being worked", "M parked/waiting"), from the same `agents_now`; the sidebar badge, Agents page and lists use the same words, with a note that it counts tickets, not sessions. No session count.
+- [x] T240 [US2] The Completed chart: a whole-number vertical axis, and a tooltip by hover and keyboard naming each bucket's tickets (bounded in the read API), which stays on-screen and is in the text alternative.
+- [x] T241 [US11] The at-risk line says which worktrees need the owner: `at_risk_owner` on `GET /api/workspaces`, from the existing Problems routing, with a *What to do* column. The Needs you badge doesn't change.
+- [x] T242 [US2] Tests: unit, API, e2e and axe in both themes at 1440 × 900 and 1024 px, the UI sweep, and screenshots on the stress data.
+
 ## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.
@@ -710,6 +719,7 @@ Open a PR titled "<Bn>: <phase name>" with the checkpoint evidence. Do not queue
 | 31 The Overview page | B51 (after B50) |
 | 32 Time-limited coordinator parking | B53 (after B52) |
 | 33 Make a parked story's wait visible | B54 (after B53) |
+| 35 Overview fixes from the owner's feedback | B56 (after B55) |
 
 **Within a phase:** tests (failing) → services → replace stubs or fill handlers → fill screens → checkpoint.
 

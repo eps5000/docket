@@ -48,7 +48,7 @@ Agents do almost all the writing. The owner verifies, decides, nudges and archiv
 - **Grid:** `220px minmax(0,1fr)`. Every grid child needs `min-width:0`. (Without it, wide maps and tables push the layout wider than the window.)
 - **Sidebar:**
   - **Project switcher** (*All projects* or one project): a menu of radio items, each with its for-you count. It scopes every page except Settings. Below the projects and the hint, after a separator, comes **Project decisions** (a `menuitem`, only with a project chosen; decision 38), which opens that project's Decisions page (§6.3.7), and the last item is **+ New project** (a `menuitem`; B32), which opens the New project dialog (§6.7d). Arrow keys, Home and End reach it like the projects.
-  - **Nav items:** Overview (red badge = the owner actions, decision 41), Work, Agents (gray badge = stories being worked on in the current project, the Overview card's *working*; waiting stories aren't counted; no badge at 0), **Agent files** (B25: project-scoped like the others, so not under the divider), then the "Service-wide" divider, Settings and **Help** (decision 29).
+  - **Nav items:** Overview (red badge = the owner actions, decision 41), Work, Agents (gray badge = tickets being worked in the current project, the Overview card's *being worked*; parked or waiting tickets aren't counted; no badge at 0), **Agent files** (B25: project-scoped like the others, so not under the divider), then the "Service-wide" divider, Settings and **Help** (decision 29).
   - **Health line** at the bottom: "Healthy · N clients", linking to Settings. When unhealthy, it shows "Service problem" in `--bad` with the same link.
 - **Header:**
   - **Breadcrumb:**
@@ -64,6 +64,7 @@ Agents do almost all the writing. The owner verifies, decides, nudges and archiv
   - Each tab remembers its own view tab.
   - Closing the active tab moves to its neighbour, or back to the page you came from.
   - The strip scrolls sideways and is hidden when empty.
+  - **It doesn't show on Overview (`/`; B56).** The tabs stay open, and are there again on the next page that shows the strip.
 - **Breakpoint at 1180px and below:**
   - the sidebar becomes a 64px icon rail (labels move to `title` and `aria-label`);
   - Overview stacks Needs you and Health to one column, with its four numbers, charts and lower cards still side by side;
@@ -279,11 +280,11 @@ Answers three questions in about ten seconds: are agents making progress, is any
 1. **h1 "Overview"**, "N things to act on" when there are any, and the **time window** (`24h | 7d | 30d`, a pressed-button group): 7d by default, remembered in this browser (`docket.overviewWindow`), and safe when storage is unavailable.
 2. **Four numbers**, each a link to the view behind it:
    - **Completed:** "18 tickets" → `/overview/completed?window=`, then "+6 vs the previous 7 days" (the sign and words carry the direction);
-   - **Agents:** "4 working" and "3 waiting" → `/overview/agents_working`, `/overview/agents_waiting`. Stories at producer level, never raw runs. *Working* is the sidebar badge, from the same `agents_now`;
+   - **Tickets with agents (B56):** "4 being worked" and "3 parked/waiting" → `/overview/agents_working`, `/overview/agents_waiting`. Tickets at producer level, never raw runs or sessions. *Being worked* is the sidebar badge, from the same `agents_now`, and the badge uses the same words. One line under the four cards says: "Counts tickets in Docket, not agent sessions. Orca can show more sessions, because coordinators and helpers don't each hold a ticket." No session count is shown or estimated;
    - **In flight:** "23 tickets" → `/overview/in_flight`, "5 blocked" → Work, *Blocked*;
    - **Needs you:** "3 to act on", then reviews, questions, decisions and problems, each linking to its section. "✓ Nothing" at zero.
-3. **Needs you and Health** (`2fr | 1fr`, one column at ≤ 1180 px). **Needs you · N** (`#needs-you`) holds every owner action, in the order below; a card with no rows isn't shown. With no actions, one line: "Nothing needs you". **Health** (`data-card="health"`): "n problems need you" (→ `#problems`) or "No problems need you"; the last backup (→ Settings; "!" when it failed, is overdue or never ran); "n workspaces at risk" (→ Agents → Workspaces); the collapsed lines "Agents are handling N problems" and "You acknowledged N problems"; "n agent file changes proposed"; "Docket handled N overlaps today"; and *All runs →*. Each state has a ✓ or ! as well as its words. None of these lines adds to the badge.
-4. **Completed per day** (per hour for 24h): one series in the Done token, with a one-sentence summary and a screen-reader table of the same values. **Workload · N open:** a status bar per epic (`StatusBar`, B47 tokens) with a legend and a text label, its count linking to Work filtered to that epic ("No epic" → `/overview/no_epic`). The top 6 epics, then *View all open work →*.
+3. **Needs you and Health** (`2fr | 1fr`, one column at ≤ 1180 px). **Needs you · N** (`#needs-you`) holds every owner action, in the order below; a card with no rows isn't shown. With no actions, one line: "Nothing needs you". **Health** (`data-card="health"`): "n problems need you" (→ `#problems`) or "No problems need you"; the last backup (→ Settings; "!" when it failed, is overdue or never ran); the **at-risk worktrees line** (→ Agents → Workspaces; B56), which separates what needs the owner from what doesn't, such as "3 worktrees hold unsaved work. None need you: agents own 2, and you kept 1 for later." It has a ✓ when none need the owner, a ? when Docket can't tell who owns one (it says so), and a ! only when one needs an owner choice under decision 41's routing; the collapsed lines "Agents are handling N problems" and "You acknowledged N problems"; "n agent file changes proposed"; "Docket handled N overlaps today"; and *All runs →*. Each state has a ✓ or ! as well as its words. None of these lines adds to the badge.
+4. **Completed per day** (per hour for 24h): one series in the Done token, with a one-sentence summary, a **vertical axis** of whole-number ticks from 0 (steps of 1, 2 or 5 times a power of ten, at most four intervals) with gridlines, the first and last date, and a screen-reader table of the same values and tickets. **Each bar opens a tooltip (B56)** on hover or keyboard focus: the date or hour, the count, and up to 6 tickets (newest first, ID and title, each a link), then "and N more"; an empty bucket says "None completed". The bars are one tab stop: ←, →, Home and End move between them, Tab goes into the tooltip's links, and Esc closes it. The tooltip stays inside the window at every edge. **Workload · N open:** a status bar per epic (`StatusBar`, B47 tokens) with a legend and a text label, its count linking to Work filtered to that epic ("No epic" → `/overview/no_epic`). The top 6 epics, then *View all open work →*.
 5. **Your Planning queue** and **Deferred, not verified:** a count and the top 3, with *View all N →* whenever the list has anything, so each count links to its view.
 
 Radar insights get their own section between 4 and 5 when they exist; nothing renders there until then. Token use and estimated metrics are not shown. `/overview/:metric` is a small table (ticket, title, status, epic, plus when completed or the producer) with the same count as the number.
@@ -654,7 +655,7 @@ Not in the sidebar. It opens from *Open packet* (Needs you, the ticket banner, t
   - Decisions: the label's records (§6.3.5).
 
 ### 6.6 Agents (`/agents`)
-h1 "Agents", then one line with the story counts the sidebar and Overview show and what this page lists instead: "2 stories being worked on · 0 waiting. The lists below show individual runs, so one story can have several." Then three collapsible `Section`s (B20), in this order:
+h1 "Agents", then one line with the ticket counts the sidebar and Overview show and what this page lists instead: "2 tickets being worked · 0 parked/waiting. The lists below show individual runs, so one ticket can have several." Then three collapsible `Section`s (B20), in this order:
 
 1. **Active now** (summary: "n runs"). Runs in the order **needs input, failed, stale, parked, live, reported**, newest signal first within a state.
    - `?state=parked` shows that state only: the summary reads "1 parked run" and the header has *Show all*.
@@ -674,7 +675,8 @@ Active now and Recent share one table, with these columns:
 Rows link to the item. **Subagent log entries aren't listed here;** they show on their item's Checklist (§6.3.1).
 
 **Workspaces** (the second section on Agents; owner decision 26): every recorded worktree, so you and a coordinator can see what's safe to prune.
-- **Columns:** State chip (*In use*, *Parked*, *At risk* in `--warn`, *Safe to prune* in `--ok`, *Unknown*), Path (with *Copy*), Branch, Item, Last activity, Pushed (`✓`, or `n behind`), Resources (unreleased count).
+- **Columns:** State chip (*In use*, *Parked*, *At risk* in `--warn`, *Safe to prune* in `--ok`, *Unknown*), **What to do** (B56), Path (with *Copy*), Branch, Item, Last activity, Pushed (`✓`, or `n behind`), Resources (unreleased count).
+- **What at risk means (B56):** with any at-risk row, a line above the table explains it and says to leave the worktree in place until the work is dealt with. **What to do** comes from `at_risk_owner`: "Needs your choice." with a link to Problems, "Nothing for you" with the reason (an agent owns it, you kept it for later, you acknowledged it), or "Docket can't tell who owns it. Ask your coordinator to check it." It never suggests deleting anything.
 - **Sort order:** At risk, In use, Parked, Unknown, Safe to prune.
 - **A filter chip** "Hide safe to prune", in the section header, is on by default.
 - **Empty:** "No workspaces recorded yet. Agents report theirs when they claim work."

@@ -43,6 +43,8 @@ import {
   type ResourceRow,
   type WorkspaceFacts,
 } from './recovery-model.js';
+import { leadingItems } from './problems.js';
+import { atRiskOwner } from './worktree-owner.js';
 
 /** `recovery_report` looks back this far by default (MCP_SPEC §5.9). */
 export const REPORT_SINCE_MS = 7 * 24 * 60 * 60_000;
@@ -367,31 +369,39 @@ export function createRecoveryService(deps: ServiceDeps): RecoveryService {
     workspaces(r, input) {
       const items = liveItems(r, input.scope === 'all' ? undefined : input.scope);
       const rr = reader(r);
-      const rows: WorkspaceRow[] = allWorkspaces(rr, items)
-        .filter((f) => !input.state || f.state === input.state)
-        .map((f) => {
-          const item = items.get(f.latest.item_id)!;
-          return {
-            path: f.path,
-            state: f.state,
-            branch: f.merged.branch ?? null,
-            host: f.merged.host ?? null,
-            repo: f.merged.repo ?? null,
-            item_id: item.id,
-            item_title: item.title,
-            project: item.project_key,
-            run_id: f.latest.id,
-            run_state: displayRunState(f.latest, windows(), r.now),
-            client: f.latest.client,
-            label: f.latest.label,
-            head_sha: f.merged.head_sha ?? null,
-            pushed_sha: f.merged.pushed_sha ?? null,
-            unpushed_commits: f.unpushed_commits,
-            dirty: f.merged.dirty ?? null,
-            unreleased_resources: f.unreleased.length,
-            last_activity_at: lastActivity(f),
-          };
-        });
+      const facts = allWorkspaces(rr, items).filter((f) => !input.state || f.state === input.state);
+      // B56: who each at-risk worktree waits on, from the one Problems routing.
+      const risky = facts.filter((f) => f.state === 'at_risk');
+      const view =
+        risky.length > 0 ? deps.services().views.needsYou(r, { scope: input.scope }) : null;
+      const leading = leadingItems(r.db, [...new Set(risky.map((f) => f.latest.item_id))], r.now);
+      const rows: WorkspaceRow[] = facts.map((f) => {
+        const item = items.get(f.latest.item_id)!;
+        return {
+          path: f.path,
+          state: f.state,
+          at_risk_owner:
+            view && f.state === 'at_risk'
+              ? atRiskOwner(f, view, leading, (id) => items.get(id)?.status)
+              : null,
+          branch: f.merged.branch ?? null,
+          host: f.merged.host ?? null,
+          repo: f.merged.repo ?? null,
+          item_id: item.id,
+          item_title: item.title,
+          project: item.project_key,
+          run_id: f.latest.id,
+          run_state: displayRunState(f.latest, windows(), r.now),
+          client: f.latest.client,
+          label: f.latest.label,
+          head_sha: f.merged.head_sha ?? null,
+          pushed_sha: f.merged.pushed_sha ?? null,
+          unpushed_commits: f.unpushed_commits,
+          dirty: f.merged.dirty ?? null,
+          unreleased_resources: f.unreleased.length,
+          last_activity_at: lastActivity(f),
+        };
+      });
       return { rows };
     },
 
