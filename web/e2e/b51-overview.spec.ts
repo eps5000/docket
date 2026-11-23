@@ -54,8 +54,8 @@ async function expectBadgeEqualsCard(page: Page, scope: string, working: number,
   await page.evaluate((s) => sessionStorage.setItem('docket.scope', s), scope);
   await open(page);
   expect((await needsYou(page, scope)).agents_now).toEqual({ working, waiting });
-  await expect(stat(page, 'agents').locator('a.ov-num')).toHaveText(`${working} working`);
-  await expect(stat(page, 'agents').locator('a.ov-sub')).toHaveText(`${waiting} waiting`);
+  await expect(stat(page, 'agents').locator('a.ov-num')).toHaveText(`${working} being worked`);
+  await expect(stat(page, 'agents').locator('a.ov-sub')).toHaveText(`${waiting} parked/waiting`);
   const badge = page
     .getByRole('navigation', { name: 'Primary' })
     .getByRole('link', { name: /^Agents/ })
@@ -85,8 +85,8 @@ test('the seed: each number opens a list of exactly that many tickets', async ({
   const agents = (await needsYou(page, 'RCP')).agents_now!;
   const lists: [string, string, OverviewMetric, number][] = [
     ['completed', `${o.completed.count} ticket`, 'completed', o.completed.count],
-    ['agents', `${agents.working} working`, 'agents_working', agents.working],
-    ['agents', `${agents.waiting} waiting`, 'agents_waiting', agents.waiting],
+    ['agents', `${agents.working} being worked`, 'agents_working', agents.working],
+    ['agents', `${agents.waiting} parked/waiting`, 'agents_waiting', agents.waiting],
     ['in-flight', `${o.in_flight.count} ticket`, 'in_flight', o.in_flight.count],
   ];
   for (const [card, name, metric, n] of lists) {
@@ -236,7 +236,7 @@ test('the Agents badge equals the card, in All projects and one project, through
     // The Agents page keeps its runs, labelled as runs, beside the same story count.
     await page.goto('/agents');
     await expect(page.locator('[data-agents-stories]')).toContainText(
-      `${rcp.working === 1 ? '1 story' : `${rcp.working} stories`} being worked on`,
+      `${rcp.working === 1 ? '1 ticket' : `${rcp.working} tickets`} being worked`,
     );
     await expect(page.locator('[data-agents-stories]')).toContainText('individual runs');
     await expect(

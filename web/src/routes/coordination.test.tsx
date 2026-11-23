@@ -6,11 +6,11 @@
  * the workspace chip).
  */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { MemoryRouter } from 'react-router';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   AgentRow,
   ItemDetailResponse,
@@ -27,6 +27,9 @@ import {
   recentRows,
   stateFilter,
 } from './agents/RunsCard';
+import { AT_RISK_NEXT, atRiskSummary } from './agents/atRisk';
+import { WorkspacesCard } from './agents/WorkspacesCard';
+import { ShellStateProvider } from '../app/ShellState';
 import { HealthCard } from './overview/HealthCard';
 import { ProblemsCard, reasonFacts, workspaceFor } from './needs-you/ProblemsCard';
 
@@ -411,20 +414,26 @@ describe('Overview Health (B20, decision 43)', () => {
     agent_counts: { live: 2 },
     ...over,
   });
-  const at = (state: WorkspaceRow['state']) => ({ state }) as WorkspaceRow;
+  const at = (state: WorkspaceRow['state'], at_risk_owner: WorkspaceRow['at_risk_owner'] = null) =>
+    ({ state, at_risk_owner, dirty: true }) as WorkspaceRow;
 
-  it('links workspaces at risk, proposals and all runs, and shows no raw run counts', () => {
+  it('links worktrees at risk, proposals and all runs, and shows no raw run counts', () => {
     wrap(
       <HealthCard
         data={needs({ agent_file_proposals: 2 })}
         lastBackupAt={ago(60)}
         metricsLoaded
-        workspaces={[at('at_risk'), at('at_risk')]}
+        workspaces={[at('at_risk', 'agents'), at('at_risk', 'kept')]}
       />,
     );
     const health = document.querySelector('[data-card="health"]') as HTMLElement;
     const href = (name: string) => within(health).getByRole('link', { name }).getAttribute('href');
-    expect(href('2 workspaces at risk')).toBe('/agents#workspaces');
+    expect(
+      href('2 worktrees hold unsaved work. None need you: agents own 1, and you kept 1 for later.'),
+    ).toBe('/agents#workspaces');
+    // Nothing for the owner to do, so it isn't a warning.
+    const line = health.querySelector('[data-state="workspaces-at-risk"]')?.closest('li');
+    expect(line?.getAttribute('data-health')).toBe('ok');
     expect(href('2 agent file changes proposed')).toBe('/agent-files#proposals');
     expect(href('All runs →')).toBe('/agents');
     expect(href('Last backup 1h ago')).toBe('/settings');
@@ -435,7 +444,151 @@ describe('Overview Health (B20, decision 43)', () => {
     wrap(<HealthCard data={needs()} lastBackupAt={null} metricsLoaded workspaces={[]} />);
     expect(screen.getByText('No problems need you')).toBeTruthy();
     expect(screen.getByRole('link', { name: 'No backup yet' })).toBeTruthy();
-    expect(screen.queryByText(/at risk/)).toBeNull();
+    expect(screen.queryByText(/worktree/)).toBeNull();
+  });
+
+  it('warns only when a worktree really needs the owner', () => {
+    wrap(
+      <HealthCard
+        data={needs()}
+        lastBackupAt={ago(60)}
+        metricsLoaded
+        workspaces={[at('at_risk', 'you'), at('at_risk', 'agents')]}
+      />,
+    );
+    const line = document.querySelector('[data-state="workspaces-at-risk"]') as HTMLElement;
+    expect(line.textContent).toBe(
+      '2 worktrees hold unsaved work. 1 needs your choice, and agents own 1.',
+    );
+    expect(line.closest('li')?.dataset.health).toBe('warn');
+  });
+});
+
+describe('at-risk wording (B56)', () => {
+  const row = (
+    at_risk_owner: WorkspaceRow['at_risk_owner'],
+    over: Partial<WorkspaceRow> = {},
+  ): WorkspaceRow =>
+    ({
+      state: 'at_risk',
+      last_activity_at: ago(1),
+      at_risk_owner,
+      dirty: true,
+      unpushed_commits: 0,
+      ...over,
+    }) as WorkspaceRow;
+
+  it.each<[string, WorkspaceRow[], 'ok' | 'info' | 'warn', string]>([
+    [
+      'all agent-owned',
+      [row('agents'), row('agents')],
+      'ok',
+      '2 worktrees hold unsaved work. None need you: agents own 2.',
+    ],
+    [
+      'one agent-owned',
+      [row('agents')],
+      'ok',
+      '1 worktree holds unsaved work. It doesn’t need you: an agent owns it.',
+    ],
+    [
+      'the owner’s live case',
+      [row('agents'), row('agents'), row('kept')],
+      'ok',
+      '3 worktrees hold unsaved work. None need you: agents own 2, and you kept 1 for later.',
+    ],
+    [
+      'one kept',
+      [row('kept')],
+      'ok',
+      '1 worktree holds unsaved work. It doesn’t need you: you kept it for later.',
+    ],
+    [
+      'acknowledged',
+      [row('acknowledged'), row('agents')],
+      'ok',
+      '2 worktrees hold unsaved work. None need you: agents own 1, and you acknowledged 1.',
+    ],
+    [
+      'needs the owner',
+      [row('you')],
+      'warn',
+      '1 worktree holds unsaved work. It needs your choice.',
+    ],
+    [
+      'two need the owner',
+      [row('you'), row('you'), row('kept')],
+      'warn',
+      '3 worktrees hold unsaved work. 2 need your choice, and you kept 1 for later.',
+    ],
+    [
+      'unknown is said, not guessed',
+      [row('unknown'), row('agents')],
+      'info',
+      '2 worktrees hold unsaved work. Agents own 1, and Docket can’t tell who owns 1.',
+    ],
+    [
+      'only unknown',
+      [row('unknown')],
+      'info',
+      '1 worktree holds unsaved work. Docket can’t tell who owns it.',
+    ],
+    [
+      'several unknown',
+      [row('unknown'), row('unknown')],
+      'info',
+      '2 worktrees hold unsaved work. Docket can’t tell who owns them.',
+    ],
+    [
+      'needs the owner and unknown',
+      [row('you'), row('unknown')],
+      'warn',
+      '2 worktrees hold unsaved work. 1 needs your choice, and Docket can’t tell who owns 1.',
+    ],
+    [
+      'clean but interrupted',
+      [row('agents', { dirty: false })],
+      'ok',
+      '1 worktree holds unsaved or unfinished work. It doesn’t need you: an agent owns it.',
+    ],
+  ])('%s', (_name, rows, tone, text) => {
+    expect(atRiskSummary(rows)).toEqual({ tone, text, count: rows.length });
+  });
+
+  it('is nothing with none at risk, and never suggests deleting', () => {
+    expect(atRiskSummary([{ state: 'in_use', at_risk_owner: null } as WorkspaceRow])).toBeNull();
+    for (const words of Object.values(AT_RISK_NEXT)) expect(words).not.toMatch(/delet|prune/i);
+  });
+
+  it('the Workspaces table says what at risk means and what to do', async () => {
+    const rows = [
+      { ...row('you'), path: 'C:/work/a', item_id: 'RCP-1', run_state: 'finished' },
+      { ...row('agents'), path: 'C:/work/b', item_id: 'RCP-2', run_state: 'finished' },
+      { ...row(null, { state: 'in_use' }), path: 'C:/work/c', item_id: 'RCP-3' },
+    ] as WorkspaceRow[];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify({ rows }), { status: 200 })),
+    );
+    wrap(
+      <ShellStateProvider>
+        <WorkspacesCard />
+      </ShellStateProvider>,
+    );
+    const note = await waitFor(() => {
+      const el = document.querySelector('[data-at-risk-note]');
+      expect(el).toBeTruthy();
+      return el as HTMLElement;
+    });
+    expect(note.textContent).toContain('work could still be lost');
+    expect(note.textContent).not.toMatch(/delet/i);
+    const you = document.querySelector('[data-at-risk-owner="you"]') as HTMLElement;
+    expect(you.textContent).toContain('Needs your choice.');
+    expect(within(you).getByRole('link').getAttribute('href')).toBe('/#problems');
+    const agents = document.querySelector('[data-at-risk-owner="agents"]') as HTMLElement;
+    expect(agents.textContent).toBe('Nothing for you: an agent owns it.');
+    expect(within(agents).queryByRole('link')).toBeNull();
+    vi.unstubAllGlobals();
   });
 });
 
@@ -443,6 +596,7 @@ describe('Problems rows (B20)', () => {
   const ws = (over: Partial<WorkspaceRow>): WorkspaceRow => ({
     path: 'C:/work/rcp-25',
     state: 'at_risk',
+    at_risk_owner: 'you',
     branch: 'rcp-25-pantry-screens',
     host: null,
     repo: null,

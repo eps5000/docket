@@ -25,8 +25,8 @@ import { WorkspacesCard } from './WorkspacesCard';
  *
  * Subagent log entries aren't listed; they show on their item's Checklist.
  *
- * These are **runs**: a story with a lead and two child runs is three rows. The
- * line under the h1 gives the story counts the sidebar and Overview show (decision 43).
+ * These are **runs**: a ticket with a lead and two child runs is three rows. The
+ * line under the h1 gives the ticket counts the sidebar and Overview show (decision 43).
  */
 /** The number in the sidebar, and why the lists below can hold more rows than that. */
 function StoriesLine() {
@@ -35,11 +35,11 @@ function StoriesLine() {
   return (
     <p className="src agents-stories" data-agents-stories>
       <Link to={paths.overviewList('agents_working')}>
-        {plural(now.working, 'story', 'stories')} being worked on
+        {plural(now.working, 'ticket')} being worked
       </Link>
       {' · '}
-      <Link to={paths.overviewList('agents_waiting')}>{now.waiting} waiting</Link>. The lists below
-      show individual runs, so one story can have several.
+      <Link to={paths.overviewList('agents_waiting')}>{now.waiting} parked/waiting</Link>. The lists
+      below show individual runs, so one ticket can have several.
     </p>
   );
 }
@@ -54,7 +54,7 @@ export function Agents() {
     queryFn: () => apiClient['agents.list']({ query: { scope } }),
   });
 
-  // "n workspaces at risk" on Needs you links to `/agents#workspaces`.
+  // Overview's at-risk worktrees line links to `/agents#workspaces`.
   useEffect(() => {
     if (hash === '#workspaces') document.getElementById('workspaces')?.scrollIntoView();
   }, [hash]);

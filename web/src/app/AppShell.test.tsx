@@ -225,6 +225,19 @@ describe('app shell', () => {
     expect(screen.queryByRole('link', { name: 'RCP-12' })).toBeNull();
   });
 
+  it('B56: hides the strip on Overview, and the tabs are back on the next page', async () => {
+    const router = renderAt('/items/RCP-14');
+    await screen.findByRole('navigation', { name: 'Open items' });
+    await act(() => router.navigate('/'));
+    await waitFor(() =>
+      expect(screen.queryByRole('navigation', { name: 'Open items' })).toBeNull(),
+    );
+    expect(JSON.parse(sessionStorage.getItem(STORAGE_KEYS.openTabs)!).tabs).toHaveLength(1);
+    await act(() => router.navigate('/work'));
+    const strip = await screen.findByRole('navigation', { name: 'Open items' });
+    expect(strip.textContent).toContain('RCP-14');
+  });
+
   it('Quick capture: an empty title toasts "Give it a title" and focuses the title', async () => {
     const user = userEvent.setup();
     renderAt('/');

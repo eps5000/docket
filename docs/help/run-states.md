@@ -60,7 +60,9 @@ A claim comes with a lease (60 minutes by default), and every signal from the ag
 
 ## Where you see them
 
-- **Overview:** the Agents card counts stories being worked on and stories waiting, not individual runs. *All runs →* under Health opens the full list.
-- **Sidebar:** the number next to Agents is the stories being worked on in this project, the same as *working* on Overview.
-- **Agents → Active now:** every open run, needs input first. These are runs, not stories, so a story can have several.
+- **Overview:** the **Tickets with agents** card counts tickets being worked and tickets parked or waiting, not individual runs. *All runs →* under Health opens the full list.
+- **Sidebar:** the number next to Agents is the tickets being worked in this project, the same as *being worked* on Overview.
+- **Agents → Active now:** every open run, needs input first. These are runs, not tickets, so a ticket can have several.
+
+**Why Orca can show more.** These numbers count tickets in Docket, not agent sessions. Orca can show more sessions, because coordinators and helpers don't each hold a ticket. A worker can also be busy while its ticket's lead is parked, so "0 being worked" doesn't mean nothing is running.
 - **On a ticket:** the agent bar under the header, and **Activity → Lead and runs** for the full history.

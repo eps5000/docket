@@ -752,7 +752,7 @@ Every number is defined once, in `domain/overview.ts`, and each drill-down list 
 |---|---|
 | Completed | Tickets whose `closed_at` is in `(from, to]` and that are still Done. `closed_at` is the latest entry into Done, and reopening clears it, so a reopened ticket drops out and one closed twice counts once. Epics, canceled tickets and imports (`closed_by = imported`: they arrived Done) are excluded. Archiving a Done ticket doesn't remove it. |
 | Prior | The same count over the preceding window of equal length, `(prior_from, from]`. |
-| Completed per day | 24h: 24 one-hour buckets. 7d and 30d: the server's calendar days (`TZ`), the first and last clipped to the window. The buckets always sum to Completed. |
+| Completed per day | 24h: 24 one-hour buckets. 7d and 30d: the server's calendar days (`TZ`), the first and last clipped to the window. The buckets always sum to Completed. Each also returns `tickets`: its newest `OVERVIEW_BUCKET_TICKETS` (6) by ID and title, from the same set (B56), so the response stays bounded. |
 | Agents working | Open, non-archived tickets (not epics) whose active lead is current (shown live or reported, lease not expired), or held for their producer between workers (`producer_hold_until` still ahead, status In progress). One per story. Child runs never count. |
 | Agents waiting | The same tickets whose lead is parked on a named dependency (items, the coordinator, a person or a date) and isn't ready to resume. A park naming nothing isn't waiting. |
 | In flight | Open tickets (not epics, not archived) in In progress or Review. |
@@ -762,7 +762,9 @@ Every number is defined once, in `domain/overview.ts`, and each drill-down list 
 
 A stale lead or one waiting for the owner's answer is neither working nor waiting: the first is a Problem, the second is on Needs you. Token use and estimates are not reported.
 
-**One count of agents.** `agentsNow` is the only source. `GET /api/needs-you` returns it as `agents_now {working, waiting}` for its scope, and the sidebar's Agents badge, the Overview card and the line on the Agents page all read that field from the same query. **The badge is `working` only**; waiting stories are on the card beside it, and the badge's tooltip says so. It follows the project switcher, and has no number at 0. Agents → Active now still lists raw runs (a lead and each child run), labelled "n runs". `bootstrap.counts.runs` and `agent_counts` remain raw run-state counts, and no badge reads them.
+**One count of agents.** `agentsNow` is the only source. `GET /api/needs-you` returns it as `agents_now {working, waiting}` for its scope, and the sidebar's Agents badge, the Overview card and the line on the Agents page all read that field from the same query. **The badge is `working` only**; waiting stories are on the card beside it, and the badge's tooltip says so. It follows the project switcher, and has no number at 0. Agents → Active now still lists raw runs (a lead and each child run), labelled "n runs". `bootstrap.counts.runs` and `agent_counts` remain raw run-state counts, and no badge reads them. The card is labelled **Tickets with agents** (B56) because it counts tickets, not sessions: coordinators, producers, reviewers and helpers don't each hold a ticket, so Orca can show more. No session count is estimated.
+
+**Who an at-risk worktree waits on (B56).** `GET /api/workspaces` adds `at_risk_owner` (null unless `at_risk`), derived with no new state, in this order: `you` when its `unpushed_work` or `orphaned_resources` Problem is on Needs you (decision 41's routing); `kept` after *Keep for later*, with nothing newer reported; `acknowledged` when the owner acknowledged that Problem; `agents` when that Problem is with agents, or the ticket has a live lead, or a coordinator is named while it's Ready, In progress or Review; otherwise `unknown`. `needsYouCount` doesn't read it.
 
 ### 5.25 Time-limited coordinator parking (decision 44)
 
@@ -910,7 +912,7 @@ Every route requires the owner session (§3). JSON bodies **and query strings** 
 | `GET /api/documents/:versionId/content` | Document viewer, attachments |
 | `POST /api/import/jira/dry-run` · `GET /api/import/jira/:id` · `POST /api/import/jira/:id/commit` · `DELETE /api/import/jira/:id` | Jira import (§9) |
 | `POST /api/mutations/:id/undo` | Undo toast |
-| `GET /api/workspaces?scope&state` | Agents → Workspaces (decision 26): every recorded worktree with its state, branch, item, last activity and unreleased resources |
+| `GET /api/workspaces?scope&state` | Agents → Workspaces (decision 26): every recorded worktree with its state, `at_risk_owner` (B56, §5.24), branch, item, last activity and unreleased resources |
 | `GET /api/agent-files?project` · `GET /api/agent-files/:key?project` · `PUT /api/agent-files/:key` `{layer, project?, content, expected_version, note?}` · `POST /api/agent-files/:key/revert` `{layer, project?}` | Agent files (§5.17; UI_SPEC §6.7b): the effective set, each layer, history and diffs, the bundled-updated flag |
 | `GET /api/projects/:key/workflow` · `PUT /api/projects/:key/workflow` `{content_md, expected_version, note?}` | The project's Workflow notes. Each version carries its `wf_…` `id` (optional; B27a), the ID `get_agent_files` and proposals name, so the proposal review finds its base |
 | `POST /api/installs` `{client, target_kind, project?, path?, method}` → `{install_id, command?, check_command?, result?}` · `GET /api/installs?project` · `POST /api/installs/:id/check` · `GET /api/push-target` · `POST /api/push-target/test` | Install, the install log, local-edit checks, the push folder status |
