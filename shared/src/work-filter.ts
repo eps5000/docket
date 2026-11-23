@@ -4,7 +4,8 @@
  * writes it in the URL. One shared definition, so the two can't drift.
  *
  * - **Quick filter** (one, a chip): *Active* (not done or canceled; the
- *   default), *Blocked* or *In progress*.
+ *   default), *Startable* or *Waiting* (Ready, split; decision 48), *Blocked*
+ *   or *In progress*.
  * - **Checks** (any, from the Filters menu): each narrows the view (AND).
  *   *In planning* and *Ready to start* aren't in the menu but still apply
  *   from the URL. *Archived* swaps the view to archived items.
@@ -22,12 +23,15 @@ const queryOf = (key: FilterKey) => FILTERS.find((f) => f.key === key)?.query ??
 
 // ---- Quick filters ----
 
-export const WORK_QUICK = ['active', 'blocked', 'progress'] as const;
+export const WORK_QUICK = ['active', 'startable', 'waiting', 'blocked', 'progress'] as const;
 export type WorkQuick = (typeof WORK_QUICK)[number];
 
 /** The chips, in order. `query` is the chip's tooltip ("Agent query: …"; BUILD_SPEC §13). */
 export const WORK_QUICK_FILTERS: readonly { key: WorkQuick; label: string; query: string }[] = [
   { key: 'active', label: 'Active', query: '-status:done -status:canceled' },
+  // Decision 48: Ready, split by whether it can start now. The stored status doesn't change.
+  { key: 'startable', label: 'Startable', query: queryOf('ready_to_start') },
+  { key: 'waiting', label: 'Waiting', query: 'status:ready -startable' },
   { key: 'blocked', label: 'Blocked', query: queryOf('blocked') },
   { key: 'progress', label: 'In progress', query: 'status:progress' },
 ];
@@ -216,6 +220,8 @@ const closed = (s: Status) => s === 'done' || s === 'canceled';
 
 export function quickMatches(quick: WorkQuick, i: WorkFilterFacts): boolean {
   if (quick === 'active') return !closed(i.status);
+  if (quick === 'startable') return i.status === 'ready' && i.check('ready_to_start');
+  if (quick === 'waiting') return i.status === 'ready' && !i.check('ready_to_start');
   if (quick === 'blocked') return i.blocked && !closed(i.status);
   return i.status === 'progress';
 }

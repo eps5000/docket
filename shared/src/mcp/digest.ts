@@ -10,6 +10,8 @@ import { WAIT_FLAG_KINDS, coordinatorParkSchema, prioritySchema, runStateSchema 
 
 /** The most rows each section lists. */
 export const DIGEST_CAPS = {
+  next_work: 5,
+  bottlenecks: 3,
   ready: 8,
   runs: 8,
   blocked: 5,
@@ -35,6 +37,25 @@ export const digestReadySchema = z.object({
   unblocks: z.number().int(),
 });
 
+/** Decision 48: what to start next, ranked by priority, tickets unlocked, then age. */
+export const digestNextWorkSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  priority: prioritySchema,
+  /** Open tickets it unlocks, directly or further down. */
+  unlocks: z.number().int(),
+  reason: z.string(),
+});
+
+/** Decision 48: an unowned Inbox or Planning ticket holding up real work. */
+export const digestBottleneckSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  status: z.enum(['inbox', 'planning']),
+  unlocks: z.number().int(),
+  next: z.string(),
+});
+
 export const digestRunSchema = z.object({
   item_id: z.string(),
   run_id: z.string(),
@@ -57,6 +78,8 @@ export const digestRunSchema = z.object({
       /** "orca: shape GF-381 or assign it". */
       next: z.string(),
       flags: z.array(z.enum(WAIT_FLAG_KINDS)),
+      /** Decision 48: the active owner decision holding this wait. */
+      held_by: z.object({ decision_id: z.string(), title: z.string() }).optional(),
       /** Once it can resume: the same run and dispatch to tell. */
       relay: z.string().optional(),
     })
@@ -114,6 +137,8 @@ export const getDigestOutput = readOutput({
   cursor: z.string(),
   /** The cursor this digest is relative to; null for a full snapshot. */
   since: z.string().nullable(),
+  next_work: section(digestNextWorkSchema),
+  bottlenecks: section(digestBottleneckSchema),
   ready: section(digestReadySchema),
   runs: section(digestRunSchema),
   blocked: section(digestBlockedSchema),

@@ -21,6 +21,7 @@ import type {
 } from '@docket/shared';
 import type { Config } from '../config.js';
 import type { Db } from '../db/client.js';
+import { agingFrom, decisionHold, heldByOwner } from './decision-hold.js';
 import { BlockIndex, ms, runView, type RunRow, type RunWindows } from './model.js';
 
 // ---- Stored JSON ----
@@ -386,15 +387,20 @@ export const waitLink = (index: BlockIndex, itemId: string, blockerId: string) =
  * `blocks` link from it to the parked run's item when there is one (its own
  * `satisfied_when`), else the parked item's project default; a canceled item
  * never clears. A run parked only on the coordinator or a person stays false
- * until it is resumed.
+ * until it is resumed. Decision 48: a run held by an active owner decision
+ * stays false until the owner lifts it, and its unattended clock starts then.
  */
 export function parkInfo(
   db: Db,
-  run: Pick<RunRow, 'state' | 'item_id' | 'waiting_on' | 'parked_at' | 'updated_at'>,
+  run: Pick<RunRow, 'state' | 'item_id' | 'waiting_on' | 'parked_at' | 'updated_at'> & {
+    parked_reason?: string | null;
+  },
   now: string,
   index: BlockIndex = new BlockIndex(db),
 ): ParkInfo {
   if (run.state !== 'parked') return { resume_ready: false, ready_since: null };
+  const hold = decisionHold(db, run);
+  if (heldByOwner(hold)) return { resume_ready: false, ready_since: null };
   const waiting = parseJson<WaitingOn>(run.waiting_on) ?? {};
   const parkedAt = run.parked_at ?? run.updated_at;
   const times: string[] = [];
@@ -417,7 +423,10 @@ export function parkInfo(
     times.push(waiting.until > parkedAt ? waiting.until : parkedAt);
   }
   times.sort();
-  return { resume_ready: times.length > 0, ready_since: times[0] ?? null };
+  return {
+    resume_ready: times.length > 0,
+    ready_since: times[0] ? agingFrom(times[0], hold) : null,
+  };
 }
 
 /** Decision 42: the `waiting_on.items` that cleared after `since`. */

@@ -648,6 +648,12 @@ Agents working in parallel worktrees declare the shared parts each item will cha
 - **FR-233**: When the trends diverge, Overview MUST say so in one plain sentence, and MUST NOT change the Needs you badge.
 - **FR-234**: A read-only daily brief, linked from Overview, MUST show what finished, what's stuck, what needs the owner and what changed in decisions, for a chosen day in the configured timezone, per project or All, with every line linking to its ticket, or to the Decisions page for a decision wider than one ticket.
 - **FR-235**: The brief MUST show a cost section only when measured data exists, and MUST NOT show a placeholder or an estimate.
+- **FR-236**: A wait on a person MUST NOT raise `wait_owner_unasked` unless text says an owner decision is still pending.
+- **FR-237**: A park reason citing an active decision that applies to the item at any scope MUST NOT raise `wait_owner_unasked`, whenever that decision was made.
+- **FR-238**: A run held by an active owner decision MUST show "Held by your decision" with a link, MUST NOT raise `parked_too_long` or `wait_no_next_step`, and MUST NOT reach the owner for being parked. An agent's decision MUST NOT silence an alert. When the owner lifts the decision, aging MUST restart from that moment.
+- **FR-239**: The sweeper MUST end a part lease past its stored expiry, even for a parked holder, with `end_reason: expired` and one `lease.ended` event naming the holder's coordinator.
+- **FR-240**: Work MUST split Ready into Startable and Waiting on its board, filters and counts without changing the stored status, and each waiting ticket MUST say what it waits on.
+- **FR-241**: `get_digest` MUST list ranked next work (priority, transitive unlocks, age, each with a reason) and bottlenecks (unowned Inbox or Planning tickets blocking real work), and Overview's In flight card MUST link to Startable. Both MUST stay fast at 300 items and be cycle-safe.
 - **FR-195**: The Needs you badge MUST equal what the owner can act on on the page, from the same source, with no badge at 0.
 - **FR-184**: Automatic outcomes MUST be recorded as Docket (`decided_by: docket`), never as the owner, on both tickets with their reason and evidence. The owner MUST be able to overrule them from the ticket with undo, and Needs you MUST show at most one quiet line, "Docket handled N overlaps today", linking to them. Single-writer leases, the required merge checks, owner-recorded decisions and overlaps the owner already decided MUST be unchanged in every mode.
 
