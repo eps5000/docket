@@ -83,7 +83,6 @@ function makeRelay(sent: Sent[]): Relay {
     docket: createDocket({ baseUrl: ORIGIN, fetchImpl }),
     orca: {
       showDispatch: () => Promise.resolve({ found: true, runId: 'run_home1' }),
-      showRun: (id: string) => Promise.resolve({ found: id === 'run_home1', active: true }),
       send: (message: Sent) => {
         sent.push(message);
         return Promise.resolve({ ok: true });

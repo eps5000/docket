@@ -1,9 +1,10 @@
-# Drives tools/docket-relay/manage.ps1 with every Task Scheduler, process and
-# CIM call replaced by a function below, so a test can never touch a real task
-# or process. The scenario is a JSON file; each replaced call is written down.
+# Drives tools/docket-relay/manage.ps1 with every Task Scheduler and process call
+# replaced by a function below, so a test can never touch a real task or process.
+# The scenario is a JSON file; each replaced call that changes anything is written down.
 param([string]$Do, [string]$Want = 'Stopped')
 
 $script:scenario = Get-Content -LiteralPath $env:MANAGE_SCENARIO -Raw | ConvertFrom-Json
+$script:sleeps = 0
 
 function Write-Call([string]$Name, $Arguments) {
   $text = (@($Arguments) | ForEach-Object { [string]$_ }) -join ' '
@@ -19,38 +20,51 @@ function Get-ScheduledTask {
   foreach ($task in @($script:scenario.tasks)) { if ($task) { $task } }
 }
 
-function Stop-ScheduledTask {
-  Write-Call 'Stop-ScheduledTask' $args
-  # Stopping an instance doesn't re-enable a disabled task.
-  foreach ($task in @($script:scenario.tasks)) {
-    if ($task -and $task.State -ne 'Disabled') { $task.State = 'Ready' }
-  }
-  if ($script:scenario.stopTaskClearsProcesses) { $script:scenario.processes = @() }
-}
-
-function Disable-ScheduledTask {
-  Write-Call 'Disable-ScheduledTask' $args
-  Set-TaskState 'Disabled'
-}
+function Disable-ScheduledTask { Write-Call 'Disable-ScheduledTask' $args; Set-TaskState 'Disabled' }
 
 function Unregister-ScheduledTask {
   Write-Call 'Unregister-ScheduledTask' $args
   $script:scenario.tasks = @()
 }
 
+# These must never be called. A call is written down so that a test fails.
+function Stop-ScheduledTask { Write-Call 'Stop-ScheduledTask' $args }
+function Stop-Process { Write-Call 'Stop-Process' $args }
+
 function Get-CimInstance {
   if ($script:scenario.processReadFails) { throw 'process list unavailable' }
-  foreach ($process in @($script:scenario.processes)) { if ($process) { $process } }
+  $filter = ''
+  for ($i = 0; $i -lt $args.Count - 1; $i += 1) {
+    if ([string]$args[$i] -eq '-Filter') { $filter = [string]$args[$i + 1] }
+  }
+  $id = [int]($filter -replace '\D', '')
+  foreach ($process in @($script:scenario.processes)) {
+    if ($process -and (-not $filter -or [int]$process.ProcessId -eq $id)) {
+      [pscustomobject]@{
+        Name           = $process.Name
+        ProcessId      = $process.ProcessId
+        ParentProcessId = 1
+        ExecutablePath = $process.ExecutablePath
+        CommandLine    = $process.CommandLine
+        CreationDate   = if ($null -ne $process.creation_ms) {
+          [DateTimeOffset]::FromUnixTimeMilliseconds([long]$process.creation_ms).UtcDateTime
+        } else { $null }
+      }
+    }
+  }
 }
 
-function Stop-Process {
-  Write-Call 'Stop-Process' $args
-  $id = $null
-  for ($i = 0; $i -lt $args.Count - 1; $i += 1) {
-    if ([string]$args[$i] -eq '-Id') { $id = [int]$args[$i + 1] }
+# Each wait can let the relay and its task finish, after `exitAfterSleeps` of them.
+function Start-Sleep {
+  Write-Call 'Start-Sleep' $args
+  $script:sleeps += 1
+  if ($null -ne $script:scenario.exitAfterSleeps -and
+    $script:sleeps -ge [int]$script:scenario.exitAfterSleeps) {
+    $script:scenario.processes = @()
+    foreach ($task in @($script:scenario.tasks)) {
+      if ($task -and $task.State -eq 'Running') { $task.State = 'Ready' }
+    }
   }
-  $script:scenario.processes = @(@($script:scenario.processes) |
-      Where-Object { $_ -and [int]$_.ProcessId -ne $id })
 }
 
 function New-ScheduledTaskAction { Write-Call 'New-ScheduledTaskAction' $args; 'action' }
@@ -66,5 +80,5 @@ if ($script:scenario.removeFails) {
 . $env:MANAGE_SCRIPT
 
 $result = Invoke-RelayAction -Do $Do -Want $Want -NodeGiven $env:MANAGE_NODE `
-  -Name 'Docket Relay Test Harness' -ForceStop ($env:MANAGE_FORCE -eq '1')
+  -Name 'Docket Relay Test Harness'
 exit ([int]($result | Select-Object -Last 1))

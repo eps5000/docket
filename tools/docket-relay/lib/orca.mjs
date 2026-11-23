@@ -59,7 +59,7 @@ export function childEnv(env = process.env) {
   return Object.fromEntries(Object.entries(env).filter(([key]) => !/^ORCA_/i.test(key)));
 }
 
-/** A stable UUID, so a retry of the same message replays instead of sending it twice. */
+/** A stable UUID, so a repeated send of the same batch is never delivered twice. */
 export function requestIdFor(...parts) {
   const hex = createHash('sha256').update(parts.join('\0')).digest('hex');
   const variant = ((parseInt(hex[16], 16) & 0x3) | 0x8).toString(16);
@@ -131,28 +131,6 @@ export function createOrca({ exe, env = process.env, timeoutMs = TIMEOUT_MS }) {
       // A reply we can't read says nothing about the dispatch, so it isn't "unknown".
       if (!dispatch) throw Object.assign(new Error('unreadable'), { code: 'unreadable' });
       return { found: true, runId: dispatch.runId ?? null };
-    },
-
-    /**
-     * `{ found, active }`. Throws when Orca can't answer. Orca has no "closed"
-     * Run, so active means it exists, isn't a legacy Run and has been bound to
-     * a coordinator. It can't prove that coordinator is still running.
-     */
-    async showRun(id) {
-      const reply = await run(['orchestration', 'run-show', '--id', id, '--json', '--full']);
-      if (!reply.ok) {
-        if (reply.transient) throw Object.assign(new Error(reply.code), { code: reply.code });
-        return { found: false, active: false };
-      }
-      const shown = reply.result?.run;
-      if (!shown || shown.id !== id) {
-        throw Object.assign(new Error('unreadable'), { code: 'unreadable' });
-      }
-      const active =
-        (shown.legacy === 0 || shown.legacy === false) &&
-        Number.isInteger(shown.consumer_generation) &&
-        shown.consumer_generation >= 1;
-      return { found: true, active };
     },
 
     /**

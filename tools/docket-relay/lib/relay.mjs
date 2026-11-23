@@ -254,9 +254,9 @@ export function createRelay({
   /**
    * Works out the message from what Docket and Orca say now, or handles the
    * batch and returns null. Stored state supplies only which events to name:
-   * never a recipient and never message text. After a crash the same facts
-   * give the same request ID, so Orca replays it; if the lead or coordinator
-   * changed, the old send is simply gone.
+   * never a recipient and never message text. The request ID comes from the
+   * batch and recipient alone, so a rebuilt message can't be delivered twice to
+   * the same coordinator; if the coordinator changed, the old send is gone.
    */
   async function prepare(batch, signal) {
     const flying = batch.in_flight ? new Set(batch.in_flight.keys) : null;
@@ -305,10 +305,7 @@ export function createRelay({
 
     let target;
     try {
-      target = await resolveCoordinator(lead, {
-        showDispatch: (id) => orca.showDispatch(id),
-        showRun: (id) => orca.showRun(id),
-      });
+      target = await resolveCoordinator(lead, (id) => orca.showDispatch(id));
     } catch {
       if (!signal?.aborted && !blocked()) defer(batch, 'orca_unavailable');
       return null;
@@ -328,13 +325,14 @@ export function createRelay({
       handled: events,
       keys: events.map((event) => event.key),
       newest_ms: Math.max(...genuine.map((event) => event.event_ms)),
-      request_id: requestIdFor(batch.id, target.coordinator, message.subject, message.body),
+      request_id: requestIdFor(batch.id, target.coordinator),
     };
   }
 
   function recordResult(batch, pending, result, startedAt) {
     const item = batch.item_id;
-    if (result.ok) {
+    // `request_mismatch`: Orca already took this request ID with other text, so it was sent.
+    if (result.ok || result.code === 'request_mismatch') {
       const sentAt = now();
       (s.rate[pending.to] ??= []).push(sentAt);
       s.counters.delivered += 1;

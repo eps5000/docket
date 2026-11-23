@@ -77,23 +77,15 @@ if (path.basename(process.argv[1] ?? '') === 'orchestration') {
       worker: d.workerState ? { state: d.workerState } : null,
     } }, 0);
   }
-  if (args[0] === 'run-show') {
-    const runs = plan.runs ?? { run_coord: {}, run_stored: {} };
-    const id = flag('--id');
-    const r = runs[id];
-    if (!r) refuse('run_not_found');
-    if (r.unreadable) reply({ ok: true, result: {} }, 0);
-    reply({ ok: true, result: { run: {
-      id, objective: 'x', coordinator_handle: null,
-      consumer_generation: r.consumer_generation ?? 1, legacy: r.legacy ?? 0,
-    } } }, 0);
-  }
   if (args[0] === 'send') {
     const to = flag('--to');
     const fail = plan.fail?.[to];
     const count = prior.filter((c) => c.args[0] === 'send' && c.args[c.args.indexOf('--to') + 1] === to).length;
     const code = Array.isArray(fail) ? fail[count] : fail;
     if (code) refuse(code);
+    const rid = flag('--retry-request');
+    const same = prior.find((c) => c.args[0] === 'send' && c.args[c.args.indexOf('--retry-request') + 1] === rid);
+    if (same && same.args[same.args.indexOf('--body') + 1] !== flag('--body')) refuse('request_mismatch');
     // Stays in the send until told, so a test can kill the relay here.
     const until = Date.now() + 30000;
     while (plan.blockSendUntil && !fs.existsSync(plan.blockSendUntil) && Date.now() < until) {
@@ -508,18 +500,8 @@ describe('the message', () => {
 });
 
 describe('finding the coordinator', () => {
-  const orcaWith = (
-    dispatches: Record<string, { runId: string | null }>,
-    runs: Record<string, { active: boolean }>,
-  ) => ({
-    showDispatch: (id: string) =>
-      Promise.resolve(
-        dispatches[id] ? { found: true, ...dispatches[id] } : { found: false, runId: null },
-      ),
-    showRun: (id: string) =>
-      Promise.resolve(runs[id] ? { found: true, ...runs[id] } : { found: false, active: false }),
-  });
-  const ACTIVE = { active: true };
+  const show = (found: Record<string, { runId: string | null }>) => (id: string) =>
+    Promise.resolve(found[id] ? { found: true, ...found[id] } : { found: false, runId: null });
 
   it('picks the live lead only', () => {
     const child = { ...lead(), run_id: 'r_child', is_lead: false };
@@ -533,10 +515,10 @@ describe('finding the coordinator', () => {
     expect(liveLead([child])).toBeNull();
   });
 
-  it('1: the confirmed Run of the dispatch, before anything stored', async () => {
+  it('is the Run worker-show reports for the recorded dispatch', async () => {
     const target = await resolveCoordinator(
       lead({ dispatch: 'ctx_a', runId: 'run_stored' }),
-      orcaWith({ ctx_a: { runId: 'run_home' } }, { run_home: ACTIVE, run_stored: ACTIVE }),
+      show({ ctx_a: { runId: 'run_home' } }),
     );
     expect(target).toEqual({
       coordinator: 'run:run_home',
@@ -544,75 +526,26 @@ describe('finding the coordinator', () => {
     });
   });
 
-  it('2: a stored run ID, only when Orca confirms it', async () => {
-    const replies: Record<string, { runId: string | null }>[] = [
-      {},
-      { ctx_a: { runId: null } },
-      { ctx_a: { runId: 'not-a-run' } },
-    ];
-    for (const found of replies) {
-      const run = lead({ dispatch: 'ctx_a', runId: 'run_stored' });
-      expect(
-        (await resolveCoordinator(run, orcaWith(found, { run_stored: ACTIVE }))).coordinator,
-      ).toBe('run:run_stored');
-      expect((await resolveCoordinator(run, orcaWith(found, {}))).coordinator).toBeNull();
-      expect(
-        (await resolveCoordinator(run, orcaWith(found, { run_stored: { active: false } })))
-          .coordinator,
-      ).toBeNull();
+  it('is nobody without that Run, whatever else is stored', async () => {
+    for (const [run, found] of [
+      [lead({ runId: 'run_stored' }), {}],
+      [lead({ runId: 'orca_session_id:abc' }), {}],
+      [lead({ dispatch: 'ctx_a', runId: 'run_stored' }), {}],
+      [lead({ dispatch: 'ctx_a', runId: 'run_stored' }), { ctx_a: { runId: null } }],
+      [lead({ dispatch: 'ctx_a', runId: 'run_stored' }), { ctx_a: { runId: 'not-a-run' } }],
+      [lead({ dispatch: '--body=evil' }), {}],
+      [lead({ dispatch: 'ctx_a b' }), {}],
+      [{ ...lead(), orchestrator: { name: 'orca', dispatch_id: null, run_id: null } }, {}],
+    ] as [FakeRun, Record<string, { runId: string | null }>][]) {
+      expect((await resolveCoordinator(run, show(found))).coordinator).toBeNull();
     }
   });
 
-  it('a run with no dispatch ID needs a confirmed stored Run', async () => {
-    const run = lead({ runId: 'run_stored' });
-    expect((await resolveCoordinator(run, orcaWith({}, { run_stored: ACTIVE }))).coordinator).toBe(
-      'run:run_stored',
-    );
-    expect((await resolveCoordinator(run, orcaWith({}, {}))).coordinator).toBeNull();
-    expect((await resolveCoordinator(lead(), orcaWith({}, {}))).coordinator).toBeNull();
-  });
-
-  it('does not fall through to a stored Run when the dispatch Run fails the check', async () => {
-    const target = await resolveCoordinator(
-      lead({ dispatch: 'ctx_a', runId: 'run_stored' }),
-      orcaWith({ ctx_a: { runId: 'run_home' } }, { run_stored: ACTIVE }),
-    );
-    expect(target.coordinator).toBeNull();
-  });
-
-  it('never uses a stored session address, even with no other candidate', async () => {
-    for (const run of [
-      lead({ runId: 'orca_session_id:abc' }),
-      lead({ dispatch: 'ctx_gone', runId: 'orca_session_id:abc' }),
-    ]) {
-      expect((await resolveCoordinator(run, orcaWith({}, {}))).coordinator).toBeNull();
-    }
-  });
-
-  it('finds nobody from a bare UUID, a name, or anything that could be an option', async () => {
-    for (const run of [
-      lead({ runId: '4f22790a-dd53-4c2b-bf0e-fa9bceb755b8' }),
-      lead({ runId: '--to=dispatch:evil' }),
-      lead({ dispatch: '--body=evil' }),
-      lead({ dispatch: 'ctx_a b' }),
-      { ...lead(), orchestrator: { name: 'orca', dispatch_id: null, run_id: null } },
-    ]) {
-      expect((await resolveCoordinator(run, orcaWith({}, {}))).coordinator).toBeNull();
-    }
-  });
-
-  it('passes on an Orca failure instead of skipping to a lower rule', async () => {
+  it('passes on an Orca failure, so the batch waits', async () => {
     await expect(
-      resolveCoordinator(lead({ dispatch: 'ctx_a', runId: 'run_stored' }), {
-        ...orcaWith({}, { run_stored: ACTIVE }),
-        showDispatch: () => Promise.reject(new Error('runtime_unavailable')),
-      }),
-    ).rejects.toThrow('runtime_unavailable');
-    await expect(
-      resolveCoordinator(lead({ runId: 'run_stored' }), {
-        ...orcaWith({}, {}),
-        showRun: () => Promise.reject(new Error('runtime_unavailable')),
-      }),
+      resolveCoordinator(lead({ dispatch: 'ctx_a', runId: 'run_stored' }), () =>
+        Promise.reject(new Error('runtime_unavailable')),
+      ),
     ).rejects.toThrow('runtime_unavailable');
   });
 
@@ -634,28 +567,6 @@ describe('finding the coordinator', () => {
     ]) {
       expect(isCoordinatorAddress(bad)).toBe(false);
     }
-  });
-
-  it.each([
-    ['a bound Run', { legacy: 0, consumer_generation: 1 }, true],
-    ['a rebound Run', { legacy: 0, consumer_generation: 7 }, true],
-    ['a legacy Run', { legacy: 1, consumer_generation: 1 }, false],
-    ['a Run never bound', { legacy: 0, consumer_generation: 0 }, false],
-  ])('run-show: %s', async (_name, run, active) => {
-    const h = await harness();
-    h.plan({ runs: { run_x: run } });
-    const orca = createOrca({ exe: fakeExe, env: h.env });
-    expect(await orca.showRun('run_x')).toEqual({ found: true, active });
-    expect(await orca.showRun('run_missing')).toEqual({ found: false, active: false });
-  });
-
-  it('run-show: a reply it cannot read, or Orca being down, throws', async () => {
-    const h = await harness();
-    h.plan({ runs: { run_x: { unreadable: true } } });
-    const orca = createOrca({ exe: fakeExe, env: h.env });
-    await expect(orca.showRun('run_x')).rejects.toThrow('unreadable');
-    h.plan({ down: true });
-    await expect(orca.showRun('run_x')).rejects.toThrow('runtime_unavailable');
   });
 });
 
@@ -939,18 +850,10 @@ describe('fallbacks', () => {
     expect(relay.state.last_delivery?.to).toBe('run:run_coord');
   });
 
-  it('uses the stored Run when the dispatch is unknown', async () => {
-    const h = await harness();
-    h.docket.runs.set('GF-243', [lead({ dispatch: 'ctx_gone', runId: 'run_stored' })]);
-    const relay = await started(h);
-    h.docket.push(ANSWER, h.clock.t);
-    await h.step(relay);
-    expect(h.sends().map((send) => send.to)).toEqual(['run:run_stored']);
-  });
-
   it.each([
+    ['a stored Run, with an unknown dispatch', { dispatch: 'ctx_gone', runId: 'run_stored' }],
+    ['a stored Run, with no dispatch', { runId: 'run_stored' }],
     ['a stored session address', { runId: 'orca_session_id:abc-1' }],
-    ['a stored Run Orca does not know', { runId: 'run_unknown' }],
     ['no dispatch and no Run', {}],
   ])('records undelivered for %s, with no send', async (_name, stored) => {
     const h = await harness();
@@ -959,34 +862,9 @@ describe('fallbacks', () => {
     h.docket.push(ANSWER, h.clock.t);
     await h.step(relay);
     expect(h.sends()).toEqual([]);
+    expect(h.calls().map((call) => call.args[0])).not.toContain('run-show');
     expect(relay.state.undelivered).toMatchObject([{ item: 'GF-243', reason: 'no_target' }]);
     expect(relay.state.batches).toEqual({});
-  });
-
-  it('a run with no dispatch ID still reaches a confirmed stored Run', async () => {
-    const h = await harness();
-    h.docket.runs.set('GF-243', [lead({ runId: 'run_stored' })]);
-    const relay = await started(h);
-    h.docket.push(ANSWER, h.clock.t);
-    await h.step(relay);
-    expect(h.sends().map((send) => send.to)).toEqual(['run:run_stored']);
-    expect(h.sends()[0]!.body).toContain('for information only: Docket run r_lead1.');
-  });
-
-  it('waits when Orca cannot confirm the Run, rather than calling it unproven', async () => {
-    const h = await harness();
-    const working = currentPlan(h);
-    h.plan({ ...working, runs: { run_coord: { unreadable: true } } });
-    const relay = await started(h);
-    h.docket.push(ANSWER, h.clock.t);
-    await h.step(relay);
-    expect(h.sends()).toEqual([]);
-    expect(relay.state.undelivered).toEqual([]);
-    expect(Object.keys(relay.state.batches)).toEqual(['GF-243']);
-    h.plan(working);
-    h.clock.t += 5_000;
-    await h.step(relay);
-    expect(h.sends().map((send) => send.to)).toEqual(['run:run_coord']);
   });
 
   it('retries with one request ID, then holds it while Orca is busy', async () => {
@@ -1557,6 +1435,42 @@ describe('hold_reconcile', () => {
     expect(readFileSync(join(h.home, 'reconcile-audit.jsonl'), 'utf8')).not.toContain(SECRET);
   });
 
+  it('a seen key ahead of the cursor is invalid state', async () => {
+    const h = await harness();
+    h.docket.push(NOTE, h.clock.t);
+    await started(h);
+    const state = saved(h) as unknown as Json;
+    writeFileSync(
+      join(h.home, 'state.json'),
+      JSON.stringify({ ...state, seen: { [`2:${h.docket.rows[0]!.at}`]: START } }),
+    );
+    h.docket.push(ANSWER, h.clock.t);
+    const relay = h.make();
+    await h.step(relay);
+    expect(relay.state.hold).toMatchObject({ reason: 'state_untrusted', detail: 'seen_ahead' });
+    expect(relay.state.cursor).toBe('1');
+    expect(h.sends()).toEqual([]);
+    expect(await reconcileDeliver(reconcileArgs(h))).toMatchObject({ code: 'needs_skip' });
+  });
+
+  it('a skip to a lower feed end forgets later seen keys, so a restart runs', async () => {
+    const h = await harness();
+    const first = await started(h);
+    h.docket.push(NOTE, h.clock.t);
+    h.docket.push(NOTE, h.clock.t);
+    await h.step(first);
+    h.docket.rows = h.docket.rows.slice(0, 1);
+    await h.step(h.make());
+    expect(saved(h).hold?.reason).toBe('cursor_ahead');
+    expect(await reconcileSkip({ ...reconcileArgs(h), reason: 'Feed restored' })).toMatchObject({
+      ok: true,
+    });
+    const relay = h.make();
+    await h.step(relay);
+    expect(relay.state.hold).toBeNull();
+    expect(relay.state.cursor).toBe('1');
+  });
+
   it('a page that does not continue from the cursor holds, and moves nothing', async () => {
     const h = await harness();
     const relay = await started(h);
@@ -1851,53 +1765,45 @@ describe('reliability', () => {
       implementer: 'Docket run r_lead1, dispatch ctx_live',
     });
     expect(send).toMatchObject(fixed);
-    expect(send!.requestId).toBe(requestIdFor(batchId, send!.to, fixed.subject, fixed.body));
+    expect(send!.requestId).toBe(requestIdFor(batchId, send!.to));
     expect(relay.state.batches).toEqual({});
     expect(control.sends()).toEqual([]);
   });
 
-  it('a recipient or text in the state file is never sent', async () => {
-    const h = await harness();
-    await cutOff(h, {
-      sending: {
-        to: 'run:run_evil',
-        subject: 'evil subject',
-        body: `evil body ${SECRET}`,
-        kinds: ['answer'],
-        keys: ['1:x'],
-        newest_ms: 0,
-        request_id: '00000000-0000-5000-8000-000000000000',
-      },
-    });
-    const relay = h.make();
-    await h.step(relay);
-    expect(h.sends().map((send) => send.to)).toEqual(['run:run_coord']);
-    const sent = JSON.stringify(h.sends());
-    expect(sent).not.toContain('evil');
-    expect(sent).not.toContain(SECRET);
-    expect(sent).not.toContain('00000000-0000-5000-8000-000000000000');
-  });
-
   it('does not send the old message when the coordinator has changed', async () => {
     const h = await harness();
-    await cutOff(h, {
-      sending: {
-        to: 'run:run_coord',
-        subject: 'Docket: GF-243 updated',
-        body: 'the old message',
-        kinds: ['answer'],
-        keys: ['1:x'],
-        newest_ms: 0,
-        request_id: '00000000-0000-5000-8000-000000000001',
-      },
-    });
+    await cutOff(h);
     h.plan({
       dispatches: { ctx_live: { status: 'dispatched', runId: 'run_new', workerState: 'ready' } },
-      runs: { run_new: {} },
     });
     const relay = h.make();
     await h.step(relay);
     expect(h.sends().map((send) => send.to)).toEqual(['run:run_new']);
+  });
+
+  it('a rebuilt message with different text is not delivered a second time', async () => {
+    const h = await harness();
+    const first = await started(h);
+    h.docket.push(ANSWER, h.clock.t);
+    await first.pollOnce(undefined, 0);
+    const path = join(h.home, 'state.json');
+    const before = readFileSync(path, 'utf8');
+    await first.flushDue();
+    expect(h.sends()).toHaveLength(1);
+
+    // A crash before the result was saved, and the text would now differ.
+    writeFileSync(path, before);
+    h.docket.runs.set('GF-243', [{ ...lead({ dispatch: 'ctx_live' }), run_id: 'r_lead2' }]);
+    const second = h.make();
+    await h.step(second);
+
+    const [one, two] = h.sends();
+    expect(two!.body).not.toBe(one!.body);
+    expect(two!.requestId).toBe(one!.requestId);
+    // Orca refuses the changed text under a used ID, which proves the first send landed.
+    expect(second.state.batches).toEqual({});
+    expect(second.state.undelivered).toEqual([]);
+    expect(second.state.counters.delivered).toBe(1);
   });
 
   it('does not send when the lead is gone or no longer proven', async () => {
@@ -1911,7 +1817,7 @@ describe('reliability', () => {
 
     const unproven = await harness();
     await cutOff(unproven);
-    unproven.plan({ ...currentPlan(unproven), runs: {} });
+    unproven.plan({ dispatches: {} });
     const second = unproven.make();
     await unproven.step(second);
     expect(unproven.sends()).toEqual([]);
@@ -2320,19 +2226,19 @@ describe('running it', () => {
     expect(h.sends()).toHaveLength(2);
   }, 60_000);
 
-  it('test-send uses the same path, and only takes a confirmed Run', async () => {
+  it('test-send goes to the Run named, with no other check', async () => {
     const h = await harness();
-    const sent = await finish(cli(h, ['test-send', 'run:run_coord']));
+    h.plan({ runs: {} });
+    const sent = await finish(cli(h, ['test-send', 'run:run_anything']));
     expect(sent.code).toBe(0);
-    expect(h.sends()).toMatchObject([{ to: 'run:run_coord', subject: 'Docket relay test' }]);
-    expect(h.calls().find((call) => call.args[0] === 'send')!.orcaEnv).toEqual([]);
-    for (const bad of ['--to=x', 'run:bad id', 'dispatch:nope']) {
-      expect((await finish(cli(h, ['test-send', bad]))).code).toBe(1);
-    }
-    expect(h.sends()).toHaveLength(1);
+    expect(h.sends()).toMatchObject([{ to: 'run:run_anything', subject: 'Docket relay test' }]);
+    expect(h.calls()).toHaveLength(1);
+    expect(h.calls()[0]!.orcaEnv).toEqual([]);
   });
 
   it.each([
+    '--to=x',
+    'run:bad id',
     'dispatch:ctx_live',
     'DISPATCH:ctx_live',
     'run:dispatch:ctx_live',
@@ -2345,22 +2251,9 @@ describe('running it', () => {
     expect(h.calls()).toEqual([]);
   });
 
-  it.each([
-    ['unknown', {}],
-    ['legacy', { run_x: { legacy: 1 } }],
-    ['never bound', { run_x: { consumer_generation: 0 } }],
-    ['unreadable', { run_x: { unreadable: true } }],
-  ])('test-send refuses a Run Orca reports as %s, and sends nothing', async (_name, runs) => {
+  it('records who it is at start, and forgets it on a clean exit', async () => {
     const h = await harness();
-    h.plan({ runs });
-    const refused = await finish(cli(h, ['test-send', 'run:run_x']));
-    expect(refused.code).toBe(1);
-    expect(refused.err).toContain('Nothing sent');
-    expect(h.sends()).toEqual([]);
-  });
-
-  it('stop ends a running relay cleanly and frees the lock', async () => {
-    const h = await harness();
+    const before = Date.now();
     const child = cli(h, ['start']);
     const done = finish(child);
     cleanups.push(async () => {
@@ -2368,13 +2261,22 @@ describe('running it', () => {
       await done;
     });
     await until(() => openStoreCursor(h.home) !== null, 15_000);
-    expect(existsSync(join(h.home, 'stop.token'))).toBe(true);
+    const instance = JSON.parse(readFileSync(join(h.home, 'instance.json'), 'utf8')) as {
+      pid: number;
+      started_ms: number;
+      exe: string;
+      script: string;
+    };
+    expect(instance.pid).toBe(child.pid);
+    expect(instance.exe).toBe(process.execPath);
+    expect(instance.script).toBe(join(TOOL, 'docket-relay.mjs'));
+    expect(Math.abs(instance.started_ms - before)).toBeLessThan(30_000);
 
     const stopped = await finish(cli(h, ['stop']));
     expect(stopped.code).toBe(0);
     expect(stopped.out).toContain('docket-relay stopped');
     expect((await done).code).toBe(0);
-    expect(existsSync(join(h.home, 'stop.token'))).toBe(false);
+    expect(existsSync(join(h.home, 'instance.json'))).toBe(false);
     expect((await finish(cli(h, ['status']))).out).toContain('docket-relay: stopped');
     expect((await finish(cli(h, ['stop']))).out).toContain('not running');
   }, 40_000);
@@ -2406,7 +2308,7 @@ describe('running it', () => {
     expect(h.sends()).toHaveLength(1);
   }, 45_000);
 
-  it('stop needs the token in the state folder', async () => {
+  it('stop needs the token the instance recorded', async () => {
     const h = await harness();
     const child = cli(h, ['start']);
     const done = finish(child);
@@ -2415,13 +2317,13 @@ describe('running it', () => {
       await done;
     });
     await until(() => openStoreCursor(h.home) !== null, 15_000);
-    const token = join(h.home, 'stop.token');
-    const real = readFileSync(token, 'utf8');
-    writeFileSync(token, 'wrong-token');
+    const path = join(h.home, 'instance.json');
+    const real = readFileSync(path, 'utf8');
+    writeFileSync(path, JSON.stringify({ ...JSON.parse(real), stop_token: 'wrong-token' }));
     expect(await requestStop(h.home)).toBe('refused');
     expect((await finish(cli(h, ['stop']))).code).toBe(1);
     expect(child.exitCode).toBeNull();
-    writeFileSync(token, real);
+    writeFileSync(path, real);
     expect(await requestStop(h.home)).toBe('stopping');
     expect((await done).code).toBe(0);
   }, 40_000);
@@ -2479,29 +2381,34 @@ describe('running it', () => {
     interface Proc {
       Name: string;
       ProcessId: number;
-      ParentProcessId: number;
+      ExecutablePath: string | null;
       CommandLine: string | null;
+      creation_ms: number | null;
     }
     interface Scenario {
       tasks?: { TaskName: string; TaskPath: string; State: string }[];
       processes?: Proc[];
       taskReadFails?: boolean;
       processReadFails?: boolean;
-      stopTaskClearsProcesses?: boolean;
+      exitAfterSleeps?: number;
       removeFails?: boolean;
     }
 
     const TASK = 'Docket Relay Test Harness';
+    const RELAY_PID = 4242;
+    const NODE_EXE = 'C:\\Program Files\\nodejs\\node.exe';
     const task = (State: string) => [{ TaskName: TASK, TaskPath: '\\', State }];
+    const FORBIDDEN = ['Stop-Process', 'Stop-ScheduledTask'];
 
     function managed() {
       const dir = mkdtempSync(join(base, 'm-'));
       const local = join(dir, 'local');
       const root = join(local, 'docket-relay');
       const app = join(root, 'app');
+      const relayPath = join(app, 'docket-relay.mjs');
       mkdirSync(local);
       const callsPath = join(dir, 'calls.log');
-      const run = async (action: string, scenario: Scenario, want = 'Stopped', force = false) => {
+      const run = async (action: string, scenario: Scenario, want = 'Stopped') => {
         const scenarioPath = join(dir, 'scenario.json');
         writeFileSync(
           scenarioPath,
@@ -2530,7 +2437,6 @@ describe('running it', () => {
               MANAGE_CALLS: callsPath,
               MANAGE_SCRIPT: join(TOOL, 'manage.ps1'),
               MANAGE_NODE: process.execPath,
-              MANAGE_FORCE: force ? '1' : '0',
             },
             stdio: ['ignore', 'pipe', 'pipe'],
           },
@@ -2538,83 +2444,113 @@ describe('running it', () => {
         return finish(child);
       };
       const calls = () => (existsSync(callsPath) ? readFileSync(callsPath, 'utf8') : '');
-      const relayPath = join(app, 'docket-relay.mjs');
-      const launcherPath = join(app, 'launch.ps1');
-      const proc = (
-        Name: string,
-        ProcessId: number,
-        CommandLine: string | null,
-        ParentProcessId = 1,
-      ) => ({
-        Name,
-        ProcessId,
-        ParentProcessId,
-        CommandLine,
+      /** The record a running relay leaves in its state folder. */
+      const record = () => {
+        mkdirSync(root, { recursive: true });
+        writeFileSync(
+          join(root, 'instance.json'),
+          JSON.stringify({
+            pid: RELAY_PID,
+            started_ms: START,
+            exe: NODE_EXE,
+            script: relayPath,
+            stop_token: 't',
+          }),
+        );
+      };
+      const relay = (over: Partial<Proc> = {}): Proc => ({
+        Name: 'node.exe',
+        ProcessId: RELAY_PID,
+        ExecutablePath: NODE_EXE,
+        CommandLine: `"${NODE_EXE}" "${relayPath}" start`,
+        creation_ms: START,
+        ...over,
       });
-      return { local, root, app, run, calls, relayPath, launcherPath, proc };
+      /** A stand-in for the installed CLI: `stop` exits with the given code. */
+      const installed = (stopCode = 0) => {
+        mkdirSync(app, { recursive: true });
+        writeFileSync(
+          relayPath,
+          `const c = process.argv[2];
+if (c === 'status') console.log('{"running":false}');
+process.exit(c === 'stop' ? ${stopCode} : 0);
+`,
+        );
+      };
+      const noKills = () => {
+        for (const name of FORBIDDEN) expect(calls()).not.toContain(name);
+      };
+      return { local, root, app, relayPath, run, calls, record, relay, installed, noKills };
     }
 
-    it('proves stopped past look-alike processes', async () => {
+    it('never kills a process and never deletes recursively', () => {
+      const text = readFileSync(join(TOOL, 'manage.ps1'), 'utf8');
+      expect(text).not.toMatch(/Stop-Process|Stop-ScheduledTask|taskkill|\.Kill\(/i);
+      expect(text).not.toMatch(/-Recurse/);
+      expect(text).not.toMatch(/orca\.exe'|\$isOrca/);
+      expect(text).not.toMatch(/-Force\b.*\[switch\]|\[switch\]\$Force/);
+    });
+
+    it('lists every file it installs and removes', () => {
+      const text = readFileSync(join(TOOL, 'manage.ps1'), 'utf8');
+      for (const name of readdirSync(join(TOOL, 'lib'))) expect(text).toContain(`'${name}'`);
+      for (const name of readdirSync(TOOL).filter((entry) => entry !== 'lib')) {
+        expect(text).toContain(`'${name}'`);
+      }
+    });
+
+    it('proves stopped when the recorded relay is gone', async () => {
       const m = managed();
+      m.record();
+      const result = await m.run('Verify', { tasks: task('Ready') });
+      expect(result.out).toContain('PROVEN');
+      expect(result.code).toBe(0);
+    }, 30_000);
+
+    it.each<[string, Partial<Proc>]>([
+      ['a reused PID, by start time', { creation_ms: START + 10 * MINUTE }],
+      ['another executable', { ExecutablePath: 'C:\\other\\node.exe' }],
+      ['another script', { CommandLine: `"${NODE_EXE}" "C:\\other\\docket-relay.mjs" start` }],
+      ['a process it cannot read', { ExecutablePath: null, CommandLine: null, creation_ms: null }],
+    ])(
+      'is not blocked by %s at the recorded PID',
+      async (_name, over) => {
+        const m = managed();
+        m.record();
+        const result = await m.run('Verify', { tasks: task('Ready'), processes: [m.relay(over)] });
+        expect(result.out).toContain('PROVEN');
+        expect(result.code).toBe(0);
+      },
+      30_000,
+    );
+
+    it('ignores every other process, even with the relay path in its command line', async () => {
+      const m = managed();
+      m.record();
       const result = await m.run('Verify', {
         tasks: task('Ready'),
         processes: [
-          m.proc('node.exe', 10, `node "${m.relayPath}2" start`),
-          m.proc('node.exe', 11, `node "${join(m.root, 'app2', 'docket-relay.mjs')}" start`),
-          m.proc('node.exe', 12, 'node server.js'),
-          m.proc('orca.exe', 13, 'orca orchestration send --from orca_session_id:x --to run:run_a'),
-          m.proc('powershell.exe', 14, 'powershell -File other.ps1'),
+          m.relay({ ProcessId: 10 }),
+          m.relay({ ProcessId: 11, Name: 'powershell.exe' }),
+          m.relay({
+            ProcessId: 12,
+            Name: 'orca.exe',
+            CommandLine: 'orca orchestration send --to run:run_a --from docket-relay',
+          }),
+          m.relay({ ProcessId: 13, CommandLine: null }),
         ],
       });
       expect(result.out).toContain('PROVEN');
       expect(result.code).toBe(0);
     }, 30_000);
 
-    it.each([
-      [
-        'relay node',
-        (m: ReturnType<typeof managed>) => [
-          m.proc('node.exe', 20, `"node.exe" "${m.relayPath}" start`),
-        ],
-      ],
-      [
-        'launcher',
-        (m: ReturnType<typeof managed>) => [
-          m.proc('powershell.exe', 21, `powershell -File "${m.launcherPath}" -Node n`),
-        ],
-      ],
-      [
-        'child orca',
-        (m: ReturnType<typeof managed>) => [
-          m.proc('node.exe', 22, `node "${m.relayPath}" start`),
-          m.proc('orca.exe', 23, 'orca orchestration worker-show --dispatch ctx_a', 22),
-        ],
-      ],
-      [
-        'orphan orca send',
-        (m: ReturnType<typeof managed>) => [
-          m.proc(
-            'orca.exe',
-            24,
-            'orca orchestration send --to run:run_a --from docket-relay --type status',
-          ),
-        ],
-      ],
-      [
-        'unreadable command line',
-        (m: ReturnType<typeof managed>) => [m.proc('node.exe', 25, null)],
-      ],
-    ])(
-      'a remaining %s is a failed proof',
-      async (role, processes) => {
-        const m = managed();
-        const result = await m.run('Verify', { tasks: task('Ready'), processes: processes(m) });
-        expect(result.code).toBe(1);
-        expect(result.out).toContain(`FAILED: ${role} is still present`);
-        expect(result.out).not.toContain('PROVEN');
-      },
-      30_000,
-    );
+    it('a recorded relay still running is a failed proof', async () => {
+      const m = managed();
+      m.record();
+      const result = await m.run('Verify', { tasks: task('Ready'), processes: [m.relay()] });
+      expect(result.code).toBe(1);
+      expect(result.out).toContain(`FAILED: the relay is still running (PID ${RELAY_PID})`);
+    }, 30_000);
 
     it.each([
       ['Stopped', 'Running', 'the task is Running'],
@@ -2631,51 +2567,81 @@ describe('running it', () => {
       30_000,
     );
 
-    it('being unable to read the task or the processes is a failed proof', async () => {
+    it('being unable to read the task or the recorded process is a failed proof', async () => {
       const m = managed();
       expect((await m.run('Verify', { taskReadFails: true })).code).toBe(1);
+      m.record();
       const noProcesses = await m.run('Verify', { processReadFails: true });
       expect(noProcesses.code).toBe(1);
-      expect(noProcesses.out).toContain('could not read processes');
+      expect(noProcesses.out).toContain('could not check the relay');
     }, 30_000);
 
-    it('Disable disables first, stops, and proves it', async () => {
+    it('Stop asks over the pipe, waits for the PID and the child timeout, and kills nothing', async () => {
       const m = managed();
+      m.installed();
+      m.record();
+      const result = await m.run('Stop', {
+        tasks: task('Running'),
+        processes: [m.relay()],
+        exitAfterSleeps: 2,
+      });
+      expect(result.out).toContain('PROVEN');
+      expect(result.code).toBe(0);
+      expect(m.calls()).toContain('Start-Sleep -Seconds 20');
+      m.noKills();
+    }, 30_000);
+
+    it('Stop reports a relay that does not exit, and changes nothing else', async () => {
+      const m = managed();
+      m.installed();
+      m.record();
+      const result = await m.run('Stop', { tasks: task('Running'), processes: [m.relay()] });
+      expect(result.code).toBe(1);
+      expect(result.out).toContain('did not exit in time');
+      expect(m.calls()).not.toContain('Disable-ScheduledTask');
+      expect(m.calls()).not.toContain('Unregister-ScheduledTask');
+      m.noKills();
+    }, 60_000);
+
+    it('Stop reports a refused pipe command, and changes nothing else', async () => {
+      const m = managed();
+      m.installed(1);
+      m.record();
+      const result = await m.run('Disable', { tasks: task('Running'), processes: [m.relay()] });
+      expect(result.code).toBe(1);
+      expect(result.out).toContain('the relay did not stop');
+      expect(m.calls()).not.toContain('Disable-ScheduledTask');
+      m.noKills();
+    }, 30_000);
+
+    it('Disable stops first, then disables and proves it', async () => {
+      const m = managed();
+      m.installed();
+      m.record();
       const result = await m.run('Disable', {
         tasks: task('Running'),
-        stopTaskClearsProcesses: true,
-        processes: [m.proc('node.exe', 30, `node "${m.relayPath}" start`)],
+        processes: [m.relay()],
+        exitAfterSleeps: 1,
       });
       expect(result.out).toContain('PROVEN: task Disabled');
       expect(result.code).toBe(0);
-      expect(m.calls().indexOf('Disable-ScheduledTask')).toBeLessThan(
-        m.calls().indexOf('Stop-ScheduledTask'),
+      expect(m.calls().indexOf('Start-Sleep -Seconds 20')).toBeLessThan(
+        m.calls().indexOf('Disable-ScheduledTask'),
       );
+      m.noKills();
     }, 30_000);
-
-    it('Stop fails while a relay process survives, and -Force ends only that one', async () => {
-      const m = managed();
-      const processes = [
-        m.proc('node.exe', 40, `node "${m.relayPath}" start`),
-        m.proc('node.exe', 41, 'node other.js'),
-      ];
-      const failed = await m.run('Stop', { tasks: task('Running'), processes });
-      expect(failed.code).toBe(1);
-      expect(m.calls()).not.toContain('Stop-Process');
-
-      const forced = await m.run('Stop', { tasks: task('Running'), processes }, 'Stopped', true);
-      expect(forced.code).toBe(0);
-      expect(m.calls()).toContain('Stop-Process -Id 40');
-      expect(m.calls()).not.toContain('-Id 41');
-    }, 40_000);
 
     it('Install runs the hidden launcher, unelevated and interactive, and does not start', async () => {
       const m = managed();
       const result = await m.run('Install', {});
       expect(result.code).toBe(0);
       expect(existsSync(m.relayPath)).toBe(true);
-      expect(existsSync(m.launcherPath)).toBe(true);
-      expect(existsSync(join(m.app, 'lib', 'relay.mjs'))).toBe(true);
+      expect(existsSync(join(m.app, 'launch.ps1'))).toBe(true);
+      const help = spawn(process.execPath, [m.relayPath, 'help'], {
+        env: { ...process.env, NODE_OPTIONS: '' },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      expect((await finish(help)).code).toBe(0);
       const calls = m.calls();
       expect(calls).not.toMatch(/conhost/i);
       expect(calls).toMatch(
@@ -2686,10 +2652,19 @@ describe('running it', () => {
       expect(calls).not.toContain('Start-ScheduledTask');
     }, 40_000);
 
-    it('Remove deletes only the task and the docket-relay folder', async () => {
+    it('Remove deletes only the known files, then the empty folders', async () => {
       const m = managed();
-      mkdirSync(m.app, { recursive: true });
-      writeFileSync(join(m.root, 'state.json'), '{}');
+      expect((await m.run('Install', {})).code).toBe(0);
+      for (const name of [
+        'state.json',
+        'relay.log',
+        'relay.log.1',
+        'reconcile-audit.jsonl',
+        'state.json.corrupt-123',
+        'state.json.99.tmp',
+      ]) {
+        writeFileSync(join(m.root, name), '{}');
+      }
       const neighbour = join(m.local, 'docket-relay-other');
       mkdirSync(neighbour);
       writeFileSync(join(neighbour, 'keep.txt'), 'keep');
@@ -2700,30 +2675,65 @@ describe('running it', () => {
       expect(m.calls()).toContain('Unregister-ScheduledTask');
       expect(existsSync(m.root)).toBe(false);
       expect(readFileSync(join(neighbour, 'keep.txt'), 'utf8')).toBe('keep');
-    }, 40_000);
+    }, 45_000);
 
-    it('Remove removes nothing while a relay process remains', async () => {
+    it('Remove removes nothing while the recorded relay runs', async () => {
       const m = managed();
-      mkdirSync(m.app, { recursive: true });
-      const result = await m.run('Remove', {
-        tasks: task('Ready'),
-        processes: [m.proc('node.exe', 50, `node "${m.relayPath}" start`)],
-      });
+      m.installed();
+      m.record();
+      const result = await m.run('Remove', { tasks: task('Ready'), processes: [m.relay()] });
       expect(result.code).toBe(1);
       expect(result.out).toContain('nothing was removed');
       expect(m.calls()).not.toContain('Unregister-ScheduledTask');
-      expect(existsSync(m.root)).toBe(true);
-    }, 40_000);
+      expect(existsSync(m.relayPath)).toBe(true);
+    }, 60_000);
 
-    it('Remove reports what it could not delete', async () => {
-      const m = managed();
-      mkdirSync(m.app, { recursive: true });
-      writeFileSync(join(m.root, 'state.json'), '{}');
-      const result = await m.run('Remove', { tasks: task('Ready'), removeFails: true });
-      expect(result.code).toBe(1);
-      expect(result.out).toContain('could not remove');
-      expect(result.out).toContain('state.json');
-    }, 40_000);
+    it.each<[string, (m: ReturnType<typeof managed>) => string]>([
+      [
+        'an unexpected file',
+        (m) => {
+          const path = join(m.app, 'notes.txt');
+          writeFileSync(path, 'keep');
+          return path;
+        },
+      ],
+      [
+        'an unexpected folder',
+        (m) => {
+          const path = join(m.root, 'backup');
+          mkdirSync(path);
+          writeFileSync(join(path, 'keep.txt'), 'keep');
+          return path;
+        },
+      ],
+      [
+        'a link in the app folder',
+        (m) => {
+          const target = join(m.local, 'elsewhere');
+          mkdirSync(target);
+          writeFileSync(join(target, 'keep.txt'), 'keep');
+          const path = join(m.app, 'lib');
+          symlinkSync(target, path, 'junction');
+          return path;
+        },
+      ],
+    ])(
+      'Remove stops at %s and deletes no file',
+      async (_name, plant) => {
+        const m = managed();
+        m.installed();
+        writeFileSync(join(m.root, 'state.json'), '{}');
+        const path = plant(m);
+        const result = await m.run('Remove', { tasks: task('Ready') });
+        expect(result.code).toBe(1);
+        expect(result.out).toContain('not known relay files');
+        expect(result.out).toContain(path);
+        expect(existsSync(path)).toBe(true);
+        expect(existsSync(join(m.root, 'state.json'))).toBe(true);
+        expect(existsSync(m.relayPath)).toBe(true);
+      },
+      40_000,
+    );
 
     it('Remove will not follow a link at the folder', async () => {
       const m = managed();
@@ -2733,8 +2743,18 @@ describe('running it', () => {
       symlinkSync(target, m.root, 'junction');
       const result = await m.run('Remove', { tasks: task('Ready') });
       expect(result.code).toBe(1);
-      expect(result.out).toContain('is a link');
+      expect(result.out).toContain('not known relay files');
       expect(readFileSync(join(target, 'keep.txt'), 'utf8')).toBe('keep');
+    }, 40_000);
+
+    it('Remove reports what it could not delete', async () => {
+      const m = managed();
+      m.installed();
+      writeFileSync(join(m.root, 'state.json'), '{}');
+      const result = await m.run('Remove', { tasks: task('Ready'), removeFails: true });
+      expect(result.code).toBe(1);
+      expect(result.out).toContain('could not remove');
+      expect(result.out).toContain('state.json');
     }, 40_000);
   });
 
@@ -2770,10 +2790,10 @@ describe('calling Orca safely', () => {
   });
 
   it('makes stable request IDs in the form Orca accepts', () => {
-    const id = requestIdFor('batch', 'run:run_b', 'subject', 'body');
+    const id = requestIdFor('batch', 'run:run_b');
     expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
-    expect(requestIdFor('batch', 'run:run_b', 'subject', 'body')).toBe(id);
-    expect(requestIdFor('batch', 'run:run_a', 'subject', 'body')).not.toBe(id);
+    expect(requestIdFor('batch', 'run:run_b')).toBe(id);
+    expect(requestIdFor('batch', 'run:run_a')).not.toBe(id);
   });
 
   it('never picks orca.cmd on Windows, which refuses to send', () => {

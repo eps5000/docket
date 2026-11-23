@@ -118,9 +118,7 @@ export function createDocket({ baseUrl, fetchImpl = fetch }) {
           run_id: run?.run_id,
           is_lead: run?.is_lead,
           run_state: run?.run_state,
-          orchestrator: run?.orchestrator
-            ? { dispatch_id: run.orchestrator.dispatch_id, run_id: run.orchestrator.run_id }
-            : null,
+          orchestrator: run?.orchestrator ? { dispatch_id: run.orchestrator.dispatch_id } : null,
         })),
         activity,
       };

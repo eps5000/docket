@@ -27,30 +27,30 @@ It never writes to Docket. It doesn't resume, park, claim, change a status or ca
 
 ## Who gets the message
 
-Only a coordinator that Orca proves:
+**Only the Run that `worker-show` reports for the lead's recorded `orchestrator.dispatch_id`.** Anything else is recorded as undelivered (`no_target`) in `status`, and Needs you is never touched. If Orca can't answer, the message waits and is retried.
 
-1. **The Run `worker-show` reports** for the lead's recorded `orchestrator.dispatch_id`.
-2. **A stored `run_…` ID**, only when Orca doesn't know that dispatch or the run has none.
-3. **Nobody:** it's recorded as undelivered (`no_target`) in `status`. Needs you is never touched.
+The relay never sends to a `dispatch:` address, because Orca can reopen a one-shot worker that finished between a check and the send. It never uses a stored Run ID or session address. The send call and `test-send` accept `run:` addresses only.
 
-Either Run must pass `orca orchestration run-show`: it exists, isn't a legacy Run and has been bound to a coordinator. If Orca reports a Run for the dispatch and that Run fails, the relay doesn't fall back to a stored ID. If Orca can't answer, the message waits and is retried.
+**Runs with no dispatch ID get no message.** Each change on them is recorded as undelivered. A later batch for session addresses will restore that coverage.
 
-**Never used, on any path:** a `dispatch:` address, because Orca can reopen a one-shot worker that finished between a check and the send, and a stored `orca_session_id:…`, because that session may be a one-shot implementer. The send call and `test-send` accept `run:` addresses only.
+## Accepted limits
 
-**Runs with no dispatch ID.** They reach a coordinator only if they stored a `run_…` ID that Orca confirms. A run that stored only a session ID, or nothing, gets no message: each change is recorded as undelivered, and its coordinator hears nothing from the relay. Claim the ticket with a dispatch ID or an Orca Run ID to be covered.
+- **`test-send` goes to whatever Run the operator names.** It's a manual operator command, and nothing checks that the Run is the right one.
+- **Delivery is at-least-once, coalesced where possible.** A rare crash or reconcile can repeat a pointer. A pointer only says "go look" and carries no authority.
+- **Forged state files are outside the threat model.** The state folder is private to this user.
 
 ## After a stop
 
 - **First run:** starts at the end of the feed, with no replay.
-- **Stopped for under 24 hours:** catches up once, one message per ticket, within the rate limit, with no duplicates.
-- **Killed mid-send:** the state records only which events were in flight, never a recipient or text. On restart the relay re-reads the lead, re-resolves the coordinator and rebuilds the fixed message. With the same facts it reuses the request ID, so Orca replays it. If the lead or coordinator changed, the old send is not made.
+- **Stopped for under 24 hours:** catches up once, one message per ticket, within the rate limit.
+- **Killed mid-send:** the state records only which events were in flight. On restart the relay re-reads the lead, re-resolves the coordinator and rebuilds the message. The Orca request ID comes from the batch and recipient alone. Orca replays an identical repeat and refuses changed text with `request_mismatch`, which the relay counts as already sent. If the coordinator changed, the new one is told.
 - **Stopped for 24 hours or more, or the position can't be trusted:** enters `hold_reconcile`.
 
 | Hold reason | Meaning | Ways out |
 | --- | --- | --- |
 | `stale` | The last feed read was 24 hours or more ago, including a sleeping host or a long Docket outage | `--deliver` or `--skip-to-end` |
 | `batch_past_window` | A message has been waiting 24 hours, usually because Orca was down | `--deliver` or `--skip-to-end` |
-| `state_untrusted` | A state invariant failed (for example the anchor differs from the cursor), or the activity time can't be believed. `status --json` names it in `hold.detail` | `--deliver` only if every invariant holds and the feed matches, otherwise `--skip-to-end` |
+| `state_untrusted` | A state invariant failed (for example the anchor differs from the cursor, or a seen key is ahead of it), or the activity time can't be believed. `status --json` names it in `hold.detail` | `--deliver` only if every invariant holds and the feed matches, otherwise `--skip-to-end` |
 | `state_unreadable` | `state.json` can't be parsed. It's kept as `state.json.corrupt-<ms>` | `--skip-to-end` |
 | `cursor_ahead` | The cursor is past the end of the feed | `--skip-to-end` |
 | `feed_reset` | The row at the cursor has changed, so the feed was replaced | `--skip-to-end` |
@@ -108,20 +108,22 @@ powershell -NoProfile -ExecutionPolicy Bypass -File $manage -Action Verify -Expe
 powershell -NoProfile -ExecutionPolicy Bypass -File $manage -Action Remove
 ```
 
-- **Stop** asks the relay over its pipe to stop new work, finish or abort its current send, save and exit, then stops the task.
-- **Every action ends with a proof** of the task's state and that no relay node, launcher or child `orca.exe` remains. Processes are matched by the exact installed path in their command line, by being a child of one of those, or as an `orca.exe` send `--from docket-relay`. A `node` or `orca.exe` whose command line can't be read also fails the proof. **A failed proof exits 1.**
-- **`-Force`** ends only the processes the proof matched, if a graceful stop fails.
-- **Remove** deletes only the task and `%LOCALAPPDATA%\docket-relay`, including its state and audit, after the proof passes. It won't follow a link at that path, and it lists anything it couldn't delete and exits 1.
+- **Stop** asks the relay over its pipe to stop new work, finish or abort its current send, save and exit, then waits for it. If it doesn't exit in time, Stop reports failure and changes nothing else. **Nothing ever kills a process.**
+- **The relay is identified only by the PID it records at start** in `instance.json`, together with that process's start time and its exact executable and script path. Any other process, including one with a reused PID or one that can't be read, is neither touched nor counted.
+- A child `orca.exe` isn't tracked. Once the recorded PID is gone, Stop waits out the 20-second Orca call timeout.
+- **Every action ends with a proof** of the task's state and that the recorded relay is gone. **A failed proof exits 1.**
+- **Remove** unregisters the task, then deletes only the known file names in the app and state folders, then those folders if they're empty. It never deletes recursively. If any entry is a link or isn't a known relay file, it deletes no file, lists the entry and exits 1.
 
 ### Required checks after install
 
 Only the real host can prove these, and the tests don't claim them:
 
-1. **Run ownership.** `test-send run:<id>` reaches that Run's current coordinator. Orca has no closed-Run state, so `run-show` can't prove the coordinator is still running.
-2. **Real Orca dedupe.** A repeated `--retry-request` UUID doesn't deliver a second message on the installed Orca version.
+1. **Run ownership.** `test-send run:<id>` reaches that Run's current coordinator. Orca has no closed-Run state, so a Run reported for a dispatch may have no running coordinator.
+2. **Real Orca dedupe.** A repeated `--retry-request` UUID doesn't deliver a second message on the installed Orca version, and changed text under it returns `request_mismatch`.
 3. **Task Scheduler and exit codes.** `Get-ScheduledTaskInfo` shows `LastTaskResult` 3 for a relay in a hold, and its restart attempts stay harmless.
-4. **Killing children.** With the task running, `Stop-ScheduledTask` alone may leave Node alive. Run `-Action Stop` and confirm its proof passes.
-5. **The hidden launcher** leaves no visible window, and the task's session can reach Orca.
+4. **Graceful stop on the real task.** `-Action Stop` passes its proof, and the task leaves `Running` by itself.
+5. **An orphaned `orca.exe`.** The relay enforces the 20-second limit on its own child, so after a hard kill of the relay, confirm the child also ends within that wait.
+6. **The hidden launcher** leaves no visible window, and the task's session can reach Orca.
 
 ## Running and checking it
 
@@ -131,7 +133,7 @@ node docket-relay.mjs stop               Finish or abort the current send, save 
 node docket-relay.mjs status [--json]    Last event, last delivery, failures, undelivered, any hold
 node docket-relay.mjs reconcile --deliver
 node docket-relay.mjs reconcile --skip-to-end --reason <text>
-node docket-relay.mjs test-send run:<id>   Send one fixed test message to a Run Orca confirms
+node docket-relay.mjs test-send run:<id>   Send one fixed test message to the Run you name
 ```
 
 | Setting | Default |
@@ -140,6 +142,6 @@ node docket-relay.mjs test-send run:<id>   Send one fixed test message to a Run 
 | `DOCKET_RELAY_HOME` | `%LOCALAPPDATA%\docket-relay` |
 | `DOCKET_RELAY_ORCA` | `orca.exe` on `PATH`, then Orca's install folder. Never `orca.cmd`, which refuses to send. |
 
-`state.json` holds the cursor, what's waiting, what was delivered and any hold. It's written atomically. `relay.log` is capped at 256 KB with one rotation. `reconcile-audit.jsonl` is append-only. None of them holds ticket text, answers or notes; the only free text is an operator's skip reason.
+`state.json` holds the cursor, what's waiting, what was delivered and any hold. It's written atomically. `relay.log` is capped at 256 KB with one rotation. `reconcile-audit.jsonl` is append-only. `instance.json` identifies the running relay and holds its stop token. None of them holds ticket text, answers or notes; the only free text is an operator's skip reason.
 
 - **Docket needs local trust.** In protected mode the relay has no owner session, so it records the ticket as undelivered with `needs_local_trust`.

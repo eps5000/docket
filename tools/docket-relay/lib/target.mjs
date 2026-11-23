@@ -1,17 +1,11 @@
 /**
- * Who to tell (owner decision 46, narrowed by B55b): a coordinator that Orca
- * itself proves. One small resolver, so a later reviewed change can add a safe
- * direct address as its first rule.
+ * Who to tell (owner decision 46, narrowed by B55b): the Run Orca reports for
+ * the lead's recorded dispatch, and nobody else. One small resolver, so a later
+ * reviewed change can add a safe address as a new rule.
  *
- * - The relay never sends to a dispatch address. Orca can reopen a one-shot
- *   worker that finished between a liveness check and the send, and a pointer
- *   can't carry source authority.
- * - It never sends to a stored session address either: a session may be a
- *   one-shot implementer, and nothing here can prove otherwise.
- * - The only candidates are the Run `worker-show` reports for the recorded
- *   dispatch and, when Orca doesn't know that dispatch, a stored `run_…` ID.
- *   Either way `run-show` must confirm the Run before it is used.
- * - `orchestrator.name` and Docket's `session_id` are not addresses.
+ * The relay never sends to a dispatch address, because Orca can reopen a
+ * one-shot worker that finished between a check and the send. It never uses a
+ * stored ID either: only `worker-show` says whose Run a dispatch belongs to.
  */
 
 const LIVE_RUN_STATES = new Set(['live', 'reported', 'stale', 'needs_input', 'parked']);
@@ -30,34 +24,22 @@ export function liveLead(runs) {
 }
 
 /**
- * `showDispatch(id)` returns `{ found, runId }` and `showRun(id)` returns
- * `{ found, active }`. Both throw when Orca can't answer, so the caller retries
- * instead of treating that as "not proven". `implementer` is text for the
- * message, never an address.
+ * `showDispatch(id)` returns `{ found, runId }` and throws when Orca can't
+ * answer, so the caller retries. `implementer` is text for the message, never
+ * an address.
  */
-export async function resolveCoordinator(run, { showDispatch, showRun }) {
-  const stored = run?.orchestrator ?? {};
-  const dispatchId = DISPATCH_ID.test(stored.dispatch_id ?? '') ? stored.dispatch_id : null;
-  let candidate = null;
-
+export async function resolveCoordinator(run, showDispatch) {
+  const stored = run?.orchestrator?.dispatch_id ?? '';
+  const dispatchId = DISPATCH_ID.test(stored) ? stored : null;
+  let coordinator = null;
   if (dispatchId) {
     const dispatch = await showDispatch(dispatchId);
-    if (dispatch?.found && ORCA_RUN_ID.test(dispatch.runId ?? '')) candidate = dispatch.runId;
+    if (dispatch?.found && ORCA_RUN_ID.test(dispatch.runId ?? '')) {
+      coordinator = `run:${dispatch.runId}`;
+    }
   }
-  // A Run Orca reports for the dispatch is the only candidate, even if it fails the check below.
-  if (!candidate && ORCA_RUN_ID.test(stored.run_id ?? '')) candidate = stored.run_id;
-
-  let coordinator = null;
-  if (candidate) {
-    const confirmed = await showRun(candidate);
-    if (confirmed?.found && confirmed.active) coordinator = `run:${candidate}`;
-  }
-
   const names = [];
   if (DOCKET_RUN_ID.test(run?.run_id ?? '')) names.push(`Docket run ${run.run_id}`);
   if (dispatchId) names.push(`dispatch ${dispatchId}`);
-  return {
-    coordinator: isCoordinatorAddress(coordinator) ? coordinator : null,
-    implementer: names.length > 0 ? names.join(', ') : 'not recorded',
-  };
+  return { coordinator, implementer: names.length > 0 ? names.join(', ') : 'not recorded' };
 }

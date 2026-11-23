@@ -64,6 +64,7 @@ function batchProblem(item, batch, cursor) {
 export function stateProblem(s) {
   if (s.cursor === null) {
     if (s.anchor !== null) return 'anchor_without_cursor';
+    if (Object.keys(s.seen).length > 0) return 'seen_ahead';
     return Object.keys(s.batches).length > 0 ? 'batches_without_cursor' : null;
   }
   if (typeof s.cursor !== 'string' || !CURSOR.test(s.cursor)) return 'cursor';
@@ -84,5 +85,10 @@ export function stateProblem(s) {
   for (const times of Object.values(s.rate)) {
     if (!Array.isArray(times) || !times.every(isTime)) return 'rate';
   }
-  return Object.values(s.seen).every(isTime) ? null : 'seen';
+  for (const [key, at] of Object.entries(s.seen)) {
+    const cursor = key.slice(0, key.indexOf(':'));
+    if (!isTime(at) || !CURSOR.test(cursor)) return 'seen';
+    if (Number(cursor) > Number(s.cursor)) return 'seen_ahead';
+  }
+  return null;
 }

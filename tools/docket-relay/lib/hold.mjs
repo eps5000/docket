@@ -289,6 +289,10 @@ export async function reconcileSkip({ store, docket, log, now = Date.now, reason
   remember(s, summary);
   s.counters.skipped = (s.counters.skipped ?? 0) + facts.events;
   s.batches = {};
+  // A replaced feed can end lower than the old one: its keys no longer mean anything.
+  s.seen = Object.fromEntries(
+    Object.entries(s.seen).filter(([key]) => Number(key.split(':', 1)[0]) <= Number(end)),
+  );
   s.cursor = end;
   s.anchor = anchor;
   s.hold = null;

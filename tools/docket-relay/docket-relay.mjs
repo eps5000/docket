@@ -8,7 +8,7 @@
  *   node docket-relay.mjs status   Show a compact status, with no message content
  *   node docket-relay.mjs reconcile --deliver | --skip-to-end --reason <text>
  *                                  Leave hold_reconcile
- *   node docket-relay.mjs test-send run:<id>    Send one fixed test message to a confirmed Run
+ *   node docket-relay.mjs test-send run:<id>    Send one fixed test message to the Run you name
  *   node docket-relay.mjs help     Show this
  *
  * README.md has the install steps and manage.ps1 the task steps. Settings: DOCKET_RELAY_URL, DOCKET_RELAY_HOME,
@@ -51,8 +51,8 @@ const HELP = `docket-relay: tell a ticket's Orca coordinator when it changes fro
            Leave the hold at the end of the feed, recording what was skipped.
   test-send run:<id>
            Send one fixed test message the way the relay does, to prove the
-           Orca path after an install. Orca must confirm the Run. Any other
-           address is refused.
+           Orca path after an install. It goes to whatever Run you name. Any
+           other kind of address is refused.
   help     Show this.
 
   DOCKET_RELAY_URL    Docket's address (default ${DEFAULT_URL})
@@ -286,21 +286,7 @@ async function testSend(env, [to]) {
     process.stderr.write('Orca CLI not found. Set DOCKET_RELAY_ORCA to orca.exe.\n');
     return 1;
   }
-  const orca = createOrca({ exe, env });
-  let shown;
-  try {
-    shown = await orca.showRun(to.slice('run:'.length));
-  } catch (err) {
-    process.stderr.write(
-      `Orca could not confirm that Run (${err.code ?? 'error'}). Nothing sent.\n`,
-    );
-    return 1;
-  }
-  if (!shown.found || !shown.active) {
-    process.stderr.write('Orca does not report that Run as active. Nothing sent.\n');
-    return 1;
-  }
-  const result = await orca.send({
+  const result = await createOrca({ exe, env }).send({
     to,
     subject: 'Docket relay test',
     body: 'This is a test from docket-relay. No action is needed.',

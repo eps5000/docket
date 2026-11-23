@@ -25,7 +25,7 @@ import { holdRecord } from './hold.mjs';
 const STATE_VERSION = 1;
 const LOG_LIMIT = 256 * 1024;
 const AUDIT_FILE = 'reconcile-audit.jsonl';
-const STOP_TOKEN_FILE = 'stop.token';
+const INSTANCE_FILE = 'instance.json';
 
 export function defaultHome(env = process.env, platform = process.platform) {
   if (env.DOCKET_RELAY_HOME) return env.DOCKET_RELAY_HOME;
@@ -117,8 +117,6 @@ function parseState(text) {
   ) {
     return null;
   }
-  // A send recorded by an older build named its own recipient and text. Neither is ever used.
-  for (const batch of Object.values(parsed.batches)) delete batch.sending;
   const base = emptyState();
   return { ...base, ...parsed, counters: { ...base.counters, ...parsed.counters } };
 }
@@ -257,7 +255,7 @@ const sameText = (a, b) => {
 export function requestStop(home, timeoutMs = 3000) {
   let token;
   try {
-    token = readFileSync(join(home, STOP_TOKEN_FILE), 'utf8').trim();
+    token = JSON.parse(readFileSync(join(home, INSTANCE_FILE), 'utf8')).stop_token;
   } catch {
     return Promise.resolve('refused');
   }
@@ -330,14 +328,24 @@ export async function acquireLock(home, { onStop } = {}) {
       return null;
     }
   }
-  const tokenPath = join(home, STOP_TOKEN_FILE);
+  // Who this instance is, for `stop` and for manage.ps1. A hard kill leaves it behind.
+  const instancePath = join(home, INSTANCE_FILE);
   if (token) {
     mkdirSync(home, { recursive: true });
-    writeAtomic(tokenPath, token);
+    writeAtomic(
+      instancePath,
+      JSON.stringify({
+        pid: process.pid,
+        started_ms: Math.round(Date.now() - process.uptime() * 1000),
+        exe: process.execPath,
+        script: process.argv[1],
+        stop_token: token,
+      }),
+    );
   }
   return () =>
     new Promise((resolve) => {
-      if (token) rmSync(tokenPath, { force: true });
+      if (token) rmSync(instancePath, { force: true });
       server.close(() => resolve());
     });
 }
