@@ -574,6 +574,12 @@ Used on the epic Map tab, label pages and Work → Map.
   - "Drag to pan" hint text only when overflowing;
   - zoom controls − / percentage / + / **Fit**: steps 50, 67, 80, 100, 125%, default 100%; Fit scales to show everything, down to 40% at the smallest.
 - **Key** (one line under the map): "Arrow = blocks · dashed green = cleared · hover to trace", plus the two person icons with "packet ready for you" and "your review later".
+- **Critical path (decision 48, B60)**, on the epic Map tab and Work → Map:
+  - *What's holding up* picks a ticket or epic as the goal (`?goal=`). The ticket's Dependencies tab and the epic's Map tab link to it;
+  - above the map: **Move next**, the ticket, its reason as a labelled chip and one plain sentence, then the chain's length and the number of open blockers. A blocker loop gets a callout;
+  - *The chain as a list* is the same chain as an ordered list, first ticket to move first, each with its status in words;
+  - on the map, chain cards are outlined and read "Step n of N" ("Move next · Step 1 of N" on the first), chain arrows are heavier, and other arrows fade. Other cards are muted without opacity, so their text keeps its contrast. The ticket to move next scrolls into view;
+  - chain tickets outside the view are added as outside cards and aren't counted in the header.
 
 #### 6.3.5 Decisions
 Decision records (BUILD_SPEC §5.14) appear where they apply:
@@ -704,6 +710,12 @@ Rows link to the item. **Subagent log entries aren't listed here;** they show on
 - **Sort order:** At risk, In use, Parked, Unknown, Safe to prune.
 - **A filter chip** "Hide safe to prune", in the section header, is on by default.
 - **Empty:** "No workspaces recorded yet. Agents report theirs when they claim work."
+- **Every worktree (decision 48, B60).** A switch in the header, *Recorded by agents* / *Every worktree* (`?worktrees=all`), shows every worktree of the project's repository. With All projects in scope, a Project menu picks one.
+  - **Columns:** Verdict (labelled chip and why), Branch and folder, Ticket or "Not tracked by Docket", Last activity, What it holds (uncommitted files, commits not on a remote and merged to main, each labelled), What to do. A value git couldn't read says "Unknown", never 0.
+  - **Groups,** in order: Holds work, In use, Unknown, Kept for later, Safe to remove, 50 rows each until *Show all*.
+  - **Filters:** a chip per verdict with its count, *Not tracked by Docket*, and text over branch, ticket and folder.
+  - **What to do:** the at-risk owner's words (B56) on Holds work. *Show command*, with the full command on its own row to read and copy, on Safe to remove only, under a note that Docket never removes a worktree, to check each command first, and that ignored files go with the folder.
+  - A status line gives the check's progress or age and says remotes are as of the last fetch, with *Check again*.
 
 ### 6.7 Settings (`/settings`)
 h1 "Settings".

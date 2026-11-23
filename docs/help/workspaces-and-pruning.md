@@ -12,7 +12,7 @@ related:
 
 A **workspace** is the folder (usually a git worktree) where an agent works on an item. Agents report it when they claim work, along with its branch, commits and anything they left running, like a dev server. **Agents → Workspaces** lists every one, so you and your coordinator can see what's safe to delete.
 
-Docket only records what agents report. It never looks at your folders or stops processes; your coordinator, or you, do that.
+The main table shows what agents report. **Every worktree** also reads your repository, without changing it. Docket never deletes a worktree or stops a process; your coordinator, or you, do that.
 
 ## The states
 
@@ -50,6 +50,20 @@ In every case, leave the worktree where it is until the work is dealt with.
 ## Orphaned resources
 
 When a run ends and something it started is still listed as running 15 minutes later, Problems shows **Orphaned resources**, like "vite :5173 still running 18m after its run ended". Stop it yourself (or have your coordinator do it), then click *Mark released*.
+
+## Every worktree
+
+Agents only report the worktrees they use, so a busy repository can hold many more. Choose **Every worktree** to list them all, including ones marked **Not tracked by Docket**. Docket reads them with git inside your push folder. It doesn't fetch and writes nothing.
+
+| Verdict | What it means |
+|---|---|
+| **Safe to remove** | It's clean, its commits are on a remote or in main, and nothing is running in it. |
+| **Holds work** | It has uncommitted files, commits on no remote, something still running, or a run that ended unexpectedly. |
+| **In use** | A run is working or parked in it, or it's the repository's main folder. |
+| **Kept for later** | You chose *Keep for later*, or it's locked in git. |
+| **Unknown** | Docket can't tell. Git didn't answer in time, the folder is gone or outside your push folder, or it has no run and changed in the last day. **Treat it as not safe.** |
+
+Only **Safe to remove** offers a command. **Check it before you run it.** Git refuses to remove a folder with changes and keeps the branch, but ignored files, like `.env` or build output, are deleted with the folder. Remotes are as of your last fetch.
 
 ## Pruning safely
 

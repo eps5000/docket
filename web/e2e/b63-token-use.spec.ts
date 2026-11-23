@@ -213,6 +213,7 @@ test.describe.serial('the real source', () => {
     await page.goto('/');
     await setSource(page, true);
     const agent = await connectAgent('claude-agent-sdk');
+    let runId: string | null = null;
     try {
       const claim = await agent.call('claim_lead', {
         id: 'RCP-17',
@@ -220,6 +221,7 @@ test.describe.serial('the real source', () => {
         workspace: { path: 'C:\\Work\\B63-Usage\\', branch: 'b63-usage' },
       });
       expect(claim.isError, claim.text).toBe(false);
+      runId = claim.structured.run_id as string;
       const config = (await (await page.request.get('/api/sync/usage')).json()) as {
         settings: { enabled: boolean; workspaces: string[] };
       };
@@ -227,10 +229,12 @@ test.describe.serial('the real source', () => {
       expect(config.settings.workspaces).toContain('c:/work/b63-usage');
 
       const record = {
-        key: 'claude-code:msg_b63_e2e',
+        // Per attempt, so a retry is a new turn.
+        key: `claude-code:msg_b63_e2e_${test.info().retry}`,
         client: 'claude-code',
         session_id: 'sess-b63-e2e',
-        at: new Date(Date.now() + 2000).toISOString(),
+        // After the claim, and not in the future, or the window would leave it out.
+        at: new Date().toISOString(),
         workspace: 'c:/work/b63-usage',
         model: 'claude-opus-5-5',
         fresh_input: 1200,
@@ -264,6 +268,9 @@ test.describe.serial('the real source', () => {
       await page.goto('/');
       await expect(page.locator('[data-card="token-use"]')).toContainText('100% linked');
     } finally {
+      if (runId) {
+        await agent.call('finish_run', { run_id: runId, result: 'finished', summary: 'Done.' });
+      }
       await agent.close();
       await setSource(page, false);
     }

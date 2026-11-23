@@ -41,6 +41,7 @@ export const HELP_ANCHORS = {
   'settings.overlap-handling': 'Settings → Overlap handling (decision 39)',
   'agents.active-now': 'Agents → Active now',
   'agents.workspaces': 'Agents → Workspaces',
+  'map.criticalPath': 'Map → What’s holding up',
   'agents.recent': 'Agents → Recent',
   'item.agent-bar': 'Ticket: the agent bar ("Lead agent")',
   'item.question': 'Ticket: the open question banner',

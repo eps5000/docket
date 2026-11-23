@@ -70,6 +70,7 @@ const EXPECTED = [
   'GET /api/work',
   'GET /api/burndown',
   'GET /api/items/:id',
+  'GET /api/items/:id/critical-path',
   'POST /api/items',
   'PATCH /api/items/:id',
   'GET /api/diagnostics/calls',
@@ -112,6 +113,7 @@ const EXPECTED = [
   'DELETE /api/import/jira/:id',
   'POST /api/mutations/:id/undo',
   'GET /api/workspaces',
+  'GET /api/workspaces/cleanup',
   'POST /api/resources/:id/release',
   'POST /api/runs/:runId/unpushed-handled',
   // Agent setup (decision 29; BUILD_SPEC §7; B21).
@@ -185,7 +187,7 @@ describe('the route table', () => {
     const labels = ROUTE_IDS.map((id) => routeLabel(API_ROUTES[id]));
     expect(new Set(labels).size).toBe(labels.length);
     expect([...labels].sort()).toEqual([...EXPECTED].sort());
-    expect(labels).toHaveLength(107);
+    expect(labels).toHaveLength(109);
   });
 
   it('puts each route in a known group, and every group has a route', () => {

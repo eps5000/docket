@@ -14,6 +14,11 @@ export function recoveryRoutes<E extends Env>(api: Hono<E>, deps: RouteDeps): vo
     services.recovery.workspaces(read, query),
   );
 
+  // Decision 48: every worktree of the repository, with a verdict. Never removes one.
+  defineRoute(api, 'workspaces.cleanup', deps, ({ services, read, query }) =>
+    services.recovery.worktreeCleanup(read, query),
+  );
+
   defineRoute(api, 'resources.release', deps, ({ services, mutate, params, body }) => {
     const { result, mutation_id } = mutate((w) =>
       services.recovery.ownerReleaseResource(w, { ...params, ...body }),

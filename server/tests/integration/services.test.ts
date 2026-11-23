@@ -180,12 +180,15 @@ describe('the service stubs', () => {
       'workspaceStates',
       'itemResume',
       'workspaces',
+      'worktreeCleanup',
+      'worktreeScanSettled',
+      'stopWorktreeScans',
       'ownerReleaseResource',
       'markUnpushedHandled',
     ],
     // US4 (B11, T106).
     links: ['link', 'unlink', 'blockState'],
-    subgraph: ['dependencySubgraph', 'cycles'],
+    subgraph: ['dependencySubgraph', 'cycles', 'criticalPath'],
     // US4 (B11, T106) and US10 (B15, T130–T131).
     // US15 (B30, T164): create.
     projects: ['setDefaultSatisfiedWhen', 'delete', 'removeDeletedDocs', 'create'],
