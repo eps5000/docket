@@ -136,7 +136,14 @@ test('split with a live lead: keyboard, preview, warning, axe at both sizes, and
   await page.setViewportSize({ width: 1440, height: 900 });
 
   // By keyboard: type the title, Tab to the first criterion, choose Move with an arrow key.
-  const dialog = await openSplit(page);
+  await page.getByRole('button', { name: 'More actions' }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('menuitem', { name: 'Cancel item…' })).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await expect(page.getByRole('menuitem', { name: 'Split ticket…' })).toBeFocused();
+  await page.keyboard.press('Enter');
+  const dialog = page.getByRole('dialog', { name: /^Split / });
+  await expect(dialog.getByLabel('New ticket title')).toBeFocused();
   await page.keyboard.type('Remember portions when sharing');
   await page.keyboard.press('Tab'); // Type
   await page.keyboard.press('Tab'); // The first criterion

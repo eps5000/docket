@@ -65,12 +65,29 @@ export function CancelMenu({ data }: { data: ItemDetailResponse }) {
                 e.preventDefault();
                 e.stopPropagation();
                 closeMenu();
+                return;
               }
+              if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+              e.preventDefault();
+              const items = [...e.currentTarget.querySelectorAll<HTMLElement>('[role="menuitem"]')];
+              const at = items.indexOf(document.activeElement as HTMLElement);
+              const step = e.key === 'ArrowDown' ? 1 : -1;
+              items[(at + step + items.length) % items.length]?.focus();
             }}
           >
+            <button
+              ref={first}
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setMenu(false);
+                setConfirm(true);
+              }}
+            >
+              Cancel item…
+            </button>
             {data.item.type !== 'Epic' && (
               <button
-                ref={first}
                 type="button"
                 role="menuitem"
                 onClick={() => {
@@ -82,17 +99,6 @@ export function CancelMenu({ data }: { data: ItemDetailResponse }) {
                 Split ticket…
               </button>
             )}
-            <button
-              ref={data.item.type === 'Epic' ? first : undefined}
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                setMenu(false);
-                setConfirm(true);
-              }}
-            >
-              Cancel item…
-            </button>
           </div>
         )}
       </span>
