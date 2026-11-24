@@ -349,6 +349,16 @@
   color: var(--st-blocked-text);
   border-color: color-mix(in srgb, var(--st-blocked) 35%, transparent);
 }
+/*
+ * Decision 57: Queued is Ready work waiting its turn behind moving work. Calm, never red:
+ * Ready's own tokens, told apart by a dashed edge here and hatching in bars (B47's palette
+ * has no room for another colour), and always by its words.
+ */
+.tl .st-queued {
+  background: var(--st-ready-soft);
+  color: var(--st-ready-text);
+  border: 1px dashed color-mix(in srgb, var(--st-ready) 60%, transparent);
+}
 .tl .st-canceled {
   background: var(--st-canceled-soft);
   color: var(--st-canceled-text);
@@ -908,6 +918,9 @@
 .tl a.tcard.owed {
   border-left: 3px solid var(--warn);
 }
+.tl a.tcard.isqueued {
+  border-left: 3px dashed var(--st-ready);
+}
 .tl .tcard .t {
   font-weight: 600;
   line-height: 1.3;
@@ -1022,6 +1035,10 @@
 }
 .tl .sb-blocked {
   background: var(--st-blocked);
+}
+/* Queued is hatched Ready, so it reads as Ready that waits, never as another status. */
+.tl .sb-queued {
+  background: repeating-linear-gradient(-45deg, var(--st-ready) 0 2px, transparent 2px 4px);
 }
 /* Canceled is hatched, so it never reads as Inbox. */
 .tl .sb-canceled {

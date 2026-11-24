@@ -63,7 +63,19 @@ const items = [
   item('RCP-11', 'done'),
   item('RCP-12', 'review', { human_review: { declared: 0, ready: 1, approved: 0, deferred: 0 } }),
   item('RCP-14', 'progress', { human_review: { declared: 1, ready: 0, approved: 0, deferred: 0 } }),
-  item('RCP-16', 'ready', { blocked: true, blocked_by: ['DOC-4'] }),
+  // Decision 57: the server says RCP-16 waits its turn; the others weren't classified (Blocked).
+  item('RCP-16', 'ready', {
+    blocked: true,
+    blocked_by: ['DOC-4'],
+    wait: {
+      kind: 'queued',
+      reason: null,
+      after: 'DOC-4',
+      more: 0,
+      on: null,
+      text: 'Starts after DOC-4',
+    },
+  }),
   item('RCP-22', 'ready', { blocked: true, blocked_by: ['RCP-12'] }),
   item('RCP-23', 'planning', { blocked: true, blocked_by: ['RCP-12'] }),
   item('RCP-30', 'ready', { blocked: true, blocked_by: ['RCP-31'] }),
@@ -108,7 +120,8 @@ describe('layoutMap', () => {
     expect(l.counts).toMatchObject({
       total: 9,
       done: 1,
-      readyButBlocked: 4,
+      readyQueued: 1,
+      readyBlocked: 3,
       readyToStart: 1,
       workingOnWave: 1,
     });
@@ -206,10 +219,12 @@ describe('<ProgressMap>', () => {
     expect(container.querySelector('.pm-big')!.textContent).toBe('1 / 9 done');
     expect(
       screen.getByRole('img', {
-        name: '1 done, 1 review, 1 in progress, 1 ready, 4 ready but blocked, 1 planning, 0 inbox',
+        name: '1 done, 1 review, 1 in progress, 1 ready, 1 queued, 3 blocked, 1 planning, 0 inbox',
       }),
     ).toBeTruthy();
-    expect(screen.getByText('4 ready but blocked')).toBeTruthy();
+    expect(screen.getByText('1 queued')).toBeTruthy();
+    expect(screen.getByText('3 blocked')).toBeTruthy();
+    expect(screen.queryByText(/ready but blocked/)).toBeNull();
     expect(screen.getByText('1 ready to start · working on wave 1 of 3')).toBeTruthy();
     const heads = [...container.querySelectorAll('.pm-colh')].map((h) => h.firstChild!.textContent);
     expect(heads).toEqual(['Outside this epic', 'Wave 1', 'Wave 2', 'Wave 3', 'Cycle']);
@@ -225,6 +240,13 @@ describe('<ProgressMap>', () => {
     });
     expect(blocked.className).toContain('blk');
     expect(within(blocked).getByText('· blocked')).toBeTruthy();
+    // Decision 57: Queued is calm and says so in words, never red.
+    const queued = screen.getByRole('button', {
+      name: /^Story RCP-16 Title of RCP-16 Ready · queued$/,
+    });
+    expect(queued.className).toContain('que');
+    expect(queued.className).not.toContain('blk');
+    expect(within(queued).getByText('· queued').getAttribute('title')).toBe('Starts after DOC-4');
     expect(cardOf('RCP-23').textContent).toContain('· after RCP-12');
     expect(screen.getByRole('button', { name: /RCP-12 .*packet ready for you/ })).toBeTruthy();
     expect(screen.getByRole('button', { name: /RCP-14 .*Human review later/ })).toBeTruthy();
@@ -281,7 +303,7 @@ describe('<ProgressMap>', () => {
     expect(last.getAttribute('class')).toContain('hl');
   });
 
-  it('the bar and legend share the status tokens’ classes, and Blocked is its own segment', () => {
+  it('the bar and legend share the status tokens’ classes, and Queued and Blocked are their own segments', () => {
     const { container } = view();
     const bar = container.querySelector('.pbar')!;
     expect([...bar.children].map((i) => i.className)).toEqual([
@@ -289,10 +311,14 @@ describe('<ProgressMap>', () => {
       'sb-review',
       'sb-progress',
       'sb-ready',
+      'sb-queued',
       'sb-blocked',
       'sb-planning',
     ]);
     expect(container.querySelector('.pm-legend .sb-blocked')).toBeTruthy();
+    expect(container.querySelector('.pm-legend .sb-queued')).toBeTruthy();
+    // Only Blocked reads as bad; Queued is calm.
+    expect(container.querySelector('.pm-legend .pm-badtext')!.textContent).toBe('3 blocked');
   });
 
   it('the canvas is a focusable region that pans with the arrow keys', () => {

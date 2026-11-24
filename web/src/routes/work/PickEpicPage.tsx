@@ -1,7 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { Fragment, useState } from 'react';
 import { Link, useParams } from 'react-router';
-import type { EpicPick, EpicPickFit, PickEpicResponse } from '@docket/shared';
+import {
+  waitCountsText,
+  type EpicPick,
+  type EpicPickFit,
+  type PickEpicResponse,
+} from '@docket/shared';
 import { Callout, Card, Chip, EmptyState, Skeleton } from '../../components/kit';
 import { apiClient } from '../../app/queryClient';
 import { QueryState } from '../../app/QueryState';
@@ -217,6 +222,12 @@ function PickRow({ pick: p, reason }: { pick: EpicPick; reason: string | null })
             ))}
             {p.can_start.count > p.can_start.first.length &&
               ` and ${p.can_start.count - p.can_start.first.length} more`}
+          </div>
+        )}
+        {/* Decision 57: what waits its turn, and what needs attention. */}
+        {p.waiting.queued + p.waiting.blocked > 0 && (
+          <div className="src" data-pick-waits="">
+            {waitCountsText(p.waiting)}
           </div>
         )}
       </td>

@@ -87,7 +87,7 @@ Agents do almost all the writing. The owner verifies, decides, nudges and archiv
 - `/` Overview (decision 43); `/needs-you` redirects to its Needs you section (`/#needs-you`)
 - `/brief?day=` the daily brief (decision 48; §6.1b)
 - `/overview/:metric` the list behind a number: `completed` (`?window=`), `agents_working`, `agents_waiting`, `in_flight`, `no_epic`
-- `/work?layout=board|list|map|timeline&epic=&label=&quick=&has=&show=` (B43: `quick` is `blocked` or `progress`, Active when omitted; `has` and `show` are comma-separated. An old `filter=` link is mapped and rewritten in place, §6.2)
+- `/work?layout=board|list|map|timeline&epic=&label=&quick=&has=&show=` (B43: `quick` is `startable`, `waiting`, `queued`, `blocked` or `progress`, Active when omitted; `has` and `show` are comma-separated. An old `filter=` link is mapped and rewritten in place, §6.2)
 - `/items/:id?tab=details|checklist|deps|map|activity`
 - `/review/:id?round=`
 - `/labels/:project/:name`
@@ -159,9 +159,9 @@ Copy the prototype's `.tl` token block. Light and dark values below; the prototy
 | `Card` | plain, padded | | 1px `--line`, radius 10. |
 | `Section` (collapsible) | open, collapsed | `key, title, summary, extraHead?, defaultCollapsed?, id?` | The header is a button: chevron + h3 title + `· summary`, with `aria-expanded`. Collapsed sections use `--panel-2` and render only the header. Collapse state is per section *type* (§2). `defaultCollapsed` starts it closed until the owner opens it (Agents → Recent, the burn-down). |
 | `ViewTabs` | ticket, epic | `tabs[{key, label, count?, dot?}], active` | ARIA tablist. A count is muted text after the label. A dot is 7px, amber or red, with sr-only text. |
-| `TicketCard` | default, blocked (red left edge), for-you (amber left edge), done (+ Archive) | `item` | Shows ID + type icon + priority; title (2–3 lines); epic and labels; chips; the lead's `RunLine` with its age. A parked lead's line says what it waits on: "parked · waiting on the coordinator · claude · orca-w4", or "parked · ready to resume · …". **Unclaimed cards show no run line.** |
+| `TicketCard` | default, Blocked (red left edge), for-you (amber left edge), Queued (dashed `--st-ready` left edge; decision 57), done (+ Archive) | `item` | Shows ID + type icon + priority; title (2–3 lines); epic and labels; chips; the lead's `RunLine` with its age. A parked lead's line says what it waits on: "parked · waiting on the coordinator · claude · orca-w4", or "parked · ready to resume · …". **Unclaimed cards show no run line.** |
 | `ForYouChip` | — | | Amber "For you" with the attention icon: a packet is ready or an agent asked you something. On list rows that have no amber card edge (the epic's Tickets list). |
-| `EpicCard` | default, empty | `epic` | 4px `--t-epic` left edge; title + ID; mini progress bar (done green, active violet); "n/N done · Status · N for you". **Empty** (no tickets; B35): no bar, and "No tickets yet · Status" (for example "No tickets yet · In progress"), never "0/0 done". |
+| `EpicCard` | default, empty | `epic` | 4px `--t-epic` left edge; title + ID; mini progress bar (done green, active violet); "n/N done · Status · Queued N · Blocked M · N for you" (the wait counts only when either is above 0; decision 57). **Empty** (no tickets; B35): no bar, and "No tickets yet · Status" (for example "No tickets yet · In progress"), never "0/0 done". |
 | `ProgressMap` | epic, label, work | `items, scopeTitle` | §6.3.4. |
 | `HandoffPacket` | live round, past round | `packet, verdicts` | §6.4. |
 | `Toast` | info, with Undo | `message, onUndo?` | Bottom right. 3.2 s, or 6 s with Undo. `role=status`. |
@@ -193,12 +193,19 @@ Copy the prototype's `.tl` token block. Light and dark values below; the prototy
 | In progress | violet | #9d68fb / #7361ff | solid |
 | Review | magenta | #b51c6e / #ea509e | solid |
 | Done | green | #136c3f / #5befa0 | solid |
+| Queued (a state; decision 57) | Ready's blue, calm | #0f65af / #35c3fc | hatched (dashed on chips and edges) |
 | Blocked (a state) | red | #ad0707 / #e0503c | solid |
 | Canceled | dark gray, with strikethrough | #303337 / #727070 | hatched |
 
 **One status colour system (B47).** Each status has three tokens in `tokens.css`: `--st-<status>` (solid: bars, legend swatches, card edges), `--st-<status>-soft` (chip fill) and `--st-<status>-text` (chip text). Chips, the Map's bar and legend, epic-card bars, Settings project bars and card edges all use them, and nothing else defines a status colour. A unit test over the real tokens holds, in both themes: every pair of bar colours at least 20 apart in CIEDE2000; at least 12 apart under simulated deuteranopia and protanopia; chip text at least 4.5:1; bars at least 3:1 on the track and the panel; every status at least 14 from the epic type colour. Bars always carry text or an accessible label, so status is never told by colour alone.
 
-Blocked is derived and shows as a separate red chip, "⊘ Blocked by RCP-12, …", next to the status. When a blocker is done but its link needs more, the chip says what it's waiting for: "⊘ Blocked by RCP-12 (needs merge)" or "(needs your verification)".
+**Queued, Blocked or Held (decision 57; BUILD_SPEC §5.40).** An item with an open blocker shows one chip (`WaitChip`, `data-wait`) next to its status, from the server's one classification. Each has a glyph and words, never colour alone:
+
+- **Queued** (Ready's tokens with a dashed border, calm): "◷ Queued · Starts after RCP-12" or "… and 2 more", naming the open blocker likeliest to clear first.
+- **Blocked** (`--st-blocked`, red), only when the wait needs attention: "⊘ Blocked · No next step · RCP-9" on cards and lists, with the plain sentence as its `title`, and spelled out on the item page ("⊘ Blocked · RCP-9 has no next step: nobody has shaped or assigned it"). The reasons, in words: No next step, Owner decision not asked, Canceled blocker, Blocker loop, Parked too long.
+- **Held** (neutral, with the pause icon): "Held by your decision", and the decision's title on the item page.
+
+The item page adds "Open blockers: RCP-12 (needs merge), RCP-14" in plain text, with "(needs merge)" or "(needs your verification)" on a done blocker whose link needs more.
 
 **Decision authority** (decision records, §6.3.5). This is deliberately distinct from review provenance, whose solid fill means only human review approval:
 
@@ -282,7 +289,7 @@ Answers three questions in about ten seconds: are agents making progress, is any
 2. **Four numbers**, each a link to the view behind it:
    - **Completed:** "18 tickets" → `/overview/completed?window=`, then "+6 vs the previous 7 days" (the sign and words carry the direction);
    - **Tickets with agents (B56):** "4 being worked" and "3 parked/waiting" → `/overview/agents_working`, `/overview/agents_waiting`. Tickets at producer level, never raw runs or sessions. *Being worked* is the sidebar badge, from the same `agents_now`, and the badge uses the same words. One line under the four cards says: "Counts tickets in Docket, not agent sessions. Orca can show more sessions, because coordinators and helpers don't each hold a ticket." No session count is shown or estimated;
-   - **In flight:** "23 tickets" → `/overview/in_flight`, "5 blocked" → Work, *Blocked*, "7 of 74 Ready can start" → Work, *Startable* (decision 48);
+   - **In flight:** "23 tickets" → `/overview/in_flight`, "Queued 7 · Blocked 5" (each → Work, *Queued* or *Blocked*; decision 57), "7 of 74 Ready can start" → Work, *Startable* (decision 48);
    - **Needs you:** "3 to act on", then reviews, questions, decisions and problems, each linking to its section. "✓ Nothing" at zero.
 3. **Needs you and Health** (`2fr | 1fr`, one column at ≤ 1180 px). **Needs you · N** (`#needs-you`) holds every owner action, in the order below; a card with no rows isn't shown. With no actions, one line: "Nothing needs you". **Health** (`data-card="health"`): "n problems need you" (→ `#problems`) or "No problems need you"; the last backup (→ Settings; "!" when it failed, is overdue or never ran); the **at-risk worktrees line** (→ Agents → Workspaces; B56), which separates what needs the owner from what doesn't, such as "3 worktrees hold unsaved work. None need you: agents own 2, and you kept 1 for later." It has a ✓ when none need the owner, a ? when Docket can't tell who owns one (it says so), and a ! only when one needs an owner choice under decision 41's routing; the collapsed lines "Agents are handling N problems" and "You acknowledged N problems"; "n agent file changes proposed"; "Docket handled N overlaps today"; and *All runs →*. Each state has a ✓ or ! as well as its words. None of these lines adds to the badge.
 4. **Completed per day** (per hour for 24h): one series in the Done token, with a one-sentence summary, a **vertical axis** of whole-number ticks from 0 (steps of 1, 2 or 5 times a power of ten, at most four intervals) with gridlines, the first and last date, and a screen-reader table of the same values and tickets. **Each bar opens a tooltip (B56)** on hover or keyboard focus: the date or hour, the count, and up to 6 tickets (newest first, ID and title, each a link), then "and N more"; an empty bucket says "None completed". The bars are one tab stop: ←, →, Home and End move between them, Tab goes into the tooltip's links, and Esc closes it. The tooltip stays inside the window at every edge. **Workload · N open:** a status bar per epic (`StatusBar`, B47 tokens) with a legend and a text label, its count linking to Work filtered to that epic ("No epic" → `/overview/no_epic`). The top 6 epics, then *View all open work →*.
@@ -340,7 +347,7 @@ Answers in about a minute what finished, what's stuck, what needs the owner and 
 - **Header:** *← Overview*, h1 "Daily brief" with its "?", a labelled **Day** date field (latest: today in the configured timezone), *Today*, and a line naming the day and timezone ("Nov 23, in Europe/London, so far."). `?day=` holds the choice, and a value that isn't a real day is ignored.
 - **Four cards** (two columns, one at ≤ 1180 px), each with an h2:
   - **What finished · N:** ticket and the time it finished.
-  - **What's stuck:** **Parked longest · N** (how long, and the next step), **Blockers nobody owns · N** (status, and how many tickets it holds up) and **Held by your decision · N**, which says "These are waiting as you decided. Nothing is wrong." and names the decision. It appears only when a run has one (B58). On a past day the card says it's shown as it is now.
+  - **What's stuck:** **Blocked · N** first (decision 57: each with why, in plain words, → Work *Blocked*), then **Parked longest · N** (how long, and the next step), **Blockers nobody owns · N** (status, and how many tickets it holds up) and **Held by your decision · N**, which says "These are waiting as you decided. Nothing is wrong." and names the decision. It appears only when a run has one (B58). A quiet last line says how many tickets are queued, "waiting their turn behind work that is moving. Nothing is wrong." (→ Work *Queued*). On a past day the card says it's shown as it is now.
   - **What needs you · N:** the same number as the badge, from the same query, one line per action.
   - **What changed in decisions · N:** the title, what happened and who did it.
 - **Every line is a link** to its ticket. A decision wider than one ticket links to the project's Decisions page, and an action with no ticket to where it's handled. Each list shows up to 8 lines, then "and N more". An empty section says so in one line.
@@ -367,7 +374,7 @@ Definitions are in BUILD_SPEC §5.34. **With the source off none of this renders
 - **Header row:** h1 "Work", and on the right a segmented control: Board | List | Map | Timeline.
 - **Filter row** (Board, List and Map; Timeline uses the same epic and label scope, and none of the status filters). Owner feedback from the Gameflow pilot (B43): the old row of seven chips wasn't what the owner reached for, so three quick filters stay on the row and the rest moved into a menu:
   - Epic select, Label select;
-  - **quick filters**, chips with counts, one at a time: **Active** (not done or canceled; the default view), **Startable** and **Waiting** (Ready, split by whether it can start now; decision 48, BUILD_SPEC §5.30), **Blocked**, **In progress**. Each chip's `title` is "Agent query: <query>" (BUILD_SPEC §13; Active is `-status:done -status:canceled`, In progress `status:progress`);
+  - **quick filters**, chips with counts, one at a time: **Active** (not done or canceled; the default view), **Startable** and **Waiting** (Ready, split by whether it can start now; decision 48, BUILD_SPEC §5.30), **Queued** and **Blocked** (an open blocker, split by whether the wait needs attention; decision 57: `is:queued`, `is:blocked -is:queued -is:held`; Held is in neither), **In progress**. Each chip's `title` is "Agent query: <query>" (BUILD_SPEC §13; Active is `-status:done -status:canceled`, In progress `status:progress`);
   - a **Filters** menu button (`aria-haspopup="menu"`, a `menu` of `menuitemcheckbox`es, each with its count): *For you*, *Human review later*, *Deferred review*, *Live run*, *Has a problem* (an open problem on the item, decision 37), *Archived* (only once something is archived, or while ticked), a separator, then *Shows done* and *Shows canceled*. Enter, Space or Down opens it on the first entry (Up on the last); Up, Down, Home and End move; Enter or Space ticks and keeps it open; Escape closes it and returns to the button; Tab or a click outside closes it. The button shows a count badge when anything is ticked;
   - **combining:** ticked checks narrow the quick filter (AND); *Shows done* and *Shows canceled* add those items back on top of it (OR). *Archived* swaps the view to archived items (so archived done items need *Shows done* too). The old *All* is *Active* with both shows ticked;
   - each ticked entry shows as a removable pill next to the chips ("For you ×"), and a *Clear* button (shown while anything differs from Active) goes back to Active with nothing ticked. *In planning* and *Ready to start* aren't in the menu but still apply from the URL, as pills;
@@ -388,7 +395,7 @@ Definitions are in BUILD_SPEC §5.34. **With the source off none of this renders
   - both show an Undo toast.
 
 #### 6.2.2 List
-A table with these columns: ID, Title (type icon + title + labels, with the epic link below), Status (+ blocked chip), Priority, Lead · run, Human review, Last activity. The whole row is clickable. Empty: "No items match."
+A table with these columns: ID, Title (type icon + title + labels, with the epic link below), Status (+ the Queued, Blocked or Held chip), Priority, Lead · run, Human review, Last activity. The whole row is clickable. Empty: "No items match."
 
 #### 6.2.3 Map
 A `ProgressMap` of the filtered set, titled "Outside this view". When no epic or label is chosen, show the callout "Tip: pick an epic or label above. A whole project on one map gets busy."
@@ -409,7 +416,7 @@ A `ProgressMap` of the filtered set, titled "Outside this view". When no epic or
 
 - **Where:** a **Pick next epic** button in Work's header with one project chosen opens `/projects/:key/next-epic`. With All projects there's no button.
 - **The limit,** once, under the h1: "Based on dependencies recorded in Docket."
-- **One table** (`data-pick-epic`), with a row group per fit: **Good to hand off**, **Already being worked**, **Likely to park**. Columns: Epic, Can finish on its own ("18 of 18"), Can start now (the count and the first three IDs), Waits on (each epic links to it; "No epic" for loose tickets), Unblocks elsewhere, Not shaped yet, Being worked (who, and lead or producer).
+- **One table** (`data-pick-epic`), with a row group per fit: **Good to hand off**, **Already being worked**, **Likely to park**. Columns: Epic, Can finish on its own ("18 of 18"), Can start now (the count and the first three IDs, then "Queued N · Blocked M" when either is above 0; decision 57), Waits on (each epic links to it; "No epic" for loose tickets), Unblocks elsewhere, Not shaped yet, Being worked (who, and lead or producer).
 - **Best next:** a text chip on the top available row, with its one-line reason. A likely-to-park row says why in words. Each row links to the epic and to its critical path on the Map.
 - **Sorting:** every column heading is a button with `aria-sort`. First press sorts, second reverses, third returns to the best-fit order. Rows stay inside their group.
 - **Paused project:** the column reads **Can start once resumed**, with one line saying so. The counts aren't zeroed.
@@ -422,7 +429,7 @@ A `ProgressMap` of the filtered set, titled "Outside this view". When no epic or
 - **First line:** ID, type badge, "in ◆ Epic" link + epic ID, labels, and an "Imported from Jira" chip when imported.
 - **h1:** the title. Editable inline: an *Edit* pencil button appears on hover or focus (see "Inline editing" below).
 - **Second line:**
-  - status chip and blocked chip;
+  - status chip and the Queued, Blocked or Held chip;
   - closed provenance on done items: "Closed after your human review", "Closed · n review deferred, not verified", or "Closed by agent: checks passed, no human review";
   - Priority select (P1–P3);
   - contextual actions:
@@ -472,7 +479,7 @@ A `ProgressMap` of the filtered set, titled "Outside this view". When no epic or
 
 | Tab | Ticket | Epic | Label extras |
 |---|---|---|---|
-| **Details** (default) | Outcome (summary "n acceptance criteria"); Decisions (summary "n in scope · n by agents"; hidden when there are none); Documents (summary count); Dates and effort (summary "Nov 4 → Nov 11" or "not set") | Brief and documents; Decisions (this epic's own, plus a link "n project decisions"); Tickets in this epic (summary "n/N done · n ready but blocked · n for you"; with no tickets, "No tickets yet · Status", the same as its card, and the empty text "No tickets yet. Add one with + New item in this epic."), grouped by status. Each row: type icon, ID, title, then the same pieces a Board card uses: the `BlockedChip`, a `ForYouChip`, and the lead's `RunLine`. Archived tickets fold into "+ N archived · Show". | — |
+| **Details** (default) | Outcome (summary "n acceptance criteria"); Decisions (summary "n in scope · n by agents"; hidden when there are none); Documents (summary count); Dates and effort (summary "Nov 4 → Nov 11" or "not set") | Brief and documents; Decisions (this epic's own, plus a link "n project decisions"); Tickets in this epic (summary "n/N done · Queued n · Blocked n · n for you"; decision 57; with no tickets, "No tickets yet · Status", the same as its card, and the empty text "No tickets yet. Add one with + New item in this epic."), grouped by status. Each row: type icon, ID, title, then the same pieces a Board card uses: the `WaitChip` (Queued, Blocked or Held), a `ForYouChip`, and the lead's `RunLine`. Archived tickets fold into "+ N archived · Show". | — |
 | **Checklist** | Work (summary "n/N done · the agent's plan"; *Checklist history* in the header when there are revisions); Agent review ("n/N passed · what the agent verifies itself"); Human review ("n items · packet ready · what you verify yourself"; *Open packet* in the header when ready) | Same three sections, at epic level | Count: work done/total on tickets; total item count on epics; amber dot when a packet is ready |
 | **Dependencies** (ticket) | A plain card. h3 "Waits on n · unblocks n"; the 1-hop view (§6.3.3); a cycle callout with a *Remove "A blocks B"* button per cycle link; "Relates to (doesn't block): …"; *See it on the epic map →* | — | Count = links; red dot when in a cycle |
 | **Map** (epic) | — | Epic-level review strip (when the epic has human review), then a `ProgressMap` of its children | Count "done/total" |
@@ -564,8 +571,8 @@ Used on the epic Map tab, label pages and Work → Map.
 
 - **Header:**
   - "n / N done" (big n);
-  - a bar split by status in order: done, review, progress, ready, blocked, planning, inbox, in the §5 status colours (Ready that can't start is its own red segment, so the bar adds up to the total);
-  - status counts with swatches, including "n ready but blocked" in red;
+  - a bar split by status in order: done, review, progress, ready, queued, blocked, planning, inbox, in the §5 status colours (decision 57: Ready behind an open blocker is its own **queued** or red **blocked** segment, so the bar adds up to the total);
+  - status counts with swatches, including "n queued" and "n blocked" (only that one in red);
   - "n ready to start · working on wave x of y".
 - **Columns are waves:**
   - "Wave 1 / nothing blocks these";
@@ -578,7 +585,7 @@ Used on the epic Map tab, label pages and Work → Map.
   - type icon · ID (+ "other epic ↗" or project) · title (2 lines) · "Status · run state" or "· after RCP-12" on Planning items;
   - left edge in the status colour;
   - done = green fill with ✓;
-  - blocked Ready = red border and "blocked";
+  - Blocked Ready = red border and "blocked"; Queued Ready = a dashed `--st-ready` outline (the left edge keeps the status colour) and "queued", each with the plain sentence as its `title`;
   - human review person icon at the top right (§5);
   - each card is a focusable button that opens the item.
 - **Spacing:** columns 200px with gutters of at least 76px; at least 16px between rows; both grow with the number of arrow lanes they carry; the canvas padding is 18px 22px; maximum height 540px; dotted background.
@@ -598,7 +605,7 @@ Used on the epic Map tab, label pages and Work → Map.
 - **Critical path (decision 48, B60)**, on the epic Map tab and Work → Map:
   - *What's holding up* picks a ticket or epic as the goal (`?goal=`). The ticket's Dependencies tab and the epic's Map tab link to it;
   - above the map: **Move next**, the ticket, its reason as a labelled chip and one plain sentence, then the chain's length and the number of open blockers. A blocker loop gets a callout;
-  - *The chain as a list* is the same chain as an ordered list, first ticket to move first, each with its status in words;
+  - *The chain as a list* is the same chain as an ordered list, first ticket to move first, each with its status in words, and "Queued: Starts after …" or "Blocked: <why>" while it has an open blocker (decision 57);
   - on the map, chain cards are outlined and read "Step n of N" ("Move next · Step 1 of N" on the first), chain arrows are heavier, and other arrows fade. Other cards are muted without opacity, so their text keeps its contrast. The ticket to move next scrolls into view;
   - chain tickets outside the view are added as outside cards and aren't counted in the header.
 

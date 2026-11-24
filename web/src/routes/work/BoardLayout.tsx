@@ -1,7 +1,21 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link } from 'react-router';
-import { STATUS_LABELS, type Status, type WorkItem } from '@docket/shared';
+import {
+  STATUS_LABELS,
+  WAIT_KIND_LABELS,
+  type Status,
+  type WaitKind,
+  type WorkItem,
+} from '@docket/shared';
+
+/** Decision 57: the Waiting list's ID chips. Red only for Blocked; Queued is calm. */
+const WAIT_CHIP: Record<WaitKind | 'other', string> = {
+  blocked: 'st-blocked',
+  queued: 'st-queued',
+  held: 'c-gray',
+  other: 'st-ready',
+};
 import { Button, Icon, TicketCard } from '../../components/kit';
 import { apiClient } from '../../app/queryClient';
 import { queryKeys } from '../../lib/api';
@@ -95,15 +109,25 @@ export function BoardLayout({
                       <div className="colmini">
                         {wait.slice(0, limit).map((i) => (
                           <span className="colmini-row" key={i.id} data-waiting={i.id}>
+                            {/* Decision 57: red only when the wait needs attention. */}
                             <Link
                               to={paths.item(i.id)}
-                              className="chip st-blocked mono"
+                              className={`chip mono ${WAIT_CHIP[i.wait?.kind ?? 'other']}`}
                               title={i.title}
+                              data-wait={i.wait?.kind}
                             >
                               {i.id}
                             </Link>
-                            {i.ready_state?.waiting_on && (
-                              <span className="src">waits on {i.ready_state.waiting_on}</span>
+                            {i.wait ? (
+                              <span className="src">
+                                {i.wait.kind === 'held'
+                                  ? i.wait.text
+                                  : `${WAIT_KIND_LABELS[i.wait.kind]} · ${i.wait.text}`}
+                              </span>
+                            ) : (
+                              i.ready_state?.waiting_on && (
+                                <span className="src">waits on {i.ready_state.waiting_on}</span>
+                              )
                             )}
                           </span>
                         ))}

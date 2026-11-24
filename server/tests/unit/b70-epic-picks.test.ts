@@ -58,7 +58,10 @@ const forceBlocks = (from: string, to: string) => {
     .run(`lnk_${from}_${to}`, from, to, at, at);
 };
 const read = (project = 'TST') =>
-  pickEpics({ db: d.server.runtime.db, now: d.clock.now().toISOString() }, project);
+  pickEpics(
+    { db: d.server.runtime.db, now: d.clock.now().toISOString(), parkMaxMs: 24 * 3_600_000 },
+    project,
+  );
 const row = (id: string, project = 'TST') => read(project).epics.find((e) => e.id === id)!;
 
 describe('can finish on its own', () => {
@@ -353,7 +356,10 @@ describe('the list', () => {
         stress: true,
       });
       const started = performance.now();
-      const out = pickEpics({ db, now: big.clock.now().toISOString() }, 'STR');
+      const out = pickEpics(
+        { db, now: big.clock.now().toISOString(), parkMaxMs: 24 * 3_600_000 },
+        'STR',
+      );
       expect(performance.now() - started).toBeLessThan(1000);
       expect(out.epics.length).toBeGreaterThan(0);
       for (const e of out.epics) {
@@ -378,6 +384,7 @@ describe('order, fit and the Best next reason', () => {
     waits_on: [],
     unblocks_elsewhere: 0,
     not_shaped: 0,
+    waiting: { queued: 0, blocked: 0 },
     worked_by: [],
     fit: 'available',
     park_reason: null,

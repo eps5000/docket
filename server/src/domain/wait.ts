@@ -36,7 +36,7 @@ import { clearedAt, parkInfo, parseJson, waitLink } from './recovery-model.js';
 import { ACTIVITY_EVENTS, projectCoordinators } from './run-activity.js';
 import type { WriteContext } from './write.js';
 
-const GRACE_MS = WAIT_FLAGS.grace_minutes * 60_000;
+export const GRACE_MS = WAIT_FLAGS.grace_minutes * 60_000;
 const REPARK_MS = WAIT_FLAGS.repark_minutes * 60_000;
 
 /** Item events that show someone is really on it. Docket's own wait bookkeeping isn't one. */
@@ -198,7 +198,7 @@ export class WaitReader {
   }
 
   /** The item's lead, while its claim is live. A parked lead counts. */
-  private lead(id: string): RunRow | null {
+  lead(id: string): RunRow | null {
     if (!this.leads.has(id)) {
       const row = this.db.sqlite
         .prepare(
@@ -211,7 +211,7 @@ export class WaitReader {
   }
 
   /** The last real activity on an item, never earlier than its creation. */
-  private lastActivity(id: string): string {
+  lastActivity(id: string): string {
     const known = this.activity.get(id);
     if (known) return known;
     const sql = this.db.sqlite;
@@ -231,7 +231,7 @@ export class WaitReader {
   }
 
   /** What already waits on the owner for this item, in words; null when nothing does. */
-  private ownerAction(id: string): string | null {
+  ownerAction(id: string): string | null {
     if (this.owner.has(id)) return this.owner.get(id)!;
     // Decision 53: nobody else can start it, so a wait on it is the owner's to move.
     const project = this.index.project(id);
@@ -281,7 +281,7 @@ export class WaitReader {
    * decided since `since`, or a decision recorded on the item. Once answered it
    * isn't "never asked", even when it was raised just before the run parked.
    */
-  private askedSince(id: string, since: string): boolean {
+  askedSince(id: string, since: string): boolean {
     const sql = this.db.sqlite;
     return (
       !!sql

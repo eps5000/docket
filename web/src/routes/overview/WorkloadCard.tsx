@@ -1,6 +1,7 @@
 import { Link } from 'react-router';
 import {
   STATUS_LABELS,
+  WAIT_KIND_LABELS,
   WORKLOAD_BUCKETS,
   type OverviewResponse,
   type WorkloadBucket,
@@ -13,9 +14,10 @@ export const WORKLOAD_ROWS = 6;
 
 type Group = OverviewResponse['workload'][number];
 
-const bucketLabel = (b: WorkloadBucket) => (b === 'blocked' ? 'Blocked' : STATUS_LABELS[b]);
+const bucketLabel = (b: WorkloadBucket) =>
+  b === 'blocked' || b === 'queued' ? WAIT_KIND_LABELS[b] : STATUS_LABELS[b];
 
-/** "Visual: 3 Ready, 1 Blocked": the bar's text equivalent. */
+/** "Visual: 3 Ready, 2 Queued, 1 Blocked": the bar's text equivalent. */
 export function workloadText(g: Group): string {
   const name = g.epic_id ? (g.title ?? g.epic_id) : 'No epic';
   const parts = WORKLOAD_BUCKETS.filter((b) => g.counts[b] > 0).map(

@@ -24,6 +24,7 @@ import { upstreamOf } from './critical-path.js';
 import { compareIds } from './links.js';
 import { BlockIndex, OPEN_STORED_SQL, actorName, leaseExpired, ms, type RunRow } from './model.js';
 import { readyStates } from './next-work.js';
+import { waitKindsOf } from './wait-kind.js';
 import { projectPause } from './project-pause.js';
 
 /** How many startable tickets a row names. */
@@ -307,7 +308,10 @@ export function bestReason(p: EpicPick, paused: boolean): string {
 
 // ---- The read ----
 
-export function pickEpics(ctx: { db: Db; now: string }, project: string): PickEpicResponse {
+export function pickEpics(
+  ctx: { db: Db; now: string; parkMaxMs: number },
+  project: string,
+): PickEpicResponse {
   const { db, now } = ctx;
   const exists = db.sqlite
     .prepare('SELECT 1 FROM projects WHERE key = ? AND deleted_at IS NULL')
@@ -332,6 +336,7 @@ export function pickEpics(ctx: { db: Db; now: string }, project: string): PickEp
   // Decision 54: a pause doesn't make an epic look empty, so it's left out here.
   const ready = readyStates(db, index, readyIds, { ignorePause: true });
   const holders = holdersByItem(db, graph, now);
+  const kinds = waitKindsOf(db, now, index, ctx);
 
   const rows = epics
     .map((e): EpicPick => {
@@ -344,6 +349,7 @@ export function pickEpics(ctx: { db: Db; now: string }, project: string): PickEp
         (t) => t.status === 'inbox' || t.status === 'planning',
       ).length;
       const worked_by = workedBy([e.id, ...tickets.map((t) => t.id)], holders);
+      const waits = kinds.counts(tickets.map((t) => t.id));
       const park_reason = parkReason({
         open: tickets.length,
         self_contained,
@@ -364,6 +370,7 @@ export function pickEpics(ctx: { db: Db; now: string }, project: string): PickEp
         waits_on,
         unblocks_elsewhere: graph.unblocksElsewhere(e.id),
         not_shaped,
+        waiting: { queued: waits.queued, blocked: waits.blocked },
         worked_by,
         fit: worked_by.length > 0 ? 'being_worked' : park_reason ? 'likely_parks' : 'available',
         park_reason: worked_by.length > 0 ? null : park_reason,

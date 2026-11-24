@@ -15,6 +15,7 @@ export * from './compact.js';
 export * from './api/index.js';
 export * from './usage-prices.js';
 export * from './work-filter.js';
+export * from './wait-kind.js';
 export * from './install.js';
 export * from './legacy.js';
 export * from './connection.js';

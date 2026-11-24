@@ -5,6 +5,7 @@ import { useId } from 'react';
 import { Link } from 'react-router';
 import {
   STATUS_LABELS,
+  waitCountsText,
   type EpicCard as EpicCardData,
   type LeadParked,
   type WorkItem,
@@ -12,7 +13,7 @@ import {
 import { formatAge, isoTitle } from '../../lib/format';
 import { paths } from '../../lib/paths';
 import { Button } from './Button';
-import { BlockedChip, Chip } from './Chip';
+import { BlockedChip, Chip, WaitChip } from './Chip';
 import { Priority, RunLine, TypeIcon, parkedReason } from './Badges';
 import { Label } from './Label';
 import { StatusBar } from './StatusBar';
@@ -77,8 +78,9 @@ export function ReviewChip({
 }
 
 /**
- * A board card. Variants follow the item: blocked (red left edge), for you
- * (amber left edge), done (+ *Archive*, outside the card link). Unclaimed
+ * A board card. Variants follow the item: Blocked (red left edge; decision
+ * 57: only when the wait needs attention), for you (amber left edge), Queued
+ * (calm dashed edge), done (+ *Archive*, outside the card link). Unclaimed
  * cards show no run line. Review cards with a ready packet open the packet.
  */
 export function TicketCard({
@@ -93,7 +95,9 @@ export function TicketCard({
   onUnarchive?: () => void;
 }) {
   const toPacket = item.status === 'review' && item.packet_ready;
-  const edge = item.blocked ? 'isblocked' : item.for_you ? 'owed' : '';
+  const kind = item.wait?.kind ?? (item.blocked ? 'blocked' : null);
+  const edge =
+    kind === 'blocked' ? 'isblocked' : item.for_you ? 'owed' : kind === 'queued' ? 'isqueued' : '';
   const card = (
     <Link
       to={toPacket ? paths.review(item.id) : paths.item(item.id)}
@@ -129,7 +133,7 @@ export function TicketCard({
         item.human_review.declared > 0 ||
         item.shared_flags) && (
         <div className="meta">
-          <BlockedChip blockers={item.blocked_by} />
+          {item.wait ? <WaitChip wait={item.wait} /> : <BlockedChip blockers={item.blocked_by} />}
           <ReviewChip item={item} />
           <SharedFlags flags={item.shared_flags} />
         </div>
@@ -222,7 +226,7 @@ export function EpicCard({
   forYou?: number;
   current?: boolean;
 }) {
-  const { total, done, by_status } = epic.children;
+  const { total, done, by_status, queued = 0, blocked = 0 } = epic.children;
   const depsId = useId();
   return (
     <Link
@@ -246,6 +250,10 @@ export function EpicCard({
         {total === 0
           ? epicEmptyText(epic.status)
           : `${done}/${total} done · ${STATUS_LABELS[epic.status]}`}
+        {/* Decision 57: what waits its turn, and what needs attention, in words. */}
+        {queued + blocked > 0 && (
+          <span data-epic-waits=""> · {waitCountsText({ queued, blocked })}</span>
+        )}
         {forYou > 0 && (
           <>
             {' · '}

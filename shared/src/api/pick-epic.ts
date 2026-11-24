@@ -42,6 +42,8 @@ export const epicPickSchema = z.object({
   unblocks_elsewhere: z.number().int(),
   /** Open tickets in Inbox or Planning. */
   not_shaped: z.number().int(),
+  /** Decision 57: open tickets waiting their turn, and those whose wait needs attention. */
+  waiting: z.object({ queued: z.number().int(), blocked: z.number().int() }),
   /** Who holds the epic or its tickets right now. Empty when nobody does. */
   worked_by: z.array(
     z.object({

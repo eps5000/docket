@@ -241,7 +241,10 @@ test.describe('the item page', () => {
     const ticket = (id: string) => page.locator(`[data-ticket="${id}"]`);
     await expect(ticket('RCP-14').locator('.runline')).toContainText('live');
     await expect(ticket('RCP-14').locator('.runline')).toContainText('claude · orca-w3');
-    await expect(ticket('RCP-16')).toContainText('Blocked by');
+    // Decision 57: its blockers are moving (a live lead, a packet in review), so it is Queued.
+    await expect(ticket('RCP-16').locator('[data-wait="queued"]')).toHaveText(
+      '◷ Queued · Starts after RCP-19 and 1 more',
+    );
     await expect(ticket('RCP-12')).toContainText('For you');
     await expect(ticket('RCP-29').locator('.runline')).toHaveCount(0);
   });

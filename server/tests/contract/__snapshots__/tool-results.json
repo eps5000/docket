@@ -3255,6 +3255,27 @@
             ],
             "additionalProperties": false
           },
+          "wait_kind": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "queued",
+                  "blocked",
+                  "held"
+                ]
+              },
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "text"
+            ],
+            "additionalProperties": false
+          },
           "waiting_runs": {
             "type": "object",
             "properties": {
@@ -4205,6 +4226,17 @@
                   "items": {
                     "type": "string"
                   }
+                },
+                "wait": {
+                  "type": "string",
+                  "enum": [
+                    "queued",
+                    "blocked",
+                    "held"
+                  ]
+                },
+                "why": {
+                  "type": "string"
                 }
               },
               "required": [
@@ -4212,7 +4244,8 @@
                 "title",
                 "priority",
                 "unblocks",
-                "blocked_by"
+                "blocked_by",
+                "wait"
               ],
               "additionalProperties": false
             }

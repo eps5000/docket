@@ -74,6 +74,7 @@ import { pendingProposalCount } from './agent-proposals.js';
 import { CREATED_BY_SQL, onboardingItemIds, readySessions } from './onboarding.js';
 import { driftProblems, runInstructions } from './drift.js';
 import { readyStates } from './next-work.js';
+import { waitKindsOf } from './wait-kind.js';
 import { needsYouShared, sharedFlagsOf } from './shared-changes.js';
 import {
   ackCovers,
@@ -1398,15 +1399,26 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
       return overviewOf(scoped(r, windows(), input.scope), input.window, {
         tz: deps.config.tz,
         lastBackupAt: lastBackupAt(r),
+        parkMaxMs: deps.config.parkMaxMs,
       });
     },
 
     overviewItems(r, input) {
-      return overviewItemsOf(scoped(r, windows(), input.scope), input.metric, input.window);
+      return overviewItemsOf(
+        scoped(r, windows(), input.scope),
+        input.metric,
+        input.window,
+        deps.config,
+      );
     },
 
     brief(r, input) {
-      return briefOf(scoped(r, windows(), input.scope), input, deps.config.tz);
+      return briefOf(
+        scoped(r, windows(), input.scope),
+        input,
+        deps.config.tz,
+        deps.config.parkMaxMs,
+      );
     },
 
     findProblem(r, id): FoundProblem | null {
@@ -1464,6 +1476,8 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
       const parked = leadParkedOf(s.db, summaries, s.now, s.index);
       const sharedFlags = sharedFlagsOf(r.db);
       const producers = producersByItem(r.db);
+      // Decision 57: an open blocker is Queued, Blocked or Held, by the one classification.
+      const kinds = waitKindsOf(r.db, s.now, s.index, deps.config);
       // Decision 48: Ready, split into what can start and what waits, and on what.
       const ready = readyStates(
         r.db,
@@ -1475,10 +1489,12 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         const flags = sharedFlags.get(i.id);
         const producer = producers.get(i.id);
         const ready_state = ready.get(i.id);
+        const wait = kinds.of(i.id);
         return {
           ...i,
           lead_parked: parked(i),
           ...(ready_state ? { ready_state } : {}),
+          ...(wait ? { wait } : {}),
           ...(producer ? { producer } : {}),
           packet_ready,
           for_you: packet_ready || att.questions.has(i.id),
@@ -1511,7 +1527,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
       };
       const facts = rows.map((i) => ({
         status: i.status,
-        blocked: i.blocked,
+        wait: i.wait?.kind ?? null,
         archived: i.archived,
         check: (k: WorkCheck) => checks[k](i),
       }));
@@ -1549,6 +1565,10 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
           children.set(i.epic_id, [...(children.get(i.epic_id) ?? []), i]);
         }
       }
+      const waitCounts = (kids: readonly ItemRow[]) => {
+        const c = kinds.counts(kids.filter((k) => k.archived_at === null).map((k) => k.id));
+        return { queued: c.queued, blocked: c.blocked };
+      };
       const waits = epicWaits(
         r.db,
         s.index,
@@ -1565,6 +1585,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
             done: kids.filter((k) => k.status === 'done').length,
             by_status,
             for_you: kids.filter((k) => att.packets.has(k.id) || att.questions.has(k.id)).length,
+            ...waitCounts(kids),
           },
           ...(waits.has(e.id) ? { waits_on: waits.get(e.id)! } : {}),
         };
@@ -1602,11 +1623,17 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         childRows,
       );
       const childParked = leadParkedOf(r.db, childSummaries, r.now, index);
-      const children = childSummaries.map((c: ItemSummary) => ({
-        ...c,
-        for_you: childPackets.has(c.id) || childQuestions.has(c.id),
-        lead_parked: childParked(c),
-      }));
+      const kinds = waitKindsOf(r.db, r.now, index, deps.config);
+      const children = childSummaries.map((c: ItemSummary) => {
+        const wait = kinds.of(c.id);
+        return {
+          ...c,
+          for_you: childPackets.has(c.id) || childQuestions.has(c.id),
+          lead_parked: childParked(c),
+          ...(wait ? { wait } : {}),
+        };
+      });
+      const itemWait = kinds.of(row.id);
 
       // Decision records (§6.3.5), every status (the section can show inactive ones):
       // everything that applies (decisions.ts, the one scope rule). Decision 38: the page
@@ -1794,6 +1821,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         // Decision 45: what its parked lead waits for, and the parked runs it would free.
         ...waitOf(r, row.id, index),
         ...(epicWait ? { epic_waits: epicWait } : {}),
+        ...(itemWait ? { item_wait: itemWait } : {}),
       };
     },
 

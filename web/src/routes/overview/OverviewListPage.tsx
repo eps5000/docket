@@ -114,7 +114,10 @@ function Row({ row: r, metric }: { row: OverviewItemRow; metric: OverviewMetric 
       <td>
         <span className="row">
           <StatusChip status={r.status} />
-          {r.blocked && <span className="chip st-blocked">Blocked</span>}
+          {/* Decision 57: red only when the wait needs attention. */}
+          {r.wait === 'blocked' && <span className="chip st-blocked">Blocked</span>}
+          {r.wait === 'queued' && <span className="chip st-queued">Queued</span>}
+          {r.wait === 'held' && <span className="chip c-gray">Held</span>}
         </span>
       </td>
       <td className="ov-title">

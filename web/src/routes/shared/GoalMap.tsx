@@ -3,6 +3,7 @@ import { useId, useMemo } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router';
 import {
   STATUS_LABELS,
+  WAIT_KIND_LABELS,
   type CriticalNextReason,
   type CriticalPathResponse,
   type LinkEdge,
@@ -85,8 +86,8 @@ function ChainSummary({ data }: { data: CriticalPathResponse }) {
       <details className="cp-list">
         <summary>The chain as a list ({plural(chain.length, 'ticket')})</summary>
         <ol aria-label={`Chain holding up ${goal.id}, first ticket to move first`}>
-          {chain.map(({ item, in_cycle }) => (
-            <li key={item.id}>
+          {chain.map(({ item, in_cycle, wait }) => (
+            <li key={item.id} data-step-wait={wait?.kind}>
               <Link className="mono" to={paths.item(item.id)}>
                 {item.id}
               </Link>{' '}
@@ -94,6 +95,11 @@ function ChainSummary({ data }: { data: CriticalPathResponse }) {
               <span className="muted">
                 · {STATUS_LABELS[item.status]}
                 {in_cycle ? ' · in a blocker loop' : ''}
+                {/* Decision 57: Queued waits its turn; Blocked says why. */}
+                {wait && wait.kind !== 'held'
+                  ? ` · ${WAIT_KIND_LABELS[wait.kind]}: ${wait.text}`
+                  : ''}
+                {wait?.kind === 'held' ? ` · ${wait.text}` : ''}
                 {item.id === next.id ? ' · move this next' : ''}
               </span>
             </li>

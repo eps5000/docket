@@ -284,6 +284,8 @@ describe('the brief', () => {
       parked: { count: 0, rows: [] },
       unowned_blockers: { count: 0, rows: [] },
       held: { count: 0, rows: [] },
+      blocked: { count: 0, rows: [] },
+      queued: 0,
     });
     expect(b.decisions).toEqual({ count: 0, rows: [] });
     expect(JSON.stringify(b)).not.toMatch(/cost|estimate|token/i);

@@ -214,6 +214,7 @@ describe('the read', () => {
         db: d.server.runtime.db,
         windows: windowsOf(d.server.runtime.config),
         now: d.clock.now().toISOString(),
+        parkMaxMs: d.server.runtime.config.parkMaxMs,
       },
       id,
     );

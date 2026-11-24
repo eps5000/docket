@@ -115,6 +115,15 @@ const fullBrief = (real: BriefResponse): BriefResponse => ({
         },
       ],
     },
+    blocked: {
+      count: 9,
+      rows: Array.from({ length: 8 }, (_, k) => ({
+        ...line(k + 40),
+        reason: 'no_next_step' as const,
+        why: `STR-${80 + k} has no next step: nobody has shaped or assigned it`,
+      })),
+    },
+    queued: 42,
   },
   decisions: {
     count: 2,

@@ -53,7 +53,7 @@ The **Status** column says *Not verified* until someone runs the smoke test (cla
 Every time an agent checks on something, its whole conversation is sent to the model again. So Docket gives agents a way to wait that costs nothing until something happens.
 
 - **`docket-wait`** is a small script the install puts next to the skills (`.claude/` or `.codex/`). An agent runs it and it simply blocks until a relevant change arrives, then prints one short line per change. It survives a Docket restart. *Check* and *Changed outside Docket* cover it like the other installed files, so an install from before this feature shows **Update available** until you install again.
-- **`get_digest`** gives a coordinator one short snapshot of a project: what's ready, what's running, stale or parked, what's blocked, what's waiting on you, leases and conflicts ahead.
+- **`get_digest`** gives a coordinator one short snapshot of a project: what's ready, what's running, stale or parked, what's queued and what's blocked (and why), what's waiting on you, leases and conflicts ahead.
 - **A time-limited park** lets a coordinator stop watching a worker that's waiting: `update_run_status` with `park_minutes` holds its claim for up to 4 hours at a time and always ends by itself.
 
 **If you run a coordinator,** the `docket-coordinator` skill already teaches this: start each worker fresh instead of forking the conversation, keep briefs to the item, worktree, branch and how to report, wait with `docket-wait`, and restart from Docket once a session passes about 100k tokens of context.
