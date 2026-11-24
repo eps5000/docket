@@ -20,6 +20,7 @@ import { paths, type ItemTab } from '../../lib/paths';
 import { runOwnerMutation, showToast } from '../../lib/undo';
 import { plural } from '../../lib/format';
 import { ProblemActions, ProblemLines, WhoChip } from '../shared/problems';
+import { IdleActions } from './IdleActions';
 
 type ProblemKind = (typeof PROBLEM_KINDS)[number];
 
@@ -155,6 +156,14 @@ export const PROBLEM_ROWS: Record<
     icon: 'git',
     tone: 'warn',
     actions: [],
+  },
+  // Decision 62: In progress, but nobody has worked on it for days. *Decide…* (IdleActions)
+  // moves it, cancels it or clears its branches; *Open* lands on its banner.
+  idle_ticket: {
+    help: 'problems.idle_ticket',
+    icon: 'pause',
+    tone: 'warn',
+    actions: [{ label: 'Open', kind: 'link', to: onBanner('activity'), banner: true }],
   },
   agent_files_drift: {
     help: 'problems.agent_files_drift',
@@ -448,6 +457,7 @@ export function KindActions({ problem, place }: { problem: Problem; place: 'row'
   return (
     <>
       {problem.kind === 'unpushed_work' && <UnpushedOutcomes problem={problem} />}
+      {problem.kind === 'idle_ticket' && <IdleActions problem={problem} />}
       {m.actions.map((a) =>
         a.kind === 'link' ? (
           place === 'banner' && a.banner ? null : (

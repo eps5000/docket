@@ -705,6 +705,9 @@
             },
             "needs_shaping": {
               "type": "object"
+            },
+            "untriaged_epics": {
+              "type": "object"
             }
           },
           "required": [

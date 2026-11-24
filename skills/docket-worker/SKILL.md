@@ -15,18 +15,18 @@ The project has its own rules: who moves work to Ready, when human review is nee
 
 1. **Find work:**
    - **Given an item ID?** Skip the search.
-   - **Otherwise:** `search_items { project, filter: "resumable" }` first. That's work sent back to you, and it comes before new work. **If it returns anything, take the first result** and claim it. Don't inspect candidates with `get_item` first: `get_context` after the claim tells you everything.
-   - **Only if nothing is resumable:** `search_items { project, filter: "ready_to_start", limit: 5 }`, and take the first result. Ready work is already sorted by priority, then by how much it unblocks.
+   - **Otherwise:** `search_items { project, filter: "resumable" }` first. That's work sent back to you; it comes first. **If it returns anything, take the first result** and claim it. Don't inspect candidates first: `get_context` after the claim tells you everything.
+   - **Only if nothing is resumable:** `search_items { project, filter: "ready_to_start", limit: 5 }`, and take the first result. Ready work is sorted by priority, then by what it unblocks.
 2. **Claim it:** `claim_lead`, with:
    - `agent_label`: your worker name, if you have one;
    - `workspace`: `repo`, `path` (your worktree), `branch`, `base_ref`, `base_sha`;
-   - `branch`: the branch you'll work on, so the conflict radar can trial-merge it. Name it `<owner>/GF-243-short-description`, with this one ticket's key, and name the worktree folder the same. If you claim without one, the result suggests it. A warning about the name never blocks you;
+   - `branch`: the branch you'll work on, so the conflict radar can trial-merge it. Name it `<owner>/GF-243-short-description`, with this one ticket's key, and name the worktree folder the same. Without one, the claim suggests it. A name warning never blocks you;
    - `brief` and `orchestrator`: if a coordinator dispatched you, the brief text exactly as you received it, plus its IDs;
-   - `instructions`: the output of the installed `docket-check`, so the owner knows which instructions you work from. Run it once per session, before your first claim, in one shell call: `bash .claude/docket-check.sh` (`.codex/` for Codex; on Windows without bash, `powershell -NoProfile -ExecutionPolicy Bypass -File .claude/docket-check.ps1`). It prints one line of JSON: pass it as it is, and reuse it for later claims in the session. No script there? Skip it. If the claim returns an `update:` line, tell your coordinator and keep working; don't update installed files yourself.
+   - `instructions`: the output of the installed `docket-check`, so the owner knows which instructions you work from. Run it once per session, before your first claim: `bash .claude/docket-check.sh` (`.codex/` for Codex; on Windows without bash, `powershell -NoProfile -ExecutionPolicy Bypass -File .claude/docket-check.ps1`). It prints one line of JSON: pass it as it is, and reuse it for later claims in the session. No script there? Skip it. If the claim returns an `update:` line, tell your coordinator and keep working; don't update installed files yourself.
 
-   Keep the returned `run_id`, and **pass it on every call from now on**. That's what keeps your claim alive.
+   Keep the returned `run_id` and **pass it on every call**: that keeps your claim alive.
 
-   If you get `conflict`, someone else holds the item. Pick another one. Never retry in a loop.
+   If you get `conflict`, someone else holds the item: pick another, and never retry in a loop.
 
    If you get `design_review`, the item changes an approved design and the owner hasn't approved it. **Pick other work** and leave this item until they do.
 
@@ -99,6 +99,8 @@ Skip `whoami`: `claim_lead` returns your lease's expiry.
 | You're stopping before the work is done              | Push, `report_commit`, release your resources, then `release_lead { reason, exit }`. The item goes back to Ready with your plan kept.          |
 | Something broke and you can't continue               | `finish_run { result: "failed", error }`                                                                                                       |
 | A write returns `conflict`                           | Read `current` in the error. Re-apply your change only if it still makes sense.                                                                |
+
+**Another bug?** `create_item` it (a Bug in your epic, with repro steps); fix it only if it blocks you.
 
 **Ask less, ask better.**
 

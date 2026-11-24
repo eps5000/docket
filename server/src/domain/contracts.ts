@@ -1026,6 +1026,8 @@ export interface ArchiveService {
     w: WriteContext,
     input: { id: string; expected_version: number; reason?: string },
   ): ItemSummary;
+  /** Decision 62: move an idle ticket to Ready, Planning or Inbox, cancel it, or clear its branches. */
+  settleIdle(w: WriteContext, input: { id: string } & RouteBody<'items.settleIdle'>): ItemSummary;
 }
 
 /** Projects: the blocker rule (§5.2) and delete together (§5.12). */

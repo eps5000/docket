@@ -23,6 +23,8 @@ export type MapItem = ItemSummary & {
   packet_ready?: boolean;
   /** Decision 57: Queued, Blocked or Held, from the server; absent without an open blocker. */
   wait?: ItemWait;
+  /** Decision 62: it joined its epic after the epic started. */
+  added_midflight?: boolean;
 };
 
 /** Decision 57: the server's kind; an item it didn't classify counts as Blocked while blocked. */

@@ -27,6 +27,7 @@ export const DIGEST_CAPS = {
   release_bugs: 3,
   finished_partly: 4,
   needs_shaping: 5,
+  untriaged_epics: 3,
 } as const;
 
 /** The hard cap on the text block: 1,000 tokens at characters ÷ 4 (MCP_SPEC §3.2). */
@@ -160,6 +161,13 @@ export const digestFinishedPartlySchema = z.object({
   left: z.array(exitLeftSchema),
 });
 
+/** Decision 62: an open epic with tickets added after it started that are still in Inbox. */
+export const digestUntriagedEpicSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  untriaged: z.array(z.object({ id: z.string(), type: z.string() })),
+});
+
 /** Decision 65: a ticket for a planner to shape: what it lacks, and who asked. */
 export const digestNeedsShapingSchema = z.object({
   id: z.string(),
@@ -211,5 +219,7 @@ export const getDigestOutput = readOutput({
   finished_partly: section(digestFinishedPartlySchema).optional(),
   /** Decision 65: "Needs shaping: N", tickets for the producer to give a planner; absent when none. */
   needs_shaping: section(digestNeedsShapingSchema).optional(),
+  /** Decision 62: "Added since this epic started: N untriaged", for the producer to triage; absent when none. */
+  untriaged_epics: section(digestUntriagedEpicSchema).optional(),
 });
 export type Digest = z.infer<typeof getDigestOutput>;
