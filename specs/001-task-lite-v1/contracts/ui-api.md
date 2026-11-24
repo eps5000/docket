@@ -8,7 +8,7 @@ This index groups the routes by user story.
 | Routes (BUILD_SPEC §7) | User story | Requirements |
 |---|---|---|
 | `POST /api/session/unlock`, `POST /api/session/lock`, `POST /api/session/rotate-key`, `GET /healthz`, `GET /readyz` | US10 | FR-100 to FR-102 |
-| `GET /api/bootstrap`, `GET /api/needs-you`, `GET /api/work`, `GET /api/items/:id`, `GET /api/agents`, `GET /api/search`, `GET /api/stream` | US2 | FR-060 to FR-063, FR-065 to FR-067 |
+| `GET /api/bootstrap`, `GET /api/needs-you`, `GET /api/work`, `GET /api/items/:id`, `GET /api/agents`, `GET /api/search`, `GET /api/stream` | US2 | FR-060 to FR-063, FR-065 to FR-067; decision 61 adds `finished_partly: { left, reasons }` to Work items and `exit` to each run (FR-338–FR-343) |
 | `GET/POST /api/review/:id…`, `POST /api/deferred/:hrId/follow-up` | US3 | FR-050 to FR-054, FR-154 to FR-157 |
 | `DELETE /api/links/:linkId`, `PATCH /api/projects/:key {default_satisfied_when}` | US4 | FR-031 to FR-035 |
 | `GET/POST /api/decisions…` (confirm, withdraw) | US5 | FR-043 |

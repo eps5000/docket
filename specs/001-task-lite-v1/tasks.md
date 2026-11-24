@@ -756,6 +756,13 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T334 [US4] `components/ProgressMap/implied.ts`: the reduction over the drawn arrows (hard only behind hard, canceled tickets carry no chain, cycles and critical-path arrows always drawn), the *Hide implied links* switch with "n hidden" and `docket.mapHideImplied`, and the Dependencies tab's "Also implied through …" from the epic's map data.
 - [x] T335 [US4] Tests: a chain, a diamond, a cycle, hard behind soft, soft behind hard, a middle ticket removed or canceled, every connection kept; the switch's default, persistence and count; the item-page note; e2e and axe in both themes with screenshots at 1440 x 900 and 1024 px.
 
+## Phase 55: Implementers report how they finished (owner decision 61)
+
+- [x] T336 [US11] Spec plus code in one PR: decision 61 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.42; MCP_SPEC §3, §4, §5.2–§5.4; UI_SPEC §5 and §6.3; spec FR-338–FR-343 and SC-042; Help (Run states); the worker, producer and planner skills.
+- [x] T337 [US11] Migration 0029 (`runs.exit_report`); `domain/exit-reports.ts`: the optional `exit` on `park_run`, `release_lead` and `finish_run`, Done's complete exit, truthful summaries on every park and ending, settling from the ticket's record, the Done refusal, `get_digest` `finished_partly` and `get_context`'s section; the relay's `run.finished_partly` pointer to the producer.
+- [x] T338 [US11] "Finished partly: N items left" on the card and the item page's items, reasons and settled line.
+- [x] T339 [US11] Tests: the summary on park, release, finish, lease expiry and Done; complete and partial exits; Done refused and allowed after removal with a note; the digest's Finished partly and its clearing on each kind of action; the relay mail; the owner's card and item page; token budgets; e2e and axe in both themes.
+
 ## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.

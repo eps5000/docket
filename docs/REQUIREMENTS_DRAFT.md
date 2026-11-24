@@ -461,6 +461,20 @@ On the epic dependency map, if C depends on B and B depends on A, a direct arrow
 
 UI_SPEC §2, §6.3.3 and §6.3.4, spec FR-334–FR-337 and SC-041, and Help (Blocker rules and dependencies) have the details.
 
+## Owner decision 61 (2026-11-24): implementers report how they finished
+
+A synthetic version of a real case: an implementer merged and deployed its ticket's code, but one acceptance item, a check that needs a feature flag another ticket turns on, couldn't be done inside its ticket. It parked waiting on that ticket, and its session ended. Its run's summary still said "PR open, CI running, reviewer running", and nobody upstream was told that the ticket finished partly, or why. The owner found it by reading the activity log.
+
+1. **The summary tells the truth.** When a run parks, is released or ends, its summary is the parked reason or how it ended, never an earlier in-progress line, wherever it shows: the item page, cards, Work, Overview, the digest and `get_context`.
+2. **Every implementer exit reports how it finished:** **complete** (everything in the acceptance criteria is done) or **partial** (done what it could; these items remain, each with **why** and **what would finish it**: another ticket, a flag, an environment, an owner decision). Parking, releasing and finishing take it as an optional field on the existing tools; closing as Done is a complete exit.
+3. **A partial exit goes back to the producer** that dispatched the work. `get_digest` lists it as **Finished partly**, with the ticket, the items and the reasons, until someone acts: moves the items, links the ticket that will finish them, starts work, asks the owner, or closes them with a note. Where the relay can reach the producer, it mails the producer too.
+4. **The owner sees it.** The ticket says **"Finished partly: N items left"** with the reasons, not just "In progress, parked".
+5. **Done needs the items dealt with.** Moving a ticket to Done with items left needs them removed first, with a note saying which and why, or moved to the ticket that can do them.
+6. **Check before starting.** Before implementing, the implementer checks each acceptance item against what its own ticket can do. An item that depends on something outside the ticket (another ticket's deploy, a flag, a cutover, an environment), which may be a leftover from older work, gets clarified first: through the producer, by proposing known gaps, or by moving the item. Planners don't write acceptance items only another ticket can complete.
+7. **No new MCP tool.**
+
+BUILD_SPEC §5.42, MCP_SPEC §5.2–§5.4, UI_SPEC §5 and §6.3, spec FR-338–FR-343 and SC-042, Help (Run states) and the worker, producer and planner skills have the details.
+
 ## Deferred choices
 
 Pilot project choice and Jira import strategy are deferred until V1 is ready for real work. Design should still settle the storage layout, supported document preview formats, the exact project gate configuration shape, and the minimum history needed before a velocity forecast is shown. These are implementation choices guided by the owner decisions above, not blockers to selecting a pilot now.

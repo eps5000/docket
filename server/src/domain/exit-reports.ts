@@ -171,7 +171,10 @@ export function settledOf(
               json_extract(data, '$.changed.acceptance') IS NOT NULL AS acceptance,
               json_extract(data, '$.status.new') AS new_status
        FROM events
-       WHERE seq > @seq AND (item_id = @item OR (item_id = @epic AND type = 'question.asked'))
+       WHERE seq > @seq
+         AND (item_id = @item
+              OR (type = 'link.added' AND json_extract(data, '$.from') = @item)
+              OR (item_id = @epic AND type = 'question.asked'))
          AND type IN ('item.updated', 'item.split', 'link.added', 'claim.granted', 'question.asked',
                       'note.added', 'owner_note.added', 'item.status_changed')
          AND (run_id IS NULL OR run_id <> @run)

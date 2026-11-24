@@ -188,7 +188,7 @@ Results may carry `warnings: string[]` (§3.4). These are rendered as `! …` li
 
 **Compact definitions** (owner decision 40). Tool definitions are resent to the model on every call, so what a client receives is kept small, and a contract test holds a total budget and a per-tool cap (`server/tests/contract/token-budget.test.ts`):
 - `outputSchema`, for structured sessions, names each result's top-level fields and their types, and that a ToolError has `code` and `message`. The full shapes are in §4, and the server still validates every result against them (`resultJsonSchema`, reviewed as the `tool-results.json` snapshot).
-- `inputSchema` leaves out what validation already reports: `minLength: 1`, the item-ID and timestamp patterns, the event-type list on `get_changes` (§4 has it, and a wrong type gets a `validation` error), and the length limits of `run_id` and `idempotency_key`. Every other limit, enum, default and required field stays.
+- `inputSchema` leaves out what validation already reports: `minLength: 1`, the item-ID and timestamp patterns, the event-type list on `get_changes` (§4 has it, and a wrong type gets a `validation` error), and the length limits of `run_id` and `idempotency_key`. Decision 61 (B78) adds the length limit of every other opaque ID (≤ 100: `step_id`, `dispatch_id`, …), the commit-SHA and base64 patterns, and turns a date's pattern into `format: "date"`: each comes from Docket, git or an encoder, and validation still refuses a bad one with a `validation` error that names the field. Every other limit, enum, default and required field stays.
 
 | Tool definitions (characters ÷ 4) | Before | After |
 |---|---|---|
@@ -335,6 +335,12 @@ type Item = ItemSummary & {
 type KnownGaps = { gaps: { n: number; gap: string; settled: string|null }[]; open: number;
   approved: { decision_id: string; at: string } | null };
 
+// Decision 61 (B78; BUILD_SPEC §5.42): how a run finished.
+type ExitLeft = { text: string; why: string; needs: string; item: string|null };   // needs: what would finish it
+type ExitReport = { outcome: 'complete'|'partial'; left: ExitLeft[];
+  via: 'park'|'release'|'finish'|'done'; at: string;
+  settled: { how: 'moved'|'linked'|'started'|'asked'|'noted'|'closed'; at: string; by: string } | null };   // partial only; null while it waits on the producer
+
 type LinkRef = { link_id: string; id: string; title: string; status: Status; project: string;
   satisfied_when?: 'done'|'merged'|'verified';      // blocks links only: the effective rule
   cleared?: boolean;                                 // blocks links only: true when this blocker no longer blocks
@@ -384,7 +390,12 @@ type Run = { run_id: string; parent_run_id: string|null; client: string; label: 
   brief_document_version_id: string|null;
   resources: Resource[];
   coordinator_park?: { by: string; at: string; until: string; ended_at?: string };   // decision 44: holding, or just run out
+  exit?: ExitReport;                                     // decision 61: once the run said how it finished
   external?: Record<string, unknown> };                  // view 'full' and recovery_report only
+// Decision 61: `summary` is never an earlier "doing" line once the run parks, is released or ends.
+// A parked run's summary is "Parked: <reason>" (led by "Finished partly: N items left · " after a
+// partial exit); an ended run's is how it ended: its finish_run summary, "Released: <reason>",
+// "Closed RCP-14 as Done", "Lease expired: the run stopped reporting", and so on.
 
 // Decision 45 (BUILD_SPEC §5.26): what a parked lead waits for. Advisory; it gates nothing.
 type WaitCard = { run_id: string; item_id: string; label: string|null; client: string;
@@ -430,7 +441,8 @@ type EventType =
   | 'branch.reported' | 'branch.discovered'    // decision 36, B40
   | 'run.status_updated' | 'run.activity'      // decision 42
   | 'run.park_expired'                         // decision 44
-  | 'run.wait_flagged' | 'run.wait_cleared' | 'run.resume_ready';   // decision 45
+  | 'run.wait_flagged' | 'run.wait_cleared' | 'run.resume_ready'    // decision 45
+  | 'run.finished_partly';                     // decision 61: a run exited with items left
 
 // Decision 36 (§5.15; BUILD_SPEC §5.21).
 type SharedPartKind = 'table'|'model'|'endpoint'|'file'|'other';
@@ -503,6 +515,7 @@ The format for each tool below:
 - **Note (decision 36; B38):** the bundle gains `shared` (`ContextBundle.shared`, §4; §5.15; BUILD_SPEC §5.21 Context): the item's declaration, other in-flight items' declarations of the same parts, up to 30 other in-flight declarations in the project, the leases it holds and radar findings, rendered as a `shared:` section after the Workflow notes, before the planning documents, and counted in the budget. Optional and absent until B39 (T183) fills it; the description is unchanged.
 - **Note (decision 57; B73):** while the item has an open blocker the bundle gains `wait_kind: { kind, text }`, one line under `blocked_by:`: `wait_kind: queued · Starts after RCP-12`, or `wait_kind: blocked · RCP-9 has no next step: nobody has shaped or assigned it`, or Held with the decision. It's display only: any open blocker still refuses `claim_lead`, and `blocked`, `blocked_by` and `search_items` `blocked` keep meaning "has an open blocker". Never cut.
 - **Note (decision 58; B74):** a ticket with known gaps gains `known_gaps: { gaps: [{ n, gap, settled }], open, approved: { decision_id, at } | null }`, rendered right under the acceptance criteria as `known gaps to shape (2 open · approved by the owner dec_…; record how each was settled with update_item known_gaps):` and one `  1. <gap> · open` or `  1. <gap> · settled: <how>` line each. Never cut. `get_item` shows the same list as `known gaps (2 open · not approved):`.
+- **Note (decision 61; B78):** while the last lead's partial exit waits on the producer, the bundle gains `finished_partly: { run_id, label, via, at, left: ExitLeft[] }`, rendered after the known gaps as `finished partly: 1 item left by w3 (finish 10:40Z); settle each before closing as Done:` and one `  1. <text> · why: <why> · needs: <needs> · GF-14` line each. Never cut.
 - **Note (decision 45; B54):** the bundle gains `wait` (the parked lead's `WaitCard`) and `waiting_runs` (`{ total, rows: [{ item_id, run_id, label, waited_since, via }] }`, at most 5: the parked runs this item would free, directly or through a chain). Both travel with the unresolved blockers and are never cut.
 - **Errors:** `not_found`.
 
@@ -530,7 +543,8 @@ The format for each tool below:
 - **While the owner has the project paused (decision 53):** `paused` is one plain line, `next_work`, `bottlenecks` and `ready` are empty, and problems whose fix is to start or resume work are left out.
 - **`agent_files_update?`** (decision 56): on a full snapshot only, while the project's installed files are behind. A coordinator takes the update first, as one small PR.
 - **`unshaped_epics?`** (decision 58; B74): epics already In progress or in Review with Inbox or Planning tickets, `{ total, rows: [{ id, title, unshaped: string[] }] }`, at most 3 rows, after `bottlenecks`: a quiet flag for the producer, never a refusal. With `cursor`, only epics whose own events or those of their unshaped tickets came after it. Text: `started unshaped 1:` then `- GF-1 started with 2 unshaped: GF-3, GF-5 · <title>`. Absent when none.
-- **Output:** `{ project, paused?, agent_files_update?, unshaped_epics?, cursor, since, next_work, bottlenecks, ready, runs, blocked, owner, problems, leases, conflicts, changed }`. `cursor` is the current change cursor; `since` is the cursor passed, or null. Each section is `{ total, rows }`, with at most `next_work` 5, `bottlenecks` 3, `ready` 8, `runs` 8, `blocked` 5, `owner` 6, `problems` 4, `leases` 4, `conflicts` 4 and `changed` 6 rows: `next_work` `{ id, title, priority, unlocks, reason }` (Startable tickets by priority, tickets transitively unlocked, then age); `bottlenecks` `{ id, title, status, unlocks, next }` (unowned Inbox or Planning tickets holding up real work; decision 48, BUILD_SPEC §5.30); `ready` `{ id, title, priority, unblocks }`; `runs` `{ item_id, run_id, state, label, resume_ready, waiting }` (open runs, stale and parked first); `blocked` `{ id, title, priority, unblocks, blocked_by, wait, why? }` (decision 57: every open ticket with an open blocker; `wait` is `queued`, `blocked` or `held`, Blocked first, then Held, then Queued; `why` is the plain reason for Blocked or Held, absent for Queued, and its text line reads `RCP-22 p2 blocked unblocks 0 by RCP-12 · RCP-12 was canceled, so it never clears · Export`); `owner` `{ kind, item_id, text }`; `problems` `{ id, kind, item_id, fix }` (those an agent can act on); `leases` `{ part, item_id, until }`; `conflicts` `{ items, parts, outcome }`; `changed` `{ cursor, item_id, type }`, newest first.
+- **`finished_partly?`** (decision 61; B78): lead runs whose partial exit nobody has acted on yet, newest first, `{ total, rows: [{ item_id, title, run_id, label, producer?, via, at, left: ExitLeft[] }] }`, at most 4 rows, first in the text. On every digest, with or without `cursor`, until someone acts on the ticket after the exit: edits its acceptance criteria or splits it, links it, claims it, asks the owner on it or its epic, adds a note, or the owner closes it. Text: `finished partly 1:` then `- GF-12 1 left · w3 · producer orca · <text> (why: <why>; needs: <needs> GF-14)`, two items a row and `+N more`. Absent when none.
+- **Output:** `{ project, paused?, agent_files_update?, unshaped_epics?, finished_partly?, cursor, since, next_work, bottlenecks, ready, runs, blocked, owner, problems, leases, conflicts, changed }`. `cursor` is the current change cursor; `since` is the cursor passed, or null. Each section is `{ total, rows }`, with at most `next_work` 5, `bottlenecks` 3, `ready` 8, `runs` 8, `blocked` 5, `owner` 6, `problems` 4, `leases` 4, `conflicts` 4 and `changed` 6 rows: `next_work` `{ id, title, priority, unlocks, reason }` (Startable tickets by priority, tickets transitively unlocked, then age); `bottlenecks` `{ id, title, status, unlocks, next }` (unowned Inbox or Planning tickets holding up real work; decision 48, BUILD_SPEC §5.30); `ready` `{ id, title, priority, unblocks }`; `runs` `{ item_id, run_id, state, label, resume_ready, waiting }` (open runs, stale and parked first); `blocked` `{ id, title, priority, unblocks, blocked_by, wait, why? }` (decision 57: every open ticket with an open blocker; `wait` is `queued`, `blocked` or `held`, Blocked first, then Held, then Queued; `why` is the plain reason for Blocked or Held, absent for Queued, and its text line reads `RCP-22 p2 blocked unblocks 0 by RCP-12 · RCP-12 was canceled, so it never clears · Export`); `owner` `{ kind, item_id, text }`; `problems` `{ id, kind, item_id, fix }` (those an agent can act on); `leases` `{ part, item_id, until }`; `conflicts` `{ items, parts, outcome }`; `changed` `{ cursor, item_id, type }`, newest first.
 - **Parked rows (decision 45):** `wait: { since, next, flags, held_by?, relay? }`, the card's short form. `held_by` (`{ decision_id, title }`, decision 48) names the active owner decision the park reason cites; such a run doesn't escalate and resumes when the owner lifts it. `relay` appears once it can resume and names the same run and dispatch. A row with `resume_ready` sorts first. Docket can't deliver it: the coordinator relays it.
 - **With `cursor`:** each section keeps only items that events after it touched, and `changed` lists those events.
 - **Text rendering:** a header (`Digest GF · cursor 812`), then each non-empty section as `ready 42:` with one `- ` line per row and `  +34 more` when it holds more. The text never exceeds 4,000 characters (1,000 tokens): past that, rows drop from the last section, and `+N more` still counts them. Run IDs are in `structuredContent` only.
@@ -571,7 +585,8 @@ The format for each tool below:
   - `design_review` (decision 39; §5.15): starting or closing an item whose change to an approved design the owner hasn't approved. Other items aren't affected.
   - `forbidden` (decision 58; BUILD_SPEC §5.41) with `details: { known_gaps, asked, question_id?, ask: 'the owner' }`: moving a Planning ticket with open, unapproved known gaps to `ready`. The refusal asks the owner for you, in a write of its own, through the question form: "Approve moving GF-1 to Ready with these gaps?", with *Approve with these gaps* (recommended) and *Keep it in Planning*. It asks once: while that question is open, or another one is, or an answer is unread, it says so and asks nothing. The answer arrives in `get_item` as usual; on approval Docket records an owner decision on the ticket listing the gaps and moves it to Ready itself. A ticket with no open gaps moves as before.
   - `epic_not_ready` (decision 58): moving an epic from `ready` to `progress` while any of its tickets is in Inbox or Planning; as on `claim_lead`.
-- **Notes:** Moving to `done` ends your open lead run as `finished` if you haven't. Moving to `progress` doesn't claim the item; use `claim_lead`.
+  - `validation` (decision 61; BUILD_SPEC §5.42) with `details: { reason: 'items_left', run_id, left: ExitLeft[], ways_forward: ['remove_with_note', 'move', 'link', 'ask_owner'] }`: an agent moving to `done` while the ticket's last partial exit still has items left and nobody has acted on it. Remove them from the acceptance criteria with `update_item` and `add_note` saying which and why, or move them to the ticket that can do them (a split, or a link), then close. The run that reported them may close it itself; the owner may always close it.
+- **Notes:** Moving to `done` ends your open lead run as `finished` if you haven't, and records a complete exit (`via: 'done'`, decision 61). Moving to `progress` doesn't claim the item; use `claim_lead`.
 
 #### `link_items`
 **Description:** "Link two items. type 'blocks': from must finish before to can start; 'relates' is informational. For blocks, satisfied_when sets what 'finished' means: done (the default), merged (done and a PR reported merged with link_artifact) or verified (done and every human review item approved). Calling again updates it. A cycle is rejected with its path."
@@ -612,7 +627,8 @@ The format for each tool below:
 
 #### `release_lead`
 **Description:** "Give up the lead claim without finishing; pass exit. The item returns to Ready; your plan and notes stay. Under a producer it waits for the next worker unless you pass release_story."
-- **Input:** `id`, `run_id`, `reason`, `release_story?` (decision 42: under a producer, give the story up so it returns to Ready).
+- **Input:** `id`, `run_id`, `reason`, `release_story?` (decision 42: under a producer, give the story up so it returns to Ready), `exit?` (decision 61; as on `finish_run`).
+- **Note (decision 61):** the run's summary becomes `Released: <reason>`.
 - **Output:** `{ item: ItemSummary }`.
 - **Errors:** `forbidden` (not your run), `not_found`.
 
@@ -631,14 +647,16 @@ The format for each tool below:
 
 #### `finish_run`
 **Description:** "End your run: 'finished' when you stopped normally, 'failed' with an error when something broke. exit: complete, or partial with what is left, why and what would finish it. A lead's finish releases the claim but not the item's status: hand off with submit_packet or close with set_status first."
-- **Input:** `run_id`, `result: 'finished'|'failed'`, `summary` (≤ 500), `error?` (≤ 4,000; shown monospaced).
+- **Input:** `run_id`, `result: 'finished'|'failed'`, `summary` (≤ 500), `error?` (≤ 4,000; shown monospaced), `exit?: { outcome: 'complete'|'partial', left?: [{ text, why, needs, item? }] }` (decision 61; each text ≤ 300, at most 10 items). `complete`: everything in the acceptance criteria is done, and `left` is empty. `partial`: `left` lists each item still to do, `why` it couldn't be done here, `needs`, what would finish it (another ticket, a flag, an environment, an owner decision), and `item`, that ticket, when there is one (`not_found` if it doesn't exist).
+- **Exit reports (decision 61; BUILD_SPEC §5.42):** `park_run`, `release_lead` and `finish_run` take the same `exit`. A partial exit appends `run.finished_partly`, shows in `get_digest` `finished_partly` until someone acts on the ticket, and holds an agent's `set_status done` until then. The relay tells the producer that dispatched the work where it can. The run's `summary` leads with "Finished partly: N items left".
 - **Output:** `{ run_state }`.
 - **Note:** A failed lead run leaves the item In progress with no lead. The owner sees it under Problems and can *Return to Ready*.
-- **Warnings:** finishing with unreleased resources, or with `head_sha` ≠ `pushed_sha`, succeeds but warns (`! 1 resource still declared: dev server :5173`; `! 2 commits not pushed`). The workspace then shows as `at_risk`.
+- **Warnings:** finishing with unreleased resources, or with `head_sha` ≠ `pushed_sha`, succeeds but warns (`! 1 resource still declared: dev server :5173`; `! 2 commits not pushed`). The workspace then shows as `at_risk`. A lead run finishing without `exit` is warned too (`! No exit report: pass exit, complete or partial with what is left, so your producer knows how this ended`).
 
 #### `park_run`
 **Description:** "Park only when the work itself stops: waiting on another item, the coordinator or a person. Don't park while your own CI or tests run: stay live and log a note. A parked run keeps its claim and workspace. Say what you wait on; Docket flags it resume_ready when that clears. Ending your session? Pass exit. Any write with your run_id resumes it; reads don't."
-- **Input:** `run_id`, `reason` (≤ 500), `waiting_on?: { items?: string[], orchestrator?: boolean, person?: boolean, until? }`.
+- **Input:** `run_id`, `reason` (≤ 500), `waiting_on?: { items?: string[], orchestrator?: boolean, person?: boolean, until? }`, `exit?` (decision 61; as on `finish_run`: pass it when your session ends while parked).
+- **Summary (decision 61):** a parked run's summary is `Parked: <reason>`, never the line from before it parked, and a resume clears both it and the park's exit report.
 - **Output:** `{ run_state: 'parked', resume_ready: boolean, wait?: WaitCard }` (decision 45; §4). `wait` is left out only on an idempotent replay stored before B54.
 - **Errors:** `conflict` (the run has ended), `validation` (unknown item in `waiting_on.items`).
 - **Rules:**
