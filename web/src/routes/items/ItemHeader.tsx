@@ -8,6 +8,7 @@ import {
   Button,
   Chip,
   EpicDepsLine,
+  EpicMidflightLine,
   EpicReadinessLine,
   FinishedPartlyBlock,
   Label,
@@ -235,6 +236,7 @@ export function ItemHeader({ id, data }: { id: string; data?: ItemDetailResponse
         </div>
         {epic && data?.epic_waits && <EpicDepsLine waits={data.epic_waits} />}
         {epic && data?.epic_readiness && <EpicReadinessLine readiness={data.epic_readiness} />}
+        {epic && data?.epic_midflight && <EpicMidflightLine midflight={data.epic_midflight} />}
         {/* Decision 61: how the lead finished, when it left items. */}
         <FinishedPartlyBlock runs={item.runs} />
       </div>

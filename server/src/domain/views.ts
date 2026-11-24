@@ -117,6 +117,9 @@ import {
 import { parseQuestionForm } from './question-form.js';
 import { epicWaits } from './epic-picks.js';
 import { epicReadiness, readinessOf, unshapedByEpic } from './epic-readiness.js';
+import { epicMidflight, midflightByEpic } from './midflight.js';
+import { explainIdle, idleDay, idleTickets } from './idle.js';
+import { reportedBranches } from './radar.js';
 import { producersByItem, storedActivity, storedStatusUpdate } from './run-activity.js';
 import { WaitReader, openWaitFlags, waitCoordinator } from './wait.js';
 import { UNDO_WINDOW_MS } from './undo.js';
@@ -940,6 +943,29 @@ function problemsOf({
     });
   }
 
+  // Decision 62: an In progress ticket nobody has worked on for days, one problem each.
+  const inScope = [...items.values()].filter((i) => i.status === 'progress' && i.type !== 'Epic');
+  if (inScope.length > 0) {
+    const idle = idleTickets(s.db, now, { ids: inScope.map((i) => i.id) });
+    for (const item of inScope) {
+      const t = idle.get(item.id);
+      if (!t) continue;
+      push({
+        ...base,
+        kind: 'idle_ticket',
+        id: `idle_ticket:${item.id}`,
+        item_id: item.id,
+        title: item.title,
+        reason: `${item.id} is In progress but nobody has worked on it since ${idleDay(t.since)}`,
+        explanation: explainIdle({
+          item: item.id,
+          since: t.since,
+          branches: reportedBranches(s.db, item.id).length,
+        }),
+      });
+    }
+  }
+
   if (backupError) {
     push({
       ...base,
@@ -1535,6 +1561,15 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         s.index,
         summaries.filter((i) => i.status === 'ready').map((i) => i.id),
       );
+      // Decision 62: the map marks tickets that joined their epic after it started.
+      const addedMidflight = new Set(
+        [
+          ...midflightByEpic(
+            r.db,
+            [...s.items.values()].filter((i) => i.type === 'Epic').map((i) => i.id),
+          ).values(),
+        ].flatMap((m) => m.added.map((t) => t.id)),
+      );
       const rows: WorkItem[] = summaries.map((i) => {
         const packet_ready = att.packets.has(i.id);
         const flags = sharedFlags.get(i.id);
@@ -1552,6 +1587,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
           for_you: packet_ready || att.questions.has(i.id),
           last_activity_at: lastActivity.get(i.id) ?? i.updated_at,
           ...(flags ? { shared_flags: flags } : {}),
+          ...(addedMidflight.has(i.id) ? { added_midflight: true as const } : {}),
         };
       });
 
@@ -1561,6 +1597,8 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         workFilterFromParams(input)?.filter ?? LEGACY_WORK_FILTERS[input.filter ?? 'all']!;
       const withProblems = new Set<string>();
       for (const p of problemSet(r, input.scope, s).all) {
+        // Decision 62: an acknowledged problem isn't open.
+        if (p.acknowledged) continue;
         if (p.item_id) withProblems.add(p.item_id);
         if (p.kind === 'radar_conflict' || p.kind === 'cycle') {
           for (const id of p.related) withProblems.add(id);
@@ -1631,9 +1669,15 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         r.db,
         epicRows.map((e) => e.id),
       );
+      // Decision 62: tickets added after the epic started, and how many are untriaged.
+      const midflight = midflightByEpic(
+        r.db,
+        epicRows.map((e) => e.id),
+      );
       const epics: EpicCard[] = summarize(ctx, epicRows).map((e) => {
         const kids = children.get(e.id) ?? [];
         const readiness = readinessOf(e, unshaped.get(e.id));
+        const added = midflight.get(e.id);
         const by_status: EpicCard['children']['by_status'] = {};
         for (const k of kids) by_status[k.status] = (by_status[k.status] ?? 0) + 1;
         return {
@@ -1647,6 +1691,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
           },
           ...(waits.has(e.id) ? { waits_on: waits.get(e.id)! } : {}),
           ...(readiness ? { readiness } : {}),
+          ...(added ? { midflight: added } : {}),
         };
       });
 
@@ -1860,6 +1905,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
       const epicWait =
         row.type === 'Epic' ? epicWaits(r.db, index, [row.id]).get(row.id) : undefined;
       const epicReady = epicReadiness(r.db, row);
+      const epicAdded = epicMidflight(r.db, row);
       return {
         item,
         children,
@@ -1883,6 +1929,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         ...(epicWait ? { epic_waits: epicWait } : {}),
         ...(itemWait ? { item_wait: itemWait } : {}),
         ...(epicReady ? { epic_readiness: epicReady } : {}),
+        ...(epicAdded ? { epic_midflight: epicAdded } : {}),
       };
     },
 

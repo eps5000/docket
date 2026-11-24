@@ -58,6 +58,14 @@ export function steerRoutes<E extends Env>(api: Hono<E>, deps: RouteDeps): void 
     return { mutation_id, item: result };
   });
 
+  // Decision 62: the owner settles an idle ticket from its problem.
+  defineRoute(api, 'items.settleIdle', deps, ({ services, mutate, params, body }) => {
+    const { result, mutation_id } = mutate((w) =>
+      services.archive.settleIdle(w, { id: params.id, ...body }),
+    );
+    return { mutation_id, item: result };
+  });
+
   defineRoute(api, 'steps.add', deps, ({ services, mutate, params, body }) => {
     const { result, mutation_id } = mutate((w) =>
       services.checklist.ownerAddStep(w, { id: params.id, ...body }),

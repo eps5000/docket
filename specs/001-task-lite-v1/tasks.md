@@ -776,6 +776,12 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T345 [US11] "Finished partly: N items left" on the card and the item page's items, reasons and settled line.
 - [x] T346 [US11] Tests: the summary on park, release, finish, lease expiry and Done; complete and partial exits; Done refused and allowed after removal with a note; the digest's Finished partly and its clearing on each kind of action; the relay mail; the owner's card and item page; token budgets; e2e and axe in both themes.
 
+## Phase 58: New work mid-epic, idle tickets and acknowledged problems (owner decision 62)
+
+- [x] T347 [US4] Spec plus code in one PR: decision 62 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.43; MCP_SPEC `get_digest`, `set_status` and Problems; UI_SPEC §6.1, §6.2 and §6.3; spec FR-347–FR-354 and SC-044; Help (Problems and what to do; Pick the next epic); the producer, worker and planner skills.
+- [x] T348 [US4] `domain/midflight.ts` (added mid-flight from events, the Done refusal, the digest's `untriaged_epics`, `midflight` on epic cards and `epic_midflight` on the epic page, the map's mark) and `domain/idle.ts` (idle detection, the `idle_ticket` problem, `POST /api/items/:id/idle`, the radar and overlap checks skipping idle tickets, the sweeper clearing conflicts against them with a reason); acknowledged problems folded on the item and epic banner and left out of *Has problems*.
+- [x] T349 [US4] Tests: triage rules (a bug to Ready, a bug moved to another epic, Done refused while untriaged), the digest and its cap, marking on cards, the epic page and the map; idle detection (open, parked and needs-input runs keep a ticket live, activity resets it, Docket's events and acknowledging don't), each way forward and its undo, the radar and overlap checks skipping it and the sweeper clearing with a reason; acknowledged folding and coming back; the contract snapshot; e2e and axe in both themes.
+
 ## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.

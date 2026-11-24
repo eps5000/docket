@@ -2056,6 +2056,17 @@
   font-weight: 600;
   color: var(--ink-2);
 }
+/* Decision 62: acknowledged problems fold into one quiet line that expands. */
+.tl .prob-acked {
+  margin: 0 0 8px;
+}
+.tl .prob-acked > .linkbtn {
+  color: var(--ink-2);
+  text-decoration: underline;
+}
+.tl .prob-acked > div {
+  margin-top: 6px;
+}
 .tl .banner.prob {
   align-items: flex-start;
   margin-bottom: 8px;
@@ -2279,6 +2290,10 @@
 }
 .tl .q-gaps {
   padding-left: 22px;
+}
+/* Decision 62: tickets added after the epic started, each a link. */
+.tl .epicmid-line {
+  margin-top: 6px;
 }
 /* Decision 58: the epic's unshaped tickets, each a link. */
 .tl .epicready-line {

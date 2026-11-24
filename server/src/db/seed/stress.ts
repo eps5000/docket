@@ -21,7 +21,8 @@
  * Deterministic: the same output on every call (a fixed-seed generator, no
  * clock, no randomness). It never asks for the owner's attention, so the
  * Needs you queue and its tests are unchanged: no runs, questions, packets,
- * planning items, canceled blockers, cycles or dates on blocked items.
+ * planning items, canceled blockers, cycles or dates on blocked items, and
+ * no idle tickets (In progress work was touched in the last day; decision 62).
  */
 import type { SampleData } from './loader.js';
 
@@ -289,7 +290,8 @@ export function stressData(): SampleData {
       status,
       prio: (1 + Math.floor(r() * 3)) as 1 | 2 | 3,
       proj: key,
-      last: `${daysAgo}d`,
+      // Decision 62: In progress work was touched in the last day, so none of it is idle.
+      last: status === 'progress' ? '1d' : `${daysAgo}d`,
       labels,
       ...(epic ? { epic: id(epic) } : {}),
       ...(blockedBy.has(n) ? { blockedBy: blockedBy.get(n)!.map(id) } : {}),

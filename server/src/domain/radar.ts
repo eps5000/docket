@@ -94,6 +94,7 @@ import { freshHostGit, pairKey } from './host-git.js';
 import { hostRepoPath } from './host-worktrees.js';
 import { newId } from './ids.js';
 import { explain } from './problems.js';
+import { idleTickets } from './idle.js';
 import { callerName, ms, requireItem } from './model.js';
 import { branchWarning } from './project-git.js';
 import type { InverseOp, WriteContext } from './write.js';
@@ -446,13 +447,22 @@ function itemBasis(db: Db, id: string): string {
   return JSON.stringify([row, parts, reportedFiles(db, id)]);
 }
 
-const inFlightItems = (db: Db, project: string) =>
-  db.sqlite
-    .prepare(
-      `SELECT id, jira_key FROM items WHERE project_key = ? AND status IN ('progress', 'review')
+/**
+ * The items whose branches the radar checks: In progress or in Review, and
+ * not idle (decision 62: nobody has worked on it for days, so its old
+ * branches raise nothing; the sweeper clears what was open against them).
+ */
+export function inFlightItems(db: Db, project: string, now: string) {
+  const idle = idleTickets(db, now, { project });
+  return (
+    db.sqlite
+      .prepare(
+        `SELECT id, jira_key FROM items WHERE project_key = ? AND status IN ('progress', 'review')
        AND archived_at IS NULL ORDER BY length(id), id`,
-    )
-    .all(project) as { id: string; jira_key: string | null }[];
+      )
+      .all(project) as { id: string; jira_key: string | null }[]
+  ).filter((i) => !idle.has(i.id));
+}
 
 function isInFlight(db: Db, id: string): boolean {
   return !!db.sqlite
@@ -484,8 +494,8 @@ export interface RadarRequestItem {
   files: string[];
 }
 
-export function radarRequest(db: Db, project: string): RadarRequestItem[] {
-  return inFlightItems(db, project).map(({ id, jira_key }) => ({
+export function radarRequest(db: Db, project: string, now: string): RadarRequestItem[] {
+  return inFlightItems(db, project, now).map(({ id, jira_key }) => ({
     id,
     keys: jira_key ? [jira_key] : [],
     branches: reportedBranches(db, id)
@@ -518,7 +528,7 @@ export async function planRadar(
     .get(project) as { repo_path: string | null; main_branch: string } | undefined;
   if (!p)
     throw new ToolError('not_found', `No project ${project}. Check the key with list_projects.`);
-  const items = inFlightItems(db, project);
+  const items = inFlightItems(db, project, r.now);
   const basis: RadarBasis = {
     project: projectBasis(db, project),
     items: Object.fromEntries(items.map(({ id }) => [id, itemBasis(db, id)])),

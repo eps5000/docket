@@ -24,6 +24,7 @@ export const DIGEST_CAPS = {
   changed: 6,
   unshaped_epics: 3,
   finished_partly: 4,
+  untriaged_epics: 3,
 } as const;
 
 /** The hard cap on the text block: 1,000 tokens at characters ÷ 4 (MCP_SPEC §3.2). */
@@ -150,6 +151,13 @@ export const digestFinishedPartlySchema = z.object({
   left: z.array(exitLeftSchema),
 });
 
+/** Decision 62: an open epic with tickets added after it started that are still in Inbox. */
+export const digestUntriagedEpicSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  untriaged: z.array(z.object({ id: z.string(), type: z.string() })),
+});
+
 export const digestChangeSchema = z.object({
   cursor: z.string(),
   item_id: z.string().nullable(),
@@ -186,5 +194,7 @@ export const getDigestOutput = readOutput({
   unshaped_epics: section(digestUnshapedEpicSchema).optional(),
   /** Decision 61: partial exits nobody has acted on yet, on every digest; absent when none. */
   finished_partly: section(digestFinishedPartlySchema).optional(),
+  /** Decision 62: "Added since this epic started: N untriaged", for the producer to triage; absent when none. */
+  untriaged_epics: section(digestUntriagedEpicSchema).optional(),
 });
 export type Digest = z.infer<typeof getDigestOutput>;

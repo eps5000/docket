@@ -20,6 +20,7 @@ import type { ArchiveService, ServiceDeps } from './contracts.js';
 import { requireItem, summaryOf, windowsOf, type ItemRow } from './model.js';
 import { endLeadForOwner } from './runs.js';
 import { onItemClosed } from './shared-changes.js';
+import { settleIdle as idleSettle } from './idle.js';
 import type { InverseOp, WriteContext } from './write.js';
 
 const OPEN = ['inbox', 'planning', 'ready', 'progress', 'review'];
@@ -60,7 +61,7 @@ export function createArchiveService(deps: ServiceDeps): ArchiveService {
     ).map((r) => r.id);
   }
 
-  return {
+  const service: ArchiveService = {
     archive(w, input) {
       const item = requireItem(w.db, input.id);
       if (item.status !== 'done') notDone(item);
@@ -168,5 +169,10 @@ export function createArchiveService(deps: ServiceDeps): ArchiveService {
       onItemClosed(w, item.id, 'canceled');
       return summary(w, item.id);
     },
+
+    settleIdle(w, input) {
+      return idleSettle(w, { archive: service }, (id) => summary(w, id), input);
+    },
   };
+  return service;
 }

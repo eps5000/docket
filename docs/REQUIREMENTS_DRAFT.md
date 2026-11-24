@@ -475,6 +475,21 @@ A synthetic version of a real case: an implementer merged and deployed its ticke
 
 BUILD_SPEC §5.42, MCP_SPEC §5.2–§5.4, UI_SPEC §5 and §6.3, spec FR-341–FR-346 and SC-043, Help (Run states) and the worker, producer and planner skills have the details.
 
+## Owner decision 62 (2026-11-24): new work mid-epic, idle tickets and acknowledged problems
+
+Three things the owner hit while epics ran with agents.
+
+1. **Tickets added to an epic after it started.**
+   - New tickets land in Inbox, as before. Nothing enters a running epic as Ready without triage.
+   - **The producer triages bugs.** It starts a short, read-only reproduction agent (a subagent, not an implementer) that confirms the bug happens, finds whether this epic's work caused it, and leaves the steps or a failing test. It fixes nothing. If the bug is real and belongs here, the producer sets severity and moves it to Ready in the same epic. If it belongs elsewhere, it moves it there (a flaky test goes to the project's test-reliability epic). If it can't be reproduced, the producer records that and asks the owner whether to close it.
+   - **New stories need the owner.** A story added mid-flight adds scope, so the producer asks one structured question: add it to this epic, defer it to a follow-up, or drop it.
+   - **Docket shows it.** The producer's `get_digest` lists "Added since this epic started: N untriaged" with the tickets. Epic cards, the epic page and the map mark tickets added after the epic started. An epic can't move to Done while untriaged tickets added mid-flight are in it, with a clear error that lists them.
+   - **Skills.** `docket-producer` runs the triage loop; `docket-worker` files bugs it finds into Inbox with how to reproduce them, and doesn't fix them in its own ticket unless they block its acceptance; `docket-planner` knows the rule.
+2. **Idle In progress tickets.** A ticket In progress with no open, parked or needs-input run and no activity for 3 days is idle. It gets one problem for the owner, "GF-1 is In progress but nobody has worked on it since <date>", offering to move it to Planning, Ready or Inbox, cancel it, or clear its branches. The radar and overlap checks stop raising conflicts against an idle ticket's branches, and existing ones clear with a reason ("the other ticket is idle").
+3. **Acknowledged problems.** The owner reads Acknowledge as "I've seen it, stop telling me". Acknowledged problems no longer count as open: on items and epics they fold into one quiet line, "You acknowledged N problems", which expands to show them. They come back as open only under the existing rules: a material change, or a new proposed resolution.
+
+BUILD_SPEC §5.43, MCP_SPEC (`get_digest`, `set_status`, Problems), UI_SPEC §6.1, §6.2 and §6.3, spec FR-347–FR-354 and SC-044, Help (Problems and what to do; Pick the next epic) and the producer, worker and planner skills have the details.
+
 ## Owner decision 63 (2026-11-24): Fit fits the map's width
 
 The owner uses the dependency map's **Fit** button a lot. Maps have few waves but many tickets in a wave (one has 5 waves and 12 tickets in one wave), so fitting the whole map made every card tiny, and every Fit needed zooming again.

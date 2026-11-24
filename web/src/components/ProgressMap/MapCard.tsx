@@ -5,7 +5,8 @@
  * Planning items. Done cards are green with ✓, In progress cards have a hatched green edge
  * (decision 59); a Blocked Ready card has a red
  * border and "blocked", a Queued one a calm dashed border and "queued"
- * (decision 57); the person icon at the top right is filled when a
+ * (decision 57); "added mid-flight" marks a ticket that joined its epic
+ * after the epic started (decision 62); the person icon at the top right is filled when a
  * packet is ready for you and outlined when your review comes later. Each
  * card is a button that opens the item; its accessible name is its visible
  * text (type, ID, title, status), plus the review mark as sr-only text.
@@ -146,6 +147,14 @@ export function MapCard({
           <>
             {' '}
             <span className="muted">· after {after}</span>
+          </>
+        )}
+        {item.added_midflight && !outside && (
+          <>
+            {' '}
+            <span className="pm-added" title="Added after the epic started">
+              · added mid-flight
+            </span>
           </>
         )}
       </span>{' '}
