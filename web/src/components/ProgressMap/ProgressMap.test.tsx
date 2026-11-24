@@ -595,3 +595,164 @@ describe('Fit width (decision 63)', () => {
     expect(m.canvas.className).not.toContain('dragging');
   });
 });
+
+describe('Bugs hold the release (decision 64)', () => {
+  // RCP-17 and RCP-18 are bugs with no link; RCP-19 is a bug RCP-22 waits on (part of the chain).
+  const bugItems = [
+    ...items,
+    item('RCP-17', 'ready', { type: 'Bug' }),
+    item('RCP-18', 'done', { type: 'Bug' }),
+    item('RCP-19', 'progress', { type: 'Bug' }),
+  ];
+  const bugLinks = [...links, edge('RCP-19', 'RCP-22')];
+  const release = { finishLine: 'RCP-22', openBugs: 2 };
+
+  it('layoutMap stacks unlinked bugs in their own list, keeps chain bugs in their wave, and counts them all', () => {
+    const l = layoutMap(bugItems, outside, bugLinks, [], { bugs: true });
+    expect(l.bugs.map((i) => i.id)).toEqual(['RCP-18', 'RCP-17']);
+    expect([...l.chainBugs]).toEqual(['RCP-19']);
+    expect(l.waves[0]!.map((i) => i.id)).toEqual(['RCP-11', 'RCP-19', 'RCP-16', 'RCP-40']);
+    expect(l.counts.total).toBe(12);
+    // No arrow touches the Bugs column.
+    expect(l.edges.some((e) => e.from === 'RCP-17' || e.to === 'RCP-17')).toBe(false);
+  });
+
+  it('without `bugs` (Work → Map, label pages) bugs are ordinary cards in Wave 1', () => {
+    const l = layoutMap(bugItems, outside, bugLinks);
+    expect(l.bugs).toEqual([]);
+    expect(l.chainBugs.size).toBe(0);
+    expect(l.waves[0]!.map((i) => i.id)).toContain('RCP-17');
+  });
+
+  const view = (r: typeof release | null = release, extra: LinkEdge[] = []) =>
+    render(
+      <MemoryRouter>
+        <div className="tl">
+          <ProgressMap
+            items={bugItems}
+            outside={outside}
+            links={[...bugLinks, ...extra]}
+            outsideTitle="Outside this epic"
+            release={r}
+          />
+        </div>
+      </MemoryRouter>,
+    );
+  afterEach(() => localStorage.clear());
+
+  it('draws a Bugs column left of everything, counting open bugs, with no arrows', () => {
+    const { container } = view();
+    const heads = [...container.querySelectorAll('.pm-colh')].map((h) => h.textContent);
+    expect(heads[0]).toBe('Bugs1 bug open');
+    expect(heads.slice(1, 3)).toEqual([
+      'Outside this epicblocks work here',
+      'Wave 1nothing blocks these',
+    ]);
+    const col = container.querySelector('[data-col="bugs"]')!;
+    expect([...col.querySelectorAll('[data-pid]')].map((c) => c.getAttribute('data-pid'))).toEqual([
+      'RCP-18',
+      'RCP-17',
+    ]);
+    const ends = [...container.querySelectorAll('path.pm-edge')].flatMap((p) => [
+      p.getAttribute('data-from'),
+      p.getAttribute('data-to'),
+    ]);
+    expect(ends).not.toContain('RCP-17');
+    expect(ends).not.toContain('RCP-18');
+  });
+
+  it('a bug in the chain stays in its wave with a bug marker', () => {
+    const { container } = view();
+    const wave1 = container.querySelector('[data-col="wave-1"]')!;
+    const card = wave1.querySelector('[data-pid="RCP-19"]')!;
+    expect(card.querySelector('[data-bug-mark]')!.textContent).toBe('bug');
+    expect(container.querySelector('[data-pid="RCP-17"] [data-bug-mark]')).toBeNull();
+  });
+
+  it('the finish line shows "Waiting on N bugs", and no arrow runs to it from the Bugs column', () => {
+    const { container } = view();
+    const finish = container.querySelector('[data-pid="RCP-22"]')!;
+    expect(finish.querySelector('[data-finish-badge]')!.textContent).toBe(
+      'Finish line · Waiting on 2 bugs',
+    );
+    expect(finish.className).toContain('held');
+    const intoFinish = [...container.querySelectorAll('path.pm-edge[data-to="RCP-22"]')].map((p) =>
+      p.getAttribute('data-from'),
+    );
+    expect(intoFinish.sort()).toEqual(['RCP-12', 'RCP-19']);
+  });
+
+  it('with no bugs open the finish line has no badge, and with no release the map is unchanged', () => {
+    const quiet = view({ finishLine: 'RCP-22', openBugs: 0 });
+    expect(quiet.container.querySelector('[data-finish-badge]')!.textContent).toBe('Finish line');
+    quiet.unmount();
+    const plain = view(null);
+    expect(plain.container.querySelector('[data-col="bugs"]')).toBeNull();
+    expect(plain.container.querySelector('[data-finish-badge]')).toBeNull();
+    expect(plain.container.querySelector('[data-col="wave-1"] [data-pid="RCP-17"]')).toBeTruthy();
+  });
+
+  it('works with Hide implied links: unlinked bugs add nothing to hide, the shortcut still hides', () => {
+    const { container } = view(release, [edge('RCP-11', 'RCP-22', true)]);
+    expect(screen.getByText('1 hidden')).toBeTruthy();
+    const drawn = [...container.querySelectorAll('path.pm-edge')].map(
+      (p) => `${p.getAttribute('data-from')}>${p.getAttribute('data-to')}`,
+    );
+    expect(drawn).not.toContain('RCP-11>RCP-22');
+    fireEvent.click(screen.getByLabelText('Hide implied links'));
+    expect(screen.queryByText(/hidden$/)).toBeNull();
+    expect(container.querySelector('[data-col="bugs"]')).toBeTruthy();
+  });
+});
+
+describe('Bugs column with Fit width (decisions 63 and 64)', () => {
+  let width = 0;
+  let spy: { mockRestore: () => void } | null = null;
+  afterEach(() => {
+    spy?.mockRestore();
+    spy = null;
+  });
+  const bugItems = [...items, item('RCP-17', 'ready', { type: 'Bug' })];
+  const show = (w: number, release: { finishLine: string; openBugs: number } | null) => {
+    width = w;
+    spy ??= vi.spyOn(Element.prototype, 'clientWidth', 'get').mockImplementation(() => width);
+    const r = render(
+      <MemoryRouter>
+        <div className="tl">
+          <ProgressMap
+            items={bugItems}
+            outside={outside}
+            links={links}
+            outsideTitle="Outside this epic"
+            release={release}
+          />
+        </div>
+      </MemoryRouter>,
+    );
+    const zoom = within(screen.getByRole('group', { name: 'Zoom' }));
+    return {
+      ...r,
+      fit: zoom.getByRole('button', { name: 'Fit width' }),
+      pct: () => zoom.getByRole('button', { name: /^Zoom \d+%/ }).textContent,
+      sizer: r.container.querySelector<HTMLElement>('.pm-sizer')!,
+      mapWidth: () => parseFloat(r.container.querySelector<HTMLElement>('.pm-map')!.style.width),
+    };
+  };
+
+  it('fits the width with the Bugs column in it', () => {
+    const plain = show(0, null);
+    const without = plain.mapWidth();
+    plain.unmount();
+    const first = show(0, { finishLine: 'RCP-22', openBugs: 1 });
+    const withBugs = first.mapWidth();
+    first.unmount();
+    // One more column: the map is wider by a card and a gutter.
+    expect(withBugs).toBeGreaterThan(without + 200);
+    const view = Math.round(withBugs * 0.8);
+    const m = show(view + 44, { finishLine: 'RCP-22', openBugs: 1 });
+    fireEvent.click(m.fit);
+    expect(m.pct()).toBe('80%');
+    expect(parseFloat(m.sizer.style.width)).toBeLessThanOrEqual(view);
+    expect(m.container.querySelector('[data-col="bugs"] [data-pid="RCP-17"]')).toBeTruthy();
+  });
+});

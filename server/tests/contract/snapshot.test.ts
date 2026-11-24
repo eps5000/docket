@@ -209,6 +209,7 @@ const INPUTS: Record<string, [string[], string[]]> = {
       'planned_end',
       'effort',
       'known_gaps',
+      'finish_line',
     ],
   ],
   set_status: [
@@ -407,7 +408,7 @@ const OUTPUTS: Record<string, string[]> = {
 
 /** Optional result fields, from the §5 Output lines (decisions 36 and 39: what's held). */
 const OPTIONAL_OUTPUTS: Record<string, string[]> = {
-  get_digest: ['paused', 'agent_files_update', 'unshaped_epics', 'finished_partly'], // decisions 53, 56, 58, 61: only while they apply
+  get_digest: ['paused', 'agent_files_update', 'unshaped_epics', 'finished_partly', 'release_bugs'], // decisions 53, 56, 58, 61, 64: only while they apply
   submit_packet: ['held_undeclared', 'held_design'],
   declare_shared_changes: ['design_hold'],
   update_run_status: ['parked_until'], // decision 44: while a coordinator's park holds
@@ -689,6 +690,7 @@ describe('tools/list: output schemas (§4, §5, §6)', () => {
       'design_review',
       'project_paused',
       'epic_not_ready',
+      'bugs_open',
     ]);
   });
 

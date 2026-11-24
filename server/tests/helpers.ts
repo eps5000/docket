@@ -165,6 +165,8 @@ export const COLUMNS_0010 = [
   'criteria_changed_at',
   // 0028 (decision 58): a ticket's known gaps.
   'known_gaps',
+  // 0030 (decision 64): an epic's marked finish line.
+  'finish_line',
 ] as const;
 
 /** Rows without the columns 0010 added to `items`, `projects` and `packets`. */

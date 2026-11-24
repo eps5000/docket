@@ -27,6 +27,7 @@ import { readyStates } from './next-work.js';
 import { waitKindsOf } from './wait-kind.js';
 import { projectPause } from './project-pause.js';
 import { readinessOf, unshapedByEpic } from './epic-readiness.js';
+import { finishLines } from './finish-line.js';
 
 /** How many startable tickets a row names. */
 const FIRST_SHOWN = 3;
@@ -343,6 +344,11 @@ export function pickEpics(
     db,
     epics.map((e) => e.id),
   );
+  // Decision 64: each epic's finish line and open bugs.
+  const lines = finishLines(
+    db,
+    epics.map((e) => e.id),
+  );
 
   const rows = epics
     .map((e): EpicPick => {
@@ -390,6 +396,10 @@ export function pickEpics(
                 : 'available',
         park_reason: worked_by.length > 0 || notReady ? null : park_reason,
         ...(readiness ? { readiness } : {}),
+        release: {
+          finish_line: lines.get(e.id)?.id ?? null,
+          open_bugs: lines.get(e.id)?.open_bugs.length ?? 0,
+        },
       };
     })
     .sort(compareEpicPicks);

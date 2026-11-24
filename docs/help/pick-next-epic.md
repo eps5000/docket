@@ -39,6 +39,8 @@ Select a column heading to sort by it. Select it again to reverse the order, and
 
 Epic cards and the epic page say **No outside dependencies**, or **Waits on 2 epics** with their names.
 
+While bugs in an epic are open, its row, card and page also say **Finish line GF-12 · Waiting on 2 bugs**, or **No finish line** when nobody has marked its release ticket yet. That doesn't change which epic is the best pick: the bugs hold its release, not its start. See *Blocker rules and dependencies* for how bugs hold the release.
+
 ## An epic starts only when its tickets are ready
 
 **Inbox** is an idea nobody is ready to plan. **Planning** means a ticket still has gaps in its shape or its definition of done. So an agent can't start an epic while any of its tickets is in Inbox or Planning. Tickets that are Ready, Queued, In progress, in Review or Done all count. Canceled tickets don't matter.

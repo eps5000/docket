@@ -40,6 +40,7 @@ import { deferredOf, openPackets, scoped } from './views.js';
 import { designHold } from './design-review.js';
 import { declaredKeys, endLeasesOf, raiseHold, settleUndeclared } from './shared-changes.js';
 import { canonicalJson, type InverseOp } from './write.js';
+import { assertReleaseClear } from './finish-line.js';
 import { addReportedBranch } from './radar.js';
 
 export interface PacketRow {
@@ -277,6 +278,8 @@ export function createPacketsService(deps: ServiceDeps): PacketsService {
           { details: { reason: 'blocked', blocked_by: block.blocked_by } },
         );
       }
+      // Decision 64: an epic's finish line goes to review only once every bug in the epic is settled.
+      assertReleaseClear(w.db, item, 'review');
       const all = hrRows(w.db, item.id);
       const declared = all.filter((h) => h.state === 'declared');
       if (declared.length === 0) {

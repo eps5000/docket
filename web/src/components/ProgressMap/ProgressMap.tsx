@@ -27,6 +27,11 @@
  * - Hide implied links (decision 60, implied.ts): on by default and remembered
  *   per browser; an arrow a longer chain already shows isn't drawn, routed or
  *   traced, and "n hidden" sits by the switch. The links themselves never change.
+ * - Bugs (decision 64, `release`): on an epic's map, bugs with no drawn link
+ *   stack in a Bugs column left of everything, with their status and no
+ *   arrows; its header counts the open ones. A bug in the chain stays in its
+ *   wave with a bug marker. The finish line says "Finish line" and, while bugs
+ *   in the epic are open, "Waiting on N bugs".
  */
 import {
   useCallback,
@@ -39,7 +44,7 @@ import {
   type KeyboardEvent,
   type PointerEvent,
 } from 'react';
-import { STATUS_LABELS, type LinkEdge } from '@docket/shared';
+import { STATUS_LABELS, bugCount, type LinkEdge } from '@docket/shared';
 import { Icon, StatusBar, type StatusBarSegment } from '../kit';
 import { useRenderLimit } from '../../lib/progressive';
 import { HIDE_IMPLIED_HELP, impliedOnMap, useHideImplied } from './implied';
@@ -59,6 +64,17 @@ export interface ProgressMapProps {
   home?: { project: string } | null;
   /** The chain to highlight (decision 48). Keep it stable between renders. */
   critical?: CriticalOverlay | null;
+  /**
+   * Decision 64, on an epic's map: unlinked bugs go to a Bugs column, and the
+   * finish line carries its badge. Keep it stable between renders.
+   */
+  release?: MapRelease | null;
+}
+
+/** An epic's finish line and how many bugs in it are open (decision 64). */
+export interface MapRelease {
+  finishLine: string | null;
+  openBugs: number;
 }
 
 /** A critical path on the map (routes/shared/GoalMap.tsx). */
@@ -119,11 +135,13 @@ export function ProgressMap({
   outsideTitle,
   home,
   critical = null,
+  release = null,
 }: ProgressMapProps) {
   const extras = critical?.extras ?? NO_EXTRAS;
+  const withBugs = release !== null;
   const layout = useMemo(
-    () => layoutMap(items, outside, links, extras),
-    [items, outside, links, extras],
+    () => layoutMap(items, outside, links, extras, { bugs: withBugs }),
+    [items, outside, links, extras, withBugs],
   );
   const extraIds = useMemo(() => new Set(extras.map((i) => i.id)), [extras]);
   // Decision 60: arrows a longer chain already shows, from the arrows this map draws.
@@ -165,7 +183,25 @@ export function ProgressMap({
 
   // ---- Columns, card order and rows (pure, so the map doesn't jump between renders) ----
   const cols = useMemo(() => {
-    const out: { key: string; title: string; sub: string; cards: MapItem[]; ext?: boolean }[] = [];
+    const out: {
+      key: string;
+      title: string;
+      sub: string;
+      cards: MapItem[];
+      ext?: boolean;
+      bugs?: boolean;
+    }[] = [];
+    // Decision 64: unlinked bugs hold the release; they aren't starting work, so not Wave 1.
+    if (layout.bugs.length > 0) {
+      const open = layout.bugs.filter((i) => i.status !== 'done' && i.status !== 'canceled');
+      out.push({
+        key: 'bugs',
+        title: 'Bugs',
+        sub: open.length > 0 ? `${bugCount(open.length)} open` : 'none open',
+        cards: layout.bugs,
+        bugs: true,
+      });
+    }
     if (layout.outside.length > 0) {
       out.push({
         key: 'outside',
@@ -572,7 +608,7 @@ export function ProgressMap({
               {cols.list.map((c, colIndex) => (
                 <div
                   key={c.key}
-                  className={`pm-col${c.ext ? ' ext' : ''}`}
+                  className={`pm-col${c.ext ? ' ext' : ''}${c.bugs ? ' bugs' : ''}`}
                   data-col={c.key}
                   style={
                     geo.routed
@@ -592,6 +628,12 @@ export function ProgressMap({
                         c.ext || extraIds.has(i.id) ? { label: outsideLabel(i, home) } : null
                       }
                       critical={criticalOf(i.id)}
+                      bugMark={layout.chainBugs.has(i.id)}
+                      finish={
+                        release && release.finishLine === i.id
+                          ? { openBugs: release.openBugs }
+                          : null
+                      }
                       traced={tracedOf(i.id)}
                       onTrace={setTraced}
                       top={geo.routed?.cards.get(i.id)?.y}
