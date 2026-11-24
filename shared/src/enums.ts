@@ -662,6 +662,8 @@ export const EVENT_TYPES = [
   'run.wait_flagged',
   'run.wait_cleared',
   'run.resume_ready',
+  // Decision 61 (B78): a run exited with items left; the relay mails its producer
+  'run.finished_partly',
   // The host collector (decision 49; B62): one event per batch that changed something, which
   // never wakes a waiter (QUIET_EVENT_TYPES), and the owner's GitHub settings
   'sync.ingested',

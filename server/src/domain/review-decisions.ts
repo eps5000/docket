@@ -498,7 +498,13 @@ export function createReviewDecisionsService(deps: ServiceDeps): ReviewDecisions
       if (outcome === 'done') {
         const lead = activeLead(w.db, item.id);
         if (lead) {
-          j.add(w.update('runs', lead.id, { state: 'finished', end_reason: 'finished' }));
+          j.add(
+            w.update('runs', lead.id, {
+              state: 'finished',
+              end_reason: 'finished',
+              summary: 'Finished: the owner approved the review',
+            }),
+          );
           j.event({
             type: 'run.ended',
             summary: `Lead run finished: you closed ${item.id}`,

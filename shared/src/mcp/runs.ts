@@ -18,6 +18,7 @@ import {
 } from './common.js';
 import { instructionsInput } from './agent-files.js';
 import { COORDINATOR_PARK, LIMITS, TEXT_LIMITS } from './limits.js';
+import { EXIT_LIMITS, EXIT_OUTCOMES } from '../exit-report.js';
 import { branchInput } from './shared-changes.js';
 import { itemSummarySchema, runStateSchema, waitCardSchema } from './types.js';
 
@@ -133,6 +134,44 @@ export const waitingOnInput = z.strictObject({
   until: isoTime.optional(),
 });
 
+/**
+ * Decision 61: how the run finished. `partial` lists what is left, why, and
+ * what would finish it (another ticket, a flag, an environment, an owner
+ * decision), and optionally that ticket. A complete exit lists nothing.
+ */
+export const exitInput = z
+  .object({
+    outcome: z.enum(EXIT_OUTCOMES),
+    left: z
+      .array(
+        z.object({
+          text: text(EXIT_LIMITS.text),
+          why: text(EXIT_LIMITS.text),
+          needs: text(EXIT_LIMITS.text),
+          item: itemId.optional(),
+        }),
+      )
+      .max(EXIT_LIMITS.left_max)
+      .optional(),
+  })
+  .superRefine((value, ctx) => {
+    const left = value.left?.length ?? 0;
+    if (value.outcome === 'partial' && left === 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['left'],
+        message: 'A partial exit lists what is left: text, why and needs for each.',
+      });
+    }
+    if (value.outcome === 'complete' && left > 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['left'],
+        message: 'A complete exit leaves nothing. Use outcome partial to list what is left.',
+      });
+    }
+  });
+
 // ---- claim_lead ----
 
 export const claimLeadInput = mutationInput({
@@ -171,6 +210,7 @@ export const releaseLeadInput = mutationInput({
   reason: text(TEXT_LIMITS.note),
   /** Decision 42: under a producer, give the story up (back to Ready) instead of handing it on. */
   release_story: z.boolean().optional(),
+  exit: exitInput.optional(),
 });
 export const releaseLeadOutput = mutationOutput({ item: itemSummarySchema });
 
@@ -220,6 +260,7 @@ export const finishRunInput = mutationInput({
   summary: text(LIMITS.run_summary),
   /** Shown monospaced. */
   error: text(LIMITS.run_error).optional(),
+  exit: exitInput.optional(),
 });
 /**
  * Finishing with unreleased resources or unpushed commits succeeds but warns
@@ -233,6 +274,7 @@ export const parkRunInput = mutationInput({
   run_id: runIdField,
   reason: text(LIMITS.park_reason),
   waiting_on: waitingOnInput.optional(),
+  exit: exitInput.optional(),
 });
 export const parkRunOutput = mutationOutput({
   run_state: z.literal('parked'),

@@ -24,6 +24,17 @@ export function liveLead(runs) {
 }
 
 /**
+ * Decision 61 (B78): the lead run that finished partly, newest first. It may
+ * have ended, so its recorded dispatch is the only way back to its producer.
+ */
+export function partialLead(runs) {
+  if (!Array.isArray(runs)) return null;
+  const partial = runs.filter((run) => run?.is_lead === true && run?.exit?.outcome === 'partial');
+  partial.sort((a, b) => String(b.exit.at ?? '').localeCompare(String(a.exit.at ?? '')));
+  return partial[0] ?? null;
+}
+
+/**
  * `showDispatch(id)` returns `{ found, runId }` and throws when Orca can't
  * answer, so the caller retries. `implementer` is text for the message, never
  * an address.
