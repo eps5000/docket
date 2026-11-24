@@ -11,6 +11,7 @@ import { DIGEST_MAX_CHARS, IDLE_AFTER_MS, renderResult, type Status } from '@doc
 import { inFlightItems } from '../../src/domain/radar.js';
 import { claimOverlaps } from '../../src/domain/shared-changes.js';
 import { idleTickets } from '../../src/domain/idle.js';
+import { isWorkEvent } from '../../src/domain/activity.js';
 import { undoMutation } from '../../src/domain/undo.js';
 import { idleOnce } from '../../src/jobs/sweeper.js';
 import type { Actor } from '../../src/domain/write.js';
@@ -271,6 +272,69 @@ describe('idle In progress tickets', () => {
     expect(idleIds()).toEqual([id]);
   });
 
+  it('agent-attributed radar and overlap bookkeeping neither wakes an idle ticket nor refreshes Work', () => {
+    const id = create('Task', { status: 'progress' });
+    expect(d.row<{ n: number }>('SELECT count(*) AS n FROM runs WHERE item_id = ?', id).n).toBe(0);
+    const workActivity = () =>
+      d.services.views
+        .work(d.read(), { scope: 'TST', layout: 'list' } as never)
+        .items.find((item) => item.id === id)!.last_activity_at;
+    const before = workActivity();
+    d.clock.advance(2 * DAY);
+    d.write(worker, (w) => {
+      for (const type of [
+        'radar.found',
+        'radar.cleared',
+        'overlap.raised',
+        'overlap.decided',
+        'branch.discovered',
+        'problem.acknowledged',
+      ] as const) {
+        w.event({ type, summary: 'Synthetic bookkeeping', item_id: id, project_key: 'TST' });
+      }
+      w.event({
+        type: 'owner_note.added',
+        summary: 'Synthetic radar note',
+        item_id: id,
+        project_key: 'TST',
+        data: { from: 'radar' },
+      });
+    });
+    expect(workActivity()).toBe(before);
+    expect(isWorkEvent('radar.cleared', 'agent')).toBe(false);
+    expect(isWorkEvent('owner_note.added', 'agent', 'radar')).toBe(false);
+    expect(isWorkEvent('note.added', 'system')).toBe(false);
+    d.clock.advance(DAY);
+    expect(idleIds()).toEqual([id]);
+    d.write(worker, (w) =>
+      w.event({
+        type: 'note.added',
+        summary: 'Synthetic work note',
+        item_id: id,
+        project_key: 'TST',
+      }),
+    );
+    expect(idleIds()).toEqual([]);
+    expect(workActivity()).toBe(d.clock.now().toISOString());
+  });
+
+  it.each(['note.added', 'item.status_changed', 'commit.reported'] as const)(
+    'a real agent %s event keeps the ticket live',
+    (type) => {
+      const { id } = inProgress();
+      d.clock.advance(2 * DAY);
+      const actor = type === 'item.status_changed' ? OWNER : worker;
+      d.write(actor, (w) =>
+        w.event({ type, summary: 'Synthetic work', item_id: id, project_key: 'TST' }),
+      );
+      expect(isWorkEvent(type, actor.kind)).toBe(true);
+      d.clock.advance(DAY);
+      expect(idleIds()).toEqual([]);
+      d.clock.advance(2 * DAY);
+      expect(idleIds()).toEqual([id]);
+    },
+  );
+
   it('an epic In progress is never idle', () => {
     const epic = create('Epic', { status: 'progress' });
     d.clock.advance(IDLE_AFTER_MS * 2);
@@ -345,7 +409,14 @@ describe('idle In progress tickets', () => {
 
     // Not idle yet: nothing changes.
     expect(idleOnce(d.server.runtime)).toEqual({ findings: [], overlaps: [] });
-    d.clock.advance(IDLE_AFTER_MS);
+    d.clock.advance(2 * DAY);
+    // B85: even events attributed to the initiating agent are Docket bookkeeping.
+    d.write(worker, (w) => {
+      for (const type of ['radar.cleared', 'overlap.raised'] as const) {
+        w.event({ type, summary: `Synthetic ${type}`, item_id: idle, project_key: 'TST' });
+      }
+    });
+    d.clock.advance(DAY);
     // The live one's run keeps signalling (a claim renews it).
     expect(
       inFlightItems(d.server.runtime.db, 'TST', d.clock.now().toISOString()).map((i) => i.id),

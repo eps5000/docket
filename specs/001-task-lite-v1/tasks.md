@@ -800,6 +800,10 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T358 [US13] References as agent files (`skill:<name>--<topic>`): the bundled loader and retiring a reference the image no longer ships; install paths; the install step and `docket-update` (bash and PowerShell) removing a stale unmodified reference; push install and uninstall; `docket-check` reporting a reference only when it differs, drift reading its absence as unchanged; `claim_lead` instructions up to 60 files.
 - [x] T359 [US13] Tests: the lint (gates, unlisted and missing references, caps, names, safety rules in each core); the token budgets; the catalog, manifest, hashes, update adding and removing references in real bash and PowerShell, push removal, uninstall and drift.
 
+## Phase 62: Bookkeeping does not renew idle tickets (B85; correction to decision 62)
+
+- [x] T360 [US4] Classify every event type as work or bookkeeping; share the predicate across idle, work-map freshness and wait activity; cover agent-attributed radar and overlap events, radar-generated owner notes, real agent/owner work, and idle conflict clearing with synthetic fixtures.
+
 ## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.
