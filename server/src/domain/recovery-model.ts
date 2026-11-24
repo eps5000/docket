@@ -516,6 +516,9 @@ export function unpushedRisks(db: Db, runs: readonly RunRow[]): UnpushedRisk[] {
   return out;
 }
 
+/** How two spellings of one worktree path compare. */
+export const treeKey = (path: string) => pathKey(path).toLowerCase();
+
 /** The last read-only git check of a run's worktree (decision 41; worktree-check.ts). */
 export interface WorktreeCheck {
   checked_at: string;

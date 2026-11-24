@@ -695,6 +695,14 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T299 [US13] One short pointer each from `docket-worker` and `docket-coordinator`.
 - [x] T300 [US13] Tests: listing, install for both clients, drift, uninstall in each shell, update available from an older install, skills lint, a guard against project-specific names, token budgets.
 
+## Phase 46: Real worktree facts from the host helper (owner decision 48, B68)
+
+- [x] T301 [US11] Spec plus code in one PR: BUILD_SPEC §5.32 and §5.35, UI_SPEC §6.6 and §6.7, spec FR-290–FR-294 and SC-033, Help, the helper's README.
+- [x] T302 [US11] `tools/docket-sync/sources/worktrees.mjs` and `lib/git.mjs`: read-only host git, no shell, bounded, with no file names in any record.
+- [x] T303 [US11] Store the latest facts per project as bookkeeping and merge them into the Worktree view while fresh. Stale, missing or partial facts are never Safe to remove.
+- [x] T304 [US11] Settings → Connections → Worktree checks, and the fresh facts in B49's unpushed and uncommitted checks.
+- [x] T305 [US11] Tests: real repositories with linked worktrees in every state, Windows-style paths, timeouts, idempotent ingest, stale and partial data, a `.git` hash proof, no file names; e2e and axe in both themes at 1024 px and 1440 × 900.
+
 ## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.

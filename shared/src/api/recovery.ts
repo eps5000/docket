@@ -74,6 +74,10 @@ export const WORKTREE_VERDICTS = [
 ] as const;
 export type WorktreeVerdict = (typeof WORKTREE_VERDICTS)[number];
 
+/** The host helper's facts for this project (B68): `none` until it has reported. */
+export const WORKTREE_HOST_STATES = ['fresh', 'stale', 'none'] as const;
+export type WorktreeHostState = (typeof WORKTREE_HOST_STATES)[number];
+
 export const worktreeCleanupQuery = input({
   project: projectKey,
   /** `1` starts a new read of the repository now. */
@@ -102,6 +106,8 @@ export const repoWorktreeRowSchema = z.object({
   owner: z.enum(AT_RISK_OWNERS).nullable(),
   /** To check and run by hand. Only ever set on `safe_to_remove`; never `--force`. */
   command: z.string().nullable(),
+  /** Where this row's git facts came from: the helper on the host, or Docket's container. */
+  source: z.enum(['host', 'container']),
 });
 export type RepoWorktreeRow = z.infer<typeof repoWorktreeRowSchema>;
 
@@ -114,6 +120,7 @@ export const worktreeCleanupResponse = jsonResponse({
   checked_at: z.string().nullable(),
   /** A read in progress. */
   scanning: z.object({ done: z.number().int(), total: z.number().int() }).nullable(),
+  host: z.object({ state: z.enum(WORKTREE_HOST_STATES), checked_at: z.string().nullable() }),
   rows: z.array(repoWorktreeRowSchema),
 });
 export type WorktreeCleanupResponse = z.infer<typeof worktreeCleanupResponse>;
