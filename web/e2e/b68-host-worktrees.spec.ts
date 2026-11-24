@@ -56,7 +56,6 @@ const unknown = (n: number, why: string): RepoWorktreeRow =>
     unpushed_commits: null,
     merged: null,
     command: null,
-    source: 'container',
   });
 
 const cleanup = (state: WorktreeHostState, rows: RepoWorktreeRow[]): WorktreeCleanupResponse => ({
@@ -91,8 +90,10 @@ const source = (status: Partial<SyncSourceResponse['status']>): SyncSourceRespon
 
 const card = (page: Page) => page.locator('[data-card="worktree-helper"]');
 
-async function openSettings(page: Page, data: SyncSourceResponse) {
+async function openSettings(page: Page, data: SyncSourceResponse, git: SyncSourceResponse = data) {
   await mockGet(page, '/api/sync/worktrees', data);
+  // B76: the card shows the git source beside it.
+  await mockGet(page, '/api/sync/git', { ...git, name: 'git' });
   await page.goto('/settings');
   await expect(card(page)).toBeVisible();
 }
@@ -110,7 +111,7 @@ test('with no helper, Unknown rows say how to get an answer', async ({ page }) =
   const why = 'It’s outside the folder Docket can read, so it can’t be checked.';
   await openWorktrees(page, cleanup('none', [unknown(1, why)]));
   await expect(page.locator('[data-worktree-host-hint="none"]')).toContainText(
-    'Settings → Connections → Worktree checks',
+    'Settings → Connections → Git checks',
   );
   await expect(page.locator('button.wc-command')).toHaveCount(0);
 });

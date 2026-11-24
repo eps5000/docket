@@ -20,7 +20,7 @@ export const collect = async ({ state, log, signal, settings, docket }) => ({
 });
 ```
 
-A default export of the same object works too.
+A source may also export `batchSize`, a smaller batch than 200 for large records (the git source sends 50). A default export of the same object works too.
 
 | `collect` receives | What it is |
 | --- | --- |
@@ -32,7 +32,7 @@ A default export of the same object works too.
 
 The runner then:
 
-1. Posts `records` in batches of 200 to `POST /api/sync/<name>`, as `{ records, run: { ok, partial, error?, interval_ms } }`.
+1. Posts `records` in batches of 200 (or the source's smaller `batchSize`) to `POST /api/sync/<name>`, as `{ records, run: { ok, partial, error?, interval_ms } }`.
 2. Saves the returned `state` **only after every batch was accepted**. After a failure the next run starts from the old state.
 3. Treats `key` as the record's identity, so sending the same record twice changes nothing.
 
@@ -49,6 +49,7 @@ To fail a run, throw an error with a short `code` such as `network`. The code go
 - **`github`** (below): pull requests through `gh`.
 - **`usage`** (B63, BUILD_SPEC §5.34): token use from the local Codex and Claude Code logs. Off by default, and with it off no log file is opened.
 - **`worktrees`** (B68, BUILD_SPEC §5.32): what each project's worktrees hold, read with git on this computer. It runs whenever the helper runs and a project has a repository folder.
+- **`git`** (B76, BUILD_SPEC §5.35): every other git read Docket needs: the conflict radar's trial merges, branch discovery, commit activity, the worktree check and Docket's install manifest on main. Docket runs no git itself, so without this source the radar says it's waiting for the host helper.
 
 ## The GitHub source
 
@@ -64,7 +65,7 @@ GitHub's 5,000 points per hour are shared with your other tools, so it:
 
 ## The worktrees source
 
-Docket's container can't follow a worktree whose `.git` file names a Windows path, so the Worktree view would call it Unknown. Every 3 minutes this source reads each project's worktrees with the host's git and posts the facts.
+Docket's container runs no git (B76), and couldn't follow a worktree whose `.git` file names a Windows path anyway, so without this source the Worktree view waits for the helper. Every 3 minutes this source reads each project's worktrees with the host's git and posts the facts.
 
 - **It only reads.** `GIT_OPTIONAL_LOCKS=0`, no fetch (including a partial clone's lazy fetch), no content filters, filesystem monitor or signature checks, and no shell. Git runs from its own folder with `-C`, so a `git.exe` inside a worktree can't stand in for it. Git's `safe.directory` check stays on.
 - **It sends** paths, branch names, SHAs, counts, booleans and timestamps. `git status` output is counted and dropped, so **a file name is never kept, sent or logged**.
@@ -72,6 +73,19 @@ Docket's container can't follow a worktree whose `.git` file names a Windows pat
 - **UNC and device paths are never touched,** because reading one would make Windows connect to that host.
 
 Docket uses these facts only while they're under 10 minutes old. **To pick this source up on an installed helper, run the update steps below.**
+
+## The git source
+
+Docket's container runs no git (B76). Every 3 minutes this source reads, for each project with a repository folder, what Docket asks for in its settings (`GET /api/sync/git`), and posts the facts. Docket keeps all the judging.
+
+- **What it reads:** each in-flight item's branches, or for an item with none the local branches that name its key (skipping any the owner said aren't active); each branch's trial merge with main and whether it has merged; a trial merge for each pair of different items' branches that share a declared part or a changed file; commits on a run's branches since a time; whether a run's commit is on main or a remote, and how many commits are on neither; and Docket's own install manifest on main.
+- **It only reads.** The same rules as the worktrees source: `GIT_OPTIONAL_LOCKS=0`, no fetch, no checkout, no lazy fetch, no gc, filesystem monitor or signature checks, a short allowlisted environment, no shell, and `safe.directory` left on. A trial merge (`git merge-tree --write-tree`) writes its trees into a throwaway folder set as `GIT_OBJECT_DIRECTORY`, with the repository's objects as alternates; the folder is removed after the pass, so nothing is written to the repository.
+- **The one kind of file name it sends:** the conflicting files a trial merge reports with `--name-only`, and only for a real conflict. At most 50 per merge, each at most 300 characters with no control characters; `more` says some were left out. **No other file name leaves this computer:** the files a branch changed are used here to decide which pairs to merge and are never sent, stored or logged, and nothing `git status` lists is read. **No file contents are sent.** From the install manifest it sends only Docket's install ID, keys, version IDs and hashes, parsed here.
+- **Everything else it sends:** branch names, commit SHAs, times, counts and booleans.
+- **It's bounded:** 30 seconds a call, 2½ minutes a pass, two reads at a time, at most 300 pair merges a pass, and after three reads with no answer a project's pass stops asking. What a pass didn't reach is left out and the pass is marked incomplete, so Docket changes nothing because of it.
+- **Either order of update works.** A Docket that doesn't know this source answers 404, and the runner skips it. A Docket that asks for less gets less read.
+
+Docket uses these facts only while they're under 10 minutes old (about three passes); older, its radar says they're out of date and clears nothing. **To pick this source up on an installed helper, run the update steps below, after Docket itself is updated.**
 
 ## Install on Windows
 

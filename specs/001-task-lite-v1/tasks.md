@@ -737,6 +737,13 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T324 [US4] The `--st-queued` token, `WaitChip` on cards, the list, the item page and the epic's tickets, the Board's Waiting list, the Map bar, legend and cards, Overview's In flight card, the brief, Pick next epic and the critical path list.
 - [x] T325 [US4] Tests: each Blocked reason against Queued, chains, loops, canceled blockers, a held decision, a paused project, the nearest-blocker text, filters and counts agreeing across views, no colour-only status, e2e and axe in both themes at 1024 px and 1440 x 900 on stress data.
 
+## Phase 52: All git reading moves to the host helper (B76)
+
+- [x] T326 [US18] Spec plus code in one PR: BUILD_SPEC §5.16, §5.21, §5.32, §5.35 and §5.39; UI_SPEC §6.3 and §6.7; Help (shared changes and conflicts, workspaces and pruning); the helper's README.
+- [x] T327 [US18] `tools/docket-sync/sources/git.mjs`: the radar's trial merges, branch discovery, commit activity, the worktree check and the install manifest on main, read-only and bounded, with conflicting file names as the only file names sent (capped). The runner takes a source's smaller `batchSize`; `manage.ps1` installs the file.
+- [x] T328 [US18] Docket runs no git: `domain/host-git.ts` stores the passes; the radar, `run-activity.ts`, `worktree-check.ts`, the worktree cleanup view and `install-main.ts` judge from the facts; `git-read.ts`, the container worktree scan and git in the image are gone. "Waiting for the host helper" and stale states on the radar card, the Git checks card and the Worktrees view; `repo_path` is a host path.
+- [x] T329 [US18] Tests: the helper on fixture repositories with linked worktrees (each read, `.git` hashed before and after, bounds, an incomplete pass, the file-name cap, no file names outside conflicts); the ingest of each fact, findings and clearing from facts, waiting and stale, both upgrade orders, a guard that `server/src` starts no child process; e2e and axe in both themes for the waiting and stale states.
+
 ## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.
@@ -857,6 +864,7 @@ Open a PR titled "<Bn>: <phase name>" with the checkpoint evidence. Do not queue
 | 49 Pick next epic | B70 (decision 54) |
 | 50 Projects pull their own Docket updates | B72 (decision 56) |
 | 51 Queued instead of Blocked | B73 (decision 57) |
+| 52 All git reading moves to the host helper | B76 |
 
 **Within a phase:** tests (failing) → services → replace stubs or fill handlers → fill screens → checkpoint.
 
