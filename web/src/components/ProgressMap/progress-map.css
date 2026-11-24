@@ -343,8 +343,11 @@
   border-right: 1px dashed var(--st-ready);
   border-bottom: 1px dashed var(--st-ready);
 }
+/* Outside cards are dashed, but the status edge stays solid: a dashed green edge on a
+   Done card would read as In progress's hatching (decision 59). */
 .tl .pm-node.ext {
   border-style: dashed;
+  border-left-style: solid;
   background: var(--panel-2);
 }
 .tl .pm-node.cur,

@@ -179,6 +179,14 @@ test('the Board, the Map and the workload bars hatch In progress in Done green',
     expect(edge.image, theme).toContain(TOKENS[theme].done);
     expect(edge.width, theme).toBe('4px');
   }
+  // A Done card from outside the view stays solid-edged, so it never reads as In progress.
+  const outsideDone = page.locator('.pm-node.ext.ps-done').first();
+  await expect(outsideDone).toBeVisible();
+  const outsideEdge = await outsideDone.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { left: cs.borderLeftStyle, top: cs.borderTopStyle };
+  });
+  expect(outsideEdge).toEqual({ left: 'solid', top: 'dashed' });
   // The legend swatch for In progress is hatched too.
   const swatch = page.locator('.pm-legend b.sb-progress');
   if ((await swatch.count()) > 0) {
