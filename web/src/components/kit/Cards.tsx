@@ -1,6 +1,7 @@
 /**
  * TicketCard and EpicCard (UI_SPEC §4, §6.2.1).
  */
+import { useId } from 'react';
 import { Link } from 'react-router';
 import {
   STATUS_LABELS,
@@ -222,11 +223,13 @@ export function EpicCard({
   current?: boolean;
 }) {
   const { total, done, by_status } = epic.children;
+  const depsId = useId();
   return (
     <Link
       className={total === 0 ? 'epiccard empty' : 'epiccard'}
       to={paths.item(epic.id)}
       aria-current={current || undefined}
+      aria-describedby={epic.waits_on?.length ? depsId : undefined}
     >
       <span className="row" style={{ gap: 6, minWidth: 0 }}>
         <TypeIcon type="Epic" />
@@ -250,7 +253,7 @@ export function EpicCard({
           </>
         )}
       </span>
-      {epic.waits_on && <EpicDepsNote waits={epic.waits_on} />}
+      {epic.waits_on && <EpicDepsNote waits={epic.waits_on} namesId={depsId} />}
     </Link>
   );
 }

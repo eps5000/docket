@@ -30,8 +30,12 @@ export function epicDepsNames(waits: readonly EpicWait[]): string {
 
 const Mark = ({ clear }: { clear: boolean }) => <span aria-hidden="true">{clear ? '✓' : '⊘'}</span>;
 
-/** On an epic card, which is one link: the names are in its tooltip and accessible name. */
-export function EpicDepsNote({ waits }: { waits: readonly EpicWait[] }) {
+/**
+ * On an epic card, which is one link. The names are its tooltip and, through
+ * `namesId`, the link's description, so another epic's name never becomes
+ * part of this card's accessible name.
+ */
+export function EpicDepsNote({ waits, namesId }: { waits: readonly EpicWait[]; namesId: string }) {
   const clear = waits.length === 0;
   const names = epicDepsNames(waits);
   return (
@@ -41,7 +45,11 @@ export function EpicDepsNote({ waits }: { waits: readonly EpicWait[] }) {
       title={clear ? undefined : names}
     >
       <Mark clear={clear} /> {epicDepsText(waits)}
-      {!clear && <span className="sr">: {names}</span>}
+      {!clear && (
+        <span id={namesId} hidden>
+          Waits on {names}
+        </span>
+      )}
     </span>
   );
 }

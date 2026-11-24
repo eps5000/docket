@@ -414,7 +414,7 @@ A `ProgressMap` of the filtered set, titled "Outside this view". When no epic or
 - **Sorting:** every column heading is a button with `aria-sort`. First press sorts, second reverses, third returns to the best-fit order. Rows stay inside their group.
 - **Paused project:** the column reads **Can start once resumed**, with one line saying so. The counts aren't zeroed.
 - **Empty states:** no open epic with open tickets says so; no epic that qualifies says so, and nothing is marked Best next.
-- **Indicator:** epic cards and the epic page header say **✓ No outside dependencies** or **⊘ Waits on 2 epics** (`data-epic-deps`). A card, being one link, holds the names in its tooltip and accessible name. The epic page links each one. Only open epics with open tickets show it.
+- **Indicator:** epic cards and the epic page header say **✓ No outside dependencies** or **⊘ Waits on 2 epics** (`data-epic-deps`). A card, being one link, holds the names in its tooltip and accessible description, so another epic's name isn't part of the card's link name. The epic page links each one. Only open epics with open tickets show it.
 
 ### 6.3 Ticket and epic (`/items/:id`)
 

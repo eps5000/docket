@@ -8,10 +8,21 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { EpicPick, EpicWait, PickEpicResponse } from '@docket/shared';
+import type {
+  EpicCard as EpicCardData,
+  EpicPick,
+  EpicWait,
+  PickEpicResponse,
+} from '@docket/shared';
 import type * as QueryClientModule from '../../app/queryClient';
 import type * as ShellStateModule from '../../app/ShellState';
-import { EpicDepsLine, EpicDepsNote, epicDepsNames, epicDepsText } from '../../components/kit';
+import {
+  EpicCard,
+  EpicDepsLine,
+  EpicDepsNote,
+  epicDepsNames,
+  epicDepsText,
+} from '../../components/kit';
 import { nextSort, sortPicks } from './pickEpicSort';
 import { PickEpicPage } from './PickEpicPage';
 
@@ -194,12 +205,31 @@ describe('the indicator', () => {
   });
 
   it('keeps the names available on the card, in words', () => {
-    const { container } = render(<EpicDepsNote waits={[...two, loose]} />);
+    const { container } = render(<EpicDepsNote waits={[...two, loose]} namesId="deps" />);
     const note = container.querySelector('[data-epic-deps="waits"]')!;
     const names = epicDepsNames([...two, loose]);
     expect(names).toBe('Foundations (3 tickets), Billing (1 ticket), no epic (2 tickets)');
     expect(note.getAttribute('title')).toBe(names);
-    expect(note.querySelector('.sr')!.textContent).toContain(names);
+    expect(container.querySelector('#deps')!.textContent).toContain(names);
+  });
+
+  it('describes the card with the names, without adding them to its link name', () => {
+    const card = {
+      id: 'E-9',
+      title: 'Pantry',
+      status: 'progress',
+      children: { total: 2, done: 0, by_status: { ready: 2 }, for_you: 0 },
+      waits_on: two,
+    } as unknown as EpicCardData;
+    const { container } = render(
+      <MemoryRouter>
+        <EpicCard epic={card} />
+      </MemoryRouter>,
+    );
+    expect(screen.queryByRole('link', { name: /Foundations/ })).toBeNull();
+    const link = screen.getByRole('link', { name: /Pantry/ });
+    const described = container.querySelector(`[id="${link.getAttribute('aria-describedby')}"]`);
+    expect(described!.textContent).toContain('Foundations');
   });
 
   it('links each epic on the epic page', () => {
