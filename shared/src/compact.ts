@@ -29,6 +29,7 @@ import {
   type WorkStepState,
 } from './enums.js';
 import type { ToolErrorShape } from './errors.js';
+import { untriagedText } from './midflight.js';
 import { fillSummary, TOOL_SUMMARIES } from './mcp-copy.js';
 import { LIMITS } from './mcp/limits.js';
 import type { ToolName, ToolOutput } from './mcp/tools.js';
@@ -1179,6 +1180,18 @@ function renderDigest(d: Digest, now: Date): string {
       ]);
     }),
   };
+  // Decision 62: the producer triages these first (a bug to Ready, a story to the owner).
+  const untriaged = {
+    title: 'added mid-flight',
+    total: d.untriaged_epics?.total ?? 0,
+    rows: (d.untriaged_epics?.rows ?? []).map(
+      (x) =>
+        `${x.id} ${untriagedText(x.untriaged.length).toLowerCase()}: ${partList(
+          x.untriaged.map((t) => `${t.id} ${t.type.toLowerCase()}`),
+          3,
+        )}${SEP}${clip(x.title, 30)}`,
+    ),
+  };
   // Decision 65: tickets for the producer to give a planner.
   const shaping = {
     title: 'needs shaping',
@@ -1194,6 +1207,7 @@ function renderDigest(d: Digest, now: Date): string {
   };
   const rest = [
     partly,
+    untriaged,
     nextWork,
     bottlenecks,
     releaseBugs,

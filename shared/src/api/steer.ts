@@ -5,6 +5,7 @@
  */
 import { z } from 'zod';
 import { SPLIT_RELATIONS } from '../enums.js';
+import { IDLE_ACTIONS } from '../midflight.js';
 import { itemId, objectId, text } from '../mcp/common.js';
 import { splitCarry } from '../mcp/items.js';
 import { QUESTION_FORM, TEXT_LIMITS } from '../mcp/limits.js';
@@ -67,6 +68,17 @@ export const leadActionBody = input({
   reason: text(TEXT_LIMITS.note).optional(),
 });
 export const leadActionResponse = ownerMutationOutput({ item: itemSummarySchema });
+
+/**
+ * Decision 62: what the owner does with an idle ticket (In progress, no live
+ * run, no activity for 3 days): move it to Ready, Planning or Inbox, cancel
+ * it, or clear its branches so the radar stops using them. Undoable.
+ */
+export const settleIdleBody = input({
+  action: z.enum(IDLE_ACTIONS),
+  reason: text(TEXT_LIMITS.note).optional(),
+});
+export const settleIdleResponse = ownerMutationOutput({ item: itemSummarySchema });
 
 // ---- Owner work steps and checks ----
 
@@ -168,6 +180,17 @@ export const steerRoutes = {
     query: noInput,
     body: leadActionBody,
     response: json(leadActionResponse),
+    undoable: true,
+  }),
+  /** Decision 62: settle an idle ticket from its problem (undoable). */
+  'items.settleIdle': route({
+    method: 'POST',
+    path: '/api/items/:id/idle',
+    group: 'steer',
+    params: itemParams,
+    query: noInput,
+    body: settleIdleBody,
+    response: json(settleIdleResponse),
     undoable: true,
   }),
   'steps.add': route({

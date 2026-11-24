@@ -14,6 +14,7 @@ import {
   Button,
   Chip,
   EpicDepsLine,
+  EpicMidflightLine,
   EpicReadinessLine,
   EpicReleaseLine,
   FinishedPartlyBlock,
@@ -262,6 +263,7 @@ export function ItemHeader({ id, data }: { id: string; data?: ItemDetailResponse
         )}
         {epic && data?.epic_waits && <EpicDepsLine waits={data.epic_waits} />}
         {epic && data?.epic_readiness && <EpicReadinessLine readiness={data.epic_readiness} />}
+        {epic && data?.epic_midflight && <EpicMidflightLine midflight={data.epic_midflight} />}
         {/* Decision 67: the epic's Release, what it waits for and the open bugs holding it. */}
         {epic && data?.release && open && <EpicReleaseLine release={data.release} />}
         {data?.release_hold && <ReleaseHoldLine hold={data.release_hold} />}

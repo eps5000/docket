@@ -47,12 +47,18 @@ services:
     depends_on:
       docket:
         condition: service_healthy
+    # The gateway's own health: it accepts connections on 7420. It used to fetch docket's
+    # /healthz through itself, so whenever the e2e specs reset docket (stop, wipe, start)
+    # the gateway was marked unhealthy too, and stayed so until its next good check; the
+    # next `up --wait` (which doesn't recreate it) then failed at once on that stale state.
+    # Docket's health is docket's own healthcheck; that the browser reaches docket through
+    # the gateway is checked after every `up` with docker/no-egress/wait-ready.sh.
     healthcheck:
       test:
         - CMD
         - node
         - -e
-        - "fetch('http://127.0.0.1:7420/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
+        - "require('node:net').connect(7420,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"
       interval: 10s
       timeout: 5s
       start_period: 5s

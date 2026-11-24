@@ -210,7 +210,7 @@ describe('the service stubs', () => {
     context: ['getContext'],
     // US7 (B14, T124–T125).
     documents: ['put', 'stage', 'commitUpload', 'content'],
-    archive: ['archive', 'unarchive', 'archiveMany', 'cancel'],
+    archive: ['archive', 'unarchive', 'archiveMany', 'cancel', 'settleIdle'],
     // US8 (B16, T136).
     forecast: ['timeline', 'burndown', 'forecast'],
     // US9 (B17, T140–T141).

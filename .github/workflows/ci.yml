@@ -228,7 +228,9 @@ jobs:
       # (docker/compose.no-egress.yaml). Only the Jira fixture is reachable from it; the
       # browser comes in through a loopback-published gateway.
       - name: Start the container (sealed, no egress)
-        run: docker compose $STACK up -d --no-build --wait --wait-timeout 120
+        run: |
+          docker compose $STACK up -d --no-build --wait --wait-timeout 120
+          docker/no-egress/wait-ready.sh
 
       - name: Playwright
         working-directory: web
@@ -304,10 +306,13 @@ jobs:
           DOCKET_E2E_KIT: '0'
         run: |
           docker compose $STACK up -d --no-build --wait --wait-timeout 120
+          docker/no-egress/wait-ready.sh
           pnpm --filter @docket/web e2e
 
       - name: Back to local trust
-        run: docker compose $STACK up -d --no-build --wait --wait-timeout 120
+        run: |
+          docker compose $STACK up -d --no-build --wait --wait-timeout 120
+          docker/no-egress/wait-ready.sh
 
       - name: No egress (FR-106)
         run: docker/no-egress/check.sh $STACK

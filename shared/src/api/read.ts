@@ -34,6 +34,7 @@ import { WORK_CHECKS, WORK_QUICK, WORK_SHOWS, WORK_TYPES } from '../work-filter.
 import { itemWaitSchema } from '../wait-kind.js';
 import { epicReadinessSchema } from '../epic-readiness.js';
 import { releaseDetailSchema, releaseHoldSchema } from '../release.js';
+import { epicMidflightSchema } from '../midflight.js';
 import { problemAckSchema, problemExplanationSchema, resolutionRowSchema } from './problems.js';
 import {
   designReviewRowSchema,
@@ -136,6 +137,8 @@ export const PROBLEM_KINDS = [
   // A parked run's wait has no next step, or an owner decision nobody asked for (decision 45; B54)
   'wait_no_next_step',
   'wait_owner_unasked',
+  // An In progress ticket nobody has worked on for days (decision 62; B79)
+  'idle_ticket',
 ] as const;
 
 export const problemSchema = z.object({
@@ -507,6 +510,8 @@ export const itemDetailResponse = jsonResponse({
   item_wait: itemWaitSchema.optional(),
   /** Decision 58 (optional): an epic's Inbox or Planning tickets, before or after it started. */
   epic_readiness: epicReadinessSchema.optional(),
+  /** Decision 62 (optional): an open epic's tickets added after it started, and how many are untriaged. */
+  epic_midflight: epicMidflightSchema.optional(),
   /** Decision 67 (on an epic): its Release, and the open tickets and bugs that hold it. */
   release: releaseDetailSchema.optional(),
   /** Decision 67 (on a Release): the other open tickets and bugs in its epic that hold it. */

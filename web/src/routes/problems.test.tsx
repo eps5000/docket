@@ -211,6 +211,42 @@ describe('the item’s problem banner (decision 37)', () => {
     expect(within(second).getByRole('img', { name: 'Problem' })).toBeTruthy();
   });
 
+  it('folds acknowledged problems into one quiet line that opens them, and doesn’t count them (decision 62)', async () => {
+    const at = new Date(Date.now() - 5 * 60_000).toISOString();
+    wrap(
+      <ProblemBanners
+        data={detail([
+          radar({ acknowledged: { by: 'owner', at } }),
+          radar({ id: 'rdf_2', related: ['GF-240'], acknowledged: { by: 'owner', at } }),
+          radar({ id: 'rdf_3', related: ['GF-241'], reached_you: null }),
+        ])}
+      />,
+    );
+    const region = screen.getByRole('region', { name: 'Problems with GF-228' });
+    // One open problem: no count, and the acknowledged ones are folded away.
+    expect(within(region).queryByText(/open problems?/)).toBeNull();
+    expect(region.querySelector('[data-problem-id="rdf_3"]')).not.toBeNull();
+    expect(region.querySelector('[data-problem-id="rdf_1"]')).toBeNull();
+    const fold = within(region).getByRole('button', { name: 'You acknowledged 2 problems' });
+    expect(fold.getAttribute('aria-expanded')).toBe('false');
+    await userEvent.click(fold);
+    expect(fold.getAttribute('aria-expanded')).toBe('true');
+    const first = region.querySelector('[data-problem-id="rdf_1"]') as HTMLElement;
+    expect(first.querySelector('.prob-ack dd')?.textContent).toBe('Acknowledged by you 5m ago');
+    expect(region.querySelector('[data-problem-id="rdf_2"]')).not.toBeNull();
+  });
+
+  it('shows only the fold when every problem is acknowledged, and opens it for ?problem=', () => {
+    const at = new Date(Date.now() - 5 * 60_000).toISOString();
+    wrap(
+      <ProblemBanners data={detail([radar({ acknowledged: { by: 'owner', at } })])} />,
+      '/items/GF-228?problem=rdf_1',
+    );
+    const fold = screen.getByRole('button', { name: 'You acknowledged 1 problem' });
+    expect(fold.getAttribute('aria-expanded')).toBe('true');
+    expect(document.activeElement?.getAttribute('data-problem-id')).toBe('rdf_1');
+  });
+
   it('Go a different way needs a note', async () => {
     wrap(<ProblemBanners data={detail([], [resolution({ problem_id: null })])} />);
     await userEvent.click(screen.getByRole('button', { name: 'Go a different way' }));

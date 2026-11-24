@@ -19,6 +19,7 @@ import {
 import { itemWaitSchema } from '../wait-kind.js';
 import { epicReadinessSchema } from '../epic-readiness.js';
 import { epicReleaseSchema } from '../release.js';
+import { epicMidflightSchema } from '../midflight.js';
 
 /** Decision 53: the owner's pause on a project, read from its active pause decision. */
 export const projectPauseSchema = z.object({
@@ -114,6 +115,8 @@ export const workItemSchema = itemSummarySchema.extend({
    * why) or Held, from the server's one classification. Derived; display only.
    */
   wait: itemWaitSchema.optional(),
+  /** Decision 62: it joined its epic after the epic started (the map marks it). Present only when true. */
+  added_midflight: z.literal(true).optional(),
 });
 export type WorkItem = z.infer<typeof workItemSchema>;
 
@@ -154,6 +157,8 @@ export const epicCardSchema = itemSummarySchema.extend({
   waits_on: z.array(epicWaitSchema).optional(),
   /** Decision 58: Not ready to start, or Started with N unshaped tickets; absent when all are Ready. */
   readiness: epicReadinessSchema.optional(),
+  /** Decision 62: tickets added after it started, and how many are untriaged; absent when none. */
+  midflight: epicMidflightSchema.optional(),
   /** Decision 67: its Release, the tickets it waits for, and open bugs; absent on a closed epic. */
   release: epicReleaseSchema.optional(),
 });

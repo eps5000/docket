@@ -414,9 +414,10 @@ const OPTIONAL_OUTPUTS: Record<string, string[]> = {
     'agent_files_update',
     'unshaped_epics',
     'finished_partly',
+    'untriaged_epics',
     'release_bugs',
     'needs_shaping',
-  ], // decisions 53, 56, 58, 61, 64, 65: only while they apply
+  ], // decisions 53, 56, 58, 61, 62, 64, 65: only while they apply
   submit_packet: ['held_undeclared', 'held_design'],
   declare_shared_changes: ['design_hold'],
   update_run_status: ['parked_until'], // decision 44: while a coordinator's park holds

@@ -789,6 +789,12 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T352 [US4] The item header's Needs shaping chip and the refused Move to Ready panel (*Ask a planner to shape this* with a note, *It changes no shared part*), the epic line's count and the map card's "needs shaping".
 - [x] T353 [US4] Tests: `create_item` with shared parts, with none and with neither; splits; the refusal and its button; the digest count; the planner's path to Ready; token budget; e2e and axe in both themes at 1024 px and 1440 x 900.
 
+## Phase 60: New work mid-epic, idle tickets and acknowledged problems (owner decision 62)
+
+- [x] T354 [US4] Spec plus code in one PR: decision 62 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.45; MCP_SPEC `get_digest`, `set_status` and Problems; UI_SPEC §6.1, §6.2 and §6.3; spec FR-359–FR-366 and SC-046; Help (Problems and what to do; Pick the next epic); the producer, worker and planner skills.
+- [x] T355 [US4] `domain/midflight.ts` (added mid-flight from events, the Done refusal, the digest's `untriaged_epics`, `midflight` on epic cards and `epic_midflight` on the epic page, the map's mark) and `domain/idle.ts` (idle detection, the `idle_ticket` problem, `POST /api/items/:id/idle`, the radar and overlap checks skipping idle tickets, the sweeper clearing conflicts against them with a reason); acknowledged problems folded on the item and epic banner and left out of *Has problems*.
+- [x] T356 [US4] Tests: triage rules (a bug to Ready, a bug moved to another epic, Done refused while untriaged), the digest and its cap, marking on cards, the epic page and the map; idle detection (open, parked and needs-input runs keep a ticket live, activity resets it, Docket's events and acknowledging don't), each way forward and its undo, the radar and overlap checks skipping it and the sweeper clearing with a reason; acknowledged folding and coming back; the contract snapshot; e2e and axe in both themes.
+
 ## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.

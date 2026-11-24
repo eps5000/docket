@@ -32,6 +32,7 @@ import { inferredTypeCount } from './ticket-types.js';
 import { releaseDetails } from './release.js';
 import { openPartialExits } from './exit-reports.js';
 import { projectNeedsShaping } from './shaping.js';
+import { midflightByEpic } from './midflight.js';
 
 export interface DigestService {
   get(r: ReadContext, input: ToolInput<'get_digest'>): Digest;
@@ -186,6 +187,35 @@ function releaseBugs(r: ReadContext, project: string): NonNullable<Digest['relea
       const release = releases.get(e.id)!;
       return { epic: e.id, release: release.id, bugs: release.open_bugs.map((b) => b.id) };
     });
+}
+
+/** Decision 62: open epics with tickets added after they started that are still in Inbox. */
+function untriagedEpics(
+  r: ReadContext,
+  project: string,
+): NonNullable<Digest['untriaged_epics']>['rows'] {
+  const epics = r.db.sqlite
+    .prepare(
+      `SELECT id, title, priority FROM items
+       WHERE project_key = ? AND type = 'Epic' AND archived_at IS NULL AND status IN ('progress', 'review')`,
+    )
+    .all(project) as { id: string; title: string; priority: number }[];
+  if (epics.length === 0) return [];
+  const added = midflightByEpic(
+    r.db,
+    epics.map((e) => e.id),
+  );
+  return epics
+    .filter((e) => (added.get(e.id)?.untriaged ?? 0) > 0)
+    .sort((a, b) => a.priority - b.priority || a.id.localeCompare(b.id))
+    .map((e) => ({
+      id: e.id,
+      title: e.title,
+      untriaged: added
+        .get(e.id)!
+        .added.filter((t) => t.untriaged)
+        .map((t) => ({ id: t.id, type: t.type })),
+    }));
 }
 
 export function createDigestService(deps: ServiceDeps): DigestService {
@@ -363,6 +393,10 @@ export function createDigestService(deps: ServiceDeps): DigestService {
         at: exit.at,
         left: exit.left,
       }));
+      // Decision 62: the producer triages these: a bug to Ready, a story to the owner.
+      const untriaged = untriagedEpics(r, input.project).filter(
+        (x) => since === null || keep(x.id) || x.untriaged.some((t) => keep(t.id)),
+      );
       // Decision 56: on a full snapshot only, so a repeated digest stays small.
       // Decision 65: tickets for the producer to give a planner (paused or not: shaping isn't starting work).
       const shaping = projectNeedsShaping(r.db, input.project)
@@ -394,6 +428,9 @@ export function createDigestService(deps: ServiceDeps): DigestService {
           : {}),
         ...(shaping.length > 0
           ? { needs_shaping: section(shaping, DIGEST_CAPS.needs_shaping) }
+          : {}),
+        ...(untriaged.length > 0
+          ? { untriaged_epics: section(untriaged, DIGEST_CAPS.untriaged_epics) }
           : {}),
         ...(inferred > 0 ? { inferred_types: inferred } : {}),
         cursor: String(latest),
