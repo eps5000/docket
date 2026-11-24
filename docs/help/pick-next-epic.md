@@ -54,6 +54,15 @@ When an agent tries to start such an epic, Docket refuses and tells it which tic
 
 An epic that's already **In progress** keeps going. It shows **Started with 2 unshaped tickets** on its card and page, and the producer sees the same in its digest.
 
+## New work after an epic starts
+
+Bugs turn up while an epic runs, and new ideas too. A ticket added to an epic after it started still lands in **Inbox**, so nothing joins a running epic as Ready without someone looking at it first. The epic's producer triages:
+
+- **A bug:** it starts a short, read-only check that confirms the bug happens and whether this epic's work caused it, and leaves the steps to reproduce it or a failing test. That check fixes nothing. If the bug is real and belongs here, the producer sets how serious it is and moves it to Ready in this epic. If it belongs somewhere else, such as a flaky test that goes to your test-reliability epic, it moves it there. If it can't be reproduced, the producer asks you whether to close it.
+- **A story** adds scope, so it's your call. The producer asks you one question: add it to this epic, defer it to a follow-up, or drop it.
+
+You can see it as it happens. The epic's card and page say **Added since it started: 3 tickets · 2 untriaged**, with each ticket linked on the page, and the map marks each of those cards **added mid-flight**. The producer's digest lists the untriaged ones first. An epic can't be closed while any of them is still untriaged: Docket says which ones.
+
 ## Ready with known gaps
 
 Sometimes a ticket is shaped except for a few things that are best settled while building it. The agent names those as **known gaps**. A ticket with known gaps needs your approval to move to Ready:

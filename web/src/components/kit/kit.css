@@ -1014,6 +1014,16 @@
 .tl .epicready.not_ready {
   color: var(--text);
 }
+/* Decision 62: tickets added after the epic started; the list is its tooltip. */
+.tl .epicmid {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tl .epicmid.untriaged {
+  color: var(--text);
+}
 /* Decision 64: one line, only while bugs in the epic are open. */
 .tl .epicrelease {
   display: block;

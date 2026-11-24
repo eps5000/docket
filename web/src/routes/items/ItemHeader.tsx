@@ -16,6 +16,7 @@ import {
   Button,
   Chip,
   EpicDepsLine,
+  EpicMidflightLine,
   EpicReadinessLine,
   EpicReleaseLine,
   FinishedPartlyBlock,
@@ -264,6 +265,7 @@ export function ItemHeader({ id, data }: { id: string; data?: ItemDetailResponse
         )}
         {epic && data?.epic_waits && <EpicDepsLine waits={data.epic_waits} />}
         {epic && data?.epic_readiness && <EpicReadinessLine readiness={data.epic_readiness} />}
+        {epic && data?.epic_midflight && <EpicMidflightLine midflight={data.epic_midflight} />}
         {/* Decision 64: the finish line and the open bugs holding it, or "No finish line". */}
         {epic && data?.finish_line && <EpicReleaseLine line={data.finish_line} />}
         {epic && data?.finish_line && <FinishLineControl data={data} />}

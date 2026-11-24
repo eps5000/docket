@@ -20,6 +20,7 @@ export * from './epic-readiness.js';
 export * from './finish-line.js';
 export * from './exit-report.js';
 export * from './shaping.js';
+export * from './midflight.js';
 export * from './install.js';
 export * from './legacy.js';
 export * from './connection.js';
