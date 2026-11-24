@@ -14,6 +14,8 @@ A **workspace** is the folder (usually a git worktree) where an agent works on a
 
 The main table shows what agents report. **Every worktree** also reads your repository, without changing it. Docket never deletes a worktree or stops a process; your coordinator, or you, do that.
 
+**Worktrees outside Docket's folder.** Docket runs in a container and can't read these by itself, so they show as **Unknown**. The Docket helper on your computer can read them. It runs every few minutes, changes nothing, and never sends file names. See its status in **Settings → Connections → Worktree checks**. If the helper stops, its answers go back to **Unknown** after 10 minutes, so an old answer can never make a worktree look safe to remove.
+
 ## The states
 
 | State | What it means | Prune it? |

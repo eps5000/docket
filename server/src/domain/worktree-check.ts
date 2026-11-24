@@ -24,10 +24,11 @@ import type { Config } from '../config.js';
 import type { Db } from '../db/client.js';
 import type { RunRow } from './model.js';
 import { git, GitUnknown, known } from './git-read.js';
+import { hostChecks } from './host-worktrees.js';
 import { probeRepo, resolveRepoPath, validBranch } from './radar.js';
 import {
-  pathKey,
   storedWorkspace,
+  treeKey,
   unpushedRisks,
   type StoredWorkspace,
   type WorktreeCheck,
@@ -71,8 +72,7 @@ export async function listTrees(dir: string, signal?: AbortSignal): Promise<Tree
   return out;
 }
 
-/** How two spellings of one worktree path compare. */
-export const treeKey = (path: string) => pathKey(path).toLowerCase();
+export { treeKey };
 
 /** Every linked worktree's admin folder (`.git/worktrees/<name>`), by `treeKey`. */
 export async function adminDirs(common: string): Promise<Map<string, string>> {
@@ -283,12 +283,21 @@ export async function checkProjectWorktrees(
   const p = db.sqlite
     .prepare('SELECT repo_path, main_branch FROM projects WHERE key = ? AND deleted_at IS NULL')
     .get(project) as { repo_path: string | null; main_branch: string } | undefined;
+  // B68: the host helper's fresh facts answer for a folder the container can't read.
+  const fromHost = p
+    ? hostChecks(db, { key: project, ...p }, now)
+    : new Map<string, WorktreeCheck>();
   let repo: { dir: string; common: string; main: string } | null = null;
+  /** A read had no answer, so a worktree the helper doesn't cover stays as it was. */
+  let noAnswer = false;
   if (p?.repo_path) {
     try {
       const dir = resolveRepoPath(config, p.repo_path);
       const probe = await probeRepo(dir, signal);
-      if (!probe.ok && probe.unknown) return 0;
+      if (!probe.ok && probe.unknown) {
+        if (fromHost.size === 0) return 0;
+        noAnswer = true;
+      }
       if (probe.ok) repo = { dir, common: dirname(probe.objects), main: p.main_branch };
     } catch {
       repo = null;
@@ -299,22 +308,28 @@ export async function checkProjectWorktrees(
     try {
       trees = await listTrees(repo.dir, signal);
     } catch (err) {
-      if (err instanceof GitUnknown) return 0;
-      throw err;
+      if (!(err instanceof GitUnknown)) throw err;
+      if (fromHost.size === 0) return 0;
+      noAnswer = true;
+      repo = null;
     }
   }
   let read = 0;
   for (const risk of risks) {
     if (signal?.aborted) break;
     const ws = storedWorkspace(risk.run);
+    const host = ws?.path ? fromHost.get(treeKey(ws.path)) : undefined;
     let check: WorktreeCheck | null;
     try {
       check = repo && ws ? await checkWorktree(config, repo, trees, ws, now, signal) : null;
     } catch (err) {
-      if (err instanceof GitUnknown) continue;
-      throw err;
+      if (!(err instanceof GitUnknown)) throw err;
+      if (!host) continue;
+      check = null;
     }
     if (signal?.aborted) break;
+    if (host && (!check || check.uncommitted_files === null)) check = host;
+    else if (noAnswer && !check) continue;
     if (check) read += 1;
     save(risk.run, check);
   }

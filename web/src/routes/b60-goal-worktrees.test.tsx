@@ -197,6 +197,7 @@ const wt = (n: number, over: Partial<RepoWorktreeRow> = {}): RepoWorktreeRow => 
   why: 'Clean, merged to main, and nothing is running in it.',
   owner: null,
   command: `git -C '/work/app' worktree remove '/work/wt-${n}'`,
+  source: 'container',
   ...over,
 });
 const cleanupOf = (rows: RepoWorktreeRow[]): WorktreeCleanupResponse => ({
@@ -205,6 +206,7 @@ const cleanupOf = (rows: RepoWorktreeRow[]): WorktreeCleanupResponse => ({
   repo: 'ok',
   checked_at: '2026-11-23T00:00:00.000Z',
   scanning: null,
+  host: { state: 'none', checked_at: null },
   rows,
 });
 const opened = (rows: RepoWorktreeRow[]) => {

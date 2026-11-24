@@ -48,6 +48,7 @@ To fail a run, throw an error with a short `code` such as `network`. The code go
 
 - **`github`** (below): pull requests through `gh`.
 - **`usage`** (B63, BUILD_SPEC §5.34): token use from the local Codex and Claude Code logs. Off by default, and with it off no log file is opened.
+- **`worktrees`** (B68, BUILD_SPEC §5.32): what each project's worktrees hold, read with git on this computer. It runs whenever the helper runs and a project has a repository folder.
 
 ## The GitHub source
 
@@ -60,6 +61,17 @@ GitHub's 5,000 points per hour are shared with your other tools, so it:
 - stops below **500** points left and waits for the reset;
 - backs off from 1 minute up to 30 on failure, and at least 15 minutes on a rate limit;
 - makes no GitHub request while Docket is down, or while the connection is off.
+
+## The worktrees source
+
+Docket's container can't follow a worktree whose `.git` file names a Windows path, so the Worktree view would call it Unknown. Every 3 minutes this source reads each project's worktrees with the host's git and posts the facts.
+
+- **It only reads.** `GIT_OPTIONAL_LOCKS=0`, no fetch (including a partial clone's lazy fetch), no content filters, filesystem monitor or signature checks, and no shell. Git runs from its own folder with `-C`, so a `git.exe` inside a worktree can't stand in for it. Git's `safe.directory` check stays on.
+- **It sends** paths, branch names, SHAs, counts, booleans and timestamps. `git status` output is counted and dropped, so **a file name is never kept, sent or logged**.
+- **It's bounded:** two worktrees at a time, 20 seconds each, 2 minutes per pass. A read with no answer is sent as timed out, which Docket shows as Unknown. A pass that runs out of time is marked partial, so Docket removes nothing because of it, and the next pass carries on from where it stopped.
+- **UNC and device paths are never touched,** because reading one would make Windows connect to that host.
+
+Docket uses these facts only while they're under 10 minutes old. **To pick this source up on an installed helper, run the update steps below.**
 
 ## Install on Windows
 
