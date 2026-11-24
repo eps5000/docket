@@ -355,6 +355,14 @@ Definitions are in BUILD_SPEC §5.34. **With the source off none of this renders
 - **Ticket and epic → Details → Token use** (`data-section="token-use"`): the four kinds, sessions and responses, the estimate, then tables **By model** and **By session** (the latest 12), each with every kind in its own column. An epic adds its tickets up and adds **By ticket**, with links. Each table is a focusable, labelled region that scrolls on its own at 1024 px.
 - **Daily brief:** *What it cost* (§6.1b).
 
+### 6.1d Pause project (decision 53; BUILD_SPEC §5.37)
+
+- **Pause project…** is in Overview's header with one project chosen, and on each project's row in Settings. Its dialog asks "Why are you pausing it?" (required, at most 300 characters) and says agents can't start or resume work, and that nothing is lost.
+- **The banner** (`data-banner="paused"`) is on Overview, Work and the item page: "<Project> is paused. You paused it on <day>: “<reason>”. Agents can't start or resume work here until you resume it.", with **Resume project** and a Help link. With All projects, Overview and Work show one per paused project. An item page shows its own project's.
+- **Paused marker:** the word "Paused" in the project switcher (the menu and the current project) and on the Settings row, and "(paused)" in project `<select>`s. Never colour alone.
+- Both actions toast with Undo. Focus moves to the action that replaced the button, or to the page when there's none.
+- Parked runs show the existing "Held by your decision" line. A pause adds nothing to the Needs you badge.
+
 ### 6.2 Work (`/work`)
 - **Header row:** h1 "Work", and on the right a segmented control: Board | List | Map | Timeline.
 - **Filter row** (Board, List and Map; Timeline uses the same epic and label scope, and none of the status filters). Owner feedback from the Gameflow pilot (B43): the old row of seven chips wasn't what the owner reached for, so three quick filters stay on the row and the rest moved into a menu:
@@ -727,7 +735,7 @@ Rows link to the item. **Subagent log entries aren't listed here;** they show on
 h1 "Settings".
 
 - **h2 "Projects":** one row per project:
-  - colour swatch, name (+ "Current" chip), "KEY · n epics · n items · n documents · n for you";
+  - colour swatch, name (+ "Current" chip, + "Paused" chip; *Pause project…* or *Resume project*, §6.1d), "KEY · n epics · n items · n documents · n for you";
   - label tags;
   - **Coordinators** (decision 42): names, comma-separated, who may correct a run's status with `update_run_status` here, and nothing else;
   - a mini status bar with "n done · n active · n review · n planning";

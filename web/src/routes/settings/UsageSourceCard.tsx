@@ -6,7 +6,7 @@ import { apiClient } from '../../app/queryClient';
 import { QueryState } from '../../app/QueryState';
 import { HelpLink } from '../../help/HelpLink';
 import { queryKeys } from '../../lib/api';
-import { formatAgo, isoTitle } from '../../lib/format';
+import { formatAgo, isoTitle, pausedMark } from '../../lib/format';
 import { showToast } from '../../lib/undo';
 import { errorText } from '../agent-files/install-common';
 import { USAGE_SOURCE_NOTE, USAGE_SOURCE_OFF_NOTE, USAGE_SOURCE_TITLE } from '../usage/usageText';
@@ -182,6 +182,7 @@ function CoordinatorFolders({
               {projects.map((p) => (
                 <option key={p.key} value={p.key}>
                   {p.name}
+                  {pausedMark(p)}
                 </option>
               ))}
             </select>

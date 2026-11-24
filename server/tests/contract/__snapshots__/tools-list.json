@@ -653,6 +653,9 @@
             "project": {
               "type": "string"
             },
+            "paused": {
+              "type": "string"
+            },
             "cursor": {
               "type": "string"
             },

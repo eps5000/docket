@@ -119,6 +119,7 @@ describe('the service stubs', () => {
       'heartbeat',
       'finish',
       'recordSignal',
+      'pausedParkNote',
       'expireLeases',
       'keepOpenRuns',
       'endSilentChildren',
@@ -196,7 +197,14 @@ describe('the service stubs', () => {
     subgraph: ['dependencySubgraph', 'cycles', 'criticalPath'],
     // US4 (B11, T106) and US10 (B15, T130–T131).
     // US15 (B30, T164): create.
-    projects: ['setDefaultSatisfiedWhen', 'delete', 'removeDeletedDocs', 'create'],
+    projects: [
+      'setDefaultSatisfiedWhen',
+      'delete',
+      'removeDeletedDocs',
+      'create',
+      'pause',
+      'resume',
+    ],
     backup: ['status', 'trouble', 'runNow'],
     diagnostics: ['calls'],
     // US5 (B12, T114).

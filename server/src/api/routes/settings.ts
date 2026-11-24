@@ -38,6 +38,21 @@ export function settingsRoutes<E extends Env>(api: Hono<E>, deps: RouteDeps): vo
   });
 
   /** Not undoable; the docs directory is removed after the commit (and retried at startup). */
+  // Decision 53: the owner's Pause project and Resume project, both undoable.
+  defineRoute(api, 'projects.pause', deps, ({ services, mutate, params, body }) => {
+    const { result, mutation_id } = mutate((w) =>
+      services.projects.pause(w, { key: params.key, ...body }),
+    );
+    return { mutation_id, project: result };
+  });
+
+  defineRoute(api, 'projects.resume', deps, ({ services, mutate, params, body }) => {
+    const { result, mutation_id } = mutate((w) =>
+      services.projects.resume(w, { key: params.key, ...body }),
+    );
+    return { mutation_id, project: result };
+  });
+
   defineRoute(api, 'projects.delete', deps, async ({ services, mutate, read, params, body }) => {
     const { result } = mutate((w) =>
       services.projects.delete(w, { key: params.key, confirm_key: body.confirm_key }),

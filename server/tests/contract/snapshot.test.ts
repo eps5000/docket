@@ -397,6 +397,7 @@ const OUTPUTS: Record<string, string[]> = {
 
 /** Optional result fields, from the §5 Output lines (decisions 36 and 39: what's held). */
 const OPTIONAL_OUTPUTS: Record<string, string[]> = {
+  get_digest: ['paused'], // decision 53: only while the owner has the project paused
   submit_packet: ['held_undeclared', 'held_design'],
   declare_shared_changes: ['design_hold'],
   update_run_status: ['parked_until'], // decision 44: while a coordinator's park holds
@@ -676,6 +677,7 @@ describe('tools/list: output schemas (§4, §5, §6)', () => {
       'not_declared',
       'lease_held',
       'design_review',
+      'project_paused',
     ]);
   });
 

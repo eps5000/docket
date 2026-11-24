@@ -30,6 +30,7 @@ import {
 } from './model.js';
 import { git, GitUnknown, known } from './git-read.js';
 import { probeRepo, reportedBranches, resolveRepoPath, validBranch } from './radar.js';
+import { projectPause } from './project-pause.js';
 import { clearedSince, parkInfo, parseJson, storedWorkspace } from './recovery-model.js';
 
 // ---- Stored shapes ----
@@ -258,8 +259,15 @@ export async function planRunActivity(
      AND type IN (SELECT value FROM json_each(?))`,
   );
   const out: ActivityFinding[] = [];
+  // Decision 53: a paused project's parked runs raise nothing; what changed shows once it resumes.
+  const paused = new Map<string, boolean>();
+  const isPaused = (project: string) => {
+    if (!paused.has(project)) paused.set(project, !!projectPause(db, project));
+    return paused.get(project)!;
+  };
   for (const run of runs) {
     if (signal?.aborted) break;
+    if (run.state === 'parked' && isPaused(run.project_key)) continue;
     const parked = run.state === 'parked';
     if (!parked && displayRunState(run, windows, now) !== 'stale') continue;
     const stored = storedActivity(run);

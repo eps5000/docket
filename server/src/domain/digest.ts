@@ -23,6 +23,7 @@ import { activityText } from '@docket/shared';
 import type { ReadContext, ServiceDeps } from './contracts.js';
 import { BlockIndex, getRun } from './model.js';
 import { nextWorkOf } from './next-work.js';
+import { pausedForCoordinators, projectPause } from './project-pause.js';
 import { WaitReader, digestWait } from './wait.js';
 
 export interface DigestService {
@@ -31,6 +32,8 @@ export interface DigestService {
 
 /** Run states a coordinator acts on; finished runs aren't in the digest. */
 const ACTIVE_RUN_STATES = new Set(['live', 'reported', 'needs_input', 'stale', 'parked']);
+/** Decision 53: problems whose fix is to start or resume work, hidden while paused. */
+const START_WORK_KINDS = new Set(['stale_run', 'failed_run', 'resume_unattended']);
 /** Stale and parked first: those are the runs that need a decision. */
 const RUN_ORDER: Record<string, number> = {
   stale: 0,
@@ -172,10 +175,14 @@ export function createDigestService(deps: ServiceDeps): DigestService {
       const touched = new Set(events.flatMap((e) => (e.item_id ? [e.item_id] : [])));
       const keep = (id: string | null) => since === null || (id !== null && touched.has(id));
 
-      const startable = allOf(deps, r, input.project, 'ready_to_start');
+      // Decision 53: nothing can start in a paused project, so nothing is offered.
+      const pause = projectPause(r.db, input.project);
+      const startable = pause ? [] : allOf(deps, r, input.project, 'ready_to_start');
       const ready = startable.filter((x) => keep(x.id));
       // Decision 48: what to start next, and the unowned tickets holding work up.
-      const ranked = nextWorkOf(r.db, new BlockIndex(r.db), input.project, startable, r.now);
+      const ranked = pause
+        ? { next_work: [], bottlenecks: [] }
+        : nextWorkOf(r.db, new BlockIndex(r.db), input.project, startable, r.now);
       const blocked = allOf(deps, r, input.project, 'blocked')
         .filter((x) => keep(x.id))
         .sort(
@@ -225,7 +232,9 @@ export function createDigestService(deps: ServiceDeps): DigestService {
 
       const view = deps.services().views.needsYou(r, { scope: input.project });
       const owner = ownerRows(view).filter((x) => since === null || keep(x.item_id));
-      const problems = problemRows(view).filter((x) => since === null || keep(x.item_id));
+      const problems = problemRows(view).filter(
+        (x) => (since === null || keep(x.item_id)) && !(pause && START_WORK_KINDS.has(x.kind)),
+      );
 
       const leases = (
         sql
@@ -268,6 +277,7 @@ export function createDigestService(deps: ServiceDeps): DigestService {
 
       return {
         project: input.project,
+        ...(pause ? { paused: pausedForCoordinators(input.project, pause) } : {}),
         cursor: String(latest),
         since: since === null ? null : String(since),
         next_work: section(

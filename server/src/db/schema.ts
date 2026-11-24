@@ -1654,11 +1654,18 @@ export const decision_records = sqliteTable(
      * card; Needs you shows them as one grouped card, not one card each.
      */
     review_grouped: integer('review_grouped', { mode: 'boolean' }).notNull().default(false),
+    /** Decision 53: this owner record pauses its whole project while it is active. */
+    pauses_project: integer('pauses_project', { mode: 'boolean' }).notNull().default(false),
+    /** Decision 53: when the owner lifted this pause; aging restarts from it. */
+    pause_lifted_at: text('pause_lifted_at'),
     version: version(),
     ...timestamps,
   },
   (t) => [
     index('decision_records_scope').on(t.project_key, t.scope_kind, t.scope_id),
+    index('decision_records_pause')
+      .on(t.project_key, t.status)
+      .where(sql`"pauses_project" = 1`),
     check('decision_records_scope_kind', oneOf('scope_kind', DECISION_SCOPE_KINDS)),
     check('decision_records_authority', oneOf('authority', DECISION_AUTHORITIES)),
     check('decision_records_status', oneOf('status', DECISION_STATUSES)),

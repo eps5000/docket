@@ -24,6 +24,7 @@ import { ListLayout } from './ListLayout';
 import { MapLayout } from './MapLayout';
 import { TimelineLayout } from './TimelineLayout';
 import { WorkFilters } from './WorkFilters';
+import { PausedBanners } from '../shared/ProjectPause';
 import {
   isSettled,
   readStoredWorkFilter,
@@ -140,6 +141,7 @@ export function Work() {
           onChange={(l) => set({ layout: l })}
         />
       </div>
+      <PausedBanners />
       {layout !== 'timeline' && (
         <WorkFilters
           filter={filter}

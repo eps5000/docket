@@ -32,7 +32,7 @@ export const SERVER_INSTRUCTIONS = [
   "- After any pause, call get_item: it delivers the owner's notes, answers and review decisions, each once.",
   '- Send only what changes. update_item, set_plan and set_checks patch: whatever you leave out stays as it is. Use get_item view "summary" when you only need status.',
   '',
-  'Errors are structured (code: validation | conflict | not_found | forbidden | unavailable | internal | seam_conflict | not_declared | lease_held | design_review). On conflict, read the current state in the error and retry only if your change still makes sense.',
+  'Errors are structured (code: validation | conflict | not_found | forbidden | unavailable | internal | seam_conflict | not_declared | lease_held | design_review | project_paused). On conflict, read the current state in the error and retry only if your change still makes sense.',
 ].join('\n');
 
 /** MCP_SPEC §5: the exact `description` registered for each tool. */
