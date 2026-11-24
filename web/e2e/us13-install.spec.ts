@@ -190,6 +190,8 @@ test.describe('Install and check (US13)', () => {
     await expect(what).not.toHaveAttribute('open', '');
     await what.locator('summary').click();
     await expect(what).toContainText('.claude/skills/docket-worker/SKILL.md');
+    // Decision 66: each skill's references are written with it.
+    await expect(what).toContainText('.claude/skills/docket-worker/references/exit-reports.md');
     await expect(what).toContainText('.claude/.docket-manifest.json');
     await expect(what).toContainText('Only the marked Docket section of CLAUDE.md is touched');
     // Decision 32: the connection file, and what to do next.
@@ -231,6 +233,13 @@ test.describe('Install and check (US13)', () => {
       'docket-review-packet',
       'docket-worker',
     ]);
+    expect(sh(`ls ${REPO}/.claude/skills/docket-worker/references`).trim().split('\n')).toEqual([
+      'asking.md',
+      'exit-reports.md',
+      'shared-parts.md',
+      'status-moves.md',
+      'waiting.md',
+    ]);
     await d.getByRole('button', { name: 'Done' }).click();
     await expect(d).toBeHidden();
   });
@@ -244,7 +253,8 @@ test.describe('Install and check (US13)', () => {
     await expect(row).toHaveAttribute('data-method', 'push');
     await expect(row).toContainText('Claude Code');
     await expect(row).toContainText('Recipe App’s repo');
-    await expect(row).toContainText('13 files');
+    // 7 skills, their 17 references (decision 66), the block, 4 scripts and the connection file.
+    await expect(row).toContainText('30 files');
     await row.getByRole('button', { name: 'Versions sent' }).click();
     await expect(row.locator('[data-sent="skill:docket-worker"]')).toContainText(
       'Docket’s version v1',
