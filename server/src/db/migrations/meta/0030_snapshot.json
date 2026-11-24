@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "e284ba2f-996d-4a1b-a97c-7c49651f8a12",
+  "id": "77d1c07c-d343-4b75-a506-92ddcdfd5d8e",
   "prevId": "9524e667-9843-4a2d-8138-2a2d01ba5313",
   "tables": {
     "acceptance_criteria": {
@@ -2809,8 +2809,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "shaping": {
-          "name": "shaping",
+        "finish_line": {
+          "name": "finish_line",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

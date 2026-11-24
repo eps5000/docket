@@ -255,7 +255,7 @@
   },
   {
     "name": "get_item",
-    "description": "Get one item: description, acceptance, blockers, checklist (plan, checks, human review), runs, open question and answer, unread owner notes, documents, packets, activity. Owner notes and answers are returned once, then marked delivered: read them now. Use view 'summary' for status only, and get_context when starting work. Step details show as '· details' unless view is 'full'; read one with get_step.",
+    "description": "Get one item: description, acceptance, blockers, checklist (plan, checks, human review), runs, open question and answer, unread owner notes, documents, packets, activity. Owner notes and answers are delivered once: read them now. Use view 'summary' for status only, and get_context when starting work. Step details show as '· details' unless view is 'full'; read one with get_step.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -697,6 +697,9 @@
             "unshaped_epics": {
               "type": "object"
             },
+            "release_bugs": {
+              "type": "object"
+            },
             "finished_partly": {
               "type": "object"
             },
@@ -736,7 +739,7 @@
   },
   {
     "name": "create_item",
-    "description": "Create an Epic, Story, Task or Bug, in Inbox or Planning. Pass shared (part keys, or 'none'); without it, an outcome or acceptance it is Needs shaping, for a planner. Small steps go in the checklist (set_plan). To split, pass split_from: move and copy are 1-based acceptance positions; also brings blockers, parts or steps.",
+    "description": "Create an Epic, Story, Task or Bug, in Inbox or Planning. Pass shared (part keys, or 'none'), outcome_md and acceptance, or it Needs shaping for a planner. Small steps go in the checklist (set_plan). To split, pass split_from: move and copy are 1-based acceptance positions; also brings blockers, parts or steps.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1078,6 +1081,16 @@
             ],
             "additionalProperties": false
           }
+        },
+        "finish_line": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "run_id": {
           "type": "string"
@@ -4468,7 +4481,7 @@
   },
   {
     "name": "declare_shared_changes",
-    "description": "Declare the shared parts this item will change, each with add, change or remove and a short note, or none: true. Required before Ready. Each call replaces the whole declaration. Use keys from list_shared_parts; register a missing one with new_parts. Name the member when you can (model:Token.expiresAt): different members run in parallel; a bare part is sequenced. Set design_impact: changes_approved_design with a design_note when it alters an approved design: this item pauses until the owner approves. Set disputed: true when agents disagree who owns a part. branches (or branch) replace the reported ones; [] clears them. Returns in-flight items on the same parts, each with its outcome.",
+    "description": "Declare the shared parts this item will change, each with add, change or remove and a short note, or none: true. Required before Ready. Each call replaces it. Use keys from list_shared_parts; register a missing one with new_parts. Name the member when you can (model:Token.expiresAt): different members run in parallel; a bare part is sequenced. Set design_impact: changes_approved_design with a design_note when it alters an approved design: this item pauses until the owner approves. Set disputed: true when agents disagree who owns a part. branches (or branch) replace the reported ones; [] clears them. Returns in-flight items on the same parts, each with its outcome.",
     "inputSchema": {
       "type": "object",
       "properties": {

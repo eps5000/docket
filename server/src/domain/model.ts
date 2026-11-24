@@ -521,6 +521,8 @@ export interface ItemRow {
   split_from: string | null;
   /** Decision 58: the stored known gaps (JSON text), or null. */
   known_gaps?: string | null;
+  /** Decision 64, on an epic: the marked finish line, or null. */
+  finish_line?: string | null;
   /** Decision 65: who asked for it to be shaped (JSON text), or null. */
   shaping?: string | null;
   jira_key: string | null;

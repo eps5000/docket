@@ -44,6 +44,7 @@ const PATCH_FIELDS = [
   'description_md',
   'outcome_md',
   'acceptance',
+  'finish_line',
   'request_shaping',
 ] as const;
 
@@ -70,6 +71,8 @@ export const patchItemBody = input({
    * approves them, recorded as an owner decision on the ticket.
    */
   approve_gaps: z.literal(true).optional(),
+  /** Decision 64, on an epic: mark its finish line (release ticket); `null` clears the mark. */
+  finish_line: itemId.nullable().optional(),
   /**
    * Decision 65: *Ask a planner to shape this*, from a refused Move to Ready.
    * Marks the ticket Needs shaping with the owner's note; not with `status`.

@@ -145,14 +145,23 @@ describe('0012_item_branches', () => {
     const migrated = openDb(copy);
     try {
       migrateDb(migrated);
-      expect(migrationStatus(migrated)).toEqual({ current: true, applied: 31, expected: 31 });
+      expect(migrationStatus(migrated)).toEqual({ current: true, applied: 32, expected: 32 });
       const after = migrated.sqlite.prepare('SELECT * FROM items ORDER BY id').all() as Record<
         string,
         unknown
       >[];
       // Every other column is unchanged.
       expect(
-        after.map(({ branches: _, split_from: _s, known_gaps: _k, shaping: _sh, ...row }) => row),
+        after.map(
+          ({
+            branches: _,
+            split_from: _s,
+            known_gaps: _k,
+            finish_line: _f,
+            shaping: _sh,
+            ...row
+          }) => row,
+        ),
       ).toEqual(before);
       const sets = Object.fromEntries(
         after.map((r) => [r.id, r.branches === null ? null : JSON.parse(r.branches as string)]),
@@ -169,7 +178,7 @@ describe('0012_item_branches', () => {
       expect(migrated.sqlite.pragma('foreign_key_check')).toEqual([]);
       // Migrating again is a no-op.
       migrateDb(migrated);
-      expect(migrationStatus(migrated).applied).toBe(31);
+      expect(migrationStatus(migrated).applied).toBe(32);
     } finally {
       migrated.sqlite.close();
     }

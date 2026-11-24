@@ -19,6 +19,7 @@ import { Label } from './Label';
 import { StatusBar } from './StatusBar';
 import { EpicDepsNote } from './EpicDeps';
 import { EpicReadinessNote } from './EpicReadiness';
+import { EpicReleaseNote } from './EpicRelease';
 import { FinishedPartlyNote } from './FinishedPartly';
 
 /** `codex · orca-w1`. */
@@ -268,6 +269,8 @@ export function EpicCard({
       {epic.waits_on && <EpicDepsNote waits={epic.waits_on} namesId={depsId} />}
       {/* Decision 58: Not ready to start, or Started with N unshaped tickets. */}
       {epic.readiness && <EpicReadinessNote readiness={epic.readiness} />}
+      {/* Decision 64: the open bugs holding its release. */}
+      {epic.release && <EpicReleaseNote release={epic.release} />}
     </Link>
   );
 }

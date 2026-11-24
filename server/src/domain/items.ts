@@ -10,6 +10,7 @@
  * workspace (with its derived state) and `resume_ready`.
  */
 import {
+  OPEN_STATUSES,
   ToolError,
   missingText,
   type ItemSummary,
@@ -77,6 +78,7 @@ import {
   openGaps,
   type StoredGaps,
 } from './epic-readiness.js';
+import { assertReleaseClear, checkFinishLine } from './finish-line.js';
 import { clearShaping, markIfUnshaped, ownerShapingRequest } from './shaping.js';
 
 const knownGapsField = (raw: unknown) => {
@@ -112,6 +114,7 @@ export const ALLOWED_MOVES: Record<Status, Status[]> = {
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const list = (ids: string[]) => ids.join(', ');
+const OPEN_SET: ReadonlySet<Status> = new Set(OPEN_STATUSES);
 
 /** The owner's status moves on `PATCH /api/items/:id` (UI_SPEC §6.3 contextual actions). */
 const OWNER_MOVES: Partial<Record<Status, Status[]>> = {
@@ -527,6 +530,9 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
         field('epic_id', input.epic);
       }
       if (input.effort !== undefined) field('effort', input.effort);
+      // Decision 64: the epic's release ticket, when its links don't settle it.
+      if (input.finish_line !== undefined)
+        field('finish_line', checkFinishLine(w.db, before, input.finish_line));
       if (input.planned_start !== undefined || input.planned_end !== undefined) {
         const start =
           input.planned_start !== undefined ? input.planned_start : before.planned_start;
@@ -579,9 +585,14 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
       }
       w.update('items', before.id, set);
       const names = Object.keys(changed).map((k) => (k === 'epic_id' ? 'epic' : k));
+      // Decision 64: an open bug leaving its epic no longer holds that epic's release; say so.
+      const bugLeft =
+        before.type === 'Bug' && before.epic_id && changed.epic_id && OPEN_SET.has(before.status)
+          ? ` (bug left ${before.epic_id}${input.epic ? ` for ${input.epic}` : ''}, so it no longer holds ${before.epic_id}'s release)`
+          : '';
       w.event({
         type: 'item.updated',
-        summary: `${callerName(w.db, w.actor)} updated ${before.id}: ${names.length > 0 ? names.join(', ') : 'no changes'}`,
+        summary: `${callerName(w.db, w.actor)} updated ${before.id}: ${names.length > 0 ? names.join(', ') : 'no changes'}${bugLeft}`,
         item_id: before.id,
         project_key: before.project_key,
         data: { changed, labels_created: labelsCreated },
@@ -605,6 +616,14 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
       if (input.priority !== undefined && input.priority !== before.priority) {
         set.priority = input.priority;
         changed.priority = { old: before.priority, new: input.priority };
+      }
+      // Decision 64: mark (or clear) the epic's finish line.
+      if (input.finish_line !== undefined) {
+        const mark = checkFinishLine(w.db, before, input.finish_line);
+        if (mark !== (before.finish_line ?? null)) {
+          set.finish_line = mark;
+          changed.finish_line = { old: before.finish_line ?? null, new: mark };
+        }
       }
       // Decision 65: asking for shaping goes on its own, never with a move.
       if (input.request_shaping && input.status !== undefined) {
@@ -679,7 +698,11 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
         if (changed[key]) texts.push(TEXT_NAMES[key]);
       }
       if (asked) changed.shaping = { old: before.shaping ?? null, new: asked.set.shaping };
-      const edited = texts.length > 0 || changed.priority !== undefined || asked !== null;
+      const edited =
+        texts.length > 0 ||
+        changed.priority !== undefined ||
+        changed.finish_line !== undefined ||
+        asked !== null;
       // Nothing differs: no write and no event (the write path allows an explicit no-op).
       if (!edited && !move) return itemText(w, before.id);
       inverse.push(w.update('items', before.id, set));
@@ -687,6 +710,13 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
         const parts: string[] = [];
         if (texts.length > 0) parts.push(`edited the ${joinWords(texts)}`);
         if (changed.priority) parts.push(`set ${before.id} to P${String(input.priority)}`);
+        if (changed.finish_line) {
+          parts.push(
+            input.finish_line
+              ? `marked ${input.finish_line} as ${before.id}'s finish line`
+              : `cleared ${before.id}'s finish line mark`,
+          );
+        }
         if (asked) {
           const note = asked.set.shaping.note;
           parts.push(
@@ -770,6 +800,8 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
       }
       // Decision 39: an unapproved change to an approved design pauses this item.
       if (to === 'done') assertDesignCleared(w.db, item, 'close', !agent);
+      // Decision 64: an epic's finish line waits for every open bug in the epic.
+      if (to === 'done') assertReleaseClear(w.db, item, 'done');
       // Decision 61: not while a partial exit's items are left; the owner may close it anyway.
       if (to === 'done' && agent) assertNoItemsLeft(w.db, item, w.actor.run_id);
       if (from === 'ready' && to === 'progress') {
@@ -831,6 +863,14 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
           throw new ToolError('validation', `Say why you are canceling ${item.id}: pass reason.`, {
             details: { fields: { reason: 'is required to cancel' } },
           });
+        }
+        // Decision 64: shipping without a bug is deliberate, so canceling one in an epic needs a reason.
+        if (item.type === 'Bug' && item.epic_id && !input.reason?.trim()) {
+          throw new ToolError(
+            'validation',
+            `Say why you are canceling bug ${item.id}: while it is open it holds epic ${item.epic_id}'s release. Pass reason.`,
+            { details: { fields: { reason: 'is required to cancel a bug in an epic' } } },
+          );
         }
         if (item.type === 'Epic') {
           const open = openChildren(w.db, item.id);

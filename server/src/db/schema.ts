@@ -266,6 +266,13 @@ export const items = sqliteTable(
      */
     known_gaps: text('known_gaps', { mode: 'json' }),
     /**
+     * Decision 64 (B81), on an epic: the ticket the producer or the owner
+     * marked as its finish line (release ticket), when the links don't settle
+     * it. Null means it's found from the links. Ignored once that ticket is
+     * no longer an open-or-done, non-bug ticket in the epic.
+     */
+    finish_line: text('finish_line'),
+    /**
      * Decision 65 (B82): who asked for this ticket to be shaped, as JSON
      * `{asked_by: 'agent' | 'owner', by, at, note}`: an agent created it without
      * an outcome, acceptance or shared changes declaration, or the owner asked

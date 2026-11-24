@@ -2284,6 +2284,22 @@
 .tl .epicready-line {
   margin-top: 6px;
 }
+/* Decision 64: the finish line and the open bugs holding it, each a link. */
+.tl .epicrelease-line,
+.tl .release-hold {
+  margin-top: 6px;
+}
+.tl .epicrelease-line.none b,
+.tl .release-hold b {
+  color: var(--text);
+}
+.tl .finishctl {
+  margin-top: 6px;
+  gap: 8px;
+}
+.tl .finishctl select {
+  max-width: 100%;
+}
 .tl .pickepic tbody[data-pick-group='not_ready'] tr:not(.pe-group) {
   background: var(--panel-2);
 }

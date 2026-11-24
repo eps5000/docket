@@ -473,6 +473,28 @@
 .tl .pm-node.critoff .pm-title {
   font-weight: 400;
 }
+/* Decision 64: unlinked bugs hold the release; their column is set apart, with no arrows. */
+.tl .pm-col.bugs .pm-colh {
+  color: var(--ink-2);
+}
+.tl .pm-node .pm-bugmark {
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--ink-2);
+  border: 1px solid var(--line-2, var(--line));
+  border-radius: 4px;
+  padding: 0 4px;
+}
+.tl .pm-node .pm-finish {
+  display: block;
+  margin-top: 3px;
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--ink-2);
+}
+.tl .pm-node .pm-waitbugs {
+  color: var(--ink);
+}
 .tl .pm-node .pm-crit {
   display: block;
   margin-top: 3px;

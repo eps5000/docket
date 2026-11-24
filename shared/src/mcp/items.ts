@@ -144,6 +144,8 @@ export const updateItemInput = mutationInput({
     )
     .max(KNOWN_GAPS.max)
     .optional(),
+  /** Decision 64, on an epic: its release ticket, when the links don't settle it; `null` clears. */
+  finish_line: itemId.nullable().optional(),
 });
 export const updateItemOutput = mutationOutput({ item: itemSummarySchema });
 

@@ -165,7 +165,9 @@ export const COLUMNS_0010 = [
   'criteria_changed_at',
   // 0028 (decision 58): a ticket's known gaps.
   'known_gaps',
-  // 0030 (decision 65): who asked for a ticket to be shaped.
+  // 0030 (decision 64): an epic's marked finish line.
+  'finish_line',
+  // 0031 (decision 65): who asked for a ticket to be shaped.
   'shaping',
 ] as const;
 

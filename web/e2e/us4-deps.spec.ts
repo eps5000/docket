@@ -87,10 +87,13 @@ test.describe('the progress map', () => {
     expect(elapsed).toBeLessThan(1000);
 
     const heads = map(page).locator('.pm-colh');
-    await expect(heads.first()).toContainText('Outside this epic');
-    await expect(heads.nth(1)).toContainText('Wave 1');
-    await expect(heads.nth(1)).toContainText('nothing blocks these');
-    await expect(heads.nth(2)).toContainText('after wave 1');
+    // Decision 64: the seed's unlinked bug (RCP-17) stacks in a Bugs column, first.
+    await expect(heads.first()).toContainText('Bugs');
+    await expect(heads.first()).toContainText('1 bug open');
+    await expect(heads.nth(1)).toContainText('Outside this epic');
+    await expect(heads.nth(2)).toContainText('Wave 1');
+    await expect(heads.nth(2)).toContainText('nothing blocks these');
+    await expect(heads.nth(3)).toContainText('after wave 1');
     await expect(
       map(page).locator('[data-col="outside"] .pm-node[data-pid="DOC-4"]'),
     ).toContainText('DOC ↗');

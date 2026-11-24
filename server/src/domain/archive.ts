@@ -126,6 +126,14 @@ export function createArchiveService(deps: ServiceDeps): ArchiveService {
           );
         }
       }
+      // Decision 64: shipping without a bug is deliberate, so canceling one in an epic needs a reason.
+      if (item.type === 'Bug' && item.epic_id && !input.reason?.trim()) {
+        throw new ToolError(
+          'validation',
+          `Say why you're canceling bug ${item.id}: while it's open it holds epic ${item.epic_id}'s release.`,
+          { details: { fields: { reason: 'is required to cancel a bug in an epic' } } },
+        );
+      }
 
       // The lead's run ends; undo never brings it back (§5.1).
       endLeadForOwner(w, item, 'canceled');
