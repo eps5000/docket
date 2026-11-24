@@ -263,7 +263,9 @@ test.describe('Import from Jira (UI_SPEC §9.2)', () => {
     ).toBeVisible();
     await shootPart(page, 'subtask-group', subtasks);
     await d.locator('[data-reason="other_type"] summary').click();
-    await expect(d.getByText('Jira type Spike imported as Task', { exact: false })).toBeVisible();
+    await expect(
+      d.getByText('Jira type Spike imported as Implementation (inferred)', { exact: false }),
+    ).toBeVisible();
     await d.locator('[data-reason="skip_secret"] summary').click();
     await expect(d.getByText('Skipped: its summary looks like a secret (API key)')).toBeVisible();
     // The token never appears again after step 1.

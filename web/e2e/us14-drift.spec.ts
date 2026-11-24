@@ -210,8 +210,8 @@ test.describe('Drift (US14)', () => {
       await page.goto('/items/RCP-17');
       const bar = page.locator('[data-agent-bar]');
       const instr = bar.locator('[data-ab="instructions"]');
-      // 7 skills, their 17 references (decision 66) and the block: docket-worker plus 24.
-      await expect(instr).toContainText('Instructions: docket-worker · default v1 (+24 more)');
+      // 7 skills, their 20 references (decisions 66 and 67) and the block: docket-worker plus 27.
+      await expect(instr).toContainText('Instructions: docket-worker · default v1 (+27 more)');
       await expect(instr.getByText('edited locally')).toBeVisible();
       await shoot(page, '2-agent-bar', bar);
       await expectAxeClean(page, 'Ticket: run instructions on the agent bar');
