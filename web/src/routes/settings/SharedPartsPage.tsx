@@ -380,30 +380,32 @@ const RADAR_CHIP: Record<
 function RadarHelperNote({ radar: r }: { radar: RadarResponse }) {
   if (r.state !== 'waiting' && r.state !== 'stale') return null;
   return (
-    <Callout tone="warn" className="mb" data-radar-helper={r.state}>
-      {r.state === 'waiting' ? (
-        <>
-          <strong>Waiting for the host helper.</strong> The helper on this computer reads the
-          repository for the radar; until it reports, no conflicts are found or cleared.
-        </>
-      ) : (
-        <>
-          <strong>The host helper’s facts are out of date</strong>
-          {r.helper.checked_at ? (
-            <span title={isoTitle(r.helper.checked_at)}>
-              {' '}
-              (last read {formatAge(r.helper.checked_at)} ago)
-            </span>
-          ) : null}
-          . The findings below may be out of date: none clears until it reports again.
-        </>
-      )}{' '}
-      Turn it on or check it in{' '}
-      <Link to={`${paths.settings()}#settings-worktree-helper`}>
-        Settings → Connections → Git checks
-      </Link>
-      .
-    </Callout>
+    <div data-radar-helper={r.state}>
+      <Callout tone="warn" className="mb">
+        {r.state === 'waiting' ? (
+          <>
+            <strong>Waiting for the host helper.</strong> The helper on this computer reads the
+            repository for the radar; until it reports, no conflicts are found or cleared.
+          </>
+        ) : (
+          <>
+            <strong>The host helper’s facts are out of date</strong>
+            {r.helper.checked_at ? (
+              <span title={isoTitle(r.helper.checked_at)}>
+                {' '}
+                (last read {formatAge(r.helper.checked_at)} ago)
+              </span>
+            ) : null}
+            . The findings below may be out of date: none clears until it reports again.
+          </>
+        )}{' '}
+        Turn it on or check it in{' '}
+        <Link to={`${paths.settings()}#settings-worktree-helper`}>
+          Settings → Connections → Git checks
+        </Link>
+        .
+      </Callout>
+    </div>
   );
 }
 

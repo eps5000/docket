@@ -325,19 +325,21 @@ export function WorktreeCleanup() {
             data.repo === 'not_set' ? (
               <EmptyState text="This project has no repository folder set. Add one in Settings to check its worktrees." />
             ) : data.rows.length === 0 ? (
-              <Callout tone="warn" data-worktree-host-empty={data.host.state}>
-                {data.host.state === 'none' ? (
-                  <>
-                    <strong>Waiting for the host helper.</strong> Docket runs no git itself; the
-                    helper on this computer reads your worktrees. Turn it on in Settings →
-                    Connections → Git checks.
-                  </>
-                ) : data.host.state === 'stale' ? (
-                  'The helper on this computer hasn’t checked in lately. Its worktrees show again when it runs.'
-                ) : (
-                  'The helper found no worktrees in this repository.'
-                )}
-              </Callout>
+              <div data-worktree-host-empty={data.host.state}>
+                <Callout tone="warn">
+                  {data.host.state === 'none' ? (
+                    <>
+                      <strong>Waiting for the host helper.</strong> Docket runs no git itself; the
+                      helper on this computer reads your worktrees. Turn it on in Settings →
+                      Connections → Git checks.
+                    </>
+                  ) : data.host.state === 'stale' ? (
+                    'The helper on this computer hasn’t checked in lately. Its worktrees show again when it runs.'
+                  ) : (
+                    'The helper found no worktrees in this repository.'
+                  )}
+                </Callout>
+              </div>
             ) : (
               <>
                 <HelperHint data={data} />
