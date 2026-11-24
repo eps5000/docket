@@ -19,7 +19,7 @@ This index groups the routes by user story.
 | `POST /api/import/jira/dry-run`, `GET …/:id`, `POST …/:id/commit`, `DELETE …/:id` | US9 | FR-090 to FR-092 |
 | `GET /api/settings`, `DELETE /api/projects/:key`, `GET /api/diagnostics/calls` | US10 | FR-103, FR-104, FR-107, FR-108 |
 | `POST /api/projects/:key/pause {reason}`, `POST /api/projects/:key/resume` | US2 | FR-295–FR-301 (decision 53; owner only, undoable) |
-| `GET /api/projects/:key/pick-epic` | US4 | FR-302–FR-307 (decision 54; read-only) |
+| `GET /api/projects/:key/pick-epic` | US4 | FR-307–FR-312 (decision 54; read-only) |
 | `POST /api/mutations/:id/undo` | all | FR-062 |
 | `GET /api/items/:id/critical-path`, `GET /api/workspaces/cleanup?project=&refresh=` (decision 48) | US4, US11 | FR-242–FR-249 |
 | `GET /api/workspaces`, `POST /api/resources/:id/release`, `POST /api/runs/:runId/unpushed-handled` `{outcome?: keep\|discard}` (decision 41) | US11 | FR-113, FR-114, FR-116, FR-194 |

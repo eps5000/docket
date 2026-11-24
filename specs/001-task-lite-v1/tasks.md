@@ -710,12 +710,19 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T308 [US2] Owner API and UI: Pause and Resume with Undo, the banner on Overview, Work and the item page, and the Paused marker in pickers.
 - [x] T309 [US18] Tests: authority, refused claims, allowed writes, parked and open runs, alerts and aging, a blocker clearing during a pause, resume events, Undo, restart, two projects, budgets, and e2e with axe in both themes.
 
-## Phase 48: Pick next epic (owner decision 54)
+## Phase 48: A bundled producer skill (owner decision 55)
 
-- [x] T310 [US4] Spec plus code in one PR: decision 54 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.38; UI_SPEC §6.2.5; spec FR-302–FR-307 and SC-035; Help.
-- [x] T311 [US4] `domain/epic-picks.ts` and `GET /api/projects/:key/pick-epic`: the six numbers, fit, order and the Best next reason, on `BlockIndex`, `readyStates` and `upstreamOf`.
-- [x] T312 [US4] The Pick next epic page, the link from Work, and the outside-dependency indicator on epic cards and the epic page.
-- [x] T313 [US4] Tests: self-contained, transitive and no-epic chains, cleared and canceled blockers, cycles, paused projects, being worked, order, Best next, empty states, the indicator; e2e and axe in both themes at 1024 px and 1440 x 900 on stress data.
+- [x] T310 [US13] Spec plus code in one PR: decision 55 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.17; spec FR-302–FR-306 and SC-035; Help; `skills/README.md`.
+- [x] T311 [US13] `skills/docket-producer/SKILL.md`: the role only, subordinate to the project, for any orchestrator or none, under 150 lines. No MCP tool.
+- [x] T312 [US13] One short pointer from `docket-coordinator`, paid for by trimming duplicate wording, so its token count doesn't rise.
+- [x] T313 [US13] Tests: listing, install for both clients, drift, uninstall, update available from an older install, skills lint, a guard against project-specific names, token budgets.
+
+## Phase 49: Pick next epic (owner decision 54)
+
+- [x] T314 [US4] Spec plus code in one PR: decision 54 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.38; UI_SPEC §6.2.5; spec FR-307–FR-312 and SC-036; Help.
+- [x] T315 [US4] `domain/epic-picks.ts` and `GET /api/projects/:key/pick-epic`: the six numbers, fit, order and the Best next reason, on `BlockIndex`, `readyStates` and `upstreamOf`.
+- [x] T316 [US4] The Pick next epic page, the link from Work, and the outside-dependency indicator on epic cards and the epic page.
+- [x] T317 [US4] Tests: self-contained, transitive and no-epic chains, cleared and canceled blockers, cycles, paused projects, being worked, order, Best next, empty states, the indicator; e2e and axe in both themes at 1024 px and 1440 x 900 on stress data.
 
 ## How to run the build
 
@@ -833,7 +840,8 @@ Open a PR titled "<Bn>: <phase name>" with the checkpoint evidence. Do not queue
 | 44 Installs stay in scope | B64 (decision 50) |
 | 45 A bundled delivery skill | B66 (decision 52) |
 | 47 Pause project | B69 (decision 53) |
-| 48 Pick next epic | B70 (decision 54) |
+| 48 A bundled producer skill | B71 (decision 55) |
+| 49 Pick next epic | B70 (decision 54) |
 
 **Within a phase:** tests (failing) → services → replace stubs or fill handlers → fill screens → checkpoint.
 

@@ -389,7 +389,19 @@ The owner wants to hand the next epic to a new agent without picking one that im
 4. **On the epic too.** Epic cards and the epic page say **No outside dependencies** or **Waits on 2 epics**, with the names available, never by colour alone.
 5. **Honest about its limit.** The page says once: "Based on dependencies recorded in Docket."
 
-BUILD_SPEC §5.38, UI_SPEC §6.2.5, spec FR-302–FR-307 and SC-035, and Help (Pick the next epic) have the details.
+BUILD_SPEC §5.38, UI_SPEC §6.2.5, spec FR-307–FR-312 and SC-036, and Help (Pick the next epic) have the details.
+
+## Owner decision 55 (2026-11-24): a bundled producer skill
+
+The owner's working model has a producer who owns one epic and dispatches independent implementers. Docket had worker, coordinator, planner, review, subagent and delivery skills but none for that role, and it can't assume an onboarded project has workflow skills of its own.
+
+1. **A seventh bundled skill, `docket-producer`.** It is defined, versioned, listed, linted, installed, checked for drift and uninstalled like the others, for Claude Code and Codex. An existing install shows "update available". No MCP tool is added.
+2. **About the role.** It points to `docket-coordinator` for dispatch and waiting, `docket-planner` for shaping, `docket-worker` for implementers and `docket-delivery` for merge and deploy, and copies none of them. It aims for under 150 lines. `docket-coordinator` carries one short pointer to it.
+3. **Subordinate and general.** The project's Workflow notes and its own skills take precedence. It works with any orchestrator or none, names no pilot project and grants no authority.
+4. **What it teaches:** own one epic version; choose and sequence by real dependencies; shape finishable vertical slices; dispatch in parallel; keep work moving without spending tokens; decide what you can and ask the owner only what's theirs; create no ceremony; respect a paused project; close the epic with what was deferred on record.
+5. **Hard and soft dependencies (owner-approved).** Hard: the ticket's current acceptance criteria can't be met without the other work, so it blocks. Soft: it affects part of the ticket, so it doesn't block, and whoever starts the ticket records one outcome: proceed, adjust, split, or upgrade to hard. If a blocker holds only some criteria, prefer a split. A much newer ticket becoming a prerequisite of an older one usually means scope was added. The skill teaches this with today's `blocks` and `relates` links, and adds no link type.
+
+BUILD_SPEC §5.17, spec FR-302–FR-306 and SC-035, Help (Agent files) and `skills/README.md` have the details.
 
 ## Deferred choices
 
