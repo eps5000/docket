@@ -103,13 +103,16 @@ describe('0014_project_decision_review', () => {
     const migrated = openDb(copy);
     try {
       migrateDb(migrated);
-      expect(migrationStatus(migrated)).toEqual({ current: true, applied: 27, expected: 27 });
+      expect(migrationStatus(migrated)).toEqual({ current: true, applied: 28, expected: 28 });
       const after = records(migrated);
       expect(after).toEqual(
         before.map((row) => ({
           ...row,
           acknowledged_at: null,
           review_grouped: row.id === 'dec_a' ? 1 : 0,
+          // Decision 53 (migration 0027): no existing record pauses its project.
+          pauses_project: 0,
+          pause_lifted_at: null,
         })),
       );
       expect(migrated.sqlite.pragma('foreign_key_check')).toEqual([]);
@@ -132,7 +135,7 @@ describe('0014_project_decision_review', () => {
 
       // Migrating again is a no-op.
       migrateDb(migrated);
-      expect(migrationStatus(migrated).applied).toBe(27);
+      expect(migrationStatus(migrated).applied).toBe(28);
     } finally {
       migrated.sqlite.close();
     }

@@ -107,7 +107,7 @@ The project has its own rules: who moves work to Ready, when human review is nee
 
 **Never just go quiet.** A silent run looks stale and loses its claim. A parked run keeps it, and its worktree is protected from pruning. `heartbeat` or any other write with your `run_id` un-parks you; reads don't. If your coordinator parked you ("Parked by X until T"), the same applies. When that time ends you have a short lease, so make a write to carry on. To wait longer on your own terms, call `park_run`, which replaces their time limit.
 
-**`project_paused`:** the owner paused this project. Don't retry or work around it: take work from another project, or stop and say so. If you're already running, save your work and `park_run` at the next safe point (`get_context` says when a project is paused). While it's paused, writes from a parked run are recorded and the run stays parked.
+**`project_paused`:** the owner paused this project. Don't retry: take other work, or stop and say so. If you're already running, save your work and `park_run` at the next safe point. While it's paused, a parked run's writes are recorded and it stays parked.
 
 **Read the wait card.** `park_run` returns what you're waiting for, who has the next step, and how you resume. Docket can't message your session: your coordinator relays it when the blocker clears.
 

@@ -68,7 +68,12 @@ import {
   type ItemRow,
   type RunRow,
 } from './model.js';
-import { assertNotPaused, projectPause, projectPausedError } from './project-pause.js';
+import {
+  assertNotPaused,
+  pausedParkNote,
+  projectPause,
+  projectPausedError,
+} from './project-pause.js';
 import { WaitReader } from './wait.js';
 import { assertDesignCleared } from './design-review.js';
 import { settleClaim } from './shared-changes.js';
@@ -1185,6 +1190,13 @@ export function createRunsService(deps: ServiceDeps): RunsService {
       }
       resumeRun(w, run);
       return { resumed: true };
+    },
+
+    pausedParkNote(r, runId) {
+      const run = getRun(r.db, runId);
+      if (run?.state !== 'parked') return null;
+      const project = requireItem(r.db, run.item_id).project_key;
+      return projectPause(r.db, project) ? pausedParkNote(project) : null;
     },
 
     updateStatus(w, input) {

@@ -112,10 +112,9 @@ export function PauseProjectButton({ project, size }: { project: Named; size?: '
       <Button
         {...(size ? { size } : {})}
         data-pause-project={project.key}
-        aria-label={`Pause ${project.name}`}
         onClick={() => setOpen(true)}
       >
-        Pause project…
+        Pause project…<span className="sr"> ({project.name})</span>
       </Button>
       {open && <PauseDialog project={project} onClose={() => setOpen(false)} />}
     </>
@@ -154,10 +153,9 @@ export function ResumeProjectButton({
       {...(size ? { size } : {})}
       {...(primary ? { variant: 'primary' as const } : {})}
       data-resume-project={project.key}
-      aria-label={`Resume ${project.name}`}
       onClick={() => void resume()}
     >
-      Resume project
+      Resume project<span className="sr"> ({project.name})</span>
     </Button>
   );
 }
