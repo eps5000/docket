@@ -716,7 +716,7 @@ Rows link to the item. **Subagent log entries aren't listed here;** they show on
 - **Sort order:** At risk, In use, Parked, Unknown, Safe to prune.
 - **A filter chip** "Hide safe to prune", in the section header, is on by default.
 - **Empty:** "No workspaces recorded yet. Agents report theirs when they claim work."
-- **Every worktree (decision 48, B60).** A switch in the header, *Recorded by agents* / *Every worktree* (`?worktrees=all`), shows every worktree of the project's repository. With All projects in scope, a Project menu picks one.
+- **Every worktree (decision 48, B60).** A switch in the header, *Recorded by agents* / *Every worktree* (`?worktrees=all`), shows every worktree of the project's repository. With All projects in scope, a Project menu picks one. **B68:** the status line says when the helper on this computer did the check. When the helper hasn't reported or is out of date and any row is Unknown, one line says why and where to look (Settings → Connections → Worktree checks). Each row keeps its source in `data-source`, with no extra column.
   - **Columns:** Verdict (labelled chip and why), Branch and folder, Ticket or "Not tracked by Docket", Last activity, What it holds (uncommitted files, commits not on a remote and merged to main, each labelled), What to do. A value git couldn't read says "Unknown", never 0.
   - **Groups,** in order: Holds work, In use, Unknown, Kept for later, Safe to remove, 50 rows each until *Show all*.
   - **Filters:** a chip per verdict with its count, *Not tracked by Docket*, and text over branch, ticket and folder.

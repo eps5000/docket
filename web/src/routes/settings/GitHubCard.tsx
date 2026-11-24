@@ -91,6 +91,9 @@ const STEPS = [
   },
 ] as const;
 
+/** Installing, starting and checking the helper, for a source that needs no `gh` login. */
+export const HELPER_STEPS = STEPS.slice(1);
+
 /**
  * Settings → Connections → GitHub (owner decision 49; UI_SPEC §6.7): off by
  * default. Docket stores no GitHub token and never writes to GitHub. A small

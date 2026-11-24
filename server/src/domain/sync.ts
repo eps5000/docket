@@ -17,11 +17,13 @@ import {
   ToolError,
   findSecret,
   githubRecord,
+  hostWorktreeRecord,
   type GithubPrRecord,
   type GithubRecord,
   type GithubRepoRecord,
   type GithubSettingsResponse,
   type GithubState,
+  type HostWorktreeRecord,
   type ItemGithubResponse,
   type ItemPr,
   type PutGithubProjectBody,
@@ -29,9 +31,11 @@ import {
   type SyncIngestResponse,
   type SyncSourceResponse,
 } from '@docket/shared';
+import type { Config } from '../config.js';
 import type { Db } from '../db/client.js';
 import type { ReadContext, ServiceDeps } from './contracts.js';
 import { keysInBranch, suggestedBranch } from './git-naming.js';
+import { applyHostRecords, hostProjects, hostRepoPath } from './host-worktrees.js';
 import { requireItem } from './model.js';
 import { branchLacksKey, projectGit } from './project-git.js';
 import { reportedBranches } from './radar.js';
@@ -64,7 +68,7 @@ interface IngestCounts {
 
 /** What one source needs on this side. */
 interface SyncHandler<R> {
-  settings(db: Db): Record<string, unknown>;
+  settings(db: Db, config: Config): Record<string, unknown>;
   /** The valid records, with secret-looking text withheld. Invalid ones are counted as ignored. */
   clean(records: readonly unknown[], known: readonly string[]): { records: R[]; dropped: number };
   ingest(w: WriteContext, records: readonly R[]): IngestCounts;
@@ -73,6 +77,7 @@ interface SyncHandler<R> {
     db: Db,
     records: readonly R[],
     previous: Record<string, unknown>,
+    now: string,
   ): Record<string, unknown>;
 }
 
@@ -478,9 +483,75 @@ const githubHandler: SyncHandler<GithubRecord> = {
   },
 };
 
+/**
+ * The host helper's worktree facts (B68). They change on every pass, so they're
+ * bookkeeping beside the source's status: no row changes here and no event.
+ */
+const worktreesHandler: SyncHandler<HostWorktreeRecord> = {
+  settings(db, config) {
+    const projects = hostProjects(db).flatMap((p) => {
+      const host_path = hostRepoPath(config, p.repo_path);
+      return host_path ? [{ ...p, host_path }] : [];
+    });
+    return { enabled: projects.length > 0, projects };
+  },
+
+  clean(raw, known) {
+    const records: HostWorktreeRecord[] = [];
+    let dropped = 0;
+    for (const entry of raw) {
+      const parsed = hostWorktreeRecord.safeParse(entry);
+      if (!parsed.success) {
+        dropped += 1;
+        continue;
+      }
+      const record = parsed.data;
+      if (record.kind === 'scan') {
+        if (
+          record.key !== `scan:${record.project}:${record.scan_id}` ||
+          findSecret(record.repo_path, { known })
+        ) {
+          dropped += 1;
+          continue;
+        }
+        const leaks = record.main_path && findSecret(record.main_path, { known });
+        records.push({
+          ...record,
+          main_path: leaks ? null : record.main_path,
+          // One spelling of a time, because these are compared as text.
+          checked_at: new Date(record.checked_at).toISOString(),
+        });
+        continue;
+      }
+      // A path is the row's identity, so it's left out rather than altered. Its scan then
+      // has fewer rows than it says, which makes it partial, so nothing is removed.
+      if (
+        !record.key.startsWith(`tree:${record.project}:${record.scan_id}:`) ||
+        findSecret(record.path, { known })
+      ) {
+        dropped += 1;
+        continue;
+      }
+      records.push({
+        ...record,
+        branch:
+          record.branch && findSecret(record.branch, { known }) ? BRANCH_WITHHELD : record.branch,
+        last_git_at: record.last_git_at ? new Date(record.last_git_at).toISOString() : null,
+      });
+    }
+    return { records, dropped };
+  },
+
+  ingest: (_w, records) => ({ accepted: records.length, changed: 0, ignored: 0 }),
+
+  detail: (db, records, previous, now) =>
+    applyHostRecords(previous, records, hostProjects(db), now),
+};
+
 /** One entry per source in `tools/docket-sync/sources/`. */
 const HANDLERS: Record<string, SyncHandler<never>> = {
   github: githubHandler as unknown as SyncHandler<never>,
+  worktrees: worktreesHandler as unknown as SyncHandler<never>,
 };
 
 const handlerOf = (name: string) => {
@@ -552,7 +623,7 @@ export function createSyncService(deps: ServiceDeps): SyncService {
       const row = sourceRow(r.db, name);
       return {
         name,
-        settings: handler.settings(r.db),
+        settings: handler.settings(r.db, deps.config),
         status: {
           last_report_at: row?.last_report_at ?? null,
           last_success_at: row?.last_success_at ?? null,
@@ -578,8 +649,9 @@ export function createSyncService(deps: ServiceDeps): SyncService {
         (w) => handler.ingest(w, records),
       );
       const before = parseDetail(sourceRow(write.db, name));
-      const detail = handler.detail ? handler.detail(write.db, records, before) : null;
-      report(write.db, name, body.run, result.accepted, detail, write.now().toISOString());
+      const now = write.now().toISOString();
+      const detail = handler.detail ? handler.detail(write.db, records, before, now) : null;
+      report(write.db, name, body.run, result.accepted, detail, now);
       return { ...result, ignored: result.ignored + dropped };
     },
 

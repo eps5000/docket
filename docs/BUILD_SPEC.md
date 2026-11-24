@@ -889,6 +889,11 @@ Read-only and advisory (`server/src/domain/next-work.ts`). The stored status nev
 - **Verdict, first match wins:** an open or parked run, or the main folder, is **In use**; the owner's *Keep for later* or a git lock is **Kept for later**; any read with no answer, a folder outside the push root or gone, or an old scan is **Unknown**; uncommitted files, commits on no remote and not in main, unreleased resources or a run awaiting restart is **Holds work**; a worktree with no run that changed in the last 24 hours is **Unknown**; anything else is **Safe to remove**.
 - **Owners** come from `atRiskOwner` (B56) for worktrees Docket has at risk.
 - **The command** is `git -C '<repo>' worktree remove '<path>'`, only on Safe to remove and never with `--force`, so git still refuses a folder that changed. A path with characters a shell might act on gets no command.
+- **Facts from the host (B68).** Git in the container can't follow a worktree whose `.git` file names a Windows path. The `worktrees` source of `tools/docket-sync` (§5.35) reads each project's worktrees with the host's git every 3 minutes, under the same rules and limits, and also with no lazy fetch and `safe.directory` left on. It sends only paths, branch names, SHAs, counts, booleans and timestamps. `git status` output is counted and dropped, so a file name is never held, sent, stored or logged.
+  - **Storage.** The latest facts per project are bookkeeping in `sync_sources.detail` (`domain/host-worktrees.ts`): no event and no migration. Records are strict, ingest is idempotent, an older scan or one dated over 2 minutes ahead is ignored, and a project's facts go when it's deleted or points at another repository.
+  - **Use.** A fact under 10 minutes old is used unless the container read that worktree successfully more recently. An older fact is dropped, or, where the container can't list the worktrees, becomes an **Unknown** row with its numbers and lock cleared. Stale, missing or partial facts are never Safe to remove, and live runs still come first in the verdict.
+  - **Removal.** A worktree leaves the view only when a newer **complete** scan doesn't list it. A partial scan updates what it read and removes nothing. A scan is complete only if every listed worktree was attempted and arrived.
+  - **Unpushed checks (B49).** `checkProjectWorktrees` uses a fresh, fully read fact for a worktree the container can't read.
 
 ### 5.33 Split a ticket and withdraw a question (decision 48; B61)
 
@@ -962,6 +967,8 @@ Off by default. Docket starts and works fully with no GitHub access, stores no G
 **Naming** (`domain/git-naming.ts`). A key is a whole token, ignoring case, after the `<owner>/` segment. Rule **Warn** (the default) or **Off** per project, with exempt patterns where `*` is any text. A claim with no branch gets `branch_hint`. A reported branch that lacks the key adds one `!` warning line for the agent and shows on the ticket. It never refuses anything.
 
 **Matching.** Primary: the branch names exactly one ticket of the repository's projects, by ID or imported Jira key. A branch naming several makes each one related. Keys in the title or body are related only. The link's run is the lead run on that branch, or else the lead active when the PR opened. Mergify's `merge queue:` PRs are excluded by the source and again on ingest.
+
+**The worktrees source** (B68) is described in §5.32.
 
 **The GitHub source** uses GraphQL through `gh`: at most 20 requests per run, repositories in turn, a pause below 500 points left, and no call while Docket is down or the connection is off.
 

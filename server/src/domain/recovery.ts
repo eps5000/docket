@@ -47,6 +47,7 @@ import {
 } from './recovery-model.js';
 import { leadingItems } from './problems.js';
 import { treeKey } from './worktree-check.js';
+import { hostFactsFor, mergeHostFacts } from './host-worktrees.js';
 import { WorktreeScans, removeCommand, worktreeVerdict } from './worktree-cleanup.js';
 import { atRiskOwner } from './worktree-owner.js';
 
@@ -420,19 +421,33 @@ export function createRecoveryService(deps: ServiceDeps): RecoveryService {
       if (!project) throw new ToolError('not_found', `No project ${input.project}.`);
       const base = { project: project.key, main_branch: project.main_branch };
       if (!project.repo_path) {
-        return { ...base, repo: 'not_set', checked_at: null, scanning: null, rows: [] };
+        return {
+          ...base,
+          repo: 'not_set',
+          checked_at: null,
+          scanning: null,
+          host: { state: 'none', checked_at: null },
+          rows: [],
+        };
       }
       const { scan, running } = worktreeScans.read(
         project.key,
         { path: project.repo_path, main: project.main_branch },
         input.refresh === '1',
       );
-      if (!scan || scan.status !== 'ok') {
+      // B68: the host helper's facts where they're fresh, over the container's own read.
+      const merged = mergeHostFacts(
+        scan,
+        hostFactsFor(r.db, { ...project, repo_path: project.repo_path }),
+        r.now,
+      );
+      if (!merged || merged.trees.length === 0) {
         return {
           ...base,
-          repo: scan ? 'unreadable' : 'ok',
+          repo: scan && scan.status !== 'ok' ? 'unreadable' : 'ok',
           checked_at: scan?.checked_at ?? null,
           scanning: running,
+          host: merged?.host ?? { state: 'none', checked_at: null },
           rows: [],
         };
       }
@@ -444,17 +459,17 @@ export function createRecoveryService(deps: ServiceDeps): RecoveryService {
       for (const key of rr.allGroups().keys()) {
         if (!key.startsWith('run:')) groupKeys.set(treeKey(key), key);
       }
-      const judged = scan.trees.map((tree) => {
+      const judged = merged.trees.map(({ tree, checkedAt, source }) => {
         const key = groupKeys.get(treeKey(tree.path));
         const facts = key ? rr.factsOf(key) : null;
         const { verdict, why } = worktreeVerdict({
           tree,
           facts,
           awaitsRestart: !!facts && awaitsRestart(r.db, facts.runs),
-          checkedAt: scan.checked_at,
+          checkedAt,
           now: r.now,
         });
-        return { tree, facts, verdict, why };
+        return { tree, facts, verdict, why, source };
       });
 
       // B56: the owner of each worktree Docket has at risk, from the one Problems routing.
@@ -467,7 +482,7 @@ export function createRecoveryService(deps: ServiceDeps): RecoveryService {
         r.now,
       );
 
-      const rows: RepoWorktreeRow[] = judged.map(({ tree, facts, verdict, why }) => {
+      const rows: RepoWorktreeRow[] = judged.map(({ tree, facts, verdict, why, source }) => {
         const item = facts ? items.get(facts.latest.item_id) : undefined;
         const seen = facts ? lastActivity(facts) : null;
         const git = tree.last_git_at;
@@ -487,10 +502,18 @@ export function createRecoveryService(deps: ServiceDeps): RecoveryService {
             view && facts?.state === 'at_risk'
               ? atRiskOwner(facts, view, leading, (id) => items.get(id)?.status)
               : null,
-          command: verdict === 'safe_to_remove' ? removeCommand(scan.main_path, tree.path) : null,
+          command: verdict === 'safe_to_remove' ? removeCommand(merged.main_path, tree.path) : null,
+          source,
         };
       });
-      return { ...base, repo: 'ok', checked_at: scan.checked_at, scanning: running, rows };
+      return {
+        ...base,
+        repo: 'ok',
+        checked_at: merged.checked_at,
+        scanning: running,
+        host: merged.host,
+        rows,
+      };
     },
 
     worktreeScanSettled: (project) => worktreeScans.settled(project),

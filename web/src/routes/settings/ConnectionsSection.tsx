@@ -21,6 +21,7 @@ import { paths } from '../../lib/paths';
 import { showToast } from '../../lib/undo';
 import { HelpLink } from '../../help/HelpLink';
 import { GitHubCard } from './GitHubCard';
+import { WorktreeHelperCard } from './WorktreeHelperCard';
 import { UsageSourceCard } from './UsageSourceCard';
 
 /**
@@ -187,6 +188,7 @@ export function ConnectionsSection({ query }: { query: UseQueryResult<SettingsRe
         </div>
       </div>
       <GitHubCard protectedMode={query.data?.connections.protected_mode} />
+      <WorktreeHelperCard />
     </section>
   );
 }

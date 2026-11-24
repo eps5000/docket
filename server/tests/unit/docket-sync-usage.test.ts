@@ -148,7 +148,7 @@ const everything = () =>
 describe('the real usage source under the runner', () => {
   it('is found in the sources folder, with the GitHub source', async () => {
     const names = (await loadSources(() => {})).map((s: { name: string }) => s.name);
-    expect(names.sort()).toEqual(['github', 'usage']);
+    expect(names.sort()).toEqual(['github', 'usage', 'worktrees']);
   });
 
   it('off: makes no log call at all', async () => {

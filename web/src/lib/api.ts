@@ -351,6 +351,7 @@ export const queryKeys = {
   overlapHandling: () => [ROOT, 'overlapHandling'] as const,
   /** Decision 49: Settings → Connections → GitHub. */
   github: () => [ROOT, 'github'] as const,
+  syncSource: (name: string) => [ROOT, 'sync', name] as const,
   /** Decision 49: the ticket's GitHub panel. */
   itemGithub: (id: string) => [ROOT, 'itemGithub', id] as const,
   jiraImport: (id: string) => [ROOT, 'jiraImport', id] as const,

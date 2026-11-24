@@ -41,6 +41,7 @@ import { join } from 'node:path';
 import { SATISFIED_WHEN_LABELS, ToolError, type Project, type SatisfiedWhen } from '@docket/shared';
 import type { Db } from '../db/client.js';
 import type { ProjectsService, ServiceDeps } from './contracts.js';
+import { forgetHostFacts } from './host-worktrees.js';
 import { newId } from './ids.js';
 import { blockDiff } from './links.js';
 import { BlockIndex } from './model.js';
@@ -293,6 +294,7 @@ export function createProjectsService(deps: ServiceDeps): ProjectsService {
       sql.prepare('DELETE FROM decision_records WHERE project_key = ?').run(row.key);
       // Decision 49: a revived key must not inherit this project's repository.
       sql.prepare('DELETE FROM project_git WHERE project_key = ?').run(row.key);
+      forgetHostFacts(w.db, row.key);
       w.update('projects', row.id, { deleted_at: w.now });
       w.event({
         type: 'project.updated',

@@ -20,6 +20,7 @@ import { dirname, join, relative } from 'node:path';
 import type { WorktreeVerdict } from '@docket/shared';
 import type { Config } from '../config.js';
 import { git, GitUnknown, known } from './git-read.js';
+import { FACTS_FRESH_MS } from './host-worktrees.js';
 import { isInside, rootSegments } from './push-root.js';
 import { probeRepo, resolveRepoPath } from './radar.js';
 import type { WorkspaceFacts } from './recovery-model.js';
@@ -44,14 +45,15 @@ export const cleanupLimits = {
   /** Commits counted per worktree; more reads as this number. */
   countCap: 1_000,
   /** Older git facts no longer count as known. */
-  freshMs: 10 * 60_000,
+  freshMs: FACTS_FRESH_MS,
   /** A read starts a new scan when the last one is this old. */
   rescanAfterMs: 2 * 60_000,
   /** Something Docket has no run for may still be in use if it changed this recently. */
   untrackedQuietMs: 24 * 3_600_000,
 };
 
-export type TreeRead = 'ok' | 'outside' | 'missing' | 'timed_out' | 'unreadable';
+/** `stale` (B68): the host helper's facts for it are too old to use. */
+export type TreeRead = 'ok' | 'outside' | 'missing' | 'timed_out' | 'unreadable' | 'stale';
 
 export interface ScannedTree {
   path: string;
@@ -454,6 +456,7 @@ const UNREAD: Record<Exclude<TreeRead, 'ok'>, string> = {
   missing: 'Git lists it, but its folder isn’t there, so it can’t be checked.',
   timed_out: 'Git didn’t answer in time, so it can’t be told what this holds.',
   unreadable: 'Docket couldn’t read it, so it can’t be told what this holds.',
+  stale: 'The helper’s last check is too old to rely on.',
 };
 
 export interface VerdictInput {
