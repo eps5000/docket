@@ -512,6 +512,19 @@ A producer created a story mid-epic with only a short description: no outcome, n
 
 BUILD_SPEC §5.44, MCP_SPEC §4, §5.2, §5.3 and §6, UI_SPEC §6.3 and §6.3.4, spec FR-353–FR-358 and SC-045, Help (Shared changes and conflicts) and the producer, planner and worker skills have the details.
 
+## Owner decision 66 (2026-11-24): skills keep a core and load references on demand
+
+Two size budgets were full: `docket-worker` at 4,799 of its 4,800-token cap and the text-only tool list at 11,796 of 11,800. Every new rule forced trims somewhere else.
+
+1. **Split detail into reference files with gates.** Each skill keeps a core `SKILL.md` that every run needs, ending with a **References** table. Rare paths move to `references/<topic>.md` files, each starting with **Read when** and **Don't read when**. An agent reads a reference only when it needs it.
+2. **Never hide a safety rule behind a gate.** "Never do X" rules stay in the core, and a test checks each core still has them.
+3. **Budgets with headroom.** Each core stays under 500 lines and 4,800 tokens, aiming for about 3,500 after the split; each reference gets its own cap (about 3,000 tokens and 300 lines). The lint checks the gates, that every reference is listed and every listed one exists, and names in references too.
+4. **Tool descriptions get shorter.** Long explanations move into skill references (or the server instructions when every client needs them), leaving what the tool does, the key fields and a short pointer. Validation stays in the schemas. The text-only list should land well under its budget.
+5. **References travel with their skill everywhere skills go:** the agent-file catalog and versions, the install manifest and its hashes, the project's pull with `docket-update`, drift checks and uninstall. A project that pulls the update gets `SKILL.md` and its `references/` folder, and a stale reference is removed on update.
+6. **The skills README explains the pattern,** so future batches add references instead of growing the core.
+
+BUILD_SPEC §5.46, MCP_SPEC §3 and §5.10, spec FR-367–FR-372 and SC-047, the skills README and every skill have the details.
+
 ## Deferred choices
 
 Pilot project choice and Jira import strategy are deferred until V1 is ready for real work. Design should still settle the storage layout, supported document preview formats, the exact project gate configuration shape, and the minimum history needed before a velocity forecast is shown. These are implementation choices guided by the owner decisions above, not blockers to selecting a pilot now.

@@ -196,6 +196,8 @@ Results may carry `warnings: string[]` (§3.4). These are rendered as `! …` li
 | Codex (text-only since decision 40) | 39.5k | 11.5k |
 | Any other client (structured) | 39.5k | 14.9k |
 
+**Descriptions point to skill references** (owner decision 66; B83). Each tool description says what the tool does, its key fields and, where a rule needs more words, a short pointer such as "Details: docket-worker reference status-moves.". The explanation lives in that skill reference (`skills/<skill>/references/<topic>.md`, installed with the skill), not in the definition every call resends. Validation is unchanged: the schemas and the server still refuse what they refused. Measured in B83: the text-only list went from 11,796 to 10,492 tokens (the budget stays 11,800, so later batches have room), and the structured list from 15,373 to 14,069.
+
 ### 3.1 Compact text format
 The format is inspired by TERSL's identity-first, low-punctuation layout (ROADMAP.md), but it is our own and is output only; agents never write it.
 
@@ -849,7 +851,8 @@ Agents read the agent files and Workflow notes in effect for a project, and chan
 
 #### `get_agent_files`
 **Description:** "Read the agent files (skills, references, AGENTS.md block) and Workflow notes in effect for a project, with version_id. Pass file for its text, and propose changes from it, not your installed copy."
-- **Input:** `project`, `file?` (one key: `agents_block`, `workflow` or `skill:<name>`; otherwise all).
+- **Input:** `project`, `file?` (one key: `agents_block`, `workflow`, `skill:<name>` or `skill:<name>--<topic>`; otherwise all).
+- **Skill references** (owner decision 66; B83): each `skills/<name>/references/<topic>.md` is an agent file of its own, keyed `skill:<name>--<topic>`, with kind `skill`. It is listed right after its skill, read and proposed like one, and installed at `.claude/skills/<name>/references/<topic>.md` (or `.codex/…`). A skill or topic name never holds `--`, so the key is unambiguous.
 - **Output:** `{ project, files: [{ key, kind: 'skill'|'agents_block'|'workflow', version_id: string|null, sha256, source: 'default'|'project', content: string|null }] }`.
 - **Listing and full text** (B26, for token cost): without `file`, every file is listed with `content: null`, and the text block prints one header line per file. With `file`, only that file is returned, and its full `content` is printed after its header line.
 - **Workflow notes** are always listed. A project with no notes yet has `version_id: null`, `content: ""` and the sha256 of the empty string. Their `source` is `project`.

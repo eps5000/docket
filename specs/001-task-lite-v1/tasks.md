@@ -789,6 +789,12 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T352 [US4] The item header's Needs shaping chip and the refused Move to Ready panel (*Ask a planner to shape this* with a note, *It changes no shared part*), the epic line's count and the map card's "needs shaping".
 - [x] T353 [US4] Tests: `create_item` with shared parts, with none and with neither; splits; the refusal and its button; the digest count; the planner's path to Ready; token budget; e2e and axe in both themes at 1024 px and 1440 x 900.
 
+## Phase 61: Skills keep a core and load references on demand (owner decision 66)
+
+- [x] T357 [US13] Spec plus code in one PR: decision 66 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.17 and §5.46; MCP_SPEC §3, §5.4 and §5.10 and 44 tool descriptions; spec FR-367–FR-372 and SC-047; the skills README; every skill split into a core and references.
+- [x] T358 [US13] References as agent files (`skill:<name>--<topic>`): the bundled loader and retiring a reference the image no longer ships; install paths; the install step and `docket-update` (bash and PowerShell) removing a stale unmodified reference; push install and uninstall; `docket-check` reporting a reference only when it differs, drift reading its absence as unchanged; `claim_lead` instructions up to 60 files.
+- [x] T359 [US13] Tests: the lint (gates, unlisted and missing references, caps, names, safety rules in each core); the token budgets; the catalog, manifest, hashes, update adding and removing references in real bash and PowerShell, push removal, uninstall and drift.
+
 ## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.
@@ -914,6 +920,7 @@ Open a PR titled "<Bn>: <phase name>" with the checkpoint evidence. Do not queue
 | 54 The dependency map hides implied links | B77 (decision 60) |
 | 55 All git reading moves to the host helper | B76 |
 | 59 Tickets agents create arrive shaped or ask for a planner | B82 (decision 65) |
+| 61 Skills keep a core and load references on demand | B83 (decision 66) |
 
 **Within a phase:** tests (failing) → services → replace stubs or fill handlers → fill screens → checkpoint.
 
