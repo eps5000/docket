@@ -306,6 +306,10 @@ type ItemSummary = {
   human_review: { declared: number; ready: number; approved: number; deferred: number };
   planned_start: string|null; planned_end: string|null; effort: number|null;
   archived: boolean; jira_key: string|null; version: number; updated_at: string;
+  // Decision 65: Inbox or Planning, an agent created it unshaped or the owner asked a planner,
+  // and it still lacks something; absent otherwise. Not one of the fields `fields` can pick.
+  needs_shaping?: { missing: ('outcome'|'acceptance'|'shared_changes')[]; asked_by: 'agent'|'owner';
+    by: string; at: string; note: string|null };
 };
 
 type Item = ItemSummary & {
@@ -571,7 +575,7 @@ The format for each tool below:
 - **Errors:**
   - `validation`, with `details.allowed: Status[]` and `details.reason`, for example "2 human review items are undecided: hr_…, hr_…";
   - `conflict`;
-  - `not_declared` (decision 36; §5.15): moving to `ready` before the item has declared its shared changes, or closing as `done` with changed files that map to parts it didn't declare.
+  - `not_declared` (decision 36; §5.15): moving to `ready` before the item has declared its shared changes, or closing as `done` with changed files that map to parts it didn't declare. Decision 65: moving to `ready`, `details.missing` lists everything the ticket lacks (`outcome`, `acceptance`, `shared_changes`), and the message adds "It also has no outcome and no acceptance criteria." when it lacks more than the declaration.
   - `design_review` (decision 39; §5.15): starting or closing an item whose change to an approved design the owner hasn't approved. Other items aren't affected.
   - `forbidden` (decision 58; BUILD_SPEC §5.41) with `details: { known_gaps, asked, question_id?, ask: 'the owner' }`: moving a Planning ticket with open, unapproved known gaps to `ready`. The refusal asks the owner for you, in a write of its own, through the question form: "Approve moving GF-1 to Ready with these gaps?", with *Approve with these gaps* (recommended) and *Keep it in Planning*. It asks once: while that question is open, or another one is, or an answer is unread, it says so and asks nothing. The answer arrives in `get_item` as usual; on approval Docket records an owner decision on the ticket listing the gaps and moves it to Ready itself. A ticket with no open gaps moves as before.
   - `epic_not_ready` (decision 58): moving an epic from `ready` to `progress` while any of its tickets is in Inbox or Planning; as on `claim_lead`.
@@ -1065,7 +1069,7 @@ Every error is returned as a tool result: `isError: true`, a `text` block holdin
 | `unavailable` | Database busy past 5 s, disk full, maintenance (restore) | "Docket is busy; retry in a few seconds with the same idempotency_key." | `details.retry_after_s` |
 | `internal` | Bug | "Unexpected error (ref e_01J…). It has been logged." | `details.ref` |
 | `seam_conflict` | Decision 36: a claim whose declared shared parts overlap another item in flight (§5.15) | "GF-312 changes model:Token, like GF-240 (In progress). Pick other work: the owner has been asked whether they can run together." | `details.with` (item IDs), `details.parts` (keys) |
-| `not_declared` | Decision 36: moving to Ready before declaring shared changes, or closing as done with changed files mapped to undeclared parts (§5.15) | "Declare the shared parts GF-312 will change (or none) with declare_shared_changes, then move it to Ready." | `details.undeclared`, `details.files` (on done) |
+| `not_declared` | Decision 36: moving to Ready before declaring shared changes, or closing as done with changed files mapped to undeclared parts (§5.15) | "Declare the shared parts GF-312 will change (or none) with declare_shared_changes, then move it to Ready. It also has no outcome and no acceptance criteria." | `details.missing` (to Ready; decision 65), `details.undeclared`, `details.files` (on done) |
 | `lease_held` | Decision 36: taking a single-writer part's lease that another item holds (§5.15) | "file:…/GameflowDbContextModelSnapshot.cs is leased to GF-240 (claude · orca-w2) until 14:05 UTC. Work on something else." | `current: { item_id, holder, held_until }` |
 | `design_review` | Decision 39: claiming, starting or closing an item whose change to an approved design the owner hasn't approved (§5.15) | "GF-312 changes an approved design (Decision 12) and is waiting for the owner. Don't claim it: pause this item's work and pick other work. Other items aren't affected." | `details.review_id`, `details.state`, `details.parts` |
 | `project_paused` | Decision 53: a new claim, a coordinator's resume, or new work under a parked run while the owner has the project paused (BUILD_SPEC §5.37) | "The owner paused RCP: waiting on legal. Nothing new can start here until the owner resumes it, so ask the owner or take work from another project." | `details: { project, reason, decision_id, paused_by, paused_at, ask }` |

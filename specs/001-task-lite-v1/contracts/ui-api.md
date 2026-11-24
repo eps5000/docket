@@ -14,7 +14,7 @@ This index groups the routes by user story.
 | `GET/POST /api/decisions…` (confirm, withdraw) | US5 | FR-043 |
 | `POST /api/items/:id/answer`, `POST /api/items/:id/notes`, `POST /api/items/:id/release`, `POST /api/items/:id/return-to-ready`, `POST/DELETE` work, checks and human-review | US6 | FR-064 |
 | `POST /api/items/:id/split` | Decision 48: split a ticket in one undoable write (BUILD_SPEC §5.33). |
-| `POST /api/items` (quick capture); `PATCH /api/items/:id` (priority, status, **title, description, outcome, acceptance**; decision 58: `approve_gaps: true` with `status: 'ready'` approves a Planning ticket's open known gaps); archive and unarchive; `POST /api/items/:id/cancel` (owner decision 23); `GET /api/labels…` and move-to-ready; `GET /api/documents/:versionId/content` | US7 | FR-064, FR-064a, FR-070, FR-071 |
+| `POST /api/items` (quick capture); `PATCH /api/items/:id` (priority, status, **title, description, outcome, acceptance**; decision 58: `approve_gaps: true` with `status: 'ready'` approves a Planning ticket's open known gaps; decision 65: `request_shaping: { note? }`, never with `status`, asks a planner to shape an unshaped Inbox or Planning ticket); archive and unarchive; `POST /api/items/:id/cancel` (owner decision 23); `GET /api/labels…` and move-to-ready; `GET /api/documents/:versionId/content` | US7 | FR-064, FR-064a, FR-070, FR-071 |
 | `GET /api/work?layout=timeline`, `GET /api/burndown` | US8 | FR-080 to FR-082 |
 | `POST /api/import/jira/dry-run`, `GET …/:id`, `POST …/:id/commit`, `DELETE …/:id` | US9 | FR-090 to FR-092 |
 | `GET /api/settings`, `DELETE /api/projects/:key`, `GET /api/diagnostics/calls` | US10 | FR-103, FR-104, FR-107, FR-108 |

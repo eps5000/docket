@@ -434,17 +434,18 @@ A `ProgressMap` of the filtered set, titled "Outside this view". When no epic or
 - **h1:** the title. Editable inline: an *Edit* pencil button appears on hover or focus (see "Inline editing" below).
 - **Second line:**
   - status chip and the Queued, Blocked or Held chip;
+  - **Needs shaping** (decision 65): an info chip, "Needs shaping: no outcome and shared changes not declared", plus "· you asked a planner" once you did;
   - closed provenance on done items: "Closed after your human review", "Closed · n review deferred, not verified", or "Closed by agent: checks passed, no human review";
   - Priority select (P1–P3);
   - contextual actions:
     - Inbox: *Move to Planning*;
-    - Planning: *Move to Ready* (primary) with "Planning is yours. Move it when you're satisfied, or ask an agent to."; with open known gaps it reads *Approve gaps and move to Ready* (decision 58), records your approval as a decision on the ticket, answers Docket's open question about them, and toasts "Approved GF-1's known gaps and moved it to Ready." with Undo;
+    - Planning: *Move to Ready* (primary) with "Planning is yours. Move it when you're satisfied, or ask an agent to."; when the Ready gate refuses it (decision 65), a `--warn` panel opens under the actions and takes focus: "GF-12 can't move to Ready yet. It needs:" and a list of exactly what's missing ("An outcome", "Acceptance criteria", "Its shared changes declared, or "none" (needed for Ready)"), an optional "Note for the planner", *Ask a planner to shape this* (primary; marks it Needs shaping with your note and toasts "Asked a planner to shape GF-12. It's in the producer's digest as Needs shaping." with Undo), *It changes no shared part* (only when the declaration is missing; declares none) and *Close* (or Esc). Once you've asked, the panel says "You've asked a planner to shape it." instead of offering the button again. With open known gaps it reads *Approve gaps and move to Ready* (decision 58), records your approval as a decision on the ticket, answers Docket's open question about them, and toasts "Approved GF-1's known gaps and moved it to Ready." with Undo;
     - Done: *Archive*, or "Archived" chip + *Unarchive*;
     - any open status: *Cancel item…* in a "⋯" overflow menu at the end of the actions row. It opens an inline confirm, "Cancel RCP-31? Optional reason", with *Keep item* (focused) and *Cancel item*. Afterwards there's a toast with Undo. For an epic with open children, the confirm instead lists them and offers no Cancel button. For an item an agent leads, the confirm adds: "codex is working on this; its run will be interrupted."
     - any open Story, Task or Bug: *Split ticket…* in the same menu (decision 48). The dialog asks for the new ticket's title and type; each acceptance criterion, blocker, shared part and step is a labelled select (*Keep here*, *Move*, *Copy*); a radio group says how the tickets relate; and a live preview lists what stays and what goes. It warns when a lead is working on the ticket and when moving criteria will mark an open packet out of date. A toast offers Undo. The header then shows "Split from RCP-12" or "Split into RCP-33" as links.
     - History marks a question an agent retracted with a **Withdrawn** chip and its reason (decision 48).
     - Canceled items show the status chip "Canceled" and a struck-through title, and they leave the board, list and timeline (they're still in search).
-- **Epic header:** status chip; "Project · N items · n done"; on a Planning epic, *Move to Ready* with "This epic is still a brief."; the dependency line, then the readiness line (decision 58: "◌ Not ready to start: N unshaped tickets: …" or "· Started with N unshaped tickets: …", each ticket a link with its status).
+- **Epic header:** status chip; "Project · N items · n done"; on a Planning epic, *Move to Ready* with "This epic is still a brief."; the dependency line, then the readiness line (decision 58: "◌ Not ready to start: N unshaped tickets: …" or "· Started with N unshaped tickets: …", each ticket a link with its status; decision 65 adds "· Needs shaping: N" and "(Planning, needs shaping)" on each such ticket).
 
 **Inline editing** (spec clarification 2026-11-14). The owner edits the **title, description, outcome and acceptance criteria**. Planned dates, effort and blocker links stay agent-edited in V1.
 - **Entry:**
@@ -589,7 +590,7 @@ Used on the epic Map tab, label pages and Work → Map.
   - wave index = the longest `blocks` path from a root within the scope set;
   - cards within a wave are ordered to reduce crossings (a deterministic barycenter pass) and sit on rows shared across the map, so the map doesn't jump between renders.
 - **Card** (200px wide):
-  - type icon · ID (+ "other epic ↗" or project) · title (2 lines) · "Status · run state" or "· after RCP-12" on Planning items;
+  - type icon · ID (+ "other epic ↗" or project) · title (2 lines) · "Status · run state" or "· after RCP-12" on Planning items, and "· needs shaping" on a ticket waiting for a planner, with what it lacks as its `title` (decision 65);
   - left edge in the status colour;
   - done = green fill with ✓;
   - Blocked Ready = red border and "blocked"; Queued Ready = a dashed `--st-ready` outline (the left edge keeps the status colour) and "queued", each with the plain sentence as its `title`;

@@ -23,6 +23,17 @@ Each project keeps a registry of shared parts under **Settings → Projects → 
 
 An item can't move to Ready until it declares the parts it will change (add, change or remove, with a short note), or declares that it changes none. You see the declaration in the ticket's **Details → Shared changes**, where *Edit* changes it. If you need to move an undeclared item to Ready anyway, give a reason: it's recorded in Activity.
 
+### Tickets agents create, and Needs shaping
+
+An agent that creates a ticket, or splits one, declares its shared parts or says it changes none in the same step. If it doesn't know yet, or leaves out the outcome or the acceptance criteria, the ticket is marked **Needs shaping**. That's work for a **planner** agent, not for you: the ticket, its epic and the map say "needs shaping", and the producer's digest lists it so a planner shapes it (outcome, acceptance, links, shared changes, and known gaps for your approval if there are any).
+
+When you press **Move to Ready** on a ticket that isn't declared, Docket doesn't just refuse. It lists exactly what's missing and offers:
+
+- **Ask a planner to shape this**, with an optional note for the planner. The ticket becomes Needs shaping with your request recorded, and the producer picks it up. You can undo it.
+- **It changes no shared part**, when you know it doesn't: that declares none, as *Edit* would, and then it can move.
+
+Once a planner has shaped it, the ticket moves to Ready with no step from you, unless it has known gaps for you to approve.
+
 A declaration can name a **member** of a part, such as `model:Token.expiresAt` or `table:decks.archived_at`. A part with no member means "could touch anything in it". If a change alters something you already approved, the agent marks it **Changes an approved design** and says which design, decision or acceptance criterion.
 
 ## When two items overlap
