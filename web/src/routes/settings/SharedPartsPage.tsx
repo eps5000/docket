@@ -364,12 +364,48 @@ function PartDialog({
 
 const RADAR_CHIP: Record<
   RadarResponse['state'],
-  { kind: 'neutral' | 'ok' | 'info'; text: string }
+  { kind: 'neutral' | 'ok' | 'info' | 'warn'; text: string }
 > = {
   off: { kind: 'neutral', text: 'Off' },
+  waiting: { kind: 'warn', text: 'Waiting for the helper' },
+  stale: { kind: 'warn', text: 'Out of date' },
   idle: { kind: 'info', text: 'Not run yet' },
   ok: { kind: 'ok', text: 'On' },
 };
+
+/**
+ * B76: Docket runs no git, so the radar waits on the helper on this computer.
+ * Words, never colour alone, and how to turn the helper on.
+ */
+function RadarHelperNote({ radar: r }: { radar: RadarResponse }) {
+  if (r.state !== 'waiting' && r.state !== 'stale') return null;
+  return (
+    <Callout tone="warn" className="mb" data-radar-helper={r.state}>
+      {r.state === 'waiting' ? (
+        <>
+          <strong>Waiting for the host helper.</strong> The helper on this computer reads the
+          repository for the radar; until it reports, no conflicts are found or cleared.
+        </>
+      ) : (
+        <>
+          <strong>The host helper’s facts are out of date</strong>
+          {r.helper.checked_at ? (
+            <span title={isoTitle(r.helper.checked_at)}>
+              {' '}
+              (last read {formatAge(r.helper.checked_at)} ago)
+            </span>
+          ) : null}
+          . The findings below may be out of date: none clears until it reports again.
+        </>
+      )}{' '}
+      Turn it on or check it in{' '}
+      <Link to={`${paths.settings()}#settings-worktree-helper`}>
+        Settings → Connections → Git checks
+      </Link>
+      .
+    </Callout>
+  );
+}
 
 /** The conflict radar card: settings, *Run radar now*, the last run and open findings. */
 function RadarCard({ project }: { project: string }) {
@@ -386,8 +422,9 @@ function RadarCard({ project }: { project: string }) {
         </QueryState>
       </div>
       <p className="src" style={{ margin: '6px 0 10px' }}>
-        Every 15 minutes Docket trial-merges in-flight branches with each other and with the main
-        branch, without writing to the repository, and flags pairs heading for a conflict.
+        Every few minutes the helper on this computer trial-merges in-flight branches with each
+        other and with the main branch, without writing to the repository, and Docket flags pairs
+        heading for a conflict.
       </p>
       <QueryState query={query} skeleton={<Skeleton lines={2} label="Loading the radar" />}>
         {(r) => (
@@ -442,9 +479,13 @@ function RadarBody({ project, radar: r }: { project: string; radar: RadarRespons
       showToast(
         out.radar.state === 'off'
           ? (out.radar.off_reason ?? 'The radar is off.')
-          : n === 0
-            ? 'Radar run: no conflicts ahead.'
-            : `Radar run: ${n} ${n === 1 ? 'conflict' : 'conflicts'} ahead.`,
+          : out.radar.state === 'waiting'
+            ? 'Waiting for the host helper: nothing was checked.'
+            : out.radar.state === 'stale'
+              ? 'The host helper’s facts are out of date: nothing was cleared.'
+              : n === 0
+                ? 'Radar run: no conflicts ahead.'
+                : `Radar run: ${n} ${n === 1 ? 'conflict' : 'conflicts'} ahead.`,
       );
       await refresh();
       await qc.invalidateQueries({ queryKey: queryKeys.all });
@@ -461,15 +502,16 @@ function RadarBody({ project, radar: r }: { project: string; radar: RadarRespons
           {r.off_reason}
         </Callout>
       )}
+      <RadarHelperNote radar={r} />
       <div className="row wrap" style={{ gap: 12, alignItems: 'flex-end' }}>
         <div className="grow">
           <label className="f" htmlFor={ids.repo}>
-            Repository folder (inside the push folder)
+            Repository folder on this computer
           </label>
           <input
             id={ids.repo}
             className="input mono"
-            placeholder="gameflow-app"
+            placeholder="C:/code/recipe-app"
             value={repo}
             onChange={(e) => setRepo(e.target.value)}
           />

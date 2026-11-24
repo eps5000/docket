@@ -1173,7 +1173,10 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
             .prepare('SELECT repo_path, main_branch FROM projects WHERE key = ?')
             .get(project) as { repo_path: string | null; main_branch: string })
         : null;
-      const onMain = repo ? await readMainManifests(config, repo, INSTALL_CLIENTS) : null;
+      const onMain =
+        repo && project
+          ? readMainManifests(r.db, { key: project, ...repo }, INSTALL_CLIENTS, r.now)
+          : null;
       const clients = INSTALL_CLIENTS.map((client) => {
         const main = onMain?.get(client) ?? { state: 'unknown' as const, branch: null };
         const mainOutdated =
@@ -1861,7 +1864,12 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
       const out: string[] = [];
       for (const key of new Set(rows.map((x) => x.project_key))) {
         const mine = rows.filter((x) => x.project_key === key);
-        const main = await readMainManifests(config, mine[0]!, INSTALL_CLIENTS);
+        const main = readMainManifests(
+          r.db,
+          { key, repo_path: mine[0]!.repo_path, main_branch: mine[0]!.main_branch },
+          INSTALL_CLIENTS,
+          r.now,
+        );
         for (const row of mine) {
           const m = main.get(row.client);
           if (m?.state === 'present' && m.install_id === row.id) out.push(row.id);

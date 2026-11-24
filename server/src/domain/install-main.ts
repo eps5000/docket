@@ -1,99 +1,56 @@
 /**
  * What a project's main branch holds of its Docket install (owner decision 56;
- * BUILD_SPEC §5.39), read with the radar's read-only git: `git show` of the
- * manifest on origin's copy of the main branch, else the local one. No fetch,
- * so it's as current as the repo's last fetch. Without a repository folder
- * inside the push folder, or when a read has no answer, it's `unknown`, and
- * callers must say so rather than guess.
+ * BUILD_SPEC §5.39). The helper on the host reads it (B76; Docket runs no git):
+ * `git show` of the manifest on origin's copy of the main branch, else the
+ * local one, parsed there so only Docket's own identifiers and hashes are
+ * sent. No fetch, so it's as current as the repo's last fetch. Without fresh
+ * facts from the helper it's `unknown`, and callers must say so rather than
+ * guess.
  */
-import {
-  INSTALL_MANIFEST_NAME,
-  LEGACY_MANIFEST_NAME,
-  installLayout,
-  type InstallClient,
-} from '@docket/shared';
-import type { Config } from '../config.js';
-import { git } from './git-read.js';
+import { INSTALL_CLIENTS, installLayout, type InstallClient } from '@docket/shared';
+import type { Db } from '../db/client.js';
+import { freshHostGit } from './host-git.js';
 import type { ManifestMap } from './installs.js';
-import { resolveRepoPath, validBranch } from './radar.js';
+import { validBranch } from './radar.js';
 
 export type MainManifest =
   | { state: 'unknown'; branch: string | null }
   | { state: 'absent'; branch: string }
   | { state: 'present'; branch: string; install_id: string | null; manifest: ManifestMap };
 
-function parseManifest(text: string, branch: string): MainManifest {
-  try {
-    const parsed = JSON.parse(text) as {
-      install_id?: unknown;
-      files?: { key?: unknown; version_id?: unknown; sha256?: unknown }[];
-    };
-    if (!Array.isArray(parsed.files)) return { state: 'unknown', branch };
-    const manifest: ManifestMap = {};
-    for (const f of parsed.files) {
-      if (
-        typeof f.key === 'string' &&
-        typeof f.version_id === 'string' &&
-        typeof f.sha256 === 'string'
-      ) {
-        manifest[f.key] = { version_id: f.version_id, sha256: f.sha256 };
-      }
-    }
-    return {
-      state: 'present',
-      branch,
-      install_id: typeof parsed.install_id === 'string' ? parsed.install_id : null,
-      manifest,
-    };
-  } catch {
-    return { state: 'unknown', branch };
-  }
+/** B76: the manifests the helper reads on the main branch, per client. */
+export function manifestRequest(): { client: InstallClient; paths: string[] }[] {
+  return INSTALL_CLIENTS.map((client) => {
+    const layout = installLayout(client, 'repo');
+    return { client, paths: [layout.manifest, layout.legacyManifest] };
+  });
 }
 
-/** Each client's manifest on the project's main branch. */
-export async function readMainManifests(
-  config: Config,
-  project: { repo_path: string | null; main_branch: string },
+/** Each client's manifest on the project's main branch, from the helper's fresh facts. */
+export function readMainManifests(
+  db: Db,
+  project: { key: string; repo_path: string | null; main_branch: string },
   clients: readonly InstallClient[],
-): Promise<Map<InstallClient, MainManifest>> {
+  now: string,
+): Map<InstallClient, MainManifest> {
   const branch = project.main_branch;
   const out = new Map<InstallClient, MainManifest>();
-  const all = (m: MainManifest) => {
-    for (const c of clients) out.set(c, m);
+  if (!project.repo_path || !validBranch(branch)) {
+    for (const c of clients) out.set(c, { state: 'unknown', branch: null });
     return out;
-  };
-  if (!project.repo_path || !validBranch(branch)) return all({ state: 'unknown', branch: null });
-  let dir: string;
-  try {
-    dir = resolveRepoPath(config, project.repo_path);
-  } catch {
-    return all({ state: 'unknown', branch });
   }
-  let ref: string | null = null;
-  for (const candidate of [`refs/remotes/origin/${branch}`, `refs/heads/${branch}`]) {
-    const r = await git(dir, ['rev-parse', '--verify', '--quiet', `${candidate}^{commit}`]);
-    if (r.unknown || r.missing) return all({ state: 'unknown', branch });
-    if (r.status === 0) {
-      ref = candidate;
-      break;
-    }
-  }
-  if (!ref) return all({ state: 'unknown', branch });
+  const facts = freshHostGit(db, project, now);
   for (const client of clients) {
-    const { dir: folder } = installLayout(client, 'repo');
-    let found: MainManifest = { state: 'absent', branch };
-    for (const name of [INSTALL_MANIFEST_NAME, LEGACY_MANIFEST_NAME]) {
-      const r = await git(dir, ['show', `${ref}:${folder}/${name}`]);
-      if (r.unknown || r.missing) {
-        found = { state: 'unknown', branch };
-        break;
-      }
-      if (r.status === 0) {
-        found = parseManifest(r.stdout, branch);
-        break;
-      }
+    const m = facts?.manifests[client];
+    if (!m || m.state === 'unknown') {
+      out.set(client, { state: 'unknown', branch });
+    } else if (m.state === 'absent') {
+      out.set(client, { state: 'absent', branch });
+    } else {
+      const manifest: ManifestMap = {};
+      for (const f of m.files) manifest[f.key] = { version_id: f.version_id, sha256: f.sha256 };
+      out.set(client, { state: 'present', branch, install_id: m.install_id, manifest });
     }
-    out.set(client, found);
   }
   return out;
 }

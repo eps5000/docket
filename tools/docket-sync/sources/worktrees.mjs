@@ -60,7 +60,7 @@ export function safeHostPath(path, platform = process.platform) {
   return platform === 'win32' ? /^[A-Za-z]:[\\/]/.test(path) : path.startsWith('/');
 }
 
-const validBranch = (branch) =>
+export const validBranch = (branch) =>
   /^[A-Za-z0-9._/@+-]+$/.test(branch) &&
   !branch.startsWith('-') &&
   !branch.includes('..') &&
@@ -303,7 +303,7 @@ async function readTree(git, tree, isMain, fact, commitsUnknown, limits, signal)
 }
 
 /** A partial clone would fetch a missing object on demand if git is too old to refuse. */
-async function lazyFetchRisk(git, dir, options) {
+export async function lazyFetchRisk(git, dir, options) {
   const version = await git.read(dir, ['version'], options);
   const match = /(\d+)\.(\d+)/.exec(version.stdout ?? '');
   if (match && (Number(match[1]) > 2 || (Number(match[1]) === 2 && Number(match[2]) >= 45))) {
