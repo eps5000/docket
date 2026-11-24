@@ -95,6 +95,7 @@ const B2_ROUTES: readonly RouteId[] = [
   'items.split',
   'items.addNote',
   'items.release',
+  'items.handoffEpic',
   'items.returnToReady',
   // Decision 62 (B79): settling an idle ticket (content in b79-midflight.test.ts).
   'items.settleIdle',
@@ -285,6 +286,7 @@ const VALID: Record<RouteId, Req> = {
   },
   'items.addNote': { params: { id: 'RCP-14' }, body: { text: 'Check the units table first.' } },
   'items.release': { params: { id: 'RCP-14' }, body: {} },
+  'items.handoffEpic': { params: { id: 'RCP-14' }, body: {} },
   'items.returnToReady': { params: { id: 'RCP-14' }, body: { reason: 'Re-plan first.' } },
   'items.settleIdle': { params: { id: 'RCP-14' }, body: { action: 'planning' } },
   'steps.add': { params: { id: 'RCP-14' }, body: { text: 'Test with a 3-week plan' } },
