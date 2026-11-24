@@ -33,6 +33,7 @@ import type { Db } from '../db/client.js';
 import type { Services } from './contracts.js';
 import { ms, requireItem, type ItemRow } from './model.js';
 import { clearApproval } from './epic-readiness.js';
+import { workEventSql } from './activity.js';
 import { asDocket } from './overlap-policy.js';
 import { clearUncheckedFindings, reportedBranches } from './radar.js';
 import type { InverseOp, WriteContext } from './write.js';
@@ -43,8 +44,7 @@ export interface IdleTicket {
   since: string;
 }
 
-/** Activity: an agent's or the owner's event, other than acknowledging a problem about it. */
-const ACTIVITY_SQL = `e.actor_kind <> 'system' AND e.type <> 'problem.acknowledged'`;
+const ACTIVITY_SQL = workEventSql('e');
 
 const IDLE_SQL = `
   SELECT i.id, coalesce(
