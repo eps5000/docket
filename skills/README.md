@@ -7,6 +7,7 @@ These are agent skills that teach the **workflow** for using Docket well. The MC
 | [`docket-worker`](docket-worker/SKILL.md) | Core | Every agent that works on items |
 | [`docket-coordinator`](docket-coordinator/SKILL.md) | Core | Whatever dispatches agents: an Orca coordinator, a script, or you |
 | [`docket-delivery`](docket-delivery/SKILL.md) | Core | Agents taking work through PR, CI, merge and deployment, in any stack. The project's rules win, and it grants no authority (owner decision 52) |
+| [`docket-producer`](docket-producer/SKILL.md) | Optional | A session that owns one epic and dispatches independent implementers, with any orchestrator or none. The project's rules and skills win (owner decision 55) |
 | [`docket-planner`](docket-planner/SKILL.md) | Optional | Agents that shape and break down work |
 | [`docket-review-packet`](docket-review-packet/SKILL.md) | Optional | Workers on projects that use human review |
 | [`docket-lead-subagents`](docket-lead-subagents/SKILL.md) | Optional | Leads that fan out to subagents |

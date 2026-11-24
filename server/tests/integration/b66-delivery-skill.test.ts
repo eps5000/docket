@@ -1,8 +1,9 @@
 /**
- * The bundled delivery skill (owner decision 52; B66) through the real install
- * paths: an install made before it shipped shows "update available" and
- * nothing worse, a reinstall adds it, and the check and drift cover it. The
- * real uninstall, in each shell, is in b64-install-scope.test.ts.
+ * The bundled delivery and producer skills (owner decisions 52 and 55; B66,
+ * B71) through the real install paths: an install made before one shipped shows
+ * "update available" and nothing worse, a reinstall adds it, and the check and
+ * drift cover it. The real uninstall, in each shell, is in
+ * b64-install-scope.test.ts.
  *
  * Every install goes into a temporary folder.
  */
@@ -15,8 +16,10 @@ import { insertProject, tempDir, type TempDir } from '../helpers.js';
 import { createTestServer, parseSetCookies, type TestServer } from './harness.js';
 
 type S = Record<string, unknown>;
-const KEY = 'skill:docket-delivery';
-const PATHS = { claude: '.claude/skills/docket-delivery', codex: '.codex/skills/docket-delivery' };
+type Client = 'claude' | 'codex';
+const CASES = (['docket-delivery', 'docket-producer'] as const).flatMap((skill) =>
+  (['claude', 'codex'] as const).map((client) => ({ skill, client })),
+);
 
 let s: TestServer | undefined;
 let tmp: TempDir | undefined;
@@ -60,7 +63,7 @@ async function start() {
 
 type Api = Awaited<ReturnType<typeof start>>['api'];
 
-async function push(api: Api, repo: string, client: 'claude' | 'codex') {
+async function push(api: Api, repo: string, client: Client) {
   const r = await api('POST', '/api/installs', {
     client,
     target_kind: 'repo',
@@ -80,7 +83,8 @@ const stateOf = async (api: Api, client: string) => {
 };
 
 /** Make an install look as if it ran before this skill shipped. */
-function forgetDelivery(server: TestServer, id: string, repo: string, client: 'claude' | 'codex') {
+function forgetSkill(server: TestServer, id: string, repo: string, client: Client, skill: string) {
+  const KEY = `skill:${skill}`;
   const row = server.runtime.db.sqlite
     .prepare('SELECT manifest FROM installs WHERE id = ?')
     .get(id) as { manifest: string };
@@ -90,7 +94,7 @@ function forgetDelivery(server: TestServer, id: string, repo: string, client: 'c
   server.runtime.db.sqlite
     .prepare('UPDATE installs SET manifest = ? WHERE id = ?')
     .run(JSON.stringify(manifest), id);
-  const dir = join(repo, PATHS[client]);
+  const dir = join(repo, `.${client}/skills/${skill}`);
   rmSync(dir, { recursive: true });
   const file = join(repo, `.${client}`, '.docket-manifest.json');
   const lines = readFileSync(file, 'utf8')
@@ -101,12 +105,15 @@ function forgetDelivery(server: TestServer, id: string, repo: string, client: 'c
   return dir;
 }
 
-describe.each(['claude', 'codex'] as const)('the delivery skill for %s (decision 52)', (client) => {
+describe.each(CASES)('$skill for $client (decisions 52 and 55)', ({ skill, client }) => {
+  const KEY = `skill:${skill}`;
+  const dirIn = (repo: string) => join(repo, `.${client}/skills/${skill}`);
+
   it('installs with the others and passes the check', async () => {
     const { api, repo } = await start();
     const id = await push(api, repo, client);
-    const text = readFileSync(join(repo, PATHS[client], 'SKILL.md'), 'utf8');
-    expect(text).toContain('name: docket-delivery');
+    const text = readFileSync(join(dirIn(repo), 'SKILL.md'), 'utf8');
+    expect(text).toContain(`name: ${skill}`);
     expect((await stateOf(api, client)).state).toBe('up_to_date');
     const check = await api('POST', `/api/installs/${id}/check`, {});
     expect(check.body.files).toEqual([]);
@@ -115,7 +122,7 @@ describe.each(['claude', 'codex'] as const)('the delivery skill for %s (decision
   it('an install from before it shipped shows update available, and a reinstall adds it', async () => {
     const { api, repo, server } = await start();
     const id = await push(api, repo, client);
-    const dir = forgetDelivery(server, id, repo, client);
+    const dir = forgetSkill(server, id, repo, client, skill);
 
     expect(await stateOf(api, client)).toMatchObject({
       state: 'update_available',
@@ -136,7 +143,7 @@ describe.each(['claude', 'codex'] as const)('the delivery skill for %s (decision
   it('an edit to it is drift', async () => {
     const { api, repo, server } = await start();
     await push(api, repo, client);
-    const file = join(repo, PATHS[client], 'SKILL.md');
+    const file = join(dirIn(repo), 'SKILL.md');
     writeFileSync(file, `${readFileSync(file, 'utf8')}\nLocal note.\n`);
     await driftCheckOnce(server.runtime);
     const rows = server.runtime.db.sqlite
