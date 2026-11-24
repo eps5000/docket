@@ -806,9 +806,9 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 
 ## Phase 63: Ticket types and the mandatory Release (owner decision 67)
 
-- [ ] T361 [US4] Spec plus code in one PR: decision 67 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.47; MCP_SPEC and UI_SPEC; spec FR-373–FR-381 and SC-048; Help, importer documentation and planner, producer and worker references.
-- [ ] T362 [US4] Migration 0032 and startup backfill; six ticket types, inferred Story/Task aliases, one Release per epic, automatic dependencies and `release_gates`, epic auto-close, Exploration readiness, blocker-type wait wording, and rollout marker.
-- [ ] T363 [US4] UI types, filters, badges and inferred count; Release in the last epic Map column and its hold on the epic, ticket and Pick next epic; tests for migration, gates, import, budgets and contracts, plus e2e, axe and screenshots in both themes at 1440 and 1024 px.
+- [x] T361 [US4] Spec plus code in one PR: decision 67 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.47; MCP_SPEC and UI_SPEC; spec FR-373–FR-381 and SC-048; Help, importer documentation and planner, producer and worker references.
+- [x] T362 [US4] Migration 0032 and startup backfill; six ticket types, inferred Story/Task aliases, one Release per epic, automatic dependencies and `release_gates`, epic auto-close, Exploration readiness, blocker-type wait wording, and rollout marker.
+- [x] T363 [US4] UI types, filters, badges and inferred count; Release in the last epic Map column and its hold on the epic, ticket and Pick next epic; tests for migration, gates, import, budgets and contracts, plus e2e, axe and screenshots in both themes at 1440 and 1024 px.
 
 ## How to run the build
 
