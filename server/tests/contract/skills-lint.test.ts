@@ -18,9 +18,16 @@
  *
  * The tools come from the live `tools/list` of the in-process server, not
  * from a copy, so a renamed tool or field fails here.
+ *
+ * Decision 66 (B83): a skill keeps a core and loads references on demand.
+ * Each `skills/<name>/references/<topic>.md` starts with its two gate lines,
+ * `**Read when:**` and `**Don't read when:**`, and the skill's `SKILL.md`
+ * ends with a References table listing every reference with the same two
+ * gates. References get the same name checks, a cap of their own, and each
+ * core keeps its safety rules.
  */
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as shared from '@docket/shared';
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
@@ -37,6 +44,13 @@ const SKILLS_DIR = fileURLToPath(new URL('../../../skills/', import.meta.url));
  */
 export const SKILL_MAX_LINES = 500;
 export const SKILL_MAX_TOKENS = 4_800;
+/** Decision 66: a reference is read only when its gate says so, and stays small too. */
+export const REFERENCE_MAX_LINES = 300;
+export const REFERENCE_MAX_TOKENS = 3_000;
+/** Decision 66: after the split every core keeps headroom under the cap. */
+export const CORE_TARGET_TOKENS = 3_600;
+
+export const tokensOf = (text: string): number => Math.ceil(text.length / 4);
 
 /** A snake_case word: lower case, at least one underscore. */
 const SNAKE = /\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/g;
@@ -47,13 +61,131 @@ export interface SkillFile {
   text: string;
 }
 
+const readText = (path: string) => readFileSync(path, 'utf8').replace(/\r\n/g, '\n');
+
 export function skillFiles(dir = SKILLS_DIR): SkillFile[] {
   return readdirSync(dir, { withFileTypes: true })
     .filter((d) => d.isDirectory() && existsSync(join(dir, d.name, 'SKILL.md')))
     .map((d) => {
       const path = join(dir, d.name, 'SKILL.md');
-      return { folder: d.name, path, text: readFileSync(path, 'utf8').replace(/\r\n/g, '\n') };
+      return { folder: d.name, path, text: readText(path) };
     });
+}
+
+export interface ReferenceFile {
+  /** `references/<topic>.md`, as the skill's table names it. */
+  file: string;
+  path: string;
+  text: string;
+}
+
+/** Every file in a skill's `references/` folder, sorted. */
+export function referenceFiles(skill: SkillFile): ReferenceFile[] {
+  const dir = join(dirname(skill.path), 'references');
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir, { withFileTypes: true })
+    .filter((d) => d.isFile())
+    .map((d) => d.name)
+    .sort()
+    .map((name) => ({
+      file: `references/${name}`,
+      path: join(dir, name),
+      text: readText(join(dir, name)),
+    }));
+}
+
+export interface Gates {
+  read: string;
+  dont: string;
+}
+
+const READ_WHEN = '**Read when:** ';
+const DONT_READ_WHEN = "**Don't read when:** ";
+
+/**
+ * A reference's gates: the first two lines after its `# ` heading (blank lines
+ * skipped), `**Read when:** …` then `**Don't read when:** …`. Null if either
+ * is missing, empty or out of order.
+ */
+export function referenceGates(text: string): Gates | null {
+  const lines = text.split('\n').filter((l) => l.trim() !== '');
+  if (!lines[0]?.startsWith('# ')) return null;
+  const read = lines[1]?.startsWith(READ_WHEN) ? lines[1].slice(READ_WHEN.length).trim() : '';
+  const dont = lines[2]?.startsWith(DONT_READ_WHEN)
+    ? lines[2].slice(DONT_READ_WHEN.length).trim()
+    : '';
+  return read && dont ? { read, dont } : null;
+}
+
+/**
+ * The skill's References table: the last `## References` section, a table of
+ * `| [`references/x.md`](references/x.md) | Read when | Don't read when |`.
+ * Null when the skill has none; `last` says whether it is the final section.
+ */
+export function referencesTable(
+  text: string,
+): { rows: (Gates & { file: string })[]; last: boolean; malformed: string[] } | null {
+  const at = text.lastIndexOf('\n## References\n');
+  if (at < 0) return null;
+  const section = text.slice(at + 1);
+  const last = !/\n## /.test(section.slice(3));
+  const rows: (Gates & { file: string })[] = [];
+  const malformed: string[] = [];
+  const tableLines = section.split('\n').filter((l) => l.startsWith('|'));
+  const [head, rule, ...body] = tableLines;
+  if (!head || !/^\|\s*File\s*\|\s*Read when\s*\|\s*Don't read when\s*\|$/.test(head) || !rule) {
+    return {
+      rows,
+      last,
+      malformed: ["the table header must be | File | Read when | Don't read when |"],
+    };
+  }
+  for (const line of body) {
+    const cells = line
+      .split('|')
+      .slice(1, -1)
+      .map((c) => c.trim());
+    const m = /^\[`(references\/[a-z0-9-]+\.md)`\]\((references\/[a-z0-9-]+\.md)\)$/.exec(
+      cells[0] ?? '',
+    );
+    if (cells.length !== 3 || !m || m[1] !== m[2] || !cells[1] || !cells[2]) {
+      malformed.push(line);
+      continue;
+    }
+    rows.push({ file: m[1]!, read: cells[1], dont: cells[2] });
+  }
+  return { rows, last, malformed };
+}
+
+/** What's wrong with a skill's references and its table; empty when nothing is. */
+export function referenceProblems(skill: SkillFile, refs: readonly ReferenceFile[]): string[] {
+  const out: string[] = [];
+  const table = referencesTable(skill.text);
+  if (refs.length === 0 && !table) return out;
+  if (!table) return [`${skill.folder} has references but no "## References" table`];
+  out.push(...table.malformed.map((l) => `malformed row: ${l}`));
+  if (!table.last) out.push('"## References" must be the last section of SKILL.md');
+  const listed = new Map(table.rows.map((r) => [r.file, r]));
+  for (const ref of refs) {
+    const gates = referenceGates(ref.text);
+    if (!/^[a-z0-9]+(-[a-z0-9]+)*\.md$/.test(ref.file.slice('references/'.length))) {
+      out.push(`${ref.file}: name it <topic>.md with a-z, 0-9 and single hyphens`);
+    }
+    if (!gates)
+      out.push(
+        `${ref.file}: no "**Read when:**" and "**Don't read when:**" lines under its heading`,
+      );
+    const row = listed.get(ref.file);
+    if (!row) out.push(`${ref.file} isn't listed in the References table`);
+    else if (gates && (row.read !== gates.read || row.dont !== gates.dont)) {
+      out.push(`${ref.file}: the table's gates differ from the file's`);
+    }
+  }
+  const present = new Set(refs.map((r) => r.file));
+  for (const row of table.rows) {
+    if (!present.has(row.file)) out.push(`${row.file} is listed but doesn't exist`);
+  }
+  return out;
 }
 
 /** The frontmatter's top-level `key: value` pairs, or null without frontmatter. */
@@ -232,17 +364,163 @@ describe('skills lint (T148)', () => {
 
       it(`stays within ${SKILL_MAX_LINES} lines and ${SKILL_MAX_TOKENS} tokens (decision 40)`, () => {
         expect(skill.text.split('\n').length).toBeLessThanOrEqual(SKILL_MAX_LINES);
-        expect(Math.ceil(skill.text.length / 4)).toBeLessThanOrEqual(SKILL_MAX_TOKENS);
+        expect(tokensOf(skill.text)).toBeLessThanOrEqual(SKILL_MAX_TOKENS);
       });
+
+      it(`keeps its core within ${CORE_TARGET_TOKENS} tokens, with headroom (decision 66)`, () => {
+        expect(tokensOf(skill.text)).toBeLessThanOrEqual(CORE_TARGET_TOKENS);
+      });
+
+      const refs = referenceFiles(skill);
+
+      it('lists every reference with its gates, and every listed reference exists (decision 66)', () => {
+        expect(referenceProblems(skill, refs)).toEqual([]);
+      });
+
+      for (const ref of refs) {
+        it(`${ref.file}: names only registered tools, fields and enum values`, () => {
+          const bad = unknownNames(ref.text, vocab).map((u) => `${u.name} (line ${u.line})`);
+          expect(bad, `Unknown names in ${skill.folder}/${ref.file}`).toEqual([]);
+        });
+
+        it(`${ref.file}: stays within ${REFERENCE_MAX_LINES} lines and ${REFERENCE_MAX_TOKENS} tokens`, () => {
+          expect(ref.text.split('\n').length).toBeLessThanOrEqual(REFERENCE_MAX_LINES);
+          expect(tokensOf(ref.text)).toBeLessThanOrEqual(REFERENCE_MAX_TOKENS);
+        });
+
+        it(`${ref.file}: has no frontmatter, so no client loads it as a skill`, () => {
+          expect(frontmatter(ref.text)).toBeNull();
+        });
+      }
     });
   }
+
+  // Decision 66: a gate may hide detail, never a safety rule. Each core keeps these.
+  describe('each core keeps its safety rules (decision 66)', () => {
+    const SAFETY: Record<string, string[]> = {
+      'docket-worker': [
+        '**Never retry in a loop.**',
+        '**Never wait in a loop.**',
+        '**Never just go quiet.**',
+        '**Never wait in a `sleep` loop:**',
+        "Don't claim. Call `heartbeat { run_id",
+        'clear `design_review` by removing the flag, and never work around an owner decision',
+        "Don't edit installed files",
+        '**Never paste secrets.**',
+        "Work on an item you haven't claimed, or one someone else holds.",
+        'Move items to Ready unless the project rules allow it.',
+      ],
+      'docket-coordinator': [
+        'Never prune `in_use`, `parked` or `at_risk`, and treat `unknown` as not safe. **Idle is not finished.**',
+        '**Prune only workspaces in `safe_to_prune`.**',
+        '**Never poll.**',
+        'Never fork it or let it inherit your conversation',
+        "**Don't answer for the owner**",
+        '**Never answer for the owner,** and never push work on a canceled item',
+        'Never rebuild a brief from memory, and never edit lines inside a stored brief.',
+        "Don't edit installed files",
+        '## Owner-only (don',
+        'Run two workers on one item.',
+      ],
+      'docket-delivery': [
+        "**The project's rules come first.**",
+        '**This skill grants no authority.**',
+        'Never skip, weaken or bypass a check to get a merge through.',
+        "**Never queue something the gate can't actually stop.**",
+        '**Never cancel merge-queue or main runs:**',
+        "Never remove containers, volumes, caches or data you didn't create.",
+        '**When a precondition fails, stop and report it.**',
+        "**Moving to paid capacity is the owner's decision.**",
+        'Never commit it, or paste it into logs, tickets or fixtures.',
+        'Never report green from memory',
+      ],
+      'docket-producer': [
+        "**The project's rules come first.**",
+        '**This skill grants no authority.**',
+        "don't co-produce",
+        'Never leave it for the owner to find blank.',
+        '**Claim, dispatch and resume nothing.**',
+        'never approval',
+      ],
+      'docket-planner': [
+        '**Planning belongs to the owner.**',
+        '**Never leave a ticket undeclared.**',
+        '**only if the project allows it**',
+      ],
+      'docket-review-packet': [],
+      'docket-lead-subagents': ['Never mark relayed work as observed.'],
+    };
+
+    it('covers every shipped skill', () => {
+      expect(Object.keys(SAFETY).sort()).toEqual(skills.map((s) => s.folder).sort());
+    });
+
+    for (const [folder, rules] of Object.entries(SAFETY)) {
+      it(folder, () => {
+        const text = skills.find((s) => s.folder === folder)!.text;
+        expect(rules.filter((r) => !text.includes(r))).toEqual([]);
+      });
+    }
+  });
+
+  describe('the reference checks themselves (decision 66)', () => {
+    const skill = (table: string): SkillFile => ({
+      folder: 'probe',
+      path: join(SKILLS_DIR, 'probe', 'SKILL.md'),
+      text: `---\nname: probe\ndescription: x\n---\n\n# Probe\n\n## References\n\n${table}`,
+    });
+    const head = "| File | Read when | Don't read when |\n| --- | --- | --- |\n";
+    const row = (topic: string, read = 'A.', dont = 'B.') =>
+      `| [\`references/${topic}.md\`](references/${topic}.md) | ${read} | ${dont} |\n`;
+    const ref = (topic: string, body = "# T\n\n**Read when:** A.\n**Don't read when:** B.\n") => ({
+      file: `references/${topic}.md`,
+      path: '',
+      text: body,
+    });
+
+    it('accepts a listed reference with matching gates', () => {
+      expect(referenceProblems(skill(head + row('one')), [ref('one')])).toEqual([]);
+    });
+
+    it('catches missing gates, an unlisted file, a missing file and different gates', () => {
+      const problems = referenceProblems(
+        skill(head + row('one') + row('gone') + row('two', 'C.')),
+        [ref('one', '# T\n\nNo gates here.\n'), ref('two'), ref('three')],
+      );
+      expect(problems).toEqual([
+        'references/one.md: no "**Read when:**" and "**Don\'t read when:**" lines under its heading',
+        "references/two.md: the table's gates differ from the file's",
+        "references/three.md isn't listed in the References table",
+        "references/gone.md is listed but doesn't exist",
+      ]);
+    });
+
+    it("catches a references folder without a table, a malformed row and a table that isn't last", () => {
+      const bare: SkillFile = {
+        ...skill(''),
+        text: '---\nname: probe\ndescription: x\n---\n# P\n',
+      };
+      expect(referenceProblems(bare, [ref('one')])).toEqual([
+        'probe has references but no "## References" table',
+      ]);
+      expect(
+        referenceProblems(skill(`${head}| one.md | A. | B. |\n\n## After\n`), []).sort(),
+      ).toEqual([
+        '"## References" must be the last section of SKILL.md',
+        'malformed row: | one.md | A. | B. |',
+      ]);
+    });
+  });
 
   // Decision 52: it ships to every project, so it names none of them.
   describe('docket-delivery stays project-agnostic', () => {
     const delivery = () => skills.find((s) => s.folder === 'docket-delivery')!.text;
 
-    it('names no pilot, ticket, repo, provider or number of this project', () => {
+    it('names no pilot, ticket, repo, provider or number of this project, references included', () => {
       expect(projectSpecific(delivery())).toEqual([]);
+      for (const ref of referenceFiles(skills.find((s) => s.folder === 'docket-delivery')!)) {
+        expect(projectSpecific(ref.text), ref.file).toEqual([]);
+      }
     });
 
     it('stays subordinate to the project and grants no authority', () => {
@@ -268,8 +546,11 @@ describe('skills lint (T148)', () => {
   describe('docket-producer', () => {
     const producer = () => skills.find((s) => s.folder === 'docket-producer')!.text;
 
-    it('names no pilot, ticket, repo, provider, orchestrator or number of this project', () => {
+    it('names no pilot, ticket, repo, provider, orchestrator or number of this project, references included', () => {
       expect(projectSpecific(producer())).toEqual([]);
+      for (const ref of referenceFiles(skills.find((s) => s.folder === 'docket-producer')!)) {
+        expect(projectSpecific(ref.text), ref.file).toEqual([]);
+      }
     });
 
     it('stays subordinate to the project and grants no authority', () => {
@@ -312,6 +593,10 @@ describe('skills lint (T148)', () => {
     it('docket-producer reads partial exits in every digest and resolves each one', () => {
       expect(text('docket-producer')).toContain('## 7. Resolve partial exits');
       expect(text('docket-producer')).toContain('Read `finished partly` in **every** digest');
+      const refs = referenceFiles(skills.find((s) => s.folder === 'docket-producer')!);
+      expect(refs.find((r) => r.file === 'references/partial-exits.md')!.text).toContain(
+        'Resolve each item:',
+      );
     });
 
     it('docket-planner keeps acceptance items to what the ticket can finish', () => {

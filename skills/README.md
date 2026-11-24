@@ -18,14 +18,14 @@ These are agent skills that teach the **workflow** for using Docket well. The MC
 
 **Connecting comes with it** (owner decision 32). A repo install also writes the repo's connection file: `.mcp.json` for Claude Code, `.codex/config.toml` for Codex, adding or updating only the `docket` server and never a token. Open the client in the repo and approve Docket when it asks (Claude Code: use the `docket` server from `.mcp.json`; Codex: trust the folder); there's nothing to configure by hand. Docket uses local trust by default, so agents need no token; in protected mode the file names the `DOCKET_TOKEN` environment variable instead (see the README, "Protected mode"). A user-wide install writes no connection file: use the README's "A user-wide connection instead".
 
-| Client | Skills | The AGENTS.md block |
+| Client | Skills, with their references | The AGENTS.md block |
 |---|---|---|
 | Claude Code | `.claude/skills/<name>/` | `CLAUDE.md` |
 | Codex | `.codex/skills/<name>/` | `AGENTS.md` |
 
 The block goes between `<!-- docket:begin -->` and `<!-- docket:end -->`; nothing else in the file changes. A `.docket-manifest.json` in `.claude/` or `.codex/` records what was sent.
 
-**By hand:** each skill is a folder with a `SKILL.md`, in the standard skill format. Copy the folders you want into the repo's skills directory (this copies Docket's versions, without your edits in Agent files). Keep them in the repo: a copy in your home folder reaches every project on the computer.
+**By hand:** each skill is a folder with a `SKILL.md`, in the standard skill format, and usually a `references/` folder next to it. Copy the whole folders you want into the repo's skills directory (this copies Docket's versions, without your edits in Agent files). Keep them in the repo: a copy in your home folder reaches every project on the computer.
 
 | Client | One project |
 |---|---|
@@ -50,7 +50,61 @@ They're plain Markdown, so edit them to fit your tooling: your orchestrator's co
 
 **Waiting.** Each install also puts a `docket-wait` script (`.sh` and `.ps1`) next to `docket-check`. Agents run it to wait for a change without spending model tokens (decision 40). It's in the manifest, so *Check* and drift cover it.
 
-**Keep them in sync with the tools.** CI parses every `SKILL.md` and fails if it names a tool or a top-level input field that doesn't exist, or if a skill passes **500 lines or 4,800 tokens** (characters ÷ 4). Move rarely used detail into a reference file rather than raising the cap. If you add your own skills here, they get the same checks.
+**Keep them in sync with the tools.** CI parses every `SKILL.md` and every reference, and fails if one names a tool or a top-level input field that doesn't exist, or if a file passes its cap (below). If you add your own skills here, they get the same checks.
+
+## A core, and references read on demand
+
+Every agent that loads a skill pays for all of it, on every turn. So each skill keeps a **core** and puts rare paths in **reference files** that an agent reads only when it needs them (owner decision 66).
+
+```text
+docket-worker/
+  SKILL.md                  the core: what every run needs
+  references/
+    exit-reports.md         read only when its gate says so
+    shared-parts.md
+```
+
+**The core** (`SKILL.md`) is enough for the common path on its own. It ends with a References table:
+
+```markdown
+## References
+
+| File | Read when | Don't read when |
+| --- | --- | --- |
+| [`references/exit-reports.md`](references/exit-reports.md) | You leave with work undone, or your context shows `finished partly:`. | Every acceptance item is this ticket's own and you finish it all. |
+```
+
+**A reference** has no frontmatter, starts with a `# ` heading and then the same two gate lines, word for word, before any detail:
+
+```markdown
+# Acceptance, known gaps and exit reports
+
+**Read when:** You leave with work undone, or your context shows `finished partly:`.
+**Don't read when:** Every acceptance item is this ticket's own and you finish it all.
+```
+
+**Writing the gates.**
+
+- **Read when** names the concrete trigger an agent can see: an error code, a line in its context, a call it's about to make, a situation ("You park", "`epic_not_ready`").
+- **Don't read when** names the common case that doesn't need it, so the agent can skip it with confidence. Never "if unsure, read it".
+- Keep each to one sentence. In the core, point to it by name where the trigger happens ("read the waiting reference").
+
+**What stays in the core.** Everything the common path needs, and **every safety rule**: never do X, owner-only actions, never wait in a loop, never prune what's in use. A gate may hide detail, never a rule that stops harm. CI checks that each core still holds its safety rules.
+
+**Adding something.** New detail for a rare path goes into the right reference, or a new one listed in the table; new rules for every run go in the core. Don't grow the core past its target to avoid writing a reference. A skill small enough to read whole (`docket-review-packet`, `docket-lead-subagents`) has no references and no table.
+
+**Caps** (characters ÷ 4):
+
+| File | Lines | Tokens |
+|---|---|---|
+| `SKILL.md` | 500 | 4,800, and 3,600 after the split, for headroom |
+| `references/<topic>.md` | 300 | 3,000 |
+
+CI also fails when a reference lacks its gate lines, isn't listed in its skill's table, or its table entry's gates differ from the file's, and when the table lists a file that doesn't exist. Name a reference `<topic>.md` with `a-z`, `0-9` and single hyphens.
+
+**Tool descriptions point here.** An MCP tool description says what the tool does and its key fields; where it needs more words it ends "Details: docket-worker reference shared-parts.", and the explanation lives in that reference.
+
+**Installed with the skill.** Each reference is an agent file of its own (`skill:docket-worker--exit-reports` in Agent files), with versions, edits, proposals and drift. Installs and `docket-update` write it to `.claude/skills/<name>/references/<topic>.md`, and remove one Docket no longer ships while it's unmodified (an edited one is kept and listed). `docket-check` reports a reference only when it differs, so a claim stays small.
 
 ## Not (yet) served over MCP
 

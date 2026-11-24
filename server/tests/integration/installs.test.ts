@@ -23,7 +23,8 @@ import {
   mergeConnection,
 } from '@docket/shared';
 import { afterEach, describe, expect, it } from 'vitest';
-import { syncBundledFiles } from '../../src/jobs/bundled.js';
+import { readBundledFiles, syncBundledFiles } from '../../src/jobs/bundled.js';
+import { SYSTEM_ACTOR } from '../../src/domain/write.js';
 import { waitPs1, waitSh } from '../../src/domain/wait-scripts.js';
 import { driftCheckOnce } from '../../src/jobs/sweeper.js';
 import { insertProject, tempDir, type TempDir } from '../helpers.js';
@@ -51,6 +52,26 @@ const SKILLS = [
   'docket-review-packet',
   'docket-worker',
 ];
+
+/**
+ * Each shipped skill's files in install order (decision 66): its `SKILL.md`,
+ * then its `references/<topic>.md`, keyed `skill:<name>--<topic>`.
+ */
+const SKILL_FILES: { key: string; rel: string }[] = SKILLS.flatMap((n) => {
+  const refs = join(__dirname, '../../../skills', n, 'references');
+  const topics = existsSync(refs)
+    ? readdirSync(refs)
+        .filter((f) => f.endsWith('.md'))
+        .map((f) => f.slice(0, -'.md'.length))
+        .sort()
+    : [];
+  return [
+    { key: `skill:${n}`, rel: `skills/${n}/SKILL.md` },
+    ...topics.map((t) => ({ key: `skill:${n}--${t}`, rel: `skills/${n}/references/${t}.md` })),
+  ];
+});
+/** The skill files, the block, four scripts and the connection file. */
+const FILE_COUNT = SKILL_FILES.length + 6;
 
 /** A server with RCP and the shipped agent files; `push` mounts a temporary push root. */
 const MCP_URL = 'http://127.0.0.1:7420/mcp';
@@ -148,7 +169,7 @@ describe('command install: the bundle and the single-use token (T155)', () => {
     // Not in the log until the token is used; one event, "Install command created".
     expect((await api('GET', '/api/installs')).body).toEqual({ installs: [] });
     expect(eventsOf(server).map((e) => e.summary)).toEqual([
-      'Install command created: Claude Code, RCP’s repo, 13 files'.replace('’', "'"),
+      `Install command created: Claude Code, RCP's repo, ${FILE_COUNT} files`,
     ]);
 
     // The download: no session, the system as actor.
@@ -163,7 +184,7 @@ describe('command install: the bundle and the single-use token (T155)', () => {
     const files = untar(bundle);
     expect([...files.keys()].sort()).toEqual(
       [
-        ...SKILLS.map((n) => `docket-install/files/.claude/skills/${n}/SKILL.md`),
+        ...SKILL_FILES.map((f) => `docket-install/files/.claude/${f.rel}`),
         'docket-install/files/.claude/.docket-manifest.json',
         // docket-check, next to the manifest (decision 30, B27b), and docket-wait (decision 40).
         'docket-install/files/.claude/docket-check.sh',
@@ -183,7 +204,7 @@ describe('command install: the bundle and the single-use token (T155)', () => {
     );
     expect(files.get('docket-install/files.txt')).toBe(
       [
-        ...SKILLS.map((n) => `.claude/skills/${n}/SKILL.md`),
+        ...SKILL_FILES.map((f) => `.claude/${f.rel}`),
         '.claude/docket-wait.sh',
         '.claude/docket-wait.ps1',
         '.claude/docket-update.sh',
@@ -231,7 +252,7 @@ describe('command install: the bundle and the single-use token (T155)', () => {
       project: 'RCP',
     });
     expect(manifest.files.map((f) => [f.key, f.path])).toEqual([
-      ...SKILLS.map((n) => [`skill:${n}`, `.claude/skills/${n}/SKILL.md`]),
+      ...SKILL_FILES.map((f) => [f.key, `.claude/${f.rel}`]),
       ['agents_block', 'CLAUDE.md'],
       // docket-wait (decision 40): in the manifest, so Check and drift cover it.
       ['script:docket-wait.sh', '.claude/docket-wait.sh'],
@@ -282,7 +303,7 @@ describe('command install: the bundle and the single-use token (T155)', () => {
     expect(log.installs[0]).toMatchObject({
       id: body.install_id,
       method: 'command',
-      file_count: 13,
+      file_count: FILE_COUNT,
       token_used_at: server.clock.current.toISOString(),
     });
     expect(log.installs[0]!.manifest).toEqual(
@@ -290,8 +311,8 @@ describe('command install: the bundle and the single-use token (T155)', () => {
     );
     const events = eventsOf(server);
     expect(events.map((e) => e.summary)).toEqual([
-      "Install command created: Claude Code, RCP's repo, 13 files",
-      "Installed by command: Claude Code, RCP's repo, 13 files",
+      `Install command created: Claude Code, RCP's repo, ${FILE_COUNT} files`,
+      `Installed by command: Claude Code, RCP's repo, ${FILE_COUNT} files`,
     ]);
     expect(events.map((e) => (JSON.parse(e.data) as S).stage)).toEqual([
       'command_issued',
@@ -472,6 +493,60 @@ describe('command install: the bundle and the single-use token (T155)', () => {
 describe('push install and check (T156)', () => {
   const PRE = '# Recipes\r\n\r\nOur own rules — keep them.\r\n\r\n## Build\r\n`pnpm build`\r\n';
 
+  it('a reinstall removes an unmodified reference Docket no longer ships and keeps an edited one (decision 66)', async () => {
+    const { api, root, server } = await start({ push: 'set', hostPath: 'C:/Users/me/code' });
+    const repo = join(root, 'recipes');
+    const push = () =>
+      api('POST', '/api/installs', {
+        client: 'claude',
+        target_kind: 'repo',
+        project: 'RCP',
+        method: 'push',
+        path: 'C:\\Users\\me\\code\\recipes',
+      });
+    expect((await push()).status).toBe(200);
+    const refs = join(repo, '.claude/skills/docket-worker/references');
+    expect(readFileSync(join(refs, 'exit-reports.md'), 'utf8')).toBe(
+      readFileSync(
+        join(__dirname, '../../../skills/docket-worker/references/exit-reports.md'),
+        'utf8',
+      ),
+    );
+    writeFileSync(join(refs, 'asking.md'), 'Our own asking rules.\n');
+
+    const shipped = readBundledFiles(join(__dirname, '../../..')).files;
+    const dropped = ['skill:docket-worker--waiting', 'skill:docket-worker--asking'];
+    server.runtime.write.run({ actor: SYSTEM_ACTOR, operation: 'test.sync', args: {} }, (w) =>
+      server.runtime.services.agentFiles.syncBundled(w, {
+        files: shipped.filter((f) => !dropped.includes(f.key)),
+      }),
+    );
+    const second = await push();
+    expect(second.status).toBe(200);
+    const result = (second.body.result as { files: { path: string; change: string }[] }).files;
+    expect(result).toContainEqual({
+      path: '.claude/skills/docket-worker/references/waiting.md',
+      change: 'removed',
+    });
+    expect(result).toContainEqual({
+      path: '.claude/skills/docket-worker/references/asking.md',
+      change: 'kept_edited',
+    });
+    expect(existsSync(join(refs, 'waiting.md'))).toBe(false);
+    expect(readFileSync(join(refs, 'asking.md'), 'utf8')).toBe('Our own asking rules.\n');
+    const keys = (
+      JSON.parse(readFileSync(join(repo, '.claude/.docket-manifest.json'), 'utf8')) as {
+        files: { key: string }[];
+      }
+    ).files.map((f) => f.key);
+    expect(keys).not.toContain(dropped[0]);
+    expect(keys).not.toContain(dropped[1]);
+    expect(keys).toContain('skill:docket-worker--exit-reports');
+    // A third push has nothing left to remove.
+    const third = (await push()).body.result as { files: { path: string; change: string }[] };
+    expect(third.files.filter((f) => f.change === 'removed')).toEqual([]);
+  });
+
   it('writes the files, merges only the marked section, logs it, and checks edited, missing and extra', async () => {
     const { api, root, server } = await start({ push: 'set', hostPath: 'C:/Users/me/code' });
     const repo = join(root, 'recipes');
@@ -488,7 +563,7 @@ describe('push install and check (T156)', () => {
     expect(first.status).toBe(200);
     expect(first.body.result).toEqual({
       files: [
-        ...SKILLS.map((n) => ({ path: `.claude/skills/${n}/SKILL.md`, change: 'created' })),
+        ...SKILL_FILES.map((f) => ({ path: `.claude/${f.rel}`, change: 'created' })),
         { path: 'CLAUDE.md', change: 'updated' },
         { path: '.claude/docket-wait.sh', change: 'created' },
         { path: '.claude/docket-wait.ps1', change: 'created' },
@@ -524,11 +599,11 @@ describe('push install and check (T156)', () => {
         id,
         method: 'push',
         path: 'C:\\Users\\me\\code\\recipes',
-        file_count: 13,
+        file_count: FILE_COUNT,
       }),
     ]);
     expect(eventsOf(server).map((e) => e.summary)).toEqual([
-      "Installed by push: Claude Code, RCP's repo at C:\\Users\\me\\code\\recipes, 13 files",
+      `Installed by push: Claude Code, RCP's repo at C:\\Users\\me\\code\\recipes, ${FILE_COUNT} files`,
     ]);
 
     // Up to date.

@@ -503,14 +503,16 @@ describe('agent file inputs (MCP_SPEC §5.4 instructions, §5.10; decision 30; B
   const sha = 'a'.repeat(64);
   const claim = (instructions: unknown) => ({ id: 'RCP-23', instructions });
 
-  it('claim_lead takes the docket-check report: install_id, and up to 20 files', () => {
+  it('claim_lead takes the docket-check report: install_id, and up to 60 files (decision 66)', () => {
     ok('claim_lead', claim({ install_id: 'ins_1', files: [{ key: 'agents_block', sha256: sha }] }));
     ok('claim_lead', claim({ files: [{ key: 'skill:docket-worker', sha256: sha.toUpperCase() }] }));
     // Empty, with install_id: every installed file is missing.
     ok('claim_lead', claim({ install_id: 'ins_1', files: [] }));
-    const twenty = Array.from({ length: 20 }, (_, i) => ({ key: `skill:s${i}`, sha256: sha }));
-    ok('claim_lead', claim({ files: twenty }));
-    fails('claim_lead', claim({ files: [...twenty, { key: 'skill:s20', sha256: sha }] }));
+    const sixty = Array.from({ length: 60 }, (_, i) => ({ key: `skill:s${i}`, sha256: sha }));
+    ok('claim_lead', claim({ files: sixty }));
+    fails('claim_lead', claim({ files: [...sixty, { key: 'skill:s60', sha256: sha }] }));
+    // A skill reference is a file of its own: `skill:<name>--<topic>`.
+    ok('claim_lead', claim({ files: [{ key: 'skill:docket-worker--exit-reports', sha256: sha }] }));
     fails('claim_lead', claim({ install_id: 'ins_1' }));
   });
 

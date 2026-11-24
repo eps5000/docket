@@ -17,6 +17,10 @@
  * A file edited locally is never overwritten: it's listed as kept, and the
  * manifest keeps what Docket last sent for it, so drift still shows it.
  *
+ * Skill references (decision 66) are files like any skill's `SKILL.md`, at
+ * `.claude/skills/<name>/references/<topic>.md`. One Docket no longer ships is
+ * planned as `removed`, and the install step deletes it while it is unmodified.
+ *
  * It never commits, pushes, opens a PR or touches another worktree, and it
  * writes no credential: protected mode reads `DOCKET_TOKEN` from the
  * environment. Running it again changes nothing. ASCII only, so PowerShell
@@ -129,6 +133,7 @@ main() {
         x=$(awk -v mode=$x -v out=canon "$A" "$f")
         case $x in '!absent') return 0 ;; '!invalid') printf '%064d' 0; return 0 ;; esac
         printf '%s' "$x" | h ;;
+      skill:*--*) x=\${k#skill:}; f=.$cl/skills/\${x%%--*}/references/\${x#*--}.md; [ -f "$f" ] && h < "$f" ;;
       skill:*) f=.$cl/skills/\${k#skill:}/SKILL.md; [ -f "$f" ] && h < "$f" ;;
       script:*) f=.$cl/\${k#script:}; [ -f "$f" ] && h < "$f" ;;
     esac
@@ -208,7 +213,7 @@ main() {
     n=0
     while IFS="$(printf '\\t')" read -r what path note; do
       case $what in
-        added|updated) n=$((n + 1)); changed=$((changed + 1)) ;;
+        added|updated|removed) n=$((n + 1)); changed=$((changed + 1)) ;;
         kept) kept=$((kept + 1)) ;;
       esac
     done < "$tmp/$c/docket-update/plan.txt"
@@ -217,7 +222,7 @@ main() {
       [ "$what" = same ] && continue
       printf '  %-8s %s%s\\n' "$what" "$path" "\${note:+ ($note)}"
     done < "$tmp/$c/docket-update/plan.txt"
-    if [ -f "$tmp/$c.log" ]; then grep -E '^  (removed|kept|left) ' "$tmp/$c.log" || true; fi
+    if [ -f "$tmp/$c.log" ]; then grep -E '^  (removed|kept|left) ' "$tmp/$c.log" | grep -v '/references/' || true; fi
   done
   if [ "$kept" -gt 0 ]; then
     echo "Kept $kept file(s) edited locally. The owner can Adopt, Restore or Keep local in Docket's Agent files."
@@ -302,7 +307,8 @@ function Get-LocalHash([string]$k, [string]$c) {
     if ($x -ceq '!invalid') { return ('0' * 64) }
     return (Get-DkHash $x)
   }
-  if ($k.StartsWith('skill:', $ord)) { $f = Join-Path $root (".$c/skills/" + $k.Substring(6) + '/SKILL.md') }
+  if ($k -cmatch '^skill:([a-z0-9-]+)--([a-z0-9-]+)$') { $f = Join-Path $root (".$c/skills/" + $Matches[1] + '/references/' + $Matches[2] + '.md') }
+  elseif ($k.StartsWith('skill:', $ord)) { $f = Join-Path $root (".$c/skills/" + $k.Substring(6) + '/SKILL.md') }
   elseif ($k.StartsWith('script:', $ord)) { $f = Join-Path $root (".$c/" + $k.Substring(7)) }
   else { return $null }
   if (-not (Test-Path -LiteralPath $f -PathType Leaf)) { return $null }
@@ -452,7 +458,7 @@ try {
     $n = 0
     foreach ($l in $plan) {
       $w = $l.Split("\`t")[0]
-      if ($w -ceq 'added' -or $w -ceq 'updated') { $n++; $changed++ }
+      if ($w -ceq 'added' -or $w -ceq 'updated' -or $w -ceq 'removed') { $n++; $changed++ }
       elseif ($w -ceq 'kept') { $kept++ }
     }
     if ($n -eq 0) { "$($label): already current." } else { "$($label): $n file(s) changed." }
@@ -462,7 +468,7 @@ try {
       $note = ''; if ($p.Count -gt 2 -and $p[2]) { $note = " ($($p[2]))" }
       '  {0,-8} {1}{2}' -f $p[0], $p[1], $note
     }
-    foreach ($x in $log) { if ([string]$x -cmatch '^  (removed|kept|left) ') { [string]$x } }
+    foreach ($x in $log) { if ([string]$x -cmatch '^  (removed|kept|left) ' -and [string]$x -cnotmatch '/references/') { [string]$x } }
   }
   if ($kept -gt 0) { "Kept $kept file(s) edited locally. The owner can Adopt, Restore or Keep local in Docket's Agent files." }
   if ($changed -gt 0) { 'Nothing was committed or pushed. Commit these files through your normal process.' }

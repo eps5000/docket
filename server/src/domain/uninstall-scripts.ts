@@ -16,7 +16,7 @@
  * 4. removes only the `docket` entry of a connection file the install wrote,
  *    while that entry is unchanged;
  * 5. never follows a link, never deletes recursively, and removes a skill
- *    folder only when it's empty;
+ *    folder (or its `references/` folder, decision 66) only when it's empty;
  * 6. removes the manifest last, and only if nothing was kept, so running it
  *    again picks up where it stopped;
  * 7. prints what it did and reports it to Docket.
@@ -68,16 +68,26 @@ function checkPlan(plan: UninstallPlan): void {
   }
 }
 
-/** The skill folders the plan's files sit in, each once. */
+/**
+ * The skill folders the plan's files sit in, each once: every skill's
+ * `references/` folder (decision 66) first, then the skill folders, so a
+ * skill folder that held only its files and references empties in order.
+ */
 function skillFolders(plan: UninstallPlan): string[] {
   const prefix = `${plan.dir}/skills/`;
-  const out = new Set<string>();
+  const refs = new Set<string>();
+  const skills = new Set<string>();
   for (const e of plan.entries) {
-    if (e.path.startsWith(prefix) && e.path.endsWith('/SKILL.md')) {
-      out.add(e.path.slice(0, -'/SKILL.md'.length));
+    if (!e.path.startsWith(prefix)) continue;
+    const ref = /^(.+)\/references\/[^/]+\.md$/.exec(e.path);
+    if (ref) {
+      refs.add(`${ref[1]}/references`);
+      skills.add(ref[1]!);
+    } else if (e.path.endsWith('/SKILL.md')) {
+      skills.add(e.path.slice(0, -'/SKILL.md'.length));
     }
   }
-  return [...out];
+  return [...refs, ...skills];
 }
 
 export function uninstallSh(plan: UninstallPlan): string {

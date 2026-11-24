@@ -9,6 +9,8 @@ Good planning is what makes `ready_to_start` trustworthy. Workers then pick up i
 
 **Planning belongs to the owner.** You draft, and the project's `AGENTS.md` says whether you may move items to Ready. If it doesn't say so, finish with `add_note` "Ready for your review in Planning", and stop.
 
+Rare paths live in reference files: read one only when the table at the end says so.
+
 ## 1. Before creating anything
 
 - **Check for duplicates:** `search_items { project, text: "<key words>" }`. Archived items are included, and Jira keys match too.
@@ -75,13 +77,7 @@ If the owner must check something by hand, `declare_human_review` during Plannin
 
 ## 6. Shared changes: declare before Ready
 
-Parallel items collide when they change the same table, model, endpoint or shared file. Before an item can move to Ready, declare what it will change:
-
-- `list_shared_parts { project }` first, and name parts by their registered keys (`model:Token`, `table:decks`, `endpoint:POST /decks/{id}/export`, `file:src/…/Snapshot.cs`).
-- `declare_shared_changes { id, changes: [{ part, change, note }] }`, with `change` one of `add`, `change` or `remove` and a one-line note. **Name the member when you can** (`model:Token.expiresAt`, `table:decks.title`): adding different members runs in parallel, while a bare part means "could touch anything in it" and is sequenced. If a change alters an approved design, set `design_impact: "changes_approved_design"` with a `design_note` naming it. That always reaches the owner, and the item can't start or close until they approve it; other items carry on. Register a missing part in the same call with `new_parts: [{ key, paths }]`, giving the repo paths that belong to it. An item that changes no shared part declares `none: true`. When the item already has branches (work in progress, or a backfill), pass them as `branches` (or one as `branch`), so the conflict radar checks each.
-- Moving an undeclared item to Ready fails with `not_declared`.
-- **Two items that change the same part:** Docket decides. Safe overlaps run in parallel, the rest run in order (first claimed goes first), and the owner hears only about cycles and disputes. If you know which should go first, link them now (`link_items { type: "blocks" }`). "Add-only" doesn't prevent a merge conflict: two branches inserting at the same line still conflict, and the radar gives them a merge order.
-- **A problem that needs a new plan** (an epic branch far behind main, two items that keep colliding): propose it with `propose_resolution { problem, kind: "split" | "rescope" | "reorder" | "other", plan_md, reason }`, using the problem's ID from `get_context`, and wait for the owner's choice in `resolutions:`. Routine fixes (a rebase, dropping an old branch from the item's branches) need no proposal.
+Parallel items collide when they change the same table, model, endpoint or shared file. Before an item can move to Ready, declare what it will change with `declare_shared_changes`, or `none: true` when it changes no shared part; moving an undeclared item fails with `not_declared`. **Never leave a ticket undeclared.** Read the shared-changes reference before you declare, or when a problem needs a new plan.
 
 ## 7. Known gaps and epic readiness
 
@@ -100,27 +96,13 @@ With open gaps, `set_status ready` is refused and **Docket asks the owner** ("Ap
 
 ## 7a. Shaping a Needs shaping ticket
 
-A producer sends you a ticket that **needs shaping**: an agent created it unshaped, or the owner asked for a planner from a refused Move to Ready. `get_item` says what it lacks and any note from the owner ("needs shaping: … · the owner asked: …"). Work through this checklist, in order:
+A producer sends you a ticket that **needs shaping**: read the needs-shaping reference and work through its checklist.
 
-1. **Read it and its epic:** the description, the owner's note, the epic's outcome and decisions. Check for a duplicate (§1).
-2. **Outcome:** `update_item { outcome_md }`, one or two sentences.
-3. **Acceptance:** `update_item { acceptance }`, 2–6 checkable lines.
-4. **Links:** real `blocks` dependencies only, and `relates` for the rest (§3).
-5. **Known gaps,** if a few things are better settled while building: `update_item { known_gaps }`. The owner approves Ready with them (§7).
-6. **Shared changes, last:** `declare_shared_changes` with the parts it changes, or `none: true` when it changes none. Never leave it undeclared.
-
-Shaped, it stops being Needs shaping on its own. Move it to Ready if the project allows it (§9); with open known gaps, Docket asks the owner for you.
-
-**Creating tickets yourself:** pass `outcome_md`, `acceptance` and `shared` (part keys, or `"none"`) to `create_item` so they arrive shaped. A key that isn't registered is registered with it; members, notes and `add` or `remove` go through `declare_shared_changes` afterwards.
+**Creating tickets yourself:** pass `outcome_md`, `acceptance` and `shared` (part keys, or `"none"`) to `create_item` so they arrive shaped.
 
 ## 8. Many writes at once
 
-When a breakdown or an onboarding runs to dozens of items, documents or links, send them with `apply_batch`: up to 100 `operations` a call, each naming a tool (`create_item`, `update_item`, `link_items`, `upsert_label`, `set_plan`, `update_step`, `put_document`, `publish_decision`) with the arguments you would give it.
-
-- Each operation is checked and applied on its own, in order. One that fails changes nothing and doesn't stop the rest, so read every result and resend only the failures.
-- `"$1"` in an argument is the ID operation 1 wrote, so an epic and its items fit in one batch: `epic: "$1"`.
-- Pass `idempotency_key` on each batch: a retry then replays what succeeded.
-- **Steps imported from Jira** (they have a `source`): you may add to their details, keeping the current text at the start. Their text stays the owner's.
+When a breakdown or an onboarding runs to dozens of items, documents or links, send them with `apply_batch`. Read the batch-writes reference first.
 
 ## 9. Hand back
 
@@ -134,3 +116,11 @@ When a breakdown or an onboarding runs to dozens of items, documents or links, s
 - Link everything to everything. Each unnecessary `blocks` link delays real work.
 - Write acceptance criteria nobody can check ("works well", "is fast").
 - Copy requirements into several items. Put shared rules in the epic, the label brief or a decision.
+
+## References
+
+| File                                                           | Read when                                                                                                        | Don't read when                                                            |
+| -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| [`references/shared-changes.md`](references/shared-changes.md) | You declare an item's shared changes, register a part, set design impact, or a problem needs a new plan.         | The item is declared and nothing about its parts has changed.              |
+| [`references/needs-shaping.md`](references/needs-shaping.md)   | A producer sends you a ticket that needs shaping.                                                                | You're creating tickets yourself with an outcome, acceptance and `shared`. |
+| [`references/batch-writes.md`](references/batch-writes.md)     | You send more than a handful of writes in one go with `apply_batch`, or add details to steps imported from Jira. | You make a few single calls.                                               |

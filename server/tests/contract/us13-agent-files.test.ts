@@ -138,12 +138,16 @@ describe('agent files over the owner API (T153)', () => {
     h = await startHarness();
     const owner = await ownerApi();
     const runtime = h.server.runtime;
-    expect(syncBundledFiles(runtime).added).toHaveLength(9);
+    const added = syncBundledFiles(runtime).added;
+    // Decision 66: each skill's references are agent files of their own.
+    const refs = added.filter((k) => k.includes('--'));
+    expect(added).toHaveLength(9 + refs.length);
+    expect(refs).toContain('skill:docket-worker--exit-reports');
 
     const list = await owner('GET', '/api/agent-files');
     expect(list.status).toBe(200);
     const files = list.body.files as S[];
-    expect(files.map((f) => f.key)).toEqual([
+    expect(files.map((f) => f.key).filter((k) => !(k as string).includes('--'))).toEqual([
       'skill:docket-coordinator',
       'skill:docket-delivery',
       'skill:docket-lead-subagents',
@@ -154,6 +158,18 @@ describe('agent files over the owner API (T153)', () => {
       'agents_block',
       'guide:onboarding',
     ]);
+    // Each reference is listed right after its skill, named by its path.
+    const keys = files.map((f) => f.key as string);
+    const at = keys.indexOf('skill:docket-worker');
+    expect(
+      keys
+        .slice(at + 1, keys.indexOf('agents_block'))
+        .every((k) => k.startsWith('skill:docket-worker--')),
+    ).toBe(true);
+    expect(files.find((f) => f.key === 'skill:docket-worker--exit-reports')).toMatchObject({
+      kind: 'skill',
+      name: 'docket-worker/references/exit-reports.md',
+    });
     expect(files.at(-1)).toMatchObject({ kind: 'guide', name: 'Onboarding guide' });
     expect(files.every((f) => f.effective_layer === 'bundled' && f.bundled_updated === false)).toBe(
       true,

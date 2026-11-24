@@ -21,6 +21,8 @@ Connecting an agent gives it Docket's tools. The **agent files** teach it the wo
   - `docket-coordinator`, for whatever dispatches agents: an Orca coordinator, a script, or you;
   - `docket-delivery`, for taking work through PR, CI, merge and deployment in any stack. Your project's rules come first, and it never grants permission to merge or deploy;
   - optional: `docket-producer`, for a session that owns one epic and dispatches independent implementers, with any orchestrator or none (your project's rules and its own skills come first), plus `docket-planner`, `docket-review-packet` and `docket-lead-subagents`.
+
+  A skill keeps what every run needs in its `SKILL.md`, and the rare paths (crash recovery, exit reports, shared-changes detail and so on) in **references**, `references/<topic>.md` next to it. Each reference says when to read it and when not to, so an agent reads one only when it needs it. Agent files lists each reference under its skill, as `docket-worker/references/exit-reports.md`, and you edit, compare and install it like any file.
 - **The AGENTS.md block:** a short section for the repo's `AGENTS.md` (Codex) or `CLAUDE.md` (Claude Code). It's the same for every project: it says the work lives in Docket, to follow `docket-worker`, and the rules every agent keeps (claim first, push at every step, park instead of going quiet, and so on).
 
 Each project's own rules go in its **Workflow notes** (below), which agents get with every item.
@@ -137,6 +139,7 @@ In the dialog:
 | | Claude Code | Codex |
 |---|---|---|
 | Skills | `.claude/skills/<name>/SKILL.md` | `.codex/skills/<name>/SKILL.md` |
+| Their references | `.claude/skills/<name>/references/<topic>.md` | `.codex/skills/<name>/references/<topic>.md` |
 | The AGENTS.md block | `CLAUDE.md` | `AGENTS.md` |
 | The manifest | `.claude/.docket-manifest.json` | `.codex/.docket-manifest.json` |
 

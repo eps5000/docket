@@ -556,7 +556,8 @@ describe('tools/list: input schemas (§3, §5)', () => {
       '`instructions?: { install_id?, files: [{ key, sha256, content? }] }`',
     );
     const files = claim.properties!.files as Limits;
-    expect(files.maxItems).toBe(20);
+    // Decision 66 (B83): 20 → 60, since each skill reference is a file of its own.
+    expect(files.maxItems).toBe(60);
     const file = files.items! as Limits;
     expect(file.additionalProperties).toBe(false);
     expect(file.required?.sort()).toEqual(['key', 'sha256']);
