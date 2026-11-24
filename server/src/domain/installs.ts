@@ -55,6 +55,7 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { access, constants as fsConstants, open, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
+  AGENT_FILE_KEY_RE,
   AGENT_SETUP_LIMITS,
   AGENTS_BLOCK_KEY,
   BrokenMarkersError,
@@ -83,6 +84,8 @@ import {
   installedBlock,
   isLegacySkillName,
   isSafeCommandPath,
+  isSkillReferenceKey,
+  skillKeyParts,
   isScriptKey,
   mergeMarkedSection,
   normalizeWorkspace,
@@ -458,6 +461,9 @@ function reportablePaths(row: InstallDbRow): Set<string> {
   for (const e of uninstallEntries(row)) {
     out.add(e.path);
     if (e.path.endsWith('/SKILL.md')) out.add(e.path.slice(0, -'SKILL.md'.length));
+    // A skill reference's folder (decision 66), which uninstall removes once it's empty.
+    const ref = /^(.*\/references\/)[^/]+\.md$/.exec(e.path);
+    if (ref) out.add(ref[1]!);
   }
   return out;
 }
@@ -556,8 +562,8 @@ export async function inspectPushInstall(
 
   const sentSkills = new Set(
     Object.entries(manifest)
-      .filter(([k]) => k.startsWith('skill:'))
-      .map(([k, v]) => v.installed_as ?? k.slice('skill:'.length)),
+      .filter(([k]) => k.startsWith('skill:') && !isSkillReferenceKey(k))
+      .map(([k, v]) => v.installed_as ?? skillKeyParts(k)!.skill),
   );
   for (const name of (await root.folders(base, layout.skillsDir)).sort()) {
     // An old `tasklite-*` folder the manifest doesn't list is extra too (B28: one an
@@ -614,6 +620,35 @@ async function recordedLegacySkills(
   return [...out].map(([name, sha256]) => ({ name, sha256 }));
 }
 
+/**
+ * The skill references (decision 66) the manifest at this location recorded
+ * and this install no longer sends, with the sha256 each was installed with,
+ * for those whose recorded path is where a reference belongs.
+ */
+async function recordedStaleReferences(
+  root: PushRoot,
+  base: string,
+  layout: ReturnType<typeof installLayout>,
+  sending: ReadonlySet<string>,
+): Promise<{ rel: string; sha256: string }[]> {
+  let parsed: { files?: { key?: unknown; path?: unknown; sha256?: unknown }[] };
+  try {
+    const bytes = await root.read(base, layout.manifest);
+    if (bytes === null) return [];
+    parsed = JSON.parse(bytes.toString('utf8')) as typeof parsed;
+  } catch {
+    return [];
+  }
+  const out: { rel: string; sha256: string }[] = [];
+  for (const f of Array.isArray(parsed.files) ? parsed.files : []) {
+    if (typeof f.key !== 'string' || typeof f.sha256 !== 'string') continue;
+    if (!isSkillReferenceKey(f.key) || sending.has(f.key)) continue;
+    if (!AGENT_FILE_KEY_RE.test(f.key) || f.path !== installPathOf(layout, f.key)) continue;
+    out.push({ rel: f.path, sha256: f.sha256.toLowerCase() });
+  }
+  return out;
+}
+
 /** The installed `docket-check` scripts (bash, PowerShell), written next to the manifest. */
 const checkScripts = (): [string, string][] => [
   [CHECK_SCRIPT_SH, checkSh()],
@@ -632,6 +667,8 @@ interface PlannedPush {
   layout: ReturnType<typeof installLayout>;
   writes: { rel: string; bytes: Buffer; note?: string }[];
   recorded: { name: string; sha256: string }[];
+  /** Skill references the previous manifest recorded that this install doesn't send (decision 66). */
+  staleRefs: { rel: string; sha256: string }[];
 }
 
 /**
@@ -962,7 +999,13 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
     for (const w of writes) await root.checkWritable(base, w.rel);
     // Old skill folders the previous manifest there recorded (B28), read before it's replaced.
     const recorded = await recordedLegacySkills(root, base, layout);
-    return { base, layout, writes, recorded };
+    const staleRefs = await recordedStaleReferences(
+      root,
+      base,
+      layout,
+      new Set(files.map((f) => f.key)),
+    );
+    return { base, layout, writes, recorded, staleRefs };
   }
 
   /** Write a planned push; returns what each file did. */
@@ -984,6 +1027,12 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
         (bytes) => hashBytes(bytes) === sha256,
       );
       out.push({ path: `${layout.display}${rel}/`, change: removed ? 'removed' : 'kept_edited' });
+    }
+    // Decision 66: a reference this install no longer sends, only while unmodified.
+    for (const { rel, sha256 } of plan.staleRefs) {
+      const removed = await root.removeRecordedFile(base, rel, (b) => hashBytes(b) === sha256);
+      const exists = removed || (await root.exists(base, rel));
+      if (exists) out.push({ path: layout.display + rel, change: removed ? 'removed' : 'kept_edited' });
     }
     return out;
   }
@@ -1677,11 +1726,18 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
 
       const shipped = new Set(target.map((f) => f.key));
       for (const f of input.files) {
-        if (f.sent && f.key.startsWith('skill:') && !shipped.has(f.key)) {
+        if (!f.sent || !f.key.startsWith('skill:') || shipped.has(f.key)) continue;
+        const path = installPathOf(layout, f.key);
+        if (!isSkillReferenceKey(f.key)) {
+          plan.push({ change: 'retired', path, note: 'Docket no longer ships it; left in place' });
+        } else if (f.sha256.toLowerCase() === f.sent.toLowerCase()) {
+          // Decision 66: an unmodified reference Docket no longer ships is removed by the install step.
+          plan.push({ change: 'removed', path, note: 'Docket no longer ships it' });
+        } else {
           plan.push({
-            change: 'retired',
-            path: installPathOf(layout, f.key),
-            note: 'Docket no longer ships it; left in place',
+            change: 'kept',
+            path,
+            note: 'Docket no longer ships it, but it was edited locally; left in place',
           });
         }
       }
@@ -1699,7 +1755,13 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
       const manifestSame = !!own && sameManifest(JSON.parse(own.manifest) as ManifestMap, wanted);
       const changed =
         !manifestSame ||
-        plan.some((p) => p.change === 'added' || p.change === 'updated' || p.change === 'retired');
+        plan.some(
+          (p) =>
+            p.change === 'added' ||
+            p.change === 'updated' ||
+            p.change === 'retired' ||
+            p.change === 'removed',
+        );
       if (changed) {
         plan.push({ change: input.from ? 'updated' : 'added', path: layout.manifest });
       }

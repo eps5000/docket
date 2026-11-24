@@ -20,6 +20,8 @@ How to take a change from "the code works" to "it's merged and running", without
 
 Read the config rather than assuming. **If the project lacks something** (a queue, staging, CI, a deploy step), use the closest equivalent below. If there's none, say so instead of implying the check happened.
 
+Rare paths live in reference files: read one only when the table at the end says so.
+
 ## 1. Own it through delivery
 
 - Take your task through tested, merged and deployed, as far as the project allows. An open PR isn't finished work.
@@ -35,15 +37,9 @@ Read the config rather than assuming. **If the project lacks something** (a queu
 - If the project does use a sequence (migration numbers, for example), take the next number at merge time, not when you start.
 - Update a pushed branch by **merging main**. Don't rebase or force-push history others may have built on, unless the project's rules ask for it.
 
-## 3. Make CI parallel
+## 3. Make CI faster
 
-1. **Find the slowest step first.** Read the timings of several recent runs. Don't optimize by guesswork.
-2. **Split test types into separate jobs:** lint and types, unit, backend, API or contract, browser e2e.
-3. **Shard slow suites,** giving each shard its own database, ports, temp folders and data. Shards that share state become flaky.
-4. **Build shared artifacts once** and pass them to the jobs that need them.
-5. **Measure before and after,** over more than one run. Keep the change only if it helps.
-
-**Can't run jobs in parallel?** Put the fastest checks first so failures show up early.
+Before you change how CI runs (splitting jobs, sharding suites, caching, paid capacity), read the ci-speed reference. Measure before and after; keep a change only if it helps.
 
 ## 4. Fast feedback, full safety
 
@@ -113,8 +109,7 @@ Don't make review a queue for routine changes: tests and the gate cover those. I
 
 ## 11. Weigh cost against time
 
-- Use free or cheaper CI first when it's enough: parallel jobs on included runners, caching, running less.
-- **Moving to paid capacity is the owner's decision.** Bring measured numbers: the time now, the expected time, and the cost. Don't turn it on yourself.
+**Moving to paid capacity is the owner's decision.** Don't turn it on yourself; bring measured numbers (see the ci-speed reference).
 
 ## 12. Report honestly
 
@@ -131,3 +126,9 @@ Never report green from memory, from an old run or from a different commit. A sk
 ## Tracking it in Docket
 
 Keep following `docket-worker`: report each commit, stay live while CI runs, and close the item only when the project's definition of done is met.
+
+## References
+
+| File                                               | Read when                                                                                       | Don't read when                                            |
+| -------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| [`references/ci-speed.md`](references/ci-speed.md) | CI is slow, you change how CI jobs are split, sharded or cached, or you weigh paid CI capacity. | You only open a PR, wait for its checks or read a failure. |

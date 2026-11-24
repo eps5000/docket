@@ -13,6 +13,7 @@ import {
   installLayout,
   installPathOf,
   placeholdersIn,
+  agentFileLabel,
   renderAgentsBlock,
   checkCommands,
   type AgentFileDetail,
@@ -205,8 +206,8 @@ export function InstallDialog({
   const writtenFor = (client: InstallClient) => {
     const layout = installLayout(client, target);
     const out = (files.data?.files ?? [])
-      // Only skills are copied: the block goes into the instructions file (listed below), and
-      // the onboarding guide is never installed (B30).
+      // Only skills and their references (decision 66) are copied: the block goes into the
+      // instructions file (listed below), and the onboarding guide is never installed (B30).
       .filter((f) => f.key.startsWith('skill:'))
       .map((f) => layout.display + installPathOf(layout, f.key));
     out.push(layout.display + layout.manifest);
@@ -1133,7 +1134,7 @@ function SentVersions({ row, projectName }: { row: InstallRow; projectName: stri
               className="mono"
               to={paths.agentFiles({ project: q.project ?? 'all', file: m.key })}
             >
-              {m.key.startsWith('skill:') ? m.key.slice(6) : 'AGENTS.md block'}
+              {agentFileLabel(m.key)}
             </Link>{' '}
             <span className="src">{found ? versionLabel(found, projectName) : m.version_id}</span>
           </li>

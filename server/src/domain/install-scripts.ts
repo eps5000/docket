@@ -15,8 +15,13 @@
  *    recorded hash, is removed after the copy: the one deletion allowed, of a
  *    folder Docket itself installed and recorded. An edited one is kept and
  *    reported ("old name, edited locally");
- * 3. copies the files listed in `files.txt` (the skills and the manifest)
- *    into the base, creating folders as needed;
+ * 2b. compares that previous manifest with the one it is about to write: a
+ *    skill reference (decision 66; `skills/<name>/references/<topic>.md`)
+ *    the old one recorded and the new one doesn't list is removed after the
+ *    copy while it matches its recorded hash, with its `references/` folder
+ *    once that's empty. An edited one is kept and reported;
+ * 3. copies the files listed in `files.txt` (the skills, their references
+ *    and the manifest) into the base, creating folders as needed;
  * 4. merges `block.md` into the instructions file between
  *    `<!-- docket:begin -->` and `<!-- docket:end -->`: replaced in place
  *    (an old `tasklite` section too, with the new markers), or appended after
@@ -171,7 +176,28 @@ for om in "$base/${dir}/${INSTALL_MANIFEST_NAME}" "$base/${dir}/${LEGACY_MANIFES
   done < "$om"
 done
 
-# 3. The skills and the manifest.
+# 2b. Skill references the previous manifest recorded and this one doesn't list
+# (decision 66): removed after the copy while unmodified; an edited one is kept.
+rdrop=''
+rkeep=''
+om="$base/${dir}/${INSTALL_MANIFEST_NAME}"
+nm="$here/files/${dir}/${INSTALL_MANIFEST_NAME}"
+if [ -f "$om" ] && [ -f "$nm" ]; then
+  while IFS= read -r l; do
+    case $l in *'"key":"skill:'*'--'*) ;; *) continue ;; esac
+    k=\${l#*'"key":"'}; k=\${k%%'"'*}
+    p=\${l#*'"path":"'}; p=\${p%%'"'*}
+    s=\${l#*'"sha256":"'}; s=\${s%%'"'*}
+    case $k in *[!a-z0-9:-]*) continue ;; esac
+    case $p in "${dir}/skills/"*/references/*.md) ;; *) continue ;; esac
+    case $p in *..*|*[!A-Za-z0-9._/-]*) continue ;; esac
+    grep -qF '"key":"'"$k"'"' "$nm" && continue
+    [ -f "$base/$p" ] && [ ! -L "$base/$p" ] || continue
+    if [ "$(h < "$base/$p")" = "$s" ]; then rdrop="$rdrop $p"; else rkeep="$rkeep $p"; fi
+  done < "$om"
+fi
+
+# 3. The skills, their references and the manifest.
 while IFS= read -r f; do
   [ -n "$f" ] || continue
   mkdir -p "$base/$(dirname "$f")"
@@ -185,6 +211,14 @@ for k in $remove; do
 done
 for k in $kept; do
   echo "  kept ${dir}/skills/$k/ (old name, edited locally): Agent files offers Adopt or Keep local once an agent reports it"
+done
+for p in $rdrop; do
+  rm -f "$base/$p"
+  rmdir "$base/\${p%/*}" 2> /dev/null || true
+  echo "  removed $p (Docket no longer ships it)"
+done
+for p in $rkeep; do
+  echo "  kept $p (Docket no longer ships it, but it was edited locally; delete it when you like)"
 done
 left=''
 for f in ${leftovers}; do
@@ -389,7 +423,29 @@ foreach ($n in @('${INSTALL_MANIFEST_NAME}', '${LEGACY_MANIFEST_NAME}')) {
   }
 }
 
-# 3. The skills and the manifest.
+# 2b. Skill references the previous manifest recorded and this one doesn't list
+# (decision 66): removed after the copy while unmodified; an edited one is kept.
+$rdrop = @(); $rkeep = @()
+$om = Join-Path $cdir '${INSTALL_MANIFEST_NAME}'
+$nm = Join-Path (Join-Path $Here 'files') '${dir}/${INSTALL_MANIFEST_NAME}'
+if ((Test-Path -LiteralPath $om -PathType Leaf) -and (Test-Path -LiteralPath $nm -PathType Leaf)) {
+  $oj = [IO.File]::ReadAllText($om) | ConvertFrom-Json
+  $nk = @(([IO.File]::ReadAllText($nm) | ConvertFrom-Json).files | ForEach-Object { [string]$_.key })
+  foreach ($r in @($oj.files)) {
+    $k = [string]$r.key; $p = [string]$r.path
+    if ($k -cnotmatch '^skill:[a-z0-9-]+--[a-z0-9-]+$') { continue }
+    if ($p -cnotmatch '^${dir.replace('.', '\\.')}/skills/[a-z0-9-]+/references/[a-z0-9-]+\\.md$') { continue }
+    if ($nk -ccontains $k) { continue }
+    $f = Join-Path $Base $p
+    if (-not (Test-Path -LiteralPath $f -PathType Leaf)) { continue }
+    if ((Get-Item -LiteralPath $f -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) { continue }
+    $x = $enc.GetString([IO.File]::ReadAllBytes($f)).Replace("\`r", '')
+    $hx = -join ($sha.ComputeHash($enc.GetBytes($x)) | ForEach-Object { $_.ToString('x2') })
+    if ($hx -eq ([string]$r.sha256).ToLower()) { $rdrop += $p } else { $rkeep += $p }
+  }
+}
+
+# 3. The skills, their references and the manifest.
 foreach ($f in [IO.File]::ReadAllLines((Join-Path $Here 'files.txt'))) {
   if (-not $f) { continue }
   $src = Join-Path (Join-Path $Here 'files') $f
@@ -407,6 +463,16 @@ foreach ($k in $remove) {
 }
 foreach ($k in $kept) {
   "  kept ${dir}/skills/$k/ (old name, edited locally): Agent files offers Adopt or Keep local once an agent reports it"
+}
+foreach ($p in $rdrop) {
+  $f = Join-Path $Base $p
+  Remove-Item -LiteralPath $f -Force
+  $rd = Split-Path -Parent $f
+  if (@(Get-ChildItem -LiteralPath $rd -Force).Count -eq 0) { Remove-Item -LiteralPath $rd }
+  "  removed $p (Docket no longer ships it)"
+}
+foreach ($p in $rkeep) {
+  "  kept $p (Docket no longer ships it, but it was edited locally; delete it when you like)"
 }
 $left = @()
 foreach ($n in @(${leftovers})) {

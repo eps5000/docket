@@ -44,8 +44,10 @@ import {
   CONNECTION_KEY,
   ONBOARDING_GUIDE_KEY,
   ToolError,
+  agentFileLabel,
   isScriptKey,
   scriptNameOf,
+  skillKeyParts,
   type AgentFileDetail,
   type AgentFileLayer,
   type AgentFileRow,
@@ -100,13 +102,17 @@ const LAYER_NAMES: Record<AgentFileLayer, string> = {
   project: 'project override',
 };
 
-/** `skill:docket-worker` → `docket-worker`; `agents_block` → `AGENTS.md block`; the guide → `Onboarding guide`. */
+/**
+ * `skill:docket-worker` → `docket-worker`; a reference (decision 66) →
+ * `docket-worker/references/exit-reports.md`; `agents_block` → `AGENTS.md
+ * block`; the guide → `Onboarding guide`.
+ */
 export function agentFileName(key: string): string {
   if (key === ONBOARDING_GUIDE_KEY) return 'Onboarding guide';
   // The project connection file (decision 32): .mcp.json or .codex/config.toml.
   if (key === CONNECTION_KEY) return 'Connection file';
   if (isScriptKey(key)) return scriptNameOf(key);
-  return key.startsWith('skill:') ? key.slice('skill:'.length) : 'AGENTS.md block';
+  return agentFileLabel(key);
 }
 
 const kindOf = (key: string): 'skill' | 'agents_block' | 'guide' =>
@@ -617,6 +623,7 @@ export function createAgentFilesService(_deps: ServiceDeps): AgentFilesService {
   return {
     syncBundled(w, input: { files: BundledAgentFile[] }) {
       const added: string[] = [];
+      const retired: string[] = [];
       for (const file of [...input.files].sort((a, b) => compareKeys(a.key, b.key))) {
         const row = fileRow(w.db, file.key, 'bundled', null);
         const current = versionById(w.db, row?.current_version_id ?? null);
@@ -636,7 +643,40 @@ export function createAgentFilesService(_deps: ServiceDeps): AgentFilesService {
         });
         added.push(file.key);
       }
-      return { added };
+      // Decision 66: a reference the image no longer ships is retired, so installs stop
+      // sending it and `docket-update` removes an unmodified copy. Only references of a
+      // skill that did load: a missing skills folder retires nothing. An owner's edit
+      // of it stays in effect. Skills themselves keep their bundled layer.
+      const shipped = new Set(input.files.map((f) => f.key));
+      const loadedSkills = new Set(
+        input.files.map((f) => skillKeyParts(f.key)?.skill).filter((s): s is string => !!s),
+      );
+      const bundledRefs = w.db.sqlite
+        .prepare(
+          `SELECT id, key, current_version_id FROM agent_files
+           WHERE layer = 'bundled' AND project_key IS NULL AND current_version_id IS NOT NULL`,
+        )
+        .all() as { id: string; key: string; current_version_id: string }[];
+      for (const row of bundledRefs.sort((a, b) => compareKeys(a.key, b.key))) {
+        const parts = skillKeyParts(row.key);
+        if (!parts?.topic || shipped.has(row.key) || !loadedSkills.has(parts.skill)) continue;
+        const current = versionById(w.db, row.current_version_id);
+        w.update('agent_files', row.id, { current_version_id: null });
+        w.event({
+          type: 'agent_file.updated',
+          summary: `Bundled ${agentFileName(row.key)} retired: Docket no longer ships it`,
+          data: {
+            key: row.key,
+            layer: 'bundled',
+            version_no: current?.version_no ?? null,
+            retired: true,
+          },
+          objects: [{ kind: 'agent_file', id: row.id }],
+          inverse: null,
+        });
+        retired.push(row.key);
+      }
+      return { added, retired };
     },
 
     list(r, input) {

@@ -23,8 +23,10 @@
  *   doesn't list (one an install kept because it was edited locally; B28);
  * - an install from before the rename has only `.tasklite-manifest.json`
  *   and the old markers: both are read when the new ones are absent;
- * - at most 20 files, and only valid keys, so the report always passes
- *   `claim_lead`'s schema;
+ * - at most 60 files (`LIMITS.instruction_files_max`; 20 before skill
+ *   references, decision 66), and only valid keys, so the report always
+ *   passes `claim_lead`'s schema. A reference is reported like any file in
+ *   the manifest;
  * - the connection file (`.mcp.json`, `.codex/config.toml`; decision 32) is
  *   left out: an agent that claims is connected, and the key isn't part of
  *   `claim_lead`'s contract. The push check, the scheduled drift check and
@@ -43,7 +45,11 @@ import {
   LEGACY_END,
   LEGACY_MANIFEST_NAME,
   LEGACY_SKILL_PREFIX,
+  LIMITS,
 } from '@docket/shared';
+
+/** The most files a report holds: what `claim_lead`'s `instructions` accepts. */
+const MAX_FILES = LIMITS.instruction_files_max;
 
 /** The installed script's file names, next to the manifest. */
 export const CHECK_SCRIPT_SH = 'docket-check.sh';
@@ -56,6 +62,9 @@ export const CHECK_SCRIPT_PS1 = 'docket-check.ps1';
  * **When you change the script, add the hash of the version you replaced.**
  */
 export const SHIPPED_CHECK_SHA256: readonly string[] = [
+  // Decision 66: a report holds up to 60 files.
+  '4365b97a7b95f3f91f46be38c233294892a878817b09e24afa1ad4f37649c074',
+  '3ba3017365a9a3c790db06b7d94999c523f92af7cbc8714246f7170143862900',
   '960dcca6f5f855cdd0be402bae84d5928a28044547773dfc13b7a34545c7fddf',
   '7d3f52c23c2b3295d36fa40c5410373ff12184ede347d42b88f4d30329f17d15',
   '710b3038313737d1b7a1a69697e5f57da51c8ce655a4b2bb5ce3e644f8672465',
@@ -126,7 +135,7 @@ for x in "$here"/skills/docket-*/ "$here"/skills/${LEGACY_SKILL_PREFIX}*/; do
   case $y in *[!a-z0-9-]*) continue ;; esac
   [ \${#y} -le 60 ] || continue
   case $known in *" skill:$y "*) continue ;; esac
-  [ "$n" -lt 20 ] || break
+  [ "$n" -lt ${MAX_FILES} ] || break
   if [ -f "\${x}SKILL.md" ]; then
     tr -d '\\r' < "\${x}SKILL.md" > "$t"; add "skill:$y" "$(h < "$t")" "$t"
   else
@@ -195,7 +204,7 @@ if (Test-Path -LiteralPath $sk) {
   foreach ($d in $dirs) {
     $y = $d.Name
     if ($y -cnotmatch '^[a-z0-9-]{1,60}$' -or $known -contains ('skill:' + $y)) { continue }
-    if ($out.Count -ge 20) { break }
+    if ($out.Count -ge ${MAX_FILES}) { break }
     $f = Join-Path $d.FullName 'SKILL.md'
     if (Test-Path -LiteralPath $f -PathType Leaf) {
       Add-File ('skill:' + $y) ($enc.GetString([IO.File]::ReadAllBytes($f)).Replace("\`r", '')) $true
