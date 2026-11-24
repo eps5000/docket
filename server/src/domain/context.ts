@@ -61,6 +61,7 @@ import { currentWorkflow } from './agent-files.js';
 import { inScopeOf, labelsOf } from './decisions.js';
 import { BlockIndex, activeLead, coordinatorParkOf, currentSteps, requireItem } from './model.js';
 import { contextResolutions } from './problems.js';
+import { pausedForAgents, projectPause } from './project-pause.js';
 import { choiceField } from './question-form.js';
 import { storedActivity } from './run-activity.js';
 import { WaitReader } from './wait.js';
@@ -141,12 +142,15 @@ interface Full {
   last_review: Bundle['last_review'];
   wait?: NonNullable<Bundle['wait']>;
   waiting_runs?: NonNullable<Bundle['waiting_runs']>;
+  /** Decision 53: the line an agent reads while the owner has this project paused. */
+  paused?: string;
 }
 
 function gather(r: ReadContext, deps: ServiceDeps, id: string): Full {
   const { db } = r;
   const sql = db.sqlite;
   const row = requireItem(db, id);
+  const pause = projectPause(db, row.project_key);
   const labels = labelsOf(db, row.id);
 
   const question = sql
@@ -327,13 +331,15 @@ function gather(r: ReadContext, deps: ServiceDeps, id: string): Full {
           who: p.explanation!.who,
           who_text: p.explanation!.who_text,
         })),
-      ...runActivityRows(r, row.id),
-      ...coordinatorParkRows(r, row.id),
+      // Decision 53: their fixes say to resume, which a paused project can't do.
+      ...(pause ? [] : runActivityRows(r, row.id)),
+      ...(pause ? [] : coordinatorParkRows(r, row.id)),
     ],
     resolutions: contextResolutions(db, row.id),
     docs,
     last_review: last_review && last_review.items.length > 0 ? last_review : null,
     ...waitSections(r, row.id, index),
+    ...(pause ? { paused: pausedForAgents(row.project_key, pause) } : {}),
   };
 }
 
@@ -422,6 +428,8 @@ export function assemble(
     last_review: null,
     budget,
     truncated_sections: [],
+    // Decision 53: one line, and an agent must see it whatever the budget.
+    ...(full.paused ? { paused: full.paused } : {}),
     // Decision 45: short and bounded, and with the blockers, so it is never cut.
     ...(full.wait ? { wait: full.wait } : {}),
     ...(full.waiting_runs ? { waiting_runs: full.waiting_runs } : {}),

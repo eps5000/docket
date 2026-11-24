@@ -17,6 +17,15 @@ import {
   waitingOnSchema,
 } from '../mcp/types.js';
 
+/** Decision 53: the owner's pause on a project, read from its active pause decision. */
+export const projectPauseSchema = z.object({
+  decision_id: z.string(),
+  reason: z.string(),
+  paused_by: z.string(),
+  paused_at: z.string(),
+});
+export type ProjectPause = z.infer<typeof projectPauseSchema>;
+
 /** A project as the shell knows it (BUILD_SPEC §4 `projects`). */
 export const projectSchema = z.object({
   key: z.string(),
@@ -33,6 +42,8 @@ export const projectSchema = z.object({
   created_by: z.string().nullable().optional(),
   /** Decision 42: coordinators the owner registered, who may use `update_run_status` here. */
   coordinators: z.array(z.string()).optional(),
+  /** Decision 53: present only while the owner has this project paused. */
+  paused: projectPauseSchema.optional(),
 });
 export type Project = z.infer<typeof projectSchema>;
 

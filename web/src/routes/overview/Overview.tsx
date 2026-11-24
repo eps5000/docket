@@ -41,6 +41,7 @@ import { OverviewStats } from './OverviewStats';
 import { useOverviewWindow, WINDOW_LABELS, WINDOW_WORDS } from './overviewWindow';
 import { UsageCard } from './UsageCard';
 import { WorkloadCard } from './WorkloadCard';
+import { PauseProjectAction, PausedBanners } from '../shared/ProjectPause';
 import '../screens.css';
 import './overview.css';
 
@@ -107,6 +108,7 @@ export function Overview() {
           )}
         </div>
         <div className="ov-head-actions">
+          <PauseProjectAction />
           <Link to={paths.brief()} data-brief-link>
             Daily brief
           </Link>
@@ -125,6 +127,7 @@ export function Overview() {
           </div>
         </div>
       </div>
+      <PausedBanners />
       <NotificationsCallout />
       {/* The numbers name the window they were counted over, even while a new one loads. */}
       <OverviewStats

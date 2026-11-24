@@ -652,6 +652,8 @@ export function renderContext(ctx: ContextBundle, opts: RenderOptions = {}): str
   const it = ctx.item;
   const lines = [
     fillSummary(TOOL_SUMMARIES.get_context, { id: it.id, title: it.title, budget: ctx.budget }),
+    // Decision 53: first, so a budget can't cut it.
+    ...(ctx.paused ? [`paused: ${ctx.paused}`] : []),
     `${I1}${join([it.type.toLowerCase(), `P${it.priority}`, it.status, `v${it.version}`])}`,
   ];
   if (it.outcome_md) lines.push(...block('outcome', it.outcome_md));
@@ -930,6 +932,8 @@ function renderDigest(d: Digest, now: Date): string {
     cursor: d.cursor,
     since: d.since === null ? '' : `${SEP}since ${d.since}`,
   });
+  // Decision 53: the one line that replaces next work while the owner has it paused.
+  const top = d.paused ? [head, `paused: ${d.paused}`] : [head];
   const nextWork = {
     title: 'next work',
     total: d.next_work.total,
@@ -1015,7 +1019,7 @@ function renderDigest(d: Digest, now: Date): string {
   const parts = d.since === null ? [...rest, changed] : [changed, ...rest];
   const build = () =>
     [
-      head,
+      ...top,
       ...parts
         .filter((p) => p.total > 0)
         .flatMap((p) => [
@@ -1025,6 +1029,7 @@ function renderDigest(d: Digest, now: Date): string {
         ]),
     ].join('\n');
   if (parts.every((p) => p.total === 0)) {
+    if (d.paused) return top.join('\n');
     return `${head}\n${d.since === null ? 'Nothing to act on.' : `No changes since ${d.since}.`}`;
   }
   let text = build();

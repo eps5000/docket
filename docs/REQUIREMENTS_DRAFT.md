@@ -366,6 +366,19 @@ The lessons about getting work tested, merged and deployed quickly ship with Doc
 
 BUILD_SPEC §5.17, spec FR-285–FR-289 and SC-032, Help (Agent files) and `skills/README.md` have the details.
 
+## Owner decision 53 (2026-11-24): pause a whole project
+
+The owner froze a project by telling agents to stop. Only tickets whose park reason happened to cite that decision showed as held. The others kept aging into alerts, and nothing stopped an agent claiming new work. Pausing is now one owner action.
+
+1. **Owner only.** *Pause project*, with a short reason, is in the project's settings and on Overview with one project chosen. Agents can't pause or lift it. *Resume project* lifts it. Both are in the history and have Undo.
+2. **It is a decision.** Pausing publishes an owner-authority, project-scope decision with the reason, and resuming withdraws it. It builds on decision 48's hold. Every parked run in the project shows "Held by your decision", whether or not its reason cites it, and raises no `parked_too_long`, `wait_no_next_step` or `wait_owner_unasked`. Lifting it restarts aging from that moment.
+3. **New claims are refused.** `claim_lead` returns `project_paused` with the reason and who to ask, including for resuming a claim on an In progress ticket with no lead.
+4. **Nothing gets stranded.** Reads, notes, commits, branch reports, `park_run`, `release_lead`, finishing and saving work keep working. A write on a parked run records the work and leaves it parked. An open run may continue to a safe stopping point, and its context says so.
+5. **Coordinators aren't told to start anything.** `get_digest` has no next work or bottlenecks, and one plain "paused" line. `run.resume_ready` isn't raised. When the project resumes, anything ready gets its one event.
+6. **Visible and contained.** A plain banner on Overview, Work and the item page says who paused it, when and why, with *Resume project*. Project pickers show a Paused marker. It adds nothing to Needs you, never affects another project, and survives a restart.
+
+BUILD_SPEC §5.37, MCP_SPEC §5.2 and §5.4, UI_SPEC §6.1d, spec FR-290–FR-296 and SC-033, and Help (Pause a project) have the details.
+
 ## Deferred choices
 
 Pilot project choice and Jira import strategy are deferred until V1 is ready for real work. Design should still settle the storage layout, supported document preview formats, the exact project gate configuration shape, and the minimum history needed before a velocity forecast is shown. These are implementation choices guided by the owner decisions above, not blockers to selecting a pilot now.

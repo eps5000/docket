@@ -16,6 +16,7 @@ import { runOwnerMutation, showToast } from '../../lib/undo';
 import { useShell } from '../../app/ShellState';
 import { DeleteProjectDialog } from '../dialogs/DeleteProject';
 import { HelpLink } from '../../help/HelpLink';
+import { PauseProjectButton, ResumeProjectButton } from '../shared/ProjectPause';
 
 type Project = SettingsResponse['projects'][number];
 
@@ -104,6 +105,11 @@ function ProjectRow({ project: p, onDelete }: { project: Project; onDelete: () =
           <span className="sw" style={{ background: p.color }} aria-hidden="true" />
           <b>{p.name}</b>
           {scope === p.key && <span className="chip c-gray">Current</span>}
+          {p.paused && (
+            <span className="chip c-warn" data-paused-chip={p.key}>
+              Paused
+            </span>
+          )}
           {p.created_by && <CreatedByChip agent={p.created_by} />}
         </div>
         <div className="src">
@@ -136,7 +142,12 @@ function ProjectRow({ project: p, onDelete }: { project: Project; onDelete: () =
           Shared parts
         </Link>
       </div>
-      <div className="row" style={{ gap: 6 }}>
+      <div className="row wrap" style={{ gap: 6 }}>
+        {p.paused ? (
+          <ResumeProjectButton project={p} size="sm" />
+        ) : (
+          <PauseProjectButton project={p} size="sm" />
+        )}
         <Button size="sm" onClick={() => setScope(p.key)}>
           Switch to
         </Button>

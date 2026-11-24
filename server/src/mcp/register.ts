@@ -59,6 +59,7 @@ import {
   type Services,
 } from '../domain/contracts.js';
 import { newId } from '../domain/ids.js';
+import { pausedParkNote, projectPause } from '../domain/project-pause.js';
 import { mapDbError, type Actor, type WriteContext } from '../domain/write.js';
 import type { Runtime } from '../runtime.js';
 import type { McpSessionInfo, ResultMode } from './server.js';
@@ -166,6 +167,16 @@ export function runSignal(
   return { run_id: runId, kind: live ? 'session' : 'report', known: !!row };
 }
 
+/** The run's project, if the run is parked. */
+function parkedRun(runtime: Runtime, runId: string) {
+  const row = runtime.db.sqlite
+    .prepare(
+      'SELECT r.state, i.project_key FROM runs r JOIN items i ON i.id = r.item_id WHERE r.id = ?',
+    )
+    .get(runId) as { state: string; project_key: string } | undefined;
+  return row?.state === 'parked' ? row : null;
+}
+
 /**
  * Resume a parked run (BUILD_SPEC §5.16): state back to open, lease renewed,
  * `run.resumed`. A mutation of its own through the write path, before the
@@ -173,9 +184,10 @@ export function runSignal(
  * that isn't parked writes nothing. Only mutating tools call this (decision 42).
  */
 export function resumeIfParked(runtime: Runtime, actor: Actor, runId: string): void {
-  const row = runtime.db.sqlite.prepare('SELECT state FROM runs WHERE id = ?').get(runId) as
-    { state: string } | undefined;
-  if (row?.state !== 'parked') return;
+  const row = parkedRun(runtime, runId);
+  if (!row) return;
+  // Decision 53: the call still records its work, and the run stays parked.
+  if (projectPause(runtime.db, row.project_key)) return;
   runtime.write.run({ actor, operation: 'run.resume', args: { run_id: runId } }, (w) =>
     runtime.services.runs.resume(w, { run_id: runId }),
   );
@@ -306,6 +318,14 @@ export async function callTool(
 
     const handler = opts.handlers[tool.name] as ToolHandler<ToolName>;
     let result = await handler(args as never, ctx);
+    // Decision 53: say so when a write on a parked run left it parked by the owner's pause.
+    if (signal?.known && tool.kind === 'mutating' && tool.name !== 'park_run') {
+      const parked = parkedRun(runtime, signal.run_id);
+      if (parked && projectPause(runtime.db, parked.project_key)) {
+        const note = pausedParkNote(parked.project_key);
+        if (!warnings.includes(note)) warnings.push(note);
+      }
+    }
     if (warnings.length > 0) {
       // Write-check warnings (§3.4) join any the service gave (`finish_run`'s).
       const own = (result as { warnings?: string[] }).warnings ?? [];

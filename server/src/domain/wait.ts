@@ -31,6 +31,7 @@ import {
 import type { Db } from '../db/client.js';
 import { agingFrom, decisionHold, heldByOwner } from './decision-hold.js';
 import { BlockIndex, actorName, leaseExpired, ms, type RunRow } from './model.js';
+import { pauseLiftedAt, projectPause } from './project-pause.js';
 import { clearedAt, parkInfo, parseJson, waitLink } from './recovery-model.js';
 import { ACTIVITY_EVENTS, projectCoordinators } from './run-activity.js';
 import type { WriteContext } from './write.js';
@@ -232,6 +233,12 @@ export class WaitReader {
   /** What already waits on the owner for this item, in words; null when nothing does. */
   private ownerAction(id: string): string | null {
     if (this.owner.has(id)) return this.owner.get(id)!;
+    // Decision 53: nobody else can start it, so a wait on it is the owner's to move.
+    const project = this.index.project(id);
+    if (project && projectPause(this.db, project)) {
+      this.owner.set(id, 'a paused project to resume');
+      return this.owner.get(id)!;
+    }
     const sql = this.db.sqlite;
     const has = (query: string, ...args: string[]) => !!sql.prepare(query).get(...args);
     // A Workflow or agent-file proposal has no item of its own: it's linked by its run.
@@ -702,6 +709,12 @@ export function planWaitCheck(db: Db, now: string): WaitChange[] {
   if (rows.length === 0) return [];
   const reader = new WaitReader(db, now);
   const out: WaitChange[] = [];
+  // Decision 53: when each project's pause was last lifted, read once per check.
+  const lifts = new Map<string, string | null>();
+  const liftedAt = (project: string) => {
+    if (!lifts.has(project)) lifts.set(project, pauseLiftedAt(db, project));
+    return lifts.get(project)!;
+  };
   for (const run of rows) {
     const stored = storedWait(run);
     const flags: Record<string, StoredWaitFlag> = {};
@@ -723,7 +736,13 @@ export function planWaitCheck(db: Db, now: string): WaitChange[] {
       for (const [key, f] of Object.entries(stored.flags)) if (!flags[key]) cleared.push(f);
       if (parkInfo(db, run, now, reader.index).resume_ready) {
         const waiting = parseJson<WaitingOn>(run.waiting_on) ?? {};
-        const key = resumeKey(db, run, reader.index, waiting);
+        const base = resumeKey(db, run, reader.index, waiting);
+        // Decision 53: a run that sat through a pause gets its one event when the pause lifts.
+        const lifted = liftedAt(run.project_key);
+        const key =
+          base && lifted && ms(lifted) > ms(run.parked_at ?? run.updated_at)
+            ? `${base}|lifted:${lifted}`
+            : base;
         if (key && key !== stored.resume_key) {
           resume = { key, items: waiting.items ?? [] };
           resumeAt = key;

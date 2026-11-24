@@ -38,12 +38,19 @@
  */
 import { existsSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { SATISFIED_WHEN_LABELS, ToolError, type Project, type SatisfiedWhen } from '@docket/shared';
+import {
+  LIMITS,
+  SATISFIED_WHEN_LABELS,
+  ToolError,
+  type Project,
+  type SatisfiedWhen,
+} from '@docket/shared';
 import type { Db } from '../db/client.js';
 import type { ProjectsService, ServiceDeps } from './contracts.js';
 import { newId } from './ids.js';
 import { blockDiff } from './links.js';
 import { BlockIndex } from './model.js';
+import { projectPause, publicPause } from './project-pause.js';
 import type { WriteContext } from './write.js';
 
 interface ProjectRow {
@@ -81,6 +88,14 @@ const projectView = (p: ProjectRow): Project => ({
     ? { coordinators: coordinatorList(p.coordinators) }
     : {}),
 });
+
+/** The stored project with its live pause (decision 53). */
+function viewOf(w: WriteContext, id: string): Project {
+  const row = w.db.sqlite.prepare('SELECT * FROM projects WHERE id = ?').get(id) as ProjectRow;
+  const pause = projectPause(w.db, row.key);
+  if (!pause) return projectView(row);
+  return { ...projectView(row), paused: publicPause(pause) };
+}
 
 const items = (n: number) => `${n} ${n === 1 ? 'item' : 'items'}`;
 
@@ -334,6 +349,76 @@ export function createProjectsService(deps: ServiceDeps): ProjectsService {
         }
       }
       return Promise.resolve(removed);
+    },
+
+    pause(w, input) {
+      if (w.actor.kind !== 'owner') {
+        throw new ToolError(
+          'forbidden',
+          'Only the owner can pause a project. To ask for it, use ask_owner.',
+        );
+      }
+      const row = w.db.sqlite
+        .prepare('SELECT * FROM projects WHERE key = ? AND deleted_at IS NULL')
+        .get(input.key) as ProjectRow | undefined;
+      if (!row) {
+        throw new ToolError('not_found', `No project ${input.key}. Check the key in Settings.`);
+      }
+      if (projectPause(w.db, row.key)) {
+        throw new ToolError('conflict', `${row.name} is already paused.`, {
+          current: viewOf(w, row.id),
+        });
+      }
+      const reason = input.reason.trim();
+      const head = 'Project paused: ';
+      const room = LIMITS.decision_title - head.length;
+      const title = head + (reason.length > room ? `${reason.slice(0, room - 1)}…` : reason);
+      const decision = deps
+        .services()
+        .decisions.publish(
+          w,
+          { project: row.key, scope: { kind: 'project' }, title, decision: reason },
+          { pausesProject: true },
+        );
+      w.event({
+        type: 'project.updated',
+        summary: `Owner paused project ${row.name} (${row.key}): ${reason}`,
+        project_key: row.key,
+        data: { old: { paused: false }, new: { paused: true }, decision_id: decision.id },
+        // The record's own event deletes it; this one only has to be undoable with it.
+        inverse: [{ op: 'update', table: 'decision_records', id: decision.id, set: {} }],
+        objects: [
+          { kind: 'project', id: row.key },
+          { kind: 'decision', id: decision.id },
+        ],
+      });
+      return viewOf(w, row.id);
+    },
+
+    resume(w, input) {
+      if (w.actor.kind !== 'owner') {
+        throw new ToolError(
+          'forbidden',
+          'Only the owner can resume a paused project. To ask for it, use ask_owner.',
+        );
+      }
+      const row = w.db.sqlite
+        .prepare('SELECT * FROM projects WHERE key = ? AND deleted_at IS NULL')
+        .get(input.key) as ProjectRow | undefined;
+      if (!row) {
+        throw new ToolError('not_found', `No project ${input.key}. Check the key in Settings.`);
+      }
+      const pause = projectPause(w.db, row.key);
+      if (!pause) {
+        throw new ToolError('conflict', `${row.name} isn't paused.`, {
+          current: viewOf(w, row.id),
+        });
+      }
+      deps.services().decisions.withdraw(w, {
+        decision_id: pause.decision_id,
+        reason: input.reason?.trim() || 'Project resumed',
+      });
+      return viewOf(w, row.id);
     },
 
     // *New project* (decision 31; FR-135). Not undoable: no inverse.

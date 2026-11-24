@@ -91,6 +91,7 @@ function ProjectSwitcher() {
       name: 'All projects',
       color: null as string | null,
       createdBy: null as string | null,
+      paused: false,
     },
   ].concat(
     projects.map((p) => ({
@@ -99,6 +100,8 @@ function ProjectSwitcher() {
       color: p.color,
       // "created by <agent> · review" until the owner reviews its onboarding (decision 31).
       createdBy: p.created_by ?? null,
+      // Decision 53: a paused project says so in the picker, in words.
+      paused: !!p.paused,
     })),
   );
 
@@ -152,7 +155,7 @@ function ProjectSwitcher() {
         className="scopebtn"
         aria-haspopup="menu"
         aria-expanded={open}
-        title={`Project: ${name}`}
+        title={`Project: ${name}${current?.paused ? ' (paused)' : ''}`}
         onClick={() => setOpen(!open)}
       >
         {current ? (
@@ -161,7 +164,11 @@ function ProjectSwitcher() {
           <Icon name="folder" small />
         )}
         <span className="grow txt">
-          <span className="lbl2">Project</span> <span className="nm">{name}</span>
+          <span className="lbl2">Project</span>{' '}
+          <span className="nm">
+            {name}
+            {current?.paused ? ' · Paused' : ''}
+          </span>
         </span>
         <span className="chev" aria-hidden="true">
           <Icon name="chev" small />
@@ -197,6 +204,11 @@ function ProjectSwitcher() {
                 {o.createdBy && (
                   <span className="chip c-warn scopechip" data-created-by={o.createdBy}>
                     created by {o.createdBy.split(' · ')[0]} · review
+                  </span>
+                )}
+                {o.paused && (
+                  <span className="chip c-warn scopechip" data-paused-chip={o.key}>
+                    Paused
                   </span>
                 )}
               </span>

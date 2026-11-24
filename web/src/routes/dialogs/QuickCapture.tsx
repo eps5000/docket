@@ -1,4 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
+import { pausedMark } from '../../lib/format';
 import { useId, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { ITEM_TYPES, type ItemType } from '@docket/shared';
@@ -137,6 +138,7 @@ export function QuickCapture({
               {projects.map((p) => (
                 <option key={p.key} value={p.key}>
                   {p.short_name}
+                  {pausedMark(p)}
                 </option>
               ))}
             </select>

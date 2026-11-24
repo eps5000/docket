@@ -695,6 +695,13 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T299 [US13] One short pointer each from `docket-worker` and `docket-coordinator`.
 - [x] T300 [US13] Tests: listing, install for both clients, drift, uninstall in each shell, update available from an older install, skills lint, a guard against project-specific names, token budgets.
 
+## Phase 46: Pause project (owner decision 53)
+
+- [x] T301 [US2] Spec plus code in one PR: decision 53 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.37; MCP_SPEC; UI_SPEC §6.1d; spec FR-290–FR-296 and SC-033; Help; skills.
+- [x] T302 [US18] Migration and `domain/project-pause.ts`: the pause is an owner decision record, read by `decisionHold`. Refused claims, resumes and new child runs; parked runs stay parked through writes; coordinator parks wait; digest and context lines; one resume event after a lift.
+- [x] T303 [US2] Owner API and UI: Pause and Resume with Undo, the banner on Overview, Work and the item page, and the Paused marker in pickers.
+- [x] T304 [US18] Tests: authority, refused claims, allowed writes, parked and open runs, alerts and aging, a blocker clearing during a pause, resume events, Undo, restart, two projects, budgets, and e2e with axe in both themes.
+
 ## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.
@@ -810,6 +817,7 @@ Open a PR titled "<Bn>: <phase name>" with the checkpoint evidence. Do not queue
 | 43 An optional GitHub connection | B62 (decision 49; alongside B63) |
 | 44 Installs stay in scope | B64 (decision 50) |
 | 45 A bundled delivery skill | B66 (decision 52) |
+| 46 Pause project | B69 (decision 53) |
 
 **Within a phase:** tests (failing) → services → replace stubs or fill handlers → fill screens → checkpoint.
 

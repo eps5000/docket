@@ -5,8 +5,8 @@
  * rotate-key are in session.ts. Shared contract file (tasks.md, Slice rules).
  */
 import { z } from 'zod';
-import { projectKey } from '../mcp/common.js';
-import { input, jsonResponse, noInput } from './common.js';
+import { projectKey, text } from '../mcp/common.js';
+import { input, jsonResponse, noInput, ownerMutationOutput } from './common.js';
 import { json, route } from './route.js';
 import { projectSchema } from './types.js';
 
@@ -94,6 +94,13 @@ export const deleteProjectParams = input({ key: projectKey });
 export const deleteProjectBody = input({ confirm_key: projectKey });
 export const deleteProjectResponse = jsonResponse({ deleted: z.literal(true), key: z.string() });
 
+/** Decision 53: a short reason, shown wherever the pause is. */
+export const PAUSE_REASON_MAX = 300;
+export const pauseProjectParams = input({ key: projectKey });
+export const pauseProjectBody = input({ reason: text(PAUSE_REASON_MAX) });
+export const resumeProjectBody = input({ reason: text(PAUSE_REASON_MAX).optional() });
+export const pauseProjectResponse = ownerMutationOutput({ project: projectSchema });
+
 export const settingsRoutes = {
   'settings.get': route({
     method: 'GET',
@@ -113,6 +120,28 @@ export const settingsRoutes = {
     query: noInput,
     body: null,
     response: json(agentTokenResponse),
+  }),
+  /** Decision 53: owner only. Publishes the project's pause decision. Undoable. */
+  'projects.pause': route({
+    method: 'POST',
+    path: '/api/projects/:key/pause',
+    group: 'settings',
+    params: pauseProjectParams,
+    query: noInput,
+    body: pauseProjectBody,
+    response: json(pauseProjectResponse),
+    undoable: true,
+  }),
+  /** Decision 53: owner only. Withdraws the pause decision; aging restarts now. Undoable. */
+  'projects.resume': route({
+    method: 'POST',
+    path: '/api/projects/:key/resume',
+    group: 'settings',
+    params: pauseProjectParams,
+    query: noInput,
+    body: resumeProjectBody,
+    response: json(pauseProjectResponse),
+    undoable: true,
   }),
   /** Not undoable: removes the records and documents together (O10). */
   'projects.delete': route({

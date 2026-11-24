@@ -68,6 +68,7 @@ import {
   type ItemRow,
   type RunRow,
 } from './model.js';
+import { assertNotPaused, projectPause, projectPausedError } from './project-pause.js';
 import { WaitReader } from './wait.js';
 import { assertDesignCleared } from './design-review.js';
 import { settleClaim } from './shared-changes.js';
@@ -623,6 +624,8 @@ export function createRunsService(deps: ServiceDeps): RunsService {
   return {
     claim(w, input: In<'claim_lead'>): Out<'claim_lead'> {
       const item = requireItem(w.db, input.id);
+      // Decision 53: no new claim in a paused project, including on In progress with no lead.
+      assertNotPaused(w.db, item.project_key);
       const lead = activeLead(w.db, item.id);
       if (lead && leaseExpired(lead, w.now)) {
         // The lease ran out before the sweeper got to it: end it now, then claim.
@@ -907,6 +910,8 @@ export function createRunsService(deps: ServiceDeps): RunsService {
           { details: { parent_run_id: input.parent_run_id } },
         );
       }
+      // Decision 53: an open run may carry on; a parked one starts nothing new while paused.
+      if (parent.state === 'parked') assertNotPaused(w.db, item.project_key);
       const recovery = recoveryColumns(w, item, input);
       const runId = newId('run', ms(w.now));
       const label = input.agent_label ?? null;
@@ -1174,6 +1179,10 @@ export function createRunsService(deps: ServiceDeps): RunsService {
     resume(w, input) {
       const run = getRun(w.db, input.run_id);
       if (!run || run.state !== 'parked') return { resumed: false };
+      // Decision 53: a write on a parked run records the work; the run stays parked.
+      if (projectPause(w.db, requireItem(w.db, run.item_id).project_key)) {
+        return { resumed: false };
+      }
       resumeRun(w, run);
       return { resumed: true };
     },
@@ -1190,9 +1199,14 @@ export function createRunsService(deps: ServiceDeps): RunsService {
       }
       assertCoordinator(w, item, lead, input.coordinator);
       if (leaseExpired(lead, w.now)) throw runEndedError(w.db, lead, w.now);
+      // Decision 53: only the owner's Resume project restarts work here.
+      const pause = projectPause(w.db, item.project_key);
+      if (pause && input.resume) throw projectPausedError(item.project_key, pause);
       // Decision 44: a deadline that passed before the sweep is over, whatever this call does.
       const due = activeCoordinatorPark(lead);
-      if (due && !input.resume && ms(due.until) <= ms(w.now)) endCoordinatorPark(w, lead);
+      if (due && !pause && !input.resume && ms(due.until) <= ms(w.now)) {
+        endCoordinatorPark(w, lead);
+      }
       const run = getRun(w.db, lead.id)!;
       const parkFields = input.park_reason !== undefined || input.waiting_on !== undefined;
       if (
@@ -1273,9 +1287,15 @@ export function createRunsService(deps: ServiceDeps): RunsService {
     expireCoordinatorParks(w) {
       const due = w.db.sqlite
         .prepare(
-          `SELECT * FROM runs WHERE state = 'parked' AND coordinator_park IS NOT NULL
-             AND json_extract(coordinator_park, '$.until') <= ?
-           ORDER BY json_extract(coordinator_park, '$.until'), id`,
+          // Decision 53: a paused project's parks wait; they end at the first sweep after it resumes.
+          `SELECT r.* FROM runs r JOIN items i ON i.id = r.item_id
+           WHERE r.state = 'parked' AND r.coordinator_park IS NOT NULL
+             AND json_extract(r.coordinator_park, '$.until') <= ?
+             AND i.project_key NOT IN (
+               SELECT project_key FROM decision_records
+               WHERE pauses_project = 1 AND status = 'active'
+             )
+           ORDER BY json_extract(r.coordinator_park, '$.until'), r.id`,
         )
         .all(w.now) as RunRow[];
       for (const run of due) endCoordinatorPark(w, run);

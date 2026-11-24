@@ -19,6 +19,8 @@ export const ERROR_CODES = [
   'lease_held',
   // Decision 39: this item changes an approved design and the owner hasn't approved it.
   'design_review',
+  // Decision 53: the owner paused this project, so no new claim or resume.
+  'project_paused',
 ] as const;
 export type ErrorCode = (typeof ERROR_CODES)[number];
 
@@ -50,6 +52,7 @@ export const HTTP_STATUS: Record<ErrorCode, number> = {
   lease_held: 409,
   not_declared: 400,
   design_review: 409,
+  project_paused: 409,
 };
 
 export class ToolError extends Error {

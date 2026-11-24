@@ -910,7 +910,12 @@ export interface SubgraphService {
 
 /** Decision records (§5.14): authority from the actor; owner records are authoritative. */
 export interface DecisionsService {
-  publish(w: WriteContext, input: Omit<In<'publish_decision'>, 'run_id'>): DecisionRecord;
+  /** `pausesProject` is set only by the owner's Pause project (decision 53). */
+  publish(
+    w: WriteContext,
+    input: Omit<In<'publish_decision'>, 'run_id'>,
+    opts?: { pausesProject?: boolean },
+  ): DecisionRecord;
   list(r: ReadContext, input: Omit<In<'list_decisions'>, 'run_id'>): Out<'list_decisions'>;
   withdraw(
     w: WriteContext,
@@ -994,6 +999,10 @@ export interface ProjectsService {
    * Jira import (US9), event `project.created`. Owner only; not undoable.
    */
   create(w: WriteContext, input: RouteBody<'projects.create'>): Project;
+  /** Decision 53: owner only. Publishes the pause decision; undoable. */
+  pause(w: WriteContext, input: { key: string } & RouteBody<'projects.pause'>): Project;
+  /** Decision 53: owner only. Withdraws the pause decision; undoable. */
+  resume(w: WriteContext, input: { key: string } & RouteBody<'projects.resume'>): Project;
 }
 
 /**

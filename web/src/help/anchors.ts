@@ -63,6 +63,7 @@ export const HELP_ANCHORS = {
   'settings.github': 'Settings → Connections → GitHub (decision 49)',
   'item.github': 'Ticket → Details → GitHub (decision 49)',
   'settings.blocker-rule': 'Settings → Projects → Blockers clear when',
+  'settings.pause-project': 'The Paused banner, and Settings → Projects → Pause (decision 53)',
   'agent-files.page': 'Agent files: next to the h1',
   'agent-files.workflow': 'Agent files (one project): the Workflow notes card',
   'agent-files.install-log': 'Agent files: the install log',

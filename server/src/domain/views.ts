@@ -88,6 +88,7 @@ import {
   type RecoveryRoute,
 } from './problems.js';
 import { agingFrom, decisionHold, heldByOwner } from './decision-hold.js';
+import { projectPauses } from './project-pause.js';
 import { inScopeOf, ofScope, projectReviews } from './decisions.js';
 import { agentsNow, overviewItemsOf, overviewOf } from './overview.js';
 import { briefOf } from './brief.js';
@@ -1332,11 +1333,18 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
     bootstrap(r) {
       const sql = r.db.sqlite;
       const config = deps.config;
-      const projects = sql
-        .prepare(
-          `SELECT key, name, short_name, color, default_satisfied_when, version, ${CREATED_BY_SQL('projects')} AS created_by FROM projects WHERE deleted_at IS NULL ORDER BY key`,
-        )
-        .all() as BootstrapResponse['projects'];
+      // Decision 53: a paused project says so, wherever projects are picked.
+      const pauses = projectPauses(r.db);
+      const projects = (
+        sql
+          .prepare(
+            `SELECT key, name, short_name, color, default_satisfied_when, version, ${CREATED_BY_SQL('projects')} AS created_by FROM projects WHERE deleted_at IS NULL ORDER BY key`,
+          )
+          .all() as BootstrapResponse['projects']
+      ).map((p) => {
+        const paused = pauses.get(p.key);
+        return paused ? { ...p, paused } : p;
+      });
       const labels = (
         sql
           .prepare(
@@ -2038,6 +2046,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
       const config = deps.config;
       const s = scoped(r, windows(), 'all');
       const att = attention(s);
+      const pauses = projectPauses(r.db);
       const projects = (
         sql
           .prepare(
@@ -2057,6 +2066,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
           default_satisfied_when: p.default_satisfied_when,
           version: p.version,
           created_by: p.created_by ?? null,
+          ...(pauses.has(p.key) ? { paused: pauses.get(p.key)! } : {}),
           counts: {
             epics: rows.filter((i) => i.type === 'Epic').length,
             items: rows.length,

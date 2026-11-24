@@ -117,6 +117,8 @@ const B2_ROUTES: readonly RouteId[] = [
   // US10 (B15, T131): Reveal token, deleting a project and the diagnostic log
   // (content in us10-ops.test.ts).
   'settings.agentToken',
+  'projects.pause',
+  'projects.resume',
   'projects.delete',
   'diagnostics.calls',
   // US9 (B17, T141): the Jira import (content in us9-jira.test.ts and jira-map.test.ts).
@@ -218,6 +220,8 @@ const VALID: Record<RouteId, Req> = {
   'session.lock': {},
   'session.rotateKey': {},
   'bootstrap.get': {},
+  'projects.pause': { params: { key: 'RCP' }, body: { reason: 'Synthetic pause' } },
+  'projects.resume': { params: { key: 'RCP' }, body: {} },
   'needsYou.get': { query: { scope: 'RCP' } },
   'overview.get': { query: { scope: 'RCP', window: '30d' } },
   'overview.items': { query: { scope: 'RCP', window: '7d', metric: 'in_flight' } },

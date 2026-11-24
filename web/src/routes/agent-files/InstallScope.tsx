@@ -21,7 +21,7 @@ import { QueryState } from '../../app/QueryState';
 import { apiClient } from '../../app/queryClient';
 import { HelpLink } from '../../help/HelpLink';
 import { queryKeys } from '../../lib/api';
-import { formatClock, plural } from '../../lib/format';
+import { formatClock, plural, pausedMark } from '../../lib/format';
 import { paths } from '../../lib/paths';
 import { CopyBlock, errorText } from './install-common';
 import { installStateChip, possessive, worktreeText } from './model';
@@ -44,7 +44,7 @@ export function InstallOverviewCard({
   projects,
   onInstall,
 }: {
-  projects: readonly { key: string; short_name: string }[];
+  projects: readonly { key: string; short_name: string; paused?: unknown }[];
   onInstall: (project: string) => void;
 }) {
   const selectId = useId();
@@ -97,6 +97,7 @@ export function InstallOverviewCard({
                     {projects.map((p) => (
                       <option key={p.key} value={p.key}>
                         {p.short_name}
+                        {pausedMark(p)}
                       </option>
                     ))}
                   </select>
