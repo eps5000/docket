@@ -26,6 +26,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { planRadar } from '../../src/domain/radar.js';
 import { OWNER_ACTOR } from '../../src/domain/write.js';
 import { radarRunOnce } from '../../src/jobs/sweeper.js';
+import { hostGitPass } from '../host-git.js';
 import { git, makeStaleRepo } from '../fixtures/radar-repo.js';
 import { insertItem, insertProject, tempDir } from '../helpers.js';
 import { ORIGIN, parseSetCookies } from '../integration/harness.js';
@@ -84,8 +85,9 @@ const ITEMS: [string, string][] = [
 /** The Gameflow-like project: six in-flight items, each reporting its branch; the radar set up. */
 async function gameflow(env: Record<string, string> = {}) {
   tmp = tempDir('docket-b42-');
-  makeStaleRepo(tmp.dir);
-  h = await startHarness({ env: { DOCKET_PUSH_ROOT: tmp.dir, ...env } });
+  const { repo } = makeStaleRepo(tmp.dir);
+  // B76: no push folder: the helper reads the repository on the host.
+  h = await startHarness({ env });
   const api = await owner();
   const db = h.server.runtime.db;
   insertProject(db, 'GF');
@@ -94,8 +96,7 @@ async function gameflow(env: Record<string, string> = {}) {
     expectOk(await h.call('declare_shared_changes', { id, none: true, branches: [branch] }));
   }
   expect(
-    (await api('PUT', '/api/projects/GF/radar', { repo_path: 'gf-stale', main_branch: 'main' }))
-      .status,
+    (await api('PUT', '/api/projects/GF/radar', { repo_path: repo, main_branch: 'main' })).status,
   ).toBe(200);
   return api;
 }
@@ -117,6 +118,7 @@ describe('one root cause, one problem (decision 37; the radar refinement)', () =
     async () => {
       const api = await gameflow();
       const r = { db: h!.server.runtime.db, actor: OWNER_ACTOR, now: '2026-11-06T11:00:00.000Z' };
+      await hostGitPass(h!.server, { home: tmp!.dir });
       const plan = await planRadar(r, h!.server.runtime.config, 'GF');
       const conflicting = plan.checks.filter((c) => c.files.length > 0);
       // Before B42 every conflicting pair was a finding: 4 with main and 11 pairs, 15 in all.
@@ -152,6 +154,7 @@ describe('one root cause, one problem (decision 37; the radar refinement)', () =
         );
       }
 
+      await hostGitPass(h!.server, { home: tmp!.dir });
       const run = await api('POST', '/api/projects/GF/radar/run', {});
       expect(run.status).toBe(200);
       expect(findingRows(run.body.radar as S)).toEqual(
@@ -201,6 +204,7 @@ describe('one root cause, one problem (decision 37; the radar refinement)', () =
       expect(notes('GF-240')).toHaveLength(1);
       expect(notes('GF-240')[0]).toContain(' Also: ');
       // A second run with nothing new posts nothing.
+      await hostGitPass(h!.server, { home: tmp!.dir });
       await api('POST', '/api/projects/GF/radar/run', {});
       expect(notes('GF-228')).toHaveLength(1);
       // The lead reads it with get_item, like any owner note.
@@ -218,6 +222,7 @@ describe('agent problems go to the leads first (decision 37)', () => {
       // A one-hour grace period and a three-hour claim, so the lead still holds it after.
       const api = await gameflow({ DOCKET_AGENT_PROBLEM_GRACE_HOURS: '1', DOCKET_LEASE: '3h' });
       expectOk(await h!.call('claim_lead', { id: 'GF-228' }));
+      await hostGitPass(h!.server, { home: tmp!.dir });
       await api('POST', '/api/projects/GF/radar/run', {});
       let view = await needsYou(api);
       const handled = radarRows(view.agent_problems);
@@ -253,6 +258,7 @@ describe('card actions (decision 37)', () => {
     'Not an active branch clears the finding at once; Undo brings back the branch and the finding',
     async () => {
       const api = await gameflow();
+      await hostGitPass(h!.server, { home: tmp!.dir });
       await api('POST', '/api/projects/GF/radar/run', {});
       const open = () =>
         (
@@ -298,6 +304,7 @@ describe('card actions (decision 37)', () => {
         branches: ['gf-228-old'],
       }),
     );
+    await hostGitPass(h!.server, { home: tmp!.dir });
     await api('POST', '/api/projects/GF/radar/run', {});
     const finding = () =>
       sql()
@@ -327,6 +334,7 @@ describe('card actions (decision 37)', () => {
       // The scheduled run lands inside the undo window: it must not adopt the branch again.
       const events = sql().prepare('SELECT count(*) AS n FROM events');
       const before = events.get();
+      await hostGitPass(h!.server, { home: tmp!.dir });
       await radarRunOnce(h!.server.runtime, 'GF');
       expect(finding()).toBeUndefined();
       expect(events.get()).toEqual(before);
@@ -347,7 +355,9 @@ describe('card actions (decision 37)', () => {
       const api = await gameflow();
       const { finding } = await namedBranch(api);
       await remove(api);
+      await hostGitPass(h!.server, { home: tmp!.dir });
       await radarRunOnce(h!.server.runtime, 'GF');
+      await hostGitPass(h!.server, { home: tmp!.dir });
       await radarRunOnce(h!.server.runtime, 'GF');
       expect(finding()).toBeUndefined();
       expect((await api('GET', '/api/items/GF-228/shared')).body.branches).toMatchObject({
@@ -358,6 +368,7 @@ describe('card actions (decision 37)', () => {
 
       // Reporting it again is the way back.
       await api('POST', '/api/items/GF-228/shared/branches', { op: 'add', branch: 'gf-228-old' });
+      await hostGitPass(h!.server, { home: tmp!.dir });
       await radarRunOnce(h!.server.runtime, 'GF');
       expect(finding()).toBeDefined();
 
@@ -366,6 +377,7 @@ describe('card actions (decision 37)', () => {
         op: 'remove',
         branch: 'gf-228-old',
       });
+      await hostGitPass(h!.server, { home: tmp!.dir });
       await radarRunOnce(h!.server.runtime, 'GF');
       expect((await api('GET', '/api/items/GF-228/shared')).body.branches).toMatchObject({
         reported: [],
@@ -382,6 +394,7 @@ describe('card actions (decision 37)', () => {
       git(`${tmp!.dir}/gf-stale`, 'branch', 'gf-228-old', 'stale-228');
       // Discovered first, with no reported branch; then reported under the same name.
       expectOk(await h!.call('declare_shared_changes', { id: 'GF-228', none: true, branches: [] }));
+      await hostGitPass(h!.server, { home: tmp!.dir });
       await api('POST', '/api/projects/GF/radar/run', {});
       expect((await api('GET', '/api/items/GF-228/shared')).body.branches).toMatchObject({
         discovered: 'gf-228-old',
@@ -393,6 +406,7 @@ describe('card actions (decision 37)', () => {
           branches: ['gf-228-old'],
         }),
       );
+      await hostGitPass(h!.server, { home: tmp!.dir });
       await api('POST', '/api/projects/GF/radar/run', {});
       await remove(api);
       const open = sql()
@@ -409,6 +423,7 @@ describe('card actions (decision 37)', () => {
     'Remind the agent posts the explanation as an owner note, and Undo takes it back',
     async () => {
       const api = await gameflow();
+      await hostGitPass(h!.server, { home: tmp!.dir });
       await api('POST', '/api/projects/GF/radar/run', {});
       const row = radarRows((await needsYou(api)).problems).find((p) => p.item_id === 'GF-302')!;
       const text = reminderText(row.explanation!);
@@ -440,6 +455,7 @@ describe('Acknowledge and proposed resolutions (decision 37)', () => {
     'Acknowledge leaves Needs you (undoable); a proposal brings it back; a different way, again, approve',
     async () => {
       const api = await gameflow();
+      await hostGitPass(h!.server, { home: tmp!.dir });
       await api('POST', '/api/projects/GF/radar/run', {});
       const pick = async () =>
         radarRows((await needsYou(api)).problems).find(

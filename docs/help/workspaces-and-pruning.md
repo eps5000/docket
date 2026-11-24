@@ -14,7 +14,7 @@ A **workspace** is the folder (usually a git worktree) where an agent works on a
 
 The main table shows what agents report. **Every worktree** also reads your repository, without changing it. Docket never deletes a worktree or stops a process; your coordinator, or you, do that.
 
-**Worktrees outside Docket's folder.** Docket runs in a container and can't read these by itself, so they show as **Unknown**. The Docket helper on your computer can read them. It runs every few minutes, changes nothing, and never sends file names. See its status in **Settings → Connections → Worktree checks**. If the helper stops, its answers go back to **Unknown** after 10 minutes, so an old answer can never make a worktree look safe to remove.
+**The helper reads your worktrees.** Docket runs in a container and reads no git itself. The Docket helper on your computer reads every worktree. It runs every few minutes, changes nothing, and never sends file names. See its status in **Settings → Connections → Git checks**. Until it reports, the list says it's waiting for the host helper, and work left in a worktree shows as the last reported state (unverified). If the helper stops, its answers go back to **Unknown** after 10 minutes, so an old answer can never make a worktree look safe to remove.
 
 ## The states
 
@@ -55,7 +55,7 @@ When a run ends and something it started is still listed as running 15 minutes l
 
 ## Every worktree
 
-Agents only report the worktrees they use, so a busy repository can hold many more. Choose **Every worktree** to list them all, including ones marked **Not tracked by Docket**. Docket reads them with git inside your push folder. It doesn't fetch and writes nothing.
+Agents only report the worktrees they use, so a busy repository can hold many more. Choose **Every worktree** to list them all, including ones marked **Not tracked by Docket**. The helper on your computer reads them. It doesn't fetch and writes nothing.
 
 | Verdict | What it means |
 |---|---|
@@ -63,7 +63,7 @@ Agents only report the worktrees they use, so a busy repository can hold many mo
 | **Holds work** | It has uncommitted files, commits on no remote, something still running, or a run that ended unexpectedly. |
 | **In use** | A run is working or parked in it, or it's the repository's main folder. |
 | **Kept for later** | You chose *Keep for later*, or it's locked in git. |
-| **Unknown** | Docket can't tell. Git didn't answer in time, the folder is gone or outside your push folder, or it has no run and changed in the last day. **Treat it as not safe.** |
+| **Unknown** | Docket can't tell. Git didn't answer in time, the folder is gone, the helper's last check is too old, or it has no run and changed in the last day. **Treat it as not safe.** |
 
 Only **Safe to remove** offers a command. **Check it before you run it.** Git refuses to remove a folder with changes and keeps the branch, but ignored files, like `.env` or build output, are deleted with the folder. Remotes are as of your last fetch.
 

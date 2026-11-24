@@ -1,8 +1,8 @@
 /**
  * B60 (owner decision 48): every worktree of a project's repository gets a
- * plain verdict, against real fixture repositories in a temporary push root.
- * Unknown is never safe, a timed-out read is Unknown, a folder outside the root
- * says it can't be checked, only Safe to remove has a command, and nothing in
+ * plain verdict, against real fixture repositories read by the real helper
+ * source on this machine (B76: Docket runs no git). Unknown is never safe,
+ * stale facts are Unknown, only Safe to remove has a command, and nothing in
  * `.git` changes.
  */
 import { spawnSync } from 'node:child_process';
@@ -14,13 +14,13 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   cleanupLimits,
   removeCommand,
-  scanRepoWorktrees,
   worktreeVerdict,
   type ScannedTree,
 } from '../../src/domain/worktree-cleanup.js';
 import type { Actor } from '../../src/domain/write.js';
 import { git, hashGitDir, makeRadarRepo, type RadarRepo } from '../fixtures/radar-repo.js';
 import { tempDir, type TempDir } from '../helpers.js';
+import { hostWorktreesPass } from '../host-git.js';
 import { minutes, startDomain, type Domain } from '../us1-helpers.js';
 
 const HAS_GIT = spawnSync('git', ['--version'], { windowsHide: true }).status === 0;
@@ -175,12 +175,10 @@ describe.skipIf(!HAS_GIT)('against a real repository', () => {
     git(repo.repo, 'remote', 'add', 'origin', origin);
     git(repo.repo, 'push', '-q', 'origin', 'main', 'feat/c');
     // The real time: the fixture's commits and file times are from now.
-    d = startDomain({ now: new Date(), env: { DOCKET_PUSH_ROOT: tmp.dir } });
+    d = startDomain({ now: new Date() });
     d.sql
-      .prepare(
-        "UPDATE projects SET repo_path = 'recipe-app', main_branch = 'main' WHERE key = 'RCP'",
-      )
-      .run();
+      .prepare("UPDATE projects SET repo_path = ?, main_branch = 'main' WHERE key = 'RCP'")
+      .run(repo.repo);
     claude = d.agent('claude', { label: 'orca-w1' });
   });
   afterEach(async () => {
@@ -189,12 +187,10 @@ describe.skipIf(!HAS_GIT)('against a real repository', () => {
     rmSync(tmp.dir, { recursive: true, force: true });
   });
 
-  /** One read of the view, once its background scan has ended. */
-  async function view() {
-    const read = () => d.services.recovery.worktreeCleanup(d.read(), { project: 'RCP' });
-    read();
-    await d.services.recovery.worktreeScanSettled('RCP');
-    return read();
+  /** One read of the view, after the helper's pass (B76: Docket reads no git itself). */
+  async function view(pass = true) {
+    if (pass) await hostWorktreesPass(d.server, { home: tmp.dir });
+    return d.services.recovery.worktreeCleanup(d.read(), { project: 'RCP' });
   }
   const row = (rows: RepoWorktreeRow[], path: string) => {
     const key = path.replace(/\\/g, '/').toLowerCase();
@@ -286,14 +282,13 @@ describe.skipIf(!HAS_GIT)('against a real repository', () => {
     expect(row((await view()).rows, repo.worktrees['feat/c']).verdict).toBe('kept_for_later');
   });
 
-  it('a worktree outside the push root says it can’t be checked', async () => {
+  it('B76: a worktree in any folder on the host is read', async () => {
     const outside = join(elsewhere, 'wt-out');
     git(repo.repo, 'worktree', 'add', '-q', outside, '-b', 'feat/out', 'main');
     quiet();
     const r = row((await view()).rows, realpathSync(outside));
-    expect(r.verdict).toBe('unknown');
-    expect(r.why).toContain('can’t be checked');
-    expect(r).toMatchObject({ uncommitted_files: null, unpushed_commits: null, command: null });
+    expect(r).toMatchObject({ uncommitted_files: 0, unpushed_commits: 0, merged: true });
+    expect(r.verdict).toBe('safe_to_remove');
   });
 
   it('a worktree whose folder is gone is Unknown', async () => {
@@ -305,26 +300,15 @@ describe.skipIf(!HAS_GIT)('against a real repository', () => {
     expect(r.command).toBeNull();
   });
 
-  it('a read that doesn’t finish is Unknown for every worktree, never safe', async () => {
-    const stop = new AbortController();
-    const scan = await scanRepoWorktrees(
-      d.server.runtime.config,
-      { path: 'recipe-app', main: 'main' },
-      () => d.clock.now().toISOString(),
-      stop.signal,
-      () => stop.abort(),
-    );
-    expect(scan.status).toBe('ok');
-    for (const t of scan.trees) {
-      expect(t.read).not.toBe('ok');
-      const out = worktreeVerdict({
-        tree: { ...t, is_main: false },
-        facts: null,
-        awaitsRestart: false,
-        checkedAt: scan.checked_at,
-        now: scan.checked_at,
-      });
-      expect(out.verdict).toBe('unknown');
+  it('B76: facts older than three passes are Unknown for every worktree, never safe', async () => {
+    quiet();
+    expect((await view()).rows.some((r) => r.verdict === 'safe_to_remove')).toBe(true);
+    d.clock.advance(minutes(11));
+    const stale = await view(false);
+    expect(stale.host.state).toBe('stale');
+    for (const r of stale.rows.filter((x) => !x.path.endsWith('recipe-app'))) {
+      expect(r.verdict).toBe('unknown');
+      expect(r.command).toBeNull();
     }
   });
 
@@ -395,9 +379,13 @@ describe.skipIf(!HAS_GIT)('against a real repository', () => {
     });
   });
 
-  it('a repository folder outside the push root says it can’t be read', async () => {
+  it('B76: before the helper reports a repository, the view waits for it', async () => {
     d.sql.prepare('UPDATE projects SET repo_path = ? WHERE key = ?').run(elsewhere, 'RCP');
-    expect(await view()).toMatchObject({ repo: 'unreadable', rows: [] });
+    expect(await view(false)).toMatchObject({
+      repo: 'ok',
+      rows: [],
+      host: { state: 'none', checked_at: null },
+    });
   });
 
   it('handles hundreds of worktrees', { timeout: 120_000 }, async () => {

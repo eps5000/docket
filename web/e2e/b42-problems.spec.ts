@@ -1,8 +1,8 @@
 /**
  * Problems that say what's wrong, who fixes it and what to do, end to end
  * (owner decision 37; tasks.md T189; spec US18 scenarios 7–9; UI_SPEC §6.1,
- * §6.3), against the seeded instance and a fixture repository in the
- * container's push folder:
+ * §6.3), against the seeded instance and a fixture repository on this
+ * machine, read by the real helper's git source (B76):
  *
  * - `rcp-1-old` (RCP-1, no lead) and `rcp-14-old` (RCP-14, a live lead) are
  *   both out of date with main. RCP-1's problem reaches Problems at once
@@ -18,7 +18,8 @@
  *
  * axe is clean in both themes on Needs you, the banner and the proposal card.
  */
-import { execFileSync } from 'node:child_process';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { Page } from '@playwright/test';
 import { baseURL } from './container';
 import {
@@ -30,43 +31,33 @@ import {
   unlock,
   useSeededContainer,
 } from './fixtures/index';
-import { CONTAINER } from './fixtures/container';
+import { hostFolder, hostGit, hostGitPass } from './fixtures/host-git';
 import type { McpAgent } from './fixtures/mcp';
 
 useSeededContainer();
 test.describe.configure({ mode: 'serial' });
 
-const ROOT = '/tmp/host-code';
-const REPO = 'b42-radar';
-
-function sh(script: string): string {
-  return execFileSync('docker', ['exec', CONTAINER, 'sh', '-c', script], {
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-}
+const host = hostFolder('docket-e2e-b42-');
+const REPO = `${host.dir}/b42-radar`;
 
 /** Two branches that each change a line main changed since: both out of date with main. */
 function makeFixtureRepo() {
-  sh(
-    [
-      'set -e',
-      `rm -rf ${ROOT}/${REPO}`,
-      `mkdir -p ${ROOT}/${REPO}`,
-      `cd ${ROOT}/${REPO}`,
-      'G="git -c user.name=e2e -c user.email=e2e@docket.invalid -c commit.gpgsign=false"',
-      '$G init -q -b main',
-      "printf 'one\\ntwo\\nthree\\n' > shared.txt",
-      '$G add shared.txt',
-      '$G commit -q -m start',
-      '$G checkout -q -b rcp-1-old',
-      "printf 'one old\\ntwo\\nthree\\n' > shared.txt && $G commit -qam old1",
-      '$G checkout -q -b rcp-14-old main',
-      "printf 'one\\ntwo\\nthree old\\n' > shared.txt && $G commit -qam old14",
-      '$G checkout -q main',
-      "printf 'one main\\ntwo\\nthree main\\n' > shared.txt && $G commit -qam main",
-    ].join('\n'),
-  );
+  const g = (...args: string[]) => hostGit(REPO, host.dir, ...args);
+  const write = (text: string) => writeFileSync(join(REPO, 'shared.txt'), text);
+  mkdirSync(REPO, { recursive: true });
+  g('init', '-q', '-b', 'main');
+  write('one\ntwo\nthree\n');
+  g('add', 'shared.txt');
+  g('commit', '-q', '-m', 'start');
+  g('checkout', '-q', '-b', 'rcp-1-old');
+  write('one old\ntwo\nthree\n');
+  g('commit', '-qam', 'old1');
+  g('checkout', '-q', '-b', 'rcp-14-old', 'main');
+  write('one\ntwo\nthree old\n');
+  g('commit', '-qam', 'old14');
+  g('checkout', '-q', 'main');
+  write('one main\ntwo\nthree main\n');
+  g('commit', '-qam', 'main');
 }
 
 /** The owner's API from the unlocked page's context (cookies and the CSRF header). */
@@ -111,7 +102,7 @@ test.afterAll(async () => {
   test.setTimeout(120_000);
   await codex?.close();
   try {
-    sh(`rm -rf ${ROOT}/${REPO}`);
+    host.remove();
   } finally {
     await resetSeededContainer();
   }
@@ -134,6 +125,8 @@ test('an agent problem with no lead reaches you; Open lands on the banner; Remin
     expect(r.isError, r.text).toBe(false);
   }
   await owner(page, 'PUT', '/api/projects/RCP/radar', { repo_path: REPO, main_branch: 'main' });
+  // B76: the helper on the host reads the repository and posts what it found.
+  await hostGitPass(page.request, host.dir);
   await owner(page, 'POST', '/api/projects/RCP/radar/run', {});
 
   await page.goto('/');
