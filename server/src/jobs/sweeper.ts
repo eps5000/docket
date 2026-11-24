@@ -359,6 +359,14 @@ export function startSweeper(
  */
 export async function driftCheckOnce(runtime: Runtime): Promise<{ drift_ids: string[] }> {
   const read = readContext(runtime.db, SYSTEM_ACTOR, runtime.clock());
+  // Decision 56: updates the project has merged become its install.
+  const landed = await runtime.services.installs.landedUpdates(read);
+  if (landed.length > 0) {
+    runtime.write.run(
+      { actor: SYSTEM_ACTOR, operation: 'installs.update_landed', args: { ids: landed } },
+      (w) => runtime.services.installs.confirmLanded(w, { ids: landed }),
+    );
+  }
   const reports = await runtime.services.drift.checkPushInstalls(read);
   if (reports.length === 0) return { drift_ids: [] };
   return runtime.write.run(

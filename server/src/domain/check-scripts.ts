@@ -49,6 +49,21 @@ import {
 export const CHECK_SCRIPT_SH = 'docket-check.sh';
 export const CHECK_SCRIPT_PS1 = 'docket-check.ps1';
 
+/**
+ * Every earlier `docket-check` Docket shipped (sha256, CR bytes removed). The
+ * script isn't in the manifest, so this is how `docket-update` (decision 56)
+ * tells an old copy, which it replaces, from a local edit, which it keeps.
+ * **When you change the script, add the hash of the version you replaced.**
+ */
+export const SHIPPED_CHECK_SHA256: readonly string[] = [
+  '960dcca6f5f855cdd0be402bae84d5928a28044547773dfc13b7a34545c7fddf',
+  '7d3f52c23c2b3295d36fa40c5410373ff12184ede347d42b88f4d30329f17d15',
+  '710b3038313737d1b7a1a69697e5f57da51c8ce655a4b2bb5ce3e644f8672465',
+  '9dc34467ecff19d7e74aa0b8265bd22f1a5b23546c23d6727d74864c60804d9a',
+  'a1337fad26e46e2fc7990c67da39dc59399e69baa12f37278311802d5b3f3d8f',
+  '023459b49d3109647e92efe8de827e10c6b3fd8322290b28de0c42a93ee02bde',
+];
+
 export function checkSh(): string {
   return `#!/usr/bin/env bash
 # Docket docket-check (Agent files). Hashes the installed agent files, compares

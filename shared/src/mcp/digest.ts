@@ -135,6 +135,8 @@ export const getDigestOutput = readOutput({
   project: z.string(),
   /** Decision 53: one plain line, only while the owner has this project paused. */
   paused: z.string().optional(),
+  /** Decision 56: this project's installed files are behind, and how to take the update. */
+  agent_files_update: z.string().optional(),
   /** The current change cursor: pass it to docket-wait, get_changes or the next digest. */
   cursor: z.string(),
   /** The cursor this digest is relative to; null for a full snapshot. */

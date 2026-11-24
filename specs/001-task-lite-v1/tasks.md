@@ -716,13 +716,19 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T311 [US13] `skills/docket-producer/SKILL.md`: the role only, subordinate to the project, for any orchestrator or none, under 150 lines. No MCP tool.
 - [x] T312 [US13] One short pointer from `docket-coordinator`, paid for by trimming duplicate wording, so its token count doesn't rise.
 - [x] T313 [US13] Tests: listing, install for both clients, drift, uninstall, update available from an older install, skills lint, a guard against project-specific names, token budgets.
-
 ## Phase 49: Pick next epic (owner decision 54)
 
 - [x] T314 [US4] Spec plus code in one PR: decision 54 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.38; UI_SPEC §6.2.5; spec FR-307–FR-312 and SC-036; Help.
 - [x] T315 [US4] `domain/epic-picks.ts` and `GET /api/projects/:key/pick-epic`: the six numbers, fit, order and the Best next reason, on `BlockIndex`, `readyStates` and `upstreamOf`.
 - [x] T316 [US4] The Pick next epic page, the link from Work, and the outside-dependency indicator on epic cards and the epic page.
 - [x] T317 [US4] Tests: self-contained, transitive and no-epic chains, cleared and canceled blockers, cycles, paused projects, being worked, order, Best next, empty states, the indicator; e2e and axe in both themes at 1024 px and 1440 x 900 on stress data.
+
+## Phase 50: Projects pull their own Docket updates (owner decision 56)
+
+- [x] T318 [US13] Spec plus code in one PR: decision 56 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.39; MCP_SPEC; UI_SPEC §6.7b; spec FR-313–FR-318 and SC-037; Help; skills.
+- [x] T319 [US13] `docket-update` (`.sh`, `.ps1`), `/agent/update` behind the existing guards, the plan that keeps local edits, and the unconfirmed install that counts once it reaches main.
+- [x] T320 [US13] The bootstrap notice in `get_digest` and `claim_lead`, the coordinator and worker skills, and Agent files: the coordinator takes it in, with main-branch status.
+- [x] T321 [US13] Tests: each client and shell in temporary repos (fresh, current, older, edited, damaged markers, no git, Docket down, protected mode), no commit, no credential, the bootstrap, route guards and budgets.
 
 ## How to run the build
 
@@ -842,6 +848,7 @@ Open a PR titled "<Bn>: <phase name>" with the checkpoint evidence. Do not queue
 | 47 Pause project | B69 (decision 53) |
 | 48 A bundled producer skill | B71 (decision 55) |
 | 49 Pick next epic | B70 (decision 54) |
+| 50 Projects pull their own Docket updates | B72 (decision 56) |
 
 **Within a phase:** tests (failing) → services → replace stubs or fill handlers → fill screens → checkpoint.
 

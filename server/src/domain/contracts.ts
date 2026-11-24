@@ -483,6 +483,40 @@ export interface PreparedInstall {
   }[];
 }
 
+/** What `docket-update` sends (decision 56): this checkout's hashes, never file text. */
+export interface AgentUpdateRequest {
+  project: string;
+  client: InstallClient;
+  /** The install ID in this checkout's manifest. */
+  from?: string | undefined;
+  files: {
+    key: string;
+    /** The file here, hashed as the check hashes it. */
+    sha256: string;
+    /** What the manifest here says Docket sent; absent when it doesn't list the file. */
+    sent?: string | undefined;
+    version_id?: string | undefined;
+  }[];
+}
+
+export type UpdateChange = 'added' | 'updated' | 'same' | 'kept' | 'retired';
+
+/** One update, planned against a checkout's hashes. Nothing is stored until `recordUpdate`. */
+export interface PreparedUpdate {
+  input: AgentUpdateRequest;
+  /** False when this checkout already holds all it can take. */
+  changed: boolean;
+  /** The folder recorded for the install it replaces. */
+  path: string | null;
+  plan: { change: UpdateChange; path: string; note?: string }[];
+  copied: { path: string; text: string; mode: number }[];
+  /** The Docket section to merge; null keeps what's there. */
+  block: string | null;
+  /** The connection entry to merge; null keeps what's there. */
+  connection: string | null;
+  manifest: { key: string; path: string; version_id: string; sha256: string }[];
+}
+
 /** A command install's bundle, ready to stream (`GET /install/:token`). */
 export interface InstallBundle {
   install_id: string;
@@ -534,6 +568,18 @@ export interface InstallsService {
   ): { recorded: true };
   /** `POST /api/installs/:id/mark-removed`: a legacy user-wide install removed by hand; undoable. */
   markRemoved(w: WriteContext, input: RouteParams<'installs.markRemoved'>): InstallRow;
+  /** `POST /agent/update`, step 1 (decision 56): compare a checkout's hashes with the current files. */
+  prepareUpdate(r: ReadContext, input: AgentUpdateRequest): PreparedUpdate;
+  /** Step 2: the install this update will be, unconfirmed until it reaches the main branch. */
+  recordUpdate(w: WriteContext, input: PreparedUpdate): string | null;
+  /** Step 3: the tar.gz the updater unpacks. */
+  updateBundle(input: PreparedUpdate, installId: string | null, now: string): Promise<Buffer>;
+  /** The one line for an agent whose project's installed files are behind; null otherwise. */
+  updateNoticeFor(r: ReadContext, input: { project: string; reported?: string }): string | null;
+  /** Fetched updates the main branch now holds (read-only git, outside any write). */
+  landedUpdates(r: ReadContext): Promise<string[]>;
+  /** Mark those updates as what the repo has installed. */
+  confirmLanded(w: WriteContext, input: { ids: readonly string[] }): void;
   /** `GET /api/push-target`: whether `DOCKET_PUSH_ROOT` is set and writable, with both paths. */
   pushTarget(r: ReadContext): Promise<PushTargetResponse>;
   /** `POST /api/push-target/test`: write and remove a probe file. Not an event. */

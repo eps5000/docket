@@ -238,6 +238,13 @@ describe('the service stubs', () => {
       'markUninstallDownloaded',
       'recordUninstall',
       'markRemoved',
+      // Decision 56 (B72): a project pulling its own update.
+      'prepareUpdate',
+      'recordUpdate',
+      'updateBundle',
+      'updateNoticeFor',
+      'landedUpdates',
+      'confirmLanded',
     ],
     // US14 (B27a, T160): proposals.
     agentProposals: ['files', 'propose', 'list', 'approve', 'decline'],

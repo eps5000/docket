@@ -90,7 +90,7 @@ E='${DOCKET_END}'
 OB='${LEGACY_BEGIN}'
 OE='${LEGACY_END}'
 broken() {
-  echo "Docket: $instr has a damaged Docket section (a $B or $E line is missing or repeated, or it has both the old and the new markers). Fix the markers, then make a new install command. Nothing was written." >&2
+  echo "Docket: $instr has a damaged Docket section (a $B or $E line is missing or repeated, or it has both the old and the new markers). Fix the markers, then install again. Nothing was written." >&2
   exit 1
 }
 h() { tr -d '\\r' | { sha256sum 2>/dev/null || shasum -a 256; } | cut -c1-64; }
@@ -137,10 +137,10 @@ if [ -f "$ctx" ] && [ -f "$cf" ]; then
   case $cpos in
     ok*) ;;
     'err docket defined another way')
-      echo "Docket: ${conn} defines the docket MCP server in a form Docket can't update; make it a [mcp_servers.docket] table, then make a new install command. Nothing was written." >&2
+      echo "Docket: ${conn} defines the docket MCP server in a form Docket can't update; make it a [mcp_servers.docket] table, then install again. Nothing was written." >&2
       exit 1 ;;
     *)
-      echo "Docket: ${conn} isn't valid ${json ? 'JSON' : 'TOML'} (\${cpos#err }). Fix it, then make a new install command. Nothing was written." >&2
+      echo "Docket: ${conn} isn't valid ${json ? 'JSON' : 'TOML'} (\${cpos#err }). Fix it, then install again. Nothing was written." >&2
       exit 1 ;;
   esac
 fi
@@ -194,7 +194,8 @@ if [ -n "$left" ]; then
   echo "  left$left from before the rename; nothing reads them now, so delete them when you like"
 fi
 
-# 4. The marked section.
+# 4. The marked section (an update that keeps a locally edited section sends none).
+if [ -f "$here/block.md" ]; then
 blk=$(cat "$here/block.md"; printf x); blk=\${blk%x}
 sec="$B
 $blk
@@ -230,6 +231,7 @@ else
     *) printf '%s\\n\\n%s\\n' "$old" "$sec" > "$instr" ;;
   esac
   echo "  added the Docket section to the end of ${instructions} (nothing else changed)"
+fi
 fi
 
 # 5. The connection file: only its docket entry is added or replaced.
@@ -339,7 +341,7 @@ if (Test-Path -LiteralPath $instr -PathType Leaf) {
     elseif ($old.IndexOf($mb, $at + 1, $ord) -ge 0 -or $old.IndexOf($me, $to + 1, $ord) -ge 0) { $bad = $true }
   }
   if ($bad) {
-    throw "Docket: $instr has a damaged Docket section (a $Begin or $End line is missing or repeated, or it has both the old and the new markers). Fix the markers, then make a new install command. Nothing was written."
+    throw "Docket: $instr has a damaged Docket section (a $Begin or $End line is missing or repeated, or it has both the old and the new markers). Fix the markers, then install again. Nothing was written."
   }
 }
 
@@ -353,9 +355,9 @@ if ((Test-Path -LiteralPath $ctx -PathType Leaf) -and (Test-Path -LiteralPath $c
   $cr = ${json ? 'DkJson' : 'DkToml'} $cold
   if (-not $cr.ok) {
     if ($cr.error -ceq 'docket defined another way') {
-      throw "Docket: ${conn} defines the docket MCP server in a form Docket can't update; make it a [mcp_servers.docket] table, then make a new install command. Nothing was written."
+      throw "Docket: ${conn} defines the docket MCP server in a form Docket can't update; make it a [mcp_servers.docket] table, then install again. Nothing was written."
     }
-    throw "Docket: ${conn} isn't valid ${json ? 'JSON' : 'TOML'} ($($cr.error)). Fix it, then make a new install command. Nothing was written."
+    throw "Docket: ${conn} isn't valid ${json ? 'JSON' : 'TOML'} ($($cr.error)). Fix it, then install again. Nothing was written."
   }
 }
 # A multi-client bundle checks every client before any of them writes (decision 34).
@@ -414,7 +416,8 @@ if ($left.Count -gt 0) {
   "  left $($left -join ' ') from before the rename; nothing reads them now, so delete them when you like"
 }
 
-# 4. The marked section.
+# 4. The marked section (an update that keeps a locally edited section sends none).
+if (Test-Path -LiteralPath (Join-Path $Here 'block.md') -PathType Leaf) {
 $blk = $enc.GetString([IO.File]::ReadAllBytes((Join-Path $Here 'block.md')))
 $sec = $Begin + "\`n" + $blk + "\`n" + $End
 if ($null -eq $old) {
@@ -442,6 +445,7 @@ ${
 }
 [IO.File]::WriteAllBytes($instr, $enc.GetBytes($new))
 "  $msg"
+}
 
 # 5. The connection file: only its docket entry is added or replaced.
 if (Test-Path -LiteralPath $ctx -PathType Leaf) {
