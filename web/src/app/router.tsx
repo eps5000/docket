@@ -25,6 +25,7 @@ import { PacketScreen } from '../routes/review/PacketScreen';
 import { Settings } from '../routes/settings/Settings';
 import { SharedPartsPage } from '../routes/settings/SharedPartsPage';
 import { Unlock } from '../routes/unlock/Unlock';
+import { PickEpicPage } from '../routes/work/PickEpicPage';
 import { Work } from '../routes/work/Work';
 import { paths } from '../lib/paths';
 import { AppShell } from './AppShell';
@@ -51,6 +52,7 @@ export const shellRoutes: RouteObject[] = [
   { path: 'labels/:project/:name', element: <LabelPage /> },
   // Decision 38: a project's Decisions page.
   { path: 'projects/:key/decisions', element: <ProjectDecisionsPage /> },
+  { path: 'projects/:key/next-epic', element: <PickEpicPage /> },
   { path: 'agents', element: <Agents /> },
   { path: 'settings', element: <Settings /> },
   // Decision 36: Settings → Projects → <project> → Shared parts.

@@ -56,6 +56,8 @@ export const paths = {
     epic
       ? withQuery(`/items/${encodeURIComponent(epic)}`, { tab: 'map', goal: id })
       : withQuery('/work', { layout: 'map', goal: id }),
+  /** Decision 54: which open epic to hand to a new agent. */
+  pickEpic: (project: string) => `/projects/${encodeURIComponent(project)}/next-epic`,
   review: (id: string, round?: number) => withQuery(`/review/${encodeURIComponent(id)}`, { round }),
   label: (project: string, name: string) =>
     `/labels/${encodeURIComponent(project)}/${encodeURIComponent(name)}`,

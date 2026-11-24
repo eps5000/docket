@@ -405,6 +405,17 @@ A `ProgressMap` of the filtered set, titled "Outside this view". When no epic or
 - **Burn-down card** above the grid (§9.1), collapsed to its one-line summary until opened.
 - Archived items are excluded.
 
+#### 6.2.5 Pick next epic (decision 54; BUILD_SPEC §5.38)
+
+- **Where:** a **Pick next epic** button in Work's header with one project chosen opens `/projects/:key/next-epic`. With All projects there's no button.
+- **The limit,** once, under the h1: "Based on dependencies recorded in Docket."
+- **One table** (`data-pick-epic`), with a row group per fit: **Good to hand off**, **Already being worked**, **Likely to park**. Columns: Epic, Can finish on its own ("18 of 18"), Can start now (the count and the first three IDs), Waits on (each epic links to it; "No epic" for loose tickets), Unblocks elsewhere, Not shaped yet, Being worked (who, and lead or producer).
+- **Best next:** a text chip on the top available row, with its one-line reason. A likely-to-park row says why in words. Each row links to the epic and to its critical path on the Map.
+- **Sorting:** every column heading is a button with `aria-sort`. First press sorts, second reverses, third returns to the best-fit order. Rows stay inside their group.
+- **Paused project:** the column reads **Can start once resumed**, with one line saying so. The counts aren't zeroed.
+- **Empty states:** no open epic with open tickets says so; no epic that qualifies says so, and nothing is marked Best next.
+- **Indicator:** epic cards and the epic page header say **✓ No outside dependencies** or **⊘ Waits on 2 epics** (`data-epic-deps`). A card, being one link, holds the names in its tooltip and accessible name. The epic page links each one. Only open epics with open tickets show it.
+
 ### 6.3 Ticket and epic (`/items/:id`)
 
 **Header:**

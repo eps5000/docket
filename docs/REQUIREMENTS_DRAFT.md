@@ -379,6 +379,18 @@ The owner froze a project by telling agents to stop. Only tickets whose park rea
 
 BUILD_SPEC §5.37, MCP_SPEC §5.2 and §5.4, UI_SPEC §6.1d, spec FR-295–FR-301 and SC-034, and Help (Pause a project) have the details.
 
+## Owner decision 54 (2026-11-24): pick the next epic
+
+The owner wants to hand the next epic to a new agent without picking one that immediately parks on another epic's work. Today that takes a manual read of the dependency graph.
+
+1. **A read-only owner view.** *Pick next epic* on Work, one click away with a project chosen. It adds no MCP tool, no migration and no gate, and assigns nothing.
+2. **Six plain numbers per open epic with open tickets.** Can finish on its own, Can start now, Waits on, Unblocks elsewhere, Not shaped yet, and Being worked (who holds it, so the owner doesn't assign a second producer). A pause doesn't zero Can start: it reads "once resumed".
+3. **One recommendation, with its reason.** The default order is not being worked, has something to start, fully or mostly self-contained, then most unblocked elsewhere. The top available row is **Best next**, with one plain line saying why. Epics that would likely park are kept apart, each saying why.
+4. **On the epic too.** Epic cards and the epic page say **No outside dependencies** or **Waits on 2 epics**, with the names available, never by colour alone.
+5. **Honest about its limit.** The page says once: "Based on dependencies recorded in Docket."
+
+BUILD_SPEC §5.38, UI_SPEC §6.2.5, spec FR-302–FR-307 and SC-035, and Help (Pick the next epic) have the details.
+
 ## Deferred choices
 
 Pilot project choice and Jira import strategy are deferred until V1 is ready for real work. Design should still settle the storage layout, supported document preview formats, the exact project gate configuration shape, and the minimum history needed before a velocity forecast is shown. These are implementation choices guided by the owner decisions above, not blockers to selecting a pilot now.

@@ -112,6 +112,7 @@ import {
   type StoredEvent,
 } from './model.js';
 import { parseQuestionForm } from './question-form.js';
+import { epicWaits } from './epic-picks.js';
 import { producersByItem, storedActivity, storedStatusUpdate } from './run-activity.js';
 import { WaitReader, openWaitFlags, waitCoordinator } from './wait.js';
 import { UNDO_WINDOW_MS } from './undo.js';
@@ -1548,6 +1549,11 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
           children.set(i.epic_id, [...(children.get(i.epic_id) ?? []), i]);
         }
       }
+      const waits = epicWaits(
+        r.db,
+        s.index,
+        epicRows.map((e) => e.id),
+      );
       const epics: EpicCard[] = summarize(ctx, epicRows).map((e) => {
         const kids = children.get(e.id) ?? [];
         const by_status: EpicCard['children']['by_status'] = {};
@@ -1560,6 +1566,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
             by_status,
             for_you: kids.filter((k) => att.packets.has(k.id) || att.questions.has(k.id)).length,
           },
+          ...(waits.has(e.id) ? { waits_on: waits.get(e.id)! } : {}),
         };
       });
 
@@ -1764,6 +1771,8 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         ),
       );
 
+      const epicWait =
+        row.type === 'Epic' ? epicWaits(r.db, index, [row.id]).get(row.id) : undefined;
       return {
         item,
         children,
@@ -1784,6 +1793,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         resolutions: openResolutions(r.db, new Set([row.id])).filter((x) => x.problem_id === null),
         // Decision 45: what its parked lead waits for, and the parked runs it would free.
         ...waitOf(r, row.id, index),
+        ...(epicWait ? { epic_waits: epicWait } : {}),
       };
     },
 

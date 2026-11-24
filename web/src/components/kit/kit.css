@@ -976,6 +976,13 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Decision 54: one line, with the full names in the tooltip and accessible name. */
+.tl .epicdeps {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .tl .pbar {
   height: 10px;
   border-radius: 5px;

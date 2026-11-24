@@ -71,6 +71,7 @@ const EXPECTED = [
   'GET /api/burndown',
   'GET /api/items/:id',
   'GET /api/items/:id/critical-path',
+  'GET /api/projects/:key/pick-epic',
   'POST /api/items',
   'PATCH /api/items/:id',
   'GET /api/diagnostics/calls',

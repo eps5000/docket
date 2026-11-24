@@ -15,6 +15,7 @@ import { BlockedChip, Chip } from './Chip';
 import { Priority, RunLine, TypeIcon, parkedReason } from './Badges';
 import { Label } from './Label';
 import { StatusBar } from './StatusBar';
+import { EpicDepsNote } from './EpicDeps';
 
 /** `codex · orca-w1`. */
 export function leadName(lead: { client: string; label: string | null }): string {
@@ -249,6 +250,7 @@ export function EpicCard({
           </>
         )}
       </span>
+      {epic.waits_on && <EpicDepsNote waits={epic.waits_on} />}
     </Link>
   );
 }
