@@ -8,7 +8,16 @@ export { ProgressMap, outsideLabel } from './ProgressMap';
 export type { ProgressMapProps } from './ProgressMap';
 export { MapCard, reviewMark } from './MapCard';
 export type { MapCardProps } from './MapCard';
-export { layoutMap, cyclesIn, cyclePath, stepZoom, fitZoom, ZOOM_STEPS, FIT_MIN } from './layout';
+export {
+  layoutMap,
+  cyclesIn,
+  cyclePath,
+  stepZoom,
+  fitZoom,
+  ZOOM_STEPS,
+  FIT_MIN,
+  FIT_WIDTH_HELP,
+} from './layout';
 export type { MapItem, MapEdge, MapLayout } from './layout';
 export {
   impliedLinks,

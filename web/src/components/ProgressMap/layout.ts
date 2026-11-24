@@ -243,9 +243,14 @@ export function layoutMap(
   };
 }
 
-/** Zoom steps (UI_SPEC §6.3.4). Fit goes down to `FIT_MIN`. */
+/**
+ * Zoom steps (UI_SPEC §6.3.4). Fit goes down to `FIT_MIN`, the smallest step:
+ * below it a card's text can't be read (decision 63).
+ */
 export const ZOOM_STEPS = [0.5, 0.67, 0.8, 1, 1.25] as const;
-export const FIT_MIN = 0.4;
+export const FIT_MIN = ZOOM_STEPS[0];
+/** The Fit width button's tooltip (decision 63). */
+export const FIT_WIDTH_HELP = 'Fit every wave to the width. Scroll down for the rest.';
 
 /** The next zoom step in `dir` from `current` (which may be a Fit value between steps). */
 export function stepZoom(current: number, dir: 1 | -1): number {
@@ -253,11 +258,14 @@ export function stepZoom(current: number, dir: 1 | -1): number {
   return [...ZOOM_STEPS].reverse().find((z) => z < current - 0.001) ?? ZOOM_STEPS[0];
 }
 
-/** The Fit zoom: everything visible, never above 100% or below 40%. */
-export function fitZoom(
-  content: { width: number; height: number },
-  view: { width: number; height: number },
-): number {
-  if (content.width <= 0 || content.height <= 0) return 1;
-  return Math.max(FIT_MIN, Math.min(1, view.width / content.width, view.height / content.height));
+/**
+ * The Fit zoom (decision 63): every wave fits the view's width, and the map
+ * scrolls down for the rest. Never above 100%; never below `FIT_MIN`, where
+ * the map scrolls both ways instead. Rounded down to 0.1%, so the scaled map
+ * never overflows the width by a pixel.
+ */
+export function fitZoom(contentWidth: number, viewWidth: number): number {
+  if (contentWidth <= 0 || viewWidth <= 0) return 1;
+  const z = Math.floor((viewWidth / contentWidth) * 1000) / 1000;
+  return Math.max(FIT_MIN, Math.min(1, z));
 }

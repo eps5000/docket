@@ -3,7 +3,7 @@
  * UI_SPEC §5, §6.3.4). The epic's answer is rewritten into a Gameflow-shaped
  * graph: 15 items, 8 waves, wave-skipping links. The checks sample each real
  * SVG path in the browser against every card's on-screen box, at several
- * zooms and at Fit.
+ * zooms and at Fit width.
  *
  * Set DOCKET_E2E_SCREENSHOTS to a folder to also capture the PR's evidence.
  */
@@ -168,10 +168,10 @@ test('arrows stay clear of every card at each zoom and at Fit', async ({ ownerPa
   await expect(zoomLabel).toHaveText('125%');
   expect(await arrowsOverCards(page), '125%').toEqual([]);
 
-  const fit = map(page).getByRole('button', { name: 'Fit' });
+  const fit = map(page).getByRole('button', { name: 'Fit width' });
   await fit.click();
   await expect(fit).toHaveAttribute('aria-pressed', 'true');
-  expect(await arrowsOverCards(page), 'Fit').toEqual([]);
+  expect(await arrowsOverCards(page), 'Fit width').toEqual([]);
   await expect(edges(page)).toHaveCount(LINKS.length);
   await shoot(page, 'many-wave-map-fit');
   await fit.click();
@@ -191,8 +191,8 @@ test('hover traces a card’s arrows, painted on top of the shared channels', as
   const hub = id(8);
   const links = LINKS.filter(([a, b]) => id(a) === hub || id(b) === hub).length;
   const card = map(page).locator(`.pm-node[data-pid="${hub}"]`);
-  // Fit first: the whole map is in view, with no More pill over the last wave.
-  await map(page).getByRole('button', { name: 'Fit' }).click();
+  // Fit width first: every wave is in view, with no More pill over the last wave.
+  await map(page).getByRole('button', { name: 'Fit width' }).click();
   await card.hover();
   await expect(card).toHaveClass(/hl/);
   await expect(map(page).locator('path.pm-edge.hl')).toHaveCount(links);
