@@ -1514,6 +1514,103 @@
                     "cleared_items"
                   ],
                   "additionalProperties": false
+                },
+                "exit": {
+                  "type": "object",
+                  "properties": {
+                    "outcome": {
+                      "type": "string",
+                      "enum": [
+                        "complete",
+                        "partial"
+                      ]
+                    },
+                    "left": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "text": {
+                            "type": "string"
+                          },
+                          "why": {
+                            "type": "string"
+                          },
+                          "needs": {
+                            "type": "string"
+                          },
+                          "item": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "text",
+                          "why",
+                          "needs",
+                          "item"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "via": {
+                      "type": "string",
+                      "enum": [
+                        "park",
+                        "release",
+                        "finish",
+                        "done"
+                      ]
+                    },
+                    "at": {
+                      "type": "string"
+                    },
+                    "settled": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "how": {
+                              "type": "string",
+                              "enum": [
+                                "moved",
+                                "linked",
+                                "started",
+                                "asked",
+                                "noted",
+                                "closed"
+                              ]
+                            },
+                            "at": {
+                              "type": "string"
+                            },
+                            "by": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "how",
+                            "at",
+                            "by"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "outcome",
+                    "left",
+                    "via",
+                    "at",
+                    "settled"
+                  ],
+                  "additionalProperties": false
                 }
               },
               "required": [
@@ -2187,6 +2284,7 @@
                     "run.wait_flagged",
                     "run.wait_cleared",
                     "run.resume_ready",
+                    "run.finished_partly",
                     "sync.ingested",
                     "github.settings_changed"
                   ]
@@ -3402,6 +3500,70 @@
             ],
             "additionalProperties": false
           },
+          "finished_partly": {
+            "type": "object",
+            "properties": {
+              "run_id": {
+                "type": "string"
+              },
+              "label": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "via": {
+                "type": "string",
+                "enum": [
+                  "park",
+                  "release",
+                  "finish",
+                  "done"
+                ]
+              },
+              "at": {
+                "type": "string"
+              },
+              "left": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "type": "string"
+                    },
+                    "why": {
+                      "type": "string"
+                    },
+                    "needs": {
+                      "type": "string"
+                    },
+                    "item": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "text",
+                    "why",
+                    "needs",
+                    "item"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "run_id",
+              "label",
+              "via",
+              "at",
+              "left"
+            ],
+            "additionalProperties": false
+          },
           "waiting_runs": {
             "type": "object",
             "properties": {
@@ -3982,6 +4144,7 @@
                 "run.wait_flagged",
                 "run.wait_cleared",
                 "run.resume_ready",
+                "run.finished_partly",
                 "sync.ingested",
                 "github.settings_changed"
               ]
@@ -4610,6 +4773,97 @@
                 "id",
                 "title",
                 "unshaped"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "total",
+          "rows"
+        ],
+        "additionalProperties": false
+      },
+      "finished_partly": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "item_id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "run_id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "producer": {
+                  "type": "string"
+                },
+                "via": {
+                  "type": "string",
+                  "enum": [
+                    "park",
+                    "release",
+                    "finish",
+                    "done"
+                  ]
+                },
+                "at": {
+                  "type": "string"
+                },
+                "left": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "text": {
+                        "type": "string"
+                      },
+                      "why": {
+                        "type": "string"
+                      },
+                      "needs": {
+                        "type": "string"
+                      },
+                      "item": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "text",
+                      "why",
+                      "needs",
+                      "item"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "item_id",
+                "title",
+                "run_id",
+                "label",
+                "via",
+                "at",
+                "left"
               ],
               "additionalProperties": false
             }
@@ -7196,6 +7450,7 @@
               "run.wait_flagged",
               "run.wait_cleared",
               "run.resume_ready",
+              "run.finished_partly",
               "sync.ingested",
               "github.settings_changed"
             ]
@@ -8859,6 +9114,103 @@
                     "cleared_items"
                   ],
                   "additionalProperties": false
+                },
+                "exit": {
+                  "type": "object",
+                  "properties": {
+                    "outcome": {
+                      "type": "string",
+                      "enum": [
+                        "complete",
+                        "partial"
+                      ]
+                    },
+                    "left": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "text": {
+                            "type": "string"
+                          },
+                          "why": {
+                            "type": "string"
+                          },
+                          "needs": {
+                            "type": "string"
+                          },
+                          "item": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "text",
+                          "why",
+                          "needs",
+                          "item"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "via": {
+                      "type": "string",
+                      "enum": [
+                        "park",
+                        "release",
+                        "finish",
+                        "done"
+                      ]
+                    },
+                    "at": {
+                      "type": "string"
+                    },
+                    "settled": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "how": {
+                              "type": "string",
+                              "enum": [
+                                "moved",
+                                "linked",
+                                "started",
+                                "asked",
+                                "noted",
+                                "closed"
+                              ]
+                            },
+                            "at": {
+                              "type": "string"
+                            },
+                            "by": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "how",
+                            "at",
+                            "by"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "outcome",
+                    "left",
+                    "via",
+                    "at",
+                    "settled"
+                  ],
+                  "additionalProperties": false
                 }
               },
               "required": [
@@ -9649,6 +10001,103 @@
                     "cleared_items"
                   ],
                   "additionalProperties": false
+                },
+                "exit": {
+                  "type": "object",
+                  "properties": {
+                    "outcome": {
+                      "type": "string",
+                      "enum": [
+                        "complete",
+                        "partial"
+                      ]
+                    },
+                    "left": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "text": {
+                            "type": "string"
+                          },
+                          "why": {
+                            "type": "string"
+                          },
+                          "needs": {
+                            "type": "string"
+                          },
+                          "item": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "text",
+                          "why",
+                          "needs",
+                          "item"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "via": {
+                      "type": "string",
+                      "enum": [
+                        "park",
+                        "release",
+                        "finish",
+                        "done"
+                      ]
+                    },
+                    "at": {
+                      "type": "string"
+                    },
+                    "settled": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "how": {
+                              "type": "string",
+                              "enum": [
+                                "moved",
+                                "linked",
+                                "started",
+                                "asked",
+                                "noted",
+                                "closed"
+                              ]
+                            },
+                            "at": {
+                              "type": "string"
+                            },
+                            "by": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "how",
+                            "at",
+                            "by"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "outcome",
+                    "left",
+                    "via",
+                    "at",
+                    "settled"
+                  ],
+                  "additionalProperties": false
                 }
               },
               "required": [
@@ -10339,6 +10788,103 @@
                     "branch",
                     "events",
                     "cleared_items"
+                  ],
+                  "additionalProperties": false
+                },
+                "exit": {
+                  "type": "object",
+                  "properties": {
+                    "outcome": {
+                      "type": "string",
+                      "enum": [
+                        "complete",
+                        "partial"
+                      ]
+                    },
+                    "left": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "text": {
+                            "type": "string"
+                          },
+                          "why": {
+                            "type": "string"
+                          },
+                          "needs": {
+                            "type": "string"
+                          },
+                          "item": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "text",
+                          "why",
+                          "needs",
+                          "item"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "via": {
+                      "type": "string",
+                      "enum": [
+                        "park",
+                        "release",
+                        "finish",
+                        "done"
+                      ]
+                    },
+                    "at": {
+                      "type": "string"
+                    },
+                    "settled": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "how": {
+                              "type": "string",
+                              "enum": [
+                                "moved",
+                                "linked",
+                                "started",
+                                "asked",
+                                "noted",
+                                "closed"
+                              ]
+                            },
+                            "at": {
+                              "type": "string"
+                            },
+                            "by": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "how",
+                            "at",
+                            "by"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "outcome",
+                    "left",
+                    "via",
+                    "at",
+                    "settled"
                   ],
                   "additionalProperties": false
                 }

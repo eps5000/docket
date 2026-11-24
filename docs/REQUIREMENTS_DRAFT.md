@@ -461,6 +461,20 @@ On the epic dependency map, if C depends on B and B depends on A, a direct arrow
 
 UI_SPEC §2, §6.3.3 and §6.3.4, spec FR-334–FR-337 and SC-041, and Help (Blocker rules and dependencies) have the details.
 
+## Owner decision 61 (2026-11-24): implementers report how they finished
+
+A synthetic version of a real case: an implementer merged and deployed its ticket's code, but one acceptance item, a check that needs a feature flag another ticket turns on, couldn't be done inside its ticket. It parked waiting on that ticket, and its session ended. Its run's summary still said "PR open, CI running, reviewer running", and nobody upstream was told that the ticket finished partly, or why. The owner found it by reading the activity log.
+
+1. **The summary tells the truth.** When a run parks, is released or ends, its summary is the parked reason or how it ended, never an earlier in-progress line, wherever it shows: the item page, cards, Work, Overview, the digest and `get_context`.
+2. **Every implementer exit reports how it finished:** **complete** (everything in the acceptance criteria is done) or **partial** (done what it could; these items remain, each with **why** and **what would finish it**: another ticket, a flag, an environment, an owner decision). Parking, releasing and finishing take it as an optional field on the existing tools; closing as Done is a complete exit.
+3. **A partial exit goes back to the producer** that dispatched the work. `get_digest` lists it as **Finished partly**, with the ticket, the items and the reasons, until someone acts: moves the items, links the ticket that will finish them, starts work, asks the owner, or closes them with a note. Where the relay can reach the producer, it mails the producer too.
+4. **The owner sees it.** The ticket says **"Finished partly: N items left"** with the reasons, not just "In progress, parked".
+5. **Done needs the items dealt with.** Moving a ticket to Done with items left needs them removed first, with a note saying which and why, or moved to the ticket that can do them.
+6. **Check before starting.** Before implementing, the implementer checks each acceptance item against what its own ticket can do. An item that depends on something outside the ticket (another ticket's deploy, a flag, a cutover, an environment), which may be a leftover from older work, gets clarified first: through the producer, by proposing known gaps, or by moving the item. Planners don't write acceptance items only another ticket can complete.
+7. **No new MCP tool.**
+
+BUILD_SPEC §5.42, MCP_SPEC §5.2–§5.4, UI_SPEC §5 and §6.3, spec FR-341–FR-346 and SC-043, Help (Run states) and the worker, producer and planner skills have the details.
+
 ## Owner decision 62 (2026-11-24): new work mid-epic, idle tickets and acknowledged problems
 
 Three things the owner hit while epics ran with agents.
@@ -474,7 +488,7 @@ Three things the owner hit while epics ran with agents.
 2. **Idle In progress tickets.** A ticket In progress with no open, parked or needs-input run and no activity for 3 days is idle. It gets one problem for the owner, "GF-1 is In progress but nobody has worked on it since <date>", offering to move it to Planning, Ready or Inbox, cancel it, or clear its branches. The radar and overlap checks stop raising conflicts against an idle ticket's branches, and existing ones clear with a reason ("the other ticket is idle").
 3. **Acknowledged problems.** The owner reads Acknowledge as "I've seen it, stop telling me". Acknowledged problems no longer count as open: on items and epics they fold into one quiet line, "You acknowledged N problems", which expands to show them. They come back as open only under the existing rules: a material change, or a new proposed resolution.
 
-BUILD_SPEC §5.42, MCP_SPEC (`get_digest`, `set_status`, Problems), UI_SPEC §6.1, §6.2 and §6.3, spec FR-341–FR-348 and SC-043, Help (Problems and what to do; Pick the next epic) and the producer, worker and planner skills have the details.
+BUILD_SPEC §5.43, MCP_SPEC (`get_digest`, `set_status`, Problems), UI_SPEC §6.1, §6.2 and §6.3, spec FR-347–FR-354 and SC-044, Help (Problems and what to do; Pick the next epic) and the producer, worker and planner skills have the details.
 
 ## Owner decision 63 (2026-11-24): Fit fits the map's width
 

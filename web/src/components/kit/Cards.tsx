@@ -19,6 +19,7 @@ import { Label } from './Label';
 import { StatusBar } from './StatusBar';
 import { EpicDepsNote } from './EpicDeps';
 import { EpicReadinessNote } from './EpicReadiness';
+import { FinishedPartlyNote } from './FinishedPartly';
 import { EpicMidflightNote } from './EpicMidflight';
 
 /** `codex · orca-w1`. */
@@ -146,6 +147,8 @@ export function TicketCard({
           Waits on {item.ready_state.waiting_on}
         </div>
       )}
+      {/* Decision 61: a partial exit leads, ahead of the run line. */}
+      {item.finished_partly && <FinishedPartlyNote partly={item.finished_partly} />}
       {item.lead && (
         <RunLine
           state={item.lead.run_state}

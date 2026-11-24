@@ -451,6 +451,8 @@ export const INVALIDATION: Record<EventType, readonly QueryFamily[]> = {
   'run.wait_flagged': RUNS,
   'run.wait_cleared': RUNS,
   'run.resume_ready': RUNS,
+  // Decision 61: the card and the item page say it finished partly.
+  'run.finished_partly': RUNS,
   'run.resumed': RUNS,
   'run.unpushed_handled': ['item', 'needsYou', 'bootstrap', 'workspaces'],
   'resource.declared': ['item', 'agents', 'workspaces'],
@@ -462,8 +464,8 @@ export const INVALIDATION: Record<EventType, readonly QueryFamily[]> = {
   'question.asked': ['item', 'needsYou', 'bootstrap', 'agents', 'work'],
   'question.answered': ['item', 'needsYou', 'bootstrap', 'agents'],
   'question.withdrawn': ['item', 'needsYou', 'bootstrap', 'agents', 'work'],
-  'owner_note.added': ['item'],
-  'note.added': ['item'],
+  'owner_note.added': ['item', 'work'],
+  'note.added': ['item', 'work'],
   'document.added': ['item'],
   // With pushed: true it moves the run's pushed_sha (workspace state, unpushed Problems).
   'commit.reported': ['item', 'review', 'needsYou', 'workspaces'],

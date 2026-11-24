@@ -15,18 +15,18 @@ The project has its own rules: who moves work to Ready, when human review is nee
 
 1. **Find work:**
    - **Given an item ID?** Skip the search.
-   - **Otherwise:** `search_items { project, filter: "resumable" }` first. That's work sent back to you, and it comes before new work. **If it returns anything, take the first result** and claim it. Don't inspect candidates with `get_item` first: `get_context` after the claim tells you everything.
-   - **Only if nothing is resumable:** `search_items { project, filter: "ready_to_start", limit: 5 }`, and take the first result. Ready work is already sorted by priority, then by how much it unblocks.
+   - **Otherwise:** `search_items { project, filter: "resumable" }` first. That's work sent back to you, and it comes before new work. **If it returns anything, take the first result** and claim it. Don't inspect candidates first: `get_context` after the claim tells you everything.
+   - **Only if nothing is resumable:** `search_items { project, filter: "ready_to_start", limit: 5 }`, and take the first result. Ready work is sorted by priority, then by what it unblocks.
 2. **Claim it:** `claim_lead`, with:
    - `agent_label`: your worker name, if you have one;
    - `workspace`: `repo`, `path` (your worktree), `branch`, `base_ref`, `base_sha`;
    - `branch`: the branch you'll work on, so the conflict radar can trial-merge it. Name it `<owner>/GF-243-short-description`, with this one ticket's key, and name the worktree folder the same. If you claim without one, the result suggests it. A warning about the name never blocks you;
    - `brief` and `orchestrator`: if a coordinator dispatched you, the brief text exactly as you received it, plus its IDs;
-   - `instructions`: the output of the installed `docket-check`, so the owner knows which instructions you work from. Run it once per session, before your first claim, in one shell call: `bash .claude/docket-check.sh` (`.codex/` for Codex; on Windows without bash, `powershell -NoProfile -ExecutionPolicy Bypass -File .claude/docket-check.ps1`). It prints one line of JSON: pass it as it is, and reuse it for later claims in the session. No script there? Skip it. If the claim returns an `update:` line, tell your coordinator and keep working; don't update installed files yourself.
+   - `instructions`: the output of the installed `docket-check`, so the owner knows which instructions you work from. Run it once per session, before your first claim: `bash .claude/docket-check.sh` (`.codex/` for Codex; on Windows without bash, `powershell -NoProfile -ExecutionPolicy Bypass -File .claude/docket-check.ps1`). It prints one line of JSON: pass it as it is, and reuse it for later claims in the session. No script there? Skip it. If the claim returns an `update:` line, tell your coordinator and keep working; don't update installed files yourself.
 
    Keep the returned `run_id`, and **pass it on every call from now on**. That's what keeps your claim alive.
 
-   If you get `conflict`, someone else holds the item. Pick another one. Never retry in a loop, and never work on an item you haven't claimed.
+   If you get `conflict`, someone else holds the item. Pick another one. Never retry in a loop.
 
    If you get `design_review`, the item changes an approved design and the owner hasn't approved it. **Pick other work** and leave this item until they do.
 
@@ -34,11 +34,13 @@ The project has its own rules: who moves work to Ready, when human review is nee
 
    **Given a `run_id` by your coordinator** (you're resuming a parked run after a crash)? Don't claim. Call `heartbeat { run_id, note: "Resuming" }` first: a read doesn't resume it. That resumes the run with its claim, workspace and brief. Then continue from step 3.
 
-3. **Get context:** `get_context { id, budget: "small" }`. One call gathers the outcome, the acceptance criteria, the decisions you must follow, the epic and label briefs, blockers, the shared parts this item and other in-flight items will change, the project's Workflow notes and planning docs. Widen to `"medium"` or `"large"` only when a `…truncated` line hides something you need. Follow the Workflow notes like the project's `AGENTS.md`.
+3. **Get context:** `get_context { id, budget: "small" }`. One call gathers the outcome, acceptance criteria, decisions to follow, epic and label briefs, blockers, the shared parts in-flight items will change, Workflow notes and planning docs. Widen to `"medium"` or `"large"` only when a `…truncated` line hides something you need. Follow the Workflow notes like the project's `AGENTS.md`.
 
 **Known gaps to shape** in your context: settle each and record how with `update_item { known_gaps: [{ gap, settled }] }`, the same gaps in order.
 
-`whoami` isn't needed to start: `claim_lead` returns your lease's expiry. Call it only for your client name or the windows (`lease_s`, `stale_after_s`).
+**Check each acceptance item before you start.** Can this ticket alone do it? One that needs something outside it (another ticket's deploy, a flag, a cutover, an environment), perhaps a leftover from older work, gets clarified first: ask your producer, propose it as a known gap, or move it to the ticket that can do it (`split_from`). **`finished partly:`** in your context lists what the last lead left: settle those too.
+
+Skip `whoami`: `claim_lead` returns your lease's expiry.
 
 **Then, only if needed:**
 
@@ -85,17 +87,17 @@ The project has its own rules: who moves work to Ready, when human review is nee
 
 | Situation                                            | Do this                                                                                                                                        |
 | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| Only the owner can decide (see below)                | `ask_owner`, then stop the work that depends on it. If you're ending the session, `finish_run` with a summary saying what you're waiting for.  |
+| Only the owner can decide (see below)                | `ask_owner`, then stop the work that depends on it. Ending the session? `finish_run` with a summary of what you wait for, and `exit`.          |
 | Your open question is out of date                    | `withdraw_decision { question_id, reason }` with your `run_id`, in plain words, then `ask_owner` again if you still need to.                   |
 | A blocker holds only some acceptance criteria        | **Prefer a split:** `create_item` with `split_from { id, expected_version, move: [positions], relation, also? }`. Keep working on what's free. |
-| You're waiting for another item to land              | `park_run { reason, waiting_on: { items: [...] } }`                                                                                            |
+| You're waiting for another item to land              | `park_run { reason, waiting_on: { items: [...] } }`; ending your session too? Add `exit`.                                                      |
 | You're waiting for the coordinator to send more work | `park_run { reason, waiting_on: { orchestrator: true } }`                                                                                      |
 | A single step is blocked                             | `update_step { state: "blocked", note }`, and carry on with other steps                                                                        |
-| You're stopping before the work is done              | Push, `report_commit`, release your resources, then `release_lead { reason }`. The item goes back to Ready with your plan kept.                |
+| You're stopping before the work is done              | Push, `report_commit`, release your resources, then `release_lead { reason, exit }`. The item goes back to Ready with your plan kept.          |
 | Something broke and you can't continue               | `finish_run { result: "failed", error }`                                                                                                       |
 | A write returns `conflict`                           | Read `current` in the error. Re-apply your change only if it still makes sense.                                                                |
 
-**Found another bug?** `create_item` a Bug in your epic with steps to reproduce. The producer triages it in Inbox. Fix it here only if it blocks your acceptance.
+**Found another bug?** `create_item` a Bug in your epic with steps to reproduce; the producer triages it. Fix it only if it blocks your acceptance.
 
 **Ask less, ask better.**
 
@@ -104,7 +106,6 @@ The project has its own rules: who moves work to Ready, when human review is nee
 - **Ask only** about product behavior, privacy or security, cost, irreversible or outward-facing actions, conflicting owner decisions, or a real change to an approved design.
 - **Write for someone who hasn't seen the work:** no private decisions, branches or tooling, any needed term in everyday words, concrete things a user would notice. Offer real alternatives and state the recommended option's downside. IDs and paths go in `details`.
 
-> Bad: "Per dec_12, should `getNutrition` keep the v2 DTO or fork for RCP-16?"
 > Good: "Should recipe cards show nutrition per serving or per 100 g?" Per serving is easy to read, but portions differ between recipes.
 
 **Park only when the work itself stops.** Running CI or tests, or reviewing their results, is still work in progress: stay live and `log` a short note ("PR #784 checks running") instead of parking.
@@ -128,39 +129,29 @@ The project has its own rules: who moves work to Ready, when human review is nee
    - **Human review declared:** `submit_packet` (see `docket-review-packet`) with `changed_files` and `branch`, then `finish_run { result: "finished", summary }`.
    - Files in shared parts the item didn't declare: Docket adds the safe ones to the declaration and carries on. If one needs the owner, `submit_packet` returns `held_undeclared` and `set_status` fails with `not_declared`. Leave the item as it is; the owner decides.
    - Handing off or closing ends your leases.
-4. **Treat `finish_run` warnings as mistakes to fix.** For example `! 2 commits not pushed` or `! 1 resource still declared`. Each one leaves your workspace marked at risk.
-5. **A commit after handing off?** Still `report_commit` it. If an open packet was built from an older commit, it's marked out of date for the owner.
+4. **Report how you finished, on every exit** (`finish_run`, `release_lead`, or `park_run` when your session ends): `exit: { outcome: "complete" }` when every acceptance item is done, else `outcome: "partial"` with `left: [{ text, why, needs, item? }]`: what's left, why this ticket couldn't do it, what would finish it (that ticket in `item`). Your producer hears about it. Closing as Done is a complete exit: with items left, remove them (with a note saying which and why) or move them first.
+5. **Treat `finish_run` warnings as mistakes to fix.** For example `! 2 commits not pushed` or `! 1 resource still declared`. Each one leaves your workspace marked at risk.
+6. **A commit after handing off?** Still `report_commit` it. If an open packet was built from an older commit, it's marked out of date for the owner.
 
 ## Changing these instructions
 
-To change these instructions, use `get_agent_files` then `propose_agent_file_change`, and tell the user you've proposed it for the owner's approval. Don't edit installed files directly. That covers this skill, the Docket section of `AGENTS.md` / `CLAUDE.md` and the project's Workflow notes (`workflow`), even when the user asks you to edit them:
-
-- read the file first, `get_agent_files { project, file }`, and change that text, not your installed copy;
-- send the whole new text, the `version_id` you read as `based_on_version_id`, and a one-line `reason`;
-- nothing changes until the owner approves; carry on with the current instructions.
+Don't edit installed files (this skill, the Docket section of `AGENTS.md` / `CLAUDE.md`, the Workflow notes), even when the user asks. Read the file with `get_agent_files { project, file }`, then `propose_agent_file_change` with the whole new text, its `version_id` as `based_on_version_id` and a one-line `reason`, and tell the user. Nothing changes until the owner approves.
 
 ## Token habits
 
-- **Read once.** Call `get_context` once per item. Don't re-read the item after each write: results carry the new version.
-- **Read small:**
-  - `get_item { view: "summary" }` for status checks;
-  - `fields: [...]` to trim reads further;
-  - `docket-wait` to wait for updates, instead of polling `get_item` or `get_changes`.
-- **Start fresh.** Past about **100k tokens of context**, push, note where you are with `heartbeat`, and stop: a new session resumes from Docket more cheaply.
-- **Delegate fresh.** Subagents start as new agents, never as a fork of your conversation, and return short results.
+- **Read once.** Call `get_context` once per item. Don't re-read after each write: results carry the new version.
+- **Read small:** `get_item { view: "summary" }` or `fields: [...]`; `docket-wait` instead of polling.
+- **Start fresh.** Past about **100k tokens of context**, push, `heartbeat` where you are, and stop.
+- **Delegate fresh.** Subagents start as new agents, not forks, and return short results.
 - **Write small.** `set_plan`, `set_checks` and `update_item` patch, so send only what changed.
 - **Pass an `idempotency_key`** on any write you might retry after a timeout.
-- **Keep text short:**
-  - steps: one line, with longer context in their `details`;
-  - notes: one or two sentences;
-  - evidence: the command and its result.
+- **Keep text short:** one-line steps (context in `details`), notes of a sentence or two, evidence as the command and its result.
 - **Never paste secrets.** The write is rejected and nothing is stored.
 
 ## Don't
 
 - Work on an item you haven't claimed, or one someone else holds.
 - Create tickets for checklist steps.
-- Close with `set_status` while human review items are undecided. It fails; use `submit_packet`.
 - Move items to Ready unless the project rules allow it.
 - Leave a dev server, session or container running without declaring it.
 - Keep state only in your own memory or chat. Docket is the record, and the next agent starts from it.

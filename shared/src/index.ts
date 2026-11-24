@@ -17,6 +17,7 @@ export * from './usage-prices.js';
 export * from './work-filter.js';
 export * from './wait-kind.js';
 export * from './epic-readiness.js';
+export * from './exit-report.js';
 export * from './midflight.js';
 export * from './install.js';
 export * from './legacy.js';

@@ -87,11 +87,22 @@ Something better settled while building? Name it as a **known gap** (`update_ite
   - `run.wait_flagged`: a wait has no next step, or needs an owner decision nobody asked for. Fix that;
   - `run.resume_ready`: its blockers cleared. Tell that dispatch to continue;
   - a stale or interrupted claim: read `recovery_report`, then recover it as `docket-coordinator` says;
-  - a new ticket in your epic: triage it (§7).
+  - a new ticket in your epic: triage it (§8).
 - **Every wait names what's owed and who owes it,** in `waiting_on` and a plain reason. "Waiting" says nothing; "waiting for the schema ticket's merge, owed by its implementer" can be acted on.
 - **No blocker sits without an owner.** If nobody is moving it, shape it, dispatch it or ask.
 
-## 7. Triage what joins mid-flight
+## 7. Resolve partial exits
+
+Every implementer reports how it finished. A **partial** exit lists what's left, why, and what would finish each item. Read `finished partly` in **every** digest (it stays until someone acts), and the relay may mail you too. Resolve each item:
+
+- **another ticket can do it:** move it there (`update_item` that ticket's `acceptance`, and remove it here with an `add_note` saying which and why), or `link_items` the ticket that will finish it;
+- **it needs more work here:** dispatch another implementer (`claim_lead` starts it);
+- **only the owner can decide:** `ask_owner` on the ticket or the epic;
+- **it isn't needed:** close it with an `add_note` saying why.
+
+Any of these clears it from the digest. An agent can't close the ticket as Done until then.
+
+## 8. Triage what joins mid-flight
 
 New tickets land in Inbox, even in a running epic, and nothing joins it as Ready without triage. The digest lists them under `added mid-flight` ("added since this epic started: 2 untriaged"). Triage each before more dispatch:
 
@@ -103,7 +114,7 @@ New tickets land in Inbox, even in a running epic, and nothing joins it as Ready
 
 The epic can't close while one is still untriaged: `set_status done` lists them.
 
-## 8. Decide what you can
+## 9. Decide what you can
 
 - **Yours:** technical, reversible choices inside an approved design. Decide, and use `publish_decision` if others must follow.
 - **The owner's:** product behavior, privacy or security, cost, irreversible or outward-facing actions, conflicting decisions, and changes to an approved design.
@@ -111,13 +122,13 @@ The epic can't close while one is still untriaged: `set_status done` lists them.
 - **Then ask** with the `ask_owner` form: one plain `question`, its `context`, `why_it_matters`, two to four `options` with one recommended, and `recommendation_reason`. IDs and paths go in `details`.
 - **A question holds only what depends on it.** Keep everything else moving.
 
-## 9. Don't create ceremony
+## 10. Don't create ceremony
 
 - No extra approvals, receipts, status reports or read-backs when Docket's state or CI already proves the fact.
 - Don't ask implementers to confirm what Docket shows, or the owner to re-approve what's already decided.
 - Steps inside a ticket are its checklist, not new tickets.
 
-## 10. Respect a paused project
+## 11. Respect a paused project
 
 When `get_digest` shows `paused`, or a claim returns `project_paused`:
 
@@ -125,9 +136,9 @@ When `get_digest` shows `paused`, or a claim returns `project_paused`:
 - **Leave work saved.** Implementers already running commit, push and park at the next safe point.
 - **Only the owner lifts it.** Keep waiting: each run that's ready then gets one `run.resume_ready`.
 
-## 11. Close the epic
+## 12. Close the epic
 
-1. **Account for every story.** With `search_items { project, epic }`, confirm each intended story is Done, or was deliberately moved (`update_item { epic }`) or canceled with a reason. Docket won't close an epic with open children, or with untriaged tickets added after it started (§7).
+1. **Account for every story.** With `search_items { project, epic }`, confirm each intended story is Done, or was deliberately moved (`update_item { epic }`) or canceled with a reason, and that no partial exit is left unresolved. Docket won't close an epic with open children, or with untriaged tickets added after it started (§8).
 2. **Verify the integrated result** as the project requires, against the epic's outcome and closing evidence. Tickets that each passed don't prove they work together. Attach the evidence with `link_artifact`.
 3. **Submit an owner review when one is needed:** `declare_human_review` on the epic, `claim_lead` it, then `submit_packet` (see `docket-review-packet`). An approved packet closes the epic.
 4. **Record what was deferred** in a final `add_note`: what moved where, what's left and why.

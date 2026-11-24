@@ -1,5 +1,5 @@
 /**
- * Idle In progress tickets (owner decision 62; BUILD_SPEC §5.42).
+ * Idle In progress tickets (owner decision 62; BUILD_SPEC §5.43).
  *
  * A ticket can sit In progress for days with no agent, no run and no
  * activity, carrying old branches. It is **idle** when it is In progress (an

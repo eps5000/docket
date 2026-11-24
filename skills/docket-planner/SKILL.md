@@ -27,7 +27,7 @@ Good planning is what makes `ready_to_start` trustworthy. Workers then pick up i
 **For every item:**
 
 - `outcome_md`: one or two sentences on what's true for the user when it's done;
-- `acceptance`: 2–6 lines, each checkable by an agent or a person;
+- `acceptance`: 2–6 lines, each checkable by an agent or a person, **and each one this ticket can finish on its own**. A check that needs another ticket's deploy, a feature flag it turns on, a cutover or an environment belongs on that ticket. If it must stay here, name it as a known gap (§7), so the implementer doesn't finish partly;
 - `priority`: 1 means it unblocks or matters most;
 - `effort` if you can estimate it (points or hours, whatever the project uses). It feeds the forecast. Leave dates to the owner unless asked.
 

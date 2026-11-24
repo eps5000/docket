@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { cursor, projectKey, readInput, readOutput } from './common.js';
 import { WAIT_FLAG_KINDS, coordinatorParkSchema, prioritySchema, runStateSchema } from './types.js';
 import { WAIT_KINDS } from '../wait-kind.js';
+import { EXIT_VIAS, exitLeftSchema } from '../exit-report.js';
 
 /** The most rows each section lists. */
 export const DIGEST_CAPS = {
@@ -22,6 +23,7 @@ export const DIGEST_CAPS = {
   conflicts: 4,
   changed: 6,
   unshaped_epics: 3,
+  finished_partly: 4,
   untriaged_epics: 3,
 } as const;
 
@@ -133,6 +135,22 @@ export const digestUnshapedEpicSchema = z.object({
   unshaped: z.array(z.string()),
 });
 
+/**
+ * Decision 61: a lead that finished partly, until someone acts on the ticket:
+ * moves the items, links the ticket that will finish them, starts work, asks
+ * the owner or closes them with a note.
+ */
+export const digestFinishedPartlySchema = z.object({
+  item_id: z.string(),
+  title: z.string(),
+  run_id: z.string(),
+  label: z.string().nullable(),
+  producer: z.string().optional(),
+  via: z.enum(EXIT_VIAS),
+  at: z.string(),
+  left: z.array(exitLeftSchema),
+});
+
 /** Decision 62: an open epic with tickets added after it started that are still in Inbox. */
 export const digestUntriagedEpicSchema = z.object({
   id: z.string(),
@@ -174,6 +192,8 @@ export const getDigestOutput = readOutput({
   changed: section(digestChangeSchema),
   /** Decision 58: "Started with N unshaped tickets", on full snapshots only; absent when none. */
   unshaped_epics: section(digestUnshapedEpicSchema).optional(),
+  /** Decision 61: partial exits nobody has acted on yet, on every digest; absent when none. */
+  finished_partly: section(digestFinishedPartlySchema).optional(),
   /** Decision 62: "Added since this epic started: N untriaged", for the producer to triage; absent when none. */
   untriaged_epics: section(digestUntriagedEpicSchema).optional(),
 });

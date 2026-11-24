@@ -23,6 +23,7 @@
  * (`forecast.timeline`, added by the read route); the date risk rule is
  * shared with it (`dateRiskBlockers` in model.ts).
  */
+import { openPartialExit, storedExit } from './exit-reports.js';
 import { COMPAT_SURFACES, resultMode } from './compat.js';
 import { readdirSync, statfsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -58,6 +59,7 @@ import {
   type WaitingOn,
   type WorkCheck,
   type WorkItem,
+  finishedPartlyText,
   type WorkResponse,
 } from '@docket/shared';
 import { migrationStatus, type Db } from '../db/client.js';
@@ -342,6 +344,34 @@ function scopeRuns(s: Scoped) {
     if (s.items.has(r.item_id)) latestLead.set(r.item_id, r);
   }
   return { open, latestLead };
+}
+
+/**
+ * Decision 61: the partial exits still waiting on their producer among these
+ * items, as the card shows them. One query, then the settle check for each hit.
+ */
+function finishedPartlyOf(
+  db: Db,
+  ids: readonly string[],
+): Map<string, NonNullable<WorkItem['finished_partly']>> {
+  const out = new Map<string, NonNullable<WorkItem['finished_partly']>>();
+  if (ids.length === 0) return out;
+  const hits = db.sqlite
+    .prepare(
+      `SELECT DISTINCT item_id FROM runs WHERE is_lead = 1 AND item_id IN ${placeholders(ids.length)}
+         AND json_extract(exit_report, '$.outcome') = 'partial'`,
+    )
+    .all(...ids) as { item_id: string }[];
+  for (const { item_id } of hits) {
+    const open = openPartialExit(db, item_id);
+    if (open) {
+      out.set(item_id, {
+        left: open.exit.left.length,
+        reasons: open.exit.left.map((x) => `${x.text}: ${x.why}`),
+      });
+    }
+  }
+  return out;
 }
 
 /** What a parked run waits on, since when, and whether it can resume (`lead_parked`, B20). */
@@ -1517,6 +1547,10 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         }
       }
       const parked = leadParkedOf(s.db, summaries, s.now, s.index);
+      const partly = finishedPartlyOf(
+        s.db,
+        summaries.map((i) => i.id),
+      );
       const sharedFlags = sharedFlagsOf(r.db);
       const producers = producersByItem(r.db);
       // Decision 57: an open blocker is Queued, Blocked or Held, by the one classification.
@@ -1545,6 +1579,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         return {
           ...i,
           lead_parked: parked(i),
+          ...(partly.has(i.id) ? { finished_partly: partly.get(i.id)! } : {}),
           ...(ready_state ? { ready_state } : {}),
           ...(wait ? { wait } : {}),
           ...(producer ? { producer } : {}),
@@ -1984,9 +2019,14 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         if (state === 'needs_input') doing = 'Waiting on your answer';
         else if (state === 'failed') doing = x.error ?? x.summary;
         else if (state === 'stale') doing = x.summary ? `Last said: “${x.summary}”` : stepLine;
-        else if (state === 'parked')
-          doing = x.parked_reason ? `Parked · ${x.parked_reason}` : 'Parked';
-        else if (open) doing = [role, x.summary ?? stepLine].filter(Boolean).join(' · ');
+        else if (state === 'parked') {
+          // Decision 61: a park that finished partly says so first.
+          const exit = storedExit(x);
+          const partly = exit?.outcome === 'partial' ? finishedPartlyText(exit.left.length) : null;
+          doing = [partly, x.parked_reason ? `Parked · ${x.parked_reason}` : 'Parked']
+            .filter(Boolean)
+            .join(' · ');
+        } else if (open) doing = [role, x.summary ?? stepLine].filter(Boolean).join(' · ');
         else doing = [role, x.summary].filter(Boolean).join(' · ');
         const provenance: AgentRow['provenance'] =
           x.parent_run_id !== null
