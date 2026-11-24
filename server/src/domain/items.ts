@@ -23,6 +23,7 @@ import {
   type ReadContext,
   type ServiceDeps,
 } from './contracts.js';
+import { LEASE_EXPIRED_SUMMARY, assertNoItemsLeft, recordExit } from './exit-reports.js';
 import { allocateItemId, newId } from './ids.js';
 import { RecoveryReader } from './recovery-model.js';
 import {
@@ -647,7 +648,11 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
       let lead = activeLead(w.db, item.id);
       if (lead && leaseExpired(lead, w.now)) {
         // The claim is already over; end it as such before moving.
-        w.update('runs', lead.id, { state: 'interrupted', end_reason: 'lease_expired' });
+        w.update('runs', lead.id, {
+          state: 'interrupted',
+          end_reason: 'lease_expired',
+          summary: LEASE_EXPIRED_SUMMARY,
+        });
         lead = undefined;
       }
       const endsClaim =
@@ -670,6 +675,8 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
       }
       // Decision 39: an unapproved change to an approved design pauses this item.
       if (to === 'done') assertDesignCleared(w.db, item, 'close', !agent);
+      // Decision 61: not while a partial exit's items are left; the owner may close it anyway.
+      if (to === 'done' && agent) assertNoItemsLeft(w.db, item, w.actor.run_id);
       if (from === 'ready' && to === 'progress') {
         // Decision 58: an epic starts only when every ticket is at least Ready.
         assertEpicReady(w.db, item);
@@ -757,8 +764,18 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
             : to === 'canceled'
               ? (['interrupted', 'canceled'] as const)
               : (['interrupted', 'released'] as const);
-        w.update('runs', lead.id, { state, end_reason: endReason });
-        w.event({
+        w.update('runs', lead.id, {
+          state,
+          end_reason: endReason,
+          // Decision 61: the run's line says how it ended.
+          summary:
+            to === 'done'
+              ? `Closed ${item.id} as Done`
+              : to === 'canceled'
+                ? `Ended: ${item.id} was canceled`
+                : `Gave up the lead${input.reason ? `: ${input.reason}` : ''}`,
+        });
+        const endedSeq = w.event({
           type: to === 'done' ? 'run.ended' : 'claim.released',
           summary:
             to === 'done'
@@ -771,6 +788,10 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
           data: { run_id: lead.id, end_reason: endReason },
           objects: [{ kind: 'run', id: lead.id }],
         });
+        // Decision 61: closing as Done is a complete exit.
+        if (to === 'done') {
+          recordExit(w, lead, item, { outcome: 'complete', left: [] }, 'done', endedSeq);
+        }
       }
       if (to === 'canceled') {
         const packet = w.db.sqlite

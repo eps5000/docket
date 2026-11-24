@@ -47,6 +47,14 @@ Hover a state to see its meaning. Parked runs also say what they wait on, like "
 
 **When the blocker clears,** Docket tells the coordinator which run and dispatch can continue. Docket can't message an agent's session itself, so the coordinator passes it on. If nobody does within 30 minutes, you see "Ready to resume, unattended".
 
+## Finished partly
+
+When an agent stops, it says how it finished: **complete** (everything in the acceptance criteria is done) or **partial** (it did what it could, and some items are left, each with why and what would finish it, such as another ticket, a switch someone has to turn on, an environment, or a decision of yours).
+
+- **The run's line tells the truth.** Once a run parks, is released or ends, its line says why ("Parked: waiting for RCP-12", "Released: out of time"), never what it was doing before.
+- **A partial finish** shows on the card as "Finished partly: 1 item left", and on the ticket each item with its reason and what would finish it. The agent that dispatched the work is told, and resolves each item: it moves it to the ticket that can do it, links that ticket, starts more work, or asks you. Once it does, the ticket says how it was settled.
+- **Closing it as Done** waits until the items are dealt with: an agent has to remove them from the acceptance criteria, with a note saying which and why, or move them first. You can always close it yourself.
+
 ## Leases
 
 A claim comes with a lease (60 minutes by default), and every signal from the agent extends it. If the lease runs out, Docket ends the run as **interrupted**, releases the claim and moves the item back to Ready. The checklist, logs and partial work stay on the ticket. A parked run's lease is paused. If Docket restarts, open runs stay open and each lease lasts at least 15 more minutes, so the agent can simply continue.

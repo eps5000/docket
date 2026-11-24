@@ -15,6 +15,12 @@
  * Shared contract file (tasks.md, Slice rules).
  */
 import {
+  EXIT_SETTLE_TEXT,
+  finishedPartlyText,
+  type ExitLeft,
+  type ExitReport,
+} from './exit-report.js';
+import {
   EFFORT_UNIT,
   OPEN_RUN_STATES,
   type CheckState,
@@ -296,8 +302,31 @@ export function waitCardLines(c: WaitCard, now: Date, indent = ''): string[] {
 }
 
 /** The recovery facts under a run: parked, end reason, workspace, orchestrator, brief, resources. */
+/** Decision 61: one line per item a partial exit left. */
+function exitLeftLines(left: readonly ExitLeft[], indent: string): string[] {
+  return left.map(
+    (l, i) =>
+      `${indent}${i + 1}. ${join([truncate(l.text), `why: ${truncate(l.why)}`, `needs: ${truncate(l.needs)}`, l.item])}`,
+  );
+}
+
+/** Decision 61: how a run finished: `exit partial via park 11:20Z · 2 left` and its items. */
+function exitLines(exit: ExitReport, now: Date, indent: string): string[] {
+  const head = join([
+    `exit ${exit.outcome} via ${exit.via} ${formatTime(exit.at, now)}`,
+    exit.outcome === 'partial' ? `${exit.left.length} left` : null,
+    exit.settled
+      ? `settled: ${EXIT_SETTLE_TEXT[exit.settled.how]} by ${exit.settled.by}`
+      : exit.outcome === 'partial'
+        ? 'waiting on the producer'
+        : null,
+  ]);
+  return [`${indent}${head}`, ...exitLeftLines(exit.left, `${indent}  `)];
+}
+
 function runRecoveryLines(run: Run, now: Date, indent: string): string[] {
   const out: string[] = [];
+  if (run.exit) out.push(...exitLines(run.exit, now, indent));
   if (run.parked) {
     out.push(
       `${indent}${join([
@@ -680,6 +709,14 @@ export function renderContext(ctx: ContextBundle, opts: RenderOptions = {}): str
     lines.push(`${I1}acceptance:`, ...it.acceptance.map((a) => `${I1}- ${a}`));
   // Decision 58: right under the acceptance, never cut.
   if (ctx.known_gaps) lines.push(...knownGapLines(ctx.known_gaps, true));
+  // Decision 61: what the last lead left, never cut.
+  if (ctx.finished_partly) {
+    const p = ctx.finished_partly;
+    lines.push(
+      `${I1}${finishedPartlyText(p.left.length).toLowerCase()} by ${p.label ?? p.run_id} (${p.via} ${formatTime(p.at, now)}); settle each before closing as Done:`,
+      ...exitLeftLines(p.left, `${I1}  `),
+    );
+  }
   const q = it.open_question;
   if (q) {
     lines.push(`${I1}question: ${q.id} ${q.text}${SEP}asked ${formatTime(q.asked_at, now)}`);
@@ -1050,7 +1087,28 @@ function renderDigest(d: Digest, now: Date): string {
         `${x.id} started with ${x.unshaped.length} unshaped: ${partList(x.unshaped, 3)}${SEP}${clip(x.title, 30)}`,
     ),
   };
+  // Decision 61: partial exits first, until someone acts on them.
+  const partly = {
+    title: 'finished partly',
+    total: d.finished_partly?.total ?? 0,
+    rows: (d.finished_partly?.rows ?? []).map((x) => {
+      const left = x.left
+        .slice(0, 2)
+        .map(
+          (l) =>
+            `${clip(l.text, 40)} (why: ${clip(l.why, 40)}; needs: ${clip(l.needs, 40)}${l.item ? ` ${l.item}` : ''})`,
+        );
+      if (x.left.length > 2) left.push(`+${x.left.length - 2} more`);
+      return join([
+        `${x.item_id} ${x.left.length} left`,
+        x.label ? clip(x.label, 20) : null,
+        x.producer ? `producer ${clip(x.producer, 20)}` : null,
+        left.join('; '),
+      ]);
+    }),
+  };
   const rest = [
+    partly,
     nextWork,
     bottlenecks,
     unshaped,

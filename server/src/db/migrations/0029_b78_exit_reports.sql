@@ -1,0 +1,1 @@
+ALTER TABLE `runs` ADD `exit_report` text;

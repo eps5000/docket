@@ -374,7 +374,12 @@ describe('finish_run warnings and the owner’s Problems (MCP_SPEC §10 test 20)
     expectOk(await call(h.a, 'report_commit', { id: 'RCP-17', run_id, sha: '88bb002' }));
     const fin = await step(
       'finish_run',
-      { run_id, result: 'finished', summary: 'Stopped with the dev server still up.' },
+      {
+        run_id,
+        result: 'finished',
+        summary: 'Stopped with the dev server still up.',
+        exit: { outcome: 'complete' },
+      },
       h.a,
     );
     expect(fin.warnings).toEqual([
