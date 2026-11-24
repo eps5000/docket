@@ -379,6 +379,17 @@ The owner froze a project by telling agents to stop. Only tickets whose park rea
 
 BUILD_SPEC §5.37, MCP_SPEC §5.2 and §5.4, UI_SPEC §6.1d, spec FR-295–FR-301 and SC-034, and Help (Pause a project) have the details.
 
+## Owner decision 56 (2026-11-24): projects pull their own Docket updates
+
+Updating a project meant someone pushing files into a special worktree and handing it to the project's coordinator. That reached into the project and wouldn't scale. **Docket publishes a new version, and the project takes it in through its own normal workflow.**
+
+1. **An update command the project runs itself.** A small `docket-update` script (`.sh` and `.ps1`) sits beside `docket-check`, for both clients. From any checkout, on a branch the agent chose, it fetches that project's current files from the local Docket under the existing trust rules, using the same layout, marker, connection-file and old-skill rules as an install. It refuses to overwrite a file edited locally and lists it. It prints what changed, and never commits, pushes, opens a PR or touches another worktree. No credential is ever stored in the repo.
+2. **Installs already out there need no special push.** When an install is out of date, `get_digest` and `claim_lead` carry a compact notice with the exact one-line way to fetch and run the current updater from the local Docket.
+3. **Coordinators take it first.** At the start of a session, before dispatching implementers, a coordinator takes an available update as one small normal change. Workers tell their coordinator instead. An update that can't land never blocks work.
+4. **Agent files says who does it.** For a repo install with an update available, the guidance is "Your project's coordinator will take this in", with the command to copy. Push into a folder stays only as a secondary option for first-time setup. Status reflects the repo's main branch where Docket can read it, and says plainly when it can't.
+
+BUILD_SPEC §5.40, MCP_SPEC §5.2, §5.4 and §5.10, UI_SPEC §6.7b, spec FR-302–FR-307 and SC-035, and Help (Agent files) have the details.
+
 ## Deferred choices
 
 Pilot project choice and Jira import strategy are deferred until V1 is ready for real work. Design should still settle the storage layout, supported document preview formats, the exact project gate configuration shape, and the minimum history needed before a velocity forecast is shown. These are implementation choices guided by the owner decisions above, not blockers to selecting a pilot now.

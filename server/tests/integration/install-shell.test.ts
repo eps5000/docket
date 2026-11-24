@@ -259,7 +259,7 @@ describe.each(Object.keys(SHELLS) as ShellName[])('the %s commands', (shell) => 
       transcript.push(`## ${shell}: check`);
       const c1 = await run(shell, first.check, repo);
       expect(c1.status, c1.out).toBe(0);
-      expect(c1.out).toContain('Up to date: all 10 files match what Docket sent.');
+      expect(c1.out).toContain('Up to date: all 12 files match what Docket sent.');
 
       // The installed docket-check (decision 30): every file listed by hash, no text.
       const manifest = readManifest(repo);
@@ -277,7 +277,7 @@ describe.each(Object.keys(SHELLS) as ShellName[])('the %s commands', (shell) => 
       // Another server's entry edited: not drift. The docket entry edited: drift.
       writeFileSync(join(repo, '.mcp.json'), mcp.replace('"gh-mcp"', '"gh-mcp2"'), 'latin1');
       const cOther = await run(shell, first.check, repo);
-      expect(cOther.out).toContain('Up to date: all 10 files match what Docket sent.');
+      expect(cOther.out).toContain('Up to date: all 12 files match what Docket sent.');
       writeFileSync(
         join(repo, '.mcp.json'),
         mcp.replace(':' + port + '/mcp', ':9999/mcp'),
@@ -392,11 +392,11 @@ describe.each(Object.keys(SHELLS) as ShellName[])('the %s commands', (shell) => 
         `${TOML}\n${connEntry('codex')}`,
       );
       const c = await run(shell, codex.check, repo);
-      expect(c.out).toContain('Up to date: all 10 files match what Docket sent.');
+      expect(c.out).toContain('Up to date: all 12 files match what Docket sent.');
       // The docket table edited: drift; another table edited: not.
       const toml = readFileSync(join(repo, '.codex/config.toml'), 'latin1');
       writeFileSync(join(repo, '.codex/config.toml'), toml.replace('"gh"', '"gh2"'), 'latin1');
-      expect((await run(shell, codex.check, repo)).out).toContain('Up to date: all 10 files');
+      expect((await run(shell, codex.check, repo)).out).toContain('Up to date: all 12 files');
       writeFileSync(
         join(repo, '.codex/config.toml'),
         `${toml}bearer_token_env_var = "X"\n`,

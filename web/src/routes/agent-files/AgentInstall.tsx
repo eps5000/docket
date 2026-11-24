@@ -52,6 +52,7 @@ import {
   insidePushFolder,
   installButtonLabel,
   installStateChip,
+  repoMainText,
   possessive,
   pushReady,
   versionLabel,
@@ -213,6 +214,8 @@ export function InstallDialog({
   };
   const instructionFiles = ticked.map((c) => writtenFor(c).instructions).join(' and ');
   const changed = ticked.filter((c) => stateOf(c)?.state === 'changed');
+  // Decision 56: a project takes an update through its own workflow, not from this dialog.
+  const updating = ticked.filter((c) => stateOf(c)?.state === 'update_available');
   const reviewChanges = () => {
     onClose();
     void navigate(`${paths.agentFiles({ project })}#drift`);
@@ -264,7 +267,7 @@ export function InstallDialog({
   ) : (
     <>
       <DialogCancel onClick={onClose} />
-      {placeholders.length === 0 && (
+      {placeholders.length === 0 && updating.length === 0 && (
         <Button
           variant="primary"
           onClick={() => void install()}
@@ -325,6 +328,20 @@ export function InstallDialog({
                   Review changes
                 </Button>
               </div>
+            </Callout>
+          )}
+          {updating.length > 0 && state.data && (
+            <Callout role="status">
+              <div data-update-guidance="">
+                <b>
+                  {updating.map((c) => INSTALL_CLIENT_LABELS[c]).join(' and ')}: your project’s
+                  coordinator will take this in.
+                </b>{' '}
+                It runs the command below on its own branch and merges it through your usual PR and
+                CI, so Docket doesn’t write it here. Untick {updating.length > 1 ? 'them' : 'it'} to
+                install another client.
+              </div>
+              <UpdateCommand command={state.data.update_command} />
             </Callout>
           )}
           {target === 'repo' && (
@@ -605,10 +622,11 @@ function InstallResult({
 
 /**
  * Each client's install state, on Agent files (UI_SPEC §6.7b): one row per
- * client with its state and the one action that fits it. *Install*,
- * *Update* and *Reinstall* open the Install dialog with that client ticked;
- * *Check* runs the push check (or shows the check command); *Review changes*
- * goes to the drift section above.
+ * client with its state and the one action that fits it. *Install* and
+ * *Reinstall* open the Install dialog with that client ticked; *Check* runs
+ * the push check (or shows the check command); *Review changes* goes to the
+ * drift section above. An update is the project's to take (decision 56), so
+ * that row says who does it and offers the command to copy.
  */
 export function InstallStateCard({
   project,
@@ -647,6 +665,7 @@ export function InstallStateCard({
                 project={project}
                 projectName={projectName ?? project}
                 onInstall={onInstall}
+                updateCommand={d.update_command}
               />
             ))}
           </ul>
@@ -656,21 +675,38 @@ export function InstallStateCard({
   );
 }
 
+/** The command a project's coordinator runs to take an update (decision 56). */
+function UpdateCommand({ command }: { command: InstallStateResponse['update_command'] }) {
+  return (
+    <div className="indetail" data-update-command="">
+      <div className="src">
+        Run one in any checkout of the repo, on a new branch. It changes only Docket’s files, keeps
+        anything edited locally, and never commits or pushes.
+      </div>
+      <CopyBlock text={command.powershell} label="PowerShell" what="PowerShell update command" />
+      <CopyBlock text={command.bash} label="bash" what="bash update command" />
+    </div>
+  );
+}
+
 function InstallStateRow({
   row,
   project,
   projectName,
   onInstall,
+  updateCommand,
 }: {
   row: InstallStateResponse['clients'][number];
   project: string;
   projectName: string;
   onInstall: (client: InstallClient) => void;
+  updateCommand: InstallStateResponse['update_command'];
 }) {
   const navigate = useNavigate();
   const [check, setCheck] = useState<InstallCheckResponse | null>(null);
   const [checking, setChecking] = useState(false);
   const [showCmd, setShowCmd] = useState(false);
+  const [showUpdate, setShowUpdate] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const view = installStateChip(row.state, row.worktree);
   const install = row.install;
@@ -754,11 +790,11 @@ function InstallStateRow({
         {row.state === 'update_available' && (
           <Button
             size="sm"
-            variant="primary"
-            onClick={() => onInstall(row.client)}
-            aria-label={`Update ${label}`}
+            onClick={() => setShowUpdate(!showUpdate)}
+            aria-expanded={showUpdate}
+            aria-label={`Show the update command for ${label}`}
           >
-            Update
+            Show the command
           </Button>
         )}
         {row.state === 'changed' && (
@@ -775,6 +811,28 @@ function InstallStateRow({
           <UninstallButton row={install} name={`${label} from ${possessive(projectName)} repo`} />
         )}
       </div>
+      {row.state === 'update_available' && (
+        <div className="src" data-update-guidance="">
+          <b>Your project’s coordinator will take this in,</b> as one small PR on its own branch,
+          before it dispatches more work.
+        </div>
+      )}
+      {(install || row.update_on_branch) && (
+        <div className="src" data-repo-main={row.repo_main.state}>
+          {repoMainText(row.repo_main)}
+          {row.update_on_branch && (
+            <>
+              {' '}
+              An update was fetched on a branch{' '}
+              <span title={isoTitle(row.update_on_branch.at)}>
+                {formatStamp(row.update_on_branch.at)}
+              </span>
+              ; it counts once it reaches the main branch.
+            </>
+          )}
+        </div>
+      )}
+      {row.state === 'update_available' && showUpdate && <UpdateCommand command={updateCommand} />}
       {showCmd && cmds && (
         <div className="indetail">
           <div className="src">

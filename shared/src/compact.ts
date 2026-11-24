@@ -934,6 +934,8 @@ function renderDigest(d: Digest, now: Date): string {
   });
   // Decision 53: the one line that replaces next work while the owner has it paused.
   const top = d.paused ? [head, `paused: ${d.paused}`] : [head];
+  // Decision 56: a coordinator takes this before dispatching.
+  if (d.agent_files_update) top.push(`update: ${d.agent_files_update}`);
   const nextWork = {
     title: 'next work',
     total: d.next_work.total,
@@ -1149,9 +1151,11 @@ const RENDERERS: { [N in ToolName]: Renderer<N> } = {
       version: r.item.version,
     });
     // Decision 49: one short line, only when the claim named no branch.
-    return r.branch_hint
+    const branch = r.branch_hint
       ? `${line}\nbranch ${r.branch_hint} · worktree ${r.branch_hint.split('/').pop()}`
       : line;
+    // Decision 56: only while this repo's installed files are behind.
+    return r.agent_files_update ? `${branch}\nupdate: ${r.agent_files_update}` : branch;
   },
   release_lead: (r) => s('release_lead', r.item),
   start_run: (r, a) => s('start_run', { run_id: r.run_id, id: str(a.id) }),

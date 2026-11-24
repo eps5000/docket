@@ -803,10 +803,13 @@ AGENTS.md block      Docket's version              —
 **Install state** (decision 34; the card *Installed in <project>'s repo*, above the install log): one row per client, with its chip and one action:
 ```
 Claude Code   [Installed · up to date]        pushed Nov 19 10:40  C:/code/recipes   [Check] [Reinstall]
-Codex         [Installed · update available]  2 files newer in Docket · …            [Update]
+Codex         [Installed · update available]  2 files newer in Docket · …            [Show the command]
+              Your project's coordinator will take this in, as one small PR on its own branch …
+              main has older files.
 ```
 - **Installed · up to date** (ok): *Check* runs the push check inline (or shows the check command for a command install), *Reinstall* opens the dialog;
-- **Installed · update available** (info): *Update* opens the dialog with that client;
+- **Installed · update available** (info, decision 56): the main guidance is "Your project's coordinator will take this in", and *Show the command* reveals the PowerShell and bash commands to copy. It offers no push. The Install dialog shows the same with no button that writes, until that client is unticked;
+- **On the main branch** (decision 56), a line on each installed row: "On main: current.", "main has older files.", "Not on main yet." or "Docket can't read this repo's main branch, so it can't tell what has been merged.", plus "An update was fetched on a branch …" while one is waiting to land;
 - **Changed outside Docket** (warn): *Review changes* scrolls to the drift section (§6.7b-1);
 - **Not installed** (neutral): *Install* opens the dialog with that client.
 The state comes from `GET /api/install-state` (BUILD_SPEC §5.17b); it is refreshed by installs, agent-file edits and drift events.

@@ -451,6 +451,8 @@ describe.skipIf(AVAILABLE.length === 0).each(AVAILABLE)('the uninstall command i
       '.claude/docket-check.ps1',
       '.claude/docket-wait.sh',
       '.claude/docket-wait.ps1',
+      '.claude/docket-update.sh',
+      '.claude/docket-update.ps1',
     ]) {
       expect(existsSync(join(repo, gone)), gone).toBe(false);
     }

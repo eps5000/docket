@@ -275,9 +275,15 @@ export function createDigestService(deps: ServiceDeps): DigestService {
         }))
         .filter((x) => since === null || x.items.some((i) => touched.has(i)));
 
+      // Decision 56: on a full snapshot only, so a repeated digest stays small.
+      const update =
+        since === null
+          ? deps.services().installs.updateNoticeFor(r, { project: input.project })
+          : null;
       return {
         project: input.project,
         ...(pause ? { paused: pausedForCoordinators(input.project, pause) } : {}),
+        ...(update ? { agent_files_update: update } : {}),
         cursor: String(latest),
         since: since === null ? null : String(since),
         next_work: section(

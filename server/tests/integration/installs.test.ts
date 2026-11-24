@@ -147,7 +147,7 @@ describe('command install: the bundle and the single-use token (T155)', () => {
     // Not in the log until the token is used; one event, "Install command created".
     expect((await api('GET', '/api/installs')).body).toEqual({ installs: [] });
     expect(eventsOf(server).map((e) => e.summary)).toEqual([
-      'Install command created: Claude Code, RCP’s repo, 10 files'.replace('’', "'"),
+      'Install command created: Claude Code, RCP’s repo, 12 files'.replace('’', "'"),
     ]);
 
     // The download: no session, the system as actor.
@@ -169,6 +169,9 @@ describe('command install: the bundle and the single-use token (T155)', () => {
         'docket-install/files/.claude/docket-check.ps1',
         'docket-install/files/.claude/docket-wait.sh',
         'docket-install/files/.claude/docket-wait.ps1',
+        // docket-update (decision 56): in the manifest too.
+        'docket-install/files/.claude/docket-update.sh',
+        'docket-install/files/.claude/docket-update.ps1',
         'docket-install/files.txt',
         'docket-install/block.md',
         // The connection file's docket entry (decision 32).
@@ -182,6 +185,8 @@ describe('command install: the bundle and the single-use token (T155)', () => {
         ...SKILLS.map((n) => `.claude/skills/${n}/SKILL.md`),
         '.claude/docket-wait.sh',
         '.claude/docket-wait.ps1',
+        '.claude/docket-update.sh',
+        '.claude/docket-update.ps1',
         '.claude/.docket-manifest.json',
         '.claude/docket-check.sh',
         '.claude/docket-check.ps1',
@@ -230,6 +235,8 @@ describe('command install: the bundle and the single-use token (T155)', () => {
       // docket-wait (decision 40): in the manifest, so Check and drift cover it.
       ['script:docket-wait.sh', '.claude/docket-wait.sh'],
       ['script:docket-wait.ps1', '.claude/docket-wait.ps1'],
+      ['script:docket-update.sh', '.claude/docket-update.sh'],
+      ['script:docket-update.ps1', '.claude/docket-update.ps1'],
       ['connection', '.mcp.json'],
     ]);
     expect(files.get('docket-install/files/.claude/docket-wait.sh')).toBe(waitSh());
@@ -274,7 +281,7 @@ describe('command install: the bundle and the single-use token (T155)', () => {
     expect(log.installs[0]).toMatchObject({
       id: body.install_id,
       method: 'command',
-      file_count: 10,
+      file_count: 12,
       token_used_at: server.clock.current.toISOString(),
     });
     expect(log.installs[0]!.manifest).toEqual(
@@ -282,8 +289,8 @@ describe('command install: the bundle and the single-use token (T155)', () => {
     );
     const events = eventsOf(server);
     expect(events.map((e) => e.summary)).toEqual([
-      "Install command created: Claude Code, RCP's repo, 10 files",
-      "Installed by command: Claude Code, RCP's repo, 10 files",
+      "Install command created: Claude Code, RCP's repo, 12 files",
+      "Installed by command: Claude Code, RCP's repo, 12 files",
     ]);
     expect(events.map((e) => (JSON.parse(e.data) as S).stage)).toEqual([
       'command_issued',
@@ -484,6 +491,8 @@ describe('push install and check (T156)', () => {
         { path: 'CLAUDE.md', change: 'updated' },
         { path: '.claude/docket-wait.sh', change: 'created' },
         { path: '.claude/docket-wait.ps1', change: 'created' },
+        { path: '.claude/docket-update.sh', change: 'created' },
+        { path: '.claude/docket-update.ps1', change: 'created' },
         { path: '.mcp.json', change: 'created' },
         { path: '.claude/.docket-manifest.json', change: 'created' },
         { path: '.claude/docket-check.sh', change: 'created' },
@@ -514,11 +523,11 @@ describe('push install and check (T156)', () => {
         id,
         method: 'push',
         path: 'C:\\Users\\me\\code\\recipes',
-        file_count: 10,
+        file_count: 12,
       }),
     ]);
     expect(eventsOf(server).map((e) => e.summary)).toEqual([
-      "Installed by push: Claude Code, RCP's repo at C:\\Users\\me\\code\\recipes, 10 files",
+      "Installed by push: Claude Code, RCP's repo at C:\\Users\\me\\code\\recipes, 12 files",
     ]);
 
     // Up to date.

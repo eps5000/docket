@@ -469,6 +469,17 @@ export const installStateResponse = jsonResponse({
       markers: z.boolean().nullable(),
       /** Decision 50: the install is in a separate worktree, as Docket's runs recorded it. */
       worktree: installWorktreeSchema.nullable(),
+      /**
+       * Decision 56: what the repo's main branch holds. `current` or `behind`
+       * when Docket read it with read-only git, `absent` when it has no
+       * install, `unknown` when Docket can't read the repo.
+       */
+      repo_main: z.object({
+        state: z.enum(['current', 'behind', 'absent', 'unknown']),
+        branch: z.string().nullable(),
+      }),
+      /** Decision 56: an update the project fetched that isn't known to be on main yet. */
+      update_on_branch: z.object({ install_id: z.string(), at: z.string() }).nullable(),
     }),
   ),
   /**
@@ -477,6 +488,8 @@ export const installStateResponse = jsonResponse({
    * installed, else both.
    */
   defaults: z.array(z.enum(INSTALL_CLIENTS)),
+  /** Decision 56: the command a project's coordinator runs to take an update. */
+  update_command: z.object({ powershell: z.string(), bash: z.string() }),
 });
 export type InstallStateResponse = z.infer<typeof installStateResponse>;
 

@@ -8,6 +8,7 @@ import { createApiApp, errorResponse } from './api/app.js';
 import { allowedOriginsFor, bearerAuth, hostGuard, originGuard } from './api/guards.js';
 import { SESSION_COOKIE, ensureLocalCsrfCookie } from './api/session.js';
 import { changesWait } from './api/agent-wait.js';
+import { agentUpdate, agentUpdateScript } from './api/agent-update.js';
 import { installRoutes } from './api/routes/install.js';
 import { uploadRoutes } from './api/routes/upload.js';
 import { migrationStatus } from './db/client.js';
@@ -125,6 +126,9 @@ export function createApp(runtime: Runtime, { webRoot }: AppOptions): Hono {
     );
   }
   app.get('/agent/changes/wait', (c) => changesWait(runtime, c));
+  // Decision 56: a project takes its own update, behind the same guards.
+  app.get('/agent/update/:script', (c) => agentUpdateScript(c));
+  app.post('/agent/update', (c) => agentUpdate(runtime, c));
 
   // Agents: bulk document upload (BUILD_SPEC §5.10), behind the same rule as /mcp.
   if (config.protectedMode) {

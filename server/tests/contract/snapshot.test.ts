@@ -397,12 +397,12 @@ const OUTPUTS: Record<string, string[]> = {
 
 /** Optional result fields, from the §5 Output lines (decisions 36 and 39: what's held). */
 const OPTIONAL_OUTPUTS: Record<string, string[]> = {
-  get_digest: ['paused'], // decision 53: only while the owner has the project paused
+  get_digest: ['paused', 'agent_files_update'], // decisions 53, 56: only while they apply
   submit_packet: ['held_undeclared', 'held_design'],
   declare_shared_changes: ['design_hold'],
   update_run_status: ['parked_until'], // decision 44: while a coordinator's park holds
   park_run: ['wait'], // decision 45: left out only on a replay stored before it
-  claim_lead: ['branch_hint'], // decision 49: only when the claim named no branch
+  claim_lead: ['branch_hint', 'agent_files_update'], // decisions 49, 56: only when they apply
   withdraw_decision: ['decision', 'question'], // decision 48: one or the other
 };
 

@@ -159,6 +159,8 @@ export const claimLeadOutput = mutationOutput({
   lease_expires_at: z.string(),
   /** Decision 49: the branch to use, when none was given; its last segment names the worktree. */
   branch_hint: z.string().optional(),
+  /** Decision 56: this repo's installed files are behind, and how to take the update. */
+  agent_files_update: z.string().optional(),
 });
 
 // ---- release_lead ----

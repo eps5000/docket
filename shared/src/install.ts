@@ -100,6 +100,19 @@ export const WAIT_SCRIPT_KEYS = [
   `${SCRIPT_PREFIX}${WAIT_SCRIPT_SH}`,
   `${SCRIPT_PREFIX}${WAIT_SCRIPT_PS1}`,
 ] as const;
+/**
+ * The installed `docket-update` scripts (decision 56): how a project takes a new
+ * Docket version in through its own workflow. Manifest entries like
+ * `docket-wait`, so an install without the current one shows an update.
+ */
+export const UPDATE_SCRIPT_SH = 'docket-update.sh';
+export const UPDATE_SCRIPT_PS1 = 'docket-update.ps1';
+export const UPDATE_SCRIPT_KEYS = [
+  `${SCRIPT_PREFIX}${UPDATE_SCRIPT_SH}`,
+  `${SCRIPT_PREFIX}${UPDATE_SCRIPT_PS1}`,
+] as const;
+/** Every installed script the manifest lists. */
+export const INSTALLED_SCRIPT_KEYS = [...WAIT_SCRIPT_KEYS, ...UPDATE_SCRIPT_KEYS] as const;
 /** A manifest key for an installed script. */
 export const isScriptKey = (key: string): boolean => key.startsWith(SCRIPT_PREFIX);
 /** `docket-wait.sh`, from its manifest key. */
@@ -419,4 +432,42 @@ export function checkCommands(input: InstallCommandInput): { powershell: string;
     `if ($n -eq 0) { "Up to date: all $(@($j.files).Count) files match what Docket sent." } else { "Differs from what Docket sent: $n file(s). The install log in Agent files shows each version sent." } }`,
   ].join('; ');
   return { powershell, bash };
+}
+
+// ---- Taking an update (decision 56) ----
+
+/**
+ * The one-liners that fetch the current `docket-update` from this Docket and
+ * run it in the current checkout, for an install that doesn't have it yet. In
+ * protected mode they send `DOCKET_TOKEN` from the environment, on stdin in
+ * bash so it never shows in a process list. Nothing is written to the repo
+ * but the agent files, and nothing is committed.
+ */
+export function updateCommands(
+  baseUrl: string,
+  protectedMode: boolean,
+): { powershell: string; bash: string } {
+  const base = baseUrl.replace(/\/+$/, '');
+  const sh = bashQuote(`${base}/agent/update/${UPDATE_SCRIPT_SH}`);
+  const ps = psQuote(`${base}/agent/update/${UPDATE_SCRIPT_PS1}`);
+  const fetch = protectedMode
+    ? `: "\${DOCKET_TOKEN:?Set DOCKET_TOKEN first}"; printf 'Authorization: Bearer %s\\n' "$DOCKET_TOKEN" | curl -fsS --noproxy '*' -H @- -o "$t" ${sh}`
+    : `curl -fsS --noproxy '*' -o "$t" ${sh}`;
+  const headers = protectedMode ? ` -Headers @{Authorization="Bearer $env:DOCKET_TOKEN"}` : '';
+  return {
+    bash: `( t=$(mktemp); trap 'rm -f "$t"' EXIT; ${fetch} && bash "$t" --url ${bashQuote(base)} )`,
+    powershell: `& ([scriptblock]::Create((Invoke-RestMethod -UseBasicParsing -ErrorAction Stop${headers} ${ps}))) --url ${psQuote(base)}`,
+  };
+}
+
+/**
+ * The one notice an agent reads when its project's installed files are behind
+ * (decision 56): who acts, and the exact command.
+ */
+export function updateNotice(
+  count: number,
+  commands: { powershell: string; bash: string },
+): string {
+  const files = count === 1 ? '1 file' : `${count} files`;
+  return `Docket has an update for this repo's agent files (${files}). Coordinator: unless a PR for it is open, take it first as one small PR on its own branch: ${commands.bash} (PowerShell: ${commands.powershell}). Workers: tell your coordinator; don't update files yourself.`;
 }

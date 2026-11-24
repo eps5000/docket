@@ -15,9 +15,9 @@
  *    `@AGENTS.md` and AGENTS.md keeps its own text;
  * 3. both "Installed · up to date", with *Check* (up to date) and
  *    *Reinstall*;
- * 4. a project copy of a skill: both "Installed · update available" with
- *    *Update*, which opens the dialog with that client and an *Update*
- *    button;
+ * 4. a project copy of a skill: both "Installed · update available", with
+ *    "Your project's coordinator will take this in" and the command to copy.
+ *    The dialog offers no way to push it (decision 56);
  * 5. a local edit reported on claim: Claude Code "Changed outside Docket"
  *    with *Review changes*, which goes to the drift section.
  *
@@ -187,7 +187,7 @@ test.describe('Several clients and install state (decision 34)', () => {
     });
   });
 
-  test('4. a project copy of a skill: update available, and Update', async ({
+  test('4. a project copy of a skill: the coordinator takes the update', async ({
     ownerPage: page,
   }) => {
     await page.goto('/agent-files?project=RCP');
@@ -209,19 +209,43 @@ test.describe('Several clients and install state (decision 34)', () => {
       include: '[data-install-state]',
     });
 
-    await stateRow(page, 'claude').getByRole('button', { name: 'Update Claude Code' }).click();
+    // The main guidance is the project's own workflow, with the command to copy.
+    const row = stateRow(page, 'claude');
+    await expect(row.locator('[data-update-guidance]')).toContainText(
+      'Your project’s coordinator will take this in',
+    );
+    await expect(row.getByRole('button', { name: /^Update/ })).toHaveCount(0);
+    await row.getByRole('button', { name: 'Show the update command for Claude Code' }).click();
+    await expect(row.locator('[data-update-command]')).toContainText(
+      '/agent/update/docket-update.sh',
+    );
+    await expect(row.locator('[data-update-command]')).toContainText('never commits or pushes');
+    await expectAxeClean(page, 'Agent files: the update command', {
+      include: '[data-install-state]',
+    });
+
+    // The Install dialog says the same and has no button that writes the update.
+    await page.getByRole('button', { name: RCP_INSTALL }).click();
     const d = dialog(page);
     await expect(d.getByRole('checkbox', { name: /^Claude Code/ })).toBeChecked();
-    await expect(d.getByRole('checkbox', { name: /^Codex/ })).not.toBeChecked();
     await expect(d.locator('[data-client="claude"]')).toContainText('Installed · update available');
-    await expect(d.getByRole('button', { name: 'Install', exact: true })).toHaveCount(0);
-    await expect(d.getByRole('button', { name: 'Update', exact: true })).toBeVisible();
-    await d.getByRole('checkbox', { name: /^Codex/ }).check();
-    await expect(d.getByRole('button', { name: 'Update', exact: true })).toBeVisible();
+    await expect(d.locator('[data-update-guidance]')).toContainText(
+      'coordinator will take this in',
+    );
+    for (const name of ['Install', 'Update', 'Reinstall', 'Create the command']) {
+      await expect(d.getByRole('button', { name, exact: true })).toHaveCount(0);
+    }
     await shoot(page, 'dialog-update', d);
-    await d.getByRole('button', { name: 'Update', exact: true }).click();
-    await expect(d.locator('[data-install-summary-client="codex"]')).toBeVisible();
-    await d.getByRole('button', { name: 'Done' }).click();
+    await expectAxeClean(page, 'Install dialog: an update is the project’s', {
+      include: '[role="dialog"]',
+    });
+    await d.getByRole('button', { name: 'Cancel' }).click();
+
+    // Back to the default: nothing newer, so both read current again.
+    await page
+      .locator('[data-agent-file="skill:docket-worker"]')
+      .getByRole('button', { name: /^Use default/ })
+      .click();
     await expect(stateRow(page, 'claude')).toHaveAttribute('data-state', 'up_to_date');
     await expect(stateRow(page, 'codex')).toHaveAttribute('data-state', 'up_to_date');
   });

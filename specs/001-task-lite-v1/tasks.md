@@ -710,6 +710,13 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T308 [US2] Owner API and UI: Pause and Resume with Undo, the banner on Overview, Work and the item page, and the Paused marker in pickers.
 - [x] T309 [US18] Tests: authority, refused claims, allowed writes, parked and open runs, alerts and aging, a blocker clearing during a pause, resume events, Undo, restart, two projects, budgets, and e2e with axe in both themes.
 
+## Phase 50: Projects pull their own Docket updates (owner decision 56)
+
+- [x] T318 [US13] Spec plus code in one PR: decision 56 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.40; MCP_SPEC; UI_SPEC §6.7b; spec FR-302–FR-307 and SC-035; Help; skills.
+- [x] T319 [US13] `docket-update` (`.sh`, `.ps1`), `/agent/update` behind the existing guards, the plan that keeps local edits, and the unconfirmed install that counts once it reaches main.
+- [x] T320 [US13] The bootstrap notice in `get_digest` and `claim_lead`, the coordinator and worker skills, and Agent files: the coordinator takes it in, with main-branch status.
+- [x] T321 [US13] Tests: each client and shell in temporary repos (fresh, current, older, edited, damaged markers, no git, Docket down, protected mode), no commit, no credential, the bootstrap, route guards and budgets.
+
 ## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.
@@ -826,6 +833,7 @@ Open a PR titled "<Bn>: <phase name>" with the checkpoint evidence. Do not queue
 | 44 Installs stay in scope | B64 (decision 50) |
 | 45 A bundled delivery skill | B66 (decision 52) |
 | 47 Pause project | B69 (decision 53) |
+| 50 Projects pull their own Docket updates | B72 (decision 56) |
 
 **Within a phase:** tests (failing) → services → replace stubs or fill handlers → fill screens → checkpoint.
 

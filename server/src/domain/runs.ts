@@ -782,11 +782,19 @@ export function createRunsService(deps: ServiceDeps): RunsService {
         });
       }
       const hint = claimBranchHint(w.db, item, input.branch ?? input.workspace?.branch);
+      // Decision 56: an install that's behind hears how to take the update.
+      const update = input.instructions?.install_id
+        ? deps.services().installs.updateNoticeFor(w, {
+            project: item.project_key,
+            reported: input.instructions.install_id,
+          })
+        : null;
       return {
         run_id: runId,
         item: summary(w, item.id),
         lease_expires_at: leaseUntil,
         ...(hint ? { branch_hint: hint } : {}),
+        ...(update ? { agent_files_update: update } : {}),
       };
     },
 
