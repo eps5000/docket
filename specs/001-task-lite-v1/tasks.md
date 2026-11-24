@@ -756,6 +756,12 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T334 [US4] `components/ProgressMap/implied.ts`: the reduction over the drawn arrows (hard only behind hard, canceled tickets carry no chain, cycles and critical-path arrows always drawn), the *Hide implied links* switch with "n hidden" and `docket.mapHideImplied`, and the Dependencies tab's "Also implied through …" from the epic's map data.
 - [x] T335 [US4] Tests: a chain, a diamond, a cycle, hard behind soft, soft behind hard, a middle ticket removed or canceled, every connection kept; the switch's default, persistence and count; the item-page note; e2e and axe in both themes with screenshots at 1440 x 900 and 1024 px.
 
+## Phase 55: Fit fits the map's width (owner decision 63)
+
+- [x] T336 [US4] Spec plus code in one PR: decision 63 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; UI_SPEC §6.3.4 and §8; spec FR-338–FR-340 and SC-042; Help (Blocker rules and dependencies).
+- [x] T337 [US4] `components/ProgressMap`: `fitZoom` fits the width only (100% cap, 50% floor, rounded down), the **Fit width** button with its tooltip, back to the top left on Fit, a stable scrollbar gutter while fitted, and touch left to native scrolling.
+- [x] T338 [US4] Tests: a wide, tall, narrow and very wide map, the scroll position after Fit, wheel and keyboard scrolling, a mouse drag and a touch; e2e and axe in both themes with screenshots at 1440 x 900 and 1024 px.
+
 ## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.
