@@ -111,6 +111,8 @@ test("a story added mid-epic is Needs shaping everywhere; the owner's Move to Re
       description_md: 'Only a short synthetic description.',
       epic: epic.id,
       status: 'planning',
+      // First in the digest's capped section, whatever other specs left there.
+      priority: 1,
     })
   ).structured.item as { id: string };
   const id = story.id;

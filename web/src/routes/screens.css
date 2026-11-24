@@ -2322,3 +2322,7 @@
 .tl .readyrefusal .input {
   max-width: 420px;
 }
+/* The callout's own button colour is for plain buttons; a primary keeps its fill's text. */
+.tl .readyrefusal .btn.primary {
+  color: var(--on-fill);
+}
