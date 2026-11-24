@@ -337,8 +337,9 @@ describe('<ProgressMap>', () => {
 });
 
 describe('Hide implied links (decision 60)', () => {
-  // RCP-11 → RCP-12 → RCP-22, plus the shortcut RCP-11 → RCP-22 the chain already shows.
-  const shortcut = edge('RCP-11', 'RCP-22');
+  // RCP-11 → RCP-12 → RCP-22, plus the shortcut RCP-11 → RCP-22 the chain already shows
+  // (cleared like RCP-11's other links: RCP-11 is done).
+  const shortcut = edge('RCP-11', 'RCP-22', true);
   const view = () =>
     render(
       <MemoryRouter>

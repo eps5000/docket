@@ -39,7 +39,12 @@ describe('impliedLinks', () => {
   });
 
   it('a diamond keeps all four sides and hides only the shortcut across it', () => {
-    const diamond = [hard('T-1', 'T-2'), hard('T-1', 'T-3'), hard('T-2', 'T-4'), hard('T-3', 'T-4')];
+    const diamond = [
+      hard('T-1', 'T-2'),
+      hard('T-1', 'T-3'),
+      hard('T-2', 'T-4'),
+      hard('T-3', 'T-4'),
+    ];
     expect(hiddenOf(diamond)).toEqual({});
     expect(Object.keys(hiddenOf([...diamond, hard('T-1', 'T-4')]))).toEqual(['T-1>T-4']);
   });

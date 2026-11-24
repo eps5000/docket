@@ -256,10 +256,7 @@ function useEpicMapImplied(epic: string | null): Map<string, string[]> | null {
   });
   const data = query.data;
   return useMemo(
-    () =>
-      on && data
-        ? impliedOnMap(layoutMap(data.children, data.outside, data.links))
-        : null,
+    () => (on && data ? impliedOnMap(layoutMap(data.children, data.outside, data.links)) : null),
     [on, data],
   );
 }

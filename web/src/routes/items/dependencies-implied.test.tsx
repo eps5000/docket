@@ -73,7 +73,11 @@ const ticket = (epicId: string | null = 'T-100') =>
   ({
     item: {
       ...summary('T-3', { blocked: true, blocked_by: ['T-1', 'T-2'], epic: epicId }),
-      links: { blocked_by: [ref('T-1', 'T-1>T-3'), ref('T-2', 'T-2>T-3')], blocks: [], relates: [] },
+      links: {
+        blocked_by: [ref('T-1', 'T-1>T-3'), ref('T-2', 'T-2>T-3')],
+        blocks: [],
+        relates: [],
+      },
       checklist: { human_review: [] },
     },
     children: [],

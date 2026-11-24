@@ -743,6 +743,12 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T327 [US2] Planning takes the violet tokens; In progress drops its own and shares Queued's hatch and dash rule in Done's tokens; the Map's hatched In progress edge; the Board's column status rules; a minimum width for hatched bar segments.
 - [x] T328 [US2] Tests: the palette test over the seven own colours, the shared rule, contrast and minimum width, the retired orange; e2e and axe in both themes, with screenshots of the Board, Map, workload bars and chips at 1440 x 900 and 1024 px.
 
+## Phase 54: The dependency map hides implied links (owner decision 60)
+
+- [x] T333 [US4] Spec plus code in one PR: decision 60 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; UI_SPEC §2, §6.3.3 and §6.3.4; spec FR-334–FR-337 and SC-041; Help (Blocker rules and dependencies).
+- [x] T334 [US4] `components/ProgressMap/implied.ts`: the reduction over the drawn arrows (hard only behind hard, canceled tickets carry no chain, cycles and critical-path arrows always drawn), the *Hide implied links* switch with "n hidden" and `docket.mapHideImplied`, and the Dependencies tab's "Also implied through …" from the epic's map data.
+- [x] T335 [US4] Tests: a chain, a diamond, a cycle, hard behind soft, soft behind hard, a middle ticket removed or canceled, every connection kept; the switch's default, persistence and count; the item-page note; e2e and axe in both themes with screenshots at 1440 x 900 and 1024 px.
+
 ## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.

@@ -81,6 +81,7 @@ Agents do almost all the writing. The owner verifies, decides, nudges and archiv
 | Desktop notifications on/off, and which events were already notified | `localStorage` | Opt-in per browser; no repeat notifications across tabs |
 | Collapsed sections (per section *type*, e.g. "work") | `localStorage` | Close Work once, and it stays closed on the next ticket. A few sections start collapsed (Agents → Recent, the burn-down); opening one is remembered the same way |
 | Work's last filter choice, per project (B43) | `localStorage` | Applied only when you arrive at Work with no filter in the URL; the URL then shows it |
+| The map's *Hide implied links* switch (decision 60) | `localStorage` | `docket.mapHideImplied`: stored only when turned off; on for every map and the Dependencies tab note |
 | Everything else (filters, layout) | URL query | Shareable, Back works |
 
 **Routes:**
@@ -568,6 +569,8 @@ A vertical stack:
 
 Nodes are the map cards from §6.3.4. A done blocker that still blocks shows "done · waiting for merge" or "done · waiting for your verification", with the link's rule in `title` ("This link needs RCP-12's PR merged (reported by the agent)"). Empty: "No blocking links."
 
+Every dependency stays listed (decision 60). A link the epic's map hides as implied gets a quiet line under its node, "Also implied through GF-2" (or "GF-2 → GF-5" for a longer chain), worked out from the epic's map data with the map's own code, so it matches the picture. There's no note without an epic, or when this browser shows implied links.
+
 #### 6.3.4 Progress map
 Used on the epic Map tab, label pages and Work → Map.
 
@@ -603,6 +606,13 @@ Used on the epic Map tab, label pages and Work → Map.
   - edge fades plus clickable *More →*, *← More*, *More ↓* pills when content overflows;
   - "Drag to pan" hint text only when overflowing;
   - zoom controls − / percentage / + / **Fit**: steps 50, 67, 80, 100, 125%, default 100%; Fit scales to show everything, down to 40% at the smallest.
+- **Hide implied links (decision 60)**, beside the zoom controls on any map with arrows:
+  - a switch labelled **Hide implied links**, on by default and remembered in this browser (§2). Its tooltip and accessible description: "Hides an arrow when a chain of other arrows already connects the same two tickets." While it hides any, "n hidden" sits beside it;
+  - **display only:** the map leaves out an arrow when a longer chain of drawn arrows already connects the same two tickets (the transitive reduction of what's drawn). Links are never changed or deleted, and hidden arrows aren't routed or traced;
+  - it is worked out from the arrows currently drawn, so when a chain breaks (a middle ticket is canceled, removed or outside the view) the direct arrow comes back on its own. A canceled ticket never carries a chain;
+  - **strength:** a hard (`blocks`) link is hidden only by a chain of hard links, and one that still blocks only by a chain of links that still block; a soft (`relates`) link by any chain. The map draws only `blocks` links today, so the soft rule applies once soft links are drawn;
+  - an arrow with an end in a cycle, and a critical-path arrow, is always drawn;
+  - blocking, epic readiness, Pick next epic, the digest and MCP results are unchanged.
 - **Key** (one line under the map): "Arrow = blocks · dashed green = cleared · hover to trace", plus the two person icons with "packet ready for you" and "your review later".
 - **Critical path (decision 48, B60)**, on the epic Map tab and Work → Map:
   - *What's holding up* picks a ticket or epic as the goal (`?goal=`). The ticket's Dependencies tab and the epic's Map tab link to it;
