@@ -177,6 +177,7 @@ describe('0009_step_details', () => {
                 wait_flags: _wf,
                 coordinators: _co,
                 split_from: _sf,
+                known_gaps: _kg,
                 criteria_changed_at: _cc,
                 withdrawn_at: _wa,
                 withdrawn_by: _wb,

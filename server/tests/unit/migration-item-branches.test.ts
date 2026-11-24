@@ -151,7 +151,9 @@ describe('0012_item_branches', () => {
         unknown
       >[];
       // Every other column is unchanged.
-      expect(after.map(({ branches: _, split_from: _s, ...row }) => row)).toEqual(before);
+      expect(after.map(({ branches: _, split_from: _s, known_gaps: _k, ...row }) => row)).toEqual(
+        before,
+      );
       const sets = Object.fromEntries(
         after.map((r) => [r.id, r.branches === null ? null : JSON.parse(r.branches as string)]),
       );

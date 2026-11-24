@@ -142,6 +142,8 @@ describe('0010_shared_changes', () => {
           branches: null,
           // 0023 (decision 48): not split from anything.
           split_from: null,
+          // 0028 (decision 58): no known gaps.
+          known_gaps: null,
         })),
       );
       expect(all(migrated, 'packets')).toEqual(
