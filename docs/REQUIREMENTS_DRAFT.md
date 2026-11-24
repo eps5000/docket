@@ -474,7 +474,19 @@ Three things the owner hit while epics ran with agents.
 2. **Idle In progress tickets.** A ticket In progress with no open, parked or needs-input run and no activity for 3 days is idle. It gets one problem for the owner, "GF-1 is In progress but nobody has worked on it since <date>", offering to move it to Planning, Ready or Inbox, cancel it, or clear its branches. The radar and overlap checks stop raising conflicts against an idle ticket's branches, and existing ones clear with a reason ("the other ticket is idle").
 3. **Acknowledged problems.** The owner reads Acknowledge as "I've seen it, stop telling me". Acknowledged problems no longer count as open: on items and epics they fold into one quiet line, "You acknowledged N problems", which expands to show them. They come back as open only under the existing rules: a material change, or a new proposed resolution.
 
-BUILD_SPEC §5.42, MCP_SPEC (`get_digest`, `set_status`, Problems), UI_SPEC §6.1, §6.2 and §6.3, spec FR-338–FR-345 and SC-042, Help (Problems and what to do; Pick the next epic) and the producer, worker and planner skills have the details.
+BUILD_SPEC §5.42, MCP_SPEC (`get_digest`, `set_status`, Problems), UI_SPEC §6.1, §6.2 and §6.3, spec FR-341–FR-348 and SC-043, Help (Problems and what to do; Pick the next epic) and the producer, worker and planner skills have the details.
+
+## Owner decision 63 (2026-11-24): Fit fits the map's width
+
+The owner uses the dependency map's **Fit** button a lot. Maps have few waves but many tickets in a wave (one has 5 waves and 12 tickets in one wave), so fitting the whole map made every card tiny, and every Fit needed zooming again.
+
+1. **Fit fits the width.** The button, now **Fit width**, scales the map so all its waves fit the width of the view and scrolls to the top. The map then scrolls down for the tickets below.
+2. **Never above 100%,** so a narrow map isn't blown up past its normal size.
+3. **A floor:** if even the width can't fit at the smallest readable zoom (50%, the smallest zoom step), the map stays at 50% and scrolls both ways.
+4. **Every map with Fit:** the epic Map tab and Work → Map.
+5. **Nothing else changes:** the zoom buttons, the keyboard, *Hide implied links*, focus and announcements. The button's name and tooltip say what it does. Scrolling down works with the mouse wheel, a trackpad, the keyboard and touch, without fighting the map's own drag to pan.
+
+UI_SPEC §6.3.4 and §8, spec FR-338–FR-340 and SC-042, and Help (Blocker rules and dependencies) have the details.
 
 ## Deferred choices
 

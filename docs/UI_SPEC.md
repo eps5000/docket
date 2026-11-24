@@ -608,10 +608,16 @@ Used on the epic Map tab, label pages and Work → Map.
   - redraw on resize (80 ms debounce) and on zoom;
   - hover or focus on a card highlights its links, paints them on top and dims the rest.
 - **Pan and zoom:**
-  - drag the background (grab cursor), scroll, or use arrow keys while the canvas is focused;
+  - drag the background with a mouse (grab cursor), scroll with the wheel, a trackpad or touch (the browser's own scrolling, which a touch never also drags), or use arrow keys while the canvas is focused;
   - edge fades plus clickable *More →*, *← More*, *More ↓* pills when content overflows;
   - "Drag to pan" hint text only when overflowing;
-  - zoom controls − / percentage / + / **Fit**: steps 50, 67, 80, 100, 125%, default 100%; Fit scales to show everything, down to 40% at the smallest.
+  - zoom controls − / percentage / + / **Fit width**: steps 50, 67, 80, 100, 125%, default 100%.
+- **Fit width (decision 63):** the button reads **Fit width**, is a toggle (`aria-pressed`) and its tooltip says "Fit every wave to the width. Scroll down for the rest.":
+  - it scales the map so every column (the outside column, the waves and Cycle) fits the canvas's width, whatever the height, and scrolls the canvas back to the top left. The map then scrolls down for the tickets below, within the canvas's 540px;
+  - never above 100%, so a narrow map keeps its normal size; never below 50%, the smallest zoom step, where a card still reads. A map too wide even at 50% stays at 50% and scrolls both ways;
+  - it follows the canvas's width while on (a resize refits it, without moving the scroll), and the canvas keeps room for its vertical scrollbar so the scrollbar appearing can't change the fit;
+  - pressing it again goes back to 100%; − and + leave it at the next step from the fitted zoom;
+  - on every map with the zoom controls: the epic Map tab, label pages and Work → Map.
 - **Hide implied links (decision 60)**, beside the zoom controls on any map with arrows:
   - a switch labelled **Hide implied links**, on by default and remembered in this browser (§2). Its tooltip and accessible description: "Hides an arrow when a chain of other arrows already connects the same two tickets." While it hides any, "n hidden" sits beside it;
   - **display only:** the map leaves out an arrow when a longer chain of drawn arrows already connects the same two tickets (the transitive reduction of what's drawn). Links are never changed or deleted, and hidden arrows aren't routed or traced;
@@ -964,7 +970,7 @@ On success, go to the page that was requested.
 | Section chevron | toggle | rotate | 120 ms | ease |
 | Live run dot | always | soft pulse (scale 1 → 1.35, opacity) | 1.6 s loop | ease-in-out |
 | New For-you row | arrives | background highlight fade | 1 s | ease-out |
-| Map zoom | − / + / Fit | scale transform | 150 ms | ease-out |
+| Map zoom | − / + / Fit width | scale transform | 150 ms | ease-out |
 
 All of these are off under `prefers-reduced-motion: reduce`.
 
