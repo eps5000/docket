@@ -79,7 +79,7 @@ describe('a refused Move to Ready (decision 65)', () => {
     expect(screen.getByText(/Its shared changes declared/)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Ask a planner to shape this' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'It changes no shared part' })).toBeTruthy();
-    expect(document.activeElement).toBe(panel);
+    await waitFor(() => expect(document.activeElement).toBe(panel));
   });
 
   it('Ask a planner sends your note, and the panel closes', async () => {

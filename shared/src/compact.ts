@@ -514,6 +514,8 @@ export function knownGapLines(k: KnownGaps, toShape = false): string[] {
  * Decision 65: "needs shaping: no outcome and shared changes not declared ·
  * the owner asked: …", and how to shape it.
  */
+const SHAPING_HEAD = `${I1}needs shaping: `;
+
 export function shapingLine(n: NeedsShaping): string {
   return `${I1}${join([
     needsShapingText(n).replace('Needs shaping', 'needs shaping'),
@@ -1559,17 +1561,31 @@ const RENDERERS: { [N in ToolName]: Renderer<N> } = {
   },
   // Decision 34 (MCP_SPEC §5.13): one line per operation, in order: its single call's
   // compact line, or the error; warnings indented under it.
-  apply_batch: (r) =>
-    [
+  apply_batch: (r) => {
+    // Decision 65: a created ticket's "needs shaping" line folds into one line at the end.
+    const unshaped: number[] = [];
+    const lines = r.results.map((x) => {
+      const [first = '', ...rest] = x.text.split('\n');
+      const head = x.ok
+        ? `#${x.index} ${first}`
+        : `#${x.index} failed ${x.op} · ${x.error?.code ?? 'error'}: ${truncate(first)}`;
+      const kept = rest.filter((l) => !(x.op === 'create_item' && l.startsWith(SHAPING_HEAD)));
+      if (kept.length < rest.length) unshaped.push(x.index);
+      return [head, ...kept.map((l) => `${I1}${l}`)].join('\n');
+    });
+    return [
       s('apply_batch', { applied: r.applied, failed: r.failed, total: r.results.length }),
-      ...r.results.map((x) => {
-        const [first = '', ...rest] = x.text.split('\n');
-        const head = x.ok
-          ? `#${x.index} ${first}`
-          : `#${x.index} failed ${x.op} · ${x.error?.code ?? 'error'}: ${truncate(first)}`;
-        return [head, ...rest.map((l) => `${I1}${l}`)].join('\n');
-      }),
-    ].join('\n'),
+      ...lines,
+      ...(unshaped.length > 0
+        ? [
+            `needs shaping ${unshaped.length}: ${partList(
+              unshaped.map((n) => `#${n}`),
+              5,
+            )} (get_item says what each lacks; a planner shapes them)`,
+          ]
+        : []),
+    ].join('\n');
+  },
   // Decision 36 (MCP_SPEC §5.15): one line; overlaps name the other item and the parts.
   declare_shared_changes: (r, a) => {
     const d = r.declaration;
