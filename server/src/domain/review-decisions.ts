@@ -47,6 +47,7 @@ import {
 import { openPacketOf } from './packets.js';
 import { designHold } from './design-review.js';
 import { onItemClosed } from './shared-changes.js';
+import { releaseHoldOf } from './finish-line.js';
 import type { EventInput, InverseOp, WriteContext } from './write.js';
 
 const BUG_TITLE_MAX = 70;
@@ -399,8 +400,12 @@ export function createReviewDecisionsService(deps: ServiceDeps): ReviewDecisions
                 .all(item.id) as { id: string }[]
             ).map((r) => r.id)
           : [];
+      // Decision 64: an epic's finish line isn't closed while bugs in the epic are open.
+      const releaseHold = releaseHoldOf(w.db, item);
       const outcome: 'progress' | 'done' =
-        anyChanges || stillDeclared.length > 0 || openChildren.length > 0 ? 'progress' : 'done';
+        anyChanges || stillDeclared.length > 0 || openChildren.length > 0 || releaseHold
+          ? 'progress'
+          : 'done';
 
       const kept = notes.filter((n) => n.decisionId !== null);
       const parts = [
@@ -530,7 +535,9 @@ export function createReviewDecisionsService(deps: ServiceDeps): ReviewDecisions
               ? ': sent back'
               : stillDeclared.length > 0
                 ? `: ${plural(stillDeclared.length, 'newer review item')} still to come`
-                : `: ${openChildren.join(', ')} still open`;
+                : releaseHold && openChildren.length === 0
+                  ? `: it's ${releaseHold.epic}'s finish line and ${releaseHold.open_bugs.map((b) => b.id).join(', ')} ${releaseHold.open_bugs.length === 1 ? 'is' : 'are'} still open`
+                  : `: ${openChildren.join(', ')} still open`;
         j.event({
           type: 'item.status_changed',
           summary: `You moved ${item.id} from ${from} to ${outcome}${why}`,

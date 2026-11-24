@@ -55,6 +55,7 @@ import type {
 import { DIGEST_MAX_CHARS, DIGEST_TEXT_CHARS, type Digest } from './mcp/digest.js';
 import type { RecoveryWorkspace } from './mcp/recovery.js';
 import type { KnownGaps } from './epic-readiness.js';
+import { RELEASE_WAYS_FORWARD, bugCount, type ReleaseHold } from './finish-line.js';
 
 export interface RenderOptions {
   /** "Now", for HH:MMZ vs MM-DD. Defaults to the current time. */
@@ -538,6 +539,24 @@ export function knownGapLines(k: KnownGaps, toShape = false): string[] {
   ];
 }
 
+/** Bugs listed on the finish line's context before "+N more". */
+const RELEASE_BUGS_SHOWN = 5;
+
+/**
+ * Decision 64: on an epic's finish line, the open bugs in the epic that keep it
+ * from Review and Done, and the ways forward.
+ */
+export function releaseHoldLines(h: ReleaseHold): string[] {
+  const n = h.open_bugs.length;
+  return [
+    `release held: finish line of ${h.epic}, which has ${bugCount(n)} open; Review and Done are refused until each is settled: ${RELEASE_WAYS_FORWARD.join('; ')}:`,
+    ...h.open_bugs
+      .slice(0, RELEASE_BUGS_SHOWN)
+      .map((b) => `${I1}- ${b.id} ${b.status}${SEP}${truncate(b.title, 60)}`),
+    ...(n > RELEASE_BUGS_SHOWN ? [`${I1}+${n - RELEASE_BUGS_SHOWN} more`] : []),
+  ];
+}
+
 export function renderItem(
   item: AnyItem,
   opts: RenderOptions & { view?: 'summary' | 'standard' | 'full' } = {},
@@ -709,6 +728,8 @@ export function renderContext(ctx: ContextBundle, opts: RenderOptions = {}): str
     lines.push(`${I1}acceptance:`, ...it.acceptance.map((a) => `${I1}- ${a}`));
   // Decision 58: right under the acceptance, never cut.
   if (ctx.known_gaps) lines.push(...knownGapLines(ctx.known_gaps, true));
+  // Decision 64: the finish line's open bugs, before anything else is worked on.
+  if (ctx.release_hold) lines.push(...releaseHoldLines(ctx.release_hold));
   // Decision 61: what the last lead left, never cut.
   if (ctx.finished_partly) {
     const p = ctx.finished_partly;
@@ -1078,6 +1099,15 @@ function renderDigest(d: Digest, now: Date): string {
     total: d.changed.total,
     rows: d.changed.rows.map((x) => [x.cursor, x.item_id, x.type].filter(Boolean).join(' ')),
   };
+  // Decision 64: open bugs holding each epic's release.
+  const releaseBugs = {
+    title: 'release held by bugs',
+    total: d.release_bugs?.total ?? 0,
+    rows: (d.release_bugs?.rows ?? []).map(
+      (x) =>
+        `${x.epic} ${x.finish_line ? `finish line ${x.finish_line}` : 'no finish line'} waits on ${bugCount(x.bugs.length)}: ${partList(x.bugs, 3)}`,
+    ),
+  };
   // Decision 58: a quiet flag for the producer; full snapshots only.
   const unshaped = {
     title: 'started unshaped',
@@ -1111,6 +1141,7 @@ function renderDigest(d: Digest, now: Date): string {
     partly,
     nextWork,
     bottlenecks,
+    releaseBugs,
     unshaped,
     ready,
     runs,

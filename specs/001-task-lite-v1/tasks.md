@@ -776,6 +776,12 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T345 [US11] "Finished partly: N items left" on the card and the item page's items, reasons and settled line.
 - [x] T346 [US11] Tests: the summary on park, release, finish, lease expiry and Done; complete and partial exits; Done refused and allowed after removal with a note; the digest's Finished partly and its clearing on each kind of action; the relay mail; the owner's card and item page; token budgets; e2e and axe in both themes.
 
+## Phase 58: Open bugs hold back an epic's release (owner decision 64)
+
+- [x] T347 [US4] Spec plus code in one PR: decision 64 in REQUIREMENTS_DRAFT and the BUILD_SPEC log, BUILD_SPEC §5.43; MCP_SPEC (`update_item finish_line`, `bugs_open`, `get_context release_hold`, `get_digest release_bugs`); UI_SPEC §6.2.5, §6.3 and §6.3.4; spec FR-347–FR-352 and SC-044; Help (Blocker rules and dependencies; Pick next epic); `docket-producer` and `docket-worker`.
+- [x] T348 [US4] `domain/finish-line.ts`: finding the finish line (one, several, none, marked; migration 0030 `items.finish_line`), `bugs_open` on `set_status done` and `submit_packet`, the owner's review leaving it In progress, a reason to cancel a bug in an epic, the bug-left Activity line; `release_hold` and `release_bugs` for agents; the epic page, cards, Pick next epic, the ticket and bug notes; the map's Bugs column, chain-bug marker and "Waiting on N bugs" badge.
+- [x] T349 [US4] Tests: detection (one, several, none, marked, a mark that stops counting), the hold with open, done and canceled bugs and bugs outside the epic, the refusal's content, moving out and canceling, the owner's review; the map's Bugs column, chain bug, badge and Hide implied links; the digest and context, the token budget; e2e and axe in both themes with screenshots at 1440 x 900 and 1024 px.
+
 ## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.

@@ -7,7 +7,15 @@ import {
   type EpicPickFit,
   type PickEpicResponse,
 } from '@docket/shared';
-import { Callout, Card, Chip, EmptyState, EpicReadinessLine, Skeleton } from '../../components/kit';
+import {
+  Callout,
+  Card,
+  Chip,
+  EmptyState,
+  EpicReadinessLine,
+  Skeleton,
+  epicReleaseText,
+} from '../../components/kit';
 import { apiClient } from '../../app/queryClient';
 import { QueryState } from '../../app/QueryState';
 import { useBreadcrumb } from '../../app/ShellState';
@@ -202,6 +210,12 @@ function PickRow({ pick: p, reason }: { pick: EpicPick; reason: string | null })
         )}
         {/* Decision 58: its Inbox and Planning tickets, before or after it started. */}
         {p.readiness && <EpicReadinessLine readiness={p.readiness} className="src" />}
+        {/* Decision 64: its finish line and the open bugs holding it. */}
+        {p.release && (p.release.open_bugs > 0 || p.release.finish_line === null) && (
+          <div className="src" data-pick-release={p.release.open_bugs}>
+            <span aria-hidden="true">⚑</span> {epicReleaseText(p.release)}
+          </div>
+        )}
         <div className="src">
           <Link to={paths.criticalPath(p.id, p.id)}>
             Critical path <span className="sr">for {p.title}</span>

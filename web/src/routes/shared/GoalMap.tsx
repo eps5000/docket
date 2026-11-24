@@ -9,7 +9,12 @@ import {
   type LinkEdge,
 } from '@docket/shared';
 import { Button, Callout, Chip, Skeleton, type ChipKind } from '../../components/kit';
-import { ProgressMap, type CriticalOverlay, type MapItem } from '../../components/ProgressMap';
+import {
+  ProgressMap,
+  type CriticalOverlay,
+  type MapItem,
+  type MapRelease,
+} from '../../components/ProgressMap';
 import { apiClient } from '../../app/queryClient';
 import { QueryState } from '../../app/QueryState';
 import { HelpLink } from '../../help/HelpLink';
@@ -122,6 +127,7 @@ export function GoalMap({
   outsideTitle,
   home,
   goals,
+  release = null,
 }: {
   items: readonly MapItem[];
   outside: readonly MapItem[];
@@ -130,6 +136,8 @@ export function GoalMap({
   home?: { project: string } | null;
   /** Epics or other goals to offer besides the tickets on the map. */
   goals?: readonly { id: string; title: string }[];
+  /** Decision 64, on an epic's map: the Bugs column and the finish line's badge. Keep it stable. */
+  release?: MapRelease | null;
 }) {
   const [params, setParams] = useSearchParams();
   const location = useLocation();
@@ -195,6 +203,7 @@ export function GoalMap({
         outsideTitle={outsideTitle}
         home={home}
         critical={overlay}
+        release={release}
       />
     </>
   );

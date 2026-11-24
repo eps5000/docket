@@ -30,13 +30,15 @@ The project has its own rules: who moves work to Ready, when human review is nee
 
    If you get `design_review`, the item changes an approved design and the owner hasn't approved it. **Pick other work** and leave this item until they do.
 
-   If you get `seam_conflict`, the item collides with another item in flight on a shared part (a table, model, endpoint or shared file). Docket has queued it behind that item, or asked the owner if only the owner can decide. **Pick other work** from `ready_to_start` and leave this item; don't wait, and don't work on it.
+   If you get `seam_conflict`, the item collides with another item in flight on a shared part (a table, model, endpoint or shared file). Docket queued it, or asked the owner. **Pick other work** from `ready_to_start` and leave this item; don't wait, and don't work on it.
 
    **Given a `run_id` by your coordinator** (you're resuming a parked run after a crash)? Don't claim. Call `heartbeat { run_id, note: "Resuming" }` first: a read doesn't resume it. That resumes the run with its claim, workspace and brief. Then continue from step 3.
 
 3. **Get context:** `get_context { id, budget: "small" }`. One call gathers the outcome, the acceptance criteria, the decisions you must follow, the epic and label briefs, blockers, the shared parts this item and other in-flight items will change, the project's Workflow notes and planning docs. Widen to `"medium"` or `"large"` only when a `…truncated` line hides something you need. Follow the Workflow notes like the project's `AGENTS.md`.
 
 **Known gaps to shape** in your context: settle each and record how with `update_item { known_gaps: [{ gap, settled }] }`, the same gaps in order.
+
+**`release held:`** in your context means you hold the epic's finish line. Check those bugs first: Review and Done are refused (`bugs_open`) until each is fixed, moved out or canceled. Ask the producer before dropping one.
 
 **Check each acceptance item before you start.** Can this ticket alone do it? One that needs something outside it (another ticket's deploy, a flag, a cutover, an environment), perhaps a leftover from older work, gets clarified first: ask your producer, propose it as a known gap, or move it to the ticket that can do it (`split_from`). **`finished partly:`** in your context lists what the last lead left: settle those too.
 
@@ -51,7 +53,7 @@ Skip `whoami`: `claim_lead` returns your lease's expiry.
 
 - **`set_plan`:** 3–8 one-line steps, each a verifiable piece of progress. Steps aren't tickets. Create a new item only when a piece needs its own blocker, owner or review.
   - The first plan sends `steps: [{ text }, …]` only. Docket assigns the step IDs and returns them; use those with `update_step`. Never make up an ID: an unknown one is refused.
-  - **Keep each step's `text` to one line.** Context a step needs (reproduction steps, file paths, what done looks like) goes in its `details` (Markdown), and where it came from in `source` (for example a Jira key): `steps: [{ text, details, source }, …]`. Like the rest of the plan, details patch: leave them out to keep them, send `null` to clear them.
+  - **Keep each step's `text` to one line.** Context a step needs (reproduction steps, file paths, what done looks like) goes in its `details` (Markdown), and where it came from in `source` (for example a Jira key): `steps: [{ text, details, source }, …]`. Details patch: leave them out to keep them, send `null` to clear them.
 - **`set_checks`:** what you'll verify yourself, stated concretely. For example "Planner unit tests pass" or "Reload keeps the selected week (e2e)", never "it works".
 - **Human review:** if the project rules say this item needs it and none is declared, `declare_human_review` now. Write plain instructions the owner can follow in minutes. See `docket-review-packet`.
 - **Changing the plan later:** patch it, and give a `reason`. Send only the steps that change. Don't silently drop a step: mark it `skipped`, with a note.
@@ -60,7 +62,7 @@ Skip `whoami`: `claim_lead` returns your lease's expiry.
 
 1. `update_step { step_id, state: "current" }`. If `get_item` shows the step with `· details`, read them first with `get_step { id, step_id }`. (`get_context` already includes the current step's details; a `…truncated` line there means read the rest with `get_step`.)
 2. Do the work. Found something the next agent needs for this step? Add it to the step's details: `update_step { step_id, state, details }`.
-3. Commit, **push**, then `report_commit { sha, branch, pushed: true }`. Push work in progress at every step: a pushed commit survives a crash or a pruned worktree; an unpushed one may not.
+3. Commit, **push**, then `report_commit { sha, branch, pushed: true }`. Push at every step: a pushed commit survives a crash or a pruned worktree.
 4. `update_check` as checks pass or fail, with evidence: the command and its result, one line.
 5. `update_step { state: "done" }`.
 
@@ -68,7 +70,7 @@ Skip `whoami`: `claim_lead` returns your lease's expiry.
 
 - **Change a shared part you didn't declare?** Add it now with `declare_shared_changes` (the whole list: it replaces the declaration). Name parts by their keys from `list_shared_parts`, with the member when you can (`model:Token.expiresAt`): adding different members runs in parallel, while a bare part is sequenced.
 - **Changing something the owner approved?** Set `design_impact: "changes_approved_design"` with a `design_note` naming the design, decision or acceptance criterion. It always goes to the owner, overlap or not, and **this item pauses until they approve it**: `claim_lead` and closing return `design_review`, and a packet is held. Stop the affected work and take other work from `ready_to_start`; other items aren't affected. Don't try to clear it by removing the flag. If the owner sends it back, follow their note, then declare again. If you and another agent disagree about who owns a part, set `disputed: true`; that reaches the owner too.
-- **Commit and report early** (`report_commit`, and your `branch`). The conflict radar only sees committed local branches. A clean trial merge means git can combine them, not that they work together, so it never replaces your declaration.
+- **Commit and report early** (`report_commit`, and your `branch`). The conflict radar only sees committed local branches. A clean trial merge means git can combine them, not that they work together.
 - **A text conflict stops nobody.** Your context says who merges first. If you're second, keep working, then merge main once the first lands. If the merge isn't mechanical, or would change what the other work does, use `propose_resolution`.
 - **Declaring shared changes?** Pass `branches`, every branch the work is on (or `branch` for one), every time, also when you backfill a declaration for work already in progress. The list replaces the item's branches, and the conflict radar checks each one.
 - **Single-writer parts** (such as a migrations snapshot): `take_lease { id, part }` **before** you generate or edit it, and `release_lease` as soon as the change is committed and pushed. If you get `lease_held`, work on another step or item; call `take_lease` again later. Never wait in a loop.
@@ -129,7 +131,7 @@ Skip `whoami`: `claim_lead` returns your lease's expiry.
    - Handing off or closing ends your leases.
 4. **Report how you finished, on every exit** (`finish_run`, `release_lead`, or `park_run` when your session ends): `exit: { outcome: "complete" }` when every acceptance item is done, else `outcome: "partial"` with `left: [{ text, why, needs, item? }]`: what's left, why this ticket couldn't do it, what would finish it (that ticket in `item`). Your producer hears about it. Closing as Done is a complete exit: with items left, remove them (with a note saying which and why) or move them first.
 5. **Treat `finish_run` warnings as mistakes to fix.** For example `! 2 commits not pushed` or `! 1 resource still declared`. Each one leaves your workspace marked at risk.
-6. **A commit after handing off?** Still `report_commit` it. If an open packet was built from an older commit, it's marked out of date for the owner.
+6. **A commit after handing off?** Still `report_commit` it; an open packet built from an older commit is then marked out of date.
 
 ## Changing these instructions
 

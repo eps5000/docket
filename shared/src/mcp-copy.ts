@@ -32,7 +32,7 @@ export const SERVER_INSTRUCTIONS = [
   "- After any pause, call get_item: it delivers the owner's notes, answers and review decisions, each once.",
   '- Send only what changes. update_item, set_plan and set_checks patch: whatever you leave out stays as it is. Use get_item view "summary" when you only need status.',
   '',
-  'Errors are structured (code: validation | conflict | not_found | forbidden | unavailable | internal | seam_conflict | not_declared | lease_held | design_review | project_paused | epic_not_ready). On conflict, read the current state in the error and retry only if your change still makes sense.',
+  'Errors are structured (code: validation | conflict | not_found | forbidden | unavailable | internal | seam_conflict | not_declared | lease_held | design_review | project_paused | epic_not_ready | bugs_open). On conflict, read the current state in the error and retry only if your change still makes sense.',
 ].join('\n');
 
 /** MCP_SPEC §5: the exact `description` registered for each tool. */
@@ -43,7 +43,7 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   search_items:
     'Find items. Filters: ready_to_start (Ready, unblocked, unclaimed: what you may start), resumable (In progress with no lead, usually sent back by review: resume it), blocked, waiting_for_review (handed off, waiting on the owner), mine (items you lead), deferred_review (owner deferred a check; cleanup). Combine with project, status, type, label, epic or text.',
   get_item:
-    "Get one item: description, acceptance, blockers, checklist (plan, checks, human review), runs, open question and answer, unread owner notes, documents, packets, recent activity. Owner notes and answers are returned once, then marked delivered: read them now. Use view 'summary' for status only, and get_context when starting work. Step details show as '· details' unless view is 'full'; read one with get_step.",
+    "Get one item: description, acceptance, blockers, checklist (plan, checks, human review), runs, open question and answer, unread owner notes, documents, packets, recent activity. Owner notes and answers are delivered once: read them now. Use view 'summary' for status only, and get_context when starting work. Step details show as '· details' unless view is 'full'; read one with get_step.",
   get_context:
     "Everything needed to work on an item in one call: outcome and acceptance, decisions to follow (owner's first), epic and label briefs, blockers, the project's workflow notes, planning documents, the last review's notes. Sized to a budget; cuts are marked. Read-only: owner notes are counted here but delivered by get_item.",
   dependency_subgraph:
@@ -53,7 +53,7 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   get_changes:
     'Read changes since a cursor. Without one, returns the latest cursor; then pass next_cursor. Watch for review.decided, question.answered and owner_note.added on your items. To wait, run the installed docket-wait script (no tokens). Without a shell, pass wait_s (at most 45) to hold this call. Never poll in a sleep loop.',
   get_digest:
-    'One snapshot for coordinators instead of many reads: what to start next, bottlenecks, ready items, running, stale and parked runs (resume_ready flagged), runs that finished partly, blocked items and why, what waits on the owner, agent-actionable problems, leases, conflicts ahead, and the change cursor. Pass cursor for only what changed since then. Read-only.',
+    'One snapshot for coordinators: what to start next, bottlenecks, ready items, running, stale and parked runs (resume_ready flagged), runs that finished partly, blocked items and why, what waits on the owner, agent-actionable problems, leases, conflicts ahead, and the change cursor. Pass cursor for only what changed since then. Read-only.',
   create_item:
     'Create an Epic, Story, Task or Bug, in Inbox (or Planning if you are shaping it). Small steps go in the checklist (set_plan). To split a ticket, pass split_from: move and copy are 1-based acceptance positions; also brings blockers, parts or steps.',
   update_item:
@@ -127,7 +127,7 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   apply_batch:
     'Run up to 100 writes in one call, each naming a tool and its arguments. Each runs as its single call would, in order: a failure doesn\'t undo the others, and the result lists each operation\'s ID or error. "$1" means the ID operation 1 wrote. Pass idempotency_key, so a retry runs only what failed.',
   declare_shared_changes:
-    'Declare the shared parts this item will change, each with add, change or remove and a short note, or none: true. Required before Ready. Each call replaces the whole declaration. Use keys from list_shared_parts; register a missing one with new_parts. Name the member when you can (model:Token.expiresAt): different members run in parallel; a bare part is sequenced. Set design_impact: changes_approved_design with a design_note when it alters an approved design: this item pauses until the owner approves. Set disputed: true when agents disagree who owns a part. branches (or branch) replace the reported ones; [] clears them. Returns in-flight items on the same parts, each with outcome parallel, sequence or owner.',
+    'Declare the shared parts this item will change, each with add, change or remove and a short note, or none: true. Required before Ready. Each call replaces it. Use keys from list_shared_parts; register a missing one with new_parts. Name the member when you can (model:Token.expiresAt): different members run in parallel; a bare part is sequenced. Set design_impact: changes_approved_design with a design_note when it alters an approved design: this item pauses until the owner approves. Set disputed: true when agents disagree who owns a part. branches (or branch) replace the reported ones; [] clears them. Returns in-flight items on the same parts, each with outcome parallel, sequence or owner.',
   list_shared_parts:
     "List a project's shared parts: each key, the file paths mapped to it, whether it is single-writer, who holds its lease, and in-flight items declaring changes to it. Read-only.",
   take_lease:

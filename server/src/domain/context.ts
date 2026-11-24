@@ -62,6 +62,7 @@ import { inScopeOf, labelsOf } from './decisions.js';
 import { BlockIndex, activeLead, coordinatorParkOf, currentSteps, requireItem } from './model.js';
 import { contextResolutions } from './problems.js';
 import { knownGapsView } from './epic-readiness.js';
+import { releaseHoldOf } from './finish-line.js';
 import { openPartialExit } from './exit-reports.js';
 import { pausedForAgents, projectPause } from './project-pause.js';
 import { choiceField } from './question-form.js';
@@ -147,6 +148,8 @@ interface Full {
   wait_kind?: NonNullable<Bundle['wait_kind']>;
   /** Decision 58: known gaps to shape, each with how it was settled. */
   known_gaps?: NonNullable<Bundle['known_gaps']>;
+  /** Decision 64: on the finish line, the open bugs in its epic. */
+  release_hold?: NonNullable<Bundle['release_hold']>;
   finished_partly?: NonNullable<Bundle['finished_partly']>;
   waiting_runs?: NonNullable<Bundle['waiting_runs']>;
   /** Decision 53: the line an agent reads while the owner has this project paused. */
@@ -349,6 +352,7 @@ function gather(r: ReadContext, deps: ServiceDeps, id: string): Full {
     ...waitKindSection(r, deps, row.id, index),
     ...(pause ? { paused: pausedForAgents(row.project_key, pause) } : {}),
     ...knownGapsSection(row.known_gaps),
+    ...releaseHoldSection(r, row),
     ...finishedPartlySection(r, row.id),
   };
 }
@@ -366,6 +370,15 @@ function finishedPartlySection(r: ReadContext, id: string): Pick<Full, 'finished
       left: open.exit.left,
     },
   };
+}
+
+/** Decision 64: on its epic's finish line, the open bugs that hold it. */
+function releaseHoldSection(
+  r: ReadContext,
+  row: { id: string; epic_id: string | null; type: Bundle['item']['type'] },
+): Pick<Full, 'release_hold'> {
+  const hold = releaseHoldOf(r.db, row);
+  return hold ? { release_hold: hold } : {};
 }
 
 /** Decision 58: the ticket's known gaps, for the implementer to shape. */
@@ -477,6 +490,8 @@ export function assemble(
     ...(full.wait_kind ? { wait_kind: full.wait_kind } : {}),
     // Decision 58: what the implementer must shape, with the essentials; never cut.
     ...(full.known_gaps ? { known_gaps: full.known_gaps } : {}),
+    // Decision 64: what holds the release, for the finish line's implementer; never cut.
+    ...(full.release_hold ? { release_hold: full.release_hold } : {}),
     // Decision 61: what the last lead left, never cut.
     ...(full.finished_partly ? { finished_partly: full.finished_partly } : {}),
     ...(full.waiting_runs ? { waiting_runs: full.waiting_runs } : {}),

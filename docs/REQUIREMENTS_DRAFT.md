@@ -487,6 +487,18 @@ The owner uses the dependency map's **Fit** button a lot. Maps have few waves bu
 
 UI_SPEC §6.3.4 and §8, spec FR-338–FR-340 and SC-042, and Help (Blocker rules and dependencies) have the details.
 
+## Owner decision 64 (2026-11-24): open bugs hold back an epic's release
+
+Bugs found mid-epic are filed into the epic with no links, so the map puts them in Wave 1, and nothing stops the epic's release ticket from being finished, and the work shipped, while they're still open. **Every open bug in an epic holds its release.**
+
+1. **The finish line.** An epic's finish line is its ticket that depends on other tickets in the epic and that no other ticket in the epic depends on: in practice, the release ticket. With exactly one, that's it. With several or none, the producer or the owner marks it on the epic; until then the epic shows "No finish line" for the producer to fix.
+2. **Bugs block it, implicitly.** The finish line can't move to Review or Done while any bug in the epic is open (not Done or canceled), with no manual link. The error lists the bugs and the ways forward: fix it, move it to another epic as a follow-up, or cancel it with a reason. A bug that's also a real dependency of a story keeps its normal links. Bugs outside the epic don't count.
+3. **Shipping without a bug is deliberate.** The bug leaves the epic, moved or canceled with a reason, and Activity shows it. This fits triage: a triaged bug either goes to Ready in this epic, and then blocks the release, or leaves it.
+4. **On the map.** A **Bugs** column to the left of Wave 1 stacks every bug in the epic with its status, instead of bugs appearing in Wave 1 as starting work. A bug that's part of the chain is drawn in its wave with a bug marker. No arrows run from the Bugs column to the finish line: the finish line shows "Waiting on N bugs", and the column header counts open bugs. It works with Hide implied links and the map's fit. The epic page and Pick next epic show open bug counts too.
+5. **Agents.** `get_context` for the finish line and `get_digest` for the producer show the bugs holding the release, within the text-only budget and with no new tool. `docket-producer` triages each bug to Ready in this epic (it holds the release) or out of it; `docket-worker` has the finish line's implementer check the bugs first.
+
+BUILD_SPEC §5.43, MCP_SPEC (`update_item`, `set_status`, `submit_packet`, `get_context`, `get_digest`, errors), UI_SPEC §6.2.5, §6.3 and §6.3.4, spec FR-347–FR-352 and SC-044, and Help (Blocker rules and dependencies; Pick next epic) have the details.
+
 ## Deferred choices
 
 Pilot project choice and Jira import strategy are deferred until V1 is ready for real work. Design should still settle the storage layout, supported document preview formats, the exact project gate configuration shape, and the minimum history needed before a velocity forecast is shown. These are implementation choices guided by the owner decisions above, not blockers to selecting a pilot now.
