@@ -109,7 +109,7 @@
   },
   {
     "name": "search_items",
-    "description": "Find items. Filters: ready_to_start (Ready, unblocked, unclaimed: what you may start), resumable (In progress with no lead, usually sent back by review: resume it), blocked, waiting_for_review (handed off, waiting on the owner), mine (items you lead), deferred_review (owner deferred a check; cleanup). Combine with project, status, type, label, epic or text.",
+    "description": "Find items. Filters: ready_to_start (Ready, unblocked, unclaimed: what you may start), resumable (In progress with no lead: resume it), blocked, waiting_for_review (handed off, waiting on the owner), mine (items you lead), deferred_review (owner deferred a check; cleanup). Combine with project, status, type, label, epic or text.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -255,7 +255,7 @@
   },
   {
     "name": "get_item",
-    "description": "Get one item: description, acceptance, blockers, checklist (plan, checks, human review), runs, open question and answer, unread owner notes, documents, packets, recent activity. Owner notes and answers are delivered once: read them now. Use view 'summary' for status only, and get_context when starting work. Step details show as '· details' unless view is 'full'; read one with get_step.",
+    "description": "Get one item: description, acceptance, blockers, checklist (plan, checks, human review), runs, open question and answer, unread owner notes, documents, packets, activity. Owner notes and answers are delivered once: read them now. Use view 'summary' for status only, and get_context when starting work. Step details show as '· details' unless view is 'full'; read one with get_step.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -624,7 +624,7 @@
   },
   {
     "name": "get_digest",
-    "description": "One snapshot for coordinators: what to start next, bottlenecks, ready items, running, stale and parked runs (resume_ready flagged), runs that finished partly, blocked items and why, what waits on the owner, agent-actionable problems, leases, conflicts ahead, and the change cursor. Pass cursor for only what changed since then. Read-only.",
+    "description": "One compact snapshot for coordinators: what to start next, bottlenecks, ready items, runs (resume_ready flagged), runs that finished partly, blocked items and why, what waits on the owner, tickets that need shaping, agent problems, leases, conflicts and the change cursor. Pass cursor for only what changed since. Read-only.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -703,6 +703,9 @@
             "finished_partly": {
               "type": "object"
             },
+            "needs_shaping": {
+              "type": "object"
+            },
             "untriaged_epics": {
               "type": "object"
             }
@@ -739,7 +742,7 @@
   },
   {
     "name": "create_item",
-    "description": "Create an Epic, Story, Task or Bug, in Inbox (or Planning if you are shaping it). Small steps go in the checklist (set_plan). To split a ticket, pass split_from: move and copy are 1-based acceptance positions; also brings blockers, parts or steps.",
+    "description": "Create an Epic, Story, Task or Bug, in Inbox or Planning. Pass shared (part keys, or 'none'), outcome_md and acceptance, or it Needs shaping for a planner. Small steps go in the checklist (set_plan). To split, pass split_from: move and copy are 1-based acceptance positions; also brings blockers, parts or steps.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -891,6 +894,21 @@
           ],
           "additionalProperties": false
         },
+        "shared": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "none"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 200
+              }
+            }
+          ]
+        },
         "run_id": {
           "type": "string"
         },
@@ -941,7 +959,7 @@
   },
   {
     "name": "update_item",
-    "description": "Edit an item's fields. Pass expected_version from your last read. Status goes through set_status, the plan through set_plan. known_gaps: what implementation will settle, each settled once done.",
+    "description": "Edit an item's fields. Pass expected_version. Status goes through set_status, the plan through set_plan. known_gaps: what implementation will settle, each settled once done.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1444,7 +1462,7 @@
   },
   {
     "name": "claim_lead",
-    "description": "Claim an item as its lead before working on it. Works on Ready items (moves them to In progress) and In progress items with no lead (resuming sent-back or interrupted work). Pass workspace and brief (if a coordinator briefed you) so work can restart after a crash, instructions with docket-check's output, and branch so conflicts show early. Returns run_id: pass it on every later call. Errors: conflict (someone holds it: do not work on it); seam_conflict (its shared parts collide with an item in flight: Docket queued it or asked the owner: take other work); design_review (it changes an approved design awaiting the owner: pause it, take other work).",
+    "description": "Claim an item as its lead before working on it. Works on Ready items (moves them to In progress) and In progress items with no lead (resuming sent-back or interrupted work). Pass workspace and brief (if a coordinator briefed you) for restarts, instructions with docket-check's output, and branch so conflicts show early. Returns run_id: pass it on every later call. Errors: conflict (someone holds it: do not work on it); seam_conflict (its shared parts collide with work in flight: take other work); design_review (it changes an approved design awaiting the owner: pause it, take other work).",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -4466,7 +4484,7 @@
   },
   {
     "name": "declare_shared_changes",
-    "description": "Declare the shared parts this item will change, each with add, change or remove and a short note, or none: true. Required before Ready. Each call replaces it. Use keys from list_shared_parts; register a missing one with new_parts. Name the member when you can (model:Token.expiresAt): different members run in parallel; a bare part is sequenced. Set design_impact: changes_approved_design with a design_note when it alters an approved design: this item pauses until the owner approves. Set disputed: true when agents disagree who owns a part. branches (or branch) replace the reported ones; [] clears them. Returns in-flight items on the same parts, each with outcome parallel, sequence or owner.",
+    "description": "Declare the shared parts this item will change, each with add, change or remove and a short note, or none: true. Required before Ready. Each call replaces it. Use keys from list_shared_parts; register a missing one with new_parts. Name the member when you can (model:Token.expiresAt): different members run in parallel; a bare part is sequenced. Set design_impact: changes_approved_design with a design_note when it alters an approved design: this item pauses until the owner approves. Set disputed: true when agents disagree who owns a part. branches (or branch) replace the reported ones; [] clears them. Returns in-flight items on the same parts, each with its outcome.",
     "inputSchema": {
       "type": "object",
       "properties": {

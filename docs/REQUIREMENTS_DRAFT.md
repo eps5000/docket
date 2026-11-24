@@ -488,7 +488,7 @@ Three things the owner hit while epics ran with agents.
 2. **Idle In progress tickets.** A ticket In progress with no open, parked or needs-input run and no activity for 3 days is idle. It gets one problem for the owner, "GF-1 is In progress but nobody has worked on it since <date>", offering to move it to Planning, Ready or Inbox, cancel it, or clear its branches. The radar and overlap checks stop raising conflicts against an idle ticket's branches, and existing ones clear with a reason ("the other ticket is idle").
 3. **Acknowledged problems.** The owner reads Acknowledge as "I've seen it, stop telling me". Acknowledged problems no longer count as open: on items and epics they fold into one quiet line, "You acknowledged N problems", which expands to show them. They come back as open only under the existing rules: a material change, or a new proposed resolution.
 
-BUILD_SPEC §5.44, MCP_SPEC (`get_digest`, `set_status`, Problems), UI_SPEC §6.1, §6.2 and §6.3, spec FR-353–FR-360 and SC-045, Help (Problems and what to do; Pick the next epic) and the producer, worker and planner skills have the details.
+BUILD_SPEC §5.45, MCP_SPEC (`get_digest`, `set_status`, Problems), UI_SPEC §6.1, §6.2 and §6.3, spec FR-359–FR-366 and SC-046, Help (Problems and what to do; Pick the next epic) and the producer, worker and planner skills have the details.
 
 ## Owner decision 63 (2026-11-24): Fit fits the map's width
 
@@ -513,6 +513,19 @@ Bugs found mid-epic are filed into the epic with no links, so the map puts them 
 5. **Agents.** `get_context` for the finish line and `get_digest` for the producer show the bugs holding the release, within the text-only budget and with no new tool. `docket-producer` triages each bug to Ready in this epic (it holds the release) or out of it; `docket-worker` has the finish line's implementer check the bugs first.
 
 BUILD_SPEC §5.43, MCP_SPEC (`update_item`, `set_status`, `submit_packet`, `get_context`, `get_digest`, errors), UI_SPEC §6.2.5, §6.3 and §6.3.4, spec FR-347–FR-352 and SC-044, and Help (Blocker rules and dependencies; Pick next epic) have the details.
+
+## Owner decision 65 (2026-11-24): tickets agents create arrive shaped or ask for a planner
+
+A producer created a story mid-epic with only a short description: no outcome, no acceptance criteria, no links and no shared-changes declaration. The owner wanted to approve it and moved it to Planning. **Move to Ready** then failed on "agents haven't declared the shared parts", and the owner had no way forward from that screen.
+
+1. **An agent-created ticket states its shared changes, or says there are none.** When an agent creates a ticket (`create_item`, or a split), it declares shared parts or explicitly sets "no shared changes". A blank section is never left for the owner. If the agent doesn't know yet, the ticket is marked **Needs shaping** instead.
+2. **Needs shaping goes to a planner, not the owner.** A ticket with a missing outcome, acceptance criteria or shared-changes declaration is **Needs shaping**. It shows on the ticket, the epic, the map and the producer's `get_digest` ("Needs shaping: N"). The producer starts a **planner** agent to shape it: outcome, acceptance, links, shared changes, and known gaps for the owner's approval if needed.
+3. **The owner's Move to Ready never dead-ends.** When the owner tries to move an unshaped ticket to Ready, the error lists exactly what's missing and offers **Ask a planner to shape this**. That button marks the ticket Needs shaping with the owner's request recorded, and the producer's digest picks it up. If the owner knows there are no shared changes, they can still declare "none" themselves, as today.
+4. **Skills.** `docket-producer` runs a planner for every Needs shaping ticket in its epics. `docket-planner` has the shaping checklist, ending with shared changes declared or "none". `docket-worker`: tickets it files must be shaped, or marked Needs shaping with what's known.
+5. **No new MCP tool.** The text-only tool list is near its budget, so `create_item` gains one optional field and `get_digest` one section.
+6. **With the triage of tickets added mid-epic** (B79), a mid-flight story still needs the owner's add, defer or drop decision first, then shaping.
+
+BUILD_SPEC §5.44, MCP_SPEC §4, §5.2, §5.3 and §6, UI_SPEC §6.3 and §6.3.4, spec FR-353–FR-358 and SC-045, Help (Shared changes and conflicts) and the producer, planner and worker skills have the details.
 
 ## Deferred choices
 

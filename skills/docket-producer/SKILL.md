@@ -57,6 +57,8 @@ If it says `no finish line`, mark the release ticket: `update_item { id: <epic>,
 
 **Start with what unlocks the most,** and prefer short, wide graphs to long chains.
 
+**Give every Needs shaping ticket to a planner.** The digest's `needs shaping` section lists tickets an agent created unshaped, or that the owner asked a planner to shape ("the owner asked: …"). For each one in your epics, start a **planner** agent following `docket-planner` §7, with the ticket and the owner's note as its brief. Don't shape it yourself in passing, and don't send it to the owner: the owner only approves known gaps. A story the owner hasn't yet decided to add to a running epic waits for that decision first, then shaping.
+
 ## 3. Shape finishable vertical slices
 
 Follow `docket-planner`. Before a ticket goes to Ready, it has:
@@ -65,6 +67,8 @@ Follow `docket-planner`. Before a ticket goes to Ready, it has:
 - **acceptance criteria** someone can check;
 - **observable closing evidence:** the test, command, screen or record that will show it works;
 - **its shared parts declared** (`declare_shared_changes`) and **real dependency links** only.
+
+**A ticket you create arrives shaped.** Pass `outcome_md`, `acceptance` and `shared` (the part keys it changes, or `"none"`) to `create_item`, and to a split. Don't know yet? Leave them out: it's marked **Needs shaping**, and a planner shapes it. Never leave it for the owner to find blank.
 
 Something better settled while building? Name it as a **known gap** (`update_item known_gaps`), and the owner approves Ready with it. Keep them few and specific.
 
@@ -111,10 +115,7 @@ Any of these clears it from the digest. An agent can't close the ticket as Done 
 
 ## 8. Triage what joins mid-flight
 
-New tickets land in Inbox, even in a running epic, and nothing joins it as Ready without triage. The digest lists them under `added mid-flight` ("added since this epic started: 2 untriaged"), and the epic can't close until each is triaged:
-
-- **A bug:** start a short, **read-only reproduction agent** (a subagent, not an implementer). It confirms the bug happens, finds whether this epic's work caused it, and leaves the steps or a failing test in an `add_note`. It fixes nothing. Then: real and belongs here, set its priority, shape it (§3) and move it to Ready in this epic; belongs elsewhere, move it with `update_item { epic }` (a flaky test goes to the project's test-reliability epic); can't be reproduced, say so in an `add_note` and `ask_owner` whether to close it.
-- **A story** adds scope, so it's the owner's: one `ask_owner` with three options: add it to this epic, defer it to a follow-up, or drop it. Act on the answer.
+New tickets land in Inbox, even in a running epic: nothing joins it as Ready without triage, and the epic can't close until each is triaged. The digest lists them under `added mid-flight`. **A bug:** start a short, **read-only reproduction agent** (a subagent, not an implementer) that confirms the bug, finds whether this epic's work caused it, and leaves the steps or a failing test in an `add_note`, fixing nothing. Real and belongs here: set its priority, shape it (§3) and move it to Ready in this epic. Belongs elsewhere: move it with `update_item { epic }` (a flaky test goes to the project's test-reliability epic). Can't be reproduced: say so in an `add_note` and `ask_owner` whether to close it. **A story** adds scope, so it's the owner's: one `ask_owner` with three options (add it to this epic, defer it to a follow-up, or drop it), then act on the answer.
 
 ## 9. Decide what you can
 

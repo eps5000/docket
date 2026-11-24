@@ -113,7 +113,8 @@ test('an epic with unshaped tickets is Not ready to start everywhere, and its cl
     await page.goto(`/items/${epic}`);
     const line = page.locator('.epicready-line');
     await expect(line).toContainText('Not ready to start: 2 unshaped tickets');
-    await expect(line).toContainText('(Inbox)');
+    // Decision 65 may add ", needs shaping" after the status.
+    await expect(line).toContainText('(Inbox');
     await shots(page, `epic-${vp.name}`);
     await expectAxeClean(page, `epic page ${vp.name}`, { include: '[data-section="header"]' });
   }

@@ -4,9 +4,11 @@ import { Link } from 'react-router';
 import {
   PRIORITIES,
   STATUS_LABELS,
+  needsShapingText,
   waitingOnBugsText,
   type ItemDetailResponse,
   type Priority,
+  type ShapingPart,
 } from '@docket/shared';
 import {
   BlockedChip,
@@ -25,12 +27,13 @@ import {
   TypeBadge,
 } from '../../components/kit';
 import { apiClient } from '../../app/queryClient';
-import { queryKeys } from '../../lib/api';
+import { ApiError, queryKeys } from '../../lib/api';
 import { paths } from '../../lib/paths';
 import { runOwnerMutation, showToast } from '../../lib/undo';
 import { CancelMenu } from './CancelItem';
 import { FinishLineControl } from './FinishLineControl';
 import { InlineTextEdit } from './InlineEdit';
+import { ReadyRefusal, refusedMissing } from './ReadyRefusal';
 
 /** Closed provenance on done items (UI_SPEC §6.3 header, second line). */
 function ClosedProvenance({ item }: { item: ItemDetailResponse['item'] }) {
@@ -60,6 +63,8 @@ export function ItemHeader({ id, data }: { id: string; data?: ItemDetailResponse
   const prioId = useId();
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
+  /** Decision 65: what a refused Move to Ready said the ticket lacks. */
+  const [refused, setRefused] = useState<ShapingPart[] | null>(null);
   const item = data?.item;
   if (!item) {
     return (
@@ -86,7 +91,14 @@ export function ItemHeader({ id, data }: { id: string; data?: ItemDetailResponse
       const res = await runOwnerMutation(fn, { success, refetch: [queryKeys.item(item.id)] });
       if (res) await queryClient.invalidateQueries({ queryKey: queryKeys.all });
     } catch (err) {
-      showToast(err instanceof Error && err.message ? err.message : 'That didn’t work. Try again.');
+      // Decision 65: a refused Move to Ready shows what's missing and the ways forward.
+      const missing =
+        err instanceof ApiError && err.code === 'not_declared' ? refusedMissing(err.details) : null;
+      if (missing) setRefused(missing);
+      else
+        showToast(
+          err instanceof Error && err.message ? err.message : 'That didn’t work. Try again.',
+        );
     } finally {
       setBusy(false);
     }
@@ -174,6 +186,12 @@ export function ItemHeader({ id, data }: { id: string; data?: ItemDetailResponse
         </div>
         <div className="row wrap" style={{ marginTop: 6 }}>
           <StatusChip status={item.status} />
+          {item.needs_shaping && (
+            <Chip kind="info" className="shapechip">
+              {needsShapingText(item.needs_shaping)}
+              {item.needs_shaping.asked_by === 'owner' ? ' · you asked a planner' : ''}
+            </Chip>
+          )}
           <BlockedChips item={item} wait={data?.item_wait} />
           <ClosedProvenance item={item} />
           {epic && data && (
@@ -242,6 +260,9 @@ export function ItemHeader({ id, data }: { id: string; data?: ItemDetailResponse
             ))}
           {open && data && <CancelMenu data={data} />}
         </div>
+        {refused && item.status === 'planning' && (
+          <ReadyRefusal item={item} missing={refused} onClose={() => setRefused(null)} />
+        )}
         {epic && data?.epic_waits && <EpicDepsLine waits={data.epic_waits} />}
         {epic && data?.epic_readiness && <EpicReadinessLine readiness={data.epic_readiness} />}
         {epic && data?.epic_midflight && <EpicMidflightLine midflight={data.epic_midflight} />}

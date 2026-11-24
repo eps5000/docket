@@ -98,6 +98,21 @@ set_status { id, status: "ready" }
 
 With open gaps, `set_status ready` is refused and **Docket asks the owner** ("Approve moving GF-1 to Ready with these gaps?"). Don't ask again with `ask_owner`. If they approve, Docket records their decision and moves the ticket to Ready; if not, keep shaping. A gap you've settled gets `settled: "<how>"` and no longer needs approval. Changing a gap clears an approval.
 
+## 7a. Shaping a Needs shaping ticket
+
+A producer sends you a ticket that **needs shaping**: an agent created it unshaped, or the owner asked for a planner from a refused Move to Ready. `get_item` says what it lacks and any note from the owner ("needs shaping: … · the owner asked: …"). Work through this checklist, in order:
+
+1. **Read it and its epic:** the description, the owner's note, the epic's outcome and decisions. Check for a duplicate (§1).
+2. **Outcome:** `update_item { outcome_md }`, one or two sentences.
+3. **Acceptance:** `update_item { acceptance }`, 2–6 checkable lines.
+4. **Links:** real `blocks` dependencies only, and `relates` for the rest (§3).
+5. **Known gaps,** if a few things are better settled while building: `update_item { known_gaps }`. The owner approves Ready with them (§7).
+6. **Shared changes, last:** `declare_shared_changes` with the parts it changes, or `none: true` when it changes none. Never leave it undeclared.
+
+Shaped, it stops being Needs shaping on its own. Move it to Ready if the project allows it (§9); with open known gaps, Docket asks the owner for you.
+
+**Creating tickets yourself:** pass `outcome_md`, `acceptance` and `shared` (part keys, or `"none"`) to `create_item` so they arrive shaped. A key that isn't registered is registered with it; members, notes and `add` or `remove` go through `declare_shared_changes` afterwards.
+
 ## 8. Many writes at once
 
 When a breakdown or an onboarding runs to dozens of items, documents or links, send them with `apply_batch`: up to 100 `operations` a call, each naming a tool (`create_item`, `update_item`, `link_items`, `upsert_label`, `set_plan`, `update_step`, `put_document`, `publish_decision`) with the arguments you would give it.

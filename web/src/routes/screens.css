@@ -2339,3 +2339,21 @@
 .tl .fp-left li + li {
   margin-top: 6px;
 }
+/* Decision 65: a refused Move to Ready lists what's missing and the ways forward. */
+.tl .readyrefusal {
+  margin-top: 8px;
+  display: grid;
+  gap: 6px;
+  max-width: 640px;
+}
+.tl .readyrefusal .missinglist {
+  margin: 0;
+  padding-left: 18px;
+}
+.tl .readyrefusal .input {
+  max-width: 420px;
+}
+/* The callout's own button colour is for plain buttons; a primary keeps its fill's text. */
+.tl .readyrefusal .btn.primary {
+  color: var(--on-fill);
+}

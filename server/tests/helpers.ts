@@ -167,6 +167,8 @@ export const COLUMNS_0010 = [
   'known_gaps',
   // 0030 (decision 64): an epic's marked finish line.
   'finish_line',
+  // 0031 (decision 65): who asked for a ticket to be shaped.
+  'shaping',
 ] as const;
 
 /** Rows without the columns 0010 added to `items`, `projects` and `packets`. */

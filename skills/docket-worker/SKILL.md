@@ -15,12 +15,12 @@ The project has its own rules: who moves work to Ready, when human review is nee
 
 1. **Find work:**
    - **Given an item ID?** Skip the search.
-   - **Otherwise:** `search_items { project, filter: "resumable" }` first. That's work sent back to you, and it comes before new work. **If it returns anything, take the first result** and claim it. Don't inspect candidates first: `get_context` after the claim tells you everything.
+   - **Otherwise:** `search_items { project, filter: "resumable" }` first. That's work sent back to you; it comes first. **If it returns anything, take the first result** and claim it. Don't inspect candidates first: `get_context` after the claim tells you everything.
    - **Only if nothing is resumable:** `search_items { project, filter: "ready_to_start", limit: 5 }`, and take the first result. Ready work is sorted by priority, then by what it unblocks.
 2. **Claim it:** `claim_lead`, with:
    - `agent_label`: your worker name, if you have one;
    - `workspace`: `repo`, `path` (your worktree), `branch`, `base_ref`, `base_sha`;
-   - `branch`: the branch you'll work on, so the conflict radar can trial-merge it. Name it `<owner>/GF-243-short-description`, with this one ticket's key, and name the worktree folder the same. If you claim without one, the result suggests it. A warning about the name never blocks you;
+   - `branch`: the branch you'll work on, so the conflict radar can trial-merge it. Name it `<owner>/GF-243-short-description`, with this one ticket's key, and name the worktree folder the same. Without one, the claim suggests it. A name warning never blocks you;
    - `brief` and `orchestrator`: if a coordinator dispatched you, the brief text exactly as you received it, plus its IDs;
    - `instructions`: the output of the installed `docket-check`, so the owner knows which instructions you work from. Run it once per session, before your first claim: `bash .claude/docket-check.sh` (`.codex/` for Codex; on Windows without bash, `powershell -NoProfile -ExecutionPolicy Bypass -File .claude/docket-check.ps1`). It prints one line of JSON: pass it as it is, and reuse it for later claims in the session. No script there? Skip it. If the claim returns an `update:` line, tell your coordinator and keep working; don't update installed files yourself.
 
@@ -34,7 +34,7 @@ The project has its own rules: who moves work to Ready, when human review is nee
 
    **Given a `run_id` by your coordinator** (you're resuming a parked run after a crash)? Don't claim. Call `heartbeat { run_id, note: "Resuming" }` first: a read doesn't resume it. That resumes the run with its claim, workspace and brief. Then continue from step 3.
 
-3. **Get context:** `get_context { id, budget: "small" }`. One call gathers the outcome, acceptance criteria, decisions to follow, epic and label briefs, blockers, the shared parts in-flight items will change, Workflow notes and planning docs. Widen to `"medium"` or `"large"` only when a `…truncated` line hides something you need. Follow the Workflow notes like the project's `AGENTS.md`.
+3. **Get context:** `get_context { id, budget: "small" }`. One call gathers the outcome, acceptance, decisions you must follow, epic and label briefs, blockers, shared parts in flight, Workflow notes and planning docs. Widen to `"medium"` or `"large"` only when a `…truncated` line hides something you need. Follow the Workflow notes like the project's `AGENTS.md`.
 
 **Known gaps to shape** in your context: settle each and record how with `update_item { known_gaps: [{ gap, settled }] }`, the same gaps in order.
 
@@ -53,7 +53,7 @@ Skip `whoami`: `claim_lead` returns your lease's expiry.
 
 - **`set_plan`:** 3–8 one-line steps, each a verifiable piece of progress. Steps aren't tickets. Create a new item only when a piece needs its own blocker, owner or review.
   - The first plan sends `steps: [{ text }, …]` only. Docket assigns the step IDs and returns them; use those with `update_step`. Never make up an ID: an unknown one is refused.
-  - **Keep each step's `text` to one line.** Context a step needs (reproduction steps, file paths, what done looks like) goes in its `details` (Markdown), and where it came from in `source` (for example a Jira key): `steps: [{ text, details, source }, …]`. Details patch: leave them out to keep them, send `null` to clear them.
+  - **Keep each step's `text` to one line.** Context a step needs (reproduction steps, file paths, what done looks like) goes in its `details` (Markdown), and where it came from in `source` (for example a Jira key): `steps: [{ text, details, source }, …]`. Details patch like the plan: omit them to keep them, `null` clears them.
 - **`set_checks`:** what you'll verify yourself, stated concretely. For example "Planner unit tests pass" or "Reload keeps the selected week (e2e)", never "it works".
 - **Human review:** if the project rules say this item needs it and none is declared, `declare_human_review` now. Write plain instructions the owner can follow in minutes. See `docket-review-packet`.
 - **Changing the plan later:** patch it, and give a `reason`. Send only the steps that change. Don't silently drop a step: mark it `skipped`, with a note.
@@ -70,6 +70,7 @@ Skip `whoami`: `claim_lead` returns your lease's expiry.
 
 - **Change a shared part you didn't declare?** Add it now with `declare_shared_changes` (the whole list: it replaces the declaration). Name parts by their keys from `list_shared_parts`, with the member when you can (`model:Token.expiresAt`): adding different members runs in parallel, while a bare part is sequenced.
 - **Changing something the owner approved?** Set `design_impact: "changes_approved_design"` with a `design_note` naming the design, decision or acceptance criterion. It always goes to the owner, overlap or not, and **this item pauses until they approve it**: `claim_lead` and closing return `design_review`, and a packet is held. Stop the affected work and take other work from `ready_to_start`; other items aren't affected. Don't try to clear it by removing the flag. If the owner sends it back, follow their note, then declare again. If you and another agent disagree about who owns a part, set `disputed: true`; that reaches the owner too.
+- **Filing a ticket?** Pass `outcome_md`, `acceptance` and `shared` (part keys or `"none"`). Unsure? Leave it out: it Needs shaping, for a planner.
 - **Commit and report early** (`report_commit`, and your `branch`). The conflict radar only sees committed local branches. A clean trial merge means git can combine them, not that they work together.
 - **A text conflict stops nobody.** Your context says who merges first. If you're second, keep working, then merge main once the first lands. If the merge isn't mechanical, or would change what the other work does, use `propose_resolution`.
 - **Declaring shared changes?** Pass `branches`, every branch the work is on (or `branch` for one), every time, also when you backfill a declaration for work already in progress. The list replaces the item's branches, and the conflict radar checks each one.
@@ -81,9 +82,9 @@ Skip `whoami`: `claim_lead` returns your lease's expiry.
 
 - **Stay live.** Any call with `run_id` renews your lease. In a long stretch with nothing to record, send `heartbeat { run_id, note }`, well inside `stale_after_s`.
 - **Pausing with uncommitted changes?** Send `heartbeat { workspace: { dirty: true } }` first.
-- **Started something long-lived?** That means a dev server, a session, a container, a temp directory or a held port. Declare it with `heartbeat { resources_started: [{ kind, label, locator }] }`, and keep the `rsc_…` IDs. The locator must be precise enough for someone else to find it: a port, a pid, a session ID or a path.
+- **Started something long-lived** (a dev server, session, container, temp directory or held port)? Declare it with `heartbeat { resources_started: [{ kind, label, locator }] }`, and keep the `rsc_…` IDs. The locator must let someone else find it: a port, pid, session ID or path.
 - **Something the owner should know?** A surprise, a choice you made, a risk: `add_note`, in one or two sentences.
-- **Decisions.** Follow the decisions `get_context` gave you; owner decisions are authoritative. If you set a convention other agents must follow (an interface, a naming rule, a library choice), record it with `publish_decision`, scoped as narrowly as it applies. To challenge an owner decision, use `ask_owner`. Never work around it.
+- **Decisions.** Follow the decisions `get_context` gave you; owner decisions are authoritative. If you set a convention others must follow (an interface, naming, a library), record it with `publish_decision`, scoped as narrowly as it applies. To challenge an owner decision, use `ask_owner`. Never work around it.
 
 ## 4. When you can't carry on
 
@@ -99,7 +100,7 @@ Skip `whoami`: `claim_lead` returns your lease's expiry.
 | Something broke and you can't continue               | `finish_run { result: "failed", error }`                                                                                                       |
 | A write returns `conflict`                           | Read `current` in the error. Re-apply your change only if it still makes sense.                                                                |
 
-**Found another bug?** File it with `create_item` (a Bug in your epic, with repro steps); fix it only if it blocks you.
+**Another bug?** `create_item` it (a Bug in your epic, with repro steps); fix it only if it blocks you.
 
 **Ask less, ask better.**
 
@@ -112,7 +113,7 @@ Skip `whoami`: `claim_lead` returns your lease's expiry.
 
 **Park only when the work itself stops.** Running CI or tests, or reviewing their results, is still work in progress: stay live and `log` a short note ("PR #784 checks running") instead of parking.
 
-**Never just go quiet.** A silent run looks stale and loses its claim. A parked run keeps it, and its worktree is protected from pruning. `heartbeat` or any other write with your `run_id` un-parks you; reads don't. If your coordinator parked you ("Parked by X until T"), the same applies. When that time ends you have a short lease, so make a write to carry on. To wait longer on your own terms, call `park_run`, which replaces their time limit.
+**Never just go quiet.** A silent run looks stale and loses its claim. A parked run keeps it, and its worktree is protected from pruning. `heartbeat` or any other write with your `run_id` un-parks you; reads don't. If your coordinator parked you ("Parked by X until T"), likewise. When that time ends you have a short lease, so make a write to carry on. To wait longer on your own terms, call `park_run`, which replaces their time limit.
 
 **`project_paused`:** the owner paused this project. Don't retry: take other work, or stop and say so. If you're already running, save your work and `park_run` at the next safe point. While it's paused, a parked run's writes are recorded and it stays parked.
 

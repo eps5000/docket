@@ -30,6 +30,7 @@ import { waitKindsOf } from './wait-kind.js';
 import { unshapedByEpic } from './epic-readiness.js';
 import { finishLines } from './finish-line.js';
 import { openPartialExits } from './exit-reports.js';
+import { projectNeedsShaping } from './shaping.js';
 import { midflightByEpic } from './midflight.js';
 
 export interface DigestService {
@@ -394,6 +395,17 @@ export function createDigestService(deps: ServiceDeps): DigestService {
         (x) => since === null || keep(x.id) || x.untriaged.some((t) => keep(t.id)),
       );
       // Decision 56: on a full snapshot only, so a repeated digest stays small.
+      // Decision 65: tickets for the producer to give a planner (paused or not: shaping isn't starting work).
+      const shaping = projectNeedsShaping(r.db, input.project)
+        .filter((x) => keep(x.id))
+        .map((x) => ({
+          id: x.id,
+          title: x.title,
+          epic: x.epic,
+          missing: x.missing,
+          asked_by: x.asked_by,
+          note: x.note,
+        }));
       const update =
         since === null
           ? deps.services().installs.updateNoticeFor(r, { project: input.project })
@@ -408,6 +420,9 @@ export function createDigestService(deps: ServiceDeps): DigestService {
         ...(held.length > 0 ? { release_bugs: section(held, DIGEST_CAPS.release_bugs) } : {}),
         ...(partly.length > 0
           ? { finished_partly: section(partly, DIGEST_CAPS.finished_partly) }
+          : {}),
+        ...(shaping.length > 0
+          ? { needs_shaping: section(shaping, DIGEST_CAPS.needs_shaping) }
           : {}),
         ...(untriaged.length > 0
           ? { untriaged_epics: section(untriaged, DIGEST_CAPS.untriaged_epics) }

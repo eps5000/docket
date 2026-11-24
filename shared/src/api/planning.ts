@@ -16,6 +16,7 @@ import {
 } from '../mcp/types.js';
 import { expectedVersion, input, jsonResponse, noInput, ownerMutationOutput } from './common.js';
 import { json, route } from './route.js';
+import { SHAPING_NOTE_MAX } from '../shaping.js';
 import { itemTextSchema, labelSchema } from './types.js';
 
 const itemParams = input({ id: itemId });
@@ -44,6 +45,7 @@ const PATCH_FIELDS = [
   'outcome_md',
   'acceptance',
   'finish_line',
+  'request_shaping',
 ] as const;
 
 /**
@@ -71,7 +73,19 @@ export const patchItemBody = input({
   approve_gaps: z.literal(true).optional(),
   /** Decision 64, on an epic: mark its finish line (release ticket); `null` clears the mark. */
   finish_line: itemId.nullable().optional(),
+  /**
+   * Decision 65: *Ask a planner to shape this*, from a refused Move to Ready.
+   * Marks the ticket Needs shaping with the owner's note; not with `status`.
+   */
+  request_shaping: z.strictObject({ note: text(SHAPING_NOTE_MAX).optional() }).optional(),
 }).superRefine((v, ctx) => {
+  if (v.request_shaping !== undefined && v.status !== undefined) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['request_shaping'],
+      message: 'Ask for shaping without moving the ticket.',
+    });
+  }
   if (v.approve_gaps !== undefined && v.status !== 'ready') {
     ctx.addIssue({
       code: 'custom',
