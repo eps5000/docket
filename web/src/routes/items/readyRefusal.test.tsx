@@ -30,7 +30,7 @@ afterEach(() => {
 const ITEM = {
   id: 'TST-3',
   project: 'TST',
-  type: 'Story',
+  type: 'Implementation',
   title: 'Synthetic story',
   status: 'planning',
   priority: 2,
