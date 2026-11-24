@@ -149,13 +149,14 @@ test.describe('Agent files (US13)', () => {
     await expect(page.getByRole('button', { name: /user-wide/i })).toHaveCount(0);
 
     const table = page.getByRole('table', { name: 'Default agent files' });
-    // Six skills, the AGENTS.md block and the onboarding guide (B30), plus the header row.
-    await expect(table.getByRole('row')).toHaveCount(9);
+    // Seven skills, the AGENTS.md block and the onboarding guide (B30), plus the header row.
+    await expect(table.getByRole('row')).toHaveCount(10);
     for (const key of [
       'skill:docket-coordinator',
       'skill:docket-delivery',
       'skill:docket-lead-subagents',
       'skill:docket-planner',
+      'skill:docket-producer',
       'skill:docket-review-packet',
       'skill:docket-worker',
       'agents_block',
