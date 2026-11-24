@@ -559,7 +559,13 @@ describe('decision outcomes', () => {
       priority: number;
       title: string;
     }>('SELECT * FROM items WHERE id = ?', followId);
-    expect(task).toMatchObject({ type: 'Task', status: 'inbox', epic_id: 'RCP-1', priority: 3 });
+    // Decision 67: the test ticket is an Implementation ticket.
+    expect(task).toMatchObject({
+      type: 'Implementation',
+      status: 'inbox',
+      epic_id: 'RCP-1',
+      priority: 3,
+    });
     expect(task.title.startsWith('Verify: ')).toBe(true);
     expect(task.title.length - 'Verify: '.length).toBe(60);
     expect(hrOf(d, followId)).toMatchObject([{ text: long, state: 'declared', added_by: 'owner' }]);

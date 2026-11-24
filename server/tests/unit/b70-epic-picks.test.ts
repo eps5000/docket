@@ -16,7 +16,13 @@ import {
 import { BlockIndex } from '../../src/domain/model.js';
 import { readyStates } from '../../src/domain/next-work.js';
 import type { Actor } from '../../src/domain/write.js';
-import { addProject, forceStatus, startDomain, type Domain } from '../us1-helpers.js';
+import {
+  addProject,
+  forceStatus,
+  startDomain,
+  withoutRelease,
+  type Domain,
+} from '../us1-helpers.js';
 
 const OWNER: Actor = { kind: 'owner', client: null, label: null, session_id: null, run_id: null };
 
@@ -42,6 +48,8 @@ const make = (type: 'Epic' | 'Task', title: string, epic?: string, status = 'rea
     }),
   );
   if (status !== 'planning') forceStatus(d, id, status);
+  // Decision 67: these tests count tickets as before every epic had a Release.
+  if (type === 'Epic') withoutRelease(d, id);
   return id;
 };
 const epic = (title: string) => make('Epic', title, undefined, 'progress');

@@ -6,7 +6,15 @@
 import type { OverviewItemsResponse, OverviewMetric, OverviewResponse } from '@docket/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { OWNER_ACTOR, type Actor } from '../../src/domain/write.js';
-import { addProject, forceStatus, minutes, startDomain, type Domain } from '../us1-helpers.js';
+import {
+  addProject,
+  forceStatus,
+  minutes,
+  readyRelease,
+  startDomain,
+  withoutRelease,
+  type Domain,
+} from '../us1-helpers.js';
 
 let d: Domain;
 let claude: Actor;
@@ -32,7 +40,12 @@ const ids = (metric: OverviewMetric, scope = 'OV') => list(metric, scope).rows.m
 function ticket(
   title: string,
   status = 'planning',
-  over: { project?: string; type?: 'Task' | 'Story' | 'Epic'; epic?: string } = {},
+  over: {
+    project?: string;
+    type?: 'Task' | 'Story' | 'Epic';
+    epic?: string;
+    keepRelease?: boolean;
+  } = {},
 ): string {
   const { id } = d.write(OWNER_ACTOR, (w, s) =>
     s.items.create(w, {
@@ -45,6 +58,8 @@ function ticket(
     }),
   );
   if (status !== 'planning') forceStatus(d, id, status);
+  // Decision 67: these tests count tickets as before every epic had a Release.
+  if (over.type === 'Epic' && !over.keepRelease) withoutRelease(d, id);
   return id;
 }
 
@@ -198,7 +213,10 @@ describe('Agents, per story and never per run', () => {
   });
 
   it('leaves out epics and other projects', () => {
-    claim(ticket('An epic', 'ready', { type: 'Epic' }));
+    // Decision 67: an epic starts with its Release, shaped.
+    const epic = ticket('An epic', 'ready', { type: 'Epic', keepRelease: true });
+    readyRelease(d, epic);
+    claim(epic);
     claim(ticket('Elsewhere', 'ready', { project: 'OW' }));
     expect(agentsNow().working).toBe(0);
     expect(agentsNow('all').working).toBe(1);

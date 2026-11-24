@@ -26,7 +26,13 @@ import {
   type Completion,
 } from '../../src/domain/forecast.js';
 import { OWNER_ACTOR, type Actor } from '../../src/domain/write.js';
-import { addProject, declareNone, startDomain, type Domain } from '../us1-helpers.js';
+import {
+  addProject,
+  declareNone,
+  startDomain,
+  withoutRelease,
+  type Domain,
+} from '../us1-helpers.js';
 
 const DAY = 86_400_000;
 const NOV_16 = '2026-11-16T12:00:00Z';
@@ -64,6 +70,8 @@ function create(
     }),
   ).id;
   declareNone(d, id); // the Ready gate (decision 36)
+  // Decision 67: these tests count tickets as before every epic had a Release.
+  if (opts.type === 'Epic') withoutRelease(d, id);
   return id;
 }
 
@@ -590,7 +598,7 @@ describe('burn-down at scale', () => {
     const created = new Date(fromMs - DAY).toISOString();
     const insertItem = sql.prepare(
       `INSERT INTO items (id, project_key, type, title, description_md, outcome_md, status, priority, effort, effort_unit, imported, version, created_at, updated_at)
-       VALUES (?, 'TST', 'Task', ?, '', '', ?, 2, ?, 'pts', 0, 1, ?, ?)`,
+       VALUES (?, 'TST', 'Implementation', ?, '', '', ?, 2, ?, 'pts', 0, 1, ?, ?)`,
     );
     const insertEvent = sql.prepare(
       `INSERT INTO events (at, actor_kind, client, project_key, item_id, type, summary, data, mutation_id)

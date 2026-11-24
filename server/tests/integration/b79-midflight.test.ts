@@ -14,7 +14,14 @@ import { idleTickets } from '../../src/domain/idle.js';
 import { undoMutation } from '../../src/domain/undo.js';
 import { idleOnce } from '../../src/jobs/sweeper.js';
 import type { Actor } from '../../src/domain/write.js';
-import { addProject, declareNone, forceStatus, startDomain, type Domain } from '../us1-helpers.js';
+import {
+  addProject,
+  declareNone,
+  forceStatus,
+  readyRelease,
+  startDomain,
+  type Domain,
+} from '../us1-helpers.js';
 
 const OWNER: Actor = { kind: 'owner', client: null, label: null, session_id: null, run_id: null };
 const DAY = 24 * 60 * 60 * 1000;
@@ -47,6 +54,8 @@ const create = (type: Kind, opts: { epic?: string; status?: Status; title?: stri
   if (opts.status && opts.status !== 'inbox' && opts.status !== 'planning') {
     forceStatus(d, id, opts.status);
   }
+  // Decision 67: the epic's Release comes with it, shaped here so the epic can start.
+  if (type === 'Epic') readyRelease(d, id);
   return id;
 };
 const version = (id: string) =>
@@ -139,7 +148,8 @@ describe('tickets added after the epic started', () => {
           title: 'Synthetic epic',
           untriaged: [
             { id: bug, type: 'Bug' },
-            { id: story, type: 'Story' },
+            // Decision 67: Story is stored as Implementation.
+            { id: story, type: 'Implementation' },
           ],
         },
       ],
@@ -147,7 +157,7 @@ describe('tickets added after the epic started', () => {
     const text = renderResult('get_digest', digest, { now: d.clock.now() });
     expect(text).toContain('added mid-flight 1:');
     expect(text).toContain(
-      `- ${epic} added since this epic started: 2 untriaged: ${bug} bug, ${story} story`,
+      `- ${epic} added since this epic started: 2 untriaged: ${bug} bug, ${story} implementation`,
     );
     expect(text.length).toBeLessThanOrEqual(DIGEST_MAX_CHARS);
 
@@ -184,6 +194,8 @@ describe('tickets added after the epic started', () => {
     // Triaged and finished: the epic closes.
     d.write(producer, (w, s) => s.items.setStatus(w, { id: bug, status: 'planning' }));
     forceStatus(d, bug, 'done');
+    // Decision 67: its Release is done too, so the epic closes.
+    forceStatus(d, readyRelease(d, epic)!, 'done');
     d.write(producer, (w, s) => s.items.setStatus(w, { id: epic, status: 'done' }));
     expect(status(epic)).toBe('done');
   });
