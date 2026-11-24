@@ -172,6 +172,17 @@ export const steerRoutes = {
     response: json(leadActionResponse),
     undoable: true,
   }),
+  /** Owner handoff of a live Epic producer; the Epic stays In progress. */
+  'items.handoffEpic': route({
+    method: 'POST',
+    path: '/api/items/:id/handoff-epic',
+    group: 'steer',
+    params: itemParams,
+    query: noInput,
+    body: leadActionBody,
+    response: json(leadActionResponse),
+    undoable: false,
+  }),
   'items.returnToReady': route({
     method: 'POST',
     path: '/api/items/:id/return-to-ready',

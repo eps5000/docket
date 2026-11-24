@@ -45,7 +45,8 @@ export function claimConflict(data: ItemDetailResponse) {
  * reason · agent`, B20), the same as the agent bar above the tabs. US2 fills
  * the read view and US11 the recovery actions (resources, resume note). US6
  * adds the claim-conflict callout, *Release lead claim…* on a stale or parked
- * lead (a destructive dialog whose focus starts on Cancel; Undo in the toast),
+ * ticket lead or any current Epic lead (a destructive dialog whose focus
+ * starts on Cancel; ticket status release has Undo, Epic handoff does not),
  * and *Return to Ready* after a failed run. The agent bar shares these actions
  * (leadActions.tsx).
  */
@@ -62,7 +63,9 @@ export function LeadAndRunsSection({ data }: { data: ItemDetailResponse }) {
     .filter((r) => r.is_lead)
     .sort((a, b) => b.started_at.localeCompare(a.started_at))[0];
   const canReturn =
-    !lead && item.status === 'progress' && lastLead?.run_state === 'failed' ? lastLead : null;
+    !lead && item.type !== 'Epic' && item.status === 'progress' && lastLead?.run_state === 'failed'
+      ? lastLead
+      : null;
 
   const returnToReady = async () => {
     setBusy(true);

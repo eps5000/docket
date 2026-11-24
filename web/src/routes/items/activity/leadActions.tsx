@@ -28,12 +28,12 @@ export function currentStep(
   return at < 0 ? null : { n: at + 1, total: work.length, text: work[at]!.text };
 }
 
-/** *Release lead claim…* sits on the current lead while it is stale or parked (UI_SPEC §6.3.2). */
+/** Epics can change producers at any point; tickets show this for stale or parked leads. */
 export function canReleaseLead(data: ItemDetailResponse, run: Run): boolean {
   return (
     run.is_lead &&
     run.run_id === data.item.lead?.run_id &&
-    (run.run_state === 'stale' || run.run_state === 'parked')
+    (data.item.type === 'Epic' || run.run_state === 'stale' || run.run_state === 'parked')
   );
 }
 
@@ -67,13 +67,21 @@ export function useReleaseLead(data: ItemDetailResponse) {
   const [busy, setBusy] = useState(false);
   const release = async (run: Run) => {
     setBusy(true);
+    const epic = item.type === 'Epic';
     const res = await steer(
       () =>
-        apiClient['items.release']({
-          params: { id: item.id },
-          body: { expected_version: item.version },
-        }),
-      `Released ${leadName(run)}’s claim. ${item.id} is back in Ready.`,
+        epic
+          ? apiClient['items.handoffEpic']({
+              params: { id: item.id },
+              body: { expected_version: item.version },
+            })
+          : apiClient['items.release']({
+              params: { id: item.id },
+              body: { expected_version: item.version },
+            }),
+      epic
+        ? `Released ${leadName(run)}’s claim. ${item.id} stays In progress for its next producer.`
+        : `Released ${leadName(run)}’s claim. ${item.id} is back in Ready.`,
     );
     setBusy(false);
     if (res) setReleasing(null);
@@ -84,6 +92,7 @@ export function useReleaseLead(data: ItemDetailResponse) {
     dialog: releasing ? (
       <ReleaseDialog
         itemId={item.id}
+        epic={item.type === 'Epic'}
         run={releasing}
         busy={busy}
         onCancel={() => setReleasing(null)}
@@ -108,12 +117,14 @@ export function silentFor(since: string, now: Date = new Date()): string {
  */
 function ReleaseDialog({
   itemId,
+  epic,
   run,
   busy,
   onCancel,
   onConfirm,
 }: {
   itemId: string;
+  epic: boolean;
   run: Run;
   busy: boolean;
   onCancel: () => void;
@@ -136,15 +147,20 @@ function ReleaseDialog({
       }
     >
       <p className="mt0">
-        {who} has been {run.run_state === 'parked' ? 'parked' : 'silent'} for {silentFor(since)}.
-        Releasing will:
+        {epic
+          ? `${who} currently leads this epic. Releasing will:`
+          : `${who} has been ${run.run_state === 'parked' ? 'parked' : 'silent'} for ${silentFor(since)}. Releasing will:`}
       </p>
       <ul className="releaselist">
         <li>
           mark run <span className="mono">{run.run_id}</span> as <b>interrupted</b>, not finished
         </li>
         <li>keep its checklist, log and partial work on the ticket</li>
-        <li>move {itemId} back to Ready so another agent can claim it</li>
+        <li>
+          {epic
+            ? `keep ${itemId} In progress so another producer can claim it immediately`
+            : `move ${itemId} back to Ready so another agent can claim it`}
+        </li>
       </ul>
       <div className="src">
         If {run.client} comes back, it gets a conflict response with the current state.

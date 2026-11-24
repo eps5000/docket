@@ -62,6 +62,7 @@ A claim comes with a lease (60 minutes by default), and every signal from the ag
 ## What to do
 
 - **Stale:** the agent may still be working, or may have crashed. Under **Problems**, click *Inspect*. You can wait (the lease ends it on its own), or click *Release lead claim…* on the ticket (or its **Activity** tab) to free it now. Releasing marks the run **interrupted**, keeps its work, and moves the item back to Ready for another agent. If the original agent comes back, it's told the current state.
+- **Changing an Epic's producer:** open the Epic and click *Release lead claim…* under its header or in **Activity → Lead and runs**. This is available even while the current producer is live. Confirming interrupts that run, keeps the Epic In progress and preserves its work, so a different provider can claim it immediately. The handoff cannot be undone; the former run cannot resume.
 - **Needs input:** answer its question. See [Questions and notes](/help/questions-and-notes).
 - **Failed:** open the item's **Activity** tab to read the error. *Return to Ready* lets another agent pick it up. Docket never launches agents itself.
 - **Parked for 24 hours:** goes to its coordinator first, and reaches your Problems if it has none or it's still parked a day later. You can also click *Release lead claim…*.
@@ -75,7 +76,7 @@ A claim comes with a lease (60 minutes by default), and every signal from the ag
 - **Agents → Active now:** every open run, needs input first. These are runs, not tickets, so a ticket can have several.
 
 **Why Orca can show more.** These numbers count tickets in Docket, not agent sessions. Orca can show more sessions, because coordinators and helpers don't each hold a ticket. A worker can also be busy while its ticket's lead is parked, so "0 being worked" doesn't mean nothing is running.
-- **On a ticket:** the agent bar under the header, and **Activity → Lead and runs** for the full history.
+- **On a ticket or Epic:** the agent bar under the header, and **Activity → Lead and runs** for the full history.
 
 ## Held by your decision
 

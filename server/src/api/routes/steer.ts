@@ -51,6 +51,13 @@ export function steerRoutes<E extends Env>(api: Hono<E>, deps: RouteDeps): void 
     return { mutation_id, item: result };
   });
 
+  defineRoute(api, 'items.handoffEpic', deps, ({ services, mutate, params, body }) => {
+    const { result, mutation_id } = mutate((w) =>
+      services.runs.ownerHandoffEpic(w, { id: params.id, ...body }),
+    );
+    return { mutation_id, item: result };
+  });
+
   defineRoute(api, 'items.returnToReady', deps, ({ services, mutate, params, body }) => {
     const { result, mutation_id } = mutate((w) =>
       services.runs.returnToReady(w, { id: params.id, ...body }),
