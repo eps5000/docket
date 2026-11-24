@@ -39,6 +39,7 @@ import { main as cli } from '../../src/cli/index.js';
 import { loadConfig } from '../../src/config.js';
 import { loadSampleSeed } from '../../src/db/seed/loader.js';
 import { readContext } from '../../src/domain/contracts.js';
+import { ensureReleasesAtStart } from '../../src/domain/release-migration.js';
 import { OWNER_ACTOR } from '../../src/domain/write.js';
 import {
   archiveTime,
@@ -93,6 +94,7 @@ function server(env: Record<string, string> = {}, dataDir?: string): TestServer 
 function seeded(env: Record<string, string> = {}): TestServer {
   const s = server(env);
   loadSampleSeed(s.runtime.db, { now: s.clock.now(), docsDir: s.runtime.config.paths.docs });
+  ensureReleasesAtStart(s.runtime.write, () => {});
   return s;
 }
 
@@ -852,6 +854,7 @@ describe('container replacement (SC-008)', () => {
     const volume = join(tmp.dir, 'volume');
     const first = server({}, volume);
     loadSampleSeed(first.runtime.db, { now: NOW, docsDir: first.runtime.config.paths.docs });
+    ensureReleasesAtStart(first.runtime.write, () => {});
     const before = checksumsOf(volume);
     expect(before.items.count).toBeGreaterThan(0);
     expect(before.documents.count).toBeGreaterThan(0);

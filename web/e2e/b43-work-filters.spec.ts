@@ -169,8 +169,15 @@ test('the Filters menu from the keyboard: a combination, pills, Clear; axe in bo
     /^Deferred review\d+$/,
     /^Live run\d+$/,
     /^Has a problem\d+$/,
+    /^Inferred type\d+$/,
+    /^Rollout\d+$/,
     /^Shows done\d+$/,
     /^Shows canceled\d+$/,
+    'Type: Exploration',
+    'Type: Design',
+    'Type: Implementation',
+    'Type: Bug',
+    'Type: Release',
   ]);
   await expect(entry(page, 'For you')).toBeFocused();
   await expectAxeClean(page, 'Work filter row with the menu open', {
@@ -199,8 +206,9 @@ test('the Filters menu from the keyboard: a combination, pills, Clear; axe in bo
   await expect.poll(() => boardTotal(page)).toBe(both);
 
   // Shows done adds the done items those checks match.
-  await page.keyboard.press('End');
-  await page.keyboard.press('ArrowUp');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowDown');
   await expect(entry(page, 'Shows done')).toBeFocused();
   const doneAdds = await entryCount(page, 'Shows done');
   await page.keyboard.press(' ');

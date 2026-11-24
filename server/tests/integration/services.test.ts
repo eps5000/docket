@@ -383,10 +383,12 @@ describe('implementing a service is all a slice needs', () => {
       actor: 'owner',
       input: {
         project: 'RCP',
-        type: 'Implementation',
+        type: 'Story',
         title: 'Pantry inventory schema',
         priority: 2,
         status: 'inbox',
+        epic: undefined,
+        description_md: undefined,
       },
     });
   });

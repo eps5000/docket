@@ -91,11 +91,19 @@ const ready = async (type: string, title: string, extra: Record<string, unknown>
 };
 const statusOf = async (id: string) =>
   ((await ok(producer, 'get_item', { id, view: 'summary' })).item as { status: string }).status;
+const readyRelease = async (epic: string) => {
+  const found = await ok(producer, 'search_items', { project: 'RCP', epic, type: ['Release'] });
+  const release = (found.items as { id: string }[])[0]!.id;
+  await ok(producer, 'set_status', { id: release, status: 'planning' });
+  await ok(producer, 'declare_shared_changes', { id: release, none: true });
+  await ok(producer, 'set_status', { id: release, status: 'ready' });
+};
 
 test('a bug and a story added mid-flight are untriaged in the digest, marked everywhere, and hold the epic open', async ({
   ownerPage: page,
 }) => {
   const epic = await ready('Epic', 'Synthetic offline sync');
+  await readyRelease(epic);
   const first = await ready('Task', 'Synthetic sync queue', { epic });
   await ok(producer, 'claim_lead', { id: epic, agent_label: 'e2e-producer' });
   await ok(worker, 'claim_lead', { id: first, agent_label: 'e2e-worker' });
@@ -107,7 +115,7 @@ test('a bug and a story added mid-flight are untriaged in the digest, marked eve
   expect(digest.isError, digest.text).toBe(false);
   expect(digest.text).toContain('added mid-flight 1:');
   expect(digest.text).toContain(
-    `${epic} added since this epic started: 2 untriaged: ${bug} bug, ${story} story`,
+    `${epic} added since this epic started: 2 untriaged: ${bug} bug, ${story} implementation`,
   );
 
   // Closing the epic is refused, listing them.
@@ -115,7 +123,7 @@ test('a bug and a story added mid-flight are untriaged in the digest, marked eve
   expect(refused.isError).toBe(true);
   expect(refused.text).toContain(`Can't close epic ${epic}`);
   expect(refused.text).toContain(`${bug} (bug)`);
-  expect(refused.text).toContain(`${story} (story)`);
+  expect(refused.text).toContain(`${story} (implementation)`);
 
   for (const vp of SIZES) {
     await page.setViewportSize({ width: vp.width, height: vp.height });

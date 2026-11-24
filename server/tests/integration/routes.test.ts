@@ -274,8 +274,14 @@ const VALID: Record<RouteId, Req> = {
     body: { question_id: 'q_1', text: 'Per serving.' },
   },
   'items.split': {
-    params: { id: 'RCP-1' },
-    body: { expected_version: 1, type: 'Task', title: 'Split part', move: [1], relation: 'none' },
+    params: { id: 'RCP-14' },
+    body: {
+      expected_version: 7,
+      type: 'Implementation',
+      title: 'Split part',
+      move: [1],
+      relation: 'none',
+    },
   },
   'items.addNote': { params: { id: 'RCP-14' }, body: { text: 'Check the units table first.' } },
   'items.release': { params: { id: 'RCP-14' }, body: {} },

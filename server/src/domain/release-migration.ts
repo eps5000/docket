@@ -1,5 +1,5 @@
 /**
- * Giving existing epics their Release (owner decision 67; BUILD_SPEC §5.46).
+ * Giving existing epics their Release (owner decision 67; BUILD_SPEC §5.47).
  * Runs at every start, after the migrations and the sample seed, and is
  * idempotent: it only touches open epics (not Done, canceled or archived) that
  * have no Release yet. Each gets one of three outcomes:

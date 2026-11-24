@@ -49,7 +49,7 @@ export const IN_FLIGHT_STATUSES = [
 ] as const satisfies readonly Status[];
 
 /**
- * Ticket types by kind of work (owner decision 67; BUILD_SPEC §5.46). Epic holds
+ * Ticket types by kind of work (owner decision 67; BUILD_SPEC §5.47). Epic holds
  * tickets; every epic has exactly one Release, its closing ticket.
  */
 export const ITEM_TYPES = [

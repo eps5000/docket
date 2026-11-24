@@ -62,6 +62,10 @@ const create = async (type: string, title: string, extra: Record<string, unknown
 };
 const versionOf = async (id: string) =>
   ((await ok('get_item', { id, view: 'summary' })).item as { version: number }).version;
+const releaseOf = async (epic: string) => {
+  const found = await ok('search_items', { project: 'RCP', epic, type: ['Release'] });
+  return (found.items as { id: string }[])[0]!.id;
+};
 const gapped = async (title: string, epic: string) => {
   const id = await create('Task', title, { epic });
   await ok('declare_shared_changes', { id, none: true });
@@ -76,17 +80,18 @@ const gapped = async (title: string, epic: string) => {
 /** One epic with a Planning ticket that has known gaps, and an Inbox idea. */
 async function seedEpic() {
   const epic = await create('Epic', 'Synthetic offline mode');
+  const release = await releaseOf(epic);
   const shaped = await gapped('Synthetic retry settings', epic);
   const idea = await create('Task', 'Synthetic later idea', { epic, status: 'inbox' });
   await ok('declare_shared_changes', { id: epic, none: true });
   await ok('set_status', { id: epic, status: 'ready' });
-  return { epic, shaped, idea };
+  return { epic, release, shaped, idea };
 }
 
 test('an epic with unshaped tickets is Not ready to start everywhere, and its claim is refused until they are shaped', async ({
   ownerPage: page,
 }) => {
-  const { epic, shaped, idea } = await seedEpic();
+  const { epic, release, shaped, idea } = await seedEpic();
 
   // The agent can't start it, and hears which tickets and the four ways forward.
   const refused = await agent.call('claim_lead', { id: epic, agent_label: 'e2e-producer' });
@@ -94,6 +99,7 @@ test('an epic with unshaped tickets is Not ready to start everywhere, and its cl
   expect(refused.structured).toMatchObject({ code: 'epic_not_ready' });
   expect(refused.text).toContain(`${shaped} (Planning)`);
   expect(refused.text).toContain(`${idea} (Inbox)`);
+  expect(refused.text).toContain(`${release} (Inbox)`);
 
   for (const vp of SIZES) {
     await page.setViewportSize({ width: vp.width, height: vp.height });
@@ -103,7 +109,7 @@ test('an epic with unshaped tickets is Not ready to start everywhere, and its cl
     await expect(row).toBeVisible();
     await expect(row).not.toHaveAttribute('data-best-next', '');
     await expect(row.locator('[data-epic-readiness]')).toContainText(
-      'Not ready to start: 2 unshaped tickets',
+      'Not ready to start: 3 unshaped tickets',
     );
     await expect(row.getByRole('link', { name: shaped })).toBeVisible();
     await shots(page, `pick-${vp.name}`);
@@ -112,7 +118,7 @@ test('an epic with unshaped tickets is Not ready to start everywhere, and its cl
     // The epic page links each ticket with its status.
     await page.goto(`/items/${epic}`);
     const line = page.locator('.epicready-line');
-    await expect(line).toContainText('Not ready to start: 2 unshaped tickets');
+    await expect(line).toContainText('Not ready to start: 3 unshaped tickets');
     // Decision 65 may add ", needs shaping" after the status.
     await expect(line).toContainText('(Inbox');
     await shots(page, `epic-${vp.name}`);
@@ -125,7 +131,7 @@ test('an epic with unshaped tickets is Not ready to start everywhere, and its cl
   await page.goto('/work');
   const card = page.locator(`a.epiccard[href="/items/${epic}"]`);
   await expect(card.locator('[data-epic-readiness="not_ready"]')).toContainText(
-    'Not ready to start: 2 unshaped tickets',
+    'Not ready to start: 3 unshaped tickets',
   );
   await expect(
     page.locator('a.epiccard[href="/items/RCP-1"] [data-epic-readiness="started_unshaped"]'),
@@ -153,7 +159,10 @@ test('an epic with unshaped tickets is Not ready to start everywhere, and its cl
     .poll(async () => (await agent.call('get_item', { id: shaped, view: 'summary' })).text)
     .toContain('ready');
 
-  // Now every ticket is at least Ready: the epic starts.
+  await ok('set_status', { id: release, status: 'planning' });
+  await ok('declare_shared_changes', { id: release, none: true });
+  await ok('set_status', { id: release, status: 'ready' });
+  // Now every ticket, including the Release, is at least Ready: the epic starts.
   await ok('claim_lead', { id: epic, agent_label: 'e2e-producer' });
 });
 

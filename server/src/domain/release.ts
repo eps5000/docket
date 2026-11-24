@@ -1,5 +1,5 @@
 /**
- * Every epic has one Release (owner decision 67; BUILD_SPEC §5.46). It replaces
+ * Every epic has one Release (owner decision 67; BUILD_SPEC §5.47). It replaces
  * decision 64's finish line (B81) and keeps its bug rules.
  *
  * **One per epic, created with it.** Creating an epic creates "Release <epic

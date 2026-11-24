@@ -1,5 +1,5 @@
 /**
- * Ticket types by kind of work (owner decision 67; BUILD_SPEC §5.46).
+ * Ticket types by kind of work (owner decision 67; BUILD_SPEC §5.47).
  *
  * - **The types** name the work, so they say how other tickets depend on it:
  *   Epic, Exploration, Design (documentation included), Implementation, Bug

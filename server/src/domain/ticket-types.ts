@@ -1,5 +1,5 @@
 /**
- * Ticket types by kind of work (owner decision 67; BUILD_SPEC §5.46): what the
+ * Ticket types by kind of work (owner decision 67; BUILD_SPEC §5.47): what the
  * server reads from `items.type_info` and `items.rollout`. The rules for
  * changing a type live in items.ts (`typeChange`); the Release's in release.ts.
  */

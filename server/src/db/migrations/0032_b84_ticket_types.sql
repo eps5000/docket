@@ -1,4 +1,4 @@
--- Ticket types by kind of work (owner decision 67; BUILD_SPEC §5.46; B84).
+-- Ticket types by kind of work (owner decision 67; BUILD_SPEC §5.47; B84).
 -- `items.type` allows Epic, Exploration, Design, Implementation, Bug and Release.
 -- Story and Task become Implementation, marked inferred with the old type kept
 -- (`type_info` = {"inferred": true, "original": "Story"}). New columns:

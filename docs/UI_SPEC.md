@@ -149,7 +149,7 @@ Copy the prototype's `.tl` token block. Light and dark values below; the prototy
 | `Button` | primary, default, ghost, danger-text; sizes md, sm | `onClick, disabled, icon?` | Primary only for the one main action per view. A disabled primary uses brand at 55% opacity and keeps a label that says why ("Decide every item first"). |
 | `IconButton` | — | `aria-label` (required) | 32×32. |
 | `Chip` | status (7), blocked, human review (4), neutral, warn, ok, bad, info | `kind, children` | Rounded pill; always text, never colour alone. |
-| `TypeBadge` / `TypeIcon` | Epic, Story, Task, Bug | `type, iconOnly?` | 16px square in the type colour with a white glyph, plus the name. Icon-only on board cards and tabs, with an sr-only name. |
+| `TypeBadge` / `TypeIcon` | Epic, Exploration, Design, Implementation, Bug, Release | `type, iconOnly?` | Each type has its own shape and accessible name. Rollout is an explicit word marker on Implementation, and inferred types say so. |
 | `RunState` | live, reported, stale, parked, needs input, failed, finished, interrupted | `state, age?` | Icon shape + label + `title` holding the one-line meaning (§5). The live dot pulses, except under reduced motion. Used alone only where a state is counted. |
 | `RunLine` | one per run state | `state, reason?, agent?, age?` | **The one run-state line** (§5): `state · reason · agent`, then the age at the right. Cards, the epic's Tickets list, Agents, the agent bar and Lead and runs all use it. The separators keep to the segment before them, so a wrapped line never starts with "·"; the state and the agent never break inside. |
 | `WorkspaceStateChip` | In use, Parked, At risk, Safe to prune, Unknown | `state` | Agents → Workspaces, the agent bar, Where the work lives, and recovery Problems rows. At risk is `--warn`, Safe to prune `--ok`. |
@@ -420,6 +420,8 @@ A `ProgressMap` of the filtered set, titled "Outside this view". When no epic or
 
 #### 6.2.5 Pick next epic (decision 54; BUILD_SPEC §5.38)
 
+**Decision 67:** every epic has one Release ticket made during shaping. Its row names that ticket, how many other tickets it waits for and its open bugs. There is no finish-line selection or "No finish line" state. An unready Release keeps an epic in Not ready to start, as any unready child does.
+
 - **Where:** a **Pick next epic** button in Work's header with one project chosen opens `/projects/:key/next-epic`. With All projects there's no button.
 - **The limit,** once, under the h1: "Based on dependencies recorded in Docket."
 - **One table** (`data-pick-epic`), with a row group per fit: **Good to hand off**, **Already being worked**, **Likely to park**, **Not ready to start** (decision 58: an epic not yet started with Inbox or Planning tickets; never Best next). Columns: Epic, Can finish on its own ("18 of 18"), Can start now (the count and the first three IDs, then "Queued N · Blocked M" when either is above 0; decision 57), Waits on (each epic links to it; "No epic" for loose tickets), Unblocks elsewhere, Not shaped yet, Being worked (who, and lead or producer).
@@ -582,6 +584,8 @@ Nodes are the map cards from §6.3.4. A done blocker that still blocks shows "do
 Every dependency stays listed (decision 60). A link the epic's map hides as implied gets a quiet line under its node, "Also implied through GF-2" (or "GF-2 → GF-5" for a longer chain), worked out from the epic's map data with the map's own code, so it matches the picture. There's no note without an epic, or when this browser shows implied links.
 
 #### 6.3.4 Progress map
+
+**Decision 67:** an epic's Release sits alone in the last column, after the Bugs column, outside dependencies and waves. Its card says Release and the remaining ticket and bug counts; automatic dependencies create no arrows. Exploration, Design, Implementation, Bug and Release use distinct type icons; an intermediate Implementation rollout says Rollout in words. Work → Map and label maps keep their ordinary layouts.
 Used on the epic Map tab, label pages and Work → Map.
 
 - **Header:**
