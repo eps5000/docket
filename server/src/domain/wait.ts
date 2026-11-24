@@ -34,6 +34,7 @@ import { BlockIndex, actorName, leaseExpired, ms, type RunRow } from './model.js
 import { pauseLiftedAt, projectPause } from './project-pause.js';
 import { clearedAt, parkInfo, parseJson, waitLink } from './recovery-model.js';
 import { ACTIVITY_EVENTS, projectCoordinators } from './run-activity.js';
+import { workEventSql } from './activity.js';
 import type { WriteContext } from './write.js';
 
 export const GRACE_MS = WAIT_FLAGS.grace_minutes * 60_000;
@@ -217,7 +218,7 @@ export class WaitReader {
     const sql = this.db.sqlite;
     const event = sql
       .prepare(
-        'SELECT max(at) AS at FROM events WHERE item_id = ? AND type IN (SELECT value FROM json_each(?))',
+        `SELECT max(at) AS at FROM events WHERE item_id = ? AND type IN (SELECT value FROM json_each(?)) AND ${workEventSql('events')}`,
       )
       .get(id, JSON.stringify(REAL_ACTIVITY)) as { at: string | null };
     const created = sql.prepare('SELECT created_at FROM items WHERE id = ?').get(id) as

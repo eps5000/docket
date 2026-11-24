@@ -32,6 +32,7 @@ import {
 import { freshHostGit, type HostGitFacts } from './host-git.js';
 import { reportedBranches, validBranch } from './radar.js';
 import { projectPause } from './project-pause.js';
+import { workEventSql } from './activity.js';
 import { clearedSince, parkInfo, parseJson, storedWorkspace } from './recovery-model.js';
 
 // ---- Stored shapes ----
@@ -302,7 +303,7 @@ export async function planRunActivity(
   };
   const countEvents = db.sqlite.prepare(
     `SELECT count(*) AS n FROM events WHERE item_id = ? AND at > ?
-     AND type IN (SELECT value FROM json_each(?))`,
+     AND type IN (SELECT value FROM json_each(?)) AND ${workEventSql('events')}`,
   );
   const out: ActivityFinding[] = [];
   for (const { run, parked, baseline, branches } of candidates) {
