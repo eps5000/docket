@@ -24,6 +24,7 @@
  * shared with it (`dateRiskBlockers` in model.ts).
  */
 import { openPartialExit, storedExit } from './exit-reports.js';
+import { workEventSql } from './activity.js';
 import { COMPAT_SURFACES, resultMode } from './compat.js';
 import { readdirSync, statfsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -1541,7 +1542,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         const ids = summaries.map((i) => i.id);
         for (const e of r.db.sqlite
           .prepare(
-            `SELECT item_id, max(at) AS at FROM events WHERE item_id IN ${placeholders(ids.length)} GROUP BY item_id`,
+            `SELECT item_id, max(at) AS at FROM events WHERE item_id IN ${placeholders(ids.length)} AND ${workEventSql('events')} GROUP BY item_id`,
           )
           .all(...ids) as { item_id: string; at: string }[]) {
           lastActivity.set(e.item_id, e.at);
