@@ -60,7 +60,7 @@ const KIND_ORDER = [
 ];
 
 /** Every kind a message may name. Anything else in a state file is refused. */
-export const KNOWN_KINDS = new Set([...KIND_ORDER, 'resume']);
+export const KNOWN_KINDS = new Set([...KIND_ORDER, 'resume', 'partial']);
 
 function editKinds(summary) {
   const words = EDITED.exec(summary)?.[1];
@@ -103,6 +103,11 @@ export function classifyEvent(event) {
     if (!SYSTEM_ACTORS.has(actor)) return null;
     return { kinds: ['resume'], immediate: true, expect: 'system' };
   }
+  // Decision 61 (B78): an implementer finished partly. Its producer hears about it.
+  if (event.type === 'run.finished_partly') {
+    if (!actor || OWNER_ACTOR.test(actor) || SYSTEM_ACTORS.has(actor)) return null;
+    return { kinds: ['partial'], immediate: true, expect: 'agent' };
+  }
   if (!OWNER_ACTOR.test(actor)) return null;
 
   const undone = summary.startsWith('Undid: ');
@@ -128,9 +133,19 @@ export function buildMessage({ item, kinds, implementer }) {
     throw new Error('invalid_message_fields');
   }
   const resume = kinds.includes('resume');
+  const partial = kinds.includes('partial');
   const changes = orderKinds(kinds);
   const parts = [];
-  if (changes.length > 0) {
+  if (partial) {
+    // Decision 61: the producer that dispatched the work hears how it exited. A pointer only.
+    parts.push(
+      `${item} finished partly in Docket: its implementer left items with why and what would finish each.`,
+      'Read them under Finished partly in get_digest, and resolve each: move them, link the ticket that will finish them, start work, ask the owner, or close them with a note.',
+    );
+    if (changes.length > 0)
+      parts.push(`It was also updated from the owner side (${changes.join(', ')}).`);
+    if (resume) parts.push('What it was waiting for has also cleared.');
+  } else if (changes.length > 0) {
     parts.push(`${item} was updated from the owner side in Docket (${changes.join(', ')}).`);
     if (resume) parts.push('What it was waiting for has also cleared.');
   } else {
@@ -142,6 +157,10 @@ export function buildMessage({ item, kinds, implementer }) {
     'Decide whether and when to relay it, under your own gates.',
     `Don't call get_item ${item} on the implementer's behalf, because that uses up its one-time delivery.`,
   );
-  const subject = changes.length > 0 ? `Docket: ${item} updated` : `Docket: ${item} can resume`;
+  const subject = partial
+    ? `Docket: ${item} finished partly`
+    : changes.length > 0
+      ? `Docket: ${item} updated`
+      : `Docket: ${item} can resume`;
   return { subject, body: parts.join(' ') };
 }

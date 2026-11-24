@@ -25,14 +25,26 @@ export const itemId = z
   .trim()
   .regex(ITEM_ID_RE, { error: 'Expected an item ID like RCP-14.' });
 
+/** The JSON Schema key that marks an opaque ID (json-schema.ts removes it). */
+export const ID_MARK = 'x-docket-id';
+
 /** 2–5 uppercase letters, e.g. `RCP`. */
 export const projectKey = z
   .string()
   .trim()
   .regex(PROJECT_KEY_RE, { error: 'Expected a project key of 2–5 uppercase letters, like RCP.' });
 
-/** A prefixed ULID (`run_…`, `wst_…`, …) or another opaque ID. */
-export const objectId = z.string().trim().min(1).max(LIMITS.id);
+/**
+ * A prefixed ULID (`run_…`, `wst_…`, …) or another opaque ID. Marked so the
+ * definitions clients receive leave out its length limit (decision 61): an ID
+ * comes from Docket or the orchestrator, and validation still enforces it.
+ */
+export const objectId = z
+  .string()
+  .trim()
+  .min(1)
+  .max(LIMITS.id)
+  .meta({ [ID_MARK]: true });
 
 /** `YYYY-MM-DD`. */
 export const date = z.string().regex(DATE_RE, { error: 'Expected a date like 2026-11-15.' });

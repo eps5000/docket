@@ -2287,3 +2287,24 @@
 .tl .pickepic tbody[data-pick-group='not_ready'] tr:not(.pe-group) {
   background: var(--panel-2);
 }
+/* Decision 61: how the lead finished, when it left items; words first, the mark is extra. */
+.tl .finished-partly-block {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel-2);
+}
+.tl .finished-partly-block.settled {
+  background: none;
+}
+.tl .finished-partly-block b {
+  color: var(--text);
+}
+.tl .fp-left {
+  margin: 6px 0 0;
+  padding-left: 22px;
+}
+.tl .fp-left li + li {
+  margin-top: 6px;
+}

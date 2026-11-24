@@ -31,7 +31,7 @@ const lib = (name: string) =>
   import(/* @vite-ignore */ pathToFileURL(join(TOOL, 'lib', name)).href);
 
 const { classifyEvent, buildMessage } = await lib('classify.mjs');
-const { isCoordinatorAddress, liveLead, resolveCoordinator } = await lib('target.mjs');
+const { isCoordinatorAddress, liveLead, partialLead, resolveCoordinator } = await lib('target.mjs');
 const { childEnv, createOrca, findOrca, requestIdFor } = await lib('orca.mjs');
 const { createDocket } = await lib('docket.mjs');
 const { acquireLock, openStore, requestStop } = await lib('store.mjs');
@@ -114,6 +114,8 @@ interface FakeRun {
   is_lead: boolean;
   run_state: string;
   orchestrator: { name: string; dispatch_id: string | null; run_id: string | null } | null;
+  /** Decision 61: how it finished, as the item read carries it. */
+  exit?: { outcome: 'complete' | 'partial'; at: string; left?: unknown[] };
 }
 
 const lead = (o: { dispatch?: string; runId?: string; state?: string } = {}): FakeRun => ({
@@ -2930,4 +2932,80 @@ describe('latency', () => {
     console.info(`docket-relay event-to-send: n=20 median=${median}ms max=${worst}ms`);
     expect(worst).toBeLessThan(5_000);
   }, 30_000);
+});
+
+// Decision 61 (B78): a run that finished partly is mailed to its producer, as a pointer.
+describe('a partial exit reaches the producer', () => {
+  const PARTLY = {
+    type: 'run.finished_partly',
+    actor: 'claude · w3',
+    summary: `claude · w3 finished partly: 1 item left on GF-243: ${SECRET}`,
+  };
+  const ended = (o: { dispatch?: string; at?: string; outcome?: 'complete' | 'partial' } = {}) => ({
+    ...lead({ dispatch: o.dispatch ?? 'ctx_live', state: 'finished' }),
+    exit: {
+      outcome: o.outcome ?? 'partial',
+      at: o.at ?? '2026-11-23T12:00:00.000Z',
+      left: [{ text: SECRET, why: SECRET, needs: SECRET, item: null }],
+    },
+  });
+
+  it('counts run.finished_partly from an agent only, at once', () => {
+    const event = { type: 'run.finished_partly', item_id: 'GF-243', summary: 'x' };
+    expect(classifyEvent({ ...event, actor: 'claude · w3' })).toEqual({
+      kinds: ['partial'],
+      immediate: true,
+      expect: 'agent',
+    });
+    expect(classifyEvent({ ...event, actor: 'owner' })).toBeNull();
+    expect(classifyEvent({ ...event, actor: 'system' })).toBeNull();
+    expect(classifyEvent({ ...event, actor: '' })).toBeNull();
+  });
+
+  it('words a pointer for the producer, never the items', () => {
+    const { subject, body } = buildMessage({
+      item: 'GF-243',
+      kinds: ['partial'],
+      implementer: 'Docket run r_lead1, dispatch ctx_a',
+    });
+    expect(subject).toBe('Docket: GF-243 finished partly');
+    expect(body).toMatch(/^GF-243 finished partly in Docket: /);
+    expect(body).toContain('Finished partly in get_digest');
+    expect(body).toContain("You're told as its coordinator");
+    expect(body).not.toContain('owner side');
+  });
+
+  it('targets the newest lead that finished partly, even after it ended', () => {
+    const older = { ...ended({ at: '2026-11-23T10:00:00.000Z' }), run_id: 'r_old' };
+    const newer = { ...ended({ at: '2026-11-23T11:00:00.000Z' }), run_id: 'r_new' };
+    const complete = { ...ended({ outcome: 'complete' }), run_id: 'r_done' };
+    expect(partialLead([older, newer, complete])?.run_id).toBe('r_new');
+    expect(partialLead([complete, lead()])).toBeNull();
+    expect(partialLead([{ ...newer, is_lead: false }])).toBeNull();
+  });
+
+  it('mails the coordinator of the run that finished partly, with no private text', async () => {
+    const h = await harness();
+    h.docket.runs.set('GF-243', [ended()]);
+    const relay = await started(h);
+    h.docket.push(PARTLY, h.clock.t);
+    await h.step(relay);
+    const [send, ...rest] = h.sends();
+    expect(rest).toHaveLength(0);
+    expect(send).toMatchObject({ to: 'run:run_coord', subject: 'Docket: GF-243 finished partly' });
+    expect(send!.body).not.toContain(SECRET);
+    expect(JSON.stringify(relay.state)).not.toContain(SECRET);
+  });
+
+  it('records it undelivered when the run has no dispatch to reach', async () => {
+    const h = await harness();
+    h.docket.runs.set('GF-243', [{ ...ended(), orchestrator: null }]);
+    const relay = await started(h);
+    h.docket.push(PARTLY, h.clock.t);
+    await h.step(relay);
+    expect(h.sends()).toHaveLength(0);
+    expect(relay.state.undelivered).toMatchObject([
+      { item: 'GF-243', reason: 'no_target', kinds: ['partial'] },
+    ]);
+  });
 });

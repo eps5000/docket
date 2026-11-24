@@ -3,6 +3,7 @@
  * output schemas of every tool. Field names, optionality and enums follow
  * §4 exactly. Shared contract file (tasks.md, Slice rules).
  */
+import { EXIT_VIAS, exitLeftSchema, exitReportSchema } from '../exit-report.js';
 import { z } from 'zod';
 import { questionChoiceSchema } from './question-form.js';
 import { contextSharedSchema } from './shared-changes.js';
@@ -403,6 +404,8 @@ export const runSchema = z.object({
   coordinator_park: coordinatorParkSchema.optional(),
   /** Decision 42: present while newer activity is flagged. */
   activity: runActivitySchema.optional(),
+  /** Decision 61: how the run finished, once it said (park, release, finish or Done). */
+  exit: exitReportSchema.optional(),
 });
 export type Run = z.infer<typeof runSchema>;
 
@@ -671,6 +674,19 @@ export const contextBundleSchema = z.object({
    * with the essentials and never cut.
    */
   known_gaps: knownGapsSchema.optional(),
+  /**
+   * Decision 61: the last lead's partial exit, while nobody has acted on it:
+   * what it left, why, and what would finish each. Never cut.
+   */
+  finished_partly: z
+    .object({
+      run_id: z.string(),
+      label: z.string().nullable(),
+      via: z.enum(EXIT_VIAS),
+      at: z.string(),
+      left: z.array(exitLeftSchema),
+    })
+    .optional(),
   /** Decision 45: parked runs this item would unblock, at most `WAIT_FLAGS.context_waiters`. */
   waiting_runs: z.object({ total: z.number().int(), rows: z.array(waitingRunSchema) }).optional(),
   problems: z
