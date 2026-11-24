@@ -96,6 +96,8 @@ const B2_ROUTES: readonly RouteId[] = [
   'items.addNote',
   'items.release',
   'items.returnToReady',
+  // Decision 62 (B79): settling an idle ticket (content in b79-midflight.test.ts).
+  'items.settleIdle',
   'steps.add',
   'steps.remove',
   'checks.add',

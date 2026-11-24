@@ -262,11 +262,14 @@ test('an acknowledged problem folds on the item page, collapsed and not counted'
     error: 'Synthetic: the import fixture was missing.',
   });
 
-  await page.goto('/');
-  const row = page.locator(`[data-card="problems"] [data-problem-id="failed_run:${claim.run_id}"]`);
-  await row.getByRole('button', { name: 'Acknowledge' }).click();
+  // Acknowledge it on the ticket's own banner: it folds away at once.
+  await page.goto(`/items/${id}`);
+  const open = page.locator(
+    `[data-banner="problems"] [data-problem-id="failed_run:${String(claim.run_id)}"]`,
+  );
+  await open.getByRole('button', { name: 'Acknowledge' }).click();
   await expect(toast(page, 'Acknowledged.')).toBeVisible();
-  await expect(row).toHaveCount(0);
+  await expect(open).toHaveCount(0);
 
   for (const vp of SIZES) {
     await page.setViewportSize({ width: vp.width, height: vp.height });
