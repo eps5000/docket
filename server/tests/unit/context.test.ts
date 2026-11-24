@@ -10,7 +10,7 @@ import { renderContext, type ContextBundle } from '@docket/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { CONTEXT_BUDGETS } from '../../src/domain/context.js';
 import { OWNER_ACTOR, type Actor } from '../../src/domain/write.js';
-import { NOW, addProject, startDomain, type Domain } from '../us1-helpers.js';
+import { addProject, NOW, startDomain, withoutRelease, type Domain } from '../us1-helpers.js';
 
 let d: Domain;
 let claude: Actor;
@@ -36,6 +36,13 @@ function create(input: {
   outcome?: string;
   acceptance?: string[];
 }) {
+  const id = createRaw(input);
+  // Decision 67: these tests count tickets as before every epic had a Release.
+  if (input.type === 'Epic') withoutRelease(d, id);
+  return id;
+}
+
+function createRaw(input: Parameters<typeof create>[0]) {
   return d.write(claude, (w, s) =>
     s.items.create(w, {
       project: 'TST',

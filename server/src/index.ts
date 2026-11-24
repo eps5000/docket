@@ -4,6 +4,7 @@ import { serve } from '@hono/node-server';
 import { APP_NAME } from '@docket/shared';
 import { createApp } from './app.js';
 import { describeSeed, isDatabaseEmpty, loadSampleSeed } from './db/seed/loader.js';
+import { ensureReleasesAtStart } from './domain/release-migration.js';
 import { readContext } from './domain/contracts.js';
 import { SYSTEM_ACTOR } from './domain/write.js';
 import { holdServerLock, startBackupJob } from './jobs/backup.js';
@@ -51,6 +52,8 @@ if (config.seed === 'sample') {
       stress: config.seedStress,
     });
     console.log(`Loaded the sample seed: ${describeSeed(summary)}`);
+    // Decision 67: the seed's open epics get their Release, as an upgraded database would.
+    ensureReleasesAtStart(runtime.write, (line) => console.log(line));
   } else {
     console.log('DOCKET_SEED=sample ignored: the database already has data.');
   }

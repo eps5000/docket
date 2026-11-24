@@ -100,7 +100,7 @@ test.describe('the progress map', () => {
     // Done items and the done count.
     await expect(card(page, 'RCP-11')).toHaveClass(/ps-done/);
     await expect(card(page, 'RCP-11')).toContainText('✓');
-    await expect(map(page).locator('.pm-big')).toContainText(/\d+ \/ 12 done/);
+    await expect(map(page).locator('.pm-big')).toContainText(/\d+ \/ 13 done/);
     // Decision 57: a Ready card behind moving work is Queued (calm, "queued"), never red.
     await expect(card(page, 'RCP-16')).toHaveClass(/que/);
     await expect(card(page, 'RCP-16')).not.toHaveClass(/blk/);

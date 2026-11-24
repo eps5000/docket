@@ -7,7 +7,7 @@
  * Shared contract file (tasks.md, Slice rules).
  */
 import { z } from 'zod';
-import { statusSchema } from '../mcp/types.js';
+import { itemTypeSchema, statusSchema } from '../mcp/types.js';
 import { BLOCKED_REASONS } from '../wait-kind.js';
 import { input, jsonResponse, noInput, scopeSchema } from './common.js';
 import { json, route } from './route.js';
@@ -32,6 +32,8 @@ const ticket = {
   id: z.string(),
   title: z.string(),
   project: z.string(),
+  /** Decision 67: the ticket's type, shown with its icon. */
+  type: itemTypeSchema.optional(),
 };
 
 const list = <S extends z.ZodRawShape>(row: S) =>
@@ -85,6 +87,8 @@ export const briefResponse = jsonResponse({
     /** Decision 57: open tickets waiting their turn behind moving work. Nothing is wrong. */
     queued: z.number().int(),
   }),
+  /** Decision 67: open tickets in scope whose type is still inferred (from Story or Task). */
+  inferred_types: z.number().int().optional(),
   /** Changes to decision records on this day, newest first. Undone changes aren't listed. */
   decisions: z.object({ count: z.number().int(), rows: z.array(briefDecisionSchema) }),
 });

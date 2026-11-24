@@ -19,7 +19,7 @@ export const SERVER_INSTRUCTIONS = [
   "- Planning belongs to the owner. You may draft planning documents (put_document) and move an item to Ready only when the project's workflow (AGENTS.md / CLAUDE.md) says you may.",
   "- To change your instructions for a project, propose it with propose_agent_file_change; don't edit installed files directly.",
   '- To set up a new project or onboard a repo, call onboard_project and follow the guide it returns.',
-  "- Your plan is the item's checklist, not new tickets: set_plan with one-line steps, update_step as you go. Split work into a new Story or Task only when a step needs its own blocker, owner or review.",
+  "- Your plan is the item's checklist, not new tickets: set_plan with one-line steps, update_step as you go. Split work into a new ticket only when a step needs its own blocker, owner or review.",
   '- Record what you verify yourself with set_checks. Record subagent work with log_subagent; say whether you observed it or are relaying it.',
   '- If the owner must verify something by hand, declare it with declare_human_review, ideally during Planning. The item cannot close while any human review item is undecided.',
   '- Report each commit for the item it belongs to (report_commit). When the work is built and your checks pass, hand off with submit_packet. If there is no human review, close it with set_status "done".',
@@ -32,7 +32,7 @@ export const SERVER_INSTRUCTIONS = [
   "- After any pause, call get_item: it delivers the owner's notes, answers and review decisions, each once.",
   '- Send only what changes. update_item, set_plan and set_checks patch: whatever you leave out stays as it is. Use get_item view "summary" when you only need status.',
   '',
-  'Errors are structured (code: validation | conflict | not_found | forbidden | unavailable | internal | seam_conflict | not_declared | lease_held | design_review | project_paused | epic_not_ready | bugs_open). On conflict, read the current state in the error and retry only if your change still makes sense.',
+  'Errors are structured (code: validation | conflict | not_found | forbidden | unavailable | internal | seam_conflict | not_declared | lease_held | design_review | project_paused | epic_not_ready | release_gates). On conflict, read the current state in the error and retry only if your change still makes sense.',
 ].join('\n');
 
 /** MCP_SPEC §5: the exact `description` registered for each tool. */
@@ -55,11 +55,11 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   get_digest:
     'One compact snapshot for coordinators: what to start next, bottlenecks, runs, blockers, what waits on the owner, problems, leases and the change cursor. Pass cursor for only what changed. Read-only.',
   create_item:
-    "Create an Epic, Story, Task or Bug in Inbox or Planning. Pass outcome_md, acceptance and shared (part keys or 'none'), or it Needs shaping. To split, pass split_from with acceptance positions to move or copy.",
+    "Create an item in Inbox or Planning; an Epic also gets its Release. Pass outcome_md, acceptance and shared (part keys or 'none'), or it Needs shaping. To split, use split_from with 1-based acceptance positions.",
   update_item:
     "Edit an item's fields; pass expected_version. Status goes through set_status, the plan through set_plan. known_gaps: what implementation will settle.",
   set_status:
-    'Move an item. Docket enforces the allowed moves and their gates (not_declared, design_review, bugs_open). Closing as done: pass changed_files and branch. Hand off for review with submit_packet. Details: docket-worker reference status-moves.',
+    'Move an item. Docket enforces the allowed moves and their gates (not_declared, design_review, release_gates). Closing as done: pass changed_files and branch. Hand off for review with submit_packet. Details: docket-worker reference status-moves.',
   link_items:
     "Link two items: 'blocks' (from finishes before to starts) or 'relates' (informational). satisfied_when: done, merged or verified. Calling again updates it; a cycle is rejected.",
   unlink_items: 'Remove a link between two items.',

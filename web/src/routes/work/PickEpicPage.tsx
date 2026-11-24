@@ -2,6 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Fragment, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import {
+  inferredTypesText,
+  typeMixText,
   waitCountsText,
   type EpicPick,
   type EpicPickFit,
@@ -210,10 +212,17 @@ function PickRow({ pick: p, reason }: { pick: EpicPick; reason: string | null })
         )}
         {/* Decision 58: its Inbox and Planning tickets, before or after it started. */}
         {p.readiness && <EpicReadinessLine readiness={p.readiness} className="src" />}
-        {/* Decision 64: its finish line and the open bugs holding it. */}
-        {p.release && (p.release.open_bugs > 0 || p.release.finish_line === null) && (
+        {/* Decision 67: its Release, the tickets it waits for and the open bugs holding it. */}
+        {p.release && (
           <div className="src" data-pick-release={p.release.open_bugs}>
             <span aria-hidden="true">⚑</span> {epicReleaseText(p.release)}
+          </div>
+        )}
+        {/* Decision 67: what kind of work is left, and how many types are still inferred. */}
+        {p.types && p.types.length > 0 && (
+          <div className="src" data-pick-types>
+            {typeMixText(p.types)}
+            {p.inferred ? ` · ${inferredTypesText(p.inferred)}` : ''}
           </div>
         )}
         <div className="src">

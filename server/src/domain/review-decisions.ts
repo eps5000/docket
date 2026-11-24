@@ -29,7 +29,14 @@
  * of the changes made since the previous event, so the owner's Undo reverts
  * everything: statuses, steps, Bugs and follow-ups.
  */
-import { LIMITS, TEXT_LIMITS, ToolError, type ItemSummary, type ReviewKeep } from '@docket/shared';
+import {
+  LIMITS,
+  RELEASE_GATE_LABELS,
+  TEXT_LIMITS,
+  ToolError,
+  type ItemSummary,
+  type ReviewKeep,
+} from '@docket/shared';
 import type { ReviewDecisionsService, ServiceDeps } from './contracts.js';
 import { hrRows, parseLastDecision, type HrRow } from './human-review.js';
 import { allocateItemId, newId } from './ids.js';
@@ -47,7 +54,7 @@ import {
 import { openPacketOf } from './packets.js';
 import { designHold } from './design-review.js';
 import { onItemClosed } from './shared-changes.js';
-import { releaseHoldOf } from './finish-line.js';
+import { closeEpicWithRelease, releaseGates } from './release.js';
 import type { EventInput, InverseOp, WriteContext } from './write.js';
 
 const BUG_TITLE_MAX = 70;
@@ -106,7 +113,7 @@ export function createReviewDecisionsService(deps: ServiceDeps): ReviewDecisions
     j: Journal,
     parent: ItemRow,
     opts: {
-      type: 'Bug' | 'Task';
+      type: 'Bug' | 'Implementation';
       status: 'ready' | 'inbox';
       title: string;
       description: string;
@@ -187,7 +194,7 @@ export function createReviewDecisionsService(deps: ServiceDeps): ReviewDecisions
     round: number,
   ): string {
     return createFromReview(w, j, parent, {
-      type: 'Task',
+      type: 'Implementation',
       status: 'inbox',
       title: verifyTitle(h.text),
       description: `Deferred in your human review of ${parent.id} (round ${round}): not verified yet.\n\n> ${h.text}`,
@@ -400,8 +407,9 @@ export function createReviewDecisionsService(deps: ServiceDeps): ReviewDecisions
                 .all(item.id) as { id: string }[]
             ).map((r) => r.id)
           : [];
-      // Decision 64: an epic's finish line isn't closed while bugs in the epic are open.
-      const releaseHold = releaseHoldOf(w.db, item);
+      // Decision 67: a Release isn't closed while one of its gates fails (64's open bugs among them).
+      const gates = releaseGates(w.db, item);
+      const releaseHold = gates.length > 0 ? gates : null;
       const outcome: 'progress' | 'done' =
         anyChanges || stillDeclared.length > 0 || openChildren.length > 0 || releaseHold
           ? 'progress'
@@ -536,7 +544,7 @@ export function createReviewDecisionsService(deps: ServiceDeps): ReviewDecisions
               : stillDeclared.length > 0
                 ? `: ${plural(stillDeclared.length, 'newer review item')} still to come`
                 : releaseHold && openChildren.length === 0
-                  ? `: it's ${releaseHold.epic}'s finish line and ${releaseHold.open_bugs.map((b) => b.id).join(', ')} ${releaseHold.open_bugs.length === 1 ? 'is' : 'are'} still open`
+                  ? `: it's the Release of ${item.epic_id ?? ''} and ${releaseHold.map((g) => RELEASE_GATE_LABELS[g.gate].toLowerCase()).join('; ')} ${releaseHold.length === 1 ? 'fails' : 'fail'}`
                   : `: ${openChildren.join(', ')} still open`;
         j.event({
           type: 'item.status_changed',
@@ -547,6 +555,8 @@ export function createReviewDecisionsService(deps: ServiceDeps): ReviewDecisions
         });
       }
 
+      // Decision 67: the epic closes with its Release.
+      if (outcome === 'done') for (const op of closeEpicWithRelease(w, item)) j.add(op);
       const after = new BlockIndex(w.db);
       const unblocked = [...wasBlocked].filter((d) => !after.state(d).blocked);
       return {

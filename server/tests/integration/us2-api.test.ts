@@ -254,7 +254,7 @@ describe('GET /api/work', () => {
     expect(queued.items.every((i) => i.wait?.kind === 'queued')).toBe(true);
     expect(queued.items.map((i) => i.id)).toEqual(expect.arrayContaining(['RCP-16', 'RCP-22']));
     expect(queued.items.find((i) => i.id === 'RCP-16')!.wait!.text).toBe(
-      'Starts after RCP-19 and 1 more',
+      'Starts after RCP-19’s design and 1 more',
     );
     const forYou = await get('/api/work?filter=for_you', workResponse);
     expect(forYou.items.map((i) => i.id).sort()).toEqual(['DOC-4', 'RCP-12', 'RCP-19']);

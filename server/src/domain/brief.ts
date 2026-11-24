@@ -13,6 +13,7 @@ import {
 import { effectiveZone, localDay } from './forecast.js';
 import { nextDay } from './flow.js';
 import { leaseExpired, ms, type RunRow } from './model.js';
+import { typeInfoOf } from './ticket-types.js';
 import { completedIn, isOpenTicket } from './overview.js';
 import type { Scoped } from './views.js';
 import { WaitReader } from './wait.js';
@@ -64,7 +65,7 @@ function stuckNow(s: Scoped, parkMaxMs: number): BriefResponse['stuck'] {
     const item = s.items.get(run.item_id);
     if (run.state !== 'parked' || !item || !isOpenTicket(item)) continue;
     const card = reader.card(run);
-    const base = { id: item.id, title: item.title, project: item.project_key };
+    const base = { id: item.id, title: item.title, project: item.project_key, type: item.type };
     if (card.held_by) {
       held.push({
         ...base,
@@ -91,7 +92,8 @@ function stuckNow(s: Scoped, parkMaxMs: number): BriefResponse['stuck'] {
   // How many open tickets each open ticket holds up.
   const blocks = new Map<string, number>();
   for (const item of s.items.values()) {
-    if (!isOpenTicket(item)) continue;
+    // Decision 67: a Release waits for its whole epic; that isn't a ticket holding up work.
+    if (!isOpenTicket(item) || item.type === 'Release') continue;
     for (const id of s.index.state(item.id).blocked_by) {
       blocks.set(id, (blocks.get(id) ?? 0) + 1);
     }
@@ -118,6 +120,7 @@ function stuckNow(s: Scoped, parkMaxMs: number): BriefResponse['stuck'] {
             id: item.id,
             title: item.title,
             project: item.project_key,
+            type: item.type,
             reason: wait.reason as BlockedReason,
             why: wait.text,
           },
@@ -134,6 +137,7 @@ function stuckNow(s: Scoped, parkMaxMs: number): BriefResponse['stuck'] {
         id: item.id,
         title: item.title,
         project: item.project_key,
+        type: item.type,
         status: item.status,
         blocks: count,
       })),
@@ -239,9 +243,14 @@ export function briefOf(
         id: i.id,
         title: i.title,
         project: i.project_key,
+        type: i.type,
         closed_at: i.closed_at!,
       })),
     ),
+    // Decision 67: open tickets whose type nobody has checked since Story and Task.
+    inferred_types: [...s.items.values()].filter(
+      (i) => isOpenTicket(i) && typeInfoOf(i.type_info ?? null)?.inferred === true,
+    ).length,
     stuck: stuckNow(s, parkMaxMs),
     decisions: decisionChanges(s, from, to),
   };

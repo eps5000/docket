@@ -424,11 +424,35 @@
 .tl .t-epic .tsq {
   background: var(--t-epic);
 }
-.tl .t-story .tsq {
+/* Decision 67: each type has its own glyph, so a colour is never the only cue. */
+.tl .t-exploration .tsq {
+  background: var(--warn);
+}
+.tl .t-design .tsq {
   background: var(--t-story);
 }
-.tl .t-task .tsq {
+.tl .t-implementation .tsq {
   background: var(--t-task);
+}
+.tl .t-release .tsq {
+  background: var(--st-review);
+}
+/* An inferred type (from Story or Task): a dashed outline on top of the colour. */
+.tl .type.inferred .tsq {
+  outline: 1.5px dashed var(--ink-3);
+  outline-offset: 1px;
+}
+.tl .rollout-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 5px;
+  border: 1px solid var(--line-2);
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-2);
+  white-space: nowrap;
 }
 .tl .t-bug .tsq {
   background: var(--t-bug);

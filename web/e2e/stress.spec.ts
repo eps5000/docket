@@ -3,8 +3,8 @@
  * `STR` project (DOCKET_SEED_STRESS=1; BUILD_SPEC §8) is shaped like a real
  * Jira import: long titles, many labels, big and empty epics.
  *
- * - An epic with no tickets says "No tickets yet · <Status>" on its card and
- *   its page, with no progress bar (not "0/0 done" over an empty bar).
+ * - An epic with no work tickets still has its mandatory Release on its card
+ *   and page, counted as the one ticket left to finish.
  * - A Jira sub-task key held in a step's `source` finds the parent item in the
  *   palette, with the step named; choosing it opens the item's checklist with
  *   that step's dialog. An exact item Jira key still ranks first.
@@ -37,18 +37,15 @@ test('the stress project is seeded', async ({ request }) => {
   ).toContain('STR');
 });
 
-test('an epic with no tickets: "No tickets yet · Status", no bar, on the card and the page', async ({
+test('an epic with no work tickets shows its one Release on the card and page', async ({
   page,
 }) => {
   await inStress(page, '/work');
   const epics = page.locator('[data-card="epics"]');
   const empty = epics.locator('a.epiccard[href="/items/STR-1"]');
-  await expect(empty).toContainText('No tickets yet · In progress');
-  await expect(empty).not.toContainText('0/0');
-  await expect(empty.locator('.pbar')).toHaveCount(0);
-  await expect(epics.locator('a.epiccard[href="/items/STR-6"]')).toContainText(
-    'No tickets yet · Inbox',
-  );
+  await expect(empty).toContainText('0/1 done · In progress');
+  await expect(empty.locator('.pbar')).toHaveCount(1);
+  await expect(epics.locator('a.epiccard[href="/items/STR-6"]')).toContainText('0/1 done · Inbox');
   // An epic with tickets keeps its bar and count.
   const big = epics.locator('a.epiccard[href="/items/STR-3"]');
   await expect(big.locator('.pbar')).toHaveCount(1);
@@ -57,9 +54,9 @@ test('an epic with no tickets: "No tickets yet · Status", no bar, on the card a
 
   await page.goto('/items/STR-1');
   const tickets = page.locator('section[data-section="tickets"]');
-  await expect(tickets).toContainText('No tickets yet · In progress');
-  await expect(tickets).toContainText('No tickets yet. Add one with + New item in this epic.');
-  await expect(tickets).not.toContainText('0/0');
+  await expect(tickets).toContainText('0/1 done');
+  await expect(tickets.locator('[data-ticket]')).toHaveCount(1);
+  await expect(tickets).toContainText('Release Empty epic');
 });
 
 test('palette: a sub-task key in a step source finds the parent, and opens the step dialog', async ({

@@ -14,11 +14,14 @@
  *   on top of what the quick filter shows (OR). *Active* with both ticked is
  *   everything, the old *All*.
  *
- * In the URL: `quick=blocked&has=for_you,live_run&show=done`, each left out
- * at its default. The old `filter=<key>` links map onto the model
+ * - **Types** (decision 67, any, from the Filters menu): only tickets of the
+ *   ticked types (OR among them). *Inferred type* and *Rollout* are checks.
+ *
+ * In the URL: `quick=blocked&has=for_you,live_run&show=done&type=Design`, each
+ * left out at its default. The old `filter=<key>` links map onto the model
  * (`legacyWorkFilter`).
  */
-import { FILTERS, type FilterKey, type Status } from './enums.js';
+import { FILTERS, ITEM_TYPES, type FilterKey, type ItemType, type Status } from './enums.js';
 import type { WaitKind } from './wait-kind.js';
 
 const queryOf = (key: FilterKey) => FILTERS.find((f) => f.key === key)?.query ?? '';
@@ -58,6 +61,8 @@ export const WORK_CHECKS = [
   'archived',
   'planning',
   'ready_to_start',
+  'inferred_type',
+  'rollout',
 ] as const;
 export type WorkCheck = (typeof WORK_CHECKS)[number];
 
@@ -95,7 +100,16 @@ export const WORK_CHECK_FILTERS: readonly {
     query: queryOf('ready_to_start'),
     menu: 'never',
   },
+  // Decision 67: Story and Task tickets whose type nobody has checked, and rollouts.
+  { key: 'inferred_type', label: 'Inferred type', query: 'is:inferred-type', menu: 'always' },
+  { key: 'rollout', label: 'Rollout', query: 'is:rollout', menu: 'always' },
 ];
+
+// ---- Types (decision 67) ----
+
+/** The types the Filters menu offers: every ticket type (Work lists no epics). */
+export const WORK_TYPES = ITEM_TYPES.filter((t) => t !== 'Epic') as Exclude<ItemType, 'Epic'>[];
+export type WorkType = (typeof WORK_TYPES)[number];
 
 // ---- Shows (widen) ----
 
@@ -113,6 +127,8 @@ export interface WorkFilter {
   quick: WorkQuick;
   has: readonly WorkCheck[];
   show: readonly WorkShow[];
+  /** Decision 67: only these types; empty means every type. */
+  types?: readonly WorkType[];
 }
 
 export const DEFAULT_WORK_FILTER: WorkFilter = { quick: 'active', has: [], show: [] };
@@ -125,26 +141,44 @@ export function normalizeWorkFilter(f: {
   quick?: string | null;
   has?: readonly string[];
   show?: readonly string[];
+  types?: readonly string[] | undefined;
 }): WorkFilter {
+  const types = inOrder(WORK_TYPES, f.types ?? []);
   return {
     quick: (WORK_QUICK as readonly string[]).includes(f.quick ?? '')
       ? (f.quick as WorkQuick)
       : 'active',
     has: inOrder(WORK_CHECKS, f.has ?? []),
     show: inOrder(WORK_SHOWS, f.show ?? []),
+    // Decision 67: left out when none is ticked, so filters from before compare equal.
+    ...(types.length > 0 ? { types } : {}),
   };
 }
 
+const typesOf = (f: WorkFilter) => f.types ?? [];
+
 export function isDefaultWorkFilter(f: WorkFilter): boolean {
-  return f.quick === 'active' && f.has.length === 0 && f.show.length === 0;
+  return (
+    f.quick === 'active' && f.has.length === 0 && f.show.length === 0 && typesOf(f).length === 0
+  );
 }
 
 export function sameWorkFilter(a: WorkFilter, b: WorkFilter): boolean {
   return (
     a.quick === b.quick &&
     a.has.join(',') === b.has.join(',') &&
-    a.show.join(',') === b.show.join(',')
+    a.show.join(',') === b.show.join(',') &&
+    typesOf(a).join(',') === typesOf(b).join(',')
   );
+}
+
+/** Decision 67: ticks or unticks one type. */
+export function toggleWorkType(f: WorkFilter, type: WorkType): WorkFilter {
+  const now = typesOf(f);
+  return normalizeWorkFilter({
+    ...f,
+    types: now.includes(type) ? now.filter((t) => t !== type) : [...now, type],
+  });
 }
 
 /** Ticks or unticks one check or show. */
@@ -184,6 +218,7 @@ export interface WorkFilterParams {
   quick?: string;
   has?: string;
   show?: string;
+  type?: string;
 }
 
 export function workFilterToParams(f: WorkFilter): WorkFilterParams {
@@ -191,6 +226,7 @@ export function workFilterToParams(f: WorkFilter): WorkFilterParams {
   if (f.quick !== 'active') out.quick = f.quick;
   if (f.has.length) out.has = f.has.join(',');
   if (f.show.length) out.show = f.show.join(',');
+  if (typesOf(f).length) out.type = typesOf(f).join(',');
   return out;
 }
 
@@ -205,11 +241,17 @@ export function workFilterFromParams(p: {
   quick?: string | null;
   has?: string | null;
   show?: string | null;
+  type?: string | null;
   filter?: string | null;
 }): { filter: WorkFilter; legacy: boolean } | null {
-  if (p.quick || p.has || p.show) {
+  if (p.quick || p.has || p.show || p.type) {
     return {
-      filter: normalizeWorkFilter({ quick: p.quick, has: list(p.has), show: list(p.show) }),
+      filter: normalizeWorkFilter({
+        quick: p.quick,
+        has: list(p.has),
+        show: list(p.show),
+        types: list(p.type),
+      }),
       legacy: false,
     };
   }
@@ -222,6 +264,8 @@ export function workFilterFromParams(p: {
 /** What the model needs to know about one item. `check` answers the checks other than Archived. */
 export interface WorkFilterFacts {
   status: Status;
+  /** Decision 67: the ticket's type, for the type filter. */
+  type?: ItemType;
   /** Decision 57: the server's one classification; null without an open blocker. */
   wait: WaitKind | null;
   archived: boolean;
@@ -239,9 +283,11 @@ export function quickMatches(quick: WorkQuick, i: WorkFilterFacts): boolean {
   return i.status === 'progress';
 }
 
-/** The checks hold (archived items only under *Archived*, and only then). */
+/** The checks hold (archived items only under *Archived*, and only then), and the types. */
 function checksPass(f: WorkFilter, i: WorkFilterFacts): boolean {
   if (i.archived !== f.has.includes('archived')) return false;
+  const types = typesOf(f) as readonly string[];
+  if (types.length > 0 && !(i.type && types.includes(i.type))) return false;
   return f.has.every((k) => k === 'archived' || i.check(k));
 }
 
@@ -259,6 +305,8 @@ export interface WorkFilterCounts {
   show: Record<WorkShow, number>;
   /** Archived items in scope, any status (*Archived* is in the menu only then). */
   archived: number;
+  /** Decision 67: each type, what you'd see with only it ticked (the rest of the filter kept). */
+  types?: Record<WorkType, number>;
 }
 
 /** The counts for the chips and the menu, over the items in the epic and label scope. */
@@ -280,5 +328,8 @@ export function workFilterCounts(
   const show = Object.fromEntries(
     WORK_SHOWS.map((s) => [s, items.filter((i) => i.status === s && checksPass(f, i)).length]),
   ) as Record<WorkShow, number>;
-  return { quick, has, show, archived: items.filter((i) => i.archived).length };
+  const types = Object.fromEntries(
+    WORK_TYPES.map((t) => [t, count(normalizeWorkFilter({ ...f, types: [t] }))]),
+  ) as Record<WorkType, number>;
+  return { quick, has, show, archived: items.filter((i) => i.archived).length, types };
 }

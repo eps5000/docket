@@ -35,6 +35,7 @@ import type { DocumentsService } from '../../domain/contracts.js';
 import { allocateItemId, newId } from '../../domain/ids.js';
 import { ms } from '../../domain/model.js';
 import { openProject } from '../../domain/projects.js';
+import { ensureReleases } from '../../domain/release-migration.js';
 import type { WriteContext } from '../../domain/write.js';
 import type { ImportPlan, PlannedItem } from './types.js';
 import { REPORT_LEGEND } from './report.js';
@@ -211,6 +212,10 @@ export function commitPlan(w: WriteContext, input: CommitInput): CommitResult {
     });
   }
 
+  // Decision 67: each open epic gets its Release (converted from a "Release …" ticket, or generated).
+  const epicIds = plan.items.filter((i) => i.type === 'Epic').map((i) => ids.get(i.jira_key)!);
+  if (epicIds.length > 0) ensureReleases(w, epicIds);
+
   w.event({
     type: 'project.updated',
     summary: `Imported ${input.report.totals.would_import} of ${input.report.totals.issues} Jira issues from ${plan.jira_project} into ${projectName} (${projectKey})`,
@@ -281,6 +286,8 @@ function insertItem(
     closed_at: done ? w.now : null,
     jira_key: item.jira_key,
     imported: true,
+    // Decision 67: Jira's type stays as a reference.
+    type_info: { original: item.jira.type, ...(item.type_inferred ? { inferred: true } : {}) },
   });
   const created: string[] = [];
   for (const name of item.labels) {

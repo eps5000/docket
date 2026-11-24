@@ -83,7 +83,7 @@ describe('sample seed', () => {
     seed(a);
     const item = one<Record<string, unknown>>(a, "SELECT * FROM items WHERE id = 'RCP-14'");
     expect(item).toMatchObject({
-      type: 'Story',
+      type: 'Implementation',
       title: 'Generate shopping list from week plan',
       status: 'progress',
       priority: 1,

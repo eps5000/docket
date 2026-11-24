@@ -139,3 +139,39 @@ export function declareNone(d: Domain, ...ids: string[]): void {
       .run(t, id);
   }
 }
+
+/**
+ * Decision 67 (fixture only): an epic's Release, shaped and Ready, so the
+ * epic can start the way tests from before every epic had a Release expect.
+ * No event, like `forceStatus`. Returns the Release's ID.
+ */
+export function readyRelease(d: Domain, epic: string): string | undefined {
+  const row = d.sql
+    .prepare("SELECT id FROM items WHERE epic_id = ? AND type = 'Release' AND archived_at IS NULL")
+    .get(epic) as { id: string } | undefined;
+  if (!row) return undefined;
+  declareNone(d, row.id);
+  d.sql
+    .prepare("UPDATE items SET status = 'ready' WHERE id = ? AND status IN ('inbox', 'planning')")
+    .run(row.id);
+  return row.id;
+}
+
+/**
+ * Decision 67 (fixture only): drop the Release Docket created with an epic, for
+ * tests of other features that count an epic's tickets and IDs the way they did
+ * before every epic had one. Its number goes back to the project when it was
+ * the last one given. Such an epic can't start; use `readyRelease` for one that does.
+ */
+export function withoutRelease(d: Domain, epic: string): void {
+  const row = d.sql
+    .prepare("SELECT id, project_key FROM items WHERE epic_id = ? AND type = 'Release'")
+    .get(epic) as { id: string; project_key: string } | undefined;
+  if (!row) return;
+  d.sql.prepare('DELETE FROM items WHERE id = ?').run(row.id);
+  d.sql.prepare('DELETE FROM events WHERE item_id = ?').run(row.id);
+  const n = Number(row.id.split('-').pop());
+  d.sql
+    .prepare('UPDATE projects SET next_seq = next_seq - 1 WHERE key = ? AND next_seq = ?')
+    .run(row.project_key, n + 1);
+}

@@ -26,7 +26,7 @@ function item(id: string, status: Status = 'ready', extra: Partial<MapItem> = {}
   return {
     id,
     project: id.split('-')[0]!,
-    type: 'Story',
+    type: 'Implementation',
     title: `Title of ${id}`,
     status,
     priority: 2,
@@ -254,13 +254,13 @@ describe('<ProgressMap>', () => {
   it('cards are buttons that say what they are, including blocked, after and review marks', () => {
     view();
     const blocked = screen.getByRole('button', {
-      name: /^Story RCP-22 Title of RCP-22 Ready · blocked$/,
+      name: /^Implementation RCP-22 Title of RCP-22 Ready · blocked$/,
     });
     expect(blocked.className).toContain('blk');
     expect(within(blocked).getByText('· blocked')).toBeTruthy();
     // Decision 57: Queued is calm and says so in words, never red.
     const queued = screen.getByRole('button', {
-      name: /^Story RCP-16 Title of RCP-16 Ready · queued$/,
+      name: /^Implementation RCP-16 Title of RCP-16 Ready · queued$/,
     });
     expect(queued.className).toContain('que');
     expect(queued.className).not.toContain('blk');
@@ -603,16 +603,19 @@ describe('Bugs hold the release (decision 64)', () => {
     item('RCP-17', 'ready', { type: 'Bug' }),
     item('RCP-18', 'done', { type: 'Bug' }),
     item('RCP-19', 'progress', { type: 'Bug' }),
+    // Decision 67: the epic's Release, with no drawn link.
+    item('RCP-35', 'ready', { type: 'Release', title: 'Release the synthetic planner' }),
   ];
   const bugLinks = [...links, edge('RCP-19', 'RCP-22')];
-  const release = { finishLine: 'RCP-22', openBugs: 2 };
+  const release = { id: 'RCP-35', left: 5, openBugs: 2 };
 
   it('layoutMap stacks unlinked bugs in their own list, keeps chain bugs in their wave, and counts them all', () => {
     const l = layoutMap(bugItems, outside, bugLinks, [], { bugs: true });
     expect(l.bugs.map((i) => i.id)).toEqual(['RCP-18', 'RCP-17']);
     expect([...l.chainBugs]).toEqual(['RCP-19']);
     expect(l.waves[0]!.map((i) => i.id)).toEqual(['RCP-11', 'RCP-19', 'RCP-16', 'RCP-40']);
-    expect(l.counts.total).toBe(12);
+    expect(l.release.map((i) => i.id)).toEqual(['RCP-35']);
+    expect(l.counts.total).toBe(13);
     // No arrow touches the Bugs column.
     expect(l.edges.some((e) => e.from === 'RCP-17' || e.to === 'RCP-17')).toBe(false);
   });
@@ -669,26 +672,37 @@ describe('Bugs hold the release (decision 64)', () => {
     expect(container.querySelector('[data-pid="RCP-17"] [data-bug-mark]')).toBeNull();
   });
 
-  it('the finish line shows "Waiting on N bugs", and no arrow runs to it from the Bugs column', () => {
+  it('the Release sits alone in the last column, says what it finishes after, and no arrow runs to it', () => {
     const { container } = view();
-    const finish = container.querySelector('[data-pid="RCP-22"]')!;
-    expect(finish.querySelector('[data-finish-badge]')!.textContent).toBe(
-      'Finish line · Waiting on 2 bugs',
+    const cols = [...container.querySelectorAll('.pm-col')];
+    const last = cols[cols.length - 1]!;
+    expect(last.getAttribute('data-col')).toBe('release');
+    expect(last.querySelector('.pm-colh')!.textContent).toBe('Releaseafter 5 tickets');
+    expect([...last.querySelectorAll('[data-pid]')].map((c) => c.getAttribute('data-pid'))).toEqual(
+      ['RCP-35'],
     );
-    expect(finish.className).toContain('held');
-    const intoFinish = [...container.querySelectorAll('path.pm-edge[data-to="RCP-22"]')].map((p) =>
-      p.getAttribute('data-from'),
+    const card = last.querySelector('[data-pid="RCP-35"]')!;
+    expect(card.querySelector('[data-release-badge]')!.textContent).toBe(
+      'Release · finishes after 3 tickets · Waiting on 2 bugs',
     );
-    expect(intoFinish.sort()).toEqual(['RCP-12', 'RCP-19']);
+    expect(card.className).toContain('held');
+    expect(container.querySelector('path.pm-edge[data-to="RCP-35"]')).toBeNull();
   });
 
-  it('with no bugs open the finish line has no badge, and with no release the map is unchanged', () => {
-    const quiet = view({ finishLine: 'RCP-22', openBugs: 0 });
-    expect(quiet.container.querySelector('[data-finish-badge]')!.textContent).toBe('Finish line');
+  it('with nothing left the badge says Release; without an open epic there is no Bugs column', () => {
+    const quiet = view({ id: 'RCP-35', left: 0, openBugs: 0 });
+    expect(quiet.container.querySelector('[data-release-badge]')!.textContent).toBe('Release');
+    expect(quiet.container.querySelector('[data-col="release"] .pm-colh')!.textContent).toBe(
+      'Releasenothing left before it',
+    );
     quiet.unmount();
     const plain = view(null);
     expect(plain.container.querySelector('[data-col="bugs"]')).toBeNull();
-    expect(plain.container.querySelector('[data-finish-badge]')).toBeNull();
+    expect(plain.container.querySelector('[data-release-badge]')).toBeNull();
+    // A Release still sits last on any map, with the general words.
+    expect(plain.container.querySelector('[data-col="release"] .pm-colh')!.textContent).toBe(
+      'Releaseafter everything else',
+    );
     expect(plain.container.querySelector('[data-col="wave-1"] [data-pid="RCP-17"]')).toBeTruthy();
   });
 
@@ -713,7 +727,10 @@ describe('Bugs column with Fit width (decisions 63 and 64)', () => {
     spy = null;
   });
   const bugItems = [...items, item('RCP-17', 'ready', { type: 'Bug' })];
-  const show = (w: number, release: { finishLine: string; openBugs: number } | null) => {
+  const show = (
+    w: number,
+    release: { id: string | null; left: number; openBugs: number } | null,
+  ) => {
     width = w;
     spy ??= vi.spyOn(Element.prototype, 'clientWidth', 'get').mockImplementation(() => width);
     const r = render(
@@ -743,13 +760,13 @@ describe('Bugs column with Fit width (decisions 63 and 64)', () => {
     const plain = show(0, null);
     const without = plain.mapWidth();
     plain.unmount();
-    const first = show(0, { finishLine: 'RCP-22', openBugs: 1 });
+    const first = show(0, { id: null, left: 0, openBugs: 1 });
     const withBugs = first.mapWidth();
     first.unmount();
     // One more column: the map is wider by a card and a gutter.
     expect(withBugs).toBeGreaterThan(without + 200);
     const view = Math.round(withBugs * 0.8);
-    const m = show(view + 44, { finishLine: 'RCP-22', openBugs: 1 });
+    const m = show(view + 44, { id: null, left: 0, openBugs: 1 });
     fireEvent.click(m.fit);
     expect(m.pct()).toBe('80%');
     expect(parseFloat(m.sizer.style.width)).toBeLessThanOrEqual(view);

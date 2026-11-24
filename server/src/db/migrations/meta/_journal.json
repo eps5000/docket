@@ -225,6 +225,13 @@
       "when": 1795549907962,
       "tag": "0031_b82_needs_shaping",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1795552865829,
+      "tag": "0032_b84_ticket_types",
+      "breakpoints": true
     }
   ]
 }

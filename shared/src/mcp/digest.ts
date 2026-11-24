@@ -138,10 +138,10 @@ export const digestUnshapedEpicSchema = z.object({
   unshaped: z.array(z.string()),
 });
 
-/** Decision 64: an open epic with open bugs, and the finish line they hold (null: none marked). */
+/** Decisions 64 and 67: an open epic with open bugs, and the Release they hold (null: none). */
 export const digestReleaseBugsSchema = z.object({
   epic: z.string(),
-  finish_line: z.string().nullable(),
+  release: z.string().nullable(),
   bugs: z.array(z.string()),
 });
 
@@ -213,7 +213,7 @@ export const getDigestOutput = readOutput({
   changed: section(digestChangeSchema),
   /** Decision 58: "Started with N unshaped tickets", on full snapshots only; absent when none. */
   unshaped_epics: section(digestUnshapedEpicSchema).optional(),
-  /** Decision 64: open bugs holding each epic's release; absent when none. */
+  /** Decisions 64 and 67: open bugs holding each epic's Release; absent when none. */
   release_bugs: section(digestReleaseBugsSchema).optional(),
   /** Decision 61: partial exits nobody has acted on yet, on every digest; absent when none. */
   finished_partly: section(digestFinishedPartlySchema).optional(),
@@ -221,5 +221,7 @@ export const getDigestOutput = readOutput({
   needs_shaping: section(digestNeedsShapingSchema).optional(),
   /** Decision 62: "Added since this epic started: N untriaged", for the producer to triage; absent when none. */
   untriaged_epics: section(digestUntriagedEpicSchema).optional(),
+  /** Decision 67: how many tickets' types are still inferred, on full snapshots; absent at 0. */
+  inferred_types: z.number().int().optional(),
 });
 export type Digest = z.infer<typeof getDigestOutput>;

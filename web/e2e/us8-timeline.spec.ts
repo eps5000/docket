@@ -75,7 +75,7 @@ function seedHistory(): void {
     const doneAt = new Date(days[i % 2]!).toISOString();
     statements.push([
       `INSERT INTO items (id, project_key, type, title, description_md, outcome_md, status, priority, effort, closed_by, closed_at, imported, version, created_at, updated_at)
-       VALUES (?, 'RCP', 'Task', ?, '', '', 'done', 2, 3, 'agent', ?, 0, 3, ?, ?)`,
+       VALUES (?, 'RCP', 'Implementation', ?, '', '', 'done', 2, 3, 'agent', ?, 0, 3, ?, ?)`,
       [id, `History item ${i + 1}`, doneAt, created, doneAt],
     ]);
     for (const [at, old, to] of [
@@ -98,7 +98,7 @@ function seedHistory(): void {
   const added = new Date(today - 9 * DAY + 10 * 3_600_000).toISOString();
   statements.push([
     `INSERT INTO items (id, project_key, type, title, description_md, outcome_md, status, priority, effort, imported, version, created_at, updated_at)
-     VALUES ('RCP-920', 'RCP', 'Task', 'Added mid-window', '', '', 'ready', 2, 4, 0, 1, ?, ?)`,
+     VALUES ('RCP-920', 'RCP', 'Implementation', 'Added mid-window', '', '', 'ready', 2, 4, 0, 1, ?, ?)`,
     [added, added],
   ]);
   sql(statements);

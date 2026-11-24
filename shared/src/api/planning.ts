@@ -11,7 +11,7 @@ import { LIMITS, TEXT_LIMITS } from '../mcp/limits.js';
 import {
   decisionRecordSchema,
   itemSummarySchema,
-  itemTypeSchema,
+  itemTypeInputSchema,
   prioritySchema,
 } from '../mcp/types.js';
 import { expectedVersion, input, jsonResponse, noInput, ownerMutationOutput } from './common.js';
@@ -26,7 +26,7 @@ const itemResult = ownerMutationOutput({ item: itemSummarySchema });
 
 export const createItemBody = input({
   title: text(TEXT_LIMITS.title),
-  type: itemTypeSchema,
+  type: itemTypeInputSchema,
   project: projectKey,
   /** An Epic in the same project. */
   epic: itemId.optional(),
@@ -44,7 +44,8 @@ const PATCH_FIELDS = [
   'description_md',
   'outcome_md',
   'acceptance',
-  'finish_line',
+  'type',
+  'rollout',
   'request_shaping',
 ] as const;
 
@@ -71,8 +72,10 @@ export const patchItemBody = input({
    * approves them, recorded as an owner decision on the ticket.
    */
   approve_gaps: z.literal(true).optional(),
-  /** Decision 64, on an epic: mark its finish line (release ticket); `null` clears the mark. */
-  finish_line: itemId.nullable().optional(),
+  /** Decision 67: the type (an Epic stays an Epic); setting it clears an inferred mark. */
+  type: itemTypeInputSchema.optional(),
+  /** Decision 67, Implementation only: the rollout marker. */
+  rollout: z.boolean().optional(),
   /**
    * Decision 65: *Ask a planner to shape this*, from a refused Move to Ready.
    * Marks the ticket Needs shaping with the owner's note; not with `status`.

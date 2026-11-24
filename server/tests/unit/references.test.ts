@@ -105,7 +105,9 @@ describe('the write check', () => {
         }),
     );
     expect(out.result.id).toBe('RCP-1');
-    expect(out.warnings).toEqual([]);
+    expect(out.warnings).toEqual([
+      'Task is now Implementation (decision 67): RCP-1 was stored as Implementation.',
+    ]);
   });
 
   it('the write is accepted, and the warning comes back on an idempotent replay', () => {

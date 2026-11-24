@@ -15,6 +15,9 @@
  *   starting work: it holds the epic's release, so it stacks in a Bugs column
  *   instead of Wave 1, with no arrows. A bug in the chain (a ticket waits on
  *   it, or it waits on one) stays in its wave and `chainBugs` names it.
+ * - **Release (decision 67):** an epic's Release waits for every other ticket
+ *   in it with no drawn link, so it always sits alone in the last column
+ *   (`release`), after the waves and the Cycle column.
  */
 import type { ItemSummary, ItemWait, LinkEdge, Status, WaitKind } from '@docket/shared';
 
@@ -49,6 +52,8 @@ export interface MapLayout {
   bugs: MapItem[];
   /** Decision 64: bugs drawn in their wave because they're part of the chain. */
   chainBugs: ReadonlySet<string>;
+  /** Decision 67: Release tickets, for the last column. */
+  release: MapItem[];
   edges: MapEdge[];
   counts: {
     total: number;
@@ -218,15 +223,20 @@ export function layoutMap(
   const isBug = (i: MapItem) => opts.bugs === true && i.type === 'Bug' && !extraIds.has(i.id);
   const bugIds = new Set(placed.filter((i) => isBug(i) && !linked.has(i.id)).map((i) => i.id));
   const chainBugs = new Set(placed.filter((i) => isBug(i) && linked.has(i.id)).map((i) => i.id));
+  // Decision 67: a Release goes alone in the last column, whatever its links say.
+  const releaseIds = new Set(
+    placed.filter((i) => i.type === 'Release' && !extraIds.has(i.id)).map((i) => i.id),
+  );
   const waves: MapItem[][] = [];
   for (const i of placed) {
-    if (cycleIds.has(i.id) || bugIds.has(i.id)) continue;
+    if (cycleIds.has(i.id) || bugIds.has(i.id) || releaseIds.has(i.id)) continue;
     const d = depthOf(i.id);
     (waves[d] ??= []).push(i);
   }
   const denseWaves = waves.filter((w) => w && w.length > 0).map((w) => w.sort(byCard));
   const cycle = placed.filter((i) => cycleIds.has(i.id)).sort(byCard);
   const bugs = placed.filter((i) => bugIds.has(i.id)).sort(byCard);
+  const release = placed.filter((i) => releaseIds.has(i.id)).sort(byCard);
 
   const outsideById = new Map(outsideItems.map((i) => [i.id, i]));
   const outsideIds = new Set(
@@ -256,6 +266,7 @@ export function layoutMap(
     cycle,
     bugs,
     chainBugs,
+    release,
     edges,
     counts: {
       total: counted.length,

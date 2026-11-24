@@ -146,7 +146,7 @@ function item(id: string, status: Status = 'ready'): MapItem {
   return {
     id,
     project: 'T',
-    type: 'Story',
+    type: 'Implementation',
     title: `Ticket ${id}`,
     status,
     priority: 2,

@@ -10,13 +10,15 @@
  * packet is ready for you and outlined when your review comes later. Each
  * card is a button that opens the item; its accessible name is its visible
  * text (type, ID, title, status), plus the review mark as sr-only text.
- * Decision 64: a bug in the chain says "bug" by its ID, and the epic's
- * finish line says "Finish line", with "Waiting on N bugs" while bugs in
- * the epic are open.
+ * Decision 64: a bug in the chain says "bug" by its ID. Decision 67: the
+ * epic's Release says "Release", how many tickets it finishes after, and
+ * "Waiting on N bugs" while bugs in the epic are open; a rollout says
+ * "rollout"; an inferred type has a dashed icon; a Planning ticket says what it
+ * waits for in its blocker's words ("· starts after RCP-12’s design").
  */
 import type { FocusEvent, MouseEvent } from 'react';
 import { useNavigate } from 'react-router';
-import { STATUS_LABELS, needsShapingText, waitingOnBugsText } from '@docket/shared';
+import { STATUS_LABELS, needsShapingText, ticketCount, waitingOnBugsText } from '@docket/shared';
 import { Icon, RunState, TypeIcon } from '../kit';
 import { paths } from '../../lib/paths';
 import { waitKindOf, type MapItem } from './layout';
@@ -38,8 +40,8 @@ export interface MapCardProps {
   critical?: { step: number; total: number; next: boolean } | 'off' | null;
   /** Decision 64: a bug drawn in its wave because it's part of the chain. */
   bugMark?: boolean;
-  /** Decision 64: this is the epic's finish line; open bugs in the epic hold it. */
-  finish?: { openBugs: number } | null;
+  /** Decision 67: this is the epic's Release; the tickets it waits for and open bugs hold it. */
+  release?: { openBugs: number; left: number } | null;
 }
 
 /** Packet ready (filled) or human review later (outlined); none otherwise (UI_SPEC §5). */
@@ -61,15 +63,18 @@ export function MapCard({
   top,
   critical,
   bugMark,
-  finish,
+  release,
 }: MapCardProps) {
   const navigate = useNavigate();
   const kind = item.status === 'ready' ? waitKindOf(item) : null;
   const blockedReady = kind === 'blocked';
   const queuedReady = kind === 'queued';
+  // Decision 67: in the blocker's words when the server classified the wait.
   const after =
     item.status === 'planning' && item.blocked && item.blocked_by.length > 0
-      ? item.blocked_by.join(', ')
+      ? item.wait
+        ? item.wait.text.charAt(0).toLowerCase() + item.wait.text.slice(1)
+        : `after ${item.blocked_by.join(', ')}`
       : null;
   const mark = item.status === 'done' ? null : reviewMark(item);
   const trace = (on: boolean) => (e: MouseEvent | FocusEvent) => {
@@ -91,8 +96,8 @@ export function MapCard({
         critical === 'off' && 'critoff',
         critical && critical !== 'off' && 'crit',
         critical && critical !== 'off' && critical.next && 'critnext',
-        finish && 'finish',
-        finish && finish.openBugs > 0 && 'held',
+        release && 'finish',
+        release && release.openBugs > 0 && 'held',
       ]
         .filter(Boolean)
         .join(' ')}
@@ -107,7 +112,20 @@ export function MapCard({
       onBlur={trace(false)}
     >
       <span className="pm-top">
-        <TypeIcon type={item.type} /> <span className="mono muted">{item.id}</span>
+        <TypeIcon
+          type={item.type}
+          inferred={item.type_inferred === true}
+          original={item.type_original}
+        />{' '}
+        <span className="mono muted">{item.id}</span>
+        {item.rollout && (
+          <>
+            {' '}
+            <span className="pm-rollout" data-rollout="">
+              <span aria-hidden="true">⇪</span> rollout
+            </span>
+          </>
+        )}
         {bugMark && (
           <>
             {' '}
@@ -165,7 +183,7 @@ export function MapCard({
         {after && !outside && (
           <>
             {' '}
-            <span className="muted">· after {after}</span>
+            <span className="muted">· {after}</span>
           </>
         )}
         {item.added_midflight && !outside && (
@@ -185,13 +203,16 @@ export function MapCard({
           </>
         )}
       </span>{' '}
-      {finish && (
-        <span className="pm-finish" data-finish-badge={finish.openBugs}>
-          Finish line
-          {finish.openBugs > 0 && (
+      {release && (
+        <span className="pm-finish" data-release-badge={release.openBugs}>
+          Release
+          {release.left > release.openBugs && (
+            <>{` · finishes after ${ticketCount(release.left - release.openBugs)}`}</>
+          )}
+          {release.openBugs > 0 && (
             <>
               {' · '}
-              <b className="pm-waitbugs">{waitingOnBugsText(finish.openBugs)}</b>
+              <b className="pm-waitbugs">{waitingOnBugsText(release.openBugs)}</b>
             </>
           )}
         </span>

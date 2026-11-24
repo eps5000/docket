@@ -239,7 +239,7 @@ test.describe('the item page', () => {
   test('an epic shows its tickets and its Map count', async ({ page }) => {
     await page.goto('/items/RCP-1');
     const views = page.getByRole('tablist', { name: 'Epic views' });
-    await expect(views.getByRole('tab', { name: /^Map/ })).toContainText(/\d+\/12/);
+    await expect(views.getByRole('tab', { name: /^Map/ })).toContainText(/\d+\/13/);
     await expect(page.getByRole('tabpanel')).toContainText('Tickets in this epic');
     // Each ticket carries the coordination state its Board card shows (B20).
     const ticket = (id: string) => page.locator(`[data-ticket="${id}"]`);
@@ -247,7 +247,7 @@ test.describe('the item page', () => {
     await expect(ticket('RCP-14').locator('.runline')).toContainText('claude · orca-w3');
     // Decision 57: its blockers are moving (a live lead, a packet in review), so it is Queued.
     await expect(ticket('RCP-16').locator('[data-wait="queued"]')).toHaveText(
-      '◷ Queued · Starts after RCP-19 and 1 more',
+      '◷ Queued · Starts after RCP-19’s design and 1 more',
     );
     await expect(ticket('RCP-12')).toContainText('For you');
     await expect(ticket('RCP-29').locator('.runline')).toHaveCount(0);

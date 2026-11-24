@@ -169,7 +169,7 @@ const item = (id: string, status: Status = 'ready'): MapItem =>
   ({
     id,
     project: id.split('-')[0]!,
-    type: 'Story',
+    type: 'Implementation',
     title: id,
     status,
     priority: 2,

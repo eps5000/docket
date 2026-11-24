@@ -9,7 +9,14 @@ import { dayStart } from '../../src/domain/brief.js';
 import { bucketFrame, flowNote } from '../../src/domain/flow.js';
 import { undoMutation } from '../../src/domain/undo.js';
 import { OWNER_ACTOR, type Actor } from '../../src/domain/write.js';
-import { addProject, forceStatus, minutes, startDomain, type Domain } from '../us1-helpers.js';
+import {
+  addProject,
+  forceStatus,
+  minutes,
+  startDomain,
+  withoutRelease,
+  type Domain,
+} from '../us1-helpers.js';
 
 const HOUR = minutes(60);
 const DAY = 24 * HOUR;
@@ -48,6 +55,8 @@ function ticket(
     }),
   );
   if (status !== 'planning') forceStatus(d, id, status);
+  // Decision 67: these tests count tickets as before every epic had a Release.
+  if (over.type === 'Epic') withoutRelease(d, id);
   return id;
 }
 const close = (id: string) =>

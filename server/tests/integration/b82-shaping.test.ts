@@ -383,6 +383,7 @@ describe('the epic and the map', () => {
     expect(detail.epic_readiness).toEqual({
       state: 'not_ready',
       unshaped: [
+        { id: 'TST-2', title: 'Release Synthetic epic', status: 'inbox' },
         {
           id: unshaped,
           title: 'Synthetic story',

@@ -136,6 +136,15 @@ export function isDatabaseEmpty(db: Db): boolean {
 
 // ---- Time ----
 
+/**
+ * Decision 67: sample tickets that already have a type by kind of work (the rest
+ * arrive inferred): the data model spec is a Design, the offline spike an Exploration.
+ */
+const SEED_TYPES: Record<string, 'Design' | 'Exploration'> = {
+  'RCP-19': 'Design',
+  'RCP-20': 'Exploration',
+};
+
 /** The prototype's clock: 2026-11-06T11:00 (interpreted as UTC; only differences matter). */
 export const PROTOTYPE_CLOCK = Date.UTC(2026, 10, 6, 11, 0);
 const PROTOTYPE_DAY = Date.UTC(2026, 10, 6);
@@ -490,10 +499,15 @@ export function loadSampleSeed(db: Db, opts: SeedOptions): SeedSummary {
       ? Math.min(Date.UTC(...ymd(item.actual[1]), 17, 0), updated)
       : null;
     const closedAt = item.status === 'done' ? actualEnd : null;
+    // Decision 67: the sample is a project from before ticket types, so Story and Task arrive as
+    // Implementation marked inferred, as the migration leaves them; a few are already typed.
+    const typed = SEED_TYPES[item.id];
+    const old = item.type === 'Story' || item.type === 'Task';
     add('items', {
       id: item.id,
       project_key: item.proj,
-      type: item.type,
+      type: typed ?? (old ? 'Implementation' : item.type),
+      type_info: !typed && old ? JSON.stringify({ inferred: true, original: item.type }) : null,
       title: item.title,
       description_md: '',
       outcome_md: detail.outcome ?? '',

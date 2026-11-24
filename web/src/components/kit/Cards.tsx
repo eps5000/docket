@@ -14,7 +14,7 @@ import { formatAge, isoTitle } from '../../lib/format';
 import { paths } from '../../lib/paths';
 import { Button } from './Button';
 import { BlockedChip, Chip, WaitChip } from './Chip';
-import { Priority, RunLine, TypeIcon, parkedReason } from './Badges';
+import { Priority, RolloutMark, RunLine, TypeIcon, parkedReason } from './Badges';
 import { Label } from './Label';
 import { StatusBar } from './StatusBar';
 import { EpicDepsNote } from './EpicDeps';
@@ -112,7 +112,12 @@ export function TicketCard({
       <div className="row" style={{ justifyContent: 'space-between' }}>
         <span className="row">
           <span className="mono muted">{item.id}</span>
-          <TypeIcon type={item.type} />
+          <TypeIcon
+            type={item.type}
+            inferred={item.type_inferred === true}
+            original={item.type_original}
+          />
+          {item.rollout && <RolloutMark />}
         </span>
         <Priority p={item.priority} />
       </div>

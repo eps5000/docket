@@ -46,12 +46,20 @@ describe('the epic start check over MCP (decision 58)', () => {
   it('claim_lead on a Ready epic with an Inbox ticket is epic_not_ready, listing it and the ways forward', async () => {
     const epic = await create('Epic');
     const ticket = await create('Task', { epic, status: 'inbox' });
+    const release = (
+      sql().prepare("SELECT id FROM items WHERE epic_id = ? AND type = 'Release'").get(epic) as {
+        id: string;
+      }
+    ).id;
     sql().prepare("UPDATE items SET status = 'ready' WHERE id = ?").run(epic);
     const err = expectToolError(await h.call('claim_lead', { id: epic }), 'epic_not_ready');
     expect(err.message).toContain(`${ticket} (Inbox)`);
     expect(err.details).toMatchObject({
       epic,
-      unshaped: [{ id: ticket, status: 'inbox' }],
+      unshaped: [
+        { id: release, status: 'inbox' },
+        { id: ticket, status: 'inbox' },
+      ],
       ways_forward: ['shape', 'known_gaps', 'move', 'remove'],
     });
   });

@@ -118,7 +118,7 @@ import {
 import { parseQuestionForm } from './question-form.js';
 import { epicWaits } from './epic-picks.js';
 import { epicReadiness, readinessOf, unshapedByEpic } from './epic-readiness.js';
-import { finishLineOf, finishLines, releaseHoldOf } from './finish-line.js';
+import { epicReleases, releaseDetails, releaseHoldOf } from './release.js';
 import { epicMidflight, midflightByEpic } from './midflight.js';
 import { explainIdle, idleDay, idleTickets } from './idle.js';
 import { reportedBranches } from './radar.js';
@@ -1616,9 +1616,13 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         archived: (i) => i.archived,
         planning: (i) => i.status === 'planning',
         ready_to_start: (i) => i.ready_state?.startable === true,
+        // Decision 67.
+        inferred_type: (i) => i.type_inferred === true,
+        rollout: (i) => i.rollout === true,
       };
       const facts = rows.map((i) => ({
         status: i.status,
+        type: i.type,
         wait: i.wait?.kind ?? null,
         archived: i.archived,
         check: (k: WorkCheck) => checks[k](i),
@@ -1676,8 +1680,8 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         r.db,
         epicRows.map((e) => e.id),
       );
-      // Decision 64: each open epic's finish line and open bugs.
-      const lines = finishLines(
+      // Decision 67: each open epic's Release, the tickets it waits for and open bugs.
+      const releases = epicReleases(
         r.db,
         epicRows.filter((e) => e.status !== 'done' && e.status !== 'canceled').map((e) => e.id),
       );
@@ -1685,7 +1689,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         const kids = children.get(e.id) ?? [];
         const readiness = readinessOf(e, unshaped.get(e.id));
         const added = midflight.get(e.id);
-        const line = lines.get(e.id);
+        const release = releases.get(e.id);
         const by_status: EpicCard['children']['by_status'] = {};
         for (const k of kids) by_status[k.status] = (by_status[k.status] ?? 0) + 1;
         return {
@@ -1700,7 +1704,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
           ...(waits.has(e.id) ? { waits_on: waits.get(e.id)! } : {}),
           ...(readiness ? { readiness } : {}),
           ...(added ? { midflight: added } : {}),
-          ...(line ? { release: { finish_line: line.id, open_bugs: line.open_bugs.length } } : {}),
+          ...(release ? { release } : {}),
         };
       });
 
@@ -1915,11 +1919,8 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         row.type === 'Epic' ? epicWaits(r.db, index, [row.id]).get(row.id) : undefined;
       const epicReady = epicReadiness(r.db, row);
       const epicAdded = epicMidflight(r.db, row);
-      // Decision 64: an open epic's finish line, or a finish line's open bugs.
-      const finishLine =
-        row.type === 'Epic' && row.status !== 'done' && row.status !== 'canceled'
-          ? finishLineOf(r.db, row.id)
-          : undefined;
+      // Decision 67: an epic's Release and what holds it, or what holds a Release.
+      const release = row.type === 'Epic' ? releaseDetails(r.db, [row.id]).get(row.id) : undefined;
       const releaseHold = releaseHoldOf(r.db, row);
       return {
         item,
@@ -1945,7 +1946,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         ...(itemWait ? { item_wait: itemWait } : {}),
         ...(epicReady ? { epic_readiness: epicReady } : {}),
         ...(epicAdded ? { epic_midflight: epicAdded } : {}),
-        ...(finishLine ? { finish_line: finishLine } : {}),
+        ...(release ? { release } : {}),
         ...(releaseHold ? { release_hold: releaseHold } : {}),
       };
     },

@@ -436,7 +436,8 @@ describe('idempotency on real writes (§10 item 5)', () => {
     const first = expectOk(await h.call('create_item', args));
     const again = expectOk(await h.call('create_item', args));
     expect(again.structured).toEqual({ ...first.structured, replayed: true });
-    expect(again.text).toBe(`${first.text} · replayed`);
+    expect(again.text).toContain(' · replayed');
+    expect(again.text.replace(' · replayed', '')).toBe(first.text);
     const n = h.server.runtime.db.sqlite
       .prepare("SELECT count(*) AS n FROM items WHERE title = 'Low-stock alerts'")
       .get() as { n: number };

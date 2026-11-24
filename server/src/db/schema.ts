@@ -267,11 +267,22 @@ export const items = sqliteTable(
     known_gaps: text('known_gaps', { mode: 'json' }),
     /**
      * Decision 64 (B81), on an epic: the ticket the producer or the owner
-     * marked as its finish line (release ticket), when the links don't settle
-     * it. Null means it's found from the links. Ignored once that ticket is
-     * no longer an open-or-done, non-bug ticket in the epic.
+     * marked as its finish line. Retired by decision 67 (B84): the Release
+     * migration reads it once to convert that ticket, then clears it.
      */
     finish_line: text('finish_line'),
+    /**
+     * Decision 67 (B84): where the type came from, as JSON
+     * `{inferred?: true, original?: string, generated?: true}`; null when the
+     * type was chosen. `inferred`: migrated from Story or Task, or a Jira import,
+     * until someone sets the type. `original`: the old or Jira type, kept as a
+     * reference. `generated`: a Release Docket created for its epic.
+     */
+    type_info: text('type_info', { mode: 'json' }),
+    /** Decision 67: an Implementation ticket that changes a shared environment others depend on. */
+    rollout: integer('rollout', { mode: 'boolean' }).notNull().default(false),
+    /** Decision 67: an Exploration's findings write-up, recorded when it finishes. */
+    findings_md: text('findings_md'),
     /**
      * Decision 65 (B82): who asked for this ticket to be shaped, as JSON
      * `{asked_by: 'agent' | 'owner', by, at, note}`: an agent created it without
@@ -295,6 +306,7 @@ export const items = sqliteTable(
     check('items_effort', sql.raw(`"effort" >= 0`)),
     check('items_closed_by', oneOf('closed_by', CLOSED_BY)),
     check('items_epic_not_self', sql.raw(`"epic_id" <> "id"`)),
+    check('items_findings_md', maxLen('findings_md', MARKDOWN_MAX)),
   ],
 );
 

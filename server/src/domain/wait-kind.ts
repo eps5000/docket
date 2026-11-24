@@ -20,7 +20,7 @@
  */
 import {
   BLOCKED_REASONS,
-  startsAfterText,
+  queuedText,
   type BlockedReason,
   type ItemWait,
   type Status,
@@ -171,7 +171,15 @@ export class WaitKinds {
       const title = own ?? this.fact(heldOn).held!;
       return { ...base, kind: 'held', reason: 'decision', on: heldOn, text: heldText(title) };
     }
-    return { ...base, kind: 'queued', reason: null, on: null, text: startsAfterText(after, more) };
+    // Decision 67: in the words of the blocker's type, and a Release's finish-wait.
+    const text = queuedText({
+      type: this.index.type(id),
+      status: this.index.status(id),
+      after,
+      afterType: this.index.type(after),
+      more,
+    });
+    return { ...base, kind: 'queued', reason: null, on: null, text };
   }
 
   /** The decision title when the item's own parked lead is held by an owner decision. */

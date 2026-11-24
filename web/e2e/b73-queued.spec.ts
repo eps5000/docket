@@ -52,7 +52,7 @@ test('a ticket behind moving work is Queued and calm; a loop is Blocked and says
   // RCP-16 waits on DOC-4 (a live lead) and RCP-19 (a packet in review): both are moving.
   const queued = row('RCP-16').locator('[data-wait]');
   await expect(queued).toHaveAttribute('data-wait', 'queued');
-  await expect(queued).toHaveText('◷ Queued · Starts after RCP-19 and 1 more');
+  await expect(queued).toHaveText('◷ Queued · Starts after RCP-19’s design and 1 more');
   await expect(row('RCP-16').locator('.st-blocked')).toHaveCount(0);
 
   // DOC-7 and DOC-8 block each other: that needs attention.
@@ -67,7 +67,7 @@ test('a ticket behind moving work is Queued and calm; a loop is Blocked and says
   // The item page spells the reason out, and the blockers in neutral words.
   await page.goto('/items/RCP-16');
   await expect(page.locator('[data-wait="queued"]').first()).toHaveText(
-    '◷ Queued · Starts after RCP-19 and 1 more',
+    '◷ Queued · Starts after RCP-19’s design and 1 more',
   );
   await expect(page.locator('[data-open-blockers]')).toContainText('Open blockers:');
   await page.goto('/items/DOC-7');

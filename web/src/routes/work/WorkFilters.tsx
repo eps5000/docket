@@ -4,13 +4,17 @@ import {
   WORK_CHECK_FILTERS,
   WORK_QUICK_FILTERS,
   WORK_SHOW_FILTERS,
+  WORK_TYPES,
+  inferredTypesText,
   isDefaultWorkFilter,
   toggleWorkFilter,
+  toggleWorkType,
   type EpicCard,
   type WorkCheck,
   type WorkFilter,
   type WorkResponse,
   type WorkShow,
+  type WorkType,
 } from '@docket/shared';
 import { Button, FilterChip, Icon } from '../../components/kit';
 import { useShell } from '../../app/ShellState';
@@ -29,7 +33,7 @@ export function menuEntries(filter: WorkFilter, counts: Counts) {
   };
 }
 
-/** The pills: every ticked check (URL-only ones included) and show, in menu order. */
+/** The pills: every ticked check (URL-only ones included), show and type, in menu order. */
 export function activePills(filter: WorkFilter) {
   return [
     ...WORK_CHECK_FILTERS.filter((c) => filter.has.includes(c.key)).map((c) => ({
@@ -40,7 +44,19 @@ export function activePills(filter: WorkFilter) {
       key: s.key as WorkCheck | WorkShow,
       label: s.label,
     })),
+    // Decision 67: the ticked types.
+    ...WORK_TYPES.filter((t) => filter.types?.includes(t)).map((t) => ({
+      key: `type:${t}` as const,
+      label: `Type: ${t}`,
+    })),
   ];
+}
+
+/** Tick or untick one entry or pill: a check, a show, or (decision 67) a type. */
+function toggleEntry(filter: WorkFilter, key: string): WorkFilter {
+  return key.startsWith('type:')
+    ? toggleWorkType(filter, key.slice(5) as WorkType)
+    : toggleWorkFilter(filter, key as WorkCheck | WorkShow);
 }
 
 /**
@@ -125,7 +141,7 @@ export function WorkFilters({
               data-pill={p.key}
               aria-label={`Remove the filter: ${p.label}`}
               title={`Remove: ${p.label}`}
-              onClick={() => onFilter(toggleWorkFilter(filter, p.key))}
+              onClick={() => onFilter(toggleEntry(filter, p.key))}
             >
               {p.label}
               <span aria-hidden="true" className="fchip-x">
@@ -134,6 +150,18 @@ export function WorkFilters({
             </button>
           ))}
         </span>
+      )}
+      {/* Decision 67: Story and Task tickets whose type nobody has checked yet. */}
+      {(counts?.has.inferred_type ?? 0) > 0 && !filter.has.includes('inferred_type') && (
+        <Button
+          variant="ghost"
+          size="sm"
+          data-inferred-count={counts?.has.inferred_type}
+          title="Docket inferred these types from Story and Task. Check each while shaping."
+          onClick={() => onFilter(toggleWorkFilter(filter, 'inferred_type'))}
+        >
+          {inferredTypesText(counts?.has.inferred_type ?? 0)}
+        </Button>
       )}
       {!isDefaultWorkFilter(filter) && (
         <Button
@@ -170,7 +198,7 @@ export function FiltersMenu({
   const menu = useRef<HTMLDivElement>(null);
   const menuId = useId();
   const { checks, shows } = menuEntries(filter, counts);
-  const ticked = filter.has.length + filter.show.length;
+  const ticked = filter.has.length + filter.show.length + (filter.types?.length ?? 0);
 
   useEffect(() => {
     if (!open) return;
@@ -218,7 +246,12 @@ export function FiltersMenu({
       close(false);
     }
   };
-  const entry = (key: WorkCheck | WorkShow, text: string, checked: boolean, count?: number) => (
+  const entry = (
+    key: WorkCheck | WorkShow | `type:${WorkType}`,
+    text: string,
+    checked: boolean,
+    count?: number,
+  ) => (
     <button
       key={key}
       type="button"
@@ -226,7 +259,7 @@ export function FiltersMenu({
       aria-checked={checked}
       tabIndex={-1}
       data-entry={key}
-      onClick={() => onFilter(toggleWorkFilter(filter, key))}
+      onClick={() => onFilter(toggleEntry(filter, key))}
     >
       <span className="fbox" aria-hidden="true">
         {checked && <Icon name="check" small />}
@@ -245,7 +278,7 @@ export function FiltersMenu({
         aria-haspopup="menu"
         aria-expanded={!!open}
         aria-controls={open ? menuId : undefined}
-        title="More filters: for you, reviews, live runs, problems, done and canceled"
+        title="More filters: for you, reviews, live runs, problems, inferred types, rollouts, done and canceled, and types"
         onClick={() => (open ? close(false) : setOpen('first'))}
         onKeyDown={onButtonKey}
       >
@@ -271,6 +304,16 @@ export function FiltersMenu({
           <div role="separator" className="fmenusep" />
           {shows.map((s) =>
             entry(s.key, s.label, filter.show.includes(s.key), counts?.show[s.key]),
+          )}
+          {/* Decision 67: only tickets of the ticked types. */}
+          <div role="separator" className="fmenusep" />
+          {WORK_TYPES.map((t) =>
+            entry(
+              `type:${t}`,
+              `Type: ${t}`,
+              filter.types?.includes(t) === true,
+              counts?.types?.[t],
+            ),
           )}
         </div>
       )}

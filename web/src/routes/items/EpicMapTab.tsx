@@ -9,7 +9,8 @@ import { GoalMap } from '../shared/GoalMap';
  * Map (epic; UI_SPEC §6.3): the epic-level review strip (when the epic has
  * human review), then a ProgressMap of its children, with blockers from
  * outside the epic in their own column. Decision 64: the epic's unlinked bugs
- * stack in a Bugs column, and its finish line shows the open bugs holding it.
+ * stack in a Bugs column on the left. Decision 67: its Release sits alone in
+ * the last column, with what it waits for and the open bugs holding it.
  */
 export function EpicMapTab({ data }: { data: ItemDetailResponse }) {
   const hrs = data.item.checklist.human_review;
@@ -25,13 +26,15 @@ export function EpicMapTab({ data }: { data: ItemDetailResponse }) {
       ? data.children
       : data.children.map((c) => (added.has(c.id) ? { ...c, added_midflight: true } : c));
   }, [data.children, midflight]);
-  const finishLine = data.finish_line?.id ?? null;
-  const openBugs = data.finish_line?.open_bugs.length ?? 0;
-  // Stable too: a closed epic draws no Bugs column (no `finish_line`).
-  const hasLine = data.finish_line !== undefined;
+  const releaseId = data.release?.id ?? null;
+  const openBugs = data.release?.open_bugs.length ?? 0;
+  const left = data.release?.left.length ?? 0;
+  // Stable too: a closed epic draws no Bugs column.
+  const open = data.item.status !== 'done' && data.item.status !== 'canceled';
+  const hasRelease = open && data.release !== undefined;
   const release = useMemo(
-    () => (hasLine ? { finishLine, openBugs } : null),
-    [hasLine, finishLine, openBugs],
+    () => (hasRelease ? { id: releaseId, left, openBugs } : null),
+    [hasRelease, releaseId, left, openBugs],
   );
   return (
     <div className="stack1" data-section="map">
@@ -50,7 +53,7 @@ export function EpicMapTab({ data }: { data: ItemDetailResponse }) {
       )}
       <Card padded>
         {data.children.length === 0 ? (
-          <EmptyState text="No items yet. When planned, the agent breaks this epic into stories, tasks and bugs." />
+          <EmptyState text="No items yet. When planned, the agent breaks this epic into explorations, designs, implementation and bugs, before its Release." />
         ) : (
           <GoalMap
             items={children}

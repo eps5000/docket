@@ -230,7 +230,7 @@ describe('item views', () => {
     expect(text).toBe(
       [
         'RCP-14 Generate shopping list from week plan',
-        '  story · P1 · progress · epic RCP-1 Meal planning MVP · labels mobile · v7',
+        '  implementation · P1 · progress · epic RCP-1 Meal planning MVP · labels mobile · v7',
         '  lead claude·orca-w3 live · run run_01JA…',
         '  blocked_by: none · unblocks 2',
         '  work 1/4 done · checks 1/3 pass · human_review declared 1',

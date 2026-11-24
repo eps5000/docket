@@ -22,6 +22,7 @@ import { ToolError, type SatisfiedWhen } from '@docket/shared';
 import type { LinksService, ServiceDeps } from './contracts.js';
 import { newId } from './ids.js';
 import { assertCallerRun, BlockIndex, callerName, ms, requireItem } from './model.js';
+import { checkReleaseLink } from './release.js';
 import type { WriteContext } from './write.js';
 
 // ---- Graph helpers ----
@@ -236,6 +237,8 @@ export function createLinksService(_deps: ServiceDeps): LinksService {
           details: { field: 'satisfied_when' },
         });
       }
+      // Decision 67: a Release and the tickets in its own epic are never linked by hand.
+      if (input.type === 'blocks') checkReleaseLink(w.db, from.id, to.id);
       const who = callerName(w.db, w.actor);
       const existing = findLink(w, from.id, to.id, input.type);
 

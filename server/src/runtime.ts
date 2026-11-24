@@ -8,6 +8,7 @@ import { SERVER_INSTRUCTIONS } from '@docket/shared';
 import { OwnerSessions } from './api/session.js';
 import { SecretStore, loadConfig, type Config } from './config.js';
 import { migrateDb, openDb, type Db } from './db/client.js';
+import { ensureReleasesAtStart } from './domain/release-migration.js';
 import { ChangeWaiters } from './domain/change-wait.js';
 import type { Services } from './domain/contracts.js';
 import { createServices, type ServiceOverrides } from './domain/services.js';
@@ -75,6 +76,8 @@ export function createRuntime(opts: RuntimeOptions = {}): Runtime {
     knownSecrets: () => secrets.known(),
     onCommit: (seqs) => bus.emit('change', seqs),
   });
+  // Decision 67: every open epic has its Release (converted, generated or to choose).
+  ensureReleasesAtStart(write, log);
 
   const callLog = new CallLog({ dir: config.paths.logs, clock });
   const services = createServices({ config, secrets, callLog, clock, log }, opts.services);

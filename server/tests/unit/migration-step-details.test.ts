@@ -19,7 +19,7 @@ import {
   openDb,
   type Db,
 } from '../../src/db/client.js';
-import { insertItem, insertProject, tempDir, type TempDir } from '../helpers.js';
+import { before0032, insertItem, insertProject, tempDir, type TempDir } from '../helpers.js';
 
 const ts = '2026-11-18T00:00:00.000Z';
 const BEFORE = [
@@ -142,7 +142,7 @@ describe('0009_step_details', () => {
     const migrated = openDb(copy);
     try {
       migrateDb(migrated);
-      expect(migrationStatus(migrated)).toEqual({ current: true, applied: 32, expected: 32 });
+      expect(migrationStatus(migrated)).toEqual({ current: true, applied: 33, expected: 33 });
       const after = steps(migrated);
       expect(after).toEqual(
         before.map((row) => ({ ...row, details_md: null, source: null, details_version: 0 })),
@@ -157,6 +157,8 @@ describe('0009_step_details', () => {
           )
             // 0010_shared_changes (B38) adds items.shared_none_at, and 0011_radar_branches
             // (B40) the branch columns, 0012_item_branches (B41) items.branches; 0010's test checks them.
+            // 0032 (decision 67) made Story and Task Implementation, inferred.
+            .map(before0032)
             .map(
               ({
                 shared_none_at: _,
@@ -217,7 +219,7 @@ describe('0009_step_details', () => {
 
       // Migrating again is a no-op.
       migrateDb(migrated);
-      expect(migrationStatus(migrated).applied).toBe(32);
+      expect(migrationStatus(migrated).applied).toBe(33);
     } finally {
       migrated.sqlite.close();
     }

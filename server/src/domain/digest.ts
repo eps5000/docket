@@ -28,7 +28,8 @@ import { pausedForCoordinators, projectPause } from './project-pause.js';
 import { WaitReader, digestWait } from './wait.js';
 import { waitKindsOf } from './wait-kind.js';
 import { unshapedByEpic } from './epic-readiness.js';
-import { finishLines } from './finish-line.js';
+import { inferredTypeCount } from './ticket-types.js';
+import { releaseDetails } from './release.js';
 import { openPartialExits } from './exit-reports.js';
 import { projectNeedsShaping } from './shaping.js';
 import { midflightByEpic } from './midflight.js';
@@ -165,7 +166,7 @@ function startedUnshaped(
     .map((e) => ({ id: e.id, title: e.title, unshaped: byEpic.get(e.id)!.map((t) => t.id) }));
 }
 
-/** Decision 64: open epics with open bugs, and the finish line those bugs hold. */
+/** Decisions 64 and 67: open epics with open bugs, and the Release those bugs hold. */
 function releaseBugs(r: ReadContext, project: string): NonNullable<Digest['release_bugs']>['rows'] {
   const epics = r.db.sqlite
     .prepare(
@@ -175,16 +176,16 @@ function releaseBugs(r: ReadContext, project: string): NonNullable<Digest['relea
     )
     .all(project) as { id: string; priority: number }[];
   if (epics.length === 0) return [];
-  const lines = finishLines(
+  const releases = releaseDetails(
     r.db,
     epics.map((e) => e.id),
   );
   return epics
-    .filter((e) => (lines.get(e.id)?.open_bugs.length ?? 0) > 0)
+    .filter((e) => (releases.get(e.id)?.open_bugs.length ?? 0) > 0)
     .sort((a, b) => a.priority - b.priority || a.id.localeCompare(b.id))
     .map((e) => {
-      const line = lines.get(e.id)!;
-      return { epic: e.id, finish_line: line.id, bugs: line.open_bugs.map((b) => b.id) };
+      const release = releases.get(e.id)!;
+      return { epic: e.id, release: release.id, bugs: release.open_bugs.map((b) => b.id) };
     });
 }
 
@@ -271,6 +272,8 @@ export function createDigestService(deps: ServiceDeps): DigestService {
       const blocked = allOf(deps, r, input.project, 'blocked')
         .filter((x) => keep(x.id))
         .map((x) => ({ x, wait: kinds.of(x.id) }))
+        // Decision 67: a Release waiting its turn for the rest of its epic is expected, not news.
+        .filter(({ x, wait }) => x.type !== 'Release' || (wait !== null && wait.kind !== 'queued'))
         .sort(
           (a, b) =>
             WAIT_ORDER[a.wait?.kind ?? 'queued'] - WAIT_ORDER[b.wait?.kind ?? 'queued'] ||
@@ -374,7 +377,7 @@ export function createDigestService(deps: ServiceDeps): DigestService {
         (x) =>
           since === null ||
           keep(x.epic) ||
-          (x.finish_line !== null && keep(x.finish_line)) ||
+          (x.release !== null && keep(x.release)) ||
           x.bugs.some((b) => keep(b)),
       );
       // Decision 61: every digest, until someone acts on the ticket.
@@ -410,6 +413,8 @@ export function createDigestService(deps: ServiceDeps): DigestService {
         since === null
           ? deps.services().installs.updateNoticeFor(r, { project: input.project })
           : null;
+      // Decision 67: Story and Task tickets whose type nobody has checked, on full snapshots.
+      const inferred = since === null ? inferredTypeCount(r.db, input.project) : 0;
       return {
         project: input.project,
         ...(pause ? { paused: pausedForCoordinators(input.project, pause) } : {}),
@@ -427,6 +432,7 @@ export function createDigestService(deps: ServiceDeps): DigestService {
         ...(untriaged.length > 0
           ? { untriaged_epics: section(untriaged, DIGEST_CAPS.untriaged_epics) }
           : {}),
+        ...(inferred > 0 ? { inferred_types: inferred } : {}),
         cursor: String(latest),
         since: since === null ? null : String(since),
         next_work: section(

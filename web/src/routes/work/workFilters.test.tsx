@@ -115,13 +115,15 @@ const counts = (archived = 0): WorkResponse['filter_counts'] => ({
     archived: 0,
     planning: 4,
     ready_to_start: 2,
+    inferred_type: 0,
+    rollout: 0,
   },
   show: { done: 5, canceled: 1 },
   archived,
 });
 
 describe('the Filters menu', () => {
-  it('lists the five checks, Archived only once something is archived, then the shows', () => {
+  it('lists the seven checks, Archived only once something is archived, then the shows', () => {
     const keys = (filter: WorkFilter, c = counts()) => {
       const m = menuEntries(filter, c);
       return [...m.checks.map((x) => x.key), ...m.shows.map((x) => x.key)];
@@ -132,6 +134,8 @@ describe('the Filters menu', () => {
       'deferred_review',
       'live_run',
       'has_problem',
+      'inferred_type',
+      'rollout',
       'done',
       'canceled',
     ]);
@@ -173,8 +177,15 @@ describe('the Filters menu', () => {
       'Deferred review0',
       'Live run1',
       'Has a problem2',
+      'Inferred type0',
+      'Rollout0',
       'Shows done5',
       'Shows canceled1',
+      'Type: Exploration',
+      'Type: Design',
+      'Type: Implementation',
+      'Type: Bug',
+      'Type: Release',
     ]);
     expect(document.activeElement).toBe(entries[0]);
     await user.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}');
@@ -187,12 +198,12 @@ describe('the Filters menu', () => {
         .getAttribute('aria-checked'),
     ).toBe('true');
     await user.keyboard('{End}{Enter}');
-    expect(state().show).toEqual(['canceled']);
+    expect(state().types).toEqual(['Release']);
     await user.keyboard('{Home}');
     expect(document.activeElement).toBe(within(menu).getAllByRole('menuitemcheckbox')[0]);
     await user.keyboard('{ArrowUp}');
     expect(document.activeElement).toBe(
-      within(menu).getByRole('menuitemcheckbox', { name: /Shows canceled/ }),
+      within(menu).getByRole('menuitemcheckbox', { name: /Type: Release/ }),
     );
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('menu')).toBeNull();
@@ -208,7 +219,7 @@ describe('the Filters menu', () => {
     button.focus();
     await user.keyboard('{ArrowUp}');
     expect(document.activeElement).toBe(
-      screen.getByRole('menuitemcheckbox', { name: /Shows canceled/ }),
+      screen.getByRole('menuitemcheckbox', { name: /Type: Release/ }),
     );
     await user.keyboard('{Tab}');
     expect(screen.queryByRole('menu')).toBeNull();

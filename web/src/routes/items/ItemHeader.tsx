@@ -3,9 +3,7 @@ import { useId, useState } from 'react';
 import { Link } from 'react-router';
 import {
   PRIORITIES,
-  STATUS_LABELS,
   needsShapingText,
-  waitingOnBugsText,
   type ItemDetailResponse,
   type Priority,
   type ShapingPart,
@@ -20,20 +18,20 @@ import {
   EpicReadinessLine,
   EpicReleaseLine,
   FinishedPartlyBlock,
+  ReleaseHoldLine,
   Label,
   Provenance,
   Skeleton,
   StatusChip,
-  TypeBadge,
 } from '../../components/kit';
 import { apiClient } from '../../app/queryClient';
 import { ApiError, queryKeys } from '../../lib/api';
 import { paths } from '../../lib/paths';
 import { runOwnerMutation, showToast } from '../../lib/undo';
 import { CancelMenu } from './CancelItem';
-import { FinishLineControl } from './FinishLineControl';
 import { InlineTextEdit } from './InlineEdit';
 import { ReadyRefusal, refusedMissing } from './ReadyRefusal';
+import { TypeControl } from './TypeControl';
 
 /** Closed provenance on done items (UI_SPEC §6.3 header, second line). */
 function ClosedProvenance({ item }: { item: ItemDetailResponse['item'] }) {
@@ -145,7 +143,7 @@ export function ItemHeader({ id, data }: { id: string; data?: ItemDetailResponse
       <div className="grow">
         <div className="row wrap">
           <span className="mono muted">{item.id}</span>
-          <TypeBadge type={item.type} />
+          {data && <TypeControl data={data} />}
           {item.epic && item.epic_title && (
             <>
               <span className="muted">in</span>
@@ -266,9 +264,8 @@ export function ItemHeader({ id, data }: { id: string; data?: ItemDetailResponse
         {epic && data?.epic_waits && <EpicDepsLine waits={data.epic_waits} />}
         {epic && data?.epic_readiness && <EpicReadinessLine readiness={data.epic_readiness} />}
         {epic && data?.epic_midflight && <EpicMidflightLine midflight={data.epic_midflight} />}
-        {/* Decision 64: the finish line and the open bugs holding it, or "No finish line". */}
-        {epic && data?.finish_line && <EpicReleaseLine line={data.finish_line} />}
-        {epic && data?.finish_line && <FinishLineControl data={data} />}
+        {/* Decision 67: the epic's Release, what it waits for and the open bugs holding it. */}
+        {epic && data?.release && open && <EpicReleaseLine release={data.release} />}
         {data?.release_hold && <ReleaseHoldLine hold={data.release_hold} />}
         {item.type === 'Bug' && open && item.epic && (
           <div className="src release-hold" data-bug-holds={item.epic}>
@@ -276,36 +273,12 @@ export function ItemHeader({ id, data }: { id: string; data?: ItemDetailResponse
             <Link className="mono" to={paths.item(item.epic)}>
               {item.epic}
             </Link>
-            ’s release: fix it, move it to another epic as a follow-up, or cancel it with a reason.
+            ’s Release: fix it, move it to another epic as a follow-up, or cancel it with a reason.
           </div>
         )}
         {/* Decision 61: how the lead finished, when it left items. */}
         <FinishedPartlyBlock runs={item.runs} />
       </div>
-    </div>
-  );
-}
-
-/** Decision 64: on an epic's finish line, the open bugs in the epic that hold it. */
-function ReleaseHoldLine({ hold }: { hold: NonNullable<ItemDetailResponse['release_hold']> }) {
-  return (
-    <div className="src release-hold" data-release-hold={hold.open_bugs.length}>
-      <span aria-hidden="true">⚑</span> <b>{waitingOnBugsText(hold.open_bugs.length)}</b>: this is{' '}
-      <Link className="mono" to={paths.item(hold.epic)}>
-        {hold.epic}
-      </Link>
-      ’s finish line, so it can’t move to Review or Done while{' '}
-      {hold.open_bugs.map((b, i) => (
-        <span key={b.id}>
-          {i > 0 && ', '}
-          <Link className="mono" to={paths.item(b.id)} title={b.title}>
-            {b.id}
-          </Link>{' '}
-          ({STATUS_LABELS[b.status]})
-        </span>
-      ))}{' '}
-      {hold.open_bugs.length === 1 ? 'is' : 'are'} open. For each: fix it, move it to another epic
-      as a follow-up, or cancel it with a reason.
     </div>
   );
 }

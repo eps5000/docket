@@ -473,7 +473,7 @@ describe('SC-018: onboarding a Spec Kit repo after a Jira import', () => {
     expect(card).toMatchObject({
       project: KEY,
       state: 'ready_for_review',
-      changes: { created: 5, enriched: 6, documents: 4, decisions: 3, proposals: 1 },
+      changes: { created: 6, enriched: 6, documents: 4, decisions: 3, proposals: 1 },
       questions: ['Should fraud scoring (TL-6) stay in this release?'],
       workflow_proposal_id: proposals[0]!.id,
     });
@@ -489,8 +489,12 @@ describe('SC-018: onboarding a Spec Kit repo after a Jira import', () => {
         )
       ).body as { items: { id: string }[]; epics: { id: string }[] };
     const createdView = await work('created');
+    const release = all<{ id: string }>(
+      "SELECT id FROM items WHERE epic_id = ? AND type = 'Release'",
+      created.find((i) => i.type === 'Epic')!.id,
+    )[0]!.id;
     expect([...createdView.items, ...createdView.epics].map((i) => i.id).sort()).toEqual(
-      [...first.created].sort(),
+      [...first.created, release].sort(),
     );
     const enrichedView = await work('enriched');
     expect([...enrichedView.items, ...enrichedView.epics].map((i) => i.id).sort()).toEqual(

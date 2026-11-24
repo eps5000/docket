@@ -19,7 +19,7 @@ import { LABEL_NAME_RE, LIMITS, TEXT_LIMITS } from './limits.js';
 import { branchInput, changedFilesInput, sharedPartKey } from './shared-changes.js';
 import {
   itemSummarySchema,
-  itemTypeSchema,
+  itemTypeInputSchema,
   prioritySchema,
   satisfiedWhenSchema,
   statusSchema,
@@ -64,7 +64,8 @@ export const splitFromInput = z.strictObject({
 
 export const createItemInput = mutationInput({
   project: projectKey,
-  type: itemTypeSchema,
+  /** Decision 67: Story and Task are still accepted, stored as Implementation. */
+  type: itemTypeInputSchema,
   title: text(TEXT_LIMITS.title),
   description_md: longText(TEXT_LIMITS.markdown).optional(),
   outcome_md: longText(TEXT_LIMITS.markdown).optional(),
@@ -89,6 +90,8 @@ export const createItemInput = mutationInput({
    * changes, members and notes go through declare_shared_changes.
    */
   shared: z.union([z.literal('none'), z.array(sharedPartKey)]).optional(),
+  /** Decision 67, Implementation only: it changes a shared environment others depend on. */
+  rollout: z.boolean().optional(),
 }).superRefine((v, ctx) => {
   const parts = Array.isArray(v.shared) ? v.shared : [];
   if (Array.isArray(v.shared) && parts.length === 0) {
@@ -144,8 +147,10 @@ export const updateItemInput = mutationInput({
     )
     .max(KNOWN_GAPS.max)
     .optional(),
-  /** Decision 64, on an epic: its release ticket, when the links don't settle it; `null` clears. */
-  finish_line: itemId.nullable().optional(),
+  /** Decision 67: the type, which also clears an inferred mark. Story and Task mean Implementation. */
+  type: itemTypeInputSchema.optional(),
+  /** Decision 67, Implementation only: it changes a shared environment others depend on. */
+  rollout: z.boolean().optional(),
 });
 export const updateItemOutput = mutationOutput({ item: itemSummarySchema });
 

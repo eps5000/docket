@@ -155,9 +155,11 @@
             "type": "string",
             "enum": [
               "Epic",
-              "Story",
-              "Task",
-              "Bug"
+              "Exploration",
+              "Design",
+              "Implementation",
+              "Bug",
+              "Release"
             ]
           }
         },
@@ -298,6 +300,9 @@
               "jira_key",
               "version",
               "updated_at",
+              "type_inferred",
+              "type_original",
+              "rollout",
               "description_md",
               "outcome_md",
               "acceptance",
@@ -708,6 +713,9 @@
             },
             "untriaged_epics": {
               "type": "object"
+            },
+            "inferred_types": {
+              "type": "integer"
             }
           },
           "required": [
@@ -742,7 +750,7 @@
   },
   {
     "name": "create_item",
-    "description": "Create an Epic, Story, Task or Bug in Inbox or Planning. Pass outcome_md, acceptance and shared (part keys or 'none'), or it Needs shaping. To split, pass split_from with acceptance positions to move or copy.",
+    "description": "Create an item in Inbox or Planning; an Epic also gets its Release. Pass outcome_md, acceptance and shared (part keys or 'none'), or it Needs shaping. To split, use split_from with 1-based acceptance positions.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -754,9 +762,11 @@
           "type": "string",
           "enum": [
             "Epic",
-            "Story",
-            "Task",
-            "Bug"
+            "Exploration",
+            "Design",
+            "Implementation",
+            "Bug",
+            "Release"
           ]
         },
         "title": {
@@ -908,6 +918,9 @@
               }
             }
           ]
+        },
+        "rollout": {
+          "type": "boolean"
         },
         "run_id": {
           "type": "string"
@@ -1085,15 +1098,19 @@
             "additionalProperties": false
           }
         },
-        "finish_line": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
+        "type": {
+          "type": "string",
+          "enum": [
+            "Epic",
+            "Exploration",
+            "Design",
+            "Implementation",
+            "Bug",
+            "Release"
           ]
+        },
+        "rollout": {
+          "type": "boolean"
         },
         "run_id": {
           "type": "string"
@@ -1144,7 +1161,7 @@
   },
   {
     "name": "set_status",
-    "description": "Move an item. Docket enforces the allowed moves and their gates (not_declared, design_review, bugs_open). Closing as done: pass changed_files and branch. Hand off for review with submit_packet. Details: docket-worker reference status-moves.",
+    "description": "Move an item. Docket enforces the allowed moves and their gates (not_declared, design_review, release_gates). Closing as done: pass changed_files and branch. Hand off for review with submit_packet. Details: docket-worker reference status-moves.",
     "inputSchema": {
       "type": "object",
       "properties": {

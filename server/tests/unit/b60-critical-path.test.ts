@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { criticalPath, longestChain, nextReason } from '../../src/domain/critical-path.js';
 import { windowsOf } from '../../src/domain/model.js';
 import type { Actor } from '../../src/domain/write.js';
-import { startDomain, type Domain } from '../us1-helpers.js';
+import { startDomain, withoutRelease, type Domain } from '../us1-helpers.js';
 
 /** `edges` as blocker → blocked. */
 function graph(edges: [string, string][]) {
@@ -193,8 +193,8 @@ describe('the read', () => {
   });
   afterEach(() => d.cleanup());
 
-  const make = (type: 'Epic' | 'Task', title: string, epic?: string, priority: 1 | 2 | 3 = 2) =>
-    d.write(planner, (w, s) =>
+  const make = (type: 'Epic' | 'Task', title: string, epic?: string, priority: 1 | 2 | 3 = 2) => {
+    const id = d.write(planner, (w, s) =>
       s.items.create(w, {
         project: 'RCP',
         type,
@@ -204,6 +204,10 @@ describe('the read', () => {
         ...(epic ? { epic } : {}),
       }),
     ).id;
+    // Decision 67: these tests count tickets as before every epic had a Release.
+    if (type === 'Epic') withoutRelease(d, id);
+    return id;
+  };
   const blocks = (from: string, to: string) =>
     d.write(planner, (w, s) => s.links.link(w, { from, to, type: 'blocks' }));
   const setStatus = (id: string, status: string) =>

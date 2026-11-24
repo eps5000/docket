@@ -67,9 +67,9 @@ It only changes the picture. The links are still there: the ticket's Dependencie
 
 ## Bugs hold the release
 
-Every epic has a **finish line**: its release ticket, the one that depends on other tickets in the epic while nothing else in the epic depends on it. Docket finds it from the links. When several tickets, or none, fit, the epic says **No finish line**: pick one under *Mark the release ticket* on the epic page, or ask the producer to mark it.
+Every epic has exactly one **Release** ticket, created with the epic and shaped with it. Docket makes it wait for every other ticket in the epic, including tickets added later, without any manual links. Its Map card is alone in the last column. An epic closes when its Release is Done.
 
-**Every open bug in the epic holds the finish line**, with no link needed. It can't go to Review or Done while a bug in the epic is open; the agent is told which bugs and the three ways forward:
+**Every open bug in the epic holds the Release**, with no link needed. It can't go to Review or Done while a bug in the epic is open; the agent is told which bugs and the three ways forward:
 
 - fix the bug;
 - move it to another epic, as a follow-up;
@@ -77,7 +77,9 @@ Every epic has a **finish line**: its release ticket, the one that depends on ot
 
 Shipping without a fix is a choice you can see: moving the bug out or canceling it shows in Activity, and canceling a bug in an epic always asks why. Bugs in other epics don't count, and a bug that a story really waits on keeps its ordinary link too.
 
-On the epic's **Map**, bugs with no links sit in a **Bugs** column on the left, with their status, instead of looking like starting work in Wave 1; its header counts the open ones. A bug that's part of the chain stays in its wave, marked "bug". The finish line's card says **Finish line · Waiting on 2 bugs**. The epic page, its card and Pick next epic show the same count.
+On the epic's **Map**, bugs with no links sit in a **Bugs** column on the left, with their status, instead of looking like starting work in Wave 1; its header counts the open ones. A bug that's part of the chain stays in its wave, marked "bug". The Release card says **Release · Waiting on 2 bugs**. The epic page, its card and Pick next epic show the same count.
+
+The Release also waits for every other ticket to finish, every known gap and partial exit to be settled, and its own checklist to be done. An intermediate deploy or cutover that other work waits on is its own **Implementation** ticket marked **Rollout**, with links from its dependent tickets. A Release reaches real users. Two such releases are two epics.
 
 ## What's holding up a goal?
 
