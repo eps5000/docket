@@ -2,7 +2,8 @@
  * A progress map card (UI_SPEC §6.3.4), also the node of the 1-hop
  * Dependencies view (§6.3.3): type icon · ID (+ "other epic ↗" or the
  * project) · title (2 lines) · "Status · run state", or "· after RCP-12" on
- * Planning items. Done cards are green with ✓; a Blocked Ready card has a red
+ * Planning items. Done cards are green with ✓, In progress cards have a hatched green edge
+ * (decision 59); a Blocked Ready card has a red
  * border and "blocked", a Queued one a calm dashed border and "queued"
  * (decision 57); the person icon at the top right is filled when a
  * packet is ready for you and outlined when your review comes later. Each

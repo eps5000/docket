@@ -368,6 +368,13 @@
   min-height: 440px;
   min-width: 0;
 }
+/* The column's status rule (decision 59), in the same tokens and hatching as the bars. */
+.tl .colrule {
+  display: block;
+  height: 4px;
+  border-radius: 2px;
+  margin: 0 4px 6px;
+}
 .tl .colh {
   display: flex;
   justify-content: space-between;
