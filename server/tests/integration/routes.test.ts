@@ -63,6 +63,7 @@ const B2_ROUTES: readonly RouteId[] = [
   'work.get',
   'items.get',
   'items.criticalPath',
+  'projects.pickEpic',
   'agents.list',
   'search.get',
   // US3 (B9, T094): the packet screen, the deferred follow-up and human review items.
@@ -229,6 +230,7 @@ const VALID: Record<RouteId, Req> = {
   'work.get': { query: { scope: 'all', layout: 'board', filter: 'blocked' } },
   'items.get': { params: { id: 'RCP-14' } },
   'items.criticalPath': { params: { id: 'RCP-14' } },
+  'projects.pickEpic': { params: { key: 'RCP' } },
   'agents.list': { query: { scope: 'all' } },
   'search.get': { query: { q: 'pantry' } },
   'stream.get': {},

@@ -134,12 +134,19 @@ export function Work() {
     <div className="work">
       <div className="row headrow">
         <h1>Work</h1>
-        <SegmentedControl
-          label="Layout"
-          options={LAYOUTS}
-          value={layout}
-          onChange={(l) => set({ layout: l })}
-        />
+        <span className="row wrap" style={{ gap: 8 }}>
+          {scope !== 'all' && (
+            <Link className="btn sm" to={paths.pickEpic(scope)} data-pick-epic-link>
+              Pick next epic
+            </Link>
+          )}
+          <SegmentedControl
+            label="Layout"
+            options={LAYOUTS}
+            value={layout}
+            onChange={(l) => set({ layout: l })}
+          />
+        </span>
       </div>
       <PausedBanners />
       {layout !== 'timeline' && (

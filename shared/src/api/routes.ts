@@ -14,6 +14,7 @@ import type { z } from 'zod';
 import { agentProposalsRoutes } from './agent-proposals.js';
 import { agentSetupRoutes } from './agent-setup.js';
 import { criticalPathRoutes } from './critical-path.js';
+import { pickEpicRoutes } from './pick-epic.js';
 import { decisionsRoutes } from './decisions.js';
 import { depsRoutes } from './deps.js';
 import { diagnosticsRoutes, undoRoutes, uploadRoutes } from './diagnostics.js';
@@ -39,6 +40,7 @@ export const API_ROUTES = {
   ...sessionRoutes,
   ...readRoutes,
   ...criticalPathRoutes,
+  ...pickEpicRoutes,
   ...overviewRoutes,
   ...briefRoutes,
   ...reviewRoutes,

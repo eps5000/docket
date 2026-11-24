@@ -6,6 +6,7 @@ import {
   BlockedChip,
   Button,
   Chip,
+  EpicDepsLine,
   Label,
   Provenance,
   Skeleton,
@@ -220,6 +221,7 @@ export function ItemHeader({ id, data }: { id: string; data?: ItemDetailResponse
             ))}
           {open && data && <CancelMenu data={data} />}
         </div>
+        {epic && data?.epic_waits && <EpicDepsLine waits={data.epic_waits} />}
       </div>
     </div>
   );

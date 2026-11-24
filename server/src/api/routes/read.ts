@@ -46,6 +46,11 @@ export function readRoutes<E extends Env>(api: Hono<E>, deps: RouteDeps): void {
     services.subgraph.criticalPath(read, params),
   );
 
+  // Decision 54: which open epic a new agent can take without parking.
+  defineRoute(api, 'projects.pickEpic', deps, ({ services, read, params }) =>
+    services.subgraph.pickEpic(read, params),
+  );
+
   defineRoute(api, 'agents.list', deps, ({ services, read, query }) =>
     services.views.agents(read, query),
   );
