@@ -446,6 +446,7 @@ describe.skipIf(AVAILABLE.length === 0).each(AVAILABLE)('the uninstall command i
     for (const gone of [
       '.claude/skills/docket-worker',
       '.claude/skills/docket-delivery',
+      '.claude/skills/docket-producer',
       '.claude/.docket-manifest.json',
       '.claude/docket-check.sh',
       '.claude/docket-check.ps1',

@@ -138,7 +138,7 @@ describe('agent files over the owner API (T153)', () => {
     h = await startHarness();
     const owner = await ownerApi();
     const runtime = h.server.runtime;
-    expect(syncBundledFiles(runtime).added).toHaveLength(8);
+    expect(syncBundledFiles(runtime).added).toHaveLength(9);
 
     const list = await owner('GET', '/api/agent-files');
     expect(list.status).toBe(200);
@@ -148,6 +148,7 @@ describe('agent files over the owner API (T153)', () => {
       'skill:docket-delivery',
       'skill:docket-lead-subagents',
       'skill:docket-planner',
+      'skill:docket-producer',
       'skill:docket-review-packet',
       'skill:docket-worker',
       'agents_block',

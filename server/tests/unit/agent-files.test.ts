@@ -147,7 +147,7 @@ describe('bundled loading (startup)', () => {
     ]);
   });
 
-  it('reads the six skills, the AGENTS.md block and the onboarding guide from the checkout (the image layout)', () => {
+  it('reads the seven skills, the AGENTS.md block and the onboarding guide from the checkout (the image layout)', () => {
     const { files, problems } = readBundledFiles(DEFAULT_BUNDLED_ROOT);
     expect(problems).toEqual([]);
     expect(files.map((f) => f.key).sort()).toEqual([
@@ -157,6 +157,7 @@ describe('bundled loading (startup)', () => {
       'skill:docket-delivery',
       'skill:docket-lead-subagents',
       'skill:docket-planner',
+      'skill:docket-producer',
       'skill:docket-review-packet',
       'skill:docket-worker',
     ]);
@@ -206,7 +207,7 @@ describe('bundled loading (startup)', () => {
   it('syncBundledFiles loads the checkout into a runtime, then is a no-op', () => {
     const lines: string[] = [];
     const rt = { ...d.server.runtime, log: (l: string) => lines.push(l) };
-    expect(syncBundledFiles(rt).added).toHaveLength(8);
+    expect(syncBundledFiles(rt).added).toHaveLength(9);
     expect(syncBundledFiles(rt).added).toEqual([]);
     expect(lines).toEqual([]);
   });
