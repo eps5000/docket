@@ -1014,6 +1014,14 @@
 .tl .epicready.not_ready {
   color: var(--text);
 }
+/* Decision 64: one line, only while bugs in the epic are open. */
+.tl .epicrelease {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text);
+}
 .tl .pbar {
   height: 10px;
   border-radius: 5px;

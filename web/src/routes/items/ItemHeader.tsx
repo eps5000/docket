@@ -1,7 +1,13 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useId, useState } from 'react';
 import { Link } from 'react-router';
-import { PRIORITIES, type ItemDetailResponse, type Priority } from '@docket/shared';
+import {
+  PRIORITIES,
+  STATUS_LABELS,
+  waitingOnBugsText,
+  type ItemDetailResponse,
+  type Priority,
+} from '@docket/shared';
 import {
   BlockedChip,
   WaitChip,
@@ -9,6 +15,7 @@ import {
   Chip,
   EpicDepsLine,
   EpicReadinessLine,
+  EpicReleaseLine,
   Label,
   Provenance,
   Skeleton,
@@ -20,6 +27,7 @@ import { queryKeys } from '../../lib/api';
 import { paths } from '../../lib/paths';
 import { runOwnerMutation, showToast } from '../../lib/undo';
 import { CancelMenu } from './CancelItem';
+import { FinishLineControl } from './FinishLineControl';
 import { InlineTextEdit } from './InlineEdit';
 
 /** Closed provenance on done items (UI_SPEC §6.3 header, second line). */
@@ -234,7 +242,44 @@ export function ItemHeader({ id, data }: { id: string; data?: ItemDetailResponse
         </div>
         {epic && data?.epic_waits && <EpicDepsLine waits={data.epic_waits} />}
         {epic && data?.epic_readiness && <EpicReadinessLine readiness={data.epic_readiness} />}
+        {/* Decision 64: the finish line and the open bugs holding it, or "No finish line". */}
+        {epic && data?.finish_line && <EpicReleaseLine line={data.finish_line} />}
+        {epic && data?.finish_line && <FinishLineControl data={data} />}
+        {data?.release_hold && <ReleaseHoldLine hold={data.release_hold} />}
+        {item.type === 'Bug' && open && item.epic && (
+          <div className="src release-hold" data-bug-holds={item.epic}>
+            <span aria-hidden="true">⚑</span> While it’s open, this bug holds{' '}
+            <Link className="mono" to={paths.item(item.epic)}>
+              {item.epic}
+            </Link>
+            ’s release: fix it, move it to another epic as a follow-up, or cancel it with a reason.
+          </div>
+        )}
       </div>
+    </div>
+  );
+}
+
+/** Decision 64: on an epic's finish line, the open bugs in the epic that hold it. */
+function ReleaseHoldLine({ hold }: { hold: NonNullable<ItemDetailResponse['release_hold']> }) {
+  return (
+    <div className="src release-hold" data-release-hold={hold.open_bugs.length}>
+      <span aria-hidden="true">⚑</span> <b>{waitingOnBugsText(hold.open_bugs.length)}</b>: this is{' '}
+      <Link className="mono" to={paths.item(hold.epic)}>
+        {hold.epic}
+      </Link>
+      ’s finish line, so it can’t move to Review or Done while{' '}
+      {hold.open_bugs.map((b, i) => (
+        <span key={b.id}>
+          {i > 0 && ', '}
+          <Link className="mono" to={paths.item(b.id)} title={b.title}>
+            {b.id}
+          </Link>{' '}
+          ({STATUS_LABELS[b.status]})
+        </span>
+      ))}{' '}
+      {hold.open_bugs.length === 1 ? 'is' : 'are'} open. For each: fix it, move it to another epic
+      as a follow-up, or cancel it with a reason.
     </div>
   );
 }

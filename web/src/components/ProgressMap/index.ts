@@ -5,7 +5,7 @@
  */
 export type { CriticalOverlay } from './ProgressMap';
 export { ProgressMap, outsideLabel } from './ProgressMap';
-export type { ProgressMapProps } from './ProgressMap';
+export type { ProgressMapProps, MapRelease } from './ProgressMap';
 export { MapCard, reviewMark } from './MapCard';
 export type { MapCardProps } from './MapCard';
 export { layoutMap, cyclesIn, cyclePath, stepZoom, fitZoom, ZOOM_STEPS, FIT_MIN } from './layout';

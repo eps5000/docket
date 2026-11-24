@@ -11,6 +11,10 @@
  * - **Cycle:** members of a `blocks` cycle inside the scope can't be placed
  *   in a wave; they get their own column, and the links between them aren't
  *   drawn (the Dependencies tab fixes them).
+ * - **Bugs (decision 64, with `bugs`):** a bug with no drawn link is not
+ *   starting work: it holds the epic's release, so it stacks in a Bugs column
+ *   instead of Wave 1, with no arrows. A bug in the chain (a ticket waits on
+ *   it, or it waits on one) stays in its wave and `chainBugs` names it.
  */
 import type { ItemSummary, ItemWait, LinkEdge, Status, WaitKind } from '@docket/shared';
 
@@ -39,6 +43,10 @@ export interface MapLayout {
   outside: MapItem[];
   waves: MapItem[][];
   cycle: MapItem[];
+  /** Decision 64: bugs with no drawn link, for the Bugs column (empty without `bugs`). */
+  bugs: MapItem[];
+  /** Decision 64: bugs drawn in their wave because they're part of the chain. */
+  chainBugs: ReadonlySet<string>;
   edges: MapEdge[];
   counts: {
     total: number;
@@ -162,6 +170,8 @@ export function layoutMap(
   links: readonly LinkEdge[],
   /** Critical-path tickets the view doesn't include: placed in waves, left out of the counts. */
   extras: readonly MapItem[] = [],
+  /** Decision 64: an epic's map stacks its unlinked bugs in a Bugs column. */
+  opts: { bugs?: boolean } = {},
 ): MapLayout {
   const blocks = links.filter((l) => l.type === 'blocks');
   const extraIds = new Set(extras.map((i) => i.id));
@@ -193,14 +203,28 @@ export function layoutMap(
     depth.set(id, d);
     return d;
   };
+  // Decision 64: bugs with no drawn link (inside the scope or from outside) leave the waves.
+  const outsideKnown = new Set(outsideItems.map((i) => i.id));
+  const linked = new Set<string>();
+  for (const l of blocks) {
+    if (!placedIds.has(l.to)) continue;
+    if (placedIds.has(l.from) || outsideKnown.has(l.from)) {
+      linked.add(l.from);
+      linked.add(l.to);
+    }
+  }
+  const isBug = (i: MapItem) => opts.bugs === true && i.type === 'Bug' && !extraIds.has(i.id);
+  const bugIds = new Set(placed.filter((i) => isBug(i) && !linked.has(i.id)).map((i) => i.id));
+  const chainBugs = new Set(placed.filter((i) => isBug(i) && linked.has(i.id)).map((i) => i.id));
   const waves: MapItem[][] = [];
   for (const i of placed) {
-    if (cycleIds.has(i.id)) continue;
+    if (cycleIds.has(i.id) || bugIds.has(i.id)) continue;
     const d = depthOf(i.id);
     (waves[d] ??= []).push(i);
   }
   const denseWaves = waves.filter((w) => w && w.length > 0).map((w) => w.sort(byCard));
   const cycle = placed.filter((i) => cycleIds.has(i.id)).sort(byCard);
+  const bugs = placed.filter((i) => bugIds.has(i.id)).sort(byCard);
 
   const outsideById = new Map(outsideItems.map((i) => [i.id, i]));
   const outsideIds = new Set(
@@ -228,6 +252,8 @@ export function layoutMap(
     outside,
     waves: denseWaves,
     cycle,
+    bugs,
+    chainBugs,
     edges,
     counts: {
       total: counted.length,
