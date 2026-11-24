@@ -110,9 +110,8 @@ export function createRuntime(opts: RuntimeOptions = {}): Runtime {
       if (closed) return;
       closed = true;
       bus.emit('close');
-      // B52: in-flight git stops before the database it would write to closes.
+      // B52: a radar run in flight stops before the database it would write to closes.
       await services.sharedChanges.stopRadar();
-      await services.recovery.stopWorktreeScans();
       await this.mcp.close();
       db.sqlite.close();
     },

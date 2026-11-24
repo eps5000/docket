@@ -3,7 +3,8 @@
  * tasks.md T185; spec US18; UI_SPEC §6.3.6), against the seeded instance:
  *
  * - Settings → Projects → Shared parts: the registry (*Add a part*) and the
- *   radar card (a fixture repo created inside the container's push folder);
+ *   radar card (B76: a fixture repo on this machine, read by the real helper's
+ *   git source, which the spec runs and posts as the installed helper would);
  * - an overlap: an agent's refused claim raises the Needs you card, the Work
  *   card shows "overlap", and *They're compatible* lets the claim through;
  * - an undeclared hold: a packet whose changed files touch an undeclared part
@@ -17,7 +18,7 @@
  * axe is clean in both themes on each screen. Set DOCKET_E2E_SCREENSHOTS to a
  * folder to also capture the PR's light and dark screenshots.
  */
-import { execFileSync } from 'node:child_process';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Locator, Page } from '@playwright/test';
 import { baseURL } from './container';
@@ -31,14 +32,14 @@ import {
   unlock,
   useSeededContainer,
 } from './fixtures/index';
-import { CONTAINER } from './fixtures/container';
+import { hostFolder, hostGit, hostGitPass } from './fixtures/host-git';
 import type { McpAgent } from './fixtures/mcp';
 
 useSeededContainer();
 test.describe.configure({ mode: 'serial' });
 
-const ROOT = '/tmp/host-code';
-const REPO = 'recipe-radar';
+const host = hostFolder('docket-e2e-radar-');
+const REPO = `${host.dir}/recipe-radar`;
 const out = process.env.DOCKET_E2E_SCREENSHOTS;
 
 async function shoot(page: Page, name: string, target?: Locator) {
@@ -52,35 +53,26 @@ async function shoot(page: Page, name: string, target?: Locator) {
   await setTheme(page, 'light');
 }
 
-function sh(script: string): string {
-  return execFileSync('docker', ['exec', CONTAINER, 'sh', '-c', script], {
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-}
+const g = (cwd: string, ...args: string[]) => hostGit(cwd, host.dir, ...args);
 
 /** Two worktree branches that both change line 2 of shared.txt: they conflict. */
 function makeFixtureRepo() {
-  sh(
-    [
-      'set -e',
-      `rm -rf ${ROOT}/${REPO} ${ROOT}/wt-a ${ROOT}/wt-b`,
-      `mkdir -p ${ROOT}/${REPO}`,
-      `cd ${ROOT}/${REPO}`,
-      'G="git -c user.name=e2e -c user.email=e2e@docket.invalid -c commit.gpgsign=false"',
-      '$G init -q -b main',
-      "printf 'one\\ntwo\\nthree\\n' > shared.txt",
-      '$G add shared.txt',
-      '$G commit -q -m start',
-      '$G branch feat/a',
-      '$G branch feat/b',
-      '$G worktree add -q ../wt-a feat/a',
-      '$G worktree add -q ../wt-b feat/b',
-      "cd ../wt-a && printf 'one\\ntwo from a\\nthree\\n' > shared.txt && $G commit -qam a",
-      "cd ../wt-b && printf 'one\\ntwo from b\\nthree\\n' > shared.txt && $G commit -qam b",
-    ].join('\n'),
-  );
+  mkdirSync(REPO, { recursive: true });
+  g(REPO, 'init', '-q', '-b', 'main');
+  writeFileSync(join(REPO, 'shared.txt'), 'one\ntwo\nthree\n');
+  g(REPO, 'add', 'shared.txt');
+  g(REPO, 'commit', '-q', '-m', 'start');
+  for (const b of ['a', 'b']) {
+    const wt = `${host.dir}/wt-${b}`;
+    g(REPO, 'branch', `feat/${b}`);
+    g(REPO, 'worktree', 'add', '-q', wt, `feat/${b}`);
+    writeFileSync(join(wt, 'shared.txt'), `one\ntwo from ${b}\nthree\n`);
+    g(wt, 'commit', '-qam', b);
+  }
 }
+
+/** B76: the helper on the host reads the repository and posts what it found. */
+const helperPass = (page: Page) => hostGitPass(page.request, host.dir);
 
 /** The owner's API from the unlocked page's context (cookies and the CSRF header). */
 async function owner(page: Page, method: 'GET' | 'POST' | 'PUT', path: string, data?: unknown) {
@@ -124,7 +116,7 @@ test.afterAll(async () => {
   test.setTimeout(120_000);
   await codex?.close();
   try {
-    sh(`rm -rf ${ROOT}/${REPO} ${ROOT}/wt-a ${ROOT}/wt-b`);
+    host.remove();
   } finally {
     await resetSeededContainer();
   }
@@ -177,12 +169,17 @@ test('Settings → Shared parts: register parts and point the radar at a reposit
     table.locator('[data-part="file:server/src/db/migrations/meta/_journal.json"]'),
   ).toContainText('single-writer');
 
-  // The radar: off until a repository is set, then idle.
+  // The radar: off until a repository is set, then waiting for the helper, then idle.
   const radar = page.locator('[data-card="radar"]');
   await expect(radar).toContainText('Radar off: no repository');
-  await radar.getByLabel('Repository folder (inside the push folder)').fill(REPO);
+  await radar.getByLabel('Repository folder on this computer').fill(REPO);
   await radar.getByRole('button', { name: 'Save' }).click();
   await expect(toast(page, 'Saved the radar settings.')).toBeVisible();
+  await expect(radar.locator('[data-radar-helper="waiting"]')).toContainText(
+    'Waiting for the host helper.',
+  );
+  await helperPass(page);
+  await page.reload();
   await expect(radar.getByText('Not run yet', { exact: true })).toBeVisible();
   await settle(page);
   await expectAxeClean(page, 'Settings → Shared parts');
@@ -293,6 +290,7 @@ test('the item’s Shared changes: declaration, lease with Release lease, and a 
   expect(lease.isError, lease.text).toBe(false);
 
   // Run the radar: RCP-17 (feat/a) and RCP-25 (feat/b) both change shared.txt line 2.
+  await helperPass(page);
   await page.goto('/settings/projects/RCP/shared-parts');
   const radar = page.locator('[data-card="radar"]');
   await radar.getByRole('button', { name: 'Run radar now' }).click();
@@ -354,16 +352,8 @@ test('B40, B41: the item’s branches: found by the radar, several matching, Add
 }) => {
   // RCP-14 and RCP-15 are In progress with no reported branch. One local branch names
   // RCP-14; two name RCP-15 (in either case, with or without the hyphen).
-  sh(
-    [
-      'set -e',
-      `cd ${ROOT}/${REPO}`,
-      'G="git -c user.name=e2e -c user.email=e2e@docket.invalid -c commit.gpgsign=false"',
-      '$G branch rcp-14-week-plan main',
-      '$G branch rcp-15-a main',
-      '$G branch RCP15-b main',
-    ].join('\n'),
-  );
+  for (const b of ['rcp-14-week-plan', 'rcp-15-a', 'RCP15-b']) g(REPO, 'branch', b, 'main');
+  await helperPass(page);
   await owner(page, 'POST', '/api/projects/RCP/radar/run', {});
 
   const section = page.locator('section[data-section="shared"]');
@@ -406,6 +396,7 @@ test('B40, B41: the item’s branches: found by the radar, several matching, Add
   await settle(page);
   await expectAxeClean(page, 'item Details, two reported branches');
   await shoot(page, 'branches-reported', section);
+  await helperPass(page);
   await owner(page, 'POST', '/api/projects/RCP/radar/run', {});
   const shared = (await owner(page, 'GET', '/api/items/RCP-15/shared')) as {
     branches: { reported: { name: string; reported_by: string }[] };

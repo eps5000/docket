@@ -29,7 +29,9 @@ import {
   makeEpicRepo,
   makeRadarRepo,
 } from '../fixtures/radar-repo.js';
-import { probeRepo, RadarGit } from '../../src/domain/radar.js';
+import { hostGitFactsFor } from '../../src/domain/host-git.js';
+import { RADAR_OFF_UNREADABLE } from '../../src/domain/radar.js';
+import { gitSettings, hostGitPass } from '../host-git.js';
 import { insertItem, insertProject, tempDir } from '../helpers.js';
 import { ORIGIN, parseSetCookies } from '../integration/harness.js';
 import {
@@ -54,6 +56,14 @@ type S = Record<string, unknown>;
 const sql = () => h!.server.runtime.db.sqlite;
 /** Whether the git CLI is on PATH (the radar test needs it). */
 const HAS_GIT = spawnSync('git', ['--version'], { windowsHide: true }).status === 0;
+
+/** B76: the trial merges of two items' branches the helper last sent for a project. */
+function gitPairs(server: ContractHarness['server'], key: string): Record<string, unknown> {
+  const p = server.runtime.db.sqlite
+    .prepare('SELECT repo_path, main_branch FROM projects WHERE key = ?')
+    .get(key) as { repo_path: string | null; main_branch: string };
+  return hostGitFactsFor(server.runtime.db, { key, ...p })?.pairs ?? {};
+}
 const count = (q: string, ...params: unknown[]) =>
   (
     sql()
@@ -450,6 +460,7 @@ describe('the owner API (UI_SPEC §6.3.6)', () => {
       off_reason: 'Radar off: no repository',
       last_run_at: null,
       last_duration_ms: null,
+      helper: { state: 'none', checked_at: null },
       findings: [],
     });
     for (const [path, body] of [
@@ -1252,40 +1263,44 @@ describe('the conflict radar (FR-163; T184)', () => {
   // CI's no-network contract run uses a bare node image without git; the main test step
   // (and every developer machine) has it and runs the read-only proof.
   it.skipIf(!HAS_GIT)(
-    'the radar trial-merges in-flight branches with merge-tree and a temporary object directory, leaving .git unchanged',
+    'B76: the helper trial-merges in-flight branches read-only and Docket judges from its facts',
     async () => {
       tmp = tempDir('docket-radar-');
       const fixture = makeRadarRepo(tmp.dir);
-      mkdirSync(join(tmp.dir, 'not-a-repo'));
-      h = await askEveryHarness({ env: { DOCKET_PUSH_ROOT: tmp.dir } });
+      const notRepo = join(tmp.dir, 'not-a-repo');
+      mkdirSync(notRepo);
+      // B76: no DOCKET_PUSH_ROOT: Docket doesn't need the folder to read.
+      h = await askEveryHarness();
       const api = await owner();
+      const pass = () => hostGitPass(h!.server, { home: tmp!.dir });
 
-      // Settings: inside DOCKET_PUSH_ROOT only; a bad branch name is refused.
+      // Settings: a full path on the host; a relative path or a bad branch name is refused.
       expect(
         (await api('PUT', '/api/projects/RCP/radar', { repo_path: '../elsewhere' })).status,
       ).toBe(400);
-      expect((await api('PUT', '/api/projects/RCP/radar', { repo_path: '/etc' })).status).toBe(400);
       expect((await api('PUT', '/api/projects/RCP/radar', { repo_path: 'nope' })).status).toBe(400);
       expect(
         (
           await api('PUT', '/api/projects/RCP/radar', {
-            repo_path: 'recipe-app',
+            repo_path: fixture.repo,
             main_branch: '-x',
           })
         ).status,
       ).toBe(400);
       const set = await api('PUT', '/api/projects/RCP/radar', {
-        repo_path: 'recipe-app',
+        repo_path: fixture.repo,
         main_branch: 'main',
       });
       expect(set.status).toBe(200);
+      // Until the helper reports, the radar waits for it and decides nothing.
       expect(set.body.radar).toMatchObject({
-        repo_path: 'recipe-app',
-        state: 'idle',
+        repo_path: fixture.repo,
+        state: 'waiting',
         off_reason: null,
+        helper: { state: 'none', checked_at: null },
       });
       expect(events('project.updated').at(-1)!.summary).toBe(
-        'You set the conflict radar for RCP to read recipe-app (main branch main)',
+        `You set the conflict radar for RCP to read ${fixture.repo} (main branch main)`,
       );
 
       // Two items in flight on worktree branches; the branch comes from claim_lead.
@@ -1295,11 +1310,22 @@ describe('the conflict radar (FR-163; T184)', () => {
       // B41: an agent reports its branch with its declaration.
       expectOk(await declare({ id: c.id, none: true, branches: ['feat/c'] }));
 
+      const waiting = await api('POST', '/api/projects/RCP/radar/run', {});
+      expect(waiting.body.radar).toMatchObject({ state: 'waiting', findings: [] });
+
+      // What Docket asks the helper for: the items, their branches, and nothing else secret.
+      const asked = (gitSettings(h.server).projects as Record<string, unknown>[])[0]!;
+      expect(asked).toMatchObject({ key: 'RCP', main_branch: 'main' });
+      expect((asked.items as { id: string; branches: string[] }[]).map((i) => i.branches)).toEqual(
+        expect.arrayContaining([['feat/a'], ['feat/b'], ['feat/c']]),
+      );
+
       const before = hashGitDir(fixture.repo);
-      const run = await api('POST', '/api/projects/RCP/radar/run', {});
-      expect(run.status).toBe(200);
+      await pass();
       // Read-only: every file under .git is byte-for-byte the same.
       expect(hashGitDir(fixture.repo)).toEqual(before);
+      const run = await api('POST', '/api/projects/RCP/radar/run', {});
+      expect(run.status).toBe(200);
 
       const radar = run.body.radar as { state: string; last_run_at: string; findings: S[] };
       expect(radar.state).toBe('ok');
@@ -1360,10 +1386,17 @@ describe('the conflict radar (FR-163; T184)', () => {
       const n = count('SELECT count(*) AS n FROM events');
       await radarRunOnce(h.server.runtime, 'RCP');
       expect(count('SELECT count(*) AS n FROM events')).toBe(n);
-      expect(hashGitDir(fixture.repo)).toEqual(before);
 
-      // feat/b goes back to main: both findings clear.
+      // feat/b goes back to main. Until the helper reads it again, nothing clears; once its
+      // facts are older than three passes they're stale, which is never clear either.
       git(fixture.worktrees['feat/b'], 'reset', '-q', '--hard', 'main');
+      h.server.clock.advance(11 * 60_000);
+      const stale = await api('POST', '/api/projects/RCP/radar/run', {});
+      expect(stale.body.radar).toMatchObject({ state: 'stale', helper: { state: 'stale' } });
+      expect((stale.body.radar as { findings: unknown[] }).findings).toHaveLength(2);
+      expect(events('radar.cleared')).toEqual([]);
+
+      await pass();
       const cleared = await api('POST', '/api/projects/RCP/radar/run', {});
       expect((cleared.body.radar as { findings: unknown[] }).findings).toEqual([]);
       expect(
@@ -1376,13 +1409,11 @@ describe('the conflict radar (FR-163; T184)', () => {
         'No longer heading for a conflict with main · feat/b vs main',
       ]);
 
-      // A folder that isn't a repository: "Radar off: no repository"; turning it off too.
-      await api('PUT', '/api/projects/RCP/radar', { repo_path: 'not-a-repo' });
+      // A folder the helper can't read as a repository: the radar says so; turning it off too.
+      await api('PUT', '/api/projects/RCP/radar', { repo_path: notRepo });
+      await pass();
       const off = await api('POST', '/api/projects/RCP/radar/run', {});
-      expect(off.body.radar).toMatchObject({
-        state: 'off',
-        off_reason: 'Radar off: no repository',
-      });
+      expect(off.body.radar).toMatchObject({ state: 'off', off_reason: RADAR_OFF_UNREADABLE });
       const none = await api('PUT', '/api/projects/RCP/radar', { repo_path: null });
       expect(none.body.radar).toMatchObject({
         repo_path: null,
@@ -1391,20 +1422,40 @@ describe('the conflict radar (FR-163; T184)', () => {
       });
     },
     30_000,
-  ); // git runs in a child process; slow under a full parallel run
+  ); // the helper's git runs in a child process; slow under a full parallel run
 
-  it('without DOCKET_PUSH_ROOT the radar settings are refused and the card stays off', async () => {
+  it('B76: without DOCKET_PUSH_ROOT a full host path is accepted and the card waits for the helper', async () => {
     h = await askEveryHarness();
     const api = await owner();
-    const res = await api('PUT', '/api/projects/RCP/radar', { repo_path: 'recipe-app' });
-    expect(res.status).toBe(400);
-    expect((res.body.error as S).message).toContain('DOCKET_PUSH_ROOT');
+    const relative = await api('PUT', '/api/projects/RCP/radar', { repo_path: 'recipe-app' });
+    expect(relative.status).toBe(400);
+    expect((relative.body.error as S).message).toContain('full path on this computer');
+    const res = await api('PUT', '/api/projects/RCP/radar', {
+      repo_path: 'C:/Users/sample/code/recipe-app',
+    });
+    expect(res.status).toBe(200);
     const run = await api('POST', '/api/projects/RCP/radar/run', {});
     expect(run.body.radar).toMatchObject({
-      state: 'off',
-      off_reason: 'Radar off: no repository',
+      state: 'waiting',
+      helper: { state: 'none', checked_at: null },
       findings: [],
     });
+    // The helper is asked to read it on the host, by that path.
+    expect(gitSettings(h.server)).toMatchObject({
+      enabled: true,
+      projects: [{ key: 'RCP', host_path: 'C:/Users/sample/code/recipe-app' }],
+    });
+  });
+
+  it('B76: with DOCKET_PUSH_ROOT but no host mapping, a folder inside it is refused', async () => {
+    tmp = tempDir('docket-radar-root-');
+    h = await askEveryHarness({ env: { DOCKET_PUSH_ROOT: tmp.dir } });
+    const api = await owner();
+    const res = await api('PUT', '/api/projects/RCP/radar', {
+      repo_path: `${tmp.dir.replace(/\\/g, '/')}/recipe-app`,
+    });
+    expect(res.status).toBe(400);
+    expect((res.body.error as S).message).toContain('DOCKET_PUSH_HOST_PATH');
   });
 });
 
@@ -1427,7 +1478,7 @@ describe('B40: the radar sees in-flight branches', () => {
     async () => {
       tmp = tempDir('docket-radar-b40-');
       const { repo } = makeBranchRepo(tmp.dir);
-      h = await askEveryHarness({ env: { DOCKET_PUSH_ROOT: tmp.dir } });
+      h = await askEveryHarness();
       const api = await owner();
       const db = h.server.runtime.db;
       insertProject(db, 'GF');
@@ -1436,7 +1487,7 @@ describe('B40: the radar sees in-flight branches', () => {
       }
       sql().prepare("UPDATE items SET jira_key = 'GAMEFLOW-280' WHERE id = 'GF-280'").run();
       expect(
-        (await api('PUT', '/api/projects/GF/radar', { repo_path: 'gf-app', main_branch: 'main' }))
+        (await api('PUT', '/api/projects/GF/radar', { repo_path: repo, main_branch: 'main' }))
           .status,
       ).toBe(200);
       const branch = async (id: string) =>
@@ -1455,6 +1506,7 @@ describe('B40: the radar sees in-flight branches', () => {
       expect(await branch('GF-239')).toEqual({ reported: [], discovered: null, matches: [] });
 
       const before = hashGitDir(repo);
+      await hostGitPass(h.server, { home: tmp!.dir });
       const run = await api('POST', '/api/projects/GF/radar/run', {});
       expect(run.status).toBe(200);
       // Read-only: every file under .git (worktrees' admin folders included) is unchanged.
@@ -1529,6 +1581,7 @@ describe('B40: the radar sees in-flight branches', () => {
           .status,
       ).toBe(400);
 
+      await hostGitPass(h.server, { home: tmp!.dir });
       const second = await api('POST', '/api/projects/GF/radar/run', {});
       expect(hashGitDir(repo)).toEqual(before);
       // spike/shell-rework is clean, so GF-239's finding clears; gf-281-a (reported) conflicts.
@@ -1555,6 +1608,7 @@ describe('B40: the radar sees in-flight branches', () => {
       expect(events('branch.reported', 'GF-239').at(-1)!.summary).toBe(
         "You removed spike/shell-rework from GF-239's branches; the radar looks for one",
       );
+      await hostGitPass(h.server, { home: tmp!.dir });
       const third = await api('POST', '/api/projects/GF/radar/run', {});
       expect(findings(third.body.radar as S)).toEqual(
         expect.arrayContaining([
@@ -1600,14 +1654,14 @@ describe('B41: several branches per item', () => {
     async () => {
       tmp = tempDir('docket-radar-b41-');
       const { repo } = makeEpicRepo(tmp.dir);
-      h = await askEveryHarness({ env: { DOCKET_PUSH_ROOT: tmp.dir } });
+      h = await askEveryHarness();
       const api = await owner();
       const db = h.server.runtime.db;
       insertProject(db, 'GF');
       insertItem(db, { id: 'GF-217', status: 'progress' });
       insertItem(db, { id: 'GF-235', status: 'progress' });
       expect(
-        (await api('PUT', '/api/projects/GF/radar', { repo_path: 'gf-epics', main_branch: 'main' }))
+        (await api('PUT', '/api/projects/GF/radar', { repo_path: repo, main_branch: 'main' }))
           .status,
       ).toBe(200);
       const branches = async (id: string) =>
@@ -1637,6 +1691,7 @@ describe('B41: several branches per item', () => {
       expect(await names('GF-235')).toEqual(['gf-235-b']);
 
       const before = hashGitDir(repo);
+      await hostGitPass(h.server, { home: tmp!.dir });
       const run = await api('POST', '/api/projects/GF/radar/run', {});
       expect(run.status).toBe(200);
       // Read-only: every file under .git (worktrees' admin folders included) is unchanged.
@@ -1647,16 +1702,9 @@ describe('B41: several branches per item', () => {
       expect(findings(run.body.radar as S)).toEqual([
         ['gf-217-api', 'gf-235-b', 'GF-217', 'GF-235', ['shared.txt']],
       ]);
-      const probe = await probeRepo(repo);
-      if (!probe.ok) throw new Error('fixture is not a repository');
-      const g = await RadarGit.open(repo, probe.objects);
-      try {
-        expect(await g.merge('refs/heads/gf-217-api', 'refs/heads/gf-217-web')).toEqual([
-          'api.txt',
-        ]);
-      } finally {
-        await g.close();
-      }
+      // B41: the helper never trial-merges two branches of one item, so it sends no such pair.
+      const pairs = gitPairs(h.server, 'GF');
+      expect(Object.keys(pairs)).toEqual(['gf-217-api\u0000gf-235-b']);
       expect(hashGitDir(repo)).toEqual(before);
       expect(events('radar.found', 'GF-217').map((e) => e.summary)).toEqual([
         'Heading for a conflict with GF-235: 1 file · gf-217-api vs gf-235-b',
@@ -1690,6 +1738,7 @@ describe('B41: several branches per item', () => {
       expect(events('branch.reported', 'GF-217').at(-1)!.summary).toBe(
         "claude reported GF-217's branch: gf-217-web",
       );
+      await hostGitPass(h.server, { home: tmp!.dir });
       const second = await api('POST', '/api/projects/GF/radar/run', {});
       expect(findings(second.body.radar as S)).toEqual([]);
       expect(events('radar.cleared', 'GF-217').map((e) => e.summary)).toEqual([
@@ -1706,6 +1755,7 @@ describe('B41: several branches per item', () => {
       expect(events('branch.reported', 'GF-217').at(-1)!.summary).toBe(
         "claude cleared GF-217's branches; the radar looks for one",
       );
+      await hostGitPass(h.server, { home: tmp!.dir });
       await api('POST', '/api/projects/GF/radar/run', {});
       expect(await branches('GF-217')).toEqual({
         reported: [],
@@ -1716,6 +1766,7 @@ describe('B41: several branches per item', () => {
       // branch is a list of one: it replaces the set too, and the conflict is back.
       expectOk(await declare({ id: 'GF-217', none: true, branch: 'gf-217-api' }));
       expect(await names('GF-217')).toEqual(['gf-217-api']);
+      await hostGitPass(h.server, { home: tmp!.dir });
       const third = await api('POST', '/api/projects/GF/radar/run', {});
       expect(findings(third.body.radar as S)).toEqual([
         ['gf-217-api', 'gf-235-b', 'GF-217', 'GF-235', ['shared.txt']],

@@ -56,6 +56,7 @@ import {
   radarTriggers,
   type RadarRunResult,
 } from '../domain/radar.js';
+import { hostGitPasses } from '../domain/host-git.js';
 import { planRunActivity } from '../domain/run-activity.js';
 import {
   applyWaitCheck,
@@ -72,6 +73,8 @@ export const SWEEP_MS = 15_000;
 export const PING_MS = 60_000;
 /** How long a ping may take before it doesn't count. */
 export const PING_TIMEOUT_MS = 10_000;
+/** B76: how often the radar looks for a new pass of git facts from the host helper. */
+export const RADAR_FACTS_MS = 30_000;
 /** Decision 42: how often parked and silent runs are checked for newer activity. */
 export const RUN_ACTIVITY_MS = 120_000;
 /** B52: after the listener is up, and after the radar's first pass has started. */
@@ -478,6 +481,8 @@ export function startRadar(
     debounceMs?: number | null;
     minGapMs?: number;
     firstMs?: number;
+    /** B76: how often to look for a new pass from the host helper; null turns it off. */
+    factsMs?: number | null;
   } = {},
 ): Sweeper {
   const interval = opts.intervalMs === undefined ? RADAR_INTERVAL_MS : opts.intervalMs;
@@ -507,8 +512,10 @@ export function startRadar(
           again.add(key);
         }
         const unread = run.plan.unknown;
-        if (unread.all || unread.branches.length + unread.pairs.length + unread.items.length > 0) {
-          runtime.log(`radar: ${key}: some git reads timed out; their findings are unchanged`);
+        if (unread.branches.length + unread.pairs.length + unread.items.length > 0) {
+          runtime.log(
+            `radar: ${key}: the helper's facts don't answer everything; those findings are unchanged`,
+          );
         }
       } catch (err) {
         if (!stopped) {
@@ -516,7 +523,7 @@ export function startRadar(
         }
       }
       if (stopped) return;
-      // Decision 41: what ended runs really left behind, with the same read-only git.
+      // Decision 41: what ended runs really left behind, from the helper's facts.
       try {
         await checkProjectWorktrees(
           runtime.db,
@@ -579,6 +586,33 @@ export function startRadar(
     }
   };
   if (debounce) runtime.bus.on('change', onChange);
+  // B76: the radar judges from the helper's facts, so a new pass is worth a run soon.
+  // What's there at startup is covered by the first scheduled pass.
+  let passes = new Map<string, string>();
+  try {
+    passes = hostGitPasses(runtime.db);
+  } catch {
+    // A first look that fails just means the next one schedules everything it sees.
+  }
+  const factsMs = opts.factsMs === undefined ? RADAR_FACTS_MS : opts.factsMs;
+  const watch =
+    factsMs && debounce
+      ? setInterval(() => {
+          if (stopped) return;
+          try {
+            for (const [key, pass] of hostGitPasses(runtime.db)) {
+              if (passes.get(key) === pass) continue;
+              passes.set(key, pass);
+              schedule(key);
+            }
+          } catch (err) {
+            runtime.log(
+              `radar: facts check failed: ${err instanceof Error ? err.message : String(err)}`,
+            );
+          }
+        }, factsMs)
+      : null;
+  watch?.unref();
   const first = interval ? setTimeout(() => void tick(), opts.firstMs ?? RADAR_FIRST_MS) : null;
   first?.unref();
   const timer = interval ? setInterval(() => void tick(), interval) : null;
@@ -588,6 +622,7 @@ export function startRadar(
       stopped = true;
       if (first) clearTimeout(first);
       if (timer) clearInterval(timer);
+      if (watch) clearInterval(watch);
       for (const t of pending.values()) clearTimeout(t);
       pending.clear();
       runtime.bus.off('change', onChange);
