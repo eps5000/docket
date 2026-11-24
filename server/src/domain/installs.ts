@@ -1032,7 +1032,8 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
     for (const { rel, sha256 } of plan.staleRefs) {
       const removed = await root.removeRecordedFile(base, rel, (b) => hashBytes(b) === sha256);
       const exists = removed || (await root.exists(base, rel));
-      if (exists) out.push({ path: layout.display + rel, change: removed ? 'removed' : 'kept_edited' });
+      if (exists)
+        out.push({ path: layout.display + rel, change: removed ? 'removed' : 'kept_edited' });
     }
     return out;
   }

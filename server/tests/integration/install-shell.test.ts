@@ -34,7 +34,8 @@ import {
   type InstructionsInput,
 } from '@docket/shared';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { syncBundledFiles } from '../../src/jobs/bundled.js';
+import { SYSTEM_ACTOR } from '../../src/domain/write.js';
+import { readBundledFiles, syncBundledFiles } from '../../src/jobs/bundled.js';
 import { insertProject, tempDir, type TempDir } from '../helpers.js';
 import { createTestServer, parseSetCookies, type TestServer } from './harness.js';
 
@@ -228,6 +229,15 @@ describe.each(Object.keys(SHELLS) as ShellName[])('the %s commands', (shell) => 
       const i1 = await run(shell, first.install, repo);
       expect(i1.status, i1.out).toBe(0);
       expect(i1.out).toContain('wrote .claude/skills/docket-worker/SKILL.md');
+      // Decision 66: each skill's references travel with it.
+      expect(i1.out).toContain('wrote .claude/skills/docket-worker/references/exit-reports.md');
+      expect(
+        existsSync(join(repo, '.claude/skills/docket-worker/references/exit-reports.md')),
+      ).toBe(true);
+      const count = readManifest(repo).files.length;
+      expect(
+        readManifest(repo).files.some((f) => f.key === 'skill:docket-worker--exit-reports'),
+      ).toBe(true);
       expect(i1.out).toContain('added the Docket section to the end of CLAUDE.md');
       const claude = readFileSync(join(repo, 'CLAUDE.md'));
       expect(claude.subarray(0, Buffer.byteLength(PRE)).equals(Buffer.from(PRE))).toBe(true);
@@ -259,7 +269,7 @@ describe.each(Object.keys(SHELLS) as ShellName[])('the %s commands', (shell) => 
       transcript.push(`## ${shell}: check`);
       const c1 = await run(shell, first.check, repo);
       expect(c1.status, c1.out).toBe(0);
-      expect(c1.out).toContain('Up to date: all 13 files match what Docket sent.');
+      expect(c1.out).toContain(`Up to date: all ${count} files match what Docket sent.`);
 
       // The installed docket-check (decision 30): every file listed by hash, no text.
       const manifest = readManifest(repo);
@@ -268,16 +278,30 @@ describe.each(Object.keys(SHELLS) as ShellName[])('the %s commands', (shell) => 
       expect(r1.install_id).toBe(manifest.install_id);
       // The connection file isn't reported to claim_lead (decision 32): only the push and copy-paste checks read it.
       expect(manifest.files.some((f) => f.key === 'connection')).toBe(true);
+      // Decision 66: an unchanged skill reference is left out, so a claim stays small.
       expect(r1.files).toEqual(
         manifest.files
-          .filter((f) => f.key !== 'connection' && !f.key.startsWith('script:'))
+          .filter(
+            (f) => f.key !== 'connection' && !f.key.startsWith('script:') && !f.key.includes('--'),
+          )
           .map((f) => ({ key: f.key, sha256: f.sha256 })),
       );
+      // An edited reference is reported with its text, like any file.
+      const refPath = join(repo, '.claude/skills/docket-worker/references/waiting.md');
+      const refBefore = readFileSync(refPath, 'utf8');
+      writeFileSync(refPath, `${refBefore}Our own waiting rule.\n`);
+      const rRef = await report(shell, repo);
+      expect(rRef.files.find((f) => f.key === 'skill:docket-worker--waiting')).toEqual({
+        key: 'skill:docket-worker--waiting',
+        sha256: sha256(`${refBefore}Our own waiting rule.\n`.replace(/\r/g, '')),
+        content: `${refBefore}Our own waiting rule.\n`.replace(/\r/g, ''),
+      });
+      writeFileSync(refPath, refBefore);
 
       // Another server's entry edited: not drift. The docket entry edited: drift.
       writeFileSync(join(repo, '.mcp.json'), mcp.replace('"gh-mcp"', '"gh-mcp2"'), 'latin1');
       const cOther = await run(shell, first.check, repo);
-      expect(cOther.out).toContain('Up to date: all 13 files match what Docket sent.');
+      expect(cOther.out).toContain(`Up to date: all ${count} files match what Docket sent.`);
       writeFileSync(
         join(repo, '.mcp.json'),
         mcp.replace(':' + port + '/mcp', ':9999/mcp'),
@@ -354,6 +378,39 @@ describe.each(Object.keys(SHELLS) as ShellName[])('the %s commands', (shell) => 
       const after = readFileSync(join(repo, 'CLAUDE.md'));
       expect(after.subarray(0, Buffer.byteLength(PRE)).equals(Buffer.from(PRE))).toBe(true);
       expect(after.toString('utf8').endsWith(`${DOCKET_END}\n`)).toBe(true);
+
+      // 5. Decision 66: Docket stops shipping two references. A reinstall removes the
+      // unmodified one (and keeps the edited one), and the new manifest lists neither.
+      const refs = join(repo, '.claude/skills/docket-worker/references');
+      const asking = join(refs, 'asking.md');
+      const local = `${readFileSync(asking, 'utf8')}\nOur own asking rule.\n`;
+      writeFileSync(asking, local);
+      const shipped = readBundledFiles(join(__dirname, '../../..')).files;
+      const dropped = ['skill:docket-worker--waiting', 'skill:docket-worker--asking'];
+      const sync = (files: typeof shipped) =>
+        s.runtime.write.run({ actor: SYSTEM_ACTOR, operation: 'test.sync', args: {} }, (w) =>
+          s.runtime.services.agentFiles.syncBundled(w, { files }),
+        );
+      sync(shipped.filter((f) => !dropped.includes(f.key)));
+      try {
+        const third = await install();
+        transcript.push(`## ${shell}: reinstall after two references are retired`);
+        const i3 = await run(shell, third.install, repo);
+        expect(i3.status, i3.out).toBe(0);
+        expect(i3.out).toContain(
+          'removed .claude/skills/docket-worker/references/waiting.md (Docket no longer ships it)',
+        );
+        expect(i3.out).toContain('kept .claude/skills/docket-worker/references/asking.md');
+        expect(existsSync(join(refs, 'waiting.md'))).toBe(false);
+        expect(readFileSync(asking, 'utf8')).toBe(local);
+        expect(existsSync(join(refs, 'exit-reports.md'))).toBe(true);
+        const keys = readManifest(repo).files.map((f) => f.key);
+        expect(keys).not.toContain(dropped[0]);
+        expect(keys).not.toContain(dropped[1]);
+        expect(keys).toContain('skill:docket-worker--exit-reports');
+      } finally {
+        sync(shipped);
+      }
     },
   );
 
@@ -392,11 +449,16 @@ describe.each(Object.keys(SHELLS) as ShellName[])('the %s commands', (shell) => 
         `${TOML}\n${connEntry('codex')}`,
       );
       const c = await run(shell, codex.check, repo);
-      expect(c.out).toContain('Up to date: all 13 files match what Docket sent.');
+      const count = (
+        JSON.parse(readFileSync(join(repo, '.codex/.docket-manifest.json'), 'utf8')) as {
+          files: unknown[];
+        }
+      ).files.length;
+      expect(c.out).toContain(`Up to date: all ${count} files match what Docket sent.`);
       // The docket table edited: drift; another table edited: not.
       const toml = readFileSync(join(repo, '.codex/config.toml'), 'latin1');
       writeFileSync(join(repo, '.codex/config.toml'), toml.replace('"gh"', '"gh2"'), 'latin1');
-      expect((await run(shell, codex.check, repo)).out).toContain('Up to date: all 13 files');
+      expect((await run(shell, codex.check, repo)).out).toContain(`Up to date: all ${count} files`);
       writeFileSync(
         join(repo, '.codex/config.toml'),
         `${toml}bearer_token_env_var = "X"\n`,

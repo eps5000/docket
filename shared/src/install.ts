@@ -160,9 +160,7 @@ export const isSkillReferenceKey = (key: string): boolean => !!skillKeyParts(key
 export function agentFileLabel(key: string): string {
   const parts = skillKeyParts(key);
   if (!parts) return 'AGENTS.md block';
-  return parts.topic
-    ? `${parts.skill}/${SKILL_REFERENCES_DIR}/${parts.topic}.md`
-    : parts.skill;
+  return parts.topic ? `${parts.skill}/${SKILL_REFERENCES_DIR}/${parts.topic}.md` : parts.skill;
 }
 
 /** The path a file is installed at, relative to the base: `.claude/skills/docket-worker/SKILL.md`. */

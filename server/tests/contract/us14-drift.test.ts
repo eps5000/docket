@@ -133,6 +133,8 @@ function checkReport(repo: string, opts: { withText?: string[] } = {}) {
       text = m[1]!;
     }
     const sha = sha256(text);
+    // Decision 66: an unchanged skill reference is left out of the report.
+    if (f.key.includes('--') && sha === f.sha256) return [];
     return [
       {
         key: f.key,
@@ -625,6 +627,37 @@ describe('agent reports on claim_lead (SC-017: by the next claim)', () => {
     expect(await openDrift(owner)).toEqual([]);
     const all = (await owner('GET', '/api/drift')).body.drift as S[];
     expect(all.map((x) => x.state)).toEqual(['restored']);
+  });
+
+  it('a skill reference: edited is drift by the next claim, left out is unchanged, and only the push check sees one missing (decision 66)', async () => {
+    const { owner, repo } = await start();
+    await pushInstall(owner);
+    const REF = 'skill:docket-worker--waiting';
+    const ref = join(repo, '.claude/skills/docket-worker/references/waiting.md');
+    const sent = readFileSync(ref, 'utf8');
+    const claim = async () =>
+      expectOk(await h!.call('claim_lead', { id: 'RCP-17', instructions: checkReport(repo) }));
+    const release = async (runId: unknown) =>
+      expectOk(await h!.call('release_lead', { id: 'RCP-17', run_id: runId, reason: 'test' }));
+
+    // Unchanged: the report leaves every reference out, and nothing is raised.
+    expect(checkReport(repo).files.some((f) => f.key.includes('--'))).toBe(false);
+    await release((await claim()).structured.run_id);
+    expect(await openDrift(owner)).toEqual([]);
+
+    // Edited: reported with its text, and drift on the next claim.
+    writeFileSync(ref, `${sent}\n- Our own rule.\n`);
+    expect(checkReport(repo).files.find((f) => f.key === REF)?.content).toContain('Our own rule.');
+    await release((await claim()).structured.run_id);
+    expect((await openDrift(owner)).map((d) => [d.file_key, d.change])).toEqual([[REF, 'edited']]);
+
+    // Deleted: the push check records it missing, and an agent's report (which can't
+    // tell missing from unchanged) leaves that record open.
+    rmSync(ref);
+    await driftCheckOnce(h!.server.runtime);
+    expect((await openDrift(owner)).map((d) => [d.file_key, d.change])).toEqual([[REF, 'missing']]);
+    await claim();
+    expect((await openDrift(owner)).map((d) => [d.file_key, d.change])).toEqual([[REF, 'missing']]);
   });
 
   it('a command install: Restore returns the command, and Adopt without text says how to send it', async () => {

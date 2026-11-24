@@ -39,6 +39,7 @@ import {
   INSTALL_CLIENT_LABELS,
   INSTALLED_FILE_KEY_RE,
   isScriptKey,
+  isSkillReferenceKey,
   ToolError,
   findSecret,
   isLegacySkillKey,
@@ -172,6 +173,9 @@ export function differences(
   for (const [key, sent] of Object.entries(manifest)) {
     if ((key === CONNECTION_KEY || isScriptKey(key)) && !coversConnection) continue;
     const got = files[key];
+    // Decision 66: an agent's report names a skill reference only when it differs, so one
+    // left out is as sent. The push check and the check command still see a missing one.
+    if (!got && !coversConnection && isSkillReferenceKey(key)) continue;
     if (!got) out.push({ key, change: 'missing', local: null });
     else if (got.sha256 !== sent.sha256.toLowerCase()) {
       out.push({ key, change: 'edited', local: got.sha256 });
@@ -439,7 +443,12 @@ function record(
   const open = new Map(
     openRowsOf(db, install.id)
       .filter(
-        (r) => coversConnection || (r.file_key !== CONNECTION_KEY && !isScriptKey(r.file_key)),
+        (r) =>
+          coversConnection ||
+          (r.file_key !== CONNECTION_KEY &&
+            !isScriptKey(r.file_key) &&
+            // An agent's report can't tell a missing reference from an unchanged one.
+            !(isSkillReferenceKey(r.file_key) && r.change === 'missing')),
       )
       .map((r) => [r.file_key, r]),
   );
@@ -631,7 +640,9 @@ export function runInstructions(db: Db, itemId: string): RunInstructions[] {
               )
               .get(sent.version_id) as { version_no: number; layer: string } | undefined)
           : undefined;
-        const edited = !!sent && (!got || got.sha256 !== sent.sha256.toLowerCase());
+        // A skill reference left out of an agent's report is as sent (decision 66).
+        const edited =
+          !!sent && (got ? got.sha256 !== sent.sha256.toLowerCase() : !isSkillReferenceKey(key));
         const drift = install
           ? (db.sqlite
               .prepare(

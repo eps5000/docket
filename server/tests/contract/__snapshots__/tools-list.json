@@ -109,7 +109,7 @@
   },
   {
     "name": "search_items",
-    "description": "Find items. Filters: ready_to_start (Ready, unblocked, unclaimed: what you may start), resumable (In progress with no lead: resume it), blocked, waiting_for_review (handed off, waiting on the owner), mine (items you lead), deferred_review (owner deferred a check; cleanup). Combine with project, status, type, label, epic or text.",
+    "description": "Find items. Filters: ready_to_start (what you may start), resumable (resume it), blocked, waiting_for_review, mine, deferred_review. Combine with project, status, type, label, epic or text.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -255,7 +255,7 @@
   },
   {
     "name": "get_item",
-    "description": "Get one item: description, acceptance, blockers, checklist (plan, checks, human review), runs, open question and answer, unread owner notes, documents, packets, activity. Owner notes and answers are delivered once: read them now. Use view 'summary' for status only, and get_context when starting work. Step details show as '· details' unless view is 'full'; read one with get_step.",
+    "description": "Get one item: description, acceptance, blockers, checklist, runs, question and answer, owner notes, documents, packets, activity. Owner notes and answers are delivered once: read them now. view 'summary' for status only.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -365,7 +365,7 @@
   },
   {
     "name": "get_context",
-    "description": "Everything needed to work on an item in one call: outcome and acceptance, decisions to follow (owner's first), epic and label briefs, blockers, the project's workflow notes, planning documents, the last review's notes. Sized to a budget; cuts are marked. Read-only: owner notes are counted here but delivered by get_item.",
+    "description": "Everything needed to work on an item in one call: outcome, acceptance, decisions to follow, briefs, blockers, workflow notes, planning documents, the last review's notes. Sized to a budget. Read-only.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -420,7 +420,7 @@
   },
   {
     "name": "dependency_subgraph",
-    "description": "Show what blocks an item and what it blocks, with status and planned dates. Set delay_days to see which downstream items a slip would push past their planned start.",
+    "description": "Show what blocks an item and what it blocks, with status and planned dates. delay_days shows what a slip would push.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -497,7 +497,7 @@
   },
   {
     "name": "deferred_reviews",
-    "description": "List human review checks the owner deferred (not verified), with any follow-up ticket. For cleanup: finish the check, or propose a plan in a note.",
+    "description": "List human review checks the owner deferred, with any follow-up ticket. For cleanup.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -553,7 +553,7 @@
   },
   {
     "name": "get_changes",
-    "description": "Read changes since a cursor. Without one, returns the latest cursor; then pass next_cursor. Watch for review.decided, question.answered and owner_note.added on your items. To wait, run the installed docket-wait script (no tokens). Without a shell, pass wait_s (at most 45) to hold this call. Never poll in a sleep loop.",
+    "description": "Read changes since a cursor; without one, returns the latest cursor. To wait, run the installed docket-wait script (no tokens), or pass wait_s (at most 45). Never poll in a sleep loop.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -624,7 +624,7 @@
   },
   {
     "name": "get_digest",
-    "description": "One compact snapshot for coordinators: what to start next, bottlenecks, ready items, runs (resume_ready flagged), runs that finished partly, blocked items and why, what waits on the owner, tickets that need shaping, agent problems, leases, conflicts and the change cursor. Pass cursor for only what changed since. Read-only.",
+    "description": "One compact snapshot for coordinators: what to start next, bottlenecks, runs, blockers, what waits on the owner, problems, leases and the change cursor. Pass cursor for only what changed. Read-only.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -739,7 +739,7 @@
   },
   {
     "name": "create_item",
-    "description": "Create an Epic, Story, Task or Bug, in Inbox or Planning. Pass shared (part keys, or 'none'), outcome_md and acceptance, or it Needs shaping for a planner. Small steps go in the checklist (set_plan). To split, pass split_from: move and copy are 1-based acceptance positions; also brings blockers, parts or steps.",
+    "description": "Create an Epic, Story, Task or Bug in Inbox or Planning. Pass outcome_md, acceptance and shared (part keys or 'none'), or it Needs shaping. To split, pass split_from with acceptance positions to move or copy.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -956,7 +956,7 @@
   },
   {
     "name": "update_item",
-    "description": "Edit an item's fields. Pass expected_version. Status goes through set_status, the plan through set_plan. known_gaps: what implementation will settle, each settled once done.",
+    "description": "Edit an item's fields; pass expected_version. Status goes through set_status, the plan through set_plan. known_gaps: what implementation will settle.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1141,7 +1141,7 @@
   },
   {
     "name": "set_status",
-    "description": "Move an item. Allowed: inbox→planning; planning↔ready; ready→progress; progress→ready (gives up the work); progress or review→done (not while a human review item is undecided or items from a partial exit are left); any open status→canceled (reason required); done→progress (reopen, reason required). Moving to ready needs declare_shared_changes first, else not_declared; open known_gaps ask the owner. When closing as done, pass changed_files and branch. An unapproved change to an approved design refuses starting or closing with design_review. Hand off for review with submit_packet, not this.",
+    "description": "Move an item. Docket enforces the allowed moves and their gates (not_declared, design_review, bugs_open). Closing as done: pass changed_files and branch. Hand off for review with submit_packet. Details: docket-worker reference status-moves.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1229,7 +1229,7 @@
   },
   {
     "name": "link_items",
-    "description": "Link two items. type 'blocks': from must finish before to can start; 'relates' is informational. For blocks, satisfied_when sets what 'finished' means: done (the default), merged (done and a PR reported merged with link_artifact) or verified (done and every human review item approved). Calling again updates it. A cycle is rejected with its path.",
+    "description": "Link two items: 'blocks' (from finishes before to starts) or 'relates' (informational). satisfied_when: done, merged or verified. Calling again updates it; a cycle is rejected.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1387,7 +1387,7 @@
   },
   {
     "name": "upsert_label",
-    "description": "Create a label or update its brief. Use a label for an initiative spanning several epics; the brief holds the shared decisions.",
+    "description": "Create a label or update its brief: an initiative across epics, with its shared decisions.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1459,7 +1459,7 @@
   },
   {
     "name": "claim_lead",
-    "description": "Claim an item as its lead before working on it. Works on Ready items (moves them to In progress) and In progress items with no lead (resuming sent-back or interrupted work). Pass workspace and brief (if a coordinator briefed you) for restarts, instructions with docket-check's output, and branch so conflicts show early. Returns run_id: pass it on every later call. Errors: conflict (someone holds it: do not work on it); seam_conflict (its shared parts collide with work in flight: take other work); design_review (it changes an approved design awaiting the owner: pause it, take other work).",
+    "description": "Claim an item as its lead before working on it. Pass workspace, branch, brief and docket-check's output as instructions. Returns run_id: pass it on every call. Errors: conflict, seam_conflict, design_review: take other work.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1543,7 +1543,7 @@
               "type": "string"
             },
             "files": {
-              "maxItems": 20,
+              "maxItems": 60,
               "type": "array",
               "items": {
                 "type": "object",
@@ -1644,7 +1644,7 @@
   },
   {
     "name": "release_lead",
-    "description": "Give up the lead claim without finishing; pass exit. The item returns to Ready; your plan and notes stay. Under a producer it waits for the next worker unless you pass release_story.",
+    "description": "Give up the lead without finishing; pass exit. The item returns to Ready with your plan; under a producer it waits for the next worker unless you pass release_story.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1752,7 +1752,7 @@
   },
   {
     "name": "start_run",
-    "description": "Start a child run under your lead run when delegating to a subagent that has its own Docket connection. Pass its workspace and brief as for claim_lead; the subagent passes the child run_id on its calls. For subagents without a connection, use log_subagent.",
+    "description": "Start a child run under your lead run for a subagent with its own Docket connection; it passes the child run_id. Without a connection, use log_subagent.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1881,7 +1881,7 @@
   },
   {
     "name": "heartbeat",
-    "description": "Tell Docket you are still working and update your current step, workspace (commits, uncommitted changes) and long-lived resources started or released. Any call with run_id keeps you live, so use this only when nothing else applies or something changed.",
+    "description": "Say you're still working: current step, workspace, resources started or released. Any call with run_id keeps you live; use this only when nothing else applies.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -2062,7 +2062,7 @@
   },
   {
     "name": "finish_run",
-    "description": "End your run: 'finished' when you stopped normally, 'failed' with an error when something broke. exit: complete, or partial with what is left, why and what would finish it. A lead's finish releases the claim but not the item's status: hand off with submit_packet or close with set_status first.",
+    "description": "End your run: 'finished', or 'failed' with an error; exit: complete, or partial with what's left. Hand off or close the item first. Details: docket-worker reference exit-reports.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -2175,7 +2175,7 @@
   },
   {
     "name": "park_run",
-    "description": "Park only when the work itself stops: waiting on another item, the coordinator or a person. Don't park while your own CI or tests run: stay live and log a note. A parked run keeps its claim and workspace. Say what you wait on; Docket flags it resume_ready when that clears. Ending your session? Pass exit. Any write with your run_id resumes it; reads don't.",
+    "description": "Park when the work itself stops (another item, the coordinator, a person), not while CI runs. Keeps your claim; say what you wait on. Any write with your run_id resumes it. Details: docket-worker reference waiting.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -2307,7 +2307,7 @@
   },
   {
     "name": "update_run_status",
-    "description": "Coordinators: set an item's lead run's current action, park reason or waiting_on, resume it, or park it for park_minutes (a new park needs park_reason and waiting_on, and 24 hours since its last own signal). When the time ends it returns to a short lease. No run_id. coordinator is your name: the run's orchestrator or one registered for the project. Grants no other power.",
+    "description": "Coordinators: set a lead run's current action, park reason or waiting_on, resume it, or park it for park_minutes. No run_id; coordinator is your name. Grants no other power. Details: docket-coordinator reference parked-workers.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -2423,7 +2423,7 @@
   },
   {
     "name": "set_plan",
-    "description": "Publish or revise your plan as one-line steps, optionally with details (Markdown) and a source such as a Jira key. Patches by default: steps with an id are updated, others added, and nothing is removed unless listed in remove. mode 'replace' restates the plan. Owner-added steps are always kept; on Jira-imported steps you may only add details.",
+    "description": "Publish or revise your plan as one-line steps, with optional details and source. Patches: steps with an id update, others are added, remove lists what goes; mode 'replace' restates it.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -2556,7 +2556,7 @@
   },
   {
     "name": "update_step",
-    "description": "Update a step's state: current when you start, done when finished, blocked or skipped with a note. details replaces its details (null clears), with expected_details_version from get_step. On a Jira-imported step you may only add to details: keep the current text at the start.",
+    "description": "Update a step's state: current, done, or blocked or skipped with a note. details replaces its details (expected_details_version from get_step); on a Jira step, only add.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -2646,7 +2646,7 @@
   },
   {
     "name": "log_subagent",
-    "description": "Record what a subagent contributed, as a short line under its step. provenance 'observed' if you saw its run or output, 'relayed' if passing on its report. Never creates a ticket.",
+    "description": "Record what a subagent contributed, as a line under its step: provenance 'observed' or 'relayed'. Never creates a ticket.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -2729,7 +2729,7 @@
   },
   {
     "name": "set_checks",
-    "description": "Publish what you will verify yourself (tests, measurements, reviews), with state and evidence. Patches like set_plan: nothing is removed unless listed in remove. Owner-added checks are always kept.",
+    "description": "Publish what you will verify yourself, with state and evidence. Patches like set_plan; owner-added checks stay.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -2921,7 +2921,7 @@
   },
   {
     "name": "declare_human_review",
-    "description": "Declare what the owner must verify by hand before this item can close, one plain instruction each ('On your phone, drag a recipe. Does it feel right?'). Declare early, usually in Planning. For one PR across an epic, declare once on the epic. With none, you may close the item yourself once your checks pass.",
+    "description": "Declare what the owner must verify by hand before the item can close, one plain instruction each, early. For one PR across an epic, declare on the epic. Details: docket-review-packet.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -3118,7 +3118,7 @@
   },
   {
     "name": "put_document",
-    "description": "Store a document on an item or project: planning docs, packet attachments or other files. The same name creates a new version. Markdown or text as content_text; binary as content_base64 (up to 25 MB; larger: POST to /agent-upload and pass the returned document_version_id).",
+    "description": "Store a document on an item or project; the same name makes a new version. content_text, or content_base64 up to 25 MB (larger: POST to /agent-upload, then pass document_version_id).",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -3299,7 +3299,7 @@
   },
   {
     "name": "report_commit",
-    "description": "Report every commit for its item, including review fixes, and set pushed true once it is on the remote: an unpushed commit can be lost in a crash. A packet built from an older commit is marked out of date.",
+    "description": "Report every commit for its item, and set pushed true once it is on the remote. A packet built from an older commit is marked out of date.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -3380,7 +3380,7 @@
   },
   {
     "name": "submit_packet",
-    "description": "Hand finished work to the owner for human review, once built, checks pass and all commits are reported. The packet must let the owner verify without asking you anything: what to check, exact steps, what you verified and how, known gaps, attachments. Pass changed_files (every file changed) and branch: undeclared shared-part changes, or an unapproved change to an approved design, hold it for the owner. The item moves to Review; read the decision with get_review or get_item.",
+    "description": "Hand finished work to the owner for review once built, checked and every commit reported, with changed_files and branch. The owner must be able to verify without asking you. Details: docket-review-packet.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -3551,7 +3551,7 @@
   },
   {
     "name": "get_review",
-    "description": "Read the owner's review decisions, round by round. 'changes' notes say what to fix; each became a checklist step or a new Bug (see result_ref). Approved items stay approved in later rounds. Deferred items are not verified; leave them unless doing cleanup.",
+    "description": "Read the owner's review decisions, round by round. 'changes' notes became steps or Bugs (result_ref); approved items stay approved; deferred items aren't verified.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -3597,7 +3597,7 @@
   },
   {
     "name": "ask_owner",
-    "description": "Ask the owner what only they can decide, in plain words for someone new to this work; IDs, paths and links go in details. Your run shows needs input: stop dependent work. The answer arrives in get_item.",
+    "description": "Ask the owner what only they can decide, in plain words; IDs, paths and links go in details. Stop the work that depends on it; the answer arrives in get_item. Details: docket-worker reference asking.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -3708,7 +3708,7 @@
   },
   {
     "name": "publish_decision",
-    "description": "Record a decision other agents must follow (a convention, design choice or interface) with a short rationale. Scope it as narrowly as it applies: item, epic, label or project. You can supersede an agent decision; only the owner changes owner decisions (use ask_owner to challenge one).",
+    "description": "Record a decision other agents must follow, with a short rationale, scoped as narrowly as it applies. You can supersede an agent decision; only the owner changes owner decisions.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -3803,7 +3803,7 @@
   },
   {
     "name": "list_decisions",
-    "description": "List a project's decision records, optionally for one scope. Active only unless include_inactive. get_context already includes those that apply to an item.",
+    "description": "List a project's decision records, optionally for one scope; active only unless include_inactive.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -3890,7 +3890,7 @@
   },
   {
     "name": "withdraw_decision",
-    "description": "Withdraw a decision you or another agent recorded when it no longer applies (not an owner decision). Or pass question_id to retract an outdated, unanswered question.",
+    "description": "Withdraw an agent decision that no longer applies, or pass question_id to retract an outdated, unanswered question.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -3956,7 +3956,7 @@
   },
   {
     "name": "recovery_report",
-    "description": "After a crash or restart, or before pruning worktrees: interrupted, stale and parked runs with brief, workspace, last pushed commit, checklist progress and open question; every workspace as in use, at risk or safe to prune; resources left running. A Docket restart keeps open runs open, so re-dispatch only what's interrupted, and never prune a workspace marked in use or at risk.",
+    "description": "After a crash or restart, or before pruning: interrupted, stale and parked runs, every workspace as in use, at risk or safe to prune, and resources left running; never prune a workspace in use or at risk. Details: docket-coordinator reference crash-recovery.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -4036,7 +4036,7 @@
   },
   {
     "name": "get_agent_files",
-    "description": "Read the agent files (skills, AGENTS.md block) and Workflow notes in effect for a project, with version_id and source. Pass file for its full text. Read-only. Propose changes from this text, not your installed copy.",
+    "description": "Read the agent files (skills, references, AGENTS.md block) and Workflow notes in effect for a project, with version_id. Pass file for its text, and propose changes from it, not your installed copy.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -4091,7 +4091,7 @@
   },
   {
     "name": "propose_agent_file_change",
-    "description": "Propose new content for an agent file (skill or AGENTS.md block) or a project's Workflow notes, with a short reason. Nothing changes until the owner approves; they may edit or decline it. Send the whole new text and based_on_version_id from get_agent_files. Omit project to propose a change to the default.",
+    "description": "Propose new content for an agent file or a project's Workflow notes, with a reason: the whole text and based_on_version_id from get_agent_files. Omit project for the default. The owner approves it.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -4176,7 +4176,7 @@
   },
   {
     "name": "onboard_project",
-    "description": "Set up a project or onboard a repo into one. Creates the project when the key is free (pass name) or adopts the existing one, starts an onboarding session, and returns session_id, what the project holds and the onboarding guide to follow. Not retry-safe: pass idempotency_key.",
+    "description": "Set up a project or onboard a repo: creates it (pass name) or adopts it, and returns session_id, what it holds and the guide to follow. Pass idempotency_key.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -4252,7 +4252,7 @@
   },
   {
     "name": "finish_onboarding",
-    "description": "Finish an onboarding session and hand it to the owner for review, with a short summary and any open questions. Pass session_id from onboard_project. Then stop and wait.",
+    "description": "Finish an onboarding session (session_id from onboard_project) and hand it to the owner with a short summary and open questions. Then stop.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -4328,7 +4328,7 @@
   },
   {
     "name": "get_step",
-    "description": "Read one checklist step in full: text, state, source, details, history and subagent notes. Call before working on a step get_item shows with '· details'. Read-only.",
+    "description": "Read one checklist step in full: text, state, source, details, history and subagent notes. Read-only.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -4382,7 +4382,7 @@
   },
   {
     "name": "apply_batch",
-    "description": "Run up to 100 writes in one call, each naming a tool and its arguments. Each runs as its single call would, in order: a failure doesn't undo the others, and the result lists each operation's ID or error. \"$1\" means the ID operation 1 wrote. Pass idempotency_key, so a retry runs only what failed.",
+    "description": "Run up to 100 writes in one call, in order, each a tool and its arguments; a failure doesn't undo the others. \"$1\" is the ID operation 1 wrote. Pass idempotency_key. Details: docket-planner reference batch-writes.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -4481,7 +4481,7 @@
   },
   {
     "name": "declare_shared_changes",
-    "description": "Declare the shared parts this item will change, each with add, change or remove and a short note, or none: true. Required before Ready. Each call replaces it. Use keys from list_shared_parts; register a missing one with new_parts. Name the member when you can (model:Token.expiresAt): different members run in parallel; a bare part is sequenced. Set design_impact: changes_approved_design with a design_note when it alters an approved design: this item pauses until the owner approves. Set disputed: true when agents disagree who owns a part. branches (or branch) replace the reported ones; [] clears them. Returns in-flight items on the same parts, each with its outcome.",
+    "description": "Declare the shared parts this item will change (add, change or remove, with a note), or none: true. Required before Ready; each call replaces it. design_impact pauses the item for the owner. Details: docket-worker reference shared-parts.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -4648,7 +4648,7 @@
   },
   {
     "name": "list_shared_parts",
-    "description": "List a project's shared parts: each key, the file paths mapped to it, whether it is single-writer, who holds its lease, and in-flight items declaring changes to it. Read-only.",
+    "description": "List a project's shared parts: paths, whether single-writer, the lease holder and in-flight declarations. Read-only.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -4703,7 +4703,7 @@
   },
   {
     "name": "take_lease",
-    "description": "Take the lease on a single-writer part (such as a migrations snapshot) for an item you lead, before changing it; call again to renew. It lasts 2 hours and ends when the item is done or handed off, or you release it. If another item holds it you get lease_held with holder and expiry: work on something else rather than waiting in a loop.",
+    "description": "Take the lease on a single-writer part before changing it; call again to renew. It lasts 2 hours. On lease_held, work on something else; never wait in a loop.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -4775,7 +4775,7 @@
   },
   {
     "name": "release_lease",
-    "description": "Release your lease on a single-writer part as soon as your change is committed and pushed, so other items can take it.",
+    "description": "Release your lease on a single-writer part as soon as your change is pushed.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -4843,7 +4843,7 @@
   },
   {
     "name": "propose_resolution",
-    "description": "Propose how to resolve a problem that needs the owner: split, rescope, reorder or other, with a plan (Markdown) and a reason. Pass problem (its ID from get_context problems), or id for the item in general. The owner approves it, asks for a different way with a note, or acknowledges it; the choice arrives as an owner note and in get_context. Routine fixes (a rebase, dropping an old branch) need no proposal.",
+    "description": "Propose how to resolve a problem that needs the owner: split, rescope, reorder or other, with plan_md and reason. Pass problem (from get_context) or id. Details: docket-worker reference shared-parts.",
     "inputSchema": {
       "type": "object",
       "properties": {

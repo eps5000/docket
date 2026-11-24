@@ -435,6 +435,10 @@ describe.skipIf(AVAILABLE.length === 0).each(AVAILABLE)('the uninstall command i
     );
     const id = await install(shell, repo);
     expect(readFileSync(join(repo, 'CLAUDE.md'), 'utf8')).toContain(DOCKET_BEGIN);
+    // Decision 66: a skill's references are installed with it, and go with it.
+    expect(existsSync(join(repo, '.claude/skills/docket-worker/references/exit-reports.md'))).toBe(
+      true,
+    );
     const r = await uninstall(shell, id, repo);
     expect(r.status, r.out).toBe(0);
     expect(r.out).toContain('Docket recorded the removal.');
@@ -444,7 +448,9 @@ describe.skipIf(AVAILABLE.length === 0).each(AVAILABLE)('the uninstall command i
       keep: 1,
     });
     for (const gone of [
+      '.claude/skills/docket-worker/references',
       '.claude/skills/docket-worker',
+      '.claude/skills/docket-coordinator',
       '.claude/skills/docket-delivery',
       '.claude/skills/docket-producer',
       '.claude/.docket-manifest.json',

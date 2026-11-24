@@ -14,7 +14,10 @@
  *     {"install_id":"ins_…","files":[{"key":"skill:docket-worker","sha256":"…"}, …]}
  *
  * - a file that matches is listed with its hash only, so a typical report is
- *   a few hundred characters;
+ *   a few hundred characters. A skill reference (decision 66) that matches is
+ *   left out altogether: Docket reads its absence in an agent's report as
+ *   unchanged, and the push check and the check command still see a missing
+ *   one;
  * - a file that differs also carries its text (`content`, up to 50,000
  *   characters; longer text is left out), for the owner's diff and *Adopt*;
  * - a missing file is left out: Docket reads its absence as missing;
@@ -62,9 +65,9 @@ export const CHECK_SCRIPT_PS1 = 'docket-check.ps1';
  * **When you change the script, add the hash of the version you replaced.**
  */
 export const SHIPPED_CHECK_SHA256: readonly string[] = [
-  // Decision 66: a report holds up to 60 files.
-  '4365b97a7b95f3f91f46be38c233294892a878817b09e24afa1ad4f37649c074',
-  '3ba3017365a9a3c790db06b7d94999c523f92af7cbc8714246f7170143862900',
+  // Decision 66: references reported only when they differ; up to 60 files.
+  '7754e8bca33f519c04b75f5df78f2eb1f185e802e3eba28058f69a3a5567e87b',
+  'e0ec455ec51cafe357a828851df102a3889a90b0e18879a2c42f02fa83defa79',
   '960dcca6f5f855cdd0be402bae84d5928a28044547773dfc13b7a34545c7fddf',
   '7d3f52c23c2b3295d36fa40c5410373ff12184ede347d42b88f4d30329f17d15',
   '710b3038313737d1b7a1a69697e5f57da51c8ce655a4b2bb5ce3e644f8672465',
@@ -127,6 +130,8 @@ while IFS= read -r l; do
     tr -d '\\r' < "$f" > "$t"
   fi
   got=$(h < "$t")
+  # A skill reference is reported only when it differs (decision 66), so a claim stays small.
+  case $k in skill:*--*) [ "$got" = "$s" ] && continue ;; esac
   if [ "$got" = "$s" ]; then add "$k" "$got"; else add "$k" "$got" "$t"; fi
 done < "$m"
 for x in "$here"/skills/docket-*/ "$here"/skills/${LEGACY_SKILL_PREFIX}*/; do
@@ -196,7 +201,10 @@ foreach ($r in $j.files) {
     if ($x.StartsWith("\`n", $ord)) { $x = $x.Substring(1) }
     if ($x.EndsWith("\`n", $ord)) { $x = $x.Substring(0, $x.Length - 1) }
   }
-  Add-File $r.key $x ((TlHash $x) -ne $r.sha256)
+  $same = (TlHash $x) -eq $r.sha256
+  # A skill reference is reported only when it differs (decision 66), so a claim stays small.
+  if ($same -and $r.key -like 'skill:*--*') { continue }
+  Add-File $r.key $x (-not $same)
 }
 $sk = Join-Path $here 'skills'
 if (Test-Path -LiteralPath $sk) {

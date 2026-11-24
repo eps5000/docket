@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   BrokenMarkersError,
+  SKILL_PART_RE,
+  agentFileLabel,
+  isSkillReferenceKey,
+  skillKeyParts,
+  skillReferenceKey,
   DOCKET_BEGIN as B,
   DOCKET_END as E,
   bashQuote,
@@ -244,5 +249,49 @@ describe('the old markers and names from before the rename (B28)', () => {
     expect(env).toMatchObject({ DOCKET_PORT: '1', DOCKET_SEED: 'sample' });
     expect(env.DOCKET_TOKEN).toBeUndefined();
     expect(warnings).toEqual(['TASKLITE_PORT is deprecated; use DOCKET_PORT']);
+  });
+});
+
+describe('skill references (decision 66)', () => {
+  it('keys a reference as skill:<name>--<topic> and splits it back', () => {
+    expect(skillReferenceKey('docket-worker', 'exit-reports')).toBe(
+      'skill:docket-worker--exit-reports',
+    );
+    expect(skillKeyParts('skill:docket-worker--exit-reports')).toEqual({
+      skill: 'docket-worker',
+      topic: 'exit-reports',
+    });
+    expect(skillKeyParts('skill:docket-worker')).toEqual({ skill: 'docket-worker', topic: null });
+    expect(skillKeyParts('agents_block')).toBeNull();
+    expect(isSkillReferenceKey('skill:docket-worker--exit-reports')).toBe(true);
+    expect(isSkillReferenceKey('skill:docket-worker')).toBe(false);
+    expect(isSkillReferenceKey('script:docket-wait.sh')).toBe(false);
+  });
+
+  it('installs a reference next to its skill, in references/<topic>.md, for both clients', () => {
+    expect(
+      installPathOf(installLayout('claude', 'repo'), 'skill:docket-worker--exit-reports'),
+    ).toBe('.claude/skills/docket-worker/references/exit-reports.md');
+    expect(
+      installPathOf(installLayout('codex', 'user'), 'skill:docket-planner--batch-writes'),
+    ).toBe('.codex/skills/docket-planner/references/batch-writes.md');
+    expect(installPathOf(installLayout('claude', 'repo'), 'skill:docket-worker')).toBe(
+      '.claude/skills/docket-worker/SKILL.md',
+    );
+  });
+
+  it('names a reference by its path, and a skill by its name', () => {
+    expect(agentFileLabel('skill:docket-worker--exit-reports')).toBe(
+      'docket-worker/references/exit-reports.md',
+    );
+    expect(agentFileLabel('skill:docket-worker')).toBe('docket-worker');
+    expect(agentFileLabel('agents_block')).toBe('AGENTS.md block');
+  });
+
+  it('allows single hyphens only in a skill or topic name, so the separator is unambiguous', () => {
+    expect(SKILL_PART_RE.test('exit-reports')).toBe(true);
+    expect(SKILL_PART_RE.test('double--hyphen')).toBe(false);
+    expect(SKILL_PART_RE.test('-leading')).toBe(false);
+    expect(SKILL_PART_RE.test('Upper')).toBe(false);
   });
 });
