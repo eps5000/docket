@@ -763,6 +763,12 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T338 [US18] Docket runs no git: `domain/host-git.ts` stores the passes; the radar, `run-activity.ts`, `worktree-check.ts`, the worktree cleanup view and `install-main.ts` judge from the facts; `git-read.ts`, the container worktree scan and git in the image are gone. "Waiting for the host helper" and stale states on the radar card, the Git checks card and the Worktrees view; `repo_path` is a host path.
 - [x] T339 [US18] Tests: the helper on fixture repositories with linked worktrees (each read, `.git` hashed before and after, bounds, an incomplete pass, the file-name cap, no file names outside conflicts); the ingest of each fact, findings and clearing from facts, waiting and stale, both upgrade orders, a guard that `server/src` starts no child process; e2e and axe in both themes for the waiting and stale states.
 
+## Phase 56: Fit fits the map's width (owner decision 63)
+
+- [x] T340 [US4] Spec plus code in one PR: decision 63 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; UI_SPEC §6.3.4 and §8; spec FR-338–FR-340 and SC-042; Help (Blocker rules and dependencies).
+- [x] T341 [US4] `components/ProgressMap`: `fitZoom` fits the width only (100% cap, 50% floor, rounded down), the **Fit width** button with its tooltip, back to the top left on Fit, a stable scrollbar gutter while fitted, and touch left to native scrolling.
+- [x] T342 [US4] Tests: a wide, tall, narrow and very wide map, the scroll position after Fit, wheel and keyboard scrolling, a mouse drag and a touch; e2e and axe in both themes with screenshots at 1440 x 900 and 1024 px.
+
 ## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.

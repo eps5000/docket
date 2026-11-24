@@ -4,7 +4,7 @@
  *
  * - The map: waves plus an "Outside this epic" column, done items and the
  *   done count, arrows drawn and kept on resize and zoom, hover tracing,
- *   More pills with the drag hint, drag to pan, Fit, reset and zoom steps;
+ *   More pills with the drag hint, drag to pan, Fit width, reset and zoom steps;
  *   the seed's largest epic renders in under 1 s.
  * - Work → Map with "Outside this view".
  * - The project rule select with its toast and Undo; the blocked chip
@@ -142,7 +142,7 @@ test.describe('the progress map', () => {
     await page.keyboard.press('ArrowRight');
     expect(await canvas.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
 
-    // Zoom steps, reset and Fit; arrows survive each one.
+    // Zoom steps, reset and Fit width; arrows survive each one.
     const zoomLabel = map(page).getByRole('button', { name: /^Zoom \d+%/ });
     await expect(zoomLabel).toHaveText('100%');
     await map(page).getByRole('button', { name: 'Zoom out' }).click();
@@ -157,11 +157,11 @@ test.describe('the progress map', () => {
     await expect(zoomLabel).toHaveText('125%');
     await zoomLabel.click();
     await expect(zoomLabel).toHaveText('100%');
-    const fit = map(page).getByRole('button', { name: 'Fit' });
+    const fit = map(page).getByRole('button', { name: 'Fit width' });
     await fit.click();
     await expect(fit).toHaveAttribute('aria-pressed', 'true');
     const fitPct = Number((await zoomLabel.textContent())!.replace('%', ''));
-    expect(fitPct).toBeGreaterThanOrEqual(40);
+    expect(fitPct).toBeGreaterThanOrEqual(50);
     expect(fitPct).toBeLessThanOrEqual(100);
     await expect(map(page).getByRole('button', { name: /scroll the map right/ })).toBeHidden();
     await arrowsLineUp(page, 'RCP-11', 'RCP-12');
