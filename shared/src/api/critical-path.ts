@@ -10,6 +10,7 @@ import { jsonResponse, noInput } from './common.js';
 import { itemParams } from './read.js';
 import { json, route } from './route.js';
 import { linkEdgeSchema } from './types.js';
+import { itemWaitSchema } from '../wait-kind.js';
 
 /**
  * Why the first ticket on the chain is the one to move:
@@ -38,6 +39,8 @@ export const criticalStepSchema = z.object({
   item: itemSummarySchema,
   /** It blocks, and is blocked by, others on the chain. */
   in_cycle: z.boolean(),
+  /** Decision 57: Queued, Blocked or Held while it has an open blocker. */
+  wait: itemWaitSchema.optional(),
 });
 export type CriticalStep = z.infer<typeof criticalStepSchema>;
 

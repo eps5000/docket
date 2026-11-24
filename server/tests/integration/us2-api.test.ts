@@ -245,9 +245,16 @@ describe('GET /api/work', () => {
       workResponse,
       'GET /api/work?filter=blocked&layout=list',
     );
-    expect(blocked.items.every((i) => i.blocked)).toBe(true);
-    expect(blocked.items.map((i) => i.id)).toEqual(
-      expect.arrayContaining(['RCP-16', 'RCP-21', 'RCP-22', 'DOC-7', 'DOC-8']),
+    // Decision 57: Blocked is only a wait that needs attention: the seed's dependency loop.
+    expect(blocked.items.every((i) => i.blocked && i.wait?.kind === 'blocked')).toBe(true);
+    expect(blocked.items.map((i) => i.id).sort()).toEqual(['DOC-7', 'DOC-8']);
+    expect(blocked.items.map((i) => i.wait?.reason)).toEqual(['cycle', 'cycle']);
+    // The rest wait their turn behind moving work: a live lead, or a packet in review.
+    const queued = await get('/api/work?quick=queued&layout=list', workResponse);
+    expect(queued.items.every((i) => i.wait?.kind === 'queued')).toBe(true);
+    expect(queued.items.map((i) => i.id)).toEqual(expect.arrayContaining(['RCP-16', 'RCP-22']));
+    expect(queued.items.find((i) => i.id === 'RCP-16')!.wait!.text).toBe(
+      'Starts after RCP-19 and 1 more',
     );
     const forYou = await get('/api/work?filter=for_you', workResponse);
     expect(forYou.items.map((i) => i.id).sort()).toEqual(['DOC-4', 'RCP-12', 'RCP-19']);

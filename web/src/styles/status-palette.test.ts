@@ -154,6 +154,16 @@ describe('the status palette', () => {
     expect(kit).toMatch(/\.sb-canceled\s*\{[^}]*repeating-linear-gradient/);
   });
 
+  it("decision 57: Queued is Ready's tokens, hatched in bars and dashed on chips, never red", () => {
+    const kit = readFileSync(new URL('../components/kit/kit.css', import.meta.url), 'utf8');
+    expect(kit).toMatch(/\.sb-queued\s*\{[^}]*repeating-linear-gradient\([^)]*var\(--st-ready\)/);
+    const chip = /\.st-queued\s*\{([^}]*)\}/.exec(kit)![1]!;
+    expect(chip).toMatch(/var\(--st-ready-soft\)/);
+    expect(chip).toMatch(/var\(--st-ready-text\)/);
+    expect(chip).toMatch(/dashed/);
+    expect(chip).not.toMatch(/blocked|--bad/);
+  });
+
   it('nothing else defines a status colour', () => {
     const src = fileURLToPath(new URL('..', import.meta.url));
     const files: string[] = [];

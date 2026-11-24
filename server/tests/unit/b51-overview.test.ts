@@ -270,7 +270,7 @@ describe('In flight, Blocked and Workload', () => {
     expect(ids('in_flight').sort()).toEqual([a, b].sort());
   });
 
-  it('counts each open ticket in one workload bucket, per epic, blocked first', () => {
+  it('counts each open ticket in one workload bucket, per epic, Queued and Blocked apart', () => {
     const epic = ticket('Visual', 'progress', { type: 'Epic' });
     const blocker = ticket('Blocker', 'ready', { epic });
     const waiting = ticket('Waiting', 'ready', { epic });
@@ -279,19 +279,28 @@ describe('In flight, Blocked and Workload', () => {
     closed('Done is not workload', { epic });
     d.write(OWNER_ACTOR, (w, s) => s.links.link(w, { from: blocker, to: waiting, type: 'blocks' }));
 
-    const o = overview();
-    expect(o.blocked).toBe(1);
-    const group = o.workload.find((g) => g.epic_id === epic)!;
+    // Decision 57: behind a Ready ticket, it waits its turn.
+    let o = overview();
+    expect({ queued: o.queued, blocked: o.blocked }).toEqual({ queued: 1, blocked: 0 });
+    let group = o.workload.find((g) => g.epic_id === epic)!;
     expect(group.title).toBe('Visual');
     expect(group.total).toBe(3);
-    expect(group.counts).toMatchObject({ ready: 1, blocked: 1, review: 1, progress: 0 });
+    expect(group.counts).toMatchObject({ ready: 1, queued: 1, blocked: 0, review: 1, progress: 0 });
     const loose = o.workload.find((g) => g.epic_id === null)!;
     expect(loose.counts.inbox).toBe(1);
     expect(ids('no_epic')).toHaveLength(1);
-    // The buckets add up to every open ticket, and Blocked to the Blocked number.
-    const sum = o.workload.reduce((n, g) => n + g.total, 0);
-    expect(sum).toBe(4);
+    // The buckets add up to every open ticket.
+    expect(o.workload.reduce((n, g) => n + g.total, 0)).toBe(4);
+
+    // A canceled blocker never clears, so the wait needs attention.
+    move(blocker, 'canceled');
+    o = overview();
+    expect({ queued: o.queued, blocked: o.blocked }).toEqual({ queued: 0, blocked: 1 });
+    group = o.workload.find((g) => g.epic_id === epic)!;
+    expect(group.counts).toMatchObject({ ready: 0, queued: 0, blocked: 1, review: 1 });
+    // Queued and Blocked add up to their numbers.
     expect(o.workload.reduce((n, g) => n + g.counts.blocked, 0)).toBe(o.blocked);
+    expect(o.workload.reduce((n, g) => n + g.counts.queued, 0)).toBe(o.queued);
   });
 
   it('a canceled ticket leaves every open number', () => {

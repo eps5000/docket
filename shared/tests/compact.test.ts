@@ -613,8 +613,26 @@ const SAMPLES: Record<ToolName, { result: unknown; args?: Record<string, unknown
         ],
       },
       blocked: {
-        total: 1,
-        rows: [{ id: 'RCP-22', title: 'Export', priority: 2, unblocks: 0, blocked_by: ['RCP-12'] }],
+        total: 2,
+        rows: [
+          {
+            id: 'RCP-22',
+            title: 'Export',
+            priority: 2,
+            unblocks: 0,
+            blocked_by: ['RCP-12'],
+            wait: 'blocked',
+            why: 'RCP-12 was canceled, so it never clears',
+          },
+          {
+            id: 'RCP-23',
+            title: 'Import',
+            priority: 2,
+            unblocks: 1,
+            blocked_by: ['RCP-14'],
+            wait: 'queued',
+          },
+        ],
       },
       owner: {
         total: 1,

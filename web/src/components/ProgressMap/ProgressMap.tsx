@@ -3,7 +3,8 @@
  * Work → Map. Hand-built SVG over a CSS grid, no graph library.
  *
  * - Header: "n / N done", a bar split by status, counts with swatches,
- *   "n ready but blocked", "n ready to start · working on wave x of y".
+ *   "n queued", "n blocked" (decision 57), "n ready to start · working on
+ *   wave x of y".
  * - Columns are waves (layout.ts), after a dashed outside column, with a
  *   Cycle column last. Columns are 200 px wide; gutters (at least 76 px) and
  *   row gaps (at least 16 px) grow with the arrows they carry.
@@ -85,18 +86,22 @@ interface Arrow extends MapEdge {
   d: string;
 }
 
-/** The map's bar and legend, in order (UI_SPEC §6.3.4); "blocked" is Ready that can't start. */
+/**
+ * The map's bar and legend, in order (UI_SPEC §6.3.4). Decision 57: Ready with an
+ * open blocker is "queued" (waits its turn) or "blocked" (needs attention).
+ */
 const MAP_BAR: readonly Exclude<StatusBarSegment, 'canceled'>[] = [
   'done',
   'review',
   'progress',
   'ready',
+  'queued',
   'blocked',
   'planning',
   'inbox',
 ];
 const barName = (s: (typeof MAP_BAR)[number]) =>
-  s === 'blocked' ? 'ready but blocked' : STATUS_LABELS[s].toLowerCase();
+  s === 'queued' || s === 'blocked' ? s : STATUS_LABELS[s].toLowerCase();
 
 /** One shared empty `outside`: a fresh `[]` default would change the layout every render and loop. */
 const NO_OUTSIDE: readonly MapItem[] = [];
@@ -343,8 +348,9 @@ export function ProgressMap({
     done: counts.byStatus.done ?? 0,
     review: counts.byStatus.review ?? 0,
     progress: counts.byStatus.progress ?? 0,
-    ready: (counts.byStatus.ready ?? 0) - counts.readyButBlocked,
-    blocked: counts.readyButBlocked,
+    ready: (counts.byStatus.ready ?? 0) - counts.readyQueued - counts.readyBlocked,
+    queued: counts.readyQueued,
+    blocked: counts.readyBlocked,
     planning: counts.byStatus.planning ?? 0,
     inbox: counts.byStatus.inbox ?? 0,
   };

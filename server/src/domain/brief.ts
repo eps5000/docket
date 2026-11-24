@@ -4,13 +4,19 @@
  * now. Read-only and advisory. What needs the owner is `GET /api/needs-you`.
  * There is no cost section until measured data exists, and never an estimate.
  */
-import { BRIEF_ROWS, type BriefDecision, type BriefResponse } from '@docket/shared';
+import {
+  BRIEF_ROWS,
+  type BlockedReason,
+  type BriefDecision,
+  type BriefResponse,
+} from '@docket/shared';
 import { effectiveZone, localDay } from './forecast.js';
 import { nextDay } from './flow.js';
 import { leaseExpired, ms, type RunRow } from './model.js';
 import { completedIn, isOpenTicket } from './overview.js';
 import type { Scoped } from './views.js';
 import { WaitReader } from './wait.js';
+import { waitKindsOf } from './wait-kind.js';
 
 const HOUR_MS = 3_600_000;
 
@@ -37,7 +43,7 @@ const capped = <T>(rows: readonly T[]) => ({
   rows: rows.slice(0, BRIEF_ROWS),
 });
 
-function stuckNow(s: Scoped): BriefResponse['stuck'] {
+function stuckNow(s: Scoped, parkMaxMs: number): BriefResponse['stuck'] {
   const now = ms(s.now);
   const leads = s.db.sqlite
     .prepare(
@@ -99,7 +105,29 @@ function stuckNow(s: Scoped): BriefResponse['stuck'] {
       b.count - a.count || a.item.priority - b.item.priority || a.item.id.localeCompare(b.item.id),
   );
 
+  // Decision 57: Blocked needs attention; Queued is a count, since nothing is wrong with it.
+  const kinds = waitKindsOf(s.db, s.now, s.index, { parkMaxMs });
+  const open = [...s.items.values()]
+    .filter(isOpenTicket)
+    .sort((a, b) => a.priority - b.priority || a.id.localeCompare(b.id));
+  const blocked = open.flatMap((item) => {
+    const wait = kinds.of(item.id);
+    return wait?.kind === 'blocked' && wait.reason !== null
+      ? [
+          {
+            id: item.id,
+            title: item.title,
+            project: item.project_key,
+            reason: wait.reason as BlockedReason,
+            why: wait.text,
+          },
+        ]
+      : [];
+  });
+
   return {
+    blocked: capped(blocked),
+    queued: kinds.counts(open.map((i) => i.id)).queued,
     parked: capped(parked),
     unowned_blockers: capped(
       unowned.map(({ item, count }) => ({
@@ -188,6 +216,7 @@ export function briefOf(
   s: Scoped,
   input: { day?: string | undefined },
   tz: string | null,
+  parkMaxMs: number,
 ): BriefResponse {
   const today = localDay(s.now, tz);
   const asked = input.day ?? today;
@@ -213,7 +242,7 @@ export function briefOf(
         closed_at: i.closed_at!,
       })),
     ),
-    stuck: stuckNow(s),
+    stuck: stuckNow(s, parkMaxMs),
     decisions: decisionChanges(s, from, to),
   };
 }

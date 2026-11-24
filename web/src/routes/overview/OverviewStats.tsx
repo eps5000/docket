@@ -123,9 +123,12 @@ export function OverviewStats({
                 <b>{metrics.in_flight.count}</b>{' '}
                 {metrics.in_flight.count === 1 ? 'ticket' : 'tickets'}
               </Link>
-              <Link className="ov-sub" to={paths.work({ quick: 'blocked' })}>
-                {metrics.blocked} blocked
-              </Link>
+              {/* Decision 57: what waits its turn, and what needs attention. */}
+              <span className="ov-sub" data-wait-counts="">
+                <Link to={paths.work({ quick: 'queued' })}>Queued {metrics.queued}</Link>
+                {' · '}
+                <Link to={paths.work({ quick: 'blocked' })}>Blocked {metrics.blocked}</Link>
+              </span>
               {/* Decision 48: of everything in Ready, how much can really start. */}
               <Link className="ov-sub" to={paths.work({ quick: 'startable' })} data-ready-link>
                 {metrics.ready.startable} of {metrics.ready.startable + metrics.ready.waiting} Ready

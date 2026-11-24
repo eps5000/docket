@@ -6,6 +6,7 @@
 import { z } from 'zod';
 import { questionChoiceSchema } from './question-form.js';
 import { contextSharedSchema } from './shared-changes.js';
+import { WAIT_KINDS } from '../wait-kind.js';
 import {
   ADDED_BY,
   CHECK_STATES,
@@ -656,6 +657,12 @@ export const contextBundleSchema = z.object({
    */
   /** Decision 45: the wait card of the item's parked lead. */
   wait: waitCardSchema.optional(),
+  /**
+   * Decision 57: while it has an open blocker, whether it is Queued (its
+   * blockers are moving), Blocked (the wait needs attention, and why) or Held.
+   * Display only: any open blocker still refuses a claim. Never cut.
+   */
+  wait_kind: z.object({ kind: z.enum(WAIT_KINDS), text: z.string() }).optional(),
   /** Decision 45: parked runs this item would unblock, at most `WAIT_FLAGS.context_waiters`. */
   waiting_runs: z.object({ total: z.number().int(), rows: z.array(waitingRunSchema) }).optional(),
   problems: z

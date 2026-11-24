@@ -39,6 +39,8 @@ const empty = (over: Partial<BriefResponse> = {}): BriefResponse => ({
     parked: { count: 0, rows: [] },
     unowned_blockers: { count: 0, rows: [] },
     held: { count: 0, rows: [] },
+    blocked: { count: 0, rows: [] },
+    queued: 0,
   },
   decisions: { count: 0, rows: [] },
   ...over,
@@ -80,6 +82,19 @@ const full = (): BriefResponse =>
           },
         ],
       },
+      blocked: {
+        count: 1,
+        rows: [
+          {
+            id: 'RCP-7',
+            title: 'Blocked ticket',
+            project: 'RCP',
+            reason: 'canceled',
+            why: 'RCP-8 was canceled, so it never clears',
+          },
+        ],
+      },
+      queued: 4,
     },
     decisions: {
       count: 2,

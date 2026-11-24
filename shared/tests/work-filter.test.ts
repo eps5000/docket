@@ -22,22 +22,25 @@ import {
   type WorkCheck,
   type WorkFilter,
   type WorkFilterFacts,
+  type WaitKind,
 } from '../src/index.js';
 
 const item = (
   status: Status,
-  opts: { blocked?: boolean; archived?: boolean; checks?: WorkCheck[] } = {},
+  opts: { wait?: WaitKind; archived?: boolean; checks?: WorkCheck[] } = {},
 ): WorkFilterFacts & { name: string } => ({
-  name: `${status}${opts.blocked ? '+blocked' : ''}${opts.archived ? '+archived' : ''}${(opts.checks ?? []).map((c) => `+${c}`).join('')}`,
+  name: `${status}${opts.wait ? `+${opts.wait}` : ''}${opts.archived ? '+archived' : ''}${(opts.checks ?? []).map((c) => `+${c}`).join('')}`,
   status,
-  blocked: opts.blocked ?? false,
+  wait: opts.wait ?? null,
   archived: opts.archived ?? false,
   check: (k) => (opts.checks ?? []).includes(k),
 });
 
 const ITEMS = [
   item('inbox'),
-  item('ready', { blocked: true }),
+  item('ready', { wait: 'blocked' }),
+  item('ready', { wait: 'queued' }),
+  item('ready', { wait: 'held' }),
   item('progress', { checks: ['live_run'] }),
   item('progress', { checks: ['for_you', 'has_problem'] }),
   item('review', { checks: ['for_you'] }),
@@ -55,14 +58,17 @@ describe('matching', () => {
     expect(names(DEFAULT_WORK_FILTER)).toEqual([
       'inbox',
       'ready+blocked',
+      'ready+queued',
+      'ready+held',
       'progress+live_run',
       'progress+for_you+has_problem',
       'review+for_you',
     ]);
   });
 
-  it('Blocked and In progress', () => {
+  it('Queued, Blocked and In progress (decision 57: Held is neither)', () => {
     expect(names(f('blocked'))).toEqual(['ready+blocked']);
+    expect(names(f('queued'))).toEqual(['ready+queued']);
     expect(names(f('progress'))).toEqual(['progress+live_run', 'progress+for_you+has_problem']);
   });
 
@@ -80,7 +86,7 @@ describe('matching', () => {
       'done+deferred_review',
     ]);
     // Active with both shows is everything not archived: the old All, plus canceled.
-    expect(names(f('active', [], ['done', 'canceled']))).toHaveLength(7);
+    expect(names(f('active', [], ['done', 'canceled']))).toHaveLength(9);
     // A check also applies to the items a show adds.
     expect(names(f('active', ['deferred_review'], ['done']))).toEqual(['done+deferred_review']);
   });
@@ -94,7 +100,7 @@ describe('matching', () => {
 describe('counts', () => {
   it('chips and checks count what you would see; shows count what they add', () => {
     const c = workFilterCounts(DEFAULT_WORK_FILTER, ITEMS);
-    expect(c.quick).toMatchObject({ active: 5, blocked: 1, progress: 2 });
+    expect(c.quick).toMatchObject({ active: 7, queued: 1, blocked: 1, progress: 2 });
     expect(c.has).toMatchObject({ for_you: 2, live_run: 1, has_problem: 1, deferred_review: 0 });
     expect(c.show).toEqual({ done: 1, canceled: 1 });
     expect(c.archived).toBe(1);
@@ -102,7 +108,7 @@ describe('counts', () => {
 
   it('are faceted: the ticked checks and shows carry over', () => {
     const c = workFilterCounts(f('active', ['for_you'], ['done']), ITEMS);
-    expect(c.quick).toMatchObject({ active: 2, blocked: 0, progress: 1 });
+    expect(c.quick).toMatchObject({ active: 2, queued: 0, blocked: 0, progress: 1 });
     expect(c.has.for_you).toBe(2);
     expect(c.has.has_problem).toBe(1);
     expect(c.has.deferred_review).toBe(0);
@@ -158,6 +164,7 @@ describe('the URL', () => {
     expect(roundTrip(DEFAULT_WORK_FILTER)).toBeNull();
     for (const filter of [
       f('blocked'),
+      f('queued'),
       f('progress', ['live_run']),
       f('active', ['for_you', 'has_problem'], ['done']),
       f('active', [], ['done', 'canceled']),

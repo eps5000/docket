@@ -45,8 +45,9 @@ export function activePills(filter: WorkFilter) {
 
 /**
  * The filter row (UI_SPEC §6.2; B43): Epic select, Label select, the quick
- * filters (Active, Blocked, In progress) as chips with counts, the *Filters*
- * menu (checkboxes), a removable pill per ticked filter, and *Clear*.
+ * filters (Active, Startable, Waiting, Queued, Blocked, In progress) as chips
+ * with counts, the *Filters* menu (checkboxes), a removable pill per ticked
+ * filter, and *Clear*.
  */
 export function WorkFilters({
   filter,

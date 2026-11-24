@@ -13,6 +13,7 @@ export {
   Chip,
   StatusChip,
   BlockedChip,
+  WaitChip,
   HumanReviewChip,
   WorkspaceStateChip,
   HUMAN_REVIEW_CHIP,

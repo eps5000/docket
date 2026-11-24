@@ -160,6 +160,8 @@ describe('get_digest', () => {
           priority: 1,
           unblocks: 99,
           blocked_by: ['STR-1', 'STR-2', 'STR-3', 'STR-4'],
+          wait: 'blocked' as const,
+          why: long,
         },
         DIGEST_CAPS.blocked,
       ),

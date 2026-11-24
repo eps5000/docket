@@ -17,6 +17,7 @@ import {
 } from '@docket/shared';
 import {
   BlockedChip,
+  WaitChip,
   Button,
   Callout,
   Card,
@@ -114,6 +115,34 @@ const CARDS: { label: string; item: WorkItem }[] = [
       blocked: true,
       blocked_by: ['DOC-4', 'RCP-19'],
       lead: null,
+      wait: {
+        kind: 'blocked',
+        reason: 'no_next_step',
+        after: 'RCP-19',
+        more: 1,
+        on: 'DOC-4',
+        text: 'DOC-4 has no next step: nobody has shaped or assigned it',
+      },
+    },
+  },
+  {
+    label: 'queued',
+    item: {
+      ...base,
+      id: 'RCP-17',
+      title: 'Shopping list export',
+      status: 'ready',
+      blocked: true,
+      blocked_by: ['RCP-14'],
+      lead: null,
+      wait: {
+        kind: 'queued',
+        reason: null,
+        after: 'RCP-14',
+        more: 0,
+        on: null,
+        text: 'Starts after RCP-14',
+      },
     },
   },
   {
@@ -155,6 +184,8 @@ const EPIC: EpicCardData = {
     done: 3,
     by_status: { done: 3, progress: 2, review: 2, ready: 4, planning: 1 },
     for_you: 2,
+    queued: 3,
+    blocked: 1,
   },
 };
 const decision = (over: Partial<DecisionRecord>): DecisionRecord => ({
@@ -275,6 +306,38 @@ function Gallery({ theme }: { theme: 'light' | 'dark' }) {
           {STATUSES.map((s) => (
             <StatusChip key={s} status={s} />
           ))}
+        </Row>
+        <Row label="queued, blocked, held (decision 57)">
+          <WaitChip
+            wait={{
+              kind: 'queued',
+              reason: null,
+              after: 'RCP-12',
+              more: 2,
+              on: null,
+              text: 'Starts after RCP-12 and 2 more',
+            }}
+          />
+          <WaitChip
+            wait={{
+              kind: 'blocked',
+              reason: 'canceled',
+              after: 'RCP-12',
+              more: 0,
+              on: 'RCP-12',
+              text: 'RCP-12 was canceled, so it never clears',
+            }}
+          />
+          <WaitChip
+            wait={{
+              kind: 'held',
+              reason: 'decision',
+              after: 'RCP-12',
+              more: 0,
+              on: 'RCP-12',
+              text: 'Held by your decision “Wait for the vendor”',
+            }}
+          />
         </Row>
         <Row label="blocked">
           <BlockedChip blockers={['RCP-12']} />

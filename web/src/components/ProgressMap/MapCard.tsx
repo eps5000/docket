@@ -2,8 +2,9 @@
  * A progress map card (UI_SPEC §6.3.4), also the node of the 1-hop
  * Dependencies view (§6.3.3): type icon · ID (+ "other epic ↗" or the
  * project) · title (2 lines) · "Status · run state", or "· after RCP-12" on
- * Planning items. Done cards are green with ✓; a blocked Ready card has a red
- * border and "blocked"; the person icon at the top right is filled when a
+ * Planning items. Done cards are green with ✓; a Blocked Ready card has a red
+ * border and "blocked", a Queued one a calm dashed border and "queued"
+ * (decision 57); the person icon at the top right is filled when a
  * packet is ready for you and outlined when your review comes later. Each
  * card is a button that opens the item; its accessible name is its visible
  * text (type, ID, title, status), plus the review mark as sr-only text.
@@ -13,7 +14,7 @@ import { useNavigate } from 'react-router';
 import { STATUS_LABELS } from '@docket/shared';
 import { Icon, RunState, TypeIcon } from '../kit';
 import { paths } from '../../lib/paths';
-import type { MapItem } from './layout';
+import { waitKindOf, type MapItem } from './layout';
 
 export interface MapCardProps {
   item: MapItem;
@@ -52,7 +53,9 @@ export function MapCard({
   critical,
 }: MapCardProps) {
   const navigate = useNavigate();
-  const blockedReady = item.status === 'ready' && item.blocked;
+  const kind = item.status === 'ready' ? waitKindOf(item) : null;
+  const blockedReady = kind === 'blocked';
+  const queuedReady = kind === 'queued';
   const after =
     item.status === 'planning' && item.blocked && item.blocked_by.length > 0
       ? item.blocked_by.join(', ')
@@ -69,6 +72,7 @@ export function MapCard({
         'pm-node',
         `ps-${item.status}`,
         blockedReady && 'blk',
+        queuedReady && 'que',
         outside && 'ext',
         current && 'cur',
         traced === 'on' && 'hl',
@@ -124,7 +128,17 @@ export function MapCard({
         {blockedReady && !outside && (
           <>
             {' '}
-            <span className="pm-blocked">· blocked</span>
+            <span className="pm-blocked" title={item.wait?.text}>
+              · blocked
+            </span>
+          </>
+        )}
+        {queuedReady && !outside && (
+          <>
+            {' '}
+            <span className="pm-queued" title={item.wait?.text}>
+              · queued
+            </span>
           </>
         )}
         {after && !outside && (

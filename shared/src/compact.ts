@@ -699,6 +699,8 @@ export function renderContext(ctx: ContextBundle, opts: RenderOptions = {}): str
       ])}`,
     );
   }
+  // Decision 57: Queued, Blocked (and why) or Held, right under its blockers.
+  if (ctx.wait_kind) lines.push(`wait_kind: ${ctx.wait_kind.kind}${SEP}${ctx.wait_kind.text}`);
   if (ctx.dependents.length > 0) {
     lines.push(`blocks: ${ctx.dependents.map((d) => `${d.id} ${d.status}`).join(', ')}`);
   }
@@ -983,9 +985,10 @@ function renderDigest(d: Digest, now: Date): string {
   const blocked = {
     title: 'blocked',
     total: d.blocked.total,
+    // Decision 57: Queued waits its turn; Blocked needs attention, and says why.
     rows: d.blocked.rows.map(
       (x) =>
-        `${x.id} p${x.priority} unblocks ${x.unblocks} by ${partList(x.blocked_by, 2)}${SEP}${clip(x.title, 30)}`,
+        `${x.id} p${x.priority} ${x.wait} unblocks ${x.unblocks} by ${partList(x.blocked_by, 2)}${x.why ? `${SEP}${clip(x.why, 60)}` : ''}${SEP}${clip(x.title, 30)}`,
     ),
   };
   const owner = {

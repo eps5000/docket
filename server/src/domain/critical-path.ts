@@ -22,6 +22,7 @@ import type { Db } from '../db/client.js';
 import { compareIds } from './links.js';
 import { BlockIndex, requireItem, summarize, type ItemRow, type RunWindows } from './model.js';
 import { readyStates } from './next-work.js';
+import { waitKindsOf } from './wait-kind.js';
 import { parseJson } from './recovery-model.js';
 
 export interface ChainInput {
@@ -253,7 +254,7 @@ export function nextReason(input: {
 const isClosed = (status: string) => status === 'done' || status === 'canceled';
 
 export function criticalPath(
-  ctx: { db: Db; windows: RunWindows; now: string },
+  ctx: { db: Db; windows: RunWindows; now: string; parkMaxMs: number },
   id: string,
 ): CriticalPathResponse {
   const { db } = ctx;
@@ -308,7 +309,12 @@ export function criticalPath(
       present.map((x) => rows.get(x)!),
     ).map((s) => [s.id, s]),
   );
-  const steps = present.map((x) => ({ item: summaries.get(x)!, in_cycle: chain.inCycle.has(x) }));
+  // Decision 57: each step's Queued, Blocked or Held, by the one classification.
+  const kinds = waitKindsOf(db, ctx.now, index, ctx);
+  const steps = present.map((x) => {
+    const wait = kinds.of(x);
+    return { item: summaries.get(x)!, in_cycle: chain.inCycle.has(x), ...(wait ? { wait } : {}) };
+  });
 
   const links: LinkEdge[] = [];
   for (let i = 1; i < present.length; i += 1) {

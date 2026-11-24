@@ -88,7 +88,10 @@ test('Work splits Ready into Startable and Waiting, from the keyboard', async ({
   await expect(page).toHaveURL(/quick=waiting/);
   const column = readyColumn(page);
   await expect(column).toContainText(`Waiting · ${waiting}`);
-  await expect(column.locator('[data-waiting]').first()).toContainText('waits on');
+  // Each says on what: decision 57's Queued, Blocked or Held, or B58's "waits on".
+  await expect(column.locator('[data-waiting]').first()).toContainText(
+    /waits on|Queued · Starts after|Blocked · |Held by your decision/,
+  );
   await expectAxeClean(page, 'Work, Waiting');
   await capture(page, 'work-waiting');
 

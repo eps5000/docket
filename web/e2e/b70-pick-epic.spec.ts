@@ -43,6 +43,7 @@ const pick = (id: string, title: string, over: Partial<EpicPick>): EpicPick => (
     ],
   },
   waits_on: [],
+  waiting: { queued: 0, blocked: 0 },
   unblocks_elsewhere: 0,
   not_shaped: 0,
   worked_by: [],

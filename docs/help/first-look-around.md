@@ -33,7 +33,7 @@ Start here. In about ten seconds it tells you whether agents are making progress
 
 - **Completed:** tickets that reached Done in this period and are still Done, compared with the period before. Epics, canceled tickets and items imported as Done don't count, and a reopened ticket drops out.
 - **Tickets with agents:** tickets being worked now, and tickets whose agent is parked or waiting on something named. A ticket counts once, however many workers or child runs it has. This counts tickets in Docket, not agent sessions. Orca can show more sessions, because coordinators and helpers don't each hold a ticket.
-- **In flight:** open tickets in In progress or Review, how many open tickets are blocked, and how many Ready tickets can really start. That last link opens Work's **Startable** view.
+- **In flight:** open tickets in In progress or Review, then **Queued N · Blocked M**: how many open tickets are waiting their turn behind moving work, and how many have a wait that needs attention. Then how many Ready tickets can really start. Each link opens that view on Work.
 - **Needs you:** how many things are waiting on you.
 
 **Needs you** lists every one of those things. When there are none, it says "Nothing needs you":
@@ -75,7 +75,7 @@ Every ticket and epic, as a board, a list, a map of dependencies, or a timeline.
 
 ### Filters on the Work page
 
-- **Quick filters:** **Active** (everything not done or canceled; what Work shows by default), **Blocked** and **In progress**. Pick one; each shows how many items it holds.
+- **Quick filters:** **Active** (everything not done or canceled; what Work shows by default), **Startable**, **Waiting**, **Queued** (waiting its turn behind moving work), **Blocked** (the wait needs attention, and the chip says why) and **In progress**. Pick one; each shows how many items it holds.
 - **Filters** (the menu button next to them): tick any of *For you*, *Human review later*, *Deferred review*, *Live run* and *Has a problem* to narrow the view further. Ticking two shows only the items that match both.
 - **Shows done** and **Shows canceled**, at the bottom of the menu, add finished items back on top of the quick filter. *Active* with both ticked shows everything.
 - Each ticked filter appears as a pill next to the chips: click its **×** to remove it, or click **Clear** to go back to Active.

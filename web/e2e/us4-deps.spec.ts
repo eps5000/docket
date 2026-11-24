@@ -98,9 +98,10 @@ test.describe('the progress map', () => {
     await expect(card(page, 'RCP-11')).toHaveClass(/ps-done/);
     await expect(card(page, 'RCP-11')).toContainText('✓');
     await expect(map(page).locator('.pm-big')).toContainText(/\d+ \/ 12 done/);
-    // A blocked Ready card: red border and "blocked".
-    await expect(card(page, 'RCP-16')).toHaveClass(/blk/);
-    await expect(card(page, 'RCP-16')).toContainText('blocked');
+    // Decision 57: a Ready card behind moving work is Queued (calm, "queued"), never red.
+    await expect(card(page, 'RCP-16')).toHaveClass(/que/);
+    await expect(card(page, 'RCP-16')).not.toHaveClass(/blk/);
+    await expect(card(page, 'RCP-16')).toContainText('queued');
     // The person icon: filled for a packet ready (RCP-12), outlined for review later.
     await expect(card(page, 'RCP-12').locator('.pm-hr.now')).toBeVisible();
 
@@ -207,7 +208,7 @@ test.describe('stricter dependencies', () => {
   }) => {
     // RCP-11 is done and blocks RCP-12 (review). Under "Done" it is cleared.
     await page.goto('/items/RCP-12');
-    await expect(page.getByText(/Blocked by RCP-11/)).toHaveCount(0);
+    await expect(page.locator('[data-open-blockers]')).toHaveCount(0);
 
     await page.goto('/settings');
     const select = page.locator('[data-blocker-rule="RCP"] select');
@@ -228,9 +229,15 @@ test.describe('stricter dependencies', () => {
     await select.selectOption('merged');
     await expect(select).toHaveValue('merged');
 
-    // The chip says what the done blocker still needs, and the Dependencies tab says it too.
+    // The header says what the done blocker still needs, and the Dependencies tab says it too.
+    // Decision 57: nobody is merging it, so the wait needs attention and says why.
     await page.goto('/items/RCP-12');
-    await expect(page.getByText('Blocked by RCP-11 (needs merge)')).toBeVisible();
+    await expect(page.locator('[data-open-blockers]')).toHaveText(
+      'Open blockers: RCP-11 (needs merge)',
+    );
+    await expect(page.locator('[data-wait="blocked"]')).toHaveText(
+      '⊘ Blocked · RCP-11 has no next step: nobody has merged it',
+    );
     await page.getByRole('tab', { name: /^Dependencies/ }).click();
     const blocker = page.locator('[data-hop] .pm-node[data-pid="RCP-11"]');
     await expect(blocker).toContainText('Done');
@@ -249,7 +256,8 @@ test.describe('stricter dependencies', () => {
     });
     expect(merged.isError, merged.text).toBe(false);
     await page.reload();
-    await expect(page.getByText(/Blocked by RCP-11/)).toHaveCount(0);
+    await expect(page.locator('[data-open-blockers]')).toHaveCount(0);
+    await expect(page.locator('[data-wait]')).toHaveCount(0);
 
     // Put the rule back for the other tests in this file.
     await page.goto('/settings');

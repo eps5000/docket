@@ -31,6 +31,7 @@ import {
 import { input, jsonResponse, noInput, scopeSchema } from './common.js';
 import { onboardingSessionSchema } from './onboarding.js';
 import { WORK_CHECKS, WORK_QUICK, WORK_SHOWS } from '../work-filter.js';
+import { itemWaitSchema } from '../wait-kind.js';
 import { problemAckSchema, problemExplanationSchema, resolutionRowSchema } from './problems.js';
 import {
   designReviewRowSchema,
@@ -437,6 +438,8 @@ export const itemDetailResponse = jsonResponse({
       for_you: z.boolean(),
       /** The lead's park, when it is parked (B20; the Tickets list's run line). */
       lead_parked: leadParkedSchema.nullable().optional(),
+      /** Decision 57: Queued, Blocked or Held, when it has an open blocker. */
+      wait: itemWaitSchema.optional(),
     }),
   ),
   /** Active and inactive records in scope, owner first (UI_SPEC §6.3.5). */
@@ -494,6 +497,8 @@ export const itemDetailResponse = jsonResponse({
   waiting_runs: z.object({ total: z.number().int(), rows: z.array(waitingRunSchema) }).optional(),
   /** Decision 54 (optional): an open epic's outside dependencies; empty means none. */
   epic_waits: z.array(epicWaitSchema).optional(),
+  /** Decision 57 (optional): Queued, Blocked or Held while it has an open blocker; else absent. */
+  item_wait: itemWaitSchema.optional(),
 });
 export type ItemDetailResponse = z.infer<typeof itemDetailResponse>;
 

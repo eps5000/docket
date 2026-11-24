@@ -93,8 +93,9 @@ ready 9:
   +8 more
 runs 1:
 - RCP-14 parked resume_ready · waiting RCP-12 · orca-w3
-blocked 1:
-- RCP-22 p2 unblocks 0 by RCP-12 · Export
+blocked 2:
+- RCP-22 p2 blocked unblocks 0 by RCP-12 · RCP-12 was canceled, so it never clears · Export
+- RCP-23 p2 queued unblocks 1 by RCP-14 · Import
 owner 1:
 - RCP-14 · question · Per serving or per 100 g?
 problems 1:

@@ -6,6 +6,7 @@
  */
 import { z } from 'zod';
 import { itemTypeSchema, statusSchema } from '../mcp/types.js';
+import { WAIT_KINDS } from '../wait-kind.js';
 import { input, jsonResponse, noInput, scopeSchema } from './common.js';
 import { json, route } from './route.js';
 
@@ -24,11 +25,16 @@ export const OVERVIEW_METRICS = [
 ] as const;
 export type OverviewMetric = (typeof OVERVIEW_METRICS)[number];
 
-/** Workload buckets. Each open ticket is in exactly one; a blocked ticket is in `blocked`. */
+/**
+ * Workload buckets. Each open ticket is in exactly one. Decision 57: a ticket
+ * with an open blocker is in `queued` or `blocked` by the server's one
+ * classification; a Held one stays in its status.
+ */
 export const WORKLOAD_BUCKETS = [
   'review',
   'progress',
   'ready',
+  'queued',
   'blocked',
   'planning',
   'inbox',
@@ -44,6 +50,7 @@ const workloadCounts = z.object({
   review: z.number().int(),
   progress: z.number().int(),
   ready: z.number().int(),
+  queued: z.number().int(),
   blocked: z.number().int(),
   planning: z.number().int(),
   inbox: z.number().int(),
@@ -112,7 +119,9 @@ export const overviewResponse = jsonResponse({
     progress: z.number().int(),
     review: z.number().int(),
   }),
-  /** Open tickets with an uncleared blocker: the same set as Work's *Blocked* filter. */
+  /** Decision 57: open tickets waiting their turn behind moving work (Work's *Queued*). */
+  queued: z.number().int(),
+  /** Decision 57: open tickets whose wait needs attention (Work's *Blocked*). */
   blocked: z.number().int(),
   /** Decision 48: Ready tickets that can start now, and those waiting on something. */
   ready: z.object({ startable: z.number().int(), waiting: z.number().int() }),
@@ -146,6 +155,8 @@ export const overviewItemRowSchema = z.object({
   type: itemTypeSchema,
   status: statusSchema,
   blocked: z.boolean(),
+  /** Decision 57: Queued, Blocked or Held while it has an open blocker; null otherwise. */
+  wait: z.enum(WAIT_KINDS).nullable(),
   project: z.string(),
   epic_id: z.string().nullable(),
   epic_title: z.string().nullable(),

@@ -16,6 +16,7 @@ import {
   statusSchema,
   waitingOnSchema,
 } from '../mcp/types.js';
+import { itemWaitSchema } from '../wait-kind.js';
 
 /** Decision 53: the owner's pause on a project, read from its active pause decision. */
 export const projectPauseSchema = z.object({
@@ -101,6 +102,11 @@ export const workItemSchema = itemSummarySchema.extend({
    * what it waits on in words. Derived; the stored status doesn't change.
    */
   ready_state: z.object({ startable: z.boolean(), waiting_on: z.string().nullable() }).optional(),
+  /**
+   * Decision 57, on open items with an open blocker only: Queued, Blocked (and
+   * why) or Held, from the server's one classification. Derived; display only.
+   */
+  wait: itemWaitSchema.optional(),
 });
 export type WorkItem = z.infer<typeof workItemSchema>;
 
@@ -133,6 +139,9 @@ export const epicCardSchema = itemSummarySchema.extend({
     by_status: z.partialRecord(statusSchema, z.number().int()),
     /** Children with a packet ready or an open question ("N for you", UI_SPEC §4). */
     for_you: z.number().int(),
+    /** Decision 57: open children waiting their turn, and those whose wait needs attention. */
+    queued: z.number().int(),
+    blocked: z.number().int(),
   }),
   /** Decision 54: what it waits on; empty means none. Absent unless it's open with open tickets. */
   waits_on: z.array(epicWaitSchema).optional(),

@@ -156,9 +156,18 @@ export function createSubgraphService(deps: ServiceDeps): SubgraphService {
     },
 
     criticalPath: (r, input) =>
-      criticalPath({ db: r.db, windows: windowsOf(deps.config), now: r.now }, input.id),
+      criticalPath(
+        {
+          db: r.db,
+          windows: windowsOf(deps.config),
+          now: r.now,
+          parkMaxMs: deps.config.parkMaxMs,
+        },
+        input.id,
+      ),
 
-    pickEpic: (r, input) => pickEpics({ db: r.db, now: r.now }, input.key),
+    pickEpic: (r, input) =>
+      pickEpics({ db: r.db, now: r.now, parkMaxMs: deps.config.parkMaxMs }, input.key),
 
     cycles(r, input) {
       const index = new BlockIndex(r.db);

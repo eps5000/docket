@@ -1,8 +1,11 @@
 import type { ReactNode } from 'react';
 import {
+  BLOCKED_REASON_LABELS,
   STATUS_LABELS,
   WORKSPACE_STATE_LABELS,
+  type BlockedReason,
   type HumanReviewState,
+  type ItemWait,
   type Status,
   type WorkspaceState,
 } from '@docket/shared';
@@ -67,6 +70,47 @@ export function BlockedChip({
     <span className="chip st-blocked">
       <span aria-hidden="true">⊘</span> Blocked by {blockers.join(', ')}
       {suffix}
+    </span>
+  );
+}
+
+/**
+ * Decision 57: what an item with an open blocker is doing. Queued is calm and
+ * neutral ("◷ Queued · Starts after RCP-12"); Blocked is red and says why
+ * ("⊘ Blocked · No next step · RCP-9"); Held keeps "Held by your decision".
+ * Always words and a glyph, never colour alone. `full` spells out the reason
+ * (the item page); otherwise the plain sentence is the tooltip.
+ */
+export function WaitChip({ wait, full = false }: { wait: ItemWait; full?: boolean }) {
+  if (wait.kind === 'queued') {
+    return (
+      <span className="chip st-queued" title={wait.text} data-wait="queued">
+        <span aria-hidden="true">◷</span> Queued · {wait.text}
+      </span>
+    );
+  }
+  if (wait.kind === 'held') {
+    return (
+      <span
+        className="chip c-gray"
+        title={wait.text}
+        data-wait="held"
+        data-wait-reason={wait.reason}
+      >
+        <Icon name="pause" small />
+        {full ? wait.text : 'Held by your decision'}
+      </span>
+    );
+  }
+  const label = BLOCKED_REASON_LABELS[wait.reason as BlockedReason];
+  return (
+    <span
+      className="chip st-blocked"
+      title={wait.text}
+      data-wait="blocked"
+      data-wait-reason={wait.reason}
+    >
+      <span aria-hidden="true">⊘</span> Blocked · {full ? wait.text : `${label} · ${wait.on}`}
     </span>
   );
 }

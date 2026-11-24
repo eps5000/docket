@@ -114,21 +114,29 @@ test('the badge is the owner actions on the page, and old links land on them', a
   await expect(page).toHaveTitle(`(${n}) Docket`);
 });
 
-test('STR: the numbers, the Blocked link, and the read API stays fast', async ({ page }) => {
+test('STR: the numbers, the Queued and Blocked links, and the read API stays fast', async ({
+  page,
+}) => {
   await inScope(page, 'STR');
   await open(page);
   const o = await overview(page, 'STR', '30d');
-  // Workload holds every open ticket once; Blocked equals Work's Blocked filter.
+  // Workload holds every open ticket once; Queued and Blocked equal Work's filters (decision 57).
   const work = await api<WorkResponse>(page, '/api/work?scope=STR&quick=blocked&layout=list');
-  expect(o.blocked).toBeGreaterThan(0);
+  const queued = await api<WorkResponse>(page, '/api/work?scope=STR&quick=queued&layout=list');
+  expect(o.blocked + o.queued).toBeGreaterThan(0);
   expect(work.items.length).toBe(o.blocked);
+  expect(queued.items.length).toBe(o.queued);
   expect(o.workload.reduce((n, g) => n + g.counts.blocked, 0)).toBe(o.blocked);
+  expect(o.workload.reduce((n, g) => n + g.counts.queued, 0)).toBe(o.queued);
+  await expect(stat(page, 'in-flight').locator('[data-wait-counts]')).toHaveText(
+    `Queued ${o.queued} · Blocked ${o.blocked}`,
+  );
   const active = await api<WorkResponse>(page, '/api/work?scope=STR&quick=active&layout=list');
   expect(o.workload.reduce((n, g) => n + g.total, 0)).toBe(active.items.length);
   expect(o.completed.buckets.reduce((n, b) => n + b.count, 0)).toBe(o.completed.count);
 
   await stat(page, 'in-flight')
-    .getByRole('link', { name: `${o.blocked} blocked` })
+    .getByRole('link', { name: `Blocked ${o.blocked}` })
     .click();
   await expect(page).toHaveURL(/\/work\?quick=blocked$/);
 

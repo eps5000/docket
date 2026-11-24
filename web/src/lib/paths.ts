@@ -2,7 +2,7 @@
  * Client routes (UI_SPEC §2 "Routes"). Every link builds its URL here, so
  * the route table in app/router.tsx and the links can't drift.
  */
-import type { OverviewMetric, OverviewWindow, WORK_LAYOUTS } from '@docket/shared';
+import type { OverviewMetric, OverviewWindow, WORK_LAYOUTS, WorkQuick } from '@docket/shared';
 
 export type WorkLayout = (typeof WORK_LAYOUTS)[number];
 export type ItemTab = 'details' | 'checklist' | 'deps' | 'map' | 'activity';
@@ -32,8 +32,8 @@ export const paths = {
       layout?: WorkLayout;
       epic?: string;
       label?: string;
-      /** B43: the quick filter (Active when omitted); decision 48 adds Startable and Waiting. */
-      quick?: 'active' | 'startable' | 'waiting' | 'blocked' | 'progress';
+      /** B43: the quick filter (Active when omitted); decisions 48 and 57 add Startable, Waiting and Queued. */
+      quick?: WorkQuick;
       /** B43: ticked checks, comma-separated (`for_you,live_run`). */
       has?: string;
       /** B43: `done`, `canceled` or both, comma-separated. */

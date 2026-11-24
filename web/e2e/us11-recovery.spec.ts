@@ -337,7 +337,8 @@ test.describe.serial('US11 recovery', () => {
     await expect(page.locator('[data-ticket="RCP-17"] .runline .rl')).toHaveText(
       /^parked\s· waiting on the coordinator\s· claude · orca-w3$/,
     );
-    await expect(page.locator('[data-ticket="RCP-16"]')).toContainText('Blocked by');
+    // Decision 57: its open blocker shows as Queued, Blocked or Held.
+    await expect(page.locator('[data-ticket="RCP-16"] [data-wait]')).toHaveCount(1);
     await expectAxeClean(page, 'epic tickets with run state');
 
     // Overview's Health says who has the worktrees at risk; Agents still filters by run state.

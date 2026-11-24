@@ -4,6 +4,7 @@ import { Link } from 'react-router';
 import { PRIORITIES, type ItemDetailResponse, type Priority } from '@docket/shared';
 import {
   BlockedChip,
+  WaitChip,
   Button,
   Chip,
   EpicDepsLine,
@@ -153,7 +154,7 @@ export function ItemHeader({ id, data }: { id: string; data?: ItemDetailResponse
         </div>
         <div className="row wrap" style={{ marginTop: 6 }}>
           <StatusChip status={item.status} />
-          <BlockedChips item={item} />
+          <BlockedChips item={item} wait={data?.item_wait} />
           <ClosedProvenance item={item} />
           {epic && data && (
             <span className="src">
@@ -228,12 +229,40 @@ export function ItemHeader({ id, data }: { id: string; data?: ItemDetailResponse
 }
 
 /**
- * "⊘ Blocked by RCP-12, …", and a chip of its own for each done blocker the
- * link still holds: "⊘ Blocked by RCP-19 (needs merge)" or "(needs your
- * verification)" (UI_SPEC §5).
+ * Decision 57: Queued, Blocked (with why, in plain words) or Held, then the
+ * open blockers in neutral text, each done one with "(needs merge)" or "(needs
+ * your verification)". Before the server classifies it: "⊘ Blocked by
+ * RCP-12, …", and a chip of its own for each done blocker (UI_SPEC §5).
  */
-function BlockedChips({ item }: { item: ItemDetailResponse['item'] }) {
+function BlockedChips({
+  item,
+  wait,
+}: {
+  item: ItemDetailResponse['item'];
+  wait?: ItemDetailResponse['item_wait'];
+}) {
   if (!item.blocked) return null;
+  if (wait) {
+    const open = item.links.blocked_by
+      .filter((l) => l.cleared === false)
+      .map((l) =>
+        l.waiting_for === 'merge'
+          ? `${l.id} (needs merge)`
+          : l.waiting_for === 'verification'
+            ? `${l.id} (needs your verification)`
+            : l.id,
+      );
+    return (
+      <>
+        <WaitChip wait={wait} full />
+        {open.length > 0 && (
+          <span className="src" data-open-blockers="">
+            Open blockers: {open.join(', ')}
+          </span>
+        )}
+      </>
+    );
+  }
   const waiting = item.links.blocked_by.filter(
     (l) => l.cleared === false && (l.waiting_for === 'merge' || l.waiting_for === 'verification'),
   );

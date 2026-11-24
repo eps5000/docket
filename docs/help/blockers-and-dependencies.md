@@ -26,7 +26,22 @@ Each project has a rule. Set it in **Settings → Projects**, with **Blockers cl
 
 An agent can set a stricter or looser rule on a single link. Changing a project's rule takes effect at once, and the toast says how many items it blocked or unblocked, with *Undo*.
 
-A blocker that's done but still waiting shows it on the chip: "⊘ Blocked by RCP-12 (needs merge)" or "(needs your verification)".
+A blocker that's done but still waiting says so on the ticket's page: "Open blockers: RCP-12 (needs merge)" or "(needs your verification)".
+
+## Queued or Blocked
+
+A ticket with an open blocker is one of three things. Its status stays Ready (or whatever it was), and agents still can't claim it until the blocker clears.
+
+- **◷ Queued · Starts after RCP-12** (calm, never red): everything it waits on is moving. Each blocker is being worked, is Ready, or is queued itself. It's just waiting its turn. "and 2 more" means it has other open blockers too.
+- **⊘ Blocked** (red): the wait needs you or a coordinator. The chip names the reason and the ticket, and its tooltip and the ticket's page say it in full:
+  - **No next step:** a blocker somewhere in the chain could move, but nobody owns it and nothing has happened on it for 15 minutes. For example, it's still in Planning with no agent, or it's done and nobody is merging it.
+  - **Owner decision not asked:** a blocker says it needs your decision, and nobody has asked you.
+  - **Canceled blocker:** a blocker was canceled, so it will never clear.
+  - **Blocker loop:** the chain loops back on itself.
+  - **Parked too long:** a blocker's agent has been parked longer than the stall limit (24 hours by default), and not because of a decision you're holding.
+- **Held by your decision:** your paused project, or a decision you recorded, is holding it. It's neither Queued nor Blocked, and nothing is wrong.
+
+Work has a **Queued** filter and a **Blocked** filter. Overview's In flight card, epic cards, Pick next epic, the critical path, the daily brief and agents' `get_digest` and `get_context` all use the same rule, so their counts agree.
 
 ## Reading the Dependencies tab
 
@@ -36,7 +51,7 @@ Parent epics and "relates" links never block. Blocking works across projects.
 
 ## Reading the map
 
-An epic's **Map** tab puts its tickets in waves, left to right: wave 1 can start now, wave 2 after it, and so on. The bar at the top and the card edges use the same colours as the status chips, and red is Ready work that's blocked.
+An epic's **Map** tab puts its tickets in waves, left to right: wave 1 can start now, wave 2 after it, and so on. The bar at the top and the card edges use the same colours as the status chips. Ready work that's waiting its turn is **queued** (a calm dashed outline), and only Ready work whose wait needs attention is red and **blocked**.
 
 Arrows run through the gaps between cards and never across one, so several can share a gap. **Hover or focus a card** to pick out its arrows: they light up and the rest fade. A dashed green arrow is a blocker that's already cleared. Use − / + or **Fit** to zoom, and drag the background to pan.
 
@@ -68,4 +83,4 @@ Docket never silently unblocks work.
 
 ## Startable and Waiting
 
-Ready doesn't always mean something can start. Work splits Ready in two. **Startable** tickets have nothing in their way. **Waiting** tickets are held by a blocker, a lead already on them, or your overlap or design decision, and each one says which. The ticket's status stays Ready either way.
+Ready doesn't always mean something can start. Work splits Ready in two. **Startable** tickets have nothing in their way. **Waiting** tickets are held by a blocker, a lead already on them, or your overlap or design decision, and each one says which. A Waiting ticket behind a blocker is also Queued, Blocked or Held (see above). The ticket's status stays Ready either way.

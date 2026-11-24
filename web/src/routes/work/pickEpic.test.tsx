@@ -50,6 +50,7 @@ const pick = (id: string, over: Partial<EpicPick> = {}): EpicPick => ({
   self_contained: 4,
   can_start: { count: 1, first: [{ id: `${id}-T`, title: 'A ticket' }] },
   waits_on: [],
+  waiting: { queued: 0, blocked: 0 },
   unblocks_elsewhere: 0,
   not_shaped: 0,
   worked_by: [],
