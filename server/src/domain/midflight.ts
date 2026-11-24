@@ -54,7 +54,10 @@ function startedEpics(db: Db, epicIds?: readonly string[]): Map<string, string> 
   );
 }
 
-/** Each started epic's tickets added after it started, oldest addition first. */
+/**
+ * Each started epic's tickets added after it started, oldest addition first.
+ * Decision 67: never its Release, which a migration may create in a running epic.
+ */
 export function midflightByEpic(db: Db, epicIds?: readonly string[]): Map<string, EpicMidflight> {
   const out = new Map<string, EpicMidflight>();
   if (epicIds && epicIds.length === 0) return out;
@@ -67,7 +70,7 @@ export function midflightByEpic(db: Db, epicIds?: readonly string[]): Map<string
             OR (e.type = 'item.updated' AND json_extract(e.data, '$.changed.epic_id.new') = i.epic_id))
          ) AS added_at
        FROM items i
-       WHERE i.epic_id IN (SELECT value FROM json_each(?)) AND i.type <> 'Epic'
+       WHERE i.epic_id IN (SELECT value FROM json_each(?)) AND i.type NOT IN ('Epic', 'Release')
          AND i.archived_at IS NULL AND i.status <> 'canceled' AND i.split_from IS NULL`,
     )
     .all(JSON.stringify([...started.keys()])) as (Omit<

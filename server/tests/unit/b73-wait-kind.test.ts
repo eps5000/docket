@@ -11,7 +11,14 @@ import { BlockIndex } from '../../src/domain/model.js';
 import { WaitKinds } from '../../src/domain/wait-kind.js';
 import { OWNER_ACTOR, type Actor } from '../../src/domain/write.js';
 import { askForm } from '../helpers.js';
-import { addProject, forceStatus, minutes, startDomain, type Domain } from '../us1-helpers.js';
+import {
+  addProject,
+  forceStatus,
+  minutes,
+  startDomain,
+  withoutRelease,
+  type Domain,
+} from '../us1-helpers.js';
 
 const PENDING = 'This needs an owner decision on the scope.';
 const HOUR = 60 * minutes(1);
@@ -332,6 +339,8 @@ describe('every view agrees', () => {
         status: 'planning',
       }),
     );
+    // Decision 67: this test counts tickets as before every epic had a Release.
+    withoutRelease(d, epic);
     const live = ticket('Being worked');
     claim(live);
     const queued = ticket('Queued in the epic');

@@ -39,8 +39,13 @@ describe('open-item tabs (UI_SPEC §2)', () => {
 
   it('remembers each tab’s view and what it learned', () => {
     let s = open('A-1', 'A-2');
-    s = updateTab(s, 'A-1', { view: 'activity', type: 'Story', title: 'One' });
-    expect(s.tabs[0]).toEqual({ id: 'A-1', view: 'activity', type: 'Story', title: 'One' });
+    s = updateTab(s, 'A-1', { view: 'activity', type: 'Implementation', title: 'One' });
+    expect(s.tabs[0]).toEqual({
+      id: 'A-1',
+      view: 'activity',
+      type: 'Implementation',
+      title: 'One',
+    });
     expect(updateTab(s, 'A-1', { view: 'activity' })).toBe(s);
   });
 

@@ -26,7 +26,7 @@
  */
 import { z } from 'zod';
 import { toolErrorSchema } from '../errors.js';
-import { ID_MARK } from './common.js';
+import { ALIAS_MARK, ID_MARK } from './common.js';
 import { DATE_RE, ITEM_ID_RE, SHA_RE } from './limits.js';
 import type { AnyToolDef } from './tools.js';
 
@@ -40,8 +40,15 @@ function tidy(node: unknown, lean = false): unknown {
   if (node === null || typeof node !== 'object') return node;
   const out: JsonSchema = {};
   const isId = (node as JsonSchema)[ID_MARK] === true;
+  // Decision 67: accepted, not advertised (Story and Task, stored as Implementation).
+  const aliases = (node as JsonSchema)[ALIAS_MARK];
+  const hidden = new Set(Array.isArray(aliases) ? aliases : []);
   for (const [key, value] of Object.entries(node as JsonSchema)) {
-    if (key === '$schema' || key === ID_MARK) continue;
+    if (key === '$schema' || key === ID_MARK || key === ALIAS_MARK) continue;
+    if (key === 'enum' && hidden.size > 0 && Array.isArray(value)) {
+      out[key] = value.filter((v) => !hidden.has(v));
+      continue;
+    }
     if (lean && isId && key === 'maxLength') continue;
     if (key === 'minimum' && value === -SAFE_MAX) continue;
     if (key === 'maximum' && value === SAFE_MAX) continue;

@@ -371,20 +371,20 @@ describe('field detection by name (BUILD_SPEC §12 V4)', () => {
 });
 
 describe('types', () => {
-  it('Epic, Story, Task and Bug keep their type', () => {
+  it('Epic and Bug keep their type; Story and Task become inferred Implementation', () => {
     expect(item('TL-1').type).toBe('Epic');
-    expect(item('TL-2').type).toBe('Story');
-    expect(item('TL-3').type).toBe('Task');
+    expect(item('TL-2').type).toBe('Implementation');
+    expect(item('TL-3').type).toBe('Implementation');
     expect(item('TL-4').type).toBe('Bug');
-    expect(row('Type: Story', 'Story')).toMatchObject({ count: 6, lossy: 0 });
+    expect(row('Type: Story', 'Implementation (inferred)')).toMatchObject({ count: 6, lossy: 0 });
   });
 
-  it('other issue types become Task, with the original type noted in the description', () => {
-    expect(item('TL-6').type).toBe('Task');
+  it('other issue types become inferred Implementation, with the original type noted', () => {
+    expect(item('TL-6').type).toBe('Implementation');
     expect(item('TL-6').description_md).toContain('From Jira: type Spike');
-    expect(item('TL-20').type).toBe('Task');
-    expect(reasons('TL-6')).toContain('Jira type Spike imported as Task');
-    expect(row('Type: Spike', 'Task')).toMatchObject({ count: 1, lossy: 1 });
+    expect(item('TL-20').type).toBe('Implementation');
+    expect(reasons('TL-6')).toContain('Jira type Spike imported as Implementation (inferred)');
+    expect(row('Type: Spike', 'Implementation (inferred)')).toMatchObject({ count: 1, lossy: 1 });
   });
 });
 

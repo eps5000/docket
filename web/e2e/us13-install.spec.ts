@@ -238,6 +238,7 @@ test.describe('Install and check (US13)', () => {
       'exit-reports.md',
       'shared-parts.md',
       'status-moves.md',
+      'ticket-types.md',
       'waiting.md',
     ]);
     await d.getByRole('button', { name: 'Done' }).click();
@@ -253,8 +254,8 @@ test.describe('Install and check (US13)', () => {
     await expect(row).toHaveAttribute('data-method', 'push');
     await expect(row).toContainText('Claude Code');
     await expect(row).toContainText('Recipe App’s repo');
-    // 7 skills, their 17 references (decision 66), the block, 4 scripts and the connection file.
-    await expect(row).toContainText('30 files');
+    // 7 skills, their 20 references (decisions 66 and 67), the block, 4 scripts and the connection file.
+    await expect(row).toContainText('33 files');
     await row.getByRole('button', { name: 'Versions sent' }).click();
     await expect(row.locator('[data-sent="skill:docket-worker"]')).toContainText(
       'Docket’s version v1',

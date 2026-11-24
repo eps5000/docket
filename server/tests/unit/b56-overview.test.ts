@@ -74,7 +74,8 @@ describe('each chart bucket lists its tickets', () => {
   it('leaves out what Completed leaves out: epics, canceled, imported and reopened', () => {
     start();
     const epic = ticket('An epic', 'Epic');
-    move(epic, 'done');
+    // A Release normally closes its epic; force the completed state to test the chart filter.
+    forceStatus(d, epic, 'done');
     move(ticket('Canceled'), 'canceled');
     const imported = closed('Imported as done');
     d.sql

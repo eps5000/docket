@@ -23,8 +23,8 @@ export const ERROR_CODES = [
   'project_paused',
   // Decision 58: an epic can't start while any of its tickets is in Inbox or Planning.
   'epic_not_ready',
-  // Decision 64: an epic's finish line can't reach Review or Done while a bug in the epic is open.
-  'bugs_open',
+  // Decision 67: an epic's Release can't reach Review or Done until its gates pass.
+  'release_gates',
 ] as const;
 export type ErrorCode = (typeof ERROR_CODES)[number];
 
@@ -58,7 +58,7 @@ export const HTTP_STATUS: Record<ErrorCode, number> = {
   design_review: 409,
   project_paused: 409,
   epic_not_ready: 409,
-  bugs_open: 409,
+  release_gates: 409,
 };
 
 export class ToolError extends Error {

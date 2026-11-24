@@ -16,7 +16,14 @@ import {
 import { GapsRefusal } from '../../src/domain/epic-readiness.js';
 import { undoMutation } from '../../src/domain/undo.js';
 import type { Actor } from '../../src/domain/write.js';
-import { addProject, declareNone, forceStatus, startDomain, type Domain } from '../us1-helpers.js';
+import {
+  addProject,
+  declareNone,
+  forceStatus,
+  readyRelease,
+  startDomain,
+  type Domain,
+} from '../us1-helpers.js';
 
 const OWNER: Actor = { kind: 'owner', client: null, label: null, session_id: null, run_id: null };
 const GAPS = ['Which retry limit to use', 'Wording of the empty state'];
@@ -49,6 +56,8 @@ const create = (type: 'Epic' | 'Task', opts: { epic?: string; status?: Status } 
   );
   declareNone(d, id);
   if (opts.status && opts.status !== 'planning') forceStatus(d, id, opts.status);
+  // Decision 67: the epic's Release is shaped and Ready, so only these tickets decide readiness.
+  if (type === 'Epic') readyRelease(d, id);
   return id;
 };
 const epicWith = (epicStatus: Status, ...kids: Status[]) => {

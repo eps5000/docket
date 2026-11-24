@@ -24,6 +24,7 @@ export type { StatusBarSegment } from './StatusBar';
 export {
   TypeBadge,
   TypeIcon,
+  RolloutMark,
   RunState,
   RunLine,
   parkedReason,
@@ -48,7 +49,7 @@ export {
 export type { CalloutTone, ErrorLike } from './Card';
 export { EpicDepsLine, EpicDepsNote, epicDepsNames, epicDepsText } from './EpicDeps';
 export { EpicReadinessLine, EpicReadinessNote } from './EpicReadiness';
-export { EpicReleaseLine, EpicReleaseNote, epicReleaseText } from './EpicRelease';
+export { EpicReleaseLine, EpicReleaseNote, ReleaseHoldLine, epicReleaseText } from './EpicRelease';
 export { FinishedPartlyBlock, FinishedPartlyNote, latestPartialExit } from './FinishedPartly';
 export { EpicMidflightLine, EpicMidflightNote } from './EpicMidflight';
 export { Section } from './Section';

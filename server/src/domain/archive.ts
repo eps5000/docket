@@ -19,6 +19,7 @@ import { ToolError, type ItemSummary } from '@docket/shared';
 import type { ArchiveService, ServiceDeps } from './contracts.js';
 import { requireItem, summaryOf, windowsOf, type ItemRow } from './model.js';
 import { endLeadForOwner } from './runs.js';
+import { assertReleaseStays, releaseOf } from './release.js';
 import { onItemClosed } from './shared-changes.js';
 import { settleIdle as idleSettle } from './idle.js';
 import type { InverseOp, WriteContext } from './write.js';
@@ -68,6 +69,8 @@ export function createArchiveService(deps: ServiceDeps): ArchiveService {
       if (item.archived_at) {
         throw new ToolError('validation', `${item.id} is already archived.`);
       }
+      // Decision 67: a Release stays while its epic is open.
+      assertReleaseStays(w.db, item, 'archive');
       archiveOne(w, item);
       return summary(w, item.id);
     },
@@ -99,6 +102,7 @@ export function createArchiveService(deps: ServiceDeps): ArchiveService {
           { details: { not_done: open } },
         );
       }
+      for (const i of items) assertReleaseStays(w.db, i, 'archive');
       const todo = items.filter((i) => !i.archived_at);
       if (todo.length === 0) {
         throw new ToolError('validation', 'Those items are already archived.');
@@ -117,8 +121,11 @@ export function createArchiveService(deps: ServiceDeps): ArchiveService {
           { details: { status: item.status, allowed: OPEN } },
         );
       }
+      // Decision 67: a Release goes only with its epic, and goes with it.
+      assertReleaseStays(w.db, item, 'cancel');
+      const release = item.type === 'Epic' ? releaseOf(w.db, item.id) : null;
       if (item.type === 'Epic') {
-        const open = openChildren(w, item.id);
+        const open = openChildren(w, item.id).filter((id) => id !== release?.id);
         if (open.length > 0) {
           throw new ToolError(
             'validation',
@@ -161,17 +168,24 @@ export function createArchiveService(deps: ServiceDeps): ArchiveService {
         });
       }
 
-      const inverse = w.update('items', item.id, { status: 'canceled' });
+      const inverse = [w.update('items', item.id, { status: 'canceled' })];
+      // Decision 67: the epic's open Release is canceled with it, in the same undo.
+      if (release && release.status !== 'done' && release.status !== 'canceled') {
+        const releaseRow = requireItem(w.db, release.id);
+        endLeadForOwner(w, releaseRow, 'canceled');
+        inverse.push(w.update('items', release.id, { status: 'canceled' }));
+        onItemClosed(w, release.id, 'canceled');
+      }
       w.event({
         type: 'item.status_changed',
-        summary: `You canceled ${item.id} (was ${item.status})${input.reason ? `: ${input.reason}` : ''}`,
+        summary: `You canceled ${item.id} (was ${item.status})${release && release.status !== 'done' && release.status !== 'canceled' ? `, with its Release ${release.id}` : ''}${input.reason ? `: ${input.reason}` : ''}`,
         item_id: item.id,
         project_key: item.project_key,
         data: {
           status: { old: item.status, new: 'canceled' },
           ...(input.reason ? { reason: input.reason } : {}),
         },
-        inverse: [inverse],
+        inverse,
       });
       // Decision 36: canceling ends the item's leases and its overlaps (not part of the undo).
       onItemClosed(w, item.id, 'canceled');

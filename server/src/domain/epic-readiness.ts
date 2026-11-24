@@ -490,7 +490,7 @@ export function epicNotReady(epic: Pick<ItemRow, 'id'>, unshaped: readonly Unsha
   const more = n > 5 ? ` and ${n - 5} more` : '';
   return new ToolError(
     'epic_not_ready',
-    `Epic ${epic.id} can't start: ${n} of its tickets ${n === 1 ? "isn't" : "aren't"} Ready yet: ${shown}${more}. Every ticket must be at least Ready before an epic starts. For each one: ${EPIC_WAYS_FORWARD.join('; or ')}.`,
+    `Epic ${epic.id} can't start: ${n} of its tickets ${n === 1 ? "isn't" : "aren't"} Ready yet: ${shown}${more}. Every ticket must be at least Ready before an epic starts; Exploration tickets may run now to settle them. For each one: ${EPIC_WAYS_FORWARD.join('; or ')}.`,
     {
       details: {
         epic: epic.id,
@@ -510,4 +510,15 @@ export function assertEpicReady(db: Db, item: Pick<ItemRow, 'id' | 'type' | 'sta
   if (item.type !== 'Epic' || (item.status !== 'ready' && item.status !== 'planning')) return;
   const unshaped = unshapedByEpic(db, [item.id]).get(item.id);
   if (unshaped && unshaped.length > 0) throw epicNotReady(item, unshaped);
+  // Decision 67: an epic can't start without its Release.
+  const release = db.sqlite
+    .prepare("SELECT 1 FROM items WHERE epic_id = ? AND type = 'Release' AND archived_at IS NULL")
+    .get(item.id);
+  if (!release) {
+    throw new ToolError(
+      'epic_not_ready',
+      `Epic ${item.id} can't start: it has no Release, the ticket that closes it. Create one with create_item type Release and epic ${item.id}.`,
+      { details: { epic: item.id, unshaped: [], release: null } },
+    );
+  }
 }

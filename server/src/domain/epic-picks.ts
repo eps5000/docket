@@ -12,6 +12,7 @@
  * Each walk visits an item once, so a dependency cycle ends it.
  */
 import {
+  ITEM_TYPES,
   OPEN_STATUSES,
   ToolError,
   type EpicPick,
@@ -27,7 +28,8 @@ import { readyStates } from './next-work.js';
 import { waitKindsOf } from './wait-kind.js';
 import { projectPause } from './project-pause.js';
 import { readinessOf, unshapedByEpic } from './epic-readiness.js';
-import { finishLines } from './finish-line.js';
+import { epicReleases } from './release.js';
+import { typeInfoOf } from './ticket-types.js';
 
 /** How many startable tickets a row names. */
 const FIRST_SHOWN = 3;
@@ -41,6 +43,7 @@ interface Node {
   priority: number;
   epic_id: string | null;
   archived_at: string | null;
+  type_info: string | null;
 }
 
 const isOpen = (status: Status) => (OPEN_STATUSES as readonly string[]).includes(status);
@@ -61,7 +64,7 @@ export class EpicGraph {
   ) {
     for (const n of db.sqlite
       .prepare(
-        `SELECT i.id, i.project_key, i.type, i.title, i.status, i.priority, i.epic_id, i.archived_at
+        `SELECT i.id, i.project_key, i.type, i.title, i.status, i.priority, i.epic_id, i.archived_at, i.type_info
          FROM items i JOIN projects p ON p.key = i.project_key WHERE p.deleted_at IS NULL`,
       )
       .all() as Node[]) {
@@ -344,8 +347,8 @@ export function pickEpics(
     db,
     epics.map((e) => e.id),
   );
-  // Decision 64: each epic's finish line and open bugs.
-  const lines = finishLines(
+  // Decision 67: each epic's Release, the tickets it waits for and open bugs.
+  const releases = epicReleases(
     db,
     epics.map((e) => e.id),
   );
@@ -396,10 +399,12 @@ export function pickEpics(
                 : 'available',
         park_reason: worked_by.length > 0 || notReady ? null : park_reason,
         ...(readiness ? { readiness } : {}),
-        release: {
-          finish_line: lines.get(e.id)?.id ?? null,
-          open_bugs: lines.get(e.id)?.open_bugs.length ?? 0,
-        },
+        release: releases.get(e.id) ?? { id: null, left: 0, open_bugs: 0 },
+        types: ITEM_TYPES.map((type) => ({
+          type,
+          n: tickets.filter((t) => t.type === type).length,
+        })).filter((x) => x.n > 0),
+        inferred: tickets.filter((t) => typeInfoOf(t.type_info)?.inferred).length,
       };
     })
     .sort(compareEpicPicks);

@@ -24,7 +24,7 @@ import {
   itemSchema,
   itemSummarySchema,
   itemSummaryViewSchema,
-  itemTypeSchema,
+  itemTypeInputSchema,
   itemViewSchema,
   statusSchema,
 } from './types.js';
@@ -90,12 +90,14 @@ export const listProjectsOutput = readOutput({
 // ---- search_items ----
 
 /**
- * Decision 65: `needs_shaping` comes with every read that doesn't name its
- * fields, and isn't a field to pick: the text-only tool list is at its budget.
+ * Decisions 65 and 67: `needs_shaping`, the inferred-type marks and `rollout`
+ * come with every read that doesn't name its fields, and aren't fields to
+ * pick: the text-only tool list is at its budget.
  */
-type SummaryField = Exclude<keyof typeof itemSummarySchema.shape, 'needs_shaping'>;
+const UNPICKED = ['needs_shaping', 'type_inferred', 'type_original', 'rollout'] as const;
+type SummaryField = Exclude<keyof typeof itemSummarySchema.shape, (typeof UNPICKED)[number]>;
 export const ITEM_SUMMARY_FIELDS = Object.keys(itemSummarySchema.shape).filter(
-  (k) => k !== 'needs_shaping',
+  (k) => !(UNPICKED as readonly string[]).includes(k),
 ) as [SummaryField, ...SummaryField[]];
 
 export const searchItemsInput = readInput({
@@ -104,7 +106,7 @@ export const searchItemsInput = readInput({
   text: text(TEXT_LIMITS.title).optional(),
   filter: z.enum(AGENT_FILTERS).optional(),
   status: z.array(statusSchema).min(1).optional(),
-  type: z.array(itemTypeSchema).min(1).optional(),
+  type: z.array(itemTypeInputSchema).min(1).optional(),
   label: labelName.optional(),
   epic: itemId.optional(),
   include_archived: z.boolean().default(true),

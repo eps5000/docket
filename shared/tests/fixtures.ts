@@ -49,7 +49,7 @@ export const step = (
 export const RCP14_SUMMARY: ItemSummary = {
   id: 'RCP-14',
   project: 'RCP',
-  type: 'Story',
+  type: 'Implementation',
   title: 'Generate shopping list from week plan',
   status: 'progress',
   priority: 1,
@@ -301,7 +301,7 @@ export const RCP14_CONTEXT: ContextBundle = {
   item: {
     id: 'RCP-14',
     title: RCP14.title,
-    type: 'Story',
+    type: 'Implementation',
     status: 'progress',
     priority: 1,
     outcome_md: RCP14.outcome_md,

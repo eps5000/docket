@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { pausedMark } from '../../lib/format';
 import { useId, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { ITEM_TYPES, type ItemType } from '@docket/shared';
+import { ITEM_TYPES, TYPE_MEANINGS, type ItemType } from '@docket/shared';
 import { Button, Dialog, DialogCancel, ErrorState } from '../../components/kit';
 import { apiClient } from '../../app/queryClient';
 import { useShell } from '../../app/ShellState';
@@ -39,7 +39,7 @@ export function QuickCapture({
   const ids = { title: useId(), type: useId(), project: useId(), notes: useId() };
   const projects = boot.data?.projects ?? [];
   const [title, setTitle] = useState('');
-  const [type, setType] = useState<ItemType>('Story');
+  const [type, setType] = useState<ItemType>('Implementation');
   const [project, setProject] = useState(
     epic?.project ?? (scope !== 'all' ? scope : (projects[0]?.key ?? '')),
   );
@@ -119,8 +119,11 @@ export function QuickCapture({
               value={type}
               onChange={(e) => setType(e.target.value as ItemType)}
             >
-              {ITEM_TYPES.map((t) => (
-                <option key={t}>{t}</option>
+              {/* Decision 67: an epic is created with its Release, so Release isn't offered. */}
+              {ITEM_TYPES.filter((t) => t !== 'Release' && !(epic && t === 'Epic')).map((t) => (
+                <option key={t} title={TYPE_MEANINGS[t].use}>
+                  {t}
+                </option>
               ))}
             </select>
           </span>

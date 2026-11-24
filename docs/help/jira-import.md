@@ -59,6 +59,7 @@ Then:
   Open a reason to see its issues, each with its own details;
 - **Skipped**, grouped by reason. For example, a sub-task whose parent isn't in the import is skipped and listed here;
 - **Mapping:** how Jira's types and statuses become Docket's;
+- Jira Story and Task become **Implementation (inferred)**. Their original types remain visible for a producer to correct while shaping. Every imported open epic gets one Release ticket; the report counts the imported Jira items separately from those generated Releases.
 - **Cycles found:** blocking loops in Jira's links. They're imported as they are and show under Problems, so you can fix them afterwards;
 - **Fields used:** which Jira fields it read story points and dates from.
 

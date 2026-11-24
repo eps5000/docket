@@ -20,7 +20,7 @@ import {
 const row = (patch: Partial<TimelineRow> = {}): TimelineRow => ({
   id: 'RCP-16',
   title: 'Shopping list',
-  type: 'Story',
+  type: 'Implementation',
   project: 'RCP',
   status: 'ready',
   blocked: true,

@@ -56,7 +56,8 @@ import type {
 import { DIGEST_MAX_CHARS, DIGEST_TEXT_CHARS, type Digest } from './mcp/digest.js';
 import type { RecoveryWorkspace } from './mcp/recovery.js';
 import type { KnownGaps } from './epic-readiness.js';
-import { RELEASE_WAYS_FORWARD, bugCount, type ReleaseHold } from './finish-line.js';
+import { RELEASE_WAYS_FORWARD, bugCount, ticketCount, type ReleaseHold } from './release.js';
+import { inferredTypesText } from './ticket-types.js';
 import { missingText, needsShapingText, type NeedsShaping } from './shaping.js';
 
 export interface RenderOptions {
@@ -150,13 +151,33 @@ function leadName(lead: { client: string; label: string | null }): string {
   return lead.label ? `${lead.client}·${lead.label}` : lead.client;
 }
 
+/**
+ * Decision 67: "implementation (inferred from story)", "implementation rollout",
+ * "bug (jira: Defect)".
+ */
+function typeWords(item: {
+  type?: string;
+  type_inferred?: true;
+  type_original?: string;
+  rollout?: true;
+}): string | null {
+  if (!item.type) return null;
+  const from = item.type_original?.toLowerCase();
+  const note = item.type_inferred
+    ? ` (inferred${from ? ` from ${from}` : ''})`
+    : from && from !== item.type.toLowerCase()
+      ? ` (was ${from})`
+      : '';
+  return `${item.type.toLowerCase()}${item.rollout ? ' rollout' : ''}${note}`;
+}
+
 function factsLine(item: AnyItem): string {
   const planned =
     item.planned_start || item.planned_end
       ? `planned ${item.planned_start ?? '…'}→${item.planned_end ?? '…'}${item.dates_set_by ? ` (${item.dates_set_by})` : ''}`
       : null;
   return join([
-    item.type?.toLowerCase(),
+    typeWords(item),
     item.priority !== undefined ? `P${item.priority}` : null,
     item.status,
     item.archived ? 'archived' : null,
@@ -541,17 +562,18 @@ export function knownGapLines(k: KnownGaps, toShape = false): string[] {
   ];
 }
 
-/** Bugs listed on the finish line's context before "+N more". */
+/** Bugs listed on the Release's context before "+N more". */
 const RELEASE_BUGS_SHOWN = 5;
 
 /**
- * Decision 64: on an epic's finish line, the open bugs in the epic that keep it
- * from Review and Done, and the ways forward.
+ * Decision 67 (and 64's bugs): on an epic's Release, the other open tickets in
+ * the epic that keep it from Review and Done, its open bugs, and the ways forward.
  */
 export function releaseHoldLines(h: ReleaseHold): string[] {
   const n = h.open_bugs.length;
+  const more = h.left - h.waiting_on.length;
   return [
-    `release held: finish line of ${h.epic}, which has ${bugCount(n)} open; Review and Done are refused until each is settled: ${RELEASE_WAYS_FORWARD.join('; ')}:`,
+    `release held: the Release of ${h.epic} waits for ${ticketCount(h.left)} to finish: ${h.waiting_on.join(', ')}${more > 0 ? ` +${more} more` : ''}; Review and Done are refused until each is settled: ${RELEASE_WAYS_FORWARD.join('; ')}${n > 0 ? `. ${bugCount(n)} open:` : ''}`,
     ...h.open_bugs
       .slice(0, RELEASE_BUGS_SHOWN)
       .map((b) => `${I1}- ${b.id} ${b.status}${SEP}${truncate(b.title, 60)}`),
@@ -697,7 +719,7 @@ export function renderItem(
 export function renderItemRow(item: ItemSummaryView, _opts: RenderOptions = {}): string {
   return join([
     item.title !== undefined ? `${item.id} ${truncate(item.title)}` : item.id,
-    item.type?.toLowerCase(),
+    typeWords(item),
     item.priority !== undefined ? `P${item.priority}` : null,
     item.status,
     item.blocked && item.blocked_by && item.blocked_by.length > 0
@@ -1035,6 +1057,9 @@ function renderDigest(d: Digest, now: Date): string {
   const top = d.paused ? [head, `paused: ${d.paused}`] : [head];
   // Decision 56: a coordinator takes this before dispatching.
   if (d.agent_files_update) top.push(`update: ${d.agent_files_update}`);
+  // Decision 67: Story and Task tickets whose type nobody has checked yet.
+  if (d.inferred_types)
+    top.push(`${inferredTypesText(d.inferred_types)} while shaping (update_item type)`);
   const nextWork = {
     title: 'next work',
     total: d.next_work.total,
@@ -1123,7 +1148,7 @@ function renderDigest(d: Digest, now: Date): string {
     total: d.release_bugs?.total ?? 0,
     rows: (d.release_bugs?.rows ?? []).map(
       (x) =>
-        `${x.epic} ${x.finish_line ? `finish line ${x.finish_line}` : 'no finish line'} waits on ${bugCount(x.bugs.length)}: ${partList(x.bugs, 3)}`,
+        `${x.epic} ${x.release ? `Release ${x.release}` : 'no Release'} waits on ${bugCount(x.bugs.length)}: ${partList(x.bugs, 3)}`,
     ),
   };
   // Decision 58: a quiet flag for the producer; full snapshots only.

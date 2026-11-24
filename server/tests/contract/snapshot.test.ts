@@ -192,6 +192,7 @@ const INPUTS: Record<string, [string[], string[]]> = {
       'blocked_by',
       'split_from',
       'shared',
+      'rollout',
     ],
   ],
   update_item: [
@@ -210,7 +211,8 @@ const INPUTS: Record<string, [string[], string[]]> = {
       'planned_end',
       'effort',
       'known_gaps',
-      'finish_line',
+      'type',
+      'rollout',
     ],
   ],
   set_status: [
@@ -417,6 +419,7 @@ const OPTIONAL_OUTPUTS: Record<string, string[]> = {
     'untriaged_epics',
     'release_bugs',
     'needs_shaping',
+    'inferred_types',
   ], // decisions 53, 56, 58, 61, 62, 64, 65: only while they apply
   submit_packet: ['held_undeclared', 'held_design'],
   declare_shared_changes: ['design_hold'],
@@ -700,7 +703,7 @@ describe('tools/list: output schemas (§4, §5, §6)', () => {
       'design_review',
       'project_paused',
       'epic_not_ready',
-      'bugs_open',
+      'release_gates',
     ]);
   });
 

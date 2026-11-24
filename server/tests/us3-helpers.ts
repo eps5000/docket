@@ -5,7 +5,7 @@
  */
 import type { In } from '../src/domain/contracts.js';
 import { OWNER_ACTOR, type Actor } from '../src/domain/write.js';
-import { declareNone, type Domain } from './us1-helpers.js';
+import { declareNone, readyRelease, type Domain } from './us1-helpers.js';
 
 export interface Ticket {
   id: string;
@@ -37,6 +37,8 @@ export function newTicket(
     } as In<'create_item'>),
   );
   declareNone(d, item.id); // the Ready gate (decision 36)
+  // Decision 67: an epic starts only with its Release Ready, shaped here.
+  if (opts.type === 'Epic') readyRelease(d, item.id);
   d.write(plain, (w, s) =>
     s.items.setStatus(w, { id: item.id, status: 'ready' } as In<'set_status'>),
   );

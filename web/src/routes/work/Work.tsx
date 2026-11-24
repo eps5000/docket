@@ -99,6 +99,8 @@ export function Work() {
     quick: filter.quick,
     ...(filter.has.length ? { has: filter.has.join(',') } : {}),
     ...(filter.show.length ? { show: filter.show.join(',') } : {}),
+    // Decision 67: only these types.
+    ...(filter.types?.length ? { type: filter.types.join(',') } : {}),
   };
   const query = useQuery({
     queryKey: queryKeys.work(q),

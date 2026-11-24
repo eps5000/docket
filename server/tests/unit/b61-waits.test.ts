@@ -36,7 +36,7 @@ const ticket = (title: string, status: 'planning' | 'ready' = 'ready') => {
   const { id } = d.write(coordinator, (w, s) =>
     s.items.create(w, {
       project: 'TST',
-      type: 'Task',
+      type: 'Implementation',
       title,
       acceptance: ['First synthetic check', 'Second synthetic check'],
       status: 'planning',
@@ -83,7 +83,7 @@ const split = (actor: Actor, id: string, extra: Partial<SplitInput>) =>
       expected_version: version(id),
       move: [2],
       relation: 'none',
-      type: 'Task',
+      type: 'Implementation',
       title: 'The part that can go ahead',
       ...extra,
     }),

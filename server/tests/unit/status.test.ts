@@ -6,7 +6,14 @@ import type { ItemSummary, Status } from '@docket/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Actor } from '../../src/domain/write.js';
 import { OWNER_ACTOR } from '../../src/domain/write.js';
-import { addProject, declareNone, forceStatus, startDomain, type Domain } from '../us1-helpers.js';
+import {
+  addProject,
+  declareNone,
+  forceStatus,
+  startDomain,
+  withoutRelease,
+  type Domain,
+} from '../us1-helpers.js';
 
 let d: Domain;
 let claude: Actor;
@@ -264,6 +271,8 @@ describe('the Done gate (decision 13)', () => {
 describe('epics (FR-005)', () => {
   it('reach Done only when every child is Done or Canceled, naming the open ones', () => {
     const { id: epic } = create('Epic', { type: 'Epic' });
+    // Decision 67: as before every epic had a Release (b84-release covers closing with one).
+    withoutRelease(d, epic);
     const a = create('Child A', { epic }).id;
     const b = create('Child B', { epic }).id;
     forceStatus(d, epic, 'progress');

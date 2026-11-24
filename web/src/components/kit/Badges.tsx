@@ -5,6 +5,9 @@
 import { Fragment } from 'react';
 import {
   DECISION_AUTHORITY_LABELS,
+  INFERRED_LABEL,
+  ROLLOUT_HELP,
+  ROLLOUT_LABEL,
   RUN_STATE_LABELS,
   type DecisionAuthority,
   type ItemType,
@@ -17,22 +20,55 @@ import { Icon, TypeGlyph, type IconName } from './icons';
 
 // ---- TypeBadge / TypeIcon ----
 
-/** 16px square in the type colour with a glyph, plus the name. */
-export function TypeBadge({ type, iconOnly = false }: { type: ItemType; iconOnly?: boolean }) {
-  const cls = `type t-${type.toLowerCase()}${iconOnly ? ' iconly' : ''}`;
+/**
+ * 16px square in the type colour with a glyph, plus the name. Decision 67: an
+ * inferred type (from Story or Task) has a dashed square and says so in words.
+ */
+export function TypeBadge({
+  type,
+  iconOnly = false,
+  inferred = false,
+  original,
+}: {
+  type: ItemType;
+  iconOnly?: boolean;
+  inferred?: boolean;
+  original?: string | undefined;
+}) {
+  const cls = `type t-${type.toLowerCase()}${iconOnly ? ' iconly' : ''}${inferred ? ' inferred' : ''}`;
+  const name = inferred
+    ? `${type} (${INFERRED_LABEL}${original ? ` from ${original}` : ''})`
+    : type;
   return (
-    <span className={cls} title={iconOnly ? type : undefined}>
+    <span className={cls} title={iconOnly || inferred ? name : undefined}>
       <span className="tsq">
         <TypeGlyph type={type} />
       </span>
-      {iconOnly ? <span className="sr">{type}</span> : type}
+      {iconOnly ? <span className="sr">{name}</span> : name}
     </span>
   );
 }
 
 /** Icon-only, with an sr-only name (board cards and tabs). */
-export function TypeIcon({ type }: { type: ItemType }) {
-  return <TypeBadge type={type} iconOnly />;
+export function TypeIcon({
+  type,
+  inferred = false,
+  original,
+}: {
+  type: ItemType;
+  inferred?: boolean;
+  original?: string | undefined;
+}) {
+  return <TypeBadge type={type} iconOnly inferred={inferred} original={original} />;
+}
+
+/** Decision 67: the rollout marker, a word and a glyph, never colour alone. */
+export function RolloutMark() {
+  return (
+    <span className="rollout-mark" title={ROLLOUT_HELP}>
+      <span aria-hidden="true">⇪</span> {ROLLOUT_LABEL}
+    </span>
+  );
 }
 
 // ---- RunState ----

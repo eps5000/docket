@@ -40,7 +40,7 @@ Workflow: Inbox → Planning → Ready → In progress → Review → Done.
 - Planning belongs to the owner. You may draft planning documents (put_document) and move an item to Ready only when the project's workflow (AGENTS.md / CLAUDE.md) says you may.
 - To change your instructions for a project, propose it with propose_agent_file_change; don't edit installed files directly.
 - To set up a new project or onboard a repo, call onboard_project and follow the guide it returns.
-- Your plan is the item's checklist, not new tickets: set_plan with one-line steps, update_step as you go. Split work into a new Story or Task only when a step needs its own blocker, owner or review.
+- Your plan is the item's checklist, not new tickets: set_plan with one-line steps, update_step as you go. Split work into a new ticket only when a step needs its own blocker, owner or review.
 - Record what you verify yourself with set_checks. Record subagent work with log_subagent; say whether you observed it or are relaying it.
 - If the owner must verify something by hand, declare it with declare_human_review, ideally during Planning. The item cannot close while any human review item is undecided.
 - Report each commit for the item it belongs to (report_commit). When the work is built and your checks pass, hand off with submit_packet. If there is no human review, close it with set_status "done".
@@ -53,7 +53,7 @@ Workflow: Inbox → Planning → Ready → In progress → Review → Done.
 - After any pause, call get_item: it delivers the owner's notes, answers and review decisions, each once.
 - Send only what changes. update_item, set_plan and set_checks patch: whatever you leave out stays as it is. Use get_item view "summary" when you only need status.
 
-Errors are structured (code: validation | conflict | not_found | forbidden | unavailable | internal | seam_conflict | not_declared | lease_held | design_review | project_paused | epic_not_ready | bugs_open). On conflict, read the current state in the error and retry only if your change still makes sense.
+Errors are structured (code: validation | conflict | not_found | forbidden | unavailable | internal | seam_conflict | not_declared | lease_held | design_review | project_paused | epic_not_ready | release_gates). On conflict, read the current state in the error and retry only if your change still makes sense.
 ```
 
 ---
@@ -96,7 +96,7 @@ Errors are structured (code: validation | conflict | not_found | forbidden | una
   | Enum | Values |
   |---|---|
   | `status` | `inbox`, `planning`, `ready`, `progress`, `review`, `done`, `canceled` |
-  | `type` | `Epic`, `Story`, `Task`, `Bug` |
+  | `type` | `Epic`, `Exploration`, `Design`, `Implementation`, `Bug`, `Release` |
   | `priority` | 1 (high), 2, 3 |
   | `run_state` (derived) | `live`, `reported`, `stale`, `parked`, `needs_input`, `failed`, `finished`, `interrupted` |
   | `end_reason` | `finished`, `failed`, `released`, `lease_expired`, `owner_released`, `service_restart`, `canceled` |
@@ -214,7 +214,7 @@ The format is inspired by TERSL's identity-first, low-punctuation layout (ROADMA
 **Example:** `get_item RCP-14`, standard view, from the seed data:
 ```
 RCP-14 Generate shopping list from week plan
-  story · P1 · progress · epic RCP-1 Meal planning MVP · labels mobile · v7
+  implementation · P1 · progress · epic RCP-1 Meal planning MVP · labels mobile · v7
   lead claude·orca-w3 live · run run_01JA… · lease until 12:02Z
   blocked_by: none · blocks: RCP-24 planning, RCP-27 planning
   outcome: When a week plan is saved, the user can produce one merged shopping list grouped by aisle and export it.
@@ -300,7 +300,7 @@ TypeScript notation. The zod source of truth lives in `shared/`.
 
 ```ts
 type ItemSummary = {
-  id: string; project: string; type: 'Epic'|'Story'|'Task'|'Bug'; title: string;
+  id: string; project: string; type: 'Epic'|'Exploration'|'Design'|'Implementation'|'Bug'|'Release'; title: string;
   status: Status; priority: 1|2|3; epic: string|null; epic_title: string|null; labels: string[];
   unblocks: number;                                  // items this would unblock when finished (B3 resolution 9)
   blocked: boolean; blocked_by: string[];            // unresolved blockers only
@@ -308,6 +308,7 @@ type ItemSummary = {
   human_review: { declared: number; ready: number; approved: number; deferred: number };
   planned_start: string|null; planned_end: string|null; effort: number|null;
   archived: boolean; jira_key: string|null; version: number; updated_at: string;
+  type_inferred?: true; type_original?: string; rollout?: true; // decision 67
   // Decision 65: Inbox or Planning, an agent created it unshaped or the owner asked a planner,
   // and it still lacks something; absent otherwise. Not one of the fields `fields` can pick.
   needs_shaping?: { missing: ('outcome'|'acceptance'|'shared_changes')[]; asked_by: 'agent'|'owner';
@@ -369,7 +370,7 @@ type ContextBundle = {
     details_md: string|null; details_version: number; truncated: boolean } | null;   // the step to work on, with its details (decision 33; B34)
   workflow: { project: string; version_no: number; content_md: string; truncated: boolean } | null;   // the project's Workflow notes (decision 29)
   shared?: ContextShared;                            // shared changes (decision 36; §5.15); absent until B39
-  release_hold?: { epic: string; open_bugs: { id: string; title: string; status: Status }[] };   // decision 64: on an epic's finish line while bugs in it are open
+  release_hold?: { epic: string; left: number; waiting_on: string[]; open_bugs: { id: string; title: string; status: Status }[] }; // decision 67: on a Release waiting for epic tickets
   planning_docs: { name: string; version_no: number; content_md: string|null; truncated: boolean }[];
   last_review: { round: number; items: { text: string; kind: 'approve'|'changes'|'defer'; note: string|null }[] } | null;
   budget: 'small'|'medium'|'large'; truncated_sections: string[];
@@ -522,7 +523,7 @@ The format for each tool below:
 - **Note (decision 36; B38):** the bundle gains `shared` (`ContextBundle.shared`, §4; §5.15; BUILD_SPEC §5.21 Context): the item's declaration, other in-flight items' declarations of the same parts, up to 30 other in-flight declarations in the project, the leases it holds and radar findings, rendered as a `shared:` section after the Workflow notes, before the planning documents, and counted in the budget. Optional and absent until B39 (T183) fills it; the description is unchanged.
 - **Note (decision 57; B73):** while the item has an open blocker the bundle gains `wait_kind: { kind, text }`, one line under `blocked_by:`: `wait_kind: queued · Starts after RCP-12`, or `wait_kind: blocked · RCP-9 has no next step: nobody has shaped or assigned it`, or Held with the decision. It's display only: any open blocker still refuses `claim_lead`, and `blocked`, `blocked_by` and `search_items` `blocked` keep meaning "has an open blocker". Never cut.
 - **Note (decision 58; B74):** a ticket with known gaps gains `known_gaps: { gaps: [{ n, gap, settled }], open, approved: { decision_id, at } | null }`, rendered right under the acceptance criteria as `known gaps to shape (2 open · approved by the owner dec_…; record how each was settled with update_item known_gaps):` and one `  1. <gap> · open` or `  1. <gap> · settled: <how>` line each. Never cut. `get_item` shows the same list as `known gaps (2 open · not approved):`.
-- **Note (decision 64; B81):** on an epic's finish line (its release ticket; BUILD_SPEC §5.43) while bugs in the epic are open, the bundle gains `release_hold: { epic, open_bugs: [{ id, title, status }] }`, rendered right after the known gaps as `release held: finish line of GF-1, which has 2 bugs open; Review and Done are refused until each is settled: fix it (Done); move it to another epic as a follow-up (update_item epic); cancel it with a reason (set_status canceled):` and one `  - GF-20 ready · <title>` line each (at most 5, then `+N more`). Never cut. Absent on every other ticket, and when no bug is open.
+- **Note (decision 67; B84):** on an epic's Release while other tickets remain open, the bundle gains `release_hold: { epic, left, waiting_on, open_bugs }`, rendered right after known gaps as `release held: the Release of GF-1 waits for 3 tickets to finish: GF-20, GF-21, GF-22; Review and Done are refused until each is settled`, with the open bugs and ways forward named. Never cut. Absent on other types and when nothing in its epic remains open.
 - **Note (decision 61; B78):** while the last lead's partial exit waits on the producer, the bundle gains `finished_partly: { run_id, label, via, at, left: ExitLeft[] }`, rendered after the known gaps as `finished partly: 1 item left by w3 (finish 10:40Z); settle each before closing as Done:` and one `  1. <text> · why: <why> · needs: <needs> · GF-14` line each. Never cut.
 - **Note (decision 45; B54):** the bundle gains `wait` (the parked lead's `WaitCard`) and `waiting_runs` (`{ total, rows: [{ item_id, run_id, label, waited_since, via }] }`, at most 5: the parked runs this item would free, directly or through a chain). Both travel with the unresolved blockers and are never cut.
 - **Errors:** `not_found`.
@@ -551,11 +552,11 @@ The format for each tool below:
 - **While the owner has the project paused (decision 53):** `paused` is one plain line, `next_work`, `bottlenecks` and `ready` are empty, and problems whose fix is to start or resume work are left out.
 - **`agent_files_update?`** (decision 56): on a full snapshot only, while the project's installed files are behind. A coordinator takes the update first, as one small PR.
 - **`unshaped_epics?`** (decision 58; B74): epics already In progress or in Review with Inbox or Planning tickets, `{ total, rows: [{ id, title, unshaped: string[] }] }`, at most 3 rows, after `bottlenecks`: a quiet flag for the producer, never a refusal. With `cursor`, only epics whose own events or those of their unshaped tickets came after it. Text: `started unshaped 1:` then `- GF-1 started with 2 unshaped: GF-3, GF-5 · <title>`. Absent when none.
-- **`release_bugs?`** (decision 64; B81): open epics with open bugs, `{ total, rows: [{ epic, finish_line, bugs: string[] }] }`, at most 3 rows, by priority, after `bottlenecks`. `finish_line` is the release ticket those bugs hold (BUILD_SPEC §5.43), or null when the epic has none yet, for the producer to mark. With `cursor`, only epics whose own events, their finish line's or their bugs' came after it. Text: `release held by bugs 2:` then `- GF-1 finish line GF-12 waits on 3 bugs: GF-20, GF-21, GF-22` or `- GF-4 no finish line waits on 1 bug: GF-30`. Absent when no epic has an open bug.
+- **`release_bugs?`** (decision 67): open epics with open bugs, `{ total, rows: [{ epic, release, bugs: string[] }] }`, at most 3 rows, by priority, after `bottlenecks`. `release` is the epic's closing ticket. With `cursor`, only epics whose own events, Release or bugs came after it. Absent when no epic has an open bug.
 - **`finished_partly?`** (decision 61; B78): lead runs whose partial exit nobody has acted on yet, newest first, `{ total, rows: [{ item_id, title, run_id, label, producer?, via, at, left: ExitLeft[] }] }`, at most 4 rows, first in the text. On every digest, with or without `cursor`, until someone acts on the ticket after the exit: edits its acceptance criteria or splits it, links it, claims it, asks the owner on it or its epic, adds a note, or the owner closes it. Text: `finished partly 1:` then `- GF-12 1 left · w3 · producer orca · <text> (why: <why>; needs: <needs> GF-14)`, two items a row and `+N more`. Absent when none.
 - **`untriaged_epics?`** (decision 62; B79; BUILD_SPEC §5.45): epics In progress or in Review holding tickets added after they started that are still in Inbox, `{ total, rows: [{ id, title, untriaged: [{ id, type }] }] }`, at most 3 rows, after `finished_partly`: the producer triages them (a bug to Ready in this epic or to the epic it belongs in, after a read-only reproduction; a story to the owner: add, defer or drop). With `cursor`, only epics whose own events or those of their untriaged tickets came after it. Text: `added mid-flight 1:` then `- GF-1 added since this epic started: 2 untriaged: GF-9 bug, GF-10 story · <title>`. Absent when none.
 - **`needs_shaping?`** (decision 65; B82): tickets in Inbox or Planning that an agent created unshaped, or that the owner asked a planner to shape, and that still lack an outcome, acceptance or their shared changes declaration, `{ total, rows: [{ id, title, epic, missing, asked_by, note }] }`, at most 5 rows, highest priority first, after `unshaped_epics` and `finished_partly`. The producer gives each to a planner. It is listed while the project is paused too: shaping isn't starting work. With `cursor`, only tickets whose events came after it. Text: `needs shaping 2:` then `- GF-12 in GF-3 · no outcome and shared changes not declared · the owner asked: Check the export story · <title>`. Absent when none.
-- **Output:** `{ project, paused?, agent_files_update?, unshaped_epics?, finished_partly?, untriaged_epics?, release_bugs?, needs_shaping?, cursor, since, next_work, bottlenecks, ready, runs, blocked, owner, problems, leases, conflicts, changed }`. `cursor` is the current change cursor; `since` is the cursor passed, or null. Each section is `{ total, rows }`, with at most `next_work` 5, `bottlenecks` 3, `ready` 8, `runs` 8, `blocked` 5, `owner` 6, `problems` 4, `leases` 4, `conflicts` 4 and `changed` 6 rows: `next_work` `{ id, title, priority, unlocks, reason }` (Startable tickets by priority, tickets transitively unlocked, then age); `bottlenecks` `{ id, title, status, unlocks, next }` (unowned Inbox or Planning tickets holding up real work; decision 48, BUILD_SPEC §5.30); `ready` `{ id, title, priority, unblocks }`; `runs` `{ item_id, run_id, state, label, resume_ready, waiting }` (open runs, stale and parked first); `blocked` `{ id, title, priority, unblocks, blocked_by, wait, why? }` (decision 57: every open ticket with an open blocker; `wait` is `queued`, `blocked` or `held`, Blocked first, then Held, then Queued; `why` is the plain reason for Blocked or Held, absent for Queued, and its text line reads `RCP-22 p2 blocked unblocks 0 by RCP-12 · RCP-12 was canceled, so it never clears · Export`); `owner` `{ kind, item_id, text }`; `problems` `{ id, kind, item_id, fix }` (those an agent can act on); `leases` `{ part, item_id, until }`; `conflicts` `{ items, parts, outcome }`; `changed` `{ cursor, item_id, type }`, newest first.
+- **Output:** `{ project, paused?, agent_files_update?, unshaped_epics?, finished_partly?, untriaged_epics?, release_bugs?, needs_shaping?, inferred_types?, cursor, since, next_work, bottlenecks, ready, runs, blocked, owner, problems, leases, conflicts, changed }`. `inferred_types` counts open tickets still marked as inferred from Story or Task. `cursor` is the current change cursor; `since` is the cursor passed, or null. Each section is `{ total, rows }`, with at most `next_work` 5, `bottlenecks` 3, `ready` 8, `runs` 8, `blocked` 5, `owner` 6, `problems` 4, `leases` 4, `conflicts` 4 and `changed` 6 rows: `next_work` `{ id, title, priority, unlocks, reason }` (Startable tickets by priority, tickets transitively unlocked, then age); `bottlenecks` `{ id, title, status, unlocks, next }` (unowned Inbox or Planning tickets holding up real work; decision 48, BUILD_SPEC §5.30); `ready` `{ id, title, priority, unblocks }`; `runs` `{ item_id, run_id, state, label, resume_ready, waiting }` (open runs, stale and parked first); `blocked` `{ id, title, priority, unblocks, blocked_by, wait, why? }` (decision 57: every open ticket with an open blocker; `wait` is `queued`, `blocked` or `held`, Blocked first, then Held, then Queued; `why` is the plain reason for Blocked or Held, absent for Queued, and its text line reads `RCP-22 p2 blocked unblocks 0 by RCP-12 · RCP-12 was canceled, so it never clears · Export`); `owner` `{ kind, item_id, text }`; `problems` `{ id, kind, item_id, fix }` (those an agent can act on); `leases` `{ part, item_id, until }`; `conflicts` `{ items, parts, outcome }`; `changed` `{ cursor, item_id, type }`, newest first.
 - **Parked rows (decision 45):** `wait: { since, next, flags, held_by?, relay? }`, the card's short form. `held_by` (`{ decision_id, title }`, decision 48) names the active owner decision the park reason cites; such a run doesn't escalate and resumes when the owner lifts it. `relay` appears once it can resume and names the same run and dispatch. A row with `resume_ready` sorts first. Docket can't deliver it: the coordinator relays it.
 - **With `cursor`:** each section keeps only items that events after it touched, and `changed` lists those events.
 - **Text rendering:** a header (`Digest GF · cursor 812`), then each non-empty section as `ready 42:` with one `- ` line per row and `  +34 more` when it holds more. The text never exceeds 4,000 characters (1,000 tokens): past that, rows drop from the last section, and `+N more` still counts them. Run IDs are in `structuredContent` only.
@@ -565,8 +566,8 @@ The format for each tool below:
 ### 5.3 Creating and editing items
 
 #### `create_item`
-**Description:** "Create an Epic, Story, Task or Bug in Inbox or Planning. Pass outcome_md, acceptance and shared (part keys or 'none'), or it Needs shaping. To split, pass split_from with acceptance positions to move or copy."
-- **Input:** `project`, `type`, `title`, `description_md?`, `outcome_md?`, `acceptance?: string[]`, `priority?: 1|2|3` (default 2, or the original's in a split), `epic?` (an Epic in the same project), `labels?: string[]` (created if missing), `status?: 'inbox'|'planning' = 'inbox'`, `planned_start?`, `planned_end?`, `effort?: number ≥ 0`, `blocked_by?: string[]` (creates `blocks` links; cycle-checked), `split_from?` (decision 48, below), `shared?: string[] | 'none'` (decision 65, below).
+**Description:** "Create an item in Inbox or Planning; an Epic also gets its Release. Pass outcome_md, acceptance and shared (part keys or 'none'), or it Needs shaping. To split, use split_from with 1-based acceptance positions."
+- **Input:** `project`, `type`, `title`, `description_md?`, `outcome_md?`, `acceptance?: string[]`, `priority?: 1|2|3` (default 2, or the original's in a split), `epic?` (an Epic in the same project), `labels?: string[]` (created if missing), `status?: 'inbox'|'planning' = 'inbox'`, `planned_start?`, `planned_end?`, `effort?: number ≥ 0`, `blocked_by?: string[]` (creates `blocks` links; cycle-checked), `split_from?` (decision 48, below), `shared?: string[] | 'none'` (decision 65, below), `rollout?` (Implementation only, for a shared-environment rollout).
 - **Output:** `{ item: ItemSummary }`.
 - **Errors:** `validation` (bad epic, wrong project, cycle, limits), `not_found` (project).
 - **Splitting a ticket** (decision 48; BUILD_SPEC §5.33): `split_from: { id, expected_version, move: number[], copy?: number[], relation: 'after_original'|'before_original'|'none', also?: [{ kind: 'blocker'|'part'|'step', id, copy? }], coordinator? }`.
@@ -578,19 +579,19 @@ The format for each tool below:
   - A parked run stops waiting on a blocker that moved off its ticket; if none is left, it can resume.
   - An open packet is marked out of date if criteria moved. `get_item` then shows `split_from` and `split_into`.
 - **Arriving shaped** (decision 65; BUILD_SPEC §5.44): `shared` declares the ticket's shared changes in the same call: up to 50 part keys, each declared as a `change` (a key that isn't registered is registered with it, as `new_parts` would), or `'none'`. It is `declare_shared_changes` with defaults; members, `add` or `remove`, notes and design impact go through that tool. In a split, the keys join the parts `also` carries, and `'none'` with carried parts is `validation`.
-  - **Needs shaping.** A Story, Task or Bug an agent creates (or splits) without an outcome, at least one acceptance criterion and its shared changes declared is marked **Needs shaping**: the result's `item.needs_shaping` is `{ missing: ('outcome'|'acceptance'|'shared_changes')[], asked_by: 'agent', by, at, note: null }`, and the text adds `  needs shaping: no outcome and shared changes not declared · shape it: …`. It shows on the ticket, the epic, the map and the producer's `get_digest`, until it is shaped or Ready. An Epic is never marked; the owner's tickets aren't marked on creation.
+  - **Needs shaping.** A non-Epic ticket an agent creates (or splits) without an outcome, at least one acceptance criterion and its shared changes declared is marked **Needs shaping**: the result's `item.needs_shaping` is `{ missing: ('outcome'|'acceptance'|'shared_changes')[], asked_by: 'agent', by, at, note: null }`, and the text adds `  needs shaping: no outcome and shared changes not declared · shape it: …`. It shows on the ticket, the epic, the map and the producer's `get_digest`, until it is shaped or Ready. The owner's tickets aren't marked on creation.
   - It adds no gate: Ready still needs only the declaration (decision 36) and approved known gaps (decision 58).
 
 #### `update_item`
 **Description:** "Edit an item's fields; pass expected_version. Status goes through set_status, the plan through set_plan. known_gaps: what implementation will settle."
-- **Input:** `id`, `expected_version`, and any of `title`, `description_md`, `outcome_md`, `acceptance`, `priority`, `epic` (`null` clears it), `labels` (replaces the set), `add_labels`, `remove_labels`, `planned_start`, `planned_end` (`null` clears), `effort` (`null` clears), `known_gaps` (decision 58: up to 6 of `{ gap, settled? }`; see below), `finish_line` (decision 64, on an epic: see below). Fields you leave out are unchanged (§3.3).
+- **Input:** `id`, `expected_version`, and any of `title`, `description_md`, `outcome_md`, `acceptance`, `priority`, `epic` (`null` clears it), `labels` (replaces the set), `add_labels`, `remove_labels`, `planned_start`, `planned_end` (`null` clears), `effort` (`null` clears), `known_gaps` (decision 58: up to 6 of `{ gap, settled? }`; see below), `type` (clears an inferred mark), `rollout` (Implementation only). Fields you leave out are unchanged (§3.3).
 - **Output:** `{ item: ItemSummary }`.
 - **`known_gaps`** (decision 58; BUILD_SPEC §5.41): up to 6 of `{ gap (≤ 200), settled? (≤ 500) }`, things implementation will settle. In Inbox or Planning it replaces the list; changing a gap clears the owner's approval, and `[]` clears them all. A gap with `settled` counts as shaped. Past Planning the gaps are fixed: send the same gaps in order, adding `settled` to record how each was settled (a `settled` left out keeps its note). Adding gaps to a ticket that is already Ready is refused: move it back to Planning first.
-- **`finish_line`** (decision 64; BUILD_SPEC §5.43), on an epic only: the ID of its release ticket, when the links don't settle it (several tickets, or none, are last). It must be a ticket in the epic that isn't a bug or canceled, else `validation`; `null` clears the mark and detection takes over again. A mark stops counting once its ticket leaves the epic, is canceled or becomes a bug. Recorded in Activity.
+- **Types and rollout** (decision 67; BUILD_SPEC §5.47): `type` chooses Epic, Exploration, Design, Implementation, Bug or Release; an Epic and its mandatory Release cannot be retyped while open. `rollout` marks an Implementation ticket that changes a shared environment other tickets depend on. Story and Task inputs are accepted temporarily, stored as inferred Implementation, and named in the reply.
 - **Errors:** `conflict` (version), `validation`.
 
 #### `set_status`
-**Description:** "Move an item. Docket enforces the allowed moves and their gates (not_declared, design_review, bugs_open). Closing as done: pass changed_files and branch. Hand off for review with submit_packet. Details: docket-worker reference status-moves."
+**Description:** "Move an item. Docket enforces the allowed moves and their gates (not_declared, design_review, release_gates). Closing as done: pass changed_files and branch. Hand off for review with submit_packet. Details: docket-worker reference status-moves."
 - **Input:** `id`, `status`, `expected_version?`, `reason?` (required for canceled and reopen), `changed_files?: string[]` and `branch?` (decision 36: read only when moving to `done`; §5.15).
 - **Output:** `{ item: ItemSummary }`.
 - **Errors:**
@@ -600,7 +601,7 @@ The format for each tool below:
   - `design_review` (decision 39; §5.15): starting or closing an item whose change to an approved design the owner hasn't approved. Other items aren't affected.
   - `forbidden` (decision 58; BUILD_SPEC §5.41) with `details: { known_gaps, asked, question_id?, ask: 'the owner' }`: moving a Planning ticket with open, unapproved known gaps to `ready`. The refusal asks the owner for you, in a write of its own, through the question form: "Approve moving GF-1 to Ready with these gaps?", with *Approve with these gaps* (recommended) and *Keep it in Planning*. It asks once: while that question is open, or another one is, or an answer is unread, it says so and asks nothing. The answer arrives in `get_item` as usual; on approval Docket records an owner decision on the ticket listing the gaps and moves it to Ready itself. A ticket with no open gaps moves as before.
   - `epic_not_ready` (decision 58): moving an epic from `ready` to `progress` while any of its tickets is in Inbox or Planning; as on `claim_lead`.
-  - `bugs_open` (decision 64; BUILD_SPEC §5.43) with `details: { epic, finish_line, open_bugs: [{ id, title, status }], ways_forward: ['fix', 'move', 'cancel'] }`: moving an epic's finish line to `done` while any bug in the epic is open (not Done or canceled). The message names the bugs and the three ways forward. Bugs outside the epic, and tickets that aren't the finish line, are unaffected.
+  - `release_gates` (decision 67; BUILD_SPEC §5.47) with `details: { epic, release, gates: [{ gate, label, items }], ways_forward? }`: moving an epic's Release to Review or Done while other tickets, bugs, known gaps, partial exits or its own checklist remain open. The refusal names the remaining work and the ways forward; bugs outside the epic are unaffected. Completing the Release closes its epic.
   - `validation`: canceling a bug that is in an epic without a `reason` (decision 64: shipping without a bug is deliberate).
   - `validation` (decision 61; BUILD_SPEC §5.42) with `details: { reason: 'items_left', run_id, left: ExitLeft[], ways_forward: ['remove_with_note', 'move', 'link', 'ask_owner'] }`: an agent moving to `done` while the ticket's last partial exit still has items left and nobody has acted on it. Remove them from the acceptance criteria with `update_item` and `add_note` saying which and why, or move them to the ticket that can do them (a split, or a link), then close. The run that reported them may close it itself; the owner may always close it.
   - `validation` (decision 62; BUILD_SPEC §5.45) with `details: { reason, untriaged: [{ id, title, type }] }`: moving an epic to `done` while tickets added after it started are still in Inbox (untriaged). The message lists them and how to triage each: "Can't close epic GF-1: 2 tickets were added after it started and haven't been triaged: GF-9 (bug), GF-10 (story). Triage each one: …". It comes before the open-children check.
@@ -782,7 +783,7 @@ The format for each tool below:
   - a packet is already open;
   - a failed agent check exists without a gap explaining it;
   - the item is blocked.
-- **`bugs_open`** (decision 64): the item is its epic's finish line and a bug in the epic is open; as on `set_status`, with "can't move to Review".
+- **`release_gates`** (decision 67): the item is its epic's Release and one or more gates remain open; as on `set_status`, with "can't move to Review".
 - **Notes:**
   - Submitting doesn't end your run. Usually you call `finish_run` next and stop.
   - On an epic, this submits an epic-level packet.
@@ -1106,7 +1107,7 @@ Every error is returned as a tool result: `isError: true`, a `text` block holdin
 | `design_review` | Decision 39: claiming, starting or closing an item whose change to an approved design the owner hasn't approved (§5.15) | "GF-312 changes an approved design (Decision 12) and is waiting for the owner. Don't claim it: pause this item's work and pick other work. Other items aren't affected." | `details.review_id`, `details.state`, `details.parts` |
 | `project_paused` | Decision 53: a new claim, a coordinator's resume, or new work under a parked run while the owner has the project paused (BUILD_SPEC §5.37) | "The owner paused RCP: waiting on legal. Nothing new can start here until the owner resumes it, so ask the owner or take work from another project." | `details: { project, reason, decision_id, paused_by, paused_at, ask }` |
 | `epic_not_ready` | Decision 58: claiming an epic that is Ready or Planning, or moving it to In progress, while any of its tickets is in Inbox or Planning (BUILD_SPEC §5.41) | "Epic GF-1 can't start: 2 of its tickets aren't Ready yet: GF-3 (Planning), GF-5 (Inbox). Every ticket must be at least Ready before an epic starts. For each one: finish shaping it and move it to Ready; or propose its known gaps for the owner's approval (update_item known_gaps, then set_status ready); or move it to the epic it belongs in (update_item epic); or take it out of this epic (update_item epic: null)." | `details: { epic, unshaped, ways_forward }` |
-| `bugs_open` | Decision 64: moving an epic's finish line (its release ticket) to Review or Done while a bug in the epic is open (BUILD_SPEC §5.43) | "GF-12 is the finish line of epic GF-1, so it can't move to Done while 2 bugs in the epic are open: GF-20 (Ready), GF-21 (In progress). For each one: fix it (Done); or move it to another epic as a follow-up (update_item epic); or cancel it with a reason (set_status canceled)." | `details: { epic, finish_line, open_bugs, ways_forward }` |
+| `release_gates` | Decision 67: a Release cannot move to Review or Done until every other epic ticket, bug, gap, partial exit and Release checklist item is settled (BUILD_SPEC §5.47) | "GF-12 is the Release of epic GF-1, so it can't move to Done yet: 2 bugs open: GF-20, GF-21. For each open ticket: finish it; or move it out of the epic; or cancel it with a reason." | `details: { epic, release, gates, ways_forward? }` |
 
 JSON-RPC protocol errors (malformed requests, unknown tool) follow the MCP spec and are separate from these.
 
@@ -1209,7 +1210,7 @@ log_subagent { id: "RCP-14", run_id: "run_lead", step_id: "wst_…2", name: "exp
 ```
 create_item { project: "RCP", type: "Epic", title: "Pantry", status: "planning", outcome_md: "…" }
 put_document { item_id: "RCP-2", name: "pantry-prd.md", kind: "planning", content_text: "…" }
-create_item { project: "RCP", type: "Task", title: "Pantry inventory schema", epic: "RCP-2", status: "planning" }
+create_item { project: "RCP", type: "Implementation", title: "Pantry inventory schema", epic: "RCP-2", status: "planning" }
 create_item { …, title: "Pantry-aware recipe suggestions", epic: "RCP-2", blocked_by: ["RCP-15"], status: "planning" }
 declare_human_review { id: "RCP-21", items: ["Suggest recipes with what's at home. Are the picks sensible?"] }
 add_note { id: "RCP-2", text: "Broken into 3 items; ready for your review in Planning." }
@@ -1278,7 +1279,7 @@ The resumed worker calls `claim_lead`, which works on In progress items with no 
 |---|---|
 | Approves every item | `review.decided`; the item is `done` with `closed_by: owner` |
 | Sends back | `review.decided`; the item is `progress` with no lead (`resumable`); new work steps with `from_review`, or new Bug items (Ready) linked by `relates` |
-| Defers an item | `review.decided`; the item is `deferred`; with a follow-up, a new Task in Inbox titled "Verify: …" |
+| Defers an item | `review.decided`; the item is `deferred`; with a follow-up, a new Implementation ticket in Inbox titled "Verify: …" |
 | Asks for a fresh packet | `packet.withdrawn` and `owner_note.added`; the item is `progress`, `resumable` |
 | Answers a question | `question.answered`; the answer shows in `get_item` once |
 | Leaves a note | `owner_note.added`; it shows in `get_item.unread_owner_notes` once |

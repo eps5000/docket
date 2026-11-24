@@ -75,7 +75,7 @@ describe('field problems', () => {
       epic: 'epic-1',
     });
     expect(err.details!.fields).toEqual({
-      type: 'must be one of "Epic", "Story", "Task", "Bug"',
+      type: 'must be one of "Epic", "Exploration", "Design", "Implementation", "Bug", "Release", "Story", "Task"',
       title: 'must be at most 200 characters',
       priority: 'must be one of 1, 2, 3',
       epic: 'expected an item ID like RCP-14',

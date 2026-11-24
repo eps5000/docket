@@ -12,6 +12,9 @@
  *   48 and 53), so it is neither Queued nor Blocked.
  */
 import { z } from 'zod';
+import type { ItemType, Status } from './enums.js';
+import { releaseWaitText } from './release.js';
+import { blockerPhrase } from './ticket-types.js';
 
 export const WAIT_KINDS = ['queued', 'blocked', 'held'] as const;
 export type WaitKind = (typeof WAIT_KINDS)[number];
@@ -71,6 +74,29 @@ export const BLOCKED_REASON_LABELS: Record<BlockedReason, string> = {
 /** "Starts after GF-12", "Starts after GF-12 and 2 more". */
 export function startsAfterText(after: string, more: number): string {
   return more > 0 ? `Starts after ${after} and ${more} more` : `Starts after ${after}`;
+}
+
+/**
+ * A Queued item's line, in the words of its nearest blocker's type (decision
+ * 67): "Starts after GF-12's design", "Shaping waits on GF-3's findings" (an
+ * Inbox or Planning ticket waiting on an Exploration), and for a Release the
+ * finish-wait, "Waits for GF-12 and 4 more to finish".
+ */
+export function queuedText(w: {
+  type?: ItemType | undefined;
+  status?: Status | undefined;
+  after: string;
+  afterType?: ItemType | undefined;
+  more: number;
+}): string {
+  if (w.type === 'Release') return releaseWaitText(w.after, w.more);
+  const phrase = blockerPhrase(w.afterType, w.after);
+  if (w.afterType === 'Exploration' && (w.status === 'inbox' || w.status === 'planning')) {
+    return w.more > 0
+      ? `Shaping waits on ${phrase} and ${w.more} more`
+      : `Shaping waits on ${phrase}`;
+  }
+  return startsAfterText(phrase, w.more);
 }
 
 /** Counts of Queued and Blocked, in the order every view shows them: "Queued 4 · Blocked 1". */

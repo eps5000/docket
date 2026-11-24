@@ -40,7 +40,7 @@ import { deferredOf, openPackets, scoped } from './views.js';
 import { designHold } from './design-review.js';
 import { declaredKeys, endLeasesOf, raiseHold, settleUndeclared } from './shared-changes.js';
 import { canonicalJson, type InverseOp } from './write.js';
-import { assertReleaseClear } from './finish-line.js';
+import { assertExplorationFinish, assertReleaseClear } from './release.js';
 import { addReportedBranch } from './radar.js';
 
 export interface PacketRow {
@@ -270,6 +270,10 @@ export function createPacketsService(deps: ServiceDeps): PacketsService {
           { details: { reason: 'status', status: item.status } },
         );
       }
+      // Decision 67: a Release goes to review only once its gates pass; this says which fail.
+      assertReleaseClear(w.db, item, 'review');
+      // Decision 67: an Exploration's packet is its findings, linked to the tickets using them.
+      assertExplorationFinish(w.db, item, input.how.join('\n'));
       const block = new BlockIndex(w.db).state(item.id);
       if (block.blocked) {
         throw new ToolError(
@@ -278,8 +282,6 @@ export function createPacketsService(deps: ServiceDeps): PacketsService {
           { details: { reason: 'blocked', blocked_by: block.blocked_by } },
         );
       }
-      // Decision 64: an epic's finish line goes to review only once every bug in the epic is settled.
-      assertReleaseClear(w.db, item, 'review');
       const all = hrRows(w.db, item.id);
       const declared = all.filter((h) => h.state === 'declared');
       if (declared.length === 0) {

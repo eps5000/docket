@@ -28,6 +28,12 @@ export const itemId = z
 /** The JSON Schema key that marks an opaque ID (json-schema.ts removes it). */
 export const ID_MARK = 'x-docket-id';
 
+/**
+ * The JSON Schema key listing enum values a tool accepts but its definition
+ * doesn't list (decision 67's Story and Task); json-schema.ts drops both.
+ */
+export const ALIAS_MARK = 'x-docket-aliases';
+
 /** 2–5 uppercase letters, e.g. `RCP`. */
 export const projectKey = z
   .string()

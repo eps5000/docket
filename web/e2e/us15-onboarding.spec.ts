@@ -244,7 +244,7 @@ test.describe('Onboarding (US15)', () => {
     const gf = cards.filter({ hasText: 'Gameflow was set up by claude · review' });
     await expect(gf).toBeVisible();
     const counts = gf.getByRole('list', { name: 'What the onboarding changed' });
-    await expect(counts).toContainText('3 created');
+    await expect(counts).toContainText('4 created');
     await expect(counts).toContainText('1 enriched');
     await expect(counts).toContainText('1 document');
     await expect(counts).toContainText('1 decision');

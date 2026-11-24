@@ -540,6 +540,14 @@ Two size budgets were full: `docket-worker` at 4,799 of its 4,800-token cap and 
 
 BUILD_SPEC §5.46, MCP_SPEC §3 and §5.10, spec FR-367–FR-372 and SC-047, the skills README and every skill have the details.
 
+## Owner decision 67 (2026-11-24): ticket types and every epic's Release
+
+The approved [ticket types design](design/ticket-types.md) defines Epic, Exploration, Design, Implementation, Bug and Release. Documentation is Design; a spike that learns is Exploration, and one whose code stays is Implementation. Exploration can work before its epic is fully Ready and finishes with findings and a recommendation linked to the work that uses them.
+
+Every epic gets one Release ticket during creation. It is shaped with the epic, waits automatically for all its other tickets, and cannot reach Review or Done while any ticket or bug, known gap, partial exit or Release checklist item remains open. Finishing Release closes the epic. The Map gives it the last column. A shared-environment deploy, cutover or test flag change that other work waits on is its own Implementation ticket marked as a rollout. Two releases to real users are two epics.
+
+Existing Story and Task tickets become inferred Implementation; a producer corrects them while shaping. Existing epics convert an obvious release ticket or get a generated one; ambiguous cases are marked Needs shaping. Jira imports retain the original type, and tools temporarily accept Story and Task while naming the conversion. BUILD_SPEC §5.47, MCP_SPEC, UI_SPEC, Help, spec FR-373–FR-381 and SC-048, and the three role skills implement this decision.
+
 ## Deferred choices
 
 Pilot project choice and Jira import strategy are deferred until V1 is ready for real work. Design should still settle the storage layout, supported document preview formats, the exact project gate configuration shape, and the minimum history needed before a velocity forecast is shown. These are implementation choices guided by the owner decisions above, not blockers to selecting a pilot now.

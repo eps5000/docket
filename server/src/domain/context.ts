@@ -62,7 +62,7 @@ import { inScopeOf, labelsOf } from './decisions.js';
 import { BlockIndex, activeLead, coordinatorParkOf, currentSteps, requireItem } from './model.js';
 import { contextResolutions } from './problems.js';
 import { knownGapsView } from './epic-readiness.js';
-import { releaseHoldOf } from './finish-line.js';
+import { releaseHoldOf } from './release.js';
 import { openPartialExit } from './exit-reports.js';
 import { pausedForAgents, projectPause } from './project-pause.js';
 import { choiceField } from './question-form.js';
@@ -372,7 +372,7 @@ function finishedPartlySection(r: ReadContext, id: string): Pick<Full, 'finished
   };
 }
 
-/** Decision 64: on its epic's finish line, the open bugs that hold it. */
+/** Decision 67: on its epic's Release, the other open tickets and bugs that hold it. */
 function releaseHoldSection(
   r: ReadContext,
   row: { id: string; epic_id: string | null; type: Bundle['item']['type'] },

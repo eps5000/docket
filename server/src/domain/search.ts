@@ -14,6 +14,7 @@ import {
   LIMITS,
   OPEN_STATUSES,
   ToolError,
+  resolveType,
   WHOAMI_LIMITS,
   type ItemSummary,
   type ItemSummaryView,
@@ -196,8 +197,10 @@ export function createSearchService(deps: ServiceDeps): SearchService {
         params.push(...input.status);
       }
       if (input.type) {
-        where.push(`i.type IN (${input.type.map(() => '?').join(', ')})`);
-        params.push(...input.type);
+        // Decision 67: Story and Task mean Implementation.
+        const types = [...new Set(input.type.map((t) => resolveType(t).type))];
+        where.push(`i.type IN (${types.map(() => '?').join(', ')})`);
+        params.push(...types);
       }
       if (input.epic) {
         where.push('i.epic_id = ?');

@@ -310,13 +310,17 @@ describe('the commit (FR-091)', () => {
         "SELECT id, type, title, status, priority, epic_id, jira_key, imported, closed_by, closed_at, planned_start, planned_end, effort, dates_set_by, created_at FROM items WHERE project_key = 'TLI' ORDER BY CAST(substr(id, 5) AS INTEGER)",
       )
       .all() as Record<string, unknown>[];
-    expect(items).toHaveLength(17);
+    expect(items).toHaveLength(19);
+    const importedItems = items.filter((i) => i.imported === 1);
+    const releases = items.filter((i) => i.type === 'Release');
+    expect(importedItems).toHaveLength(17);
+    expect(releases).toHaveLength(2);
     expect(
-      items.every(
+      importedItems.every(
         (i) => i.imported === 1 && typeof i.jira_key === 'string' && i.created_at === importedAt,
       ),
     ).toBe(true);
-    const byJira = new Map(items.map((i) => [i.jira_key as string, i]));
+    const byJira = new Map(importedItems.map((i) => [i.jira_key as string, i]));
     expect(byJira.get('TL-1')).toMatchObject({
       id: 'TLI-1',
       type: 'Epic',
@@ -325,7 +329,7 @@ describe('the commit (FR-091)', () => {
     });
     expect(byJira.get('TL-2')).toMatchObject({
       id: 'TLI-2',
-      type: 'Story',
+      type: 'Implementation',
       status: 'progress',
       epic_id: 'TLI-1',
       effort: 5,
@@ -474,7 +478,7 @@ describe('the commit (FR-091)', () => {
     });
     expect(full.status).toBe(409);
     expect(full.body.error!.message).toBe(
-      "Project EMP isn't empty (17 items). Import into a new project instead.",
+      "Project EMP isn't empty (19 items). Import into a new project instead.",
     );
   });
 });
