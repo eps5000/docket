@@ -343,6 +343,8 @@ export const queryKeys = {
   workspaceCleanup: (project: string) => [ROOT, 'workspaces', 'cleanup', project] as const,
   /** Decision 48. Under `work`, so any change to an item or link refreshes the chain. */
   criticalPath: (id: string) => [ROOT, 'work', 'critical-path', id] as const,
+  /** Decision 54. Under `work`, so any change to an item, link or run refreshes it. */
+  pickEpic: (project: string) => [ROOT, 'work', 'pick-epic', project] as const,
   search: (q: string) => [ROOT, 'search', q] as const,
   label: (project: string, name: string) => [ROOT, 'labels', project, name] as const,
   decisions: (query: RouteQueryInput<'decisions.list'>) => [ROOT, 'decisions', query] as const,

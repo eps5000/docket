@@ -14,6 +14,7 @@
 import { ToolError, type Status } from '@docket/shared';
 import type { ServiceDeps, SubgraphService } from './contracts.js';
 import { criticalPath } from './critical-path.js';
+import { pickEpics } from './epic-picks.js';
 import { compareIds, cyclesOf } from './links.js';
 import { BlockIndex, endsOnOrAfter, requireItem, windowsOf } from './model.js';
 
@@ -156,6 +157,8 @@ export function createSubgraphService(deps: ServiceDeps): SubgraphService {
 
     criticalPath: (r, input) =>
       criticalPath({ db: r.db, windows: windowsOf(deps.config), now: r.now }, input.id),
+
+    pickEpic: (r, input) => pickEpics({ db: r.db, now: r.now }, input.key),
 
     cycles(r, input) {
       const index = new BlockIndex(r.db);

@@ -42,6 +42,7 @@ import { json, route } from './route.js';
 import {
   activityRowSchema,
   epicCardSchema,
+  epicWaitSchema,
   forecastSchema,
   healthSchema,
   labelSchema,
@@ -491,6 +492,8 @@ export const itemDetailResponse = jsonResponse({
   wait: waitCardSchema.nullable().optional(),
   /** Decision 45 (B54; optional): parked runs this item would unblock. */
   waiting_runs: z.object({ total: z.number().int(), rows: z.array(waitingRunSchema) }).optional(),
+  /** Decision 54 (optional): an open epic's outside dependencies; empty means none. */
+  epic_waits: z.array(epicWaitSchema).optional(),
 });
 export type ItemDetailResponse = z.infer<typeof itemDetailResponse>;
 

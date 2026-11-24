@@ -1,5 +1,5 @@
 /**
- * A project pulling its own Docket update (owner decision 56; BUILD_SPEC §5.38;
+ * A project pulling its own Docket update (owner decision 56; BUILD_SPEC §5.39;
  * MCP_SPEC §5.10). Behind the app's Host and Origin guards, and in protected
  * mode the same bearer token as `/mcp` (`/agent/*` in app.ts).
  *

@@ -1,5 +1,5 @@
 /**
- * Projects pull their own Docket updates (owner decision 56; BUILD_SPEC §5.38):
+ * Projects pull their own Docket updates (owner decision 56; BUILD_SPEC §5.39):
  * the real `docket-update` scripts against a listening Docket, in temporary git
  * repos, for each client and each shell on this machine: fresh, already
  * current, an older manifest, a locally edited file, damaged markers, no git,

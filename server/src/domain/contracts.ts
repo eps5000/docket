@@ -46,6 +46,7 @@ import {
   type CreateInstallResponse,
   type ContextBundle,
   type CriticalPathResponse,
+  type PickEpicResponse,
   type WorktreeCleanupResponse,
   type ContextShared,
   type ItemSharedResponse,
@@ -954,6 +955,8 @@ export interface SubgraphService {
   cycles(r: ReadContext, input: { project?: string }): string[][];
   /** Decision 48: the longest chain of open blockers to a goal, and the ticket to move next. */
   criticalPath(r: ReadContext, input: { id: string }): CriticalPathResponse;
+  /** Decision 54: which open epic a new agent can take without parking on other work. */
+  pickEpic(r: ReadContext, input: { key: string }): PickEpicResponse;
 }
 
 /** Decision records (§5.14): authority from the actor; owner records are authoritative. */

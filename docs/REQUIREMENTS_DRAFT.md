@@ -379,6 +379,18 @@ The owner froze a project by telling agents to stop. Only tickets whose park rea
 
 BUILD_SPEC §5.37, MCP_SPEC §5.2 and §5.4, UI_SPEC §6.1d, spec FR-295–FR-301 and SC-034, and Help (Pause a project) have the details.
 
+## Owner decision 54 (2026-11-24): pick the next epic
+
+The owner wants to hand the next epic to a new agent without picking one that immediately parks on another epic's work. Today that takes a manual read of the dependency graph.
+
+1. **A read-only owner view.** *Pick next epic* on Work, one click away with a project chosen. It adds no MCP tool, no migration and no gate, and assigns nothing.
+2. **Six plain numbers per open epic with open tickets.** Can finish on its own, Can start now, Waits on, Unblocks elsewhere, Not shaped yet, and Being worked (who holds it, so the owner doesn't assign a second producer). A pause doesn't zero Can start: it reads "once resumed".
+3. **One recommendation, with its reason.** The default order is not being worked, has something to start, fully or mostly self-contained, then most unblocked elsewhere. The top available row is **Best next**, with one plain line saying why. Epics that would likely park are kept apart, each saying why.
+4. **On the epic too.** Epic cards and the epic page say **No outside dependencies** or **Waits on 2 epics**, with the names available, never by colour alone.
+5. **Honest about its limit.** The page says once: "Based on dependencies recorded in Docket."
+
+BUILD_SPEC §5.38, UI_SPEC §6.2.5, spec FR-307–FR-312 and SC-036, and Help (Pick the next epic) have the details.
+
 ## Owner decision 55 (2026-11-24): a bundled producer skill
 
 The owner's working model has a producer who owns one epic and dispatches independent implementers. Docket had worker, coordinator, planner, review, subagent and delivery skills but none for that role, and it can't assume an onboarded project has workflow skills of its own.
@@ -399,7 +411,7 @@ Updating a project meant someone pushing files into a special worktree and handi
 3. **Coordinators and producers take it first.** At the start of a session, before dispatching implementers, a coordinator or producer takes an available update as one small normal change. Workers tell their coordinator instead. An update that can't land never blocks work.
 4. **Agent files says who does it.** For a repo install with an update available, the guidance is "Your project's coordinator will take this in", with the command to copy. Push into a folder stays only as a secondary option for first-time setup. Status reflects the repo's main branch where Docket can read it, and says plainly when it can't.
 
-BUILD_SPEC §5.38, MCP_SPEC §5.2, §5.4 and §5.10, UI_SPEC §6.7b, spec FR-307–FR-312 and SC-036, and Help (Agent files) have the details.
+BUILD_SPEC §5.39, MCP_SPEC §5.2, §5.4 and §5.10, UI_SPEC §6.7b, spec FR-313–FR-318 and SC-037, and Help (Agent files) have the details.
 
 ## Deferred choices
 

@@ -19,12 +19,13 @@ This index groups the routes by user story.
 | `POST /api/import/jira/dry-run`, `GET …/:id`, `POST …/:id/commit`, `DELETE …/:id` | US9 | FR-090 to FR-092 |
 | `GET /api/settings`, `DELETE /api/projects/:key`, `GET /api/diagnostics/calls` | US10 | FR-103, FR-104, FR-107, FR-108 |
 | `POST /api/projects/:key/pause {reason}`, `POST /api/projects/:key/resume` | US2 | FR-295–FR-301 (decision 53; owner only, undoable) |
+| `GET /api/projects/:key/pick-epic` | US4 | FR-307–FR-312 (decision 54; read-only) |
 | `POST /api/mutations/:id/undo` | all | FR-062 |
 | `GET /api/items/:id/critical-path`, `GET /api/workspaces/cleanup?project=&refresh=` (decision 48) | US4, US11 | FR-242–FR-249 |
 | `GET /api/workspaces`, `POST /api/resources/:id/release`, `POST /api/runs/:runId/unpushed-handled` `{outcome?: keep\|discard}` (decision 41) | US11 | FR-113, FR-114, FR-116, FR-194 |
 | `GET/PUT /api/agent-files…`, `GET/PUT /api/projects/:key/workflow`, `POST/GET /api/installs…`, `GET /api/push-target…`, `GET /install/:token` | US13 | FR-121 to FR-127 |
 | `GET /api/install-state` (decision 34); `POST /api/installs` with `clients` | US17 | FR-149, FR-150 |
-| `GET /api/install-state` adds `repo_main`, `update_on_branch` and `update_command` (decision 56) | US13 | FR-311 |
+| `GET /api/install-state` adds `repo_main`, `update_on_branch` and `update_command` (decision 56) | US13 | FR-317 |
 | `GET /api/agent-file-proposals`, `POST …/:id/approve`, `POST …/:id/decline`, `GET /api/drift`, `POST /api/drift/:id/adopt`, `…/restore`, `…/keep-local` | US14 | FR-128 to FR-133 |
 | `POST /api/projects`, `GET /api/onboarding`, `POST /api/onboarding/:id/reviewed` | US15 | FR-135, FR-139, FR-140 |
 | `POST /api/problems/acknowledge`, `POST /api/resolutions/:id/decide` (decision 37; B42) | US18 | FR-165–FR-172 |

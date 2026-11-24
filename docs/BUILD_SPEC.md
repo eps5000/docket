@@ -1015,7 +1015,25 @@ A pause is an **active decision record** with `pauses_project = 1`: owner author
 - **Ready (§5.30):** nothing in a paused project counts as Startable. Its Ready tickets show as waiting on "you to resume the project". A held run's stored flags stop showing at once, before the next check clears them.
 - **Needs you:** a pause adds nothing. It is an owner record, so it raises no review card.
 
-### 5.38 Projects pull their own Docket updates (decision 56; B72)
+### 5.38 Pick next epic (decision 54; B70)
+
+`GET /api/projects/:key/pick-epic` is a read for the owner: no MCP tool, no migration, no gate. `domain/epic-picks.ts` builds it on `BlockIndex`, B58's `readyStates` and B60's `upstreamOf`. It lists each open, non-archived epic in the project that has open, non-archived tickets.
+
+**The chain** is an item's unresolved `blocks` links, plus two rules. A blocker on an epic holds up every ticket in that epic, as the critical path treats it. Waiting on an open epic means waiting on its open tickets. Every walk visits an item once, so a cycle ends it. A cleared blocker is out of the chain. A canceled blocker stays in it, because it never clears (§5.2), and so does a done blocker still waiting for its merge or verification.
+
+- **Can finish on its own** (`self_contained`): open tickets whose whole chain stays inside this epic.
+- **Can start now** (`can_start`): B58's Startable tickets, the first three by priority then ID. In a paused project the pause is ignored here and the response sets `paused`, so the page says "once resumed". Work's own Startable answer still honors the pause (§5.37).
+- **Waits on** (`waits_on`): the other epics, or "no epic", in the chain, each with its distinct open tickets. An epic with no open ticket, such as a canceled one, counts as 1.
+- **Unblocks elsewhere** (`unblocks_elsewhere`): distinct open tickets in other epics that transitively wait on this epic. A ticket with no epic is walked through and not counted. A canceled ticket in this epic isn't a source, because finishing the epic wouldn't clear it.
+- **Not shaped yet** (`not_shaped`): open tickets in Inbox or Planning.
+- **Being worked** (`worked_by`): a lead run in `open`, `needs_input` or `parked` whose lease hasn't expired, or an unexpired producer hold on an In progress item, on the epic or its open tickets. It names the producer when the run has one, and otherwise the lead.
+
+**Fit.** `being_worked` if anyone holds it. Otherwise `likely_parks` when nothing can start or more than half its tickets depend on something outside it, with `park_reason` in one sentence. Otherwise `available`.
+
+**Order.** Not being worked, has something to start, fully then mostly (at least half) self-contained, most unblocked elsewhere, the higher share self-contained, priority, ID. `best` is the first `available` epic with a one-line reason, or null when none qualifies.
+
+**The indicator.** `epicWaits` adds `waits_on` to Work's epic cards and `epic_waits` to the epic's item detail, for open epics with open tickets only. An empty list means no outside dependencies.
+### 5.39 Projects pull their own Docket updates (decision 56; B72)
 
 **Docket publishes a version; the project takes it in.** Docket never pushes an update into a repo.
 
@@ -1517,8 +1535,9 @@ Owner decisions are marked **(owner)**. Every other entry is a technical choice 
 | 51 **(owner)** | CI is fast and stays on free GitHub-hosted runners. Test types run as parallel jobs and browser e2e in four isolated shards, behind `build` and `e2e` aggregates that fail on any failed, cancelled or unexpectedly skipped job. PRs run the affected browser specs; nothing merges until `full-suite` passes on the exact combined code in Mergify's queue. A `main` push with an already-proven tree skips the duplicate tests, and every `main` commit still publishes an image. | §2 Stack |
 | 52 **(owner)** | A sixth bundled skill, `docket-delivery`, adding to decision 27's five: how to take work through PR, CI, merge and deployment. It is project-agnostic, subordinate to each project's rules, and grants no authority to merge, deploy or touch production. It installs, lints, drifts and uninstalls like the others, and existing installs show "update available". `docket-worker` and `docket-coordinator` each point to it once. No MCP tool. | §5.17, spec FR-285–FR-289 |
 | 53 **(owner)** | Pause project: an owner-only action that publishes a project-scope decision with a reason, and Resume withdraws it. Every parked run in the project is held by it with no alerts, and aging restarts when it lifts. `claim_lead` is refused with `project_paused`. Reads, notes, commits, parking, releasing and finishing keep working, and a write on a parked run leaves it parked. `get_digest` offers no next work. A plain banner and a Paused marker show it. No new MCP tool. | §5.37 |
+| 54 **(owner)** | Pick next epic: a read-only owner view on Work, per open epic: can finish on its own, can start now, waits on, unblocks elsewhere, not shaped yet, and being worked. It marks one Best next with a plain reason, keeps epics that would likely park apart, and puts an outside-dependency indicator on epic cards and the epic page. No MCP tool, migration or gate (§5.38). |
 | 55 **(owner)** | A seventh bundled skill, `docket-producer`: one session owns one epic version and dispatches independent implementers. It teaches the role and points to the coordinator, planner, worker and delivery skills for mechanics. The project's Workflow notes and own skills take precedence, it works with any orchestrator or none, and it grants no authority. It records the owner-approved hard and soft dependency rules using today's links. It installs, lints, drifts and uninstalls like the others, and existing installs show "update available". `docket-coordinator` points to it once. No MCP tool. | §5.17, spec FR-302–FR-306 |
-| 56 **(owner)** | Projects pull their own Docket updates. An installed `docket-update` script fetches the project's current files under the existing trust rules, using the install's own layout and merge rules, keeps files edited locally, and never commits, pushes or touches another worktree. Old installs get a one-line bootstrap from `get_digest` and `claim_lead`. Coordinators take an update as one small PR before dispatching. Agent files says so, and status follows the repo's main branch where Docket can read it. No new MCP tool. | §5.38 |
+| 56 **(owner)** | Projects pull their own Docket updates. An installed `docket-update` script fetches the project's current files under the existing trust rules, using the install's own layout and merge rules, keeps files edited locally, and never commits, pushes or touches another worktree. Old installs get a one-line bootstrap from `get_digest` and `claim_lead`. Coordinators take an update as one small PR before dispatching. Agent files says so, and status follows the repo's main branch where Docket can read it. No new MCP tool. | §5.39 |
 | T13 | Nightly backup at 03:00, kept 14 days, restore by CLI only. | §5.13 |
 | T14 | Archive is owner-only and UI-only; agent queries include archived items. | §5.8 |
 | T15 | Scope resets to All projects on each visit (sessionStorage). Theme and collapsed sections persist (localStorage). | UI_SPEC §2 |

@@ -1,5 +1,5 @@
 /**
- * The installed `docket-update` script (owner decision 56; BUILD_SPEC §5.38):
+ * The installed `docket-update` script (owner decision 56; BUILD_SPEC §5.39):
  * `docket-update.sh` (bash, with curl and tar) and `docket-update.ps1`
  * (PowerShell 5.1 and 7), next to `docket-check` and in the manifest.
  *

@@ -1,6 +1,6 @@
 /**
  * What a project's main branch holds of its Docket install (owner decision 56;
- * BUILD_SPEC §5.38), read with the radar's read-only git: `git show` of the
+ * BUILD_SPEC §5.39), read with the radar's read-only git: `git show` of the
  * manifest on origin's copy of the main branch, else the local one. No fetch,
  * so it's as current as the repo's last fetch. Without a repository folder
  * inside the push folder, or when a read has no answer, it's `unknown`, and
