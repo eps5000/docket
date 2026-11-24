@@ -9,7 +9,8 @@
  * **What a client receives is compact (owner decision 40).** Tool definitions
  * are resent to the model on every call, so:
  * - `inputSchema` drops what the server's own validation already says better:
- *   `minLength: 1`, the item-ID pattern, the event-type list on `get_changes`,
+ *   `minLength: 1`, the item-ID pattern, an opaque ID's length limit
+ *   (decision 61), the event-type list on `get_changes`,
  *   and the length limits of the two fields every tool repeats (`run_id`,
  *   `idempotency_key`). Every other limit, enum, default and required field
  *   stays.
@@ -25,30 +26,39 @@
  */
 import { z } from 'zod';
 import { toolErrorSchema } from '../errors.js';
-import { ITEM_ID_RE } from './limits.js';
+import { ID_MARK } from './common.js';
+import { DATE_RE, ITEM_ID_RE, SHA_RE } from './limits.js';
 import type { AnyToolDef } from './tools.js';
 
 export type JsonSchema = { [key: string]: unknown };
 
 const SAFE_MAX = Number.MAX_SAFE_INTEGER;
 
-function tidy(node: unknown): unknown {
-  if (Array.isArray(node)) return node.map(tidy);
+/** `lean`: an opaque ID also loses its length limit (decision 61; `inputJsonSchema` only). */
+function tidy(node: unknown, lean = false): unknown {
+  if (Array.isArray(node)) return node.map((n) => tidy(n, lean));
   if (node === null || typeof node !== 'object') return node;
   const out: JsonSchema = {};
+  const isId = (node as JsonSchema)[ID_MARK] === true;
   for (const [key, value] of Object.entries(node as JsonSchema)) {
-    if (key === '$schema') continue;
+    if (key === '$schema' || key === ID_MARK) continue;
+    if (lean && isId && key === 'maxLength') continue;
     if (key === 'minimum' && value === -SAFE_MAX) continue;
     if (key === 'maximum' && value === SAFE_MAX) continue;
     if (key === 'format' && value === 'base64') continue;
-    out[key] = tidy(value);
+    out[key] = tidy(value, lean);
   }
   return out;
 }
 
-export function toJsonSchema(schema: z.ZodType, io: 'input' | 'output'): JsonSchema {
+export function toJsonSchema(
+  schema: z.ZodType,
+  io: 'input' | 'output',
+  opts: { lean?: boolean } = {},
+): JsonSchema {
   return tidy(
     z.toJSONSchema(schema, { target: 'draft-07', io, unrepresentable: 'any' }),
+    opts.lean,
   ) as JsonSchema;
 }
 
@@ -58,7 +68,17 @@ export function toJsonSchema(schema: z.ZodType, io: 'input' | 'output'): JsonSch
  */
 const LONG_ENUM = 60;
 
-/** An input node without what validation already reports: `minLength: 1`, the item-ID and timestamp patterns, a very long enum. */
+/**
+ * zod's base64 pattern. A document's bytes come from an encoder, and
+ * validation already refuses anything else (decision 61).
+ */
+const BASE64_PATTERN_START = '^$|^(?:[0-9a-zA-Z+/]{4})*';
+
+/**
+ * An input node without what validation already reports: `minLength: 1`, the
+ * item-ID, timestamp, commit-SHA and base64 patterns, a very long enum. A
+ * date's pattern becomes `format: date` (decision 61).
+ */
 function leanInput(node: unknown, isPropertyMap = false): unknown {
   if (Array.isArray(node)) return node.map((n) => leanInput(n));
   if (node === null || typeof node !== 'object') return node;
@@ -70,6 +90,13 @@ function leanInput(node: unknown, isPropertyMap = false): unknown {
       if (key === 'pattern' && value === ITEM_ID_RE.source) continue;
       // Decision 42: a timestamp's long regex repeats its `format`, and validation enforces it.
       if (key === 'pattern' && (node as JsonSchema).format === 'date-time') continue;
+      // Decision 61: a SHA comes from git; a date's regex says no more than its format.
+      if (key === 'pattern' && value === SHA_RE.source) continue;
+      if (key === 'pattern' && String(value).startsWith(BASE64_PATTERN_START)) continue;
+      if (key === 'pattern' && value === DATE_RE.source) {
+        out.format = 'date';
+        continue;
+      }
       if (key === 'enum' && Array.isArray(value) && value.length > LONG_ENUM) continue;
     }
     out[key] = leanInput(value, !isPropertyMap && key === 'properties');
@@ -79,7 +106,7 @@ function leanInput(node: unknown, isPropertyMap = false): unknown {
 
 /** The tool's `inputSchema`, as clients receive it (decision 40). */
 export function inputJsonSchema(tool: Pick<AnyToolDef, 'input'>): JsonSchema {
-  const schema = leanInput(toJsonSchema(tool.input, 'input')) as JsonSchema & {
+  const schema = leanInput(toJsonSchema(tool.input, 'input', { lean: true })) as JsonSchema & {
     properties?: Record<string, JsonSchema>;
   };
   const props = schema.properties;

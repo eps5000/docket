@@ -1,6 +1,6 @@
 /**
  * Tickets agents create arrive shaped or ask for a planner (owner decision 65;
- * BUILD_SPEC §5.42).
+ * BUILD_SPEC §5.43).
  *
  * - **Shaped** means an outcome, at least one acceptance criterion, and the
  *   shared changes declared (parts, or "none").

@@ -125,7 +125,7 @@ describe('0010_shared_changes', () => {
     const migrated = openDb(copy);
     try {
       migrateDb(migrated);
-      expect(migrationStatus(migrated)).toEqual({ current: true, applied: 30, expected: 30 });
+      expect(migrationStatus(migrated)).toEqual({ current: true, applied: 31, expected: 31 });
 
       // Every existing row is unchanged, plus the new columns at their defaults.
       expect(all(migrated, 'items')).toEqual(
@@ -144,7 +144,7 @@ describe('0010_shared_changes', () => {
           split_from: null,
           // 0028 (decision 58): no known gaps.
           known_gaps: null,
-          // 0029 (decision 65): nobody asked for shaping.
+          // 0030 (decision 65): nobody asked for shaping.
           shaping: null,
         })),
       );
@@ -324,7 +324,7 @@ describe('0010_shared_changes', () => {
 
       // Migrating again is a no-op.
       migrateDb(migrated);
-      expect(migrationStatus(migrated).applied).toBe(30);
+      expect(migrationStatus(migrated).applied).toBe(31);
     } finally {
       migrated.sqlite.close();
     }

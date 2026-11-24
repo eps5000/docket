@@ -769,12 +769,19 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T341 [US4] `components/ProgressMap`: `fitZoom` fits the width only (100% cap, 50% floor, rounded down), the **Fit width** button with its tooltip, back to the top left on Fit, a stable scrollbar gutter while fitted, and touch left to native scrolling.
 - [x] T342 [US4] Tests: a wide, tall, narrow and very wide map, the scroll position after Fit, wheel and keyboard scrolling, a mouse drag and a touch; e2e and axe in both themes with screenshots at 1440 x 900 and 1024 px.
 
-## Phase 57: Tickets agents create arrive shaped or ask for a planner (owner decision 65)
+## Phase 57: Implementers report how they finished (owner decision 61)
 
-- [x] T343 [US4] Spec plus code in one PR: decision 65 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.42; MCP_SPEC §4, §5.2, §5.3 and §6; UI_SPEC §6.3 and §6.3.4; spec FR-341–FR-346 and SC-043; Help; the producer, planner and worker skills.
-- [x] T344 [US4] Migration 0029 (`items.shaping`); `domain/shaping.ts`: `create_item shared` through the shared declare, marking an agent's unshaped ticket or split, `needs_shaping` on summaries, epic readiness and `get_digest`, the Ready gate's refusal listing what's missing, and the owner's `request_shaping`; Ready clears it.
-- [x] T345 [US4] The item header's Needs shaping chip and the refused Move to Ready panel (*Ask a planner to shape this* with a note, *It changes no shared part*), the epic line's count and the map card's "needs shaping".
-- [x] T346 [US4] Tests: `create_item` with shared parts, with none and with neither; splits; the refusal and its button; the digest count; the planner's path to Ready; token budget; e2e and axe in both themes at 1024 px and 1440 x 900.
+- [x] T343 [US11] Spec plus code in one PR: decision 61 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.42; MCP_SPEC §3, §4, §5.2–§5.4; UI_SPEC §5 and §6.3; spec FR-341–FR-346 and SC-043; Help (Run states); the worker, producer and planner skills.
+- [x] T344 [US11] Migration 0029 (`runs.exit_report`); `domain/exit-reports.ts`: the optional `exit` on `park_run`, `release_lead` and `finish_run`, Done's complete exit, truthful summaries on every park and ending, settling from the ticket's record, the Done refusal, `get_digest` `finished_partly` and `get_context`'s section; the relay's `run.finished_partly` pointer to the producer.
+- [x] T345 [US11] "Finished partly: N items left" on the card and the item page's items, reasons and settled line.
+- [x] T346 [US11] Tests: the summary on park, release, finish, lease expiry and Done; complete and partial exits; Done refused and allowed after removal with a note; the digest's Finished partly and its clearing on each kind of action; the relay mail; the owner's card and item page; token budgets; e2e and axe in both themes.
+
+## Phase 58: Tickets agents create arrive shaped or ask for a planner (owner decision 65)
+
+- [x] T347 [US4] Spec plus code in one PR: decision 65 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.43; MCP_SPEC §4, §5.2, §5.3 and §6; UI_SPEC §6.3 and §6.3.4; spec FR-347–FR-352 and SC-044; Help; the producer, planner and worker skills.
+- [x] T348 [US4] Migration 0030 (`items.shaping`); `domain/shaping.ts`: `create_item shared` through the shared declare, marking an agent's unshaped ticket or split, `needs_shaping` on summaries, epic readiness and `get_digest`, the Ready gate's refusal listing what's missing, and the owner's `request_shaping`; Ready clears it.
+- [x] T349 [US4] The item header's Needs shaping chip and the refused Move to Ready panel (*Ask a planner to shape this* with a note, *It changes no shared part*), the epic line's count and the map card's "needs shaping".
+- [x] T350 [US4] Tests: `create_item` with shared parts, with none and with neither; splits; the refusal and its button; the digest count; the planner's path to Ready; token budget; e2e and axe in both themes at 1024 px and 1440 x 900.
 
 ## How to run the build
 
@@ -900,7 +907,7 @@ Open a PR titled "<Bn>: <phase name>" with the checkpoint evidence. Do not queue
 | 53 An epic starts only when its tickets are ready | B74 (decision 58) |
 | 54 The dependency map hides implied links | B77 (decision 60) |
 | 55 All git reading moves to the host helper | B76 |
-| 57 Tickets agents create arrive shaped or ask for a planner | B82 (decision 65) |
+| 58 Tickets agents create arrive shaped or ask for a planner | B82 (decision 65) |
 
 **Within a phase:** tests (failing) → services → replace stubs or fill handlers → fill screens → checkpoint.
 

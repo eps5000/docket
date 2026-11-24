@@ -80,6 +80,13 @@ import { assertDesignCleared } from './design-review.js';
 import { settleClaim } from './shared-changes.js';
 import type { InverseOp, WriteContext } from './write.js';
 import { claimBranchHint } from './project-git.js';
+import {
+  LEASE_EXPIRED_SUMMARY,
+  checkExit,
+  endedSummary,
+  leftOf,
+  recordExit,
+} from './exit-reports.js';
 import { addReportedBranch } from './radar.js';
 import {
   producerHold,
@@ -112,7 +119,15 @@ export function endLeadForOwner(
 ): RunRow | undefined {
   const lead = activeLead(w.db, item.id);
   if (!lead) return undefined;
-  w.update('runs', lead.id, { state: 'interrupted', end_reason: endReason });
+  w.update('runs', lead.id, {
+    state: 'interrupted',
+    end_reason: endReason,
+    // Decision 61: the run's line says how it ended.
+    summary:
+      endReason === 'owner_released'
+        ? 'Ended: the owner released the lead claim'
+        : `Ended: ${item.id} was canceled`,
+  });
   const holder = actorName({ kind: 'agent', client: lead.client, label: lead.label });
   const touchItem: InverseOp = { op: 'update', table: 'items', id: item.id, set: {} };
   w.event({
@@ -144,6 +159,16 @@ export class ClaimConflict extends ToolError {
     this.recordRejection = record;
   }
 }
+
+/** Decision 61: what a lead's finish or release without an exit report is told. */
+export const NO_EXIT_WARNING =
+  'No exit report: pass exit, complete or partial with what is left, so your producer knows how this ended';
+
+const exitShape = (
+  exit: { outcome: 'complete' | 'partial' } | undefined,
+  left: { text: string }[],
+): { outcome: 'complete' | 'partial'; left: { text: string }[] } | null =>
+  exit ? { outcome: exit.outcome, left } : null;
 
 export function createRunsService(deps: ServiceDeps): RunsService {
   const windows = () => windowsOf(deps.config);
@@ -191,13 +216,10 @@ export function createRunsService(deps: ServiceDeps): RunsService {
   function expire(w: WriteContext, run: RunRow, opts: { toReady?: boolean } = {}): void {
     const item = requireItem(w.db, run.item_id);
     const hold = !!run.producer && !opts.toReady && item.status === 'progress';
-    endRun(
-      w,
-      run,
-      'interrupted',
-      'lease_expired',
-      hold ? { producer_hold_until: holdUntil(w.now) } : {},
-    );
+    endRun(w, run, 'interrupted', 'lease_expired', {
+      summary: LEASE_EXPIRED_SUMMARY,
+      ...(hold ? { producer_hold_until: holdUntil(w.now) } : {}),
+    });
     const lead = actorName({ kind: 'agent', client: run.client, label: run.label });
     w.event({
       type: 'claim.released',
@@ -296,6 +318,9 @@ export function createRunsService(deps: ServiceDeps): RunsService {
       park_activity: null,
       status_update: by ?? null,
       coordinator_park: null,
+      // Decision 61: working again, so neither the park's line nor its exit report holds.
+      summary: null,
+      exit_report: null,
     });
     const who = by ? `${by.by} (coordinator)` : callerName(w.db, { ...w.actor, run_id: run.id });
     const whose = by
@@ -350,6 +375,8 @@ export function createRunsService(deps: ServiceDeps): RunsService {
       lease_expires_at: leaseUntil,
       park_activity: activity?.flag ? activity : null,
       coordinator_park: { ...stored, ended_at: w.now },
+      // Decision 61: not the line from before the park.
+      summary: `${park.by}'s park ran out; waiting for the run to call`,
     });
     const holder = actorName({ kind: 'agent', client: run.client, label: run.label });
     w.event({
@@ -819,16 +846,16 @@ export function createRunsService(deps: ServiceDeps): RunsService {
         );
       }
       if (!isRunOpen(run.state) || leaseExpired(run, w.now)) throw runEndedError(w.db, run, w.now);
+      checkExit(w.db, input.exit);
       // Decision 42: a worker under a producer hands the story on; the producer gives it up.
       const handoff = !!run.producer && !input.release_story && item.status === 'progress';
-      endRun(
-        w,
-        run,
-        'interrupted',
-        'released',
-        handoff ? { producer_hold_until: holdUntil(w.now) } : {},
-      );
-      w.event({
+      const left = leftOf(input.exit);
+      endRun(w, run, 'interrupted', 'released', {
+        // Decision 61: the run's line is how it ended, never what it was doing before.
+        summary: endedSummary(`Released: ${input.reason}`, exitShape(input.exit, left)),
+        ...(handoff ? { producer_hold_until: holdUntil(w.now) } : {}),
+      });
+      const releasedSeq = w.event({
         type: 'claim.released',
         summary: handoff
           ? `${callerName(w.db, w.actor)} handed ${item.id} back to producer ${run.producer}: ${input.reason}`
@@ -843,6 +870,9 @@ export function createRunsService(deps: ServiceDeps): RunsService {
         },
         objects: [{ kind: 'run', id: run.id }],
       });
+      if (input.exit) {
+        recordExit(w, run, item, { outcome: input.exit.outcome, left }, 'release', releasedSeq);
+      }
       if (handoff) w.update('items', item.id, {});
       else if (item.status === 'progress')
         moveItem(w, item.id, item.project_key, 'progress', 'ready', 'lead released');
@@ -1116,23 +1146,42 @@ export function createRunsService(deps: ServiceDeps): RunsService {
       assertOwnRun(w, run);
       if (!isRunOpen(run.state) || leaseExpired(run, w.now)) throw runEndedError(w.db, run, w.now);
       const item = requireItem(w.db, run.item_id);
+      checkExit(w.db, input.exit);
       // Decision 42: a worker under a producer finishing its part leaves the story held.
       const keep = run.is_lead === 1 && !!run.producer && item.status === 'progress';
+      const leftItems = leftOf(input.exit);
       endRun(w, run, input.result, input.result, {
-        summary: input.summary,
+        summary: endedSummary(input.summary, exitShape(input.exit, leftItems)),
         ...(input.error !== undefined ? { error: input.error } : {}),
         ...(keep ? { producer_hold_until: holdUntil(w.now) } : {}),
       });
-      w.event({
+      const endedSeq = w.event({
         type: 'run.ended',
         summary: `${run.is_lead ? 'Lead run' : `Child run ${run.label ?? run.id}`} ${input.result}: ${input.summary}`,
         item_id: item.id,
         project_key: item.project_key,
-        data: { run_id: run.id, end_reason: input.result, is_lead: run.is_lead === 1 },
+        data: {
+          run_id: run.id,
+          end_reason: input.result,
+          is_lead: run.is_lead === 1,
+          ...(input.exit ? { exit: input.exit.outcome } : {}),
+        },
         objects: [{ kind: 'run', id: run.id }],
       });
+      if (input.exit) {
+        recordExit(
+          w,
+          run,
+          item,
+          { outcome: input.exit.outcome, left: leftItems },
+          'finish',
+          endedSeq,
+        );
+      }
       // Finishing with things left behind succeeds, but says so (MCP_SPEC §5.4).
       const warnings: string[] = [];
+      // Decision 61: every implementer exit says how it finished.
+      if (run.is_lead === 1 && !input.exit) warnings.push(NO_EXIT_WARNING);
       const left = unreleasedOf(w.db, run.id);
       if (left.length > 0) {
         warnings.push(
@@ -1157,6 +1206,7 @@ export function createRunsService(deps: ServiceDeps): RunsService {
       const item = requireItem(w.db, run.item_id);
       const waiting: WaitingOn = input.waiting_on ?? {};
       checkWaiting(w, item, waiting);
+      checkExit(w.db, input.exit);
       // Parking again updates what it waits on; it has been parked since the first time.
       const parkedAt = run.state === 'parked' && run.parked_at ? run.parked_at : w.now;
       w.update('runs', run.id, {
@@ -1173,9 +1223,12 @@ export function createRunsService(deps: ServiceDeps): RunsService {
         // Decision 44: the run's own park replaces a coordinator's limit, and is its own word.
         coordinator_park: null,
         ...(coordinatorParkOf(run) ? { last_signal_at: w.now } : {}),
+        // Decision 61: the line from before the park no longer holds; a new park has no exit yet.
+        summary: null,
+        exit_report: null,
       });
       const on = waitingText(waiting);
-      w.event({
+      const parkedSeq = w.event({
         type: 'run.parked',
         summary: `${callerName(w.db, { ...w.actor, run_id: run.id })} parked${on ? `, waiting on ${on}` : ''}: ${input.reason}`,
         item_id: item.id,
@@ -1183,6 +1236,10 @@ export function createRunsService(deps: ServiceDeps): RunsService {
         data: { run_id: run.id, reason: input.reason, waiting_on: waiting, from: run.state },
         objects: [{ kind: 'run', id: run.id }],
       });
+      if (input.exit) {
+        const left = leftOf(input.exit);
+        recordExit(w, run, item, { outcome: input.exit.outcome, left }, 'park', parkedSeq);
+      }
       const parked = getRun(w.db, run.id)!;
       const info = parkInfo(w.db, parked, w.now);
       return {
@@ -1449,6 +1506,7 @@ export function createRunsService(deps: ServiceDeps): RunsService {
           state: 'interrupted',
           end_reason: 'service_restart',
           restart_deadline_at: null,
+          summary: 'Ended: no signal after the Docket restart',
         });
         w.event({
           type: 'run.ended',

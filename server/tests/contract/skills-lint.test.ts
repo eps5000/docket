@@ -299,6 +299,28 @@ describe('skills lint (T148)', () => {
     });
   });
 
+  // Decision 61 (B78): implementers report how they finished, and producers resolve it.
+  describe('exit reports', () => {
+    const text = (folder: string) => skills.find((s) => s.folder === folder)!.text;
+
+    it('docket-worker checks acceptance before starting and reports on every exit', () => {
+      expect(text('docket-worker')).toContain('**Check each acceptance item before you start.**');
+      expect(text('docket-worker')).toContain('**Report how you finished, on every exit**');
+      expect(text('docket-worker')).toContain('`release_lead { reason, exit }`');
+    });
+
+    it('docket-producer reads partial exits in every digest and resolves each one', () => {
+      expect(text('docket-producer')).toContain('## 7. Resolve partial exits');
+      expect(text('docket-producer')).toContain('Read `finished partly` in **every** digest');
+    });
+
+    it('docket-planner keeps acceptance items to what the ticket can finish', () => {
+      expect(text('docket-planner')).toContain(
+        '**and each one this ticket can finish on its own**',
+      );
+    });
+  });
+
   // The lint itself: a deliberate stale name and a missing frontmatter are caught.
   it('catches a renamed tool, an unknown field and missing frontmatter', () => {
     const bad = [

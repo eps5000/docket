@@ -7,6 +7,7 @@
  * shows the same derived values (Principle II). Later slices may reuse
  * them (US4's `links.blockState`, US2's views).
  */
+import { exitReportOf, parkedSummary, storedExit } from './exit-reports.js';
 import {
   OPEN_STATUSES,
   ToolError,
@@ -154,6 +155,8 @@ export interface RunRow {
   coordinator_park: string | null;
   /** Decision 45: `{flags, resume_key?}`, the wait flags raised and the last resume told (wait.ts). */
   wait_flags: string | null;
+  /** Decision 61: how the run finished, as JSON (exit-reports.ts). */
+  exit_report: string | null;
   version: number;
   created_at: string;
   updated_at: string;
@@ -263,7 +266,11 @@ export function runView(
     last_signal_at: row.last_signal_at,
     lease_expires_at: row.lease_expires_at,
     current_step_id: row.current_step_id,
-    summary: row.summary,
+    // Decision 61: a parked run leads with its reason (and how it finished), never an older line.
+    summary:
+      row.state === 'parked'
+        ? parkedSummary(row.parked_reason ?? '', storedExit(row))
+        : row.summary,
     error: row.error,
     end_reason: row.end_reason,
     parked:
@@ -290,6 +297,9 @@ export function runView(
   if (opts.external) view.external = parseJson<Record<string, unknown>>(row.external) ?? {};
   // Decision 42: present only when there is something to say, so other results stay as they were.
   if (row.producer) view.producer = row.producer;
+  // Decision 61: how it finished, once it has said.
+  const exit = exitReportOf(db, row);
+  if (exit) view.exit = exit;
   if (isRunOpen(row.state)) {
     const update = parseJson<NonNullable<Run['status_update']>>(row.status_update);
     if (update) view.status_update = update;

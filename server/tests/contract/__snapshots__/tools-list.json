@@ -553,7 +553,7 @@
   },
   {
     "name": "get_changes",
-    "description": "Read changes since a cursor instead of re-reading items. Without a cursor, returns the latest cursor; then pass next_cursor. Watch for review.decided, question.answered and owner_note.added on your items. To wait, run the installed docket-wait script, which costs no tokens. Without a shell, pass wait_s (at most 45) to hold this call. Never poll in a sleep loop.",
+    "description": "Read changes since a cursor. Without one, returns the latest cursor; then pass next_cursor. Watch for review.decided, question.answered and owner_note.added on your items. To wait, run the installed docket-wait script (no tokens). Without a shell, pass wait_s (at most 45) to hold this call. Never poll in a sleep loop.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -624,7 +624,7 @@
   },
   {
     "name": "get_digest",
-    "description": "One compact snapshot for coordinators: what to start next, bottlenecks, ready items, runs (resume_ready flagged), blocked items and why, what waits on the owner, tickets that need shaping, agent problems, leases, conflicts and the change cursor. Pass cursor for only what changed since. Read-only.",
+    "description": "One compact snapshot for coordinators: what to start next, bottlenecks, ready items, runs (resume_ready flagged), runs that finished partly, blocked items and why, what waits on the owner, tickets that need shaping, agent problems, leases, conflicts and the change cursor. Pass cursor for only what changed since. Read-only.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -697,6 +697,9 @@
             "unshaped_epics": {
               "type": "object"
             },
+            "finished_partly": {
+              "type": "object"
+            },
             "needs_shaping": {
               "type": "object"
             }
@@ -733,7 +736,7 @@
   },
   {
     "name": "create_item",
-    "description": "Create an Epic, Story, Task or Bug, in Inbox or Planning. Pass shared: the part keys it changes, or 'none'; without that, an outcome and acceptance it is Needs shaping, for a planner. Small steps go in the checklist (set_plan). To split, pass split_from: move and copy are 1-based acceptance positions; also brings blockers, parts or steps.",
+    "description": "Create an Epic, Story, Task or Bug, in Inbox or Planning. Pass shared (part keys, or 'none'); without it, an outcome or acceptance it is Needs shaping, for a planner. Small steps go in the checklist (set_plan). To split, pass split_from: move and copy are 1-based acceptance positions; also brings blockers, parts or steps.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -798,11 +801,11 @@
         },
         "planned_start": {
           "type": "string",
-          "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$"
+          "format": "date"
         },
         "planned_end": {
           "type": "string",
-          "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$"
+          "format": "date"
         },
         "effort": {
           "type": "number",
@@ -950,7 +953,7 @@
   },
   {
     "name": "update_item",
-    "description": "Edit an item's fields. Pass expected_version from your last read. Status goes through set_status, the plan through set_plan. known_gaps: what implementation will settle, each settled once done.",
+    "description": "Edit an item's fields. Pass expected_version. Status goes through set_status, the plan through set_plan. known_gaps: what implementation will settle, each settled once done.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1026,7 +1029,7 @@
           "anyOf": [
             {
               "type": "string",
-              "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$"
+              "format": "date"
             },
             {
               "type": "null"
@@ -1037,7 +1040,7 @@
           "anyOf": [
             {
               "type": "string",
-              "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$"
+              "format": "date"
             },
             {
               "type": "null"
@@ -1125,7 +1128,7 @@
   },
   {
     "name": "set_status",
-    "description": "Move an item. Allowed: inbox→planning; planning↔ready; ready→progress; progress→ready (gives up the work); progress or review→done (only with no undecided human review item); any open status→canceled (reason required); done→progress (reopen, reason required). Moving to ready needs shared changes declared (declare_shared_changes), else not_declared; open known_gaps ask the owner. When closing as done, pass changed_files and branch. An unapproved change to an approved design refuses starting or closing with design_review. Hand off for review with submit_packet, not this.",
+    "description": "Move an item. Allowed: inbox→planning; planning↔ready; ready→progress; progress→ready (gives up the work); progress or review→done (not while a human review item is undecided or items from a partial exit are left); any open status→canceled (reason required); done→progress (reopen, reason required). Moving to ready needs declare_shared_changes first, else not_declared; open known_gaps ask the owner. When closing as done, pass changed_files and branch. An unapproved change to an approved design refuses starting or closing with design_review. Hand off for review with submit_packet, not this.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1311,8 +1314,7 @@
       "type": "object",
       "properties": {
         "link_id": {
-          "type": "string",
-          "maxLength": 100
+          "type": "string"
         },
         "from": {
           "type": "string"
@@ -1479,8 +1481,7 @@
               "maxLength": 200
             },
             "base_sha": {
-              "type": "string",
-              "pattern": "^[0-9a-fA-F]{7,40}$"
+              "type": "string"
             }
           },
           "additionalProperties": false
@@ -1493,16 +1494,13 @@
               "maxLength": 40
             },
             "dispatch_id": {
-              "type": "string",
-              "maxLength": 100
+              "type": "string"
             },
             "task_id": {
-              "type": "string",
-              "maxLength": 100
+              "type": "string"
             },
             "run_id": {
-              "type": "string",
-              "maxLength": 100
+              "type": "string"
             }
           },
           "required": [
@@ -1515,8 +1513,7 @@
           "maxLength": 20000
         },
         "brief_document_version_id": {
-          "type": "string",
-          "maxLength": 100
+          "type": "string"
         },
         "external": {
           "type": "object",
@@ -1530,8 +1527,7 @@
           "type": "object",
           "properties": {
             "install_id": {
-              "type": "string",
-              "maxLength": 100
+              "type": "string"
             },
             "files": {
               "maxItems": 20,
@@ -1635,7 +1631,7 @@
   },
   {
     "name": "release_lead",
-    "description": "Give up the lead claim without finishing. The item returns to Ready; your plan and notes stay. Under a producer it waits for the next worker unless you pass release_story.",
+    "description": "Give up the lead claim without finishing; pass exit. The item returns to Ready; your plan and notes stay. Under a producer it waits for the next worker unless you pass release_story.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1651,6 +1647,50 @@
         },
         "release_story": {
           "type": "boolean"
+        },
+        "exit": {
+          "type": "object",
+          "properties": {
+            "outcome": {
+              "type": "string",
+              "enum": [
+                "complete",
+                "partial"
+              ]
+            },
+            "left": {
+              "maxItems": 10,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "why": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "needs": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "item": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "text",
+                  "why",
+                  "needs"
+                ]
+              }
+            }
+          },
+          "required": [
+            "outcome"
+          ]
         },
         "idempotency_key": {
           "type": "string"
@@ -1707,8 +1747,7 @@
           "type": "string"
         },
         "parent_run_id": {
-          "type": "string",
-          "maxLength": 100
+          "type": "string"
         },
         "agent_label": {
           "type": "string",
@@ -1738,8 +1777,7 @@
               "maxLength": 200
             },
             "base_sha": {
-              "type": "string",
-              "pattern": "^[0-9a-fA-F]{7,40}$"
+              "type": "string"
             }
           },
           "additionalProperties": false
@@ -1752,16 +1790,13 @@
               "maxLength": 40
             },
             "dispatch_id": {
-              "type": "string",
-              "maxLength": 100
+              "type": "string"
             },
             "task_id": {
-              "type": "string",
-              "maxLength": 100
+              "type": "string"
             },
             "run_id": {
-              "type": "string",
-              "maxLength": 100
+              "type": "string"
             }
           },
           "required": [
@@ -1774,8 +1809,7 @@
           "maxLength": 20000
         },
         "brief_document_version_id": {
-          "type": "string",
-          "maxLength": 100
+          "type": "string"
         },
         "external": {
           "type": "object",
@@ -1834,7 +1868,7 @@
   },
   {
     "name": "heartbeat",
-    "description": "Tell Docket you are still working and update your current step, workspace (head and pushed commits, uncommitted changes) and long-lived resources started or released. Any call with run_id keeps you live, so use this only when nothing else applies or something changed.",
+    "description": "Tell Docket you are still working and update your current step, workspace (commits, uncommitted changes) and long-lived resources started or released. Any call with run_id keeps you live, so use this only when nothing else applies or something changed.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1842,8 +1876,7 @@
           "type": "string"
         },
         "current_step_id": {
-          "type": "string",
-          "maxLength": 100
+          "type": "string"
         },
         "note": {
           "type": "string",
@@ -1853,12 +1886,10 @@
           "type": "object",
           "properties": {
             "head_sha": {
-              "type": "string",
-              "pattern": "^[0-9a-fA-F]{7,40}$"
+              "type": "string"
             },
             "pushed_sha": {
-              "type": "string",
-              "pattern": "^[0-9a-fA-F]{7,40}$"
+              "type": "string"
             },
             "dirty": {
               "type": "boolean"
@@ -1945,8 +1976,7 @@
             "type": "object",
             "properties": {
               "resource_id": {
-                "type": "string",
-                "maxLength": 100
+                "type": "string"
               },
               "note": {
                 "type": "string",
@@ -2019,7 +2049,7 @@
   },
   {
     "name": "finish_run",
-    "description": "End your run: result 'finished' when you stopped normally, 'failed' with an error when something broke. Finishing a lead run releases the claim but doesn't change the item's status: hand off with submit_packet or close with set_status first.",
+    "description": "End your run: 'finished' when you stopped normally, 'failed' with an error when something broke. exit: complete, or partial with what is left, why and what would finish it. A lead's finish releases the claim but not the item's status: hand off with submit_packet or close with set_status first.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -2040,6 +2070,50 @@
         "error": {
           "type": "string",
           "maxLength": 4000
+        },
+        "exit": {
+          "type": "object",
+          "properties": {
+            "outcome": {
+              "type": "string",
+              "enum": [
+                "complete",
+                "partial"
+              ]
+            },
+            "left": {
+              "maxItems": 10,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "why": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "needs": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "item": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "text",
+                  "why",
+                  "needs"
+                ]
+              }
+            }
+          },
+          "required": [
+            "outcome"
+          ]
         },
         "idempotency_key": {
           "type": "string"
@@ -2088,7 +2162,7 @@
   },
   {
     "name": "park_run",
-    "description": "Park only when the work itself stops: waiting on another item, the coordinator or a person. Don't park while your own CI or tests run or while you review them: stay live and log a note. A parked run keeps its claim and workspace. Say what you wait on; Docket flags it resume_ready when that clears. Any write with your run_id resumes it; reads don't.",
+    "description": "Park only when the work itself stops: waiting on another item, the coordinator or a person. Don't park while your own CI or tests run: stay live and log a note. A parked run keeps its claim and workspace. Say what you wait on; Docket flags it resume_ready when that clears. Ending your session? Pass exit. Any write with your run_id resumes it; reads don't.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -2122,6 +2196,50 @@
             }
           },
           "additionalProperties": false
+        },
+        "exit": {
+          "type": "object",
+          "properties": {
+            "outcome": {
+              "type": "string",
+              "enum": [
+                "complete",
+                "partial"
+              ]
+            },
+            "left": {
+              "maxItems": 10,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "why": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "needs": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "item": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "text",
+                  "why",
+                  "needs"
+                ]
+              }
+            }
+          },
+          "required": [
+            "outcome"
+          ]
         },
         "idempotency_key": {
           "type": "string"
@@ -2176,7 +2294,7 @@
   },
   {
     "name": "update_run_status",
-    "description": "Coordinators: set an item's lead run's current action, park reason or waiting_on, resume it, or park it for park_minutes (a new park needs park_reason and waiting_on; 240 at most, and 24 hours since its last own signal). When the time ends it returns to a short lease. No run_id. coordinator is your name: the run's orchestrator or one registered for the project. Grants no other power.",
+    "description": "Coordinators: set an item's lead run's current action, park reason or waiting_on, resume it, or park it for park_minutes (a new park needs park_reason and waiting_on, and 24 hours since its last own signal). When the time ends it returns to a short lease. No run_id. coordinator is your name: the run's orchestrator or one registered for the project. Grants no other power.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -2292,7 +2410,7 @@
   },
   {
     "name": "set_plan",
-    "description": "Publish or revise your plan as one-line steps, optionally with details (Markdown) and a source such as a Jira key. Patches by default: steps with an id are updated, others added, and nothing is removed unless listed in remove. mode 'replace' restates the plan. Owner-added steps are always kept; on Jira-imported steps you may only add details. Revisions are kept.",
+    "description": "Publish or revise your plan as one-line steps, optionally with details (Markdown) and a source such as a Jira key. Patches by default: steps with an id are updated, others added, and nothing is removed unless listed in remove. mode 'replace' restates the plan. Owner-added steps are always kept; on Jira-imported steps you may only add details.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -2318,8 +2436,7 @@
             "type": "object",
             "properties": {
               "id": {
-                "type": "string",
-                "maxLength": 100
+                "type": "string"
               },
               "text": {
                 "type": "string",
@@ -2340,8 +2457,7 @@
                 "maxLength": 4000
               },
               "after": {
-                "type": "string",
-                "maxLength": 100
+                "type": "string"
               },
               "details": {
                 "anyOf": [
@@ -2372,8 +2488,7 @@
         "remove": {
           "type": "array",
           "items": {
-            "type": "string",
-            "maxLength": 100
+            "type": "string"
           }
         },
         "run_id": {
@@ -2436,8 +2551,7 @@
           "type": "string"
         },
         "step_id": {
-          "type": "string",
-          "maxLength": 100
+          "type": "string"
         },
         "state": {
           "type": "string",
@@ -2527,8 +2641,7 @@
           "type": "string"
         },
         "step_id": {
-          "type": "string",
-          "maxLength": 100
+          "type": "string"
         },
         "name": {
           "type": "string",
@@ -2550,8 +2663,7 @@
           ]
         },
         "child_run_id": {
-          "type": "string",
-          "maxLength": 100
+          "type": "string"
         },
         "run_id": {
           "type": "string"
@@ -2626,8 +2738,7 @@
             "type": "object",
             "properties": {
               "id": {
-                "type": "string",
-                "maxLength": 100
+                "type": "string"
               },
               "text": {
                 "type": "string",
@@ -2663,8 +2774,7 @@
         "remove": {
           "type": "array",
           "items": {
-            "type": "string",
-            "maxLength": 100
+            "type": "string"
           }
         },
         "run_id": {
@@ -2723,8 +2833,7 @@
           "type": "string"
         },
         "check_id": {
-          "type": "string",
-          "maxLength": 100
+          "type": "string"
         },
         "state": {
           "type": "string",
@@ -2872,8 +2981,7 @@
           "type": "string"
         },
         "hr_item_id": {
-          "type": "string",
-          "maxLength": 100
+          "type": "string"
         },
         "expected_version": {
           "type": "integer",
@@ -2937,7 +3045,7 @@
   },
   {
     "name": "add_note",
-    "description": "Add a short note to the item's activity: decisions you made, surprises, anything the owner should know. A sentence or two.",
+    "description": "Add a short note to the item's activity: decisions, surprises, anything the owner should know. A sentence or two.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -2997,7 +3105,7 @@
   },
   {
     "name": "put_document",
-    "description": "Store a document on an item or project: planning docs (PRD, UX, TDD), packet attachments or other files. The same name creates a new version. Markdown or text as content_text; binary as content_base64 (up to 25 MB; larger: POST to /agent-upload and pass the returned document_version_id).",
+    "description": "Store a document on an item or project: planning docs, packet attachments or other files. The same name creates a new version. Markdown or text as content_text; binary as content_base64 (up to 25 MB; larger: POST to /agent-upload and pass the returned document_version_id).",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -3027,8 +3135,7 @@
         "content_base64": {
           "type": "string",
           "maxLength": 34952536,
-          "contentEncoding": "base64",
-          "pattern": "^$|^(?:[0-9a-zA-Z+/]{4})*(?:(?:[0-9a-zA-Z+/]{2}==)|(?:[0-9a-zA-Z+/]{3}=))?$"
+          "contentEncoding": "base64"
         },
         "mime": {
           "type": "string",
@@ -3179,7 +3286,7 @@
   },
   {
     "name": "report_commit",
-    "description": "Report every commit for its item, including fixes after a review, and set pushed true once it is on the remote: an unpushed commit can be lost in a crash. A packet built from an older commit is marked out of date.",
+    "description": "Report every commit for its item, including review fixes, and set pushed true once it is on the remote: an unpushed commit can be lost in a crash. A packet built from an older commit is marked out of date.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -3187,8 +3294,7 @@
           "type": "string"
         },
         "sha": {
-          "type": "string",
-          "pattern": "^[0-9a-fA-F]{7,40}$"
+          "type": "string"
         },
         "branch": {
           "type": "string",
@@ -3261,7 +3367,7 @@
   },
   {
     "name": "submit_packet",
-    "description": "Hand finished work to the owner for human review, once built, checks pass and all commits are reported. The packet must let the owner verify without asking you anything: what to check, exact steps (URLs, builds, commands), what you verified and how, known gaps, attachments. Pass changed_files (every file changed) and branch: undeclared shared-part changes, or an unapproved change to an approved design, hold it for the owner. The item moves to Review; read the decision with get_review or get_item.",
+    "description": "Hand finished work to the owner for human review, once built, checks pass and all commits are reported. The packet must let the owner verify without asking you anything: what to check, exact steps, what you verified and how, known gaps, attachments. Pass changed_files (every file changed) and branch: undeclared shared-part changes, or an unapproved change to an approved design, hold it for the owner. The item moves to Review; read the decision with get_review or get_item.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -3269,8 +3375,7 @@
           "type": "string"
         },
         "built_from_commit": {
-          "type": "string",
-          "pattern": "^[0-9a-fA-F]{7,40}$"
+          "type": "string"
         },
         "estimate": {
           "type": "string",
@@ -3280,8 +3385,7 @@
           "minItems": 1,
           "type": "array",
           "items": {
-            "type": "string",
-            "maxLength": 100
+            "type": "string"
           }
         },
         "how": {
@@ -3339,8 +3443,7 @@
             "type": "object",
             "properties": {
               "document_version_id": {
-                "type": "string",
-                "maxLength": 100
+                "type": "string"
               },
               "caption": {
                 "type": "string",
@@ -3592,7 +3695,7 @@
   },
   {
     "name": "publish_decision",
-    "description": "Record a decision other agents must follow (a convention, design choice or interface rule) with a short rationale. Scope it as narrowly as it applies: item, epic, label or project. You can supersede an agent decision; only the owner changes owner decisions (use ask_owner to challenge one).",
+    "description": "Record a decision other agents must follow (a convention, design choice or interface) with a short rationale. Scope it as narrowly as it applies: item, epic, label or project. You can supersede an agent decision; only the owner changes owner decisions (use ask_owner to challenge one).",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -3613,8 +3716,7 @@
               ]
             },
             "id": {
-              "type": "string",
-              "maxLength": 100
+              "type": "string"
             }
           },
           "required": [
@@ -3635,8 +3737,7 @@
           "maxLength": 4000
         },
         "supersedes": {
-          "type": "string",
-          "maxLength": 100
+          "type": "string"
         },
         "run_id": {
           "type": "string"
@@ -3710,8 +3811,7 @@
               ]
             },
             "id": {
-              "type": "string",
-              "maxLength": 100
+              "type": "string"
             }
           },
           "required": [
@@ -3782,12 +3882,10 @@
       "type": "object",
       "properties": {
         "decision_id": {
-          "type": "string",
-          "maxLength": 100
+          "type": "string"
         },
         "question_id": {
-          "type": "string",
-          "maxLength": 100
+          "type": "string"
         },
         "reason": {
           "type": "string",
@@ -3845,7 +3943,7 @@
   },
   {
     "name": "recovery_report",
-    "description": "After a crash or restart, or before pruning worktrees, get the restart list: interrupted, stale and parked runs with brief, workspace, last pushed commit, checklist progress and open question; every workspace as in use, at risk or safe to prune; resources left running. A Docket restart keeps open runs open, so re-dispatch only what's interrupted, and never prune a workspace marked in use or at risk.",
+    "description": "After a crash or restart, or before pruning worktrees: interrupted, stale and parked runs with brief, workspace, last pushed commit, checklist progress and open question; every workspace as in use, at risk or safe to prune; resources left running. A Docket restart keeps open runs open, so re-dispatch only what's interrupted, and never prune a workspace marked in use or at risk.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -4003,8 +4101,7 @@
         "based_on_version_id": {
           "anyOf": [
             {
-              "type": "string",
-              "maxLength": 100
+              "type": "string"
             },
             {
               "type": "null"
@@ -4066,7 +4163,7 @@
   },
   {
     "name": "onboard_project",
-    "description": "Set up a project or onboard a repo into one. Creates the project when the key is free (pass name) or adopts the existing one, starts an onboarding session, and returns session_id, what the project holds and the onboarding guide. Follow it step by step. Not retry-safe: pass idempotency_key.",
+    "description": "Set up a project or onboard a repo into one. Creates the project when the key is free (pass name) or adopts the existing one, starts an onboarding session, and returns session_id, what the project holds and the onboarding guide to follow. Not retry-safe: pass idempotency_key.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -4147,8 +4244,7 @@
       "type": "object",
       "properties": {
         "session_id": {
-          "type": "string",
-          "maxLength": 100
+          "type": "string"
         },
         "summary": {
           "type": "string",
@@ -4219,7 +4315,7 @@
   },
   {
     "name": "get_step",
-    "description": "Read one checklist step in full: text, state, source, details (Markdown), history and subagent notes. Call before working on a step get_item shows with '· details'. Read-only.",
+    "description": "Read one checklist step in full: text, state, source, details, history and subagent notes. Call before working on a step get_item shows with '· details'. Read-only.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -4227,8 +4323,7 @@
           "type": "string"
         },
         "step_id": {
-          "type": "string",
-          "maxLength": 100
+          "type": "string"
         },
         "run_id": {
           "type": "string"
@@ -4274,7 +4369,7 @@
   },
   {
     "name": "apply_batch",
-    "description": "Run up to 100 writes in one call: each operation names a tool and its arguments. Each runs as its single call would, in order: a failure doesn't undo the others, and the result lists each operation's ID or error. \"$1\" means the ID operation 1 wrote. Pass idempotency_key, so a retry runs only what failed.",
+    "description": "Run up to 100 writes in one call, each naming a tool and its arguments. Each runs as its single call would, in order: a failure doesn't undo the others, and the result lists each operation's ID or error. \"$1\" means the ID operation 1 wrote. Pass idempotency_key, so a retry runs only what failed.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -4373,7 +4468,7 @@
   },
   {
     "name": "declare_shared_changes",
-    "description": "Declare the shared parts this item will change (tables, models, endpoints, shared files), each with add, change or remove and a short note, or none: true. Required before Ready. Each call replaces the whole declaration. Use keys from list_shared_parts; register a missing one with new_parts. Name the member when you can (model:Token.expiresAt): different members run in parallel; a bare part is sequenced. Set design_impact: changes_approved_design with a design_note when it alters an approved design: this item pauses until the owner approves. Set disputed: true when agents disagree who owns a part. branches (or branch) replace the reported ones; [] clears them. Returns in-flight items on the same parts, each with its outcome.",
+    "description": "Declare the shared parts this item will change, each with add, change or remove and a short note, or none: true. Required before Ready. Each call replaces the whole declaration. Use keys from list_shared_parts; register a missing one with new_parts. Name the member when you can (model:Token.expiresAt): different members run in parallel; a bare part is sequenced. Set design_impact: changes_approved_design with a design_note when it alters an approved design: this item pauses until the owner approves. Set disputed: true when agents disagree who owns a part. branches (or branch) replace the reported ones; [] clears them. Returns in-flight items on the same parts, each with its outcome.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -4735,7 +4830,7 @@
   },
   {
     "name": "propose_resolution",
-    "description": "Propose how to resolve a problem that needs the owner: split, rescope, reorder or other, with a plan in Markdown and a reason. Pass problem (its ID from get_context problems), or id for the item in general. The owner approves it, asks for a different way with a note, or acknowledges it; the choice arrives as an owner note and in get_context. Routine fixes (a rebase, dropping an old branch) need no proposal.",
+    "description": "Propose how to resolve a problem that needs the owner: split, rescope, reorder or other, with a plan (Markdown) and a reason. Pass problem (its ID from get_context problems), or id for the item in general. The owner approves it, asks for a different way with a note, or acknowledges it; the choice arrives as an owner note and in get_context. Routine fixes (a rebase, dropping an old branch) need no proposal.",
     "inputSchema": {
       "type": "object",
       "properties": {

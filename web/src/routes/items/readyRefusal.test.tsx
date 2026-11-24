@@ -41,6 +41,7 @@ const ITEM = {
   blocked_by: [],
   links: { blocked_by: [], blocks: [], relates: [] },
   lead: null,
+  runs: [],
   archived: false,
   jira_key: null,
   version: 4,

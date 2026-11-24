@@ -266,7 +266,12 @@ describe('release and finish', () => {
   it('finish_run releases the claim but leaves the status: the item is resumable', () => {
     const { run_id } = claim('RCP-17');
     const out = d.write({ ...claude, run_id }, (w, s) =>
-      s.runs.finish(w, { run_id, result: 'finished', summary: 'Stopping here.' }),
+      s.runs.finish(w, {
+        run_id,
+        result: 'finished',
+        summary: 'Stopping here.',
+        exit: { outcome: 'complete' },
+      }),
     );
     expect(out).toEqual({ run_state: 'finished' });
     expect(run(run_id)).toMatchObject({ state: 'finished', end_reason: 'finished' });

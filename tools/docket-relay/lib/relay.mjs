@@ -14,7 +14,7 @@ import { buildMessage, orderKinds } from './classify.mjs';
 import { checkFeed, holdRecord, pageIsCoherent, readAnchor } from './hold.mjs';
 import { stateProblem } from './invariants.mjs';
 import { requestIdFor } from './orca.mjs';
-import { liveLead, resolveCoordinator } from './target.mjs';
+import { liveLead, partialLead, resolveCoordinator } from './target.mjs';
 
 export const DEFAULTS = {
   /** A ticket's edits go out once it has been quiet this long… */
@@ -58,6 +58,7 @@ const abortableSleep = (ms, signal) =>
 
 const kindsOf = (events) => orderedKinds(events.flatMap((event) => event.kinds));
 const orderedKinds = (kinds) => [
+  ...(kinds.includes('partial') ? ['partial'] : []),
   ...orderKinds(kinds),
   ...(kinds.includes('resume') ? ['resume'] : []),
 ];
@@ -295,7 +296,9 @@ export function createRelay({
       return null;
     }
 
-    const lead = liveLead(detail.runs);
+    // Decision 61: a partial exit goes to the producer of the run that left it, live or ended.
+    const partial = genuine.some((event) => event.kinds.includes('partial'));
+    const lead = (partial ? partialLead(detail.runs) : null) ?? liveLead(detail.runs);
     if (!lead) {
       s.counters.no_live_lead += 1;
       log('no_live_lead', { item, kinds: kindsOf(genuine) });
