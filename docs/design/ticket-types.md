@@ -47,6 +47,20 @@ These rules follow:
    - An epic with none gets a generated one.
    - Where it's ambiguous, the producer gets a Needs shaping item (B82) to choose.
 
+### Release vs rollout (owner, 2026-11-24)
+
+Some work inside an epic is release-like without being the epic's release, for example a deploy to a test environment, a data cutover or turning a flag on for testing. That work must never be hidden inside another ticket.
+
+- **Release** means the epic's outcome reaches its real users (production, or a flag on for everyone). There is one per epic, and it comes last.
+- **Rollout** is an intermediate change to a shared environment that other tickets depend on. It's an **Implementation ticket marked as a rollout**:
+  - it is always its own ticket, never a line in another ticket's checklist;
+  - it is shown with a rollout marker on the Map;
+  - the tickets that wait on it link to it.
+- **Two real releases to users means two epics**, each with its own Release (for example a beta epic, then a general-availability epic).
+- **Catching hidden rollouts:**
+  - The planner gives any acceptance item that deploys, cuts over or flips a flag in a shared environment its own rollout ticket.
+  - An implementer's partial exit report (B78) that names an environment change is turned into a rollout ticket by the producer.
+
 Release replaces the **Verification** type proposed earlier. Checks that span tickets live on the Release ticket's checklist, and a large one can still be its own Implementation ticket inside the epic.
 
 ## What isn't a type
