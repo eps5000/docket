@@ -135,9 +135,7 @@ test('status is never colour alone, and the Map legend says queued and blocked',
 });
 
 for (const size of SIZES) {
-  test(`stress data: Work, Overview, an item and the brief pass axe at ${size.name}`, async ({
-    page,
-  }) => {
+  test(`stress data: Work, Overview and the brief pass axe at ${size.name}`, async ({ page }) => {
     await page.setViewportSize({ width: size.width, height: size.height });
     await inScope(page, 'STR');
     const noOverflow = async () =>
@@ -145,45 +143,79 @@ for (const size of SIZES) {
         size.width,
       );
 
-    await page.goto('/work?layout=list&quick=queued');
+    await page.goto('/work?layout=list');
     await expect(page.locator('[data-layout="list"] [data-wait]').first()).toBeVisible();
-    await expectAxeClean(page, `Work list, Queued, at ${size.name}`);
+    await expectAxeClean(page, `Work list on stress data at ${size.name}`);
     await noOverflow();
-    await shots(page, `work-queued-${size.name}`);
+    await shots(page, `stress-list-${size.name}`);
 
     await page.goto('/work?layout=board');
     await expect(page.locator('[data-layout="board"]')).toBeVisible();
-    await expectAxeClean(page, `Work board at ${size.name}`);
+    await expectAxeClean(page, `Work board on stress data at ${size.name}`);
     await noOverflow();
-    await shots(page, `work-board-${size.name}`);
+    await shots(page, `stress-board-${size.name}`);
 
     await page.goto('/work?layout=map');
     await expect(page.locator('.pm-legend')).toBeVisible();
-    await expectAxeClean(page, `Work map at ${size.name}`, { include: '.pm-head' });
-    await shots(page, `work-map-${size.name}`);
+    await expectAxeClean(page, `Work map on stress data at ${size.name}`, { include: '.pm-head' });
+    await shots(page, `stress-map-${size.name}`);
 
     await page.goto('/');
     await expect(page.locator('[data-wait-counts]')).toBeVisible();
-    await expectAxeClean(page, `Overview at ${size.name}`);
+    await expectAxeClean(page, `Overview on stress data at ${size.name}`);
     await noOverflow();
-    await shots(page, `overview-${size.name}`);
+    await shots(page, `stress-overview-${size.name}`);
 
     await page.goto('/brief');
-    await expect(page.getByRole('heading', { name: 'What’s stuck' })).toBeVisible();
-    await expectAxeClean(page, `Brief at ${size.name}`);
+    await expect(page.getByRole('heading', { name: /^What’s stuck/ })).toBeVisible();
+    await expectAxeClean(page, `Brief on stress data at ${size.name}`);
     await noOverflow();
-    await shots(page, `brief-${size.name}`);
+    await shots(page, `stress-brief-${size.name}`);
+  });
 
+  test(`Queued and Blocked side by side: axe at ${size.name}`, async ({ page }) => {
+    await page.setViewportSize({ width: size.width, height: size.height });
     await inScope(page, 'RCP');
+    const noOverflow = async () =>
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+        size.width,
+      );
+
+    await page.goto('/work?layout=list&quick=queued');
+    await expect(page.locator('[data-layout="list"] [data-wait="queued"]').first()).toBeVisible();
+    await expectAxeClean(page, `Work list, Queued, at ${size.name}`);
+    await noOverflow();
+    await shots(page, `queued-list-${size.name}`);
+
+    await page.goto('/work?layout=board');
+    const ready = page.locator('[data-layout="board"] section.col[aria-label="Ready"]');
+    await ready.getByRole('button', { name: /^Waiting/ }).click();
+    await expect(ready.locator('[data-wait="queued"]').first()).toBeVisible();
+    await expectAxeClean(page, `Work board, Waiting open, at ${size.name}`);
+    await noOverflow();
+    await shots(page, `queued-board-${size.name}`);
+
     await page.goto('/items/RCP-16');
     await expect(page.locator('[data-wait="queued"]').first()).toBeVisible();
     await expectAxeClean(page, `Item page, Queued, at ${size.name}`);
     await noOverflow();
-    await shots(page, `item-queued-${size.name}`);
+    await shots(page, `queued-item-${size.name}`);
 
     await page.goto('/items/RCP-1');
     await expect(page.locator('[data-ticket="RCP-16"] [data-wait]')).toBeVisible();
     await expectAxeClean(page, `Epic tickets at ${size.name}`);
-    await shots(page, `epic-${size.name}`);
+    await shots(page, `queued-epic-${size.name}`);
+
+    await inScope(page, 'DOC');
+    await page.goto('/work?layout=list&quick=blocked');
+    await expect(page.locator('[data-layout="list"] [data-wait="blocked"]').first()).toBeVisible();
+    await expectAxeClean(page, `Work list, Blocked, at ${size.name}`);
+    await noOverflow();
+    await shots(page, `blocked-list-${size.name}`);
+
+    await page.goto('/items/DOC-7');
+    await expect(page.locator('[data-wait="blocked"]').first()).toBeVisible();
+    await expectAxeClean(page, `Item page, Blocked, at ${size.name}`);
+    await shots(page, `blocked-item-${size.name}`);
   });
 }

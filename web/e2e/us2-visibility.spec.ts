@@ -150,7 +150,11 @@ test.describe('Work', () => {
     );
     await expect(page.getByRole('button', { name: /^Blocked/ })).toHaveAttribute(
       'title',
-      'Agent query: is:blocked',
+      'Agent query: is:blocked -is:queued -is:held',
+    );
+    await expect(page.getByRole('button', { name: /^Queued/ })).toHaveAttribute(
+      'title',
+      'Agent query: is:queued',
     );
     // A Review card with a ready packet opens the packet screen.
     const review = board.getByRole('region', { name: 'Review' });

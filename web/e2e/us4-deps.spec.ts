@@ -98,9 +98,10 @@ test.describe('the progress map', () => {
     await expect(card(page, 'RCP-11')).toHaveClass(/ps-done/);
     await expect(card(page, 'RCP-11')).toContainText('✓');
     await expect(map(page).locator('.pm-big')).toContainText(/\d+ \/ 12 done/);
-    // A blocked Ready card: red border and "blocked".
-    await expect(card(page, 'RCP-16')).toHaveClass(/blk/);
-    await expect(card(page, 'RCP-16')).toContainText('blocked');
+    // Decision 57: a Ready card behind moving work is Queued (calm, "queued"), never red.
+    await expect(card(page, 'RCP-16')).toHaveClass(/que/);
+    await expect(card(page, 'RCP-16')).not.toHaveClass(/blk/);
+    await expect(card(page, 'RCP-16')).toContainText('queued');
     // The person icon: filled for a packet ready (RCP-12), outlined for review later.
     await expect(card(page, 'RCP-12').locator('.pm-hr.now')).toBeVisible();
 
