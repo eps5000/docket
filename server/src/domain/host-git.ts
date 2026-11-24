@@ -34,11 +34,14 @@ export interface HostGitBranch {
   merged: boolean | null;
   main: MergeState;
   files: string[];
+  /** Some conflicting files weren't sent (the helper's caps): the list isn't the whole answer. */
+  more?: boolean;
 }
 
 export interface HostGitPair {
   state: MergeState;
   files: string[];
+  more?: boolean;
 }
 
 export interface HostGitCommits {
@@ -131,12 +134,13 @@ function closePass(record: HostGitPassRecord, received: readonly SubRecord[]): H
           merged: r.merged,
           main: r.main,
           files: r.files,
+          more: r.more,
         };
         break;
       case 'pair': {
         const [a, b] = r.a < r.b ? [r.a, r.b] : [r.b, r.a];
         if (!facts.pairs[pairKey(a, b)]) pairs += 1;
-        facts.pairs[pairKey(a, b)] = { state: r.state, files: r.files };
+        facts.pairs[pairKey(a, b)] = { state: r.state, files: r.files, more: r.more };
         break;
       }
       case 'commits':

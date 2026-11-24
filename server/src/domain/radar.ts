@@ -589,6 +589,8 @@ export async function planRadar(
   const suppressed: RadarPlan['suppressed'] = [];
   // B42: each branch's files in conflict with the main branch.
   const withMain = new Map<string, Set<string>>();
+  /** B76 review: branches whose conflict with main had files left out by the helper's caps. */
+  const truncatedMain = new Set<string>();
   // One check per branch pair, even when two items report the same branch.
   const pairs = new Set<string>();
   const fresh = (a: string, b: string) => {
@@ -600,12 +602,19 @@ export async function planRadar(
   for (const f of flights) {
     if (!fresh(f.branch, p.main_branch)) continue;
     const fact = facts.branches[f.branch]!;
-    if (fact.main === 'unknown') {
-      // B42 needs this answer to judge the branch's pairs, so they wait too.
+    // B76 review: no answer, a merge git couldn't do, or a conflict whose every file was
+    // left out says nothing, so the branch's findings stay. B42 needs this answer to judge the
+    // branch's pairs, so they wait too.
+    if (
+      fact.main === 'unknown' ||
+      fact.main === 'failed' ||
+      (fact.main === 'conflict' && fact.files.length === 0)
+    ) {
       unknownBranches.add(f.branch);
       continue;
     }
-    if (fact.main === 'failed') continue;
+    // Some conflicting files weren't sent: this branch's list can't explain a pair's files.
+    if (fact.main === 'conflict' && fact.more) truncatedMain.add(f.branch);
     const files = fact.main === 'conflict' ? [...fact.files].sort() : [];
     withMain.set(f.branch, new Set(files));
     checks.push({
@@ -632,16 +641,27 @@ export async function planRadar(
         if (!facts.pairs_done) unknownPairs.push([a.branch, b.branch]);
         continue;
       }
-      if (pair.state === 'unknown') {
+      // B76 review: a merge git couldn't do is unknown, never clean.
+      if (pair.state === 'unknown' || pair.state === 'failed') {
         unknownPairs.push([a.branch, b.branch]);
         continue;
       }
-      if (pair.state === 'failed') continue;
       const all = pair.state === 'conflict' ? [...pair.files].sort() : [];
       // B42: only files beyond what either branch's conflict with main explains.
       const explained = (file: string) =>
         !!withMain.get(a.branch)?.has(file) || !!withMain.get(b.branch)?.has(file);
       const files = all.filter((file) => !explained(file));
+      // B76 review: with files left out (the helper's caps), whether the conflict goes beyond
+      // main can't be told: unknown, so it neither opens nor clears on a partial list.
+      const partial =
+        pair.state === 'conflict' &&
+        (truncatedMain.has(a.branch) ||
+          truncatedMain.has(b.branch) ||
+          (!!pair.more && files.length === 0));
+      if (partial) {
+        unknownPairs.push([a.branch, b.branch]);
+        continue;
+      }
       // Decision 39: a real text conflict gets a merge order; it stops neither agent.
       let merge_first: string | null = null;
       if (files.length > 0) {

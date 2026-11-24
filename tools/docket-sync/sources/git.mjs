@@ -32,7 +32,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createGit } from '../lib/git.mjs';
-import { lazyFetchRisk, safeHostPath, validBranch } from './worktrees.mjs';
+import { lazyFetchRisk, linkCheck, safeHostPath, validBranch } from './worktrees.mjs';
 
 export const name = 'git';
 export const intervalMs = 3 * 60_000;
@@ -184,7 +184,12 @@ async function readProject(git, project, limits, signal, deadline, nowMs) {
     ...extra,
   });
   const dir = project.host_path;
-  if (!safeHostPath(dir) || typeof project.main_branch !== 'string') {
+  // B76 review: a path through a link could read a repository outside the one named.
+  if (
+    !safeHostPath(dir) ||
+    typeof project.main_branch !== 'string' ||
+    (await linkCheck(dir)) !== 'ok'
+  ) {
     return [close('unreadable')];
   }
 
@@ -347,13 +352,17 @@ async function readProject(git, project, limits, signal, deadline, nowMs) {
         const [a, b] = x.branch < y.branch ? [x, y] : [y, x];
         const k = `${a.branch}\u0000${b.branch}`;
         if (seen.has(k)) continue;
-        seen.add(k);
         const files = (f, own) => new Set([...f.handed, ...own.changed]);
         const filesA = files(a, facts.get(a.branch));
+        // A branch whose changed files couldn't be listed can't be called unrelated: merge it.
         const related =
+          !facts.get(a.branch).changedKnown ||
+          !facts.get(b.branch).changedKnown ||
           [...a.parts].some((p) => b.parts.has(p)) ||
           [...files(b, facts.get(b.branch))].some((f) => filesA.has(f));
+        // B76 review: another item pair on the same two branches may still be related.
         if (!related) continue;
+        seen.add(k);
         if (merges >= limits.maxPairMerges || late() || stop.aborted) {
           complete = false;
           return { pairsDone: false, pairs };
@@ -400,6 +409,7 @@ async function readProject(git, project, limits, signal, deadline, nowMs) {
         const diff = await read(['diff', '--name-only', '--no-renames', `${mainRef}...${ref}`]);
         // Held only for this pass, to judge which pairs are related. Never sent.
         const changed = diff.status === 0 ? diff.stdout.split('\n').filter(Boolean) : [];
+        const changedKnown = diff.status === 0;
         const merge = await read(
           ['merge-tree', '--write-tree', '--name-only', '--no-messages', mainRef, ref],
           { objects },
@@ -423,6 +433,7 @@ async function readProject(git, project, limits, signal, deadline, nowMs) {
           },
           usable: true,
           changed,
+          changedKnown,
         };
       } catch (err) {
         if (err instanceof NoAnswer) return { record, usable: false };

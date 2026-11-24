@@ -11,7 +11,7 @@
  *   both orders of upgrade (a new Docket with an old helper, and the reverse).
  */
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, readdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, renameSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -29,6 +29,9 @@ const load = (file: string) => import(/* @vite-ignore */ pathToFileURL(join(TOOL
 const gitLib = (await load('lib/git.mjs')) as {
   createGit(o: { env: Record<string, string> }): Reader;
   gitEnv(env: Record<string, string>): Record<string, string>;
+};
+const worktreesSource = (await load('sources/worktrees.mjs')) as {
+  collect(ctx: Rec, options?: Rec): Promise<{ records: Rec[] }>;
 };
 const runnerLib = (await load('lib/runner.mjs')) as {
   createRunner(o: Record<string, unknown>): {
@@ -386,6 +389,125 @@ describe.skipIf(!HAS_GIT)('the helper’s git source, on real repositories', () 
   });
 });
 
+describe.skipIf(!HAS_GIT)('B76 review: the helper’s fixes', () => {
+  let tmp: TempDir;
+  let app: ReturnType<typeof makeApp>;
+  beforeEach(() => {
+    tmp = tempDir('docket-b76-review-');
+    app = makeApp(tmp.dir);
+  });
+  afterEach(() => tmp.cleanup());
+
+  const collect = (settings: Rec, options: Rec = {}) =>
+    gitSource.collect({ state: {}, settings }, { env: helperEnv(tmp.dir), ...options });
+  const item = (id: string, branch: string, parts: string[] = []) => ({
+    id,
+    keys: [],
+    branches: [branch],
+    removed: [],
+    parts,
+    files: [],
+  });
+  /** A link (a junction on Windows, which needs no admin rights) from `path` to `target`. */
+  const link = (target: string, path: string) =>
+    symlinkSync(target, path, process.platform === 'win32' ? 'junction' : 'dir');
+
+  it('P1: a repository folder reached through a link is never read', async () => {
+    const through = join(tmp.dir, 'through-link');
+    link(app.repo, through);
+    const calls: string[][] = [];
+    const watching: Reader = {
+      read(dir, args, options) {
+        calls.push([dir, ...args]);
+        return gitLib.createGit({ env: helperEnv(tmp.dir) }).read(dir, args, options);
+      },
+    };
+    const { records } = await collect(settingsFor(through.replace(/\\/g, '/')), { git: watching });
+    expect(records.map((r) => [r.kind, r.status])).toEqual([['pass', 'unreadable']]);
+    expect(calls).toEqual([]);
+    const worktrees = await worktreesSource.collect(
+      {
+        state: {},
+        settings: {
+          enabled: true,
+          projects: [{ key: 'XY', repo_path: through, host_path: through, main_branch: 'main' }],
+        },
+      },
+      { env: helperEnv(tmp.dir), git: watching },
+    );
+    expect(worktrees.records.map((r) => [r.kind, r.status])).toEqual([['scan', 'unreadable']]);
+    expect(calls).toEqual([]);
+  });
+
+  it('P1: a worktree whose folder now leads through a link is unreadable, not read', async () => {
+    const area = join(tmp.dir, 'area');
+    mkdirSync(area);
+    const wt = join(area, 'wt');
+    git(app.repo, 'worktree', 'add', '-q', wt, '-b', 'xy-20-moved', 'main');
+    const moved = join(tmp.dir, 'moved-area');
+    renameSync(area, moved);
+    link(moved, area);
+    const { records } = await worktreesSource.collect(
+      {
+        state: {},
+        settings: {
+          enabled: true,
+          projects: [{ key: 'XY', repo_path: app.repo, host_path: app.repo, main_branch: 'main' }],
+        },
+      },
+      { env: helperEnv(tmp.dir) },
+    );
+    const row = records.find(
+      (r) => r.kind === 'tree' && String(r.path).replace(/\\/g, '/').endsWith('/area/wt'),
+    );
+    expect(row).toMatchObject({ read: 'unreadable', uncommitted_files: null });
+  });
+
+  it('P2: a later item pair on the same two branches is still merged when it is related', async () => {
+    for (const [branch, file] of [
+      ['xy-5-p', 'p.txt'],
+      ['xy-6-q', 'q.txt'],
+    ] as const) {
+      git(app.repo, 'checkout', '-q', '-b', branch, 'main');
+      writeFileSync(join(app.repo, file), 'x\n');
+      git(app.repo, 'add', file);
+      git(app.repo, 'commit', '-q', '-m', branch);
+    }
+    git(app.repo, 'checkout', '-q', 'main');
+    const { records } = await collect(
+      settingsFor(app.repo, {
+        items: [
+          // Unrelated: no common part, no common file.
+          item('XY-5', 'xy-5-p'),
+          item('XY-6', 'xy-6-q'),
+          // The same two branches, related by a declared part.
+          item('XY-7', 'xy-5-p', ['model:A']),
+          item('XY-8', 'xy-6-q', ['model:A']),
+        ],
+      }),
+    );
+    expect(records.filter((r) => r.kind === 'pair')).toMatchObject([
+      { a: 'xy-5-p', b: 'xy-6-q', state: 'clean' },
+    ]);
+    expect(records.at(-1)).toMatchObject({ pairs_done: true, pairs: 1 });
+  });
+
+  it('P2: a branch whose changed files can’t be listed is merged, never called unrelated', async () => {
+    const real = gitLib.createGit({ env: helperEnv(tmp.dir) });
+    const noDiff: Reader = {
+      read(dir, args, options) {
+        if (args[0] === 'diff') return Promise.resolve({ status: 128, stdout: '', unknown: false });
+        return real.read(dir, args, options);
+      },
+    };
+    const { records } = await collect(settingsFor(app.repo), { git: noDiff });
+    expect(records.filter((r) => r.kind === 'pair')).toMatchObject([
+      { a: 'xy-1-left', b: 'xy-2-right', state: 'conflict', files: ['shared.txt'] },
+    ]);
+    expect(records.at(-1)).toMatchObject({ pairs_done: true, pairs: 1 });
+  });
+});
+
 describe('the helper’s git source, by itself', () => {
   it('matches keys as whole tokens, as Docket’s radar does', () => {
     expect(
@@ -410,7 +532,9 @@ describe('the helper’s git source, by itself', () => {
   });
 
   it('an older Docket’s settings, without what B76 asks for, read nothing but the pass', async () => {
-    const ROOT = process.platform === 'win32' ? 'C:/repo' : '/repo';
+    // A real folder (the helper won't read one that isn't there); git itself is faked.
+    const folder = tempDir('docket-b76-old-');
+    const ROOT = folder.dir.replace(/\\/g, '/');
     const calls: string[][] = [];
     const fake: Reader = {
       read(_dir, args) {
@@ -437,6 +561,7 @@ describe('the helper’s git source, by itself', () => {
     expect(records.map((r) => r.kind)).toEqual(['pass']);
     expect(records[0]).toMatchObject({ status: 'ok', complete: true });
     expect(calls.some((a) => a.includes('merge-tree') || a[0] === 'log')).toBe(false);
+    folder.cleanup();
   });
 
   it('an older Docket that doesn’t know the source: the runner skips it and posts nothing', async () => {
@@ -730,6 +855,87 @@ describe('Docket stores the helper’s facts', () => {
     expect(stored.branches['xy-2-right']).toBeUndefined();
     expect(stored.branches['xy-1-left']!.files).toHaveLength(2);
     expect(JSON.stringify(stored)).not.toContain('ghp_');
+  });
+
+  it('B76 review P1: a merge git couldn’t do keeps its finding, with main and between branches', async () => {
+    ingestGit(
+      d.server,
+      pass([
+        branch('xy-1-left', { main: 'conflict', files: ['a.txt'] }),
+        branch('xy-2-right'),
+        pair('conflict', ['shared.txt']),
+      ]),
+    );
+    await radarRunOnce(d.server.runtime, 'XY');
+    expect(open()).toEqual(
+      expect.arrayContaining([
+        { branch_a: 'xy-1-left', branch_b: 'main' },
+        { branch_a: 'xy-1-left', branch_b: 'xy-2-right' },
+      ]),
+    );
+    // The trial merge with main fails: that branch's findings stay, and its pairs wait.
+    ingestGit(
+      d.server,
+      pass([branch('xy-1-left', { main: 'failed' }), branch('xy-2-right'), pair('failed')]),
+    );
+    let run = await radarRunOnce(d.server.runtime, 'XY');
+    expect(run.plan.unknown.branches).toEqual(['xy-1-left']);
+    expect(open()).toHaveLength(2);
+    // Main is clean now, but the pair's own trial merge fails: the pair's finding stays.
+    ingestGit(d.server, pass([branch('xy-1-left'), branch('xy-2-right'), pair('failed')]));
+    run = await radarRunOnce(d.server.runtime, 'XY');
+    expect(run.plan.unknown.pairs).toEqual([['xy-1-left', 'xy-2-right']]);
+    expect(open()).toEqual([{ branch_a: 'xy-1-left', branch_b: 'xy-2-right' }]);
+  });
+
+  it('B76 review P1: a conflict list cut short by the caps never clears a finding', async () => {
+    ingestGit(
+      d.server,
+      pass([
+        branch('xy-1-left', { main: 'conflict', files: ['a.txt'] }),
+        branch('xy-2-right'),
+        pair('conflict', ['shared.txt']),
+      ]),
+    );
+    await radarRunOnce(d.server.runtime, 'XY');
+    expect(open()).toHaveLength(2);
+    // The pair's listed files are all explained by main, but some weren't sent.
+    ingestGit(
+      d.server,
+      pass([
+        branch('xy-1-left', { main: 'conflict', files: ['a.txt'] }),
+        branch('xy-2-right'),
+        { ...pair('conflict', ['a.txt']), more: true },
+      ]),
+    );
+    let run = await radarRunOnce(d.server.runtime, 'XY');
+    expect(run.plan.unknown.pairs).toEqual([['xy-1-left', 'xy-2-right']]);
+    expect(run.plan.suppressed).toEqual([]);
+    expect(open()).toHaveLength(2);
+    // Main's own list was cut short: what it explains can't be told either.
+    ingestGit(
+      d.server,
+      pass([
+        branch('xy-1-left', { main: 'conflict', files: ['a.txt'], more: true }),
+        branch('xy-2-right'),
+        pair('conflict', ['a.txt']),
+      ]),
+    );
+    run = await radarRunOnce(d.server.runtime, 'XY');
+    expect(run.plan.unknown.pairs).toEqual([['xy-1-left', 'xy-2-right']]);
+    expect(open()).toHaveLength(2);
+    // Every conflicting file with main was left out (too long a name): unknown, not clean.
+    ingestGit(
+      d.server,
+      pass([
+        branch('xy-1-left', { main: 'conflict', files: [], more: true }),
+        branch('xy-2-right'),
+        pair('conflict', ['shared.txt']),
+      ]),
+    );
+    run = await radarRunOnce(d.server.runtime, 'XY');
+    expect(run.plan.unknown.branches).toEqual(['xy-1-left']);
+    expect(open()).toHaveLength(2);
   });
 
   it('a deleted project’s facts go with it', () => {
