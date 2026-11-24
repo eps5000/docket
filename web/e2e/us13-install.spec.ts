@@ -292,7 +292,9 @@ test.describe('Install and check (US13)', () => {
     await expect(d.getByRole('button', { name: 'Install', exact: true })).toHaveCount(0);
     await d.getByRole('button', { name: 'Reinstall', exact: true }).click();
     await expect(
-      d.locator('[data-install-result="push"] li').filter({ hasText: 'docket-planner' }),
+      d
+        .locator('[data-install-result="push"] li')
+        .filter({ hasText: '.claude/skills/docket-planner/SKILL.md' }),
     ).toContainText('Created');
     await d.getByRole('button', { name: 'Done' }).click();
     const newest = logRows(page).first();
