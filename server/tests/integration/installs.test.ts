@@ -47,6 +47,7 @@ const SKILLS = [
   'docket-delivery',
   'docket-lead-subagents',
   'docket-planner',
+  'docket-producer',
   'docket-review-packet',
   'docket-worker',
 ];
@@ -147,7 +148,7 @@ describe('command install: the bundle and the single-use token (T155)', () => {
     // Not in the log until the token is used; one event, "Install command created".
     expect((await api('GET', '/api/installs')).body).toEqual({ installs: [] });
     expect(eventsOf(server).map((e) => e.summary)).toEqual([
-      'Install command created: Claude Code, RCP’s repo, 12 files'.replace('’', "'"),
+      'Install command created: Claude Code, RCP’s repo, 13 files'.replace('’', "'"),
     ]);
 
     // The download: no session, the system as actor.
@@ -281,7 +282,7 @@ describe('command install: the bundle and the single-use token (T155)', () => {
     expect(log.installs[0]).toMatchObject({
       id: body.install_id,
       method: 'command',
-      file_count: 12,
+      file_count: 13,
       token_used_at: server.clock.current.toISOString(),
     });
     expect(log.installs[0]!.manifest).toEqual(
@@ -289,8 +290,8 @@ describe('command install: the bundle and the single-use token (T155)', () => {
     );
     const events = eventsOf(server);
     expect(events.map((e) => e.summary)).toEqual([
-      "Install command created: Claude Code, RCP's repo, 12 files",
-      "Installed by command: Claude Code, RCP's repo, 12 files",
+      "Install command created: Claude Code, RCP's repo, 13 files",
+      "Installed by command: Claude Code, RCP's repo, 13 files",
     ]);
     expect(events.map((e) => (JSON.parse(e.data) as S).stage)).toEqual([
       'command_issued',
@@ -523,11 +524,11 @@ describe('push install and check (T156)', () => {
         id,
         method: 'push',
         path: 'C:\\Users\\me\\code\\recipes',
-        file_count: 12,
+        file_count: 13,
       }),
     ]);
     expect(eventsOf(server).map((e) => e.summary)).toEqual([
-      "Installed by push: Claude Code, RCP's repo at C:\\Users\\me\\code\\recipes, 12 files",
+      "Installed by push: Claude Code, RCP's repo at C:\\Users\\me\\code\\recipes, 13 files",
     ]);
 
     // Up to date.

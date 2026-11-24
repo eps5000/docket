@@ -379,16 +379,27 @@ The owner froze a project by telling agents to stop. Only tickets whose park rea
 
 BUILD_SPEC §5.37, MCP_SPEC §5.2 and §5.4, UI_SPEC §6.1d, spec FR-295–FR-301 and SC-034, and Help (Pause a project) have the details.
 
+## Owner decision 55 (2026-11-24): a bundled producer skill
+
+The owner's working model has a producer who owns one epic and dispatches independent implementers. Docket had worker, coordinator, planner, review, subagent and delivery skills but none for that role, and it can't assume an onboarded project has workflow skills of its own.
+
+1. **A seventh bundled skill, `docket-producer`.** It is defined, versioned, listed, linted, installed, checked for drift and uninstalled like the others, for Claude Code and Codex. An existing install shows "update available". No MCP tool is added.
+2. **About the role.** It points to `docket-coordinator` for dispatch and waiting, `docket-planner` for shaping, `docket-worker` for implementers and `docket-delivery` for merge and deploy, and copies none of them. It aims for under 150 lines. `docket-coordinator` carries one short pointer to it.
+3. **Subordinate and general.** The project's Workflow notes and its own skills take precedence. It works with any orchestrator or none, names no pilot project and grants no authority.
+4. **What it teaches:** own one epic version; choose and sequence by real dependencies; shape finishable vertical slices; dispatch in parallel; keep work moving without spending tokens; decide what you can and ask the owner only what's theirs; create no ceremony; respect a paused project; close the epic with what was deferred on record.
+5. **Hard and soft dependencies (owner-approved).** Hard: the ticket's current acceptance criteria can't be met without the other work, so it blocks. Soft: it affects part of the ticket, so it doesn't block, and whoever starts the ticket records one outcome: proceed, adjust, split, or upgrade to hard. If a blocker holds only some criteria, prefer a split. A much newer ticket becoming a prerequisite of an older one usually means scope was added. The skill teaches this with today's `blocks` and `relates` links, and adds no link type.
+
+BUILD_SPEC §5.17, spec FR-302–FR-306 and SC-035, Help (Agent files) and `skills/README.md` have the details.
 ## Owner decision 56 (2026-11-24): projects pull their own Docket updates
 
 Updating a project meant someone pushing files into a special worktree and handing it to the project's coordinator. That reached into the project and wouldn't scale. **Docket publishes a new version, and the project takes it in through its own normal workflow.**
 
 1. **An update command the project runs itself.** A small `docket-update` script (`.sh` and `.ps1`) sits beside `docket-check`, for both clients. From any checkout, on a branch the agent chose, it fetches that project's current files from the local Docket under the existing trust rules, using the same layout, marker, connection-file and old-skill rules as an install. It refuses to overwrite a file edited locally and lists it. It prints what changed, and never commits, pushes, opens a PR or touches another worktree. No credential is ever stored in the repo.
 2. **Installs already out there need no special push.** When an install is out of date, `get_digest` and `claim_lead` carry a compact notice with the exact one-line way to fetch and run the current updater from the local Docket.
-3. **Coordinators take it first.** At the start of a session, before dispatching implementers, a coordinator takes an available update as one small normal change. Workers tell their coordinator instead. An update that can't land never blocks work.
+3. **Coordinators and producers take it first.** At the start of a session, before dispatching implementers, a coordinator or producer takes an available update as one small normal change. Workers tell their coordinator instead. An update that can't land never blocks work.
 4. **Agent files says who does it.** For a repo install with an update available, the guidance is "Your project's coordinator will take this in", with the command to copy. Push into a folder stays only as a secondary option for first-time setup. Status reflects the repo's main branch where Docket can read it, and says plainly when it can't.
 
-BUILD_SPEC §5.40, MCP_SPEC §5.2, §5.4 and §5.10, UI_SPEC §6.7b, spec FR-302–FR-307 and SC-035, and Help (Agent files) have the details.
+BUILD_SPEC §5.38, MCP_SPEC §5.2, §5.4 and §5.10, UI_SPEC §6.7b, spec FR-307–FR-312 and SC-036, and Help (Agent files) have the details.
 
 ## Deferred choices
 

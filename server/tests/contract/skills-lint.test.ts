@@ -204,12 +204,13 @@ afterAll(async () => {
 const skills = skillFiles();
 
 describe('skills lint (T148)', () => {
-  it('finds the six shipped skills', () => {
+  it('finds the seven shipped skills', () => {
     expect(skills.map((s) => s.folder).sort()).toEqual([
       'docket-coordinator',
       'docket-delivery',
       'docket-lead-subagents',
       'docket-planner',
+      'docket-producer',
       'docket-review-packet',
       'docket-worker',
     ]);
@@ -260,6 +261,41 @@ describe('skills lint (T148)', () => {
         const text = skills.find((s) => s.folder === folder)!.text;
         expect(text.split('`docket-delivery`').length - 1, folder).toBe(1);
       }
+    });
+  });
+
+  // Decision 55: the producer role, for any project and any orchestrator.
+  describe('docket-producer', () => {
+    const producer = () => skills.find((s) => s.folder === 'docket-producer')!.text;
+
+    it('names no pilot, ticket, repo, provider, orchestrator or number of this project', () => {
+      expect(projectSpecific(producer())).toEqual([]);
+    });
+
+    it('stays subordinate to the project and grants no authority', () => {
+      expect(producer()).toContain("**The project's rules come first.**");
+      expect(producer()).toContain('its own workflow skills override everything here');
+      expect(producer()).toContain('**This skill grants no authority.**');
+      expect(producer()).toContain('**Any orchestrator, or none.**');
+    });
+
+    it('stays short and points to the mechanics instead of copying them', () => {
+      expect(producer().split('\n').length).toBeLessThan(150);
+      for (const name of ['coordinator', 'planner', 'worker', 'delivery']) {
+        expect(producer()).toContain(`\`docket-${name}\``);
+      }
+      expect(producer()).not.toContain('docket-wait.sh');
+    });
+
+    it('teaches the owner-approved hard and soft dependency rules', () => {
+      expect(producer()).toContain("current acceptance criteria can't be met without");
+      expect(producer()).toContain('**proceed**, **adjust**, **split**, or **upgrade to hard**');
+      expect(producer()).toContain('**If a blocker holds only some criteria, prefer a split:**');
+    });
+
+    it('is pointed to once from the coordinator skill', () => {
+      const text = skills.find((s) => s.folder === 'docket-coordinator')!.text;
+      expect(text.split('`docket-producer`').length - 1).toBe(1);
     });
   });
 

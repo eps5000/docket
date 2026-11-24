@@ -227,6 +227,7 @@ test.describe('Install and check (US13)', () => {
       'docket-delivery',
       'docket-lead-subagents',
       'docket-planner',
+      'docket-producer',
       'docket-review-packet',
       'docket-worker',
     ]);
@@ -243,7 +244,7 @@ test.describe('Install and check (US13)', () => {
     await expect(row).toHaveAttribute('data-method', 'push');
     await expect(row).toContainText('Claude Code');
     await expect(row).toContainText('Recipe App’s repo');
-    await expect(row).toContainText('12 files');
+    await expect(row).toContainText('13 files');
     await row.getByRole('button', { name: 'Versions sent' }).click();
     await expect(row.locator('[data-sent="skill:docket-worker"]')).toContainText(
       'Docket’s version v1',

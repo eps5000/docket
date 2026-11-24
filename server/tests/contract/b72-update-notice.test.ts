@@ -1,5 +1,5 @@
 /**
- * The update notice (owner decision 56; BUILD_SPEC §5.40; MCP_SPEC §5.2, §5.4):
+ * The update notice (owner decision 56; BUILD_SPEC §5.38; MCP_SPEC §5.2, §5.4):
  * an install that's behind hears how to take the update from `claim_lead` and
  * `get_digest`, within budget, and nobody else pays for it.
  */

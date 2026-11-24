@@ -12,7 +12,7 @@ description: Coordinate several agents against Docket. Covers choosing and dispa
 - what each run was told and where its work lives;
 - what was left running.
 
-You dispatch workers, create and prune worktrees, and clean up. Workers follow `docket-worker`; tell them to use it. For a PR, CI, a merge or a deploy, follow `docket-delivery`.
+You dispatch workers, create and prune worktrees, and clean up. Workers follow `docket-worker`; tell them to use it. For a PR, CI, a merge or a deploy, follow `docket-delivery`. Owning an epic? Follow `docket-producer`.
 
 **Agent files.** The owner installs the skills and the project's `AGENTS.md` / `CLAUDE.md` section from Agent files, and the install log shows which versions each repo got. If a worker can't reach Docket, start it with Docket connected for that session only: `claude --mcp-config .mcp.json`, or `codex -c "mcp_servers.docket.url='http://127.0.0.1:7420/mcp'"` (Codex skips the repo's file in an untrusted folder). Never edit a user-level client config. If a worker doesn't have `docket-worker`, ask the owner to install the agent files there. Paste the skill into the brief only as a last resort. Each project's **Workflow notes** reach every worker through `get_context`, so don't repeat them, or the `AGENTS.md` rules, in briefs. To change these instructions, use `get_agent_files` then `propose_agent_file_change`, and tell the user you've proposed it for the owner's approval. Don't edit installed files directly, and don't tell workers to.
 
@@ -166,8 +166,8 @@ When the owner asks you to set up a project, or to onboard a repo into one (deci
 
 ## Never
 
-- Wait in a `sleep` loop, or fork a worker from your own conversation.
+- Poll in a `sleep` loop, or fork a worker.
 - Treat an idle worktree or terminal as finished. Check its workspace state.
-- Rebuild a brief from memory or chat history when Docket has it.
+- Rebuild a brief from memory when Docket has it.
 - Leave a process, dev server or session running without a declared resource.
 - Run two workers on one item. Use subagents under one lead instead (`docket-lead-subagents`).
