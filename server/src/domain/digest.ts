@@ -28,6 +28,7 @@ import { pausedForCoordinators, projectPause } from './project-pause.js';
 import { WaitReader, digestWait } from './wait.js';
 import { waitKindsOf } from './wait-kind.js';
 import { unshapedByEpic } from './epic-readiness.js';
+import { projectNeedsShaping } from './shaping.js';
 
 export interface DigestService {
   get(r: ReadContext, input: ToolInput<'get_digest'>): Digest;
@@ -314,6 +315,17 @@ export function createDigestService(deps: ServiceDeps): DigestService {
         (x) => since === null || keep(x.id) || x.unshaped.some((t) => keep(t)),
       );
       // Decision 56: on a full snapshot only, so a repeated digest stays small.
+      // Decision 65: tickets for the producer to give a planner (paused or not: shaping isn't starting work).
+      const shaping = projectNeedsShaping(r.db, input.project)
+        .filter((x) => keep(x.id))
+        .map((x) => ({
+          id: x.id,
+          title: x.title,
+          epic: x.epic,
+          missing: x.missing,
+          asked_by: x.asked_by,
+          note: x.note,
+        }));
       const update =
         since === null
           ? deps.services().installs.updateNoticeFor(r, { project: input.project })
@@ -324,6 +336,9 @@ export function createDigestService(deps: ServiceDeps): DigestService {
         ...(update ? { agent_files_update: update } : {}),
         ...(unshaped.length > 0
           ? { unshaped_epics: section(unshaped, DIGEST_CAPS.unshaped_epics) }
+          : {}),
+        ...(shaping.length > 0
+          ? { needs_shaping: section(shaping, DIGEST_CAPS.needs_shaping) }
           : {}),
         cursor: String(latest),
         since: since === null ? null : String(since),

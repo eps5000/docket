@@ -12,7 +12,7 @@
  */
 import type { FocusEvent, MouseEvent } from 'react';
 import { useNavigate } from 'react-router';
-import { STATUS_LABELS } from '@docket/shared';
+import { STATUS_LABELS, needsShapingText } from '@docket/shared';
 import { Icon, RunState, TypeIcon } from '../kit';
 import { paths } from '../../lib/paths';
 import { waitKindOf, type MapItem } from './layout';
@@ -146,6 +146,14 @@ export function MapCard({
           <>
             {' '}
             <span className="muted">· after {after}</span>
+          </>
+        )}
+        {item.needs_shaping && !outside && (
+          <>
+            {' '}
+            <span className="pm-shape" title={needsShapingText(item.needs_shaping)}>
+              · needs shaping
+            </span>
           </>
         )}
       </span>{' '}

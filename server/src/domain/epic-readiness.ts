@@ -36,6 +36,7 @@ import type { ServiceDeps } from './contracts.js';
 import { newId } from './ids.js';
 import { activeLead, callerName, ms, type ItemRow } from './model.js';
 import { hasDeclared } from './shared-changes.js';
+import { clearShaping, needsShapingOf } from './shaping.js';
 import type { InverseOp, WriteContext } from './write.js';
 
 // ---- Known gaps: storage ----
@@ -335,7 +336,7 @@ export function approveGaps(
   const approved = { decision_id: record.id, at: w.now };
   const moved = opts.move && hasDeclared(w.db, item.id);
   const set: Record<string, unknown> = { known_gaps: { ...gaps, approved } };
-  if (moved) set.status = 'ready';
+  if (moved) Object.assign(set, { status: 'ready' }, clearShaping(w.db, item.id));
   const inverse: InverseOp[] = [w.update('items', item.id, set)];
   const how = opts.via === 'question' ? 'in your answer' : 'on the item page';
   w.event({
@@ -415,18 +416,28 @@ export function clearApproval(db: Db, id: string): Record<string, unknown> {
 export function unshapedByEpic(db: Db, epicIds?: readonly string[]): Map<string, UnshapedTicket[]> {
   const rows = db.sqlite
     .prepare(
-      `SELECT id, title, status, epic_id FROM items
+      `SELECT id, title, status, epic_id, type, archived_at, shaping FROM items
        WHERE epic_id IS NOT NULL AND archived_at IS NULL AND status IN ('inbox', 'planning')
          AND type <> 'Epic'
          ${epicIds ? 'AND epic_id IN (SELECT value FROM json_each(?))' : ''}`,
     )
     .all(...(epicIds ? [JSON.stringify(epicIds)] : [])) as (UnshapedTicket & {
     epic_id: string;
+    type: ItemRow['type'];
+    archived_at: string | null;
+    shaping: string | null;
   })[];
+  // Decision 65: the ones waiting for a planner are marked.
+  const shaping = needsShapingOf(db, rows);
   const out = new Map<string, UnshapedTicket[]>();
   for (const r of rows) {
     const list = out.get(r.epic_id) ?? [];
-    list.push({ id: r.id, title: r.title, status: r.status });
+    list.push({
+      id: r.id,
+      title: r.title,
+      status: r.status,
+      ...(shaping.has(r.id) ? { needs_shaping: true as const } : {}),
+    });
     out.set(r.epic_id, list);
   }
   for (const list of out.values()) list.sort((a, b) => compareKeys(a.id, b.id));

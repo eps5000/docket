@@ -49,6 +49,7 @@ import type {
 import { DIGEST_MAX_CHARS, DIGEST_TEXT_CHARS, type Digest } from './mcp/digest.js';
 import type { RecoveryWorkspace } from './mcp/recovery.js';
 import type { KnownGaps } from './epic-readiness.js';
+import { missingText, needsShapingText, type NeedsShaping } from './shaping.js';
 
 export interface RenderOptions {
   /** "Now", for HH:MMZ vs MM-DD. Defaults to the current time. */
@@ -509,6 +510,18 @@ export function knownGapLines(k: KnownGaps, toShape = false): string[] {
   ];
 }
 
+/**
+ * Decision 65: "needs shaping: no outcome and shared changes not declared ·
+ * the owner asked: …", and how to shape it.
+ */
+export function shapingLine(n: NeedsShaping): string {
+  return `${I1}${join([
+    needsShapingText(n).replace('Needs shaping', 'needs shaping'),
+    n.asked_by === 'owner' ? `the owner asked${n.note ? `: ${truncate(n.note)}` : ''}` : null,
+    'shape it: outcome_md and acceptance with update_item, shared changes with declare_shared_changes (or none)',
+  ])}`;
+}
+
 export function renderItem(
   item: AnyItem,
   opts: RenderOptions & { view?: 'summary' | 'standard' | 'full' } = {},
@@ -530,6 +543,7 @@ export function renderItem(
     lines.push(`${I1}acceptance:`, ...item.acceptance.map((a) => `${I1}- ${a}`));
   }
   if (item.known_gaps) lines.push(...knownGapLines(item.known_gaps));
+  if (item.needs_shaping) lines.push(shapingLine(item.needs_shaping));
 
   if (item.counts) {
     const c = item.counts;
@@ -642,6 +656,7 @@ export function renderItemRow(item: ItemSummaryView, _opts: RenderOptions = {}):
         : null,
     item.lead ? `lead ${leadName(item.lead)} ${item.lead.run_state}` : null,
     item.archived ? 'archived' : null,
+    item.needs_shaping ? 'needs shaping' : null,
     item.unblocks ? `unblocks ${item.unblocks}` : null,
     `v${item.version}`,
   ]);
@@ -1050,10 +1065,24 @@ function renderDigest(d: Digest, now: Date): string {
         `${x.id} started with ${x.unshaped.length} unshaped: ${partList(x.unshaped, 3)}${SEP}${clip(x.title, 30)}`,
     ),
   };
+  // Decision 65: tickets for the producer to give a planner.
+  const shaping = {
+    title: 'needs shaping',
+    total: d.needs_shaping?.total ?? 0,
+    rows: (d.needs_shaping?.rows ?? []).map((x) =>
+      join([
+        x.epic ? `${x.id} in ${x.epic}` : x.id,
+        missingText(x.missing),
+        x.asked_by === 'owner' ? `the owner asked${x.note ? `: ${clip(x.note, 60)}` : ''}` : null,
+        clip(x.title, 30),
+      ]),
+    ),
+  };
   const rest = [
     nextWork,
     bottlenecks,
     unshaped,
+    shaping,
     ready,
     runs,
     blocked,
@@ -1167,7 +1196,12 @@ const RENDERERS: { [N in ToolName]: Renderer<N> } = {
       s('get_changes', { count: r.events.length, next_cursor: r.next_cursor ?? 'none' }),
       ...r.events.map((e) => eventRow(e, now)),
     ].join('\n'),
-  create_item: (r) => s('create_item', { ...r.item, title: title80(r.item.title) }),
+  create_item: (r) =>
+    [
+      s('create_item', { ...r.item, title: title80(r.item.title) }),
+      // Decision 65: an unshaped ticket says what it lacks, for a planner.
+      ...(r.item.needs_shaping ? [shapingLine(r.item.needs_shaping)] : []),
+    ].join('\n'),
   update_item: (r, a) =>
     s('update_item', {
       id: r.item.id,

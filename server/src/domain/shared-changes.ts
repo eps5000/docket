@@ -132,6 +132,7 @@ import { coordinatorOf } from './recovery-model.js';
 import { hostGitFactsFor, hostGitState } from './host-git.js';
 import type { InverseOp, WriteContext } from './write.js';
 import { explain, graceText } from './problems.js';
+import { alsoMissing, shapingMissing } from './shaping.js';
 
 // ---- Rows ----
 
@@ -798,11 +799,14 @@ export function hasDeclared(db: Db, itemId: string): boolean {
  */
 export function assertReadyGate(db: Db, item: { id: string }, owner = false): void {
   if (hasDeclared(db, item.id)) return;
+  // Decision 65: the refusal lists everything the ticket lacks, and never dead-ends the owner.
+  const missing = shapingMissing(db, item.id);
   throw new ToolError(
     'not_declared',
     owner
-      ? `Declare the shared parts ${item.id} will change (or none) before it moves to Ready, or give a reason to move it anyway.`
-      : `Declare the shared parts ${item.id} will change (or none) with declare_shared_changes, then move it to Ready.`,
+      ? `${item.id} can't move to Ready: its shared changes aren't declared.${alsoMissing(missing)} Ask a planner to shape it, declare none if it changes no shared part, or give a reason to move it anyway.`
+      : `Declare the shared parts ${item.id} will change (or none) with declare_shared_changes, then move it to Ready.${alsoMissing(missing)}`,
+    { details: { missing, ...(owner ? { ask_planner: true } : {}) } },
   );
 }
 

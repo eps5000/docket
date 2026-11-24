@@ -8,6 +8,7 @@ import { questionChoiceSchema } from './question-form.js';
 import { contextSharedSchema } from './shared-changes.js';
 import { WAIT_KINDS } from '../wait-kind.js';
 import { knownGapsSchema } from '../epic-readiness.js';
+import { needsShapingSchema } from '../shaping.js';
 import {
   ADDED_BY,
   CHECK_STATES,
@@ -94,6 +95,12 @@ export const itemSummarySchema = z.object({
   jira_key: z.string().nullable(),
   version: z.number().int(),
   updated_at: z.string(),
+  /**
+   * Decision 65: an agent created it unshaped, or the owner asked a planner to
+   * shape it, and it still lacks an outcome, acceptance or its shared changes
+   * declaration. Absent otherwise, and once it is Ready.
+   */
+  needs_shaping: needsShapingSchema.optional(),
 });
 export type ItemSummary = z.infer<typeof itemSummarySchema>;
 

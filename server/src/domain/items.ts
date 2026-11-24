@@ -11,6 +11,7 @@
  */
 import {
   ToolError,
+  missingText,
   type ItemSummary,
   type ItemText,
   type ItemView,
@@ -75,6 +76,7 @@ import {
   openGaps,
   type StoredGaps,
 } from './epic-readiness.js';
+import { clearShaping, markIfUnshaped, ownerShapingRequest } from './shaping.js';
 
 const knownGapsField = (raw: unknown) => {
   const view = knownGapsView(raw);
@@ -330,7 +332,15 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
       }
     }
     checkDates(input.planned_start, input.planned_end);
-    return splitItem(w, deps.services().links, (id) => summary(w, id), {
+    const carried = (from.also ?? []).filter((a) => a.kind === 'part');
+    if (input.shared === 'none' && carried.length > 0) {
+      throw new ToolError(
+        'validation',
+        "This split carries shared parts, so it can't declare none. Leave shared out, or list more parts in it.",
+        { details: { fields: { shared: "not 'none' with parts in split_from.also" } } },
+      );
+    }
+    const split = splitItem(w, deps.services().links, (id) => summary(w, id), {
       ...from,
       type: input.type,
       title: input.title,
@@ -342,6 +352,68 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
       planned_end: input.planned_end,
       effort: input.effort,
     }).item;
+    // Decision 65: the parts named in `shared` join the carried ones.
+    if (input.shared !== undefined) {
+      const keep = (
+        w.db.sqlite
+          .prepare('SELECT part_key FROM item_shared_changes WHERE item_id = ?')
+          .all(split.id) as { part_key: string }[]
+      ).map((r) => r.part_key);
+      declareOnCreate(w, split.id, input.shared, keep);
+    }
+    return shapedSummary(w, split.id);
+  }
+
+  /**
+   * Decision 65: `create_item shared`, as `declare_shared_changes` would take
+   * it. A key that isn't registered is registered with it; `keep` holds the
+   * declarations a split already carried, kept as they are.
+   */
+  function declareOnCreate(
+    w: WriteContext,
+    id: string,
+    shared: 'none' | string[],
+    keep: string[] = [],
+  ): void {
+    const shared_ = deps.services().sharedChanges;
+    if (shared === 'none') {
+      shared_.declare(w, { id, none: true } as In<'declare_shared_changes'>);
+      return;
+    }
+    const carried = w.db.sqlite
+      .prepare(
+        'SELECT part_key, change, note, design_impact, design_note, disputed FROM item_shared_changes WHERE item_id = ?',
+      )
+      .all(id) as {
+      part_key: string;
+      change: string;
+      note: string | null;
+      design_impact: string;
+      design_note: string | null;
+      disputed: number;
+    }[];
+    const changes = [
+      ...carried.map((c) => ({
+        part: c.part_key,
+        change: c.change,
+        ...(c.note ? { note: c.note } : {}),
+        design_impact: c.design_impact,
+        ...(c.design_note ? { design_note: c.design_note } : {}),
+        disputed: c.disputed === 1,
+      })),
+      ...shared.filter((k) => !keep.includes(k)).map((part) => ({ part, change: 'change' })),
+    ];
+    shared_.declare(w, {
+      id,
+      changes,
+      new_parts: shared.map((key) => ({ key })),
+    } as In<'declare_shared_changes'>);
+  }
+
+  /** The new ticket's summary, marked Needs shaping when an agent left it unshaped. */
+  function shapedSummary(w: WriteContext, id: string): ItemSummary {
+    markIfUnshaped(w, id);
+    return summary(w, id);
   }
 
   return {
@@ -416,7 +488,9 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
           ],
         });
       }
-      return summary(w, id);
+      // Decision 65: declared on creation, or Needs shaping.
+      if (input.shared !== undefined) declareOnCreate(w, id, input.shared);
+      return shapedSummary(w, id);
     },
 
     split(w, input) {
@@ -531,6 +605,12 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
         set.priority = input.priority;
         changed.priority = { old: before.priority, new: input.priority };
       }
+      // Decision 65: asking for shaping goes on its own, never with a move.
+      if (input.request_shaping && input.status !== undefined) {
+        throw new ToolError('validation', 'Ask for shaping without moving the ticket.', {
+          details: { fields: { request_shaping: 'not with status' } },
+        });
+      }
       let move: { from: Status; to: Status } | null = null;
       if (input.status !== undefined && input.status !== before.status) {
         const from = before.status;
@@ -561,8 +641,16 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
           approveGaps(w, deps, before, { via: 'item_page', move: false });
         }
         if (to === 'planning') Object.assign(set, clearApproval(w.db, before.id));
+        // Decision 65: Ready ends any request to shape it.
+        if (to === 'ready') Object.assign(set, clearShaping(w.db, before.id));
         set.status = to;
         move = { from, to };
+      }
+      // Decision 65: *Ask a planner to shape this*, from a refused Move to Ready.
+      let asked: ReturnType<typeof ownerShapingRequest> | null = null;
+      if (input.request_shaping) {
+        asked = ownerShapingRequest(w.db, before, input.request_shaping.note, w.now);
+        Object.assign(set, asked.set);
       }
       if (input.acceptance !== undefined) {
         const rows = w.db.sqlite
@@ -589,7 +677,8 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
       for (const key of ['title', 'description_md', 'outcome_md', 'acceptance'] as const) {
         if (changed[key]) texts.push(TEXT_NAMES[key]);
       }
-      const edited = texts.length > 0 || changed.priority !== undefined;
+      if (asked) changed.shaping = { old: before.shaping ?? null, new: asked.set.shaping };
+      const edited = texts.length > 0 || changed.priority !== undefined || asked !== null;
       // Nothing differs: no write and no event (the write path allows an explicit no-op).
       if (!edited && !move) return itemText(w, before.id);
       inverse.push(w.update('items', before.id, set));
@@ -597,6 +686,12 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
         const parts: string[] = [];
         if (texts.length > 0) parts.push(`edited the ${joinWords(texts)}`);
         if (changed.priority) parts.push(`set ${before.id} to P${String(input.priority)}`);
+        if (asked) {
+          const note = asked.set.shaping.note;
+          parts.push(
+            `asked a planner to shape ${before.id} (${missingText(asked.missing)})${note ? `: ${note}` : ''}`,
+          );
+        }
         w.event({
           type: 'item.updated',
           summary: `You ${parts.join(' and ')}`,
@@ -796,6 +891,8 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
       const set: Record<string, unknown> = { status: to };
       // Decision 58: back in Planning, its known gaps need the owner's approval again.
       if (to === 'planning') Object.assign(set, clearApproval(w.db, item.id));
+      // Decision 65: Ready ends any request to shape it.
+      if (to === 'ready') Object.assign(set, clearShaping(w.db, item.id));
       if (to === 'done') {
         set.closed_by = w.actor.kind === 'owner' ? 'owner' : 'agent';
         set.closed_at = w.now;
@@ -913,7 +1010,7 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
         );
       }
       for (const id of ids) {
-        const inverse = w.update('items', id, { status: 'ready' });
+        const inverse = w.update('items', id, { status: 'ready', ...clearShaping(w.db, id) });
         w.event({
           type: 'item.status_changed',
           summary: `You moved ${id} from planning to ready (#${input.name})`,

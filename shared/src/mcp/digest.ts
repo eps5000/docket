@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { cursor, projectKey, readInput, readOutput } from './common.js';
 import { WAIT_FLAG_KINDS, coordinatorParkSchema, prioritySchema, runStateSchema } from './types.js';
 import { WAIT_KINDS } from '../wait-kind.js';
+import { SHAPING_ASKERS, SHAPING_PARTS } from '../shaping.js';
 
 /** The most rows each section lists. */
 export const DIGEST_CAPS = {
@@ -22,6 +23,7 @@ export const DIGEST_CAPS = {
   conflicts: 4,
   changed: 6,
   unshaped_epics: 3,
+  needs_shaping: 5,
 } as const;
 
 /** The hard cap on the text block: 1,000 tokens at characters ÷ 4 (MCP_SPEC §3.2). */
@@ -132,6 +134,17 @@ export const digestUnshapedEpicSchema = z.object({
   unshaped: z.array(z.string()),
 });
 
+/** Decision 65: a ticket for a planner to shape: what it lacks, and who asked. */
+export const digestNeedsShapingSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  epic: z.string().nullable(),
+  missing: z.array(z.enum(SHAPING_PARTS)),
+  asked_by: z.enum(SHAPING_ASKERS),
+  /** The owner's note to the planner. */
+  note: z.string().nullable(),
+});
+
 export const digestChangeSchema = z.object({
   cursor: z.string(),
   item_id: z.string().nullable(),
@@ -166,5 +179,7 @@ export const getDigestOutput = readOutput({
   changed: section(digestChangeSchema),
   /** Decision 58: "Started with N unshaped tickets", on full snapshots only; absent when none. */
   unshaped_epics: section(digestUnshapedEpicSchema).optional(),
+  /** Decision 65: "Needs shaping: N", tickets for the producer to give a planner; absent when none. */
+  needs_shaping: section(digestNeedsShapingSchema).optional(),
 });
 export type Digest = z.infer<typeof getDigestOutput>;

@@ -16,7 +16,7 @@ import {
 } from './common.js';
 import { KNOWN_GAPS } from '../epic-readiness.js';
 import { LABEL_NAME_RE, LIMITS, TEXT_LIMITS } from './limits.js';
-import { branchInput, changedFilesInput } from './shared-changes.js';
+import { branchInput, changedFilesInput, sharedPartKey } from './shared-changes.js';
 import {
   itemSummarySchema,
   itemTypeSchema,
@@ -83,6 +83,31 @@ export const createItemInput = mutationInput({
   blocked_by: z.array(itemId).optional(),
   /** Decision 48: create this ticket by splitting an existing one, in one step. */
   split_from: splitFromInput.optional(),
+  /**
+   * Decision 65: the shared parts it changes (registered or new keys, each a
+   * `change`), or `none`. Left out, the ticket is Needs shaping. Precise
+   * changes, members and notes go through declare_shared_changes.
+   */
+  shared: z.union([z.literal('none'), z.array(sharedPartKey)]).optional(),
+}).superRefine((v, ctx) => {
+  const parts = Array.isArray(v.shared) ? v.shared : [];
+  if (Array.isArray(v.shared) && parts.length === 0) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['shared'],
+      message: "Name at least one part, or pass 'none'.",
+    });
+  }
+  if (parts.length > LIMITS.shared_changes_max) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['shared'],
+      message: `At most ${LIMITS.shared_changes_max} parts.`,
+    });
+  }
+  if (new Set(parts).size !== parts.length) {
+    ctx.addIssue({ code: 'custom', path: ['shared'], message: 'Lists a part twice.' });
+  }
 });
 export const createItemOutput = mutationOutput({ item: itemSummarySchema });
 

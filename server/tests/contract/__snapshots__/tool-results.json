@@ -299,6 +299,49 @@
             },
             "updated_at": {
               "type": "string"
+            },
+            "needs_shaping": {
+              "type": "object",
+              "properties": {
+                "missing": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "outcome",
+                      "acceptance",
+                      "shared_changes"
+                    ]
+                  }
+                },
+                "asked_by": {
+                  "type": "string",
+                  "enum": [
+                    "agent",
+                    "owner"
+                  ]
+                },
+                "by": {
+                  "type": "string"
+                },
+                "at": {
+                  "type": "string"
+                },
+                "note": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "missing",
+                "asked_by",
+                "by",
+                "at",
+                "note"
+              ],
+              "additionalProperties": false
             }
           },
           "required": [
@@ -495,6 +538,49 @@
           },
           "updated_at": {
             "type": "string"
+          },
+          "needs_shaping": {
+            "type": "object",
+            "properties": {
+              "missing": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "outcome",
+                    "acceptance",
+                    "shared_changes"
+                  ]
+                }
+              },
+              "asked_by": {
+                "type": "string",
+                "enum": [
+                  "agent",
+                  "owner"
+                ]
+              },
+              "by": {
+                "type": "string"
+              },
+              "at": {
+                "type": "string"
+              },
+              "note": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "missing",
+              "asked_by",
+              "by",
+              "at",
+              "note"
+            ],
+            "additionalProperties": false
           },
           "description_md": {
             "type": "string"
@@ -4620,6 +4706,72 @@
           "rows"
         ],
         "additionalProperties": false
+      },
+      "needs_shaping": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "epic": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "missing": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "outcome",
+                      "acceptance",
+                      "shared_changes"
+                    ]
+                  }
+                },
+                "asked_by": {
+                  "type": "string",
+                  "enum": [
+                    "agent",
+                    "owner"
+                  ]
+                },
+                "note": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "epic",
+                "missing",
+                "asked_by",
+                "note"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "total",
+          "rows"
+        ],
+        "additionalProperties": false
       }
     },
     "required": [
@@ -4813,6 +4965,49 @@
           },
           "updated_at": {
             "type": "string"
+          },
+          "needs_shaping": {
+            "type": "object",
+            "properties": {
+              "missing": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "outcome",
+                    "acceptance",
+                    "shared_changes"
+                  ]
+                }
+              },
+              "asked_by": {
+                "type": "string",
+                "enum": [
+                  "agent",
+                  "owner"
+                ]
+              },
+              "by": {
+                "type": "string"
+              },
+              "at": {
+                "type": "string"
+              },
+              "note": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "missing",
+              "asked_by",
+              "by",
+              "at",
+              "note"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [
@@ -5029,6 +5224,49 @@
           },
           "updated_at": {
             "type": "string"
+          },
+          "needs_shaping": {
+            "type": "object",
+            "properties": {
+              "missing": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "outcome",
+                    "acceptance",
+                    "shared_changes"
+                  ]
+                }
+              },
+              "asked_by": {
+                "type": "string",
+                "enum": [
+                  "agent",
+                  "owner"
+                ]
+              },
+              "by": {
+                "type": "string"
+              },
+              "at": {
+                "type": "string"
+              },
+              "note": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "missing",
+              "asked_by",
+              "by",
+              "at",
+              "note"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [
@@ -5245,6 +5483,49 @@
           },
           "updated_at": {
             "type": "string"
+          },
+          "needs_shaping": {
+            "type": "object",
+            "properties": {
+              "missing": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "outcome",
+                    "acceptance",
+                    "shared_changes"
+                  ]
+                }
+              },
+              "asked_by": {
+                "type": "string",
+                "enum": [
+                  "agent",
+                  "owner"
+                ]
+              },
+              "by": {
+                "type": "string"
+              },
+              "at": {
+                "type": "string"
+              },
+              "note": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "missing",
+              "asked_by",
+              "by",
+              "at",
+              "note"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [
@@ -5575,6 +5856,49 @@
           },
           "updated_at": {
             "type": "string"
+          },
+          "needs_shaping": {
+            "type": "object",
+            "properties": {
+              "missing": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "outcome",
+                    "acceptance",
+                    "shared_changes"
+                  ]
+                }
+              },
+              "asked_by": {
+                "type": "string",
+                "enum": [
+                  "agent",
+                  "owner"
+                ]
+              },
+              "by": {
+                "type": "string"
+              },
+              "at": {
+                "type": "string"
+              },
+              "note": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "missing",
+              "asked_by",
+              "by",
+              "at",
+              "note"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [
@@ -5802,6 +6126,49 @@
           },
           "updated_at": {
             "type": "string"
+          },
+          "needs_shaping": {
+            "type": "object",
+            "properties": {
+              "missing": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "outcome",
+                    "acceptance",
+                    "shared_changes"
+                  ]
+                }
+              },
+              "asked_by": {
+                "type": "string",
+                "enum": [
+                  "agent",
+                  "owner"
+                ]
+              },
+              "by": {
+                "type": "string"
+              },
+              "at": {
+                "type": "string"
+              },
+              "note": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "missing",
+              "asked_by",
+              "by",
+              "at",
+              "note"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [
@@ -7491,6 +7858,49 @@
           },
           "updated_at": {
             "type": "string"
+          },
+          "needs_shaping": {
+            "type": "object",
+            "properties": {
+              "missing": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "outcome",
+                    "acceptance",
+                    "shared_changes"
+                  ]
+                }
+              },
+              "asked_by": {
+                "type": "string",
+                "enum": [
+                  "agent",
+                  "owner"
+                ]
+              },
+              "by": {
+                "type": "string"
+              },
+              "at": {
+                "type": "string"
+              },
+              "note": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "missing",
+              "asked_by",
+              "by",
+              "at",
+              "note"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [
@@ -8323,6 +8733,49 @@
                 },
                 "updated_at": {
                   "type": "string"
+                },
+                "needs_shaping": {
+                  "type": "object",
+                  "properties": {
+                    "missing": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "outcome",
+                          "acceptance",
+                          "shared_changes"
+                        ]
+                      }
+                    },
+                    "asked_by": {
+                      "type": "string",
+                      "enum": [
+                        "agent",
+                        "owner"
+                      ]
+                    },
+                    "by": {
+                      "type": "string"
+                    },
+                    "at": {
+                      "type": "string"
+                    },
+                    "note": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "missing",
+                    "asked_by",
+                    "by",
+                    "at",
+                    "note"
+                  ],
+                  "additionalProperties": false
                 }
               },
               "required": [
@@ -9113,6 +9566,49 @@
                 },
                 "updated_at": {
                   "type": "string"
+                },
+                "needs_shaping": {
+                  "type": "object",
+                  "properties": {
+                    "missing": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "outcome",
+                          "acceptance",
+                          "shared_changes"
+                        ]
+                      }
+                    },
+                    "asked_by": {
+                      "type": "string",
+                      "enum": [
+                        "agent",
+                        "owner"
+                      ]
+                    },
+                    "by": {
+                      "type": "string"
+                    },
+                    "at": {
+                      "type": "string"
+                    },
+                    "note": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "missing",
+                    "asked_by",
+                    "by",
+                    "at",
+                    "note"
+                  ],
+                  "additionalProperties": false
                 }
               },
               "required": [
@@ -9805,6 +10301,49 @@
                 },
                 "updated_at": {
                   "type": "string"
+                },
+                "needs_shaping": {
+                  "type": "object",
+                  "properties": {
+                    "missing": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "outcome",
+                          "acceptance",
+                          "shared_changes"
+                        ]
+                      }
+                    },
+                    "asked_by": {
+                      "type": "string",
+                      "enum": [
+                        "agent",
+                        "owner"
+                      ]
+                    },
+                    "by": {
+                      "type": "string"
+                    },
+                    "at": {
+                      "type": "string"
+                    },
+                    "note": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "missing",
+                    "asked_by",
+                    "by",
+                    "at",
+                    "note"
+                  ],
+                  "additionalProperties": false
                 }
               },
               "required": [

@@ -41,9 +41,9 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
     'Check your connection: how the server identifies you, limits and server time. Call once at session start.',
   list_projects: 'List projects with item counts and keys.',
   search_items:
-    'Find items. Filters: ready_to_start (Ready, unblocked, unclaimed: what you may start), resumable (In progress with no lead, usually sent back by review: resume it), blocked, waiting_for_review (handed off, waiting on the owner), mine (items you lead), deferred_review (owner deferred a check; cleanup). Combine with project, status, type, label, epic or text.',
+    'Find items. Filters: ready_to_start (Ready, unblocked, unclaimed: what you may start), resumable (In progress with no lead: resume it), blocked, waiting_for_review (handed off, waiting on the owner), mine (items you lead), deferred_review (owner deferred a check; cleanup). Combine with project, status, type, label, epic or text.',
   get_item:
-    "Get one item: description, acceptance, blockers, checklist (plan, checks, human review), runs, open question and answer, unread owner notes, documents, packets, recent activity. Owner notes and answers are returned once, then marked delivered: read them now. Use view 'summary' for status only, and get_context when starting work. Step details show as '· details' unless view is 'full'; read one with get_step.",
+    "Get one item: description, acceptance, blockers, checklist (plan, checks, human review), runs, open question and answer, unread owner notes, documents, packets, activity. Owner notes and answers are returned once, then marked delivered: read them now. Use view 'summary' for status only, and get_context when starting work. Step details show as '· details' unless view is 'full'; read one with get_step.",
   get_context:
     "Everything needed to work on an item in one call: outcome and acceptance, decisions to follow (owner's first), epic and label briefs, blockers, the project's workflow notes, planning documents, the last review's notes. Sized to a budget; cuts are marked. Read-only: owner notes are counted here but delivered by get_item.",
   dependency_subgraph:
@@ -53,9 +53,9 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   get_changes:
     'Read changes since a cursor instead of re-reading items. Without a cursor, returns the latest cursor; then pass next_cursor. Watch for review.decided, question.answered and owner_note.added on your items. To wait, run the installed docket-wait script, which costs no tokens. Without a shell, pass wait_s (at most 45) to hold this call. Never poll in a sleep loop.',
   get_digest:
-    'One compact snapshot for coordinators, instead of many reads: what to start next, bottlenecks, ready items, running, stale and parked runs (resume_ready flagged), blocked items and why, what waits on the owner, agent-actionable problems, leases, conflicts ahead, and the change cursor. Pass cursor for only what changed since then. Read-only.',
+    'One compact snapshot for coordinators: what to start next, bottlenecks, ready items, runs (resume_ready flagged), blocked items and why, what waits on the owner, tickets that need shaping, agent problems, leases, conflicts and the change cursor. Pass cursor for only what changed since. Read-only.',
   create_item:
-    'Create an Epic, Story, Task or Bug, in Inbox (or Planning if you are shaping it). Small steps go in the checklist (set_plan). To split a ticket, pass split_from: move and copy are 1-based acceptance positions; also brings blockers, parts or steps.',
+    "Create an Epic, Story, Task or Bug, in Inbox or Planning. Pass shared: the part keys it changes, or 'none'; without that, an outcome and acceptance it is Needs shaping, for a planner. Small steps go in the checklist (set_plan). To split, pass split_from: move and copy are 1-based acceptance positions; also brings blockers, parts or steps.",
   update_item:
     "Edit an item's fields. Pass expected_version from your last read. Status goes through set_status, the plan through set_plan. known_gaps: what implementation will settle, each settled once done.",
   set_status:
@@ -66,7 +66,7 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   upsert_label:
     'Create a label or update its brief. Use a label for an initiative spanning several epics; the brief holds the shared decisions.',
   claim_lead:
-    "Claim an item as its lead before working on it. Works on Ready items (moves them to In progress) and In progress items with no lead (resuming sent-back or interrupted work). Pass workspace and brief (if a coordinator briefed you) so work can restart after a crash, instructions with docket-check's output, and branch so conflicts show early. Returns run_id: pass it on every later call. Errors: conflict (someone holds it, with who and until when: do not work on it); seam_conflict (its shared parts collide with an item in flight: Docket queued it or asked the owner: take other work); design_review (it changes an approved design awaiting the owner: pause it, take other work).",
+    "Claim an item as its lead before working on it. Works on Ready items (moves them to In progress) and In progress items with no lead (resuming sent-back or interrupted work). Pass workspace and brief (if a coordinator briefed you) for restarts, instructions with docket-check's output, and branch so conflicts show early. Returns run_id: pass it on every later call. Errors: conflict (someone holds it: do not work on it); seam_conflict (its shared parts collide with work in flight: take other work); design_review (it changes an approved design awaiting the owner: pause it, take other work).",
   release_lead:
     'Give up the lead claim without finishing. The item returns to Ready; your plan and notes stay. Under a producer it waits for the next worker unless you pass release_story.',
   start_run:
@@ -127,7 +127,7 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   apply_batch:
     'Run up to 100 writes in one call: each operation names a tool and its arguments. Each runs as its single call would, in order: a failure doesn\'t undo the others, and the result lists each operation\'s ID or error. "$1" means the ID operation 1 wrote. Pass idempotency_key, so a retry runs only what failed.',
   declare_shared_changes:
-    'Declare the shared parts this item will change (tables, models, endpoints, shared files), each with add, change or remove and a short note, or none: true. Required before Ready. Each call replaces the whole declaration. Use keys from list_shared_parts; register a missing one with new_parts. Name the member when you can (model:Token.expiresAt): different members run in parallel; a bare part is sequenced. Set design_impact: changes_approved_design with a design_note when it alters an approved design: this item pauses until the owner approves. Set disputed: true when agents disagree who owns a part. branches (or branch) replace the reported ones; [] clears them. Returns in-flight items on the same parts, each with outcome parallel, sequence or owner.',
+    'Declare the shared parts this item will change (tables, models, endpoints, shared files), each with add, change or remove and a short note, or none: true. Required before Ready. Each call replaces the whole declaration. Use keys from list_shared_parts; register a missing one with new_parts. Name the member when you can (model:Token.expiresAt): different members run in parallel; a bare part is sequenced. Set design_impact: changes_approved_design with a design_note when it alters an approved design: this item pauses until the owner approves. Set disputed: true when agents disagree who owns a part. branches (or branch) replace the reported ones; [] clears them. Returns in-flight items on the same parts, each with its outcome.',
   list_shared_parts:
     "List a project's shared parts: each key, the file paths mapped to it, whether it is single-writer, who holds its lease, and in-flight items declaring changes to it. Read-only.",
   take_lease:

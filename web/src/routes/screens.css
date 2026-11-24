@@ -2287,3 +2287,17 @@
 .tl .pickepic tbody[data-pick-group='not_ready'] tr:not(.pe-group) {
   background: var(--panel-2);
 }
+/* Decision 65: a refused Move to Ready lists what's missing and the ways forward. */
+.tl .readyrefusal {
+  margin-top: 8px;
+  display: grid;
+  gap: 6px;
+  max-width: 640px;
+}
+.tl .readyrefusal .missinglist {
+  margin: 0;
+  padding-left: 18px;
+}
+.tl .readyrefusal .input {
+  max-width: 420px;
+}
