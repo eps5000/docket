@@ -120,6 +120,7 @@ test('an epic with unshaped tickets is Not ready to start everywhere, and its cl
 
   // The card on Work says it in words; the seeded In progress epic is started unshaped.
   await page.setViewportSize({ width: 1440, height: 900 });
+  await page.context().addInitScript(() => sessionStorage.setItem('docket.scope', 'RCP'));
   await page.goto('/work');
   const card = page.locator(`a.epiccard[href="/items/${epic}"]`);
   await expect(card.locator('[data-epic-readiness="not_ready"]')).toContainText(
