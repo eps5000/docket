@@ -36,7 +36,9 @@ The project has its own rules: who moves work to Ready, when human review is nee
 
 3. **Get context:** `get_context { id, budget: "small" }`. One call gathers the outcome, the acceptance criteria, the decisions you must follow, the epic and label briefs, blockers, the shared parts this item and other in-flight items will change, the project's Workflow notes and planning docs. Widen to `"medium"` or `"large"` only when a `…truncated` line hides something you need. Follow the Workflow notes like the project's `AGENTS.md`.
 
-`whoami` isn't needed to start: `claim_lead` returns your lease's expiry. Call it once only when you need your client name or the windows (`lease_s`, `stale_after_s`).
+**Known gaps to shape** in your context: settle each and record how with `update_item { known_gaps: [{ gap, settled }] }`, the same gaps in order.
+
+`whoami` isn't needed to start: `claim_lead` returns your lease's expiry. Call it only for your client name or the windows (`lease_s`, `stale_after_s`).
 
 **Then, only if needed:**
 

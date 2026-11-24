@@ -258,6 +258,13 @@ export const items = sqliteTable(
     split_from: text('split_from').references((): AnySQLiteColumn => items.id, {
       onDelete: 'set null',
     }),
+    /**
+     * Decision 58 (B74): what implementation will settle, as JSON
+     * `{gaps: [{gap, settled, settled_by, settled_at}], approved: {decision_id, at} | null}`;
+     * null when the ticket names none. `approved` is the owner's approval of the
+     * current gaps; changing a gap or moving it back to Planning clears it.
+     */
+    known_gaps: text('known_gaps', { mode: 'json' }),
     version: version(),
     ...timestamps,
   },

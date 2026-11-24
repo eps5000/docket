@@ -114,6 +114,7 @@ import {
 } from './model.js';
 import { parseQuestionForm } from './question-form.js';
 import { epicWaits } from './epic-picks.js';
+import { epicReadiness, readinessOf, unshapedByEpic } from './epic-readiness.js';
 import { producersByItem, storedActivity, storedStatusUpdate } from './run-activity.js';
 import { WaitReader, openWaitFlags, waitCoordinator } from './wait.js';
 import { UNDO_WINDOW_MS } from './undo.js';
@@ -1574,8 +1575,14 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         s.index,
         epicRows.map((e) => e.id),
       );
+      // Decision 58: Not ready to start, or Started with N unshaped tickets.
+      const unshaped = unshapedByEpic(
+        r.db,
+        epicRows.map((e) => e.id),
+      );
       const epics: EpicCard[] = summarize(ctx, epicRows).map((e) => {
         const kids = children.get(e.id) ?? [];
+        const readiness = readinessOf(e, unshaped.get(e.id));
         const by_status: EpicCard['children']['by_status'] = {};
         for (const k of kids) by_status[k.status] = (by_status[k.status] ?? 0) + 1;
         return {
@@ -1588,6 +1595,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
             ...waitCounts(kids),
           },
           ...(waits.has(e.id) ? { waits_on: waits.get(e.id)! } : {}),
+          ...(readiness ? { readiness } : {}),
         };
       });
 
@@ -1800,6 +1808,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
 
       const epicWait =
         row.type === 'Epic' ? epicWaits(r.db, index, [row.id]).get(row.id) : undefined;
+      const epicReady = epicReadiness(r.db, row);
       return {
         item,
         children,
@@ -1822,6 +1831,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         ...waitOf(r, row.id, index),
         ...(epicWait ? { epic_waits: epicWait } : {}),
         ...(itemWait ? { item_wait: itemWait } : {}),
+        ...(epicReady ? { epic_readiness: epicReady } : {}),
       };
     },
 

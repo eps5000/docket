@@ -63,7 +63,19 @@ export const patchItemBody = input({
    * declared its shared changes to Ready needs a reason, recorded in Activity.
    */
   override_reason: text(LIMITS.shared_decision_note).optional(),
+  /**
+   * Decision 58: moving a Planning ticket with open known gaps to Ready
+   * approves them, recorded as an owner decision on the ticket.
+   */
+  approve_gaps: z.literal(true).optional(),
 }).superRefine((v, ctx) => {
+  if (v.approve_gaps !== undefined && v.status !== 'ready') {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['approve_gaps'],
+      message: 'Approving known gaps goes with status ready.',
+    });
+  }
   if (v.override_reason !== undefined && v.status !== 'ready') {
     ctx.addIssue({
       code: 'custom',

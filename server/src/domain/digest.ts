@@ -16,6 +16,7 @@ import {
   type Digest,
   type ItemSummary,
   type NeedsYouResponse,
+  type Status,
   type ToolInput,
   type WaitingOn,
 } from '@docket/shared';
@@ -26,6 +27,7 @@ import { nextWorkOf } from './next-work.js';
 import { pausedForCoordinators, projectPause } from './project-pause.js';
 import { WaitReader, digestWait } from './wait.js';
 import { waitKindsOf } from './wait-kind.js';
+import { unshapedByEpic } from './epic-readiness.js';
 
 export interface DigestService {
   get(r: ReadContext, input: ToolInput<'get_digest'>): Digest;
@@ -135,6 +137,28 @@ function problemRows(view: NeedsYouResponse): Digest['problems']['rows'] {
     });
   }
   return out;
+}
+
+/** Decision 58: open epics In progress or in Review whose tickets aren't all at least Ready. */
+function startedUnshaped(
+  r: ReadContext,
+  project: string,
+): NonNullable<Digest['unshaped_epics']>['rows'] {
+  const epics = r.db.sqlite
+    .prepare(
+      `SELECT id, title, status, priority FROM items
+       WHERE project_key = ? AND type = 'Epic' AND archived_at IS NULL AND status IN ('progress', 'review')`,
+    )
+    .all(project) as { id: string; title: string; status: Status; priority: number }[];
+  if (epics.length === 0) return [];
+  const byEpic = unshapedByEpic(
+    r.db,
+    epics.map((e) => e.id),
+  );
+  return epics
+    .filter((e) => (byEpic.get(e.id)?.length ?? 0) > 0)
+    .sort((a, b) => a.priority - b.priority || a.id.localeCompare(b.id))
+    .map((e) => ({ id: e.id, title: e.title, unshaped: byEpic.get(e.id)!.map((t) => t.id) }));
 }
 
 export function createDigestService(deps: ServiceDeps): DigestService {
@@ -285,6 +309,10 @@ export function createDigestService(deps: ServiceDeps): DigestService {
         }))
         .filter((x) => since === null || x.items.some((i) => touched.has(i)));
 
+      // Decision 58: epics already started with Inbox or Planning tickets, a quiet flag.
+      const unshaped = startedUnshaped(r, input.project).filter(
+        (x) => since === null || keep(x.id) || x.unshaped.some((t) => keep(t)),
+      );
       // Decision 56: on a full snapshot only, so a repeated digest stays small.
       const update =
         since === null
@@ -294,6 +322,9 @@ export function createDigestService(deps: ServiceDeps): DigestService {
         project: input.project,
         ...(pause ? { paused: pausedForCoordinators(input.project, pause) } : {}),
         ...(update ? { agent_files_update: update } : {}),
+        ...(unshaped.length > 0
+          ? { unshaped_epics: section(unshaped, DIGEST_CAPS.unshaped_epics) }
+          : {}),
         cursor: String(latest),
         since: since === null ? null : String(since),
         next_work: section(

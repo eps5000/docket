@@ -851,12 +851,13 @@ describe('shared changes (MCP_SPEC §5.15; decision 36; B38)', () => {
   it('the output schemas carry the new error codes and the optional fields', () => {
     const err = (TOOL_ERROR_JSON_SCHEMA as { properties: { code: { enum: string[] } } }).properties
       .code.enum;
-    expect(err.slice(-5)).toEqual([
+    expect(err.slice(-6)).toEqual([
       'seam_conflict',
       'not_declared',
       'lease_held',
       'design_review',
       'project_paused',
+      'epic_not_ready',
     ]);
     const packet = getTool('submit_packet').output;
     expect(

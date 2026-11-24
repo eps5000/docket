@@ -508,6 +508,8 @@ export interface ItemRow {
   closed_at: string | null;
   archived_at: string | null;
   split_from: string | null;
+  /** Decision 58: the stored known gaps (JSON text), or null. */
+  known_gaps?: string | null;
   jira_key: string | null;
   /** 1 when the Jira import created it (SQLite boolean). */
   imported?: number | boolean;
