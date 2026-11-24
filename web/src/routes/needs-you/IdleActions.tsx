@@ -95,8 +95,8 @@ export function IdleActions({ problem }: { problem: Problem }) {
           }
         >
           <p>
-            Nobody has worked on {id} for days: no agent, no run and no activity. You can undo
-            what you choose.
+            Nobody has worked on {id} for days: no agent, no run and no activity. You can undo what
+            you choose.
           </p>
           <fieldset className="overlap-modes" data-idle-actions="">
             <legend className="f">Choose one</legend>

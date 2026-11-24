@@ -90,7 +90,11 @@ export const idleDay = (at: string) => {
 };
 
 /** The problem's words: what's wrong, what fixes it, and that it's the owner's call. */
-export function explainIdle(f: { item: string; since: string; branches: number }): ProblemExplanation {
+export function explainIdle(f: {
+  item: string;
+  since: string;
+  branches: number;
+}): ProblemExplanation {
   const branches =
     f.branches > 0
       ? ` It still lists ${f.branches === 1 ? '1 branch' : `${f.branches} branches`}, which the radar no longer checks.`
@@ -184,7 +188,10 @@ export function clearIdleConflicts(w: WriteContext): { findings: string[]; overl
       }
     }
   }
-  return { findings: findings.map((f) => f.id as string), overlaps: overlaps.map((o) => o.id as string) };
+  return {
+    findings: findings.map((f) => f.id as string),
+    overlaps: overlaps.map((o) => o.id as string),
+  };
 }
 
 // ---- The owner's ways forward ----
@@ -248,7 +255,10 @@ export function settleIdle(
   }
   const to = input.action;
   const inverse: InverseOp[] = [
-    w.update('items', item.id, { status: to, ...(to === 'planning' ? clearApproval(w.db, item.id) : {}) }),
+    w.update('items', item.id, {
+      status: to,
+      ...(to === 'planning' ? clearApproval(w.db, item.id) : {}),
+    }),
   ];
   w.event({
     type: 'item.status_changed',

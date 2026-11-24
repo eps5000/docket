@@ -1441,9 +1441,7 @@ export function settleUndeclared(
       disputed: false,
     };
     const peers = new Set(
-      inFlightFor(w.db, item.project_key, part, item.id, CLAIMED_STATUSES, w.now).map(
-        (p) => p.id,
-      ),
+      inFlightFor(w.db, item.project_key, part, item.id, CLAIMED_STATUSES, w.now).map((p) => p.id),
     );
     // Decision 39: touching a part whose unapproved design change is with the owner holds.
     const designHeld = [...peers].some((id) =>

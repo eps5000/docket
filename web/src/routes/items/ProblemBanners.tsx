@@ -1,7 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
-import { acknowledgedText, type ItemDetailResponse, type Problem, type ResolutionRow } from '@docket/shared';
+import {
+  acknowledgedText,
+  type ItemDetailResponse,
+  type Problem,
+  type ResolutionRow,
+} from '@docket/shared';
 import { apiClient } from '../../app/queryClient';
 import { HelpLink } from '../../help/HelpLink';
 import { queryKeys } from '../../lib/api';
@@ -27,7 +32,8 @@ import {
  * Decision 62: acknowledged problems aren't open. They fold into one quiet
  * line, "You acknowledged N problems", which expands to show them (each with
  * "Acknowledged by you <when>" and its actions), and they aren't counted. One
- * comes back as open when it needs you again (decision 37's rules).
+ * comes back as open when it needs you again (decision 37's rules). One with
+ * a proposed resolution still waiting for the owner stays in view.
  *
  * Open overlap and undeclared-changes questions on the item are problems
  * too: their cards, with their decisions, stack here as well.
@@ -37,10 +43,13 @@ export function ProblemBanners({ data }: { data: ItemDetailResponse }) {
   const [params] = useSearchParams();
   const focus = params.get('problem');
   const all = data.problems ?? NO_PROBLEMS;
-  const problems = all.filter((p) => !p.acknowledged);
-  const acked = all.filter((p) => p.acknowledged);
-  // Opened on an acknowledged one (`?problem=`): show them.
-  const [showAcked, setShowAcked] = useState(() => acked.some((p) => p.id === focus));
+  // A proposal still waiting for the owner keeps its problem in view, acknowledged or not.
+  const folded = (p: Problem) => !!p.acknowledged && p.resolution?.state !== 'open';
+  const problems = all.filter((p) => !folded(p));
+  const acked = all.filter(folded);
+  // Opened on an acknowledged one (`?problem=`): shown, until the owner closes them.
+  const [toggled, setToggled] = useState<boolean | null>(null);
+  const showAcked = toggled ?? (!!focus && acked.some((p) => p.id === focus));
   const ackedId = useId();
   const resolutions = data.resolutions ?? NO_RESOLUTIONS;
   const shared = useQuery({
@@ -99,7 +108,7 @@ export function ProblemBanners({ data }: { data: ItemDetailResponse }) {
             className="linkbtn src"
             aria-expanded={showAcked}
             aria-controls={ackedId}
-            onClick={() => setShowAcked((v) => !v)}
+            onClick={() => setToggled(!showAcked)}
           >
             {acknowledgedText(acked.length)} <span aria-hidden="true">{showAcked ? '▾' : '▸'}</span>
           </button>

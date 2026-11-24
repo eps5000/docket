@@ -349,7 +349,9 @@ export function startSweeper(
     try {
       const { findings, overlaps } = idleOnce(runtime);
       if (findings.length + overlaps.length > 0)
-        runtime.log(`sweeper: cleared ${findings.length + overlaps.length} conflicts with idle tickets`);
+        runtime.log(
+          `sweeper: cleared ${findings.length + overlaps.length} conflicts with idle tickets`,
+        );
     } catch (err) {
       report('idle check', err);
     }

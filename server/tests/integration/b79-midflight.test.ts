@@ -61,12 +61,14 @@ const lastMutation = () =>
     .mutation_id;
 const needsYou = () => d.services.views.needsYou(d.read(), { scope: 'TST' });
 
-/** An epic with one Ready ticket, started by its lead's claim; then a minute passes. */
+/** An epic with one Ready ticket, started by its lead's claim and then the ticket's; then a minute passes. */
 function startedEpic() {
   const epic = create('Epic', { status: 'ready' });
   const before = create('Task', { epic, status: 'ready' });
   claim(epic, producer);
   expect(status(epic)).toBe('progress');
+  d.clock.advance(60_000);
+  claim(before);
   d.clock.advance(60_000);
   return { epic, before };
 }
@@ -76,7 +78,9 @@ describe('tickets added after the epic started', () => {
     const { epic, before } = startedEpic();
     const bug = create('Bug', { epic, title: 'Synthetic crash on save' });
     const loose = create('Story', { title: 'Synthetic loose story' });
-    d.write(producer, (w, s) => s.items.update(w, { id: loose, expected_version: version(loose), epic }));
+    d.write(producer, (w, s) =>
+      s.items.update(w, { id: loose, expected_version: version(loose), epic }),
+    );
 
     const m = detail(epic).epic_midflight!;
     expect(m.added.map((t) => [t.id, t.untriaged])).toEqual([
@@ -96,10 +100,30 @@ describe('tickets added after the epic started', () => {
     expect(detail(bug).epic_midflight).toBeUndefined();
   });
 
+  it('a ticket with no recorded creation or move (imported or seeded) never counts', () => {
+    const { epic } = startedEpic();
+    const bug = create('Bug', { epic });
+    d.sql.prepare("DELETE FROM events WHERE item_id = ? AND type = 'item.created'").run(bug);
+    expect(detail(epic).epic_midflight).toBeUndefined();
+  });
+
   it('an epic that has not started marks nothing', () => {
     const epic = create('Epic', { status: 'ready' });
     create('Bug', { epic });
     expect(detail(epic).epic_midflight).toBeUndefined();
+  });
+
+  it('work begins with the first ticket: tickets broken down after the claim, before any started, are not new', () => {
+    const epic = create('Epic', { status: 'ready' });
+    claim(epic, producer);
+    d.clock.advance(60_000);
+    const breakdown = create('Task', { epic, status: 'ready' });
+    expect(detail(epic).epic_midflight).toBeUndefined();
+    d.clock.advance(60_000);
+    claim(breakdown);
+    d.clock.advance(60_000);
+    const late = create('Bug', { epic });
+    expect(detail(epic).epic_midflight!.added.map((t) => t.id)).toEqual([late]);
   });
 
   it('get_digest lists "Added since this epic started: N untriaged" with the tickets, within its cap', () => {
@@ -167,7 +191,9 @@ describe('tickets added after the epic started', () => {
   it('a bug that belongs elsewhere moves to that epic, which marks it there', () => {
     const { epic } = startedEpic();
     const reliability = create('Epic', { status: 'ready', title: 'Synthetic test reliability' });
+    const flakyOld = create('Task', { epic: reliability, status: 'ready' });
     claim(reliability, producer);
+    claim(flakyOld);
     d.clock.advance(60_000);
     const flaky = create('Bug', { epic, title: 'Synthetic flaky test' });
     d.write(producer, (w, s) =>
@@ -191,9 +217,7 @@ describe('idle In progress tickets', () => {
     expect(status(id)).toBe('progress');
     return { id, run };
   }
-  const idleIds = () => [
-    ...idleTickets(d.server.runtime.db, d.clock.now().toISOString()).keys(),
-  ];
+  const idleIds = () => [...idleTickets(d.server.runtime.db, d.clock.now().toISOString()).keys()];
 
   it('is idle after 3 days with no run and no activity, with one problem for the owner', () => {
     const { id } = inProgress();
@@ -274,7 +298,10 @@ describe('idle In progress tickets', () => {
     const { id } = inProgress();
     d.sql
       .prepare('UPDATE items SET branches = ? WHERE id = ?')
-      .run(JSON.stringify([{ name: 'tst-old-draft', by: 'worker', at: '2026-11-20T00:00:00.000Z' }]), id);
+      .run(
+        JSON.stringify([{ name: 'tst-old-draft', by: 'worker', at: '2026-11-20T00:00:00.000Z' }]),
+        id,
+      );
     d.clock.advance(IDLE_AFTER_MS);
     d.write(OWNER, (w, s) => s.archive.settleIdle(w, { id, action: 'clear_branches' }));
     const stored = JSON.parse(
@@ -284,7 +311,9 @@ describe('idle In progress tickets', () => {
     expect(status(id)).toBe('progress');
     undoMutation(d.server.runtime.write, lastMutation());
     expect(
-      JSON.parse(d.row<{ branches: string }>('SELECT branches FROM items WHERE id = ?', id).branches),
+      JSON.parse(
+        d.row<{ branches: string }>('SELECT branches FROM items WHERE id = ?', id).branches,
+      ),
     ).toEqual([expect.not.objectContaining({ removed: true })]);
   });
 
@@ -318,17 +347,18 @@ describe('idle In progress tickets', () => {
     expect(idleOnce(d.server.runtime)).toEqual({ findings: [], overlaps: [] });
     d.clock.advance(IDLE_AFTER_MS);
     // The live one's run keeps signalling (a claim renews it).
-    expect(inFlightItems(d.server.runtime.db, 'TST', d.clock.now().toISOString()).map((i) => i.id)).toEqual([
-      live,
-    ]);
+    expect(
+      inFlightItems(d.server.runtime.db, 'TST', d.clock.now().toISOString()).map((i) => i.id),
+    ).toEqual([live]);
     expect(idleOnce(d.server.runtime)).toEqual({ findings: ['rdf_b79'], overlaps: ['pov_b79'] });
     expect(
-      d.row<{ cleared_at: string | null }>("SELECT cleared_at FROM radar_findings WHERE id = 'rdf_b79'")
-        .cleared_at,
+      d.row<{ cleared_at: string | null }>(
+        "SELECT cleared_at FROM radar_findings WHERE id = 'rdf_b79'",
+      ).cleared_at,
     ).not.toBeNull();
-    expect(d.row<{ state: string }>("SELECT state FROM part_overlaps WHERE id = 'pov_b79'").state).toBe(
-      'resolved',
-    );
+    expect(
+      d.row<{ state: string }>("SELECT state FROM part_overlaps WHERE id = 'pov_b79'").state,
+    ).toBe('resolved');
     const said = d.rows<{ item_id: string; summary: string }>(
       "SELECT item_id, summary FROM events WHERE type IN ('radar.cleared', 'overlap.decided') ORDER BY seq",
     );
@@ -340,9 +370,9 @@ describe('idle In progress tickets', () => {
       item_id: idle,
       summary: `No longer heading for a conflict with ${live}: this ticket is idle`,
     });
-    expect(said.some((e) => e.item_id === live && e.summary.includes('the other ticket is idle'))).toBe(
-      true,
-    );
+    expect(
+      said.some((e) => e.item_id === live && e.summary.includes('the other ticket is idle')),
+    ).toBe(true);
     // A second pass has nothing left to clear.
     expect(idleOnce(d.server.runtime)).toEqual({ findings: [], overlaps: [] });
     // And Docket's events don't wake the idle ticket up.

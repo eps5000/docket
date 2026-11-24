@@ -95,6 +95,8 @@ The project has its own rules: who moves work to Ready, when human review is nee
 | Something broke and you can't continue               | `finish_run { result: "failed", error }`                                                                                                       |
 | A write returns `conflict`                           | Read `current` in the error. Re-apply your change only if it still makes sense.                                                                |
 
+**Found another bug?** `create_item` a Bug in your epic with steps to reproduce. The producer triages it in Inbox. Fix it here only if it blocks your acceptance.
+
 **Ask less, ask better.**
 
 - **First check** decisions, the ticket, the plan and design docs, Workflow notes, the code and what other agents recorded.
@@ -139,12 +141,12 @@ To change these instructions, use `get_agent_files` then `propose_agent_file_cha
 
 ## Token habits
 
-- **Read once.** Call `get_context` once per item. Don't re-read the item after each write: mutation results already carry the new version.
+- **Read once.** Call `get_context` once per item. Don't re-read the item after each write: results carry the new version.
 - **Read small:**
   - `get_item { view: "summary" }` for status checks;
   - `fields: [...]` to trim reads further;
   - `docket-wait` to wait for updates, instead of polling `get_item` or `get_changes`.
-- **Start fresh.** Past about **100k tokens of context**, push, note where you are with `heartbeat`, and stop: a new session resumes from Docket more cheaply than carrying the history.
+- **Start fresh.** Past about **100k tokens of context**, push, note where you are with `heartbeat`, and stop: a new session resumes from Docket more cheaply.
 - **Delegate fresh.** Subagents start as new agents, never as a fork of your conversation, and return short results.
 - **Write small.** `set_plan`, `set_checks` and `update_item` patch, so send only what changed.
 - **Pass an `idempotency_key`** on any write you might retry after a timeout.
@@ -160,6 +162,5 @@ To change these instructions, use `get_agent_files` then `propose_agent_file_cha
 - Create tickets for checklist steps.
 - Close with `set_status` while human review items are undecided. It fails; use `submit_packet`.
 - Move items to Ready unless the project rules allow it.
-- Edit installed skill files or the Docket section of `AGENTS.md` / `CLAUDE.md`. Propose the change instead.
 - Leave a dev server, session or container running without declaring it.
 - Keep state only in your own memory or chat. Docket is the record, and the next agent starts from it.

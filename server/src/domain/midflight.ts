@@ -2,10 +2,11 @@
  * Tickets added to an epic after it started (owner decision 62; BUILD_SPEC
  * §5.42).
  *
- * An epic *started* when it first moved to In progress (its first
- * `item.status_changed` to `progress`; one that never had such a move, such
- * as an import, started when it was created). A ticket *joined* the epic when
- * it was created in it, or at its latest `update_item epic` into it. A
+ * An epic *started* when work on it began: the later of its first move to
+ * In progress (its first `item.status_changed` to `progress`, or its creation
+ * for an import) and its first ticket's. A ticket *joined* the epic when
+ * it was created in it, or at its latest `update_item epic` into it, as its
+ * events record; one with no such event (imported or seeded) never counts. A
  * ticket that joined after the epic started was **added mid-flight**. A split
  * keeps its original's place, so it isn't new work. Worked out from the
  * events on read: no migration.
@@ -21,20 +22,36 @@ import { ToolError, type EpicMidflight, type MidflightTicket } from '@docket/sha
 import type { Db } from '../db/client.js';
 import type { ItemRow } from './model.js';
 
-/** Epics that have started (In progress or in Review), with when. */
+/**
+ * Open epics where work has begun, with when: the later of the epic's first
+ * move to In progress (or its creation, for an import) and its first ticket's.
+ * An epic none of whose tickets has started yet has nothing mid-flight, so an
+ * old-style breakdown (claim the epic, then create its tickets) isn't new work.
+ */
 function startedEpics(db: Db, epicIds?: readonly string[]): Map<string, string> {
   const rows = db.sqlite
     .prepare(
       `SELECT ep.id, coalesce(
          (SELECT min(e.at) FROM events e WHERE e.item_id = ep.id AND e.type = 'item.status_changed'
             AND json_extract(e.data, '$.status.new') = 'progress'),
-         ep.created_at) AS started_at
+         ep.created_at) AS epic_at,
+         (SELECT min(e.at) FROM events e JOIN items t ON t.id = e.item_id
+          WHERE t.epic_id = ep.id AND e.type = 'item.status_changed'
+            AND json_extract(e.data, '$.status.new') = 'progress') AS ticket_at
        FROM items ep
        WHERE ep.type = 'Epic' AND ep.status IN ('progress', 'review') AND ep.archived_at IS NULL
          ${epicIds ? 'AND ep.id IN (SELECT value FROM json_each(?))' : ''}`,
     )
-    .all(...(epicIds ? [JSON.stringify(epicIds)] : [])) as { id: string; started_at: string }[];
-  return new Map(rows.map((r) => [r.id, r.started_at]));
+    .all(...(epicIds ? [JSON.stringify(epicIds)] : [])) as {
+    id: string;
+    epic_at: string;
+    ticket_at: string | null;
+  }[];
+  return new Map(
+    rows
+      .filter((r) => r.ticket_at !== null)
+      .map((r) => [r.id, r.ticket_at! > r.epic_at ? r.ticket_at! : r.epic_at]),
+  );
 }
 
 /** Each started epic's tickets added after it started, oldest addition first. */
@@ -45,19 +62,25 @@ export function midflightByEpic(db: Db, epicIds?: readonly string[]): Map<string
   if (started.size === 0) return out;
   const rows = db.sqlite
     .prepare(
-      `SELECT i.id, i.title, i.type, i.status, i.epic_id, max(i.created_at, coalesce(
-         (SELECT max(e.at) FROM events e WHERE e.item_id = i.id AND e.type = 'item.updated'
-            AND json_extract(e.data, '$.changed.epic_id.new') = i.epic_id), '')) AS added_at
+      `SELECT i.id, i.title, i.type, i.status, i.epic_id,
+         (SELECT max(e.at) FROM events e WHERE e.item_id = i.id AND (e.type = 'item.created'
+            OR (e.type = 'item.updated' AND json_extract(e.data, '$.changed.epic_id.new') = i.epic_id))
+         ) AS added_at
        FROM items i
        WHERE i.epic_id IN (SELECT value FROM json_each(?)) AND i.type <> 'Epic'
          AND i.archived_at IS NULL AND i.status <> 'canceled' AND i.split_from IS NULL`,
     )
-    .all(JSON.stringify([...started.keys()])) as (Omit<MidflightTicket, 'untriaged'> & {
+    .all(JSON.stringify([...started.keys()])) as (Omit<
+    MidflightTicket,
+    'untriaged' | 'added_at'
+  > & {
     epic_id: string;
+    added_at: string | null;
   })[];
   for (const r of rows) {
     const since = started.get(r.epic_id)!;
-    if (r.added_at <= since) continue;
+    const added = r.added_at;
+    if (added === null || added <= since) continue;
     const m = out.get(r.epic_id) ?? { started_at: since, added: [], untriaged: 0 };
     const untriaged = r.status === 'inbox';
     m.added.push({
@@ -65,7 +88,7 @@ export function midflightByEpic(db: Db, epicIds?: readonly string[]): Map<string
       title: r.title,
       type: r.type,
       status: r.status,
-      added_at: r.added_at,
+      added_at: added,
       untriaged,
     });
     if (untriaged) m.untriaged += 1;

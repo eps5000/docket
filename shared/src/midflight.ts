@@ -60,5 +60,4 @@ export function midflightText(m: Pick<EpicMidflight, 'added' | 'untriaged'>): st
 export const untriagedText = (n: number) => `Added since this epic started: ${n} untriaged`;
 
 /** "Acknowledged by you" lines fold into one: "You acknowledged 2 problems". */
-export const acknowledgedText = (n: number) =>
-  `You acknowledged ${n} problem${n === 1 ? '' : 's'}`;
+export const acknowledgedText = (n: number) => `You acknowledged ${n} problem${n === 1 ? '' : 's'}`;
