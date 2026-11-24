@@ -135,7 +135,7 @@ test('an epic with unshaped tickets is Not ready to start everywhere, and its cl
   );
   await expect(
     page.locator('a.epiccard[href="/items/RCP-1"] [data-epic-readiness="started_unshaped"]'),
-  ).toContainText('Started with 4 unshaped tickets');
+  ).toContainText('Started with 5 unshaped tickets');
   await shots(page, 'cards-1440');
   await expectAxeClean(page, 'epic cards', { include: '.epiccard' });
 

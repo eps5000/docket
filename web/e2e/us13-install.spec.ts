@@ -238,6 +238,7 @@ test.describe('Install and check (US13)', () => {
       'exit-reports.md',
       'shared-parts.md',
       'status-moves.md',
+      'ticket-types.md',
       'waiting.md',
     ]);
     await d.getByRole('button', { name: 'Done' }).click();

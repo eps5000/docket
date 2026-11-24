@@ -173,11 +173,11 @@ test('the Filters menu from the keyboard: a combination, pills, Clear; axe in bo
     /^Rollout\d+$/,
     /^Shows done\d+$/,
     /^Shows canceled\d+$/,
-    'Type: Exploration',
-    'Type: Design',
-    'Type: Implementation',
-    'Type: Bug',
-    'Type: Release',
+    /^Type: Exploration\d+$/,
+    /^Type: Design\d+$/,
+    /^Type: Implementation\d+$/,
+    /^Type: Bug\d+$/,
+    /^Type: Release\d+$/,
   ]);
   await expect(entry(page, 'For you')).toBeFocused();
   await expectAxeClean(page, 'Work filter row with the menu open', {
