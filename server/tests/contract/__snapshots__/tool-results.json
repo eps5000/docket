@@ -2192,6 +2192,9 @@
       "context": {
         "type": "object",
         "properties": {
+          "paused": {
+            "type": "string"
+          },
           "item": {
             "type": "object",
             "properties": {
@@ -3868,6 +3871,9 @@
     "type": "object",
     "properties": {
       "project": {
+        "type": "string"
+      },
+      "paused": {
         "type": "string"
       },
       "cursor": {

@@ -346,6 +346,8 @@ export interface RunsService {
   refreshActivity(r: ReceiptContext, findings: readonly ActivityFinding[]): void;
   /** Decision 42: holds past their time end; a story with no worker on it returns to Ready. */
   expireProducerHolds(w: WriteContext): { returned: string[] };
+  /** Decision 53: what a write on this run is told when a paused project keeps it parked; else null. */
+  pausedParkNote(r: ReadContext, runId: string): string | null;
   /** Every call carrying `run_id` (the MCP signal hook): renew the lease, record the signal. */
   recordSignal(r: ReceiptContext, signal: RunSignalInput): void;
   /** The sweeper: expired leases → run `interrupted`, item back to Ready. */
@@ -910,7 +912,12 @@ export interface SubgraphService {
 
 /** Decision records (§5.14): authority from the actor; owner records are authoritative. */
 export interface DecisionsService {
-  publish(w: WriteContext, input: Omit<In<'publish_decision'>, 'run_id'>): DecisionRecord;
+  /** `pausesProject` is set only by the owner's Pause project (decision 53). */
+  publish(
+    w: WriteContext,
+    input: Omit<In<'publish_decision'>, 'run_id'>,
+    opts?: { pausesProject?: boolean },
+  ): DecisionRecord;
   list(r: ReadContext, input: Omit<In<'list_decisions'>, 'run_id'>): Out<'list_decisions'>;
   withdraw(
     w: WriteContext,
@@ -994,6 +1001,10 @@ export interface ProjectsService {
    * Jira import (US9), event `project.created`. Owner only; not undoable.
    */
   create(w: WriteContext, input: RouteBody<'projects.create'>): Project;
+  /** Decision 53: owner only. Publishes the pause decision; undoable. */
+  pause(w: WriteContext, input: { key: string } & RouteBody<'projects.pause'>): Project;
+  /** Decision 53: owner only. Withdraws the pause decision; undoable. */
+  resume(w: WriteContext, input: { key: string } & RouteBody<'projects.resume'>): Project;
 }
 
 /**

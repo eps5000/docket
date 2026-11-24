@@ -22,7 +22,7 @@ import { QueryState } from '../../app/QueryState';
 import { useShell } from '../../app/ShellState';
 import { useBootstrap } from '../../app/useBootstrap';
 import { queryKeys } from '../../lib/api';
-import { formatAge, middleTruncate } from '../../lib/format';
+import { formatAge, middleTruncate, pausedMark } from '../../lib/format';
 import { paths } from '../../lib/paths';
 import { showToast } from '../../lib/undo';
 import { copyText } from '../items/activity/copy';
@@ -318,6 +318,7 @@ export function WorktreeCleanup() {
               {projects!.map((p) => (
                 <option key={p.key} value={p.key}>
                   {p.key} · {p.name}
+                  {pausedMark(p)}
                 </option>
               ))}
             </select>

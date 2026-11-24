@@ -102,6 +102,8 @@ const EXPECTED = [
   'GET /api/settings/agent-token',
   'PATCH /api/projects/:key',
   'DELETE /api/projects/:key',
+  'POST /api/projects/:key/pause',
+  'POST /api/projects/:key/resume',
   'GET /api/decisions',
   'POST /api/decisions',
   'POST /api/decisions/:id/confirm',
@@ -200,7 +202,7 @@ describe('the route table', () => {
     const labels = ROUTE_IDS.map((id) => routeLabel(API_ROUTES[id]));
     expect(new Set(labels).size).toBe(labels.length);
     expect([...labels].sort()).toEqual([...EXPECTED].sort());
-    expect(labels).toHaveLength(121);
+    expect(labels).toHaveLength(123);
   });
 
   it('puts each route in a known group, and every group has a route', () => {

@@ -8,6 +8,7 @@ import { formatClock, isoTitle, plural } from '../../lib/format';
 import { AnswerBox } from '../shared/AnswerBox';
 import { QuestionAnswer, RecommendedLine } from '../shared/QuestionAnswer';
 import { HelpLink } from '../../help/HelpLink';
+import { PausedBanner } from '../shared/ProjectPause';
 import { ProblemBanners } from './ProblemBanners';
 
 /** Packet ready: amber banner with *Open packet* (UI_SPEC §6.3), and "out of date" when a newer commit came in. */
@@ -156,6 +157,7 @@ export function ItemBanners({ data }: { data: ItemDetailResponse }) {
   const item = data.item;
   return (
     <>
+      <PausedBanner project={item.project} />
       <ProblemBanners data={data} />
       {scope !== 'all' && item.project !== scope && (
         <OutOfScopeBanner id={item.id} project={item.project} />

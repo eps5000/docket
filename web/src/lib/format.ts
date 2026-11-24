@@ -43,6 +43,9 @@ export function isoTitle(at: string | Date): string {
 }
 
 /** `1 item` / `2 items`. */
+/** Decision 53: the marker a paused project carries in a plain `<select>`. */
+export const pausedMark = (p: { paused?: unknown }) => (p.paused ? ' (paused)' : '');
+
 export function plural(n: number, one: string, many = `${one}s`): string {
   return `${n} ${n === 1 ? one : many}`;
 }

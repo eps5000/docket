@@ -166,6 +166,13 @@ export function runSignal(
   return { run_id: runId, kind: live ? 'session' : 'report', known: !!row };
 }
 
+/** Whether the run is parked. */
+function isParked(runtime: Runtime, runId: string): boolean {
+  const row = runtime.db.sqlite.prepare('SELECT state FROM runs WHERE id = ?').get(runId) as
+    { state: string } | undefined;
+  return row?.state === 'parked';
+}
+
 /**
  * Resume a parked run (BUILD_SPEC §5.16): state back to open, lease renewed,
  * `run.resumed`. A mutation of its own through the write path, before the
@@ -173,9 +180,10 @@ export function runSignal(
  * that isn't parked writes nothing. Only mutating tools call this (decision 42).
  */
 export function resumeIfParked(runtime: Runtime, actor: Actor, runId: string): void {
-  const row = runtime.db.sqlite.prepare('SELECT state FROM runs WHERE id = ?').get(runId) as
-    { state: string } | undefined;
-  if (row?.state !== 'parked') return;
+  if (!isParked(runtime, runId)) return;
+  // Decision 53: the call still records its work, and the run stays parked.
+  const read = readContext(runtime.db, actor, runtime.clock());
+  if (runtime.services.runs.pausedParkNote(read, runId)) return;
   runtime.write.run({ actor, operation: 'run.resume', args: { run_id: runId } }, (w) =>
     runtime.services.runs.resume(w, { run_id: runId }),
   );
@@ -306,6 +314,13 @@ export async function callTool(
 
     const handler = opts.handlers[tool.name] as ToolHandler<ToolName>;
     let result = await handler(args as never, ctx);
+    // Decision 53: say so when a write on a parked run left it parked by the owner's pause.
+    if (signal?.known && tool.kind === 'mutating' && tool.name !== 'park_run') {
+      const note = isParked(runtime, signal.run_id)
+        ? runtime.services.runs.pausedParkNote(read, signal.run_id)
+        : null;
+      if (note && !warnings.includes(note)) warnings.push(note);
+    }
     if (warnings.length > 0) {
       // Write-check warnings (§3.4) join any the service gave (`finish_run`'s).
       const own = (result as { warnings?: string[] }).warnings ?? [];

@@ -582,6 +582,8 @@ export type DecisionRecord = z.infer<typeof decisionRecordSchema>;
 export const contextBudgetSchema = z.enum(['small', 'medium', 'large']);
 
 export const contextBundleSchema = z.object({
+  /** Decision 53: one line, only while the owner has this project paused. */
+  paused: z.string().optional(),
   item: itemSchema
     .pick({
       id: true,

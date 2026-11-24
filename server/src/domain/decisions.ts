@@ -47,6 +47,8 @@ interface DecisionDbRow {
   confirmed_at: string | null;
   acknowledged_at: string | null;
   review_grouped: number;
+  /** Decision 53: 1 on the record that pauses its project. */
+  pauses_project: number;
   version: number;
   created_at: string;
 }
@@ -330,7 +332,7 @@ export function createDecisionsService(_deps: ServiceDeps): DecisionsService {
   }
 
   return {
-    publish(w, input) {
+    publish(w, input, opts) {
       const owner = w.actor.kind === 'owner';
       const agent = w.actor.kind === 'agent';
       if (!owner && !agent) {
@@ -359,6 +361,13 @@ export function createDecisionsService(_deps: ServiceDeps): DecisionsService {
         }
         if (agent && row.authority === 'owner') throw ownerOnly(row.id);
         mustBeActive(w.db, row, 'superseded');
+        // Decision 53: rewording a pause keeps the project paused; only resuming lifts it.
+        if (row.pauses_project === 1 && input.scope.kind !== 'project') {
+          throw validation(
+            `${row.id} pauses all of ${row.project_key}, so its replacement must be project-wide. To lift it, resume the project.`,
+            { 'scope.kind': 'must be project' },
+          );
+        }
         old = row;
       }
 
@@ -380,6 +389,7 @@ export function createDecisionsService(_deps: ServiceDeps): DecisionsService {
           confirmed_at: null,
           acknowledged_at: null,
           review_grouped: 0,
+          pauses_project: opts?.pausesProject || old?.pauses_project === 1 ? 1 : 0,
           version: 1,
         }),
       );
@@ -474,7 +484,12 @@ export function createDecisionsService(_deps: ServiceDeps): DecisionsService {
       mustBeActive(w.db, row, 'withdrawn');
       const who = w.actor.kind === 'owner' ? 'Owner' : callerName(w.db, w.actor);
       const reason = input.reason.trim();
-      const inverse = w.update('decision_records', row.id, { status: 'withdrawn' });
+      const lifting = row.pauses_project === 1;
+      const inverse = w.update('decision_records', row.id, {
+        status: 'withdrawn',
+        // Decision 53: aging restarts from this moment, and undo puts it back.
+        ...(lifting ? { pause_lifted_at: w.now } : {}),
+      });
       w.event({
         type: 'decision.withdrawn',
         summary: `${who} withdrew a decision: ${short(row.title)}${reason ? ` (${short(reason)})` : ''}`,
@@ -483,6 +498,24 @@ export function createDecisionsService(_deps: ServiceDeps): DecisionsService {
         inverse: [inverse],
         objects: [{ kind: 'decision', id: row.id }],
       });
+      if (lifting) {
+        // However it's withdrawn, the history says the project resumed.
+        w.event({
+          type: 'project.updated',
+          summary: `Owner resumed project ${row.project_key}`,
+          project_key: row.project_key,
+          data: {
+            old: { paused: true },
+            new: { paused: false },
+            decision_id: row.id,
+          },
+          inverse: [{ op: 'update', table: 'decision_records', id: row.id, set: {} }],
+          objects: [
+            { kind: 'project', id: row.project_key },
+            { kind: 'decision', id: row.id },
+          ],
+        });
+      }
       return decisionById(w.db, row.id)!;
     },
 

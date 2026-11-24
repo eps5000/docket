@@ -43,6 +43,8 @@ Hover a state to see its meaning. Parked runs also say what they wait on, like "
 
 **Added after work started** means the blocker was linked after this agent had already claimed the ticket, which often means scope was added. Check that it really holds the whole story. If it holds only part, split that part out and let the rest go ahead.
 
+**Held by your decision** means a decision of yours is holding the run, so it doesn't age into alerts. When you [pause a project](/help/pause-a-project), every parked run in it shows this.
+
 **When the blocker clears,** Docket tells the coordinator which run and dispatch can continue. Docket can't message an agent's session itself, so the coordinator passes it on. If nobody does within 30 minutes, you see "Ready to resume, unattended".
 
 ## Leases
