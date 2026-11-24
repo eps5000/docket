@@ -6,7 +6,8 @@
  * - the Epics strip hides done epics with tickets behind *Show N done*
  *   (*Hide done*), keeps empty ones, and always keeps the filtered epic;
  * - the quick filters: *Active* (the default: no done items, and the Done
- *   column says how many it hides), *Blocked*, *In progress*, each count
+ *   column says how many it hides), *Blocked*, *In progress* and *Queued*
+ *   (decision 57), each count
  *   matching the board; Back returns to the previous filter;
  * - the *Filters* menu from the keyboard: checks narrow, *Shows done* adds,
  *   pills remove one, *Clear* goes back to Active; axe in both themes;
@@ -106,10 +107,14 @@ test('the quick filters: Active by default, Blocked, In progress; Back returns',
   await chip(page, 'Blocked').click();
   await expect(page).toHaveURL(/quick=blocked/);
   await expect(chip(page, 'Blocked')).toHaveAttribute('aria-pressed', 'true');
-  await expect(chip(page, 'Blocked')).toHaveAttribute('title', 'Agent query: is:blocked');
+  await expect(chip(page, 'Blocked')).toHaveAttribute(
+    'title',
+    'Agent query: is:blocked -is:queued -is:held',
+  );
   const blocked = await chipCount(page, 'Blocked');
-  expect(blocked).toBeGreaterThan(0);
   await expect.poll(() => boardTotal(page)).toBe(blocked);
+  // Decision 57: under Blocked, nothing shows as Queued.
+  await expect(page.locator('[data-layout="board"] [data-wait="queued"]')).toHaveCount(0);
 
   await chip(page, 'In progress').click();
   await expect(page).toHaveURL(/quick=progress/);
@@ -125,6 +130,16 @@ test('the quick filters: Active by default, Blocked, In progress; Back returns',
   await expect(chip(page, 'Active')).toHaveAttribute('aria-pressed', 'true');
   await page.goForward();
   await expect(chip(page, 'Blocked')).toHaveAttribute('aria-pressed', 'true');
+
+  // Decision 57: Queued is its own chip, its count matches the board, and none of it is red.
+  await chip(page, 'Queued').click();
+  await expect(page).toHaveURL(/quick=queued/);
+  await expect(chip(page, 'Queued')).toHaveAttribute('aria-pressed', 'true');
+  await expect(chip(page, 'Queued')).toHaveAttribute('title', 'Agent query: is:queued');
+  const queued = await chipCount(page, 'Queued');
+  expect(queued + blocked).toBeGreaterThan(0);
+  await expect.poll(() => boardTotal(page)).toBe(queued);
+  await expect(page.locator('[data-layout="board"] a.tcard.isblocked')).toHaveCount(0);
 
   // Shows canceled adds a Canceled column.
   await chip(page, 'Active').click();

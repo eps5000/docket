@@ -730,6 +730,13 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T320 [US13] The bootstrap notice in `get_digest` and `claim_lead`, the coordinator and worker skills, and Agent files: the coordinator takes it in, with main-branch status.
 - [x] T321 [US13] Tests: each client and shell in temporary repos (fresh, current, older, edited, damaged markers, no git, Docket down, protected mode), no commit, no credential, the bootstrap, route guards and budgets.
 
+## Phase 51: Queued instead of Blocked (owner decision 57)
+
+- [x] T322 [US4] Spec plus code in one PR: decision 57 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.40 and §13; MCP_SPEC §5.2; UI_SPEC §5, §6.1, §6.1b, §6.2 and §6.3; spec FR-319–FR-324 and SC-038; Help.
+- [x] T323 [US4] `domain/wait-kind.ts` on `BlockIndex`, B54's `WaitReader` and decision 48's holds, and `shared/src/wait-kind.ts`; `wait` on Work rows, epic children, critical-path steps; `item_wait`; the Queued filter; Queued and Blocked counts on Overview, epic cards, Pick next epic and the brief; `get_digest` and `get_context`.
+- [x] T324 [US4] The `--st-queued` token, `WaitChip` on cards, the list, the item page and the epic's tickets, the Board's Waiting list, the Map bar, legend and cards, Overview's In flight card, the brief, Pick next epic and the critical path list.
+- [x] T325 [US4] Tests: each Blocked reason against Queued, chains, loops, canceled blockers, a held decision, a paused project, the nearest-blocker text, filters and counts agreeing across views, no colour-only status, e2e and axe in both themes at 1024 px and 1440 x 900 on stress data.
+
 ## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.
@@ -849,6 +856,7 @@ Open a PR titled "<Bn>: <phase name>" with the checkpoint evidence. Do not queue
 | 48 A bundled producer skill | B71 (decision 55) |
 | 49 Pick next epic | B70 (decision 54) |
 | 50 Projects pull their own Docket updates | B72 (decision 56) |
+| 51 Queued instead of Blocked | B73 (decision 57) |
 
 **Within a phase:** tests (failing) → services → replace stubs or fill handlers → fill screens → checkpoint.
 

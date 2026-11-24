@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router';
 import type { WorkItem } from '@docket/shared';
 import {
   BlockedChip,
+  WaitChip,
   Priority,
   ReviewChip,
   RunLine,
@@ -17,7 +18,7 @@ import { useRenderLimit } from '../../lib/progressive';
 import { Link } from 'react-router';
 
 /**
- * List (UI_SPEC §6.2.2): ID, Title, Status (+ blocked), Priority, Lead · run,
+ * List (UI_SPEC §6.2.2): ID, Title, Status (+ Queued or Blocked), Priority, Lead · run,
  * Human review, Last activity. The whole row is clickable. Empty: "No items match."
  */
 export function ListLayout({ items }: { items: readonly WorkItem[] }) {
@@ -66,7 +67,7 @@ export function ListLayout({ items }: { items: readonly WorkItem[] }) {
                 <td>
                   <div className="row wrap">
                     <StatusChip status={i.status} />
-                    <BlockedChip blockers={i.blocked_by} />
+                    {i.wait ? <WaitChip wait={i.wait} /> : <BlockedChip blockers={i.blocked_by} />}
                     <SharedFlags flags={i.shared_flags} />
                   </div>
                 </td>

@@ -19,12 +19,13 @@ import {
   type ToolInput,
   type WaitingOn,
 } from '@docket/shared';
-import { activityText } from '@docket/shared';
+import { activityText, type WaitKind } from '@docket/shared';
 import type { ReadContext, ServiceDeps } from './contracts.js';
 import { BlockIndex, getRun } from './model.js';
 import { nextWorkOf } from './next-work.js';
 import { pausedForCoordinators, projectPause } from './project-pause.js';
 import { WaitReader, digestWait } from './wait.js';
+import { waitKindsOf } from './wait-kind.js';
 
 export interface DigestService {
   get(r: ReadContext, input: ToolInput<'get_digest'>): Digest;
@@ -42,6 +43,8 @@ const RUN_ORDER: Record<string, number> = {
   live: 3,
   reported: 4,
 };
+
+const WAIT_ORDER: Record<WaitKind, number> = { blocked: 0, held: 1, queued: 2 };
 
 const section = <T>(rows: readonly T[], cap: number) => ({
   total: rows.length,
@@ -183,10 +186,17 @@ export function createDigestService(deps: ServiceDeps): DigestService {
       const ranked = pause
         ? { next_work: [], bottlenecks: [] }
         : nextWorkOf(r.db, new BlockIndex(r.db), input.project, startable, r.now);
+      // Decision 57: what needs attention first, then what is held, then what waits its turn.
+      const kinds = waitKindsOf(r.db, r.now, new BlockIndex(r.db), deps.config);
       const blocked = allOf(deps, r, input.project, 'blocked')
         .filter((x) => keep(x.id))
+        .map((x) => ({ x, wait: kinds.of(x.id) }))
         .sort(
-          (a, b) => a.priority - b.priority || b.unblocks - a.unblocks || a.id.localeCompare(b.id),
+          (a, b) =>
+            WAIT_ORDER[a.wait?.kind ?? 'queued'] - WAIT_ORDER[b.wait?.kind ?? 'queued'] ||
+            a.x.priority - b.x.priority ||
+            b.x.unblocks - a.x.unblocks ||
+            a.x.id.localeCompare(b.x.id),
         );
 
       const agents = deps.services().views.agents(r, { scope: input.project });
@@ -305,12 +315,14 @@ export function createDigestService(deps: ServiceDeps): DigestService {
         ),
         runs: section(runs, DIGEST_CAPS.runs),
         blocked: section(
-          blocked.map((x) => ({
+          blocked.map(({ x, wait }) => ({
             id: x.id,
             title: x.title,
             priority: x.priority,
             unblocks: x.unblocks,
             blocked_by: x.blocked_by,
+            wait: wait?.kind ?? 'queued',
+            ...(wait && wait.kind !== 'queued' ? { why: wait.text } : {}),
           })),
           DIGEST_CAPS.blocked,
         ),

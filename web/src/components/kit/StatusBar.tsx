@@ -5,14 +5,18 @@
  */
 import type { Status } from '@docket/shared';
 
-/** A status, or *blocked*: Ready work that can't start yet. */
-export type StatusBarSegment = Status | 'blocked';
+/**
+ * A status, or Ready work with an open blocker (decision 57): *queued* waits its
+ * turn behind moving work, *blocked* needs attention.
+ */
+export type StatusBarSegment = Status | 'queued' | 'blocked';
 
 export const STATUS_BAR_ORDER: readonly StatusBarSegment[] = [
   'done',
   'review',
   'progress',
   'ready',
+  'queued',
   'blocked',
   'planning',
   'inbox',

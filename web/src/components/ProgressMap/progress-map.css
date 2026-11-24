@@ -280,6 +280,11 @@
   color: var(--st-blocked-text);
   font-weight: 600;
 }
+/* Decision 57: Queued waits its turn; calm, never red. */
+.tl .pm-node .pm-queued {
+  color: var(--st-ready-text);
+  font-weight: 600;
+}
 .tl .pm-node .pm-ready {
   color: var(--warn);
   font-weight: 600;
@@ -316,6 +321,12 @@
 .tl .pm-node.blk {
   border-color: var(--st-blocked);
   box-shadow: inset 0 0 0 1px var(--st-blocked);
+}
+/* The left edge keeps its status colour; the dashed outline says it waits its turn. */
+.tl .pm-node.que {
+  border-top: 1px dashed var(--st-ready);
+  border-right: 1px dashed var(--st-ready);
+  border-bottom: 1px dashed var(--st-ready);
 }
 .tl .pm-node.ext {
   border-style: dashed;

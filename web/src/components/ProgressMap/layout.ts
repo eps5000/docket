@@ -12,10 +12,18 @@
  *   in a wave; they get their own column, and the links between them aren't
  *   drawn (the Dependencies tab fixes them).
  */
-import type { ItemSummary, LinkEdge, Status } from '@docket/shared';
+import type { ItemSummary, ItemWait, LinkEdge, Status, WaitKind } from '@docket/shared';
 
 /** A card on the map: a summary, plus whether its packet is ready (Work rows know it). */
-export type MapItem = ItemSummary & { packet_ready?: boolean };
+export type MapItem = ItemSummary & {
+  packet_ready?: boolean;
+  /** Decision 57: Queued, Blocked or Held, from the server; absent without an open blocker. */
+  wait?: ItemWait;
+};
+
+/** Decision 57: the server's kind; an item it didn't classify counts as Blocked while blocked. */
+export const waitKindOf = (i: MapItem): WaitKind | null =>
+  i.wait?.kind ?? (i.blocked ? 'blocked' : null);
 
 export interface MapEdge {
   link_id: string;
@@ -36,7 +44,9 @@ export interface MapLayout {
     total: number;
     done: number;
     byStatus: Partial<Record<Status, number>>;
-    readyButBlocked: number;
+    /** Decision 57: Ready tickets waiting their turn, and those whose wait needs attention. */
+    readyQueued: number;
+    readyBlocked: number;
     readyToStart: number;
     /** 1-based; null when every wave is done or there is only one. */
     workingOnWave: number | null;
@@ -223,7 +233,9 @@ export function layoutMap(
       total: counted.length,
       done: byStatus.done ?? 0,
       byStatus,
-      readyButBlocked: counted.filter((i) => i.status === 'ready' && i.blocked).length,
+      readyQueued: counted.filter((i) => i.status === 'ready' && waitKindOf(i) === 'queued').length,
+      readyBlocked: counted.filter((i) => i.status === 'ready' && waitKindOf(i) === 'blocked')
+        .length,
       readyToStart: counted.filter((i) => i.status === 'ready' && !i.blocked && i.lead === null)
         .length,
       workingOnWave: next >= 0 && denseWaves.length > 1 ? next + 1 : null,

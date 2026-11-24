@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
-import { STATUSES, STATUS_LABELS, type ItemDetailResponse } from '@docket/shared';
+import { STATUSES, STATUS_LABELS, waitCountsText, type ItemDetailResponse } from '@docket/shared';
 import {
   BlockedChip,
   Button,
@@ -10,6 +10,7 @@ import {
   RunLine,
   Section,
   TypeIcon,
+  WaitChip,
   epicEmptyText,
   leadName,
   leadReason,
@@ -17,15 +18,18 @@ import {
 import { paths } from '../../../lib/paths';
 
 /**
- * Tickets in this epic (summary "n/N done · n ready but blocked · n for
- * you", or "No tickets yet · Status" with none, as on its card), grouped by status; archived tickets fold into "+ N archived · Show"
- * (US7, T127). US2 fills it. Each row carries the coordination state the
- * Board cards show (B20): the blocked chip, *For you*, and the lead's run line.
+ * Tickets in this epic (summary "n/N done · Queued n · Blocked n · n for
+ * you", or "No tickets yet · Status" with none, as on its card), grouped by
+ * status; archived tickets fold into "+ N archived · Show" (US7, T127). Each
+ * row carries the coordination state the Board cards show (B20): the Queued,
+ * Blocked or Held chip (decision 57), *For you*, and the lead's run line.
  */
 export function EpicTicketsSection({ data }: { data: ItemDetailResponse }) {
   const kids = data.children;
   const done = kids.filter((k) => k.status === 'done').length;
-  const blocked = kids.filter((k) => k.status === 'ready' && k.blocked).length;
+  const open = kids.filter((k) => !k.archived && k.status !== 'done' && k.status !== 'canceled');
+  const queued = open.filter((k) => k.wait?.kind === 'queued').length;
+  const blocked = open.filter((k) => k.wait?.kind === 'blocked').length;
   const forYou = kids.filter((k) => k.for_you).length;
   const [showArchived, setShowArchived] = useState(false);
   const archivedN = kids.filter((k) => k.archived).length;
@@ -37,7 +41,7 @@ export function EpicTicketsSection({ data }: { data: ItemDetailResponse }) {
       summary={
         kids.length === 0
           ? epicEmptyText(data.item.status)
-          : `${done}/${kids.length} done · ${blocked} ready but blocked · ${forYou} for you`
+          : `${done}/${kids.length} done · ${waitCountsText({ queued, blocked })} · ${forYou} for you`
       }
     >
       {kids.length === 0 ? (
@@ -60,7 +64,11 @@ export function EpicTicketsSection({ data }: { data: ItemDetailResponse }) {
                   <span className="grow one" title={k.title}>
                     {k.title}
                   </span>
-                  {k.blocked && <BlockedChip blockers={k.blocked_by} />}
+                  {k.wait ? (
+                    <WaitChip wait={k.wait} />
+                  ) : (
+                    k.blocked && <BlockedChip blockers={k.blocked_by} />
+                  )}
                   {k.for_you && <ForYouChip />}
                   {k.lead && (
                     <RunLine

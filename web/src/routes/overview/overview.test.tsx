@@ -280,6 +280,7 @@ const metrics = (over: Partial<OverviewResponse> = {}): OverviewResponse => ({
     note: null,
   },
   in_flight: { count: 23, progress: 15, review: 8 },
+  queued: 7,
   blocked: 5,
   ready: { startable: 2, waiting: 3 },
   workload: [
@@ -288,14 +289,14 @@ const metrics = (over: Partial<OverviewResponse> = {}): OverviewResponse => ({
       title: 'Visual',
       project: 'RCP',
       total: 9,
-      counts: { review: 1, progress: 3, ready: 3, blocked: 2, planning: 0, inbox: 0 },
+      counts: { review: 1, progress: 3, ready: 3, queued: 0, blocked: 2, planning: 0, inbox: 0 },
     },
     {
       epic_id: null,
       title: null,
       project: null,
       total: 2,
-      counts: { review: 0, progress: 1, ready: 1, blocked: 0, planning: 0, inbox: 0 },
+      counts: { review: 0, progress: 1, ready: 1, queued: 0, blocked: 0, planning: 0, inbox: 0 },
     },
   ],
   last_backup_at: '2026-11-20T07:00:00.000Z',
@@ -519,7 +520,12 @@ describe('every number links to what is behind it', () => {
     expect(href(stat('agents'), '4 being worked')).toBe('/overview/agents_working');
     expect(href(stat('agents'), '3 parked/waiting')).toBe('/overview/agents_waiting');
     expect(href(stat('in-flight'), '23 tickets')).toBe('/overview/in_flight');
-    expect(href(stat('in-flight'), '5 blocked')).toBe('/work?quick=blocked');
+    // Decision 57: "Queued 7 · Blocked 5", each to its own filter.
+    expect(href(stat('in-flight'), 'Queued 7')).toBe('/work?quick=queued');
+    expect(href(stat('in-flight'), 'Blocked 5')).toBe('/work?quick=blocked');
+    expect(stat('in-flight').querySelector('[data-wait-counts]')!.textContent).toBe(
+      'Queued 7 · Blocked 5',
+    );
     const work = document.querySelector('[data-card="workload"]') as HTMLElement;
     expect(href(work, '9 open in Visual')).toBe('/work?epic=RCP-40&quick=active');
     expect(href(work, '2 open in No epic')).toBe('/overview/no_epic');

@@ -7,6 +7,7 @@
 import { z } from 'zod';
 import { cursor, projectKey, readInput, readOutput } from './common.js';
 import { WAIT_FLAG_KINDS, coordinatorParkSchema, prioritySchema, runStateSchema } from './types.js';
+import { WAIT_KINDS } from '../wait-kind.js';
 
 /** The most rows each section lists. */
 export const DIGEST_CAPS = {
@@ -92,6 +93,10 @@ export const digestBlockedSchema = z.object({
   priority: prioritySchema,
   unblocks: z.number().int(),
   blocked_by: z.array(z.string()),
+  /** Decision 57: Queued (its blockers are moving), Blocked (needs attention) or Held. */
+  wait: z.enum(WAIT_KINDS),
+  /** Why it is Blocked or Held, in plain words; absent when Queued. */
+  why: z.string().optional(),
 });
 
 export const digestOwnerSchema = z.object({

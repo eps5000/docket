@@ -8,6 +8,7 @@
  */
 import { z } from 'zod';
 import { statusSchema } from '../mcp/types.js';
+import { BLOCKED_REASONS } from '../wait-kind.js';
 import { input, jsonResponse, noInput, scopeSchema } from './common.js';
 import { json, route } from './route.js';
 
@@ -79,6 +80,10 @@ export const briefResponse = jsonResponse({
     unowned_blockers: list({ status: statusSchema, blocks: z.number().int() }),
     /** Parked leads held by an active owner decision. Empty until the wait card reports them. */
     held: list({ since: z.string(), decision_id: z.string(), decision_title: z.string() }),
+    /** Decision 57: open tickets whose wait needs attention, highest priority first, and why. */
+    blocked: list({ reason: z.enum(BLOCKED_REASONS), why: z.string() }),
+    /** Decision 57: open tickets waiting their turn behind moving work. Nothing is wrong. */
+    queued: z.number().int(),
   }),
   /** Changes to decision records on this day, newest first. Undone changes aren't listed. */
   decisions: z.object({ count: z.number().int(), rows: z.array(briefDecisionSchema) }),

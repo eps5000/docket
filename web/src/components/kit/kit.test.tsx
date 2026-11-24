@@ -9,7 +9,7 @@ import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { RUN_STATES, RUN_STATE_LABELS } from '@docket/shared';
+import { RUN_STATES, RUN_STATE_LABELS, type ItemWait } from '@docket/shared';
 import { STORAGE_KEYS } from '../../lib/persistence';
 import {
   Button,
@@ -588,6 +588,77 @@ describe('TicketCard', () => {
     );
   });
 
+  it('decision 57: Queued is calm and Blocked is red, each in words with why', () => {
+    const wait = (over: Partial<ItemWait>): ItemWait => ({
+      kind: 'queued',
+      reason: null,
+      after: 'RCP-14',
+      more: 2,
+      on: null,
+      text: 'Starts after RCP-14 and 2 more',
+      ...over,
+    });
+    const { container } = render(
+      <MemoryRouter>
+        <TicketCard
+          item={{
+            ...baseItem,
+            id: 'RCP-21',
+            status: 'ready',
+            blocked: true,
+            blocked_by: ['RCP-14'],
+            wait: wait({}),
+          }}
+        />
+        <TicketCard
+          item={{
+            ...baseItem,
+            id: 'RCP-22',
+            status: 'ready',
+            blocked: true,
+            blocked_by: ['RCP-9'],
+            wait: wait({
+              kind: 'blocked',
+              reason: 'canceled',
+              on: 'RCP-9',
+              more: 0,
+              after: 'RCP-9',
+              text: 'RCP-9 was canceled, so it never clears',
+            }),
+          }}
+        />
+        <TicketCard
+          item={{
+            ...baseItem,
+            id: 'RCP-23',
+            status: 'ready',
+            blocked: true,
+            blocked_by: ['RCP-8'],
+            wait: wait({
+              kind: 'held',
+              reason: 'paused',
+              text: 'Held by your decision “Pause for the launch”',
+            }),
+          }}
+        />
+      </MemoryRouter>,
+    );
+    const [queued, blocked, held] = [...container.querySelectorAll('a.tcard')];
+    expect(queued!.classList.contains('isqueued')).toBe(true);
+    expect(queued!.classList.contains('isblocked')).toBe(false);
+    expect(queued!.querySelector('.st-queued')!.textContent).toBe(
+      '◷ Queued · Starts after RCP-14 and 2 more',
+    );
+    expect(queued!.querySelector('.st-blocked')).toBeNull();
+    expect(blocked!.classList.contains('isblocked')).toBe(true);
+    const chip = blocked!.querySelector('.st-blocked')!;
+    expect(chip.textContent).toBe('⊘ Blocked · Canceled blocker · RCP-9');
+    expect(chip.getAttribute('title')).toBe('RCP-9 was canceled, so it never clears');
+    expect(held!.classList.contains('isblocked')).toBe(false);
+    expect(held!.classList.contains('isqueued')).toBe(false);
+    expect(held!.textContent).toContain('Held by your decision');
+  });
+
   it('marks blocked and for-you edges and opens the packet for Review cards with one ready', () => {
     const { container } = render(
       <MemoryRouter>
@@ -634,7 +705,14 @@ describe('EpicCard (B35: empty epics)', () => {
     type: 'Epic' as const,
     epic: null,
     epic_title: null,
-    children: { total, done, by_status: total ? { done, progress: total - done } : {}, for_you: 0 },
+    children: {
+      total,
+      done,
+      by_status: total ? { done, progress: total - done } : {},
+      for_you: 0,
+      queued: 0,
+      blocked: 0,
+    },
   });
 
   it('says "No tickets yet · Status" and draws no bar when the epic has no tickets', () => {

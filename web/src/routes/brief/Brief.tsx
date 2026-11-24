@@ -123,8 +123,8 @@ function Finished({ data }: { data: BriefResponse }) {
 }
 
 function Stuck({ data }: { data: BriefResponse }) {
-  const { parked, unowned_blockers: blockers, held } = data.stuck;
-  const nothing = parked.count + blockers.count + held.count === 0;
+  const { parked, unowned_blockers: blockers, held, blocked, queued } = data.stuck;
+  const nothing = blocked.count + parked.count + blockers.count + held.count === 0;
   return (
     <Section
       id="stuck"
@@ -136,6 +136,22 @@ function Stuck({ data }: { data: BriefResponse }) {
       }
     >
       {nothing && <p className="brief-none">Nothing is stuck right now.</p>}
+      {/* Decision 57: Blocked needs attention and says why; Queued is waiting its turn. */}
+      {blocked.count > 0 && (
+        <div data-brief-group="blocked">
+          <h3>Blocked · {blocked.count}</h3>
+          <ul className="brief-list">
+            {blocked.rows.map((r) => (
+              <Line key={r.id} to={paths.item(r.id)} id={r.id} title={r.title} meta={`${r.why}.`} />
+            ))}
+          </ul>
+          <More
+            count={blocked.count}
+            shown={blocked.rows.length}
+            to={paths.work({ quick: 'blocked' })}
+          />
+        </div>
+      )}
       {parked.count > 0 && (
         <div data-brief-group="parked">
           <h3>Parked longest · {parked.count}</h3>
@@ -193,6 +209,12 @@ function Stuck({ data }: { data: BriefResponse }) {
           </ul>
           <More count={held.count} shown={held.rows.length} />
         </div>
+      )}
+      {queued > 0 && (
+        <p className="src brief-note" data-brief-queued="">
+          <Link to={paths.work({ quick: 'queued' })}>{plural(queued, 'ticket')} queued</Link>,
+          waiting their turn behind work that is moving. Nothing is wrong.
+        </p>
       )}
     </Section>
   );

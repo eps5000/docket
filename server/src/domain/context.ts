@@ -65,6 +65,7 @@ import { pausedForAgents, projectPause } from './project-pause.js';
 import { choiceField } from './question-form.js';
 import { storedActivity } from './run-activity.js';
 import { WaitReader } from './wait.js';
+import { waitKindsOf } from './wait-kind.js';
 
 const WAIT_KINDS: ReadonlySet<string> = new Set(WAIT_FLAG_KINDS);
 
@@ -141,6 +142,7 @@ interface Full {
   docs: (Doc & { full: string | null })[];
   last_review: Bundle['last_review'];
   wait?: NonNullable<Bundle['wait']>;
+  wait_kind?: NonNullable<Bundle['wait_kind']>;
   waiting_runs?: NonNullable<Bundle['waiting_runs']>;
   /** Decision 53: the line an agent reads while the owner has this project paused. */
   paused?: string;
@@ -339,8 +341,20 @@ function gather(r: ReadContext, deps: ServiceDeps, id: string): Full {
     docs,
     last_review: last_review && last_review.items.length > 0 ? last_review : null,
     ...waitSections(r, row.id, index),
+    ...waitKindSection(r, deps, row.id, index),
     ...(pause ? { paused: pausedForAgents(row.project_key, pause) } : {}),
   };
+}
+
+/** Decision 57: Queued, Blocked or Held, from the one classification. */
+function waitKindSection(
+  r: ReadContext,
+  deps: ServiceDeps,
+  id: string,
+  index: BlockIndex,
+): Pick<Full, 'wait_kind'> {
+  const wait = waitKindsOf(r.db, r.now, index, deps.config).of(id);
+  return wait ? { wait_kind: { kind: wait.kind, text: wait.text } } : {};
 }
 
 /** Decision 45: the item's parked lead's wait, and the parked runs this item would free. */
@@ -432,6 +446,7 @@ export function assemble(
     ...(full.paused ? { paused: full.paused } : {}),
     // Decision 45: short and bounded, and with the blockers, so it is never cut.
     ...(full.wait ? { wait: full.wait } : {}),
+    ...(full.wait_kind ? { wait_kind: full.wait_kind } : {}),
     ...(full.waiting_runs ? { waiting_runs: full.waiting_runs } : {}),
   };
   const larger = budget === 'large' ? ' left out' : '; ask get_context with a larger budget';

@@ -413,6 +413,18 @@ Updating a project meant someone pushing files into a special worktree and handi
 
 BUILD_SPEC §5.39, MCP_SPEC §5.2, §5.4 and §5.10, UI_SPEC §6.7b, spec FR-313–FR-318 and SC-037, and Help (Agent files) have the details.
 
+## Owner decision 57 (2026-11-24): Queued instead of Blocked
+
+On a healthy epic, most Ready tickets showed red **Blocked** only because they waited their turn behind work that was moving. The owner read that as work that should be going but wasn't. **Red should mean something needs attention.**
+
+1. **Display and wording only.** The stored status stays Ready, claiming doesn't change (any open blocker still refuses a claim), and there is no migration.
+2. **Queued.** A ticket whose open blockers are being worked, or are Ready or Queued themselves, shows in a calm, neutral style: "Starts after GF-123", the nearest open blocker, plus "and N more".
+3. **Blocked, still red, only when the wait needs attention,** from facts Docket already computes: a blocker in its chain has no next step (B54's condition, even with no run parked); an owner decision is pending and was never asked (B54/B58); a blocker is canceled, or the chain loops; or a blocker's lead has been parked past the stall threshold on something other than a held owner decision. The tooltip or detail says which, in plain words.
+4. **Held** by an owner decision or a paused project keeps "Held by your decision" (B58/B69), and is neither.
+5. **Everywhere, from one definition on the server:** Work's board, list and filters (Queued and Blocked are separate), the Map and its legend, epic cards, Pick next epic, Overview's In flight card ("Queued N · Blocked M"), the critical path, the item page, the daily brief, Help, and `get_digest` and `get_context`. It uses the shared status tokens (Ready's, dashed and hatched, since the palette has no room for another colour) and never colour alone, stays inside the token budgets, and adds no MCP tool.
+
+BUILD_SPEC §5.40, MCP_SPEC §5.2, UI_SPEC §5, §6.1, §6.1b, §6.2 and §6.3, spec FR-319–FR-324 and SC-038, and Help (Blocker rules and dependencies) have the details.
+
 ## Deferred choices
 
 Pilot project choice and Jira import strategy are deferred until V1 is ready for real work. Design should still settle the storage layout, supported document preview formats, the exact project gate configuration shape, and the minimum history needed before a velocity forecast is shown. These are implementation choices guided by the owner decisions above, not blockers to selecting a pilot now.

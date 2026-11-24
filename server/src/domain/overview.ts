@@ -17,9 +17,11 @@
  * - **Agents waiting:** open tickets whose lead is parked on a named dependency
  *   that hasn't cleared. A park naming nothing, or ready to resume, isn't waiting.
  * - **In flight:** open tickets in In progress or Review.
- * - **Blocked:** open tickets with an uncleared blocker (Work's *Blocked*).
- * - **Workload:** open tickets by status per epic; a blocked ticket counts once,
- *   as Blocked.
+ * - **Queued** and **Blocked** (decision 57): open tickets with an open
+ *   blocker, by the one classification (`wait-kind.ts`; Work's *Queued* and
+ *   *Blocked*). A Held ticket is neither.
+ * - **Workload:** open tickets by status per epic; a Queued or Blocked ticket
+ *   counts once, in that bucket.
  * - **Flow trends** (decision 48): finished, merged and parked, in `flow.ts`.
  */
 import {
@@ -38,6 +40,7 @@ import { compareIds } from './links.js';
 import { bucketFrame, flowOf } from './flow.js';
 import { actorName, displayRunState, ms, type ItemRow, type RunRow } from './model.js';
 import { readyStates } from './next-work.js';
+import { waitKindsOf, type WaitKinds } from './wait-kind.js';
 import { parkInfo, parseJson } from './recovery-model.js';
 import type { Scoped } from './views.js';
 
@@ -170,7 +173,11 @@ export function completedBuckets(
 
 // ---- The response ----
 
-function workloadOf(s: Scoped, open: readonly ItemRow[]): OverviewResponse['workload'] {
+function workloadOf(
+  s: Scoped,
+  open: readonly ItemRow[],
+  kinds: WaitKinds,
+): OverviewResponse['workload'] {
   const groups = new Map<string | null, OverviewResponse['workload'][number]>();
   for (const i of open) {
     const key = i.epic_id;
@@ -182,11 +189,12 @@ function workloadOf(s: Scoped, open: readonly ItemRow[]): OverviewResponse['work
         title: epic?.title ?? null,
         project: epic?.project_key ?? null,
         total: 0,
-        counts: { review: 0, progress: 0, ready: 0, blocked: 0, planning: 0, inbox: 0 },
+        counts: { review: 0, progress: 0, ready: 0, queued: 0, blocked: 0, planning: 0, inbox: 0 },
       };
       groups.set(key, g);
     }
-    const bucket = (s.index.state(i.id).blocked ? 'blocked' : i.status) as WorkloadBucket;
+    const kind = kinds.kindOf(i.id);
+    const bucket = (kind === 'queued' || kind === 'blocked' ? kind : i.status) as WorkloadBucket;
     if (bucket in g.counts) {
       g.counts[bucket]++;
       g.total++;
@@ -203,7 +211,7 @@ function workloadOf(s: Scoped, open: readonly ItemRow[]): OverviewResponse['work
 export function overviewOf(
   s: Scoped,
   window: OverviewWindow,
-  extra: { tz: string | null; lastBackupAt: string | null },
+  extra: { tz: string | null; lastBackupAt: string | null; parkMaxMs: number },
 ): OverviewResponse {
   const toMs = ms(s.now);
   const span = OVERVIEW_WINDOW_MS[window];
@@ -219,6 +227,8 @@ export function overviewOf(
   const startable = [...readyStates(s.db, s.index, readyIds).values()].filter(
     (x) => x.startable,
   ).length;
+  const kinds = waitKindsOf(s.db, s.now, s.index, extra);
+  const waits = kinds.counts(open.map((i) => i.id));
   return {
     window,
     from: new Date(fromMs).toISOString(),
@@ -232,9 +242,10 @@ export function overviewOf(
     },
     flow: flowOf(s, done, window, fromMs, toMs, extra.tz),
     in_flight: { count: progress + review, progress, review },
-    blocked: open.filter((i) => s.index.state(i.id).blocked).length,
+    queued: waits.queued,
+    blocked: waits.blocked,
     ready: { startable, waiting: readyIds.length - startable },
-    workload: workloadOf(s, open),
+    workload: workloadOf(s, open, kinds),
     last_backup_at: extra.lastBackupAt,
   };
 }
@@ -247,6 +258,7 @@ export function overviewItemsOf(
   s: Scoped,
   metric: OverviewMetric,
   window: OverviewWindow,
+  config: { parkMaxMs: number },
 ): OverviewItemsResponse {
   const toMs = ms(s.now);
   const items = [...s.items.values()];
@@ -273,12 +285,14 @@ export function overviewItemsOf(
       picked = items.filter((i) => isOpenTicket(i) && i.epic_id === null).sort(byPriority);
       break;
   }
+  const kinds = waitKindsOf(s.db, s.now, s.index, config);
   const rows: OverviewItemRow[] = picked.slice(0, OVERVIEW_ITEMS_LIMIT).map((i) => ({
     id: i.id,
     title: i.title,
     type: i.type,
     status: i.status,
     blocked: isOpen(i.status) && s.index.state(i.id).blocked,
+    wait: kinds.kindOf(i.id),
     project: i.project_key,
     epic_id: i.epic_id,
     epic_title: i.epic_id ? (s.items.get(i.epic_id)?.title ?? null) : null,
