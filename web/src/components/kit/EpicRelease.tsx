@@ -28,7 +28,10 @@ export function epicReleaseText(r: EpicRelease): string {
     : `Finish line ${r.finish_line}`;
 }
 
-/** On an epic card, which is one link: plain text, only while bugs are open. */
+/**
+ * On an epic card, which is one link: plain text, only while bugs are open.
+ * No ticket ID joins the link's name; the finish line is its tooltip.
+ */
 export function EpicReleaseNote({ release }: { release: EpicRelease }) {
   if (release.open_bugs === 0) return null;
   return (
@@ -36,8 +39,12 @@ export function EpicReleaseNote({ release }: { release: EpicRelease }) {
       className="src epicrelease"
       data-epic-release={release.finish_line ?? 'none'}
       data-open-bugs={release.open_bugs}
+      title={release.finish_line ? `Finish line ${release.finish_line}` : undefined}
     >
-      <span aria-hidden="true">⚑</span> {epicReleaseText(release)}
+      <span aria-hidden="true">⚑</span>{' '}
+      {release.finish_line === null
+        ? `${NO_FINISH_LINE} · ${openBugs(release.open_bugs)}`
+        : `Finish line ${waitingOnBugsText(release.open_bugs).toLowerCase()}`}
     </span>
   );
 }

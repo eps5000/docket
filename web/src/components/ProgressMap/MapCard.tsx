@@ -169,7 +169,7 @@ export function MapCard({
         )}
       </span>{' '}
       {finish && (
-        <span className="pm-finish" data-finish-line={finish.openBugs}>
+        <span className="pm-finish" data-finish-badge={finish.openBugs}>
           Finish line
           {finish.openBugs > 0 && (
             <>

@@ -89,7 +89,8 @@ describe('the epic card and Pick next epic text', () => {
 
   it('says the finish line is waiting on bugs, in words, inside the one link', () => {
     wrap(<EpicCard epic={card({ finish_line: 'TST-11', open_bugs: 2 })} />);
-    expect(screen.getByText(/Finish line TST-11 · Waiting on 2 bugs/)).toBeTruthy();
+    expect(screen.getByText(/Finish line waiting on 2 bugs/)).toBeTruthy();
+    expect(screen.getByRole('link').textContent).not.toContain('TST-11');
     expect(screen.getAllByRole('link')).toHaveLength(1);
   });
 

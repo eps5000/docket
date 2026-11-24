@@ -499,7 +499,7 @@ describe('Bugs hold the release (decision 64)', () => {
   it('the finish line shows "Waiting on N bugs", and no arrow runs to it from the Bugs column', () => {
     const { container } = view();
     const finish = container.querySelector('[data-pid="RCP-22"]')!;
-    expect(finish.querySelector('[data-finish-line]')!.textContent).toBe(
+    expect(finish.querySelector('[data-finish-badge]')!.textContent).toBe(
       'Finish line · Waiting on 2 bugs',
     );
     expect(finish.className).toContain('held');
@@ -511,11 +511,11 @@ describe('Bugs hold the release (decision 64)', () => {
 
   it('with no bugs open the finish line has no badge, and with no release the map is unchanged', () => {
     const quiet = view({ finishLine: 'RCP-22', openBugs: 0 });
-    expect(quiet.container.querySelector('[data-finish-line]')!.textContent).toBe('Finish line');
+    expect(quiet.container.querySelector('[data-finish-badge]')!.textContent).toBe('Finish line');
     quiet.unmount();
     const plain = view(null);
     expect(plain.container.querySelector('[data-col="bugs"]')).toBeNull();
-    expect(plain.container.querySelector('[data-finish-line]')).toBeNull();
+    expect(plain.container.querySelector('[data-finish-badge]')).toBeNull();
     expect(plain.container.querySelector('[data-col="wave-1"] [data-pid="RCP-17"]')).toBeTruthy();
   });
 
