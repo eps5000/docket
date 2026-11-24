@@ -335,3 +335,89 @@ describe('<ProgressMap>', () => {
     expect(moved).toEqual({ left: 0, top: 60 });
   });
 });
+
+describe('Hide implied links (decision 60)', () => {
+  // RCP-11 → RCP-12 → RCP-22, plus the shortcut RCP-11 → RCP-22 the chain already shows.
+  const shortcut = edge('RCP-11', 'RCP-22');
+  const view = () =>
+    render(
+      <MemoryRouter>
+        <div className="tl">
+          <ProgressMap
+            items={items}
+            outside={outside}
+            links={[...links, shortcut]}
+            outsideTitle="Outside this epic"
+          />
+        </div>
+      </MemoryRouter>,
+    );
+  const arrows = (c: HTMLElement) =>
+    [...c.querySelectorAll('path.pm-edge')].map(
+      (p) => `${p.getAttribute('data-from')}>${p.getAttribute('data-to')}`,
+    );
+  // By label, not role: whole-map role queries are slow in jsdom (B13).
+  const toggle = () => screen.getByLabelText('Hide implied links') as HTMLInputElement;
+  afterEach(() => localStorage.clear());
+
+  it('is on by default: the implied arrow isn’t drawn, and "1 hidden" sits by the switch', () => {
+    const { container } = view();
+    const sw = toggle();
+    expect(sw.getAttribute('role')).toBe('switch');
+    expect(sw.checked).toBe(true);
+    expect(document.getElementById(sw.getAttribute('aria-describedby')!)!.textContent).toBe(
+      'Hides an arrow when a chain of other arrows already connects the same two tickets.',
+    );
+    expect(container.querySelector('.pm-implied')!.getAttribute('title')).toBe(
+      'Hides an arrow when a chain of other arrows already connects the same two tickets.',
+    );
+    expect(arrows(container)).not.toContain('RCP-11>RCP-22');
+    expect(arrows(container)).toContain('RCP-12>RCP-22');
+    expect(screen.getByText('1 hidden')).toBeTruthy();
+  });
+
+  it('turned off, it draws every arrow, drops the count and remembers that in this browser', () => {
+    const first = view();
+    fireEvent.click(toggle());
+    expect(arrows(first.container)).toContain('RCP-11>RCP-22');
+    expect(screen.queryByText(/hidden$/)).toBeNull();
+    expect(localStorage.getItem('docket.mapHideImplied')).toBe('off');
+    first.unmount();
+
+    const again = view();
+    expect(toggle().checked).toBe(false);
+    expect(arrows(again.container)).toContain('RCP-11>RCP-22');
+    // Back on: the default is stored as nothing.
+    fireEvent.click(toggle());
+    expect(arrows(again.container)).not.toContain('RCP-11>RCP-22');
+    expect(localStorage.getItem('docket.mapHideImplied')).toBeNull();
+  });
+
+  it('a hidden arrow isn’t traced on hover; the chain still is', () => {
+    view();
+    fireEvent.mouseEnter(cardOf('RCP-11'));
+    expect(cardOf('RCP-12').className).toContain('hl');
+    expect(cardOf('RCP-22').className).toContain('dim');
+  });
+
+  it('shows no count when nothing is implied, and no switch on a map without arrows', () => {
+    const { unmount } = render(
+      <MemoryRouter>
+        <div className="tl">
+          <ProgressMap items={items} outside={outside} links={links} outsideTitle="Outside" />
+        </div>
+      </MemoryRouter>,
+    );
+    expect(toggle()).toBeTruthy();
+    expect(screen.queryByText(/hidden$/)).toBeNull();
+    unmount();
+    const bare = render(
+      <MemoryRouter>
+        <div className="tl">
+          <ProgressMap items={items} links={[]} outsideTitle="Outside" />
+        </div>
+      </MemoryRouter>,
+    );
+    expect(bare.container.querySelector('[role="switch"]')).toBeNull();
+  });
+});
