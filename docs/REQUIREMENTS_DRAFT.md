@@ -449,6 +449,18 @@ The owner liked Queued as Ready's blue, striped, and applied the same idea to In
 
 UI_SPEC §5 and §6.2.1, spec FR-325–FR-327 and SC-039, and Help (First look around; Blocker rules and dependencies) have the details.
 
+## Owner decision 60 (2026-11-24): the dependency map hides implied links
+
+On the epic dependency map, if C depends on B and B depends on A, a direct arrow from C to A adds nothing, because the chain already shows it. **Draw only the arrows that aren't implied by a longer chain.**
+
+1. **Display only.** The map hides a link when a longer chain of links already connects the same two tickets: the transitive reduction of what's drawn. The links themselves are never changed or deleted. It is worked out from the links currently shown, so if the chain breaks (a middle ticket is canceled, removed or moved out of what the map shows), the direct arrow comes back on its own.
+2. **Hard and soft.** A hard (blocking) link is hidden only when a chain of hard links implies it. A soft link may be hidden by any chain. A hard dependency never disappears behind soft ones.
+3. **The switch.** *Hide implied links*, on by default and remembered per viewer like the map's other view settings. Its description: "Hides an arrow when a chain of other arrows already connects the same two tickets." When links are hidden, a small count such as "3 hidden" sits beside it.
+4. **Nothing else changes.** The item page still lists every dependency, with a quiet "Also implied through GF-2" on a link the map hides. Blocking rules, epic readiness, Pick next epic, the digest and MCP results are unchanged.
+5. **Every map** that draws ticket dependencies: the epic Map tab and Work → Map (the project map).
+
+UI_SPEC §2, §6.3.3 and §6.3.4, spec FR-334–FR-337 and SC-041, and Help (Blocker rules and dependencies) have the details.
+
 ## Deferred choices
 
 Pilot project choice and Jira import strategy are deferred until V1 is ready for real work. Design should still settle the storage layout, supported document preview formats, the exact project gate configuration shape, and the minimum history needed before a velocity forecast is shown. These are implementation choices guided by the owner decisions above, not blockers to selecting a pilot now.

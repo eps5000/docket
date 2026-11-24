@@ -45,7 +45,7 @@ Work has a **Queued** filter and a **Blocked** filter. Overview's In flight card
 
 ## Reading the Dependencies tab
 
-The ticket's **Dependencies** tab shows what it waits on, then the ticket, then what it unblocks. Each node shows its status; a done blocker that still blocks says "done · waiting for merge" or "done · waiting for your verification". "Relates to (doesn't block)" lists links that never block. *See it on the epic map →* opens the whole picture.
+The ticket's **Dependencies** tab shows what it waits on, then the ticket, then what it unblocks. Each node shows its status; a done blocker that still blocks says "done · waiting for merge" or "done · waiting for your verification". "Relates to (doesn't block)" lists links that never block. *See it on the epic map →* opens the whole picture. A link the epic's map hides because a chain already shows it says "Also implied through …" under its node.
 
 Parent epics and "relates" links never block. Blocking works across projects.
 
@@ -54,6 +54,12 @@ Parent epics and "relates" links never block. Blocking works across projects.
 An epic's **Map** tab puts its tickets in waves, left to right: wave 1 can start now, wave 2 after it, and so on. The bar at the top and the card edges use the same colours as the status chips. In progress is Done's green with stripes, because it's on its way to Done, just as Queued is Ready's blue with stripes. Ready work that's waiting its turn is **queued** (a calm dashed outline), and only Ready work whose wait needs attention is red and **blocked**.
 
 Arrows run through the gaps between cards and never across one, so several can share a gap. **Hover or focus a card** to pick out its arrows: they light up and the rest fade. A dashed green arrow is a blocker that's already cleared. Use − / + or **Fit** to zoom, and drag the background to pan.
+
+### Hide implied links
+
+If C waits on B and B waits on A, an arrow straight from A to C adds nothing: the chain already shows it. **Hide implied links**, beside the zoom controls, is on by default and leaves those arrows out. It hides an arrow when a chain of other arrows already connects the same two tickets, and "3 hidden" tells you how many. Turn it off to see every arrow; your browser remembers the choice.
+
+It only changes the picture. The links are still there: the ticket's Dependencies tab lists every one, with a quiet "Also implied through GF-2" on a link the epic's map hides, and blocking works exactly as before. If the chain breaks, because a ticket in the middle is canceled, removed or outside the view, the direct arrow comes back on its own. A blocking link is only ever hidden behind other blocking links, never behind links that don't block.
 
 ## What's holding up a goal?
 

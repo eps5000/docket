@@ -1,8 +1,18 @@
-import { useQueryClient } from '@tanstack/react-query';
+import { useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import type { ItemDetailResponse, LinkEdge, LinkRef } from '@docket/shared';
 import { Button, Callout, Card, EmptyState } from '../../components/kit';
-import { MapCard, cyclePath, cyclesIn, type MapItem } from '../../components/ProgressMap';
+import {
+  MapCard,
+  cyclePath,
+  cyclesIn,
+  impliedOnMap,
+  layoutMap,
+  readHideImplied,
+  throughText,
+  type MapItem,
+} from '../../components/ProgressMap';
 import { apiClient } from '../../app/queryClient';
 import { queryKeys } from '../../lib/api';
 import { paths } from '../../lib/paths';
@@ -18,6 +28,9 @@ import { HelpLink } from '../../help/HelpLink';
  * A done blocker that still blocks says what it waits for ("done · waiting
  * for merge"), with the link's rule in `title`. The merge is agent-reported
  * in V1, and the title says so (Principle III).
+ *
+ * Decision 60: every dependency stays listed; one the epic map hides as
+ * implied gets a quiet "Also implied through GF-2".
  */
 export function DependenciesTab({ data }: { data: ItemDetailResponse }) {
   const { item } = data;
@@ -26,6 +39,7 @@ export function DependenciesTab({ data }: { data: ItemDetailResponse }) {
   const cards = new Map(data.outside.map((o) => [o.id, o as MapItem]));
   const cycles = cyclesIn(data.links).filter((c) => c.includes(item.id));
   const canceled = waits.filter((l) => l.status === 'canceled');
+  const implied = useEpicMapImplied(item.epic);
   const mark = (l: LinkRef) =>
     l.project !== item.project
       ? { label: `${l.project} ↗` }
@@ -34,6 +48,21 @@ export function DependenciesTab({ data }: { data: ItemDetailResponse }) {
         : null;
 
   const node = (l: LinkRef, blocker: boolean) => {
+    const through = implied?.get(l.link_id);
+    if (!through) return nodeCard(l, blocker);
+    return (
+      <div key={l.link_id} data-implied={l.id}>
+        {nodeCard(l, blocker)}
+        <div
+          className="src pm-impliednote"
+          title="The epic map hides this arrow: a chain of other links already connects these tickets."
+        >
+          Also implied through {throughText(through)}
+        </div>
+      </div>
+    );
+  };
+  const nodeCard = (l: LinkRef, blocker: boolean) => {
     const card = cards.get(l.id);
     if (!card) {
       return (
@@ -210,5 +239,24 @@ function RemoveLink({
     <Button size="sm" variant="danger-text" onClick={() => void remove()}>
       {label}
     </Button>
+  );
+}
+
+/**
+ * The links the epic's map hides as implied (decision 60), worked out from the
+ * epic's own map data with the map's own code; null without an epic, while it
+ * loads, or when this viewer shows implied links.
+ */
+function useEpicMapImplied(epic: string | null): Map<string, string[]> | null {
+  const on = readHideImplied();
+  const query = useQuery({
+    queryKey: queryKeys.item(epic ?? ''),
+    queryFn: () => apiClient['items.get']({ params: { id: epic! } }),
+    enabled: on && epic !== null,
+  });
+  const data = query.data;
+  return useMemo(
+    () => (on && data ? impliedOnMap(layoutMap(data.children, data.outside, data.links)) : null),
+    [on, data],
   );
 }

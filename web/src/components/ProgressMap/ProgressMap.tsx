@@ -21,6 +21,9 @@
  * - Critical path (decision 48): with a goal, the chain is outlined and numbered
  *   on its cards, everything else is muted, and the ticket to move next is
  *   scrolled into view. Muted cards keep their text contrast (no opacity).
+ * - Hide implied links (decision 60, implied.ts): on by default and remembered
+ *   per browser; an arrow a longer chain already shows isn't drawn, routed or
+ *   traced, and "n hidden" sits by the switch. The links themselves never change.
  */
 import {
   useCallback,
@@ -36,6 +39,7 @@ import {
 import { STATUS_LABELS, type LinkEdge } from '@docket/shared';
 import { Icon, StatusBar, type StatusBarSegment } from '../kit';
 import { useRenderLimit } from '../../lib/progressive';
+import { HIDE_IMPLIED_HELP, impliedOnMap, useHideImplied } from './implied';
 import { MapCard } from './MapCard';
 import { fitZoom, layoutMap, stepZoom, type MapEdge, type MapItem } from './layout';
 import { planMap, routeMap, type RoutedMap } from './routing';
@@ -121,6 +125,20 @@ export function ProgressMap({
     [items, outside, links, extras],
   );
   const extraIds = useMemo(() => new Set(extras.map((i) => i.id)), [extras]);
+  // Decision 60: arrows a longer chain already shows, from the arrows this map draws.
+  const [hideImplied, setHideImplied] = useHideImplied();
+  const implied = useMemo(
+    () => impliedOnMap(layout, critical ? (id) => critical.linkIds.has(id) : undefined),
+    [layout, critical],
+  );
+  const edges = useMemo(
+    () =>
+      hideImplied && implied.size > 0
+        ? layout.edges.filter((e) => !implied.has(e.link_id))
+        : layout.edges,
+    [hideImplied, implied, layout.edges],
+  );
+  const hiddenCount = hideImplied ? implied.size : 0;
   // A whole workspace on one map (thousands of cards) renders each column's first cards at
   // once and the rest right after (lib/progressive.ts); arrows redraw as cards arrive.
   const limit = useRenderLimit(items.length + outside.length + extras.length);
@@ -172,14 +190,14 @@ export function ProgressMap({
     }
     const plan = planMap(
       out.map((c) => c.cards.map((i) => i.id)),
-      layout.edges.map((e) => ({ id: e.link_id, from: e.from, to: e.to })),
+      edges.map((e) => ({ id: e.link_id, from: e.from, to: e.to })),
     );
     const byId = new Map(out.flatMap((c) => c.cards).map((i) => [i.id, i]));
     return {
       plan,
       list: out.map((c, i) => ({ ...c, cards: plan.columns[i]!.map((id) => byId.get(id)!) })),
     };
-  }, [layout, outsideTitle]);
+  }, [layout, edges, outsideTitle]);
 
   // ---- Measure card heights and route the arrows (unscaled coordinates) ----
   const measure = useCallback(() => {
@@ -203,14 +221,14 @@ export function ProgressMap({
       head,
       rendered: (id) => heights.has(id),
     });
-    const edgeById = new Map(layout.edges.map((e) => [e.link_id, e]));
+    const edgeById = new Map(edges.map((e) => [e.link_id, e]));
     setGeo({
       w: routed.width,
       h: routed.height,
       routed,
       arrows: routed.arrows.map((a) => ({ ...edgeById.get(a.id)!, d: a.d })),
     });
-  }, [cols, layout.edges]);
+  }, [cols, edges]);
 
   // Again when more cards arrive (`limit`), so their arrows are drawn too.
   useLayoutEffect(() => {
@@ -327,12 +345,12 @@ export function ProgressMap({
   const related = useMemo(() => {
     if (!traced || critical) return null;
     const ids = new Set([traced]);
-    for (const e of layout.edges) {
+    for (const e of edges) {
       if (e.from === traced) ids.add(e.to);
       if (e.to === traced) ids.add(e.from);
     }
     return ids;
-  }, [traced, layout.edges, critical]);
+  }, [traced, edges, critical]);
   const tracedOf = (id: string) => (related ? (related.has(id) ? 'on' : 'dim') : null);
   const criticalOf = (id: string) => {
     if (!critical) return null;
@@ -363,6 +381,7 @@ export function ProgressMap({
       ]
     : geo.arrows;
   const pct = Math.round(z * 100);
+  const hideId = `pm-hide-${uid}`;
 
   return (
     <div className={`pm-box${cues.pannable ? ' pannable' : ''}`} data-progress-map="">
@@ -391,6 +410,28 @@ export function ProgressMap({
 
       <div className="pm-tools">
         <span className="src pm-hint">Drag to pan</span>
+        {layout.edges.length > 0 && (
+          <span className="pm-implied" title={HIDE_IMPLIED_HELP}>
+            <input
+              id={hideId}
+              type="checkbox"
+              role="switch"
+              checked={hideImplied}
+              aria-checked={hideImplied}
+              aria-describedby={`${hideId}-help`}
+              onChange={(e) => setHideImplied(e.target.checked)}
+            />
+            <label htmlFor={hideId}>Hide implied links</label>
+            <span id={`${hideId}-help`} className="sr">
+              {HIDE_IMPLIED_HELP}
+            </span>
+            {hiddenCount > 0 && (
+              <span className="src" data-implied-hidden={hiddenCount}>
+                {hiddenCount} hidden
+              </span>
+            )}
+          </span>
+        )}
         <div className="seg" role="group" aria-label="Zoom">
           <button
             type="button"

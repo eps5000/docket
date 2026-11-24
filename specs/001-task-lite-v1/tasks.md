@@ -750,13 +750,18 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T331 [US4] Known gaps on the item page and in the answer dialog, *Approve gaps and move to Ready*, the readiness line on epic cards, the epic page and Pick next epic's Not ready to start group.
 - [x] T332 [US4] Tests: the start check with each ticket status, canceled and done tickets, an empty epic, an In progress epic and its resume, approval through the question form and the item page, rejection, the implementer's context, Pick next epic, the digest flag, token budgets, e2e and axe in both themes at 1024 px and 1440 x 900.
 
-## Phase 54: All git reading moves to the host helper (B76)
+## Phase 54: The dependency map hides implied links (owner decision 60)
 
-- [x] T333 [US18] Spec plus code in one PR: BUILD_SPEC §5.16, §5.21, §5.32, §5.35 and §5.39; UI_SPEC §6.3 and §6.7; Help (shared changes and conflicts, workspaces and pruning); the helper's README.
-- [x] T334 [US18] `tools/docket-sync/sources/git.mjs`: the radar's trial merges, branch discovery, commit activity, the worktree check and the install manifest on main, read-only and bounded, with conflicting file names as the only file names sent (capped). The runner takes a source's smaller `batchSize`; `manage.ps1` installs the file.
-- [x] T335 [US18] Docket runs no git: `domain/host-git.ts` stores the passes; the radar, `run-activity.ts`, `worktree-check.ts`, the worktree cleanup view and `install-main.ts` judge from the facts; `git-read.ts`, the container worktree scan and git in the image are gone. "Waiting for the host helper" and stale states on the radar card, the Git checks card and the Worktrees view; `repo_path` is a host path.
-- [x] T336 [US18] Tests: the helper on fixture repositories with linked worktrees (each read, `.git` hashed before and after, bounds, an incomplete pass, the file-name cap, no file names outside conflicts); the ingest of each fact, findings and clearing from facts, waiting and stale, both upgrade orders, a guard that `server/src` starts no child process; e2e and axe in both themes for the waiting and stale states.
+- [x] T333 [US4] Spec plus code in one PR: decision 60 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; UI_SPEC §2, §6.3.3 and §6.3.4; spec FR-334–FR-337 and SC-041; Help (Blocker rules and dependencies).
+- [x] T334 [US4] `components/ProgressMap/implied.ts`: the reduction over the drawn arrows (hard only behind hard, canceled tickets carry no chain, cycles and critical-path arrows always drawn), the *Hide implied links* switch with "n hidden" and `docket.mapHideImplied`, and the Dependencies tab's "Also implied through …" from the epic's map data.
+- [x] T335 [US4] Tests: a chain, a diamond, a cycle, hard behind soft, soft behind hard, a middle ticket removed or canceled, every connection kept; the switch's default, persistence and count; the item-page note; e2e and axe in both themes with screenshots at 1440 x 900 and 1024 px.
 
+## Phase 55: All git reading moves to the host helper (B76)
+
+- [x] T336 [US18] Spec plus code in one PR: BUILD_SPEC §5.16, §5.21, §5.32, §5.35 and §5.39; UI_SPEC §6.3 and §6.7; Help (shared changes and conflicts, workspaces and pruning); the helper's README.
+- [x] T337 [US18] `tools/docket-sync/sources/git.mjs`: the radar's trial merges, branch discovery, commit activity, the worktree check and the install manifest on main, read-only and bounded, with conflicting file names as the only file names sent (capped). The runner takes a source's smaller `batchSize`; `manage.ps1` installs the file.
+- [x] T338 [US18] Docket runs no git: `domain/host-git.ts` stores the passes; the radar, `run-activity.ts`, `worktree-check.ts`, the worktree cleanup view and `install-main.ts` judge from the facts; `git-read.ts`, the container worktree scan and git in the image are gone. "Waiting for the host helper" and stale states on the radar card, the Git checks card and the Worktrees view; `repo_path` is a host path.
+- [x] T339 [US18] Tests: the helper on fixture repositories with linked worktrees (each read, `.git` hashed before and after, bounds, an incomplete pass, the file-name cap, no file names outside conflicts); the ingest of each fact, findings and clearing from facts, waiting and stale, both upgrade orders, a guard that `server/src` starts no child process; e2e and axe in both themes for the waiting and stale states.
 
 ## How to run the build
 
@@ -880,7 +885,8 @@ Open a PR titled "<Bn>: <phase name>" with the checkpoint evidence. Do not queue
 | 51 Queued instead of Blocked | B73 (decision 57) |
 | 52 Status colours that show progress | B75 (decision 59) |
 | 53 An epic starts only when its tickets are ready | B74 (decision 58) |
-| 54 All git reading moves to the host helper | B76 |
+| 54 The dependency map hides implied links | B77 (decision 60) |
+| 55 All git reading moves to the host helper | B76 |
 
 **Within a phase:** tests (failing) → services → replace stubs or fill handlers → fill screens → checkpoint.
 

@@ -130,6 +130,8 @@ const edges = (page: Page) => map(page).locator('path.pm-edge');
 
 async function openMap(page: Page) {
   await useManyWaves(page);
+  // Decision 60 would hide 1 → 11 and 2 → 8 (chains already show them); route all 22 arrows here.
+  await page.context().addInitScript(() => localStorage.setItem('docket.mapHideImplied', 'off'));
   await page.goto('/items/RCP-1');
   await page.getByRole('tab', { name: /^Map/ }).click();
   await expect(edges(page)).toHaveCount(LINKS.length);
