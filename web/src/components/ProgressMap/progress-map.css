@@ -92,6 +92,11 @@
   background-image: radial-gradient(var(--line-2) 1px, transparent 1.2px);
   background-size: 18px 18px;
 }
+/* Fit width (decision 63): the vertical scrollbar's room is kept, so it appearing can't
+   narrow the view, shrink the map and make it disappear again. */
+.tl .pm-canvas.fit {
+  scrollbar-gutter: stable;
+}
 .tl .pm-canvas.dragging {
   cursor: grabbing;
   user-select: none;

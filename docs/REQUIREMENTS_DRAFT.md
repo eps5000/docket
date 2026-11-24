@@ -461,6 +461,18 @@ On the epic dependency map, if C depends on B and B depends on A, a direct arrow
 
 UI_SPEC §2, §6.3.3 and §6.3.4, spec FR-334–FR-337 and SC-041, and Help (Blocker rules and dependencies) have the details.
 
+## Owner decision 63 (2026-11-24): Fit fits the map's width
+
+The owner uses the dependency map's **Fit** button a lot. Maps have few waves but many tickets in a wave (one has 5 waves and 12 tickets in one wave), so fitting the whole map made every card tiny, and every Fit needed zooming again.
+
+1. **Fit fits the width.** The button, now **Fit width**, scales the map so all its waves fit the width of the view and scrolls to the top. The map then scrolls down for the tickets below.
+2. **Never above 100%,** so a narrow map isn't blown up past its normal size.
+3. **A floor:** if even the width can't fit at the smallest readable zoom (50%, the smallest zoom step), the map stays at 50% and scrolls both ways.
+4. **Every map with Fit:** the epic Map tab and Work → Map.
+5. **Nothing else changes:** the zoom buttons, the keyboard, *Hide implied links*, focus and announcements. The button's name and tooltip say what it does. Scrolling down works with the mouse wheel, a trackpad, the keyboard and touch, without fighting the map's own drag to pan.
+
+UI_SPEC §6.3.4 and §8, spec FR-338–FR-340 and SC-042, and Help (Blocker rules and dependencies) have the details.
+
 ## Owner decision 65 (2026-11-24): tickets agents create arrive shaped or ask for a planner
 
 A producer created a story mid-epic with only a short description: no outcome, no acceptance criteria, no links and no shared-changes declaration. The owner wanted to approve it and moved it to Planning. **Move to Ready** then failed on "agents haven't declared the shared parts", and the owner had no way forward from that screen.
@@ -472,7 +484,7 @@ A producer created a story mid-epic with only a short description: no outcome, n
 5. **No new MCP tool.** The text-only tool list is near its budget, so `create_item` gains one optional field and `get_digest` one section.
 6. **With the triage of tickets added mid-epic** (B79), a mid-flight story still needs the owner's add, defer or drop decision first, then shaping.
 
-BUILD_SPEC §5.42, MCP_SPEC §4, §5.2, §5.3 and §6, UI_SPEC §6.3 and §6.3.4, spec FR-338–FR-343 and SC-042, Help (Shared changes and conflicts) and the producer, planner and worker skills have the details.
+BUILD_SPEC §5.42, MCP_SPEC §4, §5.2, §5.3 and §6, UI_SPEC §6.3 and §6.3.4, spec FR-341–FR-346 and SC-043, Help (Shared changes and conflicts) and the producer, planner and worker skills have the details.
 
 ## Deferred choices
 
