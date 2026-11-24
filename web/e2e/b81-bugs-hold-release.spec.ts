@@ -132,7 +132,7 @@ for (const size of SIZES) {
     await page.setViewportSize({ width: size.width, height: size.height });
     for (const [name, path] of [
       ['map', '/items/RCP-1?tab=map'],
-      ['epic', '/items/RCP-1'],
+      ['epic', '/items/RCP-1?tab=details'],
       ['release', `/items/${release}`],
       ['pick', '/projects/RCP/next-epic'],
     ] as const) {
@@ -142,6 +142,11 @@ for (const size of SIZES) {
         size.width,
       );
       await shots(page, `${name}-${size.name}`);
+      if (name === 'map') {
+        await map(page).locator('.pm-col').last().scrollIntoViewIfNeeded();
+        await expect(map(page).locator('.pm-col').last()).toBeInViewport();
+        await shots(page, `map-release-column-${size.name}`);
+      }
     }
   });
 }
