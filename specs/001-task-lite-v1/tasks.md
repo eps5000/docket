@@ -710,7 +710,6 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T308 [US2] Owner API and UI: Pause and Resume with Undo, the banner on Overview, Work and the item page, and the Paused marker in pickers.
 - [x] T309 [US18] Tests: authority, refused claims, allowed writes, parked and open runs, alerts and aging, a blocker clearing during a pause, resume events, Undo, restart, two projects, budgets, and e2e with axe in both themes.
 
-
 ## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.
