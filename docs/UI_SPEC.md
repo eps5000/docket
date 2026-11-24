@@ -161,7 +161,7 @@ Copy the prototype's `.tl` token block. Light and dark values below; the prototy
 | `ViewTabs` | ticket, epic | `tabs[{key, label, count?, dot?}], active` | ARIA tablist. A count is muted text after the label. A dot is 7px, amber or red, with sr-only text. |
 | `TicketCard` | default, Blocked (red left edge), for-you (amber left edge), Queued (dashed `--st-ready` left edge; decision 57), done (+ Archive) | `item` | Shows ID + type icon + priority; title (2–3 lines); epic and labels; chips; the lead's `RunLine` with its age. A parked lead's line says what it waits on: "parked · waiting on the coordinator · claude · orca-w4", or "parked · ready to resume · …". **Unclaimed cards show no run line.** |
 | `ForYouChip` | — | | Amber "For you" with the attention icon: a packet is ready or an agent asked you something. On list rows that have no amber card edge (the epic's Tickets list). |
-| `EpicCard` | default, empty | `epic` | 4px `--t-epic` left edge; title + ID; mini progress bar (done green, active violet); "n/N done · Status · Queued N · Blocked M · N for you" (the wait counts only when either is above 0; decision 57). **Empty** (no tickets; B35): no bar, and "No tickets yet · Status" (for example "No tickets yet · In progress"), never "0/0 done". |
+| `EpicCard` | default, empty | `epic` | 4px `--t-epic` left edge; title + ID; mini progress bar (done green, in progress hatched green; decision 59); "n/N done · Status · Queued N · Blocked M · N for you" (the wait counts only when either is above 0; decision 57). **Empty** (no tickets; B35): no bar, and "No tickets yet · Status" (for example "No tickets yet · In progress"), never "0/0 done". |
 | `ProgressMap` | epic, label, work | `items, scopeTitle` | §6.3.4. |
 | `HandoffPacket` | live round, past round | `packet, verdicts` | §6.4. |
 | `Toast` | info, with Undo | `message, onUndo?` | Bottom right. 3.2 s, or 6 s with Undo. `role=status`. |
@@ -188,9 +188,9 @@ Copy the prototype's `.tl` token block. Light and dark values below; the prototy
 | Status | Colour | Solid (light / dark) | In bars |
 |---|---|---|---|
 | Inbox | gray | #8a8c91 / #c5c7ce | solid |
-| Planning | orange | #cf6a07 / #f8a60d | solid |
+| Planning | violet (decision 59) | #9d68fb / #7361ff | solid |
 | Ready | blue | #0f65af / #35c3fc | solid |
-| In progress | violet | #9d68fb / #7361ff | solid |
+| In progress (decision 59) | Done's green, on its way to Done | #136c3f / #5befa0 | hatched (dashed on chips; a hatched Map edge) |
 | Review | magenta | #b51c6e / #ea509e | solid |
 | Done | green | #136c3f / #5befa0 | solid |
 | Queued (a state; decision 57) | Ready's blue, calm | #0f65af / #35c3fc | hatched (dashed on chips and edges) |
@@ -198,6 +198,8 @@ Copy the prototype's `.tl` token block. Light and dark values below; the prototy
 | Canceled | dark gray, with strikethrough | #303337 / #727070 | hatched |
 
 **One status colour system (B47).** Each status has three tokens in `tokens.css`: `--st-<status>` (solid: bars, legend swatches, card edges), `--st-<status>-soft` (chip fill) and `--st-<status>-text` (chip text). Chips, the Map's bar and legend, epic-card bars, Settings project bars and card edges all use them, and nothing else defines a status colour. A unit test over the real tokens holds, in both themes: every pair of bar colours at least 20 apart in CIEDE2000; at least 12 apart under simulated deuteranopia and protanopia; chip text at least 4.5:1; bars at least 3:1 on the track and the panel; every status at least 14 from the epic type colour. Bars always carry text or an accessible label, so status is never told by colour alone.
+
+**On its way (decisions 57 and 59).** Queued and In progress have no colour of their own: each wears the tokens of the status it is on its way to, Queued Ready's blue and In progress Done's green, and **one pattern** tells them apart: hatched (2px stripes every 4px at -45°) in bars, legend swatches, the Board's column rules and the Map's card edges, and a dashed edge on chips. The kit draws both from one rule with a `--way` colour, so they can't drift apart, and In progress has no `--st-progress` tokens. A hatched bar segment is at least 8px wide, so a whole stripe always shows. Planning's old orange is retired and nothing uses it. The palette test holds the B47 distances over the seven statuses with their own colour, and checks that the shared hatch and dash rules use the right tokens, Done's text on its chip at 4.5:1 and its stripes at 3:1 on the track and the panel in both themes. Words carry the difference everywhere: the chip, column heading or card says In progress or Done, and Done cards on the Map are also green-filled with ✓.
 
 **Queued, Blocked or Held (decision 57; BUILD_SPEC §5.40).** An item with an open blocker shows one chip (`WaitChip`, `data-wait`) next to its status, from the server's one classification. Each has a glyph and words, never colour alone:
 
@@ -384,7 +386,7 @@ Definitions are in BUILD_SPEC §5.34. **With the source off none of this renders
 - **A label filter** shows a callout: "Filtered by #label. Open the label page for its brief, progress by epic and bulk actions."
 
 #### 6.2.1 Board
-- **Columns:** six, `repeat(6, minmax(176px,1fr))`, scrolling sideways when needed: Inbox · Planning ("Yours") · Ready · In progress · Review ("Your human review") · Done. Each header shows its name and count.
+- **Columns:** six, `repeat(6, minmax(176px,1fr))`, scrolling sideways when needed: Inbox · Planning ("Yours") · Ready · In progress · Review ("Your human review") · Done. Each header shows its name and count, under a 4px status rule in the bar colours (decision 59: In progress hatched green, Canceled hatched gray); the heading says the status, so the rule is `aria-hidden`.
 - **Ready** splits into *Startable · n*, then *Waiting · n* (decision 48), by the server's `ready_state`. Waiting items show as red ID chips, each followed by what it waits on in words ("waits on RCP-12"). "Waiting · n · Show" is **one button** across the column (at least 32px tall, `aria-expanded`, a chevron), which expands them to cards. A card waiting on something other than a blocker says so.
 - **Run line:** each claimed card ends with the lead's `RunLine` (§5): "parked · waiting on the coordinator · claude · orca-w4", in the parked style.
 - **Review cards** with a ready packet open the packet screen directly (`title` "Open the handoff packet"). Other cards open the item.

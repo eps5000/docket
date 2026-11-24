@@ -51,7 +51,7 @@ Parent epics and "relates" links never block. Blocking works across projects.
 
 ## Reading the map
 
-An epic's **Map** tab puts its tickets in waves, left to right: wave 1 can start now, wave 2 after it, and so on. The bar at the top and the card edges use the same colours as the status chips. Ready work that's waiting its turn is **queued** (a calm dashed outline), and only Ready work whose wait needs attention is red and **blocked**.
+An epic's **Map** tab puts its tickets in waves, left to right: wave 1 can start now, wave 2 after it, and so on. The bar at the top and the card edges use the same colours as the status chips. In progress is Done's green with stripes, because it's on its way to Done, just as Queued is Ready's blue with stripes. Ready work that's waiting its turn is **queued** (a calm dashed outline), and only Ready work whose wait needs attention is red and **blocked**.
 
 Arrows run through the gaps between cards and never across one, so several can share a gap. **Hover or focus a card** to pick out its arrows: they light up and the rest fade. A dashed green arrow is a blocker that's already cleared. Use − / + or **Fit** to zoom, and drag the background to pan.
 

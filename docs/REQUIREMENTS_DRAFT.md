@@ -425,6 +425,18 @@ On a healthy epic, most Ready tickets showed red **Blocked** only because they w
 
 BUILD_SPEC §5.40, MCP_SPEC §5.2, UI_SPEC §5, §6.1, §6.1b, §6.2 and §6.3, spec FR-319–FR-324 and SC-038, and Help (Blocker rules and dependencies) have the details.
 
+## Owner decision 59 (2026-11-24): status colours that show progress
+
+The owner liked Queued as Ready's blue, striped, and applied the same idea to In progress. **A status on its way to the next one wears that one's colour, striped.**
+
+1. **Planning** takes the violet In progress used.
+2. **In progress** becomes Done's green, striped, in the same pattern as Queued: Queued is on its way to Ready, and In progress is on its way to Done.
+3. **Everything else stays as it is.** Planning's orange is retired, and nothing else uses it.
+4. **Everywhere at once, from the shared status tokens (B47) and one stripe pattern:** chips, the Board's columns, the Map's bar, legend and card edges, workload bars, epic cards, Pick next epic, Overview, the daily brief and charts.
+5. **Never colour alone.** In progress and Done are told apart by the stripes plus their words. Text and stripes keep their contrast in both themes, and a striped segment keeps a minimum width so its stripes stay visible.
+
+UI_SPEC §5 and §6.2.1, spec FR-325–FR-327 and SC-039, and Help (First look around; Blocker rules and dependencies) have the details.
+
 ## Deferred choices
 
 Pilot project choice and Jira import strategy are deferred until V1 is ready for real work. Design should still settle the storage layout, supported document preview formats, the exact project gate configuration shape, and the minimum history needed before a velocity forecast is shown. These are implementation choices guided by the owner decisions above, not blockers to selecting a pilot now.

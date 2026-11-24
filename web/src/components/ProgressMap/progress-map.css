@@ -300,8 +300,23 @@
 .tl .pm-node.ps-review {
   --sc: var(--st-review);
 }
+/*
+ * Decision 59: In progress is on its way to Done, so its edge is Done's colour, hatched like
+ * the bar. The stripes sit over the left border, whose own colour shows between them.
+ */
 .tl .pm-node.ps-progress {
-  --sc: var(--st-progress);
+  --sc: var(--panel-2);
+}
+.tl .pm-node.ps-progress::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  left: -4px;
+  width: 4px;
+  border-radius: 8px 0 0 8px;
+  background: repeating-linear-gradient(-45deg, var(--st-done) 0 2px, transparent 2px 4px);
+  pointer-events: none;
 }
 .tl .pm-node.ps-ready {
   --sc: var(--st-ready);
