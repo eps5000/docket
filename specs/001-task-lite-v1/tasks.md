@@ -737,12 +737,26 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T324 [US4] The `--st-queued` token, `WaitChip` on cards, the list, the item page and the epic's tickets, the Board's Waiting list, the Map bar, legend and cards, Overview's In flight card, the brief, Pick next epic and the critical path list.
 - [x] T325 [US4] Tests: each Blocked reason against Queued, chains, loops, canceled blockers, a held decision, a paused project, the nearest-blocker text, filters and counts agreeing across views, no colour-only status, e2e and axe in both themes at 1024 px and 1440 x 900 on stress data.
 
-## Phase 52: All git reading moves to the host helper (B76)
+## Phase 52: Status colours that show progress (owner decision 59)
 
-- [x] T326 [US18] Spec plus code in one PR: BUILD_SPEC §5.16, §5.21, §5.32, §5.35 and §5.39; UI_SPEC §6.3 and §6.7; Help (shared changes and conflicts, workspaces and pruning); the helper's README.
-- [x] T327 [US18] `tools/docket-sync/sources/git.mjs`: the radar's trial merges, branch discovery, commit activity, the worktree check and the install manifest on main, read-only and bounded, with conflicting file names as the only file names sent (capped). The runner takes a source's smaller `batchSize`; `manage.ps1` installs the file.
-- [x] T328 [US18] Docket runs no git: `domain/host-git.ts` stores the passes; the radar, `run-activity.ts`, `worktree-check.ts`, the worktree cleanup view and `install-main.ts` judge from the facts; `git-read.ts`, the container worktree scan and git in the image are gone. "Waiting for the host helper" and stale states on the radar card, the Git checks card and the Worktrees view; `repo_path` is a host path.
-- [x] T329 [US18] Tests: the helper on fixture repositories with linked worktrees (each read, `.git` hashed before and after, bounds, an incomplete pass, the file-name cap, no file names outside conflicts); the ingest of each fact, findings and clearing from facts, waiting and stale, both upgrade orders, a guard that `server/src` starts no child process; e2e and axe in both themes for the waiting and stale states.
+- [x] T326 [US2] Spec plus code in one PR: decision 59 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; UI_SPEC §5 and §6.2.1; UI_DESIGN; spec FR-325–FR-327 and SC-039; Help.
+- [x] T327 [US2] Planning takes the violet tokens; In progress drops its own and shares Queued's hatch and dash rule in Done's tokens; the Map's hatched In progress edge; the Board's column status rules; a minimum width for hatched bar segments.
+- [x] T328 [US2] Tests: the palette test over the seven own colours, the shared rule, contrast and minimum width, the retired orange; e2e and axe in both themes, with screenshots of the Board, Map, workload bars and chips at 1440 x 900 and 1024 px.
+
+## Phase 53: An epic starts only when its tickets are ready (owner decision 58)
+
+- [x] T329 [US4] Spec plus code in one PR: decision 58 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.41; MCP_SPEC §5.2, §5.3, §5.4 and §6; UI_SPEC §5, §6.2.5 and §6.3; spec FR-328–FR-333 and SC-040; Help; the producer, planner and worker skills.
+- [x] T330 [US4] Migration 0028 (`items.known_gaps`); `domain/epic-readiness.ts`: `update_item known_gaps`, the refusal that asks the owner through the question form, approval from the answer and the item page as an owner decision, the `epic_not_ready` check on `claim_lead` and `set_status`, and one readiness rule for Pick next epic, epic cards, the epic page and `get_digest`.
+- [x] T331 [US4] Known gaps on the item page and in the answer dialog, *Approve gaps and move to Ready*, the readiness line on epic cards, the epic page and Pick next epic's Not ready to start group.
+- [x] T332 [US4] Tests: the start check with each ticket status, canceled and done tickets, an empty epic, an In progress epic and its resume, approval through the question form and the item page, rejection, the implementer's context, Pick next epic, the digest flag, token budgets, e2e and axe in both themes at 1024 px and 1440 x 900.
+
+## Phase 54: All git reading moves to the host helper (B76)
+
+- [x] T333 [US18] Spec plus code in one PR: BUILD_SPEC §5.16, §5.21, §5.32, §5.35 and §5.39; UI_SPEC §6.3 and §6.7; Help (shared changes and conflicts, workspaces and pruning); the helper's README.
+- [x] T334 [US18] `tools/docket-sync/sources/git.mjs`: the radar's trial merges, branch discovery, commit activity, the worktree check and the install manifest on main, read-only and bounded, with conflicting file names as the only file names sent (capped). The runner takes a source's smaller `batchSize`; `manage.ps1` installs the file.
+- [x] T335 [US18] Docket runs no git: `domain/host-git.ts` stores the passes; the radar, `run-activity.ts`, `worktree-check.ts`, the worktree cleanup view and `install-main.ts` judge from the facts; `git-read.ts`, the container worktree scan and git in the image are gone. "Waiting for the host helper" and stale states on the radar card, the Git checks card and the Worktrees view; `repo_path` is a host path.
+- [x] T336 [US18] Tests: the helper on fixture repositories with linked worktrees (each read, `.git` hashed before and after, bounds, an incomplete pass, the file-name cap, no file names outside conflicts); the ingest of each fact, findings and clearing from facts, waiting and stale, both upgrade orders, a guard that `server/src` starts no child process; e2e and axe in both themes for the waiting and stale states.
+
 
 ## How to run the build
 
@@ -864,7 +878,9 @@ Open a PR titled "<Bn>: <phase name>" with the checkpoint evidence. Do not queue
 | 49 Pick next epic | B70 (decision 54) |
 | 50 Projects pull their own Docket updates | B72 (decision 56) |
 | 51 Queued instead of Blocked | B73 (decision 57) |
-| 52 All git reading moves to the host helper | B76 |
+| 52 Status colours that show progress | B75 (decision 59) |
+| 53 An epic starts only when its tickets are ready | B74 (decision 58) |
+| 54 All git reading moves to the host helper | B76 |
 
 **Within a phase:** tests (failing) → services → replace stubs or fill handlers → fill screens → checkpoint.
 

@@ -18,6 +18,7 @@ import { Priority, RunLine, TypeIcon, parkedReason } from './Badges';
 import { Label } from './Label';
 import { StatusBar } from './StatusBar';
 import { EpicDepsNote } from './EpicDeps';
+import { EpicReadinessNote } from './EpicReadiness';
 
 /** `codex · orca-w1`. */
 export function leadName(lead: { client: string; label: string | null }): string {
@@ -262,6 +263,8 @@ export function EpicCard({
         )}
       </span>
       {epic.waits_on && <EpicDepsNote waits={epic.waits_on} namesId={depsId} />}
+      {/* Decision 58: Not ready to start, or Started with N unshaped tickets. */}
+      {epic.readiness && <EpicReadinessNote readiness={epic.readiness} />}
     </Link>
   );
 }

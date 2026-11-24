@@ -32,6 +32,7 @@ import { input, jsonResponse, noInput, scopeSchema } from './common.js';
 import { onboardingSessionSchema } from './onboarding.js';
 import { WORK_CHECKS, WORK_QUICK, WORK_SHOWS } from '../work-filter.js';
 import { itemWaitSchema } from '../wait-kind.js';
+import { epicReadinessSchema } from '../epic-readiness.js';
 import { problemAckSchema, problemExplanationSchema, resolutionRowSchema } from './problems.js';
 import {
   designReviewRowSchema,
@@ -499,6 +500,8 @@ export const itemDetailResponse = jsonResponse({
   epic_waits: z.array(epicWaitSchema).optional(),
   /** Decision 57 (optional): Queued, Blocked or Held while it has an open blocker; else absent. */
   item_wait: itemWaitSchema.optional(),
+  /** Decision 58 (optional): an epic's Inbox or Planning tickets, before or after it started. */
+  epic_readiness: epicReadinessSchema.optional(),
 });
 export type ItemDetailResponse = z.infer<typeof itemDetailResponse>;
 

@@ -32,6 +32,11 @@ export const questionFormSchema = z.object({
   ),
   recommendation_reason: z.string(),
   details: z.string().nullable(),
+  /**
+   * Decision 58: Docket asked this for a Planning ticket with open known gaps.
+   * Picking "Approve with these gaps" approves them and moves it to Ready.
+   */
+  ready_with_gaps: z.object({ gaps: z.array(z.string()) }).optional(),
 });
 export type QuestionForm = z.infer<typeof questionFormSchema>;
 

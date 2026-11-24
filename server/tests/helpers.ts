@@ -163,6 +163,8 @@ export const COLUMNS_0010 = [
   // 0023 (decision 48): where a split ticket came from, and a packet whose criteria moved.
   'split_from',
   'criteria_changed_at',
+  // 0028 (decision 58): a ticket's known gaps.
+  'known_gaps',
 ] as const;
 
 /** Rows without the columns 0010 added to `items`, `projects` and `packets`. */

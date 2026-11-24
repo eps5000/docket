@@ -8,6 +8,7 @@ import {
   Button,
   Chip,
   EpicDepsLine,
+  EpicReadinessLine,
   Label,
   Provenance,
   Skeleton,
@@ -80,14 +81,23 @@ export function ItemHeader({ id, data }: { id: string; data?: ItemDetailResponse
       setBusy(false);
     }
   };
+  // Decision 58: open known gaps move to Ready only with your approval, recorded as a decision.
+  const gapsToApprove =
+    !!item.known_gaps && item.known_gaps.open > 0 && item.known_gaps.approved === null;
   const move = (status: 'planning' | 'ready') =>
     act(
       () =>
         apiClient['items.patch']({
           params: { id: item.id },
-          body: { expected_version: item.version, status },
+          body: {
+            expected_version: item.version,
+            status,
+            ...(status === 'ready' && gapsToApprove ? { approve_gaps: true as const } : {}),
+          },
         }),
-      `Moved ${item.id} to ${status === 'ready' ? 'Ready' : 'Planning'}.`,
+      status === 'ready' && gapsToApprove
+        ? `Approved ${item.id}'s known gaps and moved it to Ready.`
+        : `Moved ${item.id} to ${status === 'ready' ? 'Ready' : 'Planning'}.`,
     );
   const setPriority = (priority: Priority) =>
     act(
@@ -193,7 +203,7 @@ export function ItemHeader({ id, data }: { id: string; data?: ItemDetailResponse
                 disabled={busy}
                 onClick={() => void move('ready')}
               >
-                Move to Ready
+                {gapsToApprove ? 'Approve gaps and move to Ready' : 'Move to Ready'}
               </Button>
               <span className="src">
                 {epic
@@ -223,6 +233,7 @@ export function ItemHeader({ id, data }: { id: string; data?: ItemDetailResponse
           {open && data && <CancelMenu data={data} />}
         </div>
         {epic && data?.epic_waits && <EpicDepsLine waits={data.epic_waits} />}
+        {epic && data?.epic_readiness && <EpicReadinessLine readiness={data.epic_readiness} />}
       </div>
     </div>
   );

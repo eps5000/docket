@@ -17,6 +17,7 @@ import {
   waitingOnSchema,
 } from '../mcp/types.js';
 import { itemWaitSchema } from '../wait-kind.js';
+import { epicReadinessSchema } from '../epic-readiness.js';
 
 /** Decision 53: the owner's pause on a project, read from its active pause decision. */
 export const projectPauseSchema = z.object({
@@ -145,6 +146,8 @@ export const epicCardSchema = itemSummarySchema.extend({
   }),
   /** Decision 54: what it waits on; empty means none. Absent unless it's open with open tickets. */
   waits_on: z.array(epicWaitSchema).optional(),
+  /** Decision 58: Not ready to start, or Started with N unshaped tickets; absent when all are Ready. */
+  readiness: epicReadinessSchema.optional(),
 });
 export type EpicCard = z.infer<typeof epicCardSchema>;
 

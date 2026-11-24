@@ -238,13 +238,24 @@ test('bars, legend, card edges and chips use the same status tokens', async ({
         return getComputedStyle(probe).color;
       };
       const wrong: string[] = [];
-      const statuses = ['done', 'review', 'progress', 'ready', 'blocked', 'planning', 'inbox'];
+      // Decision 59: In progress has no colour of its own; it is Done's, hatched (below).
+      const statuses = ['done', 'review', 'ready', 'blocked', 'planning', 'inbox'];
       for (const s of statuses) {
         for (const el of root.querySelectorAll(`.sb-${s}`)) {
           if (getComputedStyle(el).backgroundColor !== resolve(`--st-${s}`)) wrong.push(`bar ${s}`);
         }
       }
-      for (const s of ['done', 'review', 'progress', 'ready', 'planning', 'inbox']) {
+      const done = resolve('--st-done');
+      const hatchedDone = (image: string) =>
+        image.includes('repeating-linear-gradient') && image.includes(done);
+      for (const el of root.querySelectorAll('.sb-progress')) {
+        if (!hatchedDone(getComputedStyle(el).backgroundImage)) wrong.push('bar progress');
+      }
+      for (const el of root.querySelectorAll('.pm-node.ps-progress')) {
+        if (!hatchedDone(getComputedStyle(el, '::before').backgroundImage))
+          wrong.push('edge progress');
+      }
+      for (const s of ['done', 'review', 'ready', 'planning', 'inbox']) {
         for (const el of root.querySelectorAll<HTMLElement>(`.pm-node.ps-${s}:not(.blk)`)) {
           if (
             getComputedStyle(el).borderLeftColor !== resolve(`--st-${s}`) &&
