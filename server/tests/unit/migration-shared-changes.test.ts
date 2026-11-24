@@ -20,7 +20,14 @@ import {
   openDb,
   type Db,
 } from '../../src/db/client.js';
-import { insertItem, insertProject, tempDir, without0010, type TempDir } from '../helpers.js';
+import {
+  before0032,
+  insertItem,
+  insertProject,
+  tempDir,
+  without0010,
+  type TempDir,
+} from '../helpers.js';
 
 const ts = '2026-11-19T00:00:00.000Z';
 const BEFORE = [
@@ -125,10 +132,11 @@ describe('0010_shared_changes', () => {
     const migrated = openDb(copy);
     try {
       migrateDb(migrated);
-      expect(migrationStatus(migrated)).toEqual({ current: true, applied: 32, expected: 32 });
+      expect(migrationStatus(migrated)).toEqual({ current: true, applied: 33, expected: 33 });
 
-      // Every existing row is unchanged, plus the new columns at their defaults.
-      expect(all(migrated, 'items')).toEqual(
+      // Every existing row is unchanged, plus the new columns at their defaults (0032, decision
+      // 67, made the Tasks Implementation, inferred: before0032 undoes that).
+      expect(all(migrated, 'items').map(before0032)).toEqual(
         // 0011_radar_branches (B40) adds the reported and discovered branch columns.
         before.items!.map((r) => ({
           ...r,
@@ -326,7 +334,7 @@ describe('0010_shared_changes', () => {
 
       // Migrating again is a no-op.
       migrateDb(migrated);
-      expect(migrationStatus(migrated).applied).toBe(32);
+      expect(migrationStatus(migrated).applied).toBe(33);
     } finally {
       migrated.sqlite.close();
     }

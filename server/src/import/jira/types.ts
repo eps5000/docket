@@ -106,6 +106,8 @@ export interface PlannedAttachment {
 export interface PlannedItem {
   jira_key: string;
   type: ItemType;
+  /** Decision 67: Story, Task and other Jira types become Implementation, marked inferred. */
+  type_inferred: boolean;
   title: string;
   description_md: string;
   status: ImportStatus;

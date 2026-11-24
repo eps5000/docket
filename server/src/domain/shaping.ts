@@ -56,6 +56,7 @@ export function storedShaping(raw: unknown): StoredShaping | null {
 
 interface ShapeFacts {
   id: string;
+  type: string;
   outcome_md: string;
   criteria: number;
   declared: number;
@@ -64,10 +65,11 @@ interface ShapeFacts {
 const missingOf = (f: ShapeFacts): ShapingPart[] => [
   ...(f.outcome_md.trim() === '' ? (['outcome'] as const) : []),
   ...(f.criteria === 0 ? (['acceptance'] as const) : []),
-  ...(f.declared === 0 ? (['shared_changes'] as const) : []),
+  // Decision 67: an Exploration changes no code, so it needs no declaration.
+  ...(f.declared === 0 && f.type !== 'Exploration' ? (['shared_changes'] as const) : []),
 ];
 
-const FACTS_SQL = `SELECT i.id, i.outcome_md,
+const FACTS_SQL = `SELECT i.id, i.type, i.outcome_md,
     (SELECT count(*) FROM acceptance_criteria a WHERE a.item_id = i.id) AS criteria,
     (CASE WHEN i.shared_none_at IS NOT NULL THEN 1
       ELSE (SELECT count(*) FROM item_shared_changes c WHERE c.item_id = i.id) END) AS declared

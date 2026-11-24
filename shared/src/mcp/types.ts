@@ -5,11 +5,12 @@
  */
 import { EXIT_VIAS, exitLeftSchema, exitReportSchema } from '../exit-report.js';
 import { z } from 'zod';
+import { ALIAS_MARK } from './common.js';
 import { questionChoiceSchema } from './question-form.js';
 import { contextSharedSchema } from './shared-changes.js';
 import { WAIT_KINDS } from '../wait-kind.js';
 import { knownGapsSchema } from '../epic-readiness.js';
-import { releaseHoldSchema } from '../finish-line.js';
+import { releaseHoldSchema } from '../release.js';
 import { needsShapingSchema } from '../shaping.js';
 import {
   ADDED_BY,
@@ -23,6 +24,8 @@ import {
   EVENT_TYPES,
   HUMAN_REVIEW_STATES,
   ITEM_TYPES,
+  ITEM_TYPE_ALIASES,
+  ITEM_TYPE_INPUTS,
   PACKET_STATES,
   PROVENANCES,
   RESOURCE_KINDS,
@@ -41,6 +44,13 @@ import {
 
 export const statusSchema = z.enum(STATUSES);
 export const itemTypeSchema = z.enum(ITEM_TYPES);
+/**
+ * A type as tools take it (decision 67): the six types, plus Story and Task,
+ * stored as Implementation. Definitions list only the six.
+ */
+export const itemTypeInputSchema = z
+  .enum(ITEM_TYPE_INPUTS)
+  .meta({ [ALIAS_MARK]: Object.keys(ITEM_TYPE_ALIASES) });
 export const prioritySchema = z.literal([1, 2, 3]);
 export const runStateSchema = z.enum(RUN_STATES);
 export const provenanceSchema = z.enum(PROVENANCES);
@@ -103,6 +113,12 @@ export const itemSummarySchema = z.object({
    * declaration. Absent otherwise, and once it is Ready.
    */
   needs_shaping: needsShapingSchema.optional(),
+  /** Decision 67: the type was inferred (from Story or Task, or a Jira import); absent once set. */
+  type_inferred: z.literal(true).optional(),
+  /** Decision 67: the type it had before (Story, Task) or in Jira, kept as a reference. */
+  type_original: z.string().optional(),
+  /** Decision 67: an Implementation ticket that changes a shared environment others depend on. */
+  rollout: z.literal(true).optional(),
 });
 export type ItemSummary = z.infer<typeof itemSummarySchema>;
 
@@ -683,8 +699,8 @@ export const contextBundleSchema = z.object({
    */
   known_gaps: knownGapsSchema.optional(),
   /**
-   * Decision 64: on its epic's finish line, the open bugs in the epic that
-   * hold it back from Review and Done. Never cut.
+   * Decision 67: on an epic's Release, the other open tickets and bugs in the
+   * epic that hold it back from Review and Done. Never cut.
    */
   release_hold: releaseHoldSchema.optional(),
   /**

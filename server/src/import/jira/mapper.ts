@@ -5,9 +5,11 @@
  *
  * | Jira | Docket |
  * |---|---|
- * | Epic; Story, Task, Bug | the same type |
+ * | Epic, Bug | the same type, Jira's type kept as a reference (decision 67) |
+ * | Story, Task | Implementation, marked inferred, Jira's type kept as a reference (decision 67) |
  * | Sub-task | a work step on its parent (state from the status category), source = its key, details = a header line (key, assignee, start and due dates, story points) plus its description as Markdown; its comments go into "Comments from Jira sub-tasks" owner notes on the parent; its attachments, labels and links drop out, listed |
- * | other issue types | Task, with the original type noted in the description |
+ * | other issue types | Implementation, marked inferred, with the original type kept and noted in the description |
+ * | an open epic | gets its Release (decision 67), from a ticket titled "Release …" or generated |
  * | status category To Do / In Progress / Done | Inbox / In progress (no lead, no run) / Done (`closed_by=imported`); other status names noted |
  * | priority Highest, High / Medium / Low, Lowest | P1 / P2 / P3; anything else P2, noted |
  * | parent epic | `epic_id` |
@@ -84,12 +86,13 @@ export const PRIORITY_OF: Record<string, 1 | 2 | 3> = {
   low: 3,
   lowest: 3,
 };
+/** Decision 67: Epic and Bug keep their type; every other Jira type is Implementation, inferred. */
 const SAME_TYPES: Record<string, ItemType> = {
   epic: 'Epic',
-  story: 'Story',
-  task: 'Task',
   bug: 'Bug',
 };
+/** Jira's usual types: anything else is noted on the ticket. */
+const USUAL_TYPES = new Set(['epic', 'story', 'task', 'bug']);
 
 /** The system fields the search asks for, besides every custom field. */
 export const SYSTEM_FIELDS = [
@@ -751,12 +754,13 @@ export function mapSnapshot(snapshot: JiraSnapshot, opts: MapOptions = {}): Impo
 
     // ---- An item ----
     const lower = jiraType.toLowerCase();
-    const type: ItemType = SAME_TYPES[lower] ?? 'Task';
-    const otherType = !SAME_TYPES[lower];
-    row('type', `Type: ${jiraType}`, type, otherType);
+    const type: ItemType = SAME_TYPES[lower] ?? 'Implementation';
+    const inferred = !SAME_TYPES[lower];
+    const otherType = !USUAL_TYPES.has(lower);
+    row('type', `Type: ${jiraType}`, inferred ? 'Implementation (inferred)' : type, otherType);
     if (otherType) {
       footer(issue.key, `type ${jiraType}`);
-      note(issue.key, `Jira type ${jiraType} imported as Task`);
+      note(issue.key, `Jira type ${jiraType} imported as Implementation (inferred)`);
     }
 
     // Title.
@@ -961,6 +965,7 @@ export function mapSnapshot(snapshot: JiraSnapshot, opts: MapOptions = {}): Impo
     const item: PlannedItem = {
       jira_key: issue.key,
       type,
+      type_inferred: inferred,
       title: finalTitle,
       description_md: description,
       status: itemStatus,

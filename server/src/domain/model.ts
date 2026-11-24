@@ -29,6 +29,7 @@ import type { Db } from '../db/client.js';
 import type { BlockState } from './contracts.js';
 import type { Actor } from './write.js';
 import { needsShapingOf } from './shaping.js';
+import { typeFields } from './ticket-types.js';
 
 // ---- Actors ----
 
@@ -318,6 +319,28 @@ export const windowsOf = (config: Pick<Config, 'liveWindowMs' | 'staleAfterMs'>)
 
 // ---- Blocking (BUILD_SPEC §5.2) ----
 
+/** Decision 67: the ID of a Release's automatic dependency on a ticket in its epic. */
+export const automaticLinkId = (blocker: string, release: string) => `auto:${blocker}>${release}`;
+export const isAutomaticLink = (id: string) => id.startsWith('auto:');
+
+/**
+ * The automatic dependencies (decision 67; domain/release.ts): each Release is
+ * blocked by every other open ticket in its epic, bugs included. `BlockIndex`
+ * adds them to the `blocks` links; no link rows are stored.
+ */
+export function automaticBlockers(db: Db): { release: string; blocker: string }[] {
+  return db.sqlite
+    .prepare(
+      `SELECT r.id AS release, t.id AS blocker FROM items r
+       JOIN items t ON t.epic_id = r.epic_id AND t.id <> r.id
+       WHERE r.type = 'Release' AND r.archived_at IS NULL AND r.epic_id IS NOT NULL
+         AND t.archived_at IS NULL AND t.type NOT IN ('Epic', 'Release')
+         AND t.status NOT IN ('done', 'canceled')
+       ORDER BY r.id, t.id`,
+    )
+    .all() as { release: string; blocker: string }[];
+}
+
 interface LinkRow {
   id: string;
   from_id: string;
@@ -330,6 +353,7 @@ interface ItemCore {
   id: string;
   project_key: string;
   status: Status;
+  type: ItemSummary['type'];
 }
 
 /**
@@ -349,7 +373,7 @@ export class BlockIndex {
   constructor(db: Db) {
     const sql = db.sqlite;
     for (const row of sql
-      .prepare('SELECT id, project_key, status FROM items')
+      .prepare('SELECT id, project_key, status, type FROM items')
       .all() as ItemCore[]) {
       this.items.set(row.id, row);
     }
@@ -381,6 +405,18 @@ export class BlockIndex {
       this.blockers.set(link.to_id, [...(this.blockers.get(link.to_id) ?? []), link]);
       this.dependents.set(link.from_id, [...(this.dependents.get(link.from_id) ?? []), link]);
     }
+    // Decision 67: every Release waits for every other open ticket in its epic, with no link row.
+    for (const a of automaticBlockers(db)) {
+      const link: LinkRow = {
+        id: automaticLinkId(a.blocker, a.release),
+        from_id: a.blocker,
+        to_id: a.release,
+        type: 'blocks',
+        satisfied_when: 'done',
+      };
+      this.blockers.set(link.to_id, [...(this.blockers.get(link.to_id) ?? []), link]);
+      this.dependents.set(link.from_id, [...(this.dependents.get(link.from_id) ?? []), link]);
+    }
   }
 
   status(id: string): Status | undefined {
@@ -389,6 +425,11 @@ export class BlockIndex {
 
   project(id: string): string | undefined {
     return this.items.get(id)?.project_key;
+  }
+
+  /** Decision 67: the item's type, for the words of a wait. */
+  type(id: string): ItemSummary['type'] | undefined {
+    return this.items.get(id)?.type;
   }
 
   /** The effective rule: the link's own, else the blocked item's project default, else done. */
@@ -521,8 +562,14 @@ export interface ItemRow {
   split_from: string | null;
   /** Decision 58: the stored known gaps (JSON text), or null. */
   known_gaps?: string | null;
-  /** Decision 64, on an epic: the marked finish line, or null. */
+  /** Decision 64, on an epic: the marked finish line, or null (retired by decision 67). */
   finish_line?: string | null;
+  /** Decision 67: where the type came from (JSON text), or null. */
+  type_info?: string | null;
+  /** Decision 67: the rollout marker (SQLite boolean). */
+  rollout?: number | boolean;
+  /** Decision 67: an Exploration's findings. */
+  findings_md?: string | null;
   /** Decision 65: who asked for it to be shaped (JSON text), or null. */
   shaping?: string | null;
   jira_key: string | null;
@@ -629,6 +676,8 @@ export function summarize(ctx: SummaryContext, rows: ItemRow[]): ItemSummary[] {
       version: row.version,
       updated_at: row.updated_at,
       ...(shape ? { needs_shaping: shape } : {}),
+      // Decision 67: an inferred type, the original type, and the rollout marker.
+      ...typeFields(row),
     };
   });
 }

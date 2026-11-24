@@ -21,7 +21,7 @@ const SRC = fileURLToPath(new URL('../../src/', import.meta.url));
 const ITEM: ItemSummary = {
   id: 'RCP-1',
   project: 'RCP',
-  type: 'Story',
+  type: 'Implementation',
   title: 'Pantry inventory schema',
   status: 'inbox',
   priority: 2,
@@ -383,7 +383,7 @@ describe('implementing a service is all a slice needs', () => {
       actor: 'owner',
       input: {
         project: 'RCP',
-        type: 'Story',
+        type: 'Implementation',
         title: 'Pantry inventory schema',
         priority: 2,
         status: 'inbox',

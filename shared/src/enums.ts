@@ -48,8 +48,28 @@ export const IN_FLIGHT_STATUSES = [
   'review',
 ] as const satisfies readonly Status[];
 
-export const ITEM_TYPES = ['Epic', 'Story', 'Task', 'Bug'] as const;
+/**
+ * Ticket types by kind of work (owner decision 67; BUILD_SPEC §5.46). Epic holds
+ * tickets; every epic has exactly one Release, its closing ticket.
+ */
+export const ITEM_TYPES = [
+  'Epic',
+  'Exploration',
+  'Design',
+  'Implementation',
+  'Bug',
+  'Release',
+] as const;
 export type ItemType = (typeof ITEM_TYPES)[number];
+
+/**
+ * Decision 67's transition aliases: tools still accept the old Story and Task,
+ * store Implementation, and say so in the reply. Tool definitions don't list them.
+ */
+export const ITEM_TYPE_ALIASES = { Story: 'Implementation', Task: 'Implementation' } as const;
+export type ItemTypeAlias = keyof typeof ITEM_TYPE_ALIASES;
+export const ITEM_TYPE_INPUTS = [...ITEM_TYPES, 'Story', 'Task'] as const;
+export type ItemTypeInput = (typeof ITEM_TYPE_INPUTS)[number];
 
 /** 1 is high. */
 export const PRIORITIES = [1, 2, 3] as const;

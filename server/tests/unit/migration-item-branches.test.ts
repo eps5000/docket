@@ -19,7 +19,7 @@ import {
   openDb,
   type Db,
 } from '../../src/db/client.js';
-import { insertItem, insertProject, tempDir, type TempDir } from '../helpers.js';
+import { before0032, insertItem, insertProject, tempDir, type TempDir } from '../helpers.js';
 
 const T1 = '2026-11-19T10:00:00.000Z';
 const T2 = '2026-11-19T11:00:00.000Z';
@@ -145,23 +145,26 @@ describe('0012_item_branches', () => {
     const migrated = openDb(copy);
     try {
       migrateDb(migrated);
-      expect(migrationStatus(migrated)).toEqual({ current: true, applied: 32, expected: 32 });
+      expect(migrationStatus(migrated)).toEqual({ current: true, applied: 33, expected: 33 });
       const after = migrated.sqlite.prepare('SELECT * FROM items ORDER BY id').all() as Record<
         string,
         unknown
       >[];
-      // Every other column is unchanged.
+      // Every other column is unchanged (0032 made the Tasks Implementation, inferred).
+      expect(after.every((r) => r.type === 'Implementation')).toBe(true);
       expect(
-        after.map(
-          ({
-            branches: _,
-            split_from: _s,
-            known_gaps: _k,
-            finish_line: _f,
-            shaping: _sh,
-            ...row
-          }) => row,
-        ),
+        after
+          .map(before0032)
+          .map(
+            ({
+              branches: _,
+              split_from: _s,
+              known_gaps: _k,
+              finish_line: _f,
+              shaping: _sh,
+              ...row
+            }) => row,
+          ),
       ).toEqual(before);
       const sets = Object.fromEntries(
         after.map((r) => [r.id, r.branches === null ? null : JSON.parse(r.branches as string)]),
@@ -178,7 +181,7 @@ describe('0012_item_branches', () => {
       expect(migrated.sqlite.pragma('foreign_key_check')).toEqual([]);
       // Migrating again is a no-op.
       migrateDb(migrated);
-      expect(migrationStatus(migrated).applied).toBe(32);
+      expect(migrationStatus(migrated).applied).toBe(33);
     } finally {
       migrated.sqlite.close();
     }

@@ -74,19 +74,27 @@ export function insertProject(db: Db, key = 'RCP'): void {
     .run(`prj_${key}`, key, `Project ${key}`, key, T0, T0);
 }
 
-/** Insert an item row directly (test fixture only). */
+/**
+ * Insert an item row directly (test fixture only): a Task on a database from
+ * before 0032 (decision 67), so old migrations run on it, else Implementation.
+ */
 export function insertItem(
   db: Db,
   item: { id: string; project?: string; title?: string; status?: string },
 ): void {
+  const table = db.sqlite
+    .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'items'")
+    .get() as { sql: string };
+  const type = table.sql.includes("'Implementation'") ? 'Implementation' : 'Task';
   db.sqlite
     .prepare(
       `INSERT INTO items (id, project_key, type, title, description_md, outcome_md, status, priority, imported, version, created_at, updated_at)
-       VALUES (?, ?, 'Task', ?, '', '', ?, 2, 0, 1, ?, ?)`,
+       VALUES (?, ?, ?, ?, '', '', ?, 2, 0, 1, ?, ?)`,
     )
     .run(
       item.id,
       item.project ?? item.id.split('-')[0],
+      type,
       item.title ?? `Item ${item.id}`,
       item.status ?? 'ready',
       T0,
@@ -171,12 +179,30 @@ export const COLUMNS_0010 = [
   'shaping',
 ] as const;
 
+/**
+ * An item row as it was before 0032 (decision 67): Story and Task, which 0032
+ * made Implementation marked inferred, get their old type back, and the new
+ * `type_info`, `rollout` and `findings_md` columns are dropped. Other rows
+ * pass through unchanged.
+ */
+export function before0032<T>(row: T): T {
+  if (row === null || typeof row !== 'object' || !('type_info' in row)) return row;
+  const { type_info, ...rest } = row as Record<string, unknown>;
+  delete rest.rollout;
+  delete rest.findings_md;
+  const info =
+    typeof type_info === 'string'
+      ? (JSON.parse(type_info) as { inferred?: boolean; original?: string })
+      : null;
+  return (info?.inferred && info.original ? { ...rest, type: info.original } : rest) as T;
+}
+
 /** Rows without the columns 0010 added to `items`, `projects` and `packets`. */
 export function without0010<T>(rows: T): T {
   if (!Array.isArray(rows)) return rows;
   return rows.map((row: unknown) => {
     if (row === null || typeof row !== 'object') return row;
-    const out = { ...(row as Record<string, unknown>) };
+    const out = { ...(before0032(row) as Record<string, unknown>) };
     // commits.branch and runs have their own `branch`-free shapes; only drop 0010's on its tables.
     if ('shared_none_at' in out || 'main_branch' in out || 'held_undeclared' in out) {
       for (const c of COLUMNS_0010) delete out[c];

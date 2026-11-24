@@ -30,10 +30,10 @@ import {
 } from '../mcp/types.js';
 import { input, jsonResponse, noInput, scopeSchema } from './common.js';
 import { onboardingSessionSchema } from './onboarding.js';
-import { WORK_CHECKS, WORK_QUICK, WORK_SHOWS } from '../work-filter.js';
+import { WORK_CHECKS, WORK_QUICK, WORK_SHOWS, WORK_TYPES } from '../work-filter.js';
 import { itemWaitSchema } from '../wait-kind.js';
 import { epicReadinessSchema } from '../epic-readiness.js';
-import { finishLineSchema, releaseHoldSchema } from '../finish-line.js';
+import { releaseDetailSchema, releaseHoldSchema } from '../release.js';
 import { problemAckSchema, problemExplanationSchema, resolutionRowSchema } from './problems.js';
 import {
   designReviewRowSchema,
@@ -314,6 +314,8 @@ export const workQuery = input({
   has: csvOf(WORK_CHECKS).optional(),
   /** B43: `done`, `canceled` or both, comma-separated (each adds those items back). */
   show: csvOf(WORK_SHOWS).optional(),
+  /** Decision 67: only these ticket types, comma-separated (any of them). */
+  type: csvOf(WORK_TYPES).optional(),
   layout: workLayoutSchema.default('board'),
   /**
    * The onboarding review card's links (decision 31; UI_SPEC §6.7d; B30
@@ -381,6 +383,8 @@ export const workResponse = jsonResponse({
     has: z.record(z.enum(WORK_CHECKS), z.number().int()),
     show: z.record(z.enum(WORK_SHOWS), z.number().int()),
     archived: z.number().int(),
+    /** Decision 67: each type, what you'd see with only it ticked. */
+    types: z.record(z.enum(WORK_TYPES), z.number().int()).optional(),
   }),
   /** Links among `items`, plus links from `outside` blockers, for the map. */
   links: z.array(linkEdgeSchema),
@@ -503,9 +507,9 @@ export const itemDetailResponse = jsonResponse({
   item_wait: itemWaitSchema.optional(),
   /** Decision 58 (optional): an epic's Inbox or Planning tickets, before or after it started. */
   epic_readiness: epicReadinessSchema.optional(),
-  /** Decision 64 (on an open epic): its finish line, or none, and its open bugs. */
-  finish_line: finishLineSchema.optional(),
-  /** Decision 64 (on a finish-line ticket): the open bugs in its epic that hold it. */
+  /** Decision 67 (on an epic): its Release, and the open tickets and bugs that hold it. */
+  release: releaseDetailSchema.optional(),
+  /** Decision 67 (on a Release): the other open tickets and bugs in its epic that hold it. */
   release_hold: releaseHoldSchema.optional(),
 });
 export type ItemDetailResponse = z.infer<typeof itemDetailResponse>;

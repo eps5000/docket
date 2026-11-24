@@ -11,6 +11,9 @@
  */
 import {
   OPEN_STATUSES,
+  aliasNote,
+  resolveType,
+  type ItemTypeInput,
   ToolError,
   missingText,
   type ItemSummary,
@@ -78,7 +81,18 @@ import {
   openGaps,
   type StoredGaps,
 } from './epic-readiness.js';
-import { assertReleaseClear, checkFinishLine } from './finish-line.js';
+import {
+  assertExplorationFinish,
+  assertReleaseClear,
+  assertReleaseStays,
+  checkReleaseLink,
+  closeEpicWithRelease,
+  createReleaseFor,
+  dropEpicLinks,
+  makeRoomForRelease,
+  releaseOf,
+} from './release.js';
+import { typeInfoOf } from './ticket-types.js';
 import { clearShaping, markIfUnshaped, ownerShapingRequest } from './shaping.js';
 
 const knownGapsField = (raw: unknown) => {
@@ -288,6 +302,100 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
     );
   }
 
+  /**
+   * Decision 67: a type or rollout change from `update_item` or the owner's
+   * edit, as columns to set and what changed. Story and Task mean
+   * Implementation (with a note in the reply). Setting the type clears an
+   * inferred mark, even when it stays the same.
+   */
+  function typeChange(
+    w: WriteContext,
+    before: ItemRow,
+    input: {
+      type?: ItemTypeInput | undefined;
+      rollout?: boolean | undefined;
+      epic?: string | null | undefined;
+    },
+  ): {
+    set: Record<string, unknown>;
+    changed: Record<string, { old: unknown; new: unknown }>;
+    becameRelease: string | null;
+  } {
+    const set: Record<string, unknown> = {};
+    const changed: Record<string, { old: unknown; new: unknown }> = {};
+    let becameRelease: string | null = null;
+    const info = typeInfoOf(before.type_info);
+    let type = before.type;
+    if (input.type !== undefined) {
+      const resolved = resolveType(input.type);
+      if (resolved.alias) w.warn(aliasNote(resolved.alias, before.id));
+      type = resolved.type;
+      if ((type === 'Epic') !== (before.type === 'Epic')) {
+        throw new ToolError(
+          'validation',
+          before.type === 'Epic'
+            ? `${before.id} is an Epic and stays one: its tickets belong to it.`
+            : `${before.id} can't become an Epic. Create an Epic and move tickets into it with update_item epic.`,
+          { details: { fields: { type: 'an Epic stays an Epic' } } },
+        );
+      }
+      if (before.type === 'Release' && type !== 'Release') {
+        assertReleaseStays(w.db, before, 'retype');
+      }
+      if (type === 'Release' && before.type !== 'Release') {
+        const epic = input.epic !== undefined ? input.epic : before.epic_id;
+        if (!epic) {
+          throw new ToolError(
+            'validation',
+            `A Release closes an epic, and ${before.id} has none. Set its epic too, or pick another type.`,
+            { details: { fields: { type: 'a Release needs an epic' } } },
+          );
+        }
+        makeRoomForRelease(w, epic, { id: before.id });
+        becameRelease = epic;
+      }
+      if (type !== before.type || info?.inferred) {
+        set.type = type;
+        set.type_info = info?.original ? { original: info.original } : null;
+        changed.type = {
+          old: info?.inferred ? `${before.type} (inferred)` : before.type,
+          new: type,
+        };
+      }
+    }
+    if (input.rollout === true && type !== 'Implementation') {
+      throw new ToolError(
+        'validation',
+        `Only an Implementation ticket can be a rollout; ${before.id} is ${type === 'Epic' ? 'an Epic' : 'a ' + type}.`,
+        { details: { fields: { rollout: 'Implementation only' } } },
+      );
+    }
+    const rollout = type === 'Implementation' ? (input.rollout ?? Boolean(before.rollout)) : false;
+    if (rollout !== Boolean(before.rollout)) {
+      set.rollout = rollout;
+      changed.rollout = { old: Boolean(before.rollout), new: rollout };
+    }
+    return { set, changed, becameRelease };
+  }
+
+  /** Decision 67: canceling an epic cancels its open Release with it. */
+  function cancelReleaseWith(w: WriteContext, epic: ItemRow, who: string): void {
+    const release = releaseOf(w.db, epic.id);
+    if (!release || release.status === 'done' || release.status === 'canceled') return;
+    w.update('items', release.id, { status: 'canceled' });
+    w.event({
+      type: 'item.status_changed',
+      summary: `${who} canceled ${release.id} with its epic ${epic.id}`,
+      item_id: release.id,
+      project_key: epic.project_key,
+      data: {
+        status: { old: release.status, new: 'canceled' },
+        reason: `epic ${epic.id} canceled`,
+      },
+    });
+    onItemClosed(w, release.id, 'canceled');
+  }
+
   function openChildren(db: WriteContext['db'], epic: string): string[] {
     return (
       db.sqlite
@@ -312,10 +420,13 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
         { details: { fields: { project: 'must be the original ticket project' } } },
       );
     }
-    if (input.type === 'Epic') {
-      throw new ToolError('validation', 'A split creates a Story, Task or Bug.', {
-        details: { fields: { type: 'must not be Epic' } },
-      });
+    const splitType = resolveType(input.type);
+    if (splitType.type === 'Epic' || splitType.type === 'Release') {
+      throw new ToolError(
+        'validation',
+        'A split creates an Exploration, Design, Implementation or Bug ticket.',
+        { details: { fields: { type: `must not be ${splitType.type}` } } },
+      );
     }
     if (input.epic !== undefined && input.epic !== source.epic_id) {
       throw new ToolError('validation', "A split keeps the original's epic. Leave epic out.", {
@@ -346,7 +457,7 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
     }
     const split = splitItem(w, deps.services().links, (id) => summary(w, id), {
       ...from,
-      type: input.type,
+      type: splitType.type,
       title: input.title,
       description_md: input.description_md,
       outcome_md: input.outcome_md,
@@ -365,6 +476,7 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
       ).map((r) => r.part_key);
       declareOnCreate(w, split.id, input.shared, keep);
     }
+    if (splitType.alias) w.warn(aliasNote(splitType.alias, split.id));
     return shapedSummary(w, split.id);
   }
 
@@ -433,7 +545,21 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
           `No project ${input.project}. Check the key with list_projects.`,
         );
       }
-      if (input.epic) checkEpic(w, input.epic, { project: input.project, type: input.type });
+      // Decision 67: Story and Task are stored as Implementation, with a note.
+      const { type, alias } = resolveType(input.type);
+      if (input.epic) checkEpic(w, input.epic, { project: input.project, type });
+      if (type === 'Release' && !input.epic) {
+        throw new ToolError(
+          'validation',
+          'A Release closes an epic: pass epic. Every epic gets one when it is created.',
+          { details: { fields: { epic: 'a Release needs an epic' } } },
+        );
+      }
+      if (input.rollout && type !== 'Implementation') {
+        throw new ToolError('validation', 'Only an Implementation ticket can be a rollout.', {
+          details: { fields: { rollout: 'Implementation only' } },
+        });
+      }
       checkDates(input.planned_start, input.planned_end);
       const blockers = [...new Set(input.blocked_by ?? [])];
       for (const b of blockers) {
@@ -443,10 +569,13 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
       const id = allocateItemId(w.db.sqlite, input.project);
       const who = callerName(w.db, w.actor);
       const dated = input.planned_start !== undefined || input.planned_end !== undefined;
+      // Decision 67: an epic has one Release; a generated placeholder gives way.
+      if (type === 'Release') makeRoomForRelease(w, input.epic!, { id });
       w.insert('items', {
         id,
         project_key: input.project,
-        type: input.type,
+        type,
+        rollout: input.rollout === true,
         title: input.title,
         description_md: input.description_md ?? '',
         outcome_md: input.outcome_md ?? '',
@@ -466,12 +595,14 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
         : [];
       w.event({
         type: 'item.created',
-        summary: `${who} created ${input.type.toLowerCase()} ${id} ${input.title}`,
+        summary: `${who} created ${type.toLowerCase()} ${id} ${input.title}`,
         item_id: id,
         project_key: input.project,
         data: { status: input.status ?? 'inbox', labels_created: createdLabels },
       });
+      if (alias) w.warn(aliasNote(alias, id));
       for (const blocker of blockers) {
+        checkReleaseLink(w.db, blocker, id);
         const linkId = newId('lnk', ms(w.now));
         w.insert('links', {
           id: linkId,
@@ -494,6 +625,16 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
       }
       // Decision 65: declared on creation, or Needs shaping.
       if (input.shared !== undefined) declareOnCreate(w, id, input.shared);
+      // Decision 67: an epic is created with its Release.
+      if (type === 'Epic') {
+        const release = createReleaseFor(w, {
+          id,
+          project_key: input.project,
+          title: input.title,
+          priority: input.priority ?? 2,
+        });
+        w.warn(`${id} comes with its Release, ${release}: shape its checklist with the epic.`);
+      }
       return shapedSummary(w, id);
     },
 
@@ -530,9 +671,13 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
         field('epic_id', input.epic);
       }
       if (input.effort !== undefined) field('effort', input.effort);
-      // Decision 64: the epic's release ticket, when its links don't settle it.
-      if (input.finish_line !== undefined)
-        field('finish_line', checkFinishLine(w.db, before, input.finish_line));
+      // Decision 67: a Release stays in its epic while the epic is open.
+      if (input.epic !== undefined && input.epic !== before.epic_id) {
+        assertReleaseStays(w.db, before, 'move');
+      }
+      const typed = typeChange(w, before, input);
+      Object.assign(set, typed.set);
+      Object.assign(changed, typed.changed);
       if (input.planned_start !== undefined || input.planned_end !== undefined) {
         const start =
           input.planned_start !== undefined ? input.planned_start : before.planned_start;
@@ -584,6 +729,7 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
         });
       }
       w.update('items', before.id, set);
+      if (typed.becameRelease) dropEpicLinks(w, before, typed.becameRelease);
       const names = Object.keys(changed).map((k) => (k === 'epic_id' ? 'epic' : k));
       // Decision 64: an open bug leaving its epic no longer holds that epic's release; say so.
       const bugLeft =
@@ -617,14 +763,10 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
         set.priority = input.priority;
         changed.priority = { old: before.priority, new: input.priority };
       }
-      // Decision 64: mark (or clear) the epic's finish line.
-      if (input.finish_line !== undefined) {
-        const mark = checkFinishLine(w.db, before, input.finish_line);
-        if (mark !== (before.finish_line ?? null)) {
-          set.finish_line = mark;
-          changed.finish_line = { old: before.finish_line ?? null, new: mark };
-        }
-      }
+      // Decision 67: the type (clearing an inferred mark) and the rollout marker.
+      const typed = typeChange(w, before, input);
+      Object.assign(set, typed.set);
+      Object.assign(changed, typed.changed);
       // Decision 65: asking for shaping goes on its own, never with a move.
       if (input.request_shaping && input.status !== undefined) {
         throw new ToolError('validation', 'Ask for shaping without moving the ticket.', {
@@ -701,20 +843,29 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
       const edited =
         texts.length > 0 ||
         changed.priority !== undefined ||
-        changed.finish_line !== undefined ||
+        changed.type !== undefined ||
+        changed.rollout !== undefined ||
         asked !== null;
       // Nothing differs: no write and no event (the write path allows an explicit no-op).
       if (!edited && !move) return itemText(w, before.id);
       inverse.push(w.update('items', before.id, set));
+      if (typed.becameRelease) dropEpicLinks(w, before, typed.becameRelease);
       if (edited) {
         const parts: string[] = [];
         if (texts.length > 0) parts.push(`edited the ${joinWords(texts)}`);
         if (changed.priority) parts.push(`set ${before.id} to P${String(input.priority)}`);
-        if (changed.finish_line) {
+        if (changed.type) {
           parts.push(
-            input.finish_line
-              ? `marked ${input.finish_line} as ${before.id}'s finish line`
-              : `cleared ${before.id}'s finish line mark`,
+            changed.type.new === before.type
+              ? `confirmed ${before.id}'s type, ${before.type}`
+              : `set ${before.id}'s type to ${String(changed.type.new)}`,
+          );
+        }
+        if (changed.rollout) {
+          parts.push(
+            changed.rollout.new
+              ? `marked ${before.id} as a rollout`
+              : `cleared ${before.id}'s rollout mark`,
           );
         }
         if (asked) {
@@ -800,8 +951,10 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
       }
       // Decision 39: an unapproved change to an approved design pauses this item.
       if (to === 'done') assertDesignCleared(w.db, item, 'close', !agent);
-      // Decision 64: an epic's finish line waits for every open bug in the epic.
+      // Decision 67: a Release finishes only once its gates pass (64's open bugs among them).
       if (to === 'done') assertReleaseClear(w.db, item, 'done');
+      // Decision 67: an Exploration finishes with its findings, linked to the tickets using them.
+      if (to === 'done') assertExplorationFinish(w.db, item, input.reason);
       // Decision 61: not while a partial exit's items are left; the owner may close it anyway.
       if (to === 'done' && agent) assertNoItemsLeft(w.db, item, w.actor.run_id);
       if (from === 'ready' && to === 'progress') {
@@ -850,15 +1003,23 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
         if (item.type === 'Epic') {
           const open = openChildren(w.db, item.id);
           if (open.length > 0) {
+            // Decision 67: an epic closes on its own when its Release is done.
+            const release = releaseOf(w.db, item.id);
+            const how =
+              release && open.includes(release.id)
+                ? ` The epic closes on its own when its Release, ${release.id}, is done.`
+                : '';
             throw new ToolError(
               'validation',
-              `Can't close epic ${item.id}: ${list(open)} ${open.length === 1 ? 'is' : 'are'} still open. Finish or cancel ${open.length === 1 ? 'it' : 'them'} first.`,
+              `Can't close epic ${item.id}: ${list(open)} ${open.length === 1 ? 'is' : 'are'} still open. Finish or cancel ${open.length === 1 ? 'it' : 'them'} first.${how}`,
               { details: { allowed, reason: `open children: ${list(open)}`, open_children: open } },
             );
           }
         }
       }
       if (to === 'canceled') {
+        // Decision 67: a Release goes only with its epic.
+        assertReleaseStays(w.db, item, 'cancel');
         if (agent && !input.reason) {
           throw new ToolError('validation', `Say why you are canceling ${item.id}: pass reason.`, {
             details: { fields: { reason: 'is required to cancel' } },
@@ -873,7 +1034,9 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
           );
         }
         if (item.type === 'Epic') {
-          const open = openChildren(w.db, item.id);
+          // Decision 67: its Release is canceled along with it.
+          const release = releaseOf(w.db, item.id);
+          const open = openChildren(w.db, item.id).filter((id) => id !== release?.id);
           if (open.length > 0) {
             throw new ToolError(
               'validation',
@@ -957,6 +1120,8 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
       if (to === 'done') {
         set.closed_by = w.actor.kind === 'owner' ? 'owner' : 'agent';
         set.closed_at = w.now;
+        // Decision 67: an Exploration's findings are its closing reason.
+        if (item.type === 'Exploration') set.findings_md = input.reason!.trim();
       } else if (from === 'done') {
         set.closed_by = null;
         set.closed_at = null;
@@ -981,6 +1146,9 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
       if (to === 'done') addReportedBranch(w, item.id, input.branch);
       // Decision 36: Done and canceled end the item's leases and its overlaps.
       if (to === 'done' || to === 'canceled') onItemClosed(w, item.id, to);
+      // Decision 67: the epic closes with its Release, and its Release goes with it when canceled.
+      if (to === 'done') closeEpicWithRelease(w, item);
+      if (to === 'canceled' && item.type === 'Epic') cancelReleaseWith(w, item, who);
       return summary(w, item.id);
     },
 

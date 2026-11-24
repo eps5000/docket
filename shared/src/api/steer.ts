@@ -40,7 +40,7 @@ export const answerResponse = ownerMutationOutput({ question: questionSchema });
 /** Decision 48: split this ticket; the same fields as `create_item`'s `split_from`. */
 export const splitItemBody = input({
   expected_version: expectedVersion,
-  type: z.enum(['Story', 'Task', 'Bug']),
+  type: z.enum(['Exploration', 'Design', 'Implementation', 'Bug']),
   title: text(TEXT_LIMITS.title),
   move: z.array(z.number().int()),
   copy: z.array(z.number().int()).optional(),

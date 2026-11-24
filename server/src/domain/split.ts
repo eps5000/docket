@@ -61,7 +61,7 @@ export interface SplitInput {
   relation: SplitRelation;
   also?: { kind: SplitCarryKind; id: string; copy?: boolean | undefined }[] | undefined;
   coordinator?: string | undefined;
-  type: 'Story' | 'Task' | 'Bug';
+  type: 'Exploration' | 'Design' | 'Implementation' | 'Bug';
   title: string;
   description_md?: string | undefined;
   outcome_md?: string | undefined;
@@ -192,7 +192,14 @@ export function splitItem(
   const source = requireItem(w.db, input.id);
   assertCallerRun(w.db, w.actor, w.now);
   if (source.type === 'Epic') {
-    throw invalid('id', `${source.id} is an Epic. Split a Story, Task or Bug.`);
+    throw invalid('id', `${source.id} is an Epic. Split one of its tickets.`);
+  }
+  // Decision 67: a split-off ticket holds the Release on its own, so no link either way.
+  if (source.type === 'Release' && input.relation !== 'none') {
+    throw invalid(
+      'relation',
+      `${source.id} is the Release of its epic: the new ticket already holds it. Pass relation none.`,
+    );
   }
   if (['done', 'canceled'].includes(source.status) || source.archived_at) {
     throw invalid('id', `${source.id} is closed, so it can't be split. Create a new ticket.`);

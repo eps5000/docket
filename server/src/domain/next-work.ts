@@ -128,6 +128,8 @@ function holdsRealWork(
     for (const next of index.unblocks(stack.pop()!)) {
       if (seen.has(next)) continue;
       seen.add(next);
+      // Decision 67: a Release waiting for its epic is expected, not work held up.
+      if (index.type(next) === 'Release') continue;
       const status = rows.get(next)?.status ?? index.status(next);
       if (status && REAL_WORK.has(status)) return true;
       stack.push(next);

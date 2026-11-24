@@ -784,12 +784,13 @@ export function declaredKeys(db: Db, itemId: string): string[] {
 export function hasDeclared(db: Db, itemId: string): boolean {
   const row = db.sqlite
     .prepare(
-      `SELECT shared_none_at,
+      `SELECT shared_none_at, type,
          (SELECT count(*) FROM item_shared_changes WHERE item_id = items.id) AS n
        FROM items WHERE id = ?`,
     )
-    .get(itemId) as { shared_none_at: string | null; n: number } | undefined;
-  return !!row && (row.n > 0 || row.shared_none_at !== null);
+    .get(itemId) as { shared_none_at: string | null; type: string; n: number } | undefined;
+  // Decision 67: an Exploration changes no code, so it needs no declaration.
+  return !!row && (row.n > 0 || row.shared_none_at !== null || row.type === 'Exploration');
 }
 
 /**

@@ -183,7 +183,7 @@ function ticket() {
   const made = d.write(worker, (w, s) =>
     s.items.create(w, {
       project: 'RCP',
-      type: 'Task',
+      type: 'Implementation',
       title: 'A ticket to split',
       acceptance: CRITERIA,
       status: 'planning',
@@ -200,7 +200,7 @@ const splitArgs = (id: string, extra: Partial<SplitInput> = {}): SplitInput => (
   expected_version: versionOf(id),
   move: [2, 4],
   relation: 'none',
-  type: 'Task',
+  type: 'Implementation',
   title: 'The part that can start now',
   ...extra,
 });
