@@ -160,6 +160,17 @@ function QuestionDialog({
       <form id={formId} onSubmit={onSubmit}>
         <h3 className="q-head">Background</h3>
         <p className="q-text">{form.context}</p>
+        {/* Decision 58: the gaps Docket asks you to approve, one per line. */}
+        {form.ready_with_gaps && (
+          <>
+            <h3 className="q-head">Known gaps</h3>
+            <ol className="q-text q-gaps" data-q-gaps="">
+              {form.ready_with_gaps.gaps.map((g) => (
+                <li key={g}>{g}</li>
+              ))}
+            </ol>
+          </>
+        )}
         <h3 className="q-head">Why this matters</h3>
         <p className="q-text">{form.why_it_matters}</p>
 

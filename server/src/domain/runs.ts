@@ -74,6 +74,7 @@ import {
   projectPause,
   projectPausedError,
 } from './project-pause.js';
+import { assertEpicReady } from './epic-readiness.js';
 import { WaitReader } from './wait.js';
 import { assertDesignCleared } from './design-review.js';
 import { settleClaim } from './shared-changes.js';
@@ -688,6 +689,9 @@ export function createRunsService(deps: ServiceDeps): RunsService {
       // Decision 39: an unapproved change to an approved design pauses this item, at any claim.
       assertDesignCleared(w.db, item, 'claim');
       const status = requireItem(w.db, item.id).status;
+      // Decision 58: an epic starts only when every ticket is at least Ready. Resuming one
+      // already In progress isn't starting it, so it passes.
+      assertEpicReady(w.db, { ...item, status });
       if (status === 'ready') {
         const deps2 = summary(w, item.id);
         if (deps2.blocked) {

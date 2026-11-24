@@ -7,7 +7,7 @@ import {
   type EpicPickFit,
   type PickEpicResponse,
 } from '@docket/shared';
-import { Callout, Card, Chip, EmptyState, Skeleton } from '../../components/kit';
+import { Callout, Card, Chip, EmptyState, EpicReadinessLine, Skeleton } from '../../components/kit';
 import { apiClient } from '../../app/queryClient';
 import { QueryState } from '../../app/QueryState';
 import { useBreadcrumb } from '../../app/ShellState';
@@ -22,6 +22,7 @@ const GROUPS: { fit: EpicPickFit; title: string }[] = [
   { fit: 'available', title: 'Good to hand off' },
   { fit: 'being_worked', title: 'Already being worked' },
   { fit: 'likely_parks', title: 'Likely to park' },
+  { fit: 'not_ready', title: 'Not ready to start' },
 ];
 
 const COLUMNS = 7;
@@ -110,8 +111,8 @@ function PickTable({ data }: { data: PickEpicResponse }) {
       )}
       {!data.best && (
         <Callout tone="warn" className="mb pick-none">
-          No epic is free to hand off right now. Each one is already being worked or would likely
-          park.
+          No epic is free to hand off right now. Each one is already being worked, would likely
+          park, or isn’t ready to start.
         </Callout>
       )}
       <Card>
@@ -199,6 +200,8 @@ function PickRow({ pick: p, reason }: { pick: EpicPick; reason: string | null })
             {p.park_reason}
           </div>
         )}
+        {/* Decision 58: its Inbox and Planning tickets, before or after it started. */}
+        {p.readiness && <EpicReadinessLine readiness={p.readiness} className="src" />}
         <div className="src">
           <Link to={paths.criticalPath(p.id, p.id)}>
             Critical path <span className="sr">for {p.title}</span>

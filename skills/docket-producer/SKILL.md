@@ -39,6 +39,15 @@ Order work by the graph, not by ticket number or what looks interesting.
 - **What's stuck upstream:** `bottlenecks` names unowned Inbox or Planning tickets holding up real work. Shape or assign those first.
 - **The longest chain:** `dependency_subgraph { id, depth: 3 }` on the epic. The owner sees the same chain as the critical path on the Map. Move its first ticket.
 
+**An epic starts only when every ticket is at least Ready.** Before you claim it, `search_items { project, epic }` and check none is in Inbox or Planning (canceled ones don't matter). A claim that fails with `epic_not_ready` lists them. Resolve each one:
+
+- **shape it** and move it to Ready (§3);
+- **name its known gaps** for the owner's approval: `update_item { known_gaps: [{ gap }] }`, then `set_status ready`, and Docket asks the owner;
+- **move it** to the epic it belongs in (`update_item { epic }`);
+- **take it out** of the epic (`update_item { epic: null }`).
+
+An epic already In progress isn't blocked. If the digest shows it under `started unshaped`, resolve those tickets the same way.
+
 **Start with what unlocks the most,** and prefer short, wide graphs to long chains.
 
 ## 3. Shape finishable vertical slices
@@ -49,6 +58,8 @@ Follow `docket-planner`. Before a ticket goes to Ready, it has:
 - **acceptance criteria** someone can check;
 - **observable closing evidence:** the test, command, screen or record that will show it works;
 - **its shared parts declared** (`declare_shared_changes`) and **real dependency links** only.
+
+Something better settled while building? Name it as a **known gap** (`update_item known_gaps`), and the owner approves Ready with it. Keep them few and specific.
 
 ## 4. Hard and soft dependencies
 

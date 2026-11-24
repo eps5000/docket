@@ -38,6 +38,7 @@ import { newId } from './ids.js';
 import { activeLead, assertCallerRun, callerName, getRun, ms, requireItem } from './model.js';
 import { namesCoordinator, projectCoordinators } from './run-activity.js';
 import { choiceField, parseQuestionForm } from './question-form.js';
+import { onGapsAnswer } from './epic-readiness.js';
 
 interface QuestionRow {
   id: string;
@@ -107,7 +108,7 @@ function resolveAnswer(
   return { answer: formatChoice(choice), choice };
 }
 
-export function createMessagesService(_deps: ServiceDeps): MessagesService {
+export function createMessagesService(deps: ServiceDeps): MessagesService {
   return {
     askOwner(w, input) {
       const named = assertCallerRun(w.db, w.actor, w.now);
@@ -227,6 +228,8 @@ export function createMessagesService(_deps: ServiceDeps): MessagesService {
         objects: [{ kind: 'question', id: q.id }],
         inverse: [inverse],
       });
+      // Decision 58: "Approve with these gaps" on Docket's question approves them.
+      onGapsAnswer(w, deps, item.id, parseQuestionForm(q.form), choice);
       return questionView(w.require('questions', q.id) as unknown as QuestionRow);
     },
 

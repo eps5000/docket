@@ -63,6 +63,23 @@ import { choiceField } from './question-form.js';
 import { addReportedBranch } from './radar.js';
 import { producerHold } from './run-activity.js';
 import { splitItem } from './split.js';
+import {
+  approveGaps,
+  assertEpicReady,
+  assertGapsApproved,
+  clearApproval,
+  editGaps,
+  gapsCleared,
+  gapsOf,
+  knownGapsView,
+  openGaps,
+  type StoredGaps,
+} from './epic-readiness.js';
+
+const knownGapsField = (raw: unknown) => {
+  const view = knownGapsView(raw);
+  return view ? { known_gaps: view } : {};
+};
 
 /** Decision 42: `producer_hold`, only while the story is between workers. */
 function holdField(db: Db, id: string, openRuns: number) {
@@ -466,6 +483,17 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
         if (old.join('\n') !== input.acceptance.join('\n'))
           changed.acceptance = { old, new: input.acceptance };
       }
+      // Decision 58: what implementation will settle, and how each one was.
+      if (input.known_gaps !== undefined) {
+        const was = gapsOf(w.db, before.id);
+        const edit = editGaps(w, before, input.known_gaps);
+        if (edit.changed) {
+          set.known_gaps = edit.value;
+          const brief = (g: StoredGaps | null) =>
+            (g?.gaps ?? []).map((x) => ({ gap: x.gap, settled: x.settled }));
+          changed.known_gaps = { old: brief(was), new: brief(edit.value) };
+        }
+      }
       const sent = Object.keys(input).filter(
         (k) => !['id', 'expected_version', 'run_id'].includes(k),
       );
@@ -520,6 +548,19 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
         }
         // The Ready gate (decision 36): undeclared items need the owner's reason.
         if (to === 'ready' && !input.override_reason) assertReadyGate(w.db, before, true);
+        // Decision 58: open known gaps move to Ready only with the owner's approval.
+        if (to === 'ready' && !gapsCleared(gapsOf(w.db, before.id))) {
+          if (!input.approve_gaps) {
+            const open = openGaps(gapsOf(w.db, before.id));
+            throw new ToolError(
+              'validation',
+              `${before.id} has ${open.length} open known gap${open.length === 1 ? '' : 's'}. Approve ${open.length === 1 ? 'it' : 'them'} to move it to Ready, or shape ${open.length === 1 ? 'it' : 'them'} first.`,
+              { details: { known_gaps: open.map((g) => g.gap), approve: 'approve_gaps' } },
+            );
+          }
+          approveGaps(w, deps, before, { via: 'item_page', move: false });
+        }
+        if (to === 'planning') Object.assign(set, clearApproval(w.db, before.id));
         set.status = to;
         move = { from, to };
       }
@@ -622,10 +663,16 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
 
       // The Ready gate (decision 36; FR-159): planning → ready needs a declaration, or none.
       // Giving up work (progress → ready) isn't gated: the item was Ready before.
-      if (from === 'planning' && to === 'ready') assertReadyGate(w.db, item);
+      if (from === 'planning' && to === 'ready') {
+        assertReadyGate(w.db, item);
+        // Decision 58: open known gaps need the owner's approval; the refusal asks for it.
+        if (w.actor.kind !== 'owner') assertGapsApproved(w, item);
+      }
       // Decision 39: an unapproved change to an approved design pauses this item.
       if (to === 'done') assertDesignCleared(w.db, item, 'close', !agent);
       if (from === 'ready' && to === 'progress') {
+        // Decision 58: an epic starts only when every ticket is at least Ready.
+        assertEpicReady(w.db, item);
         assertDesignCleared(w.db, item, 'start', !agent);
         const s = summary(w, item.id);
         if (s.blocked) {
@@ -747,6 +794,8 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
         }
       }
       const set: Record<string, unknown> = { status: to };
+      // Decision 58: back in Planning, its known gaps need the owner's approval again.
+      if (to === 'planning') Object.assign(set, clearApproval(w.db, item.id));
       if (to === 'done') {
         set.closed_by = w.actor.kind === 'owner' ? 'owner' : 'agent';
         set.closed_at = w.now;
@@ -852,6 +901,15 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
           'not_declared',
           `Declare the shared parts ${undeclared.join(', ')} will change (or none) before ${undeclared.length === 1 ? 'it moves' : 'they move'} to Ready. Open each item's Shared changes.`,
           { details: { items: undeclared } },
+        );
+      }
+      // Decision 58: a ticket with open known gaps needs its own approval on its page.
+      const gapped = ids.filter((id) => !gapsCleared(gapsOf(w.db, id)));
+      if (gapped.length > 0) {
+        throw new ToolError(
+          'validation',
+          `${gapped.join(', ')} ${gapped.length === 1 ? 'has' : 'have'} open known gaps. Approve them on ${gapped.length === 1 ? 'its' : 'each'} item page, or shape them first.`,
+          { details: { items: gapped } },
         );
       }
       for (const id of ids) {
@@ -1219,6 +1277,8 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
       ...(splitInto.length > 0 ? { split_into: splitInto } : {}),
       resume: wanted('resume') ? deps.services().recovery.itemResume(r, { item_id: row.id }) : null,
       ...holdField(db, row.id, openRuns.length),
+      // Decision 58: what implementation will settle, and the owner's approval.
+      ...knownGapsField(row.known_gaps),
       unread_owner_notes: notes.map((n) => ({ id: n.id, text: n.text, at: n.created_at })),
       documents,
       packets,

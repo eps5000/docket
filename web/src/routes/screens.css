@@ -2262,3 +2262,21 @@
 .tl .epicdeps-line {
   margin-top: 6px;
 }
+/* Decision 58: a ticket's known gaps, each with how it was settled. */
+.tl .gaplist {
+  margin: 0;
+  padding-left: 22px;
+}
+.tl .gaplist li + li {
+  margin-top: 6px;
+}
+.tl .q-gaps {
+  padding-left: 22px;
+}
+/* Decision 58: the epic's unshaped tickets, each a link. */
+.tl .epicready-line {
+  margin-top: 6px;
+}
+.tl .pickepic tbody[data-pick-group='not_ready'] tr:not(.pe-group) {
+  background: var(--panel-2);
+}

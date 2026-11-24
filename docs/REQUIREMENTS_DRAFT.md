@@ -425,6 +425,19 @@ On a healthy epic, most Ready tickets showed red **Blocked** only because they w
 
 BUILD_SPEC §5.40, MCP_SPEC §5.2, UI_SPEC §5, §6.1, §6.1b, §6.2 and §6.3, spec FR-319–FR-324 and SC-038, and Help (Blocker rules and dependencies) have the details.
 
+## Owner decision 58 (2026-11-24): an epic starts only when its tickets are ready
+
+**Inbox** means an idea nobody is ready to plan. **Planning** means the ticket still has structural or definition-of-done gaps. So **an epic may start only when every one of its tickets is at least Ready.** Queued, In progress, Review and Done count; canceled tickets don't matter. Gaps are allowed if someone names them and the owner approves them: **Ready with known gaps**.
+
+1. **Known gaps.** A ticket can carry a short list of known gaps, things that will be settled during implementation. Moving a Planning ticket with known gaps to Ready needs the owner's approval. The agent proposes it and Docket asks through the existing question form ("Approve moving GF-1 to Ready with these gaps?"); the owner can also approve on the item page. On approval Docket records an owner-authority decision on the ticket listing the gaps, and the ticket becomes Ready. The implementer sees **Known gaps to shape** in `get_context` and on the item page, and records how each was settled. A ticket fully shaped with no gaps moves to Ready as before, with no owner step.
+2. **The epic start check.** Starting an epic means its lead claim while it is Ready or Planning, or moving it to In progress. It is refused while any ticket in the epic is in Inbox or Planning, with a clear `epic_not_ready` error that lists them and the four ways forward: finish shaping, propose known gaps for the owner's approval, move the ticket to the epic it belongs in, or move it out of the epic.
+3. **A running producer isn't stopped.** Epics already In progress are not blocked, and resuming the claim on one works. They show a quiet "Started with N unshaped tickets" flag on the epic and in `get_digest`. Claiming an ordinary ticket is unchanged.
+4. **Visible before choosing.** Pick next epic marks an epic "Not ready to start: N unshaped tickets", with links, and never makes it Best next. The epic card and page show the same.
+5. **Skills.** `docket-producer` and `docket-planner` check every ticket is Ready before starting an epic, and resolve unshaped ones by shaping, known-gap approval, moving or removing. `docket-worker` reads known gaps and records how each was settled.
+6. **No new MCP tool**, since the text-only tool list is at its budget.
+
+BUILD_SPEC §5.41, MCP_SPEC §5.2, §5.3, §5.4 and §6, UI_SPEC §5, §6.2.5 and §6.3, spec FR-325–FR-330 and SC-039, and Help (Pick the next epic) have the details.
+
 ## Deferred choices
 
 Pilot project choice and Jira import strategy are deferred until V1 is ready for real work. Design should still settle the storage layout, supported document preview formats, the exact project gate configuration shape, and the minimum history needed before a velocity forecast is shown. These are implementation choices guided by the owner decisions above, not blockers to selecting a pilot now.
