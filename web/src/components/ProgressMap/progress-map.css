@@ -545,3 +545,7 @@
   overflow-y: auto;
   position: relative;
 }
+/* Decision 65: a ticket waiting for a planner says so in words. */
+.tl .pm-node .pm-shape {
+  font-weight: 600;
+}

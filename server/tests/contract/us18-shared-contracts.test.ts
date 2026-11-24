@@ -555,7 +555,7 @@ describe('the Ready gate (FR-159)', () => {
       'not_declared',
     );
     expect(refused.message).toBe(
-      `Declare the shared parts ${id} will change (or none) with declare_shared_changes, then move it to Ready.`,
+      `Declare the shared parts ${id} will change (or none) with declare_shared_changes, then move it to Ready. It also has no outcome and no acceptance criteria.`,
     );
     expect(status(id)).toBe('planning');
     expectOk(await declare({ id, none: true }));

@@ -42,7 +42,8 @@ export function EpicReadinessLine({
           <Link className="mono" to={paths.item(t.id)} title={t.title}>
             {t.id}
           </Link>{' '}
-          ({STATUS_LABELS[t.status]})
+          ({STATUS_LABELS[t.status]}
+          {t.needs_shaping ? ', needs shaping' : ''})
         </Fragment>
       ))}
     </div>

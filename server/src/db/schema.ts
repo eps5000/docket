@@ -272,6 +272,13 @@ export const items = sqliteTable(
      * no longer an open-or-done, non-bug ticket in the epic.
      */
     finish_line: text('finish_line'),
+    /**
+     * Decision 65 (B82): who asked for this ticket to be shaped, as JSON
+     * `{asked_by: 'agent' | 'owner', by, at, note}`: an agent created it without
+     * an outcome, acceptance or shared changes declaration, or the owner asked
+     * a planner from a refused Move to Ready. Null otherwise; cleared at Ready.
+     */
+    shaping: text('shaping', { mode: 'json' }),
     version: version(),
     ...timestamps,
   },

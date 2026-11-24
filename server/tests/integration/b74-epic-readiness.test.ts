@@ -39,6 +39,9 @@ const create = (type: 'Epic' | 'Task', opts: { epic?: string; status?: Status } 
       project: 'TST',
       type,
       title: `Synthetic ${type.toLowerCase()}`,
+      // Decision 65: shaped in content, so only the status says it isn't ready.
+      outcome_md: 'Synthetic outcome.',
+      acceptance: ['Synthetic criterion'],
       priority: 2,
       status: 'planning',
       ...(opts.epic ? { epic: opts.epic } : {}),

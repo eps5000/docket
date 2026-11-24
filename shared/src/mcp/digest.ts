@@ -9,6 +9,7 @@ import { cursor, projectKey, readInput, readOutput } from './common.js';
 import { WAIT_FLAG_KINDS, coordinatorParkSchema, prioritySchema, runStateSchema } from './types.js';
 import { WAIT_KINDS } from '../wait-kind.js';
 import { EXIT_VIAS, exitLeftSchema } from '../exit-report.js';
+import { SHAPING_ASKERS, SHAPING_PARTS } from '../shaping.js';
 
 /** The most rows each section lists. */
 export const DIGEST_CAPS = {
@@ -25,6 +26,7 @@ export const DIGEST_CAPS = {
   unshaped_epics: 3,
   release_bugs: 3,
   finished_partly: 4,
+  needs_shaping: 5,
 } as const;
 
 /** The hard cap on the text block: 1,000 tokens at characters ÷ 4 (MCP_SPEC §3.2). */
@@ -158,6 +160,17 @@ export const digestFinishedPartlySchema = z.object({
   left: z.array(exitLeftSchema),
 });
 
+/** Decision 65: a ticket for a planner to shape: what it lacks, and who asked. */
+export const digestNeedsShapingSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  epic: z.string().nullable(),
+  missing: z.array(z.enum(SHAPING_PARTS)),
+  asked_by: z.enum(SHAPING_ASKERS),
+  /** The owner's note to the planner. */
+  note: z.string().nullable(),
+});
+
 export const digestChangeSchema = z.object({
   cursor: z.string(),
   item_id: z.string().nullable(),
@@ -196,5 +209,7 @@ export const getDigestOutput = readOutput({
   release_bugs: section(digestReleaseBugsSchema).optional(),
   /** Decision 61: partial exits nobody has acted on yet, on every digest; absent when none. */
   finished_partly: section(digestFinishedPartlySchema).optional(),
+  /** Decision 65: "Needs shaping: N", tickets for the producer to give a planner; absent when none. */
+  needs_shaping: section(digestNeedsShapingSchema).optional(),
 });
 export type Digest = z.infer<typeof getDigestOutput>;

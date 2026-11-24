@@ -89,10 +89,14 @@ export const listProjectsOutput = readOutput({
 
 // ---- search_items ----
 
-export const ITEM_SUMMARY_FIELDS = Object.keys(itemSummarySchema.shape) as [
-  keyof typeof itemSummarySchema.shape,
-  ...(keyof typeof itemSummarySchema.shape)[],
-];
+/**
+ * Decision 65: `needs_shaping` comes with every read that doesn't name its
+ * fields, and isn't a field to pick: the text-only tool list is at its budget.
+ */
+type SummaryField = Exclude<keyof typeof itemSummarySchema.shape, 'needs_shaping'>;
+export const ITEM_SUMMARY_FIELDS = Object.keys(itemSummarySchema.shape).filter(
+  (k) => k !== 'needs_shaping',
+) as [SummaryField, ...SummaryField[]];
 
 export const searchItemsInput = readInput({
   project: projectKey.optional(),
@@ -117,9 +121,10 @@ export const searchItemsOutput = readOutput({
 
 // ---- get_item ----
 
-export const ITEM_FIELDS = Object.keys(itemSchema.shape) as [
-  keyof typeof itemSchema.shape,
-  ...(keyof typeof itemSchema.shape)[],
+type ItemField = Exclude<keyof typeof itemSchema.shape, 'needs_shaping'>;
+export const ITEM_FIELDS = Object.keys(itemSchema.shape).filter((k) => k !== 'needs_shaping') as [
+  ItemField,
+  ...ItemField[],
 ];
 
 export const itemViewNameSchema = z.enum(['summary', 'standard', 'full']);
