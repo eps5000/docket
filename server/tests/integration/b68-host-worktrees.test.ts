@@ -7,7 +7,7 @@
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { delimiter, dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { HostWorktreeRecord, RepoWorktreeRow } from '@docket/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -266,11 +266,32 @@ describe.skipIf(!HAS_GIT)('the collector, on a real repository', () => {
     }
   });
 
-  it('a real git call past its time limit has no answer', async () => {
-    const real = gitLib.createGit({ env: env() });
-    const r = await real.read(repo.repo, ['status', '--porcelain'], { timeoutMs: 1 });
-    expect(r.unknown).toBe(true);
-  });
+  // A real child process that never answers, so the time limit always wins. Real git with a
+  // 1 ms limit raced its own exit and failed now and then (B77, B78, B82). The fake is a POSIX
+  // script, and findGit only takes git.exe on Windows, so it runs where CI runs.
+  it.skipIf(process.platform === 'win32')(
+    'a git call past its time limit is stopped and has no answer',
+    async () => {
+      const bin = join(tmp.dir, 'silent-bin');
+      mkdirSync(bin);
+      const fake = join(bin, 'git');
+      const started = join(tmp.dir, 'silent-git-started');
+      writeFileSync(fake, ['#!/bin/sh', `touch '${started}'`, 'exec sleep 30', ''].join('\n'), {
+        mode: 0o755,
+      });
+      const base = env();
+      const silent = gitLib.createGit({ env: { ...base, PATH: `${bin}${delimiter}${base.PATH}` } });
+      const began = Date.now();
+      // Long enough for the script to start under load; it never answers, so the limit decides.
+      const r = await silent.read(repo.repo, ['status', '--porcelain'], { timeoutMs: 1_000 });
+      expect(r).toEqual({ status: null, stdout: '', count: 0, unknown: true });
+      // It really ran, and was stopped at the limit rather than waited out.
+      expect(existsSync(started)).toBe(true);
+      const took = Date.now() - began;
+      expect(took).toBeGreaterThanOrEqual(900);
+      expect(took).toBeLessThan(10_000);
+    },
+  );
 
   it('a pass out of time is partial, and the next one carries on', async () => {
     let clock = 1_000_000_000_000;
