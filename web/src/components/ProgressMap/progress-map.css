@@ -61,6 +61,20 @@
 .tl .pm-tools .seg button {
   min-width: 34px;
 }
+/* Decision 60: the "Hide implied links" switch and its "n hidden" count. */
+.tl .pm-tools {
+  flex-wrap: wrap;
+}
+.tl .pm-implied {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+.tl .pm-implied input {
+  margin: 0;
+}
 
 /* ---------- canvas ---------- */
 .tl .pm-frame {
@@ -422,6 +436,10 @@
   color: var(--ink-3);
   font-size: 12px;
   line-height: 1;
+}
+/* Decision 60: a dependency the epic map hides as implied. */
+.tl .pm-hop .pm-impliednote {
+  margin: 2px 0 0 4px;
 }
 
 @media (prefers-reduced-motion: reduce) {

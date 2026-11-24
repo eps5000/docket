@@ -10,5 +10,14 @@ export { MapCard, reviewMark } from './MapCard';
 export type { MapCardProps } from './MapCard';
 export { layoutMap, cyclesIn, cyclePath, stepZoom, fitZoom, ZOOM_STEPS, FIT_MIN } from './layout';
 export type { MapItem, MapEdge, MapLayout } from './layout';
+export {
+  impliedLinks,
+  impliedOnMap,
+  throughText,
+  readHideImplied,
+  useHideImplied,
+  HIDE_IMPLIED_HELP,
+} from './implied';
+export type { ChainEdge, ImpliedOptions } from './implied';
 export { planMap, routeMap, roundedPath, CARD_WIDTH, GUTTER_MIN, ROW_GAP_MIN } from './routing';
 export type { MapPlan, PlanEdge, RoutedMap, RoutedArrow, CardBox } from './routing';

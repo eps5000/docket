@@ -12,6 +12,7 @@
  * | Collapsed sections (per section *type*) | localStorage     |
  * | Work's last filter, per project (B43)   | localStorage     |
  * | Overview's time window (decision 43)    | localStorage     |
+ * | Map: Hide implied links (decision 60)   | localStorage     |
  *
  * Everything else (filters, layout) lives in the URL query. Work's filter
  * lives there too; the stored one applies only when the URL has none.
@@ -44,6 +45,8 @@ export const STORAGE_KEYS = {
   workFilters: 'docket.workFilters',
   /** localStorage: `24h` | `7d` | `30d`, Overview's last time window (decision 43). */
   overviewWindow: 'docket.overviewWindow',
+  /** localStorage: `off` when the viewer shows implied links on the map; absent means on (decision 60). */
+  mapHideImplied: 'docket.mapHideImplied',
 } as const;
 
 export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS];
@@ -58,6 +61,7 @@ export const STORAGE_AREA: Record<StorageKey, 'session' | 'local'> = {
   'docket.collapsed': 'local',
   'docket.workFilters': 'local',
   'docket.overviewWindow': 'local',
+  'docket.mapHideImplied': 'local',
 };
 
 function area(key: StorageKey): Storage | null {
