@@ -137,6 +137,7 @@ describe('the service stubs', () => {
       'resume',
       // US6 (B13, T120).
       'ownerRelease',
+      'ownerHandoffEpic',
       'returnToReady',
     ],
     checklist: [
