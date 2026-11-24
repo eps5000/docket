@@ -6,6 +6,8 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { WAIT_FLAGS, renderResult } from '@docket/shared';
 import { undoMutation } from '../../src/domain/undo.js';
+import { BlockIndex } from '../../src/domain/model.js';
+import { readyStates } from '../../src/domain/next-work.js';
 import { projectPause } from '../../src/domain/project-pause.js';
 import type { Actor } from '../../src/domain/write.js';
 import { recoveryFlags, restartSweep, sweepOnce, waitCheckOnce } from '../../src/jobs/sweeper.js';
@@ -301,7 +303,11 @@ describe('alerts and aging', () => {
     d.clock.advance(minutes(WAIT_FLAGS.grace_minutes + 1));
     check();
     expect(count('run.wait_flagged', a)).toBe(1);
+    expect(problemKinds(a)).toContain('wait_no_next_step');
     pause();
+    // Gone at once, before the two-minute check records it.
+    expect(problemKinds(a)).toEqual([]);
+    expect(card(a).flags).toEqual([]);
     check();
     check();
     expect(count('run.wait_cleared', a)).toBe(1);
@@ -332,6 +338,20 @@ describe('alerts and aging', () => {
     const view = d.services.views.needsYou(d.read(), { scope: 'TST' });
     expect(view.problems.length).toBe(count0);
     expect(view.project_decisions ?? []).toEqual([]);
+  });
+});
+
+describe('Ready', () => {
+  it('nothing in a paused project counts as Startable, and another project is unaffected', () => {
+    const here = item('TST');
+    const there = item('OTH');
+    pause('TST');
+    const states = readyStates(d.server.runtime.db, new BlockIndex(d.server.runtime.db), [
+      here,
+      there,
+    ]);
+    expect(states.get(here)).toEqual({ startable: false, waiting_on: 'you to resume the project' });
+    expect(states.get(there)).toEqual({ startable: true, waiting_on: null });
   });
 });
 

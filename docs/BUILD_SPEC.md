@@ -1004,6 +1004,7 @@ A pause is an **active decision record** with `pauses_project = 1`: owner author
 - **Coordinators:** `get_digest` adds `paused` (one line), with `next_work`, `bottlenecks` and `ready` empty, and leaves out problems whose fix is to start or resume work (`stale_run`, `failed_run`, `resume_unattended`). A parked run in another project waiting on a paused blocker reads "the owner has a paused project to resume", and isn't flagged. Activity flags aren't raised on the project's parked runs.
 - **Workers:** `get_context` carries `paused`, one line that a budget can't cut, saying to save work and park at the next safe point.
 - **Resuming:** a run that sat through the pause gets one `run.resume_ready` if it is ready, even if it was told before the pause: its `resume_key` includes the lift time.
+- **Ready (§5.30):** nothing in a paused project counts as Startable. Its Ready tickets show as waiting on "you to resume the project". A held run's stored flags stop showing at once, before the next check clears them.
 - **Needs you:** a pause adds nothing. It is an owner record, so it raises no review card.
 
 ## 6. MCP tool contract

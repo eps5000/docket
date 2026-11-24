@@ -23,6 +23,7 @@ import {
   type BlockIndex,
   type RunRow,
 } from './model.js';
+import { projectPauses } from './project-pause.js';
 import { waitingOnOverlap } from './shared-changes.js';
 
 export interface ReadyState {
@@ -58,11 +59,14 @@ export function readyStates(
   );
   const overlap = waitingOnOverlap(db, [...ids]);
   const design = waitingOnDesign(db, ids);
+  // Decision 53: nothing in a paused project can start, so none of it counts as Startable.
+  const paused = projectPauses(db);
   for (const id of ids) {
     const blockedBy = index.state(id).blocked_by;
     const lead = leads.get(id);
-    const waiting_on =
-      blockedBy.length > 0
+    const waiting_on = paused.has(index.project(id) ?? '')
+      ? 'you to resume the project'
+      : blockedBy.length > 0
         ? blockerWords(blockedBy)
         : lead
           ? `its lead, ${actorName({ kind: 'agent', client: lead.client, label: lead.label })}`

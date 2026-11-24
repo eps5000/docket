@@ -608,7 +608,8 @@ function recoveryProblems(
     }
     // Decision 45: the flags the two-minute check raised. Agents first, by the same routing.
     if (run.is_lead !== 1) continue;
-    for (const flag of openWaitFlags(run)) {
+    // Decision 53: a held run raises nothing, even before the next check clears its flags.
+    for (const flag of heldByOwner(hold) ? [] : openWaitFlags(run)) {
       const route = recoveryRoute({
         item: run.item_id,
         lead: false,

@@ -469,7 +469,8 @@ export class WaitReader {
                 ? `${run.item_id}: it can resume at ${waiting.until}`
                 : `${run.item_id}: resume it or say what it waits for`;
 
-    const flagsNow = openWaitFlags(run).map((f) => ({
+    // Decision 53: a held run shows no flag, even before the next check clears it.
+    const flagsNow = (held_by ? [] : openWaitFlags(run)).map((f) => ({
       kind: f.kind,
       on: f.on,
       since: f.since,
