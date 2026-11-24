@@ -13,11 +13,14 @@
  *   green = cleared. Card heights are measured (unscaled), everything is
  *   re-routed on resize (80 ms debounce), and it scales with the map on zoom.
  * - Hover or focus on a card highlights its links and dims the rest.
- * - Pan: drag the background (drags under 4 px are clicks), scroll, or the
- *   arrow keys while the canvas has focus (UI_SPEC §11). Edge fades and
- *   *More* pills show when content overflows, with a "Drag to pan" hint.
- * - Zoom: − / percentage (reset to 100%) / + / Fit; steps 50, 67, 80, 100,
- *   125%; Fit shows everything, down to 40%.
+ * - Pan: drag the background with a mouse (drags under 4 px are clicks), the
+ *   wheel, trackpad or touch (the browser's own scrolling), or the arrow keys
+ *   while the canvas has focus (UI_SPEC §11). Edge fades and *More* pills show
+ *   when content overflows, with a "Drag to pan" hint.
+ * - Zoom: − / percentage (reset to 100%) / + / Fit width; steps 50, 67, 80,
+ *   100, 125%. Fit width (decision 63) fits every wave to the width, never
+ *   above 100% or below 50%, and goes back to the top; the map scrolls down
+ *   for the rest.
  * - Critical path (decision 48): with a goal, the chain is outlined and numbered
  *   on its cards, everything else is muted, and the ticket to move next is
  *   scrolled into view. Muted cards keep their text contrast (no opacity).
@@ -46,7 +49,7 @@ import { Icon, StatusBar, type StatusBarSegment } from '../kit';
 import { useRenderLimit } from '../../lib/progressive';
 import { HIDE_IMPLIED_HELP, impliedOnMap, useHideImplied } from './implied';
 import { MapCard } from './MapCard';
-import { fitZoom, layoutMap, stepZoom, type MapEdge, type MapItem } from './layout';
+import { FIT_WIDTH_HELP, fitZoom, layoutMap, stepZoom, type MapEdge, type MapItem } from './layout';
 import { planMap, routeMap, type RoutedMap } from './routing';
 import './progress-map.css';
 
@@ -95,10 +98,8 @@ export function outsideLabel(item: MapItem, home?: { project: string } | null): 
 const PAN_STEP = 60;
 const DRAG_MIN = 4;
 const REDRAW_DEBOUNCE_MS = 80;
-/** Canvas padding (18 px 22 px) on both sides, and the 540 px height cap. */
+/** Canvas padding (22 px) on both sides. */
 const PAD_X = 44;
-const PAD_Y = 36;
-const MAX_H = 540;
 
 type Zoom = { fit: false; z: number } | { fit: true };
 
@@ -177,6 +178,8 @@ export function ProgressMap({
   const [traced, setTraced] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const drag = useRef<{ x: number; y: number; l: number; t: number; moved: boolean } | null>(null);
+  // Set by the Fit width button: go back to the top once the new zoom is laid out.
+  const scrollHome = useRef(false);
 
   // ---- Columns, card order and rows (pure, so the map doesn't jump between renders) ----
   const cols = useMemo(() => {
@@ -288,12 +291,18 @@ export function ProgressMap({
     };
   }, [measure]);
 
-  const z = zoom.fit
-    ? fitZoom(
-        { width: geo.w, height: geo.h },
-        { width: Math.max(0, view - PAD_X), height: MAX_H - PAD_Y },
-      )
-    : zoom.z;
+  const z = zoom.fit ? fitZoom(geo.w, view - PAD_X) : zoom.z;
+
+  // Fit width keeps room for the scrollbar (`.fit`): measure the new width before the first
+  // paint, not 80 ms later. Then start at the top left: the first wave's first tickets.
+  useLayoutEffect(() => {
+    measure();
+    const c = canvasRef.current;
+    if (!scrollHome.current || !c) return;
+    scrollHome.current = false;
+    c.scrollTop = 0;
+    c.scrollLeft = 0;
+  }, [zoom.fit, measure]);
 
   // ---- Overflow cues ----
   const updateCues = useCallback(() => {
@@ -335,6 +344,8 @@ export function ProgressMap({
     pan(m[0], m[1]);
   };
   const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
+    // Touch scrolls the canvas natively (both ways, with momentum); dragging too would fight it.
+    if (e.pointerType === 'touch') return;
     if (e.button !== 0 || (e.target as HTMLElement).closest('.pm-node')) return;
     const c = canvasRef.current!;
     drag.current = { x: e.clientX, y: e.clientY, l: c.scrollLeft, t: c.scrollTop, moved: false };
@@ -495,9 +506,13 @@ export function ProgressMap({
           <button
             type="button"
             aria-pressed={zoom.fit}
-            onClick={() => setZoom(zoom.fit ? { fit: false, z: 1 } : { fit: true })}
+            title={FIT_WIDTH_HELP}
+            onClick={() => {
+              scrollHome.current = !zoom.fit;
+              setZoom(zoom.fit ? { fit: false, z: 1 } : { fit: true });
+            }}
           >
-            Fit
+            Fit width
           </button>
         </div>
       </div>
@@ -509,7 +524,9 @@ export function ProgressMap({
       >
         <div
           ref={canvasRef}
-          className={`pm-canvas${dragging ? ' dragging' : ''}`}
+          className={['pm-canvas', dragging && 'dragging', zoom.fit && 'fit']
+            .filter(Boolean)
+            .join(' ')}
           tabIndex={0}
           role="region"
           aria-label={`Progress map: ${cols.list.map((c) => c.title).join(', ')}. Scroll, use the arrow keys, or drag to move around.`}

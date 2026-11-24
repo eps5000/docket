@@ -461,6 +461,18 @@ On the epic dependency map, if C depends on B and B depends on A, a direct arrow
 
 UI_SPEC §2, §6.3.3 and §6.3.4, spec FR-334–FR-337 and SC-041, and Help (Blocker rules and dependencies) have the details.
 
+## Owner decision 63 (2026-11-24): Fit fits the map's width
+
+The owner uses the dependency map's **Fit** button a lot. Maps have few waves but many tickets in a wave (one has 5 waves and 12 tickets in one wave), so fitting the whole map made every card tiny, and every Fit needed zooming again.
+
+1. **Fit fits the width.** The button, now **Fit width**, scales the map so all its waves fit the width of the view and scrolls to the top. The map then scrolls down for the tickets below.
+2. **Never above 100%,** so a narrow map isn't blown up past its normal size.
+3. **A floor:** if even the width can't fit at the smallest readable zoom (50%, the smallest zoom step), the map stays at 50% and scrolls both ways.
+4. **Every map with Fit:** the epic Map tab and Work → Map.
+5. **Nothing else changes:** the zoom buttons, the keyboard, *Hide implied links*, focus and announcements. The button's name and tooltip say what it does. Scrolling down works with the mouse wheel, a trackpad, the keyboard and touch, without fighting the map's own drag to pan.
+
+UI_SPEC §6.3.4 and §8, spec FR-338–FR-340 and SC-042, and Help (Blocker rules and dependencies) have the details.
+
 ## Owner decision 64 (2026-11-24): open bugs hold back an epic's release
 
 Bugs found mid-epic are filed into the epic with no links, so the map puts them in Wave 1, and nothing stops the epic's release ticket from being finished, and the work shipped, while they're still open. **Every open bug in an epic holds its release.**
@@ -471,7 +483,7 @@ Bugs found mid-epic are filed into the epic with no links, so the map puts them 
 4. **On the map.** A **Bugs** column to the left of Wave 1 stacks every bug in the epic with its status, instead of bugs appearing in Wave 1 as starting work. A bug that's part of the chain is drawn in its wave with a bug marker. No arrows run from the Bugs column to the finish line: the finish line shows "Waiting on N bugs", and the column header counts open bugs. It works with Hide implied links and the map's fit. The epic page and Pick next epic show open bug counts too.
 5. **Agents.** `get_context` for the finish line and `get_digest` for the producer show the bugs holding the release, within the text-only budget and with no new tool. `docket-producer` triages each bug to Ready in this epic (it holds the release) or out of it; `docket-worker` has the finish line's implementer check the bugs first.
 
-BUILD_SPEC §5.42, MCP_SPEC (`update_item`, `set_status`, `submit_packet`, `get_context`, `get_digest`, errors), UI_SPEC §6.2.5, §6.3 and §6.3.4, spec FR-338–FR-343 and SC-042, and Help (Blocker rules and dependencies; Pick next epic) have the details.
+BUILD_SPEC §5.42, MCP_SPEC (`update_item`, `set_status`, `submit_packet`, `get_context`, `get_digest`, errors), UI_SPEC §6.2.5, §6.3 and §6.3.4, spec FR-341–FR-346 and SC-043, and Help (Blocker rules and dependencies; Pick next epic) have the details.
 
 ## Deferred choices
 

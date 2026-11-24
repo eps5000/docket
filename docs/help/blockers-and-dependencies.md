@@ -53,7 +53,11 @@ Parent epics and "relates" links never block. Blocking works across projects.
 
 An epic's **Map** tab puts its tickets in waves, left to right: wave 1 can start now, wave 2 after it, and so on. The bar at the top and the card edges use the same colours as the status chips. In progress is Done's green with stripes, because it's on its way to Done, just as Queued is Ready's blue with stripes. Ready work that's waiting its turn is **queued** (a calm dashed outline), and only Ready work whose wait needs attention is red and **blocked**.
 
-Arrows run through the gaps between cards and never across one, so several can share a gap. **Hover or focus a card** to pick out its arrows: they light up and the rest fade. A dashed green arrow is a blocker that's already cleared. Use − / + or **Fit** to zoom, and drag the background to pan.
+Arrows run through the gaps between cards and never across one, so several can share a gap. **Hover or focus a card** to pick out its arrows: they light up and the rest fade. A dashed green arrow is a blocker that's already cleared. Use − / + or **Fit width** to zoom, and drag the background to pan.
+
+### Fit width
+
+**Fit width** shrinks the map until every wave fits across the screen, then takes you to the top. A wave with many tickets runs further down: scroll down with the mouse wheel, a trackpad, a finger, or the arrow keys once you've selected the map. It never makes a small map bigger than normal (100%), and it stops at 50% so cards stay readable; a map with too many waves to fit even then scrolls sideways too. Press **Fit width** again to go back to 100%, or use − and + from where it left you.
 
 ### Hide implied links
 

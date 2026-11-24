@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 /**
  * The progress map (UI_SPEC §6.3.4; tasks.md T108): wave layout, the outside
- * and cycle columns, the header counts, zoom steps and Fit, arrows, hover
- * tracing and keyboard panning.
+ * and cycle columns, the header counts, zoom steps and Fit width (decision 63),
+ * arrows, hover tracing and keyboard panning.
  */
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
@@ -10,6 +10,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { LinkEdge, Status } from '@docket/shared';
 import {
   FIT_MIN,
+  FIT_WIDTH_HELP,
   ProgressMap,
   cyclePath,
   cyclesIn,
@@ -157,17 +158,34 @@ describe('cycles, zoom and arrows', () => {
     expect(cyclePath(['A-1', 'A-2', 'A-3'], cyc)).toEqual(['A-1', 'A-3', 'A-2', 'A-1']);
   });
 
-  it('zoom steps are 50, 67, 80, 100 and 125%, and Fit goes down to 40% but never above 100%', () => {
+  it('zoom steps are 50, 67, 80, 100 and 125%', () => {
     expect(stepZoom(1, 1)).toBe(1.25);
     expect(stepZoom(1.25, 1)).toBe(1.25);
     expect(stepZoom(1, -1)).toBe(0.8);
     expect(stepZoom(0.8, -1)).toBe(0.67);
     expect(stepZoom(0.67, -1)).toBe(0.5);
     expect(stepZoom(0.5, -1)).toBe(0.5);
-    expect(stepZoom(0.45, 1)).toBe(0.5); // from a Fit value between steps
-    expect(fitZoom({ width: 4000, height: 400 }, { width: 800, height: 500 })).toBe(FIT_MIN);
-    expect(fitZoom({ width: 1000, height: 400 }, { width: 800, height: 500 })).toBe(0.8);
-    expect(fitZoom({ width: 300, height: 200 }, { width: 800, height: 500 })).toBe(1);
+    expect(stepZoom(0.72, 1)).toBe(0.8); // from a Fit width value between steps
+    expect(stepZoom(0.72, -1)).toBe(0.67);
+  });
+
+  it('Fit width (decision 63) fits the width only, never above 100% or below 50%', () => {
+    // Wide: 5 waves in 800 px.
+    expect(fitZoom(1000, 800)).toBe(0.8);
+    // Tall: the height plays no part; a map that fits the width stays at 100%.
+    expect(fitZoom(700, 800)).toBe(1);
+    // Narrow: capped at the normal 100%, never blown up.
+    expect(fitZoom(300, 800)).toBe(1);
+    // Very wide: the floor is the smallest step, and the map scrolls both ways.
+    expect(FIT_MIN).toBe(0.5);
+    expect(fitZoom(4000, 800)).toBe(FIT_MIN);
+    expect(fitZoom(1600, 800)).toBe(0.5);
+    // Rounded down, so the scaled map never overflows the width by a pixel.
+    expect(fitZoom(1500, 1000)).toBe(0.666);
+    expect(Math.ceil(1500 * fitZoom(1500, 1000))).toBeLessThanOrEqual(1000);
+    // Nothing measured yet.
+    expect(fitZoom(0, 800)).toBe(1);
+    expect(fitZoom(1000, 0)).toBe(1);
   });
 });
 
@@ -273,9 +291,15 @@ describe('<ProgressMap>', () => {
     expect(pct()).toBe('100%');
     for (let i = 0; i < 4; i++) fireEvent.click(button('Zoom out'));
     expect(pct()).toBe('50%');
-    const fit = button('Fit');
+    const fit = button('Fit width');
+    expect(fit.textContent).toBe('Fit width');
+    expect(fit.getAttribute('title')).toBe(FIT_WIDTH_HELP);
+    expect(fit.getAttribute('aria-pressed')).toBe('false');
     fireEvent.click(fit);
     expect(fit.getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(fit);
+    expect(fit.getAttribute('aria-pressed')).toBe('false');
+    expect(pct()).toBe('100%');
   });
 
   it('hover and focus trace a card’s links and dim the rest', () => {
@@ -423,6 +447,155 @@ describe('Hide implied links (decision 60)', () => {
   });
 });
 
+describe('Fit width (decision 63)', () => {
+  // jsdom lays nothing out: every element reports `width` as its clientWidth, and the routed
+  // map's unscaled width is read back from its style.
+  let width = 0;
+  let spy: { mockRestore: () => void } | null = null;
+  afterEach(() => {
+    spy?.mockRestore();
+    spy = null;
+  });
+  const mapWidth = (c: HTMLElement) =>
+    parseFloat(c.querySelector<HTMLElement>('.pm-map')!.style.width);
+
+  // A tall map: five waves, with 12 tickets in wave 3.
+  const tallItems = [
+    item('T-1', 'done'),
+    item('T-2', 'review'),
+    ...Array.from({ length: 12 }, (_, i) => item(`T-${30 + i}`, 'ready', { blocked: true })),
+    item('T-4', 'planning', { blocked: true }),
+    item('T-5', 'inbox', { blocked: true }),
+  ];
+  const tallLinks = [
+    edge('T-1', 'T-2', true),
+    ...Array.from({ length: 12 }, (_, i) => edge('T-2', `T-${30 + i}`)),
+    edge('T-30', 'T-4'),
+    edge('T-4', 'T-5'),
+  ];
+
+  const render1 = (w: number, tall = false) => {
+    width = w;
+    spy ??= vi.spyOn(Element.prototype, 'clientWidth', 'get').mockImplementation(() => width);
+    const r = render(
+      <MemoryRouter>
+        <div className="tl">
+          <ProgressMap
+            items={tall ? tallItems : items}
+            outside={tall ? undefined : outside}
+            links={tall ? tallLinks : links}
+            outsideTitle="Outside this epic"
+          />
+        </div>
+      </MemoryRouter>,
+    );
+    const zoom = within(screen.getByRole('group', { name: 'Zoom' }));
+    return {
+      ...r,
+      fit: zoom.getByRole('button', { name: 'Fit width' }),
+      pct: () => zoom.getByRole('button', { name: /^Zoom \d+%/ }).textContent,
+      canvas: r.container.querySelector<HTMLElement>('.pm-canvas')!,
+      sizer: r.container.querySelector<HTMLElement>('.pm-sizer')!,
+    };
+  };
+  /** The map's unscaled width, from a first render. */
+  const widthOf = (tall = false) => {
+    const first = render1(0, tall);
+    const w = mapWidth(first.container);
+    first.unmount();
+    expect(w).toBeGreaterThan(0);
+    return w;
+  };
+
+  it('scales a wide map so every wave fits the width, and no more', () => {
+    const w = widthOf();
+    // The view is 80% of the map, plus the canvas's 22 px padding each side.
+    const view = Math.round(w * 0.8);
+    const m = render1(view + 44);
+    expect(m.pct()).toBe('100%');
+    fireEvent.click(m.fit);
+    expect(m.fit.getAttribute('aria-pressed')).toBe('true');
+    expect(m.pct()).toBe('80%');
+    expect(m.canvas.className).toContain('fit');
+    expect(parseFloat(m.sizer.style.width)).toBeLessThanOrEqual(view);
+    expect(parseFloat(m.sizer.style.width)).toBeGreaterThan(view - 3);
+  });
+
+  it('fits a tall map (12 tickets in one wave) by its width alone', () => {
+    const w = widthOf(true);
+    const m = render1(Math.round(w * 0.8) + 44, true);
+    expect(m.container.querySelectorAll('[data-col="wave-3"] .pm-node')).toHaveLength(12);
+    expect(m.container.querySelectorAll('.pm-colh')).toHaveLength(5);
+    fireEvent.click(m.fit);
+    expect(m.pct()).toBe('80%');
+  });
+
+  it('never blows a narrow map up past 100%', () => {
+    const m = render1(5000);
+    fireEvent.click(m.fit);
+    expect(m.pct()).toBe('100%');
+    expect(m.fit.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('stops at 50% on a very wide map, which then scrolls both ways', () => {
+    const m = render1(300);
+    fireEvent.click(m.fit);
+    expect(m.pct()).toBe('50%');
+    expect(parseFloat(m.sizer.style.width)).toBeGreaterThan(300 - 44);
+  });
+
+  it('goes back to the top left; turning it off leaves the scroll alone', () => {
+    const m = render1(5000);
+    const pos = { top: 300, left: 120 };
+    Object.defineProperty(m.canvas, 'scrollTop', {
+      configurable: true,
+      get: () => pos.top,
+      set: (v: number) => {
+        pos.top = v;
+      },
+    });
+    Object.defineProperty(m.canvas, 'scrollLeft', {
+      configurable: true,
+      get: () => pos.left,
+      set: (v: number) => {
+        pos.left = v;
+      },
+    });
+    fireEvent.click(m.fit);
+    expect(pos).toEqual({ top: 0, left: 0 });
+    pos.top = 200;
+    fireEvent.click(m.fit);
+    expect(m.fit.getAttribute('aria-pressed')).toBe('false');
+    expect(pos.top).toBe(200);
+  });
+
+  it('the keyboard still scrolls down after Fit width', () => {
+    const m = render1(5000);
+    fireEvent.click(m.fit);
+    let moved: ScrollToOptions | null = null;
+    m.canvas.scrollBy = ((opts: ScrollToOptions) => {
+      moved = opts;
+    }) as typeof m.canvas.scrollBy;
+    fireEvent.keyDown(m.canvas, { key: 'ArrowDown' });
+    expect(moved).toEqual({ left: 0, top: 60 });
+  });
+
+  it('a mouse drags the map; touch is left to the browser’s own scrolling', () => {
+    const m = render1(5000);
+    const at = { clientX: 100, clientY: 100, button: 0, pointerId: 1 };
+    fireEvent.pointerDown(m.canvas, { ...at, pointerType: 'touch' });
+    fireEvent.pointerMove(m.canvas, { ...at, clientY: 40, pointerType: 'touch' });
+    expect(m.canvas.className).not.toContain('dragging');
+    fireEvent.pointerUp(m.canvas, { ...at, pointerType: 'touch' });
+
+    fireEvent.pointerDown(m.canvas, { ...at, pointerType: 'mouse' });
+    fireEvent.pointerMove(m.canvas, { ...at, clientY: 40, pointerType: 'mouse' });
+    expect(m.canvas.className).toContain('dragging');
+    fireEvent.pointerUp(m.canvas, { ...at, pointerType: 'mouse' });
+    expect(m.canvas.className).not.toContain('dragging');
+  });
+});
+
 describe('Bugs hold the release (decision 64)', () => {
   // RCP-17 and RCP-18 are bugs with no link; RCP-19 is a bug RCP-22 waits on (part of the chain).
   const bugItems = [
@@ -529,5 +702,57 @@ describe('Bugs hold the release (decision 64)', () => {
     fireEvent.click(screen.getByLabelText('Hide implied links'));
     expect(screen.queryByText(/hidden$/)).toBeNull();
     expect(container.querySelector('[data-col="bugs"]')).toBeTruthy();
+  });
+});
+
+describe('Bugs column with Fit width (decisions 63 and 64)', () => {
+  let width = 0;
+  let spy: { mockRestore: () => void } | null = null;
+  afterEach(() => {
+    spy?.mockRestore();
+    spy = null;
+  });
+  const bugItems = [...items, item('RCP-17', 'ready', { type: 'Bug' })];
+  const show = (w: number, release: { finishLine: string; openBugs: number } | null) => {
+    width = w;
+    spy ??= vi.spyOn(Element.prototype, 'clientWidth', 'get').mockImplementation(() => width);
+    const r = render(
+      <MemoryRouter>
+        <div className="tl">
+          <ProgressMap
+            items={bugItems}
+            outside={outside}
+            links={links}
+            outsideTitle="Outside this epic"
+            release={release}
+          />
+        </div>
+      </MemoryRouter>,
+    );
+    const zoom = within(screen.getByRole('group', { name: 'Zoom' }));
+    return {
+      ...r,
+      fit: zoom.getByRole('button', { name: 'Fit width' }),
+      pct: () => zoom.getByRole('button', { name: /^Zoom \d+%/ }).textContent,
+      sizer: r.container.querySelector<HTMLElement>('.pm-sizer')!,
+      mapWidth: () => parseFloat(r.container.querySelector<HTMLElement>('.pm-map')!.style.width),
+    };
+  };
+
+  it('fits the width with the Bugs column in it', () => {
+    const plain = show(0, null);
+    const without = plain.mapWidth();
+    plain.unmount();
+    const first = show(0, { finishLine: 'RCP-22', openBugs: 1 });
+    const withBugs = first.mapWidth();
+    first.unmount();
+    // One more column: the map is wider by a card and a gutter.
+    expect(withBugs).toBeGreaterThan(without + 200);
+    const view = Math.round(withBugs * 0.8);
+    const m = show(view + 44, { finishLine: 'RCP-22', openBugs: 1 });
+    fireEvent.click(m.fit);
+    expect(m.pct()).toBe('80%');
+    expect(parseFloat(m.sizer.style.width)).toBeLessThanOrEqual(view);
+    expect(m.container.querySelector('[data-col="bugs"] [data-pid="RCP-17"]')).toBeTruthy();
   });
 });

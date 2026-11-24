@@ -763,11 +763,17 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T338 [US18] Docket runs no git: `domain/host-git.ts` stores the passes; the radar, `run-activity.ts`, `worktree-check.ts`, the worktree cleanup view and `install-main.ts` judge from the facts; `git-read.ts`, the container worktree scan and git in the image are gone. "Waiting for the host helper" and stale states on the radar card, the Git checks card and the Worktrees view; `repo_path` is a host path.
 - [x] T339 [US18] Tests: the helper on fixture repositories with linked worktrees (each read, `.git` hashed before and after, bounds, an incomplete pass, the file-name cap, no file names outside conflicts); the ingest of each fact, findings and clearing from facts, waiting and stale, both upgrade orders, a guard that `server/src` starts no child process; e2e and axe in both themes for the waiting and stale states.
 
-## Phase 56: Open bugs hold back an epic's release (owner decision 64)
+## Phase 56: Fit fits the map's width (owner decision 63)
 
-- [x] T340 [US4] Spec plus code in one PR: decision 64 in REQUIREMENTS_DRAFT and the BUILD_SPEC log, BUILD_SPEC §5.42; MCP_SPEC (`update_item finish_line`, `bugs_open`, `get_context release_hold`, `get_digest release_bugs`); UI_SPEC §6.2.5, §6.3 and §6.3.4; spec FR-338–FR-343 and SC-042; Help (Blocker rules and dependencies; Pick next epic); `docket-producer` and `docket-worker`.
-- [x] T341 [US4] `domain/finish-line.ts`: finding the finish line (one, several, none, marked; migration 0029 `items.finish_line`), `bugs_open` on `set_status done` and `submit_packet`, the owner's review leaving it In progress, a reason to cancel a bug in an epic, the bug-left Activity line; `release_hold` and `release_bugs` for agents; the epic page, cards, Pick next epic, the ticket and bug notes; the map's Bugs column, chain-bug marker and "Waiting on N bugs" badge.
-- [x] T342 [US4] Tests: detection (one, several, none, marked, a mark that stops counting), the hold with open, done and canceled bugs and bugs outside the epic, the refusal's content, moving out and canceling, the owner's review; the map's Bugs column, chain bug, badge and Hide implied links; the digest and context, the token budget; e2e and axe in both themes with screenshots at 1440 x 900 and 1024 px.
+- [x] T340 [US4] Spec plus code in one PR: decision 63 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; UI_SPEC §6.3.4 and §8; spec FR-338–FR-340 and SC-042; Help (Blocker rules and dependencies).
+- [x] T341 [US4] `components/ProgressMap`: `fitZoom` fits the width only (100% cap, 50% floor, rounded down), the **Fit width** button with its tooltip, back to the top left on Fit, a stable scrollbar gutter while fitted, and touch left to native scrolling.
+- [x] T342 [US4] Tests: a wide, tall, narrow and very wide map, the scroll position after Fit, wheel and keyboard scrolling, a mouse drag and a touch; e2e and axe in both themes with screenshots at 1440 x 900 and 1024 px.
+
+## Phase 57: Open bugs hold back an epic's release (owner decision 64)
+
+- [x] T343 [US4] Spec plus code in one PR: decision 64 in REQUIREMENTS_DRAFT and the BUILD_SPEC log, BUILD_SPEC §5.42; MCP_SPEC (`update_item finish_line`, `bugs_open`, `get_context release_hold`, `get_digest release_bugs`); UI_SPEC §6.2.5, §6.3 and §6.3.4; spec FR-341–FR-346 and SC-043; Help (Blocker rules and dependencies; Pick next epic); `docket-producer` and `docket-worker`.
+- [x] T344 [US4] `domain/finish-line.ts`: finding the finish line (one, several, none, marked; migration 0029 `items.finish_line`), `bugs_open` on `set_status done` and `submit_packet`, the owner's review leaving it In progress, a reason to cancel a bug in an epic, the bug-left Activity line; `release_hold` and `release_bugs` for agents; the epic page, cards, Pick next epic, the ticket and bug notes; the map's Bugs column, chain-bug marker and "Waiting on N bugs" badge.
+- [x] T345 [US4] Tests: detection (one, several, none, marked, a mark that stops counting), the hold with open, done and canceled bugs and bugs outside the epic, the refusal's content, moving out and canceling, the owner's review; the map's Bugs column, chain bug, badge and Hide implied links; the digest and context, the token budget; e2e and axe in both themes with screenshots at 1440 x 900 and 1024 px.
 
 ## How to run the build
 
