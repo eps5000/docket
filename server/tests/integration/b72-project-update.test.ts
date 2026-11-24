@@ -100,6 +100,14 @@ let tmp: TempDir;
 let scripts: string;
 let n = 0;
 
+/**
+ * Output with colour codes, PowerShell's wrapped-error gutter and all spacing
+ * removed, because pwsh wraps its error text at any width.
+ */
+const squash = (out: string) =>
+  // eslint-disable-next-line no-control-regex
+  out.replace(/\u001b\[[0-9;?]*[a-zA-Z]/g, '').replace(/[\s|]+/g, '');
+
 interface Ran {
   status: number | null;
   out: string;
@@ -361,8 +369,8 @@ describe.skipIf(!runnable).each(shells)('docket-update with %s', (shell) => {
       const before = snapshot(repo);
       const r = await runUpdate(shell, repo, ['--url', url]);
       expect(r.status, r.out).not.toBe(0);
-      expect(r.out).toContain('damaged Docket section');
-      expect(r.out.replace(/\s+/g, ' ')).toContain('before writing anything');
+      expect(squash(r.out)).toContain(squash('damaged Docket section'));
+      expect(squash(r.out)).toContain(squash('before writing anything'));
       expect(snapshot(repo)).toEqual(before);
     });
 
@@ -415,7 +423,7 @@ describe.skipIf(!runnable).each(shells)('docket-update with %s', (shell) => {
       },
     );
     expect(r.status, r.out).not.toBe(0);
-    expect(r.out.replace(/\s+/g, ' ')).toContain("isn't in a git repository");
+    expect(squash(r.out)).toContain(squash("isn't in a git repository"));
     expect(readdirSync(folder)).toEqual([]);
   });
 
@@ -432,7 +440,7 @@ describe.skipIf(!runnable).each(shells)('docket-update with %s', (shell) => {
       `http://127.0.0.1:${closed}`,
     ]);
     expect(r.status, r.out).not.toBe(0);
-    expect(r.out.replace(/\s+/g, ' ')).toContain("Docket isn't reachable");
+    expect(squash(r.out)).toContain(squash("Docket isn't reachable"));
     expect(snapshot(repo)).toEqual(before);
   });
 
@@ -452,7 +460,7 @@ describe.skipIf(!runnable).each(shells)('docket-update with %s', (shell) => {
       const before = snapshot(repo);
       const refused = await runUpdate(shell, repo, args);
       expect(refused.status, refused.out).not.toBe(0);
-      expect(refused.out.replace(/\s+/g, ' ')).toContain('DOCKET_TOKEN');
+      expect(squash(refused.out)).toContain('DOCKET_TOKEN');
       expect(snapshot(repo)).toEqual(before);
 
       const ok = await runUpdate(shell, repo, args, { DOCKET_TOKEN: token });

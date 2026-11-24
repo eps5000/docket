@@ -792,7 +792,7 @@ function InstallStateRow({
             size="sm"
             onClick={() => setShowUpdate(!showUpdate)}
             aria-expanded={showUpdate}
-            aria-label={`Show the update command for ${label}`}
+            aria-label={`Show the command to update ${label}`}
           >
             Show the command
           </Button>

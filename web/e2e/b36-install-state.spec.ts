@@ -215,7 +215,7 @@ test.describe('Several clients and install state (decision 34)', () => {
       'Your project’s coordinator will take this in',
     );
     await expect(row.getByRole('button', { name: /^Update/ })).toHaveCount(0);
-    await row.getByRole('button', { name: 'Show the update command for Claude Code' }).click();
+    await row.getByRole('button', { name: 'Show the command to update Claude Code' }).click();
     await expect(row.locator('[data-update-command]')).toContainText(
       '/agent/update/docket-update.sh',
     );
