@@ -58,6 +58,7 @@ const row = (n: number, verdict: WorktreeVerdict, over: Partial<RepoWorktreeRow>
     why: 'Clean, merged to main, and nothing is running in it.',
     owner: null,
     command: null,
+    source: 'container',
     ...over,
   }) satisfies RepoWorktreeRow;
 
@@ -102,6 +103,7 @@ function manyWorktrees(): WorktreeCleanupResponse {
     repo: 'ok',
     checked_at: new Date(Date.now() - 60_000).toISOString(),
     scanning: null,
+    host: { state: 'none', checked_at: null },
     rows,
   };
 }

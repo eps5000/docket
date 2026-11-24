@@ -377,7 +377,7 @@ The owner froze a project by telling agents to stop. Only tickets whose park rea
 5. **Coordinators aren't told to start anything.** `get_digest` has no next work or bottlenecks, and one plain "paused" line. `run.resume_ready` isn't raised. When the project resumes, anything ready gets its one event.
 6. **Visible and contained.** A plain banner on Overview, Work and the item page says who paused it, when and why, with *Resume project*. Project pickers show a Paused marker. It adds nothing to Needs you, never affects another project, and survives a restart.
 
-BUILD_SPEC §5.37, MCP_SPEC §5.2 and §5.4, UI_SPEC §6.1d, spec FR-290–FR-296 and SC-033, and Help (Pause a project) have the details.
+BUILD_SPEC §5.37, MCP_SPEC §5.2 and §5.4, UI_SPEC §6.1d, spec FR-295–FR-301 and SC-034, and Help (Pause a project) have the details.
 
 ## Deferred choices
 

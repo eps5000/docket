@@ -66,6 +66,18 @@ const known = (n: number | null) =>
   n === null ? 'Unknown' : n >= COUNT_CAP ? `${COUNT_CAP}+` : String(n);
 const yesNo = (b: boolean | null) => (b === null ? 'Unknown' : b ? 'Yes' : 'No');
 
+/** Why rows may read Unknown when the helper on the host isn't supplying facts (B68). */
+function HelperHint({ data }: { data: WorktreeCleanupResponse }) {
+  if (data.host.state === 'fresh' || !data.rows.some((r) => r.verdict === 'unknown')) return null;
+  return (
+    <p className="src" data-worktree-host-hint={data.host.state}>
+      {data.host.state === 'stale'
+        ? 'The helper on this computer hasn’t checked in lately, so what it read is Unknown until it runs again.'
+        : 'Docket can’t read worktrees outside its folder by itself. The helper on this computer can: see Settings → Connections → Worktree checks.'}
+    </p>
+  );
+}
+
 /** What the row asks of you, when it isn't a command to show. */
 function WhatToDo({ row }: { row: RepoWorktreeRow }) {
   if (row.verdict === 'holds_work') return <>{AT_RISK_NEXT[row.owner ?? 'unknown']}</>;
@@ -84,7 +96,7 @@ function WorktreeRow({ row, main }: { row: RepoWorktreeRow; main: string }) {
   const command = row.verdict === 'safe_to_remove' ? row.command : null;
   return (
     <>
-      <tr data-worktree={row.path} data-verdict={row.verdict}>
+      <tr data-worktree={row.path} data-verdict={row.verdict} data-source={row.source}>
         <td className="wc-verdict">
           <Chip kind={v.kind}>{v.label}</Chip>
           <span className="src">{row.why}</span>
@@ -316,7 +328,7 @@ export function WorktreeCleanup() {
           {d?.scanning
             ? `Checking worktrees: ${d.scanning.done} of ${d.scanning.total || '…'}`
             : d?.checked_at
-              ? `Checked ${formatAge(d.checked_at)}. Docket doesn’t fetch, so remotes are as of your last fetch.`
+              ? `Checked ${formatAge(d.checked_at)}${d.host.state === 'fresh' ? ' by the helper on this computer' : ''}. Docket doesn’t fetch, so remotes are as of your last fetch.`
               : ''}
         </span>
         {d?.repo === 'ok' && (
@@ -340,7 +352,10 @@ export function WorktreeCleanup() {
             ) : data.rows.length === 0 ? (
               <Skeleton lines={4} label="Checking worktrees" />
             ) : (
-              <CleanupTable data={data} />
+              <>
+                <HelperHint data={data} />
+                <CleanupTable data={data} />
+              </>
             )
           }
         </QueryState>

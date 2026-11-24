@@ -10,6 +10,7 @@
  * - `GET /api/items/:id/github`: the ticket's GitHub panel.
  */
 import { z } from 'zod';
+import { hasControlChars } from '../install.js';
 import { projectKey } from '../mcp/common.js';
 import { input, jsonResponse, noInput, ownerMutationOutput } from './common.js';
 import { itemParams } from './read.js';
@@ -130,6 +131,62 @@ export type GithubRepoRecord = z.infer<typeof githubRepoRecord>;
 
 export const githubRecord = z.discriminatedUnion('kind', [githubPrRecord, githubRepoRecord]);
 export type GithubRecord = z.infer<typeof githubRecord>;
+
+// ---- The worktrees source (B68) ----
+
+/** An absolute local path. Never a UNC or device path, and never a control character. */
+const hostPath = z
+  .string()
+  .min(1)
+  .max(1024)
+  .regex(/^(?:[A-Za-z]:[\\/]|\/(?!\/))/, { error: 'Expected an absolute local path.' })
+  .refine((v) => !hasControlChars(v), { error: 'Expected an absolute local path.' });
+const hostScanId = z.string().regex(/^[a-z0-9-]{1,40}$/);
+const hostCount = z.number().int().min(0).max(1_000_000);
+
+/** What the helper could tell about one worktree. Anything but `ok` is Unknown. */
+export const HOST_TREE_READS = ['ok', 'missing', 'timed_out', 'unreadable'] as const;
+
+/** One worktree. Strict, so a file name or anything else unexpected is refused. */
+export const hostTreeRecord = z.strictObject({
+  key: z.string().max(300),
+  kind: z.literal('tree'),
+  project: projectKey,
+  scan_id: hostScanId,
+  path: hostPath,
+  branch: z.string().min(1).max(255).nullable(),
+  head: z
+    .string()
+    .regex(/^[0-9a-f]{40,64}$/i)
+    .nullable(),
+  is_main: z.boolean(),
+  locked: z.boolean(),
+  read: z.enum(HOST_TREE_READS),
+  uncommitted_files: hostCount.nullable(),
+  unpushed_commits: hostCount.nullable(),
+  merged: z.boolean().nullable(),
+  last_git_at: isoTime.nullable(),
+});
+export type HostTreeRecord = z.infer<typeof hostTreeRecord>;
+
+/** Closes one project's scan. `complete`: every worktree git listed was attempted and sent. */
+export const hostScanRecord = z.strictObject({
+  key: z.string().max(300),
+  kind: z.literal('scan'),
+  project: projectKey,
+  scan_id: hostScanId,
+  repo_path: z.string().min(1).max(1024),
+  main_branch: z.string().min(1).max(255),
+  status: z.enum(['ok', 'unreadable']),
+  complete: z.boolean(),
+  tree_count: z.number().int().min(0).max(5000),
+  checked_at: isoTime,
+  main_path: hostPath.nullable(),
+});
+export type HostScanRecord = z.infer<typeof hostScanRecord>;
+
+export const hostWorktreeRecord = z.discriminatedUnion('kind', [hostTreeRecord, hostScanRecord]);
+export type HostWorktreeRecord = z.infer<typeof hostWorktreeRecord>;
 
 // ---- Settings → Connections → GitHub ----
 
