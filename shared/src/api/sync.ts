@@ -188,6 +188,168 @@ export type HostScanRecord = z.infer<typeof hostScanRecord>;
 export const hostWorktreeRecord = z.discriminatedUnion('kind', [hostTreeRecord, hostScanRecord]);
 export type HostWorktreeRecord = z.infer<typeof hostWorktreeRecord>;
 
+// ---- The git source (B76) ----
+
+/**
+ * Every git read Docket needs, made by the helper on the host. Strict records,
+ * so anything unexpected is refused. The only file names allowed anywhere are
+ * a trial merge's conflicting files (`merge-tree --name-only`), capped below.
+ */
+export const HOST_GIT_MAX_FILES = 50;
+export const HOST_GIT_MAX_PATH = 300;
+export const HOST_GIT_MAX_MATCHES = 20;
+export const HOST_GIT_MAX_COMMITS = 50;
+
+const gitBranch = z
+  .string()
+  .min(1)
+  .max(255)
+  .regex(/^[A-Za-z0-9._/@+-]+$/)
+  .refine((b) => !b.startsWith('-') && !b.includes('..') && !b.endsWith('.lock'));
+const gitSha = z.string().regex(/^[0-9a-f]{40,64}$/i);
+const conflictFiles = z
+  .array(
+    z
+      .string()
+      .min(1)
+      .max(HOST_GIT_MAX_PATH)
+      .refine((v) => !hasControlChars(v)),
+  )
+  .max(HOST_GIT_MAX_FILES);
+/** `unknown`: git had no answer (timed out or cancelled), which says nothing. */
+const readState = z.enum(['ok', 'missing', 'unknown']);
+const mergeState = z.enum(['clean', 'conflict', 'failed', 'unknown']);
+const base = {
+  key: z.string().max(300),
+  project: projectKey,
+  pass_id: hostScanId,
+};
+
+/** Branch discovery for an item with no reported branch: the local branches naming it. */
+export const hostGitItemRecord = z.strictObject({
+  ...base,
+  kind: z.literal('item'),
+  item: z.string().min(1).max(40),
+  read: z.enum(['ok', 'unknown']),
+  matches: z.array(gitBranch).max(HOST_GIT_MAX_MATCHES),
+});
+
+/** One branch: where it is, whether it's on main, and its trial merge with main. */
+export const hostGitBranchRecord = z.strictObject({
+  ...base,
+  kind: z.literal('branch'),
+  name: gitBranch,
+  read: readState,
+  /** Which ref was found: the local branch, or origin's copy. */
+  ref: z.enum(['heads', 'origin']).nullable(),
+  /** Its commits are already on main. */
+  merged: z.boolean().nullable(),
+  main: mergeState,
+  files: conflictFiles,
+  /** More conflicting files than were sent. */
+  more: z.boolean(),
+});
+
+/** A trial merge of two items' branches (`a` < `b`). Only pairs the helper judged related. */
+export const hostGitPairRecord = z.strictObject({
+  ...base,
+  kind: z.literal('pair'),
+  a: gitBranch,
+  b: gitBranch,
+  state: mergeState,
+  files: conflictFiles,
+  more: z.boolean(),
+});
+
+/** Commits on a branch since a time: SHAs and times only. */
+export const hostGitCommitsRecord = z.strictObject({
+  ...base,
+  kind: z.literal('commits'),
+  branch: gitBranch,
+  since: isoTime,
+  read: z.enum(['ok', 'unknown']),
+  commits: z.array(z.strictObject({ sha: gitSha, at: isoTime })).max(HOST_GIT_MAX_COMMITS),
+});
+
+/** Where a worktree's commit stands: on main, on a remote, and how many commits are on none. */
+export const hostGitHeadRecord = z.strictObject({
+  ...base,
+  kind: z.literal('head'),
+  /** The commit as Docket asked for it, which may be abbreviated. */
+  sha: z.string().regex(/^[0-9a-f]{7,64}$/i),
+  /** The full commit; null when the repository doesn't have it. */
+  head: gitSha.nullable(),
+  read: readState,
+  on_main: z.boolean().nullable(),
+  on_remote: z.boolean().nullable(),
+  unpushed: hostCount.nullable(),
+});
+
+/**
+ * Docket's own install manifest on the main branch (owner decision 56). The
+ * helper parses it on the host and sends only Docket's identifiers and hashes.
+ */
+export const hostGitManifestRecord = z.strictObject({
+  ...base,
+  kind: z.literal('manifest'),
+  client: z.enum(['claude', 'codex']),
+  state: z.enum(['present', 'absent', 'unknown']),
+  install_id: z
+    .string()
+    .regex(/^[A-Za-z0-9_-]{1,80}$/)
+    .nullable(),
+  files: z
+    .array(
+      z.strictObject({
+        key: z
+          .string()
+          .regex(/^[A-Za-z0-9:._/-]{1,200}$/)
+          .refine((v) => !v.includes('..')),
+        version_id: z.string().regex(/^[A-Za-z0-9:._-]{1,80}$/),
+        sha256: z.string().regex(/^[0-9a-f]{64}$/),
+      }),
+    )
+    .max(200),
+});
+
+/** Closes one project's pass. What it didn't reach is left out, and so stays as it was. */
+export const hostGitPassRecord = z.strictObject({
+  ...base,
+  kind: z.literal('pass'),
+  repo_path: z.string().min(1).max(1024),
+  main_branch: z.string().min(1).max(255),
+  status: z.enum(['ok', 'unreadable', 'unknown']),
+  /** The radar's main branch: the local one, or origin's copy; null when neither exists. */
+  main_ref: z.enum(['heads', 'origin']).nullable(),
+  checked_at: isoTime,
+  /** Every requested read was attempted. */
+  complete: z.boolean(),
+  /**
+   * Every pair of read branches was judged, and `pairs` related pairs were
+   * sent, so a pair not sent is unrelated rather than unknown.
+   */
+  pairs_done: z.boolean(),
+  pairs: z.number().int().min(0).max(5000),
+});
+
+export const hostGitRecord = z.discriminatedUnion('kind', [
+  hostGitItemRecord,
+  hostGitBranchRecord,
+  hostGitPairRecord,
+  hostGitCommitsRecord,
+  hostGitHeadRecord,
+  hostGitManifestRecord,
+  hostGitPassRecord,
+]);
+export type HostGitRecord = z.infer<typeof hostGitRecord>;
+export type HostGitPassRecord = z.infer<typeof hostGitPassRecord>;
+export type HostGitBranchRecord = z.infer<typeof hostGitBranchRecord>;
+export type HostGitPairRecord = z.infer<typeof hostGitPairRecord>;
+export type HostGitItemRecord = z.infer<typeof hostGitItemRecord>;
+export type HostGitCommitsRecord = z.infer<typeof hostGitCommitsRecord>;
+export type HostGitHeadRecord = z.infer<typeof hostGitHeadRecord>;
+export type HostGitManifestRecord = z.infer<typeof hostGitManifestRecord>;
+
 // ---- Settings → Connections → GitHub ----
 
 const branchPattern = z

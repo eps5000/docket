@@ -253,14 +253,18 @@ export const explain = {
     ended: string;
     onMain: boolean;
     unverified: boolean;
+    /** B76: the helper on the host hasn't reported this repository, or not lately. */
+    waiting?: boolean;
     /** Set when nobody will pick the work up: why, in the item's words. */
     closed: string | null;
     route: RecoveryRoute;
   }): ProblemExplanation {
     const where = f.path ? `, in ${f.path}` : '';
-    const unverified = f.unverified
-      ? " Docket can't confirm this from the repository, so it's the last reported state (unverified)."
-      : '';
+    const unverified = !f.unverified
+      ? ''
+      : f.waiting
+        ? ' Waiting for the host helper to read the repository, so this is the last reported state (unverified). Turn it on in Settings → Connections.'
+        : " Docket can't confirm this from the repository, so it's the last reported state (unverified).";
     const who = { who: f.route.who, who_text: f.route.who_text };
     if (f.closed) {
       return {

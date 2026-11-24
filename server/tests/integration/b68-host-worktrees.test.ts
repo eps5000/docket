@@ -11,7 +11,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { HostWorktreeRecord, RepoWorktreeRow } from '@docket/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { hostRepoPath, mergeHostFacts } from '../../src/domain/host-worktrees.js';
+import { hostRepoPath, hostScanView } from '../../src/domain/host-worktrees.js';
 import { checkProjectWorktrees } from '../../src/domain/worktree-check.js';
 import { sweepOnce } from '../../src/jobs/sweeper.js';
 import { OWNER_ACTOR } from '../../src/domain/write.js';
@@ -382,11 +382,7 @@ describe('host facts on the server', () => {
     const id = `scan-${seq}`;
     return [...paths.map((p) => treeRec(id, p, tree)), scanRec(id, paths.length, over)];
   };
-  const view = async () => {
-    d.services.recovery.worktreeCleanup(d.read(), { project: 'GF' });
-    await d.services.recovery.worktreeScanSettled('GF');
-    return d.services.recovery.worktreeCleanup(d.read(), { project: 'GF' });
-  };
+  const view = async () => d.services.recovery.worktreeCleanup(d.read(), { project: 'GF' });
   const rowOf = (rows: RepoWorktreeRow[], path: string) => rows.find((r) => r.path === path);
   const detail = () =>
     d.row<{ detail: string }>("SELECT detail FROM sync_sources WHERE name = 'worktrees'").detail;
@@ -619,86 +615,52 @@ describe('host facts on the server', () => {
     expect(detail()).not.toContain('feature-one');
   });
 
-  describe('beside the container’s own read', () => {
-    const container = (paths: string[], at: string, over: Partial<Rec> = {}) => ({
-      status: 'ok' as const,
+  describe('B76: the helper’s facts are the only read', () => {
+    const stored = (paths: string[], at: string) => ({
+      repo_path: MAIN,
+      main_branch: 'main',
+      scan_id: 'x',
       checked_at: at,
+      complete_at: at,
       main_path: MAIN,
       trees: paths.map((path) => ({
         path,
         branch: 'feature/one',
         head: SHA,
         is_main: path === MAIN,
-        locked: false,
+        locked: path !== MAIN,
         read: 'ok' as const,
         uncommitted_files: 0,
         unpushed_commits: 0,
         merged: true,
         last_git_at: old(),
-        ...over,
+        checked_at: at,
       })),
-    });
-    const stored = (paths: string[], at: string, complete: string | null = at) => ({
-      repo_path: MAIN,
-      main_branch: 'main',
-      scan_id: 'x',
-      checked_at: at,
-      complete_at: complete,
-      main_path: MAIN,
-      trees: container(paths, at).trees.map((t) => ({ ...t, checked_at: at })),
     });
     const NOW = '2026-11-23T12:00:00.000Z';
     const ago = (m: number) => new Date(Date.parse(NOW) - m * 60_000).toISOString();
 
-    it('a newer good read from the container wins', () => {
-      const merged = mergeHostFacts(
-        container([MAIN, WT], ago(1), { uncommitted_files: 3 }),
-        stored([MAIN, WT], ago(5)),
-        NOW,
-      )!;
-      const row = merged.trees.find((t) => t.tree.path === WT)!;
-      expect(row.source).toBe('container');
-      expect(row.tree.uncommitted_files).toBe(3);
+    it('fresh facts are the rows, all from the host', () => {
+      const view = hostScanView(stored([MAIN, WT], ago(5)), NOW)!;
+      expect(view.host).toEqual({ state: 'fresh', checked_at: ago(5) });
+      expect(view.trees.map((t) => t.source)).toEqual(['host', 'host']);
+      expect(view.trees.find((t) => t.tree.path === WT)!.tree.locked).toBe(true);
     });
 
-    it('fresh facts win over a folder the container can’t read', () => {
-      const merged = mergeHostFacts(
-        container([MAIN, WT], ago(1), { read: 'outside', uncommitted_files: null }),
-        stored([MAIN, WT], ago(5)),
-        NOW,
-      )!;
-      expect(merged.trees.find((t) => t.tree.path === WT)!.source).toBe('host');
+    it('stale facts are Unknown rows that vouch for nothing, not even a lock', () => {
+      const view = hostScanView(stored([MAIN, WT], ago(30)), NOW)!;
+      expect(view.host.state).toBe('stale');
+      expect(view.trees.find((t) => t.tree.path === WT)!.tree).toMatchObject({
+        read: 'stale',
+        locked: false,
+        uncommitted_files: null,
+        unpushed_commits: null,
+        merged: null,
+      });
     });
 
-    it('with stale facts the container’s rows stand alone', () => {
-      const merged = mergeHostFacts(
-        container([MAIN, WT], ago(1), { read: 'outside', uncommitted_files: null }),
-        stored([MAIN, WT, OTHER], ago(30)),
-        NOW,
-      )!;
-      expect(merged.host.state).toBe('stale');
-      expect(merged.trees.every((t) => t.source === 'container')).toBe(true);
-      expect(merged.trees).toHaveLength(2);
-    });
-
-    it('a worktree the container saw after the last complete scan stays', () => {
-      const merged = mergeHostFacts(
-        container([MAIN, WT, OTHER], ago(1)),
-        stored([MAIN, WT], ago(5)),
-        NOW,
-      )!;
-      expect(merged.trees).toHaveLength(3);
-    });
-
-    it('nothing to show is null', () => {
-      expect(mergeHostFacts(null, null, NOW)).toBeNull();
-      expect(
-        mergeHostFacts(
-          { status: 'unreadable', checked_at: NOW, main_path: null, trees: [] },
-          null,
-          NOW,
-        ),
-      ).toBeNull();
+    it('nothing from the helper is null', () => {
+      expect(hostScanView(null, NOW)).toBeNull();
     });
   });
 });
@@ -749,11 +711,7 @@ describe.skipIf(!HAS_GIT)('from the helper to the view', () => {
       run: RUN,
     });
   };
-  const view = async () => {
-    d.services.recovery.worktreeCleanup(d.read(), { project: 'RCP' });
-    await d.services.recovery.worktreeScanSettled('RCP');
-    return d.services.recovery.worktreeCleanup(d.read(), { project: 'RCP' });
-  };
+  const view = async () => d.services.recovery.worktreeCleanup(d.read(), { project: 'RCP' });
   const key = (p: string) => realpathSync(p).replace(/\\/g, '/').toLowerCase();
   const rowOf = (rows: RepoWorktreeRow[], p: string) =>
     rows.find((r) => r.path.replace(/\\/g, '/').toLowerCase() === key(p));
@@ -800,7 +758,7 @@ describe.skipIf(!HAS_GIT)('from the helper to the view', () => {
         'SELECT worktree_check FROM runs WHERE id = ?',
         run_id,
       ).worktree_check;
-    // Without the helper the container can't tell.
+    // Without the helper Docket can't tell: it reads no git itself (B76).
     expect(stored()).toBeNull();
 
     await syncOnce();

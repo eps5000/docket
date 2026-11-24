@@ -41,6 +41,7 @@ import { OWNER_ACTOR, SYSTEM_ACTOR } from '../../src/domain/write.js';
 import { driftCheckOnce } from '../../src/jobs/sweeper.js';
 import { syncBundledFiles } from '../../src/jobs/bundled.js';
 import { insertProject, tempDir, type TempDir } from '../helpers.js';
+import { hostGitPass } from '../host-git.js';
 import { PROTECTED_MODE, createTestServer, type TestServer } from './harness.js';
 
 vi.setConfig({ testTimeout: 240_000, hookTimeout: 60_000 });
@@ -566,11 +567,13 @@ describe('the update route and its guards', () => {
   });
 });
 
-describe('what the main branch holds (read-only git)', () => {
+describe('what the main branch holds (read-only git, B76: on the host)', () => {
   it.skipIf(!hasGit)('an update counts once its manifest is on main', async () => {
     const root = join(tmp.dir, `push-${(n += 1)}`);
     mkdirSync(root);
-    const s = createTestServer({ env: { DOCKET_PUSH_ROOT: root }, log: () => {} });
+    // B76: Docket reads no repository itself; the helper's git source reads the manifest.
+    const s = createTestServer({ log: () => {} });
+    const pass = () => hostGitPass(s, { home: root });
     try {
       insertProject(s.runtime.db, 'RCP');
       syncBundledFiles(s.runtime);
@@ -589,6 +592,9 @@ describe('what the main branch holds (read-only git)', () => {
           (c) => c.client === 'claude',
         )!;
 
+      // Until the helper has read main, Docket can't tell.
+      expect((await state()).repo_main).toEqual({ state: 'unknown', branch: 'main' });
+      await pass();
       expect((await state()).repo_main).toEqual({ state: 'absent', branch: 'main' });
 
       const prepared = s.runtime.services.installs.prepareUpdate(read(), {
@@ -617,6 +623,7 @@ describe('what the main branch holds (read-only git)', () => {
       writeFileSync(join(repo, '.claude/.docket-manifest.json'), JSON.stringify(manifest));
       git(repo, 'add', '-A');
       git(repo, 'commit', '-q', '-m', 'Take the Docket update');
+      await pass();
 
       st = await state();
       expect(st.repo_main).toEqual({ state: 'current', branch: 'main' });

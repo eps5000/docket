@@ -197,7 +197,7 @@ const wt = (n: number, over: Partial<RepoWorktreeRow> = {}): RepoWorktreeRow => 
   why: 'Clean, merged to main, and nothing is running in it.',
   owner: null,
   command: `git -C '/work/app' worktree remove '/work/wt-${n}'`,
-  source: 'container',
+  source: 'host',
   ...over,
 });
 const cleanupOf = (rows: RepoWorktreeRow[]): WorktreeCleanupResponse => ({
@@ -287,10 +287,11 @@ describe('WorktreeCleanup', () => {
     );
   });
 
-  it('says when the repository can’t be read', async () => {
-    api['workspaces.cleanup'].mockResolvedValue({ ...cleanupOf([]), repo: 'unreadable' });
+  it('B76: with no rows yet, says it waits for the host helper', async () => {
+    api['workspaces.cleanup'].mockResolvedValue(cleanupOf([]));
     api['bootstrap.get'].mockResolvedValue({ projects: [] });
     wrap(<WorktreeCleanup />);
-    expect(await screen.findByText(/can’t be checked/)).toBeTruthy();
+    expect(await screen.findByText('Waiting for the host helper.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Check again' })).toBeNull();
   });
 });

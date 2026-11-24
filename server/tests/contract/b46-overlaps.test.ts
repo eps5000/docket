@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { claimedAt, planRadar, radarTriggers, type RadarPlan } from '../../src/domain/radar.js';
 import { OWNER_ACTOR } from '../../src/domain/write.js';
 import { classifyLegacyOverlapsOnce, radarRunOnce, startRadar } from '../../src/jobs/sweeper.js';
+import { hostGitPass } from '../host-git.js';
 import { makeOverlapRepo } from '../fixtures/radar-repo.js';
 import { tempDir } from '../helpers.js';
 import { ORIGIN, parseSetCookies } from '../integration/harness.js';
@@ -683,11 +684,10 @@ describe('undeclared shared files at hand-off', () => {
 describe('line conflicts (the radar)', () => {
   async function withRepo() {
     tmp = tempDir('docket-b46-');
-    makeOverlapRepo(tmp.dir);
-    const api = await start({ DOCKET_PUSH_ROOT: tmp.dir });
-    expect((await api('PUT', '/api/projects/RCP/radar', { repo_path: 'overlap-app' })).status).toBe(
-      200,
-    );
+    const { repo } = makeOverlapRepo(tmp.dir);
+    // B76: no push folder: the helper reads the repository on the host.
+    const api = await start();
+    expect((await api('PUT', '/api/projects/RCP/radar', { repo_path: repo })).status).toBe(200);
     return api;
   }
   const findings = () =>
@@ -711,6 +711,7 @@ describe('line conflicts (the radar)', () => {
         reason: 'different_members',
       });
 
+      await hostGitPass(h!.server, { home: tmp!.dir });
       await radarRunOnce(h!.server.runtime, 'RCP');
       const pairFinding = findings().find((f) => f.item_b !== null)!;
       expect(JSON.parse(pairFinding.files as string)).toEqual(['models.md']);
@@ -749,6 +750,7 @@ describe('line conflicts (the radar)', () => {
 
       // A second run changes nothing and tells nobody again.
       const before = sql().prepare('SELECT count(*) AS n FROM owner_notes').get();
+      await hostGitPass(h!.server, { home: tmp!.dir });
       await radarRunOnce(h!.server.runtime, 'RCP');
       expect(sql().prepare('SELECT count(*) AS n FROM owner_notes').get()).toEqual(before);
 
@@ -769,6 +771,7 @@ describe('line conflicts (the radar)', () => {
       h!.server.clock.advance(1000);
       const second = await ready('B', [{ part: 'model:Token.expiresAt', change: 'change' }]);
       expectToolError(await claim(second, h!.b, 'clean-b'), 'seam_conflict');
+      await hostGitPass(h!.server, { home: tmp!.dir });
       await radarRunOnce(h!.server.runtime, 'RCP');
       expect(findings().filter((f) => f.item_b !== null)).toEqual([]);
       expect(rowFor(first, second)).toMatchObject({ state: 'sequenced', outcome: 'sequence' });
@@ -793,6 +796,7 @@ describe('line conflicts (the radar)', () => {
       };
       const orderOf = (plan: RadarPlan) =>
         plan.checks.find((c) => c.item_b !== null && c.files.length > 0)?.merge_first;
+      await hostGitPass(h!.server, { home: tmp!.dir });
       expect(orderOf(await planRadar(r, h!.server.runtime.config, 'RCP'))).toBe(first);
       expect(claimedAt(r.db, first) < claimedAt(r.db, second)).toBe(true);
     },
@@ -801,7 +805,7 @@ describe('line conflicts (the radar)', () => {
 
   it('a reported branch or commit asks for a run; the radar’s own events don’t', async () => {
     tmp = tempDir('docket-b46-');
-    const api = await start({ DOCKET_PUSH_ROOT: tmp.dir });
+    const api = await start();
     const db = h!.server.runtime.db;
     db.sqlite.prepare("UPDATE projects SET repo_path = 'x' WHERE key = 'RCP'").run();
     const seq = (type: string) =>
@@ -820,16 +824,23 @@ describe('line conflicts (the radar)', () => {
   });
 
   it.skipIf(!HAS_GIT)(
-    'the radar runs soon after a branch report, debounced to one run',
+    'B76: the radar runs soon after the helper reports a new pass, debounced to one run',
     async () => {
       await withRepo();
       const runtime = h!.server.runtime;
-      const radar = startRadar(runtime, { intervalMs: null, debounceMs: 20, minGapMs: 0 });
+      const radar = startRadar(runtime, {
+        intervalMs: null,
+        debounceMs: 20,
+        minGapMs: 0,
+        factsMs: 20,
+      });
       try {
         const first = await ready('A', [{ part: 'file:src/shared.ts', change: 'change' }]);
         expectOk(await claim(first, h!.a, 'add-a'));
         const second = await ready('B', [{ part: 'file:src/shared.ts', change: 'change' }]);
         expectOk(await claim(second, h!.b, 'add-b'));
+        // The reports' own run has no facts for these branches yet; the helper's pass brings them.
+        await hostGitPass(h!.server, { home: tmp!.dir });
         await expect
           .poll(() => findings().filter((f) => f.item_b !== null).length, { timeout: 10_000 })
           .toBe(1);

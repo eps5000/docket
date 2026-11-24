@@ -507,11 +507,13 @@ export const UNDECLARED_HOLD_VIA = ['submit_packet', 'set_status'] as const;
 export type UndeclaredHoldVia = (typeof UNDECLARED_HOLD_VIA)[number];
 
 /**
- * The conflict radar's state for a project: `off` (no repository, or git
- * isn't available: "Radar off: no repository"), `idle` (set up, never run),
- * `ok` (the last run worked).
+ * The conflict radar's state for a project: `off` (no repository, or the
+ * helper can't read it: "Radar off: no repository"), `waiting` (B76: the
+ * helper on the host hasn't reported this repository yet), `stale` (B76: its
+ * last report is too old to rely on, so the findings may be out of date),
+ * `idle` (set up, never run), `ok` (the last run worked).
  */
-export const RADAR_STATES = ['off', 'idle', 'ok'] as const;
+export const RADAR_STATES = ['off', 'waiting', 'stale', 'idle', 'ok'] as const;
 export type RadarState = (typeof RADAR_STATES)[number];
 
 /**

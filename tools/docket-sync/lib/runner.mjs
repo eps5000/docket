@@ -47,6 +47,12 @@ export async function loadSources(log, dir = SOURCES_DIR) {
   return sources;
 }
 
+/** A source may send smaller batches (B76: its records can be larger), never larger ones. */
+const batchOf = (source) =>
+  Number.isInteger(source.batchSize) && source.batchSize > 0
+    ? Math.min(source.batchSize, BATCH_SIZE)
+    : BATCH_SIZE;
+
 export function backoffMs(failures, code) {
   const exponential = Math.min(BACKOFF_MAX_MS, BACKOFF_START_MS * 2 ** Math.max(0, failures - 1));
   return code === 'rate_limited' ? Math.max(RATE_BACKOFF_MS, exponential) : exponential;
@@ -124,9 +130,10 @@ export function createRunner({ docket, sources, store, log, now = Date.now }) {
         docket: docket.reader(),
       });
       const records = Array.isArray(result?.records) ? result.records : [];
-      const total = Math.max(1, Math.ceil(records.length / BATCH_SIZE));
+      const size = batchOf(source);
+      const total = Math.max(1, Math.ceil(records.length / size));
       for (let i = 0; i < total; i += 1) {
-        const batch = records.slice(i * BATCH_SIZE, (i + 1) * BATCH_SIZE);
+        const batch = records.slice(i * size, (i + 1) * size);
         await docket.post(
           source.name,
           {
