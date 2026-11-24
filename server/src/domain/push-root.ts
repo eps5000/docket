@@ -16,13 +16,15 @@
  *   the root. A symlinked *file* is never written or read through, and files
  *   are opened with `O_NOFOLLOW` (where the OS has it), so a link swapped in
  *   after the check still isn't followed.
- * - **Never delete, with one exception:** folders are created one level at
+ * - **Never delete, with two exceptions:** folders are created one level at
  *   a time, files are written in place. The callers write only the
  *   `docket-*` skill files, the manifest and the instructions file (whose
- *   text outside the Docket markers is kept byte for byte). The one removal
- *   (B28) is `removeRecordedSkillFolder`: an old `tasklite-*` skill folder
- *   an earlier install recorded, only while it holds nothing but its
- *   unmodified `SKILL.md`.
+ *   text outside the Docket markers is kept byte for byte). The removals are
+ *   `removeRecordedSkillFolder` (B28): an old `tasklite-*` skill folder an
+ *   earlier install recorded, only while it holds nothing but its unmodified
+ *   `SKILL.md`; and `removeRecordedFile` (decision 66): a skill reference an
+ *   earlier install recorded and this one no longer sends, only while it's
+ *   unmodified, with its folder once empty.
  *
  * Errors are `validation` ToolErrors with a plain message; none of them
  * quote anything from outside the root.
@@ -282,6 +284,36 @@ export class PushRoot {
     if (!unmodified(bytes)) return false;
     await unlink(file);
     await rmdir(path);
+    return true;
+  }
+
+  /**
+   * Remove a skill reference an earlier install wrote and recorded, which this
+   * install no longer sends (decision 66): `rel` must be a regular file (not a
+   * link) for which `unmodified` returns true, and its folder is removed too
+   * once it's empty. Anything else is left alone and the result is false.
+   */
+  async removeRecordedFile(
+    base: string,
+    rel: string,
+    unmodified: (bytes: Buffer) => boolean,
+  ): Promise<boolean> {
+    const { dir, name } = PushRoot.split(rel);
+    const folder = await this.folder(base, dir, false);
+    if (folder === null) return false;
+    const path = join(folder, name);
+    const info = await lstat(path).catch(() => null);
+    if (!info || info.isSymbolicLink() || !info.isFile()) return false;
+    const fh = await open(path, constants.O_RDONLY | NOFOLLOW);
+    let bytes: Buffer;
+    try {
+      bytes = await fh.readFile();
+    } finally {
+      await fh.close();
+    }
+    if (!unmodified(bytes)) return false;
+    await unlink(path);
+    if ((await readdir(folder)).length === 0) await rmdir(folder);
     return true;
   }
 

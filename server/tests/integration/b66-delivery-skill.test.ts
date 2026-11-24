@@ -90,7 +90,9 @@ function forgetSkill(server: TestServer, id: string, repo: string, client: Clien
     .get(id) as { manifest: string };
   const manifest = JSON.parse(row.manifest) as Record<string, unknown>;
   expect(manifest[KEY]).toBeDefined();
-  delete manifest[KEY];
+  // The skill and its references (decision 66): none of them existed yet.
+  const forgotten = Object.keys(manifest).filter((k) => k === KEY || k.startsWith(`${KEY}--`));
+  for (const k of forgotten) delete manifest[k];
   server.runtime.db.sqlite
     .prepare('UPDATE installs SET manifest = ? WHERE id = ?')
     .run(JSON.stringify(manifest), id);
@@ -99,10 +101,10 @@ function forgetSkill(server: TestServer, id: string, repo: string, client: Clien
   const file = join(repo, `.${client}`, '.docket-manifest.json');
   const lines = readFileSync(file, 'utf8')
     .split('\n')
-    .filter((l) => !l.includes(`"key":"${KEY}"`));
+    .filter((l) => !forgotten.some((k) => l.includes(`"key":"${k}"`)));
   writeFileSync(file, lines.join('\n'));
   server.runtime.db.sqlite.prepare('DELETE FROM drift').run();
-  return dir;
+  return { dir, forgotten };
 }
 
 describe.each(CASES)('$skill for $client (decisions 52 and 55)', ({ skill, client }) => {
@@ -122,11 +124,12 @@ describe.each(CASES)('$skill for $client (decisions 52 and 55)', ({ skill, clien
   it('an install from before it shipped shows update available, and a reinstall adds it', async () => {
     const { api, repo, server } = await start();
     const id = await push(api, repo, client);
-    const dir = forgetSkill(server, id, repo, client, skill);
+    const { dir, forgotten } = forgetSkill(server, id, repo, client, skill);
+    expect(forgotten[0]).toBe(KEY);
 
     expect(await stateOf(api, client)).toMatchObject({
       state: 'update_available',
-      outdated: [KEY],
+      outdated: forgotten,
     });
     // A file the older install never wrote is not drift.
     await driftCheckOnce(server.runtime);

@@ -5,6 +5,7 @@ import {
   CONNECTION_KEY,
   isScriptKey,
   scriptNameOf,
+  agentFileLabel,
   INSTALL_CLIENT_LABELS,
   fillsProjectKey,
   isLegacySkillKey,
@@ -74,7 +75,7 @@ const CHANGE: Record<Drift['change'], { label: string; kind: ChipKind }> = {
 
 const nameOf = (key: string) =>
   key.startsWith('skill:')
-    ? key.slice(6)
+    ? agentFileLabel(key)
     : key === CONNECTION_KEY
       ? 'Connection file'
       : isScriptKey(key)

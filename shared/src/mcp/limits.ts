@@ -126,8 +126,8 @@ export const LIMITS = {
   /** Workflow notes (BUILD_SPEC §5.17). */
   workflow_md: 10_000,
   proposal_reason: 500,
-  /** `claim_lead.instructions.files`: up to 20 reported files. */
-  instruction_files_max: 20,
+  /** `claim_lead.instructions.files`: up to 60 reported files (20 until decision 66 made each skill reference a file). */
+  instruction_files_max: 60,
   // ---- Onboarding (decision 31; MCP_SPEC §5.11; B29 resolutions) ----
   /** A project's name: `onboard_project.name` and `POST /api/projects`. */
   project_name: 100,

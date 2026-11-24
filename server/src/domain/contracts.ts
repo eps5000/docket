@@ -418,9 +418,9 @@ export interface RecoveryService {
   ): { run_id: string; unpushed_handled_at: string; outcome: UnpushedOutcome };
 }
 
-/** One agent file as shipped in the image (`skills/<name>/SKILL.md`, `docs/templates/AGENTS-docket.md`). */
+/** One agent file as shipped in the image (`skills/<name>/SKILL.md`, `skills/<name>/references/<topic>.md`, `docs/templates/AGENTS-docket.md`). */
 export interface BundledAgentFile {
-  /** `skill:<name>` or `agents_block`. */
+  /** `skill:<name>`, `skill:<name>--<topic>` (a reference, decision 66) or `agents_block`. */
   key: string;
   content: string;
 }
@@ -434,9 +434,13 @@ export interface BundledAgentFile {
 export interface AgentFilesService {
   /**
    * At startup: add a bundled version for each file whose image copy differs
-   * from the newest bundled version (event `agent_file.updated`, actor system).
+   * from the newest bundled version (event `agent_file.updated`, actor system),
+   * and retire each bundled skill reference the image no longer ships (decision 66).
    */
-  syncBundled(w: WriteContext, input: { files: BundledAgentFile[] }): { added: string[] };
+  syncBundled(
+    w: WriteContext,
+    input: { files: BundledAgentFile[] },
+  ): { added: string[]; retired: string[] };
   /** `GET /api/agent-files`: the effective set, for a project or service-wide. */
   list(r: ReadContext, input: RouteQuery<'agentFiles.list'>): AgentFilesResponse;
   /** `GET /api/agent-files/:key`: every layer with its history, and the bundled-updated flag. */
@@ -495,7 +499,8 @@ export interface AgentUpdateRequest {
   }[];
 }
 
-export type UpdateChange = 'added' | 'updated' | 'same' | 'kept' | 'retired';
+/** `removed`: a skill reference Docket no longer ships, unmodified, which the install step deletes (decision 66). */
+export type UpdateChange = 'added' | 'updated' | 'same' | 'kept' | 'retired' | 'removed';
 
 /** One update, planned against a checkout's hashes. Nothing is stored until `recordUpdate`. */
 export interface PreparedUpdate {

@@ -14,7 +14,10 @@
  *     {"install_id":"ins_…","files":[{"key":"skill:docket-worker","sha256":"…"}, …]}
  *
  * - a file that matches is listed with its hash only, so a typical report is
- *   a few hundred characters;
+ *   a few hundred characters. A skill reference (decision 66) that matches is
+ *   left out altogether: Docket reads its absence in an agent's report as
+ *   unchanged, and the push check and the check command still see a missing
+ *   one;
  * - a file that differs also carries its text (`content`, up to 50,000
  *   characters; longer text is left out), for the owner's diff and *Adopt*;
  * - a missing file is left out: Docket reads its absence as missing;
@@ -23,8 +26,10 @@
  *   doesn't list (one an install kept because it was edited locally; B28);
  * - an install from before the rename has only `.tasklite-manifest.json`
  *   and the old markers: both are read when the new ones are absent;
- * - at most 20 files, and only valid keys, so the report always passes
- *   `claim_lead`'s schema;
+ * - at most 60 files (`LIMITS.instruction_files_max`; 20 before skill
+ *   references, decision 66), and only valid keys, so the report always
+ *   passes `claim_lead`'s schema. A reference is reported like any file in
+ *   the manifest;
  * - the connection file (`.mcp.json`, `.codex/config.toml`; decision 32) is
  *   left out: an agent that claims is connected, and the key isn't part of
  *   `claim_lead`'s contract. The push check, the scheduled drift check and
@@ -43,7 +48,11 @@ import {
   LEGACY_END,
   LEGACY_MANIFEST_NAME,
   LEGACY_SKILL_PREFIX,
+  LIMITS,
 } from '@docket/shared';
+
+/** The most files a report holds: what `claim_lead`'s `instructions` accepts. */
+const MAX_FILES = LIMITS.instruction_files_max;
 
 /** The installed script's file names, next to the manifest. */
 export const CHECK_SCRIPT_SH = 'docket-check.sh';
@@ -56,6 +65,9 @@ export const CHECK_SCRIPT_PS1 = 'docket-check.ps1';
  * **When you change the script, add the hash of the version you replaced.**
  */
 export const SHIPPED_CHECK_SHA256: readonly string[] = [
+  // Decision 66: references reported only when they differ; up to 60 files.
+  '7754e8bca33f519c04b75f5df78f2eb1f185e802e3eba28058f69a3a5567e87b',
+  'e0ec455ec51cafe357a828851df102a3889a90b0e18879a2c42f02fa83defa79',
   '960dcca6f5f855cdd0be402bae84d5928a28044547773dfc13b7a34545c7fddf',
   '7d3f52c23c2b3295d36fa40c5410373ff12184ede347d42b88f4d30329f17d15',
   '710b3038313737d1b7a1a69697e5f57da51c8ce655a4b2bb5ce3e644f8672465',
@@ -118,6 +130,8 @@ while IFS= read -r l; do
     tr -d '\\r' < "$f" > "$t"
   fi
   got=$(h < "$t")
+  # A skill reference is reported only when it differs (decision 66), so a claim stays small.
+  case $k in skill:*--*) [ "$got" = "$s" ] && continue ;; esac
   if [ "$got" = "$s" ]; then add "$k" "$got"; else add "$k" "$got" "$t"; fi
 done < "$m"
 for x in "$here"/skills/docket-*/ "$here"/skills/${LEGACY_SKILL_PREFIX}*/; do
@@ -126,7 +140,7 @@ for x in "$here"/skills/docket-*/ "$here"/skills/${LEGACY_SKILL_PREFIX}*/; do
   case $y in *[!a-z0-9-]*) continue ;; esac
   [ \${#y} -le 60 ] || continue
   case $known in *" skill:$y "*) continue ;; esac
-  [ "$n" -lt 20 ] || break
+  [ "$n" -lt ${MAX_FILES} ] || break
   if [ -f "\${x}SKILL.md" ]; then
     tr -d '\\r' < "\${x}SKILL.md" > "$t"; add "skill:$y" "$(h < "$t")" "$t"
   else
@@ -187,7 +201,10 @@ foreach ($r in $j.files) {
     if ($x.StartsWith("\`n", $ord)) { $x = $x.Substring(1) }
     if ($x.EndsWith("\`n", $ord)) { $x = $x.Substring(0, $x.Length - 1) }
   }
-  Add-File $r.key $x ((TlHash $x) -ne $r.sha256)
+  $same = (TlHash $x) -eq $r.sha256
+  # A skill reference is reported only when it differs (decision 66), so a claim stays small.
+  if ($same -and $r.key -like 'skill:*--*') { continue }
+  Add-File $r.key $x (-not $same)
 }
 $sk = Join-Path $here 'skills'
 if (Test-Path -LiteralPath $sk) {
@@ -195,7 +212,7 @@ if (Test-Path -LiteralPath $sk) {
   foreach ($d in $dirs) {
     $y = $d.Name
     if ($y -cnotmatch '^[a-z0-9-]{1,60}$' -or $known -contains ('skill:' + $y)) { continue }
-    if ($out.Count -ge 20) { break }
+    if ($out.Count -ge ${MAX_FILES}) { break }
     $f = Join-Path $d.FullName 'SKILL.md'
     if (Test-Path -LiteralPath $f -PathType Leaf) {
       Add-File ('skill:' + $y) ($enc.GetString([IO.File]::ReadAllBytes($f)).Replace("\`r", '')) $true

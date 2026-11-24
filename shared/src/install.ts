@@ -118,9 +118,58 @@ export const isScriptKey = (key: string): boolean => key.startsWith(SCRIPT_PREFI
 /** `docket-wait.sh`, from its manifest key. */
 export const scriptNameOf = (key: string): string => key.slice(SCRIPT_PREFIX.length);
 
+// ---- Skill references (owner decision 66) ----
+
+/**
+ * A skill keeps a core (`SKILL.md`) and loads its references on demand:
+ * `skills/<name>/references/<topic>.md`. Each reference is an agent file of
+ * its own, keyed `skill:<name>--<topic>`, so it has versions, edits, drift and
+ * proposals like any skill. `--` separates the two because the stored key
+ * allows only `a-z0-9-` (no migration), and a skill or topic name never holds
+ * one.
+ */
+export const SKILL_REFERENCE_SEPARATOR = '--';
+/** The folder a skill's references live in, next to its `SKILL.md`. */
+export const SKILL_REFERENCES_DIR = 'references';
+/** A skill or reference topic name: `a-z0-9-`, no leading, trailing or doubled hyphen. */
+export const SKILL_PART_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/** `skill:docket-worker--exit-reports`, from the skill and the topic. */
+export const skillReferenceKey = (skill: string, topic: string): string =>
+  `skill:${skill}${SKILL_REFERENCE_SEPARATOR}${topic}`;
+
+/**
+ * A `skill:` key's parts: `{ skill, topic }`, with `topic` null for the
+ * skill's own `SKILL.md`. Null for any other key.
+ */
+export function skillKeyParts(key: string): { skill: string; topic: string | null } | null {
+  if (!key.startsWith('skill:')) return null;
+  const rest = key.slice('skill:'.length);
+  const at = rest.indexOf(SKILL_REFERENCE_SEPARATOR);
+  if (at < 0) return { skill: rest, topic: null };
+  return { skill: rest.slice(0, at), topic: rest.slice(at + SKILL_REFERENCE_SEPARATOR.length) };
+}
+
+/** Whether `key` is a skill reference (`skill:<name>--<topic>`), not a skill's `SKILL.md`. */
+export const isSkillReferenceKey = (key: string): boolean => !!skillKeyParts(key)?.topic;
+
+/**
+ * How a file is named to people: `docket-worker`,
+ * `docket-worker/references/exit-reports.md`, or `AGENTS.md block`.
+ */
+export function agentFileLabel(key: string): string {
+  const parts = skillKeyParts(key);
+  if (!parts) return 'AGENTS.md block';
+  return parts.topic ? `${parts.skill}/${SKILL_REFERENCES_DIR}/${parts.topic}.md` : parts.skill;
+}
+
 /** The path a file is installed at, relative to the base: `.claude/skills/docket-worker/SKILL.md`. */
 export function installPathOf(layout: InstallLayout, key: string): string {
-  if (key.startsWith('skill:')) return `${layout.skillsDir}/${key.slice('skill:'.length)}/SKILL.md`;
+  const parts = skillKeyParts(key);
+  if (parts?.topic) {
+    return `${layout.skillsDir}/${parts.skill}/${SKILL_REFERENCES_DIR}/${parts.topic}.md`;
+  }
+  if (parts) return `${layout.skillsDir}/${parts.skill}/SKILL.md`;
   if (isScriptKey(key)) return `${layout.dir}/${scriptNameOf(key)}`;
   return layout.instructions;
 }

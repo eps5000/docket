@@ -5,7 +5,7 @@
  * note, `expected_version`, revert, the bundled-updated flag, Workflow notes
  * (versions, clearing), the events and owner undo of each edit.
  */
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { AgentFileDetail, ToolError } from '@docket/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -147,10 +147,23 @@ describe('bundled loading (startup)', () => {
     ]);
   });
 
-  it('reads the seven skills, the AGENTS.md block and the onboarding guide from the checkout (the image layout)', () => {
+  /** Every `skills/<name>/references/<topic>.md` in the checkout, as its key (decision 66). */
+  const shippedReferences = () => {
+    const out: string[] = [];
+    const skills = join(DEFAULT_BUNDLED_ROOT, 'skills');
+    for (const name of readdirSync(skills)) {
+      const refs = join(skills, name, 'references');
+      if (!existsSync(refs)) continue;
+      for (const f of readdirSync(refs)) out.push(`skill:${name}--${f.replace(/\.md$/, '')}`);
+    }
+    return out.sort();
+  };
+
+  it('reads the seven skills, their references, the AGENTS.md block and the onboarding guide from the checkout (the image layout)', () => {
     const { files, problems } = readBundledFiles(DEFAULT_BUNDLED_ROOT);
     expect(problems).toEqual([]);
-    expect(files.map((f) => f.key).sort()).toEqual([
+    const keys = files.map((f) => f.key);
+    expect(keys.filter((k) => !k.includes('--')).sort()).toEqual([
       'agents_block',
       'guide:onboarding',
       'skill:docket-coordinator',
@@ -161,6 +174,13 @@ describe('bundled loading (startup)', () => {
       'skill:docket-review-packet',
       'skill:docket-worker',
     ]);
+    // Decision 66: every reference file is an agent file of its own.
+    expect(keys.filter((k) => k.includes('--')).sort()).toEqual(shippedReferences());
+    expect(keys).toContain('skill:docket-worker--exit-reports');
+    expect(keys).toContain('skill:docket-coordinator--crash-recovery');
+    expect(files.find((f) => f.key === 'skill:docket-worker--exit-reports')!.content).toMatch(
+      /^# .+\n\n\*\*Read when:\*\* /,
+    );
     expect(files.find((f) => f.key === 'agents_block')!.content).toContain('Work tracking: Docket');
   });
 
@@ -185,6 +205,71 @@ describe('bundled loading (startup)', () => {
     }
   });
 
+  it("reads a skill's references/*.md as skill:<name>--<topic>, skipping bad names and other files (decision 66)", () => {
+    const tmp = tempDir();
+    try {
+      const refs = join(tmp.dir, 'skills', 'good-one', 'references');
+      mkdirSync(refs, { recursive: true });
+      writeFileSync(join(tmp.dir, 'skills', 'good-one', 'SKILL.md'), '# Good\n');
+      writeFileSync(join(refs, 'exit-reports.md'), '# Exit\n');
+      writeFileSync(join(refs, 'Bad_Topic.md'), '# Bad\n');
+      writeFileSync(join(refs, 'double--hyphen.md'), '# Bad\n');
+      writeFileSync(join(refs, 'notes.txt'), 'not a reference\n');
+      mkdirSync(join(tmp.dir, 'skills', 'two--parts'), { recursive: true });
+      writeFileSync(join(tmp.dir, 'skills', 'two--parts', 'SKILL.md'), '# Bad\n');
+      const { files, problems } = readBundledFiles(tmp.dir);
+      expect(files.map((f) => f.key)).toEqual(['skill:good-one', 'skill:good-one--exit-reports']);
+      expect(problems.join('\n')).toMatch(/Bad_Topic/);
+      expect(problems.join('\n')).toMatch(/double--hyphen/);
+      expect(problems.join('\n')).toMatch(/two--parts/);
+      expect(problems.join('\n')).not.toMatch(/notes\.txt/);
+    } finally {
+      tmp.cleanup();
+    }
+  });
+
+  it('retires a bundled reference the image no longer ships, and only that (decision 66)', () => {
+    const REF = 'skill:docket-worker--exit-reports';
+    const OTHER = 'skill:docket-coordinator--crash-recovery';
+    const withRefs = [
+      ...V1,
+      { key: REF, content: '# Exit\n\nv1.\n' },
+      { key: OTHER, content: '# Crash\n' },
+    ];
+    expect(sync(withRefs)).toEqual([OTHER, REF].sort());
+    const list = () => d.services.agentFiles.list(d.read(), {}).files.map((f) => f.key);
+    expect(list()).toContain(REF);
+    expect(row(undefined, REF).name).toBe('docket-worker/references/exit-reports.md');
+
+    // The next image drops REF: it's retired, so it's no longer listed or installed.
+    const retired = d.write(SYSTEM_ACTOR, (w, s) =>
+      s.agentFiles.syncBundled(w, { files: [...V1, { key: OTHER, content: '# Crash\n' }] }),
+    ).retired;
+    expect(retired).toEqual([REF]);
+    expect(list()).not.toContain(REF);
+    expect(list()).toContain(OTHER);
+    expect(events('agent_file.updated').at(-1)!.summary).toBe(
+      'Bundled docket-worker/references/exit-reports.md retired: Docket no longer ships it',
+    );
+    // Running again retires nothing more; skills themselves keep their bundled layer.
+    expect(
+      d.write(SYSTEM_ACTOR, (w, s) => s.agentFiles.syncBundled(w, { files: [V1[2]!] })).retired,
+    ).toEqual([]);
+
+    // Shipping it again brings it back as a new version.
+    expect(sync(withRefs)).toEqual([REF]);
+    expect(list()).toContain(REF);
+    expect(get(undefined, REF).layers.bundled!.current_version_no).toBe(2);
+  });
+
+  it('keeps an owner edit of a reference the image no longer ships (decision 66)', () => {
+    const REF = 'skill:docket-worker--exit-reports';
+    sync([...V1, { key: REF, content: '# Exit\n' }]);
+    put('# Exit\n\nOur own.\n', { key: REF });
+    d.write(SYSTEM_ACTOR, (w, s) => s.agentFiles.syncBundled(w, { files: V1 }));
+    expect(effective(undefined, REF)).toContain('Our own.');
+  });
+
   it('skips folders that are not valid names and reports missing files', () => {
     const tmp = tempDir();
     try {
@@ -207,7 +292,7 @@ describe('bundled loading (startup)', () => {
   it('syncBundledFiles loads the checkout into a runtime, then is a no-op', () => {
     const lines: string[] = [];
     const rt = { ...d.server.runtime, log: (l: string) => lines.push(l) };
-    expect(syncBundledFiles(rt).added).toHaveLength(9);
+    expect(syncBundledFiles(rt).added).toHaveLength(9 + shippedReferences().length);
     expect(syncBundledFiles(rt).added).toEqual([]);
     expect(lines).toEqual([]);
   });

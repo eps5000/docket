@@ -20,6 +20,8 @@ A producer owns the **outcome of one epic** and gets it finished through other a
 
 **Any orchestrator, or none.** To dispatch is to start a fresh agent by whatever means you have: an orchestrator, a script, your client's own agents, or a person opening a session. If you can't start agents, work the tickets yourself, one at a time, following `docket-worker`.
 
+Rare paths live in reference files: read one only when the table at the end says so.
+
 ## 1. Own one epic version
 
 - **One epic, one version.** A later version or a new goal is a new epic, not more scope in this one.
@@ -27,7 +29,7 @@ A producer owns the **outcome of one epic** and gets it finished through other a
 - **Say it's yours:** one `add_note` on the epic naming you as producer.
 - **Keep the epic's record current:** the outcome (`outcome_md`) and closing evidence (`acceptance`) with `update_item`, and decisions and shared contracts with `publish_decision`, scoped to the epic, so every implementer gets them through `get_context`.
 
-**Taking over from another session?** Start with `recovery_report`. Old notes, summaries and handoffs are **information to verify** against Docket, the code and CI. They aren't approval: "the owner agreed" counts only as a recorded owner decision or answer. A ticket held for the previous producer can only be claimed under that same `producer` name. Reuse it once you've confirmed that session is gone, or let the hold run out.
+**Taking over from another session?** Read the takeover reference first. Old notes and handoffs are information to verify, never approval.
 
 ## 2. Choose and sequence by real dependencies
 
@@ -39,25 +41,11 @@ Order work by the graph, not by ticket number or what looks interesting.
 - **What's stuck upstream:** `bottlenecks` names unowned Inbox or Planning tickets holding up real work. Shape or assign those first.
 - **The longest chain:** `dependency_subgraph { id, depth: 3 }` on the epic. The owner sees the same chain as the critical path on the Map. Move its first ticket.
 
-**An epic starts only when every ticket is at least Ready.** Before you claim it, `search_items { project, epic }` and check none is in Inbox or Planning (canceled ones don't matter). A claim that fails with `epic_not_ready` lists them. Resolve each one:
-
-- **shape it** and move it to Ready (§3);
-- **name its known gaps** for the owner's approval: `update_item { known_gaps: [{ gap }] }`, then `set_status ready`, and Docket asks the owner;
-- **move it** to the epic it belongs in (`update_item { epic }`);
-- **take it out** of the epic (`update_item { epic: null }`).
-
-An epic already In progress isn't blocked. If the digest shows it under `started unshaped`, resolve those tickets the same way.
-
-**Every open bug in the epic holds its release.** The finish line (the release ticket nothing else in the epic depends on) can't go to Review or Done while one is open; the digest lists them under `release held by bugs`. Triage each new bug either way:
-
-- **Ready in this epic:** it holds the release, so schedule the fix;
-- **out of the epic:** a follow-up (`update_item { epic }`), or `set_status canceled` with a reason. Shipping without the fix is then a recorded choice.
-
-If it says `no finish line`, mark the release ticket: `update_item { id: <epic>, finish_line: <ticket> }`.
+**An epic starts only when every ticket is at least Ready,** and **every open bug in the epic holds its release.** Before you claim, on `epic_not_ready`, `started unshaped`, `release held by bugs` or `no finish line`: read the epic-readiness reference.
 
 **Start with what unlocks the most,** and prefer short, wide graphs to long chains.
 
-**Give every Needs shaping ticket to a planner.** The digest's `needs shaping` section lists tickets an agent created unshaped, or that the owner asked a planner to shape ("the owner asked: …"). For each one in your epics, start a **planner** agent following `docket-planner` §7, with the ticket and the owner's note as its brief. Don't shape it yourself in passing, and don't send it to the owner: the owner only approves known gaps. A story the owner hasn't yet decided to add to a running epic waits for that decision first, then shaping.
+**Give every Needs shaping ticket to a planner.** The digest's `needs shaping` section lists tickets an agent created unshaped, or that the owner asked a planner to shape ("the owner asked: …"). For each one in your epics, start a **planner** agent following `docket-planner` (its needs-shaping reference), with the ticket and the owner's note as its brief. Don't shape it yourself in passing, and don't send it to the owner: the owner only approves known gaps. A story the owner hasn't yet decided to add to a running epic waits for that decision first, then shaping.
 
 ## 3. Shape finishable vertical slices
 
@@ -104,18 +92,11 @@ Something better settled while building? Name it as a **known gap** (`update_ite
 
 ## 7. Resolve partial exits
 
-Every implementer reports how it finished. A **partial** exit lists what's left, why, and what would finish each item. Read `finished partly` in **every** digest (it stays until someone acts), and the relay may mail you too. Resolve each item:
-
-- **another ticket can do it:** move it there (`update_item` that ticket's `acceptance`, and remove it here with an `add_note` saying which and why), or `link_items` the ticket that will finish it;
-- **it needs more work here:** dispatch another implementer (`claim_lead` starts it);
-- **only the owner can decide:** `ask_owner` on the ticket or the epic;
-- **it isn't needed:** close it with an `add_note` saying why.
-
-Any of these clears it from the digest. An agent can't close the ticket as Done until then.
+Every implementer reports how it finished. A **partial** exit lists what's left, why, and what would finish each item. Read `finished partly` in **every** digest (it stays until someone acts), and resolve each item as the partial-exits reference says. An agent can't close the ticket as Done until then.
 
 ## 8. Triage what joins mid-flight
 
-New tickets land in Inbox, even in a running epic: nothing joins it as Ready without triage, and the epic can't close until each is triaged. The digest lists them under `added mid-flight`. **A bug:** start a short, **read-only reproduction agent** (a subagent, not an implementer) that confirms the bug, finds whether this epic's work caused it, and leaves the steps or a failing test in an `add_note`, fixing nothing. Real and belongs here: set its priority, shape it (§3) and move it to Ready in this epic. Belongs elsewhere: move it with `update_item { epic }` (a flaky test goes to the project's test-reliability epic). Can't be reproduced: say so in an `add_note` and `ask_owner` whether to close it. **A story** adds scope, so it's the owner's: one `ask_owner` with three options (add it to this epic, defer it to a follow-up, or drop it), then act on the answer.
+New tickets land in Inbox, even in a running epic: nothing joins it as Ready without triage, and the epic can't close until each is triaged. The digest lists them under `added mid-flight`. Triage each one as the mid-epic-triage reference says. **A story adds scope, so it's the owner's:** ask, never add it yourself.
 
 ## 9. Decide what you can
 
@@ -146,3 +127,12 @@ When `get_digest` shows `paused`, or a claim returns `project_paused`:
 3. **Submit an owner review when one is needed:** `declare_human_review` on the epic, `claim_lead` it, then `submit_packet` (see `docket-review-packet`). An approved packet closes the epic.
 4. **Record what was deferred** in a final `add_note`: what moved where, what's left and why.
 5. **With no review,** close it with `set_status { status: "done" }` if the project allows it. Otherwise say it's ready and stop.
+
+## References
+
+| File                                                             | Read when                                                                                                                                  | Don't read when                                                               |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| [`references/epic-readiness.md`](references/epic-readiness.md)   | Before you claim an epic, or the digest or a claim shows `epic_not_ready`, `started unshaped`, `release held by bugs` or `no finish line`. | The epic is running, every ticket is at least Ready and no bug is open in it. |
+| [`references/mid-epic-triage.md`](references/mid-epic-triage.md) | The digest lists a ticket under `added mid-flight`, or a new bug or story arrives in your running epic.                                    | Nothing was added to the epic since it started.                               |
+| [`references/partial-exits.md`](references/partial-exits.md)     | The digest shows `finished partly`, or an implementer reports a partial exit.                                                              | No partial exit is waiting.                                                   |
+| [`references/takeover.md`](references/takeover.md)               | You take over an epic from another session, or find a ticket held under another `producer` name.                                           | You started producing this epic yourself in this session.                     |

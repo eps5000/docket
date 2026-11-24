@@ -153,7 +153,7 @@ describe('reads', () => {
     );
   });
 
-  it('get_agent_files RCP listing ≤ 300 (decision 30; MCP_SPEC §5.10)', async () => {
+  it('get_agent_files RCP listing ≤ 720 (decisions 30 and 66; MCP_SPEC §5.10)', async () => {
     // A real call on the seed data with the shipped files loaded: every skill
     // in skills/, the AGENTS.md block and Workflow notes, one line each.
     syncBundledFiles(h.server.runtime);
@@ -161,7 +161,7 @@ describe('reads', () => {
     const files = r.structured.files as { content: string | null }[];
     expect(files.length).toBeGreaterThanOrEqual(7);
     expect(files.every((f) => f.content === null)).toBe(true);
-    within(`get_agent_files RCP listing (${files.length} files)`, r.text, 300);
+    within(`get_agent_files RCP listing (${files.length} files)`, r.text, 720);
   });
 
   it('onboard_project with the bundled guide ≤ 1,400; finish_onboarding ≤ 60 (decision 31; MCP_SPEC §3.2)', async () => {
