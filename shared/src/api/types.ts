@@ -87,6 +87,11 @@ export type LeadParked = z.infer<typeof leadParkedSchema>;
 export const workItemSchema = itemSummarySchema.extend({
   /** The lead's park, when it is parked (B20). */
   lead_parked: leadParkedSchema.nullable().optional(),
+  /**
+   * Decision 61: the lead's partial exit, while it waits on the producer: the
+   * card's "Finished partly: N items left", with each item's why. Absent otherwise.
+   */
+  finished_partly: z.object({ left: z.number().int(), reasons: z.array(z.string()) }).optional(),
   /** Decision 42: the story's producer, and whether it is between workers. */
   producer: z.object({ name: z.string(), between_workers: z.boolean() }).optional(),
   /** Review cards with a ready packet open the packet screen directly (UI_SPEC §6.2.1). */

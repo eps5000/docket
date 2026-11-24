@@ -16,6 +16,7 @@ import {
   EpicDepsLine,
   EpicReadinessLine,
   EpicReleaseLine,
+  FinishedPartlyBlock,
   Label,
   Provenance,
   Skeleton,
@@ -255,6 +256,8 @@ export function ItemHeader({ id, data }: { id: string; data?: ItemDetailResponse
             ’s release: fix it, move it to another epic as a follow-up, or cancel it with a reason.
           </div>
         )}
+        {/* Decision 61: how the lead finished, when it left items. */}
+        <FinishedPartlyBlock runs={item.runs} />
       </div>
     </div>
   );

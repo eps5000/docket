@@ -461,6 +461,20 @@ On the epic dependency map, if C depends on B and B depends on A, a direct arrow
 
 UI_SPEC §2, §6.3.3 and §6.3.4, spec FR-334–FR-337 and SC-041, and Help (Blocker rules and dependencies) have the details.
 
+## Owner decision 61 (2026-11-24): implementers report how they finished
+
+A synthetic version of a real case: an implementer merged and deployed its ticket's code, but one acceptance item, a check that needs a feature flag another ticket turns on, couldn't be done inside its ticket. It parked waiting on that ticket, and its session ended. Its run's summary still said "PR open, CI running, reviewer running", and nobody upstream was told that the ticket finished partly, or why. The owner found it by reading the activity log.
+
+1. **The summary tells the truth.** When a run parks, is released or ends, its summary is the parked reason or how it ended, never an earlier in-progress line, wherever it shows: the item page, cards, Work, Overview, the digest and `get_context`.
+2. **Every implementer exit reports how it finished:** **complete** (everything in the acceptance criteria is done) or **partial** (done what it could; these items remain, each with **why** and **what would finish it**: another ticket, a flag, an environment, an owner decision). Parking, releasing and finishing take it as an optional field on the existing tools; closing as Done is a complete exit.
+3. **A partial exit goes back to the producer** that dispatched the work. `get_digest` lists it as **Finished partly**, with the ticket, the items and the reasons, until someone acts: moves the items, links the ticket that will finish them, starts work, asks the owner, or closes them with a note. Where the relay can reach the producer, it mails the producer too.
+4. **The owner sees it.** The ticket says **"Finished partly: N items left"** with the reasons, not just "In progress, parked".
+5. **Done needs the items dealt with.** Moving a ticket to Done with items left needs them removed first, with a note saying which and why, or moved to the ticket that can do them.
+6. **Check before starting.** Before implementing, the implementer checks each acceptance item against what its own ticket can do. An item that depends on something outside the ticket (another ticket's deploy, a flag, a cutover, an environment), which may be a leftover from older work, gets clarified first: through the producer, by proposing known gaps, or by moving the item. Planners don't write acceptance items only another ticket can complete.
+7. **No new MCP tool.**
+
+BUILD_SPEC §5.42, MCP_SPEC §5.2–§5.4, UI_SPEC §5 and §6.3, spec FR-341–FR-346 and SC-043, Help (Run states) and the worker, producer and planner skills have the details.
+
 ## Owner decision 63 (2026-11-24): Fit fits the map's width
 
 The owner uses the dependency map's **Fit** button a lot. Maps have few waves but many tickets in a wave (one has 5 waves and 12 tickets in one wave), so fitting the whole map made every card tiny, and every Fit needed zooming again.
@@ -483,7 +497,7 @@ Bugs found mid-epic are filed into the epic with no links, so the map puts them 
 4. **On the map.** A **Bugs** column to the left of Wave 1 stacks every bug in the epic with its status, instead of bugs appearing in Wave 1 as starting work. A bug that's part of the chain is drawn in its wave with a bug marker. No arrows run from the Bugs column to the finish line: the finish line shows "Waiting on N bugs", and the column header counts open bugs. It works with Hide implied links and the map's fit. The epic page and Pick next epic show open bug counts too.
 5. **Agents.** `get_context` for the finish line and `get_digest` for the producer show the bugs holding the release, within the text-only budget and with no new tool. `docket-producer` triages each bug to Ready in this epic (it holds the release) or out of it; `docket-worker` has the finish line's implementer check the bugs first.
 
-BUILD_SPEC §5.42, MCP_SPEC (`update_item`, `set_status`, `submit_packet`, `get_context`, `get_digest`, errors), UI_SPEC §6.2.5, §6.3 and §6.3.4, spec FR-341–FR-346 and SC-043, and Help (Blocker rules and dependencies; Pick next epic) have the details.
+BUILD_SPEC §5.43, MCP_SPEC (`update_item`, `set_status`, `submit_packet`, `get_context`, `get_digest`, errors), UI_SPEC §6.2.5, §6.3 and §6.3.4, spec FR-347–FR-352 and SC-044, and Help (Blocker rules and dependencies; Pick next epic) have the details.
 
 ## Deferred choices
 

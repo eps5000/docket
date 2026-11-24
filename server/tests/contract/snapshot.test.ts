@@ -233,7 +233,10 @@ const INPUTS: Record<string, [string[], string[]]> = {
       'producer',
     ],
   ],
-  release_lead: [['id', 'run_id', 'reason'], ['release_story']],
+  release_lead: [
+    ['id', 'run_id', 'reason'],
+    ['release_story', 'exit'],
+  ],
   start_run: [
     ['id', 'parent_run_id'],
     ['agent_label', 'workspace', 'orchestrator', 'brief', 'brief_document_version_id', 'external'],
@@ -242,8 +245,14 @@ const INPUTS: Record<string, [string[], string[]]> = {
     ['run_id'],
     ['current_step_id', 'note', 'workspace', 'resources_started', 'resources_released', 'external'],
   ],
-  finish_run: [['run_id', 'result', 'summary'], ['error']],
-  park_run: [['run_id', 'reason'], ['waiting_on']],
+  finish_run: [
+    ['run_id', 'result', 'summary'],
+    ['error', 'exit'],
+  ],
+  park_run: [
+    ['run_id', 'reason'],
+    ['waiting_on', 'exit'],
+  ],
   update_run_status: [
     ['id', 'coordinator'],
     ['current_action', 'park_reason', 'waiting_on', 'park_minutes', 'resume'],
@@ -399,7 +408,7 @@ const OUTPUTS: Record<string, string[]> = {
 
 /** Optional result fields, from the §5 Output lines (decisions 36 and 39: what's held). */
 const OPTIONAL_OUTPUTS: Record<string, string[]> = {
-  get_digest: ['paused', 'agent_files_update', 'unshaped_epics', 'release_bugs'], // decisions 53, 56, 58, 64: only while they apply
+  get_digest: ['paused', 'agent_files_update', 'unshaped_epics', 'finished_partly', 'release_bugs'], // decisions 53, 56, 58, 61, 64: only while they apply
   submit_packet: ['held_undeclared', 'held_design'],
   declare_shared_changes: ['design_hold'],
   update_run_status: ['parked_until'], // decision 44: while a coordinator's park holds

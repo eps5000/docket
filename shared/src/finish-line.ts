@@ -1,5 +1,5 @@
 /**
- * Open bugs hold back an epic's release (owner decision 64; BUILD_SPEC §5.42).
+ * Open bugs hold back an epic's release (owner decision 64; BUILD_SPEC §5.43).
  *
  * - **The finish line** is the epic's release ticket: a ticket in the epic that
  *   depends on other tickets in it and that no other ticket in it depends on.

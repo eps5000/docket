@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { cursor, projectKey, readInput, readOutput } from './common.js';
 import { WAIT_FLAG_KINDS, coordinatorParkSchema, prioritySchema, runStateSchema } from './types.js';
 import { WAIT_KINDS } from '../wait-kind.js';
+import { EXIT_VIAS, exitLeftSchema } from '../exit-report.js';
 
 /** The most rows each section lists. */
 export const DIGEST_CAPS = {
@@ -23,6 +24,7 @@ export const DIGEST_CAPS = {
   changed: 6,
   unshaped_epics: 3,
   release_bugs: 3,
+  finished_partly: 4,
 } as const;
 
 /** The hard cap on the text block: 1,000 tokens at characters ÷ 4 (MCP_SPEC §3.2). */
@@ -140,6 +142,22 @@ export const digestReleaseBugsSchema = z.object({
   bugs: z.array(z.string()),
 });
 
+/**
+ * Decision 61: a lead that finished partly, until someone acts on the ticket:
+ * moves the items, links the ticket that will finish them, starts work, asks
+ * the owner or closes them with a note.
+ */
+export const digestFinishedPartlySchema = z.object({
+  item_id: z.string(),
+  title: z.string(),
+  run_id: z.string(),
+  label: z.string().nullable(),
+  producer: z.string().optional(),
+  via: z.enum(EXIT_VIAS),
+  at: z.string(),
+  left: z.array(exitLeftSchema),
+});
+
 export const digestChangeSchema = z.object({
   cursor: z.string(),
   item_id: z.string().nullable(),
@@ -176,5 +194,7 @@ export const getDigestOutput = readOutput({
   unshaped_epics: section(digestUnshapedEpicSchema).optional(),
   /** Decision 64: open bugs holding each epic's release; absent when none. */
   release_bugs: section(digestReleaseBugsSchema).optional(),
+  /** Decision 61: partial exits nobody has acted on yet, on every digest; absent when none. */
+  finished_partly: section(digestFinishedPartlySchema).optional(),
 });
 export type Digest = z.infer<typeof getDigestOutput>;

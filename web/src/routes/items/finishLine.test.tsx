@@ -206,6 +206,7 @@ const ticket = (over: Record<string, unknown>, rest: Partial<ItemDetailResponse>
       blocked_by: [],
       human_review: { declared: 0, ready: 0, approved: 0, deferred: 0 },
       lead: null,
+      runs: [],
       ...over,
     },
     children: [],

@@ -165,7 +165,7 @@ export const COLUMNS_0010 = [
   'criteria_changed_at',
   // 0028 (decision 58): a ticket's known gaps.
   'known_gaps',
-  // 0029 (decision 64): an epic's marked finish line.
+  // 0030 (decision 64): an epic's marked finish line.
   'finish_line',
 ] as const;
 
@@ -203,6 +203,8 @@ export function without0010<T>(rows: T): T {
       delete out.coordinator_park;
       // Decision 45 (0021): null on every row from before it.
       delete out.wait_flags;
+      // Decision 61 (0029): null on every row from before it.
+      delete out.exit_report;
     }
     return out;
   }) as T;

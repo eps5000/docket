@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "d1c7a823-9de0-4ddb-bae2-bfabbab5ec6a",
+  "id": "9524e667-9843-4a2d-8138-2a2d01ba5313",
   "prevId": "946f7c8c-da13-46f3-9268-67aaed539a65",
   "tables": {
     "acceptance_criteria": {
@@ -2809,13 +2809,6 @@
           "notNull": false,
           "autoincrement": false
         },
-        "finish_line": {
-          "name": "finish_line",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "version": {
           "name": "version",
           "type": "integer",
@@ -5574,6 +5567,13 @@
         },
         "wait_flags": {
           "name": "wait_flags",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "exit_report": {
+          "name": "exit_report",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

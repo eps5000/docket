@@ -119,6 +119,8 @@ export function createDocket({ baseUrl, fetchImpl = fetch }) {
           is_lead: run?.is_lead,
           run_state: run?.run_state,
           orchestrator: run?.orchestrator ? { dispatch_id: run.orchestrator.dispatch_id } : null,
+          // Decision 61: only whether it finished partly and when, never what it left.
+          exit: run?.exit ? { outcome: run.exit.outcome, at: run.exit.at } : null,
         })),
         activity,
       };

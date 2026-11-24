@@ -29,6 +29,7 @@ import { WaitReader, digestWait } from './wait.js';
 import { waitKindsOf } from './wait-kind.js';
 import { unshapedByEpic } from './epic-readiness.js';
 import { finishLines } from './finish-line.js';
+import { openPartialExits } from './exit-reports.js';
 
 export interface DigestService {
   get(r: ReadContext, input: ToolInput<'get_digest'>): Digest;
@@ -345,6 +346,19 @@ export function createDigestService(deps: ServiceDeps): DigestService {
           (x.finish_line !== null && keep(x.finish_line)) ||
           x.bugs.some((b) => keep(b)),
       );
+      // Decision 61: every digest, until someone acts on the ticket.
+      const partly = openPartialExits(r.db, input.project).map(({ run, exit }) => ({
+        item_id: run.item_id,
+        title: (
+          sql.prepare('SELECT title FROM items WHERE id = ?').get(run.item_id) as { title: string }
+        ).title,
+        run_id: run.id,
+        label: run.label,
+        ...(run.producer ? { producer: run.producer } : {}),
+        via: exit.via,
+        at: exit.at,
+        left: exit.left,
+      }));
       // Decision 56: on a full snapshot only, so a repeated digest stays small.
       const update =
         since === null
@@ -358,6 +372,9 @@ export function createDigestService(deps: ServiceDeps): DigestService {
           ? { unshaped_epics: section(unshaped, DIGEST_CAPS.unshaped_epics) }
           : {}),
         ...(held.length > 0 ? { release_bugs: section(held, DIGEST_CAPS.release_bugs) } : {}),
+        ...(partly.length > 0
+          ? { finished_partly: section(partly, DIGEST_CAPS.finished_partly) }
+          : {}),
         cursor: String(latest),
         since: since === null ? null : String(since),
         next_work: section(
