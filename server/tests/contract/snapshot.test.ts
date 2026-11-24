@@ -209,6 +209,7 @@ const INPUTS: Record<string, [string[], string[]]> = {
       'planned_end',
       'effort',
       'known_gaps',
+      'finish_line',
     ],
   ],
   set_status: [
@@ -413,7 +414,8 @@ const OPTIONAL_OUTPUTS: Record<string, string[]> = {
     'unshaped_epics',
     'finished_partly',
     'untriaged_epics',
-  ], // decisions 53, 56, 58, 61, 62: only while they apply
+    'release_bugs',
+  ], // decisions 53, 56, 58, 61, 62, 64: only while they apply
   submit_packet: ['held_undeclared', 'held_design'],
   declare_shared_changes: ['design_hold'],
   update_run_status: ['parked_until'], // decision 44: while a coordinator's park holds
@@ -695,6 +697,7 @@ describe('tools/list: output schemas (§4, §5, §6)', () => {
       'design_review',
       'project_paused',
       'epic_not_ready',
+      'bugs_open',
     ]);
   });
 

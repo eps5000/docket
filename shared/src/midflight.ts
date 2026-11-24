@@ -1,6 +1,6 @@
 /**
  * New work mid-epic, idle tickets and acknowledged problems (owner decision 62;
- * BUILD_SPEC §5.43).
+ * BUILD_SPEC §5.44).
  *
  * - **Added mid-flight:** a ticket that joined an epic (created in it, or moved
  *   into it) after the epic first moved to In progress. New tickets land in

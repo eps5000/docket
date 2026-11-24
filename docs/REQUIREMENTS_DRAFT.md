@@ -488,7 +488,7 @@ Three things the owner hit while epics ran with agents.
 2. **Idle In progress tickets.** A ticket In progress with no open, parked or needs-input run and no activity for 3 days is idle. It gets one problem for the owner, "GF-1 is In progress but nobody has worked on it since <date>", offering to move it to Planning, Ready or Inbox, cancel it, or clear its branches. The radar and overlap checks stop raising conflicts against an idle ticket's branches, and existing ones clear with a reason ("the other ticket is idle").
 3. **Acknowledged problems.** The owner reads Acknowledge as "I've seen it, stop telling me". Acknowledged problems no longer count as open: on items and epics they fold into one quiet line, "You acknowledged N problems", which expands to show them. They come back as open only under the existing rules: a material change, or a new proposed resolution.
 
-BUILD_SPEC §5.43, MCP_SPEC (`get_digest`, `set_status`, Problems), UI_SPEC §6.1, §6.2 and §6.3, spec FR-347–FR-354 and SC-044, Help (Problems and what to do; Pick the next epic) and the producer, worker and planner skills have the details.
+BUILD_SPEC §5.44, MCP_SPEC (`get_digest`, `set_status`, Problems), UI_SPEC §6.1, §6.2 and §6.3, spec FR-353–FR-360 and SC-045, Help (Problems and what to do; Pick the next epic) and the producer, worker and planner skills have the details.
 
 ## Owner decision 63 (2026-11-24): Fit fits the map's width
 
@@ -501,6 +501,18 @@ The owner uses the dependency map's **Fit** button a lot. Maps have few waves bu
 5. **Nothing else changes:** the zoom buttons, the keyboard, *Hide implied links*, focus and announcements. The button's name and tooltip say what it does. Scrolling down works with the mouse wheel, a trackpad, the keyboard and touch, without fighting the map's own drag to pan.
 
 UI_SPEC §6.3.4 and §8, spec FR-338–FR-340 and SC-042, and Help (Blocker rules and dependencies) have the details.
+
+## Owner decision 64 (2026-11-24): open bugs hold back an epic's release
+
+Bugs found mid-epic are filed into the epic with no links, so the map puts them in Wave 1, and nothing stops the epic's release ticket from being finished, and the work shipped, while they're still open. **Every open bug in an epic holds its release.**
+
+1. **The finish line.** An epic's finish line is its ticket that depends on other tickets in the epic and that no other ticket in the epic depends on: in practice, the release ticket. With exactly one, that's it. With several or none, the producer or the owner marks it on the epic; until then the epic shows "No finish line" for the producer to fix.
+2. **Bugs block it, implicitly.** The finish line can't move to Review or Done while any bug in the epic is open (not Done or canceled), with no manual link. The error lists the bugs and the ways forward: fix it, move it to another epic as a follow-up, or cancel it with a reason. A bug that's also a real dependency of a story keeps its normal links. Bugs outside the epic don't count.
+3. **Shipping without a bug is deliberate.** The bug leaves the epic, moved or canceled with a reason, and Activity shows it. This fits triage: a triaged bug either goes to Ready in this epic, and then blocks the release, or leaves it.
+4. **On the map.** A **Bugs** column to the left of Wave 1 stacks every bug in the epic with its status, instead of bugs appearing in Wave 1 as starting work. A bug that's part of the chain is drawn in its wave with a bug marker. No arrows run from the Bugs column to the finish line: the finish line shows "Waiting on N bugs", and the column header counts open bugs. It works with Hide implied links and the map's fit. The epic page and Pick next epic show open bug counts too.
+5. **Agents.** `get_context` for the finish line and `get_digest` for the producer show the bugs holding the release, within the text-only budget and with no new tool. `docket-producer` triages each bug to Ready in this epic (it holds the release) or out of it; `docket-worker` has the finish line's implementer check the bugs first.
+
+BUILD_SPEC §5.43, MCP_SPEC (`update_item`, `set_status`, `submit_packet`, `get_context`, `get_digest`, errors), UI_SPEC §6.2.5, §6.3 and §6.3.4, spec FR-347–FR-352 and SC-044, and Help (Blocker rules and dependencies; Pick next epic) have the details.
 
 ## Deferred choices
 

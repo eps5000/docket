@@ -18,6 +18,7 @@ import {
 } from '../mcp/types.js';
 import { itemWaitSchema } from '../wait-kind.js';
 import { epicReadinessSchema } from '../epic-readiness.js';
+import { epicReleaseSchema } from '../finish-line.js';
 import { epicMidflightSchema } from '../midflight.js';
 
 /** Decision 53: the owner's pause on a project, read from its active pause decision. */
@@ -158,6 +159,8 @@ export const epicCardSchema = itemSummarySchema.extend({
   readiness: epicReadinessSchema.optional(),
   /** Decision 62: tickets added after it started, and how many are untriaged; absent when none. */
   midflight: epicMidflightSchema.optional(),
+  /** Decision 64: its finish line and open bugs; absent on a closed epic. */
+  release: epicReleaseSchema.optional(),
 });
 export type EpicCard = z.infer<typeof epicCardSchema>;
 

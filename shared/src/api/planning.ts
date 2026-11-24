@@ -43,6 +43,7 @@ const PATCH_FIELDS = [
   'description_md',
   'outcome_md',
   'acceptance',
+  'finish_line',
 ] as const;
 
 /**
@@ -68,6 +69,8 @@ export const patchItemBody = input({
    * approves them, recorded as an owner decision on the ticket.
    */
   approve_gaps: z.literal(true).optional(),
+  /** Decision 64, on an epic: mark its finish line (release ticket); `null` clears the mark. */
+  finish_line: itemId.nullable().optional(),
 }).superRefine((v, ctx) => {
   if (v.approve_gaps !== undefined && v.status !== 'ready') {
     ctx.addIssue({

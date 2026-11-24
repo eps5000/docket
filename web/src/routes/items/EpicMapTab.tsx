@@ -8,7 +8,8 @@ import { GoalMap } from '../shared/GoalMap';
 /**
  * Map (epic; UI_SPEC §6.3): the epic-level review strip (when the epic has
  * human review), then a ProgressMap of its children, with blockers from
- * outside the epic in their own column.
+ * outside the epic in their own column. Decision 64: the epic's unlinked bugs
+ * stack in a Bugs column, and its finish line shows the open bugs holding it.
  */
 export function EpicMapTab({ data }: { data: ItemDetailResponse }) {
   const hrs = data.item.checklist.human_review;
@@ -24,6 +25,14 @@ export function EpicMapTab({ data }: { data: ItemDetailResponse }) {
       ? data.children
       : data.children.map((c) => (added.has(c.id) ? { ...c, added_midflight: true } : c));
   }, [data.children, midflight]);
+  const finishLine = data.finish_line?.id ?? null;
+  const openBugs = data.finish_line?.open_bugs.length ?? 0;
+  // Stable too: a closed epic draws no Bugs column (no `finish_line`).
+  const hasLine = data.finish_line !== undefined;
+  const release = useMemo(
+    () => (hasLine ? { finishLine, openBugs } : null),
+    [hasLine, finishLine, openBugs],
+  );
   return (
     <div className="stack1" data-section="map">
       {hrs.length > 0 && (
@@ -50,6 +59,7 @@ export function EpicMapTab({ data }: { data: ItemDetailResponse }) {
             outsideTitle="Outside this epic"
             home={home}
             goals={goals}
+            release={release}
           />
         )}
       </Card>

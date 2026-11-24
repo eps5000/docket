@@ -103,7 +103,7 @@ describe('0014_project_decision_review', () => {
     const migrated = openDb(copy);
     try {
       migrateDb(migrated);
-      expect(migrationStatus(migrated)).toEqual({ current: true, applied: 30, expected: 30 });
+      expect(migrationStatus(migrated)).toEqual({ current: true, applied: 31, expected: 31 });
       const after = records(migrated);
       expect(after).toEqual(
         before.map((row) => ({
@@ -135,7 +135,7 @@ describe('0014_project_decision_review', () => {
 
       // Migrating again is a no-op.
       migrateDb(migrated);
-      expect(migrationStatus(migrated).applied).toBe(30);
+      expect(migrationStatus(migrated).applied).toBe(31);
     } finally {
       migrated.sqlite.close();
     }

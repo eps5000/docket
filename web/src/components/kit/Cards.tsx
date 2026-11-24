@@ -19,6 +19,7 @@ import { Label } from './Label';
 import { StatusBar } from './StatusBar';
 import { EpicDepsNote } from './EpicDeps';
 import { EpicReadinessNote } from './EpicReadiness';
+import { EpicReleaseNote } from './EpicRelease';
 import { FinishedPartlyNote } from './FinishedPartly';
 import { EpicMidflightNote } from './EpicMidflight';
 
@@ -271,6 +272,8 @@ export function EpicCard({
       {epic.readiness && <EpicReadinessNote readiness={epic.readiness} />}
       {/* Decision 62: tickets added after it started, and how many are untriaged. */}
       {epic.midflight && <EpicMidflightNote midflight={epic.midflight} />}
+      {/* Decision 64: the open bugs holding its release. */}
+      {epic.release && <EpicReleaseNote release={epic.release} />}
     </Link>
   );
 }

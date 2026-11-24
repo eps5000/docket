@@ -33,6 +33,7 @@ import { onboardingSessionSchema } from './onboarding.js';
 import { WORK_CHECKS, WORK_QUICK, WORK_SHOWS } from '../work-filter.js';
 import { itemWaitSchema } from '../wait-kind.js';
 import { epicReadinessSchema } from '../epic-readiness.js';
+import { finishLineSchema, releaseHoldSchema } from '../finish-line.js';
 import { epicMidflightSchema } from '../midflight.js';
 import { problemAckSchema, problemExplanationSchema, resolutionRowSchema } from './problems.js';
 import {
@@ -507,6 +508,10 @@ export const itemDetailResponse = jsonResponse({
   epic_readiness: epicReadinessSchema.optional(),
   /** Decision 62 (optional): an open epic's tickets added after it started, and how many are untriaged. */
   epic_midflight: epicMidflightSchema.optional(),
+  /** Decision 64 (on an open epic): its finish line, or none, and its open bugs. */
+  finish_line: finishLineSchema.optional(),
+  /** Decision 64 (on a finish-line ticket): the open bugs in its epic that hold it. */
+  release_hold: releaseHoldSchema.optional(),
 });
 export type ItemDetailResponse = z.infer<typeof itemDetailResponse>;
 

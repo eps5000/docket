@@ -14,6 +14,8 @@ import { SplitDialog } from './SplitItem';
  * *Cancel item…* (UI_SPEC §6.3; owner decision 23; FR-064b). Cancel opens an inline confirm, "Cancel RCP-31?
  * Optional reason", with *Keep item* focused and *Cancel item*:
  * - an epic with open children lists them instead, with no Cancel button;
+ * - a bug in an epic needs a reason (decision 64): while open it holds the
+ *   epic's release, so shipping without it is a deliberate, recorded choice;
  * - an item an agent leads adds "codex is working on this; its run will be
  *   interrupted.";
  * - afterwards a toast with Undo (it restores the status, not the run).
@@ -128,6 +130,9 @@ function CancelConfirm({ data, onDone }: { data: ItemDetailResponse; onDone: () 
       ? data.children.filter((c) => !['done', 'canceled'].includes(c.status))
       : [];
   const lead = item.lead;
+  // Decision 64: shipping without a bug is deliberate, so canceling one in an epic needs a reason.
+  const holdsRelease = item.type === 'Bug' && item.epic !== null;
+  const missingReason = holdsRelease && reason.trim() === '';
 
   useEffect(() => {
     keep.current?.focus();
@@ -193,8 +198,14 @@ function CancelConfirm({ data, onDone }: { data: ItemDetailResponse; onDone: () 
         ) : (
           <>
             <label htmlFor={reasonId}>
-              <b>Cancel {item.id}?</b> Optional reason
+              <b>Cancel {item.id}?</b> {holdsRelease ? 'Reason (required)' : 'Optional reason'}
             </label>
+            {holdsRelease && (
+              <div className="src" id={`${reasonId}-why`} data-bug-reason="">
+                While it’s open, this bug holds {item.epic}’s release. Say why it can ship without
+                the fix; Activity records it.
+              </div>
+            )}
             {lead && (
               <div className="src" data-lead-warning="">
                 {lead.client} is working on this; its run will be interrupted.
@@ -206,14 +217,25 @@ function CancelConfirm({ data, onDone }: { data: ItemDetailResponse; onDone: () 
               value={reason}
               maxLength={4000}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="e.g. Replaced by RCP-33"
+              placeholder={
+                holdsRelease
+                  ? 'e.g. Only on a device we no longer support'
+                  : 'e.g. Replaced by RCP-33'
+              }
+              required={holdsRelease}
+              aria-describedby={holdsRelease ? `${reasonId}-why` : undefined}
               autoComplete="off"
             />
             <div className="row">
               <Button ref={keep} size="sm" onClick={onDone}>
                 Keep item
               </Button>
-              <Button size="sm" variant="danger" disabled={busy} onClick={() => void cancel()}>
+              <Button
+                size="sm"
+                variant="danger"
+                disabled={busy || missingReason}
+                onClick={() => void cancel()}
+              >
                 Cancel item
               </Button>
             </div>

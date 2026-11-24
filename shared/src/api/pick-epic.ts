@@ -10,6 +10,7 @@ import { projectParams } from './deps.js';
 import { json, route } from './route.js';
 import { epicWaitSchema } from './types.js';
 import { epicReadinessSchema } from '../epic-readiness.js';
+import { epicReleaseSchema } from '../finish-line.js';
 
 /**
  * - `available`: nobody holds it and it wouldn't likely park;
@@ -60,6 +61,8 @@ export const epicPickSchema = z.object({
   park_reason: z.string().nullable(),
   /** Decision 58: Not ready to start, or Started with N unshaped tickets, with links; absent when all are Ready. */
   readiness: epicReadinessSchema.optional(),
+  /** Decision 64: its finish line and open bugs. */
+  release: epicReleaseSchema.optional(),
 });
 export type EpicPick = z.infer<typeof epicPickSchema>;
 

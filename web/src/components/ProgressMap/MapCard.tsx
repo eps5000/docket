@@ -10,10 +10,13 @@
  * packet is ready for you and outlined when your review comes later. Each
  * card is a button that opens the item; its accessible name is its visible
  * text (type, ID, title, status), plus the review mark as sr-only text.
+ * Decision 64: a bug in the chain says "bug" by its ID, and the epic's
+ * finish line says "Finish line", with "Waiting on N bugs" while bugs in
+ * the epic are open.
  */
 import type { FocusEvent, MouseEvent } from 'react';
 import { useNavigate } from 'react-router';
-import { STATUS_LABELS } from '@docket/shared';
+import { STATUS_LABELS, waitingOnBugsText } from '@docket/shared';
 import { Icon, RunState, TypeIcon } from '../kit';
 import { paths } from '../../lib/paths';
 import { waitKindOf, type MapItem } from './layout';
@@ -33,6 +36,10 @@ export interface MapCardProps {
   top?: number;
   /** Decision 48: its place on the critical path, or `off` when it isn't on it. */
   critical?: { step: number; total: number; next: boolean } | 'off' | null;
+  /** Decision 64: a bug drawn in its wave because it's part of the chain. */
+  bugMark?: boolean;
+  /** Decision 64: this is the epic's finish line; open bugs in the epic hold it. */
+  finish?: { openBugs: number } | null;
 }
 
 /** Packet ready (filled) or human review later (outlined); none otherwise (UI_SPEC §5). */
@@ -53,6 +60,8 @@ export function MapCard({
   onTrace,
   top,
   critical,
+  bugMark,
+  finish,
 }: MapCardProps) {
   const navigate = useNavigate();
   const kind = item.status === 'ready' ? waitKindOf(item) : null;
@@ -82,6 +91,8 @@ export function MapCard({
         critical === 'off' && 'critoff',
         critical && critical !== 'off' && 'crit',
         critical && critical !== 'off' && critical.next && 'critnext',
+        finish && 'finish',
+        finish && finish.openBugs > 0 && 'held',
       ]
         .filter(Boolean)
         .join(' ')}
@@ -97,6 +108,14 @@ export function MapCard({
     >
       <span className="pm-top">
         <TypeIcon type={item.type} /> <span className="mono muted">{item.id}</span>
+        {bugMark && (
+          <>
+            {' '}
+            <span className="pm-bugmark" data-bug-mark="">
+              bug
+            </span>
+          </>
+        )}
         {outside && (
           <>
             {' '}
@@ -158,6 +177,17 @@ export function MapCard({
           </>
         )}
       </span>{' '}
+      {finish && (
+        <span className="pm-finish" data-finish-badge={finish.openBugs}>
+          Finish line
+          {finish.openBugs > 0 && (
+            <>
+              {' · '}
+              <b className="pm-waitbugs">{waitingOnBugsText(finish.openBugs)}</b>
+            </>
+          )}
+        </span>
+      )}{' '}
       {critical && critical !== 'off' && (
         <span className="pm-crit">
           {critical.next ? 'Move next · ' : ''}Step {critical.step} of {critical.total}

@@ -48,6 +48,13 @@ Order work by the graph, not by ticket number or what looks interesting.
 
 An epic already In progress isn't blocked. If the digest shows it under `started unshaped`, resolve those tickets the same way.
 
+**Every open bug in the epic holds its release.** The finish line (the release ticket nothing else in the epic depends on) can't go to Review or Done while one is open; the digest lists them under `release held by bugs`. Triage each new bug either way:
+
+- **Ready in this epic:** it holds the release, so schedule the fix;
+- **out of the epic:** a follow-up (`update_item { epic }`), or `set_status canceled` with a reason. Shipping without the fix is then a recorded choice.
+
+If it says `no finish line`, mark the release ticket: `update_item { id: <epic>, finish_line: <ticket> }`.
+
 **Start with what unlocks the most,** and prefer short, wide graphs to long chains.
 
 ## 3. Shape finishable vertical slices
@@ -104,15 +111,10 @@ Any of these clears it from the digest. An agent can't close the ticket as Done 
 
 ## 8. Triage what joins mid-flight
 
-New tickets land in Inbox, even in a running epic, and nothing joins it as Ready without triage. The digest lists them under `added mid-flight` ("added since this epic started: 2 untriaged"). Triage each before more dispatch:
+New tickets land in Inbox, even in a running epic, and nothing joins it as Ready without triage. The digest lists them under `added mid-flight` ("added since this epic started: 2 untriaged"), and the epic can't close until each is triaged:
 
-- **A bug:** start a short, **read-only reproduction agent** (a subagent, not an implementer). It confirms the bug happens, finds whether this epic's work caused it, and leaves the steps or a failing test in an `add_note`. It fixes nothing.
-  - Real and belongs here: set its priority, shape it (§3) and move it to Ready in this epic.
-  - Belongs elsewhere: move it there with `update_item { epic }`, such as a flaky test to the project's test-reliability epic.
-  - Can't be reproduced: record that in an `add_note` and `ask_owner` whether to close it.
+- **A bug:** start a short, **read-only reproduction agent** (a subagent, not an implementer). It confirms the bug happens, finds whether this epic's work caused it, and leaves the steps or a failing test in an `add_note`. It fixes nothing. Then: real and belongs here, set its priority, shape it (§3) and move it to Ready in this epic; belongs elsewhere, move it with `update_item { epic }` (a flaky test goes to the project's test-reliability epic); can't be reproduced, say so in an `add_note` and `ask_owner` whether to close it.
 - **A story** adds scope, so it's the owner's: one `ask_owner` with three options: add it to this epic, defer it to a follow-up, or drop it. Act on the answer.
-
-The epic can't close while one is still untriaged: `set_status done` lists them.
 
 ## 9. Decide what you can
 
@@ -138,7 +140,7 @@ When `get_digest` shows `paused`, or a claim returns `project_paused`:
 
 ## 12. Close the epic
 
-1. **Account for every story.** With `search_items { project, epic }`, confirm each intended story is Done, or was deliberately moved (`update_item { epic }`) or canceled with a reason, and that no partial exit is left unresolved. Docket won't close an epic with open children, or with untriaged tickets added after it started (§8).
+1. **Account for every story and bug.** With `search_items { project, epic }`, confirm each intended story is Done, or was deliberately moved (`update_item { epic }`) or canceled with a reason, and that no partial exit is left unresolved. Docket won't close an epic with open children, nor its finish line with open bugs, nor with untriaged tickets added after it started (§8).
 2. **Verify the integrated result** as the project requires, against the epic's outcome and closing evidence. Tickets that each passed don't prove they work together. Attach the evidence with `link_artifact`.
 3. **Submit an owner review when one is needed:** `declare_human_review` on the epic, `claim_lead` it, then `submit_packet` (see `docket-review-packet`). An approved packet closes the epic.
 4. **Record what was deferred** in a final `add_note`: what moved where, what's left and why.

@@ -23,6 +23,7 @@ export const DIGEST_CAPS = {
   conflicts: 4,
   changed: 6,
   unshaped_epics: 3,
+  release_bugs: 3,
   finished_partly: 4,
   untriaged_epics: 3,
 } as const;
@@ -135,6 +136,13 @@ export const digestUnshapedEpicSchema = z.object({
   unshaped: z.array(z.string()),
 });
 
+/** Decision 64: an open epic with open bugs, and the finish line they hold (null: none marked). */
+export const digestReleaseBugsSchema = z.object({
+  epic: z.string(),
+  finish_line: z.string().nullable(),
+  bugs: z.array(z.string()),
+});
+
 /**
  * Decision 61: a lead that finished partly, until someone acts on the ticket:
  * moves the items, links the ticket that will finish them, starts work, asks
@@ -192,6 +200,8 @@ export const getDigestOutput = readOutput({
   changed: section(digestChangeSchema),
   /** Decision 58: "Started with N unshaped tickets", on full snapshots only; absent when none. */
   unshaped_epics: section(digestUnshapedEpicSchema).optional(),
+  /** Decision 64: open bugs holding each epic's release; absent when none. */
+  release_bugs: section(digestReleaseBugsSchema).optional(),
   /** Decision 61: partial exits nobody has acted on yet, on every digest; absent when none. */
   finished_partly: section(digestFinishedPartlySchema).optional(),
   /** Decision 62: "Added since this epic started: N untriaged", for the producer to triage; absent when none. */

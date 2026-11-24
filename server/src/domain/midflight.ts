@@ -1,6 +1,6 @@
 /**
  * Tickets added to an epic after it started (owner decision 62; BUILD_SPEC
- * §5.43).
+ * §5.44).
  *
  * An epic *started* when work on it began: the later of its first move to
  * In progress (its first `item.status_changed` to `progress`, or its creation
