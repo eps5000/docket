@@ -782,6 +782,13 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T348 [US4] `domain/finish-line.ts`: finding the finish line (one, several, none, marked; migration 0030 `items.finish_line`), `bugs_open` on `set_status done` and `submit_packet`, the owner's review leaving it In progress, a reason to cancel a bug in an epic, the bug-left Activity line; `release_hold` and `release_bugs` for agents; the epic page, cards, Pick next epic, the ticket and bug notes; the map's Bugs column, chain-bug marker and "Waiting on N bugs" badge.
 - [x] T349 [US4] Tests: detection (one, several, none, marked, a mark that stops counting), the hold with open, done and canceled bugs and bugs outside the epic, the refusal's content, moving out and canceling, the owner's review; the map's Bugs column, chain bug, badge and Hide implied links; the digest and context, the token budget; e2e and axe in both themes with screenshots at 1440 x 900 and 1024 px.
 
+## Phase 59: Tickets agents create arrive shaped or ask for a planner (owner decision 65)
+
+- [x] T350 [US4] Spec plus code in one PR: decision 65 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.44; MCP_SPEC §4, §5.2, §5.3 and §6; UI_SPEC §6.3 and §6.3.4; spec FR-353–FR-358 and SC-045; Help; the producer, planner and worker skills.
+- [x] T351 [US4] Migration 0031 (`items.shaping`); `domain/shaping.ts`: `create_item shared` through the shared declare, marking an agent's unshaped ticket or split, `needs_shaping` on summaries, epic readiness and `get_digest`, the Ready gate's refusal listing what's missing, and the owner's `request_shaping`; Ready clears it.
+- [x] T352 [US4] The item header's Needs shaping chip and the refused Move to Ready panel (*Ask a planner to shape this* with a note, *It changes no shared part*), the epic line's count and the map card's "needs shaping".
+- [x] T353 [US4] Tests: `create_item` with shared parts, with none and with neither; splits; the refusal and its button; the digest count; the planner's path to Ready; token budget; e2e and axe in both themes at 1024 px and 1440 x 900.
+
 ## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.
@@ -906,6 +913,7 @@ Open a PR titled "<Bn>: <phase name>" with the checkpoint evidence. Do not queue
 | 53 An epic starts only when its tickets are ready | B74 (decision 58) |
 | 54 The dependency map hides implied links | B77 (decision 60) |
 | 55 All git reading moves to the host helper | B76 |
+| 59 Tickets agents create arrive shaped or ask for a planner | B82 (decision 65) |
 
 **Within a phase:** tests (failing) → services → replace stubs or fill handlers → fill screens → checkpoint.
 

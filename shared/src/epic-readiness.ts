@@ -48,6 +48,8 @@ export const unshapedTicketSchema = z.object({
   id: z.string(),
   title: z.string(),
   status: z.enum(['inbox', 'planning']),
+  /** Decision 65: it needs shaping, so it waits for a planner, not the owner. */
+  needs_shaping: z.literal(true).optional(),
 });
 export type UnshapedTicket = z.infer<typeof unshapedTicketSchema>;
 
@@ -68,9 +70,11 @@ const tickets = (n: number) => `${n} unshaped ticket${n === 1 ? '' : 's'}`;
 /** "Not ready to start: 2 unshaped tickets" or "Started with 1 unshaped ticket". */
 export function epicReadinessText(r: Pick<EpicReadiness, 'state' | 'unshaped'>): string {
   const n = r.unshaped.length;
-  return r.state === 'not_ready'
-    ? `Not ready to start: ${tickets(n)}`
-    : `Started with ${tickets(n)}`;
+  const text =
+    r.state === 'not_ready' ? `Not ready to start: ${tickets(n)}` : `Started with ${tickets(n)}`;
+  // Decision 65: how many of them wait for a planner.
+  const shaping = r.unshaped.filter((t) => t.needs_shaping).length;
+  return shaping > 0 ? `${text} · Needs shaping: ${shaping}` : text;
 }
 
 /** The four ways forward an `epic_not_ready` refusal lists, in order. */

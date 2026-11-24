@@ -28,6 +28,7 @@ import type { Config } from '../config.js';
 import type { Db } from '../db/client.js';
 import type { BlockState } from './contracts.js';
 import type { Actor } from './write.js';
+import { needsShapingOf } from './shaping.js';
 
 // ---- Actors ----
 
@@ -522,6 +523,8 @@ export interface ItemRow {
   known_gaps?: string | null;
   /** Decision 64, on an epic: the marked finish line, or null. */
   finish_line?: string | null;
+  /** Decision 65: who asked for it to be shaped (JSON text), or null. */
+  shaping?: string | null;
   jira_key: string | null;
   /** 1 when the Jira import created it (SQLite boolean). */
   imported?: number | boolean;
@@ -590,9 +593,12 @@ export function summarize(ctx: SummaryContext, rows: ItemRow[]): ItemSummary[] {
       epicTitles.set(e.id, e.title);
     }
   }
+  // Decision 65: only rows someone asked to have shaped cost a query.
+  const shaping = needsShapingOf(db, rows);
   return rows.map((row) => {
     const block = index.state(row.id);
     const lead = leads.get(row.id);
+    const shape = shaping.get(row.id);
     return {
       id: row.id,
       project: row.project_key,
@@ -622,6 +628,7 @@ export function summarize(ctx: SummaryContext, rows: ItemRow[]): ItemSummary[] {
       jira_key: row.jira_key,
       version: row.version,
       updated_at: row.updated_at,
+      ...(shape ? { needs_shaping: shape } : {}),
     };
   });
 }
