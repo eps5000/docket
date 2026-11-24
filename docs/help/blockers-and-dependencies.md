@@ -61,6 +61,20 @@ If C waits on B and B waits on A, an arrow straight from A to C adds nothing: th
 
 It only changes the picture. The links are still there: the ticket's Dependencies tab lists every one, with a quiet "Also implied through GF-2" on a link the epic's map hides, and blocking works exactly as before. If the chain breaks, because a ticket in the middle is canceled, removed or outside the view, the direct arrow comes back on its own. A blocking link is only ever hidden behind other blocking links, never behind links that don't block.
 
+## Bugs hold the release
+
+Every epic has a **finish line**: its release ticket, the one that depends on other tickets in the epic while nothing else in the epic depends on it. Docket finds it from the links. When several tickets, or none, fit, the epic says **No finish line**: pick one under *Mark the release ticket* on the epic page, or ask the producer to mark it.
+
+**Every open bug in the epic holds the finish line**, with no link needed. It can't go to Review or Done while a bug in the epic is open; the agent is told which bugs and the three ways forward:
+
+- fix the bug;
+- move it to another epic, as a follow-up;
+- cancel it, with a reason.
+
+Shipping without a fix is a choice you can see: moving the bug out or canceling it shows in Activity, and canceling a bug in an epic always asks why. Bugs in other epics don't count, and a bug that a story really waits on keeps its ordinary link too.
+
+On the epic's **Map**, bugs with no links sit in a **Bugs** column on the left, with their status, instead of looking like starting work in Wave 1; its header counts the open ones. A bug that's part of the chain stays in its wave, marked "bug". The finish line's card says **Finish line · Waiting on 2 bugs**. The epic page, its card and Pick next epic show the same count.
+
 ## What's holding up a goal?
 
 When a long chain of tickets is in the way, pick a ticket or epic under **What's holding up** on the Map, or use *See what's holding this up* on its page. Docket finds the longest chain of open blockers to it, numbers those cards and mutes the rest.

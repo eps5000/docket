@@ -48,6 +48,13 @@ Order work by the graph, not by ticket number or what looks interesting.
 
 An epic already In progress isn't blocked. If the digest shows it under `started unshaped`, resolve those tickets the same way.
 
+**Every open bug in the epic holds its release.** The finish line (the release ticket nothing else in the epic depends on) can't go to Review or Done while one is open; the digest lists them under `release held by bugs`. Triage each new bug either way:
+
+- **Ready in this epic:** it holds the release, so schedule the fix;
+- **out of the epic:** a follow-up (`update_item { epic }`), or `set_status canceled` with a reason. Shipping without the fix is then a recorded choice.
+
+If it says `no finish line`, mark the release ticket: `update_item { id: <epic>, finish_line: <ticket> }`.
+
 **Start with what unlocks the most,** and prefer short, wide graphs to long chains.
 
 ## 3. Shape finishable vertical slices
@@ -114,7 +121,7 @@ When `get_digest` shows `paused`, or a claim returns `project_paused`:
 
 ## 10. Close the epic
 
-1. **Account for every story.** With `search_items { project, epic }`, confirm each intended story is Done, or was deliberately moved (`update_item { epic }`) or canceled with a reason. Docket won't close an epic with open children.
+1. **Account for every story and bug.** With `search_items { project, epic }`, confirm each intended story is Done, or was deliberately moved (`update_item { epic }`) or canceled with a reason. Docket won't close an epic with open children, nor its finish line with open bugs.
 2. **Verify the integrated result** as the project requires, against the epic's outcome and closing evidence. Tickets that each passed don't prove they work together. Attach the evidence with `link_artifact`.
 3. **Submit an owner review when one is needed:** `declare_human_review` on the epic, `claim_lead` it, then `submit_packet` (see `docket-review-packet`). An approved packet closes the epic.
 4. **Record what was deferred** in a final `add_note`: what moved where, what's left and why.
