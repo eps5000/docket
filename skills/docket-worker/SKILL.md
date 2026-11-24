@@ -24,7 +24,7 @@ The project has its own rules: who moves work to Ready, when human review is nee
    - `brief` and `orchestrator`: if a coordinator dispatched you, the brief text exactly as you received it, plus its IDs;
    - `instructions`: the output of the installed `docket-check`. Run it once per session, before your first claim: `bash .claude/docket-check.sh` (`.codex/` for Codex; on Windows without bash, `powershell -NoProfile -ExecutionPolicy Bypass -File .claude/docket-check.ps1`). Pass its one line of JSON as it is. No script there? Skip it. If the claim returns an `update:` line, tell your coordinator and keep working; don't update installed files yourself.
 
-   Keep the returned `run_id`, and **pass it on every call from now on**. That's what keeps your claim alive.
+   Keep the returned `run_id` and **pass it on every call**: that keeps your claim alive.
 
    - `conflict`: someone else holds it. Pick another one. **Never retry in a loop.**
    - `design_review`: it changes an approved design the owner hasn't approved. **Pick other work** and leave it until they do.
@@ -79,6 +79,8 @@ Skip `whoami`: `claim_lead` returns your lease's expiry. Then, only if needed: `
 | Stopping before the work is done                 | Push, `report_commit`, release your resources, then `release_lead { reason, exit }`.                              |
 | Something broke and you can't continue           | `finish_run { result: "failed", error }`                                                                          |
 | A write returns `conflict`                       | Read `current` in the error. Re-apply your change only if it still makes sense.                                   |
+
+**Another bug?** `create_item` it (a Bug in your epic, with repro steps); fix it only if it blocks you.
 
 **Park only when the work itself stops.** CI or tests running is still work: stay live and log a note.
 

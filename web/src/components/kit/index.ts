@@ -50,6 +50,7 @@ export { EpicDepsLine, EpicDepsNote, epicDepsNames, epicDepsText } from './EpicD
 export { EpicReadinessLine, EpicReadinessNote } from './EpicReadiness';
 export { EpicReleaseLine, EpicReleaseNote, epicReleaseText } from './EpicRelease';
 export { FinishedPartlyBlock, FinishedPartlyNote, latestPartialExit } from './FinishedPartly';
+export { EpicMidflightLine, EpicMidflightNote } from './EpicMidflight';
 export { Section } from './Section';
 export type { SectionProps } from './Section';
 export { ViewTabs } from './ViewTabs';

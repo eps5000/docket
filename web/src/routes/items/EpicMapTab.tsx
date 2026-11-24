@@ -17,6 +17,14 @@ export function EpicMapTab({ data }: { data: ItemDetailResponse }) {
   // Stable, so the map doesn't re-measure on every render.
   const home = useMemo(() => ({ project }), [project]);
   const goals = useMemo(() => [{ id, title }], [id, title]);
+  // Decision 62: mark the tickets added after the epic started.
+  const midflight = data.epic_midflight;
+  const children = useMemo(() => {
+    const added = new Set(midflight?.added.map((t) => t.id));
+    return added.size === 0
+      ? data.children
+      : data.children.map((c) => (added.has(c.id) ? { ...c, added_midflight: true } : c));
+  }, [data.children, midflight]);
   const finishLine = data.finish_line?.id ?? null;
   const openBugs = data.finish_line?.open_bugs.length ?? 0;
   // Stable too: a closed epic draws no Bugs column (no `finish_line`).
@@ -45,7 +53,7 @@ export function EpicMapTab({ data }: { data: ItemDetailResponse }) {
           <EmptyState text="No items yet. When planned, the agent breaks this epic into stories, tasks and bugs." />
         ) : (
           <GoalMap
-            items={data.children}
+            items={children}
             outside={data.outside}
             links={data.links}
             outsideTitle="Outside this epic"

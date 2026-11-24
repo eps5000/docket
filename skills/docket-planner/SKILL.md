@@ -81,6 +81,8 @@ Parallel items collide when they change the same table, model, endpoint or share
 
 ## 7. Known gaps and epic readiness
 
+**Work that joins a running epic lands in Inbox** and is marked added mid-flight. Its producer triages it: a bug to Ready here or the epic it belongs in, after a read-only reproduction; a story to the owner (add, defer or drop). The epic can't close while one is untriaged. Don't create mid-flight tickets as Ready.
+
 **An epic can't start while any of its tickets is in Inbox or Planning** (`epic_not_ready`). Inbox is an idea nobody is ready to plan; Planning still has gaps. Before an epic starts, make every ticket at least Ready: shape it, name its known gaps, move it to the epic it belongs in (`update_item { epic }`), or take it out (`update_item { epic: null }`).
 
 **Known gaps** are the few things that are better settled during implementation, such as an exact limit or the wording of a message. A ticket can name up to 6:

@@ -20,6 +20,7 @@ anchors:
   - problems.backup_missed
   - problems.agent_files_drift
   - problems.radar_conflict
+  - problems.idle_ticket
   - needs-you.shared-questions
   - needs-you.agent-problems
   - needs-you.resolutions
@@ -67,10 +68,11 @@ Until then, Overview shows **Agents are handling N problems** under Health. Open
 - **Remind the agent** posts the problem's explanation to the item's lead as a note from you. You can undo it.
 - **Open the item** (or **Open**) goes to the item, where the banner at the top shows the problem.
 - **Not an active branch** (radar findings) removes that branch from the item's branches. The radar stops checking it, and the finding clears at once. You can undo it.
-- **Acknowledge** takes the problem off Needs you. It comes back when it needs you again: an agent proposes a resolution, or the problem changes (another kind, a new branch, or files beyond the ones you acknowledged). The item's banner keeps it, with "Acknowledged by you" and when. You can undo it.
+- **Acknowledge** means "I've seen it, stop telling me". The problem leaves Needs you and stops counting as open: on the item or epic it folds into one quiet line, **You acknowledged 2 problems**, which you can open to see them, each with "Acknowledged by you" and when. It comes back as open when it needs you again: an agent proposes a resolution, or the problem changes (another kind, a new branch, or files beyond the ones you acknowledged). You can undo it.
 - **Keep for later** (work left in a worktree) takes it off Needs you. The worktree stays **At risk**, so it won't count as safe to prune. You can undo it.
 - **Safe to discard** (work left in a worktree) says you're fine losing it. The worktree can then count as **Safe to prune**, so a coordinator may delete it. Docket asks you to confirm first, and you can undo it.
 - **Neither of those two commits, pushes, saves or deletes anything.** To keep the work in git, ask an agent to commit and push it. Docket never removes a worktree or files itself.
+- **Decide…** (a ticket nobody is on) opens the ways forward: move it to Ready, Planning or Inbox, cancel it, or clear its branches. Each says what it does, and you can undo it.
 - The kind's own buttons stay: **Inspect**, **Fix**, **Timeline**, **Mark released** and **Review**.
 
 ## Proposed resolutions
@@ -89,6 +91,7 @@ Each choice reaches the agent as a note from you, and in its context. Each also 
 |---|---|---|
 | Out of date with main | An agent | Rebase onto main, or split into short story PRs. If the branch is an old draft, use **Not an active branch**. |
 | Heading for a merge conflict (two items' branches) | An agent | Neither stops. Docket says which merges first, and the other rebases on it. Pairs that only conflict because a branch is out of date with main aren't listed: fixing that fixes them. |
+| In progress, but nobody is on it | You | A ticket has been In progress for 3 days with no agent, no run and no activity. **Decide…**: move it to Ready so any agent can pick it up, to Planning to reshape it, or to Inbox; cancel it; or clear its old branches and keep it In progress. Meanwhile the conflict radar ignores its branches, and conflicts it had clear with "the other ticket is idle". Any agent working on it again makes it live. |
 | Lead agent silent (stale) | You or your coordinator | Check whether the agent is still running. If it stopped, release its claim. See [Run states](/help/run-states). |
 | Lead run failed | You or your coordinator | Read the error in Activity, then restart the work or move it back to Ready. |
 | Parked a long time | Your coordinator first | Check it's still waiting for something real; resume it or release its claim. |

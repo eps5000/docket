@@ -44,6 +44,7 @@
  */
 import { readContext } from '../domain/contracts.js';
 import { agingFrom, decisionHold, heldByOwner } from '../domain/decision-hold.js';
+import { clearIdleConflicts, idleTickets } from '../domain/idle.js';
 import { ms } from '../domain/model.js';
 import type { RunRow } from '../domain/model.js';
 import { orphans, parkInfo } from '../domain/recovery-model.js';
@@ -124,6 +125,19 @@ export function sweepOnce(runtime: Runtime): {
     const { ended: part_leases } = expirePartLeases(w);
     return { interrupted, children: ended, returned, unparked, part_leases };
   }).result;
+}
+
+/**
+ * Decision 62 (idle.ts): clear the radar findings and undecided overlaps open
+ * against idle tickets, each with its reason. Finding none writes nothing.
+ */
+export function idleOnce(runtime: Runtime): { findings: string[]; overlaps: string[] } {
+  const read = readContext(runtime.db, SYSTEM_ACTOR, runtime.clock());
+  const idle = idleTickets(runtime.db, read.now);
+  if (idle.size === 0) return { findings: [], overlaps: [] };
+  return runtime.write.run({ actor: SYSTEM_ACTOR, operation: 'idle.check', args: {} }, (w) =>
+    clearIdleConflicts(w),
+  ).result;
 }
 
 /**
@@ -331,6 +345,15 @@ export function startSweeper(
       flagOnce(runtime, seen);
     } catch (err) {
       report('recovery flags', err);
+    }
+    try {
+      const { findings, overlaps } = idleOnce(runtime);
+      if (findings.length + overlaps.length > 0)
+        runtime.log(
+          `sweeper: cleared ${findings.length + overlaps.length} conflicts with idle tickets`,
+        );
+    } catch (err) {
+      report('idle check', err);
     }
   }, opts.sweepMs ?? SWEEP_MS);
   let pinging = false;
