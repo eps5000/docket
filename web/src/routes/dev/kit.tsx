@@ -66,7 +66,7 @@ const NOW = new Date('2026-11-06T11:00:00Z');
 const base: WorkItem = {
   id: 'RCP-14',
   project: 'RCP',
-  type: 'Story',
+  type: 'Implementation',
   title: 'Generate shopping list from week plan',
   status: 'progress',
   priority: 1,
@@ -163,7 +163,7 @@ const CARDS: { label: string; item: WorkItem }[] = [
     item: {
       ...base,
       id: 'RCP-11',
-      type: 'Task',
+      type: 'Implementation',
       title: 'Auth scaffold',
       status: 'done',
       lead: { client: 'codex', label: null, run_id: 'r-40', run_state: 'finished' },

@@ -37,7 +37,7 @@ afterEach(() => {
 const item = (id: string, over: Partial<ItemSummary> = {}): ItemSummary => ({
   id,
   project: 'CP',
-  type: 'Task',
+  type: 'Implementation',
   title: `Ticket ${id}`,
   status: 'ready',
   priority: 2,

@@ -2,13 +2,15 @@ import { useQuery } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import {
+  inferredTypesText,
   isCalendarDay,
   needsYouCount,
   STATUS_LABELS,
   type BriefResponse,
+  type ItemType,
   type NeedsYouResponse,
 } from '@docket/shared';
-import { Button, Card, Skeleton } from '../../components/kit';
+import { Button, Card, Skeleton, TypeIcon } from '../../components/kit';
 import { QueryState } from '../../app/QueryState';
 import { apiClient } from '../../app/queryClient';
 import { useBreadcrumb, useShell } from '../../app/ShellState';
@@ -40,17 +42,20 @@ function Line({
   title,
   meta,
   metaTitle,
+  type,
 }: {
   to: string;
   id: string | null;
   title: string;
   meta: ReactNode;
   metaTitle?: string;
+  /** Decision 67: the ticket's type, as its icon with the name in words for screen readers. */
+  type?: ItemType | undefined;
 }) {
   return (
     <li className="brief-line" data-brief-line={id ?? undefined}>
       <Link to={to} title={id ? `${id} ${title}` : title}>
-        {id && <span className="mono">{id}</span>}{' '}
+        {type && <TypeIcon type={type} />} {id && <span className="mono">{id}</span>}{' '}
         <span className={id ? 'brief-t' : 'brief-t brief-t-link'}>{title}</span>
       </Link>
       <span className="src brief-meta" title={metaTitle}>
@@ -107,6 +112,7 @@ function Finished({ data }: { data: BriefResponse }) {
         <ul className="brief-list">
           {finished.rows.map((r) => (
             <Line
+              type={r.type}
               key={r.id}
               to={paths.item(r.id)}
               id={r.id}
@@ -142,7 +148,14 @@ function Stuck({ data }: { data: BriefResponse }) {
           <h3>Blocked · {blocked.count}</h3>
           <ul className="brief-list">
             {blocked.rows.map((r) => (
-              <Line key={r.id} to={paths.item(r.id)} id={r.id} title={r.title} meta={`${r.why}.`} />
+              <Line
+                key={r.id}
+                type={r.type}
+                to={paths.item(r.id)}
+                id={r.id}
+                title={r.title}
+                meta={`${r.why}.`}
+              />
             ))}
           </ul>
           <More
@@ -158,6 +171,7 @@ function Stuck({ data }: { data: BriefResponse }) {
           <ul className="brief-list">
             {parked.rows.map((r) => (
               <Line
+                type={r.type}
                 key={r.id}
                 to={paths.item(r.id)}
                 id={r.id}
@@ -180,6 +194,7 @@ function Stuck({ data }: { data: BriefResponse }) {
           <ul className="brief-list">
             {blockers.rows.map((r) => (
               <Line
+                type={r.type}
                 key={r.id}
                 to={paths.item(r.id)}
                 id={r.id}
@@ -392,6 +407,15 @@ export function Brief() {
         <p className="src brief-zone">
           {briefDayText(brief.data.day)}, in {brief.data.timezone}
           {brief.data.day === brief.data.today ? ', so far' : ''}.
+        </p>
+      )}
+      {/* Decision 67: Story and Task tickets whose type nobody has checked yet. */}
+      {(brief.data?.inferred_types ?? 0) > 0 && (
+        <p className="src brief-inferred" data-inferred-types={brief.data!.inferred_types}>
+          <Link to={paths.work({ has: 'inferred_type' })}>
+            {inferredTypesText(brief.data!.inferred_types!)}
+          </Link>
+          : Docket inferred them from Story and Task. Check each while shaping.
         </p>
       )}
       <QueryState query={brief} skeleton={<Skeleton lines={8} label="Loading the brief" />}>

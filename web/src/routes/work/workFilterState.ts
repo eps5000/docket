@@ -21,7 +21,7 @@ import {
 import { readJson, STORAGE_KEYS, writeJson } from '../../lib/persistence';
 
 /** The URL parameters the filter owns. */
-export const WORK_FILTER_PARAMS = ['quick', 'has', 'show', 'filter'] as const;
+export const WORK_FILTER_PARAMS = ['quick', 'has', 'show', 'type', 'filter'] as const;
 
 /** `location.state` on a settled Work history entry. */
 export const SETTLED = { workFilter: true } as const;
@@ -31,7 +31,7 @@ export const isSettled = (state: unknown) =>
   state !== null &&
   (state as { workFilter?: unknown }).workFilter === true;
 
-type Stored = Record<string, { quick?: string; has?: string[]; show?: string[] }>;
+type Stored = Record<string, { quick?: string; has?: string[]; show?: string[]; types?: string[] }>;
 
 export function readStoredWorkFilter(scope: string): WorkFilter | null {
   const map = readJson<Stored | null>(STORAGE_KEYS.workFilters, null);
@@ -41,6 +41,7 @@ export function readStoredWorkFilter(scope: string): WorkFilter | null {
     quick: typeof entry.quick === 'string' ? entry.quick : undefined,
     has: Array.isArray(entry.has) ? entry.has.filter((k) => typeof k === 'string') : [],
     show: Array.isArray(entry.show) ? entry.show.filter((k) => typeof k === 'string') : [],
+    types: Array.isArray(entry.types) ? entry.types.filter((k) => typeof k === 'string') : [],
   });
   return isDefaultWorkFilter(f) ? null : f;
 }
@@ -48,7 +49,13 @@ export function readStoredWorkFilter(scope: string): WorkFilter | null {
 export function storeWorkFilter(scope: string, f: WorkFilter): void {
   const map = { ...readJson<Stored | null>(STORAGE_KEYS.workFilters, null) };
   if (isDefaultWorkFilter(f)) delete map[scope];
-  else map[scope] = { quick: f.quick, has: [...f.has], show: [...f.show] };
+  else
+    map[scope] = {
+      quick: f.quick,
+      has: [...f.has],
+      show: [...f.show],
+      ...(f.types?.length ? { types: [...f.types] } : {}),
+    };
   writeJson(STORAGE_KEYS.workFilters, map);
 }
 
@@ -65,6 +72,7 @@ export function resolveWorkFilter(
     quick: params.get('quick'),
     has: params.get('has'),
     show: params.get('show'),
+    type: params.get('type'),
     filter: params.get('filter'),
   });
   if (fromUrl) return { filter: fromUrl.filter, settle: fromUrl.legacy };

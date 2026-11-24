@@ -131,7 +131,7 @@ export interface WorkFilter {
   types?: readonly WorkType[];
 }
 
-export const DEFAULT_WORK_FILTER: WorkFilter = { quick: 'active', has: [], show: [], types: [] };
+export const DEFAULT_WORK_FILTER: WorkFilter = { quick: 'active', has: [], show: [] };
 
 const inOrder = <T extends string>(order: readonly T[], keys: readonly string[]): T[] =>
   order.filter((k) => keys.includes(k));
@@ -143,13 +143,15 @@ export function normalizeWorkFilter(f: {
   show?: readonly string[];
   types?: readonly string[] | undefined;
 }): WorkFilter {
+  const types = inOrder(WORK_TYPES, f.types ?? []);
   return {
     quick: (WORK_QUICK as readonly string[]).includes(f.quick ?? '')
       ? (f.quick as WorkQuick)
       : 'active',
     has: inOrder(WORK_CHECKS, f.has ?? []),
     show: inOrder(WORK_SHOWS, f.show ?? []),
-    types: inOrder(WORK_TYPES, f.types ?? []),
+    // Decision 67: left out when none is ticked, so filters from before compare equal.
+    ...(types.length > 0 ? { types } : {}),
   };
 }
 

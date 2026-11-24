@@ -78,7 +78,12 @@ export function Icon({ name, small = false }: { name: IconName; small?: boolean 
   );
 }
 
-/** The 12px glyph inside an item-type square (UI_SPEC §5: bolt, bookmark, check, bug). */
+/**
+ * The 12px glyph inside an item-type square (UI_SPEC §5; decision 67): Epic a
+ * bolt, Exploration a magnifier, Design a drafting triangle, Implementation
+ * angle brackets, Bug a bug, Release a flag. Every type has its own shape, so
+ * the colour is never the only cue.
+ */
 export function TypeGlyph({ type }: { type: ItemType }) {
   switch (type) {
     case 'Epic':
@@ -87,25 +92,56 @@ export function TypeGlyph({ type }: { type: ItemType }) {
           <path d="M7 .8 2.2 7h3.1l-.6 4.2L9.8 5H6.6z" />
         </svg>
       );
-    case 'Story':
-      return (
-        <svg viewBox="0 0 12 12" fill="currentColor" aria-hidden="true" focusable="false">
-          <path d="M3 1h6v10L6 8.6 3 11z" />
-        </svg>
-      );
-    case 'Task':
+    case 'Exploration':
       return (
         <svg
           viewBox="0 0 12 12"
           fill="none"
           stroke="currentColor"
-          strokeWidth="2"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          aria-hidden="true"
+          focusable="false"
+        >
+          <circle cx="5" cy="5" r="3" />
+          <path d="M7.3 7.3 10.5 10.5" />
+        </svg>
+      );
+    case 'Design':
+      return (
+        <svg
+          viewBox="0 0 12 12"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinejoin="round"
+          aria-hidden="true"
+          focusable="false"
+        >
+          <path d="M1.5 10.5V1.5l9 9z" />
+          <path d="M4 8V6l2 2z" />
+        </svg>
+      );
+    case 'Implementation':
+      return (
+        <svg
+          viewBox="0 0 12 12"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
           strokeLinecap="round"
           strokeLinejoin="round"
           aria-hidden="true"
           focusable="false"
         >
-          <path d="M2.3 6.3 4.8 8.8 9.7 3.5" />
+          <path d="M4 3 1.5 6 4 9M8 3l2.5 3L8 9" />
+        </svg>
+      );
+    case 'Release':
+      return (
+        <svg viewBox="0 0 12 12" fill="currentColor" aria-hidden="true" focusable="false">
+          <path d="M2 1h1.4v10H2z" />
+          <path d="M3.4 1.5h6.8L8.6 4l1.6 2.5H3.4z" />
         </svg>
       );
     case 'Bug':

@@ -7,8 +7,9 @@ import {
   ReviewChip,
   RunLine,
   SharedFlags,
+  RolloutMark,
   StatusChip,
-  TypeIcon,
+  TypeBadge,
   leadName,
   leadReason,
 } from '../../components/kit';
@@ -18,8 +19,9 @@ import { useRenderLimit } from '../../lib/progressive';
 import { Link } from 'react-router';
 
 /**
- * List (UI_SPEC §6.2.2): ID, Title, Status (+ Queued or Blocked), Priority, Lead · run,
- * Human review, Last activity. The whole row is clickable. Empty: "No items match."
+ * List (UI_SPEC §6.2.2): ID, Type (decision 67: icon and name, inferred and rollout in
+ * words), Title, Status (+ Queued or Blocked), Priority, Lead · run, Human review, Last
+ * activity. The whole row is clickable. Empty: "No items match."
  */
 export function ListLayout({ items }: { items: readonly WorkItem[] }) {
   const navigate = useNavigate();
@@ -34,6 +36,7 @@ export function ListLayout({ items }: { items: readonly WorkItem[] }) {
         <thead>
           <tr>
             <th scope="col">ID</th>
+            <th scope="col">Type</th>
             <th scope="col">Title</th>
             <th scope="col">Status</th>
             <th scope="col">Priority</th>
@@ -45,7 +48,7 @@ export function ListLayout({ items }: { items: readonly WorkItem[] }) {
         <tbody>
           {items.length === 0 ? (
             <tr>
-              <td colSpan={7} className="muted" data-empty="">
+              <td colSpan={8} className="muted" data-empty="">
                 No items match.
               </td>
             </tr>
@@ -57,9 +60,18 @@ export function ListLayout({ items }: { items: readonly WorkItem[] }) {
                     {i.id}
                   </Link>
                 </td>
+                <td data-col="type">
+                  <div className="row wrap" style={{ gap: 4 }}>
+                    <TypeBadge
+                      type={i.type}
+                      inferred={i.type_inferred === true}
+                      original={i.type_original}
+                    />
+                    {i.rollout && <RolloutMark />}
+                  </div>
+                </td>
                 <td>
                   <div className="row wrap" style={{ gap: 6 }}>
-                    <TypeIcon type={i.type} />
                     <span className="ltitle">{i.title}</span>
                   </div>
                   {i.epic_title && <div className="ptag">◆ {i.epic_title}</div>}

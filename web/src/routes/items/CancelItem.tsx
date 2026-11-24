@@ -77,17 +77,31 @@ export function CancelMenu({ data }: { data: ItemDetailResponse }) {
               items[(at + step + items.length) % items.length]?.focus();
             }}
           >
-            <button
-              ref={first}
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                setMenu(false);
-                setConfirm(true);
-              }}
-            >
-              Cancel item…
-            </button>
+            {/* Decision 67: a Release goes only with its epic. */}
+            {data.item.type === 'Release' && data.item.epic ? (
+              <button
+                ref={first}
+                type="button"
+                role="menuitem"
+                aria-disabled="true"
+                title="A Release is canceled with its epic. Rename it if the name is wrong."
+                onClick={() => setMenu(false)}
+              >
+                Cancel with its epic only
+              </button>
+            ) : (
+              <button
+                ref={first}
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setMenu(false);
+                  setConfirm(true);
+                }}
+              >
+                Cancel item…
+              </button>
+            )}
             {data.item.type !== 'Epic' && (
               <button
                 type="button"
@@ -125,9 +139,12 @@ function CancelConfirm({ data, onDone }: { data: ItemDetailResponse; onDone: () 
   const reasonId = useId();
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
+  // Decision 67: the epic's Release is canceled with it, so it isn't in the way.
   const openChildren =
     item.type === 'Epic'
-      ? data.children.filter((c) => !['done', 'canceled'].includes(c.status))
+      ? data.children.filter(
+          (c) => !['done', 'canceled'].includes(c.status) && c.type !== 'Release',
+        )
       : [];
   const lead = item.lead;
   // Decision 64: shipping without a bug is deliberate, so canceling one in an epic needs a reason.

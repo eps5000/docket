@@ -44,7 +44,13 @@ import {
   type KeyboardEvent,
   type PointerEvent,
 } from 'react';
-import { STATUS_LABELS, bugCount, type LinkEdge } from '@docket/shared';
+import {
+  RELEASE_COLUMN,
+  STATUS_LABELS,
+  bugCount,
+  ticketCount,
+  type LinkEdge,
+} from '@docket/shared';
 import { Icon, StatusBar, type StatusBarSegment } from '../kit';
 import { useRenderLimit } from '../../lib/progressive';
 import { HIDE_IMPLIED_HELP, impliedOnMap, useHideImplied } from './implied';
@@ -65,15 +71,16 @@ export interface ProgressMapProps {
   /** The chain to highlight (decision 48). Keep it stable between renders. */
   critical?: CriticalOverlay | null;
   /**
-   * Decision 64, on an epic's map: unlinked bugs go to a Bugs column, and the
-   * finish line carries its badge. Keep it stable between renders.
+   * Decision 64, on an open epic's map: unlinked bugs go to a Bugs column, and
+   * the Release (decision 67) carries its badge. Keep it stable between renders.
    */
   release?: MapRelease | null;
 }
 
-/** An epic's finish line and how many bugs in it are open (decision 64). */
+/** An epic's Release, how many tickets it waits for, and how many bugs are open (decision 67). */
 export interface MapRelease {
-  finishLine: string | null;
+  id: string | null;
+  left: number;
   openBugs: number;
 }
 
@@ -190,6 +197,7 @@ export function ProgressMap({
       cards: MapItem[];
       ext?: boolean;
       bugs?: boolean;
+      release?: boolean;
     }[] = [];
     // Decision 64: unlinked bugs hold the release; they aren't starting work, so not Wave 1.
     if (layout.bugs.length > 0) {
@@ -227,6 +235,22 @@ export function ProgressMap({
         cards: layout.cycle,
       });
     }
+    // Decision 67: the Release, alone in the last column, after everything else.
+    if (layout.release.length > 0) {
+      const left = release && layout.release.length === 1 ? release.left : null;
+      out.push({
+        key: 'release',
+        title: layout.release.length === 1 ? RELEASE_COLUMN.title : 'Releases',
+        sub:
+          left === null
+            ? RELEASE_COLUMN.sub
+            : left > 0
+              ? `after ${ticketCount(left)}`
+              : 'nothing left before it',
+        cards: layout.release,
+        release: true,
+      });
+    }
     const plan = planMap(
       out.map((c) => c.cards.map((i) => i.id)),
       edges.map((e) => ({ id: e.link_id, from: e.from, to: e.to })),
@@ -236,7 +260,7 @@ export function ProgressMap({
       plan,
       list: out.map((c, i) => ({ ...c, cards: plan.columns[i]!.map((id) => byId.get(id)!) })),
     };
-  }, [layout, edges, outsideTitle]);
+  }, [layout, edges, outsideTitle, release]);
 
   // ---- Measure card heights and route the arrows (unscaled coordinates) ----
   const measure = useCallback(() => {
@@ -608,7 +632,7 @@ export function ProgressMap({
               {cols.list.map((c, colIndex) => (
                 <div
                   key={c.key}
-                  className={`pm-col${c.ext ? ' ext' : ''}${c.bugs ? ' bugs' : ''}`}
+                  className={`pm-col${c.ext ? ' ext' : ''}${c.bugs ? ' bugs' : ''}${c.release ? ' release' : ''}`}
                   data-col={c.key}
                   style={
                     geo.routed
@@ -629,9 +653,9 @@ export function ProgressMap({
                       }
                       critical={criticalOf(i.id)}
                       bugMark={layout.chainBugs.has(i.id)}
-                      finish={
-                        release && release.finishLine === i.id
-                          ? { openBugs: release.openBugs }
+                      release={
+                        release && release.id === i.id
+                          ? { openBugs: release.openBugs, left: release.left }
                           : null
                       }
                       traced={tracedOf(i.id)}

@@ -13,7 +13,9 @@ import { plural } from '../../lib/format';
 import { runOwnerMutation, showToast } from '../../lib/undo';
 
 type Choice = 'keep' | 'move' | 'copy';
-type SplitType = 'Story' | 'Task' | 'Bug';
+/** Decision 67: a split creates a ticket of one of these types, never an Epic or a Release. */
+const SPLIT_TYPES = ['Exploration', 'Design', 'Implementation', 'Bug'] as const;
+type SplitType = (typeof SPLIT_TYPES)[number];
 
 interface Row {
   key: string;
@@ -97,7 +99,11 @@ export function SplitDialog({ data, onClose }: { data: ItemDetailResponse; onClo
   // The version the dialog opened at: a change while it is open is a conflict, not an overwrite.
   const [version] = useState(item.version);
   const [title, setTitle] = useState('');
-  const [type, setType] = useState<SplitType>(item.type === 'Epic' ? 'Task' : item.type);
+  const [type, setType] = useState<SplitType>(
+    (SPLIT_TYPES as readonly string[]).includes(item.type)
+      ? (item.type as SplitType)
+      : 'Implementation',
+  );
   const [relation, setRelation] = useState<SplitRelation>('after_original');
   const [choices, setChoices] = useState<Record<string, Choice>>({});
   const [error, setError] = useState<string | null>(null);
@@ -264,9 +270,9 @@ export function SplitDialog({ data, onClose }: { data: ItemDetailResponse; onClo
         <div>
           <label htmlFor={ids.type}>Type</label>
           <select id={ids.type} value={type} onChange={(e) => setType(e.target.value as SplitType)}>
-            <option>Story</option>
-            <option>Task</option>
-            <option>Bug</option>
+            {SPLIT_TYPES.map((t) => (
+              <option key={t}>{t}</option>
+            ))}
           </select>
         </div>
       </div>

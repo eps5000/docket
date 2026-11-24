@@ -470,7 +470,7 @@ describe('state → appearance', () => {
 const baseItem = {
   id: 'RCP-14',
   project: 'RCP',
-  type: 'Story' as const,
+  type: 'Implementation' as const,
   title: 'Generate shopping list from week plan',
   status: 'progress' as const,
   priority: 1 as const,

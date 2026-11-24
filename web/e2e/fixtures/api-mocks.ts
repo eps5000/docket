@@ -84,6 +84,8 @@ export const emptyWork: WorkResponse = {
       archived: 0,
       planning: 0,
       ready_to_start: 0,
+      inferred_type: 0,
+      rollout: 0,
     },
     show: { done: 0, canceled: 0 },
     archived: 0,
@@ -126,7 +128,7 @@ export const searchResults: SearchResponse = {
     {
       id: 'RCP-14',
       title: 'Generate shopping list from week plan',
-      type: 'Story',
+      type: 'Implementation',
       status: 'progress',
       project: 'RCP',
       jira_key: null,
