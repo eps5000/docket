@@ -17,7 +17,7 @@
  * Each project sends its worktrees, then one `scan` record that closes them.
  */
 import { createHash, randomBytes } from 'node:crypto';
-import { stat } from 'node:fs/promises';
+import { lstat, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createGit } from '../lib/git.mjs';
 
@@ -60,7 +60,30 @@ export function safeHostPath(path, platform = process.platform) {
   return platform === 'win32' ? /^[A-Za-z]:[\\/]/.test(path) : path.startsWith('/');
 }
 
-const validBranch = (branch) =>
+/**
+ * B76 review: whether any part of a safe host path is a symbolic link or
+ * junction. A path through one could read a repository outside the folder
+ * Docket named, so such a path is never read. Links are only looked at with
+ * `lstat`, never followed, so one pointing at a network share isn't touched.
+ * `ok`, `link`, `missing` when a part doesn't exist, or `unreadable`.
+ */
+export async function linkCheck(path) {
+  const parts = path.replace(/\\/g, '/').split('/').filter(Boolean);
+  let current = /^[A-Za-z]:$/.test(parts[0] ?? '') ? `${parts.shift()}/` : '/';
+  for (const part of parts) {
+    current = join(current, part);
+    let info;
+    try {
+      info = await lstat(current);
+    } catch (err) {
+      return err.code === 'ENOENT' || err.code === 'ENOTDIR' ? 'missing' : 'unreadable';
+    }
+    if (info.isSymbolicLink()) return 'link';
+  }
+  return 'ok';
+}
+
+export const validBranch = (branch) =>
   /^[A-Za-z0-9._/@+-]+$/.test(branch) &&
   !branch.startsWith('-') &&
   !branch.includes('..') &&
@@ -264,6 +287,10 @@ async function readTree(git, tree, isMain, fact, commitsUnknown, limits, signal)
     merged: null,
     last_git_at: null,
   };
+  // B76 review: a worktree reached through a link is never read.
+  const links = await linkCheck(tree.path);
+  if (links === 'missing') return { ...base, read: 'missing' };
+  if (links !== 'ok') return { ...base, read: 'unreadable' };
   let info;
   try {
     info = await stat(tree.path);
@@ -303,7 +330,7 @@ async function readTree(git, tree, isMain, fact, commitsUnknown, limits, signal)
 }
 
 /** A partial clone would fetch a missing object on demand if git is too old to refuse. */
-async function lazyFetchRisk(git, dir, options) {
+export async function lazyFetchRisk(git, dir, options) {
   const version = await git.read(dir, ['version'], options);
   const match = /(\d+)\.(\d+)/.exec(version.stdout ?? '');
   if (match && (Number(match[1]) > 2 || (Number(match[1]) === 2 && Number(match[2]) >= 45))) {
@@ -345,7 +372,8 @@ async function scanProject(git, project, offset, limits, signal, deadline, nowMs
     unknown: 0,
   };
   const dir = project.host_path;
-  if (!safeHostPath(dir)) return unreadable;
+  // B76 review: a path through a link could read a repository outside the one named.
+  if (!safeHostPath(dir) || (await linkCheck(dir)) !== 'ok') return unreadable;
   const options = { signal, timeoutMs: limits.perCallMs };
 
   const listed = await git.read(dir, ['worktree', 'list', '--porcelain'], options);

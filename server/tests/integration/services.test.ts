@@ -187,8 +187,6 @@ describe('the service stubs', () => {
       'itemResume',
       'workspaces',
       'worktreeCleanup',
-      'worktreeScanSettled',
-      'stopWorktreeScans',
       'ownerReleaseResource',
       'markUnpushedHandled',
     ],

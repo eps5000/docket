@@ -1,8 +1,10 @@
 /**
  * What is really left in a worktree (owner decision 41; BUILD_SPEC §5.16),
- * against a real git repository in a temporary push root: a commit on main is
- * never "unpushed", commits and uncommitted files are reported separately, an
- * unreadable repository says "unverified", and nothing in `.git` changes.
+ * against a real git repository read by the real helper sources on this
+ * machine (B76: Docket runs no git): a commit on main is never "unpushed",
+ * commits and uncommitted files are reported separately, no facts from the
+ * helper say "unverified" and that it waits for the helper, and nothing in
+ * `.git` changes.
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync, rmSync, writeFileSync } from 'node:fs';
@@ -13,6 +15,7 @@ import type { Actor } from '../../src/domain/write.js';
 import { sweepOnce } from '../../src/jobs/sweeper.js';
 import { git, hashGitDir, makeRadarRepo, type RadarRepo } from '../fixtures/radar-repo.js';
 import { tempDir, type TempDir } from '../helpers.js';
+import { hostGitPass, hostWorktreesPass } from '../host-git.js';
 import { minutes, startDomain, type Domain } from '../us1-helpers.js';
 
 const HAS_GIT = spawnSync('git', ['--version'], { windowsHide: true }).status === 0;
@@ -26,10 +29,10 @@ beforeEach(() => {
   tmp = tempDir('docket-b49-git-');
   if (!HAS_GIT) return;
   repo = makeRadarRepo(tmp.dir);
-  d = startDomain({ env: { DOCKET_PUSH_ROOT: tmp.dir } });
+  d = startDomain();
   d.sql
-    .prepare("UPDATE projects SET repo_path = 'recipe-app', main_branch = 'main' WHERE key = 'RCP'")
-    .run();
+    .prepare("UPDATE projects SET repo_path = ?, main_branch = 'main' WHERE key = 'RCP'")
+    .run(repo.repo);
   claude = d.agent('claude', { label: 'orca-w1' });
 });
 afterEach(async () => {
@@ -54,13 +57,19 @@ function endedRun(worktree: string, head: string, dirty: boolean) {
   sweepOnce(d.server.runtime);
   return run_id;
 }
-const check = () =>
-  checkProjectWorktrees(
+/** The helper's two sources read the repository, then Docket checks from their facts. */
+const check = async (passes = true) => {
+  if (passes) {
+    await hostWorktreesPass(d.server, { home: tmp.dir });
+    await hostGitPass(d.server, { home: tmp.dir });
+  }
+  return checkProjectWorktrees(
     d.server.runtime.db,
     d.server.runtime.config,
     'RCP',
     d.clock.now().toISOString(),
   );
+};
 const stored = (run_id: string) =>
   JSON.parse(
     d.row<{ worktree_check: string }>('SELECT worktree_check FROM runs WHERE id = ?', run_id)
@@ -145,17 +154,48 @@ describe.runIf(HAS_GIT)('the worktree check (decision 41)', () => {
     expect(stored(run_id).uncommitted_files).toBe(2);
   });
 
-  it('with no readable repository it says unverified and keeps the last report', async () => {
+  it('B76: without facts from the helper it says unverified, that it waits for the helper, and keeps the last report', async () => {
     const wt = repo.worktrees['feat/a'];
     const run_id = endedRun(wt, headOf(wt), true);
     await check();
     expect(row(run_id)!.explanation!.what).not.toContain('unverified');
-    d.sql.prepare("UPDATE projects SET repo_path = 'no-such-folder' WHERE key = 'RCP'").run();
-    await check();
+    // Another repository: the helper hasn't read it, so nothing vouches for this run's work.
+    d.sql
+      .prepare("UPDATE projects SET repo_path = ? WHERE key = 'RCP'")
+      .run(join(tmp.dir, 'no-such-folder'));
+    await check(false);
     const p = row(run_id)!;
     expect(p.reason).toContain('unverified');
     expect(p.reason).toContain('uncommitted changes');
+    expect(p.explanation!.what).toContain('Waiting for the host helper');
     expect(p.explanation!.what).toContain('last reported state (unverified)');
+  });
+
+  it('B76: stale facts from the helper never confirm anything', async () => {
+    const wt = repo.worktrees['feat/a'];
+    git(wt, 'reset', '-q', '--hard', 'main');
+    const run_id = endedRun(wt, headOf(wt), true);
+    await check();
+    expect(row(run_id)).toBeUndefined(); // git says clean and on main.
+    d.sql.prepare('UPDATE runs SET worktree_check = NULL WHERE id = ?').run(run_id);
+    d.clock.advance(minutes(11));
+    await check(false);
+    expect(row(run_id)!.reason).toContain('unverified');
+  });
+
+  it('B76: a worktree that is gone is still checked by its commit', async () => {
+    const wt = repo.worktrees['feat/a'];
+    const head = headOf(wt);
+    const run_id = endedRun(wt, head, false);
+    git(repo.repo, 'worktree', 'remove', '--force', wt);
+    await check();
+    expect(stored(run_id)).toMatchObject({
+      head_sha: head,
+      on_main: false,
+      on_remote: false,
+      uncommitted_files: null,
+    });
+    expect(stored(run_id).unpushed_commits).toBeGreaterThan(0);
   });
 
   it('a check more than a day old no longer counts', async () => {

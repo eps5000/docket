@@ -133,6 +133,7 @@ import {
   unpushedRisks,
   type RecoveryConfig,
 } from './recovery-model.js';
+import { hostGitFactsFor, hostGitState } from './host-git.js';
 
 type Scope = 'all' | string;
 
@@ -493,6 +494,20 @@ function recoveryProblems(
     return truth ? [{ risk, truth }] : [];
   });
   const leading = leadingItems(db, [...new Set(risks.map((x) => x.risk.run.item_id))], now);
+  // B76: whether git facts can come at all, so "unverified" can say what it waits on.
+  const helperByProject = new Map<string, boolean>();
+  const waitingOnHelper = (project: string) => {
+    if (!helperByProject.has(project)) {
+      const p = db.sqlite
+        .prepare('SELECT key, repo_path, main_branch FROM projects WHERE key = ?')
+        .get(project) as { key: string; repo_path: string | null; main_branch: string } | undefined;
+      helperByProject.set(
+        project,
+        !!p?.repo_path && hostGitState(hostGitFactsFor(db, p), now) !== 'fresh',
+      );
+    }
+    return helperByProject.get(project)!;
+  };
   for (const { risk, truth } of risks) {
     const id = risk.run.item_id;
     const path = storedWorkspace(risk.run)?.path;
@@ -545,6 +560,7 @@ function recoveryProblems(
         ended: END_REASON_LABELS[risk.run.end_reason!],
         onMain: truth.on_main,
         unverified: truth.unverified,
+        waiting: truth.unverified && waitingOnHelper(items.get(id)!.project_key),
         closed,
         route,
       }),

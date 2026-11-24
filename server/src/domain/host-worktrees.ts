@@ -1,15 +1,15 @@
 /**
  * Worktree facts from the host helper (owner decision 48; B68; BUILD_SPEC
- * §5.32). Git in the container can't follow a worktree whose `.git` file names
- * a Windows path, so `tools/docket-sync/sources/worktrees.mjs` reads them on the
- * host and posts them here.
+ * §5.32). Docket runs no git (B76): `tools/docket-sync/sources/worktrees.mjs`
+ * reads every worktree on the host, where git can follow a `.git` file that
+ * names a Windows path, and posts the facts here.
  *
  * The latest facts per project are bookkeeping in `sync_sources.detail`: they
  * change on every pass, so they record no event and take no migration.
  *
  * **Safety.** These facts only ever feed `worktreeVerdict`, and:
- * - a fact past `FACTS_FRESH_MS` is dropped, or, where nothing else can be read,
- *   becomes an Unknown row with its numbers and lock cleared;
+ * - a fact past `FACTS_FRESH_MS` becomes an Unknown row with its numbers and
+ *   lock cleared;
  * - a partial scan updates what it read and removes nothing;
  * - a worktree leaves only when a newer *complete* scan doesn't list it;
  * - a scan for a repository the project no longer points at is ignored.
@@ -25,7 +25,7 @@ import type { Config } from '../config.js';
 import type { Db } from '../db/client.js';
 import { rootSegments } from './push-root.js';
 import { treeKey, type WorktreeCheck } from './recovery-model.js';
-import type { RepoScan, ScannedTree } from './worktree-cleanup.js';
+import type { ScannedTree } from './worktree-cleanup.js';
 
 export const HOST_SOURCE = 'worktrees';
 /** Older git facts no longer count as known. */
@@ -92,7 +92,7 @@ export function hostRepoPath(config: Config, repoPath: string): string | null {
     }
   } else if (config.pushRoot) {
     // A container path means nothing on the host without the mapping.
-    const root = config.pushRoot.replace(/\/+$/, '');
+    const root = config.pushRoot.replace(/\\/g, '/').replace(/\/+$/, '');
     if (p === root || p.startsWith(`${root}/`)) return null;
   }
   if (p.split('/').includes('..')) return null;
@@ -247,7 +247,8 @@ export function forgetHostFacts(db: Db, key: string): void {
 export interface JudgedTree {
   tree: ScannedTree;
   checkedAt: string;
-  source: 'host' | 'container';
+  /** Always the helper since B76: Docket's container reads no git. */
+  source: 'host';
 }
 
 export interface MergedScan {
@@ -272,62 +273,30 @@ const staleTree = (t: HostTree): ScannedTree => ({
 });
 
 /**
- * The container's scan with the host's facts over it. Null when neither has
- * anything to show. A fresh host fact wins unless the container read that
- * worktree successfully more recently.
+ * The host's facts as rows to judge. Null when it has reported nothing for
+ * this repository. A row whose facts are too old becomes an Unknown row with
+ * its numbers and lock cleared; a newer complete scan removes what it no
+ * longer lists.
  */
-export function mergeHostFacts(
-  scan: RepoScan | null,
-  host: HostProjectFacts | null,
-  now: string,
-): MergedScan | null {
+export function hostScanView(host: HostProjectFacts | null, now: string): MergedScan | null {
+  if (!host) return null;
   const nowMs = Date.parse(now);
   const fresh = (at: string) => isFresh(at, nowMs);
-  const container = scan?.status === 'ok' ? scan : null;
-  if (!container && !host) return null;
-  const state: WorktreeHostState = !host ? 'none' : fresh(host.checked_at) ? 'fresh' : 'stale';
-
+  const state: WorktreeHostState = fresh(host.checked_at) ? 'fresh' : 'stale';
   const out = new Map<string, JudgedTree>();
-  for (const tree of container?.trees ?? []) {
-    out.set(treeKey(tree.path), { tree, checkedAt: container!.checked_at, source: 'container' });
+  for (const t of host.trees) {
+    const { checked_at: checkedAt, ...tree } = t;
+    out.set(treeKey(t.path), {
+      tree: fresh(checkedAt) ? tree : staleTree(t),
+      checkedAt,
+      source: 'host',
+    });
   }
-  let hostMain: string | null = null;
-  for (const t of host?.trees ?? []) {
-    const key = treeKey(t.path);
-    if (!fresh(t.checked_at)) {
-      if (!container) out.set(key, { tree: staleTree(t), checkedAt: t.checked_at, source: 'host' });
-      continue;
-    }
-    if (t.is_main) hostMain = key;
-    const had = out.get(key);
-    if (!had || had.tree.read !== 'ok' || t.checked_at >= had.checkedAt) {
-      const { checked_at: checkedAt, ...tree } = t;
-      out.set(key, { tree, checkedAt, source: 'host' });
-    }
-  }
-  // The same main folder can read as two paths when the push folder isn't mapped.
-  if (hostMain) {
-    for (const [key, row] of out) if (row.tree.is_main && key !== hostMain) out.delete(key);
-  }
-  if (
-    host?.complete_at &&
-    fresh(host.complete_at) &&
-    (!container || host.complete_at >= container.checked_at)
-  ) {
-    const listed = new Set(host.trees.map((t) => treeKey(t.path)));
-    for (const key of out.keys()) if (!listed.has(key)) out.delete(key);
-  }
-
-  const useHost = state === 'fresh';
-  const checked = [useHost ? host!.checked_at : null, container?.checked_at ?? null].filter(
-    (at): at is string => at !== null,
-  );
   return {
     trees: [...out.values()],
-    main_path:
-      (useHost ? host!.main_path : null) ?? container?.main_path ?? host?.main_path ?? null,
-    checked_at: checked.sort().at(-1) ?? host?.checked_at ?? null,
-    host: { state, checked_at: host?.checked_at ?? null },
+    main_path: host.main_path,
+    checked_at: host.checked_at,
+    host: { state, checked_at: host.checked_at },
   };
 }
 

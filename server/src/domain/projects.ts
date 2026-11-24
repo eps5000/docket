@@ -47,6 +47,7 @@ import {
 } from '@docket/shared';
 import type { Db } from '../db/client.js';
 import type { ProjectsService, ServiceDeps } from './contracts.js';
+import { forgetHostGitFacts } from './host-git.js';
 import { forgetHostFacts } from './host-worktrees.js';
 import { newId } from './ids.js';
 import { blockDiff } from './links.js';
@@ -310,6 +311,7 @@ export function createProjectsService(deps: ServiceDeps): ProjectsService {
       // Decision 49: a revived key must not inherit this project's repository.
       sql.prepare('DELETE FROM project_git WHERE project_key = ?').run(row.key);
       forgetHostFacts(w.db, row.key);
+      forgetHostGitFacts(w.db, row.key);
       w.update('projects', row.id, { deleted_at: w.now });
       w.event({
         type: 'project.updated',

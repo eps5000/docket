@@ -12,7 +12,8 @@
  *
  * axe is clean in both themes on each.
  */
-import { execFileSync } from 'node:child_process';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { Page } from '@playwright/test';
 import { baseURL } from './container';
 import {
@@ -24,44 +25,32 @@ import {
   unlock,
   useSeededContainer,
 } from './fixtures/index';
-import { CONTAINER } from './fixtures/container';
+import { hostFolder, hostGit, hostGitPass } from './fixtures/host-git';
 import type { McpAgent } from './fixtures/mcp';
 
 useSeededContainer();
 test.describe.configure({ mode: 'serial' });
 
-const ROOT = '/tmp/host-code';
-const REPO = 'overlap-radar';
-
-function sh(script: string): string {
-  return execFileSync('docker', ['exec', CONTAINER, 'sh', '-c', script], {
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-}
+// B76: the repository is on this machine, read by the real helper's git source.
+const host = hostFolder('docket-e2e-b46-');
+const REPO = `${host.dir}/overlap-radar`;
 
 /** Two branches that each only add a line, at the same place: a real text conflict. */
 function makeSameLineRepo() {
-  sh(
-    [
-      'set -e',
-      `rm -rf ${ROOT}/${REPO}`,
-      `mkdir -p ${ROOT}/${REPO}`,
-      `cd ${ROOT}/${REPO}`,
-      'G="git -c user.name=e2e -c user.email=e2e@docket.invalid -c commit.gpgsign=false"',
-      '$G init -q -b main',
-      "printf '# Models\\nRecipe\\nDeck\\n' > models.md",
-      '$G add models.md',
-      '$G commit -q -m start',
-      '$G checkout -q -b add-units main',
-      "printf '# Models\\nRecipe\\nRecipe.units\\nDeck\\n' > models.md",
-      '$G commit -qam units',
-      '$G checkout -q -b add-source main',
-      "printf '# Models\\nRecipe\\nRecipe.source\\nDeck\\n' > models.md",
-      '$G commit -qam source',
-      '$G checkout -q main',
-    ].join('\n'),
-  );
+  const g = (...args: string[]) => hostGit(REPO, host.dir, ...args);
+  const write = (text: string) => writeFileSync(join(REPO, 'models.md'), text);
+  mkdirSync(REPO, { recursive: true });
+  g('init', '-q', '-b', 'main');
+  write('# Models\nRecipe\nDeck\n');
+  g('add', 'models.md');
+  g('commit', '-q', '-m', 'start');
+  g('checkout', '-q', '-b', 'add-units', 'main');
+  write('# Models\nRecipe\nRecipe.units\nDeck\n');
+  g('commit', '-qam', 'units');
+  g('checkout', '-q', '-b', 'add-source', 'main');
+  write('# Models\nRecipe\nRecipe.source\nDeck\n');
+  g('commit', '-qam', 'source');
+  g('checkout', '-q', 'main');
 }
 
 async function owner(page: Page, method: 'GET' | 'POST' | 'PUT', path: string, data?: unknown) {
@@ -131,7 +120,7 @@ test.afterAll(async () => {
   await first?.close();
   await second?.close();
   try {
-    sh(`rm -rf ${ROOT}/${REPO}`);
+    host.remove();
   } finally {
     await resetSeededContainer();
   }
@@ -159,6 +148,7 @@ test('two add-only branches at the same line: both keep working, with a merge or
   await ok(second, 'claim_lead', { id: b, branch: 'add-source' });
 
   await owner(page, 'PUT', '/api/projects/RCP/radar', { repo_path: REPO, main_branch: 'main' });
+  await hostGitPass(page.request, host.dir);
   await owner(page, 'POST', '/api/projects/RCP/radar/run', {});
 
   // Both agents are told who goes first, and neither stopped.

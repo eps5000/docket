@@ -260,7 +260,7 @@ export type ItemSharedResponse = z.infer<typeof itemSharedResponse>;
 /** The project's radar card (Settings → Shared parts). */
 export const radarResponse = jsonResponse({
   project: z.string(),
-  /** Inside `DOCKET_PUSH_ROOT`; null when not set. */
+  /** The repository folder as the host sees it; null when not set. */
   repo_path: z.string().nullable(),
   main_branch: z.string(),
   state: z.enum(RADAR_STATES),
@@ -269,6 +269,11 @@ export const radarResponse = jsonResponse({
   last_run_at: z.string().nullable(),
   /** B52: how long the last run took, in milliseconds; null before the first. */
   last_duration_ms: z.number().int().nonnegative().nullable(),
+  /** B76: the host helper's git facts for this repository: `none` until it reports. */
+  helper: z.object({
+    state: z.enum(['fresh', 'stale', 'none']),
+    checked_at: z.string().nullable(),
+  }),
   findings: z.array(radarFindingRowSchema),
 });
 export type RadarResponse = z.infer<typeof radarResponse>;

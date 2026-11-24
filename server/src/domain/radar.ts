@@ -2,42 +2,43 @@
  * The conflict radar (owner decision 36; BUILD_SPEC §5.21 Conflict radar;
  * FR-163; tasks.md T184).
  *
- * Every 15 minutes (jobs/sweeper.ts `startRadar`), and on *Run radar now*,
- * Docket trial-merges each in-flight item's branch with the project's main
- * branch, and each pair of in-flight branches whose items declare a common
- * part or change a common file, with
- * `git merge-tree --write-tree --name-only`.
+ * Every 15 minutes (jobs/sweeper.ts `startRadar`), soon after the host helper
+ * reports a new pass, and on *Run radar now*, Docket judges each in-flight
+ * item's branch against the project's main branch, and each pair of in-flight
+ * branches whose items declare a common part or change a common file.
  *
- * **Read-only:** every git call that could write objects runs with
- * `GIT_OBJECT_DIRECTORY` set to a fresh temporary folder and the repository's
- * objects as `GIT_ALTERNATE_OBJECT_DIRECTORIES`, so the trees a trial merge
- * writes land in the temporary folder, which is removed afterwards. Nothing
- * else runs that writes: no fetch (local refs only, which worktrees share), no
- * checkout, no index (`GIT_OPTIONAL_LOCKS=0`), no gc. The tests hash the
- * fixture repository's `.git` before and after a run.
+ * **Docket runs no git (B76).** The helper on the host
+ * (`tools/docket-sync/sources/git.mjs`) makes the trial merges with
+ * `git merge-tree --write-tree --name-only`, read-only, and posts the facts:
+ * each branch's ref, its trial merge with main and whether it has merged, the
+ * related pairs' trial merges, and discovery's matching branches. Docket tells
+ * it what to read in the source's settings (`radarRequest`). The only file
+ * names it sends are a real conflict's conflicting files. Without fresh facts
+ * the radar changes nothing, and the card says it's waiting for the helper,
+ * or that the helper's facts are stale.
  *
- * A run is three steps, so the git work never holds the write transaction:
- * `plan` (read the database, run git), `record` (findings and their clearing,
- * with events `radar.found` and `radar.cleared`, through the write path), and
- * `finish` (the run's time and any "Radar off" reason on the project, which is
- * bookkeeping like a run's signal, not an event).
+ * A run is three steps: `plan` (read the database and the helper's facts),
+ * `record` (findings and their clearing, with events `radar.found` and
+ * `radar.cleared`, through the write path), and `finish` (the run's time and
+ * any "Radar off" reason on the project, which is bookkeeping like a run's
+ * signal, not an event).
  *
- * `repo_path` must resolve inside `DOCKET_PUSH_ROOT` (push-root.ts rules: no
- * `..`, host paths mapped onto the root, symlinks followed only inside it).
- * Without git or a repository the radar is off ("Radar off: no repository")
- * and everything else works.
+ * `repo_path` is the repository folder as the host sees it (B76); a path in
+ * `DOCKET_PUSH_ROOT` is mapped onto the host. Docket doesn't need the folder
+ * mounted to read. Without a repository the radar is off ("Radar off: no
+ * repository") and everything else works.
  *
  * **Branches (B40):** an item's branch is the latest one reported for it:
  * `declare_shared_changes`' `branch` or the owner's Shared changes section
  * (`items.branch`, which the owner may also clear), its latest packet's, its
  * lead run's or its latest claim's. An in-flight item with none gets one by
  * discovery: the local branches (`git for-each-ref refs/heads` and
- * `git worktree list --porcelain`) whose name holds the item's key, or its
- * Jira key, as a whole token, in any case and with or without the hyphen
- * (`gf-239`, `GF-239`, `gf239`, `gameflow-239`). One match is used (source
- * `discovered`); several are none ("several branches match"), and the run
- * records them on the item so the owner can report one. A reported branch
- * always wins over a discovered one.
+ * `git worktree list --porcelain`, read by the helper) whose name holds the
+ * item's key, or its Jira key, as a whole token, in any case and with or
+ * without the hyphen (`gf-239`, `GF-239`, `gf239`, `gameflow-239`). One match
+ * is used (source `discovered`); several are none ("several branches match"),
+ * and the run records them on the item so the owner can report one. A
+ * reported branch always wins over a discovered one.
  *
  * **Several branches (B41):** an item keeps a set of reported branches
  * (`items.branches`, up to 10). `declare_shared_changes` replaces it, the
@@ -70,18 +71,14 @@
  * means git can combine them, not that they work together, so it never
  * overrides a sequence decided from the declarations (overlap-policy.ts).
  *
- * **Never freezes the server (B52):** git runs in async child processes,
- * bounded and timed (git-read.ts). A read with no answer is *unknown*: the
- * findings and discovery it would have decided stay as they are. One run per
- * project at a time (`RadarRuns`); *Run radar now* during a run joins it. The
- * plan keeps what it read the database against (`RadarBasis`), and `record`
- * applies nothing for an item or project that changed since, so a slow run
- * can't undo what the owner did meanwhile (B45's race).
+ * **Unknown changes nothing (B52):** a fact the helper didn't send, or a read
+ * it had no answer for, is *unknown*: the findings and discovery it would have
+ * decided stay as they are. One run per project at a time (`RadarRuns`); *Run
+ * radar now* during a run joins it. The plan keeps what it read the database
+ * against (`RadarBasis`), and `record` applies nothing for an item or project
+ * that changed since, so a run can't undo what the owner did meanwhile (B45's
+ * race).
  */
-import { mkdtemp, rm } from 'node:fs/promises';
-import { realpathSync, statSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import {
   LIMITS,
@@ -93,13 +90,13 @@ import {
 import type { Db } from '../db/client.js';
 import type { Config } from '../config.js';
 import type { ReadContext } from './contracts.js';
-import { git, GitUnknown, known } from './git-read.js';
+import { freshHostGit, pairKey } from './host-git.js';
+import { hostRepoPath } from './host-worktrees.js';
 import { newId } from './ids.js';
 import { explain } from './problems.js';
 import { idleTickets } from './idle.js';
 import { callerName, ms, requireItem } from './model.js';
 import { branchWarning } from './project-git.js';
-import { isInside, rootSegments } from './push-root.js';
 import type { InverseOp, WriteContext } from './write.js';
 
 /** How often the scheduler runs the radar (BUILD_SPEC §5.21: at least every 15 minutes). */
@@ -111,10 +108,13 @@ export const RADAR_MIN_GAP_MS = 60_000;
 
 /** B52: how long after the listener is up the first scheduled radar pass starts. */
 export const RADAR_FIRST_MS = 15_000;
-/** B52: after this many reads with no answer, a run stops asking git and keeps what it has. */
-const RADAR_MAX_UNKNOWN_READS = 3;
 
 export const RADAR_OFF_NO_REPO = 'Radar off: no repository';
+/** B76: the helper on the host reported that it can't read the repository folder. */
+export const RADAR_OFF_UNREADABLE =
+  'Radar off: the helper on this computer can’t read that folder as a git repository';
+/** B76: what the card and checks say until the helper has reported this repository. */
+export const HELPER_WAITING = 'Waiting for the host helper';
 
 /** A branch name the radar will pass to git: no option-like or path-escaping names. */
 export function validBranch(name: string): boolean {
@@ -128,142 +128,24 @@ export function validBranch(name: string): boolean {
   );
 }
 
-/** The repository folder `repo_path` names, inside the push root; throws `validation`. */
-export function resolveRepoPath(config: Config, repoPath: string): string {
-  if (!config.pushRoot) {
-    throw new ToolError(
-      'validation',
-      'The radar reads a repository inside the push folder, and DOCKET_PUSH_ROOT isn’t set. Mount a folder and set DOCKET_PUSH_ROOT first.',
-    );
-  }
-  let root: string;
-  try {
-    root = realpathSync(config.pushRoot);
-  } catch {
-    throw new ToolError(
-      'validation',
-      `The push folder ${config.pushRoot} isn't mounted. Check the volume in docker/compose.yaml.`,
-    );
-  }
-  const segs = rootSegments(repoPath, config.pushRoot, config.pushHostPath);
-  const joined = join(root, ...segs);
-  if (!isInside(root, joined)) {
-    throw new ToolError(
-      'validation',
-      'That folder is outside the push folder. Choose one inside it.',
-    );
-  }
-  let real: string;
-  try {
-    real = realpathSync(joined);
-  } catch {
-    throw new ToolError('validation', `There's no folder at ${repoPath} in the push folder.`);
-  }
-  if (!isInside(root, real)) {
-    throw new ToolError(
-      'validation',
-      `${repoPath} links outside the push folder; Docket won't follow it.`,
-    );
-  }
-  if (!statSync(real).isDirectory()) {
-    throw new ToolError('validation', `${repoPath} isn't a folder.`);
-  }
-  return real;
-}
-
 /**
- * The repository's shared objects folder (worktrees share one), or why there
- * isn't one. `unknown` means the read had no answer, which isn't "no repository".
+ * Check a `repo_path` the owner entered (B76). The helper on the host reads
+ * it, so it must name a folder there: an absolute local path, or a folder in
+ * `DOCKET_PUSH_ROOT` when that is mapped to the host. Docket doesn't need the
+ * folder mounted. Throws `validation`.
  */
-export async function probeRepo(
-  dir: string,
-  signal?: AbortSignal,
-): Promise<{ ok: true; objects: string } | { ok: false; unknown?: boolean }> {
-  const r = await git(dir, ['rev-parse', '--path-format=absolute', '--git-common-dir'], {}, signal);
-  if (r.unknown) return { ok: false, unknown: true };
-  if (r.missing || r.status !== 0) return { ok: false };
-  const common = r.stdout.trim();
-  return common ? { ok: true, objects: join(common, 'objects') } : { ok: false };
-}
-
-/**
- * A git session over one repository with a throwaway object directory. A read
- * with no answer (timed out, cancelled) throws `GitUnknown`.
- */
-export class RadarGit {
-  private constructor(
-    readonly dir: string,
-    private readonly tmp: string,
-    private readonly env: Record<string, string>,
-    private readonly signal?: AbortSignal,
-  ) {}
-
-  static async open(dir: string, objects: string, signal?: AbortSignal): Promise<RadarGit> {
-    const tmp = await mkdtemp(join(tmpdir(), 'docket-radar-'));
-    const env = { GIT_OBJECT_DIRECTORY: tmp, GIT_ALTERNATE_OBJECT_DIRECTORIES: objects };
-    return new RadarGit(dir, tmp, env, signal);
-  }
-
-  private async read(args: string[]) {
-    return known(await git(this.dir, args, this.env, this.signal));
-  }
-
-  /** The full ref for a local branch (or, failing that, origin's copy), or null. */
-  async ref(branch: string): Promise<string | null> {
-    if (!validBranch(branch)) return null;
-    for (const ref of [`refs/heads/${branch}`, `refs/remotes/origin/${branch}`]) {
-      const r = await this.read(['rev-parse', '--verify', '--quiet', `${ref}^{commit}`]);
-      if (r.status === 0) return ref;
-    }
-    return null;
-  }
-
-  /**
-   * The local branches (B40): `refs/heads`, plus the branch each worktree has
-   * checked out (worktrees share `refs/heads`, so this only adds one the
-   * first list missed). Names git wouldn't take are left out.
-   */
-  async branches(): Promise<string[]> {
-    const out = new Set<string>();
-    const heads = await this.read(['for-each-ref', '--format=%(refname)', 'refs/heads']);
-    if (heads.status === 0) {
-      for (const line of heads.stdout.split('\n')) {
-        if (line.startsWith('refs/heads/')) out.add(line.slice('refs/heads/'.length));
-      }
-    }
-    const trees = await this.read(['worktree', 'list', '--porcelain']);
-    if (trees.status === 0) {
-      for (const line of trees.stdout.split('\n')) {
-        if (line.startsWith('branch refs/heads/')) out.add(line.slice('branch refs/heads/'.length));
-      }
-    }
-    return [...out].filter(validBranch).sort();
-  }
-
-  /** Files changed on `ref` since it left `base` (`git diff --name-only base...ref`). */
-  async changed(base: string, ref: string): Promise<string[]> {
-    const r = await this.read(['diff', '--name-only', '--no-renames', `${base}...${ref}`]);
-    if (r.status !== 0) return [];
-    return r.stdout.split('\n').filter(Boolean);
-  }
-
-  /** Decision 39: whether `ref`'s commits are already on `base` (the branch has merged). */
-  async merged(ref: string, base: string): Promise<boolean> {
-    return (await this.read(['merge-base', '--is-ancestor', ref, base])).status === 0;
-  }
-
-  /** Trial-merge two refs: the conflicting files (empty when clean), or null when git failed. */
-  async merge(a: string, b: string): Promise<string[] | null> {
-    const r = await this.read(['merge-tree', '--write-tree', '--name-only', '--no-messages', a, b]);
-    if (r.status === 0) return [];
-    if (r.status !== 1) return null;
-    const lines = r.stdout.split('\n');
-    return [...new Set(lines.slice(1).filter(Boolean))].sort();
-  }
-
-  async close(): Promise<void> {
-    await rm(this.tmp, { recursive: true, force: true, maxRetries: 2 });
-  }
+export function validateRepoPath(config: Config, repoPath: string): void {
+  if (hostRepoPath(config, repoPath) !== null) return;
+  const slashes = (p: string) => p.trim().replace(/\\/g, '/').replace(/\/+$/, '');
+  const root = config.pushRoot ? slashes(config.pushRoot) : null;
+  const inRoot = !!root && (slashes(repoPath) === root || slashes(repoPath).startsWith(`${root}/`));
+  throw new ToolError(
+    'validation',
+    inRoot && !config.pushHostPath
+      ? 'That folder is inside the push folder, but DOCKET_PUSH_HOST_PATH isn’t set, so the helper on this computer can’t find it. Use the folder’s full path on this computer.'
+      : 'Use the repository folder’s full path on this computer, such as C:\\code\\app or /home/me/app.',
+    { details: { fields: { repo_path: 'not a full local path' } } },
+  );
 }
 
 // ---- Plan, record, finish ----
@@ -340,9 +222,7 @@ interface Flight {
   id: string;
   branch: string;
   source: BranchSource;
-  ref: string;
   parts: Set<string>;
-  files: Set<string>;
 }
 
 /** A branch reported for an item (B41: one entry of `items.branches`). */
@@ -591,16 +471,56 @@ function isInFlight(db: Db, id: string): boolean {
     )
     .get(id);
 }
+/** B76: the parts and files that decide which pairs the helper trial-merges. */
+function itemParts(db: Db, id: string): string[] {
+  return (
+    db.sqlite.prepare('SELECT part_key FROM item_shared_changes WHERE item_id = ?').all(id) as {
+      part_key: string;
+    }[]
+  ).map((x) => x.part_key);
+}
+
+/** B76: what the helper on the host reads for the radar: each in-flight item's branches. */
+export interface RadarRequestItem {
+  id: string;
+  /** The Jira key, for discovery. */
+  keys: string[];
+  /** Reported branches; empty means "discover one". */
+  branches: string[];
+  /** B45: branches the owner said aren't active, which discovery skips. */
+  removed: string[];
+  parts: string[];
+  /** Files the item's latest packet reported changing. */
+  files: string[];
+}
+
+export function radarRequest(db: Db, project: string, now: string): RadarRequestItem[] {
+  return inFlightItems(db, project, now).map(({ id, jira_key }) => ({
+    id,
+    keys: jira_key ? [jira_key] : [],
+    branches: reportedBranches(db, id)
+      .map((b) => b.name)
+      .filter(validBranch),
+    removed: storedBranches(db, id)
+      .filter((b) => b.removed)
+      .map((b) => b.name),
+    parts: itemParts(db, id),
+    files: reportedFiles(db, id).slice(0, 200),
+  }));
+}
 
 /**
- * Read the project and run the trial merges. Writes nothing anywhere. A read
- * with no answer lands in `plan.unknown`, never in a finding or its clearing.
+ * Read the project and judge from the host helper's facts (B76). Writes
+ * nothing anywhere. Anything the facts don't answer lands in `plan.unknown`,
+ * never in a finding or its clearing. Without fresh facts nothing changes:
+ * the card says the radar is waiting for the helper, or that its facts are
+ * stale.
  */
 export async function planRadar(
   r: ReadContext,
-  config: Config,
+  _config: Config,
   project: string,
-  signal?: AbortSignal,
+  _signal?: AbortSignal,
 ): Promise<RadarPlan> {
   const db = r.db;
   const p = db.sqlite
@@ -608,7 +528,6 @@ export async function planRadar(
     .get(project) as { repo_path: string | null; main_branch: string } | undefined;
   if (!p)
     throw new ToolError('not_found', `No project ${project}. Check the key with list_projects.`);
-  // Read before git, so anything that changes during the run differs from it.
   const items = inFlightItems(db, project, r.now);
   const basis: RadarBasis = {
     project: projectBasis(db, project),
@@ -628,197 +547,171 @@ export async function planRadar(
     unknown: { all: true, items: [], branches: [], pairs: [] },
   });
   if (!p.repo_path) return off(RADAR_OFF_NO_REPO);
-  let dir: string;
-  try {
-    dir = resolveRepoPath(config, p.repo_path);
-  } catch {
-    return off(RADAR_OFF_NO_REPO);
-  }
-  const probe = await probeRepo(dir, signal);
-  if (!probe.ok) return probe.unknown ? unread() : off(RADAR_OFF_NO_REPO);
-  // A repository that keeps timing out ends the run's reads early: the rest are unknown.
-  const giveUp = new AbortController();
-  const reads = signal ? AbortSignal.any([signal, giveUp.signal]) : giveUp.signal;
-  const g = await RadarGit.open(dir, probe.objects, reads);
+  const facts = freshHostGit(db, { key: project, ...p }, r.now);
+  // No facts yet, or too old: nothing is decided, and the card says which.
+  if (!facts) return unread();
+  if (facts.status !== 'ok') return off(RADAR_OFF_UNREADABLE);
+  if (!facts.main_ref) return off(`Radar off: no branch ${p.main_branch}`);
+
   const unknownItems = new Set<string>();
   const unknownBranches = new Set<string>();
   const unknownPairs: [string, string][] = [];
-  let noAnswers = 0;
-  /** The answer, or undefined when git had none. */
-  const answer = async <T>(read: () => Promise<T>): Promise<T | undefined> => {
-    try {
-      return await read();
-    } catch (err) {
-      if (!(err instanceof GitUnknown)) throw err;
-      noAnswers += 1;
-      if (noAnswers >= RADAR_MAX_UNKNOWN_READS) giveUp.abort();
-      return undefined;
-    }
-  };
-  try {
-    const main = await answer(() => g.ref(p.main_branch));
-    if (main === undefined) return unread();
-    if (!main) return off(`Radar off: no branch ${p.main_branch}`);
-    const flights: Flight[] = [];
-    const discovered: Discovery[] = [];
-    let local: string[] | null | undefined = null;
-    for (const { id, jira_key } of items) {
-      // B41: every reported branch; with none, a local branch that names the item (B40).
-      const reported = reportedBranches(db, id).map((b) => b.name);
-      let branches: { name: string; source: BranchSource }[];
-      if (reported.length > 0) {
-        branches = reported.map((name) => ({ name, source: 'reported' }));
-      } else {
-        // Several matches is none.
-        if (local === null) {
-          const all = await answer(() => g.branches());
-          local = all?.filter((b) => b !== p.main_branch);
-        }
-        if (local === undefined) {
-          // The list had no answer: this item's discovery and findings stay.
-          unknownItems.add(id);
-          continue;
-        }
-        // B45: never a branch the owner said isn't active.
-        const removed = new Set(
-          storedBranches(db, id)
-            .filter((b) => b.removed)
-            .map((b) => b.name),
-        );
-        const matches = branchesNaming([id, jira_key], local).filter((b) => !removed.has(b));
-        const one = matches.length === 1 ? matches[0]! : null;
-        discovered.push({ item: id, branch: one, matches: one ? [] : matches });
-        branches = one ? [{ name: one, source: 'discovered' }] : [];
-      }
-      const parts = new Set(
-        (
-          db.sqlite
-            .prepare('SELECT part_key FROM item_shared_changes WHERE item_id = ?')
-            .all(id) as {
-            part_key: string;
-          }[]
-        ).map((x) => x.part_key),
-      );
-      const handed = reportedFiles(db, id);
-      for (const { name: branch, source } of branches) {
-        if (branch === p.main_branch) continue;
-        const ref = await answer(() => g.ref(branch));
-        if (ref === undefined) {
-          unknownBranches.add(branch);
-          continue;
-        }
-        if (!ref) continue;
-        const changed = await answer(() => g.changed(main, ref));
-        if (changed === undefined) {
-          unknownBranches.add(branch);
-          continue;
-        }
-        const files = new Set([...handed, ...changed]);
-        flights.push({ id, branch, source, ref, parts, files });
-      }
-    }
-    const checks: Check[] = [];
-    const suppressed: RadarPlan['suppressed'] = [];
-    // B42: each branch's files in conflict with the main branch.
-    const withMain = new Map<string, Set<string>>();
-    // One check per branch pair, even when two items report the same branch.
-    const pairs = new Set<string>();
-    const fresh = (a: string, b: string) => {
-      const k = `${a}\u0000${b}`;
-      if (pairs.has(k)) return false;
-      pairs.add(k);
-      return true;
-    };
-    for (const f of flights) {
-      if (!fresh(f.branch, p.main_branch)) continue;
-      const files = await answer(() => g.merge(main, f.ref));
-      if (files === undefined) {
-        // B42 needs this answer to judge the branch's pairs, so they wait too.
-        unknownBranches.add(f.branch);
+  const flights: Flight[] = [];
+  const discovered: Discovery[] = [];
+  for (const { id } of items) {
+    // B41: every reported branch; with none, a local branch that names the item (B40).
+    const reported = reportedBranches(db, id).map((b) => b.name);
+    let branches: { name: string; source: BranchSource }[];
+    if (reported.length > 0) {
+      branches = reported.map((name) => ({ name, source: 'reported' }));
+    } else {
+      const found = facts.items[id];
+      if (!found || found.read !== 'ok') {
+        // Not asked yet, or no answer: this item's discovery and findings stay.
+        unknownItems.add(id);
         continue;
       }
-      if (files === null) continue;
-      withMain.set(f.branch, new Set(files));
-      checks.push({
-        branch_a: f.branch,
-        branch_b: p.main_branch,
-        item_a: f.id,
-        item_b: null,
-        source_a: f.source,
-        source_b: null,
-        files,
-      });
+      // B45: never a branch the owner said isn't active. Several matches is none.
+      const removed = new Set(
+        storedBranches(db, id)
+          .filter((b) => b.removed)
+          .map((b) => b.name),
+      );
+      const matches = found.matches.filter((b) => !removed.has(b) && b !== p.main_branch).sort();
+      const one = matches.length === 1 ? matches[0]! : null;
+      discovered.push({ item: id, branch: one, matches: one ? [] : matches });
+      branches = one ? [{ name: one, source: 'discovered' }] : [];
     }
-    for (let i = 0; i < flights.length; i++) {
-      for (let j = i + 1; j < flights.length; j++) {
-        const [x, y] = [flights[i]!, flights[j]!];
-        // B41: two branches of one item aren't a cross-item conflict; not checked.
-        if (x.id === y.id || x.branch === y.branch) continue;
-        if (unknownBranches.has(x.branch) || unknownBranches.has(y.branch)) continue;
-        const related =
-          [...x.parts].some((k) => y.parts.has(k)) || [...x.files].some((k) => y.files.has(k));
-        if (!related) continue;
-        const [a, b] = x.branch < y.branch ? [x, y] : [y, x];
-        if (!fresh(a.branch, b.branch)) continue;
-        const all = await answer(() => g.merge(x.ref, y.ref));
-        if (all === undefined) {
+    const parts = new Set(itemParts(db, id));
+    for (const { name: branch, source } of branches) {
+      if (branch === p.main_branch) continue;
+      const fact = facts.branches[branch];
+      if (!fact || fact.read === 'unknown') {
+        unknownBranches.add(branch);
+        continue;
+      }
+      if (fact.read === 'missing') continue;
+      flights.push({ id, branch, source, parts });
+    }
+  }
+
+  const checks: Check[] = [];
+  const suppressed: RadarPlan['suppressed'] = [];
+  // B42: each branch's files in conflict with the main branch.
+  const withMain = new Map<string, Set<string>>();
+  /** B76 review: branches whose conflict with main had files left out by the helper's caps. */
+  const truncatedMain = new Set<string>();
+  // One check per branch pair, even when two items report the same branch.
+  const pairs = new Set<string>();
+  const fresh = (a: string, b: string) => {
+    const k = pairKey(a, b);
+    if (pairs.has(k)) return false;
+    pairs.add(k);
+    return true;
+  };
+  for (const f of flights) {
+    if (!fresh(f.branch, p.main_branch)) continue;
+    const fact = facts.branches[f.branch]!;
+    // B76 review: no answer, a merge git couldn't do, or a conflict whose every file was
+    // left out says nothing, so the branch's findings stay. B42 needs this answer to judge the
+    // branch's pairs, so they wait too.
+    if (
+      fact.main === 'unknown' ||
+      fact.main === 'failed' ||
+      (fact.main === 'conflict' && fact.files.length === 0)
+    ) {
+      unknownBranches.add(f.branch);
+      continue;
+    }
+    // Some conflicting files weren't sent: this branch's list can't explain a pair's files.
+    if (fact.main === 'conflict' && fact.more) truncatedMain.add(f.branch);
+    const files = fact.main === 'conflict' ? [...fact.files].sort() : [];
+    withMain.set(f.branch, new Set(files));
+    checks.push({
+      branch_a: f.branch,
+      branch_b: p.main_branch,
+      item_a: f.id,
+      item_b: null,
+      source_a: f.source,
+      source_b: null,
+      files,
+    });
+  }
+  for (let i = 0; i < flights.length; i++) {
+    for (let j = i + 1; j < flights.length; j++) {
+      const [x, y] = [flights[i]!, flights[j]!];
+      // B41: two branches of one item aren't a cross-item conflict; not checked.
+      if (x.id === y.id || x.branch === y.branch) continue;
+      if (unknownBranches.has(x.branch) || unknownBranches.has(y.branch)) continue;
+      const [a, b] = x.branch < y.branch ? [x, y] : [y, x];
+      if (!fresh(a.branch, b.branch)) continue;
+      const pair = facts.pairs[pairKey(a.branch, b.branch)];
+      if (!pair) {
+        // Judged unrelated by the helper, or not reached by its pass.
+        if (!facts.pairs_done) unknownPairs.push([a.branch, b.branch]);
+        continue;
+      }
+      // B76 review: a merge git couldn't do is unknown, never clean.
+      if (pair.state === 'unknown' || pair.state === 'failed') {
+        unknownPairs.push([a.branch, b.branch]);
+        continue;
+      }
+      const all = pair.state === 'conflict' ? [...pair.files].sort() : [];
+      // B42: only files beyond what either branch's conflict with main explains.
+      const explained = (file: string) =>
+        !!withMain.get(a.branch)?.has(file) || !!withMain.get(b.branch)?.has(file);
+      const files = all.filter((file) => !explained(file));
+      // B76 review: with files left out (the helper's caps), whether the conflict goes beyond
+      // main can't be told: unknown, so it neither opens nor clears on a partial list.
+      const partial =
+        pair.state === 'conflict' &&
+        (truncatedMain.has(a.branch) ||
+          truncatedMain.has(b.branch) ||
+          (!!pair.more && files.length === 0));
+      if (partial) {
+        unknownPairs.push([a.branch, b.branch]);
+        continue;
+      }
+      // Decision 39: a real text conflict gets a merge order; it stops neither agent.
+      let merge_first: string | null = null;
+      if (files.length > 0) {
+        const mergedA = facts.branches[a.branch]?.merged ?? null;
+        const mergedB = facts.branches[b.branch]?.merged ?? null;
+        if (mergedA === null || mergedB === null) {
           unknownPairs.push([a.branch, b.branch]);
           continue;
         }
-        if (all === null) continue;
-        // B42: only files beyond what either branch's conflict with main explains.
-        const explained = (file: string) =>
-          !!withMain.get(a.branch)?.has(file) || !!withMain.get(b.branch)?.has(file);
-        const files = all.filter((file) => !explained(file));
-        // Decision 39: a real text conflict gets a merge order; it stops neither agent.
-        let merge_first: string | null = null;
-        if (files.length > 0) {
-          const order = await answer(async () => ({
-            a: await g.merged(a.ref, main),
-            b: await g.merged(b.ref, main),
-          }));
-          if (!order) {
-            unknownPairs.push([a.branch, b.branch]);
-            continue;
-          }
-          merge_first = mergeOrder(
-            db,
-            { id: a.id, merged: order.a },
-            { id: b.id, merged: order.b },
-          );
-        }
-        if (all.length > 0 && files.length === 0) {
-          suppressed.push({ branch_a: a.branch, branch_b: b.branch, files: all });
-        }
-        checks.push({
-          branch_a: a.branch,
-          branch_b: b.branch,
-          item_a: a.id,
-          item_b: b.id,
-          source_a: a.source,
-          source_b: b.source,
-          files,
-          merge_first,
-        });
+        merge_first = mergeOrder(db, { id: a.id, merged: mergedA }, { id: b.id, merged: mergedB });
       }
+      if (all.length > 0 && files.length === 0) {
+        suppressed.push({ branch_a: a.branch, branch_b: b.branch, files: all });
+      }
+      checks.push({
+        branch_a: a.branch,
+        branch_b: b.branch,
+        item_a: a.id,
+        item_b: b.id,
+        source_a: a.source,
+        source_b: b.source,
+        files,
+        merge_first,
+      });
     }
-    return {
-      project,
-      off: null,
-      checks,
-      suppressed,
-      discovered,
-      basis,
-      unknown: {
-        all: false,
-        items: [...unknownItems],
-        branches: [...unknownBranches],
-        pairs: unknownPairs,
-      },
-    };
-  } finally {
-    await g.close();
   }
+  return {
+    project,
+    off: null,
+    checks,
+    suppressed,
+    discovered,
+    basis,
+    unknown: {
+      all: false,
+      items: [...unknownItems],
+      branches: [...unknownBranches],
+      pairs: unknownPairs,
+    },
+  };
 }
 
 const fileCount = (n: number) => `${n} file${n === 1 ? '' : 's'}`;

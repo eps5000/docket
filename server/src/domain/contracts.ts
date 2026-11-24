@@ -398,13 +398,9 @@ export interface RecoveryService {
   workspaces(r: ReadContext, input: RouteQuery<'workspaces.list'>): WorkspacesResponse;
   /**
    * `GET /api/workspaces/cleanup` (decision 48): every worktree of the project's
-   * repository with a verdict. Starts a background read when the last is old.
+   * repository with a verdict, from the host helper's facts (B68, B76).
    */
   worktreeCleanup(r: ReadContext, input: RouteQuery<'workspaces.cleanup'>): WorktreeCleanupResponse;
-  /** Resolves when the project's running worktree read has ended. */
-  worktreeScanSettled(project: string): Promise<void>;
-  /** Stop running worktree reads, before the database closes. */
-  stopWorktreeScans(): Promise<void>;
   /** *Mark released* on an orphaned resource (owner; event `resource.released`). */
   ownerReleaseResource(
     w: WriteContext,

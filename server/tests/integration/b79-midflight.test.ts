@@ -39,7 +39,7 @@ const create = (type: Kind, opts: { epic?: string; status?: Status; title?: stri
       type,
       title: opts.title ?? `Synthetic ${type.toLowerCase()}`,
       priority: 2,
-      ...(opts.status === 'inbox' || opts.status === undefined ? {} : { status: 'planning' }),
+      status: opts.status === 'inbox' || opts.status === undefined ? 'inbox' : 'planning',
       ...(opts.epic ? { epic: opts.epic } : {}),
     }),
   );

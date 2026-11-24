@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useId, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import {
@@ -24,7 +24,6 @@ import { useBootstrap } from '../../app/useBootstrap';
 import { queryKeys } from '../../lib/api';
 import { formatAge, middleTruncate, pausedMark } from '../../lib/format';
 import { paths } from '../../lib/paths';
-import { showToast } from '../../lib/undo';
 import { copyText } from '../items/activity/copy';
 import { AT_RISK_NEXT } from './atRisk';
 
@@ -40,8 +39,6 @@ export const VERDICT_LABEL: Record<WorktreeVerdict, { label: string; kind: ChipK
 export const GROUP_LIMIT = 50;
 /** The server stops counting here; the cell reads "1000+". */
 const COUNT_CAP = 1000;
-
-const POLL_MS = 1500;
 
 export interface CleanupFilter {
   verdict: WorktreeVerdict | null;
@@ -66,14 +63,14 @@ const known = (n: number | null) =>
   n === null ? 'Unknown' : n >= COUNT_CAP ? `${COUNT_CAP}+` : String(n);
 const yesNo = (b: boolean | null) => (b === null ? 'Unknown' : b ? 'Yes' : 'No');
 
-/** Why rows may read Unknown when the helper on the host isn't supplying facts (B68). */
+/** Why rows may read Unknown when the helper on the host isn't supplying facts (B68, B76). */
 function HelperHint({ data }: { data: WorktreeCleanupResponse }) {
   if (data.host.state === 'fresh' || !data.rows.some((r) => r.verdict === 'unknown')) return null;
   return (
     <p className="src" data-worktree-host-hint={data.host.state}>
       {data.host.state === 'stale'
         ? 'The helper on this computer hasn’t checked in lately, so what it read is Unknown until it runs again.'
-        : 'Docket can’t read worktrees outside its folder by itself. The helper on this computer can: see Settings → Connections → Worktree checks.'}
+        : 'Docket runs no git itself. The helper on this computer reads your worktrees: see Settings → Connections → Git checks.'}
     </p>
   );
 }
@@ -289,24 +286,14 @@ export function WorktreeCleanup() {
   const selectId = useId();
   const [picked, setPicked] = useState<string | null>(null);
   const project = scope !== 'all' ? scope : (picked ?? projects?.[0]?.key ?? null);
-  const qc = useQueryClient();
   const key = queryKeys.workspaceCleanup(project ?? '');
   const query = useQuery({
     queryKey: key,
     queryFn: () => apiClient['workspaces.cleanup']({ query: { project: project! } }),
     enabled: !!project,
-    refetchInterval: (q) => (q.state.data?.scanning ? POLL_MS : false),
+    // B76: the helper reports every few minutes, so this keeps up without a button.
+    refetchInterval: 60_000,
   });
-  const refresh = async () => {
-    try {
-      const fresh = await apiClient['workspaces.cleanup']({
-        query: { project: project!, refresh: '1' },
-      });
-      qc.setQueryData(key, fresh);
-    } catch {
-      showToast('Couldn’t start the check. Try again.');
-    }
-  };
   const d = query.data;
   return (
     <div className="wc" data-worktree-cleanup="">
@@ -325,17 +312,10 @@ export function WorktreeCleanup() {
           </>
         )}
         <span className="src" role="status">
-          {d?.scanning
-            ? `Checking worktrees: ${d.scanning.done} of ${d.scanning.total || '…'}`
-            : d?.checked_at
-              ? `Checked ${formatAge(d.checked_at)}${d.host.state === 'fresh' ? ' by the helper on this computer' : ''}. Docket doesn’t fetch, so remotes are as of your last fetch.`
-              : ''}
+          {d?.checked_at
+            ? `Checked ${formatAge(d.checked_at)}${d.host.state === 'fresh' ? ' by the helper on this computer' : ''}. It checks every few minutes and doesn’t fetch, so remotes are as of your last fetch.`
+            : ''}
         </span>
-        {d?.repo === 'ok' && (
-          <Button size="sm" onClick={() => void refresh()}>
-            Check again
-          </Button>
-        )}
       </div>
       {!project ? (
         <EmptyState text="Add a project to check its worktrees." />
@@ -344,13 +324,22 @@ export function WorktreeCleanup() {
           {(data) =>
             data.repo === 'not_set' ? (
               <EmptyState text="This project has no repository folder set. Add one in Settings to check its worktrees." />
-            ) : data.repo === 'unreadable' ? (
-              <Callout tone="warn">
-                Docket can’t read this project’s repository from inside the push folder, so its
-                worktrees can’t be checked.
-              </Callout>
             ) : data.rows.length === 0 ? (
-              <Skeleton lines={4} label="Checking worktrees" />
+              <div data-worktree-host-empty={data.host.state}>
+                <Callout tone="warn">
+                  {data.host.state === 'none' ? (
+                    <>
+                      <strong>Waiting for the host helper.</strong> Docket runs no git itself; the
+                      helper on this computer reads your worktrees. Turn it on in Settings →
+                      Connections → Git checks.
+                    </>
+                  ) : data.host.state === 'stale' ? (
+                    'The helper on this computer hasn’t checked in lately. Its worktrees show again when it runs.'
+                  ) : (
+                    'The helper found no worktrees in this repository.'
+                  )}
+                </Callout>
+              </div>
             ) : (
               <>
                 <HelperHint data={data} />
