@@ -60,6 +60,8 @@ const finish = (run_id: string, result: 'finished' | 'failed' = 'finished') =>
       result,
       summary: 'Stopped.',
       error: result === 'failed' ? 'boom' : undefined,
+      // Decision 61: with an exit report, so the warnings here are the recovery ones.
+      exit: { outcome: 'complete' },
     }),
   );
 const run = (id: string) =>

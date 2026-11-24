@@ -276,9 +276,11 @@ describe('event → query-key invalidation (contracts/events.md)', () => {
 
   it('adds the for-you count whenever for_you is set, even for a quiet type', () => {
     const keys = keysForChange({ seq: 2, type: 'note.added', objects: [], for_you: true });
+    // Decision 61: a note can settle a partial exit, so Work refetches too.
     expect(keys).toEqual([
       ['docket', 'bootstrap'],
       ['docket', 'needsYou'],
+      ['docket', 'work'],
       ['docket', 'item'],
     ]);
   });
