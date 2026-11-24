@@ -794,6 +794,11 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T354 [US4] Spec plus code in one PR: decision 62 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.45; MCP_SPEC `get_digest`, `set_status` and Problems; UI_SPEC §6.1, §6.2 and §6.3; spec FR-359–FR-366 and SC-046; Help (Problems and what to do; Pick the next epic); the producer, worker and planner skills.
 - [x] T355 [US4] `domain/midflight.ts` (added mid-flight from events, the Done refusal, the digest's `untriaged_epics`, `midflight` on epic cards and `epic_midflight` on the epic page, the map's mark) and `domain/idle.ts` (idle detection, the `idle_ticket` problem, `POST /api/items/:id/idle`, the radar and overlap checks skipping idle tickets, the sweeper clearing conflicts against them with a reason); acknowledged problems folded on the item and epic banner and left out of *Has problems*.
 - [x] T356 [US4] Tests: triage rules (a bug to Ready, a bug moved to another epic, Done refused while untriaged), the digest and its cap, marking on cards, the epic page and the map; idle detection (open, parked and needs-input runs keep a ticket live, activity resets it, Docket's events and acknowledging don't), each way forward and its undo, the radar and overlap checks skipping it and the sweeper clearing with a reason; acknowledged folding and coming back; the contract snapshot; e2e and axe in both themes.
+## Phase 61: Skills keep a core and load references on demand (owner decision 66)
+
+- [x] T357 [US13] Spec plus code in one PR: decision 66 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.17 and §5.46; MCP_SPEC §3, §5.4 and §5.10 and 44 tool descriptions; spec FR-367–FR-372 and SC-047; the skills README; every skill split into a core and references.
+- [x] T358 [US13] References as agent files (`skill:<name>--<topic>`): the bundled loader and retiring a reference the image no longer ships; install paths; the install step and `docket-update` (bash and PowerShell) removing a stale unmodified reference; push install and uninstall; `docket-check` reporting a reference only when it differs, drift reading its absence as unchanged; `claim_lead` instructions up to 60 files.
+- [x] T359 [US13] Tests: the lint (gates, unlisted and missing references, caps, names, safety rules in each core); the token budgets; the catalog, manifest, hashes, update adding and removing references in real bash and PowerShell, push removal, uninstall and drift.
 
 ## How to run the build
 
@@ -920,6 +925,7 @@ Open a PR titled "<Bn>: <phase name>" with the checkpoint evidence. Do not queue
 | 54 The dependency map hides implied links | B77 (decision 60) |
 | 55 All git reading moves to the host helper | B76 |
 | 59 Tickets agents create arrive shaped or ask for a planner | B82 (decision 65) |
+| 61 Skills keep a core and load references on demand | B83 (decision 66) |
 
 **Within a phase:** tests (failing) → services → replace stubs or fill handlers → fill screens → checkpoint.
 

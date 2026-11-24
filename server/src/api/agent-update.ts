@@ -30,7 +30,8 @@ import { errorBody } from './guards.js';
 
 /** A manifest with every key reported stays far below this. */
 const MAX_BODY_BYTES = 64 * 1024;
-const MAX_FILES = 64;
+/** Decision 66: each skill reference is a file of its own. */
+const MAX_FILES = 128;
 
 const reportedKey = z
   .string()

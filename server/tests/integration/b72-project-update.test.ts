@@ -39,7 +39,7 @@ import { hashText } from '../../src/domain/installs.js';
 import { updatePs1, updateSh } from '../../src/domain/update-scripts.js';
 import { OWNER_ACTOR, SYSTEM_ACTOR } from '../../src/domain/write.js';
 import { driftCheckOnce } from '../../src/jobs/sweeper.js';
-import { syncBundledFiles } from '../../src/jobs/bundled.js';
+import { readBundledFiles, syncBundledFiles } from '../../src/jobs/bundled.js';
 import { insertProject, tempDir, type TempDir } from '../helpers.js';
 import { hostGitPass } from '../host-git.js';
 import { PROTECTED_MODE, createTestServer, type TestServer } from './harness.js';
@@ -99,6 +99,8 @@ const stop = (http: ServerType) =>
 
 let tmp: TempDir;
 let scripts: string;
+/** The checkout's skills and templates: what this Docket ships. */
+const DEFAULT_ROOT = join(__dirname, '../../..');
 let n = 0;
 
 /**
@@ -354,6 +356,63 @@ describe.skipIf(!runnable).each(shells)('docket-update with %s', (shell) => {
       expect(again.out).toContain('already current');
       expect(again.out).toContain('edited locally');
       expect(snapshot(repo)).toEqual(after);
+    });
+
+    // Decision 66 (B83): references travel with their skill, and a stale one goes.
+    it('adds a new skill reference, removes one Docket no longer ships, and keeps an edited one', async () => {
+      const repo = newRepo();
+      expect((await runUpdate(shell, repo, fresh())).status).toBe(0);
+      const refs = join(repo, dirOf(client), 'skills/docket-worker/references');
+      const stale = join(refs, 'waiting.md');
+      const edited = join(refs, 'asking.md');
+      expect(existsSync(stale)).toBe(true);
+      expect(existsSync(join(refs, 'exit-reports.md'))).toBe(true);
+      const local = `${readFileSync(edited, 'utf8')}\nOur own asking rule.\n`;
+      writeFileSync(edited, local);
+
+      // The next Docket drops two references and adds one.
+      const shipped = readBundledFiles(DEFAULT_ROOT).files;
+      const added = {
+        key: 'skill:docket-worker--new-topic',
+        content: "# New topic\n\n**Read when:** Always.\n**Don't read when:** Never.\n",
+      };
+      const sync = (files: typeof shipped) =>
+        s.runtime.write.run({ actor: SYSTEM_ACTOR, operation: 'test.sync', args: {} }, (w) =>
+          s.runtime.services.agentFiles.syncBundled(w, { files }),
+        ).result;
+      const dropped = ['skill:docket-worker--waiting', 'skill:docket-worker--asking'];
+      expect(
+        sync([...shipped.filter((f) => !dropped.includes(f.key)), added]).retired.sort(),
+      ).toEqual([...dropped].sort());
+      try {
+        const r = await runUpdate(shell, repo, ['--url', url]);
+        expect(r.status, r.out).toBe(0);
+        expect(r.out).toMatch(
+          /removed\s+\.(claude|codex)\/skills\/docket-worker\/references\/waiting\.md/,
+        );
+        expect(r.out).toMatch(
+          /kept\s+\.(claude|codex)\/skills\/docket-worker\/references\/asking\.md/,
+        );
+        expect(r.out).toMatch(
+          /added\s+\.(claude|codex)\/skills\/docket-worker\/references\/new-topic\.md/,
+        );
+        expect(existsSync(stale)).toBe(false);
+        expect(readFileSync(edited, 'utf8')).toBe(local);
+        expect(readFileSync(join(refs, 'new-topic.md'), 'utf8')).toBe(added.content);
+        const keys = manifestOf(repo, client).files.map((f) => f.key);
+        expect(keys).toContain(added.key);
+        expect(keys).not.toContain(dropped[0]);
+        expect(keys).not.toContain(dropped[1]);
+
+        const after = snapshot(repo);
+        const again = await runUpdate(shell, repo, ['--url', url]);
+        expect(again.status, again.out).toBe(0);
+        expect(again.out).toContain('already current');
+        expect(snapshot(repo)).toEqual(after);
+      } finally {
+        // Back to what this Docket ships, for the tests after this one.
+        sync(shipped);
+      }
     });
 
     it('refuses damaged markers before writing anything', async () => {
