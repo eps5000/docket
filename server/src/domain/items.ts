@@ -80,6 +80,7 @@ import {
 } from './epic-readiness.js';
 import { assertReleaseClear, checkFinishLine } from './finish-line.js';
 import { clearShaping, markIfUnshaped, ownerShapingRequest } from './shaping.js';
+import { assertEpicTriaged } from './midflight.js';
 
 const knownGapsField = (raw: unknown) => {
   const view = knownGapsView(raw);
@@ -848,6 +849,8 @@ export function createItemsService(deps: ServiceDeps): ItemsService {
           if (held.parts.length > 0) throw new HoldRefusal(item, held.parts, held.files);
         }
         if (item.type === 'Epic') {
+          // Decision 62: tickets added after the epic started are triaged before it closes.
+          assertEpicTriaged(w.db, item);
           const open = openChildren(w.db, item.id);
           if (open.length > 0) {
             throw new ToolError(

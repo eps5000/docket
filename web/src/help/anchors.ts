@@ -32,6 +32,7 @@ export const HELP_ANCHORS = {
   'problems.backup_missed': 'Problems row: the nightly backup failed or is overdue',
   'problems.agent_files_drift': 'Problems row: agent files changed outside Docket',
   'problems.radar_conflict': 'Problems row: heading for a merge conflict (decision 36)',
+  'problems.idle_ticket': 'Problems row: In progress, but nobody is on it (decision 62)',
   'needs-you.shared-questions': 'Needs you: overlap and undeclared-changes cards (decision 36)',
   'needs-you.agent-problems': 'Overview → Health: "Agents are handling N problems" (decision 37)',
   'needs-you.resolutions': 'Needs you: a proposed resolution card (decision 37)',

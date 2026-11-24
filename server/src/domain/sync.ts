@@ -573,7 +573,7 @@ const gitHandler: SyncHandler<HostGitRecord> = {
         {
           ...p,
           host_path,
-          items: radarRequest(db, p.key),
+          items: radarRequest(db, p.key, now),
           commits: commits.get(p.key) ?? [],
           heads: headRequest(db, p.key, now),
           manifests: manifestRequest(),
