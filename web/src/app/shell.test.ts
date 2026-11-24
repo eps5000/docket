@@ -71,6 +71,7 @@ describe('persistence keys (UI_SPEC §2)', () => {
     expect(STORAGE_AREA[STORAGE_KEYS.notified]).toBe('local');
     expect(STORAGE_AREA[STORAGE_KEYS.collapsed]).toBe('local');
     expect(STORAGE_AREA[STORAGE_KEYS.workFilters]).toBe('local');
+    expect(STORAGE_AREA[STORAGE_KEYS.mapHideImplied]).toBe('local');
     expect(Object.keys(STORAGE_AREA).sort()).toEqual(Object.values(STORAGE_KEYS).sort());
   });
 });

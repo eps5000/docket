@@ -750,6 +750,12 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T331 [US4] Known gaps on the item page and in the answer dialog, *Approve gaps and move to Ready*, the readiness line on epic cards, the epic page and Pick next epic's Not ready to start group.
 - [x] T332 [US4] Tests: the start check with each ticket status, canceled and done tickets, an empty epic, an In progress epic and its resume, approval through the question form and the item page, rejection, the implementer's context, Pick next epic, the digest flag, token budgets, e2e and axe in both themes at 1024 px and 1440 x 900.
 
+## Phase 54: The dependency map hides implied links (owner decision 60)
+
+- [x] T333 [US4] Spec plus code in one PR: decision 60 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; UI_SPEC §2, §6.3.3 and §6.3.4; spec FR-334–FR-337 and SC-041; Help (Blocker rules and dependencies).
+- [x] T334 [US4] `components/ProgressMap/implied.ts`: the reduction over the drawn arrows (hard only behind hard, canceled tickets carry no chain, cycles and critical-path arrows always drawn), the *Hide implied links* switch with "n hidden" and `docket.mapHideImplied`, and the Dependencies tab's "Also implied through …" from the epic's map data.
+- [x] T335 [US4] Tests: a chain, a diamond, a cycle, hard behind soft, soft behind hard, a middle ticket removed or canceled, every connection kept; the switch's default, persistence and count; the item-page note; e2e and axe in both themes with screenshots at 1440 x 900 and 1024 px.
+
 ## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.
