@@ -860,7 +860,7 @@ describe('shared changes (MCP_SPEC §5.15; decision 36; B38)', () => {
       'design_review',
       'project_paused',
       'epic_not_ready',
-      'bugs_open',
+      'release_gates',
     ]);
     const packet = getTool('submit_packet').output;
     expect(

@@ -54,7 +54,7 @@ c_41 10:42Z codex RCP-12 packet.submitted codex submitted handoff packet round 2
 
 exports[`every tool has a renderer > get_context 1`] = `
 "Context for RCP-14 Generate shopping list from week plan · budget medium
-  story · P1 · progress · v7
+  implementation · P1 · progress · v7
   outcome: When a week plan is saved, the user can produce one merged shopping list grouped by aisle and export it.
   acceptance:
   - Quantities for the same ingredient merge across recipes, with unit conversion
@@ -108,7 +108,7 @@ conflicts 1:
 
 exports[`every tool has a renderer > get_item 1`] = `
 "RCP-14 Generate shopping list from week plan
-  story · P1 · progress · epic RCP-1 Meal planning MVP · labels mobile · v7
+  implementation · P1 · progress · epic RCP-1 Meal planning MVP · labels mobile · v7
   lead claude·orca-w3 live · run run_01JA… · lease until 12:02Z
   blocked_by: none · blocks: RCP-24 planning, RCP-27 planning
   outcome: When a week plan is saved, the user can produce one merged shopping list grouped by aisle and export it.
@@ -235,7 +235,7 @@ exports[`every tool has a renderer > report_commit 1`] = `"Recorded c71e002 on R
 exports[`every tool has a renderer > search_items 1`] = `
 "Items: 2 · next_cursor cur_2
 RCP-17 Planner jumps back to the current week after reload · bug · P1 · ready · unblocks 2 · v4
-RCP-14 Generate shopping list from week plan · story · P1 · progress · lead claude·orca-w3 live · unblocks 2 · v7"
+RCP-14 Generate shopping list from week plan · implementation · P1 · progress · lead claude·orca-w3 live · unblocks 2 · v7"
 `;
 
 exports[`every tool has a renderer > set_checks 1`] = `"Checks on RCP-14 · 1/3 pass"`;

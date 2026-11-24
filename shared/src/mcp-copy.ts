@@ -59,7 +59,7 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   update_item:
     "Edit an item's fields; pass expected_version. Status goes through set_status, the plan through set_plan. known_gaps: what implementation will settle.",
   set_status:
-    'Move an item. Docket enforces the allowed moves and their gates (not_declared, design_review, bugs_open). Closing as done: pass changed_files and branch. Hand off for review with submit_packet. Details: docket-worker reference status-moves.',
+    'Move an item. Docket enforces the allowed moves and their gates (not_declared, design_review, release_gates). Closing as done: pass changed_files and branch. Hand off for review with submit_packet. Details: docket-worker reference status-moves.',
   link_items:
     "Link two items: 'blocks' (from finishes before to starts) or 'relates' (informational). satisfied_when: done, merged or verified. Calling again updates it; a cycle is rejected.",
   unlink_items: 'Remove a link between two items.',

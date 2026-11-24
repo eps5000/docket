@@ -342,7 +342,7 @@ describe('finish_onboarding and the owner review', () => {
       await h!.call('onboard_project', { key: 'GF', name: 'Gameflow' }),
     ).structured as { session_id: string };
 
-    // Two created items (an epic and a task), one document, one decision, one Workflow proposal.
+    // The epic, its generated Release and a task, plus one document, decision and proposal.
     const epic = (
       expectOk(
         await h!.call('create_item', {
@@ -365,6 +365,11 @@ describe('finish_onboarding and the owner review', () => {
         }),
       ).structured as { item: { id: string; version: number } }
     ).item;
+    const release = (
+      h!.server.runtime.db.sqlite
+        .prepare("SELECT id FROM items WHERE epic_id = ? AND type = 'Release'")
+        .get(epic) as { id: string }
+    ).id;
     expectOk(
       await h!.call('put_document', {
         item_id: epic,
@@ -412,7 +417,8 @@ describe('finish_onboarding and the owner review', () => {
         questions: ['Is checkout in scope for v1?'],
       }),
     );
-    const changes = { created: 2, enriched: 1, documents: 1, decisions: 1, proposals: 1 };
+    // The created epic brings its generated Release into this onboarding session.
+    const changes = { created: 3, enriched: 1, documents: 1, decisions: 1, proposals: 1 };
     expect(done.structured).toEqual({ session_id, state: 'ready_for_review', changes });
     expect(eventsOf('onboarding.finished')).toHaveLength(1);
     // Again: conflict, with the session as current.
@@ -459,10 +465,12 @@ describe('finish_onboarding and the owner review', () => {
         )
       ).body as { items: { id: string }[]; epics: { id: string }[] };
     const created = await work('created');
-    expect(created.items.map((i) => i.id)).toEqual([task.id]);
+    expect(created.items.map((i) => i.id)).toEqual([release, task.id]);
     expect(created.epics.map((e) => e.id)).toEqual([epic]);
     expect((await work('enriched')).items.map((i) => i.id)).toEqual([owned.id]);
-    expect((await work()).items.map((i) => i.id).sort()).toEqual([owned.id, task.id].sort());
+    expect((await work()).items.map((i) => i.id).sort()).toEqual(
+      [owned.id, release, task.id].sort(),
+    );
     expect((await owner('GET', '/api/work?scope=GF&onboarding=onb_nope')).status).toBe(404);
 
     // Mark reviewed: the card and the chip go; again is a no-op.

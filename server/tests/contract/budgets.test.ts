@@ -186,7 +186,7 @@ describe('reads', () => {
       op: 'create_item',
       args: {
         project: 'RCP',
-        type: 'Task',
+        type: 'Implementation',
         title: `Onboarded task ${i + 1} from specs/001-checkout/tasks.md`,
         status: 'planning',
       },
@@ -312,7 +312,7 @@ describe('mutations ≤ 60', () => {
     const created = expectOk(
       await h.call('create_item', {
         project: 'RCP',
-        type: 'Task',
+        type: 'Implementation',
         title: 'Pantry inventory schema',
       }),
     );

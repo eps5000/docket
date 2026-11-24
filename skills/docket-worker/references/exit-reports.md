@@ -15,7 +15,7 @@
 
 **Known gaps to shape** in your context: settle each and record how with `update_item { known_gaps: [{ gap, settled }] }`, the same gaps in order.
 
-**`release held:`** means you hold the epic's finish line. Check those bugs first: Review and Done are refused (`bugs_open`) until each is fixed, moved out or canceled. Ask the producer before dropping one.
+**`release held:`** means you hold the epic's Release. Review and Done are refused (`release_gates`) until every other ticket, bug, known gap and partial exit is settled and the Release checklist is done. Ask the producer before moving or canceling work.
 
 ## On every exit
 

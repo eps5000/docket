@@ -105,7 +105,7 @@ export const CHANGE_REASONS = {
     not_kept: 'Not kept: attachments, labels and links on sub-tasks (each one lists what it had).',
   },
   other_type: {
-    summary: (c) => `${n(c, 'issue', 'issues')} of other types → Tasks`,
+    summary: (c) => `${n(c, 'issue', 'issues')} of other types → Implementation (inferred)`,
     kept: 'Kept: everything else; the Jira type is noted in the description.',
     not_kept: 'Not kept: the type itself.',
   },
@@ -212,7 +212,7 @@ export function reasonCode(reason: string): ChangeReason | SkipReason {
   if (reason.startsWith(STEP_REASON_PREFIX)) return 'subtask';
   if (/^link .* imported as relates$/.test(reason)) return 'link_type';
   if (/^link .* dropped/.test(reason)) return 'link_dropped';
-  if (/^Jira type .* imported as Task$/.test(reason)) return 'other_type';
+  if (/^Jira type .* imported as Implementation \(inferred\)$/.test(reason)) return 'other_type';
   if (reason.startsWith('title shortened')) return 'title';
   if (reason.startsWith('status ')) return 'status';
   if (reason.startsWith('priority ')) return 'priority';

@@ -18,13 +18,16 @@ Rare paths live in reference files: read one only when the table at the end says
 
 ## 2. Shape
 
-| Use                          | For                                                                         | Not for                                                                     |
-| ---------------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| **Epic**                     | A deliverable the owner would recognise ("Pantry")                          | A theme that spans several deliverables                                     |
-| **Story / Task / Bug**       | One agent session to a few, usually one PR, with its own outcome            | A step inside someone's work: that's a checklist step, made with `set_plan` |
-| **Label**, with a `brief_md` | An initiative across epics, with shared rules in its brief (`upsert_label`) | Status or priority                                                          |
+| Use                                             | For                                                                         | Not for                                                      |
+| ----------------------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| **Epic**                                        | A deliverable the owner would recognise ("Pantry")                          | A theme that spans several deliverables                      |
+| **Exploration / Design / Implementation / Bug** | One outcome that needs its own blocker, owner or review                     | A step inside someone's work: use `set_plan`                 |
+| **Release**                                     | The one closing ticket Docket creates with every epic                       | An intermediate rollout to Dev or another shared environment |
+| **Label**, with a `brief_md`                    | An initiative across epics, with shared rules in its brief (`upsert_label`) | Status or priority                                           |
 
 **Split a piece into its own item only when it needs its own blocker, owner or review.**
+
+Every epic has one Release ticket. A deploy, cutover or flag change in a shared environment that other tickets wait for is its own **Implementation** ticket marked `rollout: true`, with links from its dependents. Read the ticket-types reference when choosing types or shaping an epic's Release.
 
 **For every item:**
 
@@ -38,9 +41,9 @@ Rare paths live in reference files: read one only when the table at the end says
 ```
 create_item { project: "RCP", type: "Epic", title: "Pantry", status: "planning",
   outcome_md: "Users keep a pantry list and get recipe suggestions from what's at home." }
-create_item { project: "RCP", type: "Task", title: "Pantry inventory schema", epic: "RCP-2",
+create_item { project: "RCP", type: "Design", title: "Pantry inventory schema", epic: "RCP-2",
   status: "planning", acceptance: ["Items have name, quantity, unit, expiry", "Migration is reversible"] }
-create_item { project: "RCP", type: "Story", title: "Pantry-aware recipe suggestions", epic: "RCP-2",
+create_item { project: "RCP", type: "Implementation", title: "Pantry-aware recipe suggestions", epic: "RCP-2",
   status: "planning", blocked_by: ["RCP-15"], acceptance: [...] }
 ```
 
@@ -124,3 +127,4 @@ When a breakdown or an onboarding runs to dozens of items, documents or links, s
 | [`references/shared-changes.md`](references/shared-changes.md) | You declare an item's shared changes, register a part, set design impact, or a problem needs a new plan.         | The item is declared and nothing about its parts has changed.              |
 | [`references/needs-shaping.md`](references/needs-shaping.md)   | A producer sends you a ticket that needs shaping.                                                                | You're creating tickets yourself with an outcome, acceptance and `shared`. |
 | [`references/batch-writes.md`](references/batch-writes.md)     | You send more than a handful of writes in one go with `apply_batch`, or add details to steps imported from Jira. | You make a few single calls.                                               |
+| [`references/ticket-types.md`](references/ticket-types.md)     | You choose a ticket type, shape an epic's Release, or find a shared-environment rollout in acceptance.           | You only edit the checklist of an already typed ticket.                    |

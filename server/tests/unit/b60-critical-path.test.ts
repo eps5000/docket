@@ -8,11 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { criticalPath, longestChain, nextReason } from '../../src/domain/critical-path.js';
 import { windowsOf } from '../../src/domain/model.js';
 import type { Actor } from '../../src/domain/write.js';
-import {
-  startDomain,
-  withoutRelease,
-  type Domain,
-} from '../us1-helpers.js';
+import { startDomain, withoutRelease, type Domain } from '../us1-helpers.js';
 
 /** `edges` as blocker → blocked. */
 function graph(edges: [string, string][]) {

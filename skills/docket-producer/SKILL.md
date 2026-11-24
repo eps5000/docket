@@ -41,7 +41,7 @@ Order work by the graph, not by ticket number or what looks interesting.
 - **What's stuck upstream:** `bottlenecks` names unowned Inbox or Planning tickets holding up real work. Shape or assign those first.
 - **The longest chain:** `dependency_subgraph { id, depth: 3 }` on the epic. The owner sees the same chain as the critical path on the Map. Move its first ticket.
 
-**An epic starts only when every ticket is at least Ready,** and **every open bug in the epic holds its release.** Before you claim, on `epic_not_ready`, `started unshaped`, `release held by bugs` or `no finish line`: read the epic-readiness reference.
+**An epic starts only when every ticket, including its mandatory Release, is at least Ready.** Exploration can run while the epic is still being shaped. On `epic_not_ready`, `started unshaped`, or a Release held by its gates, read the epic-readiness reference.
 
 **Start with what unlocks the most,** and prefer short, wide graphs to long chains.
 
@@ -122,17 +122,16 @@ When `get_digest` shows `paused`, or a claim returns `project_paused`:
 
 ## 12. Close the epic
 
-1. **Account for every story and bug.** With `search_items { project, epic }`, confirm each intended story is Done, or was deliberately moved (`update_item { epic }`) or canceled with a reason, and that no partial exit is left unresolved. Docket won't close an epic with open children, nor its finish line with open bugs, nor with untriaged tickets added after it started (§8).
-2. **Verify the integrated result** as the project requires, against the epic's outcome and closing evidence. Tickets that each passed don't prove they work together. Attach the evidence with `link_artifact`.
-3. **Submit an owner review when one is needed:** `declare_human_review` on the epic, `claim_lead` it, then `submit_packet` (see `docket-review-packet`). An approved packet closes the epic.
-4. **Record what was deferred** in a final `add_note`: what moved where, what's left and why.
-5. **With no review,** close it with `set_status { status: "done" }` if the project allows it. Otherwise say it's ready and stop.
+1. **Account for every ticket and bug.** With `search_items { project, epic }`, confirm each is Done or deliberately moved out or canceled with a reason. Resolve known gaps, partial exits and tickets added mid-epic.
+2. **Run the Release ticket.** It owns the integrated journeys, deploy, smoke test and evidence. Docket automatically makes it wait for all other tickets and refuses Review or Done while its gates fail. Read the release reference for the close path.
+3. **Record what was deferred** in a final `add_note`: what moved where, what's left and why. When the Release is Done, Docket closes the epic automatically.
 
 ## References
 
-| File                                                             | Read when                                                                                                                                  | Don't read when                                                               |
-| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
-| [`references/epic-readiness.md`](references/epic-readiness.md)   | Before you claim an epic, or the digest or a claim shows `epic_not_ready`, `started unshaped`, `release held by bugs` or `no finish line`. | The epic is running, every ticket is at least Ready and no bug is open in it. |
-| [`references/mid-epic-triage.md`](references/mid-epic-triage.md) | The digest lists a ticket under `added mid-flight`, or a new bug or story arrives in your running epic.                                    | Nothing was added to the epic since it started.                               |
-| [`references/partial-exits.md`](references/partial-exits.md)     | The digest shows `finished partly`, or an implementer reports a partial exit.                                                              | No partial exit is waiting.                                                   |
-| [`references/takeover.md`](references/takeover.md)               | You take over an epic from another session, or find a ticket held under another `producer` name.                                           | You started producing this epic yourself in this session.                     |
+| File                                                             | Read when                                                                                                                | Don't read when                                           |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------- |
+| [`references/epic-readiness.md`](references/epic-readiness.md)   | Before you claim an epic, or the digest or a claim shows `epic_not_ready`, `started unshaped` or a Release held by bugs. | The epic is running and its tickets are shaped.           |
+| [`references/mid-epic-triage.md`](references/mid-epic-triage.md) | The digest lists a ticket under `added mid-flight`, or a new bug or story arrives in your running epic.                  | Nothing was added to the epic since it started.           |
+| [`references/partial-exits.md`](references/partial-exits.md)     | The digest shows `finished partly`, or an implementer reports a partial exit.                                            | No partial exit is waiting.                               |
+| [`references/takeover.md`](references/takeover.md)               | You take over an epic from another session, or find a ticket held under another `producer` name.                         | You started producing this epic yourself in this session. |
+| [`references/release.md`](references/release.md)                 | You shape, dispatch or close the epic's Release, or it reports `release_gates`.                                          | The epic is still in ordinary ticket work.                |

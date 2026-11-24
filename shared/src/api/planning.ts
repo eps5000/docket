@@ -11,7 +11,7 @@ import { LIMITS, TEXT_LIMITS } from '../mcp/limits.js';
 import {
   decisionRecordSchema,
   itemSummarySchema,
-  itemTypeSchema,
+  itemTypeInputSchema,
   prioritySchema,
 } from '../mcp/types.js';
 import { expectedVersion, input, jsonResponse, noInput, ownerMutationOutput } from './common.js';
@@ -26,7 +26,7 @@ const itemResult = ownerMutationOutput({ item: itemSummarySchema });
 
 export const createItemBody = input({
   title: text(TEXT_LIMITS.title),
-  type: itemTypeSchema,
+  type: itemTypeInputSchema,
   project: projectKey,
   /** An Epic in the same project. */
   epic: itemId.optional(),
@@ -73,7 +73,7 @@ export const patchItemBody = input({
    */
   approve_gaps: z.literal(true).optional(),
   /** Decision 67: the type (an Epic stays an Epic); setting it clears an inferred mark. */
-  type: itemTypeSchema.optional(),
+  type: itemTypeInputSchema.optional(),
   /** Decision 67, Implementation only: the rollout marker. */
   rollout: z.boolean().optional(),
   /**

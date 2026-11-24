@@ -36,6 +36,8 @@ The project has its own rules: who moves work to Ready, when human review is nee
 
 **Check each acceptance item before you start.** Can this ticket alone do it? If one needs something outside it, clarify it first. `known gaps`, `finished partly:` or `release held:` in your context? Read the exit-reports reference.
 
+**Exploration or Release?** Read the ticket-types reference. A rollout is its own Implementation ticket; link dependents to it.
+
 Skip `whoami`: `claim_lead` returns your lease's expiry. Then, only if needed: `get_item { id }` when the context shows unread owner notes or an answered question (it delivers them **once**, so read them), and `get_review { id }` first when resuming work the owner sent back.
 
 ## 2. Plan
@@ -133,3 +135,4 @@ Don't edit installed files (this skill, its references, the Docket section of `A
 | [`references/waiting.md`](references/waiting.md)           | You park, wait on another item, a person or the coordinator, were parked by your coordinator, or hit `project_paused`.                                              | You can keep working, including while CI or tests run.                                                   |
 | [`references/asking.md`](references/asking.md)             | You think only the owner can decide something, or your open question is out of date.                                                                                | The choice is technical, reversible, inside an approved design or follows a decision.                    |
 | [`references/status-moves.md`](references/status-moves.md) | You move an item with `set_status` other than closing as done, or a move is refused.                                                                                | You close with `set_status { status: "done" }` after your checks pass, or hand off with `submit_packet`. |
+| [`references/ticket-types.md`](references/ticket-types.md) | Your item is Exploration, Design or Release, or an Implementation ticket marked as a rollout.                                                                       | Your item is an ordinary Implementation or Bug ticket.                                                   |
