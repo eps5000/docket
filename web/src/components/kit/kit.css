@@ -332,10 +332,6 @@
   background: var(--st-ready-soft);
   color: var(--st-ready-text);
 }
-.tl .st-progress {
-  background: var(--st-progress-soft);
-  color: var(--st-progress-text);
-}
 .tl .st-review {
   background: var(--st-review-soft);
   color: var(--st-review-text);
@@ -350,14 +346,26 @@
   border-color: color-mix(in srgb, var(--st-blocked) 35%, transparent);
 }
 /*
- * Decision 57: Queued is Ready work waiting its turn behind moving work. Calm, never red:
- * Ready's own tokens, told apart by a dashed edge here and hatching in bars (B47's palette
- * has no room for another colour), and always by its words.
+ * On its way (decisions 57 and 59): a state on its way to the next one wears that one's
+ * tokens, told apart by one pattern, a dashed edge on chips and hatching in bars, and always
+ * by its words. Queued is Ready work waiting its turn behind moving work (calm, never red);
+ * In progress is on its way to Done. `--way` is the colour it is on its way to.
  */
+.tl .st-queued,
+.tl .st-progress {
+  background: var(--way-soft);
+  color: var(--way-text);
+  border: 1px dashed color-mix(in srgb, var(--way) 60%, transparent);
+}
 .tl .st-queued {
-  background: var(--st-ready-soft);
-  color: var(--st-ready-text);
-  border: 1px dashed color-mix(in srgb, var(--st-ready) 60%, transparent);
+  --way: var(--st-ready);
+  --way-soft: var(--st-ready-soft);
+  --way-text: var(--st-ready-text);
+}
+.tl .st-progress {
+  --way: var(--st-done);
+  --way-soft: var(--st-done-soft);
+  --way-text: var(--st-done-text);
 }
 .tl .st-canceled {
   background: var(--st-canceled-soft);
@@ -1024,9 +1032,6 @@
 .tl .sb-ready {
   background: var(--st-ready);
 }
-.tl .sb-progress {
-  background: var(--st-progress);
-}
 .tl .sb-review {
   background: var(--st-review);
 }
@@ -1036,13 +1041,29 @@
 .tl .sb-blocked {
   background: var(--st-blocked);
 }
-/* Queued is hatched Ready, so it reads as Ready that waits, never as another status. */
+/*
+ * On its way (decisions 57 and 59): Queued is hatched Ready and In progress hatched Done, in
+ * one pattern, so each reads as on its way to the next status, never as another one.
+ */
+.tl .sb-queued,
+.tl .sb-progress {
+  background: repeating-linear-gradient(-45deg, var(--way) 0 2px, transparent 2px 4px);
+}
 .tl .sb-queued {
-  background: repeating-linear-gradient(-45deg, var(--st-ready) 0 2px, transparent 2px 4px);
+  --way: var(--st-ready);
+}
+.tl .sb-progress {
+  --way: var(--st-done);
 }
 /* Canceled is hatched, so it never reads as Inbox. */
 .tl .sb-canceled {
   background: repeating-linear-gradient(45deg, var(--st-canceled) 0 2px, transparent 2px 4px);
+}
+/* A hatched segment keeps at least one whole stripe and gap (one period is about 5.7px wide). */
+.tl .pbar .sb-queued,
+.tl .pbar .sb-progress,
+.tl .pbar .sb-canceled {
+  min-width: 8px;
 }
 
 /* ---------- decision row ---------- */

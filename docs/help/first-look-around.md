@@ -73,6 +73,10 @@ What's stuck and what needs you always show the situation now, even for an earli
 
 Every ticket and epic, as a board, a list, a map of dependencies, or a timeline. Use the filters to narrow it, and click a card to open the item. An item's tabs show its details, its checklist, what it waits on, and its activity.
 
+### Status colours
+
+Every chip, bar, column and card edge uses the same colours: Inbox gray, Planning violet, Ready blue, Review magenta, Done green, Blocked red and Canceled gray, struck through. Work that's **on its way** to the next status wears that status's colour with stripes (a dashed edge on a chip): **Queued** is Ready's blue, striped, and **In progress** is Done's green, striped. The words always say which, so you never need the colour to tell them apart.
+
 ### Filters on the Work page
 
 - **Quick filters:** **Active** (everything not done or canceled; what Work shows by default), **Startable**, **Waiting**, **Queued** (waiting its turn behind moving work), **Blocked** (the wait needs attention, and the chip says why) and **In progress**. Pick one; each shows how many items it holds.
