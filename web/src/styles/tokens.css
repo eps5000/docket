@@ -9,7 +9,8 @@
   --bad:#c22b2b; --bad-soft:#fdecec; --info:#1864ab; --info-soft:#e7f1fb;
   --violet:#6741d9; --violet-soft:#f0ebff; --gray-soft:#eef0f3;
   /* One status colour system (B47): solid (bars, edges), soft (chip fill), text (chip text). */
-  --st-inbox:#8a8c91;--st-inbox-soft:#eef0f3;--st-inbox-text:#474d58;--st-planning:#cf6a07;--st-planning-soft:#fdeedd;--st-planning-text:#8f4700;--st-ready:#0f65af;--st-ready-soft:#e3effa;--st-ready-text:#0f5a9c;--st-progress:#9d68fb;--st-progress-soft:#f0e9ff;--st-progress-text:#5f37c9;--st-review:#b51c6e;--st-review-soft:#fce6f1;--st-review-text:#a3155f;--st-done:#136c3f;--st-done-soft:#e3f4ea;--st-done-text:#136437;--st-blocked:#ad0707;--st-blocked-soft:#fdeaea;--st-blocked-text:#a30b0b;--st-canceled:#303337;--st-canceled-soft:#eceef1;--st-canceled-text:#555c68;
+  /* Decision 59: In progress has no tokens of its own; it is Done's, hatched (kit.css). */
+  --st-inbox:#8a8c91;--st-inbox-soft:#eef0f3;--st-inbox-text:#474d58;--st-planning:#9d68fb;--st-planning-soft:#f0e9ff;--st-planning-text:#5f37c9;--st-ready:#0f65af;--st-ready-soft:#e3effa;--st-ready-text:#0f5a9c;--st-review:#b51c6e;--st-review-soft:#fce6f1;--st-review-text:#a3155f;--st-done:#136c3f;--st-done-soft:#e3f4ea;--st-done-text:#136437;--st-blocked:#ad0707;--st-blocked-soft:#fdeaea;--st-blocked-text:#a30b0b;--st-canceled:#303337;--st-canceled-soft:#eceef1;--st-canceled-text:#555c68;
   --t-epic:#7b2fa3; --t-story:#2b7a3b; --t-task:#1c64b9; --t-bug:#c92a2a; --t-fg:#fff;
   --shadow:0 12px 40px rgba(20,25,35,.18);
   --mono:ui-monospace,"Cascadia Code","JetBrains Mono",Consolas,monospace;
@@ -20,7 +21,7 @@
   --bg:#0f1115;--panel:#161920;--panel-2:#1c2029;--line:#2a303b;--line-2:#363d4a;--ctl:#6f788a;
   --ink:#e6e9ef;--ink-2:#b8c0cc;--ink-3:#99a2b4;--on-fill:#0f1115;
   --brand:#8ea2ff;--brand-soft:#1d2440;--ok:#5bd06f;--ok-soft:#14281a;--warn:#f0a020;--warn-soft:#2d2210;
-  --bad:#ff7b7b;--bad-soft:#351818;--info:#5cb3f8;--info-soft:#132536;--violet:#a990ff;--violet-soft:#241c3e;--gray-soft:#23272f;--st-inbox:#c5c7ce;--st-inbox-soft:#23272f;--st-inbox-text:#c5c7ce;--st-planning:#f8a60d;--st-planning-soft:#33240c;--st-planning-text:#f8b13a;--st-ready:#35c3fc;--st-ready-soft:#0f2a3c;--st-ready-text:#6fd3fd;--st-progress:#7361ff;--st-progress-soft:#221d45;--st-progress-text:#b1a6ff;--st-review:#ea509e;--st-review-soft:#3a1428;--st-review-text:#ff85b8;--st-done:#5befa0;--st-done-soft:#0f2d20;--st-done-text:#6ff0ac;--st-blocked:#e0503c;--st-blocked-soft:#3a1718;--st-blocked-text:#ff8b8b;--st-canceled:#727070;--st-canceled-soft:#1f2228;--st-canceled-text:#a6abb5;--t-epic:#d197f0;--t-story:#6fd384;--t-task:#74b8f7;--t-bug:#ff8a8a;--t-fg:#0f1115;
+  --bad:#ff7b7b;--bad-soft:#351818;--info:#5cb3f8;--info-soft:#132536;--violet:#a990ff;--violet-soft:#241c3e;--gray-soft:#23272f;--st-inbox:#c5c7ce;--st-inbox-soft:#23272f;--st-inbox-text:#c5c7ce;--st-planning:#7361ff;--st-planning-soft:#221d45;--st-planning-text:#b1a6ff;--st-ready:#35c3fc;--st-ready-soft:#0f2a3c;--st-ready-text:#6fd3fd;--st-review:#ea509e;--st-review-soft:#3a1428;--st-review-text:#ff85b8;--st-done:#5befa0;--st-done-soft:#0f2d20;--st-done-text:#6ff0ac;--st-blocked:#e0503c;--st-blocked-soft:#3a1718;--st-blocked-text:#ff8b8b;--st-canceled:#727070;--st-canceled-soft:#1f2228;--st-canceled-text:#a6abb5;--t-epic:#d197f0;--t-story:#6fd384;--t-task:#74b8f7;--t-bug:#ff8a8a;--t-fg:#0f1115;
   --shadow:0 12px 40px rgba(0,0,0,.5); color-scheme:dark;
 }
 @media (prefers-color-scheme:dark){
@@ -28,7 +29,7 @@
     --bg:#0f1115;--panel:#161920;--panel-2:#1c2029;--line:#2a303b;--line-2:#363d4a;--ctl:#6f788a;
     --ink:#e6e9ef;--ink-2:#b8c0cc;--ink-3:#99a2b4;--on-fill:#0f1115;
     --brand:#8ea2ff;--brand-soft:#1d2440;--ok:#5bd06f;--ok-soft:#14281a;--warn:#f0a020;--warn-soft:#2d2210;
-    --bad:#ff7b7b;--bad-soft:#351818;--info:#5cb3f8;--info-soft:#132536;--violet:#a990ff;--violet-soft:#241c3e;--gray-soft:#23272f;--st-inbox:#c5c7ce;--st-inbox-soft:#23272f;--st-inbox-text:#c5c7ce;--st-planning:#f8a60d;--st-planning-soft:#33240c;--st-planning-text:#f8b13a;--st-ready:#35c3fc;--st-ready-soft:#0f2a3c;--st-ready-text:#6fd3fd;--st-progress:#7361ff;--st-progress-soft:#221d45;--st-progress-text:#b1a6ff;--st-review:#ea509e;--st-review-soft:#3a1428;--st-review-text:#ff85b8;--st-done:#5befa0;--st-done-soft:#0f2d20;--st-done-text:#6ff0ac;--st-blocked:#e0503c;--st-blocked-soft:#3a1718;--st-blocked-text:#ff8b8b;--st-canceled:#727070;--st-canceled-soft:#1f2228;--st-canceled-text:#a6abb5;--t-epic:#d197f0;--t-story:#6fd384;--t-task:#74b8f7;--t-bug:#ff8a8a;--t-fg:#0f1115;
+    --bad:#ff7b7b;--bad-soft:#351818;--info:#5cb3f8;--info-soft:#132536;--violet:#a990ff;--violet-soft:#241c3e;--gray-soft:#23272f;--st-inbox:#c5c7ce;--st-inbox-soft:#23272f;--st-inbox-text:#c5c7ce;--st-planning:#7361ff;--st-planning-soft:#221d45;--st-planning-text:#b1a6ff;--st-ready:#35c3fc;--st-ready-soft:#0f2a3c;--st-ready-text:#6fd3fd;--st-review:#ea509e;--st-review-soft:#3a1428;--st-review-text:#ff85b8;--st-done:#5befa0;--st-done-soft:#0f2d20;--st-done-text:#6ff0ac;--st-blocked:#e0503c;--st-blocked-soft:#3a1718;--st-blocked-text:#ff8b8b;--st-canceled:#727070;--st-canceled-soft:#1f2228;--st-canceled-text:#a6abb5;--t-epic:#d197f0;--t-story:#6fd384;--t-task:#74b8f7;--t-bug:#ff8a8a;--t-fg:#0f1115;
     --shadow:0 12px 40px rgba(0,0,0,.5); color-scheme:dark;
   }
 }

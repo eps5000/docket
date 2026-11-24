@@ -227,9 +227,9 @@ These follow the familiar Jira convention for quick recognition. The icon on its
 | Status | Colour |
 | --- | --- |
 | Inbox | gray |
-| Planning | orange |
+| Planning | violet |
 | Ready | blue |
-| In progress | violet |
+| In progress | Done's green, hatched (dashed on chips): on its way to Done (decision 59) |
 | Review | magenta |
 | Done | green |
 | Canceled | dark gray, hatched in bars |

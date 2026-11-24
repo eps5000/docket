@@ -737,6 +737,12 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T324 [US4] The `--st-queued` token, `WaitChip` on cards, the list, the item page and the epic's tickets, the Board's Waiting list, the Map bar, legend and cards, Overview's In flight card, the brief, Pick next epic and the critical path list.
 - [x] T325 [US4] Tests: each Blocked reason against Queued, chains, loops, canceled blockers, a held decision, a paused project, the nearest-blocker text, filters and counts agreeing across views, no colour-only status, e2e and axe in both themes at 1024 px and 1440 x 900 on stress data.
 
+## Phase 52: Status colours that show progress (owner decision 59)
+
+- [x] T326 [US2] Spec plus code in one PR: decision 59 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; UI_SPEC §5 and §6.2.1; UI_DESIGN; spec FR-325–FR-327 and SC-039; Help.
+- [x] T327 [US2] Planning takes the violet tokens; In progress drops its own and shares Queued's hatch and dash rule in Done's tokens; the Map's hatched In progress edge; the Board's column status rules; a minimum width for hatched bar segments.
+- [x] T328 [US2] Tests: the palette test over the seven own colours, the shared rule, contrast and minimum width, the retired orange; e2e and axe in both themes, with screenshots of the Board, Map, workload bars and chips at 1440 x 900 and 1024 px.
+
 ## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.
@@ -857,6 +863,7 @@ Open a PR titled "<Bn>: <phase name>" with the checkpoint evidence. Do not queue
 | 49 Pick next epic | B70 (decision 54) |
 | 50 Projects pull their own Docket updates | B72 (decision 56) |
 | 51 Queued instead of Blocked | B73 (decision 57) |
+| 52 Status colours that show progress | B75 (decision 59) |
 
 **Within a phase:** tests (failing) → services → replace stubs or fill handlers → fill screens → checkpoint.
 

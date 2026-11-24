@@ -66,11 +66,16 @@ export function BoardLayout({
       {(showCanceled ? [...BOARD_COLUMNS, CANCELED_COLUMN] : BOARD_COLUMNS).map(
         ({ status, note }) => {
           const cards = items.filter((i) => i.status === status);
+          // A status rule in the chip colours (decision 59: In progress is Done's, hatched).
+          // The heading says the status, so the rule is decoration.
           const head = (
-            <div className="colh">
-              <h2 className="colname">{STATUS_LABELS[status]}</h2>
-              <span>{cards.length}</span>
-            </div>
+            <>
+              <i className={`colrule sb-${status}`} aria-hidden="true" data-colrule={status} />
+              <div className="colh">
+                <h2 className="colname">{STATUS_LABELS[status]}</h2>
+                <span>{cards.length}</span>
+              </div>
+            </>
           );
           if (status === 'ready') {
             // Decision 48: the server says what can start, by the same rule agents get.

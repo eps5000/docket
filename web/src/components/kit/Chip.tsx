@@ -43,7 +43,11 @@ export function Chip({
   );
 }
 
-/** Work status (UI_SPEC §5): Inbox gray, Planning orange, Ready blue, In progress violet, Review magenta, Done green, Canceled dark gray struck through. */
+/**
+ * Work status (UI_SPEC §5): Inbox gray, Planning violet, Ready blue, In progress Done's green
+ * with a dashed edge (decision 59: on its way to Done, like Queued to Ready), Review magenta,
+ * Done green, Canceled dark gray struck through. The label always says which.
+ */
 export function StatusChip({ status }: { status: Status }) {
   return <span className={`chip st-${status}`}>{STATUS_LABELS[status]}</span>;
 }
