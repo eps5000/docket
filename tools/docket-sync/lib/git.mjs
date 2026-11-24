@@ -1,12 +1,14 @@
 /**
- * Read-only git on the host, for the worktrees source (owner decision 48; B68).
+ * Read-only git on the host, for the worktrees source (owner decision 48; B68)
+ * and the git source (B76).
  *
  * - No shell. `git` is resolved to a full path from absolute PATH entries and
  *   runs from its own folder with `-C <worktree>`. On Windows a program started
  *   by bare name is looked up in the working directory first, so a worktree
  *   holding its own `git.exe` must never be the working directory.
  * - The child gets a short allowlisted environment, so no `GIT_DIR`, trace or
- *   external-program setting from this process reaches it.
+ *   external-program setting from this process reaches it. A call may add only
+ *   the two object-folder settings a trial merge needs (`objects`).
  * - Nothing is written: `GIT_OPTIONAL_LOCKS=0`, no gc, no filesystem monitor,
  *   no signature checks, no pager, and no lazy fetch from a partial clone.
  * - `safe.directory` is left alone. Git's refusal of a folder someone else owns
@@ -96,7 +98,27 @@ export function findGit(env = process.env, platform = process.platform) {
 
 const UNKNOWN = Object.freeze({ status: null, stdout: '', count: 0, unknown: true });
 
-function run(exe, env, dir, args, { signal, timeoutMs = DEFAULT_TIMEOUT_MS, countNul = 0 } = {}) {
+/**
+ * The only settings a call may add (B76): a trial merge writes its trees into
+ * a throwaway object folder and reads the repository's objects through it.
+ */
+const OBJECT_ENV = ['GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES'];
+
+function withObjects(env, objects) {
+  if (!objects) return env;
+  const out = { ...env };
+  for (const key of OBJECT_ENV) if (typeof objects[key] === 'string') out[key] = objects[key];
+  return out;
+}
+
+function run(
+  exe,
+  baseEnv,
+  dir,
+  args,
+  { signal, timeoutMs = DEFAULT_TIMEOUT_MS, countNul = 0, objects } = {},
+) {
+  const env = withObjects(baseEnv, objects);
   return new Promise((resolve) => {
     if (signal?.aborted) {
       resolve(UNKNOWN);

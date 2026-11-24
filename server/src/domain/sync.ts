@@ -17,12 +17,14 @@ import {
   ToolError,
   findSecret,
   githubRecord,
+  hostGitRecord,
   hostWorktreeRecord,
   type GithubPrRecord,
   type GithubRecord,
   type GithubRepoRecord,
   type GithubSettingsResponse,
   type GithubState,
+  type HostGitRecord,
   type HostWorktreeRecord,
   type ItemGithubResponse,
   type ItemPr,
@@ -35,10 +37,14 @@ import type { Config } from '../config.js';
 import type { Db } from '../db/client.js';
 import type { ReadContext, ServiceDeps } from './contracts.js';
 import { keysInBranch, suggestedBranch } from './git-naming.js';
+import { applyHostGitRecords } from './host-git.js';
 import { applyHostRecords, hostProjects, hostRepoPath } from './host-worktrees.js';
+import { manifestRequest } from './install-main.js';
+import { activityRequest } from './run-activity.js';
+import { headRequest } from './worktree-check.js';
 import { requireItem } from './model.js';
 import { branchLacksKey, projectGit } from './project-git.js';
-import { reportedBranches } from './radar.js';
+import { radarRequest, reportedBranches } from './radar.js';
 import { SYSTEM_ACTOR, type WriteContext, type WritePath } from './write.js';
 
 const GITHUB_SETTING = 'github_connection';
@@ -46,6 +52,8 @@ const STALE_MIN_MS = 15 * 60_000;
 const STALE_INTERVALS = 3;
 const TITLE_WITHHELD = 'Title withheld: it looks like it contains a secret';
 const BRANCH_WITHHELD = 'withheld';
+/** B76: a conflicting file whose name looks like a secret. */
+const FILE_WITHHELD = '(a file name withheld: it looks like it contains a secret)';
 const MAX_EVENT_OBJECTS = 50;
 
 export interface SyncService {
@@ -68,7 +76,7 @@ interface IngestCounts {
 
 /** What one source needs on this side. */
 interface SyncHandler<R> {
-  settings(db: Db, config: Config): Record<string, unknown>;
+  settings(db: Db, config: Config, now: string): Record<string, unknown>;
   /** The valid records, with secret-looking text withheld. Invalid ones are counted as ignored. */
   clean(records: readonly unknown[], known: readonly string[]): { records: R[]; dropped: number };
   ingest(w: WriteContext, records: readonly R[]): IngestCounts;
@@ -548,10 +556,99 @@ const worktreesHandler: SyncHandler<HostWorktreeRecord> = {
     applyHostRecords(previous, records, hostProjects(db), now),
 };
 
+/**
+ * B76: every git read Docket needs, made by the helper on the host. The
+ * settings say what to read; the facts are bookkeeping beside the source's
+ * status, like the worktree facts. A record naming a secret-looking branch is
+ * left out (so that read stays unknown), and a secret-looking conflicting file
+ * is withheld by name, so the count stays true.
+ */
+const gitHandler: SyncHandler<HostGitRecord> = {
+  settings(db, config, now) {
+    const commits = activityRequest(db, config, now);
+    const projects = hostProjects(db).flatMap((p) => {
+      const host_path = hostRepoPath(config, p.repo_path);
+      if (!host_path) return [];
+      return [
+        {
+          ...p,
+          host_path,
+          items: radarRequest(db, p.key),
+          commits: commits.get(p.key) ?? [],
+          heads: headRequest(db, p.key, now),
+          manifests: manifestRequest(),
+        },
+      ];
+    });
+    return { enabled: projects.length > 0, projects };
+  },
+
+  clean(raw, known) {
+    const records: HostGitRecord[] = [];
+    let dropped = 0;
+    const leaks = (s: string | null | undefined) => !!s && !!findSecret(s, { known });
+    const withheld = (files: string[]) => files.map((f) => (leaks(f) ? FILE_WITHHELD : f));
+    for (const entry of raw) {
+      const parsed = hostGitRecord.safeParse(entry);
+      if (
+        !parsed.success ||
+        !parsed.data.key.startsWith(
+          `${parsed.data.kind}:${parsed.data.project}:${parsed.data.pass_id}`,
+        )
+      ) {
+        dropped += 1;
+        continue;
+      }
+      const r = parsed.data;
+      switch (r.kind) {
+        case 'pass':
+          if (leaks(r.repo_path)) {
+            dropped += 1;
+            continue;
+          }
+          records.push({ ...r, checked_at: new Date(r.checked_at).toISOString() });
+          break;
+        case 'branch':
+          if (leaks(r.name)) dropped += 1;
+          else records.push({ ...r, files: withheld(r.files) });
+          break;
+        case 'pair':
+          if (leaks(r.a) || leaks(r.b)) dropped += 1;
+          else records.push({ ...r, files: withheld(r.files) });
+          break;
+        case 'item':
+          // Leaving one match out would change what discovery decides, so the item stays unknown.
+          if (r.matches.some(leaks)) dropped += 1;
+          else records.push(r);
+          break;
+        case 'commits':
+          if (leaks(r.branch)) dropped += 1;
+          else {
+            records.push({
+              ...r,
+              since: new Date(r.since).toISOString(),
+              commits: r.commits.map((c) => ({ ...c, at: new Date(c.at).toISOString() })),
+            });
+          }
+          break;
+        default:
+          records.push(r);
+      }
+    }
+    return { records, dropped };
+  },
+
+  ingest: (_w, records) => ({ accepted: records.length, changed: 0, ignored: 0 }),
+
+  detail: (db, records, previous, now) =>
+    applyHostGitRecords(previous, records, hostProjects(db), now),
+};
+
 /** One entry per source in `tools/docket-sync/sources/`. */
 const HANDLERS: Record<string, SyncHandler<never>> = {
   github: githubHandler as unknown as SyncHandler<never>,
   worktrees: worktreesHandler as unknown as SyncHandler<never>,
+  git: gitHandler as unknown as SyncHandler<never>,
 };
 
 const handlerOf = (name: string) => {
@@ -623,7 +720,7 @@ export function createSyncService(deps: ServiceDeps): SyncService {
       const row = sourceRow(r.db, name);
       return {
         name,
-        settings: handler.settings(r.db, deps.config),
+        settings: handler.settings(r.db, deps.config, r.now),
         status: {
           last_report_at: row?.last_report_at ?? null,
           last_success_at: row?.last_success_at ?? null,

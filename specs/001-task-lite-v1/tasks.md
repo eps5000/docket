@@ -756,11 +756,18 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T334 [US4] `components/ProgressMap/implied.ts`: the reduction over the drawn arrows (hard only behind hard, canceled tickets carry no chain, cycles and critical-path arrows always drawn), the *Hide implied links* switch with "n hidden" and `docket.mapHideImplied`, and the Dependencies tab's "Also implied through …" from the epic's map data.
 - [x] T335 [US4] Tests: a chain, a diamond, a cycle, hard behind soft, soft behind hard, a middle ticket removed or canceled, every connection kept; the switch's default, persistence and count; the item-page note; e2e and axe in both themes with screenshots at 1440 x 900 and 1024 px.
 
-## Phase 55: Fit fits the map's width (owner decision 63)
+## Phase 55: All git reading moves to the host helper (B76)
 
-- [x] T336 [US4] Spec plus code in one PR: decision 63 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; UI_SPEC §6.3.4 and §8; spec FR-338–FR-340 and SC-042; Help (Blocker rules and dependencies).
-- [x] T337 [US4] `components/ProgressMap`: `fitZoom` fits the width only (100% cap, 50% floor, rounded down), the **Fit width** button with its tooltip, back to the top left on Fit, a stable scrollbar gutter while fitted, and touch left to native scrolling.
-- [x] T338 [US4] Tests: a wide, tall, narrow and very wide map, the scroll position after Fit, wheel and keyboard scrolling, a mouse drag and a touch; e2e and axe in both themes with screenshots at 1440 x 900 and 1024 px.
+- [x] T336 [US18] Spec plus code in one PR: BUILD_SPEC §5.16, §5.21, §5.32, §5.35 and §5.39; UI_SPEC §6.3 and §6.7; Help (shared changes and conflicts, workspaces and pruning); the helper's README.
+- [x] T337 [US18] `tools/docket-sync/sources/git.mjs`: the radar's trial merges, branch discovery, commit activity, the worktree check and the install manifest on main, read-only and bounded, with conflicting file names as the only file names sent (capped). The runner takes a source's smaller `batchSize`; `manage.ps1` installs the file.
+- [x] T338 [US18] Docket runs no git: `domain/host-git.ts` stores the passes; the radar, `run-activity.ts`, `worktree-check.ts`, the worktree cleanup view and `install-main.ts` judge from the facts; `git-read.ts`, the container worktree scan and git in the image are gone. "Waiting for the host helper" and stale states on the radar card, the Git checks card and the Worktrees view; `repo_path` is a host path.
+- [x] T339 [US18] Tests: the helper on fixture repositories with linked worktrees (each read, `.git` hashed before and after, bounds, an incomplete pass, the file-name cap, no file names outside conflicts); the ingest of each fact, findings and clearing from facts, waiting and stale, both upgrade orders, a guard that `server/src` starts no child process; e2e and axe in both themes for the waiting and stale states.
+
+## Phase 56: Fit fits the map's width (owner decision 63)
+
+- [x] T340 [US4] Spec plus code in one PR: decision 63 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; UI_SPEC §6.3.4 and §8; spec FR-338–FR-340 and SC-042; Help (Blocker rules and dependencies).
+- [x] T341 [US4] `components/ProgressMap`: `fitZoom` fits the width only (100% cap, 50% floor, rounded down), the **Fit width** button with its tooltip, back to the top left on Fit, a stable scrollbar gutter while fitted, and touch left to native scrolling.
+- [x] T342 [US4] Tests: a wide, tall, narrow and very wide map, the scroll position after Fit, wheel and keyboard scrolling, a mouse drag and a touch; e2e and axe in both themes with screenshots at 1440 x 900 and 1024 px.
 
 ## How to run the build
 
@@ -884,6 +891,8 @@ Open a PR titled "<Bn>: <phase name>" with the checkpoint evidence. Do not queue
 | 51 Queued instead of Blocked | B73 (decision 57) |
 | 52 Status colours that show progress | B75 (decision 59) |
 | 53 An epic starts only when its tickets are ready | B74 (decision 58) |
+| 54 The dependency map hides implied links | B77 (decision 60) |
+| 55 All git reading moves to the host helper | B76 |
 
 **Within a phase:** tests (failing) → services → replace stubs or fill handlers → fill screens → checkpoint.
 

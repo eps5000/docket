@@ -47,8 +47,8 @@ import {
 } from './recovery-model.js';
 import { leadingItems } from './problems.js';
 import { treeKey } from './worktree-check.js';
-import { hostFactsFor, mergeHostFacts } from './host-worktrees.js';
-import { WorktreeScans, removeCommand, worktreeVerdict } from './worktree-cleanup.js';
+import { hostFactsFor, hostScanView } from './host-worktrees.js';
+import { removeCommand, worktreeVerdict } from './worktree-cleanup.js';
 import { atRiskOwner } from './worktree-owner.js';
 
 /** `recovery_report` looks back this far by default (MCP_SPEC §5.9). */
@@ -148,7 +148,6 @@ const byPriority = (items: Map<string, ItemRow>) => (a: RunRow, b: RunRow) => {
 export function createRecoveryService(deps: ServiceDeps): RecoveryService {
   const windows = () => windowsOf(deps.config);
   const reader = (r: ReadContext) => new RecoveryReader(r.db, windows(), r.now);
-  const worktreeScans = new WorktreeScans(deps.config, () => deps.clock().toISOString(), deps.log);
 
   /** The brief's text, byte for byte as stored; null if its file is gone. */
   function briefText(r: ReadContext, versionId: string): string | null {
@@ -430,23 +429,17 @@ export function createRecoveryService(deps: ServiceDeps): RecoveryService {
           rows: [],
         };
       }
-      const { scan, running } = worktreeScans.read(
-        project.key,
-        { path: project.repo_path, main: project.main_branch },
-        input.refresh === '1',
-      );
-      // B68: the host helper's facts where they're fresh, over the container's own read.
-      const merged = mergeHostFacts(
-        scan,
+      // B68, B76: Docket runs no git; every row comes from the host helper's facts.
+      const merged = hostScanView(
         hostFactsFor(r.db, { ...project, repo_path: project.repo_path }),
         r.now,
       );
       if (!merged || merged.trees.length === 0) {
         return {
           ...base,
-          repo: scan && scan.status !== 'ok' ? 'unreadable' : 'ok',
-          checked_at: scan?.checked_at ?? null,
-          scanning: running,
+          repo: 'ok',
+          checked_at: merged?.checked_at ?? null,
+          scanning: null,
           host: merged?.host ?? { state: 'none', checked_at: null },
           rows: [],
         };
@@ -510,14 +503,11 @@ export function createRecoveryService(deps: ServiceDeps): RecoveryService {
         ...base,
         repo: 'ok',
         checked_at: merged.checked_at,
-        scanning: running,
+        scanning: null,
         host: merged.host,
         rows,
       };
     },
-
-    worktreeScanSettled: (project) => worktreeScans.settled(project),
-    stopWorktreeScans: () => worktreeScans.stop(),
 
     ownerReleaseResource(w, input) {
       const row = w.get('run_resources', input.id) as unknown as ResourceRow | undefined;

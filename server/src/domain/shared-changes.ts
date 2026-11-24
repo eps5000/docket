@@ -108,8 +108,9 @@ import {
   planRadar,
   RadarRuns,
   recordRadar,
+  RADAR_OFF_NO_REPO,
   reportedBranches,
-  resolveRepoPath,
+  validateRepoPath,
   validBranch,
   writeBranches,
   type Reported,
@@ -128,6 +129,7 @@ import {
   type RunRow,
 } from './model.js';
 import { coordinatorOf } from './recovery-model.js';
+import { hostGitFactsFor, hostGitState } from './host-git.js';
 import type { InverseOp, WriteContext } from './write.js';
 import { explain, graceText } from './problems.js';
 
@@ -1740,15 +1742,30 @@ function radar(r: ReadContext, project: string): RadarResponse {
     radar_off_reason: string | null;
     radar_last_duration_ms: number | null;
   };
-  const off = p.repo_path === null ? 'Radar off: no repository' : p.radar_off_reason;
+  const off = p.repo_path === null ? RADAR_OFF_NO_REPO : p.radar_off_reason;
+  // B76: the radar judges only from the helper's facts, so their age decides the state.
+  const facts = hostGitFactsFor(db, { key: project, ...p });
+  const helper = hostGitState(facts, r.now);
   return {
     project,
     repo_path: p.repo_path,
     main_branch: p.main_branch,
-    state: off ? 'off' : p.radar_last_run_at ? 'ok' : 'idle',
+    state:
+      p.repo_path === null
+        ? 'off'
+        : helper === 'none'
+          ? 'waiting'
+          : helper === 'stale'
+            ? 'stale'
+            : off
+              ? 'off'
+              : p.radar_last_run_at
+                ? 'ok'
+                : 'idle',
     off_reason: off,
     last_run_at: p.radar_last_run_at,
     last_duration_ms: p.radar_last_duration_ms,
+    helper: { state: helper, checked_at: facts?.checked_at ?? null },
     findings: (
       db.sqlite
         .prepare(
@@ -2407,7 +2424,7 @@ export function createSharedChangesService(deps: ServiceDeps): SharedChangesServ
         .prepare('SELECT id, repo_path, main_branch FROM projects WHERE key = ?')
         .get(input.key) as { id: string; repo_path: string | null; main_branch: string };
       const repo = input.repo_path === null ? null : input.repo_path.trim();
-      if (repo !== null) resolveRepoPath(deps.config, repo);
+      if (repo !== null) validateRepoPath(deps.config, repo);
       const main = input.main_branch?.trim() ?? p.main_branch;
       if (!validBranch(main)) {
         throw new ToolError('validation', `"${main}" isn't a branch name git accepts.`, {

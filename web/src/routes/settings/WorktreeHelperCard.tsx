@@ -17,7 +17,7 @@ export const WORKTREE_HELPER_STATUS: Record<
   not_running: {
     kind: 'warn',
     label: 'Helper not running',
-    help: 'Until it reports, worktrees outside Docket’s folder show as Unknown. The steps below set it up or start it.',
+    help: 'Until it reports, worktrees show as Unknown. The steps below set it up or start it.',
   },
   ok: {
     kind: 'ok',
@@ -28,6 +28,33 @@ export const WORKTREE_HELPER_STATUS: Record<
     kind: 'warn',
     label: 'Out of date',
     help: 'The helper hasn’t reported lately, so the worktrees it read show as Unknown until it runs again.',
+  },
+  failed: {
+    kind: 'bad',
+    label: 'Last check failed',
+    help: 'Run the helper’s status command on this computer to see why. It tries again by itself.',
+  },
+};
+
+/** B76: the same states for the git source: the radar, branch discovery and commit activity. */
+export const GIT_HELPER_STATUS: Record<
+  WorktreeHelperState,
+  { kind: ChipKind; label: string; help: string }
+> = {
+  not_running: {
+    kind: 'warn',
+    label: 'Waiting for the host helper',
+    help: 'Until it reports, the conflict radar finds and clears nothing, and commit activity and unpushed work stay unverified. An older helper doesn’t read these yet: update it with the steps below.',
+  },
+  ok: {
+    kind: 'ok',
+    label: '✓ Up to date',
+    help: 'The helper reads branches, trial merges and commits every few minutes. It only reads. The only file names it sends are the files in a real conflict.',
+  },
+  stale: {
+    kind: 'warn',
+    label: 'Out of date',
+    help: 'The helper hasn’t reported lately, so the radar’s findings may be out of date and none clears until it runs again.',
   },
   failed: {
     kind: 'bad',
@@ -55,76 +82,105 @@ export function worktreeHelperState(
   return status.last_success_at ? 'ok' : 'not_running';
 }
 
+function SourceStatus({
+  data,
+  table,
+  attr,
+}: {
+  data: SyncSourceResponse;
+  table: typeof WORKTREE_HELPER_STATUS;
+  attr: 'data-worktree-helper' | 'data-git-helper';
+}) {
+  const state = worktreeHelperState(data.status);
+  const status = table[state];
+  const error = data.status.last_error;
+  return (
+    <dl className="kv" {...{ [attr]: state }}>
+      <dt>Status</dt>
+      <dd>
+        <Chip kind={status.kind}>{status.label}</Chip>
+        <div className="src">{status.help}</div>
+      </dd>
+      <dt>Last check</dt>
+      <dd>
+        {data.status.last_success_at ? (
+          <span title={isoTitle(data.status.last_success_at)}>
+            {formatAgo(data.status.last_success_at)}
+          </span>
+        ) : (
+          'Never'
+        )}
+      </dd>
+      {error && (
+        <>
+          <dt>Last error</dt>
+          <dd>{ERROR_TEXT[error] ?? `Error: ${error}`}</dd>
+        </>
+      )}
+    </dl>
+  );
+}
+
 /**
- * Settings → Connections → Worktree checks (owner decision 48; B68; UI_SPEC
- * §6.7): the helper reads worktrees that Docket's container can't reach.
+ * Settings → Connections → Git checks (owner decision 48; B68; B76; UI_SPEC
+ * §6.7): Docket runs no git, so the helper on this computer reads every
+ * worktree (the worktrees source) and everything else the radar and checks
+ * need (the git source).
  */
 export function WorktreeHelperCard() {
-  const query = useQuery({
+  // The helper's status is bookkeeping, with no event to refresh on.
+  const worktrees = useQuery({
     queryKey: queryKeys.syncSource('worktrees'),
     queryFn: () => apiClient['sync.source']({ params: { source: 'worktrees' } }),
-    // The helper's status is bookkeeping, with no event to refresh on.
     refetchInterval: 60_000,
   });
+  const git = useQuery({
+    queryKey: queryKeys.syncSource('git'),
+    queryFn: () => apiClient['sync.source']({ params: { source: 'git' } }),
+    refetchInterval: 60_000,
+  });
+  const states = [worktrees.data, git.data]
+    .filter((d): d is SyncSourceResponse => !!d)
+    .map((d) => worktreeHelperState(d.status));
   return (
     <Card padded data-card="worktree-helper">
-      <h3 id="settings-worktree-helper">Worktree checks</h3>
+      <h3 id="settings-worktree-helper">Git checks</h3>
       <p className="src" style={{ marginTop: 4 }}>
-        The same helper reads your worktrees on this computer, so Docket can tell what each one
-        holds. Docket still never removes a worktree.
+        Docket runs no git itself. The helper on this computer reads your repositories, only
+        reading, so Docket can tell what each worktree holds and which branches are heading for a
+        conflict. Docket still never removes a worktree.
       </p>
+      <h4 className="github-h4">Worktrees</h4>
       <QueryState
-        query={query}
+        query={worktrees}
         skeleton={<Skeleton lines={2} label="Loading the worktree helper’s status" />}
       >
-        {(d) => {
-          const state = worktreeHelperState(d.status);
-          const status = WORKTREE_HELPER_STATUS[state];
-          const error = d.status.last_error;
-          return (
-            <>
-              <dl className="kv" data-worktree-helper={state}>
-                <dt>Status</dt>
-                <dd>
-                  <Chip kind={status.kind}>{status.label}</Chip>
-                  <div className="src">{status.help}</div>
-                </dd>
-                <dt>Last check</dt>
-                <dd>
-                  {d.status.last_success_at ? (
-                    <span title={isoTitle(d.status.last_success_at)}>
-                      {formatAgo(d.status.last_success_at)}
-                    </span>
-                  ) : (
-                    'Never'
-                  )}
-                </dd>
-                {error && (
-                  <>
-                    <dt>Last error</dt>
-                    <dd>{ERROR_TEXT[error] ?? `Error: ${error}`}</dd>
-                  </>
-                )}
-              </dl>
-              {state !== 'ok' && (
-                <div data-worktree-helper-steps>
-                  <h4 className="github-h4">Start the helper</h4>
-                  <ol className="github-steps">
-                    {HELPER_STEPS.map((step) => (
-                      <li key={step.code}>
-                        {step.text}
-                        <pre className="code" tabIndex={0} aria-label={step.text}>
-                          {step.code}
-                        </pre>
-                      </li>
-                    ))}
-                  </ol>
-                </div>
-              )}
-            </>
-          );
-        }}
+        {(d) => (
+          <SourceStatus data={d} table={WORKTREE_HELPER_STATUS} attr="data-worktree-helper" />
+        )}
       </QueryState>
+      <h4 className="github-h4">Conflict radar, branches and commits</h4>
+      <QueryState
+        query={git}
+        skeleton={<Skeleton lines={2} label="Loading the git helper’s status" />}
+      >
+        {(d) => <SourceStatus data={d} table={GIT_HELPER_STATUS} attr="data-git-helper" />}
+      </QueryState>
+      {states.length === 2 && states.some((s) => s !== 'ok') && (
+        <div data-worktree-helper-steps>
+          <h4 className="github-h4">Start or update the helper</h4>
+          <ol className="github-steps">
+            {HELPER_STEPS.map((step) => (
+              <li key={step.code}>
+                {step.text}
+                <pre className="code" tabIndex={0} aria-label={step.text}>
+                  {step.code}
+                </pre>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
     </Card>
   );
 }

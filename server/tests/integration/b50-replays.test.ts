@@ -16,6 +16,7 @@ import { callTool } from '../../src/mcp/register.js';
 import { TOOL_HANDLERS } from '../../src/mcp/tools/index.js';
 import { git, makeRadarRepo, type RadarRepo } from '../fixtures/radar-repo.js';
 import { tempDir, type TempDir } from '../helpers.js';
+import { hostGitPass } from '../host-git.js';
 import { minutes, startDomain, type Domain } from '../us1-helpers.js';
 
 const HAS_GIT = spawnSync('git', ['--version'], { windowsHide: true }).status === 0;
@@ -31,10 +32,11 @@ beforeEach(() => {
   if (!HAS_GIT) return;
   repo = makeRadarRepo(tmp.dir);
   // The clock starts after the fixture's own commits, so only the replay's commits are new.
-  d = startDomain({ env: { DOCKET_PUSH_ROOT: tmp.dir }, now: new Date(Date.now() + minutes(5)) });
+  d = startDomain({ now: new Date(Date.now() + minutes(5)) });
+  // B76: the helper on the host reads the repository; Docket needs no push folder.
   d.sql
-    .prepare("UPDATE projects SET repo_path = 'recipe-app', main_branch = 'main' WHERE key = 'RCP'")
-    .run();
+    .prepare("UPDATE projects SET repo_path = ?, main_branch = 'main' WHERE key = 'RCP'")
+    .run(repo.repo);
   worker = d.agent('claude', { label: 'worker-1' });
 });
 afterEach(async () => {
@@ -42,11 +44,15 @@ afterEach(async () => {
   rmSync(tmp.dir, { recursive: true, force: true });
 });
 
-/** The check Docket runs every two minutes. Absent before B50. */
-const activityCheck = async () =>
-  (await (
-    sweeper as unknown as { runActivityOnce?: (r: unknown) => Promise<string[]> }
-  ).runActivityOnce?.(d.server.runtime)) ?? [];
+/** The check Docket runs every two minutes, after the helper's latest pass. Absent before B50. */
+const activityCheck = async () => {
+  await hostGitPass(d.server, { home: tmp.dir });
+  return (
+    (await (
+      sweeper as unknown as { runActivityOnce?: (r: unknown) => Promise<string[]> }
+    ).runActivityOnce?.(d.server.runtime)) ?? []
+  );
+};
 
 /** A commit on a branch, dated by the test clock. */
 function commitAt(branch: 'feat/a', message: string) {

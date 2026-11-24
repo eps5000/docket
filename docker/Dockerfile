@@ -39,11 +39,7 @@ FROM ${NODE_IMAGE} AS runtime
 # TASKLITE_PORT still works until it is renamed (B28).
 ENV NODE_ENV=production
 
-# git for the conflict radar (decision 36; BUILD_SPEC §5.21): read-only trial merges with
-# `git merge-tree`. No recommended packages, and no apt lists left behind.
-RUN apt-get update \
- && apt-get install -y --no-install-recommends git \
- && rm -rf /var/lib/apt/lists/*
+# No git (B76; BUILD_SPEC §5.35): every git read is made by the helper on the host.
 
 RUN groupadd --system --gid 10001 docket \
  && useradd --system --uid 10001 --gid docket --home-dir /app --no-create-home \
