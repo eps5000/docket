@@ -115,6 +115,7 @@ import {
 import { parseQuestionForm } from './question-form.js';
 import { epicWaits } from './epic-picks.js';
 import { epicReadiness, readinessOf, unshapedByEpic } from './epic-readiness.js';
+import { finishLineOf, finishLines, releaseHoldOf } from './finish-line.js';
 import { producersByItem, storedActivity, storedStatusUpdate } from './run-activity.js';
 import { WaitReader, openWaitFlags, waitCoordinator } from './wait.js';
 import { UNDO_WINDOW_MS } from './undo.js';
@@ -1596,9 +1597,15 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         r.db,
         epicRows.map((e) => e.id),
       );
+      // Decision 64: each open epic's finish line and open bugs.
+      const lines = finishLines(
+        r.db,
+        epicRows.filter((e) => e.status !== 'done' && e.status !== 'canceled').map((e) => e.id),
+      );
       const epics: EpicCard[] = summarize(ctx, epicRows).map((e) => {
         const kids = children.get(e.id) ?? [];
         const readiness = readinessOf(e, unshaped.get(e.id));
+        const line = lines.get(e.id);
         const by_status: EpicCard['children']['by_status'] = {};
         for (const k of kids) by_status[k.status] = (by_status[k.status] ?? 0) + 1;
         return {
@@ -1612,6 +1619,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
           },
           ...(waits.has(e.id) ? { waits_on: waits.get(e.id)! } : {}),
           ...(readiness ? { readiness } : {}),
+          ...(line ? { release: { finish_line: line.id, open_bugs: line.open_bugs.length } } : {}),
         };
       });
 
@@ -1825,6 +1833,12 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
       const epicWait =
         row.type === 'Epic' ? epicWaits(r.db, index, [row.id]).get(row.id) : undefined;
       const epicReady = epicReadiness(r.db, row);
+      // Decision 64: an open epic's finish line, or a finish line's open bugs.
+      const finishLine =
+        row.type === 'Epic' && row.status !== 'done' && row.status !== 'canceled'
+          ? finishLineOf(r.db, row.id)
+          : undefined;
+      const releaseHold = releaseHoldOf(r.db, row);
       return {
         item,
         children,
@@ -1848,6 +1862,8 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
         ...(epicWait ? { epic_waits: epicWait } : {}),
         ...(itemWait ? { item_wait: itemWait } : {}),
         ...(epicReady ? { epic_readiness: epicReady } : {}),
+        ...(finishLine ? { finish_line: finishLine } : {}),
+        ...(releaseHold ? { release_hold: releaseHold } : {}),
       };
     },
 

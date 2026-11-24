@@ -510,6 +510,8 @@ export interface ItemRow {
   split_from: string | null;
   /** Decision 58: the stored known gaps (JSON text), or null. */
   known_gaps?: string | null;
+  /** Decision 64, on an epic: the marked finish line, or null. */
+  finish_line?: string | null;
   jira_key: string | null;
   /** 1 when the Jira import created it (SQLite boolean). */
   imported?: number | boolean;

@@ -553,7 +553,7 @@
   },
   {
     "name": "get_changes",
-    "description": "Read changes since a cursor instead of re-reading items. Without a cursor, returns the latest cursor; then pass next_cursor. Watch for review.decided, question.answered and owner_note.added on your items. To wait, run the installed docket-wait script, which costs no tokens. Without a shell, pass wait_s (at most 45) to hold this call. Never poll in a sleep loop.",
+    "description": "Read changes since a cursor. Without a cursor, returns the latest cursor; then pass next_cursor. Watch for review.decided, question.answered and owner_note.added on your items. To wait, run the installed docket-wait script, which costs no tokens. Without a shell, pass wait_s (at most 45) to hold this call. Never poll in a sleep loop.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -624,7 +624,7 @@
   },
   {
     "name": "get_digest",
-    "description": "One compact snapshot for coordinators, instead of many reads: what to start next, bottlenecks, ready items, running, stale and parked runs (resume_ready flagged), blocked items and why, what waits on the owner, agent-actionable problems, leases, conflicts ahead, and the change cursor. Pass cursor for only what changed since then. Read-only.",
+    "description": "One compact snapshot for coordinators: what to start next, bottlenecks, ready items, running, stale and parked runs (resume_ready flagged), blocked items and why, what waits on the owner, agent-actionable problems, leases, conflicts ahead, and the change cursor. Pass cursor for only what changed since then. Read-only.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -695,6 +695,9 @@
               "type": "object"
             },
             "unshaped_epics": {
+              "type": "object"
+            },
+            "release_bugs": {
               "type": "object"
             }
           },
@@ -1057,6 +1060,16 @@
             ],
             "additionalProperties": false
           }
+        },
+        "finish_line": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "run_id": {
           "type": "string"
@@ -2274,7 +2287,7 @@
   },
   {
     "name": "set_plan",
-    "description": "Publish or revise your plan as one-line steps, optionally with details (Markdown) and a source such as a Jira key. Patches by default: steps with an id are updated, others added, and nothing is removed unless listed in remove. mode 'replace' restates the plan. Owner-added steps are always kept; on Jira-imported steps you may only add details. Revisions are kept.",
+    "description": "Publish or revise your plan as one-line steps, optionally with details (Markdown) and a source such as a Jira key. Patches by default: steps with an id are updated, others added, and nothing is removed unless listed in remove. mode 'replace' restates the plan. Owner-added steps are always kept; on Jira-imported steps you may only add details.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -4355,7 +4368,7 @@
   },
   {
     "name": "declare_shared_changes",
-    "description": "Declare the shared parts this item will change (tables, models, endpoints, shared files), each with add, change or remove and a short note, or none: true. Required before Ready. Each call replaces the whole declaration. Use keys from list_shared_parts; register a missing one with new_parts. Name the member when you can (model:Token.expiresAt): different members run in parallel; a bare part is sequenced. Set design_impact: changes_approved_design with a design_note when it alters an approved design: this item pauses until the owner approves. Set disputed: true when agents disagree who owns a part. branches (or branch) replace the reported ones; [] clears them. Returns in-flight items on the same parts, each with outcome parallel, sequence or owner.",
+    "description": "Declare the shared parts this item will change (tables, models, endpoints, shared files), each with add, change or remove and a short note, or none: true. Required before Ready. Each call replaces it. Use keys from list_shared_parts; register a missing one with new_parts. Name the member when you can (model:Token.expiresAt): different members run in parallel; a bare part is sequenced. Set design_impact: changes_approved_design with a design_note when it alters an approved design: this item pauses until the owner approves. Set disputed: true when agents disagree who owns a part. branches (or branch) replace the reported ones; [] clears them. Returns in-flight items on the same parts, each with outcome parallel, sequence or owner.",
     "inputSchema": {
       "type": "object",
       "properties": {

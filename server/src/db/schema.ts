@@ -265,6 +265,13 @@ export const items = sqliteTable(
      * current gaps; changing a gap or moving it back to Planning clears it.
      */
     known_gaps: text('known_gaps', { mode: 'json' }),
+    /**
+     * Decision 64 (B81), on an epic: the ticket the producer or the owner
+     * marked as its finish line (release ticket), when the links don't settle
+     * it. Null means it's found from the links. Ignored once that ticket is
+     * no longer an open-or-done, non-bug ticket in the epic.
+     */
+    finish_line: text('finish_line'),
     version: version(),
     ...timestamps,
   },

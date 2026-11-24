@@ -3402,6 +3402,49 @@
             ],
             "additionalProperties": false
           },
+          "release_hold": {
+            "type": "object",
+            "properties": {
+              "epic": {
+                "type": "string"
+              },
+              "open_bugs": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "inbox",
+                        "planning",
+                        "ready",
+                        "progress",
+                        "review"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "title",
+                    "status"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "epic",
+              "open_bugs"
+            ],
+            "additionalProperties": false
+          },
           "waiting_runs": {
             "type": "object",
             "properties": {
@@ -4610,6 +4653,48 @@
                 "id",
                 "title",
                 "unshaped"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "total",
+          "rows"
+        ],
+        "additionalProperties": false
+      },
+      "release_bugs": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "epic": {
+                  "type": "string"
+                },
+                "finish_line": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "bugs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "epic",
+                "finish_line",
+                "bugs"
               ],
               "additionalProperties": false
             }

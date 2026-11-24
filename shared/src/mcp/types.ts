@@ -8,6 +8,7 @@ import { questionChoiceSchema } from './question-form.js';
 import { contextSharedSchema } from './shared-changes.js';
 import { WAIT_KINDS } from '../wait-kind.js';
 import { knownGapsSchema } from '../epic-readiness.js';
+import { releaseHoldSchema } from '../finish-line.js';
 import {
   ADDED_BY,
   CHECK_STATES,
@@ -671,6 +672,11 @@ export const contextBundleSchema = z.object({
    * with the essentials and never cut.
    */
   known_gaps: knownGapsSchema.optional(),
+  /**
+   * Decision 64: on its epic's finish line, the open bugs in the epic that
+   * hold it back from Review and Done. Never cut.
+   */
+  release_hold: releaseHoldSchema.optional(),
   /** Decision 45: parked runs this item would unblock, at most `WAIT_FLAGS.context_waiters`. */
   waiting_runs: z.object({ total: z.number().int(), rows: z.array(waitingRunSchema) }).optional(),
   problems: z

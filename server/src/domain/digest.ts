@@ -28,6 +28,7 @@ import { pausedForCoordinators, projectPause } from './project-pause.js';
 import { WaitReader, digestWait } from './wait.js';
 import { waitKindsOf } from './wait-kind.js';
 import { unshapedByEpic } from './epic-readiness.js';
+import { finishLines } from './finish-line.js';
 
 export interface DigestService {
   get(r: ReadContext, input: ToolInput<'get_digest'>): Digest;
@@ -159,6 +160,29 @@ function startedUnshaped(
     .filter((e) => (byEpic.get(e.id)?.length ?? 0) > 0)
     .sort((a, b) => a.priority - b.priority || a.id.localeCompare(b.id))
     .map((e) => ({ id: e.id, title: e.title, unshaped: byEpic.get(e.id)!.map((t) => t.id) }));
+}
+
+/** Decision 64: open epics with open bugs, and the finish line those bugs hold. */
+function releaseBugs(r: ReadContext, project: string): NonNullable<Digest['release_bugs']>['rows'] {
+  const epics = r.db.sqlite
+    .prepare(
+      `SELECT id, priority FROM items
+       WHERE project_key = ? AND type = 'Epic' AND archived_at IS NULL
+         AND status NOT IN ('done', 'canceled')`,
+    )
+    .all(project) as { id: string; priority: number }[];
+  if (epics.length === 0) return [];
+  const lines = finishLines(
+    r.db,
+    epics.map((e) => e.id),
+  );
+  return epics
+    .filter((e) => (lines.get(e.id)?.open_bugs.length ?? 0) > 0)
+    .sort((a, b) => a.priority - b.priority || a.id.localeCompare(b.id))
+    .map((e) => {
+      const line = lines.get(e.id)!;
+      return { epic: e.id, finish_line: line.id, bugs: line.open_bugs.map((b) => b.id) };
+    });
 }
 
 export function createDigestService(deps: ServiceDeps): DigestService {
@@ -313,6 +337,14 @@ export function createDigestService(deps: ServiceDeps): DigestService {
       const unshaped = startedUnshaped(r, input.project).filter(
         (x) => since === null || keep(x.id) || x.unshaped.some((t) => keep(t)),
       );
+      // Decision 64: the open bugs holding each epic's release.
+      const held = releaseBugs(r, input.project).filter(
+        (x) =>
+          since === null ||
+          keep(x.epic) ||
+          (x.finish_line !== null && keep(x.finish_line)) ||
+          x.bugs.some((b) => keep(b)),
+      );
       // Decision 56: on a full snapshot only, so a repeated digest stays small.
       const update =
         since === null
@@ -325,6 +357,7 @@ export function createDigestService(deps: ServiceDeps): DigestService {
         ...(unshaped.length > 0
           ? { unshaped_epics: section(unshaped, DIGEST_CAPS.unshaped_epics) }
           : {}),
+        ...(held.length > 0 ? { release_bugs: section(held, DIGEST_CAPS.release_bugs) } : {}),
         cursor: String(latest),
         since: since === null ? null : String(since),
         next_work: section(
